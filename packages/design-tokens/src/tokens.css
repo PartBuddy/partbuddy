@@ -1,0 +1,206 @@
+/*
+ * CAD-Studio design tokens. The only source of colours, spacing, type, radii, elevation and
+ * motion values for the UI. Components reference these variables, never literal values.
+ *
+ * Grid: 4 px base unit; layout steps use multiples of 8 px.
+ * Themes: light is the default; dark applies via [data-theme="dark"] or the system preference
+ * when no explicit theme is set.
+ */
+
+:root {
+  /* Space (4 px grid) */
+  --cs-space-0: 0;
+  --cs-space-1: 4px;
+  --cs-space-2: 8px;
+  --cs-space-3: 12px;
+  --cs-space-4: 16px;
+  --cs-space-5: 24px;
+  --cs-space-6: 32px;
+  --cs-space-7: 48px;
+
+  /* Control sizes */
+  --cs-control-sm: 24px;
+  --cs-control-md: 28px;
+  --cs-control-lg: 32px;
+  --cs-row-height: 28px;
+  --cs-titlebar-height: 40px;
+  --cs-statusbar-height: 24px;
+
+  /* Component sizes */
+  --cs-size-hairline: 1px;
+  --cs-size-dot: 8px;
+  --cs-size-icon: 16px;
+  --cs-size-icon-sm: 14px;
+  --cs-size-pin: 24px;
+  --cs-size-progress: 64px;
+  --cs-size-field-number: 96px;
+  --cs-size-index-column: 24px;
+  --cs-size-menu: 240px;
+  --cs-size-menu-max-height: 70vh;
+  --cs-size-text-max: 320px;
+  --cs-size-chat-max: 560px;
+  --cs-size-dialog-sm: 420px;
+  --cs-size-dialog-lg: 640px;
+  --cs-size-dialog-offset: 12vh;
+
+  /* Typography: native Windows UI fonts, no bundled webfonts */
+  --cs-font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --cs-font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --cs-font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --cs-text-xs: 11px;
+  --cs-text-sm: 12px;
+  --cs-text-md: 13px;
+  --cs-text-lg: 15px;
+  --cs-text-xl: 18px;
+  --cs-leading-tight: 16px;
+  --cs-leading-normal: 20px;
+  --cs-leading-relaxed: 22px;
+  --cs-weight-regular: 400;
+  --cs-weight-medium: 500;
+  --cs-weight-semibold: 600;
+
+  /* Radii */
+  --cs-radius-sm: 3px;
+  --cs-radius-md: 5px;
+  --cs-radius-lg: 8px;
+  --cs-radius-full: 999px;
+
+  /* Borders and focus */
+  --cs-border-width: 1px;
+  --cs-focus-width: 2px;
+  --cs-focus-offset: 1px;
+
+  /* Motion */
+  --cs-duration-fast: 90ms;
+  --cs-duration-normal: 160ms;
+  --cs-duration-slow: 1200ms;
+  --cs-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Light theme colours */
+  color-scheme: light;
+  --cs-color-canvas: #f3f4f6;
+  --cs-color-surface: #ffffff;
+  --cs-color-surface-sunken: #eceef1;
+  --cs-color-surface-raised: #ffffff;
+  --cs-color-surface-hover: #e8ebef;
+  --cs-color-surface-selected: #dde8fb;
+  --cs-color-border: #d5d9df;
+  --cs-color-border-strong: #878f99;
+  --cs-color-text: #1b1f24;
+  --cs-color-text-muted: #545c66;
+  --cs-color-text-subtle: #6a727c;
+  --cs-color-text-on-accent: #ffffff;
+  --cs-color-accent: #1f5fd1;
+  --cs-color-accent-hover: #1a52b6;
+  --cs-color-accent-text: #1f5fd1;
+  --cs-color-accent-subtle: #e6efff;
+  --cs-color-focus: #1f5fd1;
+  --cs-color-success: #1d7a46;
+  --cs-color-success-subtle: #e3f3ea;
+  --cs-color-warning: #8a5a00;
+  --cs-color-warning-subtle: #fbf0d9;
+  --cs-color-danger: #b42318;
+  --cs-color-danger-subtle: #fbe7e5;
+  --cs-color-info: #355f8c;
+  --cs-color-info-subtle: #e7eef6;
+
+  /* Viewer colours */
+  --cs-viewer-background: #e9ebee;
+  --cs-viewer-grid: #c9ced5;
+  --cs-viewer-body: #a9b1bb;
+  --cs-viewer-edge: #2a3038;
+  --cs-viewer-hover: #6f9ce8;
+  --cs-viewer-selection: #1f5fd1;
+  --cs-viewer-note: #c2410c;
+  --cs-viewer-overhang: #d97706;
+
+  /* Elevation */
+  --cs-shadow-1: 0 1px 2px rgb(15 20 25 / 0.08);
+  --cs-shadow-2: 0 4px 12px rgb(15 20 25 / 0.12), 0 1px 3px rgb(15 20 25 / 0.08);
+  --cs-shadow-3: 0 12px 32px rgb(15 20 25 / 0.18), 0 2px 6px rgb(15 20 25 / 0.1);
+  --cs-overlay: rgb(15 20 25 / 0.32);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --cs-color-canvas: #15181c;
+    --cs-color-surface: #1c2025;
+    --cs-color-surface-sunken: #121417;
+    --cs-color-surface-raised: #242930;
+    --cs-color-surface-hover: #2a3037;
+    --cs-color-surface-selected: #1d3354;
+    --cs-color-border: #2f353d;
+    --cs-color-border-strong: #6a727d;
+    --cs-color-text: #e7eaee;
+    --cs-color-text-muted: #a9b0b9;
+    --cs-color-text-subtle: #939ba5;
+    --cs-color-text-on-accent: #ffffff;
+    --cs-color-accent: #2f6ad6;
+    --cs-color-accent-hover: #265cbf;
+    --cs-color-accent-text: #7aa7f6;
+    --cs-color-accent-subtle: #1b2c47;
+    --cs-color-focus: #6e9ff5;
+    --cs-color-success: #4cc283;
+    --cs-color-success-subtle: #15301f;
+    --cs-color-warning: #e3a33a;
+    --cs-color-warning-subtle: #33270f;
+    --cs-color-danger: #f0776c;
+    --cs-color-danger-subtle: #3a1a17;
+    --cs-color-info: #8fb4dd;
+    --cs-color-info-subtle: #1a2633;
+    --cs-viewer-background: #1a1d21;
+    --cs-viewer-grid: #2c3138;
+    --cs-viewer-body: #8a939e;
+    --cs-viewer-edge: #0c0e10;
+    --cs-viewer-hover: #6f9ce8;
+    --cs-viewer-selection: #4d86ec;
+    --cs-viewer-note: #f28b4b;
+    --cs-viewer-overhang: #e3a33a;
+    --cs-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --cs-shadow-2: 0 4px 12px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.3);
+    --cs-shadow-3: 0 12px 32px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.35);
+    --cs-overlay: rgb(0 0 0 / 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --cs-color-canvas: #15181c;
+  --cs-color-surface: #1c2025;
+  --cs-color-surface-sunken: #121417;
+  --cs-color-surface-raised: #242930;
+  --cs-color-surface-hover: #2a3037;
+  --cs-color-surface-selected: #1d3354;
+  --cs-color-border: #2f353d;
+  --cs-color-border-strong: #6a727d;
+  --cs-color-text: #e7eaee;
+  --cs-color-text-muted: #a9b0b9;
+  --cs-color-text-subtle: #939ba5;
+  --cs-color-text-on-accent: #ffffff;
+  --cs-color-accent: #2f6ad6;
+  --cs-color-accent-hover: #265cbf;
+  --cs-color-accent-text: #7aa7f6;
+  --cs-color-accent-subtle: #1b2c47;
+  --cs-color-focus: #6e9ff5;
+  --cs-color-success: #4cc283;
+  --cs-color-success-subtle: #15301f;
+  --cs-color-warning: #e3a33a;
+  --cs-color-warning-subtle: #33270f;
+  --cs-color-danger: #f0776c;
+  --cs-color-danger-subtle: #3a1a17;
+  --cs-color-info: #8fb4dd;
+  --cs-color-info-subtle: #1a2633;
+  --cs-viewer-background: #1a1d21;
+  --cs-viewer-grid: #2c3138;
+  --cs-viewer-body: #8a939e;
+  --cs-viewer-edge: #0c0e10;
+  --cs-viewer-hover: #6f9ce8;
+  --cs-viewer-selection: #4d86ec;
+  --cs-viewer-note: #f28b4b;
+  --cs-viewer-overhang: #e3a33a;
+  --cs-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --cs-shadow-2: 0 4px 12px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.3);
+  --cs-shadow-3: 0 12px 32px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.35);
+  --cs-overlay: rgb(0 0 0 / 0.5);
+}

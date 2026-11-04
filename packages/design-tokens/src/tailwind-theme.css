@@ -1,0 +1,108 @@
+/*
+ * Maps the design tokens into Tailwind CSS v4. The default Tailwind palette, spacing, radii and
+ * fonts are removed, so utility classes can only express token values.
+ */
+
+@theme {
+  --color-*: initial;
+  --spacing: initial;
+  --spacing-*: initial;
+  --radius-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --shadow-*: initial;
+
+  --color-canvas: var(--cs-color-canvas);
+  --color-surface: var(--cs-color-surface);
+  --color-surface-sunken: var(--cs-color-surface-sunken);
+  --color-surface-raised: var(--cs-color-surface-raised);
+  --color-surface-hover: var(--cs-color-surface-hover);
+  --color-surface-selected: var(--cs-color-surface-selected);
+  --color-border: var(--cs-color-border);
+  --color-border-strong: var(--cs-color-border-strong);
+  --color-text: var(--cs-color-text);
+  --color-text-muted: var(--cs-color-text-muted);
+  --color-text-subtle: var(--cs-color-text-subtle);
+  --color-on-accent: var(--cs-color-text-on-accent);
+  --color-accent: var(--cs-color-accent);
+  --color-accent-hover: var(--cs-color-accent-hover);
+  --color-accent-text: var(--cs-color-accent-text);
+  --color-accent-subtle: var(--cs-color-accent-subtle);
+  --color-focus: var(--cs-color-focus);
+  --color-success: var(--cs-color-success);
+  --color-success-subtle: var(--cs-color-success-subtle);
+  --color-warning: var(--cs-color-warning);
+  --color-warning-subtle: var(--cs-color-warning-subtle);
+  --color-danger: var(--cs-color-danger);
+  --color-danger-subtle: var(--cs-color-danger-subtle);
+  --color-info: var(--cs-color-info);
+  --color-info-subtle: var(--cs-color-info-subtle);
+  --color-note: var(--cs-viewer-note);
+  --color-overlay: var(--cs-overlay);
+  --color-transparent: transparent;
+
+  --spacing-0: var(--cs-space-0);
+  --spacing-1: var(--cs-space-1);
+  --spacing-2: var(--cs-space-2);
+  --spacing-3: var(--cs-space-3);
+  --spacing-4: var(--cs-space-4);
+  --spacing-5: var(--cs-space-5);
+  --spacing-6: var(--cs-space-6);
+  --spacing-7: var(--cs-space-7);
+  --spacing-control-sm: var(--cs-control-sm);
+  --spacing-control-md: var(--cs-control-md);
+  --spacing-control-lg: var(--cs-control-lg);
+  --spacing-row: var(--cs-row-height);
+  --spacing-titlebar: var(--cs-titlebar-height);
+  --spacing-statusbar: var(--cs-statusbar-height);
+  --spacing-hairline: var(--cs-size-hairline);
+  --spacing-dot: var(--cs-size-dot);
+  --spacing-icon: var(--cs-size-icon);
+  --spacing-icon-sm: var(--cs-size-icon-sm);
+  --spacing-pin: var(--cs-size-pin);
+  --spacing-progress: var(--cs-size-progress);
+  --spacing-field-number: var(--cs-size-field-number);
+  --spacing-index-column: var(--cs-size-index-column);
+  --spacing-menu: var(--cs-size-menu);
+  --spacing-menu-max: var(--cs-size-menu-max-height);
+  --spacing-text-max: var(--cs-size-text-max);
+  --spacing-chat-max: var(--cs-size-chat-max);
+  --spacing-dialog-sm: var(--cs-size-dialog-sm);
+  --spacing-dialog-lg: var(--cs-size-dialog-lg);
+  --spacing-dialog-offset: var(--cs-size-dialog-offset);
+
+  --animate-progress: cs-progress var(--cs-duration-slow) var(--cs-easing-standard) infinite;
+
+  --radius-sm: var(--cs-radius-sm);
+  --radius-md: var(--cs-radius-md);
+  --radius-lg: var(--cs-radius-lg);
+  --radius-full: var(--cs-radius-full);
+
+  --font-sans: var(--cs-font-sans);
+  --font-display: var(--cs-font-display);
+  --font-mono: var(--cs-font-mono);
+
+  --text-xs: var(--cs-text-xs);
+  --text-xs--line-height: var(--cs-leading-tight);
+  --text-sm: var(--cs-text-sm);
+  --text-sm--line-height: var(--cs-leading-tight);
+  --text-md: var(--cs-text-md);
+  --text-md--line-height: var(--cs-leading-normal);
+  --text-lg: var(--cs-text-lg);
+  --text-lg--line-height: var(--cs-leading-relaxed);
+  --text-xl: var(--cs-text-xl);
+  --text-xl--line-height: var(--cs-leading-relaxed);
+
+  --shadow-1: var(--cs-shadow-1);
+  --shadow-2: var(--cs-shadow-2);
+  --shadow-3: var(--cs-shadow-3);
+}
+
+@keyframes cs-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}

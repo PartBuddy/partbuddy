@@ -1,0 +1,16 @@
+{
+  "name": "@cad-studio/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Design tokens of CAD-Studio as CSS custom properties (light and dark)",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./src/tokens.css",
+    "./tailwind-theme.css": "./src/tailwind-theme.css",
+    "./contrast-pairs": "./src/contrast-pairs.js"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
