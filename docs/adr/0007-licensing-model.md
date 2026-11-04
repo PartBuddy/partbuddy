@@ -7,7 +7,7 @@ date: 2026-11-04
 
 ## Context and Problem Statement
 
-CAD-Studio is offered free of charge. Its development is funded by voluntary donations, not by
+PartBuddy is offered free of charge. Its development is funded by voluntary donations, not by
 sales. The app controls SolidCraft, OrcaSlicer and Blender, runs a Python sidecar and uses many
 open-source libraries. Under which licence is it published, how are the obligations of the
 integrated software met, and how do donations work?
@@ -37,7 +37,7 @@ works with (OrcaSlicer AGPL-3.0, Blender GPL-3.0-or-later, PyMeshLab GPL-3.0).
 
 | Component | Licence | Use | Rule |
 | --- | --- | --- | --- |
-| CAD-Studio | GPL-3.0-or-later | the product | `LICENSE` holds the full text; the About dialog shows the notice required by GPL section 0 ("Appropriate Legal Notices") |
+| PartBuddy | GPL-3.0-or-later | the product | `LICENSE` holds the full text; the About dialog shows the notice required by GPL section 0 ("Appropriate Legal Notices") |
 | SolidCraft | MIT OR Apache-2.0 | separate process, control port and MCP | Compatible; the customer installs it or the app downloads the official installer and verifies its checksum. "Works with SolidCraft" only as plain text, no implied endorsement |
 | OrcaSlicer | AGPL-3.0 | separate process (CLI) | Called, not linked; its printer profiles are read from the user's installation |
 | Blender | GPL-3.0-or-later | separate process | The render script is part of this repository under the same licence |

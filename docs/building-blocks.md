@@ -105,7 +105,7 @@ only calls them as separate processes or over the network ([ADR 0007](adr/0007-l
 
 | Component | Version referenced | Licence | Use |
 |---|---|---|---|
-| SolidCraft | 0.30.1 (2026-11-02), pinned per CAD-Studio release | MIT OR Apache-2.0 | CAD kernel, control port and MCP server (stdio) |
+| SolidCraft | 0.30.1 (2026-11-02), pinned per PartBuddy release | MIT OR Apache-2.0 | CAD kernel, control port and MCP server (stdio) |
 | OrcaSlicer | 2.4.2, current stable (the 2.5.0 line is a release candidate) | AGPL-3.0 | Slicing through its command-line interface |
 | Blender | current LTS of the customer's installation | GPL-3.0-or-later | Studio renders through a separately published GPL script |
 | Cloud AI providers | Anthropic, OpenAI, Google, Z.ai, DeepSeek, Mistral, OpenRouter | Provider terms | Customer's own API keys |

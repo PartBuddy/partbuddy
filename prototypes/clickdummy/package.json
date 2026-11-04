@@ -1,8 +1,8 @@
 {
-  "name": "@cad-studio/clickdummy",
+  "name": "@partbuddy/clickdummy",
   "version": "0.1.0",
   "private": true,
-  "description": "Clickable prototype of the CAD-Studio main view with mock data",
+  "description": "Clickable prototype of the PartBuddy main view with mock data",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -16,7 +16,7 @@
     "screens": "playwright test --project=screens"
   },
   "dependencies": {
-    "@cad-studio/design-tokens": "workspace:*",
+    "@partbuddy/design-tokens": "workspace:*",
     "@react-three/drei": "10.7.9",
     "@react-three/fiber": "9.8.2",
     "@tabler/icons-react": "3.50.0",

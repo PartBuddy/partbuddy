@@ -19,7 +19,7 @@ export function TitleBar() {
   return (
     <header className="flex h-titlebar shrink-0 items-center gap-3 border-b border-border bg-surface px-3">
       <div className="flex items-center gap-2">
-        <span className="font-display text-lg font-semibold text-text">CAD-Studio</span>
+        <span className="font-display text-lg font-semibold text-text">PartBuddy</span>
         <Badge>{t('app.prototype')}</Badge>
       </div>
       <nav aria-label={t('app.breadcrumb')} className="flex min-w-0 items-center gap-2 text-md">

@@ -181,19 +181,19 @@ Nothing of this is part of the repository.
 
 | Data | Location (Windows) | Notes |
 | --- | --- | --- |
-| Settings | `%APPDATA%\CAD-Studio\settings.json` | electron-store with schema |
-| Projects index, chats, notes, check results | `%APPDATA%\CAD-Studio\studio.db` | SQLite, migrations with Kysely |
-| User skills and rules | `%APPDATA%\CAD-Studio\skills\`, `rules\` | Agent Skills format, JSON rules |
-| Mirrored meshes, thumbnails | `%LOCALAPPDATA%\CAD-Studio\cache\` | Disposable, keyed by document and revision |
-| Logs | `%LOCALAPPDATA%\CAD-Studio\logs\` | electron-log rotation; no prompts, keys or personal data |
-| Python environment | `%LOCALAPPDATA%\CAD-Studio\sidecar\` | Created offline from the bundled wheelhouse |
-| Project files (designs, exports, print packages) | User-chosen folder, default `Documents\CAD-Studio` | Plain files the user owns |
-| API keys | Windows Credential Manager, target `CAD-Studio/<profile id>` | Never in files, logs, crash reports or command lines |
+| Settings | `%APPDATA%\PartBuddy\settings.json` | electron-store with schema |
+| Projects index, chats, notes, check results | `%APPDATA%\PartBuddy\studio.db` | SQLite, migrations with Kysely |
+| User skills and rules | `%APPDATA%\PartBuddy\skills\`, `rules\` | Agent Skills format, JSON rules |
+| Mirrored meshes, thumbnails | `%LOCALAPPDATA%\PartBuddy\cache\` | Disposable, keyed by document and revision |
+| Logs | `%LOCALAPPDATA%\PartBuddy\logs\` | electron-log rotation; no prompts, keys or personal data |
+| Python environment | `%LOCALAPPDATA%\PartBuddy\sidecar\` | Created offline from the bundled wheelhouse |
+| Project files (designs, exports, print packages) | User-chosen folder, default `Documents\PartBuddy` | Plain files the user owns |
+| API keys | Windows Credential Manager, target `PartBuddy/<profile id>` | Never in files, logs, crash reports or command lines |
 | Crash reports | Local minidumps; uploaded only after opt-in | Scrubbed of paths and user names |
 
 ## Provider policy
 
-* Every provider is used with the customer's own key or local server; there is no CAD-Studio cloud
+* Every provider is used with the customer's own key or local server; there is no PartBuddy cloud
   in the request path.
 * The provider manager shows per profile: data location, training default for API traffic, and
   whether images may be sent. Providers that store data outside the EU or train on API data by

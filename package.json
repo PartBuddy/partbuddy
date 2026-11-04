@@ -1,5 +1,5 @@
 {
-  "name": "cad-studio",
+  "name": "partbuddy",
   "private": true,
   "description": "Desktop app for AI-assisted parametric design of FDM 3D-print parts",
   "license": "GPL-3.0-or-later",

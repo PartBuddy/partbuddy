@@ -7,7 +7,7 @@ date: 2026-11-04
 
 ## Context and Problem Statement
 
-CAD-Studio combines a CAD kernel, an AI agent runtime, a 3D viewer and a desktop shell. Many
+PartBuddy combines a CAD kernel, an AI agent runtime, a 3D viewer and a desktop shell. Many
 choices (stack, pipelines, own implementations versus ready-made components, licences) must stay
 traceable for later contributors and for reviews of the build-versus-buy policy. Where and in which
 form are these decisions recorded?

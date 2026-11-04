@@ -10,7 +10,7 @@ date: 2026-11-04
 The assistant drives SolidCraft over MCP, calls the app's own tools (Python sidecar), streams
 answers, asks clarifying questions, shows costs and must work with every configured provider: cloud
 models and local servers (Strata, Ollama, LM Studio, llama.cpp, vLLM). Today's workflow relies on
-skills, hooks, check gates and file-based memory of one specific coding agent. Should CAD-Studio
+skills, hooks, check gates and file-based memory of one specific coding agent. Should PartBuddy
 embed a ready-made agent core or run its own agent loop on top of a provider abstraction?
 
 Evidence: [research § AI layer](../research.md#3-ai-layer).

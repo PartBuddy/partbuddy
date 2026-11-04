@@ -34,7 +34,7 @@ Chosen option: "Persistent face name with fallbacks", because SolidCraft itself 
 by name and resolves them through split and merge lineage, and a world point does not move with
 the face.
 
-Anchor record (stored by CAD-Studio, not in the design file):
+Anchor record (stored by PartBuddy, not in the design file):
 
 ```text
 NoteAnchor

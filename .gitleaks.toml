@@ -1,4 +1,4 @@
-title = "CAD-Studio secret and privacy rules"
+title = "PartBuddy secret and privacy rules"
 
 # Default gitleaks rules for credentials, plus privacy rules for this repository.
 # Personal terms (names, account names, host names) are never listed here. They live in an

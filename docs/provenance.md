@@ -1,6 +1,6 @@
 # Provenance
 
-CAD-Studio grows out of a private CAD workspace. The repository starts empty and follows an
+PartBuddy grows out of a private CAD workspace. The repository starts empty and follows an
 allow-list: only content written for the product is added
 ([ADR 0009](adr/0009-privacy-guardrails.md)). Anything taken over from the earlier workspace is
 listed here with its source, the reason and how it was cleaned up. Files are never copied; content

@@ -1,5 +1,5 @@
 /*
- * CAD-Studio design tokens. The only source of colours, spacing, type, radii, elevation and
+ * PartBuddy design tokens. The only source of colours, spacing, type, radii, elevation and
  * motion values for the UI. Components reference these variables, never literal values.
  *
  * Grid: 4 px base unit; layout steps use multiples of 8 px.

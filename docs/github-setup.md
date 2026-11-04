@@ -37,8 +37,7 @@ CodeQL workflow is added.
 3. Optional: `gh auth refresh -s project,admin:ssh_signing_key` for the project board and the signing
    key (one browser confirmation); without it these steps are skipped with a hint.
 4. Make sure the personal denylist exists locally (`.git/info/gitleaks-personal.toml`).
-5. If the repository name differs from `cad-studio`, update the package names and the issue-form
-   link in one commit before pushing.
+5. The repository name is `partbuddy`, matching the product name PartBuddy (decided 2026-11-04).
 
 ## What the script does
 

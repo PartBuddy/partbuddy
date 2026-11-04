@@ -7,7 +7,7 @@ date: 2026-11-04
 
 ## Context and Problem Statement
 
-CAD-Studio shows its own 3D view while SolidCraft builds the model in the background. After every
+PartBuddy shows its own 3D view while SolidCraft builds the model in the background. After every
 feature step the view must update, faces and edges must be pickable, and each triangle must map to
 the CAD face it belongs to, so that notes and selections can refer to topology. Which path brings
 the geometry into the viewer with a stable face mapping and acceptable latency?

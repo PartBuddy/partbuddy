@@ -7,7 +7,7 @@ date: 2026-11-04
 
 ## Context and Problem Statement
 
-CAD-Studio is a free, Windows-first desktop app with a CAD-grade 3D view (face and edge
+PartBuddy is a free, Windows-first desktop app with a CAD-grade 3D view (face and edge
 picking), dockable panels, a chat with AI providers and MCP tool calling, a Python sidecar and a
 signed installer with auto-update. macOS and Linux may follow. Which application stack fits best at
 the end of 2026?

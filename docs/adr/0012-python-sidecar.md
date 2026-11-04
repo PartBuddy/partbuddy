@@ -9,7 +9,7 @@ date: 2026-11-04
 
 The domain checks of the earlier workflow exist as tested Python tools: mesh check, overhang
 analysis, print gate with OrcaSlicer, measurement evaluation, tolerance chains. They use numpy,
-scipy, trimesh, pydantic and PyMeshLab. CAD-Studio needs these checks without rewriting them in
+scipy, trimesh, pydantic and PyMeshLab. PartBuddy needs these checks without rewriting them in
 TypeScript, and must ship them under the product licence (GPL-3.0-or-later, ADR 0007).
 
 ## Considered Options

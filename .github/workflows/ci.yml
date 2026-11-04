@@ -72,7 +72,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Chromium
-        run: pnpm --filter @cad-studio/clickdummy exec playwright install --with-deps chromium
+        run: pnpm --filter @partbuddy/clickdummy exec playwright install --with-deps chromium
 
       - name: Run flows, console and accessibility checks
-        run: pnpm --filter @cad-studio/clickdummy exec playwright test --project=flows
+        run: pnpm --filter @partbuddy/clickdummy exec playwright test --project=flows

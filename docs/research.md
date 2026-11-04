@@ -295,7 +295,7 @@ shadcn/ui version [79]; Streamdown 2.7.1 (2026-10-19) for streaming-safe Markdow
 Tool-calling reliability: no independent benchmark covers the November 2026 models. BFCL v4 was last
 updated 2026-04-12 (top: Claude Opus 4.5, 77.47 %) [81]; τ²-bench leaders Qwen3.5-397B-A17B 87.9 %,
 Gemini 3.0 Pro 85.4 %, Claude Opus 4.5 85.3 %; τ³-Banking Qwen 3.8 Max 55.2 %, Claude Opus 5 48.7 %
-[82]. Vendor cards report only their own suites [83]. CAD-Studio needs its own replayable eval set
+[82]. Vendor cards report only their own suites [83]. PartBuddy needs its own replayable eval set
 of SolidCraft tasks per model.
 
 Prices in USD per million tokens (input / output, standard tier). † = from OpenRouter's model API or
@@ -495,7 +495,7 @@ come from a secondary source [160]. Singapore and the PRC have no adequacy decis
 **EU AI Act** (Regulation (EU) 2024/1689) [161]: generally applicable from 2026-08-02; Art. 50
 transparency obligations apply from that date; the AI Omnibus moved Annex III high-risk rules to
 2027-12-02 and Annex I rules to 2028-08-02 but not Art. 50 [162]; systems on the market before
-2026-08-02 have until 2026-12-02 for the Art. 50(2) marking duty [162]. CAD-Studio is likely a
+2026-08-02 have until 2026-12-02 for the Art. 50(2) marking duty [162]. PartBuddy is likely a
 "provider" of an AI system: label the chat as AI, check machine-readable marking of generated
 content and the Code of Practice on Transparency (final 2026-06-10) [162] **[counsel]**; AI literacy
 duty since 2025-02-02 [162]. Not high-risk for general CAD and print preparation; keep human review
@@ -508,7 +508,7 @@ Reporting Platform) [164]; main obligations from **2027-12-11**: risk assessment
 due diligence on components, SBOM covering at least top-level dependencies, vulnerability handling
 with `SECURITY.md`, a stated support period (general minimum five years unless expected use is
 shorter), self-assessment and CE marking [164][163]. Open-source upstreams are generally not
-manufacturers; CAD-Studio carries the duties for what it ships [164]. Customer-installed external
+manufacturers; PartBuddy carries the duties for what it ships [164]. Customer-installed external
 tools stay outside the product boundary **[counsel]**.
 
 **Licence model**: proprietary EULA plus a complete third-party notices bundle (chosen in ADR 0007);

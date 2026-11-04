@@ -1,8 +1,8 @@
 {
-  "name": "@cad-studio/design-tokens",
+  "name": "@partbuddy/design-tokens",
   "version": "0.1.0",
   "private": true,
-  "description": "Design tokens of CAD-Studio as CSS custom properties (light and dark)",
+  "description": "Design tokens of PartBuddy as CSS custom properties (light and dark)",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {

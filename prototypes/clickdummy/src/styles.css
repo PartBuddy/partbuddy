@@ -1,6 +1,6 @@
 @import "tailwindcss";
-@import "@cad-studio/design-tokens/tokens.css";
-@import "@cad-studio/design-tokens/tailwind-theme.css";
+@import "@partbuddy/design-tokens/tokens.css";
+@import "@partbuddy/design-tokens/tailwind-theme.css";
 @import "dockview-react/dist/styles/dockview.css";
 @plugin "tailwindcss-react-aria-components";
 

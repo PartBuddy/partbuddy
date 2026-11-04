@@ -46,7 +46,7 @@ git config commit.gpgsign true
 
 ## Licence of contributions
 
-CAD-Studio is free software under GPL-3.0-or-later ([ADR 0007](docs/adr/0007-licensing-model.md)).
+PartBuddy is free software under GPL-3.0-or-later ([ADR 0007](docs/adr/0007-licensing-model.md)).
 Contributions are accepted under the same licence. External contributors sign off each commit
 (`git commit -s`) to confirm the [Developer Certificate of Origin](https://developercertificate.org/).
 

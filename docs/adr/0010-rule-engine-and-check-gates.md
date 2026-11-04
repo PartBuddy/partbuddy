@@ -9,7 +9,7 @@ date: 2026-11-04
 
 The earlier workflow relied on hooks of one coding agent: a fail-closed mesh check after every
 export, a print gate that blocks print packages until every overhang finding has a solution with
-proof, and timeline checks. In CAD-Studio these guarantees must hold for every provider, including
+proof, and timeline checks. In PartBuddy these guarantees must hold for every provider, including
 local models with weaker tool calling. Who enforces them, and how are they configured?
 
 ## Considered Options

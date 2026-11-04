@@ -17,7 +17,7 @@
   ],
   "packages": {
     ".": {
-      "package-name": "cad-studio",
+      "package-name": "partbuddy",
       "changelog-path": "CHANGELOG.md"
     }
   }

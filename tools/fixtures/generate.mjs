@@ -37,7 +37,7 @@ script.commands.push(
   { command: 'file.export', params: { path: tagged3mf, format: '3mf-tagged', quality: 'fine' } },
 );
 
-const work = mkdtempSync(join(tmpdir(), 'cad-studio-fixture-'));
+const work = mkdtempSync(join(tmpdir(), 'partbuddy-fixture-'));
 try {
   const scriptPath = join(work, 'script.json');
   const resultPath = join(work, 'result.json');

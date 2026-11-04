@@ -7,7 +7,7 @@ date: 2026-11-04
 
 ## Context and Problem Statement
 
-CAD-Studio grows out of a private CAD workspace that contains personal projects, calibration data,
+PartBuddy grows out of a private CAD workspace that contains personal projects, calibration data,
 memory files, local paths and AI tool configuration. None of it may enter the product repository,
 and the history must stay clean once it is pushed. How is this guaranteed?
 

@@ -1,18 +1,16 @@
-# CAD-Studio
+# PartBuddy
 
-[![CI](https://github.com/ManuelStaggl/cad-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/ManuelStaggl/cad-studio/actions/workflows/ci.yml)
-[![Privacy scan](https://github.com/ManuelStaggl/cad-studio/actions/workflows/privacy.yml/badge.svg)](https://github.com/ManuelStaggl/cad-studio/actions/workflows/privacy.yml)
-[![Security checks](https://github.com/ManuelStaggl/cad-studio/actions/workflows/security.yml/badge.svg)](https://github.com/ManuelStaggl/cad-studio/actions/workflows/security.yml)
+[![CI](https://github.com/ManuelStaggl/partbuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/ManuelStaggl/partbuddy/actions/workflows/ci.yml)
+[![Privacy scan](https://github.com/ManuelStaggl/partbuddy/actions/workflows/privacy.yml/badge.svg)](https://github.com/ManuelStaggl/partbuddy/actions/workflows/privacy.yml)
+[![Security checks](https://github.com/ManuelStaggl/partbuddy/actions/workflows/security.yml/badge.svg)](https://github.com/ManuelStaggl/partbuddy/actions/workflows/security.yml)
 [![Licence: GPL-3.0-or-later](https://img.shields.io/badge/licence-GPL--3.0--or--later-355f8c)](LICENSE)
 
 Free desktop app for AI-assisted parametric design of FDM 3D-print parts. An assistant builds the part
-step by step in the SolidCraft CAD kernel while CAD-Studio mirrors every step in its own 3D view.
+step by step in the SolidCraft CAD kernel while PartBuddy mirrors every step in its own 3D view.
 Notes pinned to faces, edges and features become context for the assistant; clarifying questions
 arrive as cards with options and a recommendation; every part carries honest verification levels
 from "created" to "confirmed by print". Users choose their model freely: cloud providers with their
 own API key or local servers such as Strata, Ollama or LM Studio.
-
-"CAD-Studio" is a working title; the product name is not decided yet.
 
 ![Main view of the click dummy](docs/screens/main-1440-light.png)
 
@@ -46,9 +44,9 @@ Requirements and rules: [CONTRIBUTING.md](CONTRIBUTING.md). In short:
 
 ```sh
 pnpm install                                   # Node 26.13.0, pnpm 12.16.1; installs Git hooks
-pnpm --filter @cad-studio/clickdummy dev       # click dummy on http://localhost:5173
+pnpm --filter @partbuddy/clickdummy dev       # click dummy on http://localhost:5173
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
-pnpm --filter @cad-studio/clickdummy test:e2e  # Playwright flows, console and accessibility checks
+pnpm --filter @partbuddy/clickdummy test:e2e  # Playwright flows, console and accessibility checks
 ```
 
 The sample model is regenerated with `node tools/fixtures/generate.mjs <output-dir>` (needs the
@@ -63,7 +61,7 @@ created and again in CI ([ADR 0009](docs/adr/0009-privacy-guardrails.md)).
 
 Copyright (C) 2026 ManuelStaggl and contributors.
 
-CAD-Studio is free software: you can redistribute it and/or modify it under the terms of the GNU
+PartBuddy is free software: you can redistribute it and/or modify it under the terms of the GNU
 General Public License as published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version. It is distributed in the hope that it will be
 useful, but WITHOUT ANY WARRANTY; see [LICENSE](LICENSE) for details. Third-party components and
@@ -71,5 +69,5 @@ their licences are listed in [building blocks](docs/building-blocks.md).
 
 ## Support
 
-CAD-Studio is free and stays free. If it helps you, you can support its development through
+PartBuddy is free and stays free. If it helps you, you can support its development through
 [GitHub Sponsors](https://github.com/sponsors/ManuelStaggl). Donations buy no features or priority.
