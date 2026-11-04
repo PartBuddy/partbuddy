@@ -68,8 +68,9 @@ approval for it [research 206, 207]. Therefore:
   changed and keeps all its sign-in methods: Anthropic's terms forbid products to remove or restrict
   them, so the API route stays open for users who want it.
 * The publisher of PartBuddy accepts Anthropic's Commercial Terms once, through the existing
-  Claude Console account (decided 2026-11-04), and asks Anthropic for a written confirmation of
-  this route before the first public release. End users only install Claude Code and sign in with
+  Claude Console account (decided 2026-11-04). No separate written confirmation is requested
+  (decided 2026-11-04): the published terms cover this route; the remaining risk of a different
+  reading by Anthropic is accepted knowingly. End users only install Claude Code and sign in with
   their own subscription; they need no Console account and accept nothing beyond their own plan.
 * Product texts may say that PartBuddy "runs Claude Code"; Anthropic's names and logos are not
   used as part of PartBuddy's own names or logos.

@@ -719,8 +719,8 @@ Substitutes used:
 **Open questions and gaps**
 
 1. Legal **[counsel]**: Blender script boundary; OrcaSlicer profile JSON; OCCT exception for wasm
-   builds; Gemini "not for consumer use" with hobbyist BYOK; written confirmation from Anthropic
-   of the Claude Code route of ADR 0015 before the first public release; Mistral pay-as-you-go training default; Z.ai
+   builds; Gemini "not for consumer use" with hobbyist BYOK; Claude Code route of ADR 0015 relies
+   on the published terms without a written confirmation (decided 2026-11-04); Mistral pay-as-you-go training default; Z.ai
    Entity List and export control; ePrivacy/TKG consent for telemetry; AI Act Art. 50(2) scope for
    CAD outputs; CRA product boundary for controlled external apps, support-period length, exact SBOM
    wording; Austrian consumer-law limits on EULA disclaimers; trademark search for the product name.
