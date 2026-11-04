@@ -30,7 +30,9 @@ if (args[0] === '--version') {
   const lines = createInterface({ input: process.stdin });
   for await (const line of lines) {
     const message = JSON.parse(line);
-    const content = message.message.content;
+    // Text, or text and image blocks when a picture of the view goes along (M2b-2).
+    const raw = message.message.content;
+    const content = typeof raw === 'string' ? raw : raw.map((block) => (block.type === 'text' ? block.text : `[${block.type}]`)).join('\n');
     // "box" builds one, so tests can change a headless design (ADR 0016) without a real model.
     // "plan" shows a plan (M2a) and then tries to build anyway, which PartBuddy must refuse;
     // the Go note builds the box.
@@ -49,6 +51,15 @@ if (args[0] === '--version') {
     await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }));
     // "notes" (M2b): looks for the note text in inspect_design, tries to undo the user's note and
     // tells whether PartBuddy's note came with the message.
+    // "drew" (M2b-2): repeats how the drawing arrived.
+    if (content.includes('What did I draw')) {
+      await client.close();
+      const loop = /loop on "F1:\+z" of body "Body1" around/.test(content);
+      const reply = `${loop ? 'a loop on the top face' : 'no loop'}${content.includes('[image]') ? ' with a picture' : ''}`;
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: reply }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     if (content.includes('notes')) {
       const inspect = await client.callTool({ name: 'inspect_design', arguments: { measure: false } });
       const undo = await client.callTool({ name: 'undo', arguments: {} });

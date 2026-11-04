@@ -5,6 +5,7 @@ import type {
   AssistantState,
   ActionPreviewResult,
   ConnectionStatus,
+  Drawing,
   DesignAction,
   DimensionApply,
   DimensionProbe,
@@ -98,8 +99,11 @@ export interface PartBuddyApi {
     select(agent: AgentKind): Promise<AssistantState>;
     /** Let Claude Code run with an API key, billed separately; off by default. */
     allowApiBilling(allow: boolean): Promise<AssistantState>;
-    /** Sends a message; what is selected in the view goes with it as a short note. */
-    send(text: string, selections?: Selection[], answer?: MessageAnswer): Promise<void>;
+    /**
+     * Sends a message; what is selected in the view goes with it as a short note, strokes drawn on
+     * the view as words (and a picture when the user asked for one).
+     */
+    send(text: string, selections?: Selection[], answer?: MessageAnswer, drawing?: Drawing): Promise<void>;
     stop(): Promise<void>;
     /** Start the selected route's sign-in flow; it opens the browser. */
     signIn(): Promise<void>;
