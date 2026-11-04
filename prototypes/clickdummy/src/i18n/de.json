@@ -1,0 +1,309 @@
+{
+  "app": {
+    "prototype": "Prototyp",
+    "breadcrumb": "Ort",
+    "project": "Kabelclip"
+  },
+  "panels": {
+    "viewer": "3D-Ansicht",
+    "projects": "Projekte",
+    "timeline": "Zeitleiste",
+    "parameters": "Parameter",
+    "notes": "Notizen",
+    "checks": "Prüfung und Druck",
+    "chat": "Assistent"
+  },
+  "actions": {
+    "reset": "Zurücksetzen",
+    "cancel": "Abbrechen"
+  },
+  "units": {
+    "mm": "{value, number, ::.## unit/millimeter}",
+    "mm2": "{value, number, ::.#} mm²"
+  },
+  "solidcraft": {
+    "connected": "SolidCraft · Revision {revision}",
+    "rebuilding": "SolidCraft · baut neu auf",
+    "disconnected": "SolidCraft läuft nicht"
+  },
+  "projects": {
+    "loading": "Projekte werden geladen",
+    "emptyTitle": "Noch keine Projekte",
+    "emptyBody": "Beschreibe ein Teil im Assistenten oder lege ein Projekt an.",
+    "new": "Neues Projekt",
+    "search": "Projekte durchsuchen",
+    "noMatch": "Kein Projekt passt zur Suche.",
+    "state": {
+      "active": "In Arbeit",
+      "waiting": "Wartet auf Druck",
+      "done": "Gedruckt"
+    }
+  },
+  "timeline": {
+    "revision": "Revision {revision}",
+    "noErrors": "Keine Fehler",
+    "operation": {
+      "join": "verbinden",
+      "cut": "schneiden"
+    },
+    "notes": "{count, plural, one {# Notiz} other {# Notizen}}",
+    "rollbackEnd": "Ende der Zeitleiste"
+  },
+  "parameters": {
+    "favorite": "Favorit",
+    "changed": "geändert",
+    "range": "Bereich {min} bis {max}",
+    "nominal": "Nennmaße",
+    "compensation": "Druckkompensation",
+    "assumption": "Annahme",
+    "compensationNote": "Für diesen Drucker und dieses Material gibt es keinen Kalibrierwert mit vollständigem Geltungsschlüssel, daher ist die Kompensation 0 mm.",
+    "pending": "{count, plural, =0 {Keine offenen Änderungen} one {# offene Änderung} other {# offene Änderungen}}",
+    "apply": "Übernehmen und neu aufbauen",
+    "slider": "Schieberegler {name}"
+  },
+  "notes": {
+    "pinLabel": "Notiz {number}: {text}",
+    "emptyTitle": "Keine Notizen",
+    "emptyBody": "Wähle in der 3D-Ansicht eine Fläche und dann Notiz anlegen. Notizen sind Kontext für den Assistenten.",
+    "status": {
+      "attached": "verankert",
+      "moved": "verschoben",
+      "ambiguous": "mehrdeutig",
+      "orphaned": "verwaist"
+    },
+    "showInView": "In der 3D-Ansicht zeigen",
+    "delete": "Notiz löschen",
+    "dialogTitle": "Notiz an Fläche",
+    "anchorTo": "Verankert an",
+    "text": "Notiz",
+    "placeholder": "Zum Beispiel: diese Kante R2 statt R1",
+    "contextHint": "Die Notiz bleibt nach einem Neuaufbau an dieser Fläche; ändert sich die Fläche, wird die Notiz markiert.",
+    "save": "Notiz anlegen"
+  },
+  "viewer": {
+    "selection": "Ausgewählte Fläche",
+    "surface": {
+      "plane": "Ebene",
+      "cylinder": "Zylinder",
+      "other": "Fläche"
+    },
+    "radius": "Radius",
+    "area": "Fläche",
+    "anchor": "Name",
+    "anchorExact": "aus dem Verlauf",
+    "anchorGeometric": "geometrisch",
+    "addNote": "Notiz anlegen",
+    "loading": "Modell wird geladen",
+    "errorTitle": "Das Modell konnte nicht gelesen werden",
+    "errorBody": "Die gespiegelte Datei ist beschädigt oder hat ein unbekanntes Format ({message}).",
+    "rebuilding": "SolidCraft baut neu auf",
+    "disconnectedTitle": "SolidCraft läuft nicht",
+    "disconnectedBody": "Angezeigt wird die zuletzt gespiegelte Revision. Starte SolidCraft, um weiterzuarbeiten.",
+    "hint": "Klicke auf eine Fläche, um sie auszuwählen",
+    "canvasLabel": "3D-Ansicht des Teils",
+    "cube": {
+      "right": "RECHTS",
+      "left": "LINKS",
+      "back": "HINTEN",
+      "front": "VORNE",
+      "top": "OBEN",
+      "bottom": "UNTEN"
+    }
+  },
+  "checks": {
+    "verification": "Prüfstufen",
+    "levelsExplained": "L lokal erstellt · TG technisch geprüft · SC mit SolidCraft ausgeführt. SL und PD brauchen eine Slicer-Prüfung und eine Druckrückmeldung.",
+    "levelsReset": "Parameter geändert. Die Prüfstufe steht wieder auf L, bis die Prüfungen auf der neuen Revision bestanden sind.",
+    "list": "Prüfungen",
+    "mesh": "Netz",
+    "closed": "geschlossen",
+    "open": "{count, plural, one {# offene Kante} other {# offene Kanten}}",
+    "meshDetail": "{faces} Flächen · {triangles} Dreiecke · Volumen {volume} mm³",
+    "overhang": "Überhänge",
+    "noFindings": "keine Befunde",
+    "findings": "{count, plural, one {# Befund} other {# Befunde}}",
+    "overhangDetail": "Nach unten weisende Flächen steiler als {limit}° gegen die Senkrechte; die Bettlage ist ausgenommen.",
+    "timeline": "Zeitleisten-Regeln",
+    "notRun": "nicht gelaufen",
+    "sourceComputed": "Im Prototyp aus dem gespiegelten Netz berechnet",
+    "sourceMock": "Mock-Ergebnis; im Produkt läuft die Zeitleisten-Prüfung nach jedem Schritt"
+  },
+  "print": {
+    "title": "Druckpaket",
+    "noProfileTitle": "Kein Druckerprofil",
+    "noProfileBody": "Ein Druckpaket braucht ein Profil für Drucker, Düse und Material. Kalibrierwerte werden nur mit vollständigem Geltungsschlüssel verwendet.",
+    "setUpPrinter": "Drucker einrichten",
+    "createPackage": "Druckpaket erstellen",
+    "gateExplained": "Das Druck-Gate gibt ein Paket erst frei, wenn jeder Überhang-Befund eine Lösung mit Nachweis hat. Ein freigegebenes Gate ist keine Druckbestätigung (PD)."
+  },
+  "chat": {
+    "role": {
+      "user": "Du",
+      "assistant": "Assistent",
+      "system": "System"
+    },
+    "toolCalls": "{count, plural, one {# Werkzeugaufruf} other {# Werkzeugaufrufe}}",
+    "toolOk": "Erfolgreich",
+    "tool": {
+      "inspect": "Zeitleiste und Parameter von Revision 14 gelesen",
+      "check": "cable_d_nominal = 10 mm: Neuaufbau ohne Fehler"
+    },
+    "card": {
+      "question": "Wie breit soll die Schnappöffnung für das 10-mm-Kabel sein?",
+      "needsAnswer": "Antwort nötig",
+      "recommended": "Empfohlen",
+      "option": {
+        "opening75": {
+          "label": "7,5 mm",
+          "reason": "Gleiches Verhältnis wie heute (9 mm bei 12 mm). Die Schnappkraft bleibt ähnlich. Annahme, bis eine Probepassung sie bestätigt."
+        },
+        "opening80": {
+          "label": "8,0 mm",
+          "reason": "Leichter einzulegen; hält das Kabel weniger fest."
+        },
+        "opening70": {
+          "label": "7,0 mm",
+          "reason": "Hält fester; die Clip-Arme biegen sich beim Eindrücken stärker auf."
+        }
+      },
+      "other": "Anderer Wert",
+      "otherLabel": "Dein Wert und Grund",
+      "whyAsked": "Gefragt, weil die Öffnung die Schnappkraft bestimmt und kein Messwert vorliegt.",
+      "submit": "Antworten",
+      "answered": "Beantwortet:"
+    },
+    "change": {
+      "title": "Vorgeschlagene Änderung",
+      "parameter": "Parameter",
+      "before": "Jetzt",
+      "after": "Neu",
+      "note": "Übernehmen baut das Modell in SolidCraft neu auf. Danach laufen die Prüfungen erneut; bis sie bestanden sind, gilt Prüfstufe L.",
+      "discard": "Verwerfen",
+      "apply": "Übernehmen",
+      "applied": "Übernommen. Der Kanal ist jetzt {value}.",
+      "discarded": "Änderung verworfen."
+    },
+    "notice": {
+      "unreachableTitle": "{vendor} ist unter {endpoint} nicht erreichbar",
+      "unreachableBody": "Starte den lokalen Server oder wähle im Modellmenü ein anderes Modell.",
+      "contextTitle": "Kontext zu klein: {context} Tokens (Agent-Sitzungen brauchen {minimum})",
+      "contextBody": "Erhöhe die Kontextlänge in {vendor} (num_ctx) oder wähle ein anderes Modell.",
+      "noToolsTitle": "{model} kann keine Werkzeuge aufrufen",
+      "noToolsBody": "Es kann Fragen beantworten, aber das Design nicht ändern und keine Prüfungen starten.",
+      "solidcraftBody": "Der Assistent kann Fragen beantworten, aber das Design erst ändern, wenn SolidCraft läuft."
+    },
+    "progress": {
+      "label": "Prompt-Fortschritt von {vendor}",
+      "text": "{vendor} liest den Prompt · {percent} %",
+      "stop": "Stopp"
+    },
+    "mock": {
+      "request": "Der Clip soll ein 10-mm-Kabel halten. Die Befestigungslöcher bleiben, wo sie sind.",
+      "analysis": "Der Kanaldurchmesser folgt cable_d_nominal + komp_channel. komp_channel ist 0 mm, weil noch kein Kalibrierwert vorliegt; das ist eine Annahme. Ein 10-mm-Kanal baut ohne Fehler neu auf. Eine Frage, bevor ich die Schnappöffnung ändere:",
+      "proposal": "Grundplatte und Befestigungslöcher bleiben unverändert.",
+      "appliedSystem": "Prototyp: Die Änderung ist simuliert; das 3D-Modell ändert sich nicht.",
+      "prototypeReply": "Prototyp: Es ist kein Modell verbunden, daher gibt es auf diese Nachricht keine Antwort."
+    },
+    "composer": {
+      "label": "Nachricht an den Assistenten",
+      "placeholder": "Beschreibe eine Änderung oder stelle eine Frage",
+      "notes": "{count, plural, one {# Notiz als Kontext} other {# Notizen als Kontext}}",
+      "selection": "Ausgewählte Fläche",
+      "send": "Senden"
+    }
+  },
+  "provider": {
+    "menuTitle": "Modell",
+    "menuLabel": "{model} {source}, Modellmenü, {status}",
+    "cloud": "Cloud",
+    "localServers": "Lokale Server",
+    "local": "lokal",
+    "context": "{context} Kontext",
+    "tools": "Werkzeuge",
+    "noTools": "keine Werkzeuge",
+    "images": "Bilder",
+    "status": {
+      "ready": "bereit",
+      "processing": "rechnet",
+      "unreachable": "nicht erreichbar",
+      "smallContext": "Kontext zu klein",
+      "noTools": "kein Tool-Calling"
+    }
+  },
+  "settings": {
+    "label": "Ansicht und Prototyp-Zustände",
+    "theme": "Darstellung",
+    "themes": {
+      "light": "Hell",
+      "dark": "Dunkel"
+    },
+    "language": "Sprache",
+    "languages": {
+      "en": "English",
+      "de": "Deutsch"
+    },
+    "simulate": {
+      "solidcraft": "SolidCraft simulieren",
+      "solidcraftStates": {
+        "connected": "Verbunden",
+        "rebuilding": "Baut neu auf",
+        "disconnected": "Läuft nicht"
+      },
+      "local": "Lokalen Server simulieren",
+      "localStates": {
+        "ready": "Bereit",
+        "processing": "Rechnet an langem Prompt",
+        "unreachable": "Nicht erreichbar"
+      },
+      "projects": "Projektliste simulieren",
+      "projectStates": {
+        "ready": "Geladen",
+        "loading": "Lädt",
+        "empty": "Leer"
+      }
+    }
+  },
+  "palette": {
+    "label": "Befehlspalette",
+    "placeholder": "Befehl eingeben",
+    "empty": "Kein Befehl gefunden.",
+    "addNote": "Notiz an ausgewählter Fläche anlegen",
+    "toggleTheme": "Zwischen heller und dunkler Darstellung wechseln",
+    "toggleLanguage": "Sprache wechseln",
+    "useModel": "{model} verwenden ({vendor})"
+  },
+  "status": {
+    "units": "Millimeter",
+    "mesh": "{faces} Flächen · {triangles} Dreiecke",
+    "noFace": "Keine Fläche ausgewählt",
+    "mock": "Prototyp mit Mock-Daten · keine KI-Anfragen"
+  },
+  "verification": {
+    "summary": "Prüfstufen: {levels}",
+    "none": "keine",
+    "R": {
+      "name": "Recherchiert",
+      "proof": "Quellenangabe"
+    },
+    "L": {
+      "name": "Lokal erstellt",
+      "proof": "Datei und Commit"
+    },
+    "TG": {
+      "name": "Technisch geprüft",
+      "proof": "Prüfbericht"
+    },
+    "SC": {
+      "name": "Mit SolidCraft ausgeführt",
+      "proof": "Design, Bild und Bericht"
+    },
+    "SL": {
+      "name": "Im Slicer geprüft",
+      "proof": "Slice-Bericht"
+    },
+    "PD": {
+      "name": "Durch Druck bestätigt",
+      "proof": "Messprotokoll"
+    }
+  }
+}

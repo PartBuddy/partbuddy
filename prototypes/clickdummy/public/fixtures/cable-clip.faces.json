@@ -1,0 +1,954 @@
+{
+  "model": "cable-clip",
+  "body": "CableClip",
+  "units": "mm",
+  "source": "SolidCraft CLI, tools/fixtures/cable-clip.script.json",
+  "faces": [
+    {
+      "index": 0,
+      "name": "F1:-z",
+      "exact": true,
+      "area": 2015.7054,
+      "centroid": [
+        0,
+        0,
+        0
+      ],
+      "point": [
+        19.7405,
+        6.8474,
+        0
+      ],
+      "planeNormal": [
+        0,
+        0,
+        -1
+      ]
+    },
+    {
+      "index": 1,
+      "name": "F1:-y",
+      "exact": true,
+      "area": 179.2,
+      "centroid": [
+        0,
+        -16,
+        1.6
+      ],
+      "point": [
+        26.4457,
+        -16,
+        1.5543
+      ],
+      "planeNormal": [
+        0,
+        -1,
+        0
+      ]
+    },
+    {
+      "index": 2,
+      "name": "F1:+x",
+      "exact": true,
+      "area": 76.8,
+      "centroid": [
+        32,
+        0,
+        1.6
+      ],
+      "point": [
+        32,
+        10.5062,
+        1.4938
+      ],
+      "planeNormal": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "index": 3,
+      "name": "F1:+y",
+      "exact": true,
+      "area": 179.2,
+      "centroid": [
+        0,
+        16,
+        1.6
+      ],
+      "point": [
+        -26.4457,
+        16,
+        1.5543
+      ],
+      "planeNormal": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "index": 4,
+      "name": "F1:-x",
+      "exact": true,
+      "area": 76.8,
+      "centroid": [
+        -32,
+        0,
+        1.6
+      ],
+      "point": [
+        -32,
+        -10.5062,
+        1.4938
+      ],
+      "planeNormal": [
+        -1,
+        0,
+        0
+      ]
+    },
+    {
+      "index": 5,
+      "name": "F1:+z",
+      "exact": true,
+      "area": 1422.8671,
+      "centroid": [
+        0,
+        0,
+        4
+      ],
+      "point": [
+        -14.3558,
+        -0.0675,
+        4
+      ],
+      "planeNormal": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "index": 6,
+      "name": "F2:blend:F1:+x|F1:+y",
+      "exact": true,
+      "area": 19.9766,
+      "centroid": [
+        30.5132,
+        14.5132,
+        1.6
+      ],
+      "point": [
+        30.4811,
+        15.1375,
+        2.8402
+      ],
+      "cylinder": {
+        "origin": [
+          28,
+          12,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "radius": 4
+      }
+    },
+    {
+      "index": 7,
+      "name": "F2:blend:F1:+y|F1:-x",
+      "exact": true,
+      "area": 19.9766,
+      "centroid": [
+        -30.5132,
+        14.5132,
+        1.6
+      ],
+      "point": [
+        -30.4811,
+        15.1375,
+        0.3598
+      ],
+      "cylinder": {
+        "origin": [
+          -28,
+          12,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "radius": 4
+      }
+    },
+    {
+      "index": 8,
+      "name": "F2:blend:F1:+x|F1:-y",
+      "exact": true,
+      "area": 19.9766,
+      "centroid": [
+        30.5132,
+        -14.5132,
+        1.6
+      ],
+      "point": [
+        30.4811,
+        -15.1375,
+        0.3598
+      ],
+      "cylinder": {
+        "origin": [
+          28,
+          -12,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "radius": 4
+      }
+    },
+    {
+      "index": 9,
+      "name": "F2:blend:F1:-x|F1:-y",
+      "exact": true,
+      "area": 19.9766,
+      "centroid": [
+        -30.5132,
+        -14.5132,
+        1.6
+      ],
+      "point": [
+        -31.1375,
+        -14.4811,
+        0.3598
+      ],
+      "cylinder": {
+        "origin": [
+          -28,
+          -12,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "radius": 4
+      }
+    },
+    {
+      "index": 10,
+      "name": "F3:blend:F1:+z|F1:-y",
+      "exact": true,
+      "area": 63.3568,
+      "centroid": [
+        0,
+        -15.6,
+        3.6
+      ],
+      "point": [
+        -27.44,
+        -15.596,
+        3.604
+      ],
+      "planeNormal": [
+        0,
+        -0.7071,
+        0.7071
+      ]
+    },
+    {
+      "index": 11,
+      "name": "F3:blend:F1:+z|F2:blend:F1:+x|F1:-y",
+      "exact": true,
+      "area": 6.2955,
+      "centroid": [
+        30.271,
+        -14.271,
+        3.5852
+      ],
+      "point": [
+        30.8723,
+        -14.4746,
+        3.4087
+      ]
+    },
+    {
+      "index": 12,
+      "name": "F3:blend:F1:+x|F1:+z",
+      "exact": true,
+      "area": 27.1529,
+      "centroid": [
+        31.6,
+        0,
+        3.6
+      ],
+      "point": [
+        31.5906,
+        -11.4476,
+        3.6094
+      ],
+      "planeNormal": [
+        0.7071,
+        0,
+        0.7071
+      ]
+    },
+    {
+      "index": 13,
+      "name": "F3:blend:F1:+z|F2:blend:F1:+x|F1:+y",
+      "exact": true,
+      "area": 6.2955,
+      "centroid": [
+        30.271,
+        14.271,
+        3.5852
+      ],
+      "point": [
+        30.8723,
+        14.4746,
+        3.4087
+      ]
+    },
+    {
+      "index": 14,
+      "name": "F3:blend:F1:+y|F1:+z",
+      "exact": true,
+      "area": 63.3568,
+      "centroid": [
+        0,
+        15.6,
+        3.6
+      ],
+      "point": [
+        27.44,
+        15.596,
+        3.604
+      ],
+      "planeNormal": [
+        0,
+        0.7071,
+        0.7071
+      ]
+    },
+    {
+      "index": 15,
+      "name": "F3:blend:F1:+z|F2:blend:F1:+y|F1:-x",
+      "exact": true,
+      "area": 6.2955,
+      "centroid": [
+        -30.271,
+        14.271,
+        3.5852
+      ],
+      "point": [
+        -30.8723,
+        14.4746,
+        3.4087
+      ]
+    },
+    {
+      "index": 16,
+      "name": "F3:blend:F1:+z|F1:-x",
+      "exact": true,
+      "area": 27.1529,
+      "centroid": [
+        -31.6,
+        0,
+        3.6
+      ],
+      "point": [
+        -31.5906,
+        11.4476,
+        3.6094
+      ],
+      "planeNormal": [
+        -0.7071,
+        0,
+        0.7071
+      ]
+    },
+    {
+      "index": 17,
+      "name": "F3:blend:F1:+z|F2:blend:F1:-x|F1:-y",
+      "exact": true,
+      "area": 6.2955,
+      "centroid": [
+        -30.271,
+        -14.271,
+        3.5852
+      ],
+      "point": [
+        -30.4746,
+        -14.8723,
+        3.4087
+      ]
+    },
+    {
+      "index": 18,
+      "name": "F4:-y",
+      "exact": true,
+      "area": 181.8687,
+      "centroid": [
+        0.0071,
+        -10,
+        11.0219
+      ],
+      "point": [
+        7.6137,
+        -10,
+        11.5966
+      ],
+      "planeNormal": [
+        0,
+        -1,
+        0
+      ]
+    },
+    {
+      "index": 19,
+      "name": "F4:+x",
+      "exact": true,
+      "area": 290,
+      "centroid": [
+        10,
+        0,
+        11.25
+      ],
+      "point": [
+        10,
+        5.1016,
+        13.6016
+      ],
+      "planeNormal": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "index": 20,
+      "name": "F4:+y",
+      "exact": true,
+      "area": 181.8687,
+      "centroid": [
+        0.0071,
+        10,
+        11.0219
+      ],
+      "point": [
+        7.6137,
+        10,
+        11.5966
+      ],
+      "planeNormal": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "index": 21,
+      "name": "F4:-x",
+      "exact": true,
+      "area": 290,
+      "centroid": [
+        -10,
+        0,
+        11.25
+      ],
+      "point": [
+        -10,
+        -5.1016,
+        13.6016
+      ],
+      "planeNormal": [
+        -1,
+        0,
+        0
+      ]
+    },
+    {
+      "index": 22,
+      "name": "F4:+z#[F4:-x,F6:-x]",
+      "exact": true,
+      "area": 50,
+      "centroid": [
+        -7.25,
+        0,
+        20
+      ],
+      "point": [
+        -7.1722,
+        8.8278,
+        20
+      ],
+      "planeNormal": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "index": 23,
+      "name": "F4:+z#[F4:+x,F6:+x]",
+      "exact": true,
+      "area": 50,
+      "centroid": [
+        7.25,
+        0,
+        20
+      ],
+      "point": [
+        7.3278,
+        -8.8278,
+        20
+      ],
+      "planeNormal": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "index": 24,
+      "name": "F5:side#[F6:+x]#2",
+      "exact": true,
+      "area": 159.4738,
+      "centroid": [
+        5.4984,
+        0,
+        12.2904
+      ],
+      "point": [
+        5.2925,
+        -1.9777,
+        9.1735
+      ],
+      "cylinder": {
+        "origin": [
+          0,
+          10,
+          12
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "radius": 6
+      }
+    },
+    {
+      "index": 25,
+      "name": "F5:side#[F6:-x]#2",
+      "exact": true,
+      "area": 13.1495,
+      "centroid": [
+        -4.7036,
+        0,
+        15.7105
+      ],
+      "point": [
+        -4.7073,
+        9.6767,
+        15.7204
+      ],
+      "planeNormal": [
+        0.7851,
+        0,
+        -0.6194
+      ],
+      "cylinder": {
+        "origin": [
+          0,
+          10,
+          12
+        ],
+        "axis": [
+          0,
+          -1,
+          0
+        ],
+        "radius": 6
+      }
+    },
+    {
+      "index": 26,
+      "name": "F5:side#1",
+      "exact": true,
+      "area": 375.7941,
+      "centroid": [
+        -2.1861,
+        0,
+        8.8927
+      ],
+      "point": [
+        -2.7202,
+        5.6358,
+        6.652
+      ],
+      "cylinder": {
+        "origin": [
+          0,
+          10,
+          12
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "radius": 6
+      }
+    },
+    {
+      "index": 27,
+      "name": "F6:+x",
+      "exact": true,
+      "area": 50.6275,
+      "centroid": [
+        4.5,
+        0,
+        17.2343
+      ],
+      "point": [
+        4.5,
+        8.8141,
+        17.1545
+      ],
+      "planeNormal": [
+        -1,
+        0,
+        0
+      ]
+    },
+    {
+      "index": 28,
+      "name": "F6:-x",
+      "exact": true,
+      "area": 50.6275,
+      "centroid": [
+        -4.5,
+        0,
+        17.2343
+      ],
+      "point": [
+        -4.5,
+        8.8141,
+        17.1545
+      ],
+      "planeNormal": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "index": 29,
+      "name": "F7:blend:F4:+x|F4:+z#[F4:+x,F6:+x]",
+      "exact": true,
+      "area": 45.922,
+      "centroid": [
+        9.4053,
+        0,
+        19.4053
+      ],
+      "point": [
+        9.9937,
+        -0.588,
+        18.637
+      ],
+      "cylinder": {
+        "origin": [
+          8.5,
+          -10,
+          18.5
+        ],
+        "axis": [
+          0,
+          -1,
+          0
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "index": 30,
+      "name": "F7:blend:F4:+z#[F4:-x,F6:-x]|F4:-x",
+      "exact": true,
+      "area": 45.922,
+      "centroid": [
+        -9.4053,
+        0,
+        19.4053
+      ],
+      "point": [
+        -9.9937,
+        0.588,
+        18.637
+      ],
+      "cylinder": {
+        "origin": [
+          -8.5,
+          10,
+          18.5
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "index": 31,
+      "name": "F7:blend:F4:+z#[F4:+x,F6:+x]|F6:+x",
+      "exact": true,
+      "area": 45.922,
+      "centroid": [
+        5.0947,
+        0,
+        19.4053
+      ],
+      "point": [
+        5.863,
+        -0.588,
+        19.9937
+      ],
+      "cylinder": {
+        "origin": [
+          6,
+          -10,
+          18.5
+        ],
+        "axis": [
+          0,
+          -1,
+          0
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "index": 32,
+      "name": "F7:blend:F4:+z#[F4:-x,F6:-x]|F6:-x",
+      "exact": true,
+      "area": 45.922,
+      "centroid": [
+        -5.0947,
+        0,
+        19.4053
+      ],
+      "point": [
+        -4.5063,
+        -0.588,
+        18.637
+      ],
+      "cylinder": {
+        "origin": [
+          -6,
+          -10,
+          18.5
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "radius": 1.5
+      }
+    },
+    {
+      "index": 33,
+      "name": "F8:csink:side:0",
+      "exact": true,
+      "area": 16.8371,
+      "centroid": [
+        23.085,
+        1.3006,
+        3.303
+      ],
+      "point": [
+        22.4804,
+        2.6377,
+        3.7941
+      ]
+    },
+    {
+      "index": 34,
+      "name": "F8:csink:side:1",
+      "exact": true,
+      "area": 16.8371,
+      "centroid": [
+        24.915,
+        -1.3006,
+        3.303
+      ],
+      "point": [
+        26.1221,
+        -2.1825,
+        3.7941
+      ]
+    },
+    {
+      "index": 35,
+      "name": "F8:bore:side:0",
+      "exact": true,
+      "area": 12.8963,
+      "centroid": [
+        23.0062,
+        0.3565,
+        1.2241
+      ],
+      "point": [
+        22.7766,
+        -1.1804,
+        2.2397
+      ],
+      "cylinder": {
+        "origin": [
+          24,
+          0,
+          2.45
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "radius": 1.7
+      }
+    },
+    {
+      "index": 36,
+      "name": "F8:bore:side:1",
+      "exact": true,
+      "area": 12.8963,
+      "centroid": [
+        24.9938,
+        -0.3565,
+        1.2241
+      ],
+      "point": [
+        25.2234,
+        1.1804,
+        2.2397
+      ],
+      "cylinder": {
+        "origin": [
+          24,
+          0,
+          2.45
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "radius": 1.7
+      }
+    },
+    {
+      "index": 37,
+      "name": "F9:csink:side:0",
+      "exact": true,
+      "area": 16.8371,
+      "centroid": [
+        -24.915,
+        1.3006,
+        3.303
+      ],
+      "point": [
+        -26.1221,
+        2.1825,
+        3.7941
+      ]
+    },
+    {
+      "index": 38,
+      "name": "F9:csink:side:1",
+      "exact": true,
+      "area": 16.8371,
+      "centroid": [
+        -23.085,
+        -1.3006,
+        3.303
+      ],
+      "point": [
+        -22.4804,
+        -2.6377,
+        3.7941
+      ]
+    },
+    {
+      "index": 39,
+      "name": "F9:bore:side:0",
+      "exact": true,
+      "area": 12.8963,
+      "centroid": [
+        -24.9938,
+        0.3565,
+        1.2241
+      ],
+      "point": [
+        -25.2234,
+        -1.1804,
+        2.2397
+      ],
+      "cylinder": {
+        "origin": [
+          -24,
+          0,
+          2.45
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "radius": 1.7
+      }
+    },
+    {
+      "index": 40,
+      "name": "F9:bore:side:1",
+      "exact": true,
+      "area": 12.8963,
+      "centroid": [
+        -23.0062,
+        -0.3565,
+        1.2241
+      ],
+      "point": [
+        -22.7766,
+        1.1804,
+        2.2397
+      ],
+      "cylinder": {
+        "origin": [
+          -24,
+          0,
+          2.45
+        ],
+        "axis": [
+          0,
+          0,
+          -1
+        ],
+        "radius": 1.7
+      }
+    }
+  ]
+}

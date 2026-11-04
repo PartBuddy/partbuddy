@@ -1,0 +1,68 @@
+import { strFromU8, unzipSync } from 'fflate';
+
+/** Namespace of SolidCraft's face-tag extension, version 1 (2026-10). */
+export const FACE_TAG_NAMESPACE = 'https://github.com/bherbruck/solidcraft/formats/3mf-face-tags/2026/10';
+
+export interface TaggedMesh {
+  /** Body name from the 3MF object. */
+  name: string;
+  /** Number of B-rep faces declared by `ft:faces`. */
+  faceCount: number;
+  /** Vertex positions in millimetres, xyz per vertex. */
+  positions: Float64Array;
+  /** Vertex indices, three per triangle. */
+  indices: Uint32Array;
+  /** B-rep face index per triangle (`ft:face`). */
+  triangleFaces: Uint32Array;
+}
+
+const MODEL_PATH = '3D/3dmodel.model';
+const objectPattern = /<object\b[^>]*\bname="([^"]*)"[^>]*\bft:faces="(\d+)"[^>]*>/;
+const vertexPattern = /<vertex\s+x="([^"]+)"\s+y="([^"]+)"\s+z="([^"]+)"\s*\/>/g;
+const trianglePattern = /<triangle\s+v1="(\d+)"\s+v2="(\d+)"\s+v3="(\d+)"\s+ft:face="(\d+)"\s*\/>/g;
+
+/**
+ * Parses a face-tagged 3MF written by SolidCraft (`file.export {format: "3mf-tagged"}`).
+ * three.js' 3MFLoader ignores foreign namespaces, so the face tags need this parser (ADR 0004).
+ * Supports one mesh object per file, which is what a single-body export produces.
+ */
+export function parseTagged3mf(data: Uint8Array): TaggedMesh {
+  const files = unzipSync(data, { filter: (file) => file.name === MODEL_PATH });
+  const model = files[MODEL_PATH];
+  if (!model) throw new Error(`3MF package has no ${MODEL_PATH}`);
+  const xml = strFromU8(model);
+
+  if (!xml.includes(`xmlns:ft="${FACE_TAG_NAMESPACE}"`)) {
+    throw new Error('3MF is not face-tagged (unknown or missing ft namespace)');
+  }
+  const object = objectPattern.exec(xml);
+  if (!object) throw new Error('3MF has no face-tagged mesh object');
+
+  const coordinates: number[] = [];
+  for (const match of xml.matchAll(vertexPattern)) {
+    coordinates.push(Number(match[1]), Number(match[2]), Number(match[3]));
+  }
+  const corners: number[] = [];
+  const faces: number[] = [];
+  for (const match of xml.matchAll(trianglePattern)) {
+    corners.push(Number(match[1]), Number(match[2]), Number(match[3]));
+    faces.push(Number(match[4]));
+  }
+
+  const faceCount = Number(object[2]);
+  const vertexCount = coordinates.length / 3;
+  for (const index of corners) {
+    if (index >= vertexCount) throw new Error(`triangle references missing vertex ${index}`);
+  }
+  for (const face of faces) {
+    if (face >= faceCount) throw new Error(`triangle references face ${face} of ${faceCount}`);
+  }
+
+  return {
+    name: object[1] ?? '',
+    faceCount,
+    positions: Float64Array.from(coordinates),
+    indices: Uint32Array.from(corners),
+    triangleFaces: Uint32Array.from(faces),
+  };
+}

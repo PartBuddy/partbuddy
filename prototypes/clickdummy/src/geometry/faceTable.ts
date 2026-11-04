@@ -1,0 +1,56 @@
+/** One entry of SolidCraft's `model.faces` result, as stored next to the fixture. */
+export interface FaceInfo {
+  index: number;
+  name: string;
+  exact: boolean;
+  area: number;
+  centroid: [number, number, number];
+  /** A point on the face that SolidCraft resolves to this face. */
+  point: [number, number, number];
+  planeNormal?: [number, number, number];
+  cylinder?: {
+    origin: [number, number, number];
+    axis: [number, number, number];
+    radius: number;
+  };
+}
+
+export interface FaceTable {
+  model: string;
+  body: string;
+  units: 'mm';
+  faces: FaceInfo[];
+}
+
+export type SurfaceKind = 'plane' | 'cylinder' | 'other';
+
+export function surfaceKind(face: FaceInfo): SurfaceKind {
+  if (face.planeNormal) return 'plane';
+  if (face.cylinder) return 'cylinder';
+  return 'other';
+}
+
+/** Feature prefix of a SolidCraft face name, e.g. "F5" in "F5:side#1". */
+export function featureOf(face: FaceInfo): string {
+  return face.name.split(':', 1)[0] ?? face.name;
+}
+
+/** True when two faces lie on the same cylinder (SolidCraft splits cylinders into pieces). */
+export function sameCylinder(a: FaceInfo, b: FaceInfo, tolerance = 1e-3): boolean {
+  if (!a.cylinder || !b.cylinder) return false;
+  const close = (x: number, y: number) => Math.abs(x - y) <= tolerance;
+  const parallel = Math.abs(
+    a.cylinder.axis[0] * b.cylinder.axis[0] +
+      a.cylinder.axis[1] * b.cylinder.axis[1] +
+      a.cylinder.axis[2] * b.cylinder.axis[2],
+  );
+  if (!close(parallel, 1) || !close(a.cylinder.radius, b.cylinder.radius)) return false;
+  const d = a.cylinder.origin.map((value, i) => value - (b.cylinder?.origin[i] ?? 0));
+  const along = d[0]! * a.cylinder.axis[0] + d[1]! * a.cylinder.axis[1] + d[2]! * a.cylinder.axis[2];
+  const off = Math.hypot(
+    d[0]! - along * a.cylinder.axis[0],
+    d[1]! - along * a.cylinder.axis[1],
+    d[2]! - along * a.cylinder.axis[2],
+  );
+  return off <= tolerance;
+}

@@ -1,0 +1,309 @@
+{
+  "app": {
+    "prototype": "Prototype",
+    "breadcrumb": "Location",
+    "project": "Cable clip"
+  },
+  "panels": {
+    "viewer": "3D view",
+    "projects": "Projects",
+    "timeline": "Timeline",
+    "parameters": "Parameters",
+    "notes": "Notes",
+    "checks": "Checks and print",
+    "chat": "Assistant"
+  },
+  "actions": {
+    "reset": "Reset",
+    "cancel": "Cancel"
+  },
+  "units": {
+    "mm": "{value, number, ::.## unit/millimeter}",
+    "mm2": "{value, number, ::.#} mm²"
+  },
+  "solidcraft": {
+    "connected": "SolidCraft · revision {revision}",
+    "rebuilding": "SolidCraft · rebuilding",
+    "disconnected": "SolidCraft not running"
+  },
+  "projects": {
+    "loading": "Loading projects",
+    "emptyTitle": "No projects yet",
+    "emptyBody": "Describe a part in the assistant or create a project to start.",
+    "new": "New project",
+    "search": "Search projects",
+    "noMatch": "No project matches the search.",
+    "state": {
+      "active": "In progress",
+      "waiting": "Waiting for print",
+      "done": "Printed"
+    }
+  },
+  "timeline": {
+    "revision": "Revision {revision}",
+    "noErrors": "No errors",
+    "operation": {
+      "join": "join",
+      "cut": "cut"
+    },
+    "notes": "{count, plural, one {# note} other {# notes}}",
+    "rollbackEnd": "End of timeline"
+  },
+  "parameters": {
+    "favorite": "Favourite",
+    "changed": "changed",
+    "range": "Range {min} to {max}",
+    "nominal": "Nominal dimensions",
+    "compensation": "Print compensation",
+    "assumption": "Assumption",
+    "compensationNote": "No calibration value with a complete validity key exists for this printer and material, so compensation is 0 mm.",
+    "pending": "{count, plural, =0 {No pending changes} one {# pending change} other {# pending changes}}",
+    "apply": "Apply and rebuild",
+    "slider": "{name} slider"
+  },
+  "notes": {
+    "pinLabel": "Note {number}: {text}",
+    "emptyTitle": "No notes",
+    "emptyBody": "Select a face in the 3D view and choose Add note. Notes are context for the assistant.",
+    "status": {
+      "attached": "attached",
+      "moved": "moved",
+      "ambiguous": "ambiguous",
+      "orphaned": "orphaned"
+    },
+    "showInView": "Show in 3D view",
+    "delete": "Delete note",
+    "dialogTitle": "Note on face",
+    "anchorTo": "Anchored to",
+    "text": "Note",
+    "placeholder": "For example: round this edge with R2 instead of R1",
+    "contextHint": "The note stays on this face after rebuilds; if the face changes, the note is marked.",
+    "save": "Add note"
+  },
+  "viewer": {
+    "selection": "Selected face",
+    "surface": {
+      "plane": "Plane",
+      "cylinder": "Cylinder",
+      "other": "Surface"
+    },
+    "radius": "Radius",
+    "area": "Area",
+    "anchor": "Name",
+    "anchorExact": "from history",
+    "anchorGeometric": "geometric",
+    "addNote": "Add note",
+    "loading": "Loading model",
+    "errorTitle": "The model could not be read",
+    "errorBody": "The mirrored file is damaged or has an unknown format ({message}).",
+    "rebuilding": "Rebuilding in SolidCraft",
+    "disconnectedTitle": "SolidCraft is not running",
+    "disconnectedBody": "Showing the last mirrored revision. Start SolidCraft to continue editing.",
+    "hint": "Click a face to select it",
+    "canvasLabel": "3D view of the part",
+    "cube": {
+      "right": "RIGHT",
+      "left": "LEFT",
+      "back": "BACK",
+      "front": "FRONT",
+      "top": "TOP",
+      "bottom": "BOTTOM"
+    }
+  },
+  "checks": {
+    "verification": "Verification",
+    "levelsExplained": "L created · TG technically checked · SC executed in SolidCraft. SL and PD need a slicer check and a print record.",
+    "levelsReset": "Parameters changed. Verification is back to L until the checks pass on the new revision.",
+    "list": "Checks",
+    "mesh": "Mesh",
+    "closed": "closed",
+    "open": "{count, plural, one {# open edge} other {# open edges}}",
+    "meshDetail": "{faces} faces · {triangles} triangles · volume {volume} mm³",
+    "overhang": "Overhangs",
+    "noFindings": "no findings",
+    "findings": "{count, plural, one {# finding} other {# findings}}",
+    "overhangDetail": "Downward faces steeper than {limit}° from vertical; the bed layer is excluded.",
+    "timeline": "Timeline rules",
+    "notRun": "not run",
+    "sourceComputed": "Computed from the mirrored mesh in the prototype",
+    "sourceMock": "Mock result; the product runs the timeline check after each step"
+  },
+  "print": {
+    "title": "Print package",
+    "noProfileTitle": "No printer profile",
+    "noProfileBody": "A print package needs a printer, nozzle and material profile. Calibration values are used only with a complete validity key.",
+    "setUpPrinter": "Set up printer",
+    "createPackage": "Create print package",
+    "gateExplained": "The print gate releases a package only when every overhang finding has a solution with proof. A released gate is not a print confirmation (PD)."
+  },
+  "chat": {
+    "role": {
+      "user": "You",
+      "assistant": "Assistant",
+      "system": "System"
+    },
+    "toolCalls": "{count, plural, one {# tool call} other {# tool calls}}",
+    "toolOk": "Succeeded",
+    "tool": {
+      "inspect": "Read timeline and parameters of revision 14",
+      "check": "cable_d_nominal = 10 mm: rebuild without errors"
+    },
+    "card": {
+      "question": "How wide should the snap opening be for the 10 mm cable?",
+      "needsAnswer": "Answer needed",
+      "recommended": "Recommended",
+      "option": {
+        "opening75": {
+          "label": "7.5 mm",
+          "reason": "Same ratio as today (9 mm for 12 mm). The snap force stays similar. Assumption until a test fit confirms it."
+        },
+        "opening80": {
+          "label": "8.0 mm",
+          "reason": "Easier to insert; holds the cable less firmly."
+        },
+        "opening70": {
+          "label": "7.0 mm",
+          "reason": "Holds firmer; the clip arms bend further when the cable is pressed in."
+        }
+      },
+      "other": "Other value",
+      "otherLabel": "Your value and reason",
+      "whyAsked": "Asked because the opening sets the snap force and no measured value exists.",
+      "submit": "Answer",
+      "answered": "Answered:"
+    },
+    "change": {
+      "title": "Proposed change",
+      "parameter": "Parameter",
+      "before": "Now",
+      "after": "New",
+      "note": "Applying rebuilds the model in SolidCraft. Checks run again afterwards; verification falls back to L until they pass.",
+      "discard": "Discard",
+      "apply": "Apply",
+      "applied": "Applied. The channel is now {value}.",
+      "discarded": "Change discarded."
+    },
+    "notice": {
+      "unreachableTitle": "{vendor} is not reachable at {endpoint}",
+      "unreachableBody": "Start the local server or choose another model in the model menu.",
+      "contextTitle": "Context too small: {context} tokens (agent sessions need {minimum})",
+      "contextBody": "Increase the context length in {vendor} (num_ctx) or choose another model.",
+      "noToolsTitle": "{model} cannot call tools",
+      "noToolsBody": "It can answer questions but cannot change the design or run checks.",
+      "solidcraftBody": "The assistant can answer questions but cannot change the design until SolidCraft runs."
+    },
+    "progress": {
+      "label": "{vendor} prompt progress",
+      "text": "{vendor} is reading the prompt · {percent} %",
+      "stop": "Stop"
+    },
+    "mock": {
+      "request": "Make the clip hold a 10 mm cable. The mounting holes stay where they are.",
+      "analysis": "The channel diameter follows cable_d_nominal + komp_channel. komp_channel is 0 mm because no calibration value exists yet; that is an assumption. A 10 mm channel rebuilds without errors. One question before I change the snap opening:",
+      "proposal": "The base plate and the mounting holes stay unchanged.",
+      "appliedSystem": "Prototype: the change is simulated; the 3D model does not change.",
+      "prototypeReply": "Prototype: no model is connected, so this message gets no reply."
+    },
+    "composer": {
+      "label": "Message to the assistant",
+      "placeholder": "Describe a change or ask a question",
+      "notes": "{count, plural, one {# note as context} other {# notes as context}}",
+      "selection": "Selected face",
+      "send": "Send"
+    }
+  },
+  "provider": {
+    "menuTitle": "Model",
+    "menuLabel": "{model} {source}, model menu, {status}",
+    "cloud": "Cloud",
+    "localServers": "Local servers",
+    "local": "local",
+    "context": "{context} context",
+    "tools": "tools",
+    "noTools": "no tools",
+    "images": "images",
+    "status": {
+      "ready": "ready",
+      "processing": "processing",
+      "unreachable": "not reachable",
+      "smallContext": "context too small",
+      "noTools": "no tool calling"
+    }
+  },
+  "settings": {
+    "label": "View and prototype states",
+    "theme": "Theme",
+    "themes": {
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "language": "Language",
+    "languages": {
+      "en": "English",
+      "de": "Deutsch"
+    },
+    "simulate": {
+      "solidcraft": "Simulate SolidCraft",
+      "solidcraftStates": {
+        "connected": "Connected",
+        "rebuilding": "Rebuilding",
+        "disconnected": "Not running"
+      },
+      "local": "Simulate local server",
+      "localStates": {
+        "ready": "Ready",
+        "processing": "Processing a long prompt",
+        "unreachable": "Not reachable"
+      },
+      "projects": "Simulate project list",
+      "projectStates": {
+        "ready": "Loaded",
+        "loading": "Loading",
+        "empty": "Empty"
+      }
+    }
+  },
+  "palette": {
+    "label": "Command palette",
+    "placeholder": "Type a command",
+    "empty": "No command found.",
+    "addNote": "Add note to selected face",
+    "toggleTheme": "Switch light and dark theme",
+    "toggleLanguage": "Switch language",
+    "useModel": "Use {model} ({vendor})"
+  },
+  "status": {
+    "units": "Millimetres",
+    "mesh": "{faces} faces · {triangles} triangles",
+    "noFace": "No face selected",
+    "mock": "Prototype with mock data · no AI requests"
+  },
+  "verification": {
+    "summary": "Verification: {levels}",
+    "none": "none",
+    "R": {
+      "name": "Researched",
+      "proof": "source reference"
+    },
+    "L": {
+      "name": "Created",
+      "proof": "file and commit"
+    },
+    "TG": {
+      "name": "Technically checked",
+      "proof": "check report"
+    },
+    "SC": {
+      "name": "Executed in SolidCraft",
+      "proof": "design, image and report"
+    },
+    "SL": {
+      "name": "Checked in the slicer",
+      "proof": "slice report"
+    },
+    "PD": {
+      "name": "Confirmed by print",
+      "proof": "measurement record"
+    }
+  }
+}

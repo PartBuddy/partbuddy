@@ -1,0 +1,58 @@
+@import "tailwindcss";
+@import "@cad-studio/design-tokens/tokens.css";
+@import "@cad-studio/design-tokens/tailwind-theme.css";
+@import "dockview-react/dist/styles/dockview.css";
+@plugin "tailwindcss-react-aria-components";
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--cs-color-canvas);
+}
+
+/* dockview mapped onto the design tokens */
+.cs-dock {
+  --dv-group-view-background-color: var(--cs-color-surface);
+  --dv-tabs-and-actions-container-background-color: var(--cs-color-surface-sunken);
+  --dv-tabs-and-actions-container-height: var(--cs-control-lg);
+  --dv-tabs-and-actions-container-font-size: var(--cs-text-sm);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--cs-color-surface);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--cs-color-surface-sunken);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--cs-color-surface);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--cs-color-surface-sunken);
+  --dv-activegroup-visiblepanel-tab-color: var(--cs-color-text);
+  --dv-activegroup-hiddenpanel-tab-color: var(--cs-color-text-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--cs-color-text-muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--cs-color-text-muted);
+  --dv-tab-divider-color: var(--cs-color-border);
+  --dv-separator-border: var(--cs-color-border);
+  --dv-paneview-header-border-color: var(--cs-color-border);
+  --dv-paneview-active-outline-color: var(--cs-color-focus);
+  --dv-sash-color: var(--cs-color-border);
+  --dv-active-sash-color: var(--cs-color-accent);
+  --dv-drag-over-background-color: var(--cs-color-accent-subtle);
+  --dv-drag-over-border-color: var(--cs-color-accent);
+  --dv-icon-hover-background-color: var(--cs-color-surface-hover);
+  --dv-tabs-container-scrollbar-color: var(--cs-color-border-strong);
+  color-scheme: inherit;
+  font-family: var(--cs-font-sans);
+}
+
+.cs-dock .dv-tab {
+  padding-inline: var(--cs-space-3);
+}
+
+.cs-dock .dv-tab.dv-active-tab {
+  box-shadow: inset 0 calc(-1 * var(--cs-focus-width)) 0 var(--cs-color-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}
