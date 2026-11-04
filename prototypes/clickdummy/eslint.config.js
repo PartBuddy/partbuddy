@@ -17,6 +17,12 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       '@typescript-eslint/no-confusing-void-expression': ['error', { ignoreArrowShorthand: true }],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [{ name: 'dockview-enterprise', message: 'Proprietary licence; use dockview-react (MIT).' }],
+        },
+      ],
       'no-restricted-syntax': [
         'error',
         {
