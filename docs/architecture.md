@@ -27,6 +27,7 @@ flowchart LR
 
   subgraph Main["Main process (Node, Electron)"]
     Agent["Agent runtime<br/>loop, skills, prompt layout (ADR 0005)"]:::own
+    Gate["Gate proxy and agent adapters<br/>MCP over HTTP, Claude Code headless (ADR 0015)"]:::own
     Rules["Rule engine and check gates (ADR 0010)"]:::own
     Providers["Provider adapters<br/>Vercel AI SDK + provider packages"]:::buy
     PM["Provider manager<br/>detection, capabilities (ADR 0011)"]:::own
@@ -44,6 +45,7 @@ flowchart LR
   Orca["OrcaSlicer CLI"]:::ext
   Blender["Blender (renders)"]:::ext
   Cloud["Cloud providers<br/>Anthropic · OpenAI · Google · Z.ai · DeepSeek · Mistral · OpenRouter"]:::ext
+  AgentCLI["Agent programs<br/>Claude Code · Gemini CLI"]:::ext
   Local["Local model servers<br/>Strata · Ollama · LM Studio · llama.cpp · vLLM"]:::ext
   CredMan["Windows Credential Manager"]:::ext
 
@@ -68,6 +70,10 @@ flowchart LR
   Keys --> CredMan
   Providers -.key.-> Keys
   MCP <-->|stdio| SC
+  Bridge <--> Gate
+  Gate <-->|stdio, headless| AgentCLI
+  AgentCLI -->|MCP over HTTP| Gate
+  Gate <-->|stdio| SC
   SCS <-->|control port| SC
   Sidecar <--> Tools
   Tools --> Orca
@@ -84,6 +90,7 @@ Responsibilities:
 | Rule engine | Hooks and gates around tool calls (export → mesh check, print → gate) | Interprets free text |
 | SolidCraft supervisor | Process detection, `control.subscribe`, revision tracking, mirror requests | Model geometry itself |
 | Sidecar | Numerical checks with tested Python libraries | Sees provider keys |
+| Gate proxy | The only SolidCraft access of external agents; tool policy on every call | Hands out SolidCraft's own MCP server or reads agent credentials |
 
 ## Data flow: from a note to a print package
 
@@ -200,7 +207,10 @@ Nothing of this is part of the repository.
   default (for example DeepSeek) are off until the user enables them after a notice.
 * Photos are stripped of metadata (GPS, device serials) before they leave the machine.
 * A local-only mode disables all cloud profiles.
-* Anthropic consumer-plan sign-in is not offered; only API keys.
+* Subscription plans ([ADR 0015](adr/0015-subscription-access.md)): Claude through the user's own,
+  unmodified Claude Code with its own sign-in; ChatGPT through Sign in with ChatGPT; Gemini through
+  the user's Gemini CLI. PartBuddy never offers Claude.ai or Google sign-in itself and never reads
+  those credentials.
 
 ## Security boundaries
 

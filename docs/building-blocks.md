@@ -69,6 +69,9 @@ npm registry and the GitHub REST API on 2026-11-04 [2][3].
 | Providers | `@ai-sdk/anthropic@4.0.90`, `@ai-sdk/openai@4.0.104`, `@ai-sdk/google@4.0.107`, `@ai-sdk/deepseek@3.0.75`, `@ai-sdk/mistral@4.0.74`, `@ai-sdk/openai-compatible@3.0.80` (all 2026-10-27); `@openrouter/ai-sdk-provider@3.1.0` (2026-09-19) | Apache-2.0 | Released together with `ai` | Newer patches of 2026-11-03; `ollama-ai-provider-v2@4.1.0` (community; Ollama runs through `openai-compatible`) | First-party providers; Z.ai GLM, Strata, llama.cpp, vLLM, LM Studio and Ollama via `openai-compatible` [25] |
 | Model prices | models.dev `api.json` data, snapshot bundled per release | MIT (data) | Updated continuously (last push 2026-11-04) | OpenRouter prices only; LiteLLM cost map | The AI SDK reports tokens but no cost [26] |
 | MCP client | `@modelcontextprotocol/client@2.4.0` (2026-10-23) | Apache-2.0 (new code; older code MIT) | v2 is the stable line since 2026-07-27 | `@ai-sdk/mcp@2.0.90` (stdio transport experimental), `@modelcontextprotocol/sdk@1.32.2` (v1 maintenance line) | Official stdio client for the SolidCraft MCP server [27] |
+| MCP server for the gate proxy | `@modelcontextprotocol/server@2.4.0` (2026-10-23), low-level `Server` with `WebStandardStreamableHTTPServerTransport`; the client is used for `solidcraft-cli mcp` ([ADR 0015](adr/0015-subscription-access.md)) | Apache-2.0 | Released with the client | `@modelcontextprotocol/node@2.1.2` (adds Hono), `McpServer` (cannot pass JSON schemas through) | Passes SolidCraft's tool schemas through unchanged on 127.0.0.1 with a bearer token |
+| Gate proxy and agent adapters | **Own build** ([ADR 0015](adr/0015-subscription-access.md)): MCP proxy with the tool policy, Claude Code headless adapter (stream-json), sign-in state from `claude auth status` | Own code | Own | `@agentclientprotocol/claude-agent-acp@0.100.0` (Claude Agent SDK, Claude.ai login only with Anthropic's approval), SolidCraft's MCP server handed to the agent directly (no gates) | Keeps gates outside the model and holds no subscription credentials |
+| ACP client (Gemini CLI, planned) | `@agentclientprotocol/sdk@2.4.0` (2026-11-02), pinned when the Gemini route is built | Apache-2.0 | Agent Client Protocol reference SDK | Gemini CLI OAuth used directly (forbidden by Google) | Documented integration path of the Gemini CLI; eligible under the 7-day rule from 2026-11-09 |
 | Agent loop, skill loader, prompt layout, reasoning normalisation | **Own build** ([ADR 0005](adr/0005-ai-layer.md)) | Own code | Own | OpenCode v1 1.19.5 / `@opencode/sdk@2.2.5` (plan B), Claude Agent SDK 0.3.318, `@openai/agents@0.21.0`, Mastra 1.82.0, Goose v1.57.0 | Gates, skills and local-model guards are product logic; OpenCode's formats are reused |
 | Skill frontmatter | `yaml@2.9.1` (2026-09-11) | ISC | Verified for this document [2] | `gray-matter@4.0.3` (2021-04-24, unmaintained) | Plain YAML parse of the split frontmatter block |
 | Rule engine and check gates | **Own build** ([ADR 0010](adr/0010-rule-engine-and-check-gates.md)) | Own code | Own | Checks as optional model tools, Open Policy Agent | Gates run outside the model's control; a dozen fixed rules need no policy language |
@@ -111,7 +114,9 @@ only calls them as separate processes or over the network ([ADR 0007](adr/0007-l
 | Blender | current LTS of the customer's installation | GPL-3.0-or-later | Studio renders through a separately published GPL script |
 | Cloud AI providers | Anthropic, OpenAI, Google, Z.ai, DeepSeek, Mistral, OpenRouter | Provider terms | Customer's own API keys |
 | Local model servers | Strata 0.2.10, Ollama 0.40.14, LM Studio, llama.cpp, vLLM 0.33.0 | MIT and others; model weights under their own licences | OpenAI-compatible endpoints on localhost |
-| Windows Credential Manager | part of Windows | – | Storage of API keys through `@napi-rs/keyring` |
+| Windows Credential Manager | part of Windows | – | Storage of API keys and Sign in with ChatGPT tokens through `@napi-rs/keyring` |
+| Claude Code | 2.1.302 (tested 2026-11-04), installed and signed in by the user | Anthropic terms (Commercial Terms for the publisher, Consumer or Commercial Terms for the user) | External agent in headless mode, unmodified, through the gate proxy ([ADR 0015](adr/0015-subscription-access.md)) |
+| Gemini CLI | 0.66.0 (planned) | Apache-2.0; Google terms for the service | External agent over ACP ([ADR 0015](adr/0015-subscription-access.md)) |
 
 ## Licence compatibility
 
@@ -121,7 +126,7 @@ written for a closed-source product and every listed licence is also compatible 
 | Licence | Shipped blocks | Obligation | Verdict |
 |---|---|---|---|
 | MIT, ISC, BSD-2/3-Clause, 0BSD, Zlib, CC0-1.0 | Electron, React, three.js, R3F, drei, three-mesh-bvh, camera-controls, dockview, Zustand, XState, better-sqlite3, Kysely, electron-store, assistant-ui, shiki, react-hook-form, Zod, i18next, `intl-messageformat` (BSD-3-Clause), react-hotkeys-hook, Tabler icons, fflate, `@napi-rs/keyring`, Sentry SDK, electron-log, `yaml` (ISC), `postprocessing` (Zlib), onnxruntime-node, trimesh, numpy, scipy, pydantic, the embedding model (MIT) | Copyright and licence text in the third-party notices; numpy and scipy wheels bundle OpenBLAS and gfortran runtime licences that must be collected [43] | OK |
-| Apache-2.0 | React Aria, AI SDK and providers, MCP client, Streamdown, transformers.js, Tailwind React Aria plugin, uv (dual MIT) | Licence text plus any NOTICE file content; mark modified files | OK |
+| Apache-2.0 | React Aria, AI SDK and providers, MCP client and server, Streamdown, transformers.js, Tailwind React Aria plugin, uv (dual MIT) | Licence text plus any NOTICE file content; mark modified files | OK |
 | MPL-2.0 | python-build-standalone (build of CPython) | File-level copyleft only for modified MPL files; plus the CPython PSF licence and the licences of bundled libraries (OpenSSL, SQLite, zlib and others) | OK with notices |
 | PSF-2.0 | CPython runtime | Include the PSF licence | OK |
 | Public domain | SQLite (in better-sqlite3) | None | OK |
@@ -151,6 +156,7 @@ With an ADR:
 6. Python sidecar worker protocol ([ADR 0012](adr/0012-python-sidecar.md)).
 7. Typed IPC bridge ([ADR 0013](adr/0013-typed-ipc-bridge.md)).
 8. CAD icon glyphs ([ADR 0014](adr/0014-cad-icon-glyphs.md)).
+9. Gate proxy and external agent adapters ([ADR 0015](adr/0015-subscription-access.md)).
 
 Glue on top of chosen blocks, no ADR yet (an ADR is due if one grows beyond glue):
 

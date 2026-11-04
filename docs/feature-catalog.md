@@ -27,6 +27,7 @@ A level is shown only when its proof exists; higher levels never replace lower o
 | Notes on faces, edges, features and free points (anchored by name, see ADR 0006) | Context for AI requests ("this edge R2 instead of R1") | MVP |
 | Chat with streaming answers, tool-call display and clarification cards (options, recommendation, reason) | The bundled question round of the earlier workflow, as UI | MVP |
 | Provider manager: Anthropic, OpenAI, Gemini, GLM, DeepSeek, Mistral, OpenRouter, any OpenAI-compatible endpoint, Strata, Ollama, LM Studio, llama.cpp, vLLM; connection test; model per chat | Free model choice; local models for privacy | MVP |
+| Existing subscriptions: Claude Pro/Max through the user's own Claude Code, ChatGPT Plus/Pro through Sign in with ChatGPT, Gemini through the Gemini CLI ([ADR 0015](adr/0015-subscription-access.md)) | No extra API costs for people who already pay for a plan | MVP |
 | Status display for local servers (reachable, model loaded, context size, tool calling yes/no) | Explains slow or failing local runs | MVP |
 | Timeline panel with feature names, errors and rollback position | Same mental model as Onshape and Fusion | MVP |
 | Parameter panel with nominal value and print compensation as separate fields, ranges and sliders; range check before applying | Keeps the separation of nominal size and compensation; avoids failed rebuilds | MVP |

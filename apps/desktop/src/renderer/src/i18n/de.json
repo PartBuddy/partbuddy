@@ -71,5 +71,42 @@
     "units": "mm",
     "mesh": "{bodies, plural, one {# Körper} other {# Körper}} · {faces, plural, one {# Fläche} other {# Flächen}} · {triangles} Dreiecke",
     "noFace": "Keine Fläche ausgewählt"
+  },
+  "assistant": {
+    "title": "Assistent",
+    "preview": "Vorschau",
+    "plan": "{plan}-Abo",
+    "apiKey": "API-Key",
+    "signedIn": "Claude Code {version} · {plan}",
+    "state": {
+      "checking": "Claude Code wird gesucht",
+      "notInstalled": "Claude Code nicht installiert",
+      "signedOut": "Nicht bei Claude Code angemeldet",
+      "ready": "Bereit",
+      "busy": "Arbeitet",
+      "unavailable": "Claude Code nicht verfügbar"
+    },
+    "notInstalledTitle": "Claude Code ist nicht installiert",
+    "notInstalledBody": "PartBuddy nutzt dein eigenes Claude Code mit deinem Claude-Abo. Installiere Claude Code von Anthropic und suche dann erneut.",
+    "signedOutTitle": "Bei Claude Code anmelden",
+    "signedOutBody": "Claude Code öffnet Anthropics Anmeldeseite in deinem Browser. PartBuddy sieht deine Kontodaten nie.",
+    "signIn": "Mit Claude anmelden",
+    "refresh": "Erneut prüfen",
+    "unavailableTitle": "Claude Code ließ sich nicht starten",
+    "unavailableBody": "Details: {detail}",
+    "empty": "Beschreibe, was SolidCraft bauen oder ändern soll. Jeder Schritt erscheint in der 3D-Ansicht.",
+    "working": "Claude arbeitet",
+    "needsSolidCraft": "Verbinde zuerst SolidCraft; der Assistent arbeitet am offenen Design.",
+    "composer": "Nachricht an den Assistenten",
+    "placeholder": "Zum Beispiel: eine Platte 40 × 20 × 5 mm mit zwei 4-mm-Bohrungen",
+    "send": "Senden",
+    "stop": "Stopp",
+    "stopped": "Abgebrochen, bevor die Antwort fertig war.",
+    "tool": {
+      "running": "läuft",
+      "done": "fertig",
+      "failed": "fehlgeschlagen",
+      "denied": "von PartBuddy abgelehnt"
+    }
   }
 }

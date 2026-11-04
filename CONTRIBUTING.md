@@ -63,6 +63,8 @@ in `apps/desktop/test/fakeSolidCraft.ts`. With SolidCraft installed and a design
 | `PARTBUDDY_SOLIDCRAFT_EXE` | Path of the SolidCraft executable, if it is not in Program Files or on `PATH` |
 | `PARTBUDDY_SOLIDCRAFT_AUTOSTART=0` | Never start SolidCraft automatically |
 | `PARTBUDDY_CACHE_DIR` | Folder for mirrored exports (default `%LOCALAPPDATA%\PartBuddy\cache\mirror`) |
+| `PARTBUDDY_CLAUDE_COMMAND` | JSON array that replaces the Claude Code program, for tests (`["node", "test/fakeClaude.mjs"]`) |
+| `PARTBUDDY_E2E_CLAUDE=1` | Also run the contract test in which your Claude Code builds a part; it spends subscription usage |
 | `SOLIDCRAFT_CONTROL_DIR` | SolidCraft's own setting for its control folder; PartBuddy reads the same folder |
 
 ## Licence of contributions

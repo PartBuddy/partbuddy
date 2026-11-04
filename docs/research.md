@@ -414,6 +414,28 @@ files, logs, crash reports, telemetry, URLs or command lines; `Authorization`, `
 `api-key` headers are redacted; local-server keys are handled the same way. The sidecar never sees
 provider keys.
 
+### 3.6 Subscription plans in third-party apps
+
+Checked on the providers' own pages on 2026-11-04 (issue #13; decision in
+[ADR 0015](adr/0015-subscription-access.md)).
+
+| Provider | What a third-party app may do | What it may not do | Route chosen |
+|---|---|---|---|
+| Anthropic (Claude Pro, Max, Ultra) | Run the **unmodified Claude Code** in its product under the Commercial Terms; each end user signs in to Claude Code with their own subscription or key; the app may say it runs Claude Code [206] | Offer Claude.ai login itself, route requests through Free/Pro/Max/Ultra credentials, collect or intermediate Claude.ai credentials or session tokens; agents built on the Claude Agent SDK need prior approval for Claude.ai login [206][207] | Claude Code 2.1.302 headless (`claude -p`, stream-json), tools only through PartBuddy's gate proxy |
+| OpenAI (ChatGPT Plus, Pro) | Sign in with ChatGPT with plan usage, open to all open-source apps: dynamic registration, PKCE on a 127.0.0.1 loopback, no client secret; Responses API with `store: false`, `stream: true` [208] | Use ChatGPT's `backend-api` endpoints; several Responses features are unsupported in the preview [208] | Own agent loop with the user's OAuth access token |
+| Google (Gemini Code Assist, AI Pro/Ultra) | Drive the Gemini CLI (Apache-2.0) as a program [209] | Access the services behind Gemini CLI with third-party software using Gemini CLI's OAuth ("grounds for suspension") [209] | Gemini CLI 0.66.0 over ACP (`@agentclientprotocol/sdk` 2.4.0, Apache-2.0) |
+
+**measured**: Claude Code 2.1.302 in headless mode with `--tools ""`, `--setting-sources ""` and
+`--strict-mcp-config` answers with a Max subscription and loads no user hooks or plugins;
+`--bare` reads only API keys and is unusable for subscriptions. `claude auth status --json` also
+returns the e-mail address and organisation, which PartBuddy drops. Through the gate proxy, Claude
+Code built a 20 × 20 × 10 mm box in SolidCraft 0.30.1 in four tool calls and 48 s and reported
+4000 mm³.
+
+The ACP adapter for Claude Code (`@agentclientprotocol/claude-agent-acp` 0.100.0, 2026-11-03,
+Apache-2.0) builds on the Claude Agent SDK and was not chosen; OpenAI's `codex app-server` is
+documented as a runtime fed with the app's own Sign in with ChatGPT token [208].
+
 ## 4. Building blocks
 
 The full selection with exact pins, licences and rejected alternatives is in
@@ -473,7 +495,7 @@ never collects, proxies or resells keys.
 
 | Provider | Training on API data | Retention | DPA | Location | BYOK notes |
 |---|---|---|---|---|---|
-| Anthropic | No [141] | 30 days; flagged content up to 2 years, classifier scores up to 7 years [142] | Incorporated [141] | US; Anthropic Ireland contracts for EEA | Console API keys only: third-party apps may not offer Claude.ai login or route through Free/Pro/Max/Ultra credentials [138][143]. Physical-actions rule excludes plans reviewed by a qualified person before execution, so keep human confirmation before printing [143]. |
+| Anthropic | No [141] | 30 days; flagged content up to 2 years, classifier scores up to 7 years [142] | Incorporated [141] | US; Anthropic Ireland contracts for EEA | Third-party apps may not offer Claude.ai login or route through Free/Pro/Max/Ultra credentials; running the unmodified Claude Code with the user's own sign-in is allowed (§ 3.6) [138][143][206]. Physical-actions rule excludes plans reviewed by a qualified person before execution, so keep human confirmation before printing [143]. |
 | OpenAI | No [144][145] | 30 days abuse logs; stateful endpoints until deleted [145] | Offered (not fetched) | US; OpenAI Ireland for EEA | From 2026-11-20 model-access intermediaries need approval; a feature integration is exempt [146] |
 | Google Gemini unpaid | **Yes**, human review [147] | Not stated | No | Global | **Apps for EEA/CH/UK users may use only Paid Services** [147][148]; "not for consumer use" [147] *(snippet of the official page)* |
 | Google Gemini paid | No [147] | Limited period for abuse | Processor DPA | Any country | Require a billing-enabled key in the EEA |
@@ -672,7 +694,7 @@ Substitutes used:
 
 1. Legal **[counsel]**: Blender script boundary; OrcaSlicer profile JSON; OCCT exception for wasm
    builds; Gemini "not for consumer use" with hobbyist BYOK; written confirmation from Anthropic
-   before any use of a user's own Claude Code login; Mistral pay-as-you-go training default; Z.ai
+   of the Claude Code route of ADR 0015 before the first public release; Mistral pay-as-you-go training default; Z.ai
    Entity List and export control; ePrivacy/TKG consent for telemetry; AI Act Art. 50(2) scope for
    CAD outputs; CRA product boundary for controlled external apps, support-period length, exact SBOM
    wording; Austrian consumer-law limits on EULA disclaimers; trademark search for the product name.
@@ -901,3 +923,7 @@ Substitutes used:
 203. Plasticity (software), Wikipedia, https://en.wikipedia.org/wiki/Plasticity_(software), accessed 2026-11-04
 204. Node.js `node:sqlite` (v24 and current), https://nodejs.org/docs/latest-v24.x/api/sqlite.html ; https://nodejs.org/api/sqlite.html, accessed 2026-11-04
 205. gitleaks releases (v8.30.1, 2026-03-21), https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1, accessed 2026-11-04
+206. Claude Code, legal and compliance (customers offering Claude Code; authentication and credential use), https://code.claude.com/docs/en/legal-and-compliance, accessed 2026-11-04
+207. Claude Agent SDK overview (Claude.ai login only with prior approval), https://code.claude.com/docs/en/agent-sdk/overview, accessed 2026-11-04
+208. OpenAI, Sign in with ChatGPT: quickstart, open-source plan usage, registration and sign-in, accounts and sessions, models and inference, Codex app-server, preview limitations, https://developers.openai.com/siwc ; https://developers.openai.com/siwc/token-sharing-open-source, accessed 2026-11-04
+209. Gemini CLI, licence, terms of service and privacy notices, https://geminicli.com/docs/resources/tos-privacy/, accessed 2026-11-04

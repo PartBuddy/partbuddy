@@ -16,6 +16,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "@modelcontextprotocol/server": "2.4.0",
     "@partbuddy/design-tokens": "workspace:*",
     "@partbuddy/geometry": "workspace:*",
     "@react-three/drei": "10.7.9",

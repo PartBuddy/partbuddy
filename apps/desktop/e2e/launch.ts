@@ -30,6 +30,8 @@ export async function launchApp(options: { env?: Record<string, string>; isolate
           PARTBUDDY_SOLIDCRAFT_AUTOSTART: '0',
           // An existing file stands in for the SolidCraft executable; it is never started.
           PARTBUDDY_SOLIDCRAFT_EXE: process.execPath,
+          // A fake Claude Code instead of the user's own program and subscription.
+          PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(appDir, 'test', 'fakeClaude.mjs')]),
         }
       : {}),
     ...options.env,

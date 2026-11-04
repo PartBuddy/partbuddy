@@ -59,4 +59,10 @@ export default tseslint.config(
     files: ['eslint.config.mjs'],
     ...tseslint.configs.disableTypeChecked,
   },
+  {
+    // Plain JavaScript test doubles that run as their own Node process.
+    files: ['test/**/*.mjs'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: { ...tseslint.configs.disableTypeChecked.languageOptions, globals: { ...globals.node } },
+  },
 );

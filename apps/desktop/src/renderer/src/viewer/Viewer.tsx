@@ -109,7 +109,7 @@ function FrameDesign({ documentId, bodies }: { documentId: string; bodies: BodyM
   useEffect(() => {
     if (!controls || framed.current === documentId || bounds.radius === 0) return;
     framed.current = documentId;
-    const distance = bounds.radius * 3.2;
+    const distance = bounds.radius * 4.2;
     const [dx, dy, dz] = scene.viewDirection;
     const { x, y, z } = bounds.center;
     void controls.setLookAt(x + dx * distance, y + dy * distance, z + dz * distance, x, y, z, false);

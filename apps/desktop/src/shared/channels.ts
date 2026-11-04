@@ -8,11 +8,18 @@ export const invokeChannels = {
   solidcraftRetry: 'solidcraft:retry',
   solidcraftStart: 'solidcraft:start',
   mirrorCurrent: 'mirror:current',
+  agentStatus: 'agent:status',
+  agentRefresh: 'agent:refresh',
+  agentSend: 'agent:send',
+  agentStop: 'agent:stop',
+  agentSignIn: 'agent:sign-in',
 } as const;
 
 export const eventChannels = {
   solidcraftStatus: 'solidcraft:status-changed',
   mirrorRevision: 'mirror:revision',
+  agentStatus: 'agent:status-changed',
+  agentEvent: 'agent:event',
 } as const;
 
 export type InvokeChannel = (typeof invokeChannels)[keyof typeof invokeChannels];

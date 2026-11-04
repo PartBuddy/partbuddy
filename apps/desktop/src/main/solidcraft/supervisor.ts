@@ -97,6 +97,12 @@ export class SolidCraftSupervisor {
     this.actor.send({ type: 'START' });
   }
 
+  /** Control port of the connected SolidCraft, for tools that bridge to the same app. */
+  connectedPort(): number | null {
+    const snapshot = this.actor.getSnapshot();
+    return snapshot.value === 'connected' ? (snapshot.context.endpoint?.port ?? null) : null;
+  }
+
   currentRevision(): MirrorRevision | null {
     return this.latest;
   }

@@ -74,7 +74,7 @@ test('the renderer sees only the typed bridge', async () => {
     };
   });
   expect(globals).toEqual({
-    bridge: ['appInfo', 'mirror', 'solidcraft'],
+    bridge: ['agent', 'appInfo', 'mirror', 'solidcraft'],
     solidcraft: ['onStatus', 'retry', 'start', 'status'],
     require: 'undefined',
     process: 'undefined',
@@ -82,6 +82,14 @@ test('the renderer sees only the typed bridge', async () => {
   const csp = await launched.page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
   expect(csp).toContain("script-src 'self'");
   expect(csp).not.toContain('unsafe-eval');
+});
+
+test('the assistant shows the signed-in plan and needs SolidCraft', async () => {
+  launched = await launchApp();
+  const { page } = launched;
+  await expect(page.getByTestId('agent-status')).toHaveText('Claude Code 9.9.9 · max subscription');
+  await expect(page.getByText('Connect SolidCraft first; the assistant works on the open design.')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
 });
 
 test('the main view has no WCAG 2.2 AA violations that axe can detect', async () => {

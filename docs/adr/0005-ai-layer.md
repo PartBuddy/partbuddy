@@ -67,6 +67,18 @@ Own code (this ADR is its record):
 * Gates and the rule engine: [ADR 0010](0010-rule-engine-and-check-gates.md). Provider manager and
   local-server detection: [ADR 0011](0011-provider-manager.md).
 
+### Update 2026-11-04: subscription plans
+
+The product owner requires that PartBuddy works with existing subscription plans, not only API
+keys. [ADR 0015](0015-subscription-access.md) adds two routes without replacing this loop:
+
+* ChatGPT Plus/Pro through Sign in with ChatGPT runs **in this loop**, with the user's OAuth access
+  token on the Responses API, so all gates and guards apply unchanged.
+* Claude Code (Claude subscriptions) and later the Gemini CLI run as **external agents**: the
+  user's own program does the reasoning, and PartBuddy's gate proxy is its only way to SolidCraft,
+  so tool permissions and gates still hold outside the model's control. Skills and the prompt
+  layout of this loop do not apply there; a short role prompt is appended instead.
+
 ### Consequences
 
 * Good, because every provider goes through the same loop, so gates and guards apply equally.

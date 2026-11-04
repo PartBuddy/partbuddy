@@ -1,0 +1,226 @@
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { request } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { AgentService } from '../src/main/agents/agentService';
+import { findClaudeCode, parseStreamLine } from '../src/main/agents/claudeCode';
+import { GateProxy, type ToolCallRecord, type UpstreamTools } from '../src/main/agents/gateProxy';
+import { decide } from '../src/main/agents/policy';
+import { reduce, type ConversationItem } from '../src/renderer/src/assistant/store';
+import type { AgentEvent, AgentStatus } from '../src/shared/contract';
+
+const cleanups: (() => Promise<void> | void)[] = [];
+afterEach(async () => {
+  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+});
+
+function fakeUpstream() {
+  const calls: string[] = [];
+  const upstream: UpstreamTools = {
+    instructions: () => 'SolidCraft drives the app.',
+    listTools: () =>
+      Promise.resolve([
+        { name: 'inspect_design', description: 'The whole design', inputSchema: { type: 'object', properties: {} } },
+        { name: 'export', description: 'Export bodies', inputSchema: { type: 'object', properties: {} } },
+      ]),
+    callTool: (name) => {
+      calls.push(name);
+      return Promise.resolve({ content: [{ type: 'text', text: `${name} ok` }] });
+    },
+  };
+  return { upstream, calls };
+}
+
+describe('tool policy', () => {
+  it('allows reading and modelling tools', () => {
+    expect(decide('inspect_design', {})).toEqual({ allow: true });
+    expect(decide('execute', { command: 'solid.extrude', params: {} })).toEqual({ allow: true });
+  });
+
+  it('refuses tools that discard the design or touch files, with a reason', () => {
+    for (const name of ['new_design', 'open', 'save', 'export']) {
+      const decision = decide(name, {});
+      expect(decision.allow, name).toBe(false);
+    }
+    expect(decide('unknown_tool', {}).allow).toBe(false);
+  });
+
+  it('refuses file commands hidden in execute and batch', () => {
+    expect(decide('execute', { command: 'file.export', params: {} }).allow).toBe(false);
+    expect(decide('batch', { commands: [{ command: 'sketch.line' }, { command: 'doc.open' }] }).allow).toBe(false);
+    expect(decide('batch', { commands: [{ command: 'sketch.line' }] }).allow).toBe(true);
+  });
+});
+
+describe('gate proxy', () => {
+  async function startProxy() {
+    const { upstream, calls } = fakeUpstream();
+    const records: ToolCallRecord[] = [];
+    const proxy = new GateProxy(upstream, (record) => records.push(record));
+    await proxy.start();
+    cleanups.push(() => proxy.stop());
+    return { proxy, calls, records };
+  }
+
+  async function connect(proxy: GateProxy, token = proxy.token) {
+    const client = new Client({ name: 'test', version: '1.0.0' });
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(proxy.url), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }),
+    );
+    cleanups.push(() => client.close());
+    return client;
+  }
+
+  it('lists SolidCraft tools unchanged and forwards allowed calls', async () => {
+    const { proxy, calls, records } = await startProxy();
+    const client = await connect(proxy);
+    const { tools } = await client.listTools();
+    expect(tools.map((tool) => tool.name)).toEqual(['inspect_design', 'export']);
+    expect(client.getInstructions()).toBe('SolidCraft drives the app.');
+    const result = await client.callTool({ name: 'inspect_design', arguments: {} });
+    expect(result.isError).not.toBe(true);
+    expect(calls).toEqual(['inspect_design']);
+    expect(records.at(-1)).toMatchObject({ name: 'inspect_design', decision: 'allowed', ok: true });
+  });
+
+  it('refuses gated calls without reaching SolidCraft', async () => {
+    const { proxy, calls, records } = await startProxy();
+    const client = await connect(proxy);
+    const result = await client.callTool({ name: 'export', arguments: { path: 'x.3mf' } });
+    expect(result.isError).toBe(true);
+    expect(calls).toEqual([]);
+    expect(records.at(-1)).toMatchObject({ name: 'export', decision: 'denied' });
+  });
+
+  it('refuses requests without the token or for another host', async () => {
+    const { proxy } = await startProxy();
+    await expect(connect(proxy, 'wrong')).rejects.toThrow();
+    // A DNS-rebinding page would send its own host name; fetch cannot set Host, node:http can.
+    const status = await new Promise<number | undefined>((done) => {
+      const call = request(
+        { host: '127.0.0.1', port: proxy.port, path: '/mcp', method: 'POST', headers: { Host: 'evil.example', Authorization: `Bearer ${proxy.token}` } },
+        (response) => {
+          response.resume();
+          done(response.statusCode);
+        },
+      );
+      call.end('{}');
+    });
+    expect(status).toBe(401);
+  });
+});
+
+describe('Claude Code adapter', () => {
+  it('maps stream-json lines to events', () => {
+    expect(parseStreamLine('{"type":"system","subtype":"init","model":"m"}')).toEqual([{ type: 'started', model: 'm' }]);
+    expect(
+      parseStreamLine('{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hi"}}}'),
+    ).toEqual([{ type: 'textDelta', text: 'Hi' }]);
+    expect(parseStreamLine('{"type":"assistant","message":{"content":[{"type":"text","text":"A"},{"type":"tool_use"}]}}')).toEqual([
+      { type: 'text', text: 'A' },
+    ]);
+    expect(parseStreamLine('{"type":"result","subtype":"error_max_turns","is_error":true}')).toEqual([
+      { type: 'done', ok: false, durationMs: null, detail: 'error_max_turns' },
+    ]);
+    expect(parseStreamLine('not json')).toEqual([]);
+  });
+
+  it('finds the native install in the user folder', () => {
+    const home = join(tmpdir(), 'partbuddy-home');
+    const expected = join(home, '.local', 'bin', process.platform === 'win32' ? 'claude.exe' : 'claude');
+    expect(findClaudeCode({}, home, (path) => path === expected)).toEqual({ command: expected, prefix: [] });
+    expect(findClaudeCode({}, home, () => false)).toBeNull();
+  });
+});
+
+describe('agent service with a fake Claude Code', () => {
+  function setup(env: Record<string, string> = {}) {
+    const workDir = mkdtempSync(join(tmpdir(), 'partbuddy-agent-'));
+    cleanups.push(() => {
+      rmSync(workDir, { recursive: true, force: true });
+    });
+    const { upstream, calls } = fakeUpstream();
+    const statuses: AgentStatus[] = [];
+    const events: AgentEvent[] = [];
+    const service = new AgentService(
+      {
+        env: {
+          ...process.env,
+          PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, resolve(__dirname, 'fakeClaude.mjs')]),
+          ...env,
+        },
+        home: workDir,
+        workDir,
+        tools: () => Promise.resolve(upstream),
+        log: () => undefined,
+      },
+      { status: (status) => statuses.push(status), event: (event) => events.push(event) },
+    );
+    cleanups.push(() => service.dispose());
+    return { service, statuses, events, calls, workDir };
+  }
+
+  it('shows the plan but never account data', async () => {
+    const { service } = setup();
+    const status = await service.refresh();
+    expect(status).toEqual({ agent: 'claude-code', state: 'ready', version: '9.9.9', method: 'claude.ai', plan: 'max' });
+    expect(JSON.stringify(status)).not.toContain('example.com');
+  });
+
+  it('asks the user to sign in when Claude Code is signed out', async () => {
+    const { service } = setup({ FAKE_CLAUDE_SIGNED_OUT: '1' });
+    expect((await service.refresh()).state).toBe('signedOut');
+    await expect(service.send('hello')).rejects.toThrow(/signedOut/);
+  });
+
+  it('runs a turn through the gate proxy and streams the answer', async () => {
+    const { service, events, calls, statuses } = setup();
+    await service.refresh();
+    await service.send('How many bodies?');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 15_000 });
+    expect(calls).toEqual(['inspect_design']);
+    expect(events.find((e) => e.type === 'tool')).toMatchObject({ name: 'inspect_design', decision: 'allowed' });
+    expect(events.filter((e) => e.type === 'textDelta').length).toBeGreaterThan(1);
+    expect(events.find((e) => e.type === 'text')).toEqual({ type: 'text', text: 'The design has one body.' });
+    expect(statuses.at(-1)?.state).toBe('ready');
+
+    // The second turn reuses the session; a gated tool is refused and explained.
+    await service.send('Please export it');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 15_000 });
+    expect(calls).toEqual(['inspect_design']);
+    expect(events.filter((e) => e.type === 'tool').at(-1)).toMatchObject({ name: 'export', decision: 'denied' });
+  }, 30_000);
+
+  it('removes its MCP configuration with the token on dispose', async () => {
+    const { service, events, workDir } = setup();
+    await service.refresh();
+    await service.send('How many bodies?');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 15_000 });
+    expect(readdirSync(workDir).some((name) => name.startsWith('mcp-'))).toBe(true);
+    await service.dispose();
+    expect(readdirSync(workDir).some((name) => name.startsWith('mcp-'))).toBe(false);
+  }, 30_000);
+});
+
+describe('conversation items', () => {
+  it('joins deltas into one answer and closes it with the final text', () => {
+    let items: ConversationItem[] = [];
+    const events: AgentEvent[] = [
+      { type: 'user', text: 'Hi' },
+      { type: 'textDelta', text: 'Hel' },
+      { type: 'textDelta', text: 'lo' },
+      { type: 'text', text: 'Hello' },
+      { type: 'tool', id: 'c1', name: 'execute', summary: '{}', decision: 'allowed' },
+      { type: 'tool', id: 'c1', name: 'execute', summary: '{}', decision: 'allowed', ok: true },
+      { type: 'done', ok: false, durationMs: null, detail: 'stopped' },
+    ];
+    for (const event of events) items = reduce(items, event);
+    expect(items.map((item) => item.kind)).toEqual(['user', 'assistant', 'tool', 'stopped']);
+    expect(items[1]).toMatchObject({ text: 'Hello', open: false });
+    expect(items[2]).toMatchObject({ ok: true });
+  });
+});
