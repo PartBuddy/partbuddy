@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20" role="img" aria-label="PartBuddy">
+  <title>PartBuddy</title>
+  <path fill="#1b1f24" d="M4 0H16A4 4 0 0 1 20 4V16A4 4 0 0 1 16 20H4A4 4 0 0 1 0 16V4A4 4 0 0 1 4 0Z"/>
+  <path fill="#ffffff" d="M5 3L10 3L10 9L16 9L16 10A2 2 0 0 1 14 12L9 12L9 17L4 17L4 4A1 1 0 0 1 5 3Z"/>
+  <path fill="#2f6ad6" d="M11 3L15 3A1 1 0 0 1 16 4L16 8L11 8L11 3Z"/>
+</svg>
