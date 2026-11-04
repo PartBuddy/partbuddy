@@ -1,4 +1,16 @@
-import type { AgentEvent, AgentKind, AppInfo, AssistantState, ConnectionStatus, FaceSelection, MirrorRevision, TitleBarColors, ViewState } from './contract';
+import type {
+  AgentEvent,
+  AgentKind,
+  AppInfo,
+  AssistantState,
+  ConnectionStatus,
+  ExportFormat,
+  ExportResult,
+  FaceSelection,
+  MirrorRevision,
+  TitleBarColors,
+  ViewState,
+} from './contract';
 
 /**
  * What the preload exposes as `window.partbuddy`. Each member is bound to one channel of the
@@ -17,6 +29,15 @@ export interface PartBuddyApi {
   mirror: {
     current(): Promise<MirrorRevision | null>;
     onRevision(listener: (revision: MirrorRevision) => void): () => void;
+  };
+  /** The user's own actions on the design, without the assistant (ADR 0016). */
+  design: {
+    undo(): Promise<void>;
+    redo(): Promise<void>;
+    /** Asks where to save, then exports all bodies; null when the user cancelled. */
+    export(format: ExportFormat): Promise<ExportResult>;
+    /** Saves the design to the project folder and opens it in the SolidCraft window. */
+    openInSolidCraft(): Promise<void>;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

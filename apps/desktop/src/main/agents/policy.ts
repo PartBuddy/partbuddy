@@ -36,8 +36,8 @@ const ALLOWED = new Set([
 const NEEDS_CONFIRMATION: Record<string, string> = {
   new_design: 'starting a new design discards the current one',
   open: 'opening a file replaces the design',
-  save: 'saving writes a file',
-  export: 'exports go through PartBuddy’s checked export',
+  save: 'PartBuddy saves the design by itself after every change',
+  export: 'the user exports with PartBuddy’s Export button (3MF, STL, STEP)',
 };
 
 /** File commands that `execute` and `batch` could reach around the tool list. */
@@ -58,7 +58,7 @@ function commandsOf(name: string, args: Record<string, unknown>): string[] {
 export function decide(name: string, args: Record<string, unknown>): ToolDecision {
   const confirmation = NEEDS_CONFIRMATION[name];
   if (confirmation) {
-    return { allow: false, reason: `${name} is not available in PartBuddy yet: ${confirmation}. Ask the user to do it in SolidCraft.` };
+    return { allow: false, reason: `${name} is not available in PartBuddy yet: ${confirmation}. Tell the user how to do it in PartBuddy instead.` };
   }
   if (!ALLOWED.has(name)) return { allow: false, reason: `${name} is not allowed by PartBuddy` };
   const fileCommand = commandsOf(name, args).find((command) => FILE_COMMANDS.test(command));

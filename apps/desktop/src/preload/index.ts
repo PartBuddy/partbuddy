@@ -28,6 +28,12 @@ const api: PartBuddyApi = {
     current: () => ipcRenderer.invoke(invokeChannels.mirrorCurrent),
     onRevision: (listener) => subscribe(eventChannels.mirrorRevision, listener),
   },
+  design: {
+    undo: () => ipcRenderer.invoke(invokeChannels.designUndo),
+    redo: () => ipcRenderer.invoke(invokeChannels.designRedo),
+    export: (format) => ipcRenderer.invoke(invokeChannels.designExport, { format }),
+    openInSolidCraft: () => ipcRenderer.invoke(invokeChannels.designOpenInSolidCraft),
+  },
   viewer: {
     report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),
   },

@@ -151,6 +151,7 @@ export class AgentService implements AgentBackend {
     if (this.configPath) rmSync(this.configPath, { force: true });
     this.configPath = configPath;
 
+    let announced = false;
     const session = new ClaudeSession({ claude: this.claude, env: this.options.env, cwd: this.options.workDir, mcpConfigPath: configPath });
     session.onEvent((event) => {
       switch (event.type) {
@@ -170,7 +171,10 @@ export class AgentService implements AgentBackend {
           this.options.log(`Claude Code session ended (${event.code ?? 'killed'})`);
           break;
         case 'started':
-          this.options.log(`Claude Code session started (${event.model ?? 'default model'})`);
+          // Claude Code reports `init` at the start of every turn of the same session (checked
+          // with 2.1.302: same session id, earlier messages remembered), so only the first counts.
+          if (!announced) this.options.log(`Claude Code session started (${event.model ?? 'default model'})`);
+          announced = true;
           break;
       }
     });

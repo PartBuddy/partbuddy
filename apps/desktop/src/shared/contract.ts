@@ -100,6 +100,8 @@ export const mirrorRevisionSchema = z
     designName: z.string(),
     bodies: z.array(mirroredBodySchema),
     sketches: z.array(mirroredSketchSchema),
+    /** How many steps SolidCraft can undo and redo in this revision. */
+    history: z.object({ undo: z.number().int().nonnegative(), redo: z.number().int().nonnegative() }).strict(),
     /** Time from asking SolidCraft for the export to having the files in the main process. */
     mirrorMs: z.number().nonnegative(),
   })
@@ -202,6 +204,12 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('error'), message: z.string().max(500) }).strict(),
 ]);
 
+/** Formats of the user's own export (ADR 0016): 3MF for slicers, STL, STEP for other CAD programs. */
+export const exportFormatSchema = z.enum(['3mf', 'stl', 'step']);
+export const exportRequestSchema = z.object({ format: exportFormatSchema }).strict();
+/** The saved file's name only, never the folder (no paths outside the app's own folders here). */
+export const exportResultSchema = z.object({ file: z.string().min(1).max(260) }).strict().nullable();
+
 export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000), selection: faceSelectionSchema.optional() }).strict();
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
@@ -225,6 +233,10 @@ export const invokeContract = {
   [invokeChannels.agentSignIn]: { request: none, response: none },
   [invokeChannels.viewerState]: { request: viewStateSchema, response: none },
   [invokeChannels.windowTitleBar]: { request: titleBarColorsSchema, response: none },
+  [invokeChannels.designUndo]: { request: none, response: none },
+  [invokeChannels.designRedo]: { request: none, response: none },
+  [invokeChannels.designExport]: { request: exportRequestSchema, response: exportResultSchema },
+  [invokeChannels.designOpenInSolidCraft]: { request: none, response: none },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -248,6 +260,8 @@ export type AgentEvent = z.infer<typeof agentEventSchema>;
 export type FaceSelection = z.infer<typeof faceSelectionSchema>;
 export type ViewState = z.infer<typeof viewStateSchema>;
 export type TitleBarColors = z.infer<typeof titleBarColorsSchema>;
+export type ExportFormat = z.infer<typeof exportFormatSchema>;
+export type ExportResult = z.infer<typeof exportResultSchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;
 export type InvokeResponse<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['response']>;

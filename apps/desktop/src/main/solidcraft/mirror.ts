@@ -15,6 +15,13 @@ interface InspectResult {
   bodies?: { name?: unknown; visible?: unknown }[];
   sketches?: { id?: unknown; name?: unknown; visible?: unknown }[];
   active_sketch?: unknown;
+  /** Steps that can be undone and redone. */
+  undo?: unknown;
+  redo?: unknown;
+}
+
+function count(value: unknown): number {
+  return Number.isInteger(value) && (value as number) > 0 ? (value as number) : 0;
 }
 
 interface BatchResult {
@@ -110,6 +117,7 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
       designName,
       bodies: mirrored,
       sketches: mirrorSketches(batch.results.slice(1 + bodies.length * 2), sketches),
+      history: { undo: count(inspect.undo), redo: count(inspect.redo) },
       mirrorMs: Math.round(performance.now() - started),
     };
   } finally {

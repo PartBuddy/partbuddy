@@ -120,6 +120,7 @@ export function useMirror(): void {
 
     const requests = new Map<number, MirrorRevision>();
     const show = (revision: MirrorRevision) => {
+      useStudio.getState().setHistory(revision.history);
       const id = nextId;
       nextId += 1;
       newest = id;

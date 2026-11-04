@@ -7,13 +7,22 @@ import type { ControlEndpoint } from './discovery';
  * are actors injected with `machine.provide`, so tests drive the machine with fakes.
  *
  * searching → connecting → connected, with the start of SolidCraft on the first search only:
- * after the user closes SolidCraft, PartBuddy does not start it again by itself.
+ * after the user closes SolidCraft, PartBuddy does not start it again by itself. The exception is
+ * "Open in SolidCraft" (HANDOFF): PartBuddy hands its headless design to the SolidCraft window,
+ * and once the user closes that window it starts the headless engine again with the saved file.
  */
 
 export type DiscoveryResult =
   | { kind: 'running'; endpoint: ControlEndpoint }
   | { kind: 'notRunning' }
   | { kind: 'notInstalled' };
+
+export interface Launched {
+  launchedAt: number;
+  headless: boolean;
+  /** The window was opened for a handed-over design; the user owns it, PartBuddy does not quit it. */
+  handoff?: boolean;
+}
 
 export interface Session {
   documentId: string;
@@ -23,6 +32,8 @@ export interface Session {
 export interface SupervisorContext {
   /** Start SolidCraft when none runs; true until the first search has finished. */
   autoStart: boolean;
+  /** The SolidCraft window holds a design handed over by PartBuddy: start headless again when it closes. */
+  resume: boolean;
   endpoint: ControlEndpoint | null;
   /** PartBuddy started this SolidCraft and closes it on quit. */
   owned: boolean;
@@ -36,6 +47,8 @@ export interface SupervisorContext {
 export type SupervisorEvent =
   | { type: 'RETRY' }
   | { type: 'START' }
+  /** Save the headless design and open it in the SolidCraft window instead. */
+  | { type: 'HANDOFF' }
   | { type: 'REVISION'; documentId: string; revision: number }
   | { type: 'LOST'; reason: string };
 
@@ -51,7 +64,7 @@ export const supervisorMachine = setup({
   },
   actors: {
     discover: fromPromise<DiscoveryResult>(notProvided('discover')),
-    launch: fromPromise<{ launchedAt: number; headless: boolean }>(notProvided('launch')),
+    launch: fromPromise<Launched>(notProvided('launch')),
     waitForApp: fromPromise<ControlEndpoint, { launchedAt: number }>(notProvided('waitForApp')),
     // No endpoint: the headless engine PartBuddy started (ADR 0016).
     connect: fromPromise<Session, { endpoint: ControlEndpoint | null }>(notProvided('connect')),
@@ -64,13 +77,14 @@ export const supervisorMachine = setup({
   guards: {
     isRunning: (_, result: DiscoveryResult) => result.kind === 'running',
     isNotInstalled: (_, result: DiscoveryResult) => result.kind === 'notInstalled',
-    shouldStart: ({ context }) => context.autoStart,
-    isHeadless: (_, output: { headless: boolean }) => output.headless,
+    shouldStart: ({ context }) => context.autoStart || context.resume,
+    isHeadless: (_, output: Launched) => output.headless,
   },
 }).createMachine({
   id: 'solidcraft',
   context: ({ input }) => ({
     autoStart: input.autoStart,
+    resume: false,
     endpoint: null,
     owned: false,
     launchedAt: null,
@@ -110,7 +124,7 @@ export const supervisorMachine = setup({
       on: { RETRY: 'searching', START: 'starting' },
     },
     starting: {
-      entry: assign({ autoStart: false, detail: null }),
+      entry: assign({ autoStart: false, resume: false, detail: null }),
       initial: 'launching',
       states: {
         launching: {
@@ -125,7 +139,11 @@ export const supervisorMachine = setup({
               },
               {
                 target: 'waiting',
-                actions: assign({ owned: true, launchedAt: ({ event }) => event.output.launchedAt }),
+                actions: assign({
+                  owned: ({ event }) => event.output.handoff !== true,
+                  resume: ({ event }) => event.output.handoff === true,
+                  launchedAt: ({ event }) => event.output.launchedAt,
+                }),
               },
             ],
             onError: {
@@ -181,6 +199,7 @@ export const supervisorMachine = setup({
           target: 'lost',
           actions: assign({ detail: ({ event }) => event.reason }),
         },
+        HANDOFF: 'starting',
       },
     },
     lost: {

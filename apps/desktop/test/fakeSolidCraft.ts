@@ -58,6 +58,7 @@ export class FakeSolidCraft {
   readonly token = randomBytes(32).toString('hex');
   readonly documentId = `fake-${randomBytes(4).toString('hex')}-1`;
   readonly methods: string[] = [];
+  readonly exports: { path: string; format: string; bodies: unknown }[] = [];
   revision = 1;
   bodies = ['CableClip'];
   /** Sketches as `document.inspect` lists them; each inspects as the fixture sketch. */
@@ -66,6 +67,9 @@ export class FakeSolidCraft {
   /** Faces whose geometry changed in the latest revision. */
   moved = new Set<string>();
   quitRequested = false;
+  /** Steps `edit.undo` and `edit.redo` can take, as `document.inspect` reports them. */
+  undoDepth = 0;
+  redoDepth = 0;
   private server: Server | null = null;
   private readonly sockets = new Set<Socket>();
   private readonly subscribers = new Set<Socket>();
@@ -159,14 +163,21 @@ export class FakeSolidCraft {
           bodies: this.bodies.map((name) => ({ name, visible: true })),
           sketches: this.sketches,
           active_sketch: this.activeSketch,
+          undo: this.undoDepth,
+          redo: this.redoDepth,
           revision: 99,
         };
       case 'engine.batch': {
         if (this.options.batchDelayMs) await new Promise((done) => setTimeout(done, this.options.batchDelayMs));
         const allowed = (params.allow_paths as string[] | undefined) ?? [];
         const commands = params.commands as { command: string; params: Record<string, unknown> }[];
-        const results = commands.map((step) => this.execute(step.command, step.params, allowed));
-        return { completed: results.length, results, undone: 0 };
+        try {
+          const results = commands.map((step) => this.execute(step.command, step.params, allowed));
+          return { completed: results.length, results, undone: 0 };
+        } catch (error) {
+          // SolidCraft answers a failed step inside the batch result, not as a protocol error.
+          return { completed: 0, results: [], failed: { index: 0, command: commands[0]?.command ?? '', error: (error as Error).message } };
+        }
       }
       case 'app.quit':
         this.quitRequested = true;
@@ -192,9 +203,23 @@ export class FakeSolidCraft {
         const path = resolve(String(params.path));
         const inside = allowed.some((dir) => !relative(resolve(dir), path).startsWith('..'));
         if (allowed.length > 0 && !inside) throw new Error(`${path}: outside the folders this agent may use`);
-        if (params.format !== '3mf-tagged') throw new Error('fake supports 3mf-tagged only');
-        copyFileSync(join(fixtureDir, 'cable-clip.3mf'), path);
+        if (params.format === '3mf-tagged') copyFileSync(join(fixtureDir, 'cable-clip.3mf'), path);
+        else if (params.format === '3mf' || params.format === 'stl' || params.format === 'step') writeFileSync(path, `fake ${params.format}`);
+        else throw new Error(`fake does not export ${String(params.format)}`);
+        this.exports.push({ path, format: params.format, bodies: params.bodies });
         return { path };
+      }
+      case 'edit.undo':
+      case 'edit.redo': {
+        const undo = command === 'edit.undo';
+        if ((undo ? this.undoDepth : this.redoDepth) === 0) throw new Error(`nothing to ${undo ? 'undo' : 'redo'}`);
+        this.undoDepth += undo ? -1 : 1;
+        this.redoDepth += undo ? 1 : -1;
+        // The window reports the step as a change, after the answer.
+        setTimeout(() => {
+          this.change();
+        }, 0);
+        return undo ? { undone: 'Box' } : { redone: 'Box' };
       }
       default:
         throw new Error(`unknown command ${command}`);

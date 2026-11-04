@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
@@ -190,33 +190,51 @@ export class HeadlessEngine {
   }
 }
 
+/** A design name reduced to a safe file name: letters, digits, spaces, `_` and `-` (no separators, no traversal). */
+export function safeDesignFileName(designName: string): string {
+  const safe = designName
+    .normalize('NFC')
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
+    .trim()
+    .slice(0, 80);
+  return safe || 'Untitled';
+}
+
+/** True when `file` lies inside `folder` (after resolving `..` and separators). */
+export function isInside(folder: string, file: string): boolean {
+  const rel = relative(resolve(folder), resolve(file));
+  // `....name.sc` is a file inside; only a `..` segment leaves the folder.
+  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
 /**
  * Where PartBuddy keeps the headless design between runs: one file per design name in the
- * designs folder and a note of the last one. Names become file names, so only a safe subset of
- * characters is kept (no path separators, no traversal).
+ * designs folder and a note of the last one. The note may also name a design in the user's
+ * project folder (after "Open in SolidCraft"); any other path is ignored.
  */
 export class DesignStore {
-  constructor(private readonly dir: string) {}
+  constructor(
+    private readonly dir: string,
+    /** Further folders a remembered design may lie in: the user's project folder. */
+    private readonly roots: string[] = [],
+  ) {}
 
   get folder(): string {
     return this.dir;
   }
 
   fileFor(designName: string): string {
-    const safe = designName
-      .normalize('NFC')
-      .replace(/[^\p{L}\p{N} _-]/gu, '')
-      .trim()
-      .slice(0, 80);
-    return join(this.dir, `${safe || 'Untitled'}.sc`);
+    return join(this.dir, `${safeDesignFileName(designName)}.sc`);
   }
 
-  /** The design to open on start, if it still exists. */
+  /** The design to open on start, if it still exists in one of the allowed folders. */
   last(): string | undefined {
     try {
       const note = JSON.parse(readFileSync(join(this.dir, 'last.json'), 'utf8')) as { file?: unknown };
-      if (typeof note.file !== 'string') return undefined;
-      const file = join(this.dir, note.file.replace(/[\\/]/g, ''));
+      if (typeof note.file !== 'string' || !note.file.toLowerCase().endsWith('.sc')) return undefined;
+      // A bare name is a file in the designs folder (earlier notes); a full path must lie in an allowed folder.
+      const file = isAbsolute(note.file) ? resolve(note.file) : join(this.dir, note.file.replace(/[\\/]/g, ''));
+      if (![this.dir, ...this.roots].some((root) => isInside(root, file))) return undefined;
       return existsSync(file) ? file : undefined;
     } catch {
       return undefined;
@@ -225,7 +243,8 @@ export class DesignStore {
 
   remember(file: string): void {
     mkdirSync(this.dir, { recursive: true });
-    writeFileSync(join(this.dir, 'last.json'), JSON.stringify({ file: basename(file) }));
+    const note = isInside(this.dir, file) ? basename(file) : resolve(file);
+    writeFileSync(join(this.dir, 'last.json'), JSON.stringify({ file: note }));
   }
 
   forget(): void {

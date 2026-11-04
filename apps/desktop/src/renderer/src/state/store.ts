@@ -54,8 +54,24 @@ export interface FacePick extends FaceRef {
   normal: [number, number, number];
 }
 
+/** How many steps SolidCraft can undo and redo, from the newest mirrored revision. */
+export interface History {
+  undo: number;
+  redo: number;
+}
+
+/** A short message about the user's own action (export saved, undo failed), read by screen readers. */
+export interface Notice {
+  tone: 'success' | 'danger';
+  text: string;
+}
+
 interface StudioState {
   connection: ConnectionStatus;
+  history: History;
+  notice: Notice | null;
+  setHistory: (history: History) => void;
+  setNotice: (notice: Notice | null) => void;
   model: ModelState;
   hover: FaceRef | null;
   selection: FacePick | null;
@@ -74,6 +90,14 @@ interface StudioState {
 export const useStudio = create<StudioState>()((set) => ({
   connection: { state: 'searching', owned: false, mirror: 'idle' },
   model: { status: 'waiting' },
+  history: { undo: 0, redo: 0 },
+  notice: null,
+  setHistory: (history) => {
+    set({ history });
+  },
+  setNotice: (notice) => {
+    set({ notice });
+  },
   hover: null,
   selection: null,
   changes: null,
