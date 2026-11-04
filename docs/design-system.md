@@ -4,7 +4,7 @@ The design system builds on [React Aria Components](https://react-spectrum.adobe
 (unstyled, accessible primitives) styled with Tailwind CSS v4 utilities that can only express design
 tokens. No primitive is rebuilt that React Aria provides. Source of truth for all values:
 [`packages/design-tokens`](../packages/design-tokens/src/tokens.css). Screenshots:
-[docs/screens](screens/).
+[docs/screens](screens/). Logo, app icon, brand colours and voice: [brand guide](brand.md).
 
 ![Main view, light theme, 1440 px](screens/main-1440-light.png)
 
@@ -44,6 +44,7 @@ produces nothing. ESLint rejects hex colour literals in UI code.
 | `focus` | `#1f5fd1` | `#6e9ff5` | Focus ring (2 px, ≥ 3:1) |
 | `success`, `warning`, `danger`, `info` (+ `-subtle`) | see tokens | see tokens | States only |
 | `viewer-*` | see tokens | see tokens | 3D view background, body, edges, hover, selection, notes, overhangs |
+| `brand-ink`, `brand-paper`, `brand-accent`, `brand-accent-on-ink` | fixed | fixed | Logo and brand graphics only ([brand guide](brand.md#colour)) |
 
 Contrast is verified by a test (`packages/design-tokens/test/contrast.test.js`) for every text and
 control pair in both themes against WCAG 2.2 AA (4.5:1 text, 3:1 non-text). The test found and

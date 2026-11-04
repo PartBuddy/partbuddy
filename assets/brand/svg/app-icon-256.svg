@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="PartBuddy">
+  <title>PartBuddy</title>
+  <path fill="#1b1f24" d="M48 0H208A48 48 0 0 1 256 48V208A48 48 0 0 1 208 256H48A48 48 0 0 1 0 208V48A48 48 0 0 1 48 0Z"/>
+  <path fill="#ffffff" d="M80 48L130 48A6 6 0 0 1 136 54L136 98A6 6 0 0 0 142 104L186 104A6 6 0 0 1 192 110L192 124A28 28 0 0 1 164 152L126 152A6 6 0 0 0 120 158L120 202A6 6 0 0 1 114 208L70 208A6 6 0 0 1 64 202L64 64A16 16 0 0 1 80 48Z"/>
+  <path fill="#2f6ad6" d="M150 48L176 48A16 16 0 0 1 192 64L192 90A6 6 0 0 1 186 96L150 96A6 6 0 0 1 144 90L144 54A6 6 0 0 1 150 48Z"/>
+</svg>
