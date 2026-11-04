@@ -235,5 +235,38 @@
     "actionRefused": "SolidCraft kann das so nicht bauen: {detail}",
     "distance": "Abstand {value} mm",
     "angle": "Winkel {value}°"
+  },
+  "structure": {
+    "title": "Struktur",
+    "bodies": "Körper ({count})",
+    "sketches": "Skizzen ({count})",
+    "noBodies": "Noch kein Körper",
+    "noSketches": "Keine Skizzen",
+    "editing": "in Bearbeitung",
+    "hide": "{name} ausblenden",
+    "show": "{name} einblenden"
+  },
+  "timeline": {
+    "title": "Zeitleiste",
+    "step": "{name}, {kind}",
+    "rebuild": "{ms} ms",
+    "rollTo": "Bis hierher zurückrollen",
+    "suppress": "Unterdrücken",
+    "unsuppress": "Wieder aktivieren",
+    "toEnd": "Ans Ende",
+    "marker": "Zurückgerollt bis hier",
+    "kind": {
+      "Sketch": "Skizze",
+      "Extrude": "Extrusion",
+      "Revolve": "Drehung",
+      "Fillet": "Rundung",
+      "Chamfer": "Fase",
+      "Hole": "Bohrung",
+      "Shell": "Schale",
+      "Box": "Quader",
+      "Cylinder": "Zylinder",
+      "Mirror": "Spiegelung",
+      "PressPull": "Drücken/Ziehen"
+    }
   }
 }

@@ -205,7 +205,7 @@ describe('mirror scheduler', () => {
         await new Promise<void>((done) => {
           release = done;
         });
-        return { documentId: 'd', revision, designName: '', bodies: [], sketches: [], history: { undo: 0, redo: 0 }, mirrorMs: 1 };
+        return { documentId: 'd', revision, designName: '', bodies: [], sketches: [], structure: { features: [], marker: null, bodies: [], sketches: [] }, history: { undo: 0, redo: 0 }, mirrorMs: 1 };
       },
       { started: () => undefined, delivered: (r) => delivered.push(r.revision), failed: () => undefined, idle: () => undefined },
     );

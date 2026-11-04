@@ -93,6 +93,32 @@ export const mirroredSketchSchema = z
   .strict()
   .refine((sketch) => sketch.positions.length === sketch.styles.length * 6, 'positions and styles disagree');
 
+/** One step of the timeline as `document.inspect` reports it (M1c). */
+export const timelineFeatureSchema = z
+  .object({
+    id: z.number().int().nonnegative(),
+    name: z.string().max(200),
+    type: z.string().max(80),
+    error: z.string().max(500).nullable(),
+    warning: z.string().max(500).nullable(),
+    suppressed: z.boolean(),
+    rolledBack: z.boolean(),
+    /** Rebuild time in ms. */
+    ms: z.number().nonnegative(),
+  })
+  .strict();
+
+/** What the structure tree and the timeline show: every body and sketch, visible or not, and the features. */
+export const structureSchema = z
+  .object({
+    features: z.array(timelineFeatureSchema).max(5000),
+    /** Features before the rollback marker stay active; null when the marker is at the end. */
+    marker: z.number().int().nonnegative().nullable(),
+    bodies: z.array(z.object({ name: z.string().max(200), visible: z.boolean(), feature: z.number().int().nullable() }).strict()).max(500),
+    sketches: z.array(z.object({ id: z.number().int().nonnegative(), name: z.string().max(200), visible: z.boolean() }).strict()).max(2000),
+  })
+  .strict();
+
 export const mirrorRevisionSchema = z
   .object({
     documentId: z.string(),
@@ -100,6 +126,7 @@ export const mirrorRevisionSchema = z
     designName: z.string(),
     bodies: z.array(mirroredBodySchema),
     sketches: z.array(mirroredSketchSchema),
+    structure: structureSchema,
     /** How many steps SolidCraft can undo and redo in this revision. */
     history: z.object({ undo: z.number().int().nonnegative(), redo: z.number().int().nonnegative() }).strict(),
     /** Time from asking SolidCraft for the export to having the files in the main process. */
@@ -281,6 +308,17 @@ export const measureItemSchema = z.object({ type: z.enum(['face', 'edge', 'verte
 export const measureRequestSchema = z.object({ items: z.array(measureItemSchema).min(1).max(2) }).strict();
 export const measureResultSchema = z.object({ distance: finite.nullable(), angle: finite.nullable() }).strict();
 
+/** Timeline commands of the user (M1c): roll back to a position or to the end, suppress a feature. */
+export const timelineCommandSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('rollTo'), position: z.union([z.number().int().nonnegative().max(5000), z.literal('end')]) }).strict(),
+  z.object({ action: z.literal('suppress'), feature: z.number().int().nonnegative(), suppressed: z.boolean() }).strict(),
+]);
+/** Shows or hides bodies (by name) and sketches (by id). */
+export const visibilityCommandSchema = z
+  .object({ bodies: z.array(bodyName).max(500), sketches: z.array(z.number().int().nonnegative()).max(2000), visible: z.boolean() })
+  .strict()
+  .refine((command) => command.bodies.length + command.sketches.length > 0, 'nothing to show or hide');
+
 export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000), selections: z.array(selectionSchema).min(1).max(20).optional() }).strict();
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
@@ -313,6 +351,8 @@ export const invokeContract = {
   [invokeChannels.designPreviewAction]: { request: designActionSchema, response: actionPreviewSchema },
   [invokeChannels.designApplyAction]: { request: designActionSchema, response: none },
   [invokeChannels.designMeasure]: { request: measureRequestSchema, response: measureResultSchema },
+  [invokeChannels.designTimeline]: { request: timelineCommandSchema, response: none },
+  [invokeChannels.designVisibility]: { request: visibilityCommandSchema, response: none },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -348,6 +388,10 @@ export type DesignAction = z.infer<typeof designActionSchema>;
 export type ActionPreviewResult = z.infer<typeof actionPreviewSchema>;
 export type MeasureItem = z.infer<typeof measureItemSchema>;
 export type MeasureResult = z.infer<typeof measureResultSchema>;
+export type TimelineFeature = z.infer<typeof timelineFeatureSchema>;
+export type Structure = z.infer<typeof structureSchema>;
+export type TimelineCommand = z.infer<typeof timelineCommandSchema>;
+export type VisibilityCommand = z.infer<typeof visibilityCommandSchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;
 export type InvokeResponse<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['response']>;

@@ -111,7 +111,7 @@ export function useMirror(): void {
       shown = { bodies, sketches };
       shownDocument = pending.documentId;
       useStudio.getState().showRevision(
-        { status: 'ready', documentId: pending.documentId, revision: pending.revision, designName: pending.designName, bodies, sketches },
+        { status: 'ready', documentId: pending.documentId, revision: pending.revision, designName: pending.designName, bodies, sketches, structure: pending.structure },
         sameDesign ? liveChanges(previous, shown) : null,
         { mirrorMs: pending.mirrorMs, parseMs: Math.round(performance.now() - (postedAt.get(response.id) ?? performance.now())) },
       );

@@ -1,7 +1,7 @@
 import type { ViewerModel } from '@partbuddy/geometry';
 import { create } from 'zustand';
 
-import type { ConnectionStatus, MirroredSketch } from '../../../shared/contract';
+import type { ConnectionStatus, MirroredSketch, Structure } from '../../../shared/contract';
 
 export interface BodyModel {
   name: string;
@@ -10,7 +10,7 @@ export interface BodyModel {
 
 export type ModelState =
   | { status: 'waiting' }
-  | { status: 'ready'; documentId: string; revision: number; designName: string; bodies: BodyModel[]; sketches: MirroredSketch[] }
+  | { status: 'ready'; documentId: string; revision: number; designName: string; bodies: BodyModel[]; sketches: MirroredSketch[]; structure: Structure }
   | { status: 'error'; message: string };
 
 /** Faces that changed in the latest revision of one body (indices in the new face table). */

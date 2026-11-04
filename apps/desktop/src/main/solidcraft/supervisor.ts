@@ -9,7 +9,7 @@ import type { ConnectionStatus, ExportFormat, MirrorRevision } from '../../share
 import type { UpstreamTools } from '../agents/gateProxy';
 import { ControlClient, ControlError } from './controlClient';
 import { endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
-import type { DesignAction, MeasureItem, MeasureResult } from '../../shared/contract';
+import type { DesignAction, MeasureItem, MeasureResult, TimelineCommand, VisibilityCommand } from '../../shared/contract';
 import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { DesignStore, HeadlessEngine, isInside, safeDesignFileName } from './headless';
@@ -320,13 +320,26 @@ export class SolidCraftSupervisor {
     throw new Error('SolidCraft is not connected');
   }
 
-  private async runEdit(command: 'edit.undo' | 'edit.redo'): Promise<void> {
-    const batch = await this.requester().request<{ failed?: { error: string } }>(
-      'engine.batch',
-      { commands: [{ command, params: {} }], rollback: false },
-      60_000,
-    );
-    if (batch.failed) throw new Error(`${command} failed: ${batch.failed.error}`);
+  private runEdit(command: 'edit.undo' | 'edit.redo'): Promise<void> {
+    return this.run({ command, params: {} });
+  }
+
+  /** Rolls the timeline back or forward, or suppresses a feature (the user's timeline, M1c). */
+  timeline(command: TimelineCommand): Promise<void> {
+    if (command.action === 'rollTo') return this.run({ command: 'timeline.roll_to', params: { position: command.position } });
+    return this.run({ command: 'timeline.suppress', params: { feature: command.feature, suppressed: command.suppressed } });
+  }
+
+  /** Shows or hides bodies and sketches; the mirror shows only visible ones. */
+  visibility(command: VisibilityCommand): Promise<void> {
+    return this.run({ command: 'browser.visibility', params: { visible: command.visible, items: [...command.bodies, ...command.sketches] } });
+  }
+
+  /** One engine command of the user, after any running trial; the change is mirrored as usual. */
+  private async run(step: { command: string; params: Record<string, unknown> }): Promise<void> {
+    await this.probing;
+    const batch = await this.requester().request<{ failed?: { error: string } }>('engine.batch', { commands: [step], rollback: false }, 10 * 60 * 1000);
+    if (batch.failed) throw new Error(`${step.command} failed: ${batch.failed.error}`);
     // The window reports the change with design.changed; the headless engine is asked.
     await this.engine?.checkForChange();
   }
