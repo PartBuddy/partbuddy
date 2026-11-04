@@ -44,14 +44,14 @@ CodeQL workflow is added.
 | Step | Setting |
 | --- | --- |
 | 1 | Create the private repository `ManuelStaggl/<name>` with description; wiki off |
-| 2 | Merge settings: rebase merge only, delete branches after merge, no auto-merge; Actions token read-only by default and allowed to open pull requests (release-please) |
+| 2 | Merge settings: squash merge only (title = pull request title, signed by GitHub), delete branches after merge, no auto-merge; Actions token read-only by default and allowed to open pull requests (release-please) |
 | 3 | Secret `PRIVACY_DENYLIST` from the local denylist (used by `privacy.yml`) |
 | 4 | Labels for type, status and area (issue forms use `type: bug`, `type: feature`, `status: triage`) |
 | 5 | Milestones "Phase 2: MVP foundation" and "MVP 0.1.0" |
 | 6 | Environment `release`, deployable only from tags `v*`; signing secrets go here later |
 | 7 | Dependabot alerts on; SSH signing key registered so signed commits show as verified |
 | 8 | Push `main` and Git LFS objects |
-| 9 | Ruleset for `main`: no deletion, no force push, linear history, signed commits, pull request with resolved threads and rebase merge, required checks |
+| 9 | Ruleset for `main`: no deletion, no force push, linear history, signed commits, pull request with resolved threads and squash merge, required checks |
 
 Required status checks (names of the CI jobs): "Lint, typecheck, test, build",
 "Click dummy flows (Playwright)", "Scan full history", "Workflow security (zizmor)",

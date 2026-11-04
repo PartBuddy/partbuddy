@@ -29,7 +29,8 @@ gh repo create "$FULL" --private \
 
 echo "2/9 Merge, branch and Actions settings"
 gh api -X PATCH "repos/${FULL}" \
-  -F allow_rebase_merge=true -F allow_squash_merge=false -F allow_merge_commit=false \
+  -F allow_rebase_merge=false -F allow_squash_merge=true -F allow_merge_commit=false \
+  -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY \
   -F delete_branch_on_merge=true -F allow_auto_merge=false -F has_projects=true \
   -F has_wiki=false -F has_discussions=false >/dev/null
 # Read-only default token; release-please may open its release pull request.
@@ -114,7 +115,7 @@ gh api -X POST "repos/${FULL}/rulesets" --input - >/dev/null <<'JSON'
         "require_code_owner_review": false,
         "require_last_push_approval": false,
         "required_review_thread_resolution": true,
-        "allowed_merge_methods": ["rebase"]
+        "allowed_merge_methods": ["squash"]
       }
     },
     {

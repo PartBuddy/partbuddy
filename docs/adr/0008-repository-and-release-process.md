@@ -3,7 +3,7 @@ status: accepted
 date: 2026-11-04
 ---
 
-# Pull requests to a protected main, Conventional Commits and release-please
+# Pull requests to a protected main, squash merges, Conventional Commits and release-please
 
 ## Context and Problem Statement
 
@@ -27,8 +27,11 @@ Chosen option: "Protected `main` with release-please", because release-please de
 the changelog from Conventional Commits that are already enforced, and its release pull request
 keeps every release reviewable.
 
-* **Branching:** short-lived branches, pull requests into `main`, rebase merge only (linear
-  history), signed commits, branch deletion after merge. Rulesets need GitHub Pro (or a paid
+* **Branching:** short-lived branches, pull requests into `main`, squash merge only (linear
+  history, one signed commit per pull request, its message is the Conventional Commits title of the
+  pull request), signed commits on branches, branch deletion after merge. Rebase merges were used
+  first and dropped on 2026-11-04: GitHub rewrites rebased commits without a signature, which
+  breaks the signed-history rule. Rulesets need GitHub Pro (or a paid
   organisation plan) for private repositories; see [GitHub setup](../github-setup.md).
 * **Commits:** Conventional Commits, checked locally (lefthook commit-msg hook) and in CI
   (`commitlint.yml`). Author e-mail is the GitHub noreply address.

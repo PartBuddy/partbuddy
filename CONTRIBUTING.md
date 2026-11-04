@@ -40,8 +40,8 @@ git config commit.gpgsign true
    (`feat:`, `fix:`, `docs:`, `build:`, `ci:`, `test:`, `refactor:`, `chore:`). The commit-msg hook
    checks this.
 3. Run `pnpm lint && pnpm typecheck && pnpm test && pnpm build` before pushing.
-4. Open a pull request. `main` accepts changes only through pull requests with passing checks and a
-   linear history (rebase merge).
+4. Open a pull request with a Conventional Commits title. `main` accepts changes only through pull
+   requests with passing checks; they are squash-merged, so the title becomes the commit message.
 5. Releases and `CHANGELOG.md` are produced by release-please from the commit history.
 
 ## Licence of contributions
