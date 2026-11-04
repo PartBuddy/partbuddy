@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useStudio } from '../state/store';
+import { selectionName, selectionOf } from '../viewer/viewState';
 
 export function StatusBar() {
   const { t, i18n } = useTranslation();
@@ -26,7 +27,8 @@ export function StatusBar() {
   const bodies = model.status === 'ready' ? model.bodies : [];
   const sketches = model.status === 'ready' ? model.sketches : [];
   const editing = sketches.find((sketch) => sketch.active);
-  const faceName = focus ? bodies[focus.body]?.model.table.faces[focus.face]?.name : undefined;
+  const focused = selectionOf(model, focus);
+  const focusName = focused ? selectionName(focused) : undefined;
   const faces = bodies.reduce((sum, body) => sum + body.model.table.faces.length, 0);
   const triangles = bodies.reduce((sum, body) => sum + body.model.triangleFaces.length, 0);
 
@@ -48,7 +50,7 @@ export function StatusBar() {
       {latency ? (
         <span data-testid="mirror-latency">{t('status.latency', { ms: latency.mirrorMs + latency.parseMs })}</span>
       ) : null}
-      {faceName ? <span className="font-mono">{faceName}</span> : <span>{t('status.noFace')}</span>}
+      {focusName ? <span className="font-mono">{focusName}</span> : <span>{t('status.noFace')}</span>}
       <span role="status" className={`ml-auto truncate ${notice?.tone === 'danger' ? 'text-danger' : 'text-text'}`} data-testid="notice">
         {notice?.text}
       </span>

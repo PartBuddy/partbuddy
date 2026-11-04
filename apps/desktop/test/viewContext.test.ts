@@ -5,7 +5,7 @@ import { decide } from '../src/main/agents/policy';
 import { composeMessage, describeView, VIEW_TOOL, viewDirection, withViewTool } from '../src/main/agents/viewContext';
 import { agentMessageSchema, viewStateSchema, type FaceSelection, type ViewState } from '../src/shared/contract';
 
-const top: FaceSelection = { body: 'Body1', face: 'F1:+z', surface: 'plane', area: 400, point: [10.004, 9.996, 20], normal: [0, 0, 1] };
+const top: FaceSelection = { kind: 'face', body: 'Body1', face: 'F1:+z', surface: 'plane', area: 400, point: [10.004, 9.996, 20], normal: [0, 0, 1] };
 
 const state: ViewState = {
   camera: { position: [78, -96, 70], target: [10, 10, 10] },
@@ -24,6 +24,31 @@ describe('view context for the assistant', () => {
     // Token budget: the note stays far below a screenshot (about 1,500 tokens).
     expect(prompt.length).toBeLessThan(320);
     expect(composeMessage('hello')).toEqual({ prompt: 'hello' });
+  });
+
+  it('names a selected edge or vertex the same way, with SolidCraft\'s edge name', () => {
+    const edge = composeMessage('Fillet this edge 1 mm', {
+      kind: 'edge',
+      body: 'Body1',
+      edge: 'F1:+x|F1:-y',
+      exact: true,
+      length: 10,
+      point: [40, 0, 5.004],
+      ends: [
+        [40, 0, 0],
+        [40, 0, 10],
+      ],
+    });
+    expect(edge.label).toBe('F1:+x|F1:-y · Body1');
+    expect(edge.prompt).toMatch(/^\[PartBuddy: the user selected edge "F1:\+x\|F1:-y" of body "Body1".*length 10 mm, from 40 0 0 to 40 0 10 mm, picked at 40 0 5 mm\)\. "This edge"/);
+    expect(edge.prompt.length).toBeLessThan(360);
+    const loop = composeMessage('x', { kind: 'edge', body: 'B', edge: 'F2:side#1|F2:top', exact: false, length: 25.13, point: [4, 0, 15], ends: [], radius: 4 });
+    expect(loop.prompt).toContain('arc on r 4 mm');
+    expect(loop.prompt).toContain('more than one edge');
+    const vertex = composeMessage('Chamfer here', { kind: 'vertex', body: 'Body1', point: [0, 0, 10] });
+    expect(vertex.label).toBe('vertex 0 0 10 · Body1');
+    expect(vertex.prompt).toMatch(/^\[PartBuddy: the user selected the vertex at 0 0 10 mm of body "Body1"/);
+    expect(agentMessageSchema.safeParse({ text: 'x', selection: { kind: 'vertex', body: 'B', point: [0, 0, Number.NaN] } }).success).toBe(false);
   });
 
   it('names the camera direction in words (Z up, front is -Y)', () => {

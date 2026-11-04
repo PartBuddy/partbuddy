@@ -26,6 +26,8 @@ export async function launchApp(
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     PARTBUDDY_CACHE_DIR: join(work, 'cache'),
+    // On the leftmost monitor and without focus, away from the developer's main screen.
+    PARTBUDDY_WINDOW_DISPLAY: 'leftmost',
     ...(isolated
       ? {
           SOLIDCRAFT_CONTROL_DIR: controlDir,

@@ -44,14 +44,17 @@ export interface MirrorLatency {
   parseMs: number;
 }
 
-export interface FaceRef {
-  body: number;
-  face: number;
-}
+type Vec3 = [number, number, number];
 
-export interface FacePick extends FaceRef {
-  point: [number, number, number];
-  normal: [number, number, number];
+/** What the pointer is over or the user selected: a face, a B-rep edge or a vertex of one body. */
+export type Pick =
+  | { kind: 'face'; body: number; face: number; point: Vec3; normal: Vec3 }
+  | { kind: 'edge'; body: number; edge: number; point: Vec3 }
+  | { kind: 'vertex'; body: number; vertex: number; point: Vec3 };
+
+/** The index of the picked face, edge or vertex within its body. */
+export function pickIndex(pick: Pick): number {
+  return pick.kind === 'face' ? pick.face : pick.kind === 'edge' ? pick.edge : pick.vertex;
 }
 
 /** How many steps SolidCraft can undo and redo, from the newest mirrored revision. */
@@ -66,15 +69,23 @@ export interface Notice {
   text: string;
 }
 
+export type Projection = 'perspective' | 'orthographic';
+export type StandardView = 'fit' | 'iso' | 'front' | 'right' | 'top';
+
 interface StudioState {
+  projection: Projection;
+  /** The last standard view the user asked for; `serial` repeats the same view on request. */
+  viewRequest: { view: StandardView; serial: number } | null;
+  setProjection: (projection: Projection) => void;
+  requestView: (view: StandardView) => void;
   connection: ConnectionStatus;
   history: History;
   notice: Notice | null;
   setHistory: (history: History) => void;
   setNotice: (notice: Notice | null) => void;
   model: ModelState;
-  hover: FaceRef | null;
-  selection: FacePick | null;
+  hover: Pick | null;
+  selection: Pick | null;
   changes: LiveChanges | null;
   followChanges: boolean;
   latency: MirrorLatency | null;
@@ -83,13 +94,21 @@ interface StudioState {
   showRevision: (model: ModelState, changes: LiveChanges | null, latency: MirrorLatency) => void;
   clearChanges: () => void;
   setFollowChanges: (follow: boolean) => void;
-  setHover: (face: FaceRef | null) => void;
-  select: (pick: FacePick | null) => void;
+  setHover: (pick: Pick | null) => void;
+  select: (pick: Pick | null) => void;
 }
 
 export const useStudio = create<StudioState>()((set) => ({
   connection: { state: 'searching', owned: false, mirror: 'idle' },
   model: { status: 'waiting' },
+  projection: 'perspective',
+  viewRequest: null,
+  setProjection: (projection) => {
+    set({ projection });
+  },
+  requestView: (view) => {
+    set((state) => ({ viewRequest: { view, serial: (state.viewRequest?.serial ?? 0) + 1 } }));
+  },
   history: { undo: 0, redo: 0 },
   notice: null,
   setHistory: (history) => {
@@ -120,13 +139,15 @@ export const useStudio = create<StudioState>()((set) => ({
     set({ followChanges });
   },
   setHover: (hover) => {
-    set({ hover });
+    // Pointer moves report the same pick many times; only a different one re-renders.
+    if (!samePick(hover, useStudio.getState().hover)) set({ hover });
   },
   select: (selection) => {
     set({ selection });
   },
 }));
 
-export function sameFace(a: FaceRef | null, b: FaceRef | null): boolean {
-  return a !== null && b !== null && a.body === b.body && a.face === b.face;
+export function samePick(a: Pick | null, b: Pick | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.kind === b.kind && a.body === b.body && pickIndex(a) === pickIndex(b);
 }

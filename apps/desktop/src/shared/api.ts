@@ -6,7 +6,7 @@ import type {
   ConnectionStatus,
   ExportFormat,
   ExportResult,
-  FaceSelection,
+  Selection,
   MirrorRevision,
   TitleBarColors,
   ViewState,
@@ -55,8 +55,8 @@ export interface PartBuddyApi {
     select(agent: AgentKind): Promise<AssistantState>;
     /** Let Claude Code run with an API key, billed separately; off by default. */
     allowApiBilling(allow: boolean): Promise<AssistantState>;
-    /** Sends a message; the face selected in the view goes with it as a short note. */
-    send(text: string, selection?: FaceSelection): Promise<void>;
+    /** Sends a message; what is selected in the view goes with it as a short note. */
+    send(text: string, selection?: Selection): Promise<void>;
     stop(): Promise<void>;
     /** Start the selected route's sign-in flow; it opens the browser. */
     signIn(): Promise<void>;

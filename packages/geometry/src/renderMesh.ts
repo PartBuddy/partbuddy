@@ -17,6 +17,14 @@ export interface RenderMesh {
   triangleFaces: Uint32Array;
   /** B-rep edges as line segments, xyz xyz per segment; smooth cylinder seams are left out. */
   edgeSegments: Float32Array;
+  /** Per B-rep edge: its two face indices (lower first). */
+  edgeFaces: Uint32Array;
+  /** Per B-rep edge: first segment and segment count in `edgeSegments`. */
+  edgeRanges: Uint32Array;
+  /** Per B-rep edge: length in mm. */
+  edgeLengths: Float32Array;
+  /** B-rep vertices (ends of open edges, each once), xyz per vertex. */
+  vertices: Float32Array;
 }
 
 export function buildRenderMesh(mesh: TaggedMesh, table: FaceTable): RenderMesh {
@@ -47,11 +55,20 @@ export function buildRenderMesh(mesh: TaggedMesh, table: FaceTable): RenderMesh 
   });
   const total = edges.reduce((sum, edge) => sum + edge.segments.length, 0);
   const edgeSegments = new Float32Array(total);
+  const edgeFaces = new Uint32Array(edges.length * 2);
+  const edgeRanges = new Uint32Array(edges.length * 2);
+  const edgeLengths = new Float32Array(edges.length);
+  const corners = new Map<string, [number, number, number]>();
   let offset = 0;
-  for (const edge of edges) {
+  edges.forEach((edge, i) => {
     edgeSegments.set(edge.segments, offset);
+    edgeFaces.set(edge.faces, i * 2);
+    edgeRanges[i * 2] = offset / 6;
+    edgeRanges[i * 2 + 1] = edge.segments.length / 6;
+    edgeLengths[i] = edge.length;
     offset += edge.segments.length;
-  }
+    for (const end of edge.ends) corners.set(end.join(','), end);
+  });
 
   return {
     positions: Float32Array.from(positions),
@@ -59,12 +76,26 @@ export function buildRenderMesh(mesh: TaggedMesh, table: FaceTable): RenderMesh 
     vertexFaces: Uint32Array.from(vertexFaces),
     triangleFaces: mesh.triangleFaces.slice(),
     edgeSegments,
+    edgeFaces,
+    edgeRanges,
+    edgeLengths,
+    vertices: Float32Array.from([...corners.values()].flat()),
   };
 }
 
 /** The buffers of a render mesh, for `postMessage` transfer lists. */
 export function renderMeshTransferables(mesh: RenderMesh): ArrayBuffer[] {
-  return [mesh.positions, mesh.index, mesh.vertexFaces, mesh.triangleFaces, mesh.edgeSegments].map(
+  return [
+    mesh.positions,
+    mesh.index,
+    mesh.vertexFaces,
+    mesh.triangleFaces,
+    mesh.edgeSegments,
+    mesh.edgeFaces,
+    mesh.edgeRanges,
+    mesh.edgeLengths,
+    mesh.vertices,
+  ].map(
     (array) => array.buffer as ArrayBuffer,
   );
 }

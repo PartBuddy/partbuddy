@@ -1,5 +1,5 @@
 export { meshMetrics, overhangFindings, type MeshMetrics, type OverhangFinding } from './analysis';
-export { deriveEdges, type BrepEdge } from './edges';
+export { deriveEdges, edgeName, type BrepEdge } from './edges';
 export { diffFaces, isUnchanged, type FaceDiff } from './faceDiff';
 export {
   faceTableFromModelFaces,

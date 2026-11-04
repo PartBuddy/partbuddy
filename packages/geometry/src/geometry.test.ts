@@ -5,11 +5,11 @@ import { MeshBVH } from 'three-mesh-bvh';
 import { describe, expect, it } from 'vitest';
 
 import { meshMetrics, overhangFindings } from './analysis';
-import { deriveEdges } from './edges';
+import { deriveEdges, edgeName } from './edges';
 import { diffFaces, isUnchanged } from './faceDiff';
 import { faceTableFromModelFaces, sameCylinder, type FaceTable } from './faceTable';
 import { buildRenderMesh } from './renderMesh';
-import { parseTagged3mf } from './tagged3mf';
+import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
 
 const fixture = new URL('../fixtures/', import.meta.url);
 const mesh = parseTagged3mf(new Uint8Array(readFileSync(new URL('cable-clip.3mf', fixture))));
@@ -95,6 +95,76 @@ describe('render mesh', () => {
   it('derives edge segments without the cylinder seams', () => {
     expect(render.edgeSegments.length % 6).toBe(0);
     expect(render.edgeSegments.length).toBeGreaterThan(0);
+  });
+});
+
+/** A 10 mm cube; top and bottom carry face 0, the four sides face 1 (two separate loops between them). */
+function cube(): TaggedMesh {
+  const positions = Float64Array.from([0, 0, 0, 10, 0, 0, 10, 10, 0, 0, 10, 0, 0, 0, 10, 10, 0, 10, 10, 10, 10, 0, 10, 10]);
+  const quads = [
+    [0, 3, 2, 1, 0],
+    [4, 5, 6, 7, 0],
+    [0, 1, 5, 4, 1],
+    [1, 2, 6, 5, 1],
+    [2, 3, 7, 6, 1],
+    [3, 0, 4, 7, 1],
+  ];
+  const indices: number[] = [];
+  const faces: number[] = [];
+  for (const [a, b, c, d, face] of quads) {
+    indices.push(a!, b!, c!, a!, c!, d!);
+    faces.push(face!, face!);
+  }
+  return { name: 'Cube', positions, indices: Uint32Array.from(indices), triangleFaces: Uint32Array.from(faces), faceCount: 2 };
+}
+
+describe('B-rep edges and vertices', () => {
+  it('splits the edges between two faces into one chain per connected loop', () => {
+    const { edges, openEdges } = deriveEdges(cube());
+    expect(openEdges).toBe(0);
+    // The diagonals inside each quad are not edges; the 0|1 pair forms two closed squares.
+    expect(edges).toHaveLength(2);
+    for (const edge of edges) {
+      expect(edge.faces).toEqual([0, 1]);
+      expect(edge.length).toBeCloseTo(40, 5);
+      expect(edge.ends).toEqual([]);
+    }
+  });
+
+  it('describes every edge of the fixture with its faces, range, length and end points', () => {
+    const render = buildRenderMesh(mesh, table);
+    const count = render.edgeLengths.length;
+    expect(count).toBeGreaterThan(20);
+    expect(render.edgeFaces.length).toBe(count * 2);
+    let segments = 0;
+    const corners = new Set<string>();
+    for (let v = 0; v < render.vertices.length; v += 3) corners.add(Array.from(render.vertices.subarray(v, v + 3)).join(','));
+    for (let e = 0; e < count; e += 1) {
+      expect(render.edgeRanges[e * 2]).toBe(segments);
+      segments += render.edgeRanges[e * 2 + 1]!;
+      expect(render.edgeLengths[e]).toBeGreaterThan(0);
+      expect(render.edgeFaces[e * 2]).toBeLessThan(render.edgeFaces[e * 2 + 1]!);
+    }
+    expect(segments * 6).toBe(render.edgeSegments.length);
+    // Every end of an open edge is a vertex, and every vertex ends at least two edges.
+    const { edges } = deriveEdges(mesh, (a, b) => sameCylinder(table.faces[a]!, table.faces[b]!));
+    const uses = new Map<string, number>();
+    for (const edge of edges) {
+      for (const end of edge.ends) {
+        const key = Array.from(Float32Array.from(end)).join(',');
+        uses.set(key, (uses.get(key) ?? 0) + 1);
+      }
+    }
+    expect(corners.size).toBe(uses.size);
+    for (const [corner, n] of uses) {
+      expect(corners.has(corner)).toBe(true);
+      expect(n, corner).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('names an edge like SolidCraft: both face names sorted, joined by "|"', () => {
+    expect(edgeName('F1:-y', 'F1:+x')).toBe('F1:+x|F1:-y');
+    expect(edgeName('F2:side#1', 'F2:bottom')).toBe('F2:bottom|F2:side#1');
   });
 });
 

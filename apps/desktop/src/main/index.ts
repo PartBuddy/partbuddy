@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, session, shell } from 'electron';
 
 import { invokeChannels, eventChannels } from '../shared/channels';
 import type { AgentEvent, ExportFormat, ViewState } from '../shared/contract';
@@ -74,8 +74,21 @@ function launchPort(): number {
 /** Height of the integrated title bar; the renderer's token `--cs-titlebar-height` confirms it. */
 const TITLE_BAR_HEIGHT = 40;
 
+/**
+ * Test runs open the window on the leftmost display and without focus, so they do not cover the
+ * developer's main screen or take the keyboard (PARTBUDDY_WINDOW_DISPLAY=leftmost, set by the E2E
+ * launcher). The app itself opens where the system puts it.
+ */
+function testPlacement(): { x: number; y: number } | null {
+  if (process.env.PARTBUDDY_WINDOW_DISPLAY !== 'leftmost') return null;
+  const [leftmost] = [...screen.getAllDisplays()].sort((a, b) => a.bounds.x - b.bounds.x);
+  return leftmost ? { x: leftmost.workArea.x + 24, y: leftmost.workArea.y + 24 } : null;
+}
+
 function createWindow(): BrowserWindow {
+  const placement = testPlacement();
   const window = new BrowserWindow({
+    ...(placement ?? {}),
     width: 1440,
     height: 900,
     minWidth: 960,
@@ -99,7 +112,8 @@ function createWindow(): BrowserWindow {
     },
   });
   window.once('ready-to-show', () => {
-    window.show();
+    if (placement) window.showInactive();
+    else window.show();
   });
   // No remote content and no new windows in the privileged window (architecture: security).
   window.webContents.setWindowOpenHandler(({ url }) => {
