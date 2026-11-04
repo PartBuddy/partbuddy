@@ -31,6 +31,9 @@ const api: PartBuddyApi = {
   viewer: {
     report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),
   },
+  window: {
+    setTitleBarColors: (colors) => ipcRenderer.invoke(invokeChannels.windowTitleBar, colors),
+  },
   agent: {
     status: () => ipcRenderer.invoke(invokeChannels.agentStatus),
     refresh: () => ipcRenderer.invoke(invokeChannels.agentRefresh),

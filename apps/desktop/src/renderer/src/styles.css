@@ -14,6 +14,20 @@ body,
   font-family: var(--cs-font-sans);
 }
 
+/*
+ * Integrated title bar: the bar drags the window; the system's window buttons sit in the
+ * window-controls overlay, so the content keeps clear of it (right on Windows, left on macOS).
+ */
+.title-bar {
+  app-region: drag;
+  padding-left: max(var(--cs-space-3), env(titlebar-area-x, 0px));
+  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + var(--cs-space-3));
+}
+
+.title-bar :is(button, a, input, [role="button"]) {
+  app-region: no-drag;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
