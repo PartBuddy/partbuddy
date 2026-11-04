@@ -13,6 +13,7 @@ import { launchApp } from './launch';
 // its control channel, so PARTBUDDY_SOLIDCRAFT_WINDOW=1); opt in
 // with PARTBUDDY_E2E_SOLIDCRAFT=1.
 test.skip(process.env.PARTBUDDY_E2E_SOLIDCRAFT !== '1', 'needs SolidCraft; set PARTBUDDY_E2E_SOLIDCRAFT=1');
+test.skip(process.env.PARTBUDDY_E2E_SOLIDCRAFT_WINDOW !== '1', 'opens the SolidCraft window, which cannot be kept off screen; set PARTBUDDY_E2E_SOLIDCRAFT_WINDOW=1');
 
 interface StepTiming {
   step: number;

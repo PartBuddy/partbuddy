@@ -203,13 +203,17 @@ test('the title bar is part of the window, with the system window buttons beside
     return { visible: overlay?.visible ?? false, width: overlay?.getTitlebarAreaRect().width ?? 0, viewport: view.innerWidth };
   });
   expect(overlay.visible).toBe(true);
-  // Test windows open on the leftmost monitor, away from the developer's main screen.
-  const bounds = await launched.app.evaluate(({ BrowserWindow, screen }) => ({
-    window: BrowserWindow.getAllWindows()[0]?.getBounds().x ?? 0,
-    leftmost: Math.min(...screen.getAllDisplays().map((display) => display.bounds.x)),
-  }));
-  expect(bounds.window).toBeGreaterThanOrEqual(bounds.leftmost);
-  expect(bounds.window).toBeLessThan(bounds.leftmost + 100);
+  // Test windows open beside all displays, without focus: nothing of a test run is seen.
+  const bounds = await launched.app.evaluate(({ BrowserWindow, screen }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    return {
+      right: (window?.getBounds().x ?? 0) + (window?.getBounds().width ?? 0),
+      leftmost: Math.min(...screen.getAllDisplays().map((display) => display.bounds.x)),
+      focused: window?.isFocused() ?? true,
+    };
+  });
+  if (process.env.PARTBUDDY_WINDOW_DISPLAY !== 'leftmost') expect(bounds.right).toBeLessThan(bounds.leftmost);
+  expect(bounds.focused).toBe(false);
   // The window buttons take room at the side; the title bar keeps clear of them.
   expect(overlay.width).toBeGreaterThan(0);
   expect(overlay.width).toBeLessThan(overlay.viewport);
