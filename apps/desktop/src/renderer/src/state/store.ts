@@ -1,7 +1,7 @@
 import type { ViewerModel } from '@partbuddy/geometry';
 import { create } from 'zustand';
 
-import type { ConnectionStatus } from '../../../shared/contract';
+import type { ConnectionStatus, MirroredSketch } from '../../../shared/contract';
 
 export interface BodyModel {
   name: string;
@@ -10,7 +10,7 @@ export interface BodyModel {
 
 export type ModelState =
   | { status: 'waiting' }
-  | { status: 'ready'; documentId: string; revision: number; designName: string; bodies: BodyModel[] }
+  | { status: 'ready'; documentId: string; revision: number; designName: string; bodies: BodyModel[]; sketches: MirroredSketch[] }
   | { status: 'error'; message: string };
 
 /** Faces that changed in the latest revision of one body (indices in the new face table). */
@@ -19,10 +19,20 @@ export interface BodyChanges {
   faces: number[];
 }
 
+/** Curves that the latest revision added or moved in one sketch (#21), by curve id. */
+export interface SketchChanges {
+  sketch: number;
+  curves: string[];
+}
+
 export interface LiveChanges {
   bodies: BodyChanges[];
+  /** Changed faces over all bodies. */
   count: number;
-  /** Bounds of the changed faces, for the camera to follow. */
+  sketches: SketchChanges[];
+  /** Changed sketch curves over all sketches. */
+  sketchCurves: number;
+  /** Bounds of the changed faces and sketch curves, for the camera to follow. */
   box: { min: [number, number, number]; max: [number, number, number] } | null;
   /** Increases with every revision that brought changes. */
   serial: number;

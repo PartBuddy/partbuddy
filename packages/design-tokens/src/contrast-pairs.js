@@ -28,6 +28,11 @@ export const contrastPairs = [
   { fg: '--cs-color-danger', bg: '--cs-color-surface', min: 4.5 },
   { fg: '--cs-color-focus', bg: '--cs-color-surface', min: 3 },
   { fg: '--cs-color-border-strong', bg: '--cs-color-surface', min: 3 },
+  // Sketch curves are graphic objects on the viewer background (1.4.11).
+  { fg: '--cs-viewer-sketch', bg: '--cs-viewer-background', min: 3 },
+  { fg: '--cs-viewer-sketch-constrained', bg: '--cs-viewer-background', min: 3 },
+  { fg: '--cs-viewer-sketch-construction', bg: '--cs-viewer-background', min: 3 },
+  { fg: '--cs-viewer-changed', bg: '--cs-viewer-background', min: 3 },
 ];
 
 /**

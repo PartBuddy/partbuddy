@@ -1,0 +1,3054 @@
+{
+  "constraints": [
+    {
+      "id": "k1",
+      "l": 0,
+      "name": "Horizontal",
+      "type": "horizontal"
+    },
+    {
+      "id": "k2",
+      "l": 2,
+      "name": "Horizontal",
+      "type": "horizontal"
+    },
+    {
+      "id": "k3",
+      "l": 1,
+      "name": "Vertical",
+      "type": "vertical"
+    },
+    {
+      "id": "k4",
+      "l": 3,
+      "name": "Vertical",
+      "type": "vertical"
+    },
+    {
+      "id": "k5",
+      "name": "Coincident",
+      "p": 0,
+      "q": 1,
+      "type": "coincident"
+    },
+    {
+      "id": "k6",
+      "name": "Coincident",
+      "p": 2,
+      "q": 7,
+      "type": "coincident"
+    },
+    {
+      "id": "k7",
+      "name": "Coincident",
+      "p": 3,
+      "q": 8,
+      "type": "coincident"
+    },
+    {
+      "a": 12,
+      "b": 13,
+      "id": "k8",
+      "name": "Equal",
+      "type": "equal"
+    },
+    {
+      "a": 13,
+      "b": 14,
+      "id": "k9",
+      "name": "Equal",
+      "type": "equal"
+    },
+    {
+      "a": 14,
+      "b": 15,
+      "id": "k10",
+      "name": "Equal",
+      "type": "equal"
+    },
+    {
+      "a": 15,
+      "b": 16,
+      "id": "k11",
+      "name": "Equal",
+      "type": "equal"
+    },
+    {
+      "a": 16,
+      "b": 17,
+      "id": "k12",
+      "name": "Equal",
+      "type": "equal"
+    },
+    {
+      "c": 18,
+      "id": "k13",
+      "name": "Coincident",
+      "p": 32,
+      "type": "point_on_curve"
+    },
+    {
+      "c": 18,
+      "id": "k14",
+      "name": "Coincident",
+      "p": 33,
+      "type": "point_on_curve"
+    },
+    {
+      "c": 18,
+      "id": "k15",
+      "name": "Coincident",
+      "p": 34,
+      "type": "point_on_curve"
+    },
+    {
+      "c": 18,
+      "id": "k16",
+      "name": "Coincident",
+      "p": 35,
+      "type": "point_on_curve"
+    },
+    {
+      "c": 18,
+      "id": "k17",
+      "name": "Coincident",
+      "p": 36,
+      "type": "point_on_curve"
+    },
+    {
+      "c": 18,
+      "id": "k18",
+      "name": "Coincident",
+      "p": 37,
+      "type": "point_on_curve"
+    }
+  ],
+  "curves": [
+    {
+      "construction": false,
+      "end": "p2",
+      "end_at": [
+        40,
+        0
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l1",
+      "start": "p1",
+      "start_at": [
+        0,
+        0
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p3",
+      "end_at": [
+        40,
+        20
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l2",
+      "start": "p2",
+      "start_at": [
+        40,
+        0
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p4",
+      "end_at": [
+        0,
+        20
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l3",
+      "start": "p3",
+      "start_at": [
+        40,
+        20
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p1",
+      "end_at": [
+        0,
+        0
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l4",
+      "start": "p4",
+      "start_at": [
+        0,
+        20
+      ],
+      "type": "line"
+    },
+    {
+      "center": "c1.center",
+      "center_at": [
+        10,
+        10
+      ],
+      "construction": false,
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "c1",
+      "radius": 4,
+      "type": "circle"
+    },
+    {
+      "center": "a1.center",
+      "center_at": [
+        37.75,
+        10
+      ],
+      "construction": false,
+      "end": "a1.end",
+      "end_at": [
+        40,
+        20
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "a1",
+      "radius": 10.25,
+      "start": "a1.start",
+      "start_at": [
+        40,
+        0
+      ],
+      "type": "arc"
+    },
+    {
+      "center": "a2.center",
+      "center_at": [
+        60,
+        -15
+      ],
+      "construction": false,
+      "end": "a2.start",
+      "end_at": [
+        65,
+        -15
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "a2",
+      "radius": 5,
+      "start": "a2.end",
+      "start_at": [
+        60,
+        -10
+      ],
+      "type": "arc"
+    },
+    {
+      "construction": false,
+      "control": false,
+      "degree": 3,
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "s1",
+      "periodic": false,
+      "points": [
+        "p5",
+        "p6",
+        "p7",
+        "p8",
+        "p9"
+      ],
+      "points_at": [
+        [
+          0,
+          30
+        ],
+        [
+          10,
+          35
+        ],
+        [
+          20,
+          30
+        ],
+        [
+          30,
+          38
+        ],
+        [
+          42,
+          33
+        ]
+      ],
+      "type": "spline"
+    },
+    {
+      "construction": false,
+      "control": false,
+      "degree": 3,
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "s2",
+      "periodic": true,
+      "points": [
+        "p10",
+        "p11",
+        "p12",
+        "p13",
+        "p10"
+      ],
+      "points_at": [
+        [
+          60,
+          30
+        ],
+        [
+          70,
+          36
+        ],
+        [
+          80,
+          30
+        ],
+        [
+          70,
+          24
+        ],
+        [
+          60,
+          30
+        ]
+      ],
+      "type": "spline"
+    },
+    {
+      "construction": false,
+      "control": true,
+      "degree": 3,
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "s3",
+      "periodic": false,
+      "points": [
+        "p14",
+        "p15",
+        "p16",
+        "p17",
+        "p18",
+        "p19"
+      ],
+      "points_at": [
+        [
+          0,
+          45
+        ],
+        [
+          8,
+          52
+        ],
+        [
+          16,
+          44
+        ],
+        [
+          24,
+          52
+        ],
+        [
+          32,
+          45
+        ],
+        [
+          40,
+          50
+        ]
+      ],
+      "type": "spline"
+    },
+    {
+      "center": "p20",
+      "center_at": [
+        70,
+        0
+      ],
+      "construction": false,
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "e1",
+      "major": "p21",
+      "major_at": [
+        80,
+        4
+      ],
+      "minor_radius": 4,
+      "type": "ellipse"
+    },
+    {
+      "apex": "p24",
+      "apex_at": [
+        10,
+        -20
+      ],
+      "construction": false,
+      "end": "p23",
+      "end_at": [
+        20,
+        -10
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "n1",
+      "rho": 0.7,
+      "start": "p22",
+      "start_at": [
+        0,
+        -10
+      ],
+      "type": "conic"
+    },
+    {
+      "construction": false,
+      "end": "p26",
+      "end_at": [
+        95.6698729810778,
+        2.5000000000000018
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l5",
+      "start": "p25",
+      "start_at": [
+        100,
+        5
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p27",
+      "end_at": [
+        95.6698729810778,
+        -2.4999999999999987
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l6",
+      "start": "p26",
+      "start_at": [
+        95.6698729810778,
+        2.5000000000000018
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p28",
+      "end_at": [
+        100,
+        -5
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l7",
+      "start": "p27",
+      "start_at": [
+        95.6698729810778,
+        -2.4999999999999987
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p29",
+      "end_at": [
+        104.3301270189222,
+        -2.500000000000002
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l8",
+      "start": "p28",
+      "start_at": [
+        100,
+        -5
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p30",
+      "end_at": [
+        104.3301270189222,
+        2.5
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l9",
+      "start": "p29",
+      "start_at": [
+        104.3301270189222,
+        -2.500000000000002
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p25",
+      "end_at": [
+        100,
+        5
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l10",
+      "start": "p30",
+      "start_at": [
+        104.3301270189222,
+        2.5
+      ],
+      "type": "line"
+    },
+    {
+      "center": "c2.center",
+      "center_at": [
+        100,
+        0
+      ],
+      "construction": true,
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "c2",
+      "radius": 5,
+      "type": "circle"
+    },
+    {
+      "apex": "p33",
+      "apex_at": [
+        94.46415897799858,
+        32.78566359119943
+      ],
+      "construction": false,
+      "end": "p32",
+      "end_at": [
+        94.00106458481193,
+        32.36692689850958
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n2",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p31",
+      "start_at": [
+        94.46415897799858,
+        33.495386799148335
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p35",
+      "apex_at": [
+        93.53797019162526,
+        31.94819020581973
+      ],
+      "construction": false,
+      "end": "p34",
+      "end_at": [
+        92.7430801987225,
+        31.94819020581973
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n3",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p32",
+      "start_at": [
+        94.00106458481193,
+        32.36692689850958
+      ],
+      "type": "conic"
+    },
+    {
+      "construction": false,
+      "end": "p36",
+      "end_at": [
+        91.27395315826827,
+        31.94819020581973
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l11",
+      "link": "j1",
+      "start": "p34",
+      "start_at": [
+        92.7430801987225,
+        31.94819020581973
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p37",
+      "end_at": [
+        91.27395315826827,
+        30
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l12",
+      "link": "j1",
+      "start": "p36",
+      "start_at": [
+        91.27395315826827,
+        31.94819020581973
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p38",
+      "end_at": [
+        90.59616749467708,
+        30
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l13",
+      "link": "j1",
+      "start": "p37",
+      "start_at": [
+        91.27395315826827,
+        30
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p39",
+      "end_at": [
+        90.59616749467708,
+        35
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l14",
+      "link": "j1",
+      "start": "p38",
+      "start_at": [
+        90.59616749467708,
+        30
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p40",
+      "end_at": [
+        92.70049680624557,
+        35
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l15",
+      "link": "j1",
+      "start": "p39",
+      "start_at": [
+        90.59616749467708,
+        35
+      ],
+      "type": "line"
+    },
+    {
+      "apex": "p42",
+      "apex_at": [
+        93.54151880766501,
+        35
+      ],
+      "construction": false,
+      "end": "p41",
+      "end_at": [
+        94.00283889283179,
+        34.60610361958836
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n4",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p40",
+      "start_at": [
+        92.70049680624557,
+        35
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p43",
+      "apex_at": [
+        94.46415897799858,
+        34.21220723917672
+      ],
+      "construction": false,
+      "end": "p31",
+      "end_at": [
+        94.46415897799858,
+        33.495386799148335
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n5",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p41",
+      "start_at": [
+        94.00283889283179,
+        34.60610361958836
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p46",
+      "apex_at": [
+        93.78282469836763,
+        34.45706174591909
+      ],
+      "construction": false,
+      "end": "p45",
+      "end_at": [
+        92.61887863733143,
+        34.45706174591909
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n6",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p44",
+      "start_at": [
+        93.78282469836763,
+        33.48828956706884
+      ],
+      "type": "conic"
+    },
+    {
+      "construction": false,
+      "end": "p47",
+      "end_at": [
+        91.27395315826827,
+        34.45706174591909
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l16",
+      "link": "j1",
+      "start": "p45",
+      "start_at": [
+        92.61887863733143,
+        34.45706174591909
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p48",
+      "end_at": [
+        91.27395315826827,
+        32.48403122782115
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l17",
+      "link": "j1",
+      "start": "p47",
+      "start_at": [
+        91.27395315826827,
+        34.45706174591909
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p49",
+      "end_at": [
+        92.6472675656494,
+        32.48403122782115
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l18",
+      "link": "j1",
+      "start": "p48",
+      "start_at": [
+        91.27395315826827,
+        32.48403122782115
+      ],
+      "type": "line"
+    },
+    {
+      "apex": "p50",
+      "apex_at": [
+        93.78282469836763,
+        32.48403122782115
+      ],
+      "construction": false,
+      "end": "p44",
+      "end_at": [
+        93.78282469836763,
+        33.48828956706884
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n7",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p49",
+      "start_at": [
+        92.6472675656494,
+        32.48403122782115
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p53",
+      "apex_at": [
+        99.31156848828957,
+        30.7416607523066
+      ],
+      "construction": false,
+      "end": "p52",
+      "end_at": [
+        98.82540809084458,
+        30.3708303761533
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n8",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p51",
+      "start_at": [
+        99.31156848828957,
+        31.408800567778567
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p55",
+      "apex_at": [
+        98.33924769339957,
+        30
+      ],
+      "construction": false,
+      "end": "p54",
+      "end_at": [
+        97.47338537970191,
+        30
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n9",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p52",
+      "start_at": [
+        98.82540809084458,
+        30.3708303761533
+      ],
+      "type": "conic"
+    },
+    {
+      "construction": false,
+      "end": "p56",
+      "end_at": [
+        95.44357700496806,
+        30
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l19",
+      "link": "j1",
+      "start": "p54",
+      "start_at": [
+        97.47338537970191,
+        30
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p57",
+      "end_at": [
+        95.44357700496806,
+        35
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l20",
+      "link": "j1",
+      "start": "p56",
+      "start_at": [
+        95.44357700496806,
+        30
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p58",
+      "end_at": [
+        97.26046841731724,
+        35
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l21",
+      "link": "j1",
+      "start": "p57",
+      "start_at": [
+        95.44357700496806,
+        35
+      ],
+      "type": "line"
+    },
+    {
+      "apex": "p60",
+      "apex_at": [
+        99.02058197303052,
+        35
+      ],
+      "construction": false,
+      "end": "p59",
+      "end_at": [
+        99.02058197303052,
+        33.78637331440738
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n10",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p58",
+      "start_at": [
+        97.26046841731724,
+        35
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p62",
+      "apex_at": [
+        99.02058197303052,
+        33.34279630943932
+      ],
+      "construction": false,
+      "end": "p61",
+      "end_at": [
+        98.77217885024841,
+        33.04116394606103
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n11",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p59",
+      "start_at": [
+        99.02058197303052,
+        33.78637331440738
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p64",
+      "apex_at": [
+        98.52377572746629,
+        32.73953158268275
+      ],
+      "construction": false,
+      "end": "p63",
+      "end_at": [
+        98.069552874379,
+        32.63662171753016
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n12",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p61",
+      "start_at": [
+        98.77217885024841,
+        33.04116394606103
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p66",
+      "apex_at": [
+        98.66572036905607,
+        32.565649396735274
+      ],
+      "construction": false,
+      "end": "p65",
+      "end_at": [
+        98.98864442867281,
+        32.23740241305891
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n13",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p63",
+      "start_at": [
+        98.069552874379,
+        32.63662171753016
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p67",
+      "apex_at": [
+        99.31156848828957,
+        31.90915542938254
+      ],
+      "construction": false,
+      "end": "p51",
+      "end_at": [
+        99.31156848828957,
+        31.408800567778567
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n14",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p65",
+      "start_at": [
+        98.98864442867281,
+        32.23740241305891
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p70",
+      "apex_at": [
+        98.33924769339957,
+        34.10929737402413
+      ],
+      "construction": false,
+      "end": "p69",
+      "end_at": [
+        98.0624556422995,
+        34.283179559971614
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n15",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p68",
+      "start_at": [
+        98.33924769339957,
+        33.70475514549326
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p72",
+      "apex_at": [
+        97.78566359119944,
+        34.45706174591909
+      ],
+      "construction": false,
+      "end": "p71",
+      "end_at": [
+        97.26046841731724,
+        34.45706174591909
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n16",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p69",
+      "start_at": [
+        98.0624556422995,
+        34.283179559971614
+      ],
+      "type": "conic"
+    },
+    {
+      "construction": false,
+      "end": "p73",
+      "end_at": [
+        96.12136266855926,
+        34.45706174591909
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l22",
+      "link": "j1",
+      "start": "p71",
+      "start_at": [
+        97.26046841731724,
+        34.45706174591909
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p74",
+      "end_at": [
+        96.12136266855926,
+        32.874378992193044
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l23",
+      "link": "j1",
+      "start": "p73",
+      "start_at": [
+        96.12136266855926,
+        34.45706174591909
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p75",
+      "end_at": [
+        97.26046841731724,
+        32.874378992193044
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l24",
+      "link": "j1",
+      "start": "p74",
+      "start_at": [
+        96.12136266855926,
+        32.874378992193044
+      ],
+      "type": "line"
+    },
+    {
+      "apex": "p77",
+      "apex_at": [
+        97.80340667139815,
+        32.874378992193044
+      ],
+      "construction": false,
+      "end": "p76",
+      "end_at": [
+        98.07132718239886,
+        33.078424414478356
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n17",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p75",
+      "start_at": [
+        97.26046841731724,
+        32.874378992193044
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p78",
+      "apex_at": [
+        98.33924769339957,
+        33.28246983676366
+      ],
+      "construction": false,
+      "end": "p68",
+      "end_at": [
+        98.33924769339957,
+        33.70475514549326
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n18",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p76",
+      "start_at": [
+        98.07132718239886,
+        33.078424414478356
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p81",
+      "apex_at": [
+        98.62668559261888,
+        32.34563520227111
+      ],
+      "construction": false,
+      "end": "p80",
+      "end_at": [
+        97.3846699787083,
+        32.34563520227111
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n19",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p79",
+      "start_at": [
+        98.62668559261888,
+        31.462029808374734
+      ],
+      "type": "conic"
+    },
+    {
+      "construction": false,
+      "end": "p82",
+      "end_at": [
+        96.12136266855926,
+        32.34563520227111
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l25",
+      "link": "j1",
+      "start": "p80",
+      "start_at": [
+        97.3846699787083,
+        32.34563520227111
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p83",
+      "end_at": [
+        96.12136266855926,
+        30.54293825408091
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l26",
+      "link": "j1",
+      "start": "p82",
+      "start_at": [
+        96.12136266855926,
+        32.34563520227111
+      ],
+      "type": "line"
+    },
+    {
+      "construction": false,
+      "end": "p84",
+      "end_at": [
+        97.43789921930447,
+        30.54293825408091
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "l27",
+      "link": "j1",
+      "start": "p83",
+      "start_at": [
+        96.12136266855926,
+        30.54293825408091
+      ],
+      "type": "line"
+    },
+    {
+      "apex": "p86",
+      "apex_at": [
+        98.05890702625976,
+        30.54293825408091
+      ],
+      "construction": false,
+      "end": "p85",
+      "end_at": [
+        98.34279630943932,
+        30.7735982966643
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n20",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p84",
+      "start_at": [
+        97.43789921930447,
+        30.54293825408091
+      ],
+      "type": "conic"
+    },
+    {
+      "apex": "p87",
+      "apex_at": [
+        98.62668559261888,
+        31.004258339247695
+      ],
+      "construction": false,
+      "end": "p79",
+      "end_at": [
+        98.62668559261888,
+        31.462029808374734
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "n21",
+      "link": "j1",
+      "rho": 0.5,
+      "start": "p85",
+      "start_at": [
+        98.34279630943932,
+        30.7735982966643
+      ],
+      "type": "conic"
+    },
+    {
+      "construction": true,
+      "end": "l28.end",
+      "end_at": [
+        -5,
+        55
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l28",
+      "start": "l28.start",
+      "start_at": [
+        -5,
+        -25
+      ],
+      "type": "line"
+    }
+  ],
+  "dof": 60,
+  "failing": [],
+  "fully_constrained": false,
+  "id": 1,
+  "links": [
+    {
+      "id": "j1",
+      "kind": "text",
+      "source": {
+        "angle": 0,
+        "at": [
+          90,
+          30
+        ],
+        "height": 5,
+        "text": "PB",
+        "type": "text"
+      }
+    }
+  ],
+  "name": "Curves",
+  "plane": {
+    "origin": [
+      0,
+      5,
+      0
+    ],
+    "x_dir": [
+      1,
+      0,
+      0
+    ],
+    "y_dir": [
+      0,
+      0,
+      -1
+    ]
+  },
+  "points": [
+    {
+      "at": [
+        0,
+        0
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "origin",
+      "link": null,
+      "world": [
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "at": [
+        0,
+        0
+      ],
+      "fixed": false,
+      "fully_constrained": true,
+      "id": "p1",
+      "link": null,
+      "world": [
+        0,
+        5,
+        0
+      ]
+    },
+    {
+      "at": [
+        40,
+        0
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p2",
+      "link": null,
+      "world": [
+        40,
+        5,
+        0
+      ]
+    },
+    {
+      "at": [
+        40,
+        20
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p3",
+      "link": null,
+      "world": [
+        40,
+        5,
+        -20
+      ]
+    },
+    {
+      "at": [
+        0,
+        20
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p4",
+      "link": null,
+      "world": [
+        0,
+        5,
+        -20
+      ]
+    },
+    {
+      "at": [
+        10,
+        10
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "c1.center",
+      "link": null,
+      "world": [
+        10,
+        5,
+        -10
+      ]
+    },
+    {
+      "at": [
+        37.75,
+        10
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "a1.center",
+      "link": null,
+      "world": [
+        37.75,
+        5,
+        -10
+      ]
+    },
+    {
+      "at": [
+        40,
+        0
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "a1.start",
+      "link": null,
+      "world": [
+        40,
+        5,
+        0
+      ]
+    },
+    {
+      "at": [
+        40,
+        20
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "a1.end",
+      "link": null,
+      "world": [
+        40,
+        5,
+        -20
+      ]
+    },
+    {
+      "at": [
+        65,
+        -15
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "a2.start",
+      "link": null,
+      "world": [
+        65,
+        5,
+        15
+      ]
+    },
+    {
+      "at": [
+        60,
+        -10
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "a2.end",
+      "link": null,
+      "world": [
+        60,
+        5,
+        10
+      ]
+    },
+    {
+      "at": [
+        60,
+        -15
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "a2.center",
+      "link": null,
+      "world": [
+        60,
+        5,
+        15
+      ]
+    },
+    {
+      "at": [
+        0,
+        30
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p5",
+      "link": null,
+      "world": [
+        0,
+        5,
+        -30
+      ]
+    },
+    {
+      "at": [
+        10,
+        35
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p6",
+      "link": null,
+      "world": [
+        10,
+        5,
+        -35
+      ]
+    },
+    {
+      "at": [
+        20,
+        30
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p7",
+      "link": null,
+      "world": [
+        20,
+        5,
+        -30
+      ]
+    },
+    {
+      "at": [
+        30,
+        38
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p8",
+      "link": null,
+      "world": [
+        30,
+        5,
+        -38
+      ]
+    },
+    {
+      "at": [
+        42,
+        33
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p9",
+      "link": null,
+      "world": [
+        42,
+        5,
+        -33
+      ]
+    },
+    {
+      "at": [
+        60,
+        30
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p10",
+      "link": null,
+      "world": [
+        60,
+        5,
+        -30
+      ]
+    },
+    {
+      "at": [
+        70,
+        36
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p11",
+      "link": null,
+      "world": [
+        70,
+        5,
+        -36
+      ]
+    },
+    {
+      "at": [
+        80,
+        30
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p12",
+      "link": null,
+      "world": [
+        80,
+        5,
+        -30
+      ]
+    },
+    {
+      "at": [
+        70,
+        24
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p13",
+      "link": null,
+      "world": [
+        70,
+        5,
+        -24
+      ]
+    },
+    {
+      "at": [
+        0,
+        45
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p14",
+      "link": null,
+      "world": [
+        0,
+        5,
+        -45
+      ]
+    },
+    {
+      "at": [
+        8,
+        52
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p15",
+      "link": null,
+      "world": [
+        8,
+        5,
+        -52
+      ]
+    },
+    {
+      "at": [
+        16,
+        44
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p16",
+      "link": null,
+      "world": [
+        16,
+        5,
+        -44
+      ]
+    },
+    {
+      "at": [
+        24,
+        52
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p17",
+      "link": null,
+      "world": [
+        24,
+        5,
+        -52
+      ]
+    },
+    {
+      "at": [
+        32,
+        45
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p18",
+      "link": null,
+      "world": [
+        32,
+        5,
+        -45
+      ]
+    },
+    {
+      "at": [
+        40,
+        50
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p19",
+      "link": null,
+      "world": [
+        40,
+        5,
+        -50
+      ]
+    },
+    {
+      "at": [
+        70,
+        0
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p20",
+      "link": null,
+      "world": [
+        70,
+        5,
+        0
+      ]
+    },
+    {
+      "at": [
+        80,
+        4
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p21",
+      "link": null,
+      "world": [
+        80,
+        5,
+        -4
+      ]
+    },
+    {
+      "at": [
+        0,
+        -10
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p22",
+      "link": null,
+      "world": [
+        0,
+        5,
+        10
+      ]
+    },
+    {
+      "at": [
+        20,
+        -10
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p23",
+      "link": null,
+      "world": [
+        20,
+        5,
+        10
+      ]
+    },
+    {
+      "at": [
+        10,
+        -20
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p24",
+      "link": null,
+      "world": [
+        10,
+        5,
+        20
+      ]
+    },
+    {
+      "at": [
+        100,
+        5
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p25",
+      "link": null,
+      "world": [
+        100,
+        5,
+        -5
+      ]
+    },
+    {
+      "at": [
+        95.6698729810778,
+        2.5000000000000018
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p26",
+      "link": null,
+      "world": [
+        95.6698729810778,
+        5,
+        -2.5000000000000018
+      ]
+    },
+    {
+      "at": [
+        95.6698729810778,
+        -2.4999999999999987
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p27",
+      "link": null,
+      "world": [
+        95.6698729810778,
+        5,
+        2.4999999999999987
+      ]
+    },
+    {
+      "at": [
+        100,
+        -5
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p28",
+      "link": null,
+      "world": [
+        100,
+        5,
+        5
+      ]
+    },
+    {
+      "at": [
+        104.3301270189222,
+        -2.500000000000002
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p29",
+      "link": null,
+      "world": [
+        104.3301270189222,
+        5,
+        2.500000000000002
+      ]
+    },
+    {
+      "at": [
+        104.3301270189222,
+        2.5
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "p30",
+      "link": null,
+      "world": [
+        104.3301270189222,
+        5,
+        -2.5
+      ]
+    },
+    {
+      "at": [
+        100,
+        0
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "c2.center",
+      "link": null,
+      "world": [
+        100,
+        5,
+        0
+      ]
+    },
+    {
+      "at": [
+        94.46415897799858,
+        33.495386799148335
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p31",
+      "link": "j1",
+      "world": [
+        94.46415897799858,
+        5,
+        -33.495386799148335
+      ]
+    },
+    {
+      "at": [
+        94.00106458481193,
+        32.36692689850958
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p32",
+      "link": "j1",
+      "world": [
+        94.00106458481193,
+        5,
+        -32.36692689850958
+      ]
+    },
+    {
+      "at": [
+        94.46415897799858,
+        32.78566359119943
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p33",
+      "link": "j1",
+      "world": [
+        94.46415897799858,
+        5,
+        -32.78566359119943
+      ]
+    },
+    {
+      "at": [
+        92.7430801987225,
+        31.94819020581973
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p34",
+      "link": "j1",
+      "world": [
+        92.7430801987225,
+        5,
+        -31.94819020581973
+      ]
+    },
+    {
+      "at": [
+        93.53797019162526,
+        31.94819020581973
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p35",
+      "link": "j1",
+      "world": [
+        93.53797019162526,
+        5,
+        -31.94819020581973
+      ]
+    },
+    {
+      "at": [
+        91.27395315826827,
+        31.94819020581973
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p36",
+      "link": "j1",
+      "world": [
+        91.27395315826827,
+        5,
+        -31.94819020581973
+      ]
+    },
+    {
+      "at": [
+        91.27395315826827,
+        30
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p37",
+      "link": "j1",
+      "world": [
+        91.27395315826827,
+        5,
+        -30
+      ]
+    },
+    {
+      "at": [
+        90.59616749467708,
+        30
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p38",
+      "link": "j1",
+      "world": [
+        90.59616749467708,
+        5,
+        -30
+      ]
+    },
+    {
+      "at": [
+        90.59616749467708,
+        35
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p39",
+      "link": "j1",
+      "world": [
+        90.59616749467708,
+        5,
+        -35
+      ]
+    },
+    {
+      "at": [
+        92.70049680624557,
+        35
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p40",
+      "link": "j1",
+      "world": [
+        92.70049680624557,
+        5,
+        -35
+      ]
+    },
+    {
+      "at": [
+        94.00283889283179,
+        34.60610361958836
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p41",
+      "link": "j1",
+      "world": [
+        94.00283889283179,
+        5,
+        -34.60610361958836
+      ]
+    },
+    {
+      "at": [
+        93.54151880766501,
+        35
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p42",
+      "link": "j1",
+      "world": [
+        93.54151880766501,
+        5,
+        -35
+      ]
+    },
+    {
+      "at": [
+        94.46415897799858,
+        34.21220723917672
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p43",
+      "link": "j1",
+      "world": [
+        94.46415897799858,
+        5,
+        -34.21220723917672
+      ]
+    },
+    {
+      "at": [
+        93.78282469836763,
+        33.48828956706884
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p44",
+      "link": "j1",
+      "world": [
+        93.78282469836763,
+        5,
+        -33.48828956706884
+      ]
+    },
+    {
+      "at": [
+        92.61887863733143,
+        34.45706174591909
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p45",
+      "link": "j1",
+      "world": [
+        92.61887863733143,
+        5,
+        -34.45706174591909
+      ]
+    },
+    {
+      "at": [
+        93.78282469836763,
+        34.45706174591909
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p46",
+      "link": "j1",
+      "world": [
+        93.78282469836763,
+        5,
+        -34.45706174591909
+      ]
+    },
+    {
+      "at": [
+        91.27395315826827,
+        34.45706174591909
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p47",
+      "link": "j1",
+      "world": [
+        91.27395315826827,
+        5,
+        -34.45706174591909
+      ]
+    },
+    {
+      "at": [
+        91.27395315826827,
+        32.48403122782115
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p48",
+      "link": "j1",
+      "world": [
+        91.27395315826827,
+        5,
+        -32.48403122782115
+      ]
+    },
+    {
+      "at": [
+        92.6472675656494,
+        32.48403122782115
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p49",
+      "link": "j1",
+      "world": [
+        92.6472675656494,
+        5,
+        -32.48403122782115
+      ]
+    },
+    {
+      "at": [
+        93.78282469836763,
+        32.48403122782115
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p50",
+      "link": "j1",
+      "world": [
+        93.78282469836763,
+        5,
+        -32.48403122782115
+      ]
+    },
+    {
+      "at": [
+        99.31156848828957,
+        31.408800567778567
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p51",
+      "link": "j1",
+      "world": [
+        99.31156848828957,
+        5,
+        -31.408800567778567
+      ]
+    },
+    {
+      "at": [
+        98.82540809084458,
+        30.3708303761533
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p52",
+      "link": "j1",
+      "world": [
+        98.82540809084458,
+        5,
+        -30.3708303761533
+      ]
+    },
+    {
+      "at": [
+        99.31156848828957,
+        30.7416607523066
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p53",
+      "link": "j1",
+      "world": [
+        99.31156848828957,
+        5,
+        -30.7416607523066
+      ]
+    },
+    {
+      "at": [
+        97.47338537970191,
+        30
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p54",
+      "link": "j1",
+      "world": [
+        97.47338537970191,
+        5,
+        -30
+      ]
+    },
+    {
+      "at": [
+        98.33924769339957,
+        30
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p55",
+      "link": "j1",
+      "world": [
+        98.33924769339957,
+        5,
+        -30
+      ]
+    },
+    {
+      "at": [
+        95.44357700496806,
+        30
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p56",
+      "link": "j1",
+      "world": [
+        95.44357700496806,
+        5,
+        -30
+      ]
+    },
+    {
+      "at": [
+        95.44357700496806,
+        35
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p57",
+      "link": "j1",
+      "world": [
+        95.44357700496806,
+        5,
+        -35
+      ]
+    },
+    {
+      "at": [
+        97.26046841731724,
+        35
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p58",
+      "link": "j1",
+      "world": [
+        97.26046841731724,
+        5,
+        -35
+      ]
+    },
+    {
+      "at": [
+        99.02058197303052,
+        33.78637331440738
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p59",
+      "link": "j1",
+      "world": [
+        99.02058197303052,
+        5,
+        -33.78637331440738
+      ]
+    },
+    {
+      "at": [
+        99.02058197303052,
+        35
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p60",
+      "link": "j1",
+      "world": [
+        99.02058197303052,
+        5,
+        -35
+      ]
+    },
+    {
+      "at": [
+        98.77217885024841,
+        33.04116394606103
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p61",
+      "link": "j1",
+      "world": [
+        98.77217885024841,
+        5,
+        -33.04116394606103
+      ]
+    },
+    {
+      "at": [
+        99.02058197303052,
+        33.34279630943932
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p62",
+      "link": "j1",
+      "world": [
+        99.02058197303052,
+        5,
+        -33.34279630943932
+      ]
+    },
+    {
+      "at": [
+        98.069552874379,
+        32.63662171753016
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p63",
+      "link": "j1",
+      "world": [
+        98.069552874379,
+        5,
+        -32.63662171753016
+      ]
+    },
+    {
+      "at": [
+        98.52377572746629,
+        32.73953158268275
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p64",
+      "link": "j1",
+      "world": [
+        98.52377572746629,
+        5,
+        -32.73953158268275
+      ]
+    },
+    {
+      "at": [
+        98.98864442867281,
+        32.23740241305891
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p65",
+      "link": "j1",
+      "world": [
+        98.98864442867281,
+        5,
+        -32.23740241305891
+      ]
+    },
+    {
+      "at": [
+        98.66572036905607,
+        32.565649396735274
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p66",
+      "link": "j1",
+      "world": [
+        98.66572036905607,
+        5,
+        -32.565649396735274
+      ]
+    },
+    {
+      "at": [
+        99.31156848828957,
+        31.90915542938254
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p67",
+      "link": "j1",
+      "world": [
+        99.31156848828957,
+        5,
+        -31.90915542938254
+      ]
+    },
+    {
+      "at": [
+        98.33924769339957,
+        33.70475514549326
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p68",
+      "link": "j1",
+      "world": [
+        98.33924769339957,
+        5,
+        -33.70475514549326
+      ]
+    },
+    {
+      "at": [
+        98.0624556422995,
+        34.283179559971614
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p69",
+      "link": "j1",
+      "world": [
+        98.0624556422995,
+        5,
+        -34.283179559971614
+      ]
+    },
+    {
+      "at": [
+        98.33924769339957,
+        34.10929737402413
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p70",
+      "link": "j1",
+      "world": [
+        98.33924769339957,
+        5,
+        -34.10929737402413
+      ]
+    },
+    {
+      "at": [
+        97.26046841731724,
+        34.45706174591909
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p71",
+      "link": "j1",
+      "world": [
+        97.26046841731724,
+        5,
+        -34.45706174591909
+      ]
+    },
+    {
+      "at": [
+        97.78566359119944,
+        34.45706174591909
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p72",
+      "link": "j1",
+      "world": [
+        97.78566359119944,
+        5,
+        -34.45706174591909
+      ]
+    },
+    {
+      "at": [
+        96.12136266855926,
+        34.45706174591909
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p73",
+      "link": "j1",
+      "world": [
+        96.12136266855926,
+        5,
+        -34.45706174591909
+      ]
+    },
+    {
+      "at": [
+        96.12136266855926,
+        32.874378992193044
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p74",
+      "link": "j1",
+      "world": [
+        96.12136266855926,
+        5,
+        -32.874378992193044
+      ]
+    },
+    {
+      "at": [
+        97.26046841731724,
+        32.874378992193044
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p75",
+      "link": "j1",
+      "world": [
+        97.26046841731724,
+        5,
+        -32.874378992193044
+      ]
+    },
+    {
+      "at": [
+        98.07132718239886,
+        33.078424414478356
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p76",
+      "link": "j1",
+      "world": [
+        98.07132718239886,
+        5,
+        -33.078424414478356
+      ]
+    },
+    {
+      "at": [
+        97.80340667139815,
+        32.874378992193044
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p77",
+      "link": "j1",
+      "world": [
+        97.80340667139815,
+        5,
+        -32.874378992193044
+      ]
+    },
+    {
+      "at": [
+        98.33924769339957,
+        33.28246983676366
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p78",
+      "link": "j1",
+      "world": [
+        98.33924769339957,
+        5,
+        -33.28246983676366
+      ]
+    },
+    {
+      "at": [
+        98.62668559261888,
+        31.462029808374734
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p79",
+      "link": "j1",
+      "world": [
+        98.62668559261888,
+        5,
+        -31.462029808374734
+      ]
+    },
+    {
+      "at": [
+        97.3846699787083,
+        32.34563520227111
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p80",
+      "link": "j1",
+      "world": [
+        97.3846699787083,
+        5,
+        -32.34563520227111
+      ]
+    },
+    {
+      "at": [
+        98.62668559261888,
+        32.34563520227111
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p81",
+      "link": "j1",
+      "world": [
+        98.62668559261888,
+        5,
+        -32.34563520227111
+      ]
+    },
+    {
+      "at": [
+        96.12136266855926,
+        32.34563520227111
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p82",
+      "link": "j1",
+      "world": [
+        96.12136266855926,
+        5,
+        -32.34563520227111
+      ]
+    },
+    {
+      "at": [
+        96.12136266855926,
+        30.54293825408091
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p83",
+      "link": "j1",
+      "world": [
+        96.12136266855926,
+        5,
+        -30.54293825408091
+      ]
+    },
+    {
+      "at": [
+        97.43789921930447,
+        30.54293825408091
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p84",
+      "link": "j1",
+      "world": [
+        97.43789921930447,
+        5,
+        -30.54293825408091
+      ]
+    },
+    {
+      "at": [
+        98.34279630943932,
+        30.7735982966643
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p85",
+      "link": "j1",
+      "world": [
+        98.34279630943932,
+        5,
+        -30.7735982966643
+      ]
+    },
+    {
+      "at": [
+        98.05890702625976,
+        30.54293825408091
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p86",
+      "link": "j1",
+      "world": [
+        98.05890702625976,
+        5,
+        -30.54293825408091
+      ]
+    },
+    {
+      "at": [
+        98.62668559261888,
+        31.004258339247695
+      ],
+      "fixed": true,
+      "fully_constrained": true,
+      "id": "p87",
+      "link": "j1",
+      "world": [
+        98.62668559261888,
+        5,
+        -31.004258339247695
+      ]
+    },
+    {
+      "at": [
+        -5,
+        -25
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l28.start",
+      "link": null,
+      "world": [
+        -5,
+        5,
+        25
+      ]
+    },
+    {
+      "at": [
+        -5,
+        55
+      ],
+      "fixed": false,
+      "fully_constrained": false,
+      "id": "l28.end",
+      "link": null,
+      "world": [
+        -5,
+        5,
+        -55
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "area_mm2": 749.7345175425634,
+      "centroid_sketch": [
+        20.67044375417306,
+        10
+      ],
+      "curves": [
+        "l1",
+        "l2",
+        "l3",
+        "l4"
+      ],
+      "holes": [
+        [
+          "c1"
+        ]
+      ],
+      "index": 0
+    },
+    {
+      "area_mm2": 119.27994048472397,
+      "centroid_sketch": [
+        43.33881356697556,
+        10.000000000000004
+      ],
+      "curves": [
+        "l2",
+        "a1"
+      ],
+      "holes": [],
+      "index": 1
+    },
+    {
+      "area_mm2": 50.26548245743668,
+      "centroid_sketch": [
+        10.000000000000009,
+        10.000000000000004
+      ],
+      "curves": [
+        "c1"
+      ],
+      "holes": [],
+      "index": 2
+    },
+    {
+      "area_mm2": 183.00000000000003,
+      "centroid_sketch": [
+        69.99999999999976,
+        29.9999999999999
+      ],
+      "curves": [
+        "s2"
+      ],
+      "holes": [],
+      "index": 3
+    },
+    {
+      "area_mm2": 135.34395357171223,
+      "centroid_sketch": [
+        70.00000000000003,
+        5.6094434711970326e-15
+      ],
+      "curves": [
+        "e1"
+      ],
+      "holes": [],
+      "index": 4
+    },
+    {
+      "area_mm2": 64.9519052838329,
+      "centroid_sketch": [
+        100.00000000000014,
+        0
+      ],
+      "curves": [
+        "l5",
+        "l6",
+        "l7",
+        "l8",
+        "l9",
+        "l10"
+      ],
+      "holes": [],
+      "index": 5
+    },
+    {
+      "area_mm2": 7.580914658093377,
+      "centroid_sketch": [
+        92.10254344902316,
+        33.043514097717875
+      ],
+      "curves": [
+        "n2",
+        "n5",
+        "n4",
+        "l15",
+        "l14",
+        "l13",
+        "l12",
+        "l11",
+        "n3"
+      ],
+      "holes": [
+        [
+          "n6",
+          "l16",
+          "l17",
+          "l18",
+          "n7"
+        ]
+      ],
+      "index": 6
+    },
+    {
+      "area_mm2": 4.572081567630164,
+      "centroid_sketch": [
+        92.44329265149976,
+        33.470620299799606
+      ],
+      "curves": [
+        "n6",
+        "l16",
+        "l17",
+        "l18",
+        "n7"
+      ],
+      "holes": [],
+      "index": 7
+    },
+    {
+      "area_mm2": 9.841740707402256,
+      "centroid_sketch": [
+        97.15081228761939,
+        32.487995879729375
+      ],
+      "curves": [
+        "n8",
+        "n14",
+        "n13",
+        "n12",
+        "n11",
+        "n10",
+        "l21",
+        "l20",
+        "l19",
+        "n9"
+      ],
+      "holes": [
+        [
+          "n15",
+          "n16",
+          "l22",
+          "l23",
+          "l24",
+          "n17",
+          "n18"
+        ],
+        [
+          "n19",
+          "l25",
+          "l26",
+          "l27",
+          "n20",
+          "n21"
+        ]
+      ],
+      "index": 8
+    },
+    {
+      "area_mm2": 3.2334108706357334,
+      "centroid_sketch": [
+        97.15337074901842,
+        33.668175578752646
+      ],
+      "curves": [
+        "n15",
+        "n16",
+        "l22",
+        "l23",
+        "l24",
+        "n17",
+        "n18"
+      ],
+      "holes": [],
+      "index": 9
+    },
+    {
+      "area_mm2": 4.156932528275394,
+      "centroid_sketch": [
+        97.28616004118834,
+        31.442904592951805
+      ],
+      "curves": [
+        "n19",
+        "l25",
+        "l26",
+        "l27",
+        "n20",
+        "n21"
+      ],
+      "holes": [],
+      "index": 10
+    }
+  ],
+  "status": "solved",
+  "visible": true,
+  "wires": []
+}

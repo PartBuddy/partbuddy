@@ -36,7 +36,7 @@ function CurrentStep() {
   );
 }
 
-/** How many faces the latest step changed, with the camera follow switch. */
+/** How many faces and sketch curves the latest step changed, with the camera follow switch. */
 function Changes() {
   const { t } = useTranslation();
   const changes = useStudio((s) => s.changes);
@@ -48,7 +48,12 @@ function Changes() {
       {changes ? (
         <span role="status" className="flex items-center gap-1" data-testid="live-changes">
           <span aria-hidden className="size-dot rounded-full bg-changed" />
-          {t('live.changed', { count: changes.count })}
+          {[
+            changes.count > 0 ? t('live.changed', { count: changes.count }) : null,
+            changes.sketchCurves > 0 ? t('live.sketchChanged', { count: changes.sketchCurves }) : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
           <AriaButton
             aria-label={t('live.clear')}
             onPress={clear}
@@ -75,7 +80,7 @@ function Changes() {
 }
 
 export function LiveBar() {
-  const ready = useStudio((s) => s.model.status === 'ready' && s.model.bodies.length > 0);
+  const ready = useStudio((s) => s.model.status === 'ready' && (s.model.bodies.length > 0 || s.model.sketches.length > 0));
   if (!ready) return null;
   return (
     <div className="flex flex-col items-start gap-2">

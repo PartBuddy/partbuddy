@@ -11,6 +11,8 @@ export function StatusBar() {
   const number = new Intl.NumberFormat(i18n.language);
   const focus = hover ?? selection;
   const bodies = model.status === 'ready' ? model.bodies : [];
+  const sketches = model.status === 'ready' ? model.sketches : [];
+  const editing = sketches.find((sketch) => sketch.active);
   const faceName = focus ? bodies[focus.body]?.model.table.faces[focus.face]?.name : undefined;
   const faces = bodies.reduce((sum, body) => sum + body.model.table.faces.length, 0);
   const triangles = bodies.reduce((sum, body) => sum + body.model.triangleFaces.length, 0);
@@ -21,6 +23,13 @@ export function StatusBar() {
       {bodies.length > 0 ? (
         <span data-testid="mesh-summary" data-revision={model.status === 'ready' ? model.revision : undefined}>
           {t('status.mesh', { bodies: bodies.length, faces, triangles: number.format(triangles) })}
+        </span>
+      ) : null}
+      {sketches.length > 0 ? (
+        <span data-testid="sketch-summary">
+          {editing
+            ? t('status.sketchesEditing', { count: sketches.length, name: editing.name })
+            : t('status.sketches', { count: sketches.length })}
         </span>
       ) : null}
       {latency ? (

@@ -18,7 +18,8 @@ memory files, transcripts, AI tool configuration, hooks, skills, absolute paths,
 e-mail addresses.
 
 Synthetic test data: the sample model in `tools/fixtures` is designed from scratch for this
-repository (a screw-mounted cable clip) and generated with the SolidCraft CLI.
+repository (a screw-mounted cable clip) and generated with the SolidCraft CLI, as is the curve
+sketch (`sketch-curves`, one of every curve type) used to check the sketch tessellation.
 
 ## Brand identity
 

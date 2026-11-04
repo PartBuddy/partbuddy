@@ -44,6 +44,15 @@ SolidCraft's own face numbering and names. Per step:
    index buffer); the geometry is swapped in one step.
 6. Note anchors are re-resolved ([ADR 0006](0006-note-anchoring.md)).
 
+Sketches (added 2026-11-04, issue #21): steps without a body would otherwise be invisible. The
+same `batch` also runs `sketch.inspect` for the sketch being edited and every visible sketch
+(SolidCraft hides a sketch once a feature consumes it). The main process flattens the curves
+(lines, arcs, circles, ellipses, conics, fit-point and control-point splines; text comes as lines
+and conics) into world-space segments with a 0.01 mm chord tolerance and sends them with the
+revision; the view draws them as lines coloured by constraint state, construction geometry dashed.
+`ui.render` as a picture-in-picture was the alternative; it was not chosen, because curves stay
+sharp at every zoom, follow the user's camera and need no image transfer.
+
 Fallback chain: plain 3MF with faces assigned by closest point to `model.faces[].point` → STEP with
 occt-import-js (LGPL-2.1, shipped as a separate replaceable file; signature-only anchoring) →
 rendered image only.
@@ -67,6 +76,9 @@ rendered image only.
 A contract test runs the fixture script through the pinned SolidCraft CLI, exports the tagged 3MF
 and the face table, and checks that every `model.faces[].point` lies on a triangle with the same
 face ID.
+The sketch tessellation is checked the same way against SolidCraft's own DXF of a fixture sketch
+with every curve type (`tools/fixtures/sketch-curves.script.json`): within 0.01 mm in both
+directions.
 
 ## Pros and Cons of the Options
 

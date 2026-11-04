@@ -131,6 +131,10 @@
   --cs-viewer-note: #c2410c;
   --cs-viewer-changed: #0f9488;
   --cs-viewer-overhang: #d97706;
+  /* Sketch curves (#21): free, fully constrained and construction geometry. */
+  --cs-viewer-sketch: #4338ca;
+  --cs-viewer-sketch-constrained: #2a3038;
+  --cs-viewer-sketch-construction: #b45309;
 
   /* Elevation */
   --cs-shadow-1: 0 1px 2px rgb(15 20 25 / 0.08);
@@ -176,6 +180,9 @@
     --cs-viewer-note: #f28b4b;
     --cs-viewer-changed: #2dbfae;
     --cs-viewer-overhang: #e3a33a;
+    --cs-viewer-sketch: #8b9cf7;
+    --cs-viewer-sketch-constrained: #e3e6ea;
+    --cs-viewer-sketch-construction: #f0a85a;
     --cs-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
     --cs-shadow-2: 0 4px 12px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.3);
     --cs-shadow-3: 0 12px 32px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.35);
@@ -219,6 +226,9 @@
   --cs-viewer-note: #f28b4b;
   --cs-viewer-changed: #2dbfae;
   --cs-viewer-overhang: #e3a33a;
+  --cs-viewer-sketch: #8b9cf7;
+  --cs-viewer-sketch-constrained: #e3e6ea;
+  --cs-viewer-sketch-construction: #f0a85a;
   --cs-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
   --cs-shadow-2: 0 4px 12px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.3);
   --cs-shadow-3: 0 12px 32px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.35);

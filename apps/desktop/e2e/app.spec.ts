@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
+import { countViewportPixels } from './pixels';
 import { launchApp, type LaunchedApp } from './launch';
 
 let launched: LaunchedApp | null = null;
@@ -64,6 +65,37 @@ test('the view highlights the faces a step changed and can follow them', async (
   solidcraft.change();
   await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '4');
   await expect(page.getByTestId('live-changes')).toBeHidden();
+});
+
+
+test('a sketch without a body is drawn in the view (#21)', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.bodies = [];
+  fake.sketches = [{ id: 1, name: 'Curves', visible: true }];
+  fake.activeSketch = 1;
+  await fake.start();
+  const { page } = launched;
+  await page.getByRole('button', { name: 'Look again' }).click();
+  await expect(page.getByTestId('sketch-summary')).toHaveText('1 sketch · editing Curves');
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-sketches', '1');
+  await expect(page.getByTestId('viewport')).toBeVisible();
+  await expect(page.getByTestId('mesh-summary')).toBeHidden();
+  await expect(page.getByText('No body in the design')).toBeHidden();
+  // The sketch is drawn: the canvas shows sketch-coloured pixels (software WebGL, so wait for frames).
+  await expect(async () => {
+    expect(await countViewportPixels(page, '--cs-viewer-sketch')).toBeGreaterThan(200);
+  }).toPass({ timeout: 15_000 });
+  await page.screenshot({ path: test.info().outputPath('sketch-only.png') });
+
+  // Finishing the sketch and consuming it in a feature hides it, as SolidCraft does.
+  fake.bodies = ['CableClip'];
+  fake.sketches = [{ id: 1, name: 'Curves', visible: false }];
+  fake.activeSketch = null;
+  fake.change();
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-sketches', '0');
+  await expect(page.getByTestId('sketch-summary')).toBeHidden();
 });
 
 test('every connection state explains itself', async () => {

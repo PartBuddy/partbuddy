@@ -14,7 +14,8 @@ export function ConnectionNotice() {
   const { t } = useTranslation();
   const connection = useStudio((s) => s.connection);
   const model = useStudio((s) => s.model);
-  const hasModel = model.status === 'ready' && model.bodies.length > 0;
+  // A design with only sketches is a model too (#21): the view draws them.
+  const hasModel = model.status === 'ready' && (model.bodies.length > 0 || model.sketches.length > 0);
 
   const retry = (
     <Button
@@ -86,7 +87,7 @@ export function ConnectionNotice() {
       if (model.status === 'error') {
         return card(t('viewer.errorTitle'), t('viewer.errorBody', { message: model.message }), null);
       }
-      if (model.status === 'ready' && model.bodies.length === 0) {
+      if (model.status === 'ready' && !hasModel) {
         return (
           <div className="pointer-events-auto flex w-full flex-1 items-center justify-center">
             <EmptyState title={t('connection.emptyTitle')} body={t('connection.emptyBody')} />
