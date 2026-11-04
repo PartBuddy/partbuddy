@@ -60,6 +60,8 @@ export interface PartBuddyApi {
     timeline(command: TimelineCommand): Promise<void>;
     /** Shows or hides bodies and sketches. */
     visibility(command: VisibilityCommand): Promise<void>;
+    /** "Go back to this state": undoes or redoes to a step of the work log (M2a). */
+    goToStep(step: string): Promise<void>;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

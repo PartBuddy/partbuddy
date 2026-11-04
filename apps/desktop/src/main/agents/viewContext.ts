@@ -75,8 +75,16 @@ function describeSelection(selection: Selection): Record<string, unknown> {
   }
 }
 
-/** The message as the model gets it, and the label the conversation shows. */
-export function composeMessage(text: string, selections: Selection[] = []): { prompt: string; label?: string } {
+/**
+ * The message as the model gets it, and the label the conversation shows. `note` (from the work
+ * log) goes first: what changed outside the model's turns.
+ */
+export function composeMessage(text: string, selections: Selection[] = [], note: string | null = null): { prompt: string; label?: string } {
+  const composed = composeSelection(text, selections);
+  return note ? { ...composed, prompt: `${note}\n${composed.prompt}` } : composed;
+}
+
+function composeSelection(text: string, selections: Selection[]): { prompt: string; label?: string } {
   const [first] = selections;
   if (!first) return { prompt: text };
   const label = selections.map(selectionLabel).join('; ').slice(0, 400);
@@ -133,9 +141,9 @@ export function withViewTool(upstream: UpstreamTools, state: () => ViewState | n
   return {
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), viewTool],
-    callTool: async (name, args): Promise<ToolResult> => {
+    callTool: async (name, args, callId): Promise<ToolResult> => {
       if (name === VIEW_TOOL) return { content: [{ type: 'text', text: describeView(state()) }] };
-      return upstream.callTool(name, args);
+      return upstream.callTool(name, args, callId);
     },
   };
 }

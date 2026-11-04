@@ -25,7 +25,8 @@ export interface ToolResult {
 export interface UpstreamTools {
   instructions(): string | undefined;
   listTools(): Promise<UpstreamTool[]>;
-  callTool(name: string, args: Record<string, unknown>): Promise<ToolResult>;
+  /** `callId`: the id PartBuddy gave the call, so the work log can link its step (M2a). */
+  callTool(name: string, args: Record<string, unknown>, callId?: string): Promise<ToolResult>;
 }
 
 export interface ToolCallRecord {
@@ -149,7 +150,7 @@ export class GateProxy {
       }
       this.onCall({ id, name, summary, decision: 'allowed' });
       try {
-        const result = await this.upstream.callTool(name, args);
+        const result = await this.upstream.callTool(name, args, id);
         this.onCall({ id, name, summary, decision: 'allowed', ok: result.isError !== true });
         return result as never;
       } catch (error) {

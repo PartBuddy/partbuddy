@@ -85,7 +85,7 @@ export class AgentService implements AgentBackend {
     });
   }
 
-  async send(text: string, selections: Selection[] = []): Promise<void> {
+  async send(text: string, selections: Selection[] = [], note: string | null = null): Promise<void> {
     if (this.current.state !== 'ready') throw new Error(`assistant is ${this.current.state}`);
     const tools = await this.options.tools();
     if (!tools) {
@@ -93,7 +93,7 @@ export class AgentService implements AgentBackend {
       return;
     }
     await this.ensureSession(tools);
-    const message = composeMessage(text, selections);
+    const message = composeMessage(text, selections, note);
     this.listeners.event(message.label ? { type: 'user', text, selection: message.label } : { type: 'user', text });
     this.setStatus({ ...this.current, state: 'busy' });
     this.session?.send(message.prompt);

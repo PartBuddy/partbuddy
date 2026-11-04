@@ -159,7 +159,7 @@ function HudCard({ bodies, accent, selection, picks }: { bodies: BodyModel[]; ac
     if (!dimension || !changed || busy) return;
     if (result?.mode === 'direct') {
       void platform()
-        .design.applyDimension({ parameter: result.parameter, value: value * dimension.scale, factor: result.factor })
+        .design.applyDimension({ parameter: result.parameter, value: value * dimension.scale, factor: result.factor, label: result.label })
         .catch((error: unknown) => {
           setNotice({ tone: 'danger', text: t('actions.failed', { detail: (error as Error).message.slice(0, 200) }) });
         });

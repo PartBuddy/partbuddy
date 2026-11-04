@@ -1,4 +1,4 @@
-import { IconArrowUp, IconCheck, IconPlayerStop, IconPointer, IconShieldX, IconTool, IconX } from '@tabler/icons-react';
+import { IconArrowUp, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Form, TextArea, TextField, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
@@ -10,7 +10,9 @@ import { selectionName, selectionsOf } from '../viewer/viewState';
 import { Button } from '../ui/Button';
 import { Busy, StatusDot } from '../ui/Feedback';
 import { Markdown } from './Markdown';
+import { Details, StepCard } from './StepCard';
 import { selectedStatus, useAssistant, type ConversationItem } from './store';
+import { ToolCall, type ToolItem } from './ToolCall';
 
 function statusLabel(t: ReturnType<typeof useTranslation>['t'], status: AgentStatus): string {
   const signedIn = status.state === 'ready' || status.state === 'busy';
@@ -199,39 +201,10 @@ function Item({ item }: { item: ConversationItem }) {
           <Markdown text={item.text} streaming={item.open} />
         </div>
       );
-    case 'tool': {
-      const icon =
-        item.decision === 'denied' ? (
-          <IconShieldX className="size-icon-sm text-warning" aria-hidden />
-        ) : item.ok === undefined ? (
-          <IconTool className="size-icon-sm text-text-subtle" aria-hidden />
-        ) : item.ok ? (
-          <IconCheck className="size-icon-sm text-success" aria-hidden />
-        ) : (
-          <IconX className="size-icon-sm text-danger" aria-hidden />
-        );
-      const state =
-        item.decision === 'denied'
-          ? t('assistant.tool.denied')
-          : item.ok === undefined
-            ? t('assistant.tool.running')
-            : item.ok
-              ? t('assistant.tool.done')
-              : t('assistant.tool.failed');
-      return (
-        <div className="flex flex-col gap-1 rounded-md border border-border bg-surface-sunken px-2 py-1 text-sm" data-testid="tool-call">
-          <span className="flex items-center gap-1 text-text">
-            {icon}
-            <span className="font-mono">{item.name}</span>
-            <span className="text-text-subtle">· {state}</span>
-          </span>
-          {item.reason ? <span className="text-text-muted">{item.reason}</span> : null}
-          <code className="truncate font-mono text-xs text-text-subtle" title={item.summary}>
-            {item.summary}
-          </code>
-        </div>
-      );
-    }
+    case 'tool':
+      return <ToolCall item={item} />;
+    case 'step':
+      return null;
     case 'stopped':
       return <p className="text-sm text-text-muted">{t('assistant.stopped')}</p>;
     case 'error':
@@ -241,6 +214,49 @@ function Item({ item }: { item: ConversationItem }) {
         </p>
       );
   }
+}
+
+type Row =
+  | { kind: 'item'; item: ConversationItem }
+  | { kind: 'step'; item: Extract<ConversationItem, { kind: 'step' }>; tools: ToolItem[] }
+  | { kind: 'queries'; tools: ToolItem[] };
+
+/**
+ * The conversation as rows (M2a): a step card holds the tool call that made it, and tool calls
+ * that only read are folded into one line; refused calls stay visible on their own.
+ */
+export function rowsOf(items: ConversationItem[]): Row[] {
+  const rows: Row[] = [];
+  for (const item of items) {
+    if (item.kind === 'step') {
+      const tools = items.filter((candidate): candidate is ToolItem => candidate.kind === 'tool' && candidate.step === item.step.id);
+      rows.push({ kind: 'step', item, tools });
+      continue;
+    }
+    if (item.kind === 'tool' && item.step) continue;
+    if (item.kind === 'tool' && item.decision === 'allowed') {
+      const last = rows.at(-1);
+      if (last?.kind === 'queries') last.tools.push(item);
+      else rows.push({ kind: 'queries', tools: [item] });
+      continue;
+    }
+    rows.push({ kind: 'item', item });
+  }
+  return rows;
+}
+
+function Queries({ tools }: { tools: ToolItem[] }) {
+  const { t } = useTranslation();
+  const running = tools.some((tool) => tool.ok === undefined);
+  return (
+    <div data-testid="tool-queries">
+      <Details label={t(running ? 'assistant.queriesRunning' : 'assistant.queries', { count: tools.length })}>
+        {tools.map((tool) => (
+          <ToolCall key={tool.key} item={tool} />
+        ))}
+      </Details>
+    </div>
+  );
 }
 
 export function AssistantPanel() {
@@ -275,9 +291,15 @@ export function AssistantPanel() {
       <div ref={list} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
         <Setup />
         {items.length === 0 && (status.state === 'ready' || busy) ? <p className="text-sm text-text-muted">{t('assistant.empty')}</p> : null}
-        {items.map((item) => (
-          <Item key={item.key} item={item} />
-        ))}
+        {rowsOf(items).map((row) =>
+          row.kind === 'step' ? (
+            <StepCard key={row.item.key} item={row.item} tools={row.tools} disabled={busy || !connected} />
+          ) : row.kind === 'queries' ? (
+            <Queries key={row.tools[0]?.key} tools={row.tools} />
+          ) : (
+            <Item key={row.item.key} item={row.item} />
+          ),
+        )}
         {busy ? <Busy label={t(`assistant.working.${status.agent}`)} /> : null}
       </div>
       <Form

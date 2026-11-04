@@ -40,6 +40,7 @@ const api: PartBuddyApi = {
     measure: (items) => ipcRenderer.invoke(invokeChannels.designMeasure, { items }),
     timeline: (command) => ipcRenderer.invoke(invokeChannels.designTimeline, command),
     visibility: (command) => ipcRenderer.invoke(invokeChannels.designVisibility, command),
+    goToStep: (step) => ipcRenderer.invoke(invokeChannels.designGoToStep, { step }),
   },
   viewer: {
     report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),

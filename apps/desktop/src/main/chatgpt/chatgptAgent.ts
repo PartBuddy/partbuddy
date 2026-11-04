@@ -101,7 +101,7 @@ export class ChatGptAgent implements AgentBackend {
     await this.stop();
   }
 
-  async send(text: string, selections: Selection[] = []): Promise<void> {
+  async send(text: string, selections: Selection[] = [], note: string | null = null): Promise<void> {
     if (this.status().state !== 'ready') throw new Error(`assistant is ${this.status().state}`);
     const upstream = await this.options.tools();
     if (!upstream) {
@@ -109,7 +109,7 @@ export class ChatGptAgent implements AgentBackend {
       return;
     }
     this.model ??= await this.pickModel();
-    const message = composeMessage(text, selections);
+    const message = composeMessage(text, selections, note);
     this.options.event(message.label ? { type: 'user', text, selection: message.label } : { type: 'user', text });
     this.history.push({ role: 'user', content: message.prompt });
     this.busy = true;
@@ -183,7 +183,7 @@ export class ChatGptAgent implements AgentBackend {
     }
     this.options.event({ type: 'tool', id, name, summary, decision: 'allowed' });
     try {
-      const result = await upstream.callTool(name, args);
+      const result = await upstream.callTool(name, args, id);
       this.options.event({ type: 'tool', id, name, summary, decision: 'allowed', ok: result.isError !== true });
       return resultText(result);
     } catch (error) {

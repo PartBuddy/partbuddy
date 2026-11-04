@@ -29,6 +29,7 @@ export const invokeChannels = {
   designMeasure: 'design:measure',
   designTimeline: 'design:timeline',
   designVisibility: 'design:visibility',
+  designGoToStep: 'design:go-to-step',
 } as const;
 
 export const eventChannels = {

@@ -86,7 +86,7 @@ describe('view context for the assistant', () => {
     expect(JSON.parse(text)).toMatchObject({ selected: [{ face: 'F1:+z', body: 'Body1' }], camera: { from: 'front-right-top' }, bodies: [{ name: 'Body1', faces: 6 }] });
     expect(text.length).toBeLessThan(500);
     await tools.callTool('measure', {});
-    expect(callTool).toHaveBeenCalledWith('measure', {});
+    expect(callTool).toHaveBeenCalledWith('measure', {}, undefined);
     expect(describeView(null)).toContain('no design');
   });
 
