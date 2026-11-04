@@ -27,6 +27,23 @@ describe('headless design store (ADR 0016)', () => {
     expect(designs.fileFor('...')).toBe(join(dir, 'Untitled.sc'));
   });
 
+  it('names a new design after its first body, in a file no other design has', () => {
+    const { dir, designs } = store();
+    // Nothing to name it after yet: the untitled file, as before.
+    expect(designs.autosaveTarget(null, 'Untitled', [])).toBe(join(dir, 'Untitled.sc'));
+    expect(designs.autosaveTarget(null, 'Untitled', ['Body1', 'Körper 2'])).toBe(join(dir, 'Untitled.sc'));
+    expect(designs.autosaveTarget(null, 'Untitled', ['Body1', 'Wandhalter'])).toBe(join(dir, 'Wandhalter.sc'));
+    // An earlier part of the same name keeps its file.
+    writeFileSync(join(dir, 'Wandhalter.sc'), 'earlier part');
+    writeFileSync(join(dir, 'Wandhalter 2.sc'), 'earlier part');
+    expect(designs.autosaveTarget(null, '', ['Wandhalter'])).toBe(join(dir, 'Wandhalter 3.sc'));
+    // A named design stays in its file, and one from the project folder goes back to its own.
+    expect(designs.autosaveTarget(null, 'Wandhalter', ['Wandhalter'])).toBe(join(dir, 'Wandhalter.sc'));
+    expect(designs.autosaveTarget(join(dir, 'elsewhere.sc'), 'Untitled', ['Clip'])).toBe(join(dir, 'elsewhere.sc'));
+    // A body name cannot lead the file out of the folder.
+    expect(designs.autosaveTarget(null, 'Untitled', ['../../evil'])).toBe(join(dir, 'evil.sc'));
+  });
+
   it('remembers the last design only while its file exists', () => {
     const { designs } = store();
     expect(designs.last()).toBeUndefined();

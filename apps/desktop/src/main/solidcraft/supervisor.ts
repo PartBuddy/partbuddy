@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, rm } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import { createActor, fromCallback, fromPromise } from 'xstate';
 
@@ -53,6 +53,7 @@ export interface SupervisorListeners {
 }
 
 type Mirror = ConnectionStatus['mirror'];
+type SaveState = NonNullable<ConnectionStatus['save']>;
 
 /**
  * SolidCraft supervisor (architecture: main process, own glue). Finds or starts SolidCraft,
@@ -74,6 +75,10 @@ export class SolidCraftSupervisor {
   private mirrorState: Mirror = 'idle';
   private mirrorDetail: string | null = null;
   private latest: MirrorRevision | null = null;
+  /** Where the autosave of the headless design stands; none until the first save. */
+  private saveState: SaveState | null = null;
+  /** The file a new design was named into on its first autosave, until its name is mirrored. */
+  private savedAs: { documentId: string; file: string } | null = null;
   private readonly scheduler: MirrorScheduler;
   private readonly dimensions: DimensionService;
   private readonly actions: ActionService;
@@ -396,6 +401,7 @@ export class SolidCraftSupervisor {
     const state = typeof snapshot.value === 'string' ? snapshot.value : 'starting';
     const status: ConnectionStatus = { state, owned: context.owned, mirror: this.mirrorState };
     if (state === 'connected') status.engine = this.engine?.isOpen ? 'headless' : 'window';
+    if (state === 'connected' && this.engine?.isOpen && this.saveState) status.save = this.saveState;
     if (context.endpoint) status.port = context.endpoint.port;
     if (context.documentId !== null) status.documentId = context.documentId;
     if (context.revision !== null) status.revision = context.revision;
@@ -495,6 +501,12 @@ export class SolidCraftSupervisor {
     this.listeners.status(this.status());
   }
 
+  private setSaveState(state: SaveState): void {
+    if (this.saveState === state) return;
+    this.saveState = state;
+    this.publish();
+  }
+
   private setMirror(state: Mirror, detail: string | null): void {
     this.mirrorState = state;
     this.mirrorDetail = detail;
@@ -552,14 +564,24 @@ export class SolidCraftSupervisor {
     const designs = this.designs;
     if (!engine?.isOpen || !designs) return this.autosaving;
     // A design from the project folder is saved back to its own file; others go to the designs folder.
-    const file = this.designFile ?? designs.fileFor(this.latest?.designName ?? '');
+    const latest = this.latest;
+    const named = this.savedAs && this.savedAs.documentId === latest?.documentId ? this.savedAs.file : null;
+    const file = designs.autosaveTarget(this.designFile ?? named, latest?.designName ?? '', latest?.bodies.map((body) => body.name) ?? []);
+    // A new design saved under a name of its own: SolidCraft now calls it by the file name.
+    const renamed = latest !== null && basename(file, '.sc') !== safeDesignFileName(latest.designName);
+    if (renamed) this.savedAs = { documentId: latest.documentId, file };
+    this.setSaveState('saving');
     this.autosaving = this.autosaving
       .then(() => engine.save(file))
-      .then(() => {
+      .then(async () => {
         designs.remember(file);
+        this.setSaveState('saved');
+        // Without a window SolidCraft announces nothing, so the new name is mirrored right away.
+        if (renamed) this.scheduler.request(await engine.revision());
       })
       .catch((error: unknown) => {
         this.options.log(`autosave failed: ${(error as Error).message}`);
+        this.setSaveState('failed');
       });
     return this.autosaving;
   }
