@@ -74,6 +74,8 @@ export const mirrorRevisionSchema = z
     revision: z.number().int().nonnegative(),
     designName: z.string(),
     bodies: z.array(mirroredBodySchema),
+    /** Time from asking SolidCraft for the export to having the files in the main process. */
+    mirrorMs: z.number().nonnegative(),
   })
   .strict();
 

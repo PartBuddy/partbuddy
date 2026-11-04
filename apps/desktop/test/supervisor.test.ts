@@ -133,7 +133,7 @@ describe('mirror scheduler', () => {
         await new Promise<void>((done) => {
           release = done;
         });
-        return { documentId: 'd', revision, designName: '', bodies: [] };
+        return { documentId: 'd', revision, designName: '', bodies: [], mirrorMs: 1 };
       },
       { started: () => undefined, delivered: (r) => delivered.push(r.revision), failed: () => undefined, idle: () => undefined },
     );

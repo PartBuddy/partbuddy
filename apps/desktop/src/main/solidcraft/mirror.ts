@@ -30,6 +30,7 @@ const BATCH_TIMEOUT_MS = 10 * 60 * 1000;
  * disposable cache folder; `allow_paths` makes SolidCraft refuse any other path.
  */
 export async function mirrorActiveDesign(client: ControlRequester, cacheDir: string): Promise<MirrorRevision> {
+  const started = performance.now();
   await mkdir(cacheDir, { recursive: true });
   const inspect = await client.request<InspectResult>('document.inspect', {}, 60_000);
   const designName = typeof inspect.name === 'string' ? inspect.name : '';
@@ -67,7 +68,13 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
       if (!file) continue;
       mirrored.push({ name, mesh: new Uint8Array(await readFile(file)), faces });
     }
-    return { documentId: head.document_id, revision: head.revision, designName, bodies: mirrored };
+    return {
+      documentId: head.document_id,
+      revision: head.revision,
+      designName,
+      bodies: mirrored,
+      mirrorMs: Math.round(performance.now() - started),
+    };
   } finally {
     await Promise.all(files.map((file) => rm(file, { force: true })));
   }

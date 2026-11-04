@@ -24,7 +24,7 @@ interface FixtureFace {
 }
 
 /** The fixture's face table in the snake_case shape `model.faces` returns. */
-function modelFaces(): { body: string; faces: Record<string, unknown>[] } {
+function modelFaces(moved: Set<string>): { body: string; faces: Record<string, unknown>[] } {
   const table = JSON.parse(readFileSync(join(fixtureDir, 'cable-clip.faces.json'), 'utf8')) as {
     body: string;
     faces: FixtureFace[];
@@ -36,7 +36,8 @@ function modelFaces(): { body: string; faces: Record<string, unknown>[] } {
       name: face.name,
       exact: face.exact,
       area: face.area,
-      centroid: face.centroid,
+      // A moved face keeps its name but its centroid shifts, as after a parameter change.
+      centroid: moved.has(face.name) ? face.centroid.map((value, i) => (i === 0 ? value + 1 : value)) : face.centroid,
       point: face.point,
       plane_normal: face.planeNormal ?? null,
       cylinder: face.cylinder ?? null,
@@ -58,6 +59,8 @@ export class FakeSolidCraft {
   readonly methods: string[] = [];
   revision = 1;
   bodies = ['CableClip'];
+  /** Faces whose geometry changed in the latest revision. */
+  moved = new Set<string>();
   quitRequested = false;
   private server: Server | null = null;
   private readonly sockets = new Set<Socket>();
@@ -84,7 +87,8 @@ export class FakeSolidCraft {
   }
 
   /** Simulates a design change: a new revision and a `design.changed` line to subscribers. */
-  change(): void {
+  change(options: { moveFaces?: string[] } = {}): void {
+    this.moved = new Set(options.moveFaces ?? []);
     this.revision += 1;
     const line = `${JSON.stringify({ event: 'design.changed', params: { document_id: this.documentId, revision: this.revision } })}\n`;
     for (const socket of this.subscribers) socket.write(line);
@@ -167,7 +171,7 @@ export class FakeSolidCraft {
       case 'document.revision':
         return { document_id: this.documentId, revision: this.revision };
       case 'model.faces':
-        return modelFaces();
+        return modelFaces(this.moved);
       case 'file.export': {
         const path = resolve(String(params.path));
         const inside = allowed.some((dir) => !relative(resolve(dir), path).startsWith('..'));

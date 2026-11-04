@@ -43,6 +43,29 @@ test('the mirrored model appears and follows design changes', async () => {
   await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
 });
 
+test('the view highlights the faces a step changed and can follow them', async () => {
+  const { app, fake: solidcraft } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+  await expect(page.getByTestId('mirror-latency')).toHaveText(/^mirrored in [\d,]+ ms$/);
+  await expect(page.getByTestId('live-changes')).toBeHidden();
+
+  solidcraft.change({ moveFaces: ['F1:+z', 'F1:-z'] });
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '2');
+  await expect(page.getByTestId('live-changes')).toHaveText('2 faces changed');
+  const follow = page.getByRole('switch', { name: 'Camera follows changes' });
+  await page.getByText('Camera follows changes').click();
+  await expect(follow).toBeChecked();
+
+  // Moving the faces back is a change again; a revision without geometry changes clears it.
+  solidcraft.change();
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '3');
+  await expect(page.getByTestId('live-changes')).toHaveText('2 faces changed');
+  solidcraft.change();
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '4');
+  await expect(page.getByTestId('live-changes')).toBeHidden();
+});
+
 test('every connection state explains itself', async () => {
   launched = await launchApp();
   const { page } = launched;
