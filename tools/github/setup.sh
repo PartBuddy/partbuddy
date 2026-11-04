@@ -125,6 +125,7 @@ gh api -X POST "repos/${FULL}/rulesets" --input - >/dev/null <<'JSON'
         "required_status_checks": [
           { "context": "Lint, typecheck, test, build" },
           { "context": "Click dummy flows (Playwright)" },
+          { "context": "Desktop app flows (Playwright Electron)" },
           { "context": "Scan full history" },
           { "context": "Workflow security (zizmor)" },
           { "context": "Vulnerabilities and licences" }
