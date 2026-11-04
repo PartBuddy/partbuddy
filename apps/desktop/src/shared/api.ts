@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentKind, AppInfo, AssistantState, ConnectionStatus, FaceSelection, MirrorRevision, ViewState } from './contract';
+import type { AgentEvent, AgentKind, AppInfo, AssistantState, ConnectionStatus, FaceSelection, MirrorRevision, TitleBarColors, ViewState } from './contract';
 
 /**
  * What the preload exposes as `window.partbuddy`. Each member is bound to one channel of the
@@ -21,6 +21,10 @@ export interface PartBuddyApi {
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */
     report(state: ViewState): Promise<void>;
+  };
+  window: {
+    /** Colours the native window buttons in the integrated title bar like the theme. */
+    setTitleBarColors(colors: TitleBarColors): Promise<void>;
   };
   /** The assistant: the user's Claude Code or ChatGPT plan usage (ADR 0015). */
   agent: {

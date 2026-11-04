@@ -64,6 +64,9 @@ function launchPort(): number {
   return Number.isInteger(value) && value > 0 && value < 65536 ? value : 7878;
 }
 
+/** Height of the integrated title bar; the renderer's token `--cs-titlebar-height` confirms it. */
+const TITLE_BAR_HEIGHT = 40;
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1440,
@@ -73,6 +76,12 @@ function createWindow(): BrowserWindow {
     show: false,
     title: 'PartBuddy',
     autoHideMenuBar: true,
+    // Integrated title bar: the app draws logo, wordmark and design name, the system keeps its
+    // own window buttons (Snap layouts on Windows 11, traffic lights on macOS). The renderer
+    // colours the buttons from the design tokens (window:title-bar).
+    titleBarStyle: 'hidden',
+    titleBarOverlay: process.platform === 'darwin' ? true : { height: TITLE_BAR_HEIGHT },
+    ...(process.platform === 'darwin' ? { trafficLightPosition: { x: 12, y: 12 } } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
@@ -151,6 +160,10 @@ if (!app.requestSingleInstanceLock()) {
     // SolidCraft's MCP tools for the assistant, bridged to the app the supervisor is connected to.
     // What the 3D view shows, as the renderer last reported it (for `partbuddy_view`).
     let viewState: ViewState | null = null;
+    bridge.handle(invokeChannels.windowTitleBar, (colors) => {
+      if (process.platform !== 'darwin') mainWindow?.setTitleBarOverlay(colors);
+      return undefined;
+    });
     bridge.handle(invokeChannels.viewerState, (state) => {
       viewState = state;
       return undefined;
