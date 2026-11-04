@@ -30,6 +30,8 @@ export const invokeChannels = {
   designTimeline: 'design:timeline',
   designVisibility: 'design:visibility',
   designGoToStep: 'design:go-to-step',
+  designDimensions: 'design:dimensions',
+  designProbeParameter: 'design:probe-parameter',
   notesCurrent: 'notes:current',
   notesAdd: 'notes:add',
   notesEdit: 'notes:edit',

@@ -359,6 +359,40 @@ export const dimensionApplySchema = z
   })
   .strict();
 
+/**
+ * A dimension shown in the view (M2b-3, ADR 0020): a sketch dimension or a feature input, with the
+ * parameter behind it and where it sits. `edit` tells how the user may change it: `direct` (a
+ * plain number), `parameter` (the expression is one user parameter; `others` more use it) or
+ * `assistant` (a formula, never overwritten; ADR 0017).
+ */
+const parameterName = z.string().regex(/^[\p{L}_][\p{L}\p{N}_]{0,99}$/u);
+export const dimensionMarkSchema = z
+  .object({
+    id: z.string().max(220),
+    parameter: parameterName,
+    label: z.string().max(80),
+    feature: z.object({ id: z.number().int().nonnegative(), name: z.string().max(200) }).strict(),
+    expression: z.string().max(500),
+    value: finite,
+    unit: z.enum(['mm', 'deg']),
+    kind: z.enum(['linear', 'radius', 'diameter', 'angle']),
+    edit: z.discriminatedUnion('mode', [
+      z.object({ mode: z.literal('direct') }).strict(),
+      z.object({ mode: z.literal('parameter'), name: parameterName, others: z.number().int().nonnegative() }).strict(),
+      z.object({ mode: z.literal('assistant') }).strict(),
+    ]),
+    body: bodyName.nullable(),
+    /** World space: the measured span, the offset of the dimension line, and where the label sits; null without a place. */
+    geometry: z.object({ from: point3, to: point3, offset: point3, anchor: point3 }).strict().nullable(),
+  })
+  .strict();
+export const dimensionMarksRequestSchema = z
+  .object({ features: z.union([z.array(z.number().int().nonnegative()).max(50), z.literal('all')]) })
+  .strict();
+export const dimensionMarksSchema = z.array(dimensionMarkSchema).max(400);
+/** Tries a value of a parameter for the ghost preview; nothing changes in the design. */
+export const parameterProbeSchema = z.object({ parameter: parameterName, value: finite.positive().max(100_000), body: bodyName.nullable() }).strict();
+
 /** Actions at the selection (M1b-2): points on the picked edges or faces and one size in mm. */
 const actionPoints = z.array(point3).min(1).max(50);
 export const designActionSchema = z.discriminatedUnion('action', [
@@ -494,6 +528,8 @@ export const invokeContract = {
   [invokeChannels.designMeasure]: { request: measureRequestSchema, response: measureResultSchema },
   [invokeChannels.designTimeline]: { request: timelineCommandSchema, response: none },
   [invokeChannels.designGoToStep]: { request: goToStepSchema, response: none },
+  [invokeChannels.designDimensions]: { request: dimensionMarksRequestSchema, response: dimensionMarksSchema },
+  [invokeChannels.designProbeParameter]: { request: parameterProbeSchema, response: actionPreviewSchema },
   [invokeChannels.designVisibility]: { request: visibilityCommandSchema, response: none },
   [invokeChannels.notesCurrent]: { request: none, response: notesStateSchema },
   [invokeChannels.notesAdd]: { request: noteAddSchema, response: none },
@@ -549,6 +585,7 @@ export type TimelineCommand = z.infer<typeof timelineCommandSchema>;
 export type VisibilityCommand = z.infer<typeof visibilityCommandSchema>;
 export type NoteView = z.infer<typeof noteViewSchema>;
 export type Drawing = z.infer<typeof drawingSchema>;
+export type DimensionMark = z.infer<typeof dimensionMarkSchema>;
 export type NotesState = z.infer<typeof notesStateSchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;

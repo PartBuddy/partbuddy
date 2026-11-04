@@ -346,5 +346,32 @@
     "dismiss": "Entfernte Notiz verwerfen: {text}",
     "unreadable": "{count, plural, one {# Notiz} other {# Notizen}} in der Datei nicht lesbar",
     "failed": "Die Notiz ließ sich nicht speichern: {detail}"
+  },
+  "dimensions": {
+    "tool": "Bemaßungen",
+    "all": "Alle Bemaßungen",
+    "loose": "Weitere Maße",
+    "edit": "{name}: {value} ändern",
+    "typeNew": "Neuen Wert eingeben – die Vorschau zeigt das Ergebnis",
+    "direct": "Vorschau in der Ansicht – Enter ändert direkt",
+    "followsParameter": "Folgt dem Parameter {name}{count, plural, =0 {} one { (auch in # weiteren Maß)} other { (auch in # weiteren Maßen)}}",
+    "changesParameter": "Enter ändert {name}{count, plural, =0 {} one { – # weiteres Maß ändert sich mit} other { – # weitere Maße ändern sich mit}}",
+    "formula": "Folgt der Formel {expression}; die bleibt erhalten",
+    "toAssistant": "Eine Formel wird nie überschrieben – Enter fragt den Assistenten",
+    "assistantRequest": "Ändere {name} (jetzt {expression} = {from}) auf {to}{unit}. Behalte die Absicht der Formel bei und den Rest des Teils.",
+    "label": {
+      "distance": "Abstand",
+      "length": "Länge",
+      "width": "Breite",
+      "height": "Höhe",
+      "radius": "Radius",
+      "diameter": "Durchmesser",
+      "depth": "Tiefe",
+      "angle": "Winkel",
+      "distance_x": "Abstand X",
+      "distance_y": "Abstand Y",
+      "horizontal": "Horizontal",
+      "vertical": "Vertikal"
+    }
   }
 }

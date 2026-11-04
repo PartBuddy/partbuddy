@@ -1,4 +1,4 @@
-import { IconBox, IconCube, IconMaximize, IconPencil, IconPerspective } from '@tabler/icons-react';
+import { IconBox, IconCube, IconMaximize, IconPencil, IconPerspective, IconRuler2, IconRulerMeasure } from '@tabler/icons-react';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, ToggleButton, Tooltip, TooltipTrigger } from 'react-aria-components';
@@ -36,6 +36,8 @@ export function ViewTools() {
   const ortho = projection === 'orthographic';
   const pen = useStudio((s) => s.pen);
   const setPen = useStudio((s) => s.setPen);
+  const dimensions = useStudio((s) => s.dimensions);
+  const setDimensions = useStudio((s) => s.setDimensions);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -43,6 +45,8 @@ export function ViewTools() {
       const key = event.key.toLowerCase();
       if (key === 'd') {
         setPen(!useStudio.getState().pen);
+      } else if (key === 'm') {
+        setDimensions(useStudio.getState().dimensions === 'off' ? 'feature' : 'off');
       } else if (key === '5') {
         setProjection(useStudio.getState().projection === 'orthographic' ? 'perspective' : 'orthographic');
       } else if (VIEW_KEYS[key]) {
@@ -56,7 +60,7 @@ export function ViewTools() {
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [requestView, setProjection, setPen]);
+  }, [requestView, setProjection, setPen, setDimensions]);
 
   const views: { view: StandardView; key: string; icon: ReactNode }[] = [
     { view: 'fit', key: 'F', icon: <IconMaximize className="size-icon-sm" aria-hidden /> },
@@ -89,6 +93,35 @@ export function ViewTools() {
         </Tip>
       ))}
       <span aria-hidden className="mx-1 h-hairline bg-border" />
+      <Tip label={`${t('dimensions.tool')} (M)`}>
+        <ToggleButton
+          aria-label={t('dimensions.tool')}
+          aria-keyshortcuts="M"
+          isSelected={dimensions !== 'off'}
+          onChange={(on) => {
+            setDimensions(on ? 'feature' : 'off');
+          }}
+          className={tool}
+          data-testid="dimensions"
+        >
+          <IconRuler2 className="size-icon-sm" aria-hidden />
+        </ToggleButton>
+      </Tip>
+      {dimensions === 'off' ? null : (
+        <Tip label={t('dimensions.all')}>
+          <ToggleButton
+            aria-label={t('dimensions.all')}
+            isSelected={dimensions === 'all'}
+            onChange={(all) => {
+              setDimensions(all ? 'all' : 'feature');
+            }}
+            className={tool}
+            data-testid="dimensions-all"
+          >
+            <IconRulerMeasure className="size-icon-sm" aria-hidden />
+          </ToggleButton>
+        </Tip>
+      )}
       <Tip label={`${t('viewer.pen.tool')} (D)`}>
         <ToggleButton
           aria-label={t('viewer.pen.tool')}

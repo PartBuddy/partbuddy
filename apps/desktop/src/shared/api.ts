@@ -8,6 +8,7 @@ import type {
   Drawing,
   DesignAction,
   DimensionApply,
+  DimensionMark,
   DimensionProbe,
   DimensionProbeResult,
   ExportFormat,
@@ -65,6 +66,10 @@ export interface PartBuddyApi {
     visibility(command: VisibilityCommand): Promise<void>;
     /** "Go back to this state": undoes or redoes to a step of the work log (M2a). */
     goToStep(step: string): Promise<void>;
+    /** The dimensions of these features, or of all, placed in the view (M2b-3). */
+    dimensions(features: number[] | 'all'): Promise<DimensionMark[]>;
+    /** Tries a value of a parameter for the ghost preview, without changing the design. */
+    probeParameter(parameter: string, value: number, body: string | null): Promise<ActionPreviewResult>;
   };
   /** Notes on the model (M2b, ADR 0020), stored in the design file. */
   notes: {

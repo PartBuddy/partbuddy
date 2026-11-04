@@ -425,6 +425,11 @@ if (!app.requestSingleInstanceLock()) {
       log('went back to a step of the work log');
       return undefined;
     });
+    bridge.handle(invokeChannels.designDimensions, ({ features }) => supervisor.dimensionMarks(features));
+    bridge.handle(invokeChannels.designProbeParameter, ({ parameter, value, body }) => {
+      assistantIdle();
+      return supervisor.probeParameter(parameter, value, body);
+    });
     bridge.handle(invokeChannels.designVisibility, async (command) => {
       await supervisor.visibility(command);
       return undefined;
