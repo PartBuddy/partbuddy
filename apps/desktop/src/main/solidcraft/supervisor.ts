@@ -9,6 +9,8 @@ import type { ConnectionStatus, ExportFormat, MirrorRevision } from '../../share
 import type { UpstreamTools } from '../agents/gateProxy';
 import { ControlClient, ControlError } from './controlClient';
 import { endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
+import type { DesignAction, MeasureItem, MeasureResult } from '../../shared/contract';
+import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { DesignStore, HeadlessEngine, isInside, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
@@ -71,6 +73,7 @@ export class SolidCraftSupervisor {
   private latest: MirrorRevision | null = null;
   private readonly scheduler: MirrorScheduler;
   private readonly dimensions: DimensionService;
+  private readonly actions: ActionService;
   /** Probes run one after another; SolidCraft runs one batch at a time anyway. */
   private probing: Promise<unknown> = Promise.resolve();
 
@@ -79,6 +82,7 @@ export class SolidCraftSupervisor {
     private readonly listeners: SupervisorListeners,
   ) {
     this.dimensions = new DimensionService(() => this.requester(), options.cacheDir);
+    this.actions = new ActionService(() => this.requester(), options.cacheDir);
     this.designs = options.designsDir ? new DesignStore(options.designsDir, options.projectsDir ? [options.projectsDir] : []) : null;
     this.scheduler = new MirrorScheduler(
       () => {
@@ -204,6 +208,33 @@ export class SolidCraftSupervisor {
     await this.probing;
     await this.dimensions.apply(parameter, value, factor);
     await this.engine?.checkForChange();
+  }
+
+  /** One trial at a time, like the dimension probes; the headless engine records the moved revision quietly. */
+  private trial<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.probing.then(async () => {
+      try {
+        return await work();
+      } finally {
+        await this.engine?.checkForChange(true).catch(() => undefined);
+      }
+    });
+    this.probing = run.catch(() => undefined);
+    return run;
+  }
+
+  previewAction(action: DesignAction): Promise<ActionPreview> {
+    return this.trial(() => this.actions.preview(action));
+  }
+
+  async applyAction(action: DesignAction): Promise<void> {
+    await this.probing;
+    await this.actions.apply(action);
+    await this.engine?.checkForChange();
+  }
+
+  measure(items: MeasureItem[]): Promise<MeasureResult> {
+    return this.trial(() => this.actions.measure(items));
   }
 
   /** Whether "Open in SolidCraft" is possible: the headless engine runs and holds the design. */

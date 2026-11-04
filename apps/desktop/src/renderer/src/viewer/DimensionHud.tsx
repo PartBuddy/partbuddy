@@ -1,6 +1,7 @@
 import { Html } from '@react-three/drei';
 import { parseTagged3mf, type ViewerModel } from '@partbuddy/geometry';
 import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
+import { ActionPanel, MeasureLine } from './SelectionActions';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Input, Label, TextField } from 'react-aria-components';
@@ -11,7 +12,7 @@ import { selectedStatus, useAssistant } from '../assistant/store';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { parseLength } from './lengthInput';
-import { edgeLabel, selectionName, selectionOf } from './viewState';
+import { edgeLabel, selectionName, selectionOf, selectionsOf } from './viewState';
 
 /** Quiet time after typing before PartBuddy tries the value in SolidCraft. */
 const PROBE_DELAY_MS = 250;
@@ -67,7 +68,7 @@ export function dimensionOf(bodies: BodyModel[], pick: Pick): Dimension | null {
   return { shown: 'length', value: length, target: { measure: 'length', body: body.name, edge: edgeLabel(model, pick.edge).name, point: pick.point }, scale: 1 };
 }
 
-function Ghost({ preview, color }: { preview: Uint8Array; color: Color }) {
+export function Ghost({ preview, color }: { preview: Uint8Array; color: Color }) {
   const geometry = useMemo(() => {
     try {
       const mesh = parseTagged3mf(preview);
@@ -93,27 +94,29 @@ const round = (value: number) => Math.round(value * 1000) / 1000;
 
 
 /**
- * The selection HUD (M1b): next to the selected edge or cylinder a field with its current size.
- * Typing tries the value in SolidCraft and shows the result as a ghost; Enter changes the driving
- * parameter directly when exactly one drives it, otherwise it asks the assistant with a short,
- * structured request. A text field sends any other wish about the selection to the assistant.
+ * The selection HUD (M1b): next to the latest selection a card with the dimension field (one
+ * edge or cylinder), actions with a preview (fillet, chamfer, extrude, hole, shell), the distance
+ * and angle between two selections, and a text field that sends any wish about the selection to
+ * the assistant.
  */
 export function DimensionHud({ bodies, accent }: { bodies: BodyModel[]; accent: Color }) {
   const selection = useStudio((s) => s.selection);
+  const selections = useStudio((s) => s.selections);
   if (!selection) return null;
   // A new selection gets a fresh card that starts from its current size.
-  const key = `${selection.kind}:${selection.body}:${selection.kind === 'face' ? selection.face : selection.kind === 'edge' ? selection.edge : selection.vertex}`;
-  return <HudCard key={key} bodies={bodies} accent={accent} selection={selection} />;
+  const key = selections.map((pick) => `${pick.kind}:${pick.body}:${pick.kind === 'face' ? pick.face : pick.kind === 'edge' ? pick.edge : pick.vertex}`).join(',');
+  return <HudCard key={key} bodies={bodies} accent={accent} selection={selection} picks={selections} />;
 }
 
-function HudCard({ bodies, accent, selection }: { bodies: BodyModel[]; accent: Color; selection: Pick }) {
+function HudCard({ bodies, accent, selection, picks }: { bodies: BodyModel[]; accent: Color; selection: Pick; picks: Pick[] }) {
   const { t, i18n } = useTranslation();
   const model = useStudio((s) => s.model);
   const setNotice = useStudio((s) => s.setNotice);
   const assistant = selectedStatus(useAssistant((s) => s.state));
   const busy = assistant.state === 'busy';
   const assistantReady = assistant.state === 'ready';
-  const dimension = useMemo(() => dimensionOf(bodies, selection), [bodies, selection]);
+  // The dimension field belongs to a single selection.
+  const dimension = useMemo(() => (picks.length === 1 ? dimensionOf(bodies, selection) : null), [bodies, selection, picks.length]);
   const decimal = (1.5).toLocaleString(i18n.language).charAt(1);
   const show = (number: number) => String(round(number)).replace('.', decimal);
   // The field's text; every keystroke tries the new value, not only leaving the field.
@@ -121,6 +124,8 @@ function HudCard({ bodies, accent, selection }: { bodies: BodyModel[]; accent: C
   const value = parseLength(text);
   // The newest probe answer and the value it was for; an answer for another value is outdated.
   const [probe, setProbe] = useState<{ value: number; result: DimensionProbeResult } | null>(null);
+  // The ghost of an open action, which takes the place of the dimension preview.
+  const [actionGhost, setActionGhost] = useState<Uint8Array | null>(null);
   const [wish, setWish] = useState('');
   const latest = useRef(0);
 
@@ -145,6 +150,7 @@ function HudCard({ bodies, accent, selection }: { bodies: BodyModel[]; accent: C
   }, [dimension, value, changed, busy]);
 
   const current = selectionOf(model, selection);
+  const all = selectionsOf(model, picks);
   if (!current) return null;
   const result = probe !== null && probe.value === value ? probe.result : null;
   const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 3 });
@@ -166,15 +172,15 @@ function HudCard({ bodies, accent, selection }: { bodies: BodyModel[]; accent: C
         from: number.format(round(dimension.value)),
         to: number.format(value),
       });
-      void platform().agent.send(request, current);
+      void platform().agent.send(request, [current]);
     }
   };
 
   const ask = () => {
-    const text = wish.trim();
-    if (!text || !assistantReady) return;
+    const message = wish.trim();
+    if (!message || !assistantReady) return;
     setWish('');
-    void platform().agent.send(text, current);
+    void platform().agent.send(message, all);
   };
 
   let status: string | null = null;
@@ -183,10 +189,11 @@ function HudCard({ bodies, accent, selection }: { bodies: BodyModel[]; accent: C
     else if (result.mode === 'direct') status = t('hud.direct', { label: result.label });
     else status = assistantReady ? t(`hud.assistant.${result.reason}`) : t('hud.noAssistant');
   }
+  const ghost = actionGhost ?? (result?.mode === 'direct' ? result.preview : null);
 
   return (
     <>
-      {result?.mode === 'direct' && result.preview ? <Ghost preview={result.preview} color={accent} /> : null}
+      {ghost ? <Ghost preview={ghost} color={accent} /> : null}
       <Html position={selection.point} zIndexRange={[20, 10]} style={{ pointerEvents: 'none' }}>
         <div
           className="pointer-events-auto ml-4 flex w-menu -translate-y-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
@@ -195,15 +202,13 @@ function HudCard({ bodies, accent, selection }: { bodies: BodyModel[]; accent: C
             event.stopPropagation();
           }}
         >
+          {picks.length > 1 ? (
+            <p className="text-xs text-text-subtle" data-testid="hud-count">
+              {t('hud.selected', { count: picks.length })}
+            </p>
+          ) : null}
           {dimension ? (
-            <TextField
-              value={text}
-              onChange={setText}
-              inputMode="decimal"
-              isDisabled={busy}
-              className="flex flex-col gap-1"
-              data-testid="dimension-field"
-            >
+            <TextField value={text} onChange={setText} inputMode="decimal" isDisabled={busy} className="flex flex-col gap-1" data-testid="dimension-field">
               <Label className="text-xs text-text-subtle">
                 {t(`hud.${dimension.shown}`)} · {t('units.mmShort')}
               </Label>
@@ -229,6 +234,8 @@ function HudCard({ bodies, accent, selection }: { bodies: BodyModel[]; accent: C
               {status}
             </p>
           ) : null}
+          {picks.length === 2 ? <MeasureLine bodies={bodies} picks={picks} /> : null}
+          <ActionPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
           <TextField value={wish} onChange={setWish} aria-label={t('hud.ask')} isDisabled={!assistantReady} className="flex items-center gap-1">
             <Input
               placeholder={t('hud.ask')}

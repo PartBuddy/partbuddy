@@ -35,6 +35,9 @@ const api: PartBuddyApi = {
     openInSolidCraft: () => ipcRenderer.invoke(invokeChannels.designOpenInSolidCraft),
     probeDimension: (probe) => ipcRenderer.invoke(invokeChannels.designProbeDimension, probe),
     applyDimension: (apply) => ipcRenderer.invoke(invokeChannels.designApplyDimension, apply),
+    previewAction: (action) => ipcRenderer.invoke(invokeChannels.designPreviewAction, action),
+    applyAction: (action) => ipcRenderer.invoke(invokeChannels.designApplyAction, action),
+    measure: (items) => ipcRenderer.invoke(invokeChannels.designMeasure, { items }),
   },
   viewer: {
     report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),
@@ -45,7 +48,7 @@ const api: PartBuddyApi = {
   agent: {
     status: () => ipcRenderer.invoke(invokeChannels.agentStatus),
     refresh: () => ipcRenderer.invoke(invokeChannels.agentRefresh),
-    send: (text, selection) => ipcRenderer.invoke(invokeChannels.agentSend, selection ? { text, selection } : { text }),
+    send: (text, selections) => ipcRenderer.invoke(invokeChannels.agentSend, selections && selections.length > 0 ? { text, selections } : { text }),
     stop: () => ipcRenderer.invoke(invokeChannels.agentStop),
     select: (agent) => ipcRenderer.invoke(invokeChannels.agentSelect, { agent }),
     allowApiBilling: (allow) => ipcRenderer.invoke(invokeChannels.agentAllowApiBilling, { allow }),

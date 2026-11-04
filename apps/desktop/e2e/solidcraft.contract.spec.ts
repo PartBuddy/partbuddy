@@ -234,6 +234,70 @@ test('the dimension field changes the driving parameter directly, with a preview
   }
 });
 
+test('two edges are selected with Ctrl, measured, and rounded together with a preview first (M1b-2)', async () => {
+  test.setTimeout(120_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-actions-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7893',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await page.waitForTimeout(800);
+    const box = await page.getByTestId('viewport').boundingBox();
+    if (!box) throw new Error('viewport not visible');
+
+    // Find two different edges by hovering: the status bar names what is under the pointer.
+    const edges: { x: number; y: number; name: string }[] = [];
+    for (let y = 0.3; y <= 0.75 && edges.length < 6; y += 0.05) {
+      for (let x = 0.2; x <= 0.8 && edges.length < 6; x += 0.01) {
+        const point = { x: box.x + box.width * x, y: box.y + box.height * y };
+        await page.mouse.move(point.x, point.y);
+        await page.waitForTimeout(30);
+        const name = (await page.getByTestId('focus-name').count()) > 0 ? ((await page.getByTestId('focus-name').textContent()) ?? '') : '';
+        if (name.includes('|') && !edges.some((edge) => edge.name === name)) edges.push({ ...point, name });
+      }
+    }
+    // The HUD opens to the right of the first pick, so the second edge lies left of it.
+    const first = edges.reduce((a, b) => (b.x > a.x ? b : a), edges[0] ?? { x: 0, y: 0, name: '' });
+    const second = edges.find((edge) => edge.name !== first.name && edge.x < first.x - 40);
+    if (!second) throw new Error(`no second edge left of the first among ${edges.map((edge) => edge.name).join(', ')}`);
+    await page.mouse.click(first.x, first.y);
+    await page.keyboard.down('Control');
+    await page.mouse.click(second.x, second.y);
+    await page.keyboard.up('Control');
+    await expect(page.getByTestId('hud-count')).toHaveText('2 elements selected');
+    await expect(page.getByTestId('hud-measure')).toContainText(/Distance [\d.]+ mm/, { timeout: 15_000 });
+    await expect(page.getByTestId('composer-selections')).toContainText('2 elements go with the message:');
+
+    // Round both edges: a preview first, Enter builds it, each fillet adds one face.
+    await page.getByTestId('action-fillet').click();
+    await expect(page.getByTestId('action-status')).toHaveAttribute('data-ok', 'true', { timeout: 15_000 });
+    await page.screenshot({ path: test.info().outputPath('fillet-preview.png') });
+    await page.getByTestId('action-field').getByRole('textbox').press('Enter');
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 8 faces', { timeout: 15_000 });
+    await page.screenshot({ path: test.info().outputPath('fillet-applied.png') });
+
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('actions-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('the user\'s Claude Code builds a part in SolidCraft through the gate proxy', async () => {
   // Uses the installed Claude Code with the user's own subscription; opt in separately with
   // PARTBUDDY_E2E_CLAUDE=1, because it spends subscription usage. SolidCraft runs as an own

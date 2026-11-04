@@ -70,7 +70,7 @@ type MeshList = RefObject<(Mesh | null)[]>;
 
 function Body({ index, body, colors, register }: { index: number; body: BodyModel; colors: ViewerColors; register: (index: number, mesh: Mesh | null) => void }) {
   const hover = useStudio((s) => s.hover);
-  const selection = useStudio((s) => s.selection);
+  const selections = useStudio((s) => s.selections);
   const changes = useStudio((s) => s.changes);
   const { model } = body;
 
@@ -78,17 +78,17 @@ function Body({ index, body, colors, register }: { index: number; body: BodyMode
     const attribute = model.geometry.getAttribute('color') as BufferAttribute;
     const changed = new Set(changes?.bodies.find((entry) => entry.body === index)?.faces ?? []);
     const hovered = hover?.kind === 'face' && hover.body === index ? hover.face : -1;
-    const selected = selection?.kind === 'face' && selection.body === index ? selection.face : -1;
+    const selected = new Set(selections.filter((pick) => pick.kind === 'face' && pick.body === index).map((pick) => (pick.kind === 'face' ? pick.face : -1)));
     for (let v = 0; v < model.vertexFaces.length; v += 1) {
       const face = model.vertexFaces[v] ?? -1;
       let color = colors.body;
       if (changed.has(face)) color = colors.changed;
       if (face === hovered) color = colors.hover;
-      if (face === selected) color = colors.selection;
+      if (selected.has(face)) color = colors.selection;
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
-  }, [model, index, colors, hover, selection, changes]);
+  }, [model, index, colors, hover, selections, changes]);
 
   return (
     <group name={body.name}>
@@ -166,11 +166,13 @@ function Highlight({ pick, bodies, color, selected }: { pick: Pick; bodies: Body
 
 function Highlights({ bodies, colors }: { bodies: BodyModel[]; colors: ViewerColors }) {
   const hover = useStudio((s) => s.hover);
-  const selection = useStudio((s) => s.selection);
+  const selections = useStudio((s) => s.selections);
   return (
     <>
-      {hover && !samePick(hover, selection) ? <Highlight pick={hover} bodies={bodies} color={colors.hover} selected={false} /> : null}
-      {selection ? <Highlight pick={selection} bodies={bodies} color={colors.selection} selected /> : null}
+      {hover && !selections.some((pick) => samePick(pick, hover)) ? <Highlight pick={hover} bodies={bodies} color={colors.hover} selected={false} /> : null}
+      {selections.map((pick) => (
+        <Highlight key={`${pick.kind}:${pick.body}:${pick.kind === 'face' ? pick.face : pick.kind === 'edge' ? pick.edge : pick.vertex}`} pick={pick} bodies={bodies} color={colors.selection} selected />
+      ))}
     </>
   );
 }
@@ -186,6 +188,7 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
   const gl = useThree((state) => state.gl);
   const setHover = useStudio((s) => s.setHover);
   const select = useStudio((s) => s.select);
+  const toggle = useStudio((s) => s.toggle);
 
   useEffect(() => {
     const dom = gl.domElement;
@@ -272,7 +275,11 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
       if (!pressed || event.button !== 0) return;
       const moved = Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y);
       pressed = null;
-      if (moved <= scene.clickSlop) select(pickAt(event.clientX, event.clientY));
+      if (moved > scene.clickSlop) return;
+      const pick = pickAt(event.clientX, event.clientY);
+      // Ctrl or Shift adds to the selection or removes from it; a plain click starts anew.
+      if ((event.ctrlKey || event.shiftKey || event.metaKey) && pick) toggle(pick);
+      else select(pick);
     };
     const onKey = (event: KeyboardEvent) => {
       // Escape in a field of the HUD resets the field first; outside it clears the selection.
@@ -292,7 +299,7 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
       dom.removeEventListener('pointerup', onUp);
       window.removeEventListener('keydown', onKey);
     };
-  }, [camera, gl, bodies, meshes, setHover, select]);
+  }, [camera, gl, bodies, meshes, setHover, select, toggle]);
   return null;
 }
 
@@ -524,7 +531,7 @@ const REPORT_DELAY_MS = 300;
 function ViewReporter() {
   const controls = useThree((state) => state.controls) as CameraControls | null;
   const model = useStudio((s) => s.model);
-  const selection = useStudio((s) => s.selection);
+  const selections = useStudio((s) => s.selections);
   const changes = useStudio((s) => s.changes);
   const [camera, setCamera] = useState<CameraView | null>(null);
 
@@ -546,12 +553,12 @@ function ViewReporter() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      void platform().viewer.report(viewStateOf(model, selection, changes, camera));
+      void platform().viewer.report(viewStateOf(model, selections, changes, camera));
     }, REPORT_DELAY_MS);
     return () => {
       clearTimeout(timer);
     };
-  }, [model, selection, changes, camera]);
+  }, [model, selections, changes, camera]);
   return null;
 }
 

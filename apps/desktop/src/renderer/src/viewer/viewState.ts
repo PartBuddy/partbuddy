@@ -92,11 +92,16 @@ export interface CameraView {
 }
 
 /** What the view shows, for the assistant's `partbuddy_view` tool. */
-export function viewStateOf(model: ModelState, pick: Pick | null, changes: LiveChanges | null, camera: CameraView | null): ViewState {
+/** Every selection the assistant can read, in picking order. */
+export function selectionsOf(model: ModelState, picks: Pick[]): Selection[] {
+  return picks.map((pick) => selectionOf(model, pick)).filter((selection): selection is Selection => selection !== null);
+}
+
+export function viewStateOf(model: ModelState, picks: Pick[], changes: LiveChanges | null, camera: CameraView | null): ViewState {
   const ready = model.status === 'ready';
   return {
     camera,
-    selection: selectionOf(model, pick),
+    selections: selectionsOf(model, picks),
     bodies: ready ? model.bodies.map((body) => ({ name: body.name, faces: body.model.table.faces.length })) : [],
     sketches: ready ? model.sketches.map((sketch) => ({ name: sketch.name, active: sketch.active })) : [],
     changes: changes ? { faces: changes.count, sketchCurves: changes.sketchCurves } : null,

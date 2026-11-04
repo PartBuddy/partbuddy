@@ -184,7 +184,7 @@ export const selectionSchema = z.discriminatedUnion('kind', [faceSelectionSchema
 export const viewStateSchema = z
   .object({
     camera: z.object({ position: point3, target: point3 }).strict().nullable(),
-    selection: selectionSchema.nullable(),
+    selections: z.array(selectionSchema).max(20),
     bodies: z.array(z.object({ name: z.string().max(200), faces: z.number().int().nonnegative() }).strict()).max(500),
     sketches: z.array(z.object({ name: z.string().max(200), active: z.boolean() }).strict()).max(500),
     changes: z.object({ faces: z.number().int().nonnegative(), sketchCurves: z.number().int().nonnegative() }).strict().nullable(),
@@ -262,7 +262,26 @@ export const dimensionApplySchema = z
   .object({ parameter: z.string().regex(/^[\p{L}_][\p{L}\p{N}_]{0,99}$/u), value: length, factor: factorSchema })
   .strict();
 
-export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000), selection: selectionSchema.optional() }).strict();
+/** Actions at the selection (M1b-2): points on the picked edges or faces and one size in mm. */
+const actionPoints = z.array(point3).min(1).max(50);
+export const designActionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('fillet'), body: bodyName, points: actionPoints, size: length }).strict(),
+  z.object({ action: z.literal('chamfer'), body: bodyName, points: actionPoints, size: length }).strict(),
+  z
+    .object({ action: z.literal('extrude'), body: bodyName, points: z.array(point3).length(1), size: finite.min(-10_000).max(10_000).refine((value) => value !== 0) })
+    .strict(),
+  z.object({ action: z.literal('hole'), body: bodyName, points: z.array(point3).length(1), size: length, depth: length.optional() }).strict(),
+  z.object({ action: z.literal('shell'), body: bodyName, points: actionPoints, size: length }).strict(),
+]);
+export const actionPreviewSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable() }).strict(),
+  z.object({ ok: z.literal(false), error: z.string().max(300) }).strict(),
+]);
+export const measureItemSchema = z.object({ type: z.enum(['face', 'edge', 'vertex']), body: bodyName, point: point3 }).strict();
+export const measureRequestSchema = z.object({ items: z.array(measureItemSchema).min(1).max(2) }).strict();
+export const measureResultSchema = z.object({ distance: finite.nullable(), angle: finite.nullable() }).strict();
+
+export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000), selections: z.array(selectionSchema).min(1).max(20).optional() }).strict();
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
 export const assistantStateSchema = z.object({ selected: agentKindSchema, agents: z.array(agentStatusSchema) }).strict();
@@ -291,6 +310,9 @@ export const invokeContract = {
   [invokeChannels.designOpenInSolidCraft]: { request: none, response: none },
   [invokeChannels.designProbeDimension]: { request: dimensionProbeSchema, response: dimensionProbeResultSchema },
   [invokeChannels.designApplyDimension]: { request: dimensionApplySchema, response: none },
+  [invokeChannels.designPreviewAction]: { request: designActionSchema, response: actionPreviewSchema },
+  [invokeChannels.designApplyAction]: { request: designActionSchema, response: none },
+  [invokeChannels.designMeasure]: { request: measureRequestSchema, response: measureResultSchema },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -322,6 +344,10 @@ export type DimensionTarget = z.infer<typeof dimensionTargetSchema>;
 export type DimensionProbe = z.infer<typeof dimensionProbeSchema>;
 export type DimensionProbeResult = z.infer<typeof dimensionProbeResultSchema>;
 export type DimensionApply = z.infer<typeof dimensionApplySchema>;
+export type DesignAction = z.infer<typeof designActionSchema>;
+export type ActionPreviewResult = z.infer<typeof actionPreviewSchema>;
+export type MeasureItem = z.infer<typeof measureItemSchema>;
+export type MeasureResult = z.infer<typeof measureResultSchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;
 export type InvokeResponse<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['response']>;

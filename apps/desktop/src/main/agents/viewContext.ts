@@ -25,15 +25,25 @@ export function selectionLabel(selection: Selection): string {
   }
 }
 
-/** The note in front of the user's message. */
-export function selectionNote(selection: Selection): string {
+/** The note in front of the user's message (one line per selection; `alone`: the only one). */
+export function selectionNote(selection: Selection, alone = true): string {
+  const note = describeNote(selection);
+  return alone ? note.replace(/\]$/, ` ${deictic(selection)}]`) : note;
+}
+
+function deictic(selection: Selection): string {
+  if (selection.kind === 'face') return '"This face" or "the selected face" means this one.';
+  if (selection.kind === 'edge') return '"This edge" or "the selected edge" means this one.';
+  return '"This corner" or "this point" means this one.';
+}
+
+function describeNote(selection: Selection): string {
   switch (selection.kind) {
     case 'face': {
       const shape = selection.surface === 'cylinder' && selection.radius ? `cylinder r ${round(selection.radius)} mm` : selection.surface;
       return (
         `[PartBuddy: the user selected face "${selection.face}" of body "${selection.body}" in PartBuddy's view ` +
-        `(${shape}, normal ${vector(selection.normal)}, ${round(selection.area)} mm², picked at ${vector(selection.point)} mm). ` +
-        `"This face" or "the selected face" means this one.]`
+        `(${shape}, normal ${vector(selection.normal)}, ${round(selection.area)} mm², picked at ${vector(selection.point)} mm).]`
       );
     }
     case 'edge': {
@@ -43,14 +53,12 @@ export function selectionNote(selection: Selection): string {
       const exact = selection.exact ? '' : ' The two faces meet along more than one edge; the picked point tells which.';
       return (
         `[PartBuddy: the user selected edge "${selection.edge}" of body "${selection.body}" in PartBuddy's view ` +
-        `(${shape}, length ${round(selection.length)} mm${ends}, picked at ${vector(selection.point)} mm).${exact} ` +
-        `"This edge" or "the selected edge" means this one.]`
+        `(${shape}, length ${round(selection.length)} mm${ends}, picked at ${vector(selection.point)} mm).${exact}]`
       );
     }
     case 'vertex':
       return (
-        `[PartBuddy: the user selected the vertex at ${vector(selection.point)} mm of body "${selection.body}" in PartBuddy's view. ` +
-        `"This corner" or "this point" means this one.]`
+        `[PartBuddy: the user selected the vertex at ${vector(selection.point)} mm of body "${selection.body}" in PartBuddy's view.]`
       );
   }
 }
@@ -68,9 +76,14 @@ function describeSelection(selection: Selection): Record<string, unknown> {
 }
 
 /** The message as the model gets it, and the label the conversation shows. */
-export function composeMessage(text: string, selection?: Selection): { prompt: string; label?: string } {
-  if (!selection) return { prompt: text };
-  return { prompt: `${selectionNote(selection)}\n\n${text}`, label: selectionLabel(selection) };
+export function composeMessage(text: string, selections: Selection[] = []): { prompt: string; label?: string } {
+  const [first] = selections;
+  if (!first) return { prompt: text };
+  const label = selections.map(selectionLabel).join('; ').slice(0, 400);
+  if (selections.length === 1) return { prompt: `${selectionNote(first)}\n\n${text}`, label };
+  const notes = selections.map((selection, i) => `${i + 1}. ${selectionNote(selection, false)}`).join('\n');
+  const together = `[PartBuddy: the user selected these ${selections.length} elements together; "these" or "the selected ones" means all of them.]`;
+  return { prompt: `${together}\n${notes}\n\n${text}`, label };
 }
 
 /** Where the camera looks from, in words: `front-right-top`, `top`, … (Z up, front is -Y). */
@@ -95,7 +108,7 @@ export function viewDirection(position: readonly number[], target: readonly numb
 export function describeView(state: ViewState | null): string {
   if (!state) return JSON.stringify({ view: 'PartBuddy shows no design yet' });
   return JSON.stringify({
-    selected: state.selection ? describeSelection(state.selection) : null,
+    selected: state.selections.map(describeSelection),
     camera: state.camera
       ? { from: viewDirection(state.camera.position, state.camera.target), target: state.camera.target.map(round), distance: round(Math.hypot(...state.camera.position.map((v, i) => v - (state.camera?.target[i] ?? 0)))) }
       : null,

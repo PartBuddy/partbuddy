@@ -258,8 +258,8 @@ if (!app.requestSingleInstanceLock()) {
       await claude.allowApiBilling(allow);
       return agent.state();
     });
-    bridge.handle(invokeChannels.agentSend, async ({ text, selection }) => {
-      await agent.send(text, selection);
+    bridge.handle(invokeChannels.agentSend, async ({ text, selections }) => {
+      await agent.send(text, selections);
       return undefined;
     });
     bridge.handle(invokeChannels.agentStop, async () => {
@@ -310,6 +310,17 @@ if (!app.requestSingleInstanceLock()) {
       log('changed a dimension directly');
       return undefined;
     });
+    bridge.handle(invokeChannels.designPreviewAction, (action) => {
+      assistantIdle();
+      return supervisor.previewAction(action);
+    });
+    bridge.handle(invokeChannels.designApplyAction, async (action) => {
+      assistantIdle();
+      await supervisor.applyAction(action);
+      log(`applied ${action.action} directly`);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.designMeasure, ({ items }) => supervisor.measure(items));
     bridge.handle(invokeChannels.designOpenInSolidCraft, async () => {
       assistantIdle();
       await supervisor.openInSolidCraft();

@@ -50,7 +50,13 @@ export function StatusBar() {
       {latency ? (
         <span data-testid="mirror-latency">{t('status.latency', { ms: latency.mirrorMs + latency.parseMs })}</span>
       ) : null}
-      {focusName ? <span className="font-mono">{focusName}</span> : <span>{t('status.noFace')}</span>}
+      {focusName ? (
+        <span className="font-mono" data-testid="focus-name">
+          {focusName}
+        </span>
+      ) : (
+        <span>{t('status.noFace')}</span>
+      )}
       <span role="status" className={`ml-auto truncate ${notice?.tone === 'danger' ? 'text-danger' : 'text-text'}`} data-testid="notice">
         {notice?.text}
       </span>

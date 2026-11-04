@@ -165,7 +165,9 @@
     "allowApiBilling": "Use the API key anyway (billed separately)",
     "subscriptionOnly": "Use the subscription only",
     "withSelection": "With selection {face}",
-    "selectionGoesWith": "{kind, select, face {Selected face} edge {Selected edge} other {Selected vertex}} goes with the message: {name}"
+    "selectionGoesWith": "{kind, select, face {Selected face} edge {Selected edge} other {Selected vertex}} goes with the message: {name}",
+    "selectionsGoWith": "{count} elements go with the message:",
+    "removeSelection": "Remove {name} from the selection"
   },
   "live": {
     "step": "Step {number} · {label}",
@@ -211,6 +213,27 @@
     },
     "noAssistant": "No single parameter drives this, and the assistant is not ready",
     "ask": "Tell the assistant what should happen here …",
-    "assistantRequest": "Change the {what} of {name} from {from} mm to {to} mm. Keep the rest of the part as it is."
+    "assistantRequest": "Change the {what} of {name} from {from} mm to {to} mm. Keep the rest of the part as it is.",
+    "selected": "{count} elements selected",
+    "actions": "Actions",
+    "action": {
+      "fillet": "Fillet",
+      "chamfer": "Chamfer",
+      "extrude": "Extrude",
+      "hole": "Hole",
+      "shell": "Shell"
+    },
+    "size": {
+      "fillet": "Radius",
+      "chamfer": "Chamfer",
+      "extrude": "Distance (− cuts)",
+      "hole": "Diameter",
+      "shell": "Wall thickness"
+    },
+    "invalid": "Type a number",
+    "actionReady": "Preview in the view – Enter builds it, Escape cancels",
+    "actionRefused": "SolidCraft cannot build it like this: {detail}",
+    "distance": "Distance {value} mm",
+    "angle": "Angle {value}°"
   }
 }
