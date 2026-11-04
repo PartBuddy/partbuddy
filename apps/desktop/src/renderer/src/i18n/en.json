@@ -346,5 +346,32 @@
     "dismiss": "Discard removed note: {text}",
     "unreadable": "{count, plural, one {# note} other {# notes}} in the file could not be read",
     "failed": "The note could not be saved: {detail}"
+  },
+  "dimensions": {
+    "tool": "Dimensions",
+    "all": "All dimensions",
+    "loose": "More dimensions",
+    "edit": "Change {name}: {value}",
+    "typeNew": "Type a new value – the preview shows the result",
+    "direct": "Preview in the view – Enter changes it directly",
+    "followsParameter": "Follows the parameter {name}{count, plural, =0 {} one { (used by # more dimension)} other { (used by # more dimensions)}}",
+    "changesParameter": "Enter changes {name}{count, plural, =0 {} one { – # more dimension follows} other { – # more dimensions follow}}",
+    "formula": "Follows the formula {expression}, which stays",
+    "toAssistant": "A formula is never overwritten – Enter asks the assistant",
+    "assistantRequest": "Change {name} (now {expression} = {from}) to {to}{unit}. Keep the intent of the formula and the rest of the part.",
+    "label": {
+      "distance": "Distance",
+      "length": "Length",
+      "width": "Width",
+      "height": "Height",
+      "radius": "Radius",
+      "diameter": "Diameter",
+      "depth": "Depth",
+      "angle": "Angle",
+      "distance_x": "Distance X",
+      "distance_y": "Distance Y",
+      "horizontal": "Horizontal",
+      "vertical": "Vertical"
+    }
   }
 }

@@ -12,6 +12,8 @@ import { endpointForPort, findExecutable, findRunning, type ControlEndpoint, typ
 import type { DesignAction, MeasureItem, MeasureResult, TimelineCommand, VisibilityCommand } from '../../shared/contract';
 import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
+import { featureMarks, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
+import type { DimensionMark } from '../../shared/contract';
 import { DesignStore, HeadlessEngine, isInside, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
 import type { DesignHistory } from '../agents/workLog';
@@ -270,6 +272,92 @@ export class SolidCraftSupervisor {
   /** Sets or removes (null) metadata keys in one undo step; mirrored like any change. */
   writeMetadata(values: Record<string, unknown>): Promise<void> {
     return this.run({ command: 'document.metadata.set', params: { values } });
+  }
+
+  /** Tries a parameter value for the ghost of a dimension label (M2b-3); the design stays as it is. */
+  probeParameter(parameter: string, value: number, body: string | null): ReturnType<DimensionService['previewParameter']> {
+    return this.trial(() => this.dimensions.previewParameter(parameter, value, body));
+  }
+
+  /**
+   * The dimensions of the given features, or of every active one, placed in the view (M2b-3,
+   * ADR 0020): their inputs from `timeline.inspect` and, for a sketch or a feature built on one,
+   * the sketch's dimensions from `sketch.inspect`.
+   */
+  async dimensionMarks(features: number[] | 'all'): Promise<DimensionMark[]> {
+    const requester = this.requester();
+    const head = await requester.request<BatchResult>(
+      'engine.batch',
+      { commands: [{ command: 'document.inspect', params: {} }, { command: 'parameters.list', params: {} }], rollback: false },
+      60_000,
+    );
+    if (head.failed) throw new Error(`${head.failed.command} failed: ${head.failed.error}`);
+    const inspect = (head.results[0] ?? {}) as {
+      timeline?: { id?: unknown; name?: unknown; type?: unknown; suppressed?: unknown; rolled_back?: unknown }[];
+      sketches?: { id?: unknown; name?: unknown }[];
+      bodies?: { name?: unknown; feature?: unknown; visible?: unknown }[];
+    };
+    const parameters = (((head.results[1] ?? {}) as { parameters?: unknown[] }).parameters ?? []).filter(
+      (entry): entry is RawParameter =>
+        typeof entry === 'object' && entry !== null && typeof (entry as RawParameter).name === 'string' && typeof (entry as RawParameter).expression === 'string',
+    );
+    const active = (inspect.timeline ?? []).filter((entry) => Number.isInteger(entry.id) && entry.suppressed !== true && entry.rolled_back !== true);
+    const wanted = (features === 'all' ? active : active.filter((entry) => features.includes(entry.id as number))).slice(0, 60);
+    if (wanted.length === 0) return [];
+    const timeline = await requester.request<BatchResult>(
+      'engine.batch',
+      { commands: wanted.map((entry) => ({ command: 'timeline.inspect', params: { feature: entry.id } })), rollback: false },
+      60_000,
+    );
+    const raw: RawFeature[] = wanted.map((entry, i) => {
+      const result = (timeline.results[i] ?? {}) as { inputs?: unknown; definition?: unknown };
+      return {
+        id: entry.id as number,
+        name: typeof entry.name === 'string' ? entry.name : `#${String(entry.id)}`,
+        type: typeof entry.type === 'string' ? entry.type : '',
+        inputs: Array.isArray(result.inputs) ? result.inputs : [],
+        definition: typeof result.definition === 'object' && result.definition !== null ? (result.definition as Record<string, unknown>) : {},
+      };
+    });
+    // Sketch features name their sketch; features built on a sketch carry its id.
+    const sketchIdOf = (feature: RawFeature): number | null => {
+      if (feature.type === 'Sketch') {
+        const sketch = (inspect.sketches ?? []).find((entry) => entry.name === feature.name);
+        return Number.isInteger(sketch?.id) ? (sketch?.id as number) : null;
+      }
+      return Number.isInteger(feature.definition.sketch) ? (feature.definition.sketch as number) : null;
+    };
+    const sketchIds = [...new Set(raw.map(sketchIdOf).filter((id): id is number => id !== null))];
+    const sketches = new Map<number, RawSketch>();
+    if (sketchIds.length > 0) {
+      const read = await requester.request<BatchResult>(
+        'engine.batch',
+        { commands: sketchIds.map((sketch) => ({ command: 'sketch.inspect', params: { sketch } })), rollback: false },
+        60_000,
+      );
+      sketchIds.forEach((id, i) => {
+        const result = read.results[i];
+        if (typeof result === 'object' && result !== null) sketches.set(id, result);
+      });
+    }
+    const visible = (inspect.bodies ?? []).filter((body) => typeof body.name === 'string' && body.visible !== false);
+    const bodyOf = (feature: RawFeature): string | null => {
+      const named = feature.definition.body_names;
+      if (Array.isArray(named) && typeof named[0] === 'string') return named[0];
+      const made = visible.find((body) => body.feature === feature.id);
+      if (made) return made.name as string;
+      return visible.length === 1 ? (visible[0]?.name as string) : null;
+    };
+    const marks = new Map<string, DimensionMark>();
+    for (const feature of raw) {
+      const sketchId = sketchIdOf(feature);
+      const sketch = sketchId !== null ? (sketches.get(sketchId) ?? null) : null;
+      const body = bodyOf(feature);
+      // One mark per parameter: a sketch shown with the feature built on it is listed once.
+      const found = [...featureMarks(feature, parameters, sketch, body), ...(sketch ? sketchMarks(sketch, { id: feature.id, name: feature.name }, parameters, body) : [])];
+      for (const mark of found) if (!marks.has(mark.parameter)) marks.set(mark.parameter, mark);
+    }
+    return [...marks.values()].slice(0, 400);
   }
 
   /** Whether "Open in SolidCraft" is possible: the headless engine runs and holds the design. */

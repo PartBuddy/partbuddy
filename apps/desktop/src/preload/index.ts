@@ -41,6 +41,8 @@ const api: PartBuddyApi = {
     timeline: (command) => ipcRenderer.invoke(invokeChannels.designTimeline, command),
     visibility: (command) => ipcRenderer.invoke(invokeChannels.designVisibility, command),
     goToStep: (step) => ipcRenderer.invoke(invokeChannels.designGoToStep, { step }),
+    dimensions: (features) => ipcRenderer.invoke(invokeChannels.designDimensions, { features }),
+    probeParameter: (parameter, value, body) => ipcRenderer.invoke(invokeChannels.designProbeParameter, { parameter, value, body }),
   },
   notes: {
     current: () => ipcRenderer.invoke(invokeChannels.notesCurrent),

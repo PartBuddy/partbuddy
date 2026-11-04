@@ -161,6 +161,21 @@ export class DimensionService {
   }
 
   /**
+   * Tries `value` for a known length parameter (a dimension label in the view, M2b-3): whether
+   * SolidCraft can build it, and the body for the ghost when one is named. Nothing changes.
+   */
+  async previewParameter(parameter: string, value: number, body: string | null): Promise<{ ok: true; preview: Uint8Array<ArrayBuffer> | null } | { ok: false; error: string }> {
+    const known = (await this.parameters()).find((entry) => entry.name === parameter);
+    if (!known || known.unit !== 'mm' || !PLAIN_NUMBER.test(known.expression)) return { ok: false, error: `${parameter} is not a plain length parameter` };
+    if (body) {
+      const preview = await this.preview(body, parameter, value);
+      return preview ? { ok: true, preview } : { ok: false, error: 'SolidCraft cannot build the part with this value' };
+    }
+    const reply = await this.batch([{ command: 'parameters.change', params: { name: parameter, expression: mm(value) } }, UNDO_ALL], true);
+    return reply.failed?.index === 1 ? { ok: true, preview: null } : { ok: false, error: (reply.failed?.error ?? 'SolidCraft refused the value').slice(0, 300) };
+  }
+
+  /**
    * Sets the parameter for real (the user pressed Enter). The name must be a parameter whose
    * value is a plain number, so a formula is never overwritten and nothing else can be set.
    */

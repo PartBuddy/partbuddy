@@ -693,3 +693,62 @@ test('a loop drawn on the top face reaches the assistant as words and, when aske
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('the dimensions of the box show in the view, and its height changes through its label (M2b-3)', async () => {
+  test.setTimeout(120_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-marks-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7905',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+
+    await page.getByTestId('dimensions').click();
+    const labels = page.getByTestId('mark-label');
+    // Box1: length, width and height, each a label on the model.
+    await expect(labels).toHaveCount(3, { timeout: 15_000 });
+    await expect(labels).toHaveText(['20', '20', '10']);
+    await page.screenshot({ path: test.info().outputPath('dimensions.png') });
+
+    await labels.nth(2).click();
+    const field = page.getByTestId('mark-field');
+    await expect(field).toHaveAttribute('data-mode', 'direct');
+    await expect(page.getByTestId('mark-input')).toHaveValue('10');
+    await page.getByTestId('mark-input').fill('15');
+    await expect(page.getByTestId('mark-status')).toHaveAttribute('data-ok', 'true', { timeout: 15_000 });
+    await expect(page.getByTestId('mark-status')).toHaveText('Preview in the view – Enter changes it directly');
+    await page.screenshot({ path: test.info().outputPath('dimension-label-preview.png') });
+    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="viewer"]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    await page.getByTestId('mark-input').press('Enter');
+
+    await expect(labels).toHaveText(['20', '20', '15'], { timeout: 15_000 });
+    const cards = page.getByTestId('step-card');
+    await expect(cards).toHaveCount(2);
+    await expect(cards.nth(1).getByTestId('step-text')).toHaveText('Dimension Box1 · Height set to 15 mm');
+
+    // "All" shows every dimension of the design; off hides them.
+    await page.getByTestId('dimensions-all').click();
+    await expect(labels).toHaveCount(3);
+    await page.keyboard.press('m');
+    await expect(labels).toHaveCount(0);
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('dimensions-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

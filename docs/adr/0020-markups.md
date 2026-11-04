@@ -157,6 +157,15 @@ shown and never overwritten (ADR 0017 rule). When it is a single user parameter 
 offers that parameter with the number of other dimensions that follow it; otherwise the change
 goes to the assistant.
 
+Built in M2b-3 (`main/solidcraft/dimensionMarks.ts`, `renderer/src/viewer/Dimensions.tsx`):
+switch `M`; the target feature is the one whose face or edge was picked last (it stays while
+nothing is selected, since a change clears the selection), else the newest active feature. Labels
+are not hidden behind the model yet; occlusion is a later refinement. The ghost preview shows the
+body named by the feature, or the only visible body. The 3D view's `role="img"` moved from the
+canvas wrapper to the `<canvas>` itself: drei's `Html` puts labels, note pins and the HUD into
+that wrapper, and inside an image role screen readers would not reach their buttons. Picking a
+feature in the timeline to show its dimensions is a follow-up.
+
 ### Delivery
 
 Three pull requests: M2b-1 notes (storage, anchors, signature, restore list, filter and policy),

@@ -3,7 +3,7 @@ import { create } from 'zustand';
 
 import type { DrawingStroke } from '../../../shared/drawing';
 
-import type { ConnectionStatus, MirroredSketch, NotesState, Structure } from '../../../shared/contract';
+import type { ConnectionStatus, DimensionMark, MirroredSketch, NotesState, Structure } from '../../../shared/contract';
 
 export interface BodyModel {
   name: string;
@@ -126,6 +126,15 @@ interface StudioState {
   /** Renders the view with the strokes to a PNG; set by the 3D view while it is shown. */
   captureView: (() => Promise<Uint8Array<ArrayBuffer> | null>) | null;
   setCaptureView: (capture: (() => Promise<Uint8Array<ArrayBuffer> | null>) | null) => void;
+  /** Dimensions in the view (M2b-3): off, those of the selected feature, or all. */
+  dimensions: 'off' | 'feature' | 'all';
+  setDimensions: (dimensions: 'off' | 'feature' | 'all') => void;
+  /** The dimensions shown, as the main process placed them. */
+  marks: DimensionMark[];
+  setMarks: (marks: DimensionMark[]) => void;
+  /** The dimension whose field is open, by mark id. */
+  openMark: string | null;
+  setOpenMark: (id: string | null) => void;
 }
 
 /** A stroke on the view: its summary for the assistant and its line on the model, lifted off the faces. */
@@ -230,6 +239,19 @@ export const useStudio = create<StudioState>()((set) => ({
   captureView: null,
   setCaptureView: (captureView) => {
     set({ captureView });
+  },
+  dimensions: 'off',
+  setDimensions: (dimensions) => {
+    set(dimensions === 'off' ? { dimensions, marks: [], openMark: null } : { dimensions });
+  },
+  marks: [],
+  setMarks: (marks) => {
+    const open = useStudio.getState().openMark;
+    set({ marks, openMark: open && marks.some((mark) => mark.id === open) ? open : null });
+  },
+  openMark: null,
+  setOpenMark: (openMark) => {
+    set({ openMark });
   },
 }));
 
