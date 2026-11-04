@@ -63,7 +63,7 @@ export function NotesSection() {
                 setOpenNote(note.status === 'orphaned' ? null : note.id);
               }}
             >
-              <span className={`mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${note.own ? 'bg-note text-on-accent' : 'border border-warning text-warning'}`} aria-hidden>
+              <span className={`mt-hairline inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${note.own ? 'bg-note text-on-accent' : 'border border-warning text-warning'}`} aria-hidden>
                 {i + 1}
               </span>
               <span className="line-clamp-2 min-w-0 break-words">{note.text}</span>

@@ -97,7 +97,8 @@ to all open-source apps: dynamic client registration (`client_id=dynamic_agent_c
   OpenAI's plan errors (usage limit, not eligible, unsupported capability) are shown as such;
   PartBuddy never switches to another billing.
 
-**Gemini: the user's Gemini CLI over ACP.** Google states that accessing the services behind
+**Gemini: the user's Gemini CLI over ACP (dropped on 2026-11-04, not built: Claude Code and ChatGPT
+cover the subscriptions, and each further route has to be kept working).** Google states that accessing the services behind
 Gemini CLI with third-party software using Gemini CLI's OAuth violates its terms [research 209];
 driving the unmodified Gemini CLI through its own ACP mode is the documented integration path.
 Built in a later change with `@agentclientprotocol/sdk`.

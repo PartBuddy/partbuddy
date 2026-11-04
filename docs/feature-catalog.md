@@ -6,8 +6,11 @@ usable without a terminal. Sources of the patterns: [research § Role models](re
 
 ## Direction and roadmap
 
-Decided by the product owner in the idea round of 2026-11-04. It sets the order of work; the
-MoSCoW tables below stay the reference for each feature's benefit.
+Decided by the product owner in the idea round of 2026-11-04 and trimmed the same evening: M2 is
+done without variants, the next step is a practice run (five real parts with the real assistant,
+noting what gets in the way), then M7 comes first; M3 keeps only local models for later, M6 only the
+exploded view. It sets the order of work; the MoSCoW tables below stay the reference for each
+feature's benefit.
 
 **Guiding idea:** PartBuddy is a real CAD workspace for makers, with SolidCraft as the engine behind
 it ([ADR 0016](adr/0016-headless-solidcraft.md)). The user points at geometry and changes it; the
@@ -19,12 +22,13 @@ with a clarification card when there are several sensible ways.
 | Milestone | Content |
 | --- | --- |
 | M1 Workspace | Layout with a structure tree (bodies, sketches, features) on the left, the timeline at the bottom and the chat on the right. CAD look: model edges and silhouettes, studio lighting, pre-highlight on hover and outline selection for faces, edges and vertices, orthographic and perspective views with standard views. Selection HUD: a dimension field at the selection (direct or through the assistant, see above), actions that fit the selection (fillet, chamfer, extrude by, hole, shell), free text to the assistant with the selection attached, multiple selection shown as chips in the chat, and measurements of the selection. |
-| M2 Assistant work log and variants | The chat as a work log: plan, steps and result; every step a card with a preview and plain text that highlights its faces on hover and can be gone back to ([ADR 0018](adr/0018-work-log.md)); tool details only on demand. Markups: notes on the model (ADR 0006), drawing on the view (sent to the assistant as text, an image only on request), dimensions of the selected feature shown in the view, clearer before/after of the last step later ([ADR 0020](adr/0020-markups.md)). Variants: "show me three", built one after another in the same design, each kept as a SolidCraft checkpoint with a preview image, the user browses and picks one. |
-| M3 Providers | Provider manager for local models ([ADR 0011](adr/0011-provider-manager.md), #26), Gemini CLI over ACP (#17), OpenCode over ACP (#27). |
+| M2 Assistant work log and markups (done) | The chat as a work log: plan, steps and result; every step a card with a preview and plain text that highlights its faces on hover and can be gone back to ([ADR 0018](adr/0018-work-log.md)); tool details only on demand. Markups: notes on the model (ADR 0006), drawing on the view (sent to the assistant as text, an image only on request), dimensions of the selected feature shown in the view, clearer before/after of the last step later ([ADR 0020](adr/0020-markups.md)). Variants ("show me three") were built and dropped on 2026-11-04 ([ADR 0021](adr/0021-variants.md), rejected). |
+| Practice run (next) | Five parts the product owner really needs, built with the real assistant (Claude Code, ChatGPT); what gets in the way decides the next work. |
+| M7 Ready to print (after the practice run) | Printer and material profile per project, the "ready to print" indicator with reasons that point at the spot on the model (ADR 0010), fit assistant (two faces: push, clamp, slide, turn), print orientation proposal that knows where the load acts, measured values after printing feeding corrections. |
+| M3 Local models (later) | Provider manager for local models ([ADR 0011](adr/0011-provider-manager.md), #26). Gemini CLI over ACP (#17) and OpenCode over ACP (#27) were dropped on 2026-11-04: Claude Code and ChatGPT cover the subscriptions, each further route has to be kept working. |
 | M4 Building blocks and templates | Function blocks inserted parametrically on a picked face: heat-set insert seat, countersunk screw hole, snap hook, hinge, nut trap, slot. Template gallery as starting points (box with lid, wall holder, cable clip, housing, adapter). New parts also from an opened STEP, STL or 3MF, and from a rough 2D sketch drawn with the mouse. |
 | M5 Photo import | Holder for the object in a photo, rebuilding a part from photos, a photographed hand sketch with dimensions, and a photo as background for comparing outlines (`compare_picture`). The scale comes from the user: the assistant asks for the two or three critical dimensions with a hint where and how to measure. |
-| M6 Show and move | Own versions, inspired by SOMA but not copied. Exploded view: PartBuddy works out the direction each part comes off (contact faces and SolidCraft's joints), a slider from assembled to apart, parts adjustable by dragging, explosion lines, also for the bodies of a single part; assembly steps that bring the parts together in order and give an illustrated assembly guide for the sharing package. Animation from SolidCraft's real joints (slider or playback: hinge, slide, gear) and from a sequence the assistant writes as data (keyframes per joint or part, editable in a timeline; no generated code runs), with collision display during motion and a turntable. Renders inside the app by GPU path tracing: studio light, soft shadows, PLA/PETG-like materials, transparent background, plus videos of animations and the turntable; no extra install. |
-| M7 Ready to print | Printer and material profile per project, the "ready to print" indicator with reasons that point at the spot on the model (ADR 0010), fit assistant (two faces: push, clamp, slide, turn), print orientation proposal that knows where the load acts, measured values after printing feeding corrections. |
+| M6 Exploded view | For prints of several parts: PartBuddy works out the direction each part comes off (contact faces and SolidCraft's joints), a slider from assembled to apart, explosion lines, also for the bodies of a single part. Animation, renders by GPU path tracing and videos were dropped on 2026-11-04: little use for printed parts. |
 
 Also wanted, not yet placed in a milestone: project overview with preview tiles, named versions per
 part with compare and restore, and a sharing package (3MF, STEP, preview images, description) for

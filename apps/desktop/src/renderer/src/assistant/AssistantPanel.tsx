@@ -297,7 +297,7 @@ function DrawingChip() {
           aria-hidden
           className="inline-flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
         >
-          {image ? <span className="size-1.5 rounded-full bg-on-accent" /> : null}
+          {image ? <span className="size-dot rounded-full bg-on-accent" /> : null}
         </span>
         {t('assistant.drawingImage')}
         </CheckboxButton>

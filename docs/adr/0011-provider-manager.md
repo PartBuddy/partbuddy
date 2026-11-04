@@ -49,7 +49,7 @@ through another service.
 * **ChatGPT plan** (Sign in with ChatGPT): issued client ID, host ID and OAuth tokens in the Windows
   credential store, one profile per ChatGPT account; refresh near expiry; sign-out revokes the
   refresh token.
-* **External agent** (Claude Code, later Gemini CLI): detection of the installed program and its
+* **External agent** (Claude Code; a Gemini CLI route was dropped on 2026-11-04): detection of the installed program and its
   version, and the sign-in state from the program itself (`claude auth status --json`: signed in,
   method, plan). The manager stores no credentials for these; sign-in runs in the program's own
   flow.
