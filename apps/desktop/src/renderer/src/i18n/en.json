@@ -71,5 +71,42 @@
     "units": "mm",
     "mesh": "{bodies, plural, one {# body} other {# bodies}} · {faces, plural, one {# face} other {# faces}} · {triangles} triangles",
     "noFace": "No face selected"
+  },
+  "assistant": {
+    "title": "Assistant",
+    "preview": "Preview",
+    "plan": "{plan} subscription",
+    "apiKey": "API key",
+    "signedIn": "Claude Code {version} · {plan}",
+    "state": {
+      "checking": "Looking for Claude Code",
+      "notInstalled": "Claude Code not installed",
+      "signedOut": "Not signed in to Claude Code",
+      "ready": "Ready",
+      "busy": "Working",
+      "unavailable": "Claude Code not available"
+    },
+    "notInstalledTitle": "Claude Code is not installed",
+    "notInstalledBody": "PartBuddy uses your own Claude Code with your Claude subscription. Install Claude Code from Anthropic, then look again.",
+    "signedOutTitle": "Sign in to Claude Code",
+    "signedOutBody": "Claude Code opens Anthropic’s sign-in page in your browser. PartBuddy never sees your account data.",
+    "signIn": "Sign in with Claude",
+    "refresh": "Check again",
+    "unavailableTitle": "Claude Code could not be started",
+    "unavailableBody": "Details: {detail}",
+    "empty": "Describe what SolidCraft should build or change. Every step appears in the 3D view.",
+    "working": "Claude is working",
+    "needsSolidCraft": "Connect SolidCraft first; the assistant works on the open design.",
+    "composer": "Message to the assistant",
+    "placeholder": "For example: a 40 × 20 × 5 mm plate with two 4 mm holes",
+    "send": "Send",
+    "stop": "Stop",
+    "stopped": "Stopped before the answer was complete.",
+    "tool": {
+      "running": "running",
+      "done": "done",
+      "failed": "failed",
+      "denied": "refused by PartBuddy"
+    }
   }
 }
