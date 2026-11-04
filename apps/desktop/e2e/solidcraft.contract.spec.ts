@@ -442,6 +442,7 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     await card.getByRole('button', { name: 'Go' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
     await expect(page.getByTestId('step-card').getByTestId('step-text')).toHaveText('Box 20 × 20 × 10 mm');
+    await expect(page.getByTestId('step-card').getByTestId('step-preview')).toHaveAttribute('src', /^data:image\//, { timeout: 10_000 });
     await expect(card.getByTestId('question-answered')).toHaveText('Approved, the assistant builds it');
     await expect(card.getByRole('button', { name: 'Go' })).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('plan-approved.png') });

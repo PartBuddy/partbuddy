@@ -236,6 +236,8 @@ export function rowsOf(items: ConversationItem[]): Row[] {
       continue;
     }
     if (item.kind === 'tool' && item.step) continue;
+    // A question or plan shows as its own card; its tool call adds nothing unless it failed.
+    if (item.kind === 'tool' && (item.name === 'partbuddy_ask' || item.name === 'partbuddy_plan') && item.ok !== false) continue;
     if (item.kind === 'tool' && item.decision === 'allowed') {
       const last = rows.at(-1);
       if (last?.kind === 'queries') last.tools.push(item);
