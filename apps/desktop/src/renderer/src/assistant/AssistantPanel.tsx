@@ -8,6 +8,7 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
 import { Busy, StatusDot } from '../ui/Feedback';
+import { Markdown } from './Markdown';
 import { selectedStatus, useAssistant, type ConversationItem } from './store';
 
 function statusLabel(t: ReturnType<typeof useTranslation>['t'], status: AgentStatus): string {
@@ -151,9 +152,9 @@ function Item({ item }: { item: ConversationItem }) {
       return <p className="ml-6 self-end rounded-lg bg-accent-subtle px-3 py-2 text-md whitespace-pre-wrap text-text">{item.text}</p>;
     case 'assistant':
       return (
-        <p className="mr-6 text-md whitespace-pre-wrap text-text" data-testid="assistant-text">
-          {item.text}
-        </p>
+        <div className="mr-6" data-testid="assistant-text">
+          <Markdown text={item.text} streaming={item.open} />
+        </div>
       );
     case 'tool': {
       const icon =
