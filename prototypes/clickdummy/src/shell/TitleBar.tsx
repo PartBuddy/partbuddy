@@ -5,6 +5,7 @@ import { designRevision } from '../mock/design';
 import { useStudio } from '../state/store';
 import { Badge, StatusDot, VerificationBadges, type Tone } from '../ui/Badge';
 import { IconButton } from '../ui/Button';
+import { BrandMark } from './BrandMark';
 import { ProviderMenu } from './ProviderMenu';
 import { SettingsMenu } from './SettingsMenu';
 
@@ -19,6 +20,7 @@ export function TitleBar() {
   return (
     <header className="flex h-titlebar shrink-0 items-center gap-3 border-b border-border bg-surface px-3">
       <div className="flex items-center gap-2">
+        <BrandMark />
         <span className="font-display text-lg font-semibold text-text">PartBuddy</span>
         <Badge>{t('app.prototype')}</Badge>
       </div>
