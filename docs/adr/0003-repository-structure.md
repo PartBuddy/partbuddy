@@ -28,7 +28,7 @@ split (runnable apps, shared packages), pnpm enforces strict dependency boundari
 repository keeps ADRs, code and CI together.
 
 ```text
-.github/       workflows, issue forms, PR template, CODEOWNERS, Dependabot
+.github/       workflows, issue forms, PR template, CODEOWNERS (Renovate config at the root)
 apps/          runnable programs (created with the MVP)
   desktop/     Electron main, preload and renderer entry
   cad-tools/   Python sidecar (uv project): mesh, overhang and print-gate tools

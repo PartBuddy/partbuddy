@@ -61,7 +61,8 @@ Own code (this ADR is its record):
   mapped into one reasoning part.
 * **Skill loader** for the open Agent Skills format (`SKILL.md` with frontmatter, progressive
   loading through a `load_skill` tool), so the existing skills stay portable.
-* **Retrieval** over the rule base with SQLite FTS5 and exact ID lookup first, sqlite-vec for
+* **Retrieval glue** (indexing, rank fusion) over the rule base on the ready-made SQLite FTS5 with
+  exact ID lookup first and sqlite-vec for
   semantic recall second.
 * Gates and the rule engine: [ADR 0010](0010-rule-engine-and-check-gates.md). Provider manager and
   local-server detection: [ADR 0011](0011-provider-manager.md).

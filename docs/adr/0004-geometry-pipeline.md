@@ -33,7 +33,7 @@ Evidence: [research § Geometry pipeline](../research.md#2-geometry-pipeline).
 Chosen option: "Face-tagged 3MF plus `model.faces`", because it is the only path that keeps
 SolidCraft's own face numbering and names. Per step:
 
-1. The main process holds a control-channel subscription and reacts to
+1. The SolidCraft supervisor in the main process (own glue) holds a control-channel subscription and reacts to
    `design.changed {document_id, revision}`.
 2. One `batch` call: `file.export` (3mf-tagged) and `model.faces` for each changed body.
 3. A worker unzips with fflate, parses `ft:face` per triangle into typed arrays and joins the

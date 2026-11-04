@@ -22,7 +22,7 @@ Phase 1 (research, concept, click dummy, repository) is complete; no product cod
 
 | Area | State |
 | --- | --- |
-| Research and decisions | [Research](docs/research.md), [building blocks](docs/building-blocks.md), [ADRs](docs/adr/) (proposed) |
+| Research and decisions | [Research](docs/research.md), [building blocks](docs/building-blocks.md), [ADRs](docs/adr/) (0001 and 0009 accepted, the others proposed) |
 | Concept | [Architecture](docs/architecture.md), [design system](docs/design-system.md), [feature catalogue](docs/feature-catalog.md) |
 | Click dummy | [`prototypes/clickdummy`](prototypes/clickdummy): main view with mock data, real sample geometry |
 | Repository | CI, privacy and security checks, release automation; [GitHub setup](docs/github-setup.md) pending |

@@ -161,7 +161,7 @@ Decision: [ADR 0004](adr/0004-geometry-pipeline.md). Facts about SolidCraft:
 
 | Path | Face mapping to SolidCraft | Edges | Cost per step | Licence | Verdict |
 |---|---|---|---|---|---|
-| Tagged 3MF + `model.faces` (fflate 0.8.3, 2026-05-16, + own parser) | Exact index; joined to persistent names per revision | Derived where neighbouring triangles carry different `ft:face`; named `faceA\|faceB` like SolidCraft edges [46] | Parse 2.0–18.3 ms (**measured**) | MIT | **Chosen** |
+| Tagged 3MF + `model.faces` (fflate 0.8.3, 2026-05-16 [1], + own parser) | Exact index; joined to persistent names per revision | Derived where neighbouring triangles carry different `ft:face`; named `faceA\|faceB` like SolidCraft edges [46] | Parse 2.0–18.3 ms (**measured**) | MIT | **Chosen** |
 | STEP + occt-import-js 0.0.23 (2024-12-03) | `brep_faces` triangle ranges [50], but the STEP face set differs: 22 vs 30, 70 vs 110, 346 vs 410 faces (cylinder halves merged) (**measured**) | None in output (**measured**) | 40.6–650.8 ms plus STEP export 12–230 ms (**measured**) | LGPL-2.1 | Fallback for foreign STEP only |
 | replicad 1.2.0 (2026-10-23) on replicad-opencascadejs 1.1.0 (2026-09-04) | `faceGroups` with `faceId` | `meshEdges()` → `edgeGroups` [51] | Not measured | MIT / LGPL-2.1-only | Alternative fallback |
 | opencascade.js 1.1.1 (2020-09-27) | Full OCCT API | Do it yourself | – | LGPL-2.1-only | Rejected: stale, newer only as beta [1] |
@@ -638,9 +638,9 @@ Substitutes used:
 
 | Missing feature | Substitute |
 |---|---|
-| Secret scanning, push protection | gitleaks v8.30.1 (2026-03-21) in the pre-commit hook and CI ([ADR 0009](adr/0009-privacy-guardrails.md)) |
+| Secret scanning, push protection | gitleaks v8.30.1 (2026-03-21) [205] in the pre-commit hook and CI ([ADR 0009](adr/0009-privacy-guardrails.md)) |
 | Code scanning | typescript-eslint strict type-checked rules, zizmor v1.31.1 (2026-10-15), actionlint v1.7.12 (2026-03-30) [2] |
-| Dependency review (licence and vulnerability diff) | `pnpm audit` gate in CI; a licence gate that fails on GPL, AGPL and SSPL in the production dependency tree, computed from the `pnpm sbom` output [202]. ADR 0007 still names the dependency-review action, which is unavailable on this plan (section 8). |
+| Dependency review (licence and vulnerability diff) | `pnpm audit` gate in CI; a licence gate that fails on GPL, AGPL and SSPL in the production dependency tree, computed from the `pnpm sbom` output [202]. ADR 0007 names this licence gate. |
 | Dependabot alerts with a two-document pnpm lockfile | Renovate (hosted app, `minimumReleaseAge: "7 days"`, digest-pinned actions) [109] plus `pnpm audit` |
 | Windows minutes budget | Windows runners only for packaging and E2E; everything else on Linux |
 
@@ -660,7 +660,7 @@ Substitutes used:
 | MCP C# SDK licence | Stack study: MIT (not re-verified); AI study: Apache-2.0 [21] | Not used |
 | Mistral Large 4 price | Model page 0.70 / 2.10 vs. pricing FAQ 0.5 / 1.5 [89][90] | Prices come from models.dev data at build time |
 | Tauri Stronghold | Documented without deprecation; maintainer says removal in v3; 3.0.0 alpha published | Not used |
-| Licence gate in CI | ADR 0007 names the dependency-review action, which is unavailable on a private personal repository [200] | Substitute in section 7; ADR 0007 should be updated |
+| Licence gate in CI | Resolved: ADR 0007 and the security workflow use the licence gate instead of the dependency-review action [200] | – |
 
 **Open questions and gaps**
 
@@ -683,7 +683,7 @@ Substitutes used:
    two-document lockfile not verified [202][109]; `node:sqlite` is a release candidate and its
    exposure in Electron's Node not verified [204]; electron-trpc 1.0.0 to be re-evaluated after
    2026-11-06.
-6. Python sidecar: the installer size added by Python (ADR 0012 states 60–100 MB) has no measurement
+6. Python sidecar: the installer size added by Python has no measurement yet; ADR 0012 defers it to the first sidecar build
    in the research notes; antivirus behaviour with unsigned bundled `python.exe` not verified.
 7. Not re-verified: the Chromium licence file name in current Electron builds; the EU-US DPF
    developments of October 2026 (secondary source [160]).
@@ -894,3 +894,4 @@ Substitutes used:
 202. pnpm, `pnpm sbom`, https://pnpm.io/cli/sbom, accessed 2026-11-04
 203. Plasticity (software), Wikipedia, https://en.wikipedia.org/wiki/Plasticity_(software), accessed 2026-11-04
 204. Node.js `node:sqlite` (v24 and current), https://nodejs.org/docs/latest-v24.x/api/sqlite.html ; https://nodejs.org/api/sqlite.html, accessed 2026-11-04
+205. gitleaks releases (v8.30.1, 2026-03-21), https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1, accessed 2026-11-04
