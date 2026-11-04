@@ -11,12 +11,12 @@
     "preview": "vite preview --port 4173 --strictPort",
     "lint": "eslint .",
     "typecheck": "tsc6 --noEmit",
-    "test": "vitest run",
     "test:e2e": "playwright test",
     "screens": "playwright test --project=screens"
   },
   "dependencies": {
     "@partbuddy/design-tokens": "workspace:*",
+    "@partbuddy/geometry": "workspace:*",
     "@react-three/drei": "10.7.9",
     "@react-three/fiber": "9.8.2",
     "@tabler/icons-react": "3.50.0",
@@ -51,7 +51,6 @@
     "tailwindcss-react-aria-components": "2.2.0",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "8.72.1",
-    "vite": "8.3.5",
-    "vitest": "5.0.5"
+    "vite": "8.3.5"
   }
 }

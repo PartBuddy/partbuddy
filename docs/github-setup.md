@@ -54,7 +54,7 @@ CodeQL workflow is added.
 | 9 | Ruleset for `main`: no deletion, no force push, linear history, signed commits, pull request with resolved threads and squash merge, required checks |
 
 Required status checks (names of the CI jobs): "Lint, typecheck, test, build",
-"Click dummy flows (Playwright)", "Scan full history", "Workflow security (zizmor)",
+"Click dummy flows (Playwright)", "Desktop app flows (Playwright Electron)", "Scan full history", "Workflow security (zizmor)",
 "Vulnerabilities and licences". `actionlint` runs only when workflows change and
 `commitlint` only on pull requests, so they are not required checks; both still block by failing.
 

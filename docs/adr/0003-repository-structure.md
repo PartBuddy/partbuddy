@@ -34,6 +34,7 @@ apps/          runnable programs (created with the MVP)
   cad-tools/   Python sidecar (uv project): mesh, overhang and print-gate tools
 packages/      TypeScript libraries shared by apps and prototypes
   design-tokens/   colours, spacing, typography, radii, elevation (light and dark)
+  geometry/        tagged-3MF parser, face table, edges, render buffers and fixtures (ADR 0004)
 prototypes/    throw-away UI prototypes, never imported by product code
   clickdummy/  Phase 1 main-view prototype with mock data
 tools/         developer tooling

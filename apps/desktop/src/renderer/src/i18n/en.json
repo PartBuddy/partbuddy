@@ -1,0 +1,75 @@
+{
+  "app": {
+    "name": "PartBuddy",
+    "design": "Design",
+    "noDesign": "No design"
+  },
+  "units": {
+    "mm": "{value, number, ::.## unit/millimeter}",
+    "mm2": "{value, number, ::.#} mm²"
+  },
+  "solidcraft": {
+    "label": "SolidCraft",
+    "searching": "Looking for SolidCraft",
+    "notInstalled": "SolidCraft not installed",
+    "notRunning": "SolidCraft not running",
+    "starting": "Starting SolidCraft",
+    "connecting": "Connecting to SolidCraft",
+    "connected": "SolidCraft · revision {revision}",
+    "rebuilding": "SolidCraft · rebuilding",
+    "lost": "Connection to SolidCraft lost",
+    "failed": "SolidCraft could not be reached"
+  },
+  "connection": {
+    "notInstalledTitle": "SolidCraft is not installed",
+    "notInstalledBody": "PartBuddy shows and changes designs through SolidCraft, a free CAD program. Install SolidCraft, then look again.",
+    "notRunningTitle": "SolidCraft is not running",
+    "notRunningBody": "Start SolidCraft here, or open it yourself; PartBuddy finds it on its own.",
+    "startingTitle": "Starting SolidCraft",
+    "startingBody": "The SolidCraft window opens. Its control channel takes up to half a minute.",
+    "connectingTitle": "Connecting to SolidCraft",
+    "lostTitle": "The connection to SolidCraft was lost",
+    "lostBody": "PartBuddy keeps the last model and connects again as soon as SolidCraft answers.",
+    "failedTitle": "SolidCraft could not be reached",
+    "failedBody": "Details: {detail}",
+    "start": "Start SolidCraft",
+    "retry": "Look again",
+    "emptyTitle": "No body in the design",
+    "emptyBody": "Create a body in SolidCraft or let the assistant design one. It appears here after every step.",
+    "mirrorFailedTitle": "The model could not be mirrored",
+    "mirrorFailedBody": "PartBuddy shows the last good state. Details: {detail}"
+  },
+  "viewer": {
+    "canvasLabel": "3D view of the design",
+    "selection": "Selected face",
+    "surface": {
+      "plane": "Plane",
+      "cylinder": "Cylinder",
+      "other": "Surface"
+    },
+    "body": "Body",
+    "radius": "Radius",
+    "area": "Area",
+    "anchor": "Name",
+    "anchorExact": "from history",
+    "anchorGeometric": "geometric",
+    "loading": "Loading model",
+    "rebuilding": "Rebuilding in SolidCraft",
+    "errorTitle": "The model could not be read",
+    "errorBody": "The mirrored file is damaged or has an unknown format ({message}).",
+    "hint": "Click a face to select it. Drag to orbit, right-drag to pan, scroll to zoom.",
+    "cube": {
+      "right": "Right",
+      "left": "Left",
+      "back": "Back",
+      "front": "Front",
+      "top": "Top",
+      "bottom": "Bottom"
+    }
+  },
+  "status": {
+    "units": "mm",
+    "mesh": "{bodies, plural, one {# body} other {# bodies}} · {faces, plural, one {# face} other {# faces}} · {triangles} triangles",
+    "noFace": "No face selected"
+  }
+}
