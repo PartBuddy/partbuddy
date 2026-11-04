@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Fails when a production dependency carries a licence that is incompatible with closed-source
-// commercial distribution. Reads `pnpm licenses list --prod --json` (pnpm's own licence report).
+// Fails when a production dependency of any workspace package carries a licence that is
+// incompatible with closed-source commercial distribution. Reads pnpm's own licence report
+// (`pnpm licenses list --prod --json`) in every workspace package.
 // Exceptions are allowed only for packages listed in ALLOWED_EXCEPTIONS with a reason and an ADR.
 
 import { execFileSync, execSync } from 'node:child_process';
@@ -15,32 +16,34 @@ const ALLOWED_EXCEPTIONS = new Map([
 // Run through `pnpm licenses:check`: pnpm passes its own executable or entry script in
 // npm_execpath, which avoids platform-specific shims. Without it, a fixed command string goes
 // through the shell.
-const args = ['licenses', 'list', '--prod', '--json'];
 const pnpmPath = process.env.npm_execpath;
-const options = { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 };
-let raw;
-if (pnpmPath && /\.[cm]?js$/.test(pnpmPath)) {
-  raw = execFileSync(process.execPath, [pnpmPath, ...args], options);
-} else if (pnpmPath) {
-  raw = execFileSync(pnpmPath, args, options);
-} else {
-  raw = execSync(`pnpm ${args.join(' ')}`, options);
+function pnpm(args, cwd) {
+  const options = { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, cwd };
+  if (pnpmPath && /\.[cm]?js$/.test(pnpmPath)) return execFileSync(process.execPath, [pnpmPath, ...args], options);
+  if (pnpmPath) return execFileSync(pnpmPath, args, options);
+  return execSync(`pnpm ${args.join(' ')}`, options);
 }
-const report = raw.trim() ? JSON.parse(raw) : {};
 
+const packages = JSON.parse(pnpm(['ls', '--recursive', '--depth', '-1', '--json'], process.cwd()));
 const violations = [];
-for (const [license, packages] of Object.entries(report)) {
-  if (!DENIED.some((pattern) => pattern.test(license))) continue;
-  for (const pkg of packages) {
-    if (ALLOWED_EXCEPTIONS.has(pkg.name)) continue;
-    violations.push(`${pkg.name}@${(pkg.versions ?? [pkg.version]).join(', ')}: ${license}`);
+let total = 0;
+
+for (const pkg of packages) {
+  const raw = pnpm(['licenses', 'list', '--prod', '--json'], pkg.path).trim();
+  const report = raw ? JSON.parse(raw) : {};
+  for (const [license, entries] of Object.entries(report)) {
+    total += entries.length;
+    if (!DENIED.some((pattern) => pattern.test(license))) continue;
+    for (const entry of entries) {
+      if (ALLOWED_EXCEPTIONS.has(entry.name)) continue;
+      violations.push(`${pkg.name}: ${entry.name}@${(entry.versions ?? [entry.version]).join(', ')} (${license})`);
+    }
   }
 }
 
-const total = Object.values(report).reduce((sum, packages) => sum + packages.length, 0);
 if (violations.length > 0) {
   console.error('Licences not allowed in shipped code:');
   for (const line of violations) console.error(`  ${line}`);
   process.exit(1);
 }
-console.log(`Licence check passed for ${total} production packages.`);
+console.log(`Licence check passed: ${total} production dependencies in ${packages.length} workspace packages.`);
