@@ -165,7 +165,9 @@
     "allowApiBilling": "Trotzdem mit API-Key nutzen (getrennt abgerechnet)",
     "subscriptionOnly": "Nur Abo verwenden",
     "withSelection": "Mit Auswahl {face}",
-    "selectionGoesWith": "{kind, select, face {Ausgewählte Fläche} edge {Ausgewählte Kante} other {Ausgewählte Ecke}} geht mit: {name}"
+    "selectionGoesWith": "{kind, select, face {Ausgewählte Fläche} edge {Ausgewählte Kante} other {Ausgewählte Ecke}} geht mit: {name}",
+    "selectionsGoWith": "{count} Elemente gehen mit:",
+    "removeSelection": "{name} aus der Auswahl nehmen"
   },
   "live": {
     "step": "Schritt {number} · {label}",
@@ -211,6 +213,27 @@
     },
     "noAssistant": "Kein Parameter steuert das allein; der Assistent ist nicht bereit",
     "ask": "Sag der KI, was hier passieren soll …",
-    "assistantRequest": "Ändere {what} von {name} von {from} mm auf {to} mm. Behalte den Rest des Teils bei."
+    "assistantRequest": "Ändere {what} von {name} von {from} mm auf {to} mm. Behalte den Rest des Teils bei.",
+    "selected": "{count} Elemente ausgewählt",
+    "actions": "Aktionen",
+    "action": {
+      "fillet": "Abrunden",
+      "chamfer": "Fasen",
+      "extrude": "Extrudieren",
+      "hole": "Bohrung",
+      "shell": "Schale"
+    },
+    "size": {
+      "fillet": "Radius",
+      "chamfer": "Fase",
+      "extrude": "Abstand (− schneidet)",
+      "hole": "Durchmesser",
+      "shell": "Wandstärke"
+    },
+    "invalid": "Gib eine Zahl ein",
+    "actionReady": "Vorschau in der Ansicht – Enter übernimmt, Esc bricht ab",
+    "actionRefused": "SolidCraft kann das so nicht bauen: {detail}",
+    "distance": "Abstand {value} mm",
+    "angle": "Winkel {value}°"
   }
 }

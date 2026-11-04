@@ -85,7 +85,10 @@ interface StudioState {
   setNotice: (notice: Notice | null) => void;
   model: ModelState;
   hover: Pick | null;
+  /** The latest picked element; the dimension field and the HUD belong to it. */
   selection: Pick | null;
+  /** Everything selected, in picking order (Ctrl- or Shift-click adds and removes, M1b-2). */
+  selections: Pick[];
   changes: LiveChanges | null;
   followChanges: boolean;
   latency: MirrorLatency | null;
@@ -96,7 +99,13 @@ interface StudioState {
   setFollowChanges: (follow: boolean) => void;
   setHover: (pick: Pick | null) => void;
   select: (pick: Pick | null) => void;
+  /** Adds the pick to the selection, or removes it when it is selected already. */
+  toggle: (pick: Pick) => void;
+  deselect: (pick: Pick) => void;
 }
+
+/** As many as one message to the assistant may carry (contract: 20). */
+const MAX_SELECTIONS = 20;
 
 export const useStudio = create<StudioState>()((set) => ({
   connection: { state: 'searching', owned: false, mirror: 'idle' },
@@ -119,6 +128,7 @@ export const useStudio = create<StudioState>()((set) => ({
   },
   hover: null,
   selection: null,
+  selections: [],
   changes: null,
   followChanges: false,
   latency: null,
@@ -127,10 +137,10 @@ export const useStudio = create<StudioState>()((set) => ({
   },
   setModel: (model) => {
     // Face indices change on every rebuild (ADR 0004), so a selection does not survive one.
-    set({ model, hover: null, selection: null });
+    set({ model, hover: null, selection: null, selections: [] });
   },
   showRevision: (model, changes, latency) => {
-    set({ model, changes, latency, hover: null, selection: null });
+    set({ model, changes, latency, hover: null, selection: null, selections: [] });
   },
   clearChanges: () => {
     set({ changes: null });
@@ -143,7 +153,18 @@ export const useStudio = create<StudioState>()((set) => ({
     if (!samePick(hover, useStudio.getState().hover)) set({ hover });
   },
   select: (selection) => {
-    set({ selection });
+    set({ selection, selections: selection ? [selection] : [] });
+  },
+  toggle: (pick) => {
+    const current = useStudio.getState().selections;
+    const selections = current.some((entry) => samePick(entry, pick))
+      ? current.filter((entry) => !samePick(entry, pick))
+      : [...current, pick].slice(-MAX_SELECTIONS);
+    set({ selections, selection: selections.at(-1) ?? null });
+  },
+  deselect: (pick) => {
+    const selections = useStudio.getState().selections.filter((entry) => !samePick(entry, pick));
+    set({ selections, selection: selections.at(-1) ?? null });
   },
 }));
 

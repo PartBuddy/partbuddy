@@ -5,7 +5,7 @@ export interface AgentBackend {
   status(): AgentStatus;
   refresh(): Promise<AgentStatus>;
   /** `selection`: what the user selected in PartBuddy's view, sent along as a short note. */
-  send(text: string, selection?: Selection): Promise<void>;
+  send(text: string, selections?: Selection[]): Promise<void>;
   stop(): Promise<void>;
   signIn(): void;
   signOut(): Promise<void>;
@@ -45,8 +45,8 @@ export class Assistant {
     return this.state();
   }
 
-  send(text: string, selection?: Selection): Promise<void> {
-    return this.current().send(text, selection);
+  send(text: string, selections: Selection[] = []): Promise<void> {
+    return this.current().send(text, selections);
   }
 
   stop(): Promise<void> {

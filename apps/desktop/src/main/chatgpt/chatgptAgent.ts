@@ -101,7 +101,7 @@ export class ChatGptAgent implements AgentBackend {
     await this.stop();
   }
 
-  async send(text: string, selection?: Selection): Promise<void> {
+  async send(text: string, selections: Selection[] = []): Promise<void> {
     if (this.status().state !== 'ready') throw new Error(`assistant is ${this.status().state}`);
     const upstream = await this.options.tools();
     if (!upstream) {
@@ -109,7 +109,7 @@ export class ChatGptAgent implements AgentBackend {
       return;
     }
     this.model ??= await this.pickModel();
-    const message = composeMessage(text, selection);
+    const message = composeMessage(text, selections);
     this.options.event(message.label ? { type: 'user', text, selection: message.label } : { type: 'user', text });
     this.history.push({ role: 'user', content: message.prompt });
     this.busy = true;

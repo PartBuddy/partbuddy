@@ -24,6 +24,9 @@ export const invokeChannels = {
   designOpenInSolidCraft: 'design:open-in-solidcraft',
   designProbeDimension: 'design:probe-dimension',
   designApplyDimension: 'design:apply-dimension',
+  designPreviewAction: 'design:preview-action',
+  designApplyAction: 'design:apply-action',
+  designMeasure: 'design:measure',
 } as const;
 
 export const eventChannels = {

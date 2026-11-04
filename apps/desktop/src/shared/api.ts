@@ -3,12 +3,16 @@ import type {
   AgentKind,
   AppInfo,
   AssistantState,
+  ActionPreviewResult,
   ConnectionStatus,
+  DesignAction,
   DimensionApply,
   DimensionProbe,
   DimensionProbeResult,
   ExportFormat,
   ExportResult,
+  MeasureItem,
+  MeasureResult,
   Selection,
   MirrorRevision,
   TitleBarColors,
@@ -45,6 +49,11 @@ export interface PartBuddyApi {
     probeDimension(probe: DimensionProbe): Promise<DimensionProbeResult>;
     /** Sets the parameter a probe found. */
     applyDimension(apply: DimensionApply): Promise<void>;
+    /** Builds an action (fillet, chamfer, extrude, hole, shell) on trial for the ghost preview. */
+    previewAction(action: DesignAction): Promise<ActionPreviewResult>;
+    applyAction(action: DesignAction): Promise<void>;
+    /** Distance and angle between two selections. */
+    measure(items: MeasureItem[]): Promise<MeasureResult>;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */
@@ -63,7 +72,7 @@ export interface PartBuddyApi {
     /** Let Claude Code run with an API key, billed separately; off by default. */
     allowApiBilling(allow: boolean): Promise<AssistantState>;
     /** Sends a message; what is selected in the view goes with it as a short note. */
-    send(text: string, selection?: Selection): Promise<void>;
+    send(text: string, selections?: Selection[]): Promise<void>;
     stop(): Promise<void>;
     /** Start the selected route's sign-in flow; it opens the browser. */
     signIn(): Promise<void>;

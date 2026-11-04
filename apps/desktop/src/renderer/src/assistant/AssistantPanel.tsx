@@ -6,7 +6,7 @@ import { Button as AriaButton, Form, TextArea, TextField, ToggleButton, ToggleBu
 import type { AgentStatus } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
-import { selectionName, selectionOf } from '../viewer/viewState';
+import { selectionName, selectionsOf } from '../viewer/viewState';
 import { Button } from '../ui/Button';
 import { Busy, StatusDot } from '../ui/Feedback';
 import { Markdown } from './Markdown';
@@ -249,8 +249,10 @@ export function AssistantPanel() {
   const items = useAssistant((s) => s.items);
   const connected = useStudio((s) => s.connection.state === 'connected');
   const model = useStudio((s) => s.model);
-  const pick = useStudio((s) => s.selection);
-  const selection = selectionOf(model, pick);
+  const picks = useStudio((s) => s.selections);
+  const deselect = useStudio((s) => s.deselect);
+  const selections = selectionsOf(model, picks);
+  const [selection] = selections;
   const [draft, setDraft] = useState('');
   const list = useRef<HTMLDivElement>(null);
   const busy = status.state === 'busy';
@@ -264,7 +266,7 @@ export function AssistantPanel() {
     const text = draft.trim();
     if (!text || !ready) return;
     setDraft('');
-    void platform().agent.send(text, selection ?? undefined);
+    void platform().agent.send(text, selections);
   };
 
   return (
@@ -299,8 +301,28 @@ export function AssistantPanel() {
             }}
           />
         </TextField>
+        {selections.length > 1 ? (
+          <div className="flex flex-wrap items-center gap-1" data-testid="composer-selections" aria-label={t('assistant.selectionsGoWith', { count: selections.length })}>
+            <span className="text-xs text-text-muted">{t('assistant.selectionsGoWith', { count: selections.length })}</span>
+            {selections.map((entry, i) => (
+              <span key={`${entry.kind}-${i}`} className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-sunken py-0 pl-2 pr-1 font-mono text-xs text-text">
+                <span className="truncate">{selectionName(entry)}</span>
+                <AriaButton
+                  aria-label={t('assistant.removeSelection', { name: selectionName(entry) })}
+                  className="inline-flex size-icon items-center justify-center rounded-full text-text-subtle outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+                  onPress={() => {
+                    const pick = picks[i];
+                    if (pick) deselect(pick);
+                  }}
+                >
+                  <IconX className="size-icon-sm" aria-hidden />
+                </AriaButton>
+              </span>
+            ))}
+          </div>
+        ) : null}
         <div className="flex items-center justify-end gap-2">
-          {selection ? (
+          {selection && selections.length === 1 ? (
             <span className="mr-auto flex min-w-0 items-center gap-1 truncate text-xs text-text-muted" data-testid="composer-selection">
               <IconPointer className="size-icon-sm shrink-0" aria-hidden />
               {t('assistant.selectionGoesWith', { kind: selection.kind, name: `${selectionName(selection)} · ${selection.body}` })}
