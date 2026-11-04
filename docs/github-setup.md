@@ -44,7 +44,7 @@ CodeQL workflow is added.
 | Step | Setting |
 | --- | --- |
 | 1 | Create the private repository `ManuelStaggl/<name>` with description; wiki off |
-| 2 | Merge settings: rebase merge only, delete branches after merge, no auto-merge |
+| 2 | Merge settings: rebase merge only, delete branches after merge, no auto-merge; Actions token read-only by default and allowed to open pull requests (release-please) |
 | 3 | Secret `PRIVACY_DENYLIST` from the local denylist (used by `privacy.yml`) |
 | 4 | Labels for type, status and area (issue forms use `type: bug`, `type: feature`, `status: triage`) |
 | 5 | Milestones "Phase 2: MVP foundation" and "MVP 0.1.0" |

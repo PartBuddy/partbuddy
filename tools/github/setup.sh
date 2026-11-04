@@ -27,11 +27,14 @@ gh repo create "$FULL" --private \
   --description "Desktop app for AI-assisted parametric design of FDM 3D-print parts" \
   --disable-wiki --source . --remote origin
 
-echo "2/9 Merge and branch settings"
+echo "2/9 Merge, branch and Actions settings"
 gh api -X PATCH "repos/${FULL}" \
   -F allow_rebase_merge=true -F allow_squash_merge=false -F allow_merge_commit=false \
   -F delete_branch_on_merge=true -F allow_auto_merge=false -F has_projects=true \
   -F has_wiki=false -F has_discussions=false >/dev/null
+# Read-only default token; release-please may open its release pull request.
+gh api -X PUT "repos/${FULL}/actions/permissions/workflow" \
+  -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true >/dev/null
 
 echo "3/9 Secrets"
 gh secret set PRIVACY_DENYLIST --repo "$FULL" < "$denylist"
