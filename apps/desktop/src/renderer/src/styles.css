@@ -1,0 +1,22 @@
+@import "tailwindcss";
+@import "@partbuddy/design-tokens/tokens.css";
+@import "@partbuddy/design-tokens/tailwind-theme.css";
+@plugin "tailwindcss-react-aria-components";
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--cs-color-canvas);
+  font-family: var(--cs-font-sans);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}
