@@ -392,6 +392,43 @@ export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
 export const assistantStateSchema = z.object({ selected: agentKindSchema, agents: z.array(agentStatusSchema) }).strict();
 
+/**
+ * Notes on the model (M2b, ADR 0020): stored in the design file, placed by their anchor (ADR 0006).
+ * `own`: signed by this installation; a foreign note is shown to the user but not to the assistant
+ * until the user accepts it.
+ */
+const noteId = z.string().regex(/^[a-z0-9]{6,16}$/);
+const noteText = z.string().min(1).max(1000);
+export const noteViewSchema = z
+  .object({
+    id: noteId,
+    text: noteText,
+    kind: z.enum(['face', 'edge', 'point']),
+    body: bodyName,
+    /** The face or edge name the note sits on now; null for a point note. */
+    target: z.string().max(410).nullable(),
+    status: z.enum(['attached', 'moved', 'ambiguous', 'orphaned']),
+    own: z.boolean(),
+    world: point3,
+    normal: point3.optional(),
+    created: z.string().max(40),
+  })
+  .strict();
+export const notesStateSchema = z
+  .object({
+    documentId: z.string().max(200).nullable(),
+    notes: z.array(noteViewSchema).max(500),
+    /** Notes that undo or "go back" removed, for this design; the user can put them back. */
+    restorable: z.array(z.object({ id: noteId, text: noteText, target: z.string().max(410).nullable() }).strict()).max(50),
+    /** Note entries in the file that PartBuddy could not read (damaged or from a newer version). */
+    unreadable: z.number().int().nonnegative(),
+  })
+  .strict();
+export const noteAddSchema = z.object({ selection: selectionSchema, text: noteText }).strict();
+export const noteEditSchema = z.object({ id: noteId, text: noteText }).strict();
+export const noteIdRequestSchema = z.object({ id: noteId }).strict();
+export const noteReattachSchema = z.object({ id: noteId, selection: selectionSchema }).strict();
+
 const none = z.undefined();
 
 export const invokeContract = {
@@ -422,6 +459,14 @@ export const invokeContract = {
   [invokeChannels.designTimeline]: { request: timelineCommandSchema, response: none },
   [invokeChannels.designGoToStep]: { request: goToStepSchema, response: none },
   [invokeChannels.designVisibility]: { request: visibilityCommandSchema, response: none },
+  [invokeChannels.notesCurrent]: { request: none, response: notesStateSchema },
+  [invokeChannels.notesAdd]: { request: noteAddSchema, response: none },
+  [invokeChannels.notesEdit]: { request: noteEditSchema, response: none },
+  [invokeChannels.notesDelete]: { request: noteIdRequestSchema, response: none },
+  [invokeChannels.notesAccept]: { request: noteIdRequestSchema, response: none },
+  [invokeChannels.notesReattach]: { request: noteReattachSchema, response: none },
+  [invokeChannels.notesRestore]: { request: noteIdRequestSchema, response: none },
+  [invokeChannels.notesDismiss]: { request: noteIdRequestSchema, response: none },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -429,6 +474,7 @@ export const eventContract = {
   [eventChannels.mirrorRevision]: mirrorRevisionSchema,
   [eventChannels.agentStatus]: assistantStateSchema,
   [eventChannels.agentEvent]: agentEventSchema,
+  [eventChannels.notesChanged]: notesStateSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type FaceTableMessage = z.infer<typeof faceTableSchema>;
@@ -465,6 +511,8 @@ export type TimelineFeature = z.infer<typeof timelineFeatureSchema>;
 export type Structure = z.infer<typeof structureSchema>;
 export type TimelineCommand = z.infer<typeof timelineCommandSchema>;
 export type VisibilityCommand = z.infer<typeof visibilityCommandSchema>;
+export type NoteView = z.infer<typeof noteViewSchema>;
+export type NotesState = z.infer<typeof notesStateSchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;
 export type InvokeResponse<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['response']>;

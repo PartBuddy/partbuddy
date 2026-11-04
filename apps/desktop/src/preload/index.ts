@@ -42,6 +42,17 @@ const api: PartBuddyApi = {
     visibility: (command) => ipcRenderer.invoke(invokeChannels.designVisibility, command),
     goToStep: (step) => ipcRenderer.invoke(invokeChannels.designGoToStep, { step }),
   },
+  notes: {
+    current: () => ipcRenderer.invoke(invokeChannels.notesCurrent),
+    add: (selection, text) => ipcRenderer.invoke(invokeChannels.notesAdd, { selection, text }),
+    edit: (id, text) => ipcRenderer.invoke(invokeChannels.notesEdit, { id, text }),
+    delete: (id) => ipcRenderer.invoke(invokeChannels.notesDelete, { id }),
+    accept: (id) => ipcRenderer.invoke(invokeChannels.notesAccept, { id }),
+    reattach: (id, selection) => ipcRenderer.invoke(invokeChannels.notesReattach, { id, selection }),
+    restore: (id) => ipcRenderer.invoke(invokeChannels.notesRestore, { id }),
+    dismiss: (id) => ipcRenderer.invoke(invokeChannels.notesDismiss, { id }),
+    onChange: (listener) => subscribe(eventChannels.notesChanged, listener),
+  },
   viewer: {
     report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),
   },

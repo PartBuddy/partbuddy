@@ -538,3 +538,94 @@ test('ChatGPT builds a part in SolidCraft with the user\'s plan', async () => {
     rmSync(controlDir, { recursive: true, force: true });
   }
 });
+
+test('a note on a face stays with the design, out of the assistant\'s reach, and comes back after undo (M2b-1)', async () => {
+  test.setTimeout(180_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-notes-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7899',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    // "notes" makes the test double read inspect_design and try an undo (test/fakeClaude.mjs).
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  let launched = await launchApp({ isolated: false, work, env });
+  let { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await page.waitForTimeout(800);
+
+    const box = await page.getByTestId('viewport').boundingBox();
+    if (!box) throw new Error('viewport not visible');
+    const bar = page.getByTestId('selection-bar');
+    let picked = false;
+    // The camera frames the new box first; then a few points across the middle, with time between
+    // the clicks so that none counts as a double click.
+    await page.waitForTimeout(1000);
+    for (const [x, y] of [[0.59, 0.49], [0.68, 0.39], [0.5, 0.5], [0.75, 0.47], [0.62, 0.45]] as const) {
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+      await page.waitForTimeout(300);
+      picked = (await bar.count()) > 0 && (await bar.getAttribute('data-kind')) === 'face';
+      if (picked) break;
+    }
+    expect(picked, 'a face of the box').toBe(true);
+    const face = await page.getByTestId('selected-face').textContent();
+
+    await page.getByTestId('hud-note').click();
+    await page.getByTestId('note-new-text').fill('Wall 2 mm here');
+    await page.getByTestId('note-new-save').click();
+    const pin = page.getByTestId('note-pin');
+    await expect(pin).toHaveCount(1, { timeout: 15_000 });
+    const row = page.getByTestId('note-row');
+    await expect(row).toContainText('Wall 2 mm here');
+    await expect(row.getByTestId('note-status')).toHaveAttribute('data-status', 'attached');
+    await expect(row.getByTestId('note-status')).toHaveAttribute('data-own', 'true');
+    await expect(row).toContainText(face ?? '');
+    await pin.click();
+    await expect(page.getByTestId('note-card').getByTestId('note-text')).toHaveText('Wall 2 mm here');
+    await page.screenshot({ path: test.info().outputPath('note-card.png') });
+    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="structure"]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    await page.keyboard.press('Escape');
+
+    // The assistant hears about the note with its next message, but inspect_design hides the
+    // text, and its undo may not take the user's note away.
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Check the notes');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('assistant-text').last()).toHaveText('inspect hides the note; undo refused; the message quotes the note', { timeout: 30_000 });
+    await expect(pin).toHaveCount(1);
+
+    // The user's own Undo removes the note; PartBuddy offers it for restoring.
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect(pin).toHaveCount(0, { timeout: 15_000 });
+    const restorable = page.getByTestId('notes-restorable');
+    await expect(restorable).toContainText('1 note removed by undo or going back');
+    await page.screenshot({ path: test.info().outputPath('note-restorable.png') });
+    await restorable.getByTestId('note-restore').click();
+    await expect(pin).toHaveCount(1, { timeout: 15_000 });
+    await expect(restorable).toHaveCount(0);
+
+    // The note is in the design file: after a restart it is there again, still the user's own.
+    await page.waitForTimeout(2500);
+    await launched.close();
+    launched = await launchApp({ isolated: false, work, env });
+    page = launched.page;
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await expect(page.getByTestId('note-row')).toContainText('Wall 2 mm here', { timeout: 15_000 });
+    await expect(page.getByTestId('note-row').getByTestId('note-status')).toHaveAttribute('data-own', 'true');
+    await expect(page.getByTestId('note-pin')).toHaveCount(1);
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('notes-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

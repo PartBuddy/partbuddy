@@ -306,5 +306,36 @@
       "Mirror": "Mirror",
       "PressPull": "Press/pull"
     }
+  },
+  "notes": {
+    "title": "Notes ({count})",
+    "none": "No notes yet. Select a face, edge or corner and press “Note”.",
+    "add": "Note",
+    "newLabel": "Note at this place",
+    "editLabel": "Change note",
+    "save": "Save",
+    "cancel": "Cancel",
+    "saveHint": "Ctrl+Enter saves",
+    "edit": "Change",
+    "delete": "Delete",
+    "accept": "Accept",
+    "close": "Close note",
+    "card": "Note {number}",
+    "pin": "Note {number}: {text}",
+    "foreign": "foreign",
+    "foreignHint": "This note comes from the file, not from you. The assistant sees it only after you accept it.",
+    "status": {
+      "attached": "attached",
+      "moved": "moved",
+      "ambiguous": "unclear where it belongs",
+      "orphaned": "lost its place"
+    },
+    "reattach": "Pin to selection",
+    "removed": "{count, plural, one {# note} other {# notes}} removed by undo or going back",
+    "restore": "Restore",
+    "dismissShort": "Discard",
+    "dismiss": "Discard removed note: {text}",
+    "unreadable": "{count, plural, one {# note} other {# notes}} in the file could not be read",
+    "failed": "The note could not be saved: {detail}"
   }
 }

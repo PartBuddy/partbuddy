@@ -2,6 +2,7 @@ import { Html } from '@react-three/drei';
 import { parseTagged3mf, type ViewerModel } from '@partbuddy/geometry';
 import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
 import { ActionPanel, MeasureLine } from './SelectionActions';
+import { NoteComposer } from '../notes/NoteComposer';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Input, Label, TextField } from 'react-aria-components';
@@ -236,6 +237,7 @@ function HudCard({ bodies, accent, selection, picks }: { bodies: BodyModel[]; ac
           ) : null}
           {picks.length === 2 ? <MeasureLine bodies={bodies} picks={picks} /> : null}
           <ActionPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
+          {picks.length === 1 ? <NoteComposer selection={current} busy={busy} /> : null}
           <TextField value={wish} onChange={setWish} aria-label={t('hud.ask')} isDisabled={!assistantReady} className="flex items-center gap-1">
             <Input
               placeholder={t('hud.ask')}

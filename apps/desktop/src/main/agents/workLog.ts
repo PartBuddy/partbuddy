@@ -94,6 +94,11 @@ export class WorkLog {
     });
   }
 
+  /** Something the user did that the model should hear about with the next message (a note, ADR 0020). */
+  mention(text: string): void {
+    this.notes.push(`the user ${text}`);
+  }
+
   /** The user's Undo or Redo; the model learns about it with the next message. */
   userHistory(command: 'undo' | 'redo', work: () => Promise<void>): Promise<void> {
     return this.serial(async () => {

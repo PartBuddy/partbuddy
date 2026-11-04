@@ -29,6 +29,8 @@ import { StepPreviews } from './StepPreviews';
 import { ViewTools } from './ViewTools';
 import { edgeLabel, viewStateOf, type CameraView } from './viewState';
 import { platform } from '../platform';
+import { selectedStatus, useAssistant } from '../assistant/store';
+import { NotePins } from '../notes/NotePins';
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 Mesh.prototype.raycast = acceleratedRaycast;
@@ -570,6 +572,12 @@ function ViewReporter() {
   return null;
 }
 
+/** The note pins; changes to notes wait while the assistant works, like every change of the design. */
+function ScenePins({ bodies }: { bodies: BodyModel[] }) {
+  const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy';
+  return <NotePins bodies={bodies} busy={busy} />;
+}
+
 function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[] }) {
   const { t } = useTranslation();
   const colors = useTokenColors();
@@ -592,6 +600,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       ))}
       <Highlights bodies={bodies} colors={colors} />
       <DimensionHud bodies={bodies} accent={colors.selection} />
+      <ScenePins bodies={bodies} />
       <Picker bodies={bodies} meshes={meshes} />
       {sketches.map((sketch) => (
         <Sketch key={sketch.id} sketch={sketch} colors={colors} />

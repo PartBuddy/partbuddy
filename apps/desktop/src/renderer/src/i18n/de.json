@@ -306,5 +306,36 @@
       "Mirror": "Spiegelung",
       "PressPull": "Drücken/Ziehen"
     }
+  },
+  "notes": {
+    "title": "Notizen ({count})",
+    "none": "Noch keine Notiz. Wähle eine Fläche, Kante oder Ecke und tippe auf „Notiz“.",
+    "add": "Notiz",
+    "newLabel": "Notiz an dieser Stelle",
+    "editLabel": "Notiz ändern",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "saveHint": "Strg+Enter speichert",
+    "edit": "Ändern",
+    "delete": "Löschen",
+    "accept": "Übernehmen",
+    "close": "Notiz schließen",
+    "card": "Notiz {number}",
+    "pin": "Notiz {number}: {text}",
+    "foreign": "fremd",
+    "foreignHint": "Diese Notiz stammt aus der Datei, nicht von dir. Der Assistent sieht sie erst, wenn du sie übernimmst.",
+    "status": {
+      "attached": "angeheftet",
+      "moved": "verschoben",
+      "ambiguous": "unklar, wo sie hingehört",
+      "orphaned": "Platz verloren"
+    },
+    "reattach": "An Auswahl anheften",
+    "removed": "{count, plural, one {# Notiz} other {# Notizen}} durch Rückgängig oder Zurückgehen entfernt",
+    "restore": "Wiederherstellen",
+    "dismissShort": "Verwerfen",
+    "dismiss": "Entfernte Notiz verwerfen: {text}",
+    "unreadable": "{count, plural, one {# Notiz} other {# Notizen}} in der Datei nicht lesbar",
+    "failed": "Die Notiz ließ sich nicht speichern: {detail}"
   }
 }

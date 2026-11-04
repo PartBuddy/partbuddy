@@ -47,6 +47,18 @@ if (args[0] === '--version') {
       tool === 'execute' ? box : tool === 'partbuddy_plan' ? { summary: 'A 20 mm box', steps: ['Box 20 × 20 × 10 mm'] } : { measure: false };
     const client = new Client({ name: 'fake-claude', version: '9.9.9' });
     await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }));
+    // "notes" (M2b): looks for the note text in inspect_design, tries to undo the user's note and
+    // tells whether PartBuddy's note came with the message.
+    if (content.includes('notes')) {
+      const inspect = await client.callTool({ name: 'inspect_design', arguments: { measure: false } });
+      const undo = await client.callTool({ name: 'undo', arguments: {} });
+      await client.close();
+      const leaked = JSON.stringify(inspect.content).includes('Wall 2 mm here');
+      const reply = `inspect ${leaked ? 'shows' : 'hides'} the note; undo ${undo.isError ? 'refused' : 'done'}; the message ${content.includes('«Wall 2 mm here»') ? 'quotes' : 'lacks'} the note`;
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: reply }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     const result = await client.callTool({ name: tool, arguments: toolArgs });
     const early = planned ? await client.callTool({ name: 'execute', arguments: box }) : null;
     await client.close();

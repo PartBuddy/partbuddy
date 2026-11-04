@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ToggleButton } from 'react-aria-components';
 
+import { NotesSection } from '../notes/NotesSection';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 
@@ -88,6 +89,7 @@ export function StructurePanel() {
           ))}
         </ul>
       </section>
+      <NotesSection />
     </nav>
   );
 }

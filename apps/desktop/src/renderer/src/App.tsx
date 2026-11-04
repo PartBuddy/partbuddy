@@ -1,5 +1,6 @@
 import { AssistantPanel } from './assistant/AssistantPanel';
 import { useAssistantBridge } from './assistant/useAssistantBridge';
+import { useNotesBridge } from './notes/useNotesBridge';
 import { StatusBar } from './shell/StatusBar';
 import { StructurePanel } from './shell/StructurePanel';
 import { Timeline } from './shell/Timeline';
@@ -10,6 +11,7 @@ import { Viewer } from './viewer/Viewer';
 export function App() {
   useMirror();
   useAssistantBridge();
+  useNotesBridge();
   return (
     <div className="flex h-full flex-col bg-canvas text-text">
       <TitleBar />

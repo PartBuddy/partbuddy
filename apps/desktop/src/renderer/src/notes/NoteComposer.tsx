@@ -1,0 +1,44 @@
+import { IconNote } from '@tabler/icons-react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ToggleButton } from 'react-aria-components';
+
+import type { Selection } from '../../../shared/contract';
+import { platform } from '../platform';
+import { NoteForm, useNoteCommand } from './NoteParts';
+
+/** "Note" in the selection HUD: pins a note to the selected face, edge or vertex (M2b). */
+export function NoteComposer({ selection, busy }: { selection: Selection; busy: boolean }) {
+  const { t } = useTranslation();
+  const run = useNoteCommand();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col gap-1">
+      <ToggleButton
+        isSelected={open}
+        onChange={setOpen}
+        isDisabled={busy}
+        className="inline-flex h-control-sm w-fit items-center gap-1 rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+        data-testid="hud-note"
+      >
+        <IconNote className="size-icon-sm" aria-hidden />
+        {t('notes.add')}
+      </ToggleButton>
+      {open ? (
+        <NoteForm
+          label={t('notes.newLabel')}
+          disabled={busy}
+          testId="note-new"
+          onCancel={() => {
+            setOpen(false);
+          }}
+          onSave={async (text) => {
+            const ok = await run(() => platform().notes.add(selection, text));
+            if (ok) setOpen(false);
+            return ok;
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}

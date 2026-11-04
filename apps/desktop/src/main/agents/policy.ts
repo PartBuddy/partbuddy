@@ -4,6 +4,8 @@
  * through PartBuddy's proxy.
  */
 
+import { METADATA_PREFIX } from '../notes/noteRecord';
+
 export type ToolDecision = { allow: true } | { allow: false; reason: string };
 
 /** Tools that read, model or render without touching files or discarding work. */
@@ -77,6 +79,17 @@ const FILE_COMMANDS = /^(file|doc|settings|diagnostics)\./;
  */
 const CURVE_ID = /^[a-z]{1,3}\d{1,6}$/;
 
+/** Metadata commands and the keys they write: PartBuddy's own keys hold the user's notes (ADR 0020). */
+const METADATA_WRITES = new Set(['document.metadata.set', 'document.metadata.remove', 'component.metadata.set']);
+
+function metadataKeys(params: Record<string, unknown>): string[] {
+  const keys: string[] = [];
+  if (typeof params.key === 'string') keys.push(params.key);
+  if (Array.isArray(params.keys)) keys.push(...params.keys.filter((key): key is string => typeof key === 'string'));
+  if (typeof params.values === 'object' && params.values !== null) keys.push(...Object.keys(params.values));
+  return keys;
+}
+
 /** Checkpoints restore around PartBuddy's undo-based work log (ADR 0018) and drop its later steps. */
 const HISTORY_COMMANDS = new Set(['edit.checkpoint', 'edit.restore_checkpoint']);
 
@@ -92,6 +105,11 @@ function decideCommand(command: string, params: Record<string, unknown>): ToolDe
     return refuse(
       `${command} reads or writes files or settings; PartBuddy does not allow it for the assistant. PartBuddy saves the ` +
         'design by itself, and the user exports with the Export button. Continue without it.',
+    );
+  }
+  if (METADATA_WRITES.has(command) && metadataKeys(params).some((key) => key.toLowerCase().startsWith(METADATA_PREFIX))) {
+    return refuse(
+      `${command} would change PartBuddy's notes; only the user writes notes. Read them with partbuddy_view and continue without it.`,
     );
   }
   if (HISTORY_COMMANDS.has(command)) {

@@ -1,7 +1,7 @@
 import type { ViewerModel } from '@partbuddy/geometry';
 import { create } from 'zustand';
 
-import type { ConnectionStatus, MirroredSketch, Structure } from '../../../shared/contract';
+import type { ConnectionStatus, MirroredSketch, NotesState, Structure } from '../../../shared/contract';
 
 export interface BodyModel {
   name: string;
@@ -105,6 +105,12 @@ interface StudioState {
   /** Adds the pick to the selection, or removes it when it is selected already. */
   toggle: (pick: Pick) => void;
   deselect: (pick: Pick) => void;
+  /** The notes of the open design (M2b, ADR 0020), as the main process reports them. */
+  notes: NotesState;
+  setNotes: (notes: NotesState) => void;
+  /** The note whose card is open at its pin, or null. */
+  openNote: string | null;
+  setOpenNote: (id: string | null) => void;
 }
 
 /** As many as one message to the assistant may carry (contract: 20). */
@@ -172,6 +178,15 @@ export const useStudio = create<StudioState>()((set) => ({
   deselect: (pick) => {
     const selections = useStudio.getState().selections.filter((entry) => !samePick(entry, pick));
     set({ selections, selection: selections.at(-1) ?? null });
+  },
+  notes: { documentId: null, notes: [], restorable: [], unreadable: 0 },
+  setNotes: (notes) => {
+    const open = useStudio.getState().openNote;
+    set({ notes, openNote: open && notes.notes.some((note) => note.id === open) ? open : null });
+  },
+  openNote: null,
+  setOpenNote: (openNote) => {
+    set({ openNote });
   },
 }));
 
