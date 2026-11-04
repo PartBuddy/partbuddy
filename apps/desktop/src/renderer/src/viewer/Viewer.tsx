@@ -450,11 +450,12 @@ function FrameDesign({ documentId, bodies, sketches }: { documentId: string; bod
     const moved = () => {
       framing.current.userMoved = true;
     };
-    // Dragging starts a control; the wheel does not, so it is watched on the canvas.
-    controls.addEventListener('controlstart', moved);
+    // Turning and panning report as control; a click to select starts a control without one, so
+    // it leaves the camera to the framing. The wheel reports neither and is watched on the canvas.
+    controls.addEventListener('control', moved);
     canvas.addEventListener('wheel', moved, { passive: true });
     return () => {
-      controls.removeEventListener('controlstart', moved);
+      controls.removeEventListener('control', moved);
       canvas.removeEventListener('wheel', moved);
     };
   }, [controls, canvas]);
@@ -649,6 +650,9 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
   return (
     <Canvas
       dpr={[1, 2]}
+      // The canvas starts with a camera of its own before ours takes over; with the same field of
+      // view, a framing done in between keeps fitting.
+      camera={{ fov: scene.fieldOfView, near: 0.5, far: 5000, position: lastView.position.toArray() }}
       onCreated={({ gl }) => {
         // The picture itself is the image; labels, pins and the HUD are HTML beside the canvas and
         // stay reachable for keyboards and screen readers (a role="img" wrapper would hide them).
