@@ -169,6 +169,71 @@ test('the user undoes, exports and opens the headless design in the SolidCraft w
   }
 });
 
+test('the dimension field changes the driving parameter directly, with a preview first (M1b)', async () => {
+  test.setTimeout(120_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-dimension-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7891',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    // The test double of Claude Code builds a 20 x 20 x 10 mm box.
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await page.waitForTimeout(800);
+
+    const box = await page.getByTestId('viewport').boundingBox();
+    if (!box) throw new Error('viewport not visible');
+    const bar = page.getByTestId('selection-bar');
+    // Pick edges along rows until one of the given length is selected.
+    const pickEdge = async (length: string) => {
+      for (let y = 0.3; y <= 0.75; y += 0.05) {
+        for (let x = 0.2; x <= 0.8; x += 0.01) {
+          await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+          if ((await bar.count()) > 0 && (await bar.getAttribute('data-kind')) === 'edge' && (await bar.textContent())?.includes(length)) return true;
+        }
+      }
+      return false;
+    };
+    expect(await pickEdge('20 mm'), 'a 20 mm edge').toBe(true);
+
+    const field = page.getByTestId('dimension-field').getByRole('textbox');
+    await expect(field).toHaveValue('20');
+    await field.fill('32');
+    // Length and width are both 20 mm: the probe in SolidCraft found the one that moves this edge.
+    const status = page.getByTestId('dimension-status');
+    await expect(status).toHaveAttribute('data-mode', 'direct', { timeout: 15_000 });
+    await expect(status).toContainText(/Enter changes it directly: Box1 · (Length|Width)/);
+    await page.screenshot({ path: test.info().outputPath('dimension-preview.png') });
+    const revision = await page.getByTestId('viewer').getAttribute('data-revision');
+    await field.press('Enter');
+    await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 15_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces');
+    // The part has a 32 mm edge now, and Undo takes the change back.
+    expect(await pickEdge('32 mm'), 'the changed 32 mm edge').toBe(true);
+    await page.screenshot({ path: test.info().outputPath('dimension-applied.png') });
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await page.keyboard.press('Escape');
+    expect(await pickEdge('20 mm'), 'back to 20 mm').toBe(true);
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('dimension-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('the user\'s Claude Code builds a part in SolidCraft through the gate proxy', async () => {
   // Uses the installed Claude Code with the user's own subscription; opt in separately with
   // PARTBUDDY_E2E_CLAUDE=1, because it spends subscription usage. SolidCraft runs as an own

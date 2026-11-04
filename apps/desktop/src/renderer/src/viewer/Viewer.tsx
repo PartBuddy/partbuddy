@@ -21,6 +21,7 @@ import type { MirroredSketch } from '../../../shared/contract';
 import { samePick, useStudio, type BodyModel, type Pick, type StandardView } from '../state/store';
 import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
+import { DimensionHud } from './DimensionHud';
 import { LiveBar } from './LiveBar';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
@@ -274,7 +275,9 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
       if (moved <= scene.clickSlop) select(pickAt(event.clientX, event.clientY));
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') select(null);
+      // Escape in a field of the HUD resets the field first; outside it clears the selection.
+      const target = event.target as HTMLElement | null;
+      if (event.key === 'Escape' && !target?.closest('input, textarea')) select(null);
     };
     dom.addEventListener('pointermove', onMove);
     dom.addEventListener('pointerleave', onLeave);
@@ -573,6 +576,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
         <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} />
       ))}
       <Highlights bodies={bodies} colors={colors} />
+      <DimensionHud bodies={bodies} accent={colors.selection} />
       <Picker bodies={bodies} meshes={meshes} />
       {sketches.map((sketch) => (
         <Sketch key={sketch.id} sketch={sketch} colors={colors} />

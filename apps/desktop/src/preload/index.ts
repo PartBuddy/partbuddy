@@ -33,6 +33,8 @@ const api: PartBuddyApi = {
     redo: () => ipcRenderer.invoke(invokeChannels.designRedo),
     export: (format) => ipcRenderer.invoke(invokeChannels.designExport, { format }),
     openInSolidCraft: () => ipcRenderer.invoke(invokeChannels.designOpenInSolidCraft),
+    probeDimension: (probe) => ipcRenderer.invoke(invokeChannels.designProbeDimension, probe),
+    applyDimension: (apply) => ipcRenderer.invoke(invokeChannels.designApplyDimension, apply),
   },
   viewer: {
     report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),

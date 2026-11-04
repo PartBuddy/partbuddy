@@ -6,7 +6,8 @@
   },
   "units": {
     "mm": "{value, number, ::.## unit/millimeter}",
-    "mm2": "{value, number, ::.#} mm²"
+    "mm2": "{value, number, ::.#} mm²",
+    "mmShort": "mm"
   },
   "solidcraft": {
     "label": "SolidCraft",
@@ -197,5 +198,19 @@
     "openInSolidCraft": "In SolidCraft öffnen",
     "openedInSolidCraft": "Das Design liegt in Dokumente\\PartBuddy und öffnet sich in SolidCraft. PartBuddy zeigt deine Änderungen dort live.",
     "failed": "Das hat nicht geklappt: {detail}"
+  },
+  "hud": {
+    "length": "Länge",
+    "diameter": "Durchmesser",
+    "radius": "Radius",
+    "probing": "Wird in SolidCraft geprüft …",
+    "direct": "Enter ändert direkt: {label}",
+    "assistant": {
+      "noDriver": "Kein Parameter steuert das allein – Enter fragt die KI",
+      "ambiguous": "Mehrere Maße kommen in Frage – Enter fragt die KI"
+    },
+    "noAssistant": "Kein Parameter steuert das allein; der Assistent ist nicht bereit",
+    "ask": "Sag der KI, was hier passieren soll …",
+    "assistantRequest": "Ändere {what} von {name} von {from} mm auf {to} mm. Behalte den Rest des Teils bei."
   }
 }
