@@ -15,6 +15,7 @@ export const invokeChannels = {
   agentSignIn: 'agent:sign-in',
   agentSignOut: 'agent:sign-out',
   agentSelect: 'agent:select',
+  agentAllowApiBilling: 'agent:allow-api-billing',
 } as const;
 
 export const eventChannels = {

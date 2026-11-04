@@ -34,6 +34,7 @@ const api: PartBuddyApi = {
     send: (text) => ipcRenderer.invoke(invokeChannels.agentSend, { text }),
     stop: () => ipcRenderer.invoke(invokeChannels.agentStop),
     select: (agent) => ipcRenderer.invoke(invokeChannels.agentSelect, { agent }),
+    allowApiBilling: (allow) => ipcRenderer.invoke(invokeChannels.agentAllowApiBilling, { allow }),
     signIn: () => ipcRenderer.invoke(invokeChannels.agentSignIn),
     signOut: () => ipcRenderer.invoke(invokeChannels.agentSignOut),
     onStatus: (listener) => subscribe(eventChannels.agentStatus, listener),

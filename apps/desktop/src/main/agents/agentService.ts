@@ -8,13 +8,13 @@ import type { AgentBackend } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
 
 /**
- * PartBuddy uses Claude Code only with a Claude subscription (Pro, Max), never with API billing
- * (decided 2026-11-04). Claude Code itself is not changed; PartBuddy just does not start a
- * session while it is signed in another way.
+ * PartBuddy uses Claude Code with a Claude subscription (Pro, Max) by default and runs it with
+ * API billing only after the user allowed that (decided 2026-11-04). Claude Code itself is not
+ * changed and keeps all its sign-in methods, as Anthropic's terms require.
  */
-export function stateFor(auth: ClaudeAuth): AgentStatus['state'] {
+export function stateFor(auth: ClaudeAuth, apiBillingAllowed: boolean): AgentStatus['state'] {
   if (!auth.loggedIn) return 'signedOut';
-  return auth.method === 'claude.ai' ? 'ready' : 'needsSubscription';
+  return auth.method === 'claude.ai' || apiBillingAllowed ? 'ready' : 'needsSubscription';
 }
 
 export interface AgentServiceOptions {
@@ -22,6 +22,8 @@ export interface AgentServiceOptions {
   home: string;
   /** Private folder for the agent's working directory and its MCP configuration. */
   workDir: string;
+  /** Whether the user allowed API billing for Claude Code, and storing that choice. */
+  apiBilling: { get(): boolean; set(allow: boolean): void };
   /** SolidCraft's tools for the connected app, or null while SolidCraft is not connected. */
   tools(): Promise<UpstreamTools | null>;
   log(message: string): void;
@@ -62,7 +64,8 @@ export class AgentService implements AgentBackend {
     }
     try {
       const [version, auth] = await Promise.all([readVersion(claude, this.options.env), readAuth(claude, this.options.env)]);
-      const status: AgentStatus = { agent: 'claude-code', state: stateFor(auth), version };
+      const allowed = this.options.apiBilling.get();
+      const status: AgentStatus = { agent: 'claude-code', state: stateFor(auth, allowed), version, apiBillingAllowed: allowed };
       if (auth.method) status.method = auth.method;
       if (auth.plan) status.plan = auth.plan;
       if (this.session?.running && auth.loggedIn) status.state = this.current.state === 'busy' ? 'busy' : 'ready';
@@ -94,6 +97,12 @@ export class AgentService implements AgentBackend {
     this.session?.send(text);
   }
 
+  async allowApiBilling(allow: boolean): Promise<void> {
+    this.options.apiBilling.set(allow);
+    if (!allow) await this.stop();
+    await this.refresh();
+  }
+
   /** Claude Code keeps its own sign-in; signing out happens there. */
   async signOut(): Promise<void> {
     await Promise.resolve();
@@ -117,8 +126,9 @@ export class AgentService implements AgentBackend {
     if (!this.claude) throw new Error('Claude Code is not installed');
     // The sign-in may have changed since the last check (an API key set in the meantime).
     const auth = await readAuth(this.claude, this.options.env);
-    if (stateFor(auth) !== 'ready') {
-      this.setStatus({ ...this.current, state: stateFor(auth) });
+    const state = stateFor(auth, this.options.apiBilling.get());
+    if (state !== 'ready') {
+      this.setStatus({ ...this.current, state });
       throw new Error('Claude Code is not signed in with a Claude subscription');
     }
     await this.proxy?.stop();

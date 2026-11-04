@@ -103,6 +103,8 @@ export const agentStatusSchema = z
     method: z.string().max(40).optional(),
     plan: z.string().max(40).optional(),
     account: z.string().max(200).optional(),
+    /** The user allowed Claude Code to run with an API key, billed separately (off by default). */
+    apiBillingAllowed: z.boolean().optional(),
     model: z.string().max(80).optional(),
     detail: z.string().max(500).optional(),
   })
@@ -128,6 +130,7 @@ export const agentEventSchema = z.discriminatedUnion('type', [
 ]);
 
 export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000) }).strict();
+export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
 export const assistantStateSchema = z.object({ selected: agentKindSchema, agents: z.array(agentStatusSchema) }).strict();
 
@@ -142,6 +145,7 @@ export const invokeContract = {
   [invokeChannels.agentStatus]: { request: none, response: assistantStateSchema },
   [invokeChannels.agentRefresh]: { request: none, response: assistantStateSchema },
   [invokeChannels.agentSelect]: { request: agentSelectionSchema, response: assistantStateSchema },
+  [invokeChannels.agentAllowApiBilling]: { request: apiBillingSchema, response: assistantStateSchema },
   [invokeChannels.agentSignOut]: { request: none, response: none },
   [invokeChannels.agentSend]: { request: agentMessageSchema, response: none },
   [invokeChannels.agentStop]: { request: none, response: none },

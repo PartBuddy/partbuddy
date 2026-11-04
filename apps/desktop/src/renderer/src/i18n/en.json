@@ -77,7 +77,7 @@
     "title": "Assistant",
     "preview": "Preview",
     "plan": "{plan} subscription",
-    "apiKey": "API key",
+    "apiKey": "API key, billed separately",
     "signedIn": "Claude Code {version} · {plan}",
     "state": {
       "claude-code": {
@@ -139,7 +139,9 @@
       "continue": "Continue with ChatGPT"
     },
     "needsSubscriptionTitle": "Sign in to Claude Code with your Claude subscription",
-    "needsSubscriptionBody": "Claude Code is signed in with an API key, which would be billed separately. PartBuddy uses only your Claude Pro or Max subscription. Sign in with your Claude account, then check again."
+    "needsSubscriptionBody": "Claude Code is signed in with an API key, which Anthropic bills separately from your plan. By default PartBuddy uses only your Claude Pro or Max subscription: sign in with your Claude account and check again. You can also allow the API key on purpose.",
+    "allowApiBilling": "Use the API key anyway (billed separately)",
+    "subscriptionOnly": "Use the subscription only"
   },
   "live": {
     "step": "Step {number} · {label}",

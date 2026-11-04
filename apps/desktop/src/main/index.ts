@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -167,8 +167,22 @@ if (!app.requestSingleInstanceLock()) {
     };
     let assistant: Assistant | null = null;
     const changed = () => assistant?.changed();
+    // The user's choice to allow API billing for Claude Code (off by default), kept per installation.
+    const assistantSettings = join(app.getPath('userData'), 'assistant-settings.json');
+    const apiBilling = {
+      get: (): boolean => {
+        try {
+          return (JSON.parse(readFileSync(assistantSettings, 'utf8')) as { claudeApiBilling?: unknown }).claudeApiBilling === true;
+        } catch {
+          return false;
+        }
+      },
+      set: (allow: boolean) => {
+        writeFileSync(assistantSettings, JSON.stringify({ claudeApiBilling: allow }));
+      },
+    };
     const claude = new AgentService(
-      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), log, tools },
+      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), apiBilling, log, tools },
       { status: changed, event: emitEvent },
     );
     // ChatGPT tokens live only in the Windows credential store (ADR 0011, ADR 0015).
@@ -190,6 +204,10 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.agentStatus, () => agent.state());
     bridge.handle(invokeChannels.agentRefresh, () => agent.refresh());
     bridge.handle(invokeChannels.agentSelect, ({ agent: kind }) => agent.select(kind));
+    bridge.handle(invokeChannels.agentAllowApiBilling, async ({ allow }) => {
+      await claude.allowApiBilling(allow);
+      return agent.state();
+    });
     bridge.handle(invokeChannels.agentSend, async ({ text }) => {
       await agent.send(text);
       return undefined;

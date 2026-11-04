@@ -115,12 +115,18 @@ test('the assistant shows the signed-in plan and needs SolidCraft', async () => 
   await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
 });
 
-test('Claude Code signed in with an API key is not used', async () => {
+test('Claude Code with an API key runs only when the user allows it', async () => {
   launched = await launchApp({ env: { FAKE_CLAUDE_API_KEY: '1' } });
   const { page } = launched;
   await expect(page.getByTestId('agent-status')).toHaveText('Claude Code is not using a Claude subscription');
   await expect(page.getByText('Sign in to Claude Code with your Claude subscription')).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
+
+  // Allowed on purpose, the API key is used and clearly labelled; it can be taken back.
+  await page.getByRole('button', { name: 'Use the API key anyway (billed separately)' }).click();
+  await expect(page.getByTestId('agent-status')).toContainText('API key, billed separately');
+  await page.getByRole('button', { name: 'Use the subscription only' }).click();
+  await expect(page.getByTestId('agent-status')).toContainText('Claude Code is not using a Claude subscription');
 });
 
 test('the ChatGPT route offers the sign-in when no account is stored', async () => {

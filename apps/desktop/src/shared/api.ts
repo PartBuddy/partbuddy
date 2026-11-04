@@ -24,6 +24,8 @@ export interface PartBuddyApi {
     /** Check installation and sign-in again, for example after signing in. */
     refresh(): Promise<AssistantState>;
     select(agent: AgentKind): Promise<AssistantState>;
+    /** Let Claude Code run with an API key, billed separately; off by default. */
+    allowApiBilling(allow: boolean): Promise<AssistantState>;
     send(text: string): Promise<void>;
     stop(): Promise<void>;
     /** Start the selected route's sign-in flow; it opens the browser. */
