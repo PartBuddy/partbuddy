@@ -108,7 +108,19 @@ SolidCraft's tools unchanged and passes every call through the tool policy befor
 SolidCraft (`solidcraft-cli mcp --connect`). The token lives in an MCP configuration file only the
 user can read, never on a command line. Tools that discard the design or touch files (`new_design`,
 `open`, `save`, `export`, and `file.*`/`doc.*` commands inside `execute` and `batch`) are refused
-until the confirmation and export gates of ADR 0010 exist.
+until the confirmation and export gates of ADR 0010 exist. Since 2026-11-04 the policy also
+decides the tools SolidCraft runs as `batch` steps (`save`, `export`, `open`, `new_design`, a
+nested `execute`) like the tools themselves, and refuses `settings.*` and `diagnostics.*`
+commands, `edit.checkpoint`/`edit.restore_checkpoint` (they would drop the work log's later
+steps, ADR 0018) and any command whose `path` is text other than a sketch curve id (SolidCraft
+uses `path` for files and for geometry alike). Every refusal names what to do instead.
+
+**Tool notes.** Both routes add PartBuddy's notes after SolidCraft's server instructions
+(`apps/desktop/src/main/agents/toolNotes.ts`): the proxy as its MCP `instructions`, the ChatGPT
+loop in its `instructions` field, which before carried only PartBuddy's role. The notes name the
+policy's rules and the traps of SolidCraft 0.30.1 checked headless: a misspelt name in
+`set_parameter`/`parameters.change` silently creates a new parameter, arcs drawn clockwise are
+stored counter-clockwise with start and end (and their point ids) swapped.
 
 ### Consequences
 

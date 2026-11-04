@@ -10,6 +10,7 @@ import { AgentService } from '../src/main/agents/agentService';
 import { findClaudeCode, parseStreamLine } from '../src/main/agents/claudeCode';
 import { GateProxy, type ToolCallRecord, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
+import { TOOL_NOTES } from '../src/main/agents/toolNotes';
 import { reduce, type ConversationItem } from '../src/renderer/src/assistant/store';
 import type { AgentEvent, AgentStatus } from '../src/shared/contract';
 
@@ -54,6 +55,36 @@ describe('tool policy', () => {
     expect(decide('batch', { commands: [{ command: 'sketch.line' }, { command: 'doc.open' }] }).allow).toBe(false);
     expect(decide('batch', { commands: [{ command: 'sketch.line' }] }).allow).toBe(true);
   });
+
+  it('decides tools that SolidCraft runs as batch steps like the tools themselves', () => {
+    for (const command of ['save', 'open', 'new_design', 'export', 'crash_reports']) {
+      const decision = decide('batch', { commands: [{ command: 'solid.box', params: {} }, { command, params: { path: 'part.sc' } }] });
+      expect(decision.allow, command).toBe(false);
+      if (!decision.allow) expect(decision.reason).toContain(`batch step 1 (${command})`);
+    }
+    const nested = { commands: [{ command: 'execute', params: { command: 'file.save_as', params: { path: 'x.sc' } } }] };
+    expect(decide('batch', nested).allow).toBe(false);
+    expect(decide('batch', { commands: [{ command: 'set_parameter', params: { name: 'L', value: 40 } }] }).allow).toBe(true);
+  });
+
+  it('refuses settings, diagnostics and checkpoint commands with the next step', () => {
+    expect(decide('execute', { command: 'settings.profile.export', params: { name: 'a' } }).allow).toBe(false);
+    expect(decide('execute', { command: 'diagnostics.crash_reports', params: {} }).allow).toBe(false);
+    const restore = decide('batch', { commands: [{ command: 'edit.restore_checkpoint', params: { checkpoint: 1 } }] });
+    expect(restore.allow).toBe(false);
+    if (!restore.allow) expect(restore.reason).toContain('Use undo and redo');
+  });
+
+  it('refuses a file path on any command but keeps geometry paths', () => {
+    for (const path of ['out.dxf', 'designs\\part', 'notes']) {
+      expect(decide('execute', { command: 'sketch.export_dxf', params: { path } }).allow, path).toBe(false);
+    }
+    expect(decide('execute', { command: 'sketch.export_dxf', params: {} }).allow).toBe(true);
+    expect(decide('execute', { command: 'parameters.export', params: { format: 'json' } }).allow).toBe(true);
+    expect(decide('execute', { command: 'solid.pattern.path', params: { path: ['l1', 'l2'], count: 3 } }).allow).toBe(true);
+    expect(decide('execute', { command: 'construct.point.along_path', params: { path: 'l1', t: 0.5 } }).allow).toBe(true);
+    expect(decide('execute', { command: 'component.activate', params: { component: 1, path: [2, 3] } }).allow).toBe(true);
+  });
 });
 
 describe('gate proxy', () => {
@@ -80,7 +111,7 @@ describe('gate proxy', () => {
     const client = await connect(proxy);
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name)).toEqual(['inspect_design', 'export']);
-    expect(client.getInstructions()).toBe('SolidCraft drives the app.');
+    expect(client.getInstructions()).toBe(`SolidCraft drives the app.\n\n${TOOL_NOTES}`);
     const result = await client.callTool({ name: 'inspect_design', arguments: {} });
     expect(result.isError).not.toBe(true);
     expect(calls).toEqual(['inspect_design']);
