@@ -60,8 +60,14 @@ approval for it [research 206, 207]. Therefore:
 * Sign-in happens in Claude Code (`claude auth login`), which opens Anthropic's page in the
   browser. PartBuddy reads `claude auth status --json` and keeps only `loggedIn`, `authMethod`
   and `subscriptionType`; it never reads, logs or stores the e-mail address or tokens.
-* The publisher of PartBuddy accepts Anthropic's Commercial Terms (decided 2026-11-04) and asks
-  Anthropic for a written confirmation of this route before the first public release.
+* **Subscription only** (decided 2026-11-04): PartBuddy uses Claude Code only while it is signed in
+  with a Claude subscription (`authMethod: claude.ai`). Signed in any other way, for example with an
+  API key that would be billed separately, PartBuddy shows a notice and starts no session; it checks
+  again before every new session. Claude Code itself is not changed and keeps all its sign-in methods.
+* The publisher of PartBuddy accepts Anthropic's Commercial Terms once, through the existing
+  Claude Console account (decided 2026-11-04), and asks Anthropic for a written confirmation of
+  this route before the first public release. End users only install Claude Code and sign in with
+  their own subscription; they need no Console account and accept nothing beyond their own plan.
 * Product texts may say that PartBuddy "runs Claude Code"; Anthropic's names and logos are not
   used as part of PartBuddy's own names or logos.
 
