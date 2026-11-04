@@ -1,4 +1,4 @@
-import { IconBox, IconCube, IconMaximize, IconPerspective } from '@tabler/icons-react';
+import { IconBox, IconCube, IconMaximize, IconPencil, IconPerspective } from '@tabler/icons-react';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, ToggleButton, Tooltip, TooltipTrigger } from 'react-aria-components';
@@ -34,12 +34,16 @@ export function ViewTools() {
   const setProjection = useStudio((s) => s.setProjection);
   const requestView = useStudio((s) => s.requestView);
   const ortho = projection === 'orthographic';
+  const pen = useStudio((s) => s.pen);
+  const setPen = useStudio((s) => s.setPen);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey || inTextField(event.target)) return;
       const key = event.key.toLowerCase();
-      if (key === '5') {
+      if (key === 'd') {
+        setPen(!useStudio.getState().pen);
+      } else if (key === '5') {
         setProjection(useStudio.getState().projection === 'orthographic' ? 'perspective' : 'orthographic');
       } else if (VIEW_KEYS[key]) {
         requestView(VIEW_KEYS[key]);
@@ -52,7 +56,7 @@ export function ViewTools() {
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [requestView, setProjection]);
+  }, [requestView, setProjection, setPen]);
 
   const views: { view: StandardView; key: string; icon: ReactNode }[] = [
     { view: 'fit', key: 'F', icon: <IconMaximize className="size-icon-sm" aria-hidden /> },
@@ -85,6 +89,18 @@ export function ViewTools() {
         </Tip>
       ))}
       <span aria-hidden className="mx-1 h-hairline bg-border" />
+      <Tip label={`${t('viewer.pen.tool')} (D)`}>
+        <ToggleButton
+          aria-label={t('viewer.pen.tool')}
+          aria-keyshortcuts="D"
+          isSelected={pen}
+          onChange={setPen}
+          className={tool}
+          data-testid="pen"
+        >
+          <IconPencil className="size-icon-sm" aria-hidden />
+        </ToggleButton>
+      </Tip>
       <Tip label={`${t(ortho ? 'viewer.views.ortho' : 'viewer.views.perspective')} (5)`}>
         <ToggleButton
           aria-label={t('viewer.views.ortho')}

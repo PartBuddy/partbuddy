@@ -16,6 +16,7 @@ import { guardNotes } from './agents/noteGuard';
 import { withViewTool } from './agents/viewContext';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
+import { describeDrawing } from '../shared/drawing';
 import { describeUserAction } from '../shared/stepPhrases';
 import { ChatGptAccount } from './chatgpt/account';
 import { ChatGptAgent } from './chatgpt/chatgptAgent';
@@ -331,9 +332,16 @@ if (!app.requestSingleInstanceLock()) {
       await claude.allowApiBilling(allow);
       return agent.state();
     });
-    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer }) => {
-      const lines = [questions.answer(answer), steps.takeNote(), notesService.selectionNote(selections ?? [])].filter((line): line is string => line !== null);
-      await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null);
+    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, drawing }) => {
+      const lines = [
+        questions.answer(answer),
+        steps.takeNote(),
+        notesService.selectionNote(selections ?? []),
+        // Strokes on the view as words (M2b-2, ADR 0020); a picture only when the user ticked it.
+        drawing ? describeDrawing(drawing.strokes, drawing.image !== undefined) : null,
+      ].filter((line): line is string => line !== null);
+      const sent = drawing ? { strokes: drawing.strokes.length, image: drawing.image ?? null } : null;
+      await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, sent);
       return undefined;
     });
     bridge.handle(invokeChannels.agentStop, async () => {

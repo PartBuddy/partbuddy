@@ -31,6 +31,7 @@ import { edgeLabel, viewStateOf, type CameraView } from './viewState';
 import { platform } from '../platform';
 import { selectedStatus, useAssistant } from '../assistant/store';
 import { NotePins } from '../notes/NotePins';
+import { Pen, ViewCapture } from './Pen';
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 Mesh.prototype.raycast = acceleratedRaycast;
@@ -266,9 +267,11 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
     let frame = 0;
     let last: { x: number; y: number } | null = null;
     let pressed: { x: number; y: number } | null = null;
+    // In pen mode the pointer draws (Pen.tsx); nothing is hovered or selected.
+    const drawing = () => useStudio.getState().pen;
     const onMove = (event: PointerEvent) => {
       last = { x: event.clientX, y: event.clientY };
-      if (frame || event.buttons !== 0) return;
+      if (frame || event.buttons !== 0 || drawing()) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
         if (last) setHover(pickAt(last.x, last.y));
@@ -279,7 +282,7 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
       setHover(null);
     };
     const onDown = (event: PointerEvent) => {
-      pressed = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+      pressed = event.button === 0 && !drawing() ? { x: event.clientX, y: event.clientY } : null;
     };
     const onUp = (event: PointerEvent) => {
       if (!pressed || event.button !== 0) return;
@@ -580,6 +583,8 @@ function ScenePins({ bodies }: { bodies: BodyModel[] }) {
 
 function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[] }) {
   const { t } = useTranslation();
+  // Drawing on the view (M2b-2) takes the left button from the camera controls.
+  const pen = useStudio((s) => s.pen);
   const colors = useTokenColors();
   const meshes = useRef<(Mesh | null)[]>([]);
   const register = useCallback((index: number, mesh: Mesh | null) => {
@@ -601,6 +606,8 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <Highlights bodies={bodies} colors={colors} />
       <DimensionHud bodies={bodies} accent={colors.selection} />
       <ScenePins bodies={bodies} />
+      <Pen bodies={bodies} meshes={meshes} color={colors.note} />
+      <ViewCapture />
       <Picker bodies={bodies} meshes={meshes} />
       {sketches.map((sketch) => (
         <Sketch key={sketch.id} sketch={sketch} colors={colors} />
@@ -615,7 +622,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
         infiniteGrid
         position={[0, 0, -0.01]}
       />
-      <CameraControls makeDefault />
+      <CameraControls makeDefault enabled={!pen} />
       <FrameDesign documentId={documentId} bodies={bodies} sketches={sketches} />
       <StandardViews bodies={bodies} sketches={sketches} />
       <FollowChanges />
@@ -704,10 +711,28 @@ function SelectionBar({ bodies }: { bodies: BodyModel[] }) {
   );
 }
 
+/** While the pen is on: what it does, how many strokes wait, how to leave it. */
+function PenHint() {
+  const { t } = useTranslation();
+  const pen = useStudio((s) => s.pen);
+  const strokes = useStudio((s) => s.strokes.length);
+  if (!pen) return null;
+  return (
+    <p
+      role="status"
+      className="pointer-events-none absolute bottom-3 left-1/2 flex max-w-dialog-sm -translate-x-1/2 items-center gap-1 rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-text shadow-2"
+      data-testid="pen-hint"
+    >
+      {t('viewer.pen.hint', { count: strokes })}
+    </p>
+  );
+}
+
 export function Viewer() {
   const { t } = useTranslation();
   const model = useStudio((s) => s.model);
   const connection = useStudio((s) => s.connection);
+  const pen = useStudio((s) => s.pen);
   const offline = connection.state !== 'connected';
 
   return (
@@ -724,11 +749,14 @@ export function Viewer() {
             <Scene documentId={model.documentId} bodies={model.bodies} sketches={model.sketches} />
           </div>
           <SelectionBar bodies={model.bodies} />
+          <PenHint />
           <ViewTools />
-          <p className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-1 text-xs text-text-subtle">
-            <IconMapPin className="size-icon-sm" aria-hidden />
-            {t('viewer.hint')}
-          </p>
+          {pen ? null : (
+            <p className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-1 text-xs text-text-subtle">
+              <IconMapPin className="size-icon-sm" aria-hidden />
+              {t('viewer.hint')}
+            </p>
+          )}
         </>
       ) : null}
       <div className="pointer-events-none absolute inset-0 flex flex-col items-start gap-2 p-3">

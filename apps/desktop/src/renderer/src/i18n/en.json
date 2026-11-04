@@ -85,6 +85,10 @@
       "top": "Top",
       "ortho": "Orthographic",
       "perspective": "Perspective"
+    },
+    "pen": {
+      "tool": "Draw",
+      "hint": "Draw on the view – {count, plural, =0 {the strokes go} one {# stroke goes} other {# strokes go}} to the assistant with your next message. Esc stops."
     }
   },
   "status": {
@@ -205,7 +209,12 @@
         "cancel": "Cancelled",
         "change": "Change requested"
       }
-    }
+    },
+    "drawingGoesWith": "{count, plural, one {# stroke goes} other {# strokes go}} along",
+    "removeDrawing": "Discard the strokes",
+    "drawingImage": "Send as image too",
+    "withDrawing": "with drawing ({count, plural, one {# stroke} other {# strokes}})",
+    "withDrawingImage": "with drawing ({count, plural, one {# stroke} other {# strokes}}) and image"
   },
   "live": {
     "step": "Step {number} · {label}",

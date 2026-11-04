@@ -1,6 +1,8 @@
 import type { ViewerModel } from '@partbuddy/geometry';
 import { create } from 'zustand';
 
+import type { DrawingStroke } from '../../../shared/drawing';
+
 import type { ConnectionStatus, MirroredSketch, NotesState, Structure } from '../../../shared/contract';
 
 export interface BodyModel {
@@ -111,10 +113,32 @@ interface StudioState {
   /** The note whose card is open at its pin, or null. */
   openNote: string | null;
   setOpenNote: (id: string | null) => void;
+  /** Pen mode (M2b-2): the pointer draws strokes on the view instead of selecting and turning. */
+  pen: boolean;
+  setPen: (pen: boolean) => void;
+  /** Strokes drawn since the last message; they go with the next one. */
+  strokes: DrawnStroke[];
+  addStroke: (stroke: DrawnStroke) => void;
+  clearStrokes: () => void;
+  /** Send a picture of the view with the strokes too (off by default, ADR 0020). */
+  drawingImage: boolean;
+  setDrawingImage: (image: boolean) => void;
+  /** Renders the view with the strokes to a PNG; set by the 3D view while it is shown. */
+  captureView: (() => Promise<Uint8Array<ArrayBuffer> | null>) | null;
+  setCaptureView: (capture: (() => Promise<Uint8Array<ArrayBuffer> | null>) | null) => void;
+}
+
+/** A stroke on the view: its summary for the assistant and its line on the model, lifted off the faces. */
+export interface DrawnStroke {
+  id: number;
+  summary: DrawingStroke;
+  line: [number, number, number][];
 }
 
 /** As many as one message to the assistant may carry (contract: 20). */
 const MAX_SELECTIONS = 20;
+/** As many strokes as one message may carry (contract: 20). */
+const MAX_STROKES = 20;
 
 export const useStudio = create<StudioState>()((set) => ({
   connection: { state: 'searching', owned: false, mirror: 'idle' },
@@ -188,7 +212,27 @@ export const useStudio = create<StudioState>()((set) => ({
   setOpenNote: (openNote) => {
     set({ openNote });
   },
+  pen: false,
+  setPen: (pen) => {
+    set(pen ? { pen, hover: null, selection: null, selections: [] } : { pen });
+  },
+  strokes: [],
+  addStroke: (stroke) => {
+    set((state) => ({ strokes: [...state.strokes, stroke].slice(-MAX_STROKES) }));
+  },
+  clearStrokes: () => {
+    set({ strokes: [] });
+  },
+  drawingImage: false,
+  setDrawingImage: (drawingImage) => {
+    set({ drawingImage });
+  },
+  captureView: null,
+  setCaptureView: (captureView) => {
+    set({ captureView });
+  },
 }));
+
 
 export function samePick(a: Pick | null, b: Pick | null): boolean {
   if (a === null || b === null) return a === b;

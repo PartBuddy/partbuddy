@@ -3,6 +3,7 @@ import { parseTagged3mf, type ViewerModel } from '@partbuddy/geometry';
 import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
 import { ActionPanel, MeasureLine } from './SelectionActions';
 import { NoteComposer } from '../notes/NoteComposer';
+import { sendToAssistant } from '../assistant/send';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Input, Label, TextField } from 'react-aria-components';
@@ -181,7 +182,7 @@ function HudCard({ bodies, accent, selection, picks }: { bodies: BodyModel[]; ac
     const message = wish.trim();
     if (!message || !assistantReady) return;
     setWish('');
-    void platform().agent.send(message, all);
+    void sendToAssistant(message, all);
   };
 
   let status: string | null = null;

@@ -282,7 +282,15 @@ export const messageAnswerSchema = z
   .object({ question: z.string().min(1).max(40), choice: z.union([z.enum(['go', 'cancel']), z.string().regex(/^[0-4]$/)]) })
   .strict();
 export const agentEventSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('user'), text: z.string(), selection: z.string().max(400).optional() }).strict(),
+  z
+    .object({
+      type: z.literal('user'),
+      text: z.string(),
+      selection: z.string().max(400).optional(),
+      /** Strokes drawn on the view that went with the message, and whether a picture went too (M2b-2). */
+      drawing: z.object({ strokes: z.number().int().min(1).max(20), image: z.boolean() }).strict().optional(),
+    })
+    .strict(),
   z.object({ type: z.literal('textDelta'), text: z.string() }).strict(),
   z.object({ type: z.literal('text'), text: z.string() }).strict(),
   z
@@ -381,11 +389,39 @@ export const visibilityCommandSchema = z
   .strict()
   .refine((command) => command.bodies.length + command.sketches.length > 0, 'nothing to show or hide');
 
+/** One stroke drawn on the view (M2b-2, ADR 0020), as `shared/drawing.ts` summarises it. */
+const shortName = z.string().min(1).max(410);
+export const drawingStrokeSchema = z
+  .object({
+    kind: z.enum(['dot', 'line', 'loop']),
+    body: bodyName.nullable(),
+    faces: z.array(shortName).max(12),
+    points: z.array(point3).min(1).max(64),
+    length: finite.nonnegative().max(1_000_000),
+    size: z.tuple([finite.nonnegative(), finite.nonnegative()]).optional(),
+    inside: z.object({ faces: z.array(shortName).max(12), edges: z.array(shortName).max(12) }).strict().optional(),
+    direction: z.enum(['left', 'right', 'above', 'below']).optional(),
+  })
+  .strict();
+/** A PNG of the view with the strokes, only when the user ticked "Send as image". */
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+export const drawingSchema = z
+  .object({
+    strokes: z.array(drawingStrokeSchema).min(1).max(20),
+    image: z
+      .instanceof(Uint8Array)
+      .refine((bytes) => bytes.length <= MAX_IMAGE_BYTES, 'image too large')
+      .refine((bytes) => bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47, 'not a PNG')
+      .optional(),
+  })
+  .strict();
+
 export const agentMessageSchema = z
   .object({
     text: z.string().min(1).max(20_000),
     selections: z.array(selectionSchema).min(1).max(20).optional(),
     answer: messageAnswerSchema.optional(),
+    drawing: drawingSchema.optional(),
   })
   .strict();
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
@@ -512,6 +548,7 @@ export type Structure = z.infer<typeof structureSchema>;
 export type TimelineCommand = z.infer<typeof timelineCommandSchema>;
 export type VisibilityCommand = z.infer<typeof visibilityCommandSchema>;
 export type NoteView = z.infer<typeof noteViewSchema>;
+export type Drawing = z.infer<typeof drawingSchema>;
 export type NotesState = z.infer<typeof notesStateSchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;

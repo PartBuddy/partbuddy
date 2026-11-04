@@ -129,6 +129,12 @@ A check box "Send as image" adds a PNG of the view with the strokes (viewport si
 1600 px wide) for both routes; it is off by default. Hand-drawn shapes are not recognised beyond
 these three kinds.
 
+Built in M2b-2 (`shared/drawing.ts`, `renderer/src/viewer/Pen.tsx`): the camera controls and the
+picker rest while the pen is on, and the strokes go with a message from the composer and from the
+HUD's text field. The picture is the 3D view as rendered; pins and the HUD, which are HTML on top
+of it, are not in it. Claude Code gets it as an image block of its stream-json input, ChatGPT as
+an image part of the user message.
+
 ### Dimensions in the view
 
 A switch "Dimensions" in the view tools shows the dimensions of the **selected feature**: the

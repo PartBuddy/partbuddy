@@ -1,14 +1,31 @@
 import type { AgentKind, AgentStatus, AssistantState, Selection } from '../../shared/contract';
 
+/** Strokes drawn on the view that go with a message (M2b-2): their count, and the picture if the user asked for it. */
+export interface SentDrawing {
+  strokes: number;
+  image: Uint8Array | null;
+}
+
+/** The user event of a message, with what went along (selection label, drawing). */
+export function userEvent(text: string, label: string | undefined, drawing: SentDrawing | null) {
+  return {
+    type: 'user' as const,
+    text,
+    ...(label ? { selection: label } : {}),
+    ...(drawing ? { drawing: { strokes: drawing.strokes, image: drawing.image !== null } } : {}),
+  };
+}
+
 /** One assistant route (ADR 0015). */
 export interface AgentBackend {
   status(): AgentStatus;
   refresh(): Promise<AgentStatus>;
   /**
    * `selections`: what the user selected in PartBuddy's view, sent along as a short note.
-   * `note`: what the user changed or undid since the model's last turn (work log, M2a).
+   * `note`: what the user changed or undid since the model's last turn (work log, M2a), notes and drawings.
+   * `drawing`: strokes on the view that went with it; their words are in `note`, a picture in `image`.
    */
-  send(text: string, selections?: Selection[], note?: string | null): Promise<void>;
+  send(text: string, selections?: Selection[], note?: string | null, drawing?: SentDrawing | null): Promise<void>;
   stop(): Promise<void>;
   signIn(): void;
   signOut(): Promise<void>;
@@ -48,8 +65,8 @@ export class Assistant {
     return this.state();
   }
 
-  send(text: string, selections: Selection[] = [], note: string | null = null): Promise<void> {
-    return this.current().send(text, selections, note);
+  send(text: string, selections: Selection[] = [], note: string | null = null, drawing: SentDrawing | null = null): Promise<void> {
+    return this.current().send(text, selections, note, drawing);
   }
 
   stop(): Promise<void> {
