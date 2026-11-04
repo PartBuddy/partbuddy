@@ -105,6 +105,17 @@ export const mirrorRevisionSchema = z
   })
   .strict();
 
+const hexColor = z.string().regex(/^#[0-9a-f]{6}$/i);
+
+/** Colours of the native window buttons, read from the design tokens by the renderer. */
+export const titleBarColorsSchema = z
+  .object({
+    color: hexColor,
+    symbolColor: hexColor,
+    height: z.number().int().min(24).max(64),
+  })
+  .strict();
+
 export const appInfoSchema = z
   .object({
     name: z.string(),
@@ -213,6 +224,7 @@ export const invokeContract = {
   [invokeChannels.agentStop]: { request: none, response: none },
   [invokeChannels.agentSignIn]: { request: none, response: none },
   [invokeChannels.viewerState]: { request: viewStateSchema, response: none },
+  [invokeChannels.windowTitleBar]: { request: titleBarColorsSchema, response: none },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -235,6 +247,7 @@ export type AssistantState = z.infer<typeof assistantStateSchema>;
 export type AgentEvent = z.infer<typeof agentEventSchema>;
 export type FaceSelection = z.infer<typeof faceSelectionSchema>;
 export type ViewState = z.infer<typeof viewStateSchema>;
+export type TitleBarColors = z.infer<typeof titleBarColorsSchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;
 export type InvokeResponse<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['response']>;

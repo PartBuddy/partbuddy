@@ -100,6 +100,25 @@ test('a sketch without a body is drawn in the view (#21)', async () => {
   await expect(page.getByTestId('sketch-summary')).toBeHidden();
 });
 
+test('the title bar is part of the window, with the system window buttons beside it', async () => {
+  launched = await launchApp();
+  const { page } = launched;
+  await expect(page.getByTestId('title-bar')).toContainText('PartBuddy');
+  const overlay = await page.evaluate(() => {
+    // Runs in the renderer; typed loosely because this file is compiled for Node.
+    const view = globalThis as unknown as {
+      innerWidth: number;
+      navigator: { windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect(): { width: number; height: number } } };
+    };
+    const overlay = view.navigator.windowControlsOverlay;
+    return { visible: overlay?.visible ?? false, width: overlay?.getTitlebarAreaRect().width ?? 0, viewport: view.innerWidth };
+  });
+  expect(overlay.visible).toBe(true);
+  // The window buttons take room at the side; the title bar keeps clear of them.
+  expect(overlay.width).toBeGreaterThan(0);
+  expect(overlay.width).toBeLessThan(overlay.viewport);
+});
+
 test('every connection state explains itself', async () => {
   launched = await launchApp();
   const { page } = launched;
@@ -131,7 +150,7 @@ test('the renderer sees only the typed bridge', async () => {
     };
   });
   expect(globals).toEqual({
-    bridge: ['agent', 'appInfo', 'mirror', 'solidcraft', 'viewer'],
+    bridge: ['agent', 'appInfo', 'mirror', 'solidcraft', 'viewer', 'window'],
     solidcraft: ['onStatus', 'retry', 'start', 'status'],
     require: 'undefined',
     process: 'undefined',
