@@ -115,6 +115,14 @@ test('the assistant shows the signed-in plan and needs SolidCraft', async () => 
   await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
 });
 
+test('Claude Code signed in with an API key is not used', async () => {
+  launched = await launchApp({ env: { FAKE_CLAUDE_API_KEY: '1' } });
+  const { page } = launched;
+  await expect(page.getByTestId('agent-status')).toHaveText('Claude Code is not using a Claude subscription');
+  await expect(page.getByText('Sign in to Claude Code with your Claude subscription')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
+});
+
 test('the ChatGPT route offers the sign-in when no account is stored', async () => {
   launched = await launchApp();
   const { page } = launched;

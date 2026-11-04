@@ -3,9 +3,19 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { AgentEvent, AgentStatus } from '../../shared/contract';
-import { ClaudeSession, findClaudeCode, readAuth, readVersion, startSignIn, type ClaudeCommand } from './claudeCode';
+import { ClaudeSession, findClaudeCode, readAuth, readVersion, startSignIn, type ClaudeAuth, type ClaudeCommand } from './claudeCode';
 import type { AgentBackend } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
+
+/**
+ * PartBuddy uses Claude Code only with a Claude subscription (Pro, Max), never with API billing
+ * (decided 2026-11-04). Claude Code itself is not changed; PartBuddy just does not start a
+ * session while it is signed in another way.
+ */
+export function stateFor(auth: ClaudeAuth): AgentStatus['state'] {
+  if (!auth.loggedIn) return 'signedOut';
+  return auth.method === 'claude.ai' ? 'ready' : 'needsSubscription';
+}
 
 export interface AgentServiceOptions {
   env: NodeJS.ProcessEnv;
@@ -52,7 +62,7 @@ export class AgentService implements AgentBackend {
     }
     try {
       const [version, auth] = await Promise.all([readVersion(claude, this.options.env), readAuth(claude, this.options.env)]);
-      const status: AgentStatus = { agent: 'claude-code', state: auth.loggedIn ? 'ready' : 'signedOut', version };
+      const status: AgentStatus = { agent: 'claude-code', state: stateFor(auth), version };
       if (auth.method) status.method = auth.method;
       if (auth.plan) status.plan = auth.plan;
       if (this.session?.running && auth.loggedIn) status.state = this.current.state === 'busy' ? 'busy' : 'ready';
@@ -105,6 +115,12 @@ export class AgentService implements AgentBackend {
   private async ensureSession(tools: UpstreamTools): Promise<void> {
     if (this.session?.running) return;
     if (!this.claude) throw new Error('Claude Code is not installed');
+    // The sign-in may have changed since the last check (an API key set in the meantime).
+    const auth = await readAuth(this.claude, this.options.env);
+    if (stateFor(auth) !== 'ready') {
+      this.setStatus({ ...this.current, state: stateFor(auth) });
+      throw new Error('Claude Code is not signed in with a Claude subscription');
+    }
     await this.proxy?.stop();
     const proxy = new GateProxy(tools, (record) => {
       const event: AgentEvent = { type: 'tool', id: record.id, name: record.name, summary: record.summary, decision: record.decision };

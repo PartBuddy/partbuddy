@@ -177,6 +177,14 @@ describe('agent service with a fake Claude Code', () => {
     await expect(service.send('hello')).rejects.toThrow(/signedOut/);
   });
 
+  it('uses Claude Code only with a subscription, never with an API key', async () => {
+    const { service, events } = setup({ FAKE_CLAUDE_API_KEY: '1' });
+    const status = await service.refresh();
+    expect(status.state).toBe('needsSubscription');
+    await expect(service.send('hello')).rejects.toThrow(/needsSubscription/);
+    expect(events).toEqual([]);
+  });
+
   it('runs a turn through the gate proxy and streams the answer', async () => {
     const { service, events, calls, statuses } = setup();
     await service.refresh();

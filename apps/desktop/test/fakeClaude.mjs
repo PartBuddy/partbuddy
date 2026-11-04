@@ -13,13 +13,14 @@ if (args[0] === '--version') {
   console.log('9.9.9 (Claude Code)');
 } else if (args[0] === 'auth' && args[1] === 'status') {
   const signedIn = process.env.FAKE_CLAUDE_SIGNED_OUT !== '1';
+  const apiKey = process.env.FAKE_CLAUDE_API_KEY === '1';
   console.log(
     JSON.stringify({
       loggedIn: signedIn,
-      authMethod: signedIn ? 'claude.ai' : 'none',
+      authMethod: !signedIn ? 'none' : apiKey ? 'api_key' : 'claude.ai',
       email: 'someone@example.com',
       orgName: 'Example',
-      subscriptionType: signedIn ? 'max' : null,
+      subscriptionType: signedIn && !apiKey ? 'max' : null,
     }),
   );
 } else if (args.includes('-p')) {

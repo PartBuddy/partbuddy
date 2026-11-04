@@ -97,7 +97,8 @@ export const agentKindSchema = z.enum(['claude-code', 'chatgpt']);
 export const agentStatusSchema = z
   .object({
     agent: agentKindSchema,
-    state: z.enum(['checking', 'notInstalled', 'signedOut', 'ready', 'busy', 'unavailable']),
+    // needsSubscription: Claude Code is signed in, but not with a Claude subscription (decided 2026-11-04).
+    state: z.enum(['checking', 'notInstalled', 'signedOut', 'needsSubscription', 'ready', 'busy', 'unavailable']),
     version: z.string().max(40).optional(),
     method: z.string().max(40).optional(),
     plan: z.string().max(40).optional(),

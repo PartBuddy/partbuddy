@@ -134,6 +134,21 @@ function Setup() {
       </Notice>
     );
   }
+  if (status.state === 'needsSubscription') {
+    return (
+      <Notice title={t('assistant.needsSubscriptionTitle')} body={t('assistant.needsSubscriptionBody')}>
+        <Button
+          variant="primary"
+          onPress={() => {
+            void api.signIn();
+          }}
+        >
+          {t('assistant.signIn')}
+        </Button>
+        {refresh}
+      </Notice>
+    );
+  }
   if (status.state === 'unavailable') {
     return (
       <Notice title={t('assistant.unavailableTitle')} body={t('assistant.unavailableBody', { detail: status.detail ?? '–' })}>
