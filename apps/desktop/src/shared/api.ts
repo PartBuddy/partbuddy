@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentStatus, AppInfo, ConnectionStatus, MirrorRevision } from './contract';
+import type { AgentEvent, AgentKind, AppInfo, AssistantState, ConnectionStatus, MirrorRevision } from './contract';
 
 /**
  * What the preload exposes as `window.partbuddy`. Each member is bound to one channel of the
@@ -18,16 +18,19 @@ export interface PartBuddyApi {
     current(): Promise<MirrorRevision | null>;
     onRevision(listener: (revision: MirrorRevision) => void): () => void;
   };
-  /** The user's own agent program, driven through the gate proxy (ADR 0015). */
+  /** The assistant: the user's Claude Code or ChatGPT plan usage (ADR 0015). */
   agent: {
-    status(): Promise<AgentStatus>;
+    status(): Promise<AssistantState>;
     /** Check installation and sign-in again, for example after signing in. */
-    refresh(): Promise<AgentStatus>;
+    refresh(): Promise<AssistantState>;
+    select(agent: AgentKind): Promise<AssistantState>;
     send(text: string): Promise<void>;
     stop(): Promise<void>;
-    /** Start the agent's own sign-in flow; it opens the browser. */
+    /** Start the selected route's sign-in flow; it opens the browser. */
     signIn(): Promise<void>;
-    onStatus(listener: (status: AgentStatus) => void): () => void;
+    /** Sign out of ChatGPT in PartBuddy; Claude Code keeps its own sign-in. */
+    signOut(): Promise<void>;
+    onStatus(listener: (state: AssistantState) => void): () => void;
     onEvent(listener: (event: AgentEvent) => void): () => void;
   };
 }

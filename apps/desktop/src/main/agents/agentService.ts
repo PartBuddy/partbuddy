@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import type { AgentEvent, AgentStatus } from '../../shared/contract';
 import { ClaudeSession, findClaudeCode, readAuth, readVersion, startSignIn, type ClaudeCommand } from './claudeCode';
+import type { AgentBackend } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
 
 export interface AgentServiceOptions {
@@ -26,7 +27,7 @@ export interface AgentListeners {
  * program, shows whether the user is signed in, starts one headless session per conversation
  * and reports text and every tool decision to the renderer.
  */
-export class AgentService {
+export class AgentService implements AgentBackend {
   private current: AgentStatus = { agent: 'claude-code', state: 'checking' };
   private claude: ClaudeCommand | null = null;
   private session: ClaudeSession | null = null;
@@ -81,6 +82,11 @@ export class AgentService {
     this.listeners.event({ type: 'user', text });
     this.setStatus({ ...this.current, state: 'busy' });
     this.session?.send(text);
+  }
+
+  /** Claude Code keeps its own sign-in; signing out happens there. */
+  async signOut(): Promise<void> {
+    await Promise.resolve();
   }
 
   async stop(): Promise<void> {
