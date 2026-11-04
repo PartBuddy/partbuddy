@@ -155,6 +155,10 @@ export const appInfoSchema = z
   })
   .strict();
 
+/** The colour theme: follow the system (Windows), or always light or dark. */
+export const themeSchema = z.enum(['system', 'light', 'dark']);
+export const themeRequestSchema = z.object({ theme: themeSchema }).strict();
+
 export const agentKindSchema = z.enum(['claude-code', 'chatgpt']);
 
 // Zod 4 numbers are finite by default.
@@ -517,6 +521,8 @@ export const invokeContract = {
   [invokeChannels.agentSignIn]: { request: none, response: none },
   [invokeChannels.viewerState]: { request: viewStateSchema, response: none },
   [invokeChannels.windowTitleBar]: { request: titleBarColorsSchema, response: none },
+  [invokeChannels.windowTheme]: { request: none, response: themeSchema },
+  [invokeChannels.windowSetTheme]: { request: themeRequestSchema, response: themeSchema },
   [invokeChannels.designUndo]: { request: none, response: none },
   [invokeChannels.designRedo]: { request: none, response: none },
   [invokeChannels.designExport]: { request: exportRequestSchema, response: exportResultSchema },
@@ -569,6 +575,7 @@ export type MessageAnswer = z.infer<typeof messageAnswerSchema>;
 export type WorkStepState = z.infer<typeof workStepStateSchema>;
 export type ViewState = z.infer<typeof viewStateSchema>;
 export type TitleBarColors = z.infer<typeof titleBarColorsSchema>;
+export type Theme = z.infer<typeof themeSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type ExportResult = z.infer<typeof exportResultSchema>;
 export type DimensionTarget = z.infer<typeof dimensionTargetSchema>;

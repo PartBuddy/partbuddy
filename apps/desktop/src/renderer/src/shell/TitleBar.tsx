@@ -7,6 +7,7 @@ import { useStudio } from '../state/store';
 import { StatusDot, type Tone } from '../ui/Feedback';
 import { BrandMark } from './BrandMark';
 import { DesignActions } from './DesignActions';
+import { SettingsMenu } from './SettingsMenu';
 
 function connectionTone(status: ConnectionStatus): Tone {
   if (status.state === 'connected') return status.mirror === 'failed' ? 'warning' : status.mirror === 'rebuilding' ? 'info' : 'success';
@@ -74,6 +75,7 @@ export function TitleBar() {
           label={t(connectionLabelKey(connection), { revision: connection.revision ?? 0 })}
         />
       </div>
+      <SettingsMenu />
     </header>
   );
 }

@@ -60,6 +60,8 @@ const api: PartBuddyApi = {
   },
   window: {
     setTitleBarColors: (colors) => ipcRenderer.invoke(invokeChannels.windowTitleBar, colors),
+    theme: () => ipcRenderer.invoke(invokeChannels.windowTheme),
+    setTheme: (theme) => ipcRenderer.invoke(invokeChannels.windowSetTheme, { theme }),
   },
   agent: {
     status: () => ipcRenderer.invoke(invokeChannels.agentStatus),

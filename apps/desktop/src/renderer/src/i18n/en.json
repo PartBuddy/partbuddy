@@ -373,5 +373,14 @@
       "horizontal": "Horizontal",
       "vertical": "Vertical"
     }
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": {
+      "title": "Appearance",
+      "system": "Like Windows",
+      "light": "Light",
+      "dark": "Dark"
+    }
   }
 }

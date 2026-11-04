@@ -238,6 +238,35 @@ test('the camera keeps a growing design in view until the user moves it', async 
   expect(await sketchPixels(8)).toBeGreaterThan(0);
 });
 
+test('the colour theme can be chosen in the settings and is kept', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-theme-'));
+  const dark = (page: LaunchedApp['page']) =>
+    page.evaluate(() => (globalThis as unknown as { matchMedia(query: string): { matches: boolean } }).matchMedia('(prefers-color-scheme: dark)').matches);
+  try {
+    launched = await launchApp({ work });
+    let { page } = launched;
+    await page.getByTestId('settings').click();
+    await expect(page.getByRole('menuitemradio', { name: 'Like Windows' })).toHaveAttribute('aria-checked', 'true');
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click();
+    await expect.poll(() => dark(page)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath('theme-dark.png') });
+
+    // The choice survives a restart.
+    await launched.close();
+    launched = await launchApp({ work });
+    ({ page } = launched);
+    await expect.poll(() => dark(page)).toBe(true);
+    await page.getByTestId('settings').click();
+    await expect(page.getByRole('menuitemradio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'true');
+    await page.getByRole('menuitemradio', { name: 'Light' }).click();
+    await expect.poll(() => dark(page)).toBe(false);
+  } finally {
+    await launched?.close();
+    launched = null;
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('the title bar is part of the window, with the system window buttons beside it', async () => {
   launched = await launchApp();
   const { page } = launched;
