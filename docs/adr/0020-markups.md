@@ -65,15 +65,20 @@ delete, accept, re-attach).
 **Undo.** Every write is an undo step and moves the revision, like a feature: Ctrl+Z after
 adding a note removes it, and "Back to this step" (ADR 0018) shows the design with the notes it
 had then. PartBuddy keeps the notes it last read; when a revision lacks a note the user did not
-delete, the note goes to a restore list ("2 notes removed by going back · Restore"). This list
-lives in memory for the session and in the design's PartBuddy cache folder, so a note is still
-there after the redo history was dropped by a new change. A revision that only changed notes
-skips the geometry export of the mirror (PartBuddy made the write and knows it).
+delete, the note goes to a restore list ("2 notes removed by going back · Restore"). The list is
+kept per design name in `notes-restore.json` in the app's data folder (at most 50 notes, 30
+days), so a note is still there after a new change dropped the redo history, and after a
+restart. A note write is mirrored like any change (about 70 ms); skipping the geometry export
+for writes that only touch notes is left for later.
 
-**Assistant undo.** When the top of the undo stack is a note write (PartBuddy records the undo
-depth after each of its writes), the assistant's `undo` is refused with the next step ("the
-user's last change is a note; change the feature directly with timeline.edit or
-parameters.change"), so the model cannot delete a note while undoing its own work.
+**Assistant undo.** Before a call of the assistant that undoes (`undo`, `edit.undo` through
+`execute`, or such a step in `batch`), PartBuddy runs its steps on trial between two reads of
+`document.metadata`, with the failing last step of ADR 0017 that puts everything back, redo
+history included (checked with SolidCraft 0.30.1: 1 ms, redo depth unchanged). When a note
+would disappear or change, the call is refused with the next step ("change the feature directly
+with timeline.edit or parameters.change"), so the model cannot delete a note while undoing its
+own work. This replaces the first plan of counting undo depths, which breaks once the user
+undoes a note and builds on.
 
 **Own and foreign notes.** PartBuddy signs every note it writes with HMAC-SHA-256 over the
 canonical JSON of id, text, anchor and creation time. The key is 32 random bytes made on first
@@ -153,6 +158,8 @@ M2b-2 drawing, M2b-3 dimensions.
 
 ### Consequences
 
+* Neutral: point notes (on a vertex) stay at their world point while the body exists; feature
+  notes from the structure tree are not part of M2b-1.
 * Good, because notes travel inside the `.sc` file and undo like any other change, and nothing is
   lost silently: the restore list catches what undo or going back removed.
 * Good, because foreign text cannot pose as the user: unsigned notes wait for the user, and the

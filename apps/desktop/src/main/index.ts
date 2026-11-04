@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
@@ -11,6 +12,7 @@ import { AgentService } from './agents/agentService';
 import { Assistant } from './agents/assistant';
 import { SolidCraftTools } from './agents/solidcraftTools';
 import type { UpstreamTools } from './agents/gateProxy';
+import { guardNotes } from './agents/noteGuard';
 import { withViewTool } from './agents/viewContext';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
@@ -19,6 +21,8 @@ import { ChatGptAccount } from './chatgpt/account';
 import { ChatGptAgent } from './chatgpt/chatgptAgent';
 import { hostId } from './chatgpt/oauth';
 import { SecretStore } from './credentials/secretStore';
+import { loadNoteKey } from './notes/noteRecord';
+import { NotesService } from './notes/notesService';
 import { Bridge, trustedSender } from './bridge';
 import { findExecutable, systemEnvironment } from './solidcraft/discovery';
 import { safeDesignFileName } from './solidcraft/headless';
@@ -169,6 +173,8 @@ if (!app.requestSingleInstanceLock()) {
     mkdirSync(projects, { recursive: true });
     // The work log of the conversation (M2a); made once the supervisor exists.
     let workLog: WorkLog | null = null;
+    // Notes on the model (M2b, ADR 0020); made once the supervisor exists.
+    let notes: NotesService | null = null;
     const supervisor = new SolidCraftSupervisor(
       {
         environment: systemEnvironment,
@@ -188,6 +194,9 @@ if (!app.requestSingleInstanceLock()) {
         revision: (revision) => {
           bridge.emit(mainWindow?.webContents ?? null, eventChannels.mirrorRevision, revision);
           workLog?.observe({ documentId: revision.documentId, revision: revision.revision, ...revision.history });
+          notes?.refresh().catch((error: unknown) => {
+            log(`notes could not be read: ${(error as Error).message}`);
+          });
         },
       },
     );
@@ -208,6 +217,32 @@ if (!app.requestSingleInstanceLock()) {
       return undefined;
     });
     bridge.handle(invokeChannels.mirrorCurrent, () => supervisor.currentRevision());
+
+    const secrets = new SecretStore();
+    let noteKey: Buffer;
+    try {
+      noteKey = loadNoteKey(secrets);
+    } catch (error) {
+      // Without the credential store the key lasts for this run; notes count as foreign after a restart.
+      log(`the note key could not be kept: ${(error as Error).message}`);
+      noteKey = randomBytes(32);
+    }
+    const notesService = new NotesService({
+      design: {
+        read: () => supervisor.readMetadata(),
+        write: (values) => supervisor.writeMetadata(values),
+        tables: () => supervisor.currentRevision()?.bodies.map((body) => body.faces) ?? [],
+        designName: () => supervisor.currentRevision()?.designName ?? '',
+      },
+      key: noteKey,
+      restoreFile: join(app.getPath('userData'), 'notes-restore.json'),
+      emit: (state) => {
+        bridge.emit(mainWindow?.webContents ?? null, eventChannels.notesChanged, state);
+      },
+      mention: (text) => workLog?.mention(text),
+    });
+    notes = notesService;
+    bridge.handle(invokeChannels.notesCurrent, () => notesService.state());
 
     // SolidCraft's MCP tools for the assistant, bridged to the app the supervisor is connected to.
     // What the 3D view shows, as the renderer last reported it (for `partbuddy_view`).
@@ -231,11 +266,13 @@ if (!app.requestSingleInstanceLock()) {
     workLog = steps;
     // Questions and plans as cards (M2a); changes wait until the user answered.
     const questions = new Questions(emitEvent);
-    const track = (upstream: UpstreamTools) => questions.tools(steps.tools(upstream));
+    // The model reads notes only through PartBuddy; results lose the note data, undo may not take a note (ADR 0020).
+    const track = (upstream: UpstreamTools) =>
+      questions.tools(steps.tools(withViewTool(guardNotes(upstream, (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView())));
     let toolsCache: { port: number; tools: UpstreamTools; close(): Promise<void> } | null = null;
     const tools = async () => {
       const headless = supervisor.headlessTools();
-      if (headless) return track(withViewTool(headless, () => viewState));
+      if (headless) return track(headless);
       const port = supervisor.connectedPort();
       const executable = findExecutable(systemEnvironment);
       if (port === null || !executable) return null;
@@ -243,7 +280,7 @@ if (!app.requestSingleInstanceLock()) {
         await toolsCache?.close();
         const next = new SolidCraftTools({ solidcraftExe: executable, port, allowPath: projects, env: process.env });
         await next.connect();
-        toolsCache = { port, tools: track(withViewTool(next, () => viewState)), close: () => next.close() };
+        toolsCache = { port, tools: track(next), close: () => next.close() };
       }
       return toolsCache.tools;
     };
@@ -269,7 +306,7 @@ if (!app.requestSingleInstanceLock()) {
     );
     // ChatGPT tokens live only in the Windows credential store (ADR 0011, ADR 0015).
     const account = new ChatGptAccount({
-      store: new SecretStore(),
+      store: secrets,
       hostId: () => hostId(join(app.getPath('userData'), 'chatgpt-host-id')),
       openBrowser: async (url) => {
         if (!url.startsWith('https://auth.openai.com/')) throw new Error('refused to open an unexpected sign-in address');
@@ -295,8 +332,8 @@ if (!app.requestSingleInstanceLock()) {
       return agent.state();
     });
     bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer }) => {
-      const notes = [questions.answer(answer), steps.takeNote()].filter((note): note is string => note !== null);
-      await agent.send(text, selections, notes.length > 0 ? notes.join('\n') : null);
+      const lines = [questions.answer(answer), steps.takeNote(), notesService.selectionNote(selections ?? [])].filter((line): line is string => line !== null);
+      await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null);
       return undefined;
     });
     bridge.handle(invokeChannels.agentStop, async () => {
@@ -382,6 +419,41 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.designVisibility, async (command) => {
       await supervisor.visibility(command);
+      return undefined;
+    });
+    // The user's notes (M2b); like every change of the design they wait while the assistant works.
+    bridge.handle(invokeChannels.notesAdd, async ({ selection, text }) => {
+      assistantIdle();
+      await notesService.add(selection, text);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.notesEdit, async ({ id, text }) => {
+      assistantIdle();
+      await notesService.edit(id, text);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.notesDelete, async ({ id }) => {
+      assistantIdle();
+      await notesService.remove(id);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.notesAccept, async ({ id }) => {
+      assistantIdle();
+      await notesService.accept(id);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.notesReattach, async ({ id, selection }) => {
+      assistantIdle();
+      await notesService.reattach(id, selection);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.notesRestore, async ({ id }) => {
+      assistantIdle();
+      await notesService.restoreNote(id);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.notesDismiss, async ({ id }) => {
+      await notesService.dismiss(id);
       return undefined;
     });
     bridge.handle(invokeChannels.designOpenInSolidCraft, async () => {

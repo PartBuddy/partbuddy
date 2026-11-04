@@ -23,3 +23,19 @@ export {
   type SketchModel,
   type SketchPlane,
 } from './sketch';
+export {
+  ACCEPT_MARGIN,
+  ACCEPT_SCORE,
+  edgeAnchor,
+  faceAnchor,
+  lineageOf,
+  pointAnchor,
+  resolveAnchor,
+  signatureOf,
+  signatureScore,
+  type AnchorStatus,
+  type FaceSignature,
+  type LocalPosition,
+  type NoteAnchor,
+  type ResolvedAnchor,
+} from './noteAnchors';

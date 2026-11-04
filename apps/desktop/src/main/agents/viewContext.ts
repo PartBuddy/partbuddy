@@ -112,9 +112,23 @@ export function viewDirection(position: readonly number[], target: readonly numb
   return words.join('-') || 'unknown';
 }
 
+/** The user's own notes on the model (ADR 0020), as `partbuddy_view` lists them. */
+export interface ViewNotes {
+  notes: { id: string; on: string; status: string; text: string }[];
+  foreignWaiting: number;
+}
+
 /** The tool's answer: compact JSON text, no images. */
-export function describeView(state: ViewState | null): string {
+export function describeView(state: ViewState | null, notes?: ViewNotes | null): string {
   if (!state) return JSON.stringify({ view: 'PartBuddy shows no design yet' });
+  const notesPart = notes
+    ? {
+        notes: notes.notes,
+        ...(notes.foreignWaiting > 0
+          ? { foreignNotes: `${notes.foreignWaiting} note(s) from the design file are not shown until the user accepts them` }
+          : {}),
+      }
+    : {};
   return JSON.stringify({
     selected: state.selections.map(describeSelection),
     camera: state.camera
@@ -123,6 +137,7 @@ export function describeView(state: ViewState | null): string {
     bodies: state.bodies,
     sketches: state.sketches,
     lastStepChanged: state.changes,
+    ...notesPart,
   });
 }
 
@@ -130,19 +145,20 @@ const viewTool: UpstreamTool = {
   name: VIEW_TOOL,
   description:
     "What the user sees in PartBuddy's 3D view right now: the selected face, edge or vertex, the direction the camera looks from, " +
-    'the bodies and sketches shown and what the last step changed. Text only, about 100 tokens. Use it instead of ' +
+    'the bodies and sketches shown, what the last step changed and the user\'s notes on the model. Text only, about 100 tokens ' +
+    'plus the notes. Use it instead of ' +
     "a screenshot to know what the user selected or looks at; SolidCraft's own window selection is not PartBuddy's.",
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { readOnlyHint: true },
 };
 
 /** SolidCraft's tools plus `partbuddy_view`, answered by PartBuddy itself. */
-export function withViewTool(upstream: UpstreamTools, state: () => ViewState | null): UpstreamTools {
+export function withViewTool(upstream: UpstreamTools, state: () => ViewState | null, notes: () => ViewNotes | null = () => null): UpstreamTools {
   return {
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), viewTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
-      if (name === VIEW_TOOL) return { content: [{ type: 'text', text: describeView(state()) }] };
+      if (name === VIEW_TOOL) return { content: [{ type: 'text', text: describeView(state(), notes()) }] };
       return upstream.callTool(name, args, callId);
     },
   };

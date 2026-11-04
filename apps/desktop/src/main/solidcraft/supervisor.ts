@@ -238,6 +238,40 @@ export class SolidCraftSupervisor {
     return this.trial(() => this.actions.measure(items));
   }
 
+  /**
+   * Runs engine steps on trial (ADR 0017): a failing last step makes SolidCraft undo the whole
+   * batch, undo history included, and still return the results before it. Null when one of the
+   * given steps failed.
+   */
+  trialSteps(steps: { command: string; params: Record<string, unknown> }[]): Promise<unknown[] | null> {
+    return this.trial(async () => {
+      const reply = await this.requester().request<BatchResult & { failed?: { index: number } }>(
+        'engine.batch',
+        { commands: [...steps, { command: 'sketch.inspect', params: { sketch: 2147483647 } }], rollback: true },
+        60_000,
+      );
+      return reply.failed?.index === steps.length ? reply.results.slice(0, steps.length) : null;
+    });
+  }
+
+  /** The design's document id and `document.metadata`, where the notes live (ADR 0020). */
+  async readMetadata(): Promise<{ documentId: string; metadata: unknown }> {
+    const batch = await this.requester().request<BatchResult>(
+      'engine.batch',
+      { commands: [{ command: 'document.revision', params: {} }, { command: 'document.metadata', params: {} }], rollback: false },
+      30_000,
+    );
+    if (batch.failed) throw new Error(`${batch.failed.command} failed: ${batch.failed.error}`);
+    const head = batch.results[0] as { document_id?: unknown } | undefined;
+    if (typeof head?.document_id !== 'string') throw new Error('document.revision returned no document id');
+    return { documentId: head.document_id, metadata: (batch.results[1] as { metadata?: unknown } | undefined)?.metadata ?? {} };
+  }
+
+  /** Sets or removes (null) metadata keys in one undo step; mirrored like any change. */
+  writeMetadata(values: Record<string, unknown>): Promise<void> {
+    return this.run({ command: 'document.metadata.set', params: { values } });
+  }
+
   /** Whether "Open in SolidCraft" is possible: the headless engine runs and holds the design. */
   canOpenInSolidCraft(): boolean {
     return this.actor.getSnapshot().value === 'connected' && this.engine?.isOpen === true && Boolean(this.options.projectsDir);

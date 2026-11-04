@@ -18,6 +18,7 @@ import type {
   VisibilityCommand,
   Selection,
   MirrorRevision,
+  NotesState,
   TitleBarColors,
   ViewState,
 } from './contract';
@@ -63,6 +64,23 @@ export interface PartBuddyApi {
     visibility(command: VisibilityCommand): Promise<void>;
     /** "Go back to this state": undoes or redoes to a step of the work log (M2a). */
     goToStep(step: string): Promise<void>;
+  };
+  /** Notes on the model (M2b, ADR 0020), stored in the design file. */
+  notes: {
+    current(): Promise<NotesState>;
+    /** Pins a note to the selected face, edge or vertex. */
+    add(selection: Selection, text: string): Promise<void>;
+    edit(id: string, text: string): Promise<void>;
+    delete(id: string): Promise<void>;
+    /** Accepts a foreign note from the design file, so the assistant may read it. */
+    accept(id: string): Promise<void>;
+    /** Pins a note to a new place. */
+    reattach(id: string, selection: Selection): Promise<void>;
+    /** Puts a note that undo or "go back" removed back into the design. */
+    restore(id: string): Promise<void>;
+    /** Removes a note from the restore list for good. */
+    dismiss(id: string): Promise<void>;
+    onChange(listener: (state: NotesState) => void): () => void;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

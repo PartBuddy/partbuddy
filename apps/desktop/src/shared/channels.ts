@@ -30,6 +30,14 @@ export const invokeChannels = {
   designTimeline: 'design:timeline',
   designVisibility: 'design:visibility',
   designGoToStep: 'design:go-to-step',
+  notesCurrent: 'notes:current',
+  notesAdd: 'notes:add',
+  notesEdit: 'notes:edit',
+  notesDelete: 'notes:delete',
+  notesAccept: 'notes:accept',
+  notesReattach: 'notes:reattach',
+  notesRestore: 'notes:restore',
+  notesDismiss: 'notes:dismiss',
 } as const;
 
 export const eventChannels = {
@@ -37,6 +45,7 @@ export const eventChannels = {
   mirrorRevision: 'mirror:revision',
   agentStatus: 'agent:status-changed',
   agentEvent: 'agent:event',
+  notesChanged: 'notes:changed',
 } as const;
 
 export type InvokeChannel = (typeof invokeChannels)[keyof typeof invokeChannels];
