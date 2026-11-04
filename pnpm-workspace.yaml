@@ -1,0 +1,14 @@
+packages:
+  - packages/*
+  - prototypes/*
+
+# Exact versions only; the lockfile carries integrity hashes.
+saveExact: true
+engineStrict: true
+
+# Supply-chain guard: ignore versions published less than seven days ago.
+minimumReleaseAge: 10080
+
+# Install scripts run only for reviewed packages.
+allowBuilds:
+  lefthook: true
