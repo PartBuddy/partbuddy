@@ -185,6 +185,26 @@
         "undone": "undone",
         "discarded": "replaced by later changes"
       }
+    },
+    "question": {
+      "title": "Question from the assistant",
+      "typeInstead": "Or type a different answer below.",
+      "answered": "Answered in the chat",
+      "answeredWith": "Answered: {answer}"
+    },
+    "planCard": {
+      "title": "Plan",
+      "go": "Go",
+      "change": "Change",
+      "cancel": "Cancel",
+      "goMessage": "Go ahead, build it like this.",
+      "cancelMessage": "Cancel, please do not build it.",
+      "changeDraft": "Change the plan: ",
+      "outcome": {
+        "go": "Approved, the assistant builds it",
+        "cancel": "Cancelled",
+        "change": "Change requested"
+      }
     }
   },
   "live": {

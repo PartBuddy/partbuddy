@@ -10,6 +10,7 @@ import { selectionName, selectionsOf } from '../viewer/viewState';
 import { Button } from '../ui/Button';
 import { Busy, StatusDot } from '../ui/Feedback';
 import { Markdown } from './Markdown';
+import { QuestionCard } from './QuestionCard';
 import { Details, StepCard } from './StepCard';
 import { selectedStatus, useAssistant, type ConversationItem } from './store';
 import { ToolCall, type ToolItem } from './ToolCall';
@@ -204,6 +205,7 @@ function Item({ item }: { item: ConversationItem }) {
     case 'tool':
       return <ToolCall item={item} />;
     case 'step':
+    case 'question':
       return null;
     case 'stopped':
       return <p className="text-sm text-text-muted">{t('assistant.stopped')}</p>;
@@ -271,6 +273,7 @@ export function AssistantPanel() {
   const [selection] = selections;
   const [draft, setDraft] = useState('');
   const list = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
   const busy = status.state === 'busy';
   const ready = status.state === 'ready' && connected;
 
@@ -292,7 +295,20 @@ export function AssistantPanel() {
         <Setup />
         {items.length === 0 && (status.state === 'ready' || busy) ? <p className="text-sm text-text-muted">{t('assistant.empty')}</p> : null}
         {rowsOf(items).map((row) =>
-          row.kind === 'step' ? (
+          row.kind === 'item' && row.item.kind === 'question' ? (
+            <QuestionCard
+              key={row.item.key}
+              item={row.item}
+              ready={ready}
+              answer={(text, answer) => {
+                void platform().agent.send(text, [], answer);
+              }}
+              change={() => {
+                setDraft(t('assistant.planCard.changeDraft'));
+                composer.current?.focus();
+              }}
+            />
+          ) : row.kind === 'step' ? (
             <StepCard key={row.item.key} item={row.item} tools={row.tools} disabled={busy || !connected} />
           ) : row.kind === 'queries' ? (
             <Queries key={row.tools[0]?.key} tools={row.tools} />
@@ -312,6 +328,7 @@ export function AssistantPanel() {
         {!connected && (status.state === 'ready' || busy) ? <p className="text-sm text-text-muted">{t('assistant.needsSolidCraft')}</p> : null}
         <TextField value={draft} onChange={setDraft} aria-label={t('assistant.composer')} isDisabled={!ready}>
           <TextArea
+            ref={composer}
             rows={3}
             placeholder={t('assistant.placeholder')}
             className="w-full resize-none rounded-md border border-border-strong bg-surface p-2 text-md text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"

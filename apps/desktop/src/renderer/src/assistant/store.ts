@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { AgentEvent, AgentStatus, AssistantState, WorkStep, WorkStepState } from '../../../shared/contract';
+import type { AgentEvent, AgentQuestion, AgentStatus, AssistantState, WorkStep, WorkStepState } from '../../../shared/contract';
 
 /** Faces a step changed, by body and SolidCraft face name (indices change on rebuilds, ADR 0004). */
 export interface ChangedFaces {
@@ -33,6 +33,14 @@ export type ConversationItem =
       /** Small picture of PartBuddy's view right after the step (data URL). */
       preview?: string | undefined;
       changed?: ChangedFaces[] | undefined;
+    }
+  | {
+      kind: 'question';
+      key: number;
+      question: AgentQuestion;
+      /** Answered by the next message; `choice` names the pressed button. */
+      answered: boolean;
+      choice: string | null;
     }
   | { kind: 'stopped'; key: number; detail: string | null }
   | { kind: 'error'; key: number; message: string };
@@ -84,6 +92,10 @@ export function reduce(items: ConversationItem[], event: AgentEvent): Conversati
       // The card takes the place of its tool call, which moves into the card's details.
       return [...others.slice(0, index), card, ...others.slice(index).map((item, i) => (i === 0 && item.kind === 'tool' ? { ...item, step: event.step.id } : item))];
     }
+    case 'question':
+      return [...items, { kind: 'question', key, question: event.question, answered: false, choice: null }];
+    case 'answered':
+      return items.map((item) => (item.kind === 'question' && item.question.id === event.id ? { ...item, answered: true, choice: event.choice } : item));
     case 'steps': {
       const states = new Map(event.states.map((entry) => [entry.id, entry.state]));
       return items.map((item) =>

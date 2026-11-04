@@ -13,6 +13,7 @@ import type {
   ExportResult,
   MeasureItem,
   MeasureResult,
+  MessageAnswer,
   TimelineCommand,
   VisibilityCommand,
   Selection,
@@ -80,7 +81,7 @@ export interface PartBuddyApi {
     /** Let Claude Code run with an API key, billed separately; off by default. */
     allowApiBilling(allow: boolean): Promise<AssistantState>;
     /** Sends a message; what is selected in the view goes with it as a short note. */
-    send(text: string, selections?: Selection[]): Promise<void>;
+    send(text: string, selections?: Selection[], answer?: MessageAnswer): Promise<void>;
     stop(): Promise<void>;
     /** Start the selected route's sign-in flow; it opens the browser. */
     signIn(): Promise<void>;

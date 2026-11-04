@@ -26,6 +26,9 @@ const ALLOWED = new Set([
   'skill_reference',
   // Answered by PartBuddy itself from its own view (viewContext.ts), never forwarded.
   'partbuddy_view',
+  // Cards in PartBuddy's chat (questions.ts), never forwarded.
+  'partbuddy_ask',
+  'partbuddy_plan',
 ]);
 
 /**

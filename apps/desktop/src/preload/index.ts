@@ -51,7 +51,12 @@ const api: PartBuddyApi = {
   agent: {
     status: () => ipcRenderer.invoke(invokeChannels.agentStatus),
     refresh: () => ipcRenderer.invoke(invokeChannels.agentRefresh),
-    send: (text, selections) => ipcRenderer.invoke(invokeChannels.agentSend, selections && selections.length > 0 ? { text, selections } : { text }),
+    send: (text, selections, answer) =>
+      ipcRenderer.invoke(invokeChannels.agentSend, {
+        text,
+        ...(selections && selections.length > 0 ? { selections } : {}),
+        ...(answer ? { answer } : {}),
+      }),
     stop: () => ipcRenderer.invoke(invokeChannels.agentStop),
     select: (agent) => ipcRenderer.invoke(invokeChannels.agentSelect, { agent }),
     allowApiBilling: (allow) => ipcRenderer.invoke(invokeChannels.agentAllowApiBilling, { allow }),

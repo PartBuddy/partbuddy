@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { QUESTION_GUIDANCE } from './questions';
 import { VIEW_GUIDANCE } from './viewContext';
 
 /**
@@ -129,6 +130,7 @@ const ROLE = [
   'If PartBuddy refuses a tool, tell the user why and continue without it.',
   'Answer in the language the user writes in.',
   VIEW_GUIDANCE,
+  QUESTION_GUIDANCE,
 ].join(' ');
 
 export interface SessionOptions {

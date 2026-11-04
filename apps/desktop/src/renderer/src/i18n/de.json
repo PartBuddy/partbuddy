@@ -185,6 +185,26 @@
         "undone": "rückgängig gemacht",
         "discarded": "durch spätere Änderungen ersetzt"
       }
+    },
+    "question": {
+      "title": "Rückfrage des Assistenten",
+      "typeInstead": "Oder schreib unten eine andere Antwort.",
+      "answered": "Im Chat beantwortet",
+      "answeredWith": "Beantwortet: {answer}"
+    },
+    "planCard": {
+      "title": "Plan",
+      "go": "Los",
+      "change": "Ändern",
+      "cancel": "Abbrechen",
+      "goMessage": "Los, bau es so.",
+      "cancelMessage": "Abbrechen, bitte nicht bauen.",
+      "changeDraft": "Ändere den Plan: ",
+      "outcome": {
+        "go": "Freigegeben, der Assistent baut",
+        "cancel": "Abgebrochen",
+        "change": "Änderung gewünscht"
+      }
     }
   },
   "live": {
