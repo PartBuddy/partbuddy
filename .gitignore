@@ -1,0 +1,78 @@
+# Strict ignore list. The repository holds product sources and documentation only.
+# Anything personal, generated or machine-specific stays out (see docs/adr/0009-privacy-guardrails.md).
+
+# Dependencies and toolchains
+node_modules/
+.pnpm-store/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.uv-cache/
+target/
+
+# Build and test output
+dist/
+build/
+out/
+coverage/
+.turbo/
+.vite/
+*.tsbuildinfo
+playwright-report/
+test-results/
+blob-report/
+.cache/
+
+# Logs and runtime files
+*.log
+logs/
+*.pid
+*.tmp
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+*.snk
+secrets/
+
+# Editors and operating systems
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Local AI development tooling (product repository stays tool-neutral)
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.mcp.json
+.cursor/
+.aider*
+
+# Personal CAD data and generated print/render output
+projekte/
+profile/
+pd.csv
+*.solidcraft
+*.solidcraft.bak
+*.gcode
+*.bgcode
+*.stl
+*.3mf
+*.blend
+*.blend1
+render/
+renders/

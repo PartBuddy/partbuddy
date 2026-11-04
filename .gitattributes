@@ -1,0 +1,23 @@
+# Normalise line endings to LF in the repository; Windows scripts keep CRLF.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets stored directly (small)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.woff2 binary
+*.hdr binary
+
+# CAD and mesh data through Git LFS
+*.glb filter=lfs diff=lfs merge=lfs -text
+*.step filter=lfs diff=lfs merge=lfs -text
+*.stp filter=lfs diff=lfs merge=lfs -text
+
+# Generated files: hide from diffs and language statistics
+pnpm-lock.yaml linguist-generated=true -diff
+uv.lock linguist-generated=true -diff
+CHANGELOG.md linguist-generated=true
