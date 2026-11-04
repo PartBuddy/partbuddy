@@ -43,6 +43,7 @@
   --color-info: var(--cs-color-info);
   --color-info-subtle: var(--cs-color-info-subtle);
   --color-note: var(--cs-viewer-note);
+  --color-changed: var(--cs-viewer-changed);
   --color-overlay: var(--cs-overlay);
   --color-transparent: transparent;
 

@@ -70,7 +70,8 @@
   "status": {
     "units": "mm",
     "mesh": "{bodies, plural, one {# body} other {# bodies}} · {faces, plural, one {# face} other {# faces}} · {triangles} triangles",
-    "noFace": "No face selected"
+    "noFace": "No face selected",
+    "latency": "mirrored in {ms, number} ms"
   },
   "assistant": {
     "title": "Assistant",
@@ -135,5 +136,12 @@
       "planDisabledTitle": "ChatGPT plan usage is not allowed",
       "continue": "Continue with ChatGPT"
     }
+  },
+  "live": {
+    "step": "Step {number} · {label}",
+    "thinking": "The assistant is planning the next step",
+    "changed": "{count, plural, one {# face changed} other {# faces changed}}",
+    "clear": "Hide the change highlight",
+    "follow": "Camera follows changes"
   }
 }

@@ -209,6 +209,25 @@ again.
   `model.faces` in one `batch` [49], only for bodies whose revision changed.
 * 1,000 closest-point queries took 6–11 ms (**measured**). Files are local (50–410 KB per step).
 
+**Live view in the app** (issue #14, **measured** 2026-11-04 with `apps/desktop/e2e/liveView.contract.spec.ts`):
+the cable-clip script (tools/fixtures, 23 commands) sent one by one over the control channel to an
+own SolidCraft 0.30.1 window; time from sending the command until PartBuddy shows that revision.
+Every revision reached the view; none was skipped.
+
+| Step | SolidCraft reply | Visible in PartBuddy | Faces after the step |
+|---|---|---|---|
+| `parameters.add` (14 ×, no body) | 1 ms | 17–52 ms | – |
+| `solid.box` (plate) | 3 ms | 75 ms | 6 |
+| `solid.fillet` (first curved faces) | 32 ms | 523 ms | 10 |
+| `solid.chamfer`, `solid.box`, `solid.cylinder`, `solid.box` | 48–93 ms | 120–160 ms | 18–29 |
+| `solid.fillet` | 183 ms | 273 ms | 33 |
+| `solid.hole` (counterbored, 2 ×) | 656–760 ms | 716–840 ms | 37–41 |
+
+Median for geometry steps after SolidCraft's reply: about 70 ms (export, `model.faces`, IPC,
+worker parse, BVH and swap); the first curved step took 491 ms once (cold worker and parser).
+`ui.render` of the finished part (960 × 600 PNG, 373 KB, GPU) took 6 ms; it is the candidate fallback
+for steps without a body, which the mirror does not show (issue #21).
+
 Budget targets: small part (≤ 50 faces) viewer updated < 0.6 s after the step; medium (100–150
 faces) rebuild 1–3 s + about 0.2 s; large (400–500 faces) rebuild 10–25 s + about 0.7 s. The viewer
 keeps the previous mesh with a "rebuilding" state and never blocks.

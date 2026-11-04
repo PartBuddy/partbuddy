@@ -43,7 +43,7 @@ produces nothing. ESLint rejects hex colour literals in UI code.
 | `accent-text` / `accent-subtle` | `#1f5fd1` / `#e6efff` | `#7aa7f6` / `#1b2c47` | Accent text, selected backgrounds |
 | `focus` | `#1f5fd1` | `#6e9ff5` | Focus ring (2 px, ≥ 3:1) |
 | `success`, `warning`, `danger`, `info` (+ `-subtle`) | see tokens | see tokens | States only |
-| `viewer-*` | see tokens | see tokens | 3D view background, body, edges, hover, selection, notes, overhangs |
+| `viewer-*` | see tokens | see tokens | 3D view background, body, edges, hover, selection, notes, overhangs, faces changed by the latest step |
 | `brand-ink`, `brand-paper`, `brand-accent`, `brand-accent-on-ink` | fixed | fixed | Logo and brand graphics only ([brand guide](brand.md#colour)) |
 
 Contrast is verified by a test (`packages/design-tokens/test/contrast.test.js`) for every text and

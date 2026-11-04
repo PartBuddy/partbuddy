@@ -10,7 +10,8 @@ const names = {
   hover: '--cs-viewer-hover',
   selection: '--cs-viewer-selection',
   note: '--cs-viewer-note',
-  feature: '--cs-color-accent-subtle',
+  // Faces the latest step added or changed (#14).
+  changed: '--cs-viewer-changed',
   cube: '--cs-color-surface-raised',
   cubeText: '--cs-color-text-muted',
   cubeStroke: '--cs-color-border-strong',

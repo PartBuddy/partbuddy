@@ -161,6 +161,8 @@ With an ADR:
 
 Glue on top of chosen blocks, no ADR yet (an ADR is due if one grows beyond glue):
 
+* Live view: face diff between revisions by face name, highlight of changed faces, camera follow
+  and the assistant's current step in the view (issue #14).
 * Selection model by face and edge ID, measuring tool, section caps and CAD-semantic ViewCube
   behaviour on top of drei and three-mesh-bvh.
 * Design tokens (`tokens.css`), light/dark and density themes, styled wrappers around React Aria.

@@ -129,6 +129,7 @@
   --cs-viewer-hover: #6f9ce8;
   --cs-viewer-selection: #1f5fd1;
   --cs-viewer-note: #c2410c;
+  --cs-viewer-changed: #0f9488;
   --cs-viewer-overhang: #d97706;
 
   /* Elevation */
@@ -173,6 +174,7 @@
     --cs-viewer-hover: #6f9ce8;
     --cs-viewer-selection: #4d86ec;
     --cs-viewer-note: #f28b4b;
+    --cs-viewer-changed: #2dbfae;
     --cs-viewer-overhang: #e3a33a;
     --cs-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
     --cs-shadow-2: 0 4px 12px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.3);
@@ -215,6 +217,7 @@
   --cs-viewer-hover: #6f9ce8;
   --cs-viewer-selection: #4d86ec;
   --cs-viewer-note: #f28b4b;
+  --cs-viewer-changed: #2dbfae;
   --cs-viewer-overhang: #e3a33a;
   --cs-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
   --cs-shadow-2: 0 4px 12px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.3);

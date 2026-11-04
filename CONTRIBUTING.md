@@ -55,7 +55,8 @@ pnpm --filter @partbuddy/desktop test:e2e   # Electron flows against a fake Soli
 The app finds a running SolidCraft through its control folder, or starts `solidcraft --control 7878`
 and closes that instance again on quit. CI has no SolidCraft; the flows use the fake control server
 in `apps/desktop/test/fakeSolidCraft.ts`. With SolidCraft installed and a design open, set
-`PARTBUDDY_E2E_SOLIDCRAFT=1` to run the contract tests against the real app as well.
+`PARTBUDDY_E2E_SOLIDCRAFT=1` to run the contract tests against the real app as well; this includes the
+live-view latency test, which builds the synthetic cable clip step by step in an own SolidCraft window.
 
 | Variable | Effect |
 | --- | --- |

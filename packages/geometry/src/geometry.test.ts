@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { meshMetrics, overhangFindings } from './analysis';
 import { deriveEdges } from './edges';
+import { diffFaces, isUnchanged } from './faceDiff';
 import { faceTableFromModelFaces, sameCylinder, type FaceTable } from './faceTable';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf } from './tagged3mf';
@@ -129,5 +130,41 @@ describe('model.faces conversion', () => {
     expect(() => faceTableFromModelFaces({ faces: [{ ...raw.faces[0], point: [1, 2] }] }, 'Body', 'design')).toThrow(
       /point/,
     );
+  });
+});
+
+describe('face diff between revisions', () => {
+  it('finds nothing when the same table is mirrored again', () => {
+    expect(isUnchanged(diffFaces(table, structuredClone(table)))).toBe(true);
+  });
+
+  it('treats every face as added on the first revision', () => {
+    expect(diffFaces(null, table).added).toHaveLength(table.faces.length);
+  });
+
+  it('matches faces by name although indices were reassigned', () => {
+    const shuffled = { ...table, faces: [...table.faces].reverse().map((face, index) => ({ ...face, index })) };
+    expect(isUnchanged(diffFaces(table, shuffled))).toBe(true);
+  });
+
+  it('reports moved, new and removed faces', () => {
+    const [first, second, ...rest] = table.faces;
+    const next = {
+      ...table,
+      faces: [
+        { ...first!, centroid: [first!.centroid[0] + 2, first!.centroid[1], first!.centroid[2]] as [number, number, number] },
+        ...rest,
+        { ...second!, name: 'F9:new', index: table.faces.length - 1 },
+      ].map((face, index) => ({ ...face, index })),
+    };
+    const diff = diffFaces(table, next);
+    expect(diff.changed).toEqual([0]);
+    expect(diff.added).toEqual([next.faces.length - 1]);
+    expect(diff.removed).toEqual([second!.name]);
+  });
+
+  it('ignores differences below the export tolerance', () => {
+    const next = { ...table, faces: table.faces.map((face) => ({ ...face, area: face.area * (1 + 1e-5) })) };
+    expect(isUnchanged(diffFaces(table, next))).toBe(true);
   });
 });

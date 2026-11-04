@@ -4,12 +4,13 @@ import { IconMapPin } from '@tabler/icons-react';
 import { featureOf, surfaceKind, type ViewerModel } from '@partbuddy/geometry';
 import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box3, BufferAttribute, Mesh, Object3D, Sphere } from 'three';
+import { Box3, BufferAttribute, Mesh, Object3D, Sphere, Vector3 } from 'three';
 import { acceleratedRaycast } from 'three-mesh-bvh';
 
 import { sameFace, useStudio, type BodyModel, type FacePick } from '../state/store';
 import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
+import { LiveBar } from './LiveBar';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
@@ -42,19 +43,22 @@ function Body({ index, body, colors }: { index: number; body: BodyModel; colors:
   const selection = useStudio((s) => s.selection);
   const setHover = useStudio((s) => s.setHover);
   const select = useStudio((s) => s.select);
+  const changes = useStudio((s) => s.changes);
   const { model } = body;
 
   useEffect(() => {
     const attribute = model.geometry.getAttribute('color') as BufferAttribute;
+    const changed = new Set(changes?.bodies.find((entry) => entry.body === index)?.faces ?? []);
     for (let v = 0; v < model.vertexFaces.length; v += 1) {
       const ref = { body: index, face: model.vertexFaces[v] ?? -1 };
       let color = colors.body;
+      if (changed.has(ref.face)) color = colors.changed;
       if (sameFace(ref, hover)) color = colors.hover;
       if (sameFace(ref, selection)) color = colors.selection;
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
-  }, [model, index, colors, hover, selection]);
+  }, [model, index, colors, hover, selection, changes]);
 
   return (
     <group name={body.name}>
@@ -117,6 +121,25 @@ function FrameDesign({ documentId, bodies }: { documentId: string; bodies: BodyM
   return null;
 }
 
+/** Moves the camera to the faces the latest step changed, when the user turned it on. */
+function FollowChanges() {
+  const controls = useThree((state) => state.controls) as CameraControls | null;
+  const changes = useStudio((s) => s.changes);
+  const follow = useStudio((s) => s.followChanges);
+  const serial = changes?.serial ?? 0;
+  const box = changes?.box ?? null;
+
+  useEffect(() => {
+    if (!follow || !controls || !box) return;
+    const target = new Box3(new Vector3(...box.min), new Vector3(...box.max));
+    // Small changes (one fillet) stay in context: frame at least a 40 mm neighbourhood.
+    const size = target.getSize(new Vector3());
+    target.expandByVector(new Vector3(Math.max(0, 40 - size.x) / 2, Math.max(0, 40 - size.y) / 2, Math.max(0, 40 - size.z) / 2));
+    void controls.fitToBox(target, true, { paddingTop: 12, paddingBottom: 12, paddingLeft: 12, paddingRight: 12 });
+  }, [follow, controls, serial, box]);
+  return null;
+}
+
 function Scene({ documentId, bodies }: { documentId: string; bodies: BodyModel[] }) {
   const { t } = useTranslation();
   const colors = useTokenColors();
@@ -153,6 +176,7 @@ function Scene({ documentId, bodies }: { documentId: string; bodies: BodyModel[]
       />
       <CameraControls makeDefault />
       <FrameDesign documentId={documentId} bodies={bodies} />
+      <FollowChanges />
       <GizmoHelper alignment="top-right" margin={scene.gizmoMargin}>
         <GizmoViewcube
           faces={cubeFaces}
@@ -216,7 +240,12 @@ export function Viewer() {
   const offline = connection.state !== 'connected';
 
   return (
-    <main className="relative min-h-0 flex-1 bg-surface-sunken" aria-label={t('viewer.canvasLabel')}>
+    <main
+      className="relative min-h-0 flex-1 bg-surface-sunken"
+      aria-label={t('viewer.canvasLabel')}
+      data-testid="viewer"
+      data-revision={model.status === 'ready' ? model.revision : undefined}
+    >
       {model.status === 'ready' && model.bodies.length > 0 ? (
         <>
           <div className={`h-full w-full ${offline ? 'opacity-50 grayscale' : ''}`} data-testid="viewport">
@@ -236,6 +265,7 @@ export function Viewer() {
           </div>
         ) : null}
         <ConnectionNotice />
+        <LiveBar />
       </div>
     </main>
   );
