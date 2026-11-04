@@ -44,6 +44,27 @@ git config commit.gpgsign true
    requests with passing checks; they are squash-merged, so the title becomes the commit message.
 5. Releases and `CHANGELOG.md` are produced by release-please from the commit history.
 
+## Desktop app
+
+```sh
+pnpm --filter @partbuddy/desktop dev        # Electron with hot reload
+pnpm --filter @partbuddy/desktop build      # bundle into apps/desktop/out
+pnpm --filter @partbuddy/desktop test:e2e   # Electron flows against a fake SolidCraft
+```
+
+The app finds a running SolidCraft through its control folder, or starts `solidcraft --control 7878`
+and closes that instance again on quit. CI has no SolidCraft; the flows use the fake control server
+in `apps/desktop/test/fakeSolidCraft.ts`. With SolidCraft installed and a design open, set
+`PARTBUDDY_E2E_SOLIDCRAFT=1` to run the contract tests against the real app as well.
+
+| Variable | Effect |
+| --- | --- |
+| `PARTBUDDY_SOLIDCRAFT_PORT` | Control port used when PartBuddy starts SolidCraft (default 7878) |
+| `PARTBUDDY_SOLIDCRAFT_EXE` | Path of the SolidCraft executable, if it is not in Program Files or on `PATH` |
+| `PARTBUDDY_SOLIDCRAFT_AUTOSTART=0` | Never start SolidCraft automatically |
+| `PARTBUDDY_CACHE_DIR` | Folder for mirrored exports (default `%LOCALAPPDATA%\PartBuddy\cache\mirror`) |
+| `SOLIDCRAFT_CONTROL_DIR` | SolidCraft's own setting for its control folder; PartBuddy reads the same folder |
+
 ## Licence of contributions
 
 PartBuddy is free software under GPL-3.0-or-later ([ADR 0007](docs/adr/0007-licensing-model.md)).
