@@ -189,6 +189,55 @@ test('a sketch without a body is drawn in the view (#21)', async () => {
   await expect(page.getByTestId('sketch-summary')).toBeHidden();
 });
 
+test('the camera keeps a growing design in view until the user moves it', async () => {
+  // The assistant starts with a small sketch; what follows is much larger.
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.bodies = [];
+  fake.sketches = [{ id: 1, name: 'Curves', visible: true }];
+  fake.activeSketch = 1;
+  fake.sketchScale = 0.15;
+  await fake.start();
+  const { page } = launched;
+  await page.getByRole('button', { name: 'Look again' }).click();
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-sketches', '1');
+  // Curves of a new revision are drawn in the colour of changes.
+  const sketchPixels = async (border?: number) =>
+    (await countViewportPixels(page, '--cs-viewer-sketch', 40, { border })) + (await countViewportPixels(page, '--cs-viewer-changed', 40, { border }));
+
+  // The small first sketch fills the view instead of sitting as a speck in its middle.
+  await expect(async () => {
+    expect(await sketchPixels()).toBeGreaterThan(1500);
+    expect(await sketchPixels(8)).toBe(0);
+  }).toPass({ timeout: 15_000 });
+  await page.getByTestId('viewport').screenshot({ path: test.info().outputPath('small-sketch.png') });
+
+  // The design grows twentyfold: the camera follows, nothing touches the edges of the view.
+  fake.sketchScale = 3;
+  fake.change();
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '2');
+  await expect(async () => {
+    expect(await sketchPixels()).toBeGreaterThan(1500);
+    expect(await sketchPixels(8)).toBe(0);
+  }).toPass({ timeout: 15_000 });
+  await page.getByTestId('viewport').screenshot({ path: test.info().outputPath('grown-sketch.png') });
+
+  // Once the user turns the view, the camera is theirs: growing further does not move it, so the
+  // doubled sketch runs out of the view.
+  const box = await page.getByTestId('viewport').boundingBox();
+  if (!box) throw new Error('viewport not visible');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.9);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height * 0.9, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(1000);
+  fake.sketchScale = 6;
+  fake.change();
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '3');
+  await page.waitForTimeout(1500);
+  expect(await sketchPixels(8)).toBeGreaterThan(0);
+});
+
 test('the title bar is part of the window, with the system window buttons beside it', async () => {
   launched = await launchApp();
   const { page } = launched;

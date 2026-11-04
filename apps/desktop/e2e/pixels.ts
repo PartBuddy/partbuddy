@@ -18,10 +18,10 @@ interface BrowserImaging {
  * the check follows the token and the theme. The PNG is decoded in the renderer; this file compiles for
  * Node, so the browser APIs are typed here.
  */
-export async function countViewportPixels(page: Page, token: string, tolerance = 40): Promise<number> {
+export async function countViewportPixels(page: Page, token: string, tolerance = 40, options: { border?: number | undefined } = {}): Promise<number> {
   const png = await page.getByTestId('viewport').screenshot();
   return page.evaluate(
-    async ({ bytes, token: name, tolerance: limit }) => {
+    async ({ bytes, token: name, tolerance: limit, border }) => {
       const browser = globalThis as unknown as BrowserImaging;
       const color = browser.getComputedStyle(browser.document.documentElement).getPropertyValue(name).trim();
       const rgb = [1, 3, 5].map((i) => Number.parseInt(color.slice(i, i + 2), 16));
@@ -32,10 +32,16 @@ export async function countViewportPixels(page: Page, token: string, tolerance =
       const { data } = context.getImageData(0, 0, bitmap.width, bitmap.height);
       let count = 0;
       for (let i = 0; i < data.length; i += 4) {
+        // With a border, only the strip of that width along the edges of the view counts.
+        if (border !== undefined) {
+          const x = (i / 4) % bitmap.width;
+          const y = Math.floor(i / 4 / bitmap.width);
+          if (x >= border && y >= border && x < bitmap.width - border && y < bitmap.height - border) continue;
+        }
         if ([0, 1, 2].every((c) => Math.abs((data[i + c] ?? 0) - (rgb[c] ?? 0)) < limit)) count += 1;
       }
       return count;
     },
-    { bytes: [...png], token, tolerance },
+    { bytes: [...png], token, tolerance, border: options.border },
   );
 }

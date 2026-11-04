@@ -26,6 +26,7 @@ import { LiveBar } from './LiveBar';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
 import { StepPreviews } from './StepPreviews';
+import { needsReframe } from './framing';
 import { ViewTools } from './ViewTools';
 import { edgeLabel, viewStateOf, type CameraView } from './viewState';
 import { platform } from '../platform';
@@ -427,20 +428,56 @@ function boundsOf(bodies: BodyModel[], sketches: MirroredSketch[]): Sphere {
 }
 
 /**
- * Frames the design once per document; later revisions keep the user's camera. Runs inside the
- * canvas, because the camera controls exist only after the canvas has mounted its children.
+ * Frames the design when a document first shows something, then keeps it in view while it grows
+ * (the assistant often starts with a small sketch), until the user moves the camera: from then on
+ * the camera is theirs. Runs inside the canvas, because the camera controls exist only after the
+ * canvas has mounted its children.
  */
 function FrameDesign({ documentId, bodies, sketches }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[] }) {
   const controls = useThree((state) => state.controls) as CameraControls | null;
+  const canvas = useThree((state) => state.gl.domElement);
+  const follow = useStudio((s) => s.followChanges);
   const bounds = useMemo(() => boundsOf(bodies, sketches), [bodies, sketches]);
-  const framed = useRef<string | null>(null);
+  const framing = useRef<{ documentId: string | null; framed: Sphere | null; userMoved: boolean; controls: CameraControls | null }>({
+    documentId: null,
+    framed: null,
+    userMoved: false,
+    controls: null,
+  });
+
+  useEffect(() => {
+    if (!controls) return;
+    const moved = () => {
+      framing.current.userMoved = true;
+    };
+    // Dragging starts a control; the wheel does not, so it is watched on the canvas.
+    controls.addEventListener('controlstart', moved);
+    canvas.addEventListener('wheel', moved, { passive: true });
+    return () => {
+      controls.removeEventListener('controlstart', moved);
+      canvas.removeEventListener('wheel', moved);
+    };
+  }, [controls, canvas]);
 
   useEffect(() => {
     // An empty box gives a sphere of radius -1 (a sketch without curves yet): nothing to frame.
-    if (!controls || framed.current === documentId || bounds.radius <= 0) return;
-    framed.current = documentId;
-    lookFrom(controls, scene.viewDirection, bounds, false);
-  }, [controls, documentId, bounds]);
+    if (!controls || bounds.radius <= 0) return;
+    const state = framing.current;
+    if (state.documentId !== documentId) {
+      framing.current = { documentId, framed: bounds.clone(), userMoved: false, controls };
+      lookFrom(controls, scene.viewDirection, bounds, false);
+      return;
+    }
+    // A new camera (the canvas swaps its default one for ours right after mounting) has another
+    // field of view: the distance that framed the design no longer does, so it is fitted again.
+    const newCamera = state.controls !== controls;
+    state.controls = controls;
+    // Following changes moves the camera on its own; a user who moved it keeps their view.
+    if (state.userMoved || follow || !(newCamera || needsReframe(state.framed, bounds))) return;
+    state.framed = bounds.clone();
+    void controls.fitToSphere(bounds, !newCamera);
+    keepView(controls);
+  }, [controls, documentId, bounds, follow]);
   return null;
 }
 
@@ -450,6 +487,16 @@ function lookFrom(controls: CameraControls, direction: [number, number, number],
   const { x, y, z } = bounds.center;
   void controls.setLookAt(x + d.x, y + d.y, z + d.z, x, y, z, animate);
   void controls.fitToSphere(bounds, animate);
+  keepView(controls);
+}
+
+/**
+ * Remembers where a camera move ends as the view to keep. The canvas may replace its camera right
+ * after mounting (and does on a projection switch); the new camera starts from this view.
+ */
+function keepView(controls: CameraControls): void {
+  controls.getPosition(lastView.position, true);
+  controls.getTarget(lastView.target, true);
 }
 
 /** Directions of the standard views (Z up, front is -Y); top leans a hair to the front to keep "up" defined. */
@@ -487,26 +534,31 @@ function Cameras() {
   const controls = useThree((state) => state.controls) as CameraControls | null;
   const size = useThree((state) => state.size);
   const fov = scene.fieldOfView;
+  const height = useRef(size.height);
+  useEffect(() => {
+    height.current = size.height;
+  }, [size.height]);
 
   useEffect(() => {
     if (!controls) return;
     const remember = () => {
       controls.getPosition(lastView.position);
       controls.getTarget(lastView.target);
-      lastView.height = size.height;
+      lastView.height = height.current;
     };
     controls.addEventListener('update', remember);
-    // A new camera gets new controls: put them where the previous camera was.
+    // A new camera gets new controls: put them where the previous camera was. Only then: a
+    // resize of the view must not undo the framing of the design that happened since.
     const distance = lastView.position.distanceTo(lastView.target);
     const { position: p, target: t } = lastView;
     void controls.setLookAt(p.x, p.y, p.z, t.x, t.y, t.z, false);
     if (controls.camera instanceof ThreeOrthographicCamera) {
-      void controls.zoomTo(size.height / (2 * distance * Math.tan((fov * Math.PI) / 360)), false);
+      void controls.zoomTo(height.current / (2 * distance * Math.tan((fov * Math.PI) / 360)), false);
     }
     return () => {
       controls.removeEventListener('update', remember);
     };
-  }, [controls, fov, size.height]);
+  }, [controls, fov]);
 
   return projection === 'orthographic' ? (
     <OrthographicCamera makeDefault position={lastView.position.toArray()} near={-10000} far={10000} />

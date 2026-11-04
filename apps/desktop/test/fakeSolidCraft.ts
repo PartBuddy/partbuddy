@@ -64,6 +64,8 @@ export class FakeSolidCraft {
   /** Sketches as `document.inspect` lists them; each inspects as the fixture sketch. */
   sketches: { id: number; name: string; visible: boolean }[] = [];
   activeSketch: number | null = null;
+  /** Scales the fixture sketch through its plane axes: below 1 it stands for a small first sketch. */
+  sketchScale = 1;
   /** Faces whose geometry changed in the latest revision. */
   moved = new Set<string>();
   quitRequested = false;
@@ -197,7 +199,9 @@ export class FakeSolidCraft {
         const sketch = this.sketches.find((entry) => entry.id === params.sketch);
         if (!sketch) throw new Error(`no sketch ${String(params.sketch)}`);
         const inspect = JSON.parse(readFileSync(join(fixtureDir, 'sketch-curves.inspect.json'), 'utf8')) as Record<string, unknown>;
-        return { ...inspect, id: sketch.id, name: sketch.name, visible: sketch.visible };
+        const plane = inspect.plane as { origin: number[]; x_dir: number[]; y_dir: number[] };
+        const scaled = { ...plane, x_dir: plane.x_dir.map((v) => v * this.sketchScale), y_dir: plane.y_dir.map((v) => v * this.sketchScale) };
+        return { ...inspect, plane: scaled, id: sketch.id, name: sketch.name, visible: sketch.visible };
       }
       case 'file.export': {
         const path = resolve(String(params.path));
