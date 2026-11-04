@@ -1,10 +1,11 @@
-import type { AgentKind, AgentStatus, AssistantState } from '../../shared/contract';
+import type { AgentKind, AgentStatus, AssistantState, FaceSelection } from '../../shared/contract';
 
 /** One assistant route (ADR 0015). */
 export interface AgentBackend {
   status(): AgentStatus;
   refresh(): Promise<AgentStatus>;
-  send(text: string): Promise<void>;
+  /** `selection`: the face selected in PartBuddy's view, sent along as a short note. */
+  send(text: string, selection?: FaceSelection): Promise<void>;
   stop(): Promise<void>;
   signIn(): void;
   signOut(): Promise<void>;
@@ -44,8 +45,8 @@ export class Assistant {
     return this.state();
   }
 
-  send(text: string): Promise<void> {
-    return this.current().send(text);
+  send(text: string, selection?: FaceSelection): Promise<void> {
+    return this.current().send(text, selection);
   }
 
   stop(): Promise<void> {

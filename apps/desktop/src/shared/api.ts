@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentKind, AppInfo, AssistantState, ConnectionStatus, MirrorRevision } from './contract';
+import type { AgentEvent, AgentKind, AppInfo, AssistantState, ConnectionStatus, FaceSelection, MirrorRevision, ViewState } from './contract';
 
 /**
  * What the preload exposes as `window.partbuddy`. Each member is bound to one channel of the
@@ -18,6 +18,10 @@ export interface PartBuddyApi {
     current(): Promise<MirrorRevision | null>;
     onRevision(listener: (revision: MirrorRevision) => void): () => void;
   };
+  viewer: {
+    /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */
+    report(state: ViewState): Promise<void>;
+  };
   /** The assistant: the user's Claude Code or ChatGPT plan usage (ADR 0015). */
   agent: {
     status(): Promise<AssistantState>;
@@ -26,7 +30,8 @@ export interface PartBuddyApi {
     select(agent: AgentKind): Promise<AssistantState>;
     /** Let Claude Code run with an API key, billed separately; off by default. */
     allowApiBilling(allow: boolean): Promise<AssistantState>;
-    send(text: string): Promise<void>;
+    /** Sends a message; the face selected in the view goes with it as a short note. */
+    send(text: string, selection?: FaceSelection): Promise<void>;
     stop(): Promise<void>;
     /** Start the selected route's sign-in flow; it opens the browser. */
     signIn(): Promise<void>;

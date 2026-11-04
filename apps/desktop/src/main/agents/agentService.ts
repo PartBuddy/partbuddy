@@ -2,10 +2,11 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { AgentEvent, AgentStatus } from '../../shared/contract';
+import type { AgentEvent, AgentStatus, FaceSelection } from '../../shared/contract';
 import { ClaudeSession, findClaudeCode, readAuth, readVersion, startSignIn, type ClaudeAuth, type ClaudeCommand } from './claudeCode';
 import type { AgentBackend } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
+import { composeMessage } from './viewContext';
 
 /**
  * PartBuddy uses Claude Code with a Claude subscription (Pro, Max) by default and runs it with
@@ -84,7 +85,7 @@ export class AgentService implements AgentBackend {
     });
   }
 
-  async send(text: string): Promise<void> {
+  async send(text: string, selection?: FaceSelection): Promise<void> {
     if (this.current.state !== 'ready') throw new Error(`assistant is ${this.current.state}`);
     const tools = await this.options.tools();
     if (!tools) {
@@ -92,9 +93,10 @@ export class AgentService implements AgentBackend {
       return;
     }
     await this.ensureSession(tools);
-    this.listeners.event({ type: 'user', text });
+    const message = composeMessage(text, selection);
+    this.listeners.event(message.label ? { type: 'user', text, selection: message.label } : { type: 'user', text });
     this.setStatus({ ...this.current, state: 'busy' });
-    this.session?.send(text);
+    this.session?.send(message.prompt);
   }
 
   async allowApiBilling(allow: boolean): Promise<void> {

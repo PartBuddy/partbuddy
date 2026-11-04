@@ -1,10 +1,11 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { jsonSchema, stepCountIs, streamText, tool, type ModelMessage, type ToolSet } from 'ai';
 
-import type { AgentEvent, AgentStatus } from '../../shared/contract';
+import type { AgentEvent, AgentStatus, FaceSelection } from '../../shared/contract';
 import type { AgentBackend } from '../agents/assistant';
 import type { ToolResult, UpstreamTools } from '../agents/gateProxy';
 import { decide } from '../agents/policy';
+import { composeMessage, VIEW_GUIDANCE } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
 import { RESOURCE } from './oauth';
 
@@ -23,6 +24,7 @@ const INSTRUCTIONS = [
   'one sketch or one feature group per call. Units are millimetres.',
   'If PartBuddy refuses a tool, tell the user why and continue without it.',
   'Answer in the language the user writes in.',
+  VIEW_GUIDANCE,
 ].join(' ');
 const MAX_STEPS = 25;
 
@@ -99,7 +101,7 @@ export class ChatGptAgent implements AgentBackend {
     await this.stop();
   }
 
-  async send(text: string): Promise<void> {
+  async send(text: string, selection?: FaceSelection): Promise<void> {
     if (this.status().state !== 'ready') throw new Error(`assistant is ${this.status().state}`);
     const upstream = await this.options.tools();
     if (!upstream) {
@@ -107,8 +109,9 @@ export class ChatGptAgent implements AgentBackend {
       return;
     }
     this.model ??= await this.pickModel();
-    this.options.event({ type: 'user', text });
-    this.history.push({ role: 'user', content: text });
+    const message = composeMessage(text, selection);
+    this.options.event(message.label ? { type: 'user', text, selection: message.label } : { type: 'user', text });
+    this.history.push({ role: 'user', content: message.prompt });
     this.busy = true;
     this.options.changed();
     const abort = new AbortController();

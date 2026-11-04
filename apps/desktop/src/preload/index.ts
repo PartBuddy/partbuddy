@@ -28,10 +28,13 @@ const api: PartBuddyApi = {
     current: () => ipcRenderer.invoke(invokeChannels.mirrorCurrent),
     onRevision: (listener) => subscribe(eventChannels.mirrorRevision, listener),
   },
+  viewer: {
+    report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),
+  },
   agent: {
     status: () => ipcRenderer.invoke(invokeChannels.agentStatus),
     refresh: () => ipcRenderer.invoke(invokeChannels.agentRefresh),
-    send: (text) => ipcRenderer.invoke(invokeChannels.agentSend, { text }),
+    send: (text, selection) => ipcRenderer.invoke(invokeChannels.agentSend, selection ? { text, selection } : { text }),
     stop: () => ipcRenderer.invoke(invokeChannels.agentStop),
     select: (agent) => ipcRenderer.invoke(invokeChannels.agentSelect, { agent }),
     allowApiBilling: (allow) => ipcRenderer.invoke(invokeChannels.agentAllowApiBilling, { allow }),

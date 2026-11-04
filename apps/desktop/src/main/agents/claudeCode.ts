@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { VIEW_GUIDANCE } from './viewContext';
 
 /**
  * Adapter for the user's own, unmodified Claude Code (ADR 0015). PartBuddy starts the official
@@ -127,6 +128,7 @@ const ROLE = [
   'one sketch or one feature group per call. Units are millimetres.',
   'If PartBuddy refuses a tool, tell the user why and continue without it.',
   'Answer in the language the user writes in.',
+  VIEW_GUIDANCE,
 ].join(' ');
 
 export interface SessionOptions {

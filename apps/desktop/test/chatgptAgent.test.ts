@@ -89,6 +89,18 @@ function setup(firstTool = 'measure') {
 }
 
 describe('ChatGPT agent', () => {
+  it('sends the selected face as a note and shows it as a label (#view context)', async () => {
+    const { agent, openai, events } = setup();
+    await agent.refresh();
+    await agent.send('Round this face', { body: 'Body1', face: 'F1:+z', surface: 'plane', area: 400, point: [10, 10, 20], normal: [0, 0, 1] });
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
+    expect(events[0]).toEqual({ type: 'user', text: 'Round this face', selection: 'F1:+z · Body1' });
+    const input = JSON.stringify(openai.bodies[0]?.input);
+    expect(input).toContain('[PartBuddy: the user selected face \\"F1:+z\\" of body \\"Body1\\"');
+    expect(String(openai.bodies[0]?.instructions)).toContain('partbuddy_view');
+  });
+
+
   it('follows the preview rules of Sign in with ChatGPT and runs the tool loop', async () => {
     const { agent, openai, calls, events } = setup();
     expect((await agent.refresh()).model).toBe('gpt-test');
