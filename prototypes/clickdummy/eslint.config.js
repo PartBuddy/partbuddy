@@ -33,11 +33,6 @@ export default tseslint.config(
     },
   },
   {
-    // Numeric kernels index typed arrays inside checked bounds; noUncheckedIndexedAccess cannot see that.
-    files: ['src/geometry/**/*.ts', 'src/viewer/model.ts'],
-    rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
-  },
-  {
     // Playwright fixtures call their own `use`, which is not a React hook.
     files: ['e2e/**/*.ts', 'playwright.config.ts'],
     languageOptions: { globals: { ...globals.node } },

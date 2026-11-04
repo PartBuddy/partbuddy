@@ -7,7 +7,7 @@ import { Button as AriaButton } from 'react-aria-components';
 import { BufferAttribute, Mesh, Object3D } from 'three';
 import { acceleratedRaycast } from 'three-mesh-bvh';
 
-import { featureOf, surfaceKind } from '../geometry/faceTable';
+import { featureOf, surfaceKind } from '@partbuddy/geometry';
 import { useStudio, type FacePick } from '../state/store';
 import { Banner, Busy, EmptyState } from '../ui/Feedback';
 import { Button } from '../ui/Button';

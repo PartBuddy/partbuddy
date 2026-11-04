@@ -6,10 +6,11 @@ import { describe, expect, it } from 'vitest';
 
 import { meshMetrics, overhangFindings } from './analysis';
 import { deriveEdges } from './edges';
-import { sameCylinder, type FaceTable } from './faceTable';
+import { faceTableFromModelFaces, sameCylinder, type FaceTable } from './faceTable';
+import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf } from './tagged3mf';
 
-const fixture = new URL('../../public/fixtures/', import.meta.url);
+const fixture = new URL('../fixtures/', import.meta.url);
 const mesh = parseTagged3mf(new Uint8Array(readFileSync(new URL('cable-clip.3mf', fixture))));
 const table = JSON.parse(readFileSync(new URL('cable-clip.faces.json', fixture), 'utf8')) as FaceTable;
 
@@ -67,5 +68,66 @@ describe('face-tagged 3MF fixture', () => {
     const names = overhangFindings(flipped, 60).map((f) => table.faces[f.face]!.name);
     expect(names).toContain('F1:+z');
     expect(names).not.toContain('F1:-z');
+  });
+});
+
+describe('render mesh', () => {
+  const render = buildRenderMesh(mesh, table);
+
+  it('keeps the triangle order, so a picked triangle maps to its face', () => {
+    expect(render.index.length).toBe(mesh.indices.length);
+    expect(render.triangleFaces).toEqual(mesh.triangleFaces);
+    for (let t = 0; t < render.index.length / 3; t += 1) {
+      for (let k = 0; k < 3; k += 1) {
+        expect(render.vertexFaces[render.index[t * 3 + k]!]).toBe(mesh.triangleFaces[t]);
+      }
+    }
+  });
+
+  it('splits vertices per face and keeps their positions', () => {
+    expect(render.positions.length / 3).toBeGreaterThanOrEqual(mesh.positions.length / 3);
+    const v = render.index[0]!;
+    const original = mesh.indices[0]!;
+    expect(render.positions[v * 3]).toBeCloseTo(mesh.positions[original * 3]!, 5);
+  });
+
+  it('derives edge segments without the cylinder seams', () => {
+    expect(render.edgeSegments.length % 6).toBe(0);
+    expect(render.edgeSegments.length).toBeGreaterThan(0);
+  });
+});
+
+describe('model.faces conversion', () => {
+  const raw = {
+    faces: [
+      { index: 0, name: 'F1:-z', exact: true, area: 10, centroid: [0, 0, 0], point: [1, 1, 0], plane_normal: [0, 0, -1] },
+      {
+        index: 1,
+        name: 'F2:bore',
+        exact: false,
+        area: 5,
+        centroid: [0, 0, 2],
+        point: [3, 0, 2],
+        cylinder: { origin: [0, 0, 0], axis: [0, 0, 1], radius: 3 },
+      },
+    ],
+  };
+
+  it('maps snake_case fields to the face table', () => {
+    const converted = faceTableFromModelFaces(raw, 'Body', 'design');
+    expect(converted.faces[0]?.planeNormal).toEqual([0, 0, -1]);
+    expect(converted.faces[1]?.cylinder?.radius).toBe(3);
+    expect(converted.faces[1]?.exact).toBe(false);
+    expect(converted.body).toBe('Body');
+  });
+
+  it('rejects entries that break the contract', () => {
+    expect(() => faceTableFromModelFaces({}, 'Body', 'design')).toThrow(/no face list/);
+    expect(() => faceTableFromModelFaces({ faces: [{ ...raw.faces[0], index: 3 }] }, 'Body', 'design')).toThrow(
+      /out of order/,
+    );
+    expect(() => faceTableFromModelFaces({ faces: [{ ...raw.faces[0], point: [1, 2] }] }, 'Body', 'design')).toThrow(
+      /point/,
+    );
   });
 });

@@ -1,0 +1,32 @@
+{
+  "name": "@partbuddy/geometry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Geometry adapter: face-tagged 3MF parser, face table, edge derivation and render buffers (ADR 0004)",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fixtures/*": "./fixtures/*"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc6 --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "three": "0.186.1",
+    "three-mesh-bvh": "0.9.16"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.5",
+    "@types/three": "0.186.0",
+    "eslint": "10.13.0",
+    "globals": "17.13.0",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "typescript-eslint": "8.72.1",
+    "vitest": "5.0.5"
+  }
+}

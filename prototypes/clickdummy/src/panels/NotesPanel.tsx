@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GridList, GridListItem, Label, TextArea, TextField } from 'react-aria-components';
 
-import type { FaceTable } from '../geometry/faceTable';
+import type { FaceTable } from '@partbuddy/geometry';
 import { useStudio, type AnchorStatus } from '../state/store';
 import { Badge, type Tone } from '../ui/Badge';
 import { Button, IconButton } from '../ui/Button';
