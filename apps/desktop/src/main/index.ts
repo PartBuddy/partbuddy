@@ -12,6 +12,7 @@ import { Assistant } from './agents/assistant';
 import { SolidCraftTools } from './agents/solidcraftTools';
 import type { UpstreamTools } from './agents/gateProxy';
 import { withViewTool } from './agents/viewContext';
+import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
 import { describeUserAction } from '../shared/stepPhrases';
 import { ChatGptAccount } from './chatgpt/account';
@@ -24,6 +25,9 @@ import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
 
 app.setName('PartBuddy');
+// Windows counts a window beside all displays as covered and stops painting it; test runs
+// (PARTBUDDY_WINDOW_DISPLAY=offscreen) keep it painting.
+if (process.env.PARTBUDDY_WINDOW_DISPLAY === 'offscreen') app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 /**
  * Builds are served from a privileged custom scheme instead of file:// (Electron security
@@ -76,23 +80,35 @@ function launchPort(): number {
 /** Height of the integrated title bar; the renderer's token `--cs-titlebar-height` confirms it. */
 const TITLE_BAR_HEIGHT = 40;
 
+const WINDOW_WIDTH = 1440;
+const WINDOW_HEIGHT = 900;
+
 /**
- * Test runs open the window on the leftmost display and without focus, so they do not cover the
- * developer's main screen or take the keyboard (PARTBUDDY_WINDOW_DISPLAY=leftmost, set by the E2E
- * launcher). The app itself opens where the system puts it.
+ * Test runs must not disturb the developer (rule of 2026-11-04): PARTBUDDY_WINDOW_DISPLAY=offscreen
+ * (the E2E launcher's default) opens the window beside all displays, without focus and without a
+ * taskbar button, so nothing of it is seen; `leftmost` puts it on the leftmost display, still
+ * without focus, for watching a test on purpose. The app itself opens where the system puts it.
  */
-function testPlacement(): { x: number; y: number } | null {
-  if (process.env.PARTBUDDY_WINDOW_DISPLAY !== 'leftmost') return null;
-  const [leftmost] = [...screen.getAllDisplays()].sort((a, b) => a.bounds.x - b.bounds.x);
-  return leftmost ? { x: leftmost.workArea.x + 24, y: leftmost.workArea.y + 24 } : null;
+type TestPlacement = { x: number; y: number; hidden: boolean };
+function testPlacement(): TestPlacement | null {
+  const mode = process.env.PARTBUDDY_WINDOW_DISPLAY;
+  const displays = [...screen.getAllDisplays()].sort((a, b) => a.bounds.x - b.bounds.x);
+  const [leftmost] = displays;
+  if (!leftmost) return null;
+  if (mode === 'offscreen') {
+    const top = Math.min(...displays.map((display) => display.bounds.y));
+    return { x: leftmost.bounds.x - WINDOW_WIDTH - 400, y: top, hidden: true };
+  }
+  if (mode === 'leftmost') return { x: leftmost.workArea.x + 24, y: leftmost.workArea.y + 24, hidden: false };
+  return null;
 }
 
 function createWindow(): BrowserWindow {
   const placement = testPlacement();
   const window = new BrowserWindow({
-    ...(placement ?? {}),
-    width: 1440,
-    height: 900,
+    ...(placement ? { x: placement.x, y: placement.y, skipTaskbar: placement.hidden } : {}),
+    width: WINDOW_WIDTH,
+    height: WINDOW_HEIGHT,
     minWidth: 960,
     minHeight: 600,
     show: false,
@@ -111,6 +127,8 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       webSecurity: true,
       spellcheck: false,
+      // Off screen the window must keep rendering, or the 3D view of a test stays empty.
+      ...(placement?.hidden ? { backgroundThrottling: false } : {}),
     },
   });
   window.once('ready-to-show', () => {
@@ -211,10 +229,13 @@ if (!app.requestSingleInstanceLock()) {
       emit: emitEvent,
     });
     workLog = steps;
+    // Questions and plans as cards (M2a); changes wait until the user answered.
+    const questions = new Questions(emitEvent);
+    const track = (upstream: UpstreamTools) => questions.tools(steps.tools(upstream));
     let toolsCache: { port: number; tools: UpstreamTools; close(): Promise<void> } | null = null;
     const tools = async () => {
       const headless = supervisor.headlessTools();
-      if (headless) return steps.tools(withViewTool(headless, () => viewState));
+      if (headless) return track(withViewTool(headless, () => viewState));
       const port = supervisor.connectedPort();
       const executable = findExecutable(systemEnvironment);
       if (port === null || !executable) return null;
@@ -222,7 +243,7 @@ if (!app.requestSingleInstanceLock()) {
         await toolsCache?.close();
         const next = new SolidCraftTools({ solidcraftExe: executable, port, allowPath: projects, env: process.env });
         await next.connect();
-        toolsCache = { port, tools: steps.tools(withViewTool(next, () => viewState)), close: () => next.close() };
+        toolsCache = { port, tools: track(withViewTool(next, () => viewState)), close: () => next.close() };
       }
       return toolsCache.tools;
     };
@@ -264,13 +285,18 @@ if (!app.requestSingleInstanceLock()) {
     const agent = assistant;
     bridge.handle(invokeChannels.agentStatus, () => agent.state());
     bridge.handle(invokeChannels.agentRefresh, () => agent.refresh());
-    bridge.handle(invokeChannels.agentSelect, ({ agent: kind }) => agent.select(kind));
+    bridge.handle(invokeChannels.agentSelect, ({ agent: kind }) => {
+      // The other route starts its own conversation, without the open question.
+      questions.clear();
+      return agent.select(kind);
+    });
     bridge.handle(invokeChannels.agentAllowApiBilling, async ({ allow }) => {
       await claude.allowApiBilling(allow);
       return agent.state();
     });
-    bridge.handle(invokeChannels.agentSend, async ({ text, selections }) => {
-      await agent.send(text, selections, steps.takeNote());
+    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer }) => {
+      const notes = [questions.answer(answer), steps.takeNote()].filter((note): note is string => note !== null);
+      await agent.send(text, selections, notes.length > 0 ? notes.join('\n') : null);
       return undefined;
     });
     bridge.handle(invokeChannels.agentStop, async () => {

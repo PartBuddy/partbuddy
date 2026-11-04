@@ -265,6 +265,22 @@ export const workStepSchema = z
 /** applied: part of the design; undone: Redo or "go back" brings it back; discarded: replaced for good. */
 export const workStepStateSchema = z.enum(['applied', 'undone', 'discarded']);
 
+/** A question or plan of the assistant, shown as a card with buttons (M2a). */
+export const agentQuestionSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      id: z.string().max(40),
+      kind: z.literal('ask'),
+      question: z.string().max(500),
+      options: z.array(z.object({ label: z.string().max(60), detail: z.string().max(200).optional() }).strict()).min(2).max(5),
+    })
+    .strict(),
+  z.object({ id: z.string().max(40), kind: z.literal('plan'), summary: z.string().max(300), steps: z.array(z.string().max(200)).min(1).max(12) }).strict(),
+]);
+/** The button the user pressed on a question card: the option's index, or go / cancel for a plan. */
+export const messageAnswerSchema = z
+  .object({ question: z.string().min(1).max(40), choice: z.union([z.enum(['go', 'cancel']), z.string().regex(/^[0-4]$/)]) })
+  .strict();
 export const agentEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('user'), text: z.string(), selection: z.string().max(400).optional() }).strict(),
   z.object({ type: z.literal('textDelta'), text: z.string() }).strict(),
@@ -283,6 +299,9 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('done'), ok: z.boolean(), durationMs: z.number().nullable(), detail: z.string().nullable() }).strict(),
   z.object({ type: z.literal('error'), message: z.string().max(500) }).strict(),
   z.object({ type: z.literal('step'), step: workStepSchema }).strict(),
+  z.object({ type: z.literal('question'), question: agentQuestionSchema }).strict(),
+  /** The user's next message answered the question; `choice` when a button was pressed. */
+  z.object({ type: z.literal('answered'), id: z.string().max(40), choice: z.string().max(10).nullable() }).strict(),
   z
     .object({
       type: z.literal('steps'),
@@ -362,7 +381,13 @@ export const visibilityCommandSchema = z
   .strict()
   .refine((command) => command.bodies.length + command.sketches.length > 0, 'nothing to show or hide');
 
-export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000), selections: z.array(selectionSchema).min(1).max(20).optional() }).strict();
+export const agentMessageSchema = z
+  .object({
+    text: z.string().min(1).max(20_000),
+    selections: z.array(selectionSchema).min(1).max(20).optional(),
+    answer: messageAnswerSchema.optional(),
+  })
+  .strict();
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
 export const assistantStateSchema = z.object({ selected: agentKindSchema, agents: z.array(agentStatusSchema) }).strict();
@@ -421,6 +446,8 @@ export type FaceSelection = z.infer<typeof faceSelectionSchema>;
 export type EdgeSelection = z.infer<typeof edgeSelectionSchema>;
 export type Selection = z.infer<typeof selectionSchema>;
 export type WorkStep = z.infer<typeof workStepSchema>;
+export type AgentQuestion = z.infer<typeof agentQuestionSchema>;
+export type MessageAnswer = z.infer<typeof messageAnswerSchema>;
 export type WorkStepState = z.infer<typeof workStepStateSchema>;
 export type ViewState = z.infer<typeof viewStateSchema>;
 export type TitleBarColors = z.infer<typeof titleBarColorsSchema>;

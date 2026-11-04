@@ -26,8 +26,9 @@ export async function launchApp(
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     PARTBUDDY_CACHE_DIR: join(work, 'cache'),
-    // On the leftmost monitor and without focus, away from the developer's main screen.
-    PARTBUDDY_WINDOW_DISPLAY: 'leftmost',
+    // Beside all displays, without focus or taskbar button: tests never disturb the developer.
+    // PARTBUDDY_WINDOW_DISPLAY=leftmost shows the window on purpose.
+    PARTBUDDY_WINDOW_DISPLAY: process.env.PARTBUDDY_WINDOW_DISPLAY === 'leftmost' ? 'leftmost' : 'offscreen',
     ...(isolated
       ? {
           SOLIDCRAFT_CONTROL_DIR: controlDir,

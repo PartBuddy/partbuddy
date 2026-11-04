@@ -5,6 +5,7 @@ import type { AgentEvent, AgentStatus, Selection } from '../../shared/contract';
 import type { AgentBackend } from '../agents/assistant';
 import type { ToolResult, UpstreamTools } from '../agents/gateProxy';
 import { decide } from '../agents/policy';
+import { QUESTION_GUIDANCE } from '../agents/questions';
 import { composeMessage, VIEW_GUIDANCE } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
 import { RESOURCE } from './oauth';
@@ -25,6 +26,7 @@ const INSTRUCTIONS = [
   'If PartBuddy refuses a tool, tell the user why and continue without it.',
   'Answer in the language the user writes in.',
   VIEW_GUIDANCE,
+  QUESTION_GUIDANCE,
 ].join(' ');
 const MAX_STEPS = 25;
 

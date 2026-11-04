@@ -8,6 +8,8 @@ import { useStudio } from '../state/store';
 const PREVIEW_WIDTH = 224;
 const PREVIEW_HEIGHT = 140;
 const PREVIEW_QUALITY = 0.8;
+/** A view that just appeared frames its camera first; pictures wait this long after it. */
+const SETTLE_MS = 600;
 
 /** The faces the newest revision changed, by body and face name. */
 function changedFaces(): ChangedFaces[] {
@@ -33,6 +35,8 @@ export function StepPreviews() {
 
   useEffect(() => {
     let frame = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const mountedAt = performance.now();
     const waiting = () => {
       const { model } = useStudio.getState();
       if (model.status !== 'ready') return [];
@@ -70,7 +74,15 @@ export function StepPreviews() {
     };
     // Two frames: the new model's colours are set in an effect and drawn in the next frame.
     const schedule = () => {
-      if (frame !== 0 || waiting().length === 0) return;
+      if (frame !== 0 || timer !== null || waiting().length === 0) return;
+      const settle = SETTLE_MS - (performance.now() - mountedAt);
+      if (settle > 0) {
+        timer = setTimeout(() => {
+          timer = null;
+          schedule();
+        }, settle);
+        return;
+      }
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(capture);
       });
@@ -82,6 +94,7 @@ export function StepPreviews() {
       offAssistant();
       offStudio();
       if (frame !== 0) cancelAnimationFrame(frame);
+      if (timer !== null) clearTimeout(timer);
     };
   }, [gl, scene, camera]);
 

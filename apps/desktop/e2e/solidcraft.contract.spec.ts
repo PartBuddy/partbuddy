@@ -100,6 +100,7 @@ test('an assistant step changes the headless design, and it is back after a rest
 });
 
 test('the user undoes, exports and opens the headless design in the SolidCraft window, and PartBuddy takes it back', async () => {
+  test.skip(process.env.PARTBUDDY_E2E_SOLIDCRAFT_WINDOW !== '1', 'opens the SolidCraft window, which cannot be kept off screen; set PARTBUDDY_E2E_SOLIDCRAFT_WINDOW=1');
   test.setTimeout(180_000);
   const { existsSync, mkdtempSync, readFileSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
@@ -402,6 +403,51 @@ test('the structure tree hides a body, and the timeline suppresses, rolls back a
     await page.screenshot({ path: test.info().outputPath('structure-timeline.png') });
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('timeline-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
+test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', async () => {
+  test.setTimeout(120_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-plan-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7897',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    // The test double shows a plan for "plan" and then tries to build anyway (test/fakeClaude.mjs).
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make a plan first');
+    await page.getByRole('button', { name: 'Send' }).click();
+    const card = page.getByTestId('question-card');
+    await expect(card).toHaveAttribute('data-kind', 'plan', { timeout: 30_000 });
+    await expect(card.getByTestId('plan-steps')).toHaveText('Box 20 × 20 × 10 mm');
+    await expect(page.getByTestId('assistant-text').last()).toHaveText('Plan shown; building waits for the answer.');
+    await expect(page.getByTestId('step-card')).toHaveCount(0);
+    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('aside').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    await page.screenshot({ path: test.info().outputPath('plan-card.png') });
+
+    await card.getByRole('button', { name: 'Go' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await expect(page.getByTestId('step-card').getByTestId('step-text')).toHaveText('Box 20 × 20 × 10 mm');
+    await expect(page.getByTestId('step-card').getByTestId('step-preview')).toHaveAttribute('src', /^data:image\//, { timeout: 10_000 });
+    await expect(card.getByTestId('question-answered')).toHaveText('Approved, the assistant builds it');
+    await expect(card.getByRole('button', { name: 'Go' })).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('plan-approved.png') });
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('plan-failed.png') }).catch(() => undefined);
     throw error;
   } finally {
     await launched.close();
