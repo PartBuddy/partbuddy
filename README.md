@@ -1,4 +1,4 @@
-# PartBuddy
+# <picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/svg/logo-inverse.svg"><img src="assets/brand/svg/logo.svg" alt="PartBuddy" height="48"></picture>
 
 [![CI](https://github.com/ManuelStaggl/partbuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/ManuelStaggl/partbuddy/actions/workflows/ci.yml)
 [![Privacy scan](https://github.com/ManuelStaggl/partbuddy/actions/workflows/privacy.yml/badge.svg)](https://github.com/ManuelStaggl/partbuddy/actions/workflows/privacy.yml)
@@ -21,7 +21,7 @@ Phase 1 (research, concept, click dummy, repository) is complete; no product cod
 | Area | State |
 | --- | --- |
 | Research and decisions | [Research](docs/research.md), [building blocks](docs/building-blocks.md), [ADRs](docs/adr/) (accepted except 0003, the folder structure) |
-| Concept | [Architecture](docs/architecture.md), [design system](docs/design-system.md), [feature catalogue](docs/feature-catalog.md) |
+| Concept | [Architecture](docs/architecture.md), [design system](docs/design-system.md), [brand guide](docs/brand.md), [feature catalogue](docs/feature-catalog.md) |
 | Click dummy | [`prototypes/clickdummy`](prototypes/clickdummy): main view with mock data, real sample geometry |
 | Repository | CI, privacy and security checks, release automation; [GitHub setup](docs/github-setup.md) pending |
 
@@ -29,10 +29,11 @@ Phase 1 (research, concept, click dummy, repository) is complete; no product cod
 
 ```text
 .github/       workflows, issue forms, pull request template, CODEOWNERS
-docs/          research, building blocks, architecture, design system, ADRs, screenshots
+assets/brand/  logo, app icon, favicon and social preview (generated, see docs/brand.md)
+docs/          research, building blocks, architecture, design system, brand, ADRs, screenshots
 packages/      shared TypeScript packages (design tokens)
 prototypes/    click dummy, never imported by product code
-tools/         sample-model generator, privacy scan helper, licence gate, GitHub setup script
+tools/         sample-model generator, brand asset build, privacy scan helper, licence gate, GitHub setup script
 ```
 
 `apps/` (Electron desktop app, Python sidecar) is added with the MVP. The structure is explained in
