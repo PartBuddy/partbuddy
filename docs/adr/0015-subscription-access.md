@@ -68,11 +68,24 @@ approval for it [research 206, 207]. Therefore:
 **ChatGPT: Sign in with ChatGPT in PartBuddy's own agent loop.** OpenAI offers ChatGPT plan usage
 to all open-source apps: dynamic client registration (`client_id=dynamic_agent_client`), PKCE on a
 `127.0.0.1` loopback callback, no client secret, scopes for Responses API access, a stable
-`ext_agent_host_id` per installation, Plus and Pro plans [research 208]. Requests go to the public
-Responses API with the user's access token (`store: false`, `stream: true`), so they run through
-the same agent loop, gates and tool handling as API keys ([ADR 0005](0005-ai-layer.md)). Tokens are
-kept in the Windows credential store ([ADR 0011](0011-provider-manager.md)). Built in a later
-change; the button follows OpenAI's UI guidelines ("Continue with ChatGPT").
+`ext_agent_host_id` per installation, Plus and Pro plans [research 208]. Built in issue #16:
+
+* The "Continue with ChatGPT" button opens OpenAI's page in the system browser (only
+  `https://auth.openai.com/` is allowed). The ID token is verified with `jose` against OpenAI's
+  JWKS (issuer, audience = issued client ID, nonce) before anything is stored; without the
+  `chatgpt.tokens.use.direct` scope the account is kept but plan usage stays off.
+* Tokens live only in the Windows credential store. One credential holds at most 2560 bytes, less
+  than a token set, so the set is split into chunks under `PartBuddy/chatgpt/tokens#n`; the issued
+  client ID is kept after sign-out for the next sign-in. The host ID is an opaque `urn:uuid` in
+  `%APPDATA%\PartBuddy\chatgpt-host-id`. Access tokens are renewed two minutes before expiry,
+  one renewal at a time; sign-out revokes the refresh token at OpenAI.
+* Requests run through the Vercel AI SDK loop of [ADR 0005](0005-ai-layer.md) with
+  `@ai-sdk/openai`'s Responses model, the access token set per request by a custom `fetch`, all
+  SolidCraft tools in one namespace `solidcraft` (required by the preview), `store: false`,
+  `instructions` instead of system messages, the whole history in every request and no
+  temperature or output-token limit. Tool calls go through the same policy as the gate proxy.
+  OpenAI's plan errors (usage limit, not eligible, unsupported capability) are shown as such;
+  PartBuddy never switches to another billing.
 
 **Gemini: the user's Gemini CLI over ACP.** Google states that accessing the services behind
 Gemini CLI with third-party software using Gemini CLI's OAuth violates its terms [research 209];
@@ -107,6 +120,13 @@ until the confirmation and export gates of ADR 0010 exist.
 * `apps/desktop/e2e/solidcraft.contract.spec.ts` lets the installed Claude Code build a box in an
   own SolidCraft instance through the gate proxy (`PARTBUDDY_E2E_CLAUDE=1`); first passed on
   2026-11-04 with Claude Code 2.1.302 (Max plan) and SolidCraft 0.30.1.
+* Unit tests cover the sign-in (PKCE, dynamic registration, declined consent, foreign keys),
+  chunked credential storage, token renewal and revocation, and the ChatGPT loop against a
+  recorded-format Responses stream (preview rules, namespaced tools, history, refused tools).
+* With `PARTBUDDY_E2E_CHATGPT=1`, `apps/desktop/test/chatgpt.live.test.ts` signs in through the
+  browser and runs the loop against OpenAI, and the contract test lets ChatGPT build the same box
+  in an own SolidCraft instance; first passed on 2026-11-04 with `gpt-6.1-sol` (29 s, four
+  checked tool calls, 4000 mm³).
 
 ## Pros and Cons of the Options
 

@@ -65,6 +65,8 @@ in `apps/desktop/test/fakeSolidCraft.ts`. With SolidCraft installed and a design
 | `PARTBUDDY_CACHE_DIR` | Folder for mirrored exports (default `%LOCALAPPDATA%\PartBuddy\cache\mirror`) |
 | `PARTBUDDY_CLAUDE_COMMAND` | JSON array that replaces the Claude Code program, for tests (`["node", "test/fakeClaude.mjs"]`) |
 | `PARTBUDDY_E2E_CLAUDE=1` | Also run the contract test in which your Claude Code builds a part; it spends subscription usage |
+| `PARTBUDDY_E2E_CHATGPT=1` | Run the live ChatGPT tests: the first run opens the browser to sign in; they spend ChatGPT plan usage |
+| `PARTBUDDY_KEYRING_SERVICE` | Credential-store service name (default `PartBuddy`); the Electron tests use their own |
 | `SOLIDCRAFT_CONTROL_DIR` | SolidCraft's own setting for its control folder; PartBuddy reads the same folder |
 
 ## Licence of contributions

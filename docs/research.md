@@ -432,6 +432,13 @@ returns the e-mail address and organisation, which PartBuddy drops. Through the 
 Code built a 20 × 20 × 10 mm box in SolidCraft 0.30.1 in four tool calls and 48 s and reported
 4000 mm³.
 
+**measured**: Sign in with ChatGPT with dynamic registration works for PartBuddy (2026-11-04); the
+account listed eight models (first `gpt-6.1-sol`); a request with a `namespace` tool returns
+`function_call` items carrying `namespace`. `@ai-sdk/openai` 4.0.104 supports namespaced function
+tools, `store: false` and `instructions`, so the plan route runs in the AI SDK loop; ChatGPT built the
+test box in SolidCraft in 29 s. A Windows credential holds at most 2560 bytes (`@napi-rs/keyring`
+error), less than the token set.
+
 The ACP adapter for Claude Code (`@agentclientprotocol/claude-agent-acp` 0.100.0, 2026-11-03,
 Apache-2.0) builds on the Claude Agent SDK and was not chosen; OpenAI's `codex app-server` is
 documented as a runtime fed with the app's own Sign in with ChatGPT token [208].
