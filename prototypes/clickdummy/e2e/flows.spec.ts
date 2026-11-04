@@ -27,20 +27,27 @@ test.describe('main view', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test('a clarification card can be answered and the proposal applied', async ({ page, consoleErrors }) => {
+  test('a clarification answer drives the proposed change', async ({ page, consoleErrors }) => {
     await openStudio(page);
     const card = page.getByRole('region', { name: /How wide should the snap opening be/ });
     await expect(card.getByRole('radio', { name: /7\.5 mm/ })).toBeChecked();
-    await card.getByText('8.0 mm').click();
-    await expect(card.getByRole('radio', { name: /8\.0 mm/ })).toBeChecked();
-    await card.getByText('7.5 mm').click();
+
+    await card.getByText('Other value').click();
+    const other = card.getByRole('textbox', { name: /Opening between/ });
+    await other.fill('12');
+    await expect(card.getByText(/Enter a value from 5 mm/)).toBeVisible();
+    await expect(card.getByRole('button', { name: 'Answer' })).toBeDisabled();
+
+    await card.getByText('8 mm', { exact: true }).click();
+    await expect(card.getByRole('radio', { name: /^8 mm/ })).toBeChecked();
     await card.getByRole('button', { name: 'Answer' }).click();
 
     await expect(page.getByText('Answered:')).toBeVisible();
     const proposal = page.getByRole('region', { name: 'Proposed change' });
-    await expect(proposal.getByRole('cell', { name: 'slot_width' })).toBeVisible();
+    await expect(proposal.getByRole('row', { name: /slot_width 9 mm 8 mm/ })).toBeVisible();
+    await expect(proposal.getByRole('row', { name: /cable_d_nominal 12 mm 10 mm/ })).toBeVisible();
     await proposal.getByRole('button', { name: 'Apply' }).click();
-    await expect(proposal.getByText('Applied. The channel is now 10 mm.')).toBeVisible();
+    await expect(proposal.getByText('Applied: cable 10 mm, snap opening 8 mm.')).toBeVisible();
     await expect(page.getByText('Prototype: the change is simulated; the 3D model does not change.')).toBeVisible();
     expect(consoleErrors).toEqual([]);
   });
@@ -83,6 +90,38 @@ test.describe('main view', () => {
     await page.getByRole('menuitemradio', { name: /Gemma 4 31B/ }).click();
     await expect(page.getByText('Gemma 4 31B cannot call tools')).toBeVisible();
     expect(consoleErrors).toEqual([]);
+  });
+
+  test('simulated failures show designed states', async ({ page, consoleErrors }) => {
+    await openStudio(page);
+    const settings = page.getByRole('button', { name: 'View and prototype states' });
+    const simulate = async (option: string) => {
+      await settings.click();
+      await page.getByRole('menuitemradio', { name: option }).click();
+    };
+
+    await simulate('API key missing');
+    await expect(page.getByText('No API key for Anthropic')).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
+
+    await simulate('Feature fails');
+    await expect(page.getByText('1 error', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Fillet does not fit/)).toBeVisible();
+
+    await simulate('File unreadable');
+    await expect(page.getByText('The model could not be read').first()).toBeVisible();
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('keyboard focus in menus is visible', async ({ page }) => {
+    await openStudio(page);
+    const modelMenu = page.getByRole('button', { name: /model menu/ });
+    await modelMenu.focus();
+    await page.keyboard.press('Enter');
+    const focused = page.getByRole('menuitemradio').first();
+    await expect(focused).toBeFocused();
+    const background = await focused.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(background).not.toBe('rgba(0, 0, 0, 0)');
   });
 
   test('the main view has no WCAG 2.2 AA violations that axe can detect', async ({ page }) => {

@@ -4,15 +4,20 @@ import { useTranslation } from 'react-i18next';
 import { Button as AriaButton } from 'react-aria-components';
 
 import { findProvider, minimumAgentContext, providers, type ProviderProfile } from '../mock/providers';
-import { useStudio, type LocalServerState } from '../state/store';
+import { useStudio, type CloudState, type LocalServerState } from '../state/store';
 import { StatusDot, type Tone } from '../ui/Badge';
 import { Menu, MenuButton, MenuItem, MenuSection } from '../ui/Menu';
 
 export function providerStatus(
   provider: ProviderProfile,
   localServer: LocalServerState,
+  cloud: CloudState,
 ): { tone: Tone; key: string } {
-  if (provider.kind === 'cloud') return { tone: 'success', key: 'provider.status.ready' };
+  if (provider.kind === 'cloud') {
+    if (cloud === 'missingKey') return { tone: 'danger', key: 'provider.status.missingKey' };
+    if (cloud === 'rateLimited') return { tone: 'warning', key: 'provider.status.rateLimited' };
+    return { tone: 'success', key: 'provider.status.ready' };
+  }
   if (localServer === 'unreachable') return { tone: 'danger', key: 'provider.status.unreachable' };
   if (localServer === 'processing') return { tone: 'info', key: 'provider.status.processing' };
   if (provider.contextTokens < minimumAgentContext) return { tone: 'warning', key: 'provider.status.smallContext' };
@@ -37,13 +42,14 @@ export function ProviderMenu() {
   const providerId = useStudio((s) => s.providerId);
   const setProvider = useStudio((s) => s.setProvider);
   const localServer = useStudio((s) => s.localServer);
+  const cloudState = useStudio((s) => s.cloud);
   const current = findProvider(providerId);
-  const status = providerStatus(current, localServer);
+  const status = providerStatus(current, localServer, cloudState);
   const cloud = providers.filter((p) => p.kind === 'cloud');
   const local = providers.filter((p) => p.kind === 'local');
 
   const item = (provider: ProviderProfile) => {
-    const s = providerStatus(provider, localServer);
+    const s = providerStatus(provider, localServer, cloudState);
     const Icon = provider.kind === 'cloud' ? IconCloud : IconDeviceDesktop;
     return (
       <MenuItem key={provider.id} id={provider.id} textValue={`${provider.vendor} ${provider.model}`}>
@@ -70,7 +76,7 @@ export function ProviderMenu() {
             source: current.kind === 'local' ? t('provider.local') : current.vendor,
             status: t(status.key),
           })}
-          className="flex h-control-md items-center gap-2 rounded-md border border-border px-2 text-md text-text outline-none hovered:bg-surface-hover pressed:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+          className="flex h-control-md items-center gap-2 rounded-md border border-border px-2 text-md text-text outline-none hover:bg-surface-hover pressed:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
         >
           <StatusDot tone={status.tone} label="" />
           <span className="font-medium">{current.model}</span>{' '}

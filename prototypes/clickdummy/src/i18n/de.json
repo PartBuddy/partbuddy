@@ -47,7 +47,9 @@
       "cut": "schneiden"
     },
     "notes": "{count, plural, one {# Notiz} other {# Notizen}}",
-    "rollbackEnd": "Ende der Zeitleiste"
+    "rollbackEnd": "Ende der Zeitleiste",
+    "featureError": "Rundung passt nicht: Radius größer, als die angrenzende Fläche erlaubt",
+    "errors": "{count, plural, one {# Fehler} other {# Fehler}}"
   },
   "parameters": {
     "favorite": "Favorit",
@@ -122,11 +124,12 @@
     "overhang": "Überhänge",
     "noFindings": "keine Befunde",
     "findings": "{count, plural, one {# Befund} other {# Befunde}}",
-    "overhangDetail": "Nach unten weisende Flächen steiler als {limit}° gegen die Senkrechte; die Bettlage ist ausgenommen.",
+    "overhangDetail": "Nach unten weisende Flächen steiler als {limit}° gegen die Senkrechte; die Bettlage ist ausgenommen. Die Grenze ist der Standardwert der Prüfung, eine Annahme, bis ein Druckerprofil einen gemessenen Wert liefert.",
     "timeline": "Zeitleisten-Regeln",
     "notRun": "nicht gelaufen",
     "sourceComputed": "Im Prototyp aus dem gespiegelten Netz berechnet",
-    "sourceMock": "Mock-Ergebnis; im Produkt läuft die Zeitleisten-Prüfung nach jedem Schritt"
+    "sourceMock": "Mock-Ergebnis; im Produkt läuft die Zeitleisten-Prüfung nach jedem Schritt",
+    "noModel": "Die Prüfungen brauchen das gespiegelte Modell. Lade es neu oder öffne das Design erneut in SolidCraft."
   },
   "print": {
     "title": "Druckpaket",
@@ -153,24 +156,16 @@
       "needsAnswer": "Antwort nötig",
       "recommended": "Empfohlen",
       "option": {
-        "opening75": {
-          "label": "7,5 mm",
-          "reason": "Gleiches Verhältnis wie heute (9 mm bei 12 mm). Die Schnappkraft bleibt ähnlich. Annahme, bis eine Probepassung sie bestätigt."
-        },
-        "opening80": {
-          "label": "8,0 mm",
-          "reason": "Leichter einzulegen; hält das Kabel weniger fest."
-        },
-        "opening70": {
-          "label": "7,0 mm",
-          "reason": "Hält fester; die Clip-Arme biegen sich beim Eindrücken stärker auf."
-        }
+        "opening75": "Gleiches Verhältnis wie heute (9 mm bei 12 mm). Die Schnappkraft bleibt ähnlich. Annahme, bis eine Probepassung sie bestätigt.",
+        "opening80": "Leichter einzulegen; hält das Kabel weniger fest.",
+        "opening70": "Hält fester; die Clip-Arme biegen sich beim Eindrücken stärker auf."
       },
       "other": "Anderer Wert",
-      "otherLabel": "Dein Wert und Grund",
+      "otherLabel": "Öffnung zwischen {min} und {max}",
       "whyAsked": "Gefragt, weil die Öffnung die Schnappkraft bestimmt und kein Messwert vorliegt.",
       "submit": "Antworten",
-      "answered": "Beantwortet:"
+      "answered": "Beantwortet:",
+      "otherInvalid": "Gib einen Wert ab {min} und unter {max} ein."
     },
     "change": {
       "title": "Vorgeschlagene Änderung",
@@ -180,7 +175,7 @@
       "note": "Übernehmen baut das Modell in SolidCraft neu auf. Danach laufen die Prüfungen erneut; bis sie bestanden sind, gilt Prüfstufe L.",
       "discard": "Verwerfen",
       "apply": "Übernehmen",
-      "applied": "Übernommen. Der Kanal ist jetzt {value}.",
+      "applied": "Übernommen: Kabel {cable}, Schnappöffnung {opening}.",
       "discarded": "Änderung verworfen."
     },
     "notice": {
@@ -190,7 +185,11 @@
       "contextBody": "Erhöhe die Kontextlänge in {vendor} (num_ctx) oder wähle ein anderes Modell.",
       "noToolsTitle": "{model} kann keine Werkzeuge aufrufen",
       "noToolsBody": "Es kann Fragen beantworten, aber das Design nicht ändern und keine Prüfungen starten.",
-      "solidcraftBody": "Der Assistent kann Fragen beantworten, aber das Design erst ändern, wenn SolidCraft läuft."
+      "solidcraftBody": "Der Assistent kann Fragen beantworten, aber das Design erst ändern, wenn SolidCraft läuft.",
+      "missingKeyTitle": "Kein API-Schlüssel für {vendor}",
+      "missingKeyBody": "Hinterlege einen Schlüssel in den Anbieter-Einstellungen. Schlüssel liegen in der Windows-Anmeldeinformationsverwaltung, nie in Dateien.",
+      "rateLimitTitle": "{vendor} drosselt Anfragen",
+      "rateLimitBody": "Der Assistent versucht es automatisch erneut. Du kannst auch ein anderes Modell wählen."
     },
     "progress": {
       "label": "Prompt-Fortschritt von {vendor}",
@@ -199,7 +198,7 @@
     },
     "mock": {
       "request": "Der Clip soll ein 10-mm-Kabel halten. Die Befestigungslöcher bleiben, wo sie sind.",
-      "analysis": "Der Kanaldurchmesser folgt cable_d_nominal + komp_channel. komp_channel ist 0 mm, weil noch kein Kalibrierwert vorliegt; das ist eine Annahme. Ein 10-mm-Kanal baut ohne Fehler neu auf. Eine Frage, bevor ich die Schnappöffnung ändere:",
+      "analysis": "Der Kanaldurchmesser folgt cable_d_nominal + channel_compensation. channel_compensation ist 0 mm, weil noch kein Kalibrierwert vorliegt; das ist eine Annahme. Ein 10-mm-Kanal baut ohne Fehler neu auf. Eine Frage, bevor ich die Schnappöffnung ändere:",
       "proposal": "Grundplatte und Befestigungslöcher bleiben unverändert.",
       "appliedSystem": "Prototyp: Die Änderung ist simuliert; das 3D-Modell ändert sich nicht.",
       "prototypeReply": "Prototyp: Es ist kein Modell verbunden, daher gibt es auf diese Nachricht keine Antwort."
@@ -227,7 +226,9 @@
       "processing": "rechnet",
       "unreachable": "nicht erreichbar",
       "smallContext": "Kontext zu klein",
-      "noTools": "kein Tool-Calling"
+      "noTools": "kein Tool-Calling",
+      "missingKey": "API-Schlüssel fehlt",
+      "rateLimited": "gedrosselt"
     }
   },
   "settings": {
@@ -260,6 +261,29 @@
         "ready": "Geladen",
         "loading": "Lädt",
         "empty": "Leer"
+      },
+      "cloud": "Cloud-Anbieter simulieren",
+      "cloudStates": {
+        "ready": "Bereit",
+        "missingKey": "API-Schlüssel fehlt",
+        "rateLimited": "Gedrosselt"
+      },
+      "timeline": "Zeitleiste simulieren",
+      "timelineStates": {
+        "ok": "Keine Fehler",
+        "featureError": "Feature schlägt fehl"
+      },
+      "model": "Gespiegeltes Modell simulieren",
+      "modelStates": {
+        "none": "Geladen",
+        "unreadable": "Datei unlesbar"
+      },
+      "anchors": "Notiz-Anker nach Neuaufbau simulieren",
+      "anchorStates": {
+        "attached": "Verankert",
+        "moved": "Verschoben",
+        "ambiguous": "Mehrdeutig",
+        "orphaned": "Verwaist"
       }
     }
   },

@@ -22,9 +22,27 @@ export interface Note {
 
 export type SolidCraftState = 'connected' | 'rebuilding' | 'disconnected';
 export type LocalServerState = 'ready' | 'processing' | 'unreachable';
+export type CloudState = 'ready' | 'missingKey' | 'rateLimited';
 export type ProjectsState = 'ready' | 'loading' | 'empty';
-export type ClarificationState = 'open' | 'answered';
+export type TimelineState = 'ok' | 'featureError';
+export type ModelFault = 'none' | 'unreadable';
 export type ChangeState = 'none' | 'proposed' | 'applied' | 'discarded';
+
+/** Options of the clarification card: snap opening for the 10 mm cable, in mm. */
+export const openingOptions = { opening75: 7.5, opening80: 8, opening70: 7 } as const;
+export type OpeningOption = keyof typeof openingOptions;
+export type ClarificationAnswer = { kind: 'option'; id: OpeningOption } | { kind: 'other'; value: number };
+
+export const targetCableDiameter = 10;
+
+export function answerValue(answer: ClarificationAnswer): number {
+  return answer.kind === 'option' ? openingOptions[answer.id] : answer.value;
+}
+
+/** The proposal follows the answer: new cable diameter and the chosen snap opening. */
+export function proposalFor(answer: ClarificationAnswer): Record<string, number> {
+  return { cable_d_nominal: targetCableDiameter, slot_width: answerValue(answer) };
+}
 
 interface StudioState {
   theme: Theme;
@@ -38,9 +56,13 @@ interface StudioState {
   providerId: string;
   solidcraft: SolidCraftState;
   localServer: LocalServerState;
+  cloud: CloudState;
   projectsState: ProjectsState;
-  clarification: ClarificationState;
-  answer: string | null;
+  timelineState: TimelineState;
+  modelFault: ModelFault;
+  answer: ClarificationAnswer | null;
+  /** Committed values when the proposal was made; the "before" column of the proposal. */
+  proposalBase: Record<string, number>;
   change: ChangeState;
   values: Record<string, number>;
   pendingValues: Record<string, number>;
@@ -58,11 +80,15 @@ interface StudioState {
   saveNote: (text: string, faceName: string) => void;
   removeNote: (id: string) => void;
   focusNote: (id: string | null) => void;
+  setAnchorStatus: (status: AnchorStatus) => void;
   setProvider: (id: string) => void;
   setSolidcraft: (state: SolidCraftState) => void;
   setLocalServer: (state: LocalServerState) => void;
+  setCloud: (state: CloudState) => void;
   setProjectsState: (state: ProjectsState) => void;
-  answerClarification: (answer: string) => void;
+  setTimelineState: (state: TimelineState) => void;
+  setModelFault: (fault: ModelFault) => void;
+  answerClarification: (answer: ClarificationAnswer) => void;
   applyChange: () => void;
   discardChange: () => void;
   setPendingValue: (name: string, value: number) => void;
@@ -73,8 +99,6 @@ interface StudioState {
 }
 
 const initialValues = Object.fromEntries(initialParameters.map((p) => [p.name, p.value]));
-
-export const proposedValues: Record<string, number> = { cable_d_nominal: 10, slot_width: 7.5 };
 
 let noteCounter = 0;
 
@@ -90,9 +114,12 @@ export const useStudio = create<StudioState>((set, get) => ({
   providerId: 'anthropic',
   solidcraft: 'connected',
   localServer: 'ready',
+  cloud: 'ready',
   projectsState: 'ready',
-  clarification: 'open',
+  timelineState: 'ok',
+  modelFault: 'none',
   answer: null,
+  proposalBase: {},
   change: 'none',
   values: initialValues,
   pendingValues: {},
@@ -120,21 +147,32 @@ export const useStudio = create<StudioState>((set, get) => ({
     };
     set({ notes: [...get().notes, note], noteDraft: null, focusNoteId: note.id });
   },
-  removeNote: (id) => set({ notes: get().notes.filter((n) => n.id !== id) }),
+  removeNote: (id) =>
+    set({
+      notes: get().notes.filter((n) => n.id !== id),
+      focusNoteId: get().focusNoteId === id ? null : get().focusNoteId,
+    }),
   focusNote: (focusNoteId) => set({ focusNoteId }),
+  setAnchorStatus: (status) =>
+    set({ notes: get().notes.map((n) => ({ ...n, anchor: { ...n.anchor, status } })) }),
   setProvider: (providerId) => set({ providerId }),
   setSolidcraft: (solidcraft) => set({ solidcraft }),
   setLocalServer: (localServer) => set({ localServer }),
+  setCloud: (cloud) => set({ cloud }),
   setProjectsState: (projectsState) => set({ projectsState }),
-  answerClarification: (answer) => set({ clarification: 'answered', answer, change: 'proposed' }),
-  applyChange: () =>
-    set({
-      change: 'applied',
-      values: { ...get().values, ...proposedValues },
-      partLevels: ['L'],
-    }),
+  setTimelineState: (timelineState) => set({ timelineState }),
+  setModelFault: (modelFault) => set({ modelFault }),
+  answerClarification: (answer) => set({ answer, change: 'proposed', proposalBase: { ...get().values } }),
+  applyChange: () => {
+    const answer = get().answer;
+    if (!answer) return;
+    set({ change: 'applied', values: { ...get().values, ...proposalFor(answer) }, partLevels: ['L'] });
+  },
   discardChange: () => set({ change: 'discarded' }),
-  setPendingValue: (name, value) => set({ pendingValues: { ...get().pendingValues, [name]: value } }),
+  setPendingValue: (name, value) => {
+    const rest = Object.fromEntries(Object.entries(get().pendingValues).filter(([key]) => key !== name));
+    set({ pendingValues: get().values[name] === value ? rest : { ...rest, [name]: value } });
+  },
   resetPendingValues: () => set({ pendingValues: {} }),
   applyPendingValues: () =>
     set({ values: { ...get().values, ...get().pendingValues }, pendingValues: {}, partLevels: ['L'] }),

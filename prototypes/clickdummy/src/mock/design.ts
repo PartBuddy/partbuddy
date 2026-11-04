@@ -46,7 +46,7 @@ export const parameters: Parameter[] = [
   { name: 'base_thickness', value: 4, min: 3, max: 6, step: 0.2, role: 'nominal', favorite: false },
   { name: 'clip_height', value: 16, min: 14, max: 24, step: 0.5, role: 'nominal', favorite: false },
   { name: 'hole_spacing', value: 48, min: 36, max: 70, step: 1, role: 'nominal', favorite: false },
-  { name: 'komp_channel', value: 0, min: -0.5, max: 0.5, step: 0.05, role: 'compensation', favorite: false },
+  { name: 'channel_compensation', value: 0, min: -0.5, max: 0.5, step: 0.05, role: 'compensation', favorite: false },
 ];
 
 export type VerificationLevel = 'R' | 'L' | 'TG' | 'SC' | 'SL' | 'PD';

@@ -8,13 +8,16 @@ import { TitleBar } from './shell/TitleBar';
 import { Workspace } from './shell/Workspace';
 import { useStudio } from './state/store';
 import { ModelContext } from './viewer/ModelContext';
-import { useModel } from './viewer/useModel';
+import { useModel, type ModelState } from './viewer/useModel';
 
 export function App() {
   const { i18n } = useTranslation();
   const theme = useStudio((s) => s.theme);
   const locale = useStudio((s) => s.locale);
-  const model = useModel();
+  const loaded = useModel();
+  const modelFault = useStudio((s) => s.modelFault);
+  const model: ModelState =
+    modelFault === 'unreadable' ? { status: 'error', message: 'simulated: 3D/3dmodel.model missing' } : loaded;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

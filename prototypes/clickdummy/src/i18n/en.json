@@ -47,7 +47,9 @@
       "cut": "cut"
     },
     "notes": "{count, plural, one {# note} other {# notes}}",
-    "rollbackEnd": "End of timeline"
+    "rollbackEnd": "End of timeline",
+    "featureError": "Fillet does not fit: radius larger than the adjacent face allows",
+    "errors": "{count, plural, one {# error} other {# errors}}"
   },
   "parameters": {
     "favorite": "Favourite",
@@ -122,11 +124,12 @@
     "overhang": "Overhangs",
     "noFindings": "no findings",
     "findings": "{count, plural, one {# finding} other {# findings}}",
-    "overhangDetail": "Downward faces steeper than {limit}° from vertical; the bed layer is excluded.",
+    "overhangDetail": "Downward faces steeper than {limit}° from vertical; the bed layer is excluded. The limit is the check default, an assumption until a printer profile provides a measured value.",
     "timeline": "Timeline rules",
     "notRun": "not run",
     "sourceComputed": "Computed from the mirrored mesh in the prototype",
-    "sourceMock": "Mock result; the product runs the timeline check after each step"
+    "sourceMock": "Mock result; the product runs the timeline check after each step",
+    "noModel": "Checks need the mirrored model. Reload it or open the design in SolidCraft again."
   },
   "print": {
     "title": "Print package",
@@ -153,24 +156,16 @@
       "needsAnswer": "Answer needed",
       "recommended": "Recommended",
       "option": {
-        "opening75": {
-          "label": "7.5 mm",
-          "reason": "Same ratio as today (9 mm for 12 mm). The snap force stays similar. Assumption until a test fit confirms it."
-        },
-        "opening80": {
-          "label": "8.0 mm",
-          "reason": "Easier to insert; holds the cable less firmly."
-        },
-        "opening70": {
-          "label": "7.0 mm",
-          "reason": "Holds firmer; the clip arms bend further when the cable is pressed in."
-        }
+        "opening75": "Same ratio as today (9 mm for 12 mm). The snap force stays similar. Assumption until a test fit confirms it.",
+        "opening80": "Easier to insert; holds the cable less firmly.",
+        "opening70": "Holds firmer; the clip arms bend further when the cable is pressed in."
       },
       "other": "Other value",
-      "otherLabel": "Your value and reason",
+      "otherLabel": "Opening between {min} and {max}",
       "whyAsked": "Asked because the opening sets the snap force and no measured value exists.",
       "submit": "Answer",
-      "answered": "Answered:"
+      "answered": "Answered:",
+      "otherInvalid": "Enter a value from {min} up to, but not including, {max}."
     },
     "change": {
       "title": "Proposed change",
@@ -180,7 +175,7 @@
       "note": "Applying rebuilds the model in SolidCraft. Checks run again afterwards; verification falls back to L until they pass.",
       "discard": "Discard",
       "apply": "Apply",
-      "applied": "Applied. The channel is now {value}.",
+      "applied": "Applied: cable {cable}, snap opening {opening}.",
       "discarded": "Change discarded."
     },
     "notice": {
@@ -190,7 +185,11 @@
       "contextBody": "Increase the context length in {vendor} (num_ctx) or choose another model.",
       "noToolsTitle": "{model} cannot call tools",
       "noToolsBody": "It can answer questions but cannot change the design or run checks.",
-      "solidcraftBody": "The assistant can answer questions but cannot change the design until SolidCraft runs."
+      "solidcraftBody": "The assistant can answer questions but cannot change the design until SolidCraft runs.",
+      "missingKeyTitle": "No API key for {vendor}",
+      "missingKeyBody": "Add a key in the provider settings. Keys are stored in the Windows Credential Manager, never in files.",
+      "rateLimitTitle": "{vendor} is rate-limiting requests",
+      "rateLimitBody": "The assistant retries automatically. You can also switch to another model."
     },
     "progress": {
       "label": "{vendor} prompt progress",
@@ -199,7 +198,7 @@
     },
     "mock": {
       "request": "Make the clip hold a 10 mm cable. The mounting holes stay where they are.",
-      "analysis": "The channel diameter follows cable_d_nominal + komp_channel. komp_channel is 0 mm because no calibration value exists yet; that is an assumption. A 10 mm channel rebuilds without errors. One question before I change the snap opening:",
+      "analysis": "The channel diameter follows cable_d_nominal + channel_compensation. channel_compensation is 0 mm because no calibration value exists yet; that is an assumption. A 10 mm channel rebuilds without errors. One question before I change the snap opening:",
       "proposal": "The base plate and the mounting holes stay unchanged.",
       "appliedSystem": "Prototype: the change is simulated; the 3D model does not change.",
       "prototypeReply": "Prototype: no model is connected, so this message gets no reply."
@@ -227,7 +226,9 @@
       "processing": "processing",
       "unreachable": "not reachable",
       "smallContext": "context too small",
-      "noTools": "no tool calling"
+      "noTools": "no tool calling",
+      "missingKey": "API key missing",
+      "rateLimited": "rate limited"
     }
   },
   "settings": {
@@ -260,6 +261,29 @@
         "ready": "Loaded",
         "loading": "Loading",
         "empty": "Empty"
+      },
+      "cloud": "Simulate cloud provider",
+      "cloudStates": {
+        "ready": "Ready",
+        "missingKey": "API key missing",
+        "rateLimited": "Rate limited"
+      },
+      "timeline": "Simulate timeline",
+      "timelineStates": {
+        "ok": "No errors",
+        "featureError": "Feature fails"
+      },
+      "model": "Simulate mirrored model",
+      "modelStates": {
+        "none": "Loaded",
+        "unreadable": "File unreadable"
+      },
+      "anchors": "Simulate note anchors after rebuild",
+      "anchorStates": {
+        "attached": "Attached",
+        "moved": "Moved",
+        "ambiguous": "Ambiguous",
+        "orphaned": "Orphaned"
       }
     }
   },

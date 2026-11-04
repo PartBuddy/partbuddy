@@ -10,7 +10,7 @@ import { Button } from '../ui/Button';
 import { Busy, EmptyState } from '../ui/Feedback';
 
 const stateTone: Record<(typeof projects)[number]['state'], Tone> = {
-  active: 'accent',
+  active: 'info',
   waiting: 'warning',
   done: 'success',
 };
@@ -67,12 +67,13 @@ export function ProjectsPanel() {
         className="flex-1 overflow-auto p-1 outline-none"
         renderEmptyState={() => <p className="p-3 text-sm text-text-muted">{t('projects.noMatch')}</p>}
         items={visible}
+        dependencies={[partLevels]}
       >
         {(project) => (
           <ListBoxItem
             id={project.id}
             textValue={project.name}
-            className="flex cursor-default flex-col gap-1 rounded-md px-2 py-2 outline-none hovered:bg-surface-hover selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+            className="flex cursor-default flex-col gap-1 rounded-md px-2 py-2 outline-none hover:bg-surface-hover selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="truncate text-md font-medium text-text">{project.name}</span>

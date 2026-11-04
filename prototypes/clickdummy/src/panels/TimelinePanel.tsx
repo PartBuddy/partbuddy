@@ -27,12 +27,18 @@ export function TimelinePanel() {
   const highlightFeature = useStudio((s) => s.highlightFeature);
   const setHighlightFeature = useStudio((s) => s.setHighlightFeature);
   const notes = useStudio((s) => s.notes);
+  const timelineState = useStudio((s) => s.timelineState);
+  const failing = timelineState === 'featureError' ? 'F7' : null;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border px-3 py-2 text-xs text-text-muted">
         <span>{t('timeline.revision', { revision: designRevision })}</span>
-        <Badge tone="success">{t('timeline.noErrors')}</Badge>
+        {failing ? (
+          <Badge tone="danger">{t('timeline.errors', { count: 1 })}</Badge>
+        ) : (
+          <Badge tone="success">{t('timeline.noErrors')}</Badge>
+        )}
       </div>
       <ListBox
         aria-label={t('panels.timeline')}
@@ -44,6 +50,7 @@ export function TimelinePanel() {
         }}
         className="flex-1 overflow-auto p-1 outline-none"
         items={timeline}
+        dependencies={[failing, notes]}
       >
         {(feature) => {
           const Icon = icons[feature.kind];
@@ -52,11 +59,14 @@ export function TimelinePanel() {
             <ListBoxItem
               id={feature.id}
               textValue={feature.name}
-              className="flex h-row cursor-default items-center gap-2 rounded-md px-2 outline-none hovered:bg-surface-hover selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+              className="flex min-h-row cursor-default items-center gap-2 rounded-md px-2 outline-none hover:bg-surface-hover selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
             >
               <span className="w-index-column font-mono text-xs text-text-subtle">{feature.id}</span>
               <Icon className="size-icon text-text-muted" aria-hidden />
-              <span className="flex-1 truncate text-md text-text">{feature.name}</span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className={`truncate text-md ${feature.id === failing ? 'text-danger' : 'text-text'}`}>{feature.name}</span>
+                {feature.id === failing ? <span className="truncate text-xs text-danger">{t('timeline.featureError')}</span> : null}
+              </span>
               {feature.operation !== 'new' ? (
                 <span className="text-xs text-text-subtle">{t(`timeline.operation.${feature.operation}`)}</span>
               ) : null}
@@ -71,7 +81,7 @@ export function TimelinePanel() {
         }}
       </ListBox>
       <div className="flex items-center gap-2 border-t border-border px-3 py-2">
-        <span aria-hidden className="h-1 flex-1 rounded-full bg-accent" />
+        <span aria-hidden className="h-hairline flex-1 bg-border-strong" />
         <span className="text-xs text-text-muted">{t('timeline.rollbackEnd')}</span>
       </div>
     </div>

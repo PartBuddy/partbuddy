@@ -44,7 +44,7 @@ export function NotesPanel() {
         <GridListItem
           id={note.id}
           textValue={note.text}
-          className="flex cursor-default flex-col gap-1 rounded-md px-2 py-2 outline-none hovered:bg-surface-hover selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+          className="flex cursor-default flex-col gap-1 rounded-md px-2 py-2 outline-none hover:bg-surface-hover selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
         >
           <div className="flex items-center gap-2">
             <span className="flex size-5 items-center justify-center rounded-full bg-note font-mono text-xs font-semibold text-on-accent">

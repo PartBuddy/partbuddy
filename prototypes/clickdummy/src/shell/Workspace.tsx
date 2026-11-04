@@ -15,11 +15,12 @@ import { NotesPanel } from '../panels/NotesPanel';
 import { ParametersPanel } from '../panels/ParametersPanel';
 import { ProjectsPanel } from '../panels/ProjectsPanel';
 import { TimelinePanel } from '../panels/TimelinePanel';
-import { useReadyModel } from '../viewer/ModelContext';
+import { useModelState } from '../viewer/ModelContext';
+import { tokenPx } from '../ui/tokens';
 import { Viewer } from '../viewer/Viewer';
 
 function Checks() {
-  return <ChecksPanel model={useReadyModel()} />;
+  return <ChecksPanel state={useModelState()} />;
 }
 
 const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
@@ -61,15 +62,15 @@ export function Workspace() {
         ...(size ? { initialWidth: size } : {}),
       });
     add('viewer');
-    add('projects', { referencePanel: 'viewer', direction: 'left' }, 280);
+    add('projects', { referencePanel: 'viewer', direction: 'left' }, tokenPx('--cs-layout-navigation-width'));
     add('timeline', { referencePanel: 'projects', direction: 'below' });
-    add('chat', { referencePanel: 'viewer', direction: 'right' }, 400);
+    add('chat', { referencePanel: 'viewer', direction: 'right' }, tokenPx('--cs-layout-assistant-width'));
     add('parameters', { referencePanel: 'viewer', direction: 'below' });
     add('notes', { referencePanel: 'parameters', direction: 'within' });
     add('checks', { referencePanel: 'parameters', direction: 'within' });
     event.api.getPanel('parameters')?.api.setActive();
-    event.api.getPanel('viewer')?.group.api.setSize({ height: 560 });
-    event.api.getPanel('projects')?.group.api.setSize({ height: 260 });
+    event.api.getPanel('viewer')?.group.api.setSize({ height: tokenPx('--cs-layout-viewer-height') });
+    event.api.getPanel('projects')?.group.api.setSize({ height: tokenPx('--cs-layout-projects-height') });
   };
 
   return (

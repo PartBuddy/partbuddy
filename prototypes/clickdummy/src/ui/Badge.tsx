@@ -68,7 +68,6 @@ export function VerificationBadges({
         return (
           <span
             key={level}
-            title={`${t(`verification.${level}.name`)}: ${t(`verification.${level}.proof`)}`}
             className={`inline-flex h-4 items-center justify-center rounded-sm font-mono text-xs px-1 ${
               on ? 'bg-accent-subtle text-accent-text' : 'text-text-subtle'
             }`}

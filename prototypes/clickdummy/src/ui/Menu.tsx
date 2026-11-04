@@ -12,6 +12,8 @@ import {
   type MenuProps,
 } from 'react-aria-components';
 
+import { tokenPx } from './tokens';
+
 export const popoverClass =
   'min-w-menu rounded-lg border border-border bg-surface-raised p-1 shadow-3 outline-none entering:animate-none';
 
@@ -19,7 +21,7 @@ export function MenuButton({ trigger, children }: { trigger: ReactNode; children
   return (
     <MenuTrigger>
       {trigger}
-      <Popover placement="bottom end" offset={4} className={popoverClass}>
+      <Popover placement="bottom end" offset={tokenPx('--cs-overlay-offset')} className={popoverClass}>
         {children}
       </Popover>
     </MenuTrigger>
@@ -34,7 +36,7 @@ export function MenuItem({ children, ...props }: Omit<MenuItemProps, 'className'
   return (
     <AriaMenuItem
       {...props}
-      className="group flex min-h-control-md cursor-default items-center gap-2 rounded-md px-2 py-1 text-md text-text outline-none focused:bg-surface-hover selected:font-medium disabled:text-text-subtle"
+      className="group flex min-h-control-md cursor-default items-center gap-2 rounded-md px-2 py-1 text-md text-text outline-none focus:bg-surface-hover selected:font-medium disabled:text-text-subtle"
     >
       {children}
     </AriaMenuItem>

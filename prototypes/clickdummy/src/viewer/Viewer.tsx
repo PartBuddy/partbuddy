@@ -3,6 +3,7 @@ import { Canvas, type ThreeEvent } from '@react-three/fiber';
 import { IconMapPin, IconNotes } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Button as AriaButton } from 'react-aria-components';
 import { BufferAttribute, Mesh, Object3D } from 'three';
 import { acceleratedRaycast } from 'three-mesh-bvh';
 
@@ -105,10 +106,9 @@ function NotePins() {
     <>
       {notes.map((note, i) => (
         <Html key={note.id} position={note.anchor.point} center zIndexRange={[20, 0]}>
-          <button
-            type="button"
+          <AriaButton
             aria-label={t('notes.pinLabel', { number: i + 1, text: note.text })}
-            onClick={() => {
+            onPress={() => {
               focusNote(note.id);
             }}
             className={`flex size-pin items-center justify-center rounded-full border-2 border-surface font-mono text-xs font-semibold text-on-accent shadow-2 outline-none focus-visible:outline-2 focus-visible:outline-focus ${
@@ -116,7 +116,7 @@ function NotePins() {
             }`}
           >
             {i + 1}
-          </button>
+          </AriaButton>
         </Html>
       ))}
     </>

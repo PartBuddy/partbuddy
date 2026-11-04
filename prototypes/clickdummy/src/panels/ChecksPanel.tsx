@@ -4,11 +4,11 @@ import { useTranslation } from 'react-i18next';
 
 import { meshMetrics, overhangFindings } from '../geometry/analysis';
 import { deriveEdges } from '../geometry/edges';
-import type { ViewerModel } from '../viewer/model';
+import type { ModelState } from '../viewer/useModel';
 import { useStudio } from '../state/store';
 import { Badge, VerificationBadges, type Tone } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { Banner, Busy } from '../ui/Feedback';
+import { Banner, Busy, EmptyState } from '../ui/Feedback';
 
 function CheckRow({
   title,
@@ -35,18 +35,22 @@ function CheckRow({
   );
 }
 
-export function ChecksPanel({ model }: { model: ViewerModel | null }) {
+export function ChecksPanel({ state }: { state: ModelState }) {
   const { t, i18n } = useTranslation();
   const partLevels = useStudio((s) => s.partLevels);
   const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 });
 
-  if (!model) {
+  if (state.status === 'error') {
+    return <EmptyState title={t('viewer.errorTitle')} body={t('checks.noModel')} />;
+  }
+  if (state.status === 'loading') {
     return (
       <div className="flex h-full items-center justify-center">
         <Busy label={t('viewer.loading')} />
       </div>
     );
   }
+  const { model } = state;
 
   const metrics = meshMetrics(model.mesh);
   const { openEdges } = deriveEdges(model.mesh);

@@ -26,14 +26,16 @@ interface Command {
 
 export function CommandPalette() {
   const { t } = useTranslation();
-  const store = useStudio();
+  const paletteOpen = useStudio((s) => s.paletteOpen);
+  const setPaletteOpen = useStudio((s) => s.setPaletteOpen);
+  const hasSelection = useStudio((s) => s.selection !== null);
   const { contains } = useFilter({ sensitivity: 'base' });
 
   useHotkeys(
     'mod+k',
     (event) => {
       event.preventDefault();
-      store.setPaletteOpen(true);
+      setPaletteOpen(true);
     },
     { enableOnFormTags: true },
   );
@@ -43,36 +45,39 @@ export function CommandPalette() {
       id: 'note',
       label: t('palette.addNote'),
       run: () => {
-        if (store.selection) store.startNote(store.selection);
+        const { selection, startNote } = useStudio.getState();
+        if (selection) startNote(selection);
       },
     },
     {
       id: 'theme',
       label: t('palette.toggleTheme'),
       run: () => {
-        store.setTheme(store.theme === 'light' ? 'dark' : 'light');
+        const { theme, setTheme } = useStudio.getState();
+        setTheme(theme === 'light' ? 'dark' : 'light');
       },
     },
     {
       id: 'language',
       label: t('palette.toggleLanguage'),
       run: () => {
-        store.setLocale(store.locale === 'en' ? 'de' : 'en');
+        const { locale, setLocale } = useStudio.getState();
+        setLocale(locale === 'en' ? 'de' : 'en');
       },
     },
     ...providers.map((p) => ({
       id: `provider-${p.id}`,
       label: t('palette.useModel', { model: p.model, vendor: p.vendor }),
       run: () => {
-        store.setProvider(p.id);
+        useStudio.getState().setProvider(p.id);
       },
     })),
   ];
 
   return (
     <ModalOverlay
-      isOpen={store.paletteOpen}
-      onOpenChange={store.setPaletteOpen}
+      isOpen={paletteOpen}
+      onOpenChange={setPaletteOpen}
       isDismissable
       className="fixed inset-0 z-50 flex items-start justify-center bg-overlay pt-dialog-offset"
     >
@@ -93,9 +98,10 @@ export function CommandPalette() {
             </SearchField>
             <Menu
               items={commands}
+              disabledKeys={hasSelection ? [] : ['note']}
               onAction={(key) => {
                 commands.find((c) => c.id === key)?.run();
-                store.setPaletteOpen(false);
+                setPaletteOpen(false);
               }}
               className="max-h-menu-max overflow-auto p-1 outline-none"
               renderEmptyState={() => <p className="p-3 text-sm text-text-muted">{t('palette.empty')}</p>}
@@ -104,7 +110,7 @@ export function CommandPalette() {
                 <MenuItem
                   id={command.id}
                   textValue={command.label}
-                  className="flex h-control-lg cursor-default items-center rounded-md px-3 text-md text-text outline-none focused:bg-surface-selected"
+                  className="flex h-control-lg cursor-default items-center rounded-md px-3 text-md text-text outline-none focus:bg-surface-selected disabled:text-text-subtle"
                 >
                   {command.label}
                 </MenuItem>

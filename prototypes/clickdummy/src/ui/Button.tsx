@@ -6,20 +6,22 @@ import {
   type ButtonProps as AriaButtonProps,
 } from 'react-aria-components';
 
+import { tokenPx } from './tokens';
+
 type Variant = 'primary' | 'secondary' | 'quiet' | 'danger';
 type Size = 'sm' | 'md';
 
 const base =
   'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md font-medium text-md outline-none ' +
-  'transition-colors duration-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus ' +
+  'transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus ' +
   'disabled:cursor-not-allowed disabled:opacity-50';
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-accent text-on-accent hovered:bg-accent-hover pressed:bg-accent-hover',
+  primary: 'bg-accent text-on-accent hover:bg-accent-hover pressed:bg-accent-hover',
   secondary:
-    'border border-border-strong bg-surface text-text hovered:bg-surface-hover pressed:bg-surface-selected',
-  quiet: 'bg-transparent text-text hovered:bg-surface-hover pressed:bg-surface-selected',
-  danger: 'border border-border-strong bg-surface text-danger hovered:bg-danger-subtle',
+    'border border-border-strong bg-surface text-text hover:bg-surface-hover pressed:bg-surface-selected',
+  quiet: 'bg-transparent text-text hover:bg-surface-hover pressed:bg-surface-selected',
+  danger: 'border border-border-strong bg-surface text-danger hover:bg-danger-subtle',
 };
 
 const sizes: Record<Size, string> = {
@@ -54,12 +56,12 @@ export function IconButton({ label, icon, shortcut, selected = false, size = 'md
         {...props}
         aria-label={label}
         {...(selected ? { 'aria-pressed': true } : {})}
-        className={`${base} ${square} ${selected ? 'bg-surface-selected text-accent-text' : 'text-text-muted hovered:bg-surface-hover hovered:text-text'}`}
+        className={`${base} ${square} ${selected ? 'bg-surface-selected text-accent-text' : 'text-text-muted hover:bg-surface-hover hover:text-text'}`}
       >
         {icon}
       </AriaButton>
       <Tooltip
-        offset={6}
+        offset={tokenPx('--cs-overlay-offset')}
         className="rounded-sm bg-surface-raised px-2 py-1 text-sm text-text shadow-2 border border-border entering:animate-none"
       >
         {label}

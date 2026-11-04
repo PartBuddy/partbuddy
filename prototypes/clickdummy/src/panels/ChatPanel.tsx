@@ -14,7 +14,9 @@ import {
   Disclosure,
   DisclosurePanel,
   Button as AriaButton,
+  FieldError,
   Heading,
+  Input,
   Label,
   ProgressBar,
   RadioButton,
@@ -27,7 +29,14 @@ import {
 
 import { parameters } from '../mock/design';
 import { findProvider, minimumAgentContext } from '../mock/providers';
-import { proposedValues, useStudio } from '../state/store';
+import {
+  answerValue,
+  openingOptions,
+  proposalFor,
+  targetCableDiameter,
+  useStudio,
+  type OpeningOption,
+} from '../state/store';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Banner } from '../ui/Feedback';
@@ -86,26 +95,41 @@ function ToolCalls() {
   );
 }
 
-const options = [
-  { id: 'opening75', recommended: true },
-  { id: 'opening80', recommended: false },
-  { id: 'opening70', recommended: false },
-] as const;
+type Choice = OpeningOption | 'other';
+const choices: Choice[] = ['opening75', 'opening80', 'opening70', 'other'];
+const slotRange = parameters.find((p) => p.name === 'slot_width');
+
+/** Parses "8", "8.5", "8,5" or "8,5 mm"; returns null for anything else. */
+function parseMillimetres(text: string): number | null {
+  const match = /^\s*(\d+(?:[.,]\d+)?)\s*(mm)?\s*$/i.exec(text);
+  return match?.[1] ? Number(match[1].replace(',', '.')) : null;
+}
+
+function useMillimetres() {
+  const { i18n } = useTranslation();
+  return new Intl.NumberFormat(i18n.language, { style: 'unit', unit: 'millimeter', maximumFractionDigits: 2 });
+}
 
 function ClarificationCard() {
   const { t } = useTranslation();
-  const state = useStudio((s) => s.clarification);
+  const mm = useMillimetres();
   const answer = useStudio((s) => s.answer);
   const answerClarification = useStudio((s) => s.answerClarification);
-  const [choice, setChoice] = useState<string>('opening75');
+  const [choice, setChoice] = useState<Choice>('opening75');
   const [other, setOther] = useState('');
 
-  if (state === 'answered') {
+  const otherValue = parseMillimetres(other);
+  const min = slotRange?.min ?? 0;
+  const max = Math.min(slotRange?.max ?? targetCableDiameter, targetCableDiameter);
+  const otherInvalid = choice === 'other' && other.trim() !== '' && (otherValue === null || otherValue < min || otherValue >= max);
+  const canSubmit = choice !== 'other' || (otherValue !== null && !otherInvalid);
+
+  if (answer) {
     return (
       <div className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm">
         <IconCheck className="size-icon-sm text-success" aria-hidden />
         <span className="text-text-muted">{t('chat.card.answered')}</span>
-        <span className="font-medium text-text">{answer}</span>
+        <span className="font-medium text-text">{mm.format(answerValue(answer))}</span>
       </div>
     );
   }
@@ -113,46 +137,54 @@ function ClarificationCard() {
   return (
     <section
       aria-labelledby="clarification-title"
-      className="flex flex-col gap-3 rounded-lg border border-accent bg-surface p-3 shadow-1"
+      className="flex flex-col gap-3 rounded-lg border border-border-strong bg-surface p-3 shadow-1"
     >
       <div className="flex items-center justify-between gap-2">
         <h4 id="clarification-title" className="text-md font-semibold text-text">
           {t('chat.card.question')}
         </h4>
-        <Badge tone="accent">{t('chat.card.needsAnswer')}</Badge>
+        <Badge tone="info">{t('chat.card.needsAnswer')}</Badge>
       </div>
-      <RadioGroup value={choice} onChange={setChoice} aria-labelledby="clarification-title" className="flex flex-col gap-1">
-        {[...options, { id: 'other', recommended: false } as const].map((option) => (
+      <RadioGroup
+        value={choice}
+        onChange={(value) => {
+          setChoice(value as Choice);
+        }}
+        aria-labelledby="clarification-title"
+        className="flex flex-col gap-1"
+      >
+        {choices.map((id) => (
           <RadioField
-            key={option.id}
-            value={option.id}
+            key={id}
+            value={id}
             className="flex flex-col gap-1 rounded-md border border-border px-2 py-2 selected:border-accent selected:bg-accent-subtle"
           >
             <RadioButton className="group flex cursor-default items-center gap-2 rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-focus">
               <span
                 aria-hidden
-                className="size-4 shrink-0 rounded-full border-2 border-border-strong group-hovered:border-accent group-selected:border-accent group-selected:bg-accent"
+                className="size-4 shrink-0 rounded-full border-2 border-border-strong group-hover:border-accent group-selected:border-accent group-selected:bg-accent"
               />
               <span className="flex items-center gap-2 text-md font-medium text-text">
-                {option.id === 'other' ? t('chat.card.other') : t(`chat.card.option.${option.id}.label`)}
-                {option.recommended ? <Badge tone="accent">{t('chat.card.recommended')}</Badge> : null}
+                {id === 'other' ? t('chat.card.other') : mm.format(openingOptions[id])}
+                {id === 'opening75' ? <Badge tone="neutral">{t('chat.card.recommended')}</Badge> : null}
               </span>
             </RadioButton>
-            {option.id === 'other' ? null : (
+            {id === 'other' ? null : (
               <Text slot="description" className="pl-5 text-sm text-text-muted">
-                {t(`chat.card.option.${option.id}.reason`)}
+                {t(`chat.card.option.${id}`)}
               </Text>
             )}
           </RadioField>
         ))}
       </RadioGroup>
       {choice === 'other' ? (
-        <TextField value={other} onChange={setOther} className="flex flex-col gap-1">
-          <Label className="text-sm text-text-muted">{t('chat.card.otherLabel')}</Label>
-          <TextArea
-            rows={2}
-            className="rounded-md border border-border-strong bg-surface px-2 py-1 text-md text-text outline-none focus-visible:outline-2 focus-visible:outline-focus"
+        <TextField value={other} onChange={setOther} isInvalid={otherInvalid} className="flex flex-col gap-1">
+          <Label className="text-sm text-text-muted">{t('chat.card.otherLabel', { min: mm.format(min), max: mm.format(max) })}</Label>
+          <Input
+            inputMode="decimal"
+            className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none invalid:border-danger focus-visible:outline-2 focus-visible:outline-focus"
           />
+          <FieldError className="text-sm text-danger">{t('chat.card.otherInvalid', { min: mm.format(min), max: mm.format(max) })}</FieldError>
         </TextField>
       ) : null}
       <div className="flex items-center justify-between gap-2">
@@ -160,9 +192,10 @@ function ClarificationCard() {
         <Button
           variant="primary"
           size="sm"
-          isDisabled={choice === 'other' && other.trim() === ''}
+          isDisabled={!canSubmit}
           onPress={() => {
-            answerClarification(choice === 'other' ? other.trim() : t(`chat.card.option.${choice}.label`));
+            if (choice !== 'other') answerClarification({ kind: 'option', id: choice });
+            else if (otherValue !== null && !otherInvalid) answerClarification({ kind: 'other', value: otherValue });
           }}
         >
           {t('chat.card.submit')}
@@ -173,13 +206,15 @@ function ClarificationCard() {
 }
 
 function ProposedChange() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const mm = useMillimetres();
   const change = useStudio((s) => s.change);
-  const values = useStudio((s) => s.values);
+  const answer = useStudio((s) => s.answer);
+  const before = useStudio((s) => s.proposalBase);
   const applyChange = useStudio((s) => s.applyChange);
   const discardChange = useStudio((s) => s.discardChange);
-  const mm = new Intl.NumberFormat(i18n.language, { style: 'unit', unit: 'millimeter', maximumFractionDigits: 2 });
-  const before = Object.fromEntries(parameters.map((p) => [p.name, p.value]));
+  if (!answer) return null;
+  const proposal = proposalFor(answer);
 
   return (
     <section aria-label={t('chat.change.title')} className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
@@ -193,7 +228,7 @@ function ProposedChange() {
           </tr>
         </thead>
         <tbody>
-          {Object.entries(proposedValues).map(([name, value]) => (
+          {Object.entries(proposal).map(([name, value]) => (
             <tr key={name} className="border-t border-border">
               <td className="py-1 font-mono text-text">{name}</td>
               <td className="py-1 text-right font-mono tabular-nums text-text-muted">{mm.format(before[name] ?? 0)}</td>
@@ -215,7 +250,7 @@ function ProposedChange() {
       ) : (
         <p className="text-sm font-medium text-text">
           {change === 'applied'
-            ? t('chat.change.applied', { value: mm.format(values.cable_d_nominal ?? 0) })
+            ? t('chat.change.applied', { cable: mm.format(proposal.cable_d_nominal ?? 0), opening: mm.format(proposal.slot_width ?? 0) })
             : t('chat.change.discarded')}
         </p>
       )}
@@ -228,6 +263,7 @@ function ProviderNotice() {
   const providerId = useStudio((s) => s.providerId);
   const localServer = useStudio((s) => s.localServer);
   const solidcraft = useStudio((s) => s.solidcraft);
+  const cloud = useStudio((s) => s.cloud);
   const provider = findProvider(providerId);
   const tokens = new Intl.NumberFormat(i18n.language);
 
@@ -235,6 +271,20 @@ function ProviderNotice() {
     return (
       <Banner tone="danger" title={t('chat.notice.unreachableTitle', { vendor: provider.vendor, endpoint: provider.endpoint })}>
         {t('chat.notice.unreachableBody')}
+      </Banner>
+    );
+  }
+  if (provider.kind === 'cloud' && cloud === 'missingKey') {
+    return (
+      <Banner tone="danger" title={t('chat.notice.missingKeyTitle', { vendor: provider.vendor })}>
+        {t('chat.notice.missingKeyBody')}
+      </Banner>
+    );
+  }
+  if (provider.kind === 'cloud' && cloud === 'rateLimited') {
+    return (
+      <Banner tone="warning" title={t('chat.notice.rateLimitTitle', { vendor: provider.vendor })}>
+        {t('chat.notice.rateLimitBody')}
       </Banner>
     );
   }
@@ -299,18 +349,21 @@ function LocalProgress() {
 
 export function ChatPanel() {
   const { t } = useTranslation();
-  const clarification = useStudio((s) => s.clarification);
   const answer = useStudio((s) => s.answer);
   const change = useStudio((s) => s.change);
   const notes = useStudio((s) => s.notes);
   const selection = useStudio((s) => s.selection);
   const providerId = useStudio((s) => s.providerId);
   const localServer = useStudio((s) => s.localServer);
+  const cloud = useStudio((s) => s.cloud);
   const userMessages = useStudio((s) => s.userMessages);
   const sendMessage = useStudio((s) => s.sendMessage);
   const [draft, setDraft] = useState('');
   const provider = findProvider(providerId);
-  const blocked = provider.kind === 'local' && localServer === 'unreachable';
+  const blocked =
+    (provider.kind === 'local' && localServer === 'unreachable') ||
+    (provider.kind === 'cloud' && cloud === 'missingKey');
+  const mm = useMillimetres();
 
   return (
     <div className="flex h-full flex-col">
@@ -330,9 +383,9 @@ export function ChatPanel() {
             <p>{t('chat.mock.analysis')}</p>
             <ClarificationCard />
           </Message>
-          {clarification === 'answered' ? (
+          {answer ? (
             <Message role="user">
-              <p>{answer}</p>
+              <p>{mm.format(answerValue(answer))}</p>
             </Message>
           ) : null}
           {change !== 'none' ? (

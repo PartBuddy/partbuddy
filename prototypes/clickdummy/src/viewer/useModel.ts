@@ -23,7 +23,9 @@ export function useModel(): ModelState {
           fetch(`${base}cable-clip.3mf`, { signal: controller.signal }),
           fetch(`${base}cable-clip.faces.json`, { signal: controller.signal }),
         ]);
-        if (!meshResponse.ok || !tableResponse.ok) throw new Error(`HTTP ${meshResponse.status}`);
+        for (const response of [meshResponse, tableResponse]) {
+          if (!response.ok) throw new Error(`${response.url}: HTTP ${response.status}`);
+        }
         const mesh = parseTagged3mf(new Uint8Array(await meshResponse.arrayBuffer()));
         const table = (await tableResponse.json()) as FaceTable;
         setState({ status: 'ready', model: buildViewerModel(mesh, table) });
