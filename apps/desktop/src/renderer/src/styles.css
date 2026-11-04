@@ -2,6 +2,8 @@
 @import "@partbuddy/design-tokens/tokens.css";
 @import "@partbuddy/design-tokens/tailwind-theme.css";
 @plugin "tailwindcss-react-aria-components";
+/* Streamdown ships Tailwind classes in its bundle. */
+@source "../../../node_modules/streamdown/dist/*.js";
 
 html,
 body,
