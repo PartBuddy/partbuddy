@@ -2,9 +2,9 @@ import { buildViewerModel, diffFaces, disposeViewerModel, type ViewerModel } fro
 import { Box3, Vector3 } from 'three';
 import { useEffect } from 'react';
 
-import type { MirrorRevision } from '../../../shared/contract';
+import type { MirroredSketch, MirrorRevision } from '../../../shared/contract';
 import { platform } from '../platform';
-import { useStudio, type BodyChanges, type BodyModel, type LiveChanges } from '../state/store';
+import { useStudio, type BodyChanges, type BodyModel, type LiveChanges, type SketchChanges } from '../state/store';
 import type { ParseRequest, ParseResponse } from '../workers/protocol';
 
 let changeSerial = 0;
@@ -18,26 +18,61 @@ function facesBox(model: ViewerModel, faces: Set<number>, box: Box3): void {
   }
 }
 
+/** True when the curve's segments differ from the same curve in the previous revision. */
+function curveMoved(before: MirroredSketch | undefined, after: MirroredSketch, curve: MirroredSketch['curves'][number]): boolean {
+  const old = before?.curves.find((candidate) => candidate.id === curve.id);
+  if (!before || !old || old.count !== curve.count) return true;
+  const a = before.positions.subarray(old.first * 6, (old.first + old.count) * 6);
+  const b = after.positions.subarray(curve.first * 6, (curve.first + curve.count) * 6);
+  return a.some((value, i) => value !== b[i]);
+}
+
+function sketchChanges(previous: MirroredSketch[], next: MirroredSketch[], box: Box3): SketchChanges[] {
+  const changes: SketchChanges[] = [];
+  const point = new Vector3();
+  for (const sketch of next) {
+    const before = previous.find((candidate) => candidate.id === sketch.id);
+    const curves = sketch.curves.filter((curve) => curveMoved(before, sketch, curve));
+    if (curves.length === 0) continue;
+    changes.push({ sketch: sketch.id, curves: curves.map((curve) => curve.id) });
+    for (const curve of curves) {
+      for (let i = curve.first * 6; i < (curve.first + curve.count) * 6; i += 3) {
+        box.expandByPoint(point.fromArray(sketch.positions, i));
+      }
+    }
+  }
+  return changes;
+}
+
+interface Shown {
+  bodies: BodyModel[];
+  sketches: MirroredSketch[];
+}
+
 /**
- * Faces that changed against the previous revision of the same design (matched by body and face
- * name, ADR 0004). The first revision of a design highlights nothing.
+ * Faces and sketch curves that changed against the previous revision of the same design (faces
+ * matched by body and face name, ADR 0004; curves by sketch and curve id). The first revision
+ * PartBuddy shows of a design highlights nothing.
  */
-function liveChanges(previous: BodyModel[], next: BodyModel[]): LiveChanges | null {
+function liveChanges(previous: Shown, next: Shown): LiveChanges | null {
   const bodies: BodyChanges[] = [];
   const box = new Box3();
-  next.forEach((body, index) => {
-    const before = previous.find((candidate) => candidate.name === body.name);
+  next.bodies.forEach((body, index) => {
+    const before = previous.bodies.find((candidate) => candidate.name === body.name);
     const diff = diffFaces(before?.model.table ?? null, body.model.table);
     const faces = [...diff.added, ...diff.changed];
     if (faces.length === 0) return;
     bodies.push({ body: index, faces });
     facesBox(body.model, new Set(faces), box);
   });
-  if (bodies.length === 0) return null;
+  const sketches = sketchChanges(previous.sketches, next.sketches, box);
+  if (bodies.length === 0 && sketches.length === 0) return null;
   changeSerial += 1;
   return {
     bodies,
     count: bodies.reduce((sum, body) => sum + body.faces.length, 0),
+    sketches,
+    sketchCurves: sketches.reduce((sum, sketch) => sum + sketch.curves.length, 0),
     box: box.isEmpty() ? null : { min: box.min.toArray(), max: box.max.toArray() },
     serial: changeSerial,
   };
@@ -54,7 +89,7 @@ export function useMirror(): void {
     const worker = new Worker(new URL('../workers/geometry.worker.ts', import.meta.url), { type: 'module' });
     let nextId = 1;
     let newest = 0;
-    let shown: BodyModel[] = [];
+    let shown: Shown = { bodies: [], sketches: [] };
     let shownDocument: string | null = null;
     const postedAt = new Map<number, number>();
     let disposed = false;
@@ -70,16 +105,17 @@ export function useMirror(): void {
         return;
       }
       const bodies = response.bodies.map((body) => ({ name: body.name, model: buildViewerModel(body.render, body.faces) }));
+      const { sketches } = pending;
       const previous = shown;
-      const sameDesign = shownDocument === pending.documentId && previous.length > 0;
-      shown = bodies;
+      const sameDesign = shownDocument === pending.documentId;
+      shown = { bodies, sketches };
       shownDocument = pending.documentId;
       useStudio.getState().showRevision(
-        { status: 'ready', documentId: pending.documentId, revision: pending.revision, designName: pending.designName, bodies },
-        sameDesign ? liveChanges(previous, bodies) : null,
+        { status: 'ready', documentId: pending.documentId, revision: pending.revision, designName: pending.designName, bodies, sketches },
+        sameDesign ? liveChanges(previous, shown) : null,
         { mirrorMs: pending.mirrorMs, parseMs: Math.round(performance.now() - (postedAt.get(response.id) ?? performance.now())) },
       );
-      for (const body of previous) disposeViewerModel(body.model);
+      for (const body of previous.bodies) disposeViewerModel(body.model);
     };
 
     const requests = new Map<number, MirrorRevision>();
@@ -110,7 +146,7 @@ export function useMirror(): void {
       offStatus();
       offRevision();
       worker.terminate();
-      for (const body of shown) disposeViewerModel(body.model);
+      for (const body of shown.bodies) disposeViewerModel(body.model);
     };
   }, []);
 }

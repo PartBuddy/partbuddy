@@ -1,0 +1,19 @@
+{
+  "commands": [
+    { "command": "sketch.create", "params": { "plane": "XZ", "offset": "5 mm", "name": "Curves" } },
+    { "command": "sketch.rectangle.two_point", "params": { "p0": [0, 0], "p1": [40, 20] } },
+    { "command": "sketch.circle.center", "params": { "center": [10, 10], "radius": 4 } },
+    { "command": "sketch.arc.three_point", "params": { "start": [40, 0], "end": [40, 20], "through": [48, 10] } },
+    { "command": "sketch.arc.center_point", "params": { "center": [60, -15], "start": [65, -15], "end": [60, -10], "clockwise": true } },
+    { "command": "sketch.spline.fit_point", "params": { "points": [[0, 30], [10, 35], [20, 30], [30, 38], [42, 33]] } },
+    { "command": "sketch.spline.fit_point", "params": { "points": [[60, 30], [70, 36], [80, 30], [70, 24]], "periodic": true } },
+    { "command": "sketch.spline.control_point", "params": { "points": [[0, 45], [8, 52], [16, 44], [24, 52], [32, 45], [40, 50]] } },
+    { "command": "sketch.ellipse", "params": { "center": [70, 0], "major": [80, 4], "minor_radius": 4 } },
+    { "command": "sketch.conic", "params": { "start": [0, -10], "end": [20, -10], "apex": [10, -20], "rho": 0.7 } },
+    { "command": "sketch.polygon.inscribed", "params": { "center": [100, 0], "radius": 5, "sides": 6 } },
+    { "command": "sketch.text", "params": { "text": "PB", "at": [90, 30], "height": 5 } },
+    { "command": "sketch.line", "params": { "points": [[-5, -25], [-5, 55]], "construction": true } },
+    { "command": "sketch.inspect", "params": {  } },
+    { "command": "sketch.export_dxf", "params": {  } }
+  ]
+}

@@ -73,6 +73,31 @@ describe('SolidCraft supervisor', () => {
     expect(readdirSync(cacheDir)).toEqual([]);
   });
 
+  it('mirrors the active sketch and visible sketches as world-space segments, not consumed ones (#21)', async () => {
+    const { supervisor, revisions, controlDir } = setup();
+    const fake = await startFake(controlDir);
+    fake.sketches = [
+      { id: 1, name: 'Base', visible: false },
+      { id: 2, name: 'Curves', visible: true },
+      { id: 3, name: 'Editing', visible: false },
+    ];
+    fake.activeSketch = 3;
+    supervisor.start();
+    await vi.waitFor(() => expect(revisions).toHaveLength(1), { timeout: 5000 });
+    const sketches = revisions[0]?.sketches ?? [];
+    expect(sketches.map((sketch) => [sketch.id, sketch.name, sketch.active])).toEqual([
+      [2, 'Curves', false],
+      [3, 'Editing', true],
+    ]);
+    const [curves] = sketches;
+    if (!curves) throw new Error('no sketch mirrored');
+    expect(curves.positions.length).toBe(curves.styles.length * 6);
+    expect(curves.curves.length).toBe(57);
+    // The fixture sketch lies on XZ, offset 5 mm.
+    for (let i = 1; i < curves.positions.length; i += 3) expect(curves.positions[i]).toBeCloseTo(5, 4);
+    expect(fake.methods.filter((method) => method === 'engine.batch')).toHaveLength(1);
+  });
+
   it('mirrors again on design.changed and coalesces bursts', async () => {
     const { supervisor, revisions, controlDir } = setup();
     const fake = await startFake(controlDir, 150);
@@ -133,7 +158,7 @@ describe('mirror scheduler', () => {
         await new Promise<void>((done) => {
           release = done;
         });
-        return { documentId: 'd', revision, designName: '', bodies: [], mirrorMs: 1 };
+        return { documentId: 'd', revision, designName: '', bodies: [], sketches: [], mirrorMs: 1 };
       },
       { started: () => undefined, delivered: (r) => delivered.push(r.revision), failed: () => undefined, idle: () => undefined },
     );

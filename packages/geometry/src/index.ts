@@ -13,3 +13,13 @@ export {
 export { buildRenderMesh, renderMeshTransferables, type RenderMesh } from './renderMesh';
 export { FACE_TAG_NAMESPACE, parseTagged3mf, type TaggedMesh } from './tagged3mf';
 export { buildViewerModel, disposeViewerModel, type ViewerModel } from './viewerModel';
+export {
+  curvePolyline,
+  SKETCH_STYLE,
+  sketchFromInspect,
+  tessellateSketch,
+  type SketchCurve,
+  type SketchLines,
+  type SketchModel,
+  type SketchPlane,
+} from './sketch';

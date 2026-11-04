@@ -68,12 +68,36 @@ export const mirroredBodySchema = z
   })
   .strict();
 
+/**
+ * A visible or the active sketch as world-space line segments (issue #21): sketches have no body
+ * to export, so the mirror carries their curves, flattened in the main process.
+ */
+export const mirroredSketchSchema = z
+  .object({
+    /** SolidCraft's sketch id; stable while the design is open. */
+    id: z.number().int().nonnegative(),
+    name: z.string(),
+    /** The sketch SolidCraft is editing right now. */
+    active: z.boolean(),
+    /** World positions in mm, two points (six numbers) per segment. */
+    positions: z.instanceof(Float32Array),
+    /** Per segment: 0 free, 1 fully constrained, 2 construction geometry. */
+    styles: z.instanceof(Uint8Array),
+    /** The segments of each curve, to see which curves the latest step changed. */
+    curves: z.array(
+      z.object({ id: z.string().min(1), first: z.number().int().nonnegative(), count: z.number().int().nonnegative() }).strict(),
+    ),
+  })
+  .strict()
+  .refine((sketch) => sketch.positions.length === sketch.styles.length * 6, 'positions and styles disagree');
+
 export const mirrorRevisionSchema = z
   .object({
     documentId: z.string(),
     revision: z.number().int().nonnegative(),
     designName: z.string(),
     bodies: z.array(mirroredBodySchema),
+    sketches: z.array(mirroredSketchSchema),
     /** Time from asking SolidCraft for the export to having the files in the main process. */
     mirrorMs: z.number().nonnegative(),
   })
@@ -163,6 +187,7 @@ export type FaceTableMessage = z.infer<typeof faceTableSchema>;
 export type ConnectionState = z.infer<typeof connectionStateSchema>;
 export type ConnectionStatus = z.infer<typeof connectionStatusSchema>;
 export type MirroredBody = z.infer<typeof mirroredBodySchema>;
+export type MirroredSketch = z.infer<typeof mirroredSketchSchema>;
 export type MirrorRevision = z.infer<typeof mirrorRevisionSchema>;
 export type AppInfo = z.infer<typeof appInfoSchema>;
 export type AgentKind = z.infer<typeof agentKindSchema>;

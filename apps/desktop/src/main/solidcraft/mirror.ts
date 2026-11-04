@@ -1,9 +1,9 @@
 import { mkdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { faceTableFromModelFaces } from '@partbuddy/geometry';
+import { faceTableFromModelFaces, sketchFromInspect, tessellateSketch, type SketchLines } from '@partbuddy/geometry';
 
-import type { MirroredBody, MirrorRevision } from '../../shared/contract';
+import type { MirroredBody, MirroredSketch, MirrorRevision } from '../../shared/contract';
 
 /** The part of the control client the mirror needs. */
 export interface ControlRequester {
@@ -13,6 +13,8 @@ export interface ControlRequester {
 interface InspectResult {
   name?: unknown;
   bodies?: { name?: unknown; visible?: unknown }[];
+  sketches?: { id?: unknown; name?: unknown; visible?: unknown }[];
+  active_sketch?: unknown;
 }
 
 interface BatchResult {
@@ -24,10 +26,42 @@ interface BatchResult {
 /** Exports wait behind a running rebuild, which can take minutes on large parts. */
 const BATCH_TIMEOUT_MS = 10 * 60 * 1000;
 
+/** Upper bound of mirrored sketch segments per revision (about 6 MB of positions). */
+const MAX_SKETCH_SEGMENTS = 250_000;
+
+/** Sketches worth showing: the one being edited and every visible one (SolidCraft hides a sketch once a feature consumes it). */
+function sketchesToMirror(inspect: InspectResult): { id: number; active: boolean }[] {
+  const active = Number.isInteger(inspect.active_sketch) ? (inspect.active_sketch as number) : null;
+  return (inspect.sketches ?? [])
+    .filter((sketch) => Number.isInteger(sketch.id) && (sketch.visible !== false || sketch.id === active))
+    .map((sketch) => ({ id: sketch.id as number, active: sketch.id === active }));
+}
+
+/** Flattens the `sketch.inspect` results; a sketch that cannot be read is left out, the bodies still show. */
+function mirrorSketches(results: unknown[], wanted: { id: number; active: boolean }[]): MirroredSketch[] {
+  const sketches: MirroredSketch[] = [];
+  let segments = 0;
+  for (const [i, entry] of wanted.entries()) {
+    let read: { name: string; lines: SketchLines };
+    try {
+      const sketch = sketchFromInspect(results[i]);
+      read = { name: sketch.name, lines: tessellateSketch(sketch) };
+    } catch {
+      continue;
+    }
+    const { name, lines } = read;
+    segments += lines.styles.length;
+    if (segments > MAX_SKETCH_SEGMENTS) break;
+    sketches.push({ id: entry.id, name, active: entry.active, positions: lines.positions, styles: lines.styles, curves: lines.curves });
+  }
+  return sketches;
+}
+
 /**
  * Mirrors the active design (ADR 0004): one `engine.batch` with `document.revision`, then
- * `model.faces` and a face-tagged 3MF export per visible body. Exports go only into the
- * disposable cache folder; `allow_paths` makes SolidCraft refuse any other path.
+ * `model.faces` and a face-tagged 3MF export per visible body, then `sketch.inspect` per visible
+ * or active sketch (issue #21). Exports go only into the disposable cache folder; `allow_paths`
+ * makes SolidCraft refuse any other path.
  */
 export async function mirrorActiveDesign(client: ControlRequester, cacheDir: string): Promise<MirrorRevision> {
   const started = performance.now();
@@ -47,6 +81,8 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
       { command: 'file.export', params: { path: files[i], format: '3mf-tagged', bodies: [name], quality: 'standard' } },
     );
   });
+  const sketches = sketchesToMirror(inspect);
+  for (const sketch of sketches) commands.push({ command: 'sketch.inspect', params: { sketch: sketch.id } });
 
   try {
     const batch = await client.request<BatchResult>(
@@ -73,6 +109,7 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
       revision: head.revision,
       designName,
       bodies: mirrored,
+      sketches: mirrorSketches(batch.results.slice(1 + bodies.length * 2), sketches),
       mirrorMs: Math.round(performance.now() - started),
     };
   } finally {

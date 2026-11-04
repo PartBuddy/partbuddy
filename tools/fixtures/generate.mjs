@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Builds the synthetic sample model with the SolidCraft CLI (headless) and writes the files
-// the viewer pipeline consumes: a face-tagged 3MF and the face table from `model.faces`.
+// the viewer pipeline consumes: a face-tagged 3MF, the face table from `model.faces` and a
+// sketch with every curve type (`sketch.inspect` and its DXF).
 // The model is designed from scratch for this repository and contains no user data.
 //
 // Usage: node tools/fixtures/generate.mjs <output-directory> [path-to-solidcraft-cli]
@@ -14,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 const MODEL = 'cable-clip';
 const BODY = 'CableClip';
+const SKETCH = 'sketch-curves';
 const DEFAULT_CLI =
   process.platform === 'win32'
     ? 'C:\\Program Files\\SolidCraft\\solidcraft-cli.exe'
@@ -78,6 +80,23 @@ try {
   };
   writeFileSync(join(outDir, `${MODEL}.faces.json`), `${JSON.stringify(faceTable, null, 2)}\n`);
   console.log(`Wrote ${MODEL}.3mf and ${MODEL}.faces.json (${faceTable.faces.length} faces) to ${outDir}`);
+
+  // Sketch fixture (issue #21): one sketch with every curve type, as `sketch.inspect` returns it,
+  // and SolidCraft's own DXF of it as the reference for the tessellation.
+  const sketchScript = join(here, `${SKETCH}.script.json`);
+  const sketchResult = join(work, 'sketch.json');
+  execFileSync(cli, ['run', sketchScript, '--results', '--param-check', 'strict', '--json-out', sketchResult], {
+    stdio: ['ignore', 'ignore', 'inherit'],
+  });
+  const sketchResults = JSON.parse(readFileSync(sketchResult, 'utf8'));
+  const inspect = sketchResults[sketchResults.length - 2];
+  const dxf = sketchResults[sketchResults.length - 1];
+  if (!inspect || !Array.isArray(inspect.curves) || typeof dxf?.dxf !== 'string') {
+    throw new Error('sketch.inspect or sketch.export_dxf returned nothing');
+  }
+  writeFileSync(join(outDir, `${SKETCH}.inspect.json`), `${JSON.stringify(inspect, null, 2)}\n`);
+  writeFileSync(join(outDir, `${SKETCH}.dxf`), dxf.dxf);
+  console.log(`Wrote ${SKETCH}.inspect.json and ${SKETCH}.dxf (${inspect.curves.length} curves) to ${outDir}`);
 } finally {
   rmSync(work, { recursive: true, force: true });
 }

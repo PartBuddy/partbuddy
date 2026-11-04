@@ -12,6 +12,10 @@ const names = {
   note: '--cs-viewer-note',
   // Faces the latest step added or changed (#14).
   changed: '--cs-viewer-changed',
+  // Sketch curves (#21): free, fully constrained and construction geometry.
+  sketch: '--cs-viewer-sketch',
+  sketchConstrained: '--cs-viewer-sketch-constrained',
+  sketchConstruction: '--cs-viewer-sketch-construction',
   cube: '--cs-color-surface-raised',
   cubeText: '--cs-color-text-muted',
   cubeStroke: '--cs-color-border-strong',

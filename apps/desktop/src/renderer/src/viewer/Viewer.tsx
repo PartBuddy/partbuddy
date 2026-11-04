@@ -1,12 +1,13 @@
-import { CameraControls, GizmoHelper, GizmoViewcube, Grid } from '@react-three/drei';
+import { CameraControls, GizmoHelper, GizmoViewcube, Grid, Line } from '@react-three/drei';
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
 import { IconMapPin } from '@tabler/icons-react';
-import { featureOf, surfaceKind, type ViewerModel } from '@partbuddy/geometry';
+import { featureOf, SKETCH_STYLE, surfaceKind, type ViewerModel } from '@partbuddy/geometry';
 import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box3, BufferAttribute, Mesh, Object3D, Sphere, Vector3 } from 'three';
 import { acceleratedRaycast } from 'three-mesh-bvh';
 
+import type { MirroredSketch } from '../../../shared/contract';
 import { sameFace, useStudio, type BodyModel, type FacePick } from '../state/store';
 import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
@@ -28,7 +29,17 @@ const scene = {
   gizmoMargin: [64, 64] as [number, number],
   // Canvas texture font of the view cube labels (drawn into a WebGL texture, not CSS).
   cubeFont: '600 18px Segoe UI, sans-serif',
+  // Sketch line widths in CSS pixels; the sketch being edited is drawn stronger.
+  sketchWidth: 1.5,
+  activeSketchWidth: 2.25,
+  constructionWidth: 1,
+  // Construction dashes follow the sketch size, so they read alike on small and large parts.
+  dashPerDiagonal: 1 / 80,
+  dashMin: 0.4,
+  dashMax: 8,
 };
+
+const noRaycast = () => null;
 
 function pickFrom(event: ThreeEvent<PointerEvent | MouseEvent>, body: number, model: ViewerModel): FacePick | null {
   if (event.faceIndex == null || !event.face) return null;
@@ -93,11 +104,79 @@ function Body({ index, body, colors }: { index: number; body: BodyModel; colors:
   );
 }
 
-function boundsOf(bodies: BodyModel[]): Sphere {
+function sketchBox(sketch: MirroredSketch, box = new Box3()): Box3 {
+  const point = new Vector3();
+  for (let i = 0; i < sketch.positions.length; i += 3) box.expandByPoint(point.fromArray(sketch.positions, i));
+  return box;
+}
+
+/**
+ * One mirrored sketch (#21): free curves, fully constrained curves and the curves the latest
+ * step changed in one fat line set, construction geometry dashed. Lines never take clicks, so
+ * faces behind a sketch stay selectable.
+ */
+function Sketch({ sketch, colors }: { sketch: MirroredSketch; colors: ViewerColors }) {
+  const changes = useStudio((s) => s.changes);
+  const changed = useMemo(
+    () => new Set(changes?.sketches.find((entry) => entry.sketch === sketch.id)?.curves ?? []),
+    [changes, sketch.id],
+  );
+  const lines = useMemo(() => {
+    const solid: number[] = [];
+    const solidColors: [number, number, number][] = [];
+    const construction: number[] = [];
+    for (const curve of sketch.curves) {
+      const moved = changed.has(curve.id);
+      for (let s = curve.first; s < curve.first + curve.count; s += 1) {
+        const segment = Array.from(sketch.positions.subarray(s * 6, s * 6 + 6));
+        const style = sketch.styles[s];
+        if (style === SKETCH_STYLE.construction) {
+          construction.push(...segment);
+          continue;
+        }
+        solid.push(...segment);
+        const color = moved ? colors.changed : style === SKETCH_STYLE.constrained ? colors.sketchConstrained : colors.sketch;
+        solidColors.push([color.r, color.g, color.b], [color.r, color.g, color.b]);
+      }
+    }
+    const diagonal = sketchBox(sketch).getSize(new Vector3()).length();
+    const dash = Math.min(scene.dashMax, Math.max(scene.dashMin, diagonal * scene.dashPerDiagonal));
+    return { solid, solidColors, construction, dash };
+  }, [sketch, changed, colors]);
+
+  return (
+    <group name={`sketch ${sketch.name}`}>
+      {lines.solid.length > 0 ? (
+        <Line
+          points={lines.solid}
+          segments
+          vertexColors={lines.solidColors}
+          lineWidth={sketch.active ? scene.activeSketchWidth : scene.sketchWidth}
+          raycast={noRaycast}
+        />
+      ) : null}
+      {lines.construction.length > 0 ? (
+        <Line
+          points={lines.construction}
+          segments
+          color={colors.sketchConstruction}
+          dashed
+          dashSize={lines.dash}
+          gapSize={lines.dash * 0.6}
+          lineWidth={scene.constructionWidth}
+          raycast={noRaycast}
+        />
+      ) : null}
+    </group>
+  );
+}
+
+function boundsOf(bodies: BodyModel[], sketches: MirroredSketch[]): Sphere {
   const box = new Box3();
   for (const body of bodies) {
     if (body.model.geometry.boundingBox) box.union(body.model.geometry.boundingBox);
   }
+  for (const sketch of sketches) sketchBox(sketch, box);
   return box.isEmpty() ? new Sphere() : box.getBoundingSphere(new Sphere());
 }
 
@@ -105,13 +184,14 @@ function boundsOf(bodies: BodyModel[]): Sphere {
  * Frames the design once per document; later revisions keep the user's camera. Runs inside the
  * canvas, because the camera controls exist only after the canvas has mounted its children.
  */
-function FrameDesign({ documentId, bodies }: { documentId: string; bodies: BodyModel[] }) {
+function FrameDesign({ documentId, bodies, sketches }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[] }) {
   const controls = useThree((state) => state.controls) as CameraControls | null;
-  const bounds = useMemo(() => boundsOf(bodies), [bodies]);
+  const bounds = useMemo(() => boundsOf(bodies, sketches), [bodies, sketches]);
   const framed = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!controls || framed.current === documentId || bounds.radius === 0) return;
+    // An empty box gives a sphere of radius -1 (a sketch without curves yet): nothing to frame.
+    if (!controls || framed.current === documentId || bounds.radius <= 0) return;
     framed.current = documentId;
     const distance = bounds.radius * 4.2;
     const [dx, dy, dz] = scene.viewDirection;
@@ -140,7 +220,7 @@ function FollowChanges() {
   return null;
 }
 
-function Scene({ documentId, bodies }: { documentId: string; bodies: BodyModel[] }) {
+function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[] }) {
   const { t } = useTranslation();
   const colors = useTokenColors();
   const select = useStudio((s) => s.select);
@@ -164,6 +244,9 @@ function Scene({ documentId, bodies }: { documentId: string; bodies: BodyModel[]
       {bodies.map((body, i) => (
         <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} />
       ))}
+      {sketches.map((sketch) => (
+        <Sketch key={sketch.id} sketch={sketch} colors={colors} />
+      ))}
       <Grid
         rotation={[Math.PI / 2, 0, 0]}
         cellSize={scene.gridCell}
@@ -175,7 +258,7 @@ function Scene({ documentId, bodies }: { documentId: string; bodies: BodyModel[]
         position={[0, 0, -0.01]}
       />
       <CameraControls makeDefault />
-      <FrameDesign documentId={documentId} bodies={bodies} />
+      <FrameDesign documentId={documentId} bodies={bodies} sketches={sketches} />
       <FollowChanges />
       <GizmoHelper alignment="top-right" margin={scene.gizmoMargin}>
         <GizmoViewcube
@@ -245,11 +328,12 @@ export function Viewer() {
       aria-label={t('viewer.canvasLabel')}
       data-testid="viewer"
       data-revision={model.status === 'ready' ? model.revision : undefined}
+      data-sketches={model.status === 'ready' ? model.sketches.length : undefined}
     >
-      {model.status === 'ready' && model.bodies.length > 0 ? (
+      {model.status === 'ready' && (model.bodies.length > 0 || model.sketches.length > 0) ? (
         <>
           <div className={`h-full w-full ${offline ? 'opacity-50 grayscale' : ''}`} data-testid="viewport">
-            <Scene documentId={model.documentId} bodies={model.bodies} />
+            <Scene documentId={model.documentId} bodies={model.bodies} sketches={model.sketches} />
           </div>
           <SelectionBar bodies={model.bodies} />
           <p className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-1 text-xs text-text-subtle">

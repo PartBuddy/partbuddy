@@ -6,7 +6,8 @@ import { join, relative, resolve } from 'node:path';
 /**
  * Test double for SolidCraft's control channel (SolidCraft 0.30.1 docs/control-protocol.md). It
  * speaks the line protocol with token, `control.subscribe`, `design.changed`, `document.inspect`
- * and an `engine.batch` that exports the synthetic fixture (packages/geometry/fixtures). CI has
+ * and an `engine.batch` that exports the synthetic fixtures (packages/geometry/fixtures): the
+ * cable clip as body and the curve sketch for `sketch.inspect`. CI has
  * no SolidCraft; the local contract test runs the same checks against the real app.
  */
 
@@ -59,6 +60,9 @@ export class FakeSolidCraft {
   readonly methods: string[] = [];
   revision = 1;
   bodies = ['CableClip'];
+  /** Sketches as `document.inspect` lists them; each inspects as the fixture sketch. */
+  sketches: { id: number; name: string; visible: boolean }[] = [];
+  activeSketch: number | null = null;
   /** Faces whose geometry changed in the latest revision. */
   moved = new Set<string>();
   quitRequested = false;
@@ -150,7 +154,13 @@ export class FakeSolidCraft {
       case 'document.revision':
         return revision;
       case 'document.inspect':
-        return { name: 'Cable clip', bodies: this.bodies.map((name) => ({ name, visible: true })), revision: 99 };
+        return {
+          name: 'Cable clip',
+          bodies: this.bodies.map((name) => ({ name, visible: true })),
+          sketches: this.sketches,
+          active_sketch: this.activeSketch,
+          revision: 99,
+        };
       case 'engine.batch': {
         if (this.options.batchDelayMs) await new Promise((done) => setTimeout(done, this.options.batchDelayMs));
         const allowed = (params.allow_paths as string[] | undefined) ?? [];
@@ -172,6 +182,12 @@ export class FakeSolidCraft {
         return { document_id: this.documentId, revision: this.revision };
       case 'model.faces':
         return modelFaces(this.moved);
+      case 'sketch.inspect': {
+        const sketch = this.sketches.find((entry) => entry.id === params.sketch);
+        if (!sketch) throw new Error(`no sketch ${String(params.sketch)}`);
+        const inspect = JSON.parse(readFileSync(join(fixtureDir, 'sketch-curves.inspect.json'), 'utf8')) as Record<string, unknown>;
+        return { ...inspect, id: sketch.id, name: sketch.name, visible: sketch.visible };
+      }
       case 'file.export': {
         const path = resolve(String(params.path));
         const inside = allowed.some((dir) => !relative(resolve(dir), path).startsWith('..'));

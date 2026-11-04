@@ -225,8 +225,23 @@ Every revision reached the view; none was skipped.
 
 Median for geometry steps after SolidCraft's reply: about 70 ms (export, `model.faces`, IPC,
 worker parse, BVH and swap); the first curved step took 491 ms once (cold worker and parser).
-`ui.render` of the finished part (960 × 600 PNG, 373 KB, GPU) took 6 ms; it is the candidate fallback
-for steps without a body, which the mirror does not show (issue #21).
+`ui.render` of the finished part (960 × 600 PNG, 373 KB, GPU) took 6 ms; it was the candidate fallback
+for steps without a body (issue #21).
+
+**Sketches in the live view** (issue #21, **measured** 2026-11-04, same test file): `sketch.inspect`
+returns every curve in sketch coordinates with the sketch plane (origin, x and y direction), the
+constraint state per curve and the profiles, in about 9 ms, also inside `engine.batch`;
+`document.inspect` lists the sketches with `visible` and `active_sketch`. Curve definitions, checked
+against SolidCraft's DXF export within 0.002 mm: arcs counter-clockwise from start to end (clockwise
+arcs are stored swapped), fit-point splines natural cubic over chord-length parameters (periodic ones
+closed), control-point splines clamped B-splines with uniform inner knots, conics rational quadratic
+Béziers with weight ρ / (1 − ρ). The DXF export flattens splines, ellipses, conics and text into lines
+and leaves construction geometry out, so PartBuddy reads `sketch.inspect` and flattens itself.
+
+| Step | SolidCraft reply | Visible in PartBuddy |
+|---|---|---|
+| `sketch.create` | 1 ms | 79 ms |
+| `sketch.rectangle.rounded`, 2 × `sketch.circle.center`, construction `sketch.line` | 1–2 ms | 117–149 ms |
 
 Budget targets: small part (≤ 50 faces) viewer updated < 0.6 s after the step; medium (100–150
 faces) rebuild 1–3 s + about 0.2 s; large (400–500 faces) rebuild 10–25 s + about 0.7 s. The viewer
