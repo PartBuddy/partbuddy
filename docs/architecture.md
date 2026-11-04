@@ -45,7 +45,7 @@ flowchart LR
   Orca["OrcaSlicer CLI"]:::ext
   Blender["Blender (renders)"]:::ext
   Cloud["Cloud providers<br/>Anthropic · OpenAI · Google · Z.ai · DeepSeek · Mistral · OpenRouter"]:::ext
-  AgentCLI["Agent programs<br/>Claude Code · Gemini CLI"]:::ext
+  AgentCLI["Agent program<br/>Claude Code"]:::ext
   Local["Local model servers<br/>Strata · Ollama · LM Studio · llama.cpp · vLLM"]:::ext
   CredMan["Windows Credential Manager"]:::ext
 
@@ -209,9 +209,9 @@ Nothing of this is part of the repository.
 * Photos are stripped of metadata (GPS, device serials) before they leave the machine.
 * A local-only mode disables all cloud profiles.
 * Subscription plans ([ADR 0015](adr/0015-subscription-access.md)): Claude through the user's own,
-  unmodified Claude Code with its own sign-in; ChatGPT through Sign in with ChatGPT; Gemini through
-  the user's Gemini CLI. PartBuddy never offers Claude.ai or Google sign-in itself and never reads
-  those credentials.
+  unmodified Claude Code with its own sign-in; ChatGPT through Sign in with ChatGPT. A Gemini route
+  over the Gemini CLI was dropped on 2026-11-04. PartBuddy never offers Claude.ai or Google sign-in
+  itself and never reads those credentials.
 
 ## Security boundaries
 

@@ -100,7 +100,7 @@ export function NoteStatus({ note }: { note: NoteView }) {
       <IconLinkOff className="size-icon-sm text-danger" aria-hidden />
     );
   return (
-    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-text-subtle" data-testid="note-status" data-status={note.status} data-own={String(note.own)}>
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-hairline text-xs text-text-subtle" data-testid="note-status" data-status={note.status} data-own={String(note.own)}>
       <span className="inline-flex items-center gap-1">
         {icon}
         {t(`notes.status.${note.status}`)}
