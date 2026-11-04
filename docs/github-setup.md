@@ -31,9 +31,11 @@ CodeQL workflow is added.
 ## Before running the script
 
 1. Decide the product and repository name.
-2. Decide the plan: GitHub Pro (recommended; needed for rulesets and environment secrets) or Free
-   (rules stay a documented convention).
-3. Refresh the CLI scopes: `gh auth refresh -s project,admin:ssh_signing_key`.
+2. Plan: Free for now (decided 2026-11-04; the script's default `free` skips the environment and the
+   ruleset, the rules stay a documented convention). Re-run steps 6 and 9 with `public` once the
+   repository is public, or with `pro` after upgrading.
+3. Optional: `gh auth refresh -s project,admin:ssh_signing_key` for the project board and the signing
+   key (one browser confirmation); without it these steps are skipped with a hint.
 4. Make sure the personal denylist exists locally (`.git/info/gitleaks-personal.toml`).
 5. If the repository name differs from `cad-studio`, update the package names and the issue-form
    link in one commit before pushing.

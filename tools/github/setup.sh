@@ -2,17 +2,20 @@
 # Creates the private GitHub repository and applies the settings from docs/github-setup.md.
 # Run only after the product owner approved the repository name and the push.
 #
-# Usage: tools/github/setup.sh <repository-name> <path-to-ssh-signing-public-key>
+# Usage: tools/github/setup.sh <repository-name> <path-to-ssh-signing-public-key> [free|pro|public]
 #
-# Requirements: gh 2.x signed in as the owner, scopes `repo`, `project` and
-# `admin:ssh_signing_key` (gh auth refresh -s project,admin:ssh_signing_key), GitHub Pro for
-# rulesets and environment secrets on a private repository, and the local personal denylist
+# The plan argument (default: free) decides the steps that GitHub offers only on Pro or on public
+# repositories: the release environment with branch policies and the ruleset for main.
+#
+# Requirements: gh 2.x signed in as the owner with scope `repo`; scope `admin:ssh_signing_key` for
+# registering the signing key (skipped with a hint when missing); the local personal denylist
 # (.git/info/gitleaks-personal.toml).
 set -euo pipefail
 
 readonly OWNER="ManuelStaggl"
 readonly REPO="${1:?repository name required}"
 readonly SIGNING_KEY="${2:?path to the SSH signing public key required}"
+readonly PLAN="${3:-free}"
 readonly FULL="${OWNER}/${REPO}"
 
 denylist="$(git rev-parse --git-path info/gitleaks-personal.toml)"
@@ -59,6 +62,9 @@ for title in "Phase 2: MVP foundation" "MVP 0.1.0"; do
   gh api -X POST "repos/${FULL}/milestones" -f title="$title" >/dev/null
 done
 
+if [[ "$PLAN" == "free" ]]; then
+  echo "6/9 Environment skipped (needs GitHub Pro or a public repository)"
+else
 echo "6/9 Environment for release signing"
 gh api -X PUT "repos/${FULL}/environments/release" \
   --input - >/dev/null <<'JSON'
@@ -66,16 +72,26 @@ gh api -X PUT "repos/${FULL}/environments/release" \
 JSON
 gh api -X POST "repos/${FULL}/environments/release/deployment-branch-policies" \
   -f name="v*" -f type="tag" >/dev/null
+fi
 
 echo "7/9 Dependabot alerts and commit signing key"
 gh api -X PUT "repos/${FULL}/vulnerability-alerts" >/dev/null
-gh ssh-key add "$SIGNING_KEY" --type signing --title "${REPO} commit signing"
+if gh auth status 2>&1 | grep -q "admin:ssh_signing_key"; then
+  gh ssh-key add "$SIGNING_KEY" --type signing --title "${REPO} commit signing"
+else
+  echo "   Signing key not registered: run 'gh auth refresh -s admin:ssh_signing_key' and re-run this step."
+fi
 
 echo "8/9 Push history and LFS objects"
 git push -u origin main
 git lfs push origin main
 
-echo "9/9 Ruleset for main (needs GitHub Pro on a private repository)"
+if [[ "$PLAN" == "free" ]]; then
+  echo "9/9 Ruleset skipped (needs GitHub Pro or a public repository); see docs/github-setup.md"
+  echo "Done. Remaining manual steps are listed in docs/github-setup.md."
+  exit 0
+fi
+echo "9/9 Ruleset for main"
 gh api -X POST "repos/${FULL}/rulesets" --input - >/dev/null <<'JSON'
 {
   "name": "main",
