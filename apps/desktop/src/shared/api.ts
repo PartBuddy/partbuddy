@@ -13,6 +13,8 @@ import type {
   ExportResult,
   MeasureItem,
   MeasureResult,
+  TimelineCommand,
+  VisibilityCommand,
   Selection,
   MirrorRevision,
   TitleBarColors,
@@ -54,6 +56,10 @@ export interface PartBuddyApi {
     applyAction(action: DesignAction): Promise<void>;
     /** Distance and angle between two selections. */
     measure(items: MeasureItem[]): Promise<MeasureResult>;
+    /** Rolls the timeline back or forward, or suppresses a feature (M1c). */
+    timeline(command: TimelineCommand): Promise<void>;
+    /** Shows or hides bodies and sketches. */
+    visibility(command: VisibilityCommand): Promise<void>;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

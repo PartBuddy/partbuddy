@@ -321,6 +321,15 @@ if (!app.requestSingleInstanceLock()) {
       return undefined;
     });
     bridge.handle(invokeChannels.designMeasure, ({ items }) => supervisor.measure(items));
+    bridge.handle(invokeChannels.designTimeline, async (command) => {
+      assistantIdle();
+      await supervisor.timeline(command);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.designVisibility, async (command) => {
+      await supervisor.visibility(command);
+      return undefined;
+    });
     bridge.handle(invokeChannels.designOpenInSolidCraft, async () => {
       assistantIdle();
       await supervisor.openInSolidCraft();

@@ -235,5 +235,38 @@
     "actionRefused": "SolidCraft cannot build it like this: {detail}",
     "distance": "Distance {value} mm",
     "angle": "Angle {value}°"
+  },
+  "structure": {
+    "title": "Structure",
+    "bodies": "Bodies ({count})",
+    "sketches": "Sketches ({count})",
+    "noBodies": "No body yet",
+    "noSketches": "No sketches",
+    "editing": "editing",
+    "hide": "Hide {name}",
+    "show": "Show {name}"
+  },
+  "timeline": {
+    "title": "Timeline",
+    "step": "{name}, {kind}",
+    "rebuild": "{ms} ms",
+    "rollTo": "Roll back to here",
+    "suppress": "Suppress",
+    "unsuppress": "Activate again",
+    "toEnd": "To the end",
+    "marker": "Rolled back to here",
+    "kind": {
+      "Sketch": "Sketch",
+      "Extrude": "Extrude",
+      "Revolve": "Revolve",
+      "Fillet": "Fillet",
+      "Chamfer": "Chamfer",
+      "Hole": "Hole",
+      "Shell": "Shell",
+      "Box": "Box",
+      "Cylinder": "Cylinder",
+      "Mirror": "Mirror",
+      "PressPull": "Press/pull"
+    }
   }
 }

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { faceTableFromModelFaces, sketchFromInspect, tessellateSketch, type SketchLines } from '@partbuddy/geometry';
 
-import type { MirroredBody, MirroredSketch, MirrorRevision } from '../../shared/contract';
+import type { MirroredBody, MirroredSketch, MirrorRevision, Structure } from '../../shared/contract';
 
 /** The part of the control client the mirror needs. */
 export interface ControlRequester {
@@ -18,6 +18,42 @@ interface InspectResult {
   /** Steps that can be undone and redone. */
   undo?: unknown;
   redo?: unknown;
+  timeline?: unknown;
+  marker?: unknown;
+}
+
+const text = (value: unknown, max: number): string | null => (typeof value === 'string' ? value.slice(0, max) : null);
+
+/** The structure tree and timeline from `document.inspect`; unknown entries are left out. */
+export function structureOf(inspect: InspectResult): Structure {
+  const entries: unknown[] = Array.isArray(inspect.timeline) ? (inspect.timeline as unknown[]) : [];
+  const features = entries
+    .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null && Number.isInteger((entry as { id?: unknown }).id))
+    .map((entry) => ({
+      id: entry.id as number,
+      name: text(entry.name, 200) ?? `#${String(entry.id)}`,
+      type: text(entry.type, 80) ?? 'Feature',
+      error: text(entry.error, 500),
+      warning: text(entry.warning, 500),
+      suppressed: entry.suppressed === true,
+      rolledBack: entry.rolled_back === true,
+      ms: typeof entry.ms === 'number' && entry.ms >= 0 ? entry.ms : 0,
+    }));
+  const marker = Number.isInteger(inspect.marker) && (inspect.marker as number) < features.length ? (inspect.marker as number) : null;
+  return {
+    features,
+    marker,
+    bodies: (inspect.bodies ?? [])
+      .filter((body) => typeof body.name === 'string' && body.name !== '')
+      .map((body) => ({
+        name: (body.name as string).slice(0, 200),
+        visible: body.visible !== false,
+        feature: Number.isInteger((body as { feature?: unknown }).feature) ? ((body as { feature: number }).feature) : null,
+      })),
+    sketches: (inspect.sketches ?? [])
+      .filter((sketch) => Number.isInteger(sketch.id))
+      .map((sketch) => ({ id: sketch.id as number, name: text(sketch.name, 200) ?? '', visible: sketch.visible !== false })),
+  };
 }
 
 function count(value: unknown): number {
@@ -117,6 +153,7 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
       designName,
       bodies: mirrored,
       sketches: mirrorSketches(batch.results.slice(1 + bodies.length * 2), sketches),
+      structure: structureOf(inspect),
       history: { undo: count(inspect.undo), redo: count(inspect.redo) },
       mirrorMs: Math.round(performance.now() - started),
     };

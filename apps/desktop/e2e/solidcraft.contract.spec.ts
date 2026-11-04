@@ -298,6 +298,85 @@ test('two edges are selected with Ctrl, measured, and rounded together with a pr
   }
 });
 
+test('the structure tree hides a body, and the timeline suppresses, rolls back and returns to the end (M1c)', async () => {
+  test.setTimeout(120_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-timeline-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7895',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    const summary = page.getByTestId('mesh-summary');
+    await expect(summary).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await expect(page.getByTestId('timeline-feature')).toHaveText(['Box1']);
+
+    // A second step: round one edge through the HUD.
+    await page.waitForTimeout(800);
+    const box = await page.getByTestId('viewport').boundingBox();
+    if (!box) throw new Error('viewport not visible');
+    let picked = false;
+    for (let y = 0.3; y <= 0.75 && !picked; y += 0.05) {
+      for (let x = 0.2; x <= 0.8 && !picked; x += 0.01) {
+        await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+        picked = (await page.getByTestId('selection-bar').count()) > 0 && (await page.getByTestId('selection-bar').getAttribute('data-kind')) === 'edge';
+      }
+    }
+    expect(picked, 'an edge').toBe(true);
+    await page.getByTestId('action-fillet').click();
+    await expect(page.getByTestId('action-status')).toHaveAttribute('data-ok', 'true', { timeout: 15_000 });
+    await page.getByTestId('action-field').getByRole('textbox').press('Enter');
+    await expect(summary).toContainText('1 body · 7 faces', { timeout: 15_000 });
+    await expect(page.getByTestId('timeline-feature')).toHaveText(['Box1', 'Fillet1']);
+
+    // Roll back to the box: the fillet is rolled back, the part has 6 faces, a marker shows where.
+    await page.getByTestId('timeline-feature').first().click();
+    await page.getByRole('menuitem', { name: 'Roll back to here' }).click();
+    await expect(summary).toContainText('1 body · 6 faces', { timeout: 15_000 });
+    await expect(page.getByTestId('timeline-feature').last()).toHaveAttribute('data-state', 'rolledBack');
+    await expect(page.getByTestId('timeline-marker')).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('timeline-rolled-back.png') });
+    await page.getByTestId('timeline-end').click();
+    await expect(summary).toContainText('1 body · 7 faces', { timeout: 15_000 });
+    await expect(page.getByTestId('timeline-marker')).toBeHidden();
+
+    // Suppress the fillet and activate it again.
+    await page.getByTestId('timeline-feature').last().click();
+    await page.getByRole('menuitem', { name: 'Suppress' }).click();
+    await expect(page.getByTestId('timeline-feature').last()).toHaveAttribute('data-state', 'suppressed', { timeout: 15_000 });
+    await expect(summary).toContainText('1 body · 6 faces');
+    await page.getByTestId('timeline-feature').last().click();
+    await page.getByRole('menuitem', { name: 'Activate again' }).click();
+    await expect(summary).toContainText('1 body · 7 faces', { timeout: 15_000 });
+
+    // Hide the body in the structure tree, then show it again.
+    const body = page.getByTestId('structure-body');
+    await expect(body).toHaveAttribute('data-visible', 'true');
+    await page.getByRole('button', { name: 'Hide Body1' }).click();
+    await expect(body).toHaveAttribute('data-visible', 'false', { timeout: 15_000 });
+    await expect(summary).toBeHidden();
+    await page.getByRole('button', { name: 'Show Body1' }).click();
+    await expect(summary).toContainText('1 body · 7 faces', { timeout: 15_000 });
+    await page.screenshot({ path: test.info().outputPath('structure-timeline.png') });
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('timeline-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('the user\'s Claude Code builds a part in SolidCraft through the gate proxy', async () => {
   // Uses the installed Claude Code with the user's own subscription; opt in separately with
   // PARTBUDDY_E2E_CLAUDE=1, because it spends subscription usage. SolidCraft runs as an own
