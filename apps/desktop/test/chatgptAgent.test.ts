@@ -98,6 +98,8 @@ describe('ChatGPT agent', () => {
     const input = JSON.stringify(openai.bodies[0]?.input);
     expect(input).toContain('[PartBuddy: the user selected face \\"F1:+z\\" of body \\"Body1\\"');
     expect(String(openai.bodies[0]?.instructions)).toContain('partbuddy_view');
+    // SolidCraft's traps reach this route too, not only Claude Code through the gate proxy.
+    expect(String(openai.bodies[0]?.instructions)).toContain('PartBuddy notes on these tools');
   });
 
 

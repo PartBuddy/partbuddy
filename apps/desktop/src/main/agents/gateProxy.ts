@@ -6,6 +6,7 @@ import { Readable } from 'node:stream';
 import { Server, WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server';
 
 import { decide } from './policy';
+import { withToolNotes } from './toolNotes';
 
 /** A tool as the upstream MCP server lists it, passed through unchanged. */
 export interface UpstreamTool {
@@ -130,11 +131,10 @@ export class GateProxy {
   // SolidCraft's JSON schemas through unchanged, which the high-level McpServer cannot.
   // eslint-disable-next-line @typescript-eslint/no-deprecated
   private createServer(): Server {
-    const instructions = this.upstream.instructions();
     // eslint-disable-next-line @typescript-eslint/no-deprecated
     const server = new Server(
       { name: 'partbuddy', version: '0.1.0' },
-      { capabilities: { tools: {} }, ...(instructions ? { instructions } : {}) },
+      { capabilities: { tools: {} }, instructions: withToolNotes(this.upstream.instructions()) },
     );
     server.setRequestHandler('tools/list', async () => ({ tools: await this.upstream.listTools() }));
     server.setRequestHandler('tools/call', async (request) => {

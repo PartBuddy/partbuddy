@@ -6,6 +6,7 @@ import type { AgentBackend } from '../agents/assistant';
 import type { ToolResult, UpstreamTools } from '../agents/gateProxy';
 import { decide } from '../agents/policy';
 import { QUESTION_GUIDANCE } from '../agents/questions';
+import { withToolNotes } from '../agents/toolNotes';
 import { composeMessage, VIEW_GUIDANCE } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
 import { RESOURCE } from './oauth';
@@ -29,6 +30,14 @@ const INSTRUCTIONS = [
   QUESTION_GUIDANCE,
 ].join(' ');
 const MAX_STEPS = 25;
+
+/**
+ * PartBuddy's role, then SolidCraft's server instructions with PartBuddy's tool notes: the gate
+ * proxy hands those to Claude Code as MCP instructions, this loop has to pass them itself.
+ */
+function instructionsFor(upstream: UpstreamTools): string {
+  return `${INSTRUCTIONS}\n\n${withToolNotes(upstream.instructions())}`;
+}
 
 export interface ChatGptAgentOptions {
   account: ChatGptAccount;
@@ -135,7 +144,9 @@ export class ChatGptAgent implements AgentBackend {
         tools: await this.toolSet(upstream),
         stopWhen: stepCountIs(MAX_STEPS),
         abortSignal: signal,
-        providerOptions: { openai: { store: false, instructions: INSTRUCTIONS, systemMessageMode: 'remove' } },
+        providerOptions: {
+          openai: { store: false, instructions: instructionsFor(upstream), systemMessageMode: 'remove' },
+        },
       });
       for await (const part of result.stream) {
         if (part.type === 'text-delta') this.options.event({ type: 'textDelta', text: part.text });
