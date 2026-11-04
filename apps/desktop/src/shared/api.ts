@@ -4,6 +4,9 @@ import type {
   AppInfo,
   AssistantState,
   ConnectionStatus,
+  DimensionApply,
+  DimensionProbe,
+  DimensionProbeResult,
   ExportFormat,
   ExportResult,
   Selection,
@@ -38,6 +41,10 @@ export interface PartBuddyApi {
     export(format: ExportFormat): Promise<ExportResult>;
     /** Saves the design to the project folder and opens it in the SolidCraft window. */
     openInSolidCraft(): Promise<void>;
+    /** Tries a new edge length or radius without changing the design (the dimension field, M1b). */
+    probeDimension(probe: DimensionProbe): Promise<DimensionProbeResult>;
+    /** Sets the parameter a probe found. */
+    applyDimension(apply: DimensionApply): Promise<void>;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

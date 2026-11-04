@@ -6,7 +6,8 @@
   },
   "units": {
     "mm": "{value, number, ::.## unit/millimeter}",
-    "mm2": "{value, number, ::.#} mm²"
+    "mm2": "{value, number, ::.#} mm²",
+    "mmShort": "mm"
   },
   "solidcraft": {
     "label": "SolidCraft",
@@ -197,5 +198,19 @@
     "openInSolidCraft": "Open in SolidCraft",
     "openedInSolidCraft": "The design is in Documents\\PartBuddy and opens in SolidCraft. PartBuddy shows your changes there live.",
     "failed": "That did not work: {detail}"
+  },
+  "hud": {
+    "length": "Length",
+    "diameter": "Diameter",
+    "radius": "Radius",
+    "probing": "Trying it in SolidCraft …",
+    "direct": "Enter changes it directly: {label}",
+    "assistant": {
+      "noDriver": "No single parameter drives this – Enter asks the assistant",
+      "ambiguous": "Several dimensions could drive this – Enter asks the assistant"
+    },
+    "noAssistant": "No single parameter drives this, and the assistant is not ready",
+    "ask": "Tell the assistant what should happen here …",
+    "assistantRequest": "Change the {what} of {name} from {from} mm to {to} mm. Keep the rest of the part as it is."
   }
 }

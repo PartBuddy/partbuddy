@@ -9,6 +9,7 @@ import type { ConnectionStatus, ExportFormat, MirrorRevision } from '../../share
 import type { UpstreamTools } from '../agents/gateProxy';
 import { ControlClient, ControlError } from './controlClient';
 import { endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
+import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { DesignStore, HeadlessEngine, isInside, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
 import { mirrorActiveDesign, MirrorScheduler, type ControlRequester } from './mirror';
@@ -69,11 +70,15 @@ export class SolidCraftSupervisor {
   private mirrorDetail: string | null = null;
   private latest: MirrorRevision | null = null;
   private readonly scheduler: MirrorScheduler;
+  private readonly dimensions: DimensionService;
+  /** Probes run one after another; SolidCraft runs one batch at a time anyway. */
+  private probing: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly options: SupervisorOptions,
     private readonly listeners: SupervisorListeners,
   ) {
+    this.dimensions = new DimensionService(() => this.requester(), options.cacheDir);
     this.designs = options.designsDir ? new DesignStore(options.designsDir, options.projectsDir ? [options.projectsDir] : []) : null;
     this.scheduler = new MirrorScheduler(
       () => {
@@ -175,6 +180,30 @@ export class SolidCraftSupervisor {
     } finally {
       await rm(temp, { force: true });
     }
+  }
+
+  /**
+   * Tries a new value for the selected edge length or radius without changing the design (the
+   * dimension field, M1b). A probe moves SolidCraft's revision although the design is the same;
+   * the headless engine records that quietly, so nothing is mirrored again.
+   */
+  probeDimension(target: DimensionTarget, current: number, value: number): Promise<ProbeResult> {
+    const run = this.probing.then(async () => {
+      try {
+        return await this.dimensions.probe(target, current, value);
+      } finally {
+        await this.engine?.checkForChange(true).catch(() => undefined);
+      }
+    });
+    this.probing = run.catch(() => undefined);
+    return run;
+  }
+
+  /** Sets the parameter the probe found (the user pressed Enter); the change is mirrored as usual. */
+  async applyDimension(parameter: string, value: number, factor: 1 | 2): Promise<void> {
+    await this.probing;
+    await this.dimensions.apply(parameter, value, factor);
+    await this.engine?.checkForChange();
   }
 
   /** Whether "Open in SolidCraft" is possible: the headless engine runs and holds the design. */

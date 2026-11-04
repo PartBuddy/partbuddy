@@ -300,6 +300,16 @@ if (!app.requestSingleInstanceLock()) {
       log(`exported the design as ${format}`);
       return { file: basename(choice.filePath) };
     });
+    bridge.handle(invokeChannels.designProbeDimension, ({ target, current, value }) => {
+      assistantIdle();
+      return supervisor.probeDimension(target, current, value);
+    });
+    bridge.handle(invokeChannels.designApplyDimension, async ({ parameter, value, factor }) => {
+      assistantIdle();
+      await supervisor.applyDimension(parameter, value, factor);
+      log('changed a dimension directly');
+      return undefined;
+    });
     bridge.handle(invokeChannels.designOpenInSolidCraft, async () => {
       assistantIdle();
       await supervisor.openInSolidCraft();

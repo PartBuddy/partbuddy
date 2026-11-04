@@ -236,6 +236,32 @@ export const exportRequestSchema = z.object({ format: exportFormatSchema }).stri
 /** The saved file's name only, never the folder (no paths outside the app's own folders here). */
 export const exportResultSchema = z.object({ file: z.string().min(1).max(260) }).strict().nullable();
 
+/** The dimension field at a selection (M1b): an edge length or the radius of a cylindrical face. */
+export const dimensionTargetSchema = z.discriminatedUnion('measure', [
+  z.object({ measure: z.literal('length'), body: bodyName, edge: z.string().min(1).max(410), point: point3 }).strict(),
+  z.object({ measure: z.literal('radius'), body: bodyName, face: z.string().min(1).max(200) }).strict(),
+]);
+const length = finite.positive().max(100_000);
+export const dimensionProbeSchema = z.object({ target: dimensionTargetSchema, current: length, value: length }).strict();
+const factorSchema = z.union([z.literal(1), z.literal(2)]);
+export const dimensionProbeResultSchema = z.discriminatedUnion('mode', [
+  z
+    .object({
+      mode: z.literal('direct'),
+      parameter: z.string().min(1).max(200),
+      /** 2 when a diameter parameter drives a radius. */
+      factor: factorSchema,
+      label: z.string().max(400),
+      /** Face-tagged 3MF of the body with the new value, for the ghost preview. */
+      preview: z.instanceof(Uint8Array).nullable(),
+    })
+    .strict(),
+  z.object({ mode: z.literal('assistant'), reason: z.enum(['noDriver', 'ambiguous']) }).strict(),
+]);
+export const dimensionApplySchema = z
+  .object({ parameter: z.string().regex(/^[\p{L}_][\p{L}\p{N}_]{0,99}$/u), value: length, factor: factorSchema })
+  .strict();
+
 export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000), selection: selectionSchema.optional() }).strict();
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
@@ -263,6 +289,8 @@ export const invokeContract = {
   [invokeChannels.designRedo]: { request: none, response: none },
   [invokeChannels.designExport]: { request: exportRequestSchema, response: exportResultSchema },
   [invokeChannels.designOpenInSolidCraft]: { request: none, response: none },
+  [invokeChannels.designProbeDimension]: { request: dimensionProbeSchema, response: dimensionProbeResultSchema },
+  [invokeChannels.designApplyDimension]: { request: dimensionApplySchema, response: none },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -290,6 +318,10 @@ export type ViewState = z.infer<typeof viewStateSchema>;
 export type TitleBarColors = z.infer<typeof titleBarColorsSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type ExportResult = z.infer<typeof exportResultSchema>;
+export type DimensionTarget = z.infer<typeof dimensionTargetSchema>;
+export type DimensionProbe = z.infer<typeof dimensionProbeSchema>;
+export type DimensionProbeResult = z.infer<typeof dimensionProbeResultSchema>;
+export type DimensionApply = z.infer<typeof dimensionApplySchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;
 export type InvokeResponse<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['response']>;

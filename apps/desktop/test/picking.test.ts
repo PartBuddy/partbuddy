@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { parseLength } from '../src/renderer/src/viewer/lengthInput';
 import { segmentCandidates, vertexCandidates, type Project } from '../src/renderer/src/viewer/picking';
 
 // Looking down -Z: 1 mm is 10 px, x to the right, y down the screen.
@@ -30,5 +31,17 @@ describe('screen-space picking of edges and vertices', () => {
     const behind: Project = () => null;
     expect(vertexCandidates(Float32Array.from([0, 0, 0]), behind, { x: 0, y: 0 }, 8)).toEqual([]);
     expect(segmentCandidates(Float32Array.from([0, 0, 0, 1, 0, 0]), behind, { x: 0, y: 0 }, 8)).toEqual([]);
+  });
+});
+
+describe('length typed into the dimension field', () => {
+  it('reads a point or a comma and refuses anything else', () => {
+    expect(parseLength('32')).toBe(32);
+    expect(parseLength('12,5')).toBe(12.5);
+    expect(parseLength(' 7.25 mm ')).toBe(7.25);
+    expect(parseLength('.5')).toBe(0.5);
+    expect(parseLength('1e3')).toBeNaN();
+    expect(parseLength('-4')).toBeNaN();
+    expect(parseLength('')).toBeNaN();
   });
 });

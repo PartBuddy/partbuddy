@@ -22,6 +22,8 @@ export const invokeChannels = {
   designRedo: 'design:redo',
   designExport: 'design:export',
   designOpenInSolidCraft: 'design:open-in-solidcraft',
+  designProbeDimension: 'design:probe-dimension',
+  designApplyDimension: 'design:apply-dimension',
 } as const;
 
 export const eventChannels = {
