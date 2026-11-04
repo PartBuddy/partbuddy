@@ -29,3 +29,17 @@ export const contrastPairs = [
   { fg: '--cs-color-focus', bg: '--cs-color-surface', min: 3 },
   { fg: '--cs-color-border-strong', bg: '--cs-color-surface', min: 3 },
 ];
+
+/**
+ * Brand colour pairs (docs/brand.md). Brand tokens are fixed across themes and live only in the
+ * base block. The wordmark is text (4.5:1); the companion part of the mark is a graphic object
+ * that identifies the logo (3:1, WCAG 2.2 1.4.11).
+ */
+export const brandContrastPairs = [
+  { fg: '--cs-brand-ink', bg: '--cs-brand-paper', min: 4.5 },
+  { fg: '--cs-brand-ink', bg: '--cs-color-canvas', min: 4.5 },
+  { fg: '--cs-brand-accent', bg: '--cs-brand-paper', min: 3 },
+  { fg: '--cs-brand-accent', bg: '--cs-color-canvas', min: 3 },
+  { fg: '--cs-brand-paper', bg: '--cs-brand-ink', min: 4.5 },
+  { fg: '--cs-brand-accent-on-ink', bg: '--cs-brand-ink', min: 3 },
+];

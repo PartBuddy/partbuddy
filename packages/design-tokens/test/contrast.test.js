@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { contrastPairs } from '../src/contrast-pairs.js';
+import { brandContrastPairs, contrastPairs } from '../src/contrast-pairs.js';
 
 const css = readFileSync(new URL('../src/tokens.css', import.meta.url), 'utf8');
 
@@ -59,4 +59,17 @@ for (const [name, theme] of [
 
 test('system dark preference and explicit dark theme define the same colours', () => {
   assert.deepEqual([...systemDark.entries()].sort(), [...dark.entries()].sort());
+});
+
+test('brand colours meet WCAG 2.2 AA contrast and stay the same in every theme', () => {
+  for (const { fg, bg, min } of brandContrastPairs) {
+    const f = light.get(fg);
+    const b = light.get(bg);
+    assert.ok(f && b, `brand: ${fg} or ${bg} not defined`);
+    const value = ratio(f, b);
+    assert.ok(value >= min, `brand: ${fg} on ${bg} = ${value.toFixed(2)}:1, needs ${min}:1`);
+  }
+  for (const name of [...light.keys()].filter((key) => key.startsWith('--cs-brand-'))) {
+    assert.ok(!dark.has(name) && !systemDark.has(name), `${name} must not change with the theme`);
+  }
 });

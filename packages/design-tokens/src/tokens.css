@@ -84,6 +84,15 @@
   --cs-duration-slow: 1200ms;
   --cs-easing-standard: cubic-bezier(0.2, 0, 0, 1);
 
+  /*
+   * Brand colours (docs/brand.md). Fixed in both themes: the theme picks the logo variant, not
+   * the colour. They reuse the UI's text and accent values; no extra hue is introduced.
+   */
+  --cs-brand-ink: #1b1f24;
+  --cs-brand-paper: #ffffff;
+  --cs-brand-accent: #1f5fd1;
+  --cs-brand-accent-on-ink: #2f6ad6;
+
   /* Light theme colours */
   color-scheme: light;
   --cs-color-canvas: #f3f4f6;
