@@ -76,3 +76,6 @@ pd.csv
 *.blend1
 render/
 renders/
+
+# Synthetic test fixtures are versioned (Git LFS, see .gitattributes)
+!prototypes/*/public/fixtures/*.3mf

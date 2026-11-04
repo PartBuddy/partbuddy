@@ -16,6 +16,7 @@
 *.glb filter=lfs diff=lfs merge=lfs -text
 *.step filter=lfs diff=lfs merge=lfs -text
 *.stp filter=lfs diff=lfs merge=lfs -text
+prototypes/*/public/fixtures/*.3mf filter=lfs diff=lfs merge=lfs -text
 
 # Generated files: hide from diffs and language statistics
 pnpm-lock.yaml linguist-generated=true -diff
