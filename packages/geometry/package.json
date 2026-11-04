@@ -5,6 +5,7 @@
   "description": "Geometry adapter: face-tagged 3MF parser, face table, edge derivation and render buffers (ADR 0004)",
   "license": "GPL-3.0-or-later",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
     "./fixtures/*": "./fixtures/*"

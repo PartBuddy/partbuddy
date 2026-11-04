@@ -7,12 +7,14 @@ export interface FaceInfo {
   centroid: [number, number, number];
   /** A point on the face that SolidCraft resolves to this face. */
   point: [number, number, number];
-  planeNormal?: [number, number, number];
-  cylinder?: {
-    origin: [number, number, number];
-    axis: [number, number, number];
-    radius: number;
-  };
+  planeNormal?: [number, number, number] | undefined;
+  cylinder?:
+    | {
+        origin: [number, number, number];
+        axis: [number, number, number];
+        radius: number;
+      }
+    | undefined;
 }
 
 export interface FaceTable {
