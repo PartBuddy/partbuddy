@@ -1,0 +1,16 @@
+# Local Git hooks. Installed by `pnpm install` (lefthook postinstall).
+# Every check fails closed: a missing scanner blocks the commit.
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: secrets-and-privacy
+      run: gitleaks git --staged --no-banner --redact --config .gitleaks.toml .
+
+    - name: personal-denylist
+      run: sh tools/privacy/scan-personal.sh
+
+commit-msg:
+  jobs:
+    - name: conventional-commit
+      run: pnpm exec commitlint --edit {1}

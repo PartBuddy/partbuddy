@@ -1,0 +1,53 @@
+title = "CAD-Studio secret and privacy rules"
+
+# Default gitleaks rules for credentials, plus privacy rules for this repository.
+# Personal terms (names, account names, host names) are never listed here. They live in an
+# untracked local config (.git/info/gitleaks-personal.toml) and in the CI secret
+# PRIVACY_DENYLIST; see docs/adr/0009-privacy-guardrails.md.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "privacy-windows-user-profile-path"
+description = "Absolute path into a Windows user profile"
+regex = '''(?i)\b[a-z]:(?:\\{1,2}|/)users(?:\\{1,2}|/)[^\\/\s"'<>|:*?]+'''
+keywords = ["users"]
+tags = ["privacy", "path"]
+
+[[rules]]
+id = "privacy-posix-home-path"
+description = "Absolute path into a macOS or Linux home directory"
+regex = '''(?:^|[\s"'(=:,\[])(?:/home|/Users)/[A-Za-z0-9._-]+'''
+keywords = ["/home/", "/users/"]
+tags = ["privacy", "path"]
+
+[[rules]]
+id = "privacy-absolute-windows-path"
+description = "Absolute Windows path outside the standard install locations"
+regex = '''(?i)\b[a-z]:(?:\\{1,2}|/)[a-z0-9$][^\s"'<>|*?]*'''
+tags = ["privacy", "path"]
+
+    [[rules.allowlists]]
+    description = "Standard install and system locations that may appear in product code"
+    regexTarget = "match"
+    regexes = [
+      '''(?i)^[a-z]:(?:\\{1,2}|/)(?:program|programdata|windows)\b''',
+    ]
+
+[[rules]]
+id = "privacy-email-address"
+description = "E-mail address"
+regex = '''[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}'''
+keywords = ["@"]
+tags = ["privacy", "pii"]
+
+    [[rules.allowlists]]
+    description = "Non-personal addresses: GitHub noreply, AI co-author trailer, documentation examples, SSH remotes"
+    regexTarget = "match"
+    regexes = [
+      '''(?i)@users\.noreply\.github\.com$''',
+      '''(?i)^noreply@anthropic\.com$''',
+      '''(?i)@example\.(?:com|org|net)$''',
+      '''(?i)^git@github\.com$''',
+    ]
