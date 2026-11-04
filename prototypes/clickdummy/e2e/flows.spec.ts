@@ -9,10 +9,14 @@ test.describe('main view', () => {
     const box = await viewer.boundingBox();
     if (!box) throw new Error('3D view has no size');
 
-    // The camera frames the part; the centre of the view lies on the clip block.
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    // The camera frames the part; the centre of the view lies on the clip block. A click while the
+    // camera still moves misses, so it is repeated until the face is selected, with time between
+    // the clicks so that none counts as a double click.
     const selection = page.getByRole('region', { name: 'Selected face' });
-    await expect(selection).toBeVisible();
+    await expect(async () => {
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await expect(selection).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 20_000, intervals: [500, 1000, 1000] });
 
     await selection.getByRole('button', { name: 'Add note' }).click();
     const dialog = page.getByRole('dialog', { name: 'Note on face' });
