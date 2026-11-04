@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a new capability or an improvement.
+labels: ["type: feature", "status: triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Which task is hard or impossible today? Who is affected?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Suggested priority (MoSCoW)
+      options:
+        - Must
+        - Should
+        - Could
+        - Won't (for now)
+    validations:
+      required: true
+  - type: checkboxes
+    id: catalog
+    attributes:
+      label: Feature catalogue
+      options:
+        - label: I checked docs/feature-catalog.md for an existing entry.
+          required: true
