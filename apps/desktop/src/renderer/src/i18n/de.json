@@ -79,12 +79,22 @@
     "apiKey": "API-Key",
     "signedIn": "Claude Code {version} · {plan}",
     "state": {
-      "checking": "Claude Code wird gesucht",
-      "notInstalled": "Claude Code nicht installiert",
-      "signedOut": "Nicht bei Claude Code angemeldet",
-      "ready": "Bereit",
-      "busy": "Arbeitet",
-      "unavailable": "Claude Code nicht verfügbar"
+      "claude-code": {
+        "checking": "Claude Code wird gesucht",
+        "notInstalled": "Claude Code nicht installiert",
+        "signedOut": "Nicht bei Claude Code angemeldet",
+        "ready": "Bereit",
+        "busy": "Arbeitet",
+        "unavailable": "Claude Code nicht verfügbar"
+      },
+      "chatgpt": {
+        "checking": "Warte auf die ChatGPT-Anmeldung",
+        "signedOut": "Nicht bei ChatGPT angemeldet",
+        "unavailable": "ChatGPT-Plan nicht freigegeben",
+        "ready": "Bereit",
+        "busy": "Arbeitet",
+        "notInstalled": "Nicht verfügbar"
+      }
     },
     "notInstalledTitle": "Claude Code ist nicht installiert",
     "notInstalledBody": "PartBuddy nutzt dein eigenes Claude Code mit deinem Claude-Abo. Installiere Claude Code von Anthropic und suche dann erneut.",
@@ -95,7 +105,10 @@
     "unavailableTitle": "Claude Code ließ sich nicht starten",
     "unavailableBody": "Details: {detail}",
     "empty": "Beschreibe, was SolidCraft bauen oder ändern soll. Jeder Schritt erscheint in der 3D-Ansicht.",
-    "working": "Claude arbeitet",
+    "working": {
+      "claude-code": "Claude arbeitet",
+      "chatgpt": "ChatGPT arbeitet"
+    },
     "needsSolidCraft": "Verbinde zuerst SolidCraft; der Assistent arbeitet am offenen Design.",
     "composer": "Nachricht an den Assistenten",
     "placeholder": "Zum Beispiel: eine Platte 40 × 20 × 5 mm mit zwei 4-mm-Bohrungen",
@@ -107,6 +120,20 @@
       "done": "fertig",
       "failed": "fehlgeschlagen",
       "denied": "von PartBuddy abgelehnt"
+    },
+    "route": "Assistenten-Weg",
+    "routes": {
+      "claude-code": "Claude Code",
+      "chatgpt": "ChatGPT"
+    },
+    "chatgpt": {
+      "signedIn": "ChatGPT · {account} · {model}",
+      "signOut": "Abmelden",
+      "waiting": "Warte auf die Anmeldung in deinem Browser",
+      "signedOutTitle": "Deinen ChatGPT-Plan nutzen",
+      "signedOutBody": "Melde dich mit deinem ChatGPT-Konto an. Anfragen zählen auf deinen Plus- oder Pro-Plan; PartBuddy hält die Anmeldung nur im Windows-Anmeldeinformationsspeicher.",
+      "planDisabledTitle": "ChatGPT-Plan ist nicht freigegeben",
+      "continue": "Weiter mit ChatGPT"
     }
   }
 }

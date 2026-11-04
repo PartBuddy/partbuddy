@@ -13,6 +13,8 @@ export const invokeChannels = {
   agentSend: 'agent:send',
   agentStop: 'agent:stop',
   agentSignIn: 'agent:sign-in',
+  agentSignOut: 'agent:sign-out',
+  agentSelect: 'agent:select',
 } as const;
 
 export const eventChannels = {

@@ -86,14 +86,21 @@ export const appInfoSchema = z
   })
   .strict();
 
-/** External agent (ADR 0015). Only sign-in state and plan type are shown, never account data. */
+export const agentKindSchema = z.enum(['claude-code', 'chatgpt']);
+
+/**
+ * Assistant route (ADR 0015): the user's Claude Code, or ChatGPT plan usage in PartBuddy's own
+ * loop. Shows sign-in state, plan and, for ChatGPT, the signed-in account's e-mail to the user.
+ */
 export const agentStatusSchema = z
   .object({
-    agent: z.literal('claude-code'),
+    agent: agentKindSchema,
     state: z.enum(['checking', 'notInstalled', 'signedOut', 'ready', 'busy', 'unavailable']),
     version: z.string().max(40).optional(),
     method: z.string().max(40).optional(),
     plan: z.string().max(40).optional(),
+    account: z.string().max(200).optional(),
+    model: z.string().max(80).optional(),
     detail: z.string().max(500).optional(),
   })
   .strict();
@@ -118,6 +125,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
 ]);
 
 export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000) }).strict();
+export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
+export const assistantStateSchema = z.object({ selected: agentKindSchema, agents: z.array(agentStatusSchema) }).strict();
 
 const none = z.undefined();
 
@@ -127,8 +136,10 @@ export const invokeContract = {
   [invokeChannels.solidcraftRetry]: { request: none, response: none },
   [invokeChannels.solidcraftStart]: { request: none, response: none },
   [invokeChannels.mirrorCurrent]: { request: none, response: mirrorRevisionSchema.nullable() },
-  [invokeChannels.agentStatus]: { request: none, response: agentStatusSchema },
-  [invokeChannels.agentRefresh]: { request: none, response: agentStatusSchema },
+  [invokeChannels.agentStatus]: { request: none, response: assistantStateSchema },
+  [invokeChannels.agentRefresh]: { request: none, response: assistantStateSchema },
+  [invokeChannels.agentSelect]: { request: agentSelectionSchema, response: assistantStateSchema },
+  [invokeChannels.agentSignOut]: { request: none, response: none },
   [invokeChannels.agentSend]: { request: agentMessageSchema, response: none },
   [invokeChannels.agentStop]: { request: none, response: none },
   [invokeChannels.agentSignIn]: { request: none, response: none },
@@ -137,7 +148,7 @@ export const invokeContract = {
 export const eventContract = {
   [eventChannels.solidcraftStatus]: connectionStatusSchema,
   [eventChannels.mirrorRevision]: mirrorRevisionSchema,
-  [eventChannels.agentStatus]: agentStatusSchema,
+  [eventChannels.agentStatus]: assistantStateSchema,
   [eventChannels.agentEvent]: agentEventSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
@@ -147,7 +158,9 @@ export type ConnectionStatus = z.infer<typeof connectionStatusSchema>;
 export type MirroredBody = z.infer<typeof mirroredBodySchema>;
 export type MirrorRevision = z.infer<typeof mirrorRevisionSchema>;
 export type AppInfo = z.infer<typeof appInfoSchema>;
+export type AgentKind = z.infer<typeof agentKindSchema>;
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
+export type AssistantState = z.infer<typeof assistantStateSchema>;
 export type AgentEvent = z.infer<typeof agentEventSchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;

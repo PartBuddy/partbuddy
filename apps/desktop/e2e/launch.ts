@@ -31,6 +31,8 @@ export async function launchApp(options: { env?: Record<string, string>; isolate
           // An existing file stands in for the SolidCraft executable; it is never started.
           PARTBUDDY_SOLIDCRAFT_EXE: process.execPath,
           // A fake Claude Code instead of the user's own program and subscription.
+          // Own credential-store service: the user's ChatGPT sign-in stays invisible to tests.
+          PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
           PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(appDir, 'test', 'fakeClaude.mjs')]),
         }
       : {}),

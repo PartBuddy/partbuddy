@@ -6,8 +6,14 @@ import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, ipcMain, net, protocol, session, shell } from 'electron';
 
 import { invokeChannels, eventChannels } from '../shared/channels';
+import type { AgentEvent } from '../shared/contract';
 import { AgentService } from './agents/agentService';
+import { Assistant } from './agents/assistant';
 import { SolidCraftTools } from './agents/solidcraftTools';
+import { ChatGptAccount } from './chatgpt/account';
+import { ChatGptAgent } from './chatgpt/chatgptAgent';
+import { hostId } from './chatgpt/oauth';
+import { SecretStore } from './credentials/secretStore';
 import { Bridge, trustedSender } from './bridge';
 import { findExecutable, systemEnvironment } from './solidcraft/discovery';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
@@ -141,39 +147,49 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.mirrorCurrent, () => supervisor.currentRevision());
 
     // SolidCraft's MCP tools for the assistant, bridged to the app the supervisor is connected to.
-    let tools: { port: number; tools: SolidCraftTools } | null = null;
-    const agent = new AgentService(
-      {
-        env: process.env,
-        home: homedir(),
-        workDir: join(app.getPath('userData'), 'agent'),
-        log,
-        tools: async () => {
-          const port = supervisor.connectedPort();
-          const executable = findExecutable(systemEnvironment);
-          if (port === null || !executable) return null;
-          if (tools?.port !== port) {
-            await tools?.tools.close();
-            const projects = join(app.getPath('documents'), 'PartBuddy');
-            mkdirSync(projects, { recursive: true });
-            const next = new SolidCraftTools({ solidcraftExe: executable, port, allowPath: projects, env: process.env });
-            await next.connect();
-            tools = { port, tools: next };
-          }
-          return tools.tools;
-        },
-      },
-      {
-        status: (status) => {
-          bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentStatus, status);
-        },
-        event: (event) => {
-          bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentEvent, event);
-        },
-      },
+    let toolsCache: { port: number; tools: SolidCraftTools } | null = null;
+    const tools = async () => {
+      const port = supervisor.connectedPort();
+      const executable = findExecutable(systemEnvironment);
+      if (port === null || !executable) return null;
+      if (toolsCache?.port !== port) {
+        await toolsCache?.tools.close();
+        const projects = join(app.getPath('documents'), 'PartBuddy');
+        mkdirSync(projects, { recursive: true });
+        const next = new SolidCraftTools({ solidcraftExe: executable, port, allowPath: projects, env: process.env });
+        await next.connect();
+        toolsCache = { port, tools: next };
+      }
+      return toolsCache.tools;
+    };
+    const emitEvent = (event: AgentEvent) => {
+      bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentEvent, event);
+    };
+    let assistant: Assistant | null = null;
+    const changed = () => assistant?.changed();
+    const claude = new AgentService(
+      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), log, tools },
+      { status: changed, event: emitEvent },
     );
-    bridge.handle(invokeChannels.agentStatus, () => agent.status());
+    // ChatGPT tokens live only in the Windows credential store (ADR 0011, ADR 0015).
+    const account = new ChatGptAccount({
+      store: new SecretStore(),
+      hostId: () => hostId(join(app.getPath('userData'), 'chatgpt-host-id')),
+      openBrowser: async (url) => {
+        if (!url.startsWith('https://auth.openai.com/')) throw new Error('refused to open an unexpected sign-in address');
+        await shell.openExternal(url);
+      },
+      onStatus: changed,
+    });
+    account.load();
+    const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log });
+    assistant = new Assistant({ 'claude-code': claude, chatgpt }, (state) => {
+      bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentStatus, state);
+    });
+    const agent = assistant;
+    bridge.handle(invokeChannels.agentStatus, () => agent.state());
     bridge.handle(invokeChannels.agentRefresh, () => agent.refresh());
+    bridge.handle(invokeChannels.agentSelect, ({ agent: kind }) => agent.select(kind));
     bridge.handle(invokeChannels.agentSend, async ({ text }) => {
       await agent.send(text);
       return undefined;
@@ -184,6 +200,10 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.agentSignIn, () => {
       agent.signIn();
+      return undefined;
+    });
+    bridge.handle(invokeChannels.agentSignOut, async () => {
+      await agent.signOut();
       return undefined;
     });
     void agent.refresh();
@@ -199,7 +219,7 @@ if (!app.requestSingleInstanceLock()) {
       if (quitting) return;
       quitting = true;
       event.preventDefault();
-      void Promise.allSettled([agent.dispose(), tools?.tools.close()])
+      void Promise.allSettled([agent.dispose(), toolsCache?.tools.close()])
         .then(() => supervisor.shutdown())
         .finally(() => {
           app.quit();

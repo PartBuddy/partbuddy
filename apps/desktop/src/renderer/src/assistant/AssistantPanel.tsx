@@ -1,38 +1,85 @@
 import { IconArrowUp, IconCheck, IconPlayerStop, IconShieldX, IconTool, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Form, TextArea, TextField } from 'react-aria-components';
+import { Button as AriaButton, Form, TextArea, TextField, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
 
+import type { AgentStatus } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
 import { Busy, StatusDot } from '../ui/Feedback';
-import { useAssistant, type ConversationItem } from './store';
+import { selectedStatus, useAssistant, type ConversationItem } from './store';
+
+function statusLabel(t: ReturnType<typeof useTranslation>['t'], status: AgentStatus): string {
+  const signedIn = status.state === 'ready' || status.state === 'busy';
+  if (!signedIn) return t(`assistant.state.${status.agent}.${status.state}`);
+  if (status.agent === 'chatgpt') return t('assistant.chatgpt.signedIn', { account: status.account ?? '', model: status.model ?? '' });
+  const plan = status.method === 'claude.ai' && status.plan ? t('assistant.plan', { plan: status.plan }) : t('assistant.apiKey');
+  return t('assistant.signedIn', { plan, version: status.version ?? '' });
+}
 
 function Header() {
   const { t } = useTranslation();
-  const status = useAssistant((s) => s.status);
+  const state = useAssistant((s) => s.state);
+  const status = selectedStatus(state);
   const signedIn = status.state === 'ready' || status.state === 'busy';
-  const plan = status.method === 'claude.ai' && status.plan ? t('assistant.plan', { plan: status.plan }) : t('assistant.apiKey');
   return (
-    <header className="flex flex-col gap-1 border-b border-border px-3 py-2">
+    <header className="flex flex-col gap-2 border-b border-border px-3 py-2">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-md font-semibold text-text">{t('assistant.title')}</h2>
         <span className="rounded-sm border border-border px-1 text-xs text-text-muted">{t('assistant.preview')}</span>
       </div>
-      <div data-testid="agent-status">
-        <StatusDot
-          tone={signedIn ? 'success' : status.state === 'checking' ? 'neutral' : 'warning'}
-          label={signedIn ? t('assistant.signedIn', { plan, version: status.version ?? '' }) : t(`assistant.state.${status.state}`)}
-        />
+      <ToggleButtonGroup
+        aria-label={t('assistant.route')}
+        selectionMode="single"
+        disallowEmptySelection
+        selectedKeys={[state.selected]}
+        onSelectionChange={(keys) => {
+          const [key] = [...keys];
+          if (key === 'claude-code' || key === 'chatgpt') void platform().agent.select(key);
+        }}
+        className="flex rounded-md border border-border-strong p-hairline"
+      >
+        {(['claude-code', 'chatgpt'] as const).map((kind) => (
+          <ToggleButton
+            key={kind}
+            id={kind}
+            className="flex-1 rounded-sm px-2 py-1 text-sm text-text-muted outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:bg-surface-selected selected:font-medium selected:text-text"
+          >
+            {t(`assistant.routes.${kind}`)}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
+      <div className="flex items-center justify-between gap-2" data-testid="agent-status">
+        <StatusDot tone={signedIn ? 'success' : status.state === 'checking' ? 'neutral' : 'warning'} label={statusLabel(t, status)} />
+        {status.agent === 'chatgpt' && signedIn ? (
+          <AriaButton
+            onPress={() => {
+              void platform().agent.signOut();
+            }}
+            className="text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+          >
+            {t('assistant.chatgpt.signOut')}
+          </AriaButton>
+        ) : null}
       </div>
     </header>
   );
 }
 
+function Notice({ title, body, children }: { title: string; body: string; children?: React.ReactNode }) {
+  return (
+    <div role="status" className="flex flex-col gap-2 text-sm text-text-muted">
+      <p className="font-semibold text-text">{title}</p>
+      <p>{body}</p>
+      {children ? <div className="flex flex-wrap gap-2">{children}</div> : null}
+    </div>
+  );
+}
+
 function Setup() {
   const { t } = useTranslation();
-  const status = useAssistant((s) => s.status);
+  const status = selectedStatus(useAssistant((s) => s.state));
   const api = platform().agent;
   const refresh = (
     <Button
@@ -43,42 +90,55 @@ function Setup() {
       {t('assistant.refresh')}
     </Button>
   );
-  if (status.state === 'checking') return <Busy label={t('assistant.state.checking')} />;
-  if (status.state === 'notInstalled') {
-    return (
-      <div role="status" className="flex flex-col gap-2 text-sm text-text-muted">
-        <p className="font-semibold text-text">{t('assistant.notInstalledTitle')}</p>
-        <p>{t('assistant.notInstalledBody')}</p>
-        <div>{refresh}</div>
-      </div>
-    );
-  }
-  if (status.state === 'signedOut') {
-    return (
-      <div role="status" className="flex flex-col gap-2 text-sm text-text-muted">
-        <p className="font-semibold text-text">{t('assistant.signedOutTitle')}</p>
-        <p>{t('assistant.signedOutBody')}</p>
-        <div className="flex gap-2">
+  if (status.agent === 'chatgpt') {
+    if (status.state === 'checking') return <Busy label={t('assistant.chatgpt.waiting')} />;
+    if (status.state === 'signedOut' || status.state === 'unavailable') {
+      return (
+        <Notice
+          title={t(status.state === 'signedOut' ? 'assistant.chatgpt.signedOutTitle' : 'assistant.chatgpt.planDisabledTitle')}
+          body={status.detail ?? t('assistant.chatgpt.signedOutBody')}
+        >
           <Button
             variant="primary"
             onPress={() => {
               void api.signIn();
             }}
           >
-            {t('assistant.signIn')}
+            {t('assistant.chatgpt.continue')}
           </Button>
-          {refresh}
-        </div>
-      </div>
+        </Notice>
+      );
+    }
+    return null;
+  }
+  if (status.state === 'checking') return <Busy label={t('assistant.state.claude-code.checking')} />;
+  if (status.state === 'notInstalled') {
+    return (
+      <Notice title={t('assistant.notInstalledTitle')} body={t('assistant.notInstalledBody')}>
+        {refresh}
+      </Notice>
+    );
+  }
+  if (status.state === 'signedOut') {
+    return (
+      <Notice title={t('assistant.signedOutTitle')} body={t('assistant.signedOutBody')}>
+        <Button
+          variant="primary"
+          onPress={() => {
+            void api.signIn();
+          }}
+        >
+          {t('assistant.signIn')}
+        </Button>
+        {refresh}
+      </Notice>
     );
   }
   if (status.state === 'unavailable') {
     return (
-      <div role="status" className="flex flex-col gap-2 text-sm text-text-muted">
-        <p className="font-semibold text-text">{t('assistant.unavailableTitle')}</p>
-        <p>{t('assistant.unavailableBody', { detail: status.detail ?? '–' })}</p>
-        <div>{refresh}</div>
-      </div>
+      <Notice title={t('assistant.unavailableTitle')} body={t('assistant.unavailableBody', { detail: status.detail ?? '–' })}>
+        {refresh}
+      </Notice>
     );
   }
   return null;
@@ -141,7 +201,7 @@ function Item({ item }: { item: ConversationItem }) {
 
 export function AssistantPanel() {
   const { t } = useTranslation();
-  const status = useAssistant((s) => s.status);
+  const status = selectedStatus(useAssistant((s) => s.state));
   const items = useAssistant((s) => s.items);
   const connected = useStudio((s) => s.connection.state === 'connected');
   const [draft, setDraft] = useState('');
@@ -165,13 +225,11 @@ export function AssistantPanel() {
       <Header />
       <div ref={list} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
         <Setup />
-        {items.length === 0 && (status.state === 'ready' || busy) ? (
-          <p className="text-sm text-text-muted">{t('assistant.empty')}</p>
-        ) : null}
+        {items.length === 0 && (status.state === 'ready' || busy) ? <p className="text-sm text-text-muted">{t('assistant.empty')}</p> : null}
         {items.map((item) => (
           <Item key={item.key} item={item} />
         ))}
-        {busy ? <Busy label={t('assistant.working')} /> : null}
+        {busy ? <Busy label={t(`assistant.working.${status.agent}`)} /> : null}
       </div>
       <Form
         className="flex flex-col gap-2 border-t border-border p-3"

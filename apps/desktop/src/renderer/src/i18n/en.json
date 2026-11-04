@@ -79,12 +79,22 @@
     "apiKey": "API key",
     "signedIn": "Claude Code {version} · {plan}",
     "state": {
-      "checking": "Looking for Claude Code",
-      "notInstalled": "Claude Code not installed",
-      "signedOut": "Not signed in to Claude Code",
-      "ready": "Ready",
-      "busy": "Working",
-      "unavailable": "Claude Code not available"
+      "claude-code": {
+        "checking": "Looking for Claude Code",
+        "notInstalled": "Claude Code not installed",
+        "signedOut": "Not signed in to Claude Code",
+        "ready": "Ready",
+        "busy": "Working",
+        "unavailable": "Claude Code not available"
+      },
+      "chatgpt": {
+        "checking": "Waiting for the ChatGPT sign-in",
+        "signedOut": "Not signed in to ChatGPT",
+        "unavailable": "ChatGPT plan usage not allowed",
+        "ready": "Ready",
+        "busy": "Working",
+        "notInstalled": "Not available"
+      }
     },
     "notInstalledTitle": "Claude Code is not installed",
     "notInstalledBody": "PartBuddy uses your own Claude Code with your Claude subscription. Install Claude Code from Anthropic, then look again.",
@@ -95,7 +105,10 @@
     "unavailableTitle": "Claude Code could not be started",
     "unavailableBody": "Details: {detail}",
     "empty": "Describe what SolidCraft should build or change. Every step appears in the 3D view.",
-    "working": "Claude is working",
+    "working": {
+      "claude-code": "Claude is working",
+      "chatgpt": "ChatGPT is working"
+    },
     "needsSolidCraft": "Connect SolidCraft first; the assistant works on the open design.",
     "composer": "Message to the assistant",
     "placeholder": "For example: a 40 × 20 × 5 mm plate with two 4 mm holes",
@@ -107,6 +120,20 @@
       "done": "done",
       "failed": "failed",
       "denied": "refused by PartBuddy"
+    },
+    "route": "Assistant route",
+    "routes": {
+      "claude-code": "Claude Code",
+      "chatgpt": "ChatGPT"
+    },
+    "chatgpt": {
+      "signedIn": "ChatGPT · {account} · {model}",
+      "signOut": "Sign out",
+      "waiting": "Waiting for the sign-in in your browser",
+      "signedOutTitle": "Use your ChatGPT plan",
+      "signedOutBody": "Sign in with your ChatGPT account. Requests count towards your ChatGPT Plus or Pro plan; PartBuddy keeps the sign-in only in the Windows credential store.",
+      "planDisabledTitle": "ChatGPT plan usage is not allowed",
+      "continue": "Continue with ChatGPT"
     }
   }
 }

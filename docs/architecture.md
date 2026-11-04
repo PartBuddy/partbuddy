@@ -195,7 +195,8 @@ Nothing of this is part of the repository.
 | Logs | `%LOCALAPPDATA%\PartBuddy\logs\` | electron-log rotation; no prompts, keys or personal data |
 | Python environment | `%LOCALAPPDATA%\PartBuddy\sidecar\` | Created offline from the bundled wheelhouse |
 | Project files (designs, exports, print packages) | User-chosen folder, default `Documents\PartBuddy` | Plain files the user owns |
-| API keys | Windows Credential Manager, target `PartBuddy/<profile id>` | Never in files, logs, crash reports or command lines |
+| API keys and ChatGPT tokens | Windows Credential Manager, target `PartBuddy/<profile id>` (ChatGPT: `PartBuddy/chatgpt/tokens#n`, chunked) | Never in files, logs, crash reports or command lines |
+| ChatGPT host ID | `%APPDATA%\PartBuddy\chatgpt-host-id` | Opaque `urn:uuid`, not a credential |
 | Crash reports | Local minidumps; uploaded only after opt-in | Scrubbed of paths and user names |
 
 ## Provider policy
