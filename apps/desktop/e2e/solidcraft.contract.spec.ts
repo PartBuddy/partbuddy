@@ -99,3 +99,44 @@ test('the user\'s Claude Code builds a part in SolidCraft through the gate proxy
     rmSync(controlDir, { recursive: true, force: true });
   }
 });
+
+test('ChatGPT builds a part in SolidCraft with the user\'s plan', async () => {
+  // Uses the ChatGPT sign-in stored in the Windows credential store; opt in with
+  // PARTBUDDY_E2E_CHATGPT=1, because it spends ChatGPT plan usage. Own SolidCraft instance as above.
+  test.skip(process.env.PARTBUDDY_E2E_CHATGPT !== '1', 'spends ChatGPT usage; set PARTBUDDY_E2E_CHATGPT=1');
+  test.setTimeout(360_000);
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { ControlClient } = await import('../src/main/solidcraft/controlClient');
+  const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-spike-'));
+  const port = '7883';
+  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port } });
+  try {
+    const { page } = launched;
+    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · revision \d+/, { timeout: 90_000 });
+    await page.getByRole('radio', { name: 'ChatGPT' }).or(page.getByRole('button', { name: 'ChatGPT' })).click();
+    await expect(page.getByTestId('agent-status')).toContainText('ChatGPT ·', { timeout: 30_000 });
+    await page
+      .getByRole('textbox', { name: 'Message to the assistant' })
+      .fill('Build a 20 x 20 x 10 mm box as a new body (sketch a square on the XY plane, extrude it 10 mm). Then report its volume in mm³.');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('tool-call').first()).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByRole('button', { name: 'Stop' })).toBeHidden({ timeout: 300_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await expect(page.getByTestId('assistant-text').last()).toContainText(/4[ .,]?000/);
+    await page.waitForTimeout(2000);
+    await page.screenshot({ path: test.info().outputPath('chatgpt-live.png') });
+  } finally {
+    await launched.close();
+    try {
+      const token = readFileSync(join(controlDir, `${port}.token`), 'utf8').trim();
+      const client = await ControlClient.open({ port: Number(port), token });
+      await client.request('app.quit', { force: true }, 5000).catch(() => undefined);
+      client.close();
+    } catch {
+      // Already closed.
+    }
+    rmSync(controlDir, { recursive: true, force: true });
+  }
+});

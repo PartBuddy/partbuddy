@@ -92,6 +92,14 @@ test('the assistant shows the signed-in plan and needs SolidCraft', async () => 
   await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
 });
 
+test('the ChatGPT route offers the sign-in when no account is stored', async () => {
+  launched = await launchApp();
+  const { page } = launched;
+  await page.getByRole('radio', { name: 'ChatGPT' }).or(page.getByRole('button', { name: 'ChatGPT' })).click();
+  await expect(page.getByTestId('agent-status')).toHaveText('Not signed in to ChatGPT');
+  await expect(page.getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
+});
+
 test('the main view has no WCAG 2.2 AA violations that axe can detect', async () => {
   const { app } = await connectedApp();
   await expect(app.page.getByTestId('mesh-summary')).toBeVisible();

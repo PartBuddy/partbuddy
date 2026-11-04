@@ -8,13 +8,13 @@ export function useAssistantBridge(): void {
   useEffect(() => {
     const api = platform().agent;
     const offStatus = api.onStatus((status) => {
-      useAssistant.getState().setStatus(status);
+      useAssistant.getState().setState(status);
     });
     const offEvent = api.onEvent((event) => {
       useAssistant.getState().apply(event);
     });
     void api.status().then((status) => {
-      useAssistant.getState().setStatus(status);
+      useAssistant.getState().setState(status);
     });
     return () => {
       offStatus();

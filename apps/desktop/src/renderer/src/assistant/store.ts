@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { AgentEvent, AgentStatus } from '../../../shared/contract';
+import type { AgentEvent, AgentStatus, AssistantState } from '../../../shared/contract';
 
 export type ConversationItem =
   | { kind: 'user'; key: number; text: string }
@@ -18,10 +18,10 @@ export type ConversationItem =
   | { kind: 'stopped'; key: number; detail: string | null }
   | { kind: 'error'; key: number; message: string };
 
-interface AssistantState {
-  status: AgentStatus;
+interface AssistantStore {
+  state: AssistantState;
   items: ConversationItem[];
-  setStatus: (status: AgentStatus) => void;
+  setState: (state: AssistantState) => void;
   apply: (event: AgentEvent) => void;
 }
 
@@ -64,13 +64,18 @@ export function reduce(items: ConversationItem[], event: AgentEvent): Conversati
   }
 }
 
-export const useAssistant = create<AssistantState>()((set) => ({
-  status: { agent: 'claude-code', state: 'checking' },
+export const useAssistant = create<AssistantStore>()((set) => ({
+  state: { selected: 'claude-code', agents: [] },
   items: [],
-  setStatus: (status) => {
-    set({ status });
+  setState: (state) => {
+    set({ state });
   },
   apply: (event) => {
     set((state) => ({ items: reduce(state.items, event) }));
   },
 }));
+
+/** Status of the route the user picked. */
+export function selectedStatus(state: AssistantState): AgentStatus {
+  return state.agents.find((agent) => agent.agent === state.selected) ?? { agent: state.selected, state: 'checking' };
+}
