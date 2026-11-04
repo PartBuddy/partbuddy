@@ -11,6 +11,11 @@
   --font-*: initial;
   --text-*: initial;
   --shadow-*: initial;
+  --font-weight-*: initial;
+  --tracking-*: initial;
+  --ease-*: initial;
+  --default-transition-duration: var(--cs-duration-fast);
+  --default-transition-timing-function: var(--cs-easing-standard);
 
   --color-canvas: var(--cs-color-canvas);
   --color-surface: var(--cs-color-surface);
@@ -81,6 +86,12 @@
   --font-sans: var(--cs-font-sans);
   --font-display: var(--cs-font-display);
   --font-mono: var(--cs-font-mono);
+
+  --font-weight-normal: var(--cs-weight-regular);
+  --font-weight-medium: var(--cs-weight-medium);
+  --font-weight-semibold: var(--cs-weight-semibold);
+  --tracking-wide: var(--cs-tracking-label);
+  --ease-standard: var(--cs-easing-standard);
 
   --text-xs: var(--cs-text-xs);
   --text-xs--line-height: var(--cs-leading-tight);

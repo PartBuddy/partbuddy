@@ -43,6 +43,13 @@
   --cs-size-dialog-lg: 640px;
   --cs-size-dialog-offset: 12vh;
 
+  /* Default panel layout (dockview reads these in pixels) */
+  --cs-layout-navigation-width: 280px;
+  --cs-layout-assistant-width: 400px;
+  --cs-layout-viewer-height: 560px;
+  --cs-layout-projects-height: 260px;
+  --cs-overlay-offset: 4px;
+
   /* Typography: native Windows UI fonts, no bundled webfonts */
   --cs-font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --cs-font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
@@ -58,6 +65,7 @@
   --cs-weight-regular: 400;
   --cs-weight-medium: 500;
   --cs-weight-semibold: 600;
+  --cs-tracking-label: 0.04em;
 
   /* Radii */
   --cs-radius-sm: 3px;
