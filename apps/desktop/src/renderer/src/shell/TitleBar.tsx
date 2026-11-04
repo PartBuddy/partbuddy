@@ -66,7 +66,7 @@ export function TitleBar() {
           {designName}
         </span>
       </nav>
-      <div className="ml-auto flex items-center gap-2" data-testid="connection-status">
+      <div className="ml-auto flex items-center gap-2" data-testid="connection-status" data-engine={connection.engine}>
         <StatusDot
           tone={connectionTone(connection)}
           label={t(connectionLabelKey(connection), { revision: connection.revision ?? 0 })}

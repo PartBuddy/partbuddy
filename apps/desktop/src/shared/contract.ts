@@ -52,6 +52,8 @@ export const connectionStatusSchema = z
     owned: z.boolean(),
     documentId: z.string().optional(),
     revision: z.number().int().nonnegative().optional(),
+    /** Connected to the SolidCraft window, or to the engine PartBuddy runs without a window (ADR 0016). */
+    engine: z.enum(['window', 'headless']).optional(),
     /** Mirror state: idle, a newer revision is being mirrored, or the last mirror failed. */
     mirror: z.enum(['idle', 'rebuilding', 'failed']),
     /** Short technical detail for the failed and lost states; never contains a token. */

@@ -30,10 +30,13 @@ if (args[0] === '--version') {
   const lines = createInterface({ input: process.stdin });
   for await (const line of lines) {
     const message = JSON.parse(line);
-    const tool = message.message.content.includes('export') ? 'export' : 'inspect_design';
+    const content = message.message.content;
+    // "box" builds one, so tests can change a headless design (ADR 0016) without a real model.
+    const tool = content.includes('export') ? 'export' : content.includes('box') ? 'execute' : 'inspect_design';
+    const toolArgs = tool === 'execute' ? { command: 'solid.box', params: { length: 20, width: 20, height: 10 } } : { measure: false };
     const client = new Client({ name: 'fake-claude', version: '9.9.9' });
     await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }));
-    const result = await client.callTool({ name: tool, arguments: { measure: false } });
+    const result = await client.callTool({ name: tool, arguments: toolArgs });
     await client.close();
     const text = result.isError ? `Refused: ${result.content[0].text}` : 'The design has one body.';
     for (const part of text.match(/.{1,8}/g)) {

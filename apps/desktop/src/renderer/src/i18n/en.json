@@ -26,7 +26,7 @@
     "notRunningTitle": "SolidCraft is not running",
     "notRunningBody": "Start SolidCraft here, or open it yourself; PartBuddy finds it on its own.",
     "startingTitle": "Starting SolidCraft",
-    "startingBody": "The SolidCraft window opens. Its control channel takes up to half a minute.",
+    "startingBody": "SolidCraft is starting without a window of its own: PartBuddy shows the model itself. This usually takes a moment.",
     "connectingTitle": "Connecting to SolidCraft",
     "lostTitle": "The connection to SolidCraft was lost",
     "lostBody": "PartBuddy keeps the last model and connects again as soon as SolidCraft answers.",
@@ -37,7 +37,8 @@
     "emptyTitle": "No body in the design",
     "emptyBody": "Create a body in SolidCraft or let the assistant design one. It appears here after every step.",
     "mirrorFailedTitle": "The model could not be mirrored",
-    "mirrorFailedBody": "PartBuddy shows the last good state. Details: {detail}"
+    "mirrorFailedBody": "PartBuddy shows the last good state. Details: {detail}",
+    "emptyBodyHeadless": "Tell the assistant what you need. Every step appears here, sketches even before the body."
   },
   "viewer": {
     "canvasLabel": "3D view of the design",

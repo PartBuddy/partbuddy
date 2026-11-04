@@ -1,13 +1,24 @@
 import { expect, test } from '@playwright/test';
 
+import { execFileSync } from 'node:child_process';
+
 import { launchApp } from './launch';
+
+/** Running processes with this image name (Windows). */
+function countProcesses(image: string): number {
+  const out = execFileSync('tasklist', ['/FI', `IMAGENAME eq ${image}`, '/FO', 'CSV', '/NH'], { encoding: 'utf8' });
+  return out.split(/\r?\n/).filter((line) => line.toLowerCase().startsWith(`"${image}"`)).length;
+}
 
 // Local contract test against the installed SolidCraft (ADR 0004). It uses the user's real
 // control folder: it connects to a running SolidCraft or starts one. Opt in with
 // PARTBUDDY_E2E_SOLIDCRAFT=1; CI has no SolidCraft.
 test.skip(process.env.PARTBUDDY_E2E_SOLIDCRAFT !== '1', 'needs SolidCraft; set PARTBUDDY_E2E_SOLIDCRAFT=1');
 
-test('connects to SolidCraft and shows its design', async () => {
+test('connects to a SolidCraft window the user opened and shows its design', async () => {
+  // Needs a SolidCraft window the user opened with a design that has a body; without one PartBuddy
+  // starts its own headless engine (ADR 0016). Opt in with PARTBUDDY_E2E_OPEN_WINDOW=1.
+  test.skip(process.env.PARTBUDDY_E2E_OPEN_WINDOW !== '1', 'needs an open SolidCraft window with a body; set PARTBUDDY_E2E_OPEN_WINDOW=1');
   const launched = await launchApp({ isolated: false });
   try {
     const { page } = launched;
@@ -21,39 +32,69 @@ test('connects to SolidCraft and shows its design', async () => {
   }
 });
 
-test('starts SolidCraft when none runs and closes it again on quit', async () => {
-  // Own control folder and port: SolidCraft inherits SOLIDCRAFT_CONTROL_DIR from PartBuddy, so
-  // this instance never touches the user's running SolidCraft.
-  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+test('starts SolidCraft without a window when none runs, and ends it on quit (ADR 0016)', async () => {
+  // Own control folder and port, so the user's running SolidCraft is never used or touched.
+  const { mkdtempSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-owned-'));
-  const port = '7881';
-  const launched = await launchApp({
-    isolated: false,
-    env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port },
-  });
+  const windows = countProcesses('solidcraft.exe');
+  const engines = countProcesses('solidcraft-cli.exe');
+  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: '7881' } });
   try {
     const { page } = launched;
-    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · revision \d+/, { timeout: 90_000 });
-    await expect(page.getByText('No body in the design')).toBeVisible({ timeout: 30_000 });
-    const pid = Number.parseInt(readFileSync(join(controlDir, `${port}.pid`), 'utf8'), 10);
+    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · revision \d+/, { timeout: 30_000 });
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless');
+    await expect(page.getByText('Tell the assistant what you need.')).toBeVisible();
+    // No SolidCraft window was opened; the engine runs as solidcraft-cli.
+    expect(countProcesses('solidcraft.exe')).toBe(windows);
+    expect(countProcesses('solidcraft-cli.exe')).toBeGreaterThan(engines);
     await launched.close();
-    await expect
-      .poll(
-        () => {
-          try {
-            process.kill(pid, 0);
-            return 'running';
-          } catch {
-            return 'exited';
-          }
-        },
-        { timeout: 30_000 },
-      )
-      .toBe('exited');
+    await expect.poll(() => countProcesses('solidcraft-cli.exe'), { timeout: 15_000 }).toBe(engines);
   } finally {
     rmSync(controlDir, { recursive: true, force: true });
+  }
+});
+
+test('an assistant step changes the headless design, and it is back after a restart', async () => {
+  test.setTimeout(120_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-autosave-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7887',
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    // The test double of Claude Code builds a box when the message says "box" (test/fakeClaude.mjs).
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  try {
+    const first = await launchApp({ isolated: false, work, env });
+    try {
+      const { page } = first;
+      await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+      await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+      await page.getByRole('button', { name: 'Send' }).click();
+      await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+      await page.screenshot({ path: test.info().outputPath('headless-box.png') });
+    } catch (error) {
+      await first.page.screenshot({ path: test.info().outputPath('headless-failed.png') }).catch(() => undefined);
+      throw error;
+    } finally {
+      await first.close();
+    }
+
+    const second = await launchApp({ isolated: false, work, env });
+    try {
+      await expect(second.page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+      await expect(second.page.getByTestId('design-name')).toHaveText('Untitled');
+    } finally {
+      await second.close();
+    }
+  } finally {
+    // Electron may hold its profile a moment after closing.
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
 

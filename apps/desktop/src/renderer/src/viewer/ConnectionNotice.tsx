@@ -90,7 +90,10 @@ export function ConnectionNotice() {
       if (model.status === 'ready' && !hasModel) {
         return (
           <div className="pointer-events-auto flex w-full flex-1 items-center justify-center">
-            <EmptyState title={t('connection.emptyTitle')} body={t('connection.emptyBody')} />
+            <EmptyState
+              title={t('connection.emptyTitle')}
+              body={t(connection.engine === 'headless' ? 'connection.emptyBodyHeadless' : 'connection.emptyBody')}
+            />
           </div>
         );
       }
