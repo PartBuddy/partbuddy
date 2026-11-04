@@ -25,6 +25,7 @@ import { DimensionHud } from './DimensionHud';
 import { LiveBar } from './LiveBar';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
+import { StepPreviews } from './StepPreviews';
 import { ViewTools } from './ViewTools';
 import { edgeLabel, viewStateOf, type CameraView } from './viewState';
 import { platform } from '../platform';
@@ -72,11 +73,18 @@ function Body({ index, body, colors, register }: { index: number; body: BodyMode
   const hover = useStudio((s) => s.hover);
   const selections = useStudio((s) => s.selections);
   const changes = useStudio((s) => s.changes);
+  const stepHighlight = useStudio((s) => s.stepHighlight);
   const { model } = body;
 
   useEffect(() => {
     const attribute = model.geometry.getAttribute('color') as BufferAttribute;
     const changed = new Set(changes?.bodies.find((entry) => entry.body === index)?.faces ?? []);
+    // A work-log card under the pointer lights up the faces of its step that still exist.
+    const stepFaces = new Set(stepHighlight?.find((entry) => entry.body === body.name)?.faces ?? []);
+    if (stepHighlight) {
+      changed.clear();
+      for (const face of model.table.faces) if (stepFaces.has(face.name)) changed.add(face.index);
+    }
     const hovered = hover?.kind === 'face' && hover.body === index ? hover.face : -1;
     const selected = new Set(selections.filter((pick) => pick.kind === 'face' && pick.body === index).map((pick) => (pick.kind === 'face' ? pick.face : -1)));
     for (let v = 0; v < model.vertexFaces.length; v += 1) {
@@ -88,7 +96,7 @@ function Body({ index, body, colors, register }: { index: number; body: BodyMode
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
-  }, [model, index, colors, hover, selections, changes]);
+  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name]);
 
   return (
     <group name={body.name}>
@@ -603,6 +611,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <StandardViews bodies={bodies} sketches={sketches} />
       <FollowChanges />
       <ViewReporter />
+      <StepPreviews />
       <GizmoHelper alignment="top-right" margin={scene.gizmoMargin}>
         <GizmoViewcube
           faces={cubeFaces}

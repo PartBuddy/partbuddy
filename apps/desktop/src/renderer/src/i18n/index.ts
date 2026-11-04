@@ -2,6 +2,7 @@ import i18next from 'i18next';
 import ICU from 'i18next-icu';
 import { initReactI18next } from 'react-i18next';
 
+import { stepMessages } from '../../../shared/stepPhrases';
 import de from './de.json';
 import en from './en.json';
 
@@ -18,7 +19,8 @@ export function initI18n(language: Locale) {
     .use(ICU)
     .use(initReactI18next)
     .init({
-      resources: { en: { translation: en }, de: { translation: de } },
+      // Work-log phrases (M2a) live in shared/, where the main process writes them for the model too.
+      resources: { en: { translation: { ...en, steps: stepMessages.en } }, de: { translation: { ...de, steps: stepMessages.de } } },
       lng: language,
       fallbackLng: 'en',
       interpolation: { escapeValue: false },

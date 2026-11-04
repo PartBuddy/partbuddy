@@ -14,7 +14,8 @@ import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { DesignStore, HeadlessEngine, isInside, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
-import { mirrorActiveDesign, MirrorScheduler, type ControlRequester } from './mirror';
+import type { DesignHistory } from '../agents/workLog';
+import { count, mirrorActiveDesign, MirrorScheduler, type BatchResult, type ControlRequester } from './mirror';
 
 export interface SupervisorOptions {
   environment: Environment;
@@ -333,6 +334,30 @@ export class SolidCraftSupervisor {
   /** Shows or hides bodies and sketches; the mirror shows only visible ones. */
   visibility(command: VisibilityCommand): Promise<void> {
     return this.run({ command: 'browser.visibility', params: { visible: command.visible, items: [...command.bodies, ...command.sketches] } });
+  }
+
+  /** Revision and undo history right now, for the work log (M2a). */
+  async history(): Promise<DesignHistory> {
+    const batch = await this.requester().request<BatchResult>(
+      'engine.batch',
+      { commands: [{ command: 'document.revision', params: {} }, { command: 'document.inspect', params: {} }], rollback: false },
+      30_000,
+    );
+    if (batch.failed) throw new Error(`${batch.failed.command} failed: ${batch.failed.error}`);
+    const head = batch.results[0] as { document_id?: unknown; revision?: unknown } | undefined;
+    const inspect = batch.results[1] as { undo?: unknown; redo?: unknown } | undefined;
+    if (typeof head?.document_id !== 'string' || typeof head.revision !== 'number') throw new Error('document.revision returned no revision');
+    return { documentId: head.document_id, revision: head.revision, undo: count(inspect?.undo), redo: count(inspect?.redo) };
+  }
+
+  /** Undo or Redo `count` times in one request ("go back to this state", M2a). */
+  async travel(command: 'edit.undo' | 'edit.redo', count: number): Promise<void> {
+    if (!Number.isInteger(count) || count < 1) return;
+    await this.probing;
+    const commands = Array.from({ length: count }, () => ({ command, params: {} }));
+    const batch = await this.requester().request<{ failed?: { error: string } }>('engine.batch', { commands, rollback: false }, 10 * 60 * 1000);
+    if (batch.failed) throw new Error(`${command} failed: ${batch.failed.error}`);
+    await this.engine?.checkForChange();
   }
 
   /** One engine command of the user, after any running trial; the change is mirrored as usual. */

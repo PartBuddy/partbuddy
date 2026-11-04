@@ -56,11 +56,11 @@ export function structureOf(inspect: InspectResult): Structure {
   };
 }
 
-function count(value: unknown): number {
+export function count(value: unknown): number {
   return Number.isInteger(value) && (value as number) > 0 ? (value as number) : 0;
 }
 
-interface BatchResult {
+export interface BatchResult {
   completed: number;
   results: unknown[];
   failed?: { index: number; command: string; error: string };

@@ -4,8 +4,11 @@ import type { AgentKind, AgentStatus, AssistantState, Selection } from '../../sh
 export interface AgentBackend {
   status(): AgentStatus;
   refresh(): Promise<AgentStatus>;
-  /** `selection`: what the user selected in PartBuddy's view, sent along as a short note. */
-  send(text: string, selections?: Selection[]): Promise<void>;
+  /**
+   * `selections`: what the user selected in PartBuddy's view, sent along as a short note.
+   * `note`: what the user changed or undid since the model's last turn (work log, M2a).
+   */
+  send(text: string, selections?: Selection[], note?: string | null): Promise<void>;
   stop(): Promise<void>;
   signIn(): void;
   signOut(): Promise<void>;
@@ -45,8 +48,8 @@ export class Assistant {
     return this.state();
   }
 
-  send(text: string, selections: Selection[] = []): Promise<void> {
-    return this.current().send(text, selections);
+  send(text: string, selections: Selection[] = [], note: string | null = null): Promise<void> {
+    return this.current().send(text, selections, note);
   }
 
   stop(): Promise<void> {

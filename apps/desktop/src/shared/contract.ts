@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { eventChannels, invokeChannels, type EventChannel, type InvokeChannel } from './channels';
+import { MAX_PHRASES_PER_STEP, STEP_PHRASE_KEYS } from './stepPhrases';
 
 /**
  * The one contract of the typed IPC bridge (ADR 0013). Every channel has a request and a
@@ -238,6 +239,32 @@ export const agentStatusSchema = z
   })
   .strict();
 
+/** One line of a work-log step (M2a): a message key and its values, shown in the user's language. */
+export const stepPhraseSchema = z
+  .object({
+    key: z.enum(STEP_PHRASE_KEYS),
+    values: z.record(z.string().max(40), z.union([z.string().max(80), z.number()])),
+  })
+  .strict();
+
+/**
+ * One change of the design in the work log (M2a): by the assistant (`toolId` names its tool call)
+ * or by the user. `depth` is SolidCraft's undo depth after the step, which "go back" returns to.
+ */
+export const workStepSchema = z
+  .object({
+    id: z.string().max(40),
+    source: z.enum(['assistant', 'user']),
+    phrases: z.array(stepPhraseSchema).min(1).max(MAX_PHRASES_PER_STEP),
+    toolId: z.string().max(40).optional(),
+    documentId: z.string().max(200),
+    revision: z.number().int().nonnegative(),
+    depth: z.number().int().nonnegative(),
+  })
+  .strict();
+/** applied: part of the design; undone: Redo or "go back" brings it back; discarded: replaced for good. */
+export const workStepStateSchema = z.enum(['applied', 'undone', 'discarded']);
+
 export const agentEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('user'), text: z.string(), selection: z.string().max(400).optional() }).strict(),
   z.object({ type: z.literal('textDelta'), text: z.string() }).strict(),
@@ -255,7 +282,17 @@ export const agentEventSchema = z.discriminatedUnion('type', [
     .strict(),
   z.object({ type: z.literal('done'), ok: z.boolean(), durationMs: z.number().nullable(), detail: z.string().nullable() }).strict(),
   z.object({ type: z.literal('error'), message: z.string().max(500) }).strict(),
+  z.object({ type: z.literal('step'), step: workStepSchema }).strict(),
+  z
+    .object({
+      type: z.literal('steps'),
+      states: z.array(z.object({ id: z.string().max(40), state: workStepStateSchema }).strict()).max(1000),
+      /** The newest applied step: the design is in its state. */
+      current: z.string().max(40).nullable(),
+    })
+    .strict(),
 ]);
+export const goToStepSchema = z.object({ step: z.string().min(1).max(40) }).strict();
 
 /** Formats of the user's own export (ADR 0016): 3MF for slicers, STL, STEP for other CAD programs. */
 export const exportFormatSchema = z.enum(['3mf', 'stl', 'step']);
@@ -286,7 +323,13 @@ export const dimensionProbeResultSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('assistant'), reason: z.enum(['noDriver', 'ambiguous']) }).strict(),
 ]);
 export const dimensionApplySchema = z
-  .object({ parameter: z.string().regex(/^[\p{L}_][\p{L}\p{N}_]{0,99}$/u), value: length, factor: factorSchema })
+  .object({
+    parameter: z.string().regex(/^[\p{L}_][\p{L}\p{N}_]{0,99}$/u),
+    value: length,
+    factor: factorSchema,
+    /** What the probe called the dimension ("Box1 · Length"), for the work log. */
+    label: z.string().max(400).optional(),
+  })
   .strict();
 
 /** Actions at the selection (M1b-2): points on the picked edges or faces and one size in mm. */
@@ -352,6 +395,7 @@ export const invokeContract = {
   [invokeChannels.designApplyAction]: { request: designActionSchema, response: none },
   [invokeChannels.designMeasure]: { request: measureRequestSchema, response: measureResultSchema },
   [invokeChannels.designTimeline]: { request: timelineCommandSchema, response: none },
+  [invokeChannels.designGoToStep]: { request: goToStepSchema, response: none },
   [invokeChannels.designVisibility]: { request: visibilityCommandSchema, response: none },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
@@ -376,6 +420,8 @@ export type AgentEvent = z.infer<typeof agentEventSchema>;
 export type FaceSelection = z.infer<typeof faceSelectionSchema>;
 export type EdgeSelection = z.infer<typeof edgeSelectionSchema>;
 export type Selection = z.infer<typeof selectionSchema>;
+export type WorkStep = z.infer<typeof workStepSchema>;
+export type WorkStepState = z.infer<typeof workStepStateSchema>;
 export type ViewState = z.infer<typeof viewStateSchema>;
 export type TitleBarColors = z.infer<typeof titleBarColorsSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;

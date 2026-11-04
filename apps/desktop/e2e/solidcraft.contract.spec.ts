@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 import { execFileSync } from 'node:child_process';
@@ -222,6 +223,37 @@ test('the dimension field changes the driving parameter directly, with a preview
     // The part has a 32 mm edge now, and Undo takes the change back.
     expect(await pickEdge('32 mm'), 'the changed 32 mm edge').toBe(true);
     await page.screenshot({ path: test.info().outputPath('dimension-applied.png') });
+
+    // The work log (M2a): the assistant's box and the user's own change, each a card with a picture.
+    const cards = page.getByTestId('step-card');
+    await expect(cards).toHaveCount(2);
+    await expect(cards.nth(0).getByTestId('step-text')).toHaveText('Box 20 × 20 × 10 mm');
+    await expect(cards.nth(1)).toContainText('By you');
+    await expect(cards.nth(1).getByTestId('step-text')).toHaveText(/Dimension Box1 · (Length|Width) set to 32 mm/);
+    await expect(cards.nth(1)).toHaveAttribute('data-current', 'true');
+    await expect(cards.nth(0).getByTestId('step-preview')).toHaveAttribute('src', /^data:image\//, { timeout: 10_000 });
+    await expect(page.getByTestId('tool-call')).toBeHidden();
+    const axe = await new AxeBuilder({ page })
+      .setLegacyMode(true)
+      .include('aside')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    // Back to the box: the user's change is undone, and its card can bring it back.
+    await page.keyboard.press('Escape');
+    await cards.nth(0).getByRole('button', { name: 'Go back to this state' }).click();
+    await expect(cards.nth(1)).toHaveAttribute('data-state', 'undone', { timeout: 15_000 });
+    await expect(cards.nth(0)).toHaveAttribute('data-current', 'true');
+    expect(await pickEdge('20 mm'), 'back at the box').toBe(true);
+    await page.screenshot({ path: test.info().outputPath('work-log-back.png') });
+    const axeUndone = await new AxeBuilder({ page }).setLegacyMode(true).include('aside').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(axeUndone.violations.map((v) => v.id)).toEqual([]);
+    await page.keyboard.press('Escape');
+    await cards.nth(1).getByRole('button', { name: 'Bring back this state' }).click();
+    await expect(cards.nth(1)).toHaveAttribute('data-current', 'true', { timeout: 15_000 });
+    expect(await pickEdge('32 mm'), 'the change is back').toBe(true);
+
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Undo' }).click();
     await page.keyboard.press('Escape');
     expect(await pickEdge('20 mm'), 'back to 20 mm').toBe(true);
@@ -398,7 +430,7 @@ test('the user\'s Claude Code builds a part in SolidCraft through the gate proxy
       .getByRole('textbox', { name: 'Message to the assistant' })
       .fill('Build a 20 x 20 x 10 mm box as a new body (sketch a square on the XY plane, extrude it 10 mm). Then report its volume in mm³.');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByTestId('tool-call').first()).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByTestId('tool-queries').or(page.getByTestId('step-card')).first()).toBeVisible({ timeout: 120_000 });
     await expect(page.getByRole('button', { name: 'Stop' })).toBeHidden({ timeout: 300_000 });
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
     await expect(page.getByTestId('assistant-text').last()).toContainText(/4[ .,]?000/);
@@ -441,7 +473,7 @@ test('ChatGPT builds a part in SolidCraft with the user\'s plan', async () => {
       .getByRole('textbox', { name: 'Message to the assistant' })
       .fill('Build a 20 x 20 x 10 mm box as a new body (sketch a square on the XY plane, extrude it 10 mm). Then report its volume in mm³.');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByTestId('tool-call').first()).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByTestId('tool-queries').or(page.getByTestId('step-card')).first()).toBeVisible({ timeout: 120_000 });
     await expect(page.getByRole('button', { name: 'Stop' })).toBeHidden({ timeout: 300_000 });
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
     await expect(page.getByTestId('assistant-text').last()).toContainText(/4[ .,]?000/);

@@ -90,6 +90,9 @@ interface StudioState {
   /** Everything selected, in picking order (Ctrl- or Shift-click adds and removes, M1b-2). */
   selections: Pick[];
   changes: LiveChanges | null;
+  /** Faces of the work-log step under the pointer (M2a), by body and face name. */
+  stepHighlight: { body: string; faces: string[] }[] | null;
+  setStepHighlight: (highlight: { body: string; faces: string[] }[] | null) => void;
   followChanges: boolean;
   latency: MirrorLatency | null;
   setConnection: (status: ConnectionStatus) => void;
@@ -130,6 +133,10 @@ export const useStudio = create<StudioState>()((set) => ({
   selection: null,
   selections: [],
   changes: null,
+  stepHighlight: null,
+  setStepHighlight: (stepHighlight) => {
+    set({ stepHighlight });
+  },
   followChanges: false,
   latency: null,
   setConnection: (connection) => {

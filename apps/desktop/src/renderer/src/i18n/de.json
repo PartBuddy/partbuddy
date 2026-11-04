@@ -167,7 +167,25 @@
     "withSelection": "Mit Auswahl {face}",
     "selectionGoesWith": "{kind, select, face {Ausgewählte Fläche} edge {Ausgewählte Kante} other {Ausgewählte Ecke}} geht mit: {name}",
     "selectionsGoWith": "{count} Elemente gehen mit:",
-    "removeSelection": "{name} aus der Auswahl nehmen"
+    "removeSelection": "{name} aus der Auswahl nehmen",
+    "queries": "{count, plural, one {# Abfrage an SolidCraft} other {# Abfragen an SolidCraft}}",
+    "queriesRunning": "{count, plural, one {# Abfrage an SolidCraft} other {# Abfragen an SolidCraft}} · läuft",
+    "step": {
+      "label": "Schritt: {text}",
+      "byYou": "Von dir",
+      "byAssistant": "Assistent",
+      "current": "aktueller Stand",
+      "more": "{count, plural, one {und # weitere} other {und # weitere}}",
+      "details": "{count, plural, one {Werkzeugdetails} other {Werkzeugdetails (#)}}",
+      "goTo": "Zurück zu diesem Stand",
+      "restore": "Diesen Stand wiederherstellen",
+      "goToFailed": "PartBuddy konnte nicht zu diesem Stand zurück.",
+      "state": {
+        "applied": "angewendet",
+        "undone": "rückgängig gemacht",
+        "discarded": "durch spätere Änderungen ersetzt"
+      }
+    }
   },
   "live": {
     "step": "Schritt {number} · {label}",

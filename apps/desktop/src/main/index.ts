@@ -12,6 +12,8 @@ import { Assistant } from './agents/assistant';
 import { SolidCraftTools } from './agents/solidcraftTools';
 import type { UpstreamTools } from './agents/gateProxy';
 import { withViewTool } from './agents/viewContext';
+import { WorkLog } from './agents/workLog';
+import { describeUserAction } from '../shared/stepPhrases';
 import { ChatGptAccount } from './chatgpt/account';
 import { ChatGptAgent } from './chatgpt/chatgptAgent';
 import { hostId } from './chatgpt/oauth';
@@ -147,6 +149,8 @@ if (!app.requestSingleInstanceLock()) {
     // PARTBUDDY_PROJECTS_DIR: tests keep the user's documents untouched.
     const projects = process.env.PARTBUDDY_PROJECTS_DIR ?? join(app.getPath('documents'), 'PartBuddy');
     mkdirSync(projects, { recursive: true });
+    // The work log of the conversation (M2a); made once the supervisor exists.
+    let workLog: WorkLog | null = null;
     const supervisor = new SolidCraftSupervisor(
       {
         environment: systemEnvironment,
@@ -165,6 +169,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         revision: (revision) => {
           bridge.emit(mainWindow?.webContents ?? null, eventChannels.mirrorRevision, revision);
+          workLog?.observe({ documentId: revision.documentId, revision: revision.revision, ...revision.history });
         },
       },
     );
@@ -197,10 +202,19 @@ if (!app.requestSingleInstanceLock()) {
       viewState = state;
       return undefined;
     });
+    const emitEvent = (event: AgentEvent) => {
+      bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentEvent, event);
+    };
+    const steps = new WorkLog({
+      history: () => supervisor.history(),
+      travel: (command, count) => supervisor.travel(command, count),
+      emit: emitEvent,
+    });
+    workLog = steps;
     let toolsCache: { port: number; tools: UpstreamTools; close(): Promise<void> } | null = null;
     const tools = async () => {
       const headless = supervisor.headlessTools();
-      if (headless) return withViewTool(headless, () => viewState);
+      if (headless) return steps.tools(withViewTool(headless, () => viewState));
       const port = supervisor.connectedPort();
       const executable = findExecutable(systemEnvironment);
       if (port === null || !executable) return null;
@@ -208,12 +222,9 @@ if (!app.requestSingleInstanceLock()) {
         await toolsCache?.close();
         const next = new SolidCraftTools({ solidcraftExe: executable, port, allowPath: projects, env: process.env });
         await next.connect();
-        toolsCache = { port, tools: withViewTool(next, () => viewState), close: () => next.close() };
+        toolsCache = { port, tools: steps.tools(withViewTool(next, () => viewState)), close: () => next.close() };
       }
       return toolsCache.tools;
-    };
-    const emitEvent = (event: AgentEvent) => {
-      bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentEvent, event);
     };
     let assistant: Assistant | null = null;
     const changed = () => assistant?.changed();
@@ -259,7 +270,7 @@ if (!app.requestSingleInstanceLock()) {
       return agent.state();
     });
     bridge.handle(invokeChannels.agentSend, async ({ text, selections }) => {
-      await agent.send(text, selections);
+      await agent.send(text, selections, steps.takeNote());
       return undefined;
     });
     bridge.handle(invokeChannels.agentStop, async () => {
@@ -283,12 +294,12 @@ if (!app.requestSingleInstanceLock()) {
     };
     bridge.handle(invokeChannels.designUndo, async () => {
       assistantIdle();
-      await supervisor.undo();
+      await steps.userHistory('undo', () => supervisor.undo());
       return undefined;
     });
     bridge.handle(invokeChannels.designRedo, async () => {
       assistantIdle();
-      await supervisor.redo();
+      await steps.userHistory('redo', () => supervisor.redo());
       return undefined;
     });
     bridge.handle(invokeChannels.designExport, async ({ format }) => {
@@ -304,9 +315,9 @@ if (!app.requestSingleInstanceLock()) {
       assistantIdle();
       return supervisor.probeDimension(target, current, value);
     });
-    bridge.handle(invokeChannels.designApplyDimension, async ({ parameter, value, factor }) => {
+    bridge.handle(invokeChannels.designApplyDimension, async ({ parameter, value, factor, label }) => {
       assistantIdle();
-      await supervisor.applyDimension(parameter, value, factor);
+      await steps.recordUser(describeUserAction({ kind: 'dimension', parameter: label ?? parameter, value: value * factor }), () => supervisor.applyDimension(parameter, value, factor));
       log('changed a dimension directly');
       return undefined;
     });
@@ -316,14 +327,31 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.designApplyAction, async (action) => {
       assistantIdle();
-      await supervisor.applyAction(action);
+      const phrase = describeUserAction({
+        kind: 'action',
+        action: action.action,
+        size: action.size,
+        count: action.points.length,
+        depth: action.action === 'hole' ? action.depth : undefined,
+      });
+      await steps.recordUser(phrase, () => supervisor.applyAction(action));
       log(`applied ${action.action} directly`);
       return undefined;
     });
     bridge.handle(invokeChannels.designMeasure, ({ items }) => supervisor.measure(items));
     bridge.handle(invokeChannels.designTimeline, async (command) => {
       assistantIdle();
-      await supervisor.timeline(command);
+      const phrase =
+        command.action === 'rollTo'
+          ? describeUserAction({ kind: 'rollTo', position: command.position })
+          : describeUserAction({ kind: 'suppress', suppressed: command.suppressed });
+      await steps.recordUser(phrase, () => supervisor.timeline(command));
+      return undefined;
+    });
+    bridge.handle(invokeChannels.designGoToStep, async ({ step }) => {
+      assistantIdle();
+      await steps.goTo(step);
+      log('went back to a step of the work log');
       return undefined;
     });
     bridge.handle(invokeChannels.designVisibility, async (command) => {
