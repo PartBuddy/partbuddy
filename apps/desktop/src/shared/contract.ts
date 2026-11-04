@@ -86,6 +86,39 @@ export const appInfoSchema = z
   })
   .strict();
 
+/** External agent (ADR 0015). Only sign-in state and plan type are shown, never account data. */
+export const agentStatusSchema = z
+  .object({
+    agent: z.literal('claude-code'),
+    state: z.enum(['checking', 'notInstalled', 'signedOut', 'ready', 'busy', 'unavailable']),
+    version: z.string().max(40).optional(),
+    method: z.string().max(40).optional(),
+    plan: z.string().max(40).optional(),
+    detail: z.string().max(500).optional(),
+  })
+  .strict();
+
+export const agentEventSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('user'), text: z.string() }).strict(),
+  z.object({ type: z.literal('textDelta'), text: z.string() }).strict(),
+  z.object({ type: z.literal('text'), text: z.string() }).strict(),
+  z
+    .object({
+      type: z.literal('tool'),
+      id: z.string(),
+      name: z.string(),
+      summary: z.string().max(2000),
+      decision: z.enum(['allowed', 'denied']),
+      reason: z.string().max(500).optional(),
+      ok: z.boolean().optional(),
+    })
+    .strict(),
+  z.object({ type: z.literal('done'), ok: z.boolean(), durationMs: z.number().nullable(), detail: z.string().nullable() }).strict(),
+  z.object({ type: z.literal('error'), message: z.string().max(500) }).strict(),
+]);
+
+export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000) }).strict();
+
 const none = z.undefined();
 
 export const invokeContract = {
@@ -94,11 +127,18 @@ export const invokeContract = {
   [invokeChannels.solidcraftRetry]: { request: none, response: none },
   [invokeChannels.solidcraftStart]: { request: none, response: none },
   [invokeChannels.mirrorCurrent]: { request: none, response: mirrorRevisionSchema.nullable() },
+  [invokeChannels.agentStatus]: { request: none, response: agentStatusSchema },
+  [invokeChannels.agentRefresh]: { request: none, response: agentStatusSchema },
+  [invokeChannels.agentSend]: { request: agentMessageSchema, response: none },
+  [invokeChannels.agentStop]: { request: none, response: none },
+  [invokeChannels.agentSignIn]: { request: none, response: none },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
   [eventChannels.solidcraftStatus]: connectionStatusSchema,
   [eventChannels.mirrorRevision]: mirrorRevisionSchema,
+  [eventChannels.agentStatus]: agentStatusSchema,
+  [eventChannels.agentEvent]: agentEventSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type FaceTableMessage = z.infer<typeof faceTableSchema>;
@@ -107,6 +147,8 @@ export type ConnectionStatus = z.infer<typeof connectionStatusSchema>;
 export type MirroredBody = z.infer<typeof mirroredBodySchema>;
 export type MirrorRevision = z.infer<typeof mirrorRevisionSchema>;
 export type AppInfo = z.infer<typeof appInfoSchema>;
+export type AgentStatus = z.infer<typeof agentStatusSchema>;
+export type AgentEvent = z.infer<typeof agentEventSchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;
 export type InvokeResponse<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['response']>;

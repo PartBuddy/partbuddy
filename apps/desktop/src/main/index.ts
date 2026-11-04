@@ -1,11 +1,15 @@
+import { mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { app, BrowserWindow, ipcMain, net, protocol, session, shell } from 'electron';
 
 import { invokeChannels, eventChannels } from '../shared/channels';
+import { AgentService } from './agents/agentService';
+import { SolidCraftTools } from './agents/solidcraftTools';
 import { Bridge, trustedSender } from './bridge';
-import { systemEnvironment } from './solidcraft/discovery';
+import { findExecutable, systemEnvironment } from './solidcraft/discovery';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
 
 app.setName('PartBuddy');
@@ -136,6 +140,54 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.mirrorCurrent, () => supervisor.currentRevision());
 
+    // SolidCraft's MCP tools for the assistant, bridged to the app the supervisor is connected to.
+    let tools: { port: number; tools: SolidCraftTools } | null = null;
+    const agent = new AgentService(
+      {
+        env: process.env,
+        home: homedir(),
+        workDir: join(app.getPath('userData'), 'agent'),
+        log,
+        tools: async () => {
+          const port = supervisor.connectedPort();
+          const executable = findExecutable(systemEnvironment);
+          if (port === null || !executable) return null;
+          if (tools?.port !== port) {
+            await tools?.tools.close();
+            const projects = join(app.getPath('documents'), 'PartBuddy');
+            mkdirSync(projects, { recursive: true });
+            const next = new SolidCraftTools({ solidcraftExe: executable, port, allowPath: projects, env: process.env });
+            await next.connect();
+            tools = { port, tools: next };
+          }
+          return tools.tools;
+        },
+      },
+      {
+        status: (status) => {
+          bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentStatus, status);
+        },
+        event: (event) => {
+          bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentEvent, event);
+        },
+      },
+    );
+    bridge.handle(invokeChannels.agentStatus, () => agent.status());
+    bridge.handle(invokeChannels.agentRefresh, () => agent.refresh());
+    bridge.handle(invokeChannels.agentSend, async ({ text }) => {
+      await agent.send(text);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.agentStop, async () => {
+      await agent.stop();
+      return undefined;
+    });
+    bridge.handle(invokeChannels.agentSignIn, () => {
+      agent.signIn();
+      return undefined;
+    });
+    void agent.refresh();
+
     mainWindow = createWindow();
     mainWindow.on('closed', () => {
       mainWindow = null;
@@ -147,9 +199,11 @@ if (!app.requestSingleInstanceLock()) {
       if (quitting) return;
       quitting = true;
       event.preventDefault();
-      void supervisor.shutdown().finally(() => {
-        app.quit();
-      });
+      void Promise.allSettled([agent.dispose(), tools?.tools.close()])
+        .then(() => supervisor.shutdown())
+        .finally(() => {
+          app.quit();
+        });
     });
   });
 

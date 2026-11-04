@@ -1,4 +1,4 @@
-import type { AppInfo, ConnectionStatus, MirrorRevision } from './contract';
+import type { AgentEvent, AgentStatus, AppInfo, ConnectionStatus, MirrorRevision } from './contract';
 
 /**
  * What the preload exposes as `window.partbuddy`. Each member is bound to one channel of the
@@ -17,5 +17,17 @@ export interface PartBuddyApi {
   mirror: {
     current(): Promise<MirrorRevision | null>;
     onRevision(listener: (revision: MirrorRevision) => void): () => void;
+  };
+  /** The user's own agent program, driven through the gate proxy (ADR 0015). */
+  agent: {
+    status(): Promise<AgentStatus>;
+    /** Check installation and sign-in again, for example after signing in. */
+    refresh(): Promise<AgentStatus>;
+    send(text: string): Promise<void>;
+    stop(): Promise<void>;
+    /** Start the agent's own sign-in flow; it opens the browser. */
+    signIn(): Promise<void>;
+    onStatus(listener: (status: AgentStatus) => void): () => void;
+    onEvent(listener: (event: AgentEvent) => void): () => void;
   };
 }

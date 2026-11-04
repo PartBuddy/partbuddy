@@ -28,6 +28,15 @@ const api: PartBuddyApi = {
     current: () => ipcRenderer.invoke(invokeChannels.mirrorCurrent),
     onRevision: (listener) => subscribe(eventChannels.mirrorRevision, listener),
   },
+  agent: {
+    status: () => ipcRenderer.invoke(invokeChannels.agentStatus),
+    refresh: () => ipcRenderer.invoke(invokeChannels.agentRefresh),
+    send: (text) => ipcRenderer.invoke(invokeChannels.agentSend, { text }),
+    stop: () => ipcRenderer.invoke(invokeChannels.agentStop),
+    signIn: () => ipcRenderer.invoke(invokeChannels.agentSignIn),
+    onStatus: (listener) => subscribe(eventChannels.agentStatus, listener),
+    onEvent: (listener) => subscribe(eventChannels.agentEvent, listener),
+  },
 };
 
 contextBridge.exposeInMainWorld('partbuddy', api);
