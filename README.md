@@ -3,9 +3,9 @@
 [![CI](https://github.com/ManuelStaggl/cad-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/ManuelStaggl/cad-studio/actions/workflows/ci.yml)
 [![Privacy scan](https://github.com/ManuelStaggl/cad-studio/actions/workflows/privacy.yml/badge.svg)](https://github.com/ManuelStaggl/cad-studio/actions/workflows/privacy.yml)
 [![Security checks](https://github.com/ManuelStaggl/cad-studio/actions/workflows/security.yml/badge.svg)](https://github.com/ManuelStaggl/cad-studio/actions/workflows/security.yml)
-![Licence: proprietary](https://img.shields.io/badge/licence-proprietary-6a727c)
+[![Licence: GPL-3.0-or-later](https://img.shields.io/badge/licence-GPL--3.0--or--later-355f8c)](LICENSE)
 
-Desktop app for AI-assisted parametric design of FDM 3D-print parts. An assistant builds the part
+Free desktop app for AI-assisted parametric design of FDM 3D-print parts. An assistant builds the part
 step by step in the SolidCraft CAD kernel while CAD-Studio mirrors every step in its own 3D view.
 Notes pinned to faces, edges and features become context for the assistant; clarifying questions
 arrive as cards with options and a recommendation; every part carries honest verification levels
@@ -22,7 +22,7 @@ Phase 1 (research, concept, click dummy, repository) is complete; no product cod
 
 | Area | State |
 | --- | --- |
-| Research and decisions | [Research](docs/research.md), [building blocks](docs/building-blocks.md), [ADRs](docs/adr/) (0001 and 0009 accepted, the others proposed) |
+| Research and decisions | [Research](docs/research.md), [building blocks](docs/building-blocks.md), [ADRs](docs/adr/) (accepted except 0003, the folder structure) |
 | Concept | [Architecture](docs/architecture.md), [design system](docs/design-system.md), [feature catalogue](docs/feature-catalog.md) |
 | Click dummy | [`prototypes/clickdummy`](prototypes/clickdummy): main view with mock data, real sample geometry |
 | Repository | CI, privacy and security checks, release automation; [GitHub setup](docs/github-setup.md) pending |
@@ -61,5 +61,15 @@ created and again in CI ([ADR 0009](docs/adr/0009-privacy-guardrails.md)).
 
 ## Licence
 
-Proprietary, all rights reserved ([LICENSE](LICENSE)). Third-party components and their licences are
-listed in [building blocks](docs/building-blocks.md).
+Copyright (C) 2026 ManuelStaggl and contributors.
+
+CAD-Studio is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version. It is distributed in the hope that it will be
+useful, but WITHOUT ANY WARRANTY; see [LICENSE](LICENSE) for details. Third-party components and
+their licences are listed in [building blocks](docs/building-blocks.md).
+
+## Support
+
+CAD-Studio is free and stays free. If it helps you, you can support its development through
+[GitHub Sponsors](https://github.com/sponsors/ManuelStaggl). Donations buy no features or priority.

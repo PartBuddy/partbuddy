@@ -44,6 +44,12 @@ git config commit.gpgsign true
    linear history (rebase merge).
 5. Releases and `CHANGELOG.md` are produced by release-please from the commit history.
 
+## Licence of contributions
+
+CAD-Studio is free software under GPL-3.0-or-later ([ADR 0007](docs/adr/0007-licensing-model.md)).
+Contributions are accepted under the same licence. External contributors sign off each commit
+(`git commit -s`) to confirm the [Developer Certificate of Origin](https://developercertificate.org/).
+
 ## Rules for content
 
 - Code, identifiers, commits and documentation are written in English. The user interface is
@@ -51,6 +57,6 @@ git config commit.gpgsign true
 - Never commit personal data, absolute local paths, secrets, `.env` files, build output or
   generated print and render files. Test geometry is synthetic (`tools/fixtures/`).
 - Content taken over from other sources is recorded in `docs/provenance.md`.
-- New dependencies: exact version, licence checked for commercial distribution, entry in
+- New dependencies: exact version, licence compatible with GPL-3.0-or-later (licence gate), entry in
   `docs/building-blocks.md`. Own implementations of components need an ADR in `docs/adr/`.
 - UI code uses design tokens only (`packages/design-tokens`), no literal colours or spacings.

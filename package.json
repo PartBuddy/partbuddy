@@ -2,7 +2,7 @@
   "name": "cad-studio",
   "private": true,
   "description": "Desktop app for AI-assisted parametric design of FDM 3D-print parts",
-  "license": "UNLICENSED",
+  "license": "GPL-3.0-or-later",
   "packageManager": "pnpm@12.16.1",
   "devEngines": {
     "runtime": {
