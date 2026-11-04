@@ -1,0 +1,89 @@
+# Feature catalogue
+
+Features ordered by MoSCoW. **MVP** marks the proposed first release; the cut is confirmed by the
+product owner. Existing workflows of the earlier CAD workspace come first: the product makes them
+usable without a terminal. Sources of the patterns: [research § Role models](research.md#6-role-models-competitors-and-names).
+
+Verification levels used throughout the product (from the earlier workspace, rewritten):
+
+| Level | Meaning | Proof |
+| --- | --- | --- |
+| R | Researched: statement from sources, not checked by the app | source reference |
+| L | Created: file, script or model exists | path, commit |
+| TG | Technically checked: automatic checks passed (sketches fully constrained, timeline without errors, volume against expectation, mesh closed) | check report |
+| SC | Executed in SolidCraft: built live, saved, screenshot | design file, image, report |
+| SL | Checked in the slicer: loads without repair, slice check passed | slice report |
+| PD | Confirmed by print: printed, measured, function tested | measurement record (n entries) |
+
+A level is shown only when its proof exists; higher levels never replace lower ones.
+
+## Must
+
+| Feature | Benefit | MVP |
+| --- | --- | --- |
+| Project overview with status, next step and verification levels per part | Resume work without reading files; replaces the status script | MVP |
+| Live 3D view mirrored after every SolidCraft step, with "rebuilding" state | The user sees what the assistant does; the core idea of the product | MVP |
+| Face and edge picking with hover highlight and the SolidCraft face name | Precise references for notes and requests | MVP |
+| Notes on faces, edges, features and free points (anchored by name, see ADR 0006) | Context for AI requests ("this edge R2 instead of R1") | MVP |
+| Chat with streaming answers, tool-call display and clarification cards (options, recommendation, reason) | The bundled question round of the earlier workflow, as UI | MVP |
+| Provider manager: Anthropic, OpenAI, Gemini, GLM, DeepSeek, Mistral, OpenRouter, any OpenAI-compatible endpoint, Strata, Ollama, LM Studio, llama.cpp, vLLM; connection test; model per chat | Free model choice; local models for privacy | MVP |
+| Status display for local servers (reachable, model loaded, context size, tool calling yes/no) | Explains slow or failing local runs | MVP |
+| Timeline panel with feature names, errors and rollback position | Same mental model as Onshape and Fusion | MVP |
+| Parameter panel with nominal value and print compensation as separate fields, ranges and sliders; range check before applying | Keeps the separation of nominal size and compensation; avoids failed rebuilds | MVP |
+| Check panel: timeline check (TC rules), mesh check, overhang findings as a list | Honest status before printing | MVP |
+| One-click print package through OrcaSlicer with the print gate (findings need a solution with proof) | The existing gate workflow without a terminal | MVP |
+| Checkpoints and undo per assistant step | Trust: every step can be reverted | MVP |
+| Connection states: SolidCraft not running, local server unreachable, model without tool calling, offline | No silent failures | MVP |
+| API keys only in the Windows credential store (DPAPI) | Security requirement | MVP |
+| German and English UI | Target market | MVP |
+| Signed installer and auto-update | Commercial distribution | MVP |
+
+## Should
+
+| Feature | Benefit |
+| --- | --- |
+| Overhang and wall-thickness overlay in the viewer (from the overhang and mesh tools) | Problems are visible where they are, not only as a list |
+| Measure tool (point to point, face to face, radius) and section view | Standard CAD inspection |
+| Print feedback form following the `pd.csv` structure (feature, result, measured value, nominal, tool) | Feeds the PD level and calibration without spreadsheets |
+| Calibration overview with validity key (printer, nozzle, material, profile …) and proposals, never automatic changes | Keeps calibration honest |
+| Command palette (Ctrl+K) with commands, settings and assistant actions | Fast keyboard work, as in Zoo and Plasticity |
+| Editable plan before the assistant builds (approve, change, reject) | Control over larger changes, as in Cursor |
+| Per-tool permissions (always, ask, never) | Safety with weaker local models |
+| Chat history with search across projects | Find earlier decisions |
+| Cost and token display per chat and provider | Transparency with own API keys |
+| Version comparison as geometric diff (added, removed, moved faces) | Review changes between part versions |
+| Photo overlay with SolidCraft `compare_picture` | Check outlines against a photo of the real object |
+| First-run setup that detects SolidCraft, OrcaSlicer and Blender and guides installation | External tools stay customer-installed (ADR 0007) |
+
+## Could
+
+| Feature | Benefit |
+| --- | --- |
+| Render gallery with Blender studio renders | Presentation images without leaving the app |
+| Exploded view and joint animation for assemblies | Understand moving and multi-part designs |
+| Parameter cards in the 3D view (as Shapr3D) | Edit a value where it acts |
+| Photo markup for measuring instructions (where to measure, with which tool) | Better input for unknown functional dimensions |
+| Knowledge panel: rules with IDs behind each recommendation | Explains why the assistant suggests something |
+| Export snapshot as glTF with face IDs | Share a view state |
+| Local-only mode switch that disables every cloud provider | Strong privacy promise |
+
+## Won't (for now)
+
+| Feature | Reason |
+| --- | --- |
+| Own CAD kernel | SolidCraft is the kernel (ADR 0004) |
+| Bundling SolidCraft, OrcaSlicer or Blender | Licence and CRA obligations (ADR 0007) |
+| Sign-in with Claude consumer plans | Not allowed by Anthropic for third-party apps |
+| Cloud sync and team features | Not needed for the first market; privacy first |
+| macOS and Linux builds | Windows first; the stack keeps them possible (ADR 0002) |
+
+## Own ideas and why
+
+* **Verification badges everywhere a part appears** (list, viewer header, print package): the
+  earlier workflow's strongest quality rule becomes visible instead of hidden in reports.
+* **Anchor health in the notes list** (attached, moved, ambiguous, orphaned): users see when a
+  rebuild changed what a note refers to.
+* **Model capability hints in the provider menu** (tool calling, images, context size, local): the
+  user picks a model that can do the job before a run fails.
+* **"Follow the assistant" camera** that frames each changed feature after a step: makes live
+  building understandable without manual navigation.
