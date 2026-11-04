@@ -1,10 +1,14 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 import { createActor, fromCallback, fromPromise } from 'xstate';
 
 import type { ConnectionStatus, MirrorRevision } from '../../shared/contract';
+import type { UpstreamTools } from '../agents/gateProxy';
 import { ControlClient, ControlError } from './controlClient';
 import { endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
+import { DesignStore, HeadlessEngine } from './headless';
 import { supervisorMachine, type DiscoveryResult, type SupervisorActor, type SupervisorEvent } from './machine';
 import { mirrorActiveDesign, MirrorScheduler } from './mirror';
 
@@ -18,6 +22,18 @@ export interface SupervisorOptions {
   cacheDir: string;
   /** How long a started SolidCraft may take to open its control channel. */
   startTimeoutMs?: number;
+  /**
+   * What PartBuddy starts when no SolidCraft runs: the engine without a window (default in the
+   * app, ADR 0016) or the SolidCraft window with its control channel. A window the user opened
+   * is always used as it is.
+   */
+  launchMode?: 'headless' | 'window';
+  /** Where the headless design is kept between runs. */
+  designsDir?: string;
+  /** Folders the headless engine may read and write besides the cache and the designs folder. */
+  allowPaths?: string[];
+  /** Quiet time after a change before the headless design is saved. */
+  autosaveDelayMs?: number;
   log(message: string): void;
 }
 
@@ -37,6 +53,10 @@ export class SolidCraftSupervisor {
   private readonly actor: SupervisorActor;
   private client: ControlClient | null = null;
   private child: ChildProcess | null = null;
+  private engine: HeadlessEngine | null = null;
+  private autosaveTimer: NodeJS.Timeout | null = null;
+  private autosaving: Promise<void> = Promise.resolve();
+  private readonly designs: DesignStore | null;
   private mirrorState: Mirror = 'idle';
   private mirrorDetail: string | null = null;
   private latest: MirrorRevision | null = null;
@@ -46,8 +66,10 @@ export class SolidCraftSupervisor {
     private readonly options: SupervisorOptions,
     private readonly listeners: SupervisorListeners,
   ) {
+    this.designs = options.designsDir ? new DesignStore(options.designsDir) : null;
     this.scheduler = new MirrorScheduler(
       () => {
+        if (this.engine?.isOpen) return mirrorActiveDesign(this.engine.requester, options.cacheDir);
         const client = this.client;
         if (!client?.isOpen) return Promise.reject(new Error('not connected'));
         return mirrorActiveDesign(client, options.cacheDir);
@@ -59,6 +81,7 @@ export class SolidCraftSupervisor {
         delivered: (revision) => {
           this.latest = revision;
           this.listeners.revision(revision);
+          this.scheduleAutosave();
         },
         failed: (error) => {
           this.options.log(`mirror failed: ${error.message}`);
@@ -97,10 +120,15 @@ export class SolidCraftSupervisor {
     this.actor.send({ type: 'START' });
   }
 
-  /** Control port of the connected SolidCraft, for tools that bridge to the same app. */
+  /** Control port of the connected SolidCraft window, for tools that bridge to the same app. */
   connectedPort(): number | null {
     const snapshot = this.actor.getSnapshot();
     return snapshot.value === 'connected' ? (snapshot.context.endpoint?.port ?? null) : null;
+  }
+
+  /** SolidCraft's tools on the headless engine, while it is connected; null with a window. */
+  headlessTools(): UpstreamTools | null {
+    return this.actor.getSnapshot().value === 'connected' && this.engine?.isOpen ? this.engine.tools : null;
   }
 
   currentRevision(): MirrorRevision | null {
@@ -113,6 +141,7 @@ export class SolidCraftSupervisor {
     // Nested states (starting.launching, starting.waiting) report as their parent.
     const state = typeof snapshot.value === 'string' ? snapshot.value : 'starting';
     const status: ConnectionStatus = { state, owned: context.owned, mirror: this.mirrorState };
+    if (state === 'connected') status.engine = this.engine?.isOpen ? 'headless' : 'window';
     if (context.endpoint) status.port = context.endpoint.port;
     if (context.documentId !== null) status.documentId = context.documentId;
     if (context.revision !== null) status.revision = context.revision;
@@ -128,7 +157,19 @@ export class SolidCraftSupervisor {
   async shutdown(): Promise<void> {
     const client = this.client;
     const owned = this.actor.getSnapshot().context.owned;
+    const engine = this.engine;
     this.actor.stop();
+    if (engine) {
+      // Keep the last change: save now instead of after the quiet time.
+      if (this.autosaveTimer) {
+        clearTimeout(this.autosaveTimer);
+        this.autosaveTimer = null;
+        await this.autosave();
+      }
+      await this.autosaving;
+      await engine.close();
+      this.engine = null;
+    }
     if (client?.isOpen && owned) {
       try {
         await client.request('app.quit', {}, 5000);
@@ -160,9 +201,59 @@ export class SolidCraftSupervisor {
     return { kind: 'notRunning' };
   }
 
-  private launch(): Promise<{ launchedAt: number }> {
+  private async launchHeadless(executable: string): Promise<{ launchedAt: number; headless: boolean }> {
+    const launchedAt = Date.now();
+    const cli = join(dirname(executable), process.platform === 'win32' ? 'solidcraft-cli.exe' : 'solidcraft-cli');
+    if (!existsSync(cli)) throw new Error('SolidCraft is installed without solidcraft-cli');
+    const allowPaths = [this.options.cacheDir, ...(this.options.allowPaths ?? [])];
+    if (this.designs) allowPaths.push(this.designs.folder);
+    const design = this.designs?.last();
+    const start = (file: string | undefined) => HeadlessEngine.start({ cli, allowPaths, design: file, env: this.options.environment.env });
+    let engine: HeadlessEngine;
+    try {
+      engine = await start(design);
+    } catch (error) {
+      if (!design) throw new Error(`SolidCraft (headless) could not be started: ${(error as Error).message}`, { cause: error });
+      // The saved design did not open (moved, damaged, newer format): start empty, keep the file.
+      this.options.log(`the last design did not open (${(error as Error).message}); starting a new one`);
+      this.designs?.forget();
+      engine = await start(undefined);
+    }
+    this.engine = engine;
+    this.options.log(`started SolidCraft headless${design ? ' with the last design' : ''}`);
+    return { launchedAt, headless: true };
+  }
+
+  private scheduleAutosave(): void {
+    if (!this.engine?.isOpen || !this.designs) return;
+    if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
+    this.autosaveTimer = setTimeout(() => {
+      this.autosaveTimer = null;
+      void this.autosave();
+    }, this.options.autosaveDelayMs ?? 1500);
+  }
+
+  /** Saves the headless design under its name in the designs folder and notes it for the next start. */
+  private autosave(): Promise<void> {
+    const engine = this.engine;
+    const designs = this.designs;
+    if (!engine?.isOpen || !designs) return this.autosaving;
+    const file = designs.fileFor(this.latest?.designName ?? '');
+    this.autosaving = this.autosaving
+      .then(() => engine.save(file))
+      .then(() => {
+        designs.remember(file);
+      })
+      .catch((error: unknown) => {
+        this.options.log(`autosave failed: ${(error as Error).message}`);
+      });
+    return this.autosaving;
+  }
+
+  private launch(): Promise<{ launchedAt: number; headless: boolean }> {
     const executable = findExecutable(this.options.environment);
     if (!executable) return Promise.reject(new Error('SolidCraft is not installed'));
+    if ((this.options.launchMode ?? 'window') === 'headless') return this.launchHeadless(executable);
     const launchedAt = Date.now();
     return new Promise((resolve, reject) => {
       // Argument array, no shell (architecture: security boundaries).
@@ -177,7 +268,7 @@ export class SolidCraftSupervisor {
       child.once('spawn', () => {
         this.child = child;
         this.options.log(`started SolidCraft (pid ${child.pid ?? '?'}) on port ${this.options.launchPort}`);
-        resolve({ launchedAt });
+        resolve({ launchedAt, headless: false });
       });
       child.once('exit', (code) => {
         this.options.log(`SolidCraft exited with code ${code ?? 'null'}`);
@@ -200,7 +291,15 @@ export class SolidCraftSupervisor {
     throw new Error('SolidCraft did not open its control channel in time');
   }
 
-  private async connect(endpoint: ControlEndpoint): Promise<{ documentId: string; revision: number }> {
+  private async connect(endpoint: ControlEndpoint | null): Promise<{ documentId: string; revision: number }> {
+    if (!endpoint) {
+      const engine = this.engine;
+      if (!engine?.isOpen) throw new Error('SolidCraft (headless) is not running');
+      const { documentId, revision } = await engine.revision();
+      this.options.log('connected to SolidCraft headless');
+      return { documentId, revision };
+    }
+    this.engine = null;
     this.client?.close();
     const client = await ControlClient.open({ port: endpoint.port, token: endpoint.token });
     try {
@@ -218,6 +317,24 @@ export class SolidCraftSupervisor {
   }
 
   private watchSession(sendBack: (event: SupervisorEvent) => void): () => void {
+    const engine = this.engine;
+    if (engine?.isOpen) {
+      const { documentId, revision } = this.actor.getSnapshot().context;
+      if (documentId !== null && revision !== null) this.scheduler.request({ documentId, revision });
+      const offChange = engine.onChange((next) => {
+        sendBack({ type: 'REVISION', documentId: next.documentId, revision: next.revision });
+        this.scheduler.request(next);
+      });
+      const offClose = engine.onClose((reason) => {
+        this.engine = null;
+        this.scheduler.reset();
+        sendBack({ type: 'LOST', reason });
+      });
+      return () => {
+        offChange();
+        offClose();
+      };
+    }
     const client = this.client;
     if (!client) {
       sendBack({ type: 'LOST', reason: 'no connection' });

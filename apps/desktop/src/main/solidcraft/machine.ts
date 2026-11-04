@@ -51,9 +51,10 @@ export const supervisorMachine = setup({
   },
   actors: {
     discover: fromPromise<DiscoveryResult>(notProvided('discover')),
-    launch: fromPromise<{ launchedAt: number }>(notProvided('launch')),
+    launch: fromPromise<{ launchedAt: number; headless: boolean }>(notProvided('launch')),
     waitForApp: fromPromise<ControlEndpoint, { launchedAt: number }>(notProvided('waitForApp')),
-    connect: fromPromise<Session, { endpoint: ControlEndpoint }>(notProvided('connect')),
+    // No endpoint: the headless engine PartBuddy started (ADR 0016).
+    connect: fromPromise<Session, { endpoint: ControlEndpoint | null }>(notProvided('connect')),
     session: fromCallback<SupervisorEvent>(notProvided('session')),
   },
   delays: {
@@ -64,6 +65,7 @@ export const supervisorMachine = setup({
     isRunning: (_, result: DiscoveryResult) => result.kind === 'running',
     isNotInstalled: (_, result: DiscoveryResult) => result.kind === 'notInstalled',
     shouldStart: ({ context }) => context.autoStart,
+    isHeadless: (_, output: { headless: boolean }) => output.headless,
   },
 }).createMachine({
   id: 'solidcraft',
@@ -114,10 +116,18 @@ export const supervisorMachine = setup({
         launching: {
           invoke: {
             src: 'launch',
-            onDone: {
-              target: 'waiting',
-              actions: assign({ owned: true, launchedAt: ({ event }) => event.output.launchedAt }),
-            },
+            onDone: [
+              {
+                // The headless engine is ready once it answers; there is no control file to wait for.
+                guard: { type: 'isHeadless', params: ({ event }) => event.output },
+                target: '#solidcraft.connecting',
+                actions: assign({ owned: true, endpoint: null, launchedAt: ({ event }) => event.output.launchedAt }),
+              },
+              {
+                target: 'waiting',
+                actions: assign({ owned: true, launchedAt: ({ event }) => event.output.launchedAt }),
+              },
+            ],
             onError: {
               target: '#solidcraft.failed',
               actions: assign({ detail: ({ event }) => errorText(event.error) }),
@@ -143,10 +153,7 @@ export const supervisorMachine = setup({
     connecting: {
       invoke: {
         src: 'connect',
-        input: ({ context }) => {
-          if (!context.endpoint) throw new Error('no endpoint to connect to');
-          return { endpoint: context.endpoint };
-        },
+        input: ({ context }) => ({ endpoint: context.endpoint }),
         onDone: {
           target: 'connected',
           actions: assign({

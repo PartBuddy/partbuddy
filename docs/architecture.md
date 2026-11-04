@@ -32,7 +32,7 @@ flowchart LR
     Providers["Provider adapters<br/>Vercel AI SDK + provider packages"]:::buy
     PM["Provider manager<br/>detection, capabilities (ADR 0011)"]:::own
     MCP["MCP client<br/>@modelcontextprotocol/client"]:::buy
-    SCS["SolidCraft supervisor<br/>control-port subscription"]:::own
+    SCS["SolidCraft supervisor<br/>headless engine (MCP) or window (control port), ADR 0016"]:::own
     Store["Project store<br/>better-sqlite3 · Kysely"]:::buy
     Retrieval["Retrieval<br/>SQLite FTS5 · sqlite-vec"]:::buy
     Keys["Key store<br/>@napi-rs/keyring"]:::buy
@@ -88,7 +88,7 @@ Responsibilities:
 | Typed IPC bridge | The only channel between renderer and main, schema-validated | Generic `invoke`, pass-through of file paths outside projects |
 | Agent runtime | Steps, streaming, tool-call validation, compaction, permissions | Lets the model skip a gate |
 | Rule engine | Hooks and gates around tool calls (export → mesh check, print → gate) | Interprets free text |
-| SolidCraft supervisor | Process detection, `control.subscribe`, revision tracking, mirror requests | Model geometry itself |
+| SolidCraft supervisor | Process detection, headless engine start and autosave (ADR 0016) or `control.subscribe` to a window, revision tracking, mirror requests | Model geometry itself |
 | Sidecar | Numerical checks with tested Python libraries | Sees provider keys |
 | Gate proxy | The only SolidCraft access of external agents; tool policy on every call | Hands out SolidCraft's own MCP server or reads agent credentials |
 
@@ -120,7 +120,7 @@ sequenceDiagram
   Rules-->>Agent: allow
   Agent->>SC: MCP batch
   SC-->>Agent: Result
-  SC-->>UI: design.changed {document, revision} (via supervisor)
+  SC-->>UI: design.changed {document, revision} (window; headless: revision read after each tool call, ADR 0016)
   UI->>SC: export 3mf-tagged + model.faces (one batch, via supervisor)
   UI->>UI: Parse, derive edges, BVH, swap geometry, re-resolve anchors
   Agent->>Rules: afterTool(export)

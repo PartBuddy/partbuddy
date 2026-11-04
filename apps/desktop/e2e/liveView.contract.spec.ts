@@ -9,7 +9,8 @@ import { countViewportPixels } from './pixels';
 import { launchApp } from './launch';
 
 // Issue #14: a scripted multi-step design is followed in the view step by step, with measured
-// latency. Runs the synthetic cable clip (tools/fixtures) in an own SolidCraft instance; opt in
+// latency. Runs the synthetic cable clip (tools/fixtures) in an own SolidCraft window (driven over
+// its control channel, so PARTBUDDY_SOLIDCRAFT_WINDOW=1); opt in
 // with PARTBUDDY_E2E_SOLIDCRAFT=1.
 test.skip(process.env.PARTBUDDY_E2E_SOLIDCRAFT !== '1', 'needs SolidCraft; set PARTBUDDY_E2E_SOLIDCRAFT=1');
 
@@ -32,7 +33,7 @@ test('a scripted design is followed step by step in the view', async () => {
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-live-'));
   const renderDir = mkdtempSync(join(tmpdir(), 'partbuddy-render-'));
   const port = '7885';
-  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port } });
+  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port, PARTBUDDY_SOLIDCRAFT_WINDOW: '1' } });
   let client: ControlClient | null = null;
   try {
     const { page } = launched;
@@ -112,7 +113,7 @@ test('a sketch is visible step by step before it becomes a body', async () => {
   test.setTimeout(300_000);
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-sketch-'));
   const port = '7886';
-  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port } });
+  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port, PARTBUDDY_SOLIDCRAFT_WINDOW: '1' } });
   let client: ControlClient | null = null;
   try {
     const { page } = launched;

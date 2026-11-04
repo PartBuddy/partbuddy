@@ -44,6 +44,10 @@ SolidCraft's own face numbering and names. Per step:
    index buffer); the geometry is swapped in one step.
 6. Note anchors are re-resolved ([ADR 0006](0006-note-anchoring.md)).
 
+Headless (added 2026-11-04): without a SolidCraft window the same batch runs on the headless engine
+over MCP, and the revision is read after each tool call instead of `design.changed`
+([ADR 0016](0016-headless-solidcraft.md)).
+
 Sketches (added 2026-11-04, issue #21): steps without a body would otherwise be invisible. The
 same `batch` also runs `sketch.inspect` for the sketch being edited and every visible sketch
 (SolidCraft hides a sketch once a feature consumes it). The main process flattens the curves

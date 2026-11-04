@@ -113,12 +113,19 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     const bridge = new Bridge(ipcMain, trustedSender(() => mainWindow?.webContents.id, rendererOrigin), !app.isPackaged);
+    // The user's project folder: the only place the assistant's SolidCraft may read and write.
+    const projects = join(app.getPath('documents'), 'PartBuddy');
+    mkdirSync(projects, { recursive: true });
     const supervisor = new SolidCraftSupervisor(
       {
         environment: systemEnvironment,
         launchPort: launchPort(),
         autoStart: process.env.PARTBUDDY_SOLIDCRAFT_AUTOSTART !== '0',
         cacheDir: cacheDirectory(),
+        // SolidCraft without a window by default (ADR 0016); the window only on purpose.
+        launchMode: process.env.PARTBUDDY_SOLIDCRAFT_WINDOW === '1' ? 'window' : 'headless',
+        designsDir: join(app.getPath('userData'), 'designs'),
+        allowPaths: [projects],
         log,
       },
       {
@@ -157,13 +164,13 @@ if (!app.requestSingleInstanceLock()) {
     });
     let toolsCache: { port: number; tools: UpstreamTools; close(): Promise<void> } | null = null;
     const tools = async () => {
+      const headless = supervisor.headlessTools();
+      if (headless) return withViewTool(headless, () => viewState);
       const port = supervisor.connectedPort();
       const executable = findExecutable(systemEnvironment);
       if (port === null || !executable) return null;
       if (toolsCache?.port !== port) {
         await toolsCache?.close();
-        const projects = join(app.getPath('documents'), 'PartBuddy');
-        mkdirSync(projects, { recursive: true });
         const next = new SolidCraftTools({ solidcraftExe: executable, port, allowPath: projects, env: process.env });
         await next.connect();
         toolsCache = { port, tools: withViewTool(next, () => viewState), close: () => next.close() };

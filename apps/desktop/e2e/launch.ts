@@ -17,9 +17,11 @@ export interface LaunchedApp {
  * Starts the built app with its own control and cache folders, English UI and software WebGL
  * (SwiftShader), so the test sees only the SolidCraft it starts itself.
  */
-export async function launchApp(options: { env?: Record<string, string>; isolated?: boolean } = {}): Promise<LaunchedApp> {
+export async function launchApp(
+  options: { env?: Record<string, string>; isolated?: boolean; /** Reuse this work folder (profile, cache) and keep it on close. */ work?: string } = {},
+): Promise<LaunchedApp> {
   const isolated = options.isolated ?? true;
-  const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-'));
+  const work = options.work ?? mkdtempSync(join(tmpdir(), 'partbuddy-e2e-'));
   const controlDir = join(work, 'control');
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
@@ -50,7 +52,7 @@ export async function launchApp(options: { env?: Record<string, string>; isolate
     controlDir,
     async close() {
       await app.close();
-      rmSync(work, { recursive: true, force: true });
+      if (!options.work) rmSync(work, { recursive: true, force: true });
     },
   };
 }
