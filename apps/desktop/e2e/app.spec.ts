@@ -38,6 +38,8 @@ test('the mirrored model appears and follows design changes', async () => {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await expect(page.getByTestId('selected-face')).toHaveText(/^F\d+:/, { timeout: 1000 });
   }).toPass({ timeout: 15_000 });
+  // The selection goes with the next message to the assistant, as a short note.
+  await expect(page.getByTestId('composer-selection')).toHaveText(/Selected face goes with the message: F\d+:.* · CableClip/);
 
   solidcraft.change();
   await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 2');
@@ -129,7 +131,7 @@ test('the renderer sees only the typed bridge', async () => {
     };
   });
   expect(globals).toEqual({
-    bridge: ['agent', 'appInfo', 'mirror', 'solidcraft'],
+    bridge: ['agent', 'appInfo', 'mirror', 'solidcraft', 'viewer'],
     solidcraft: ['onStatus', 'retry', 'start', 'status'],
     require: 'undefined',
     process: 'undefined',

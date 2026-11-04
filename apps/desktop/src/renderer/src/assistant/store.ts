@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import type { AgentEvent, AgentStatus, AssistantState } from '../../../shared/contract';
 
 export type ConversationItem =
-  | { kind: 'user'; key: number; text: string }
+  | { kind: 'user'; key: number; text: string; selection?: string | undefined }
   | { kind: 'assistant'; key: number; text: string; open: boolean }
   | {
       kind: 'tool';
@@ -33,7 +33,7 @@ export function reduce(items: ConversationItem[], event: AgentEvent): Conversati
   const key = nextKey++;
   switch (event.type) {
     case 'user':
-      return [...items, { kind: 'user', key, text: event.text }];
+      return [...items, { kind: 'user', key, text: event.text, selection: event.selection }];
     case 'textDelta':
       if (last?.kind === 'assistant' && last.open) return [...items.slice(0, -1), { ...last, text: last.text + event.text }];
       return [...items, { kind: 'assistant', key, text: event.text, open: true }];

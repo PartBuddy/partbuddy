@@ -6,10 +6,12 @@ import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, ipcMain, net, protocol, session, shell } from 'electron';
 
 import { invokeChannels, eventChannels } from '../shared/channels';
-import type { AgentEvent } from '../shared/contract';
+import type { AgentEvent, ViewState } from '../shared/contract';
 import { AgentService } from './agents/agentService';
 import { Assistant } from './agents/assistant';
 import { SolidCraftTools } from './agents/solidcraftTools';
+import type { UpstreamTools } from './agents/gateProxy';
+import { withViewTool } from './agents/viewContext';
 import { ChatGptAccount } from './chatgpt/account';
 import { ChatGptAgent } from './chatgpt/chatgptAgent';
 import { hostId } from './chatgpt/oauth';
@@ -147,18 +149,24 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.mirrorCurrent, () => supervisor.currentRevision());
 
     // SolidCraft's MCP tools for the assistant, bridged to the app the supervisor is connected to.
-    let toolsCache: { port: number; tools: SolidCraftTools } | null = null;
+    // What the 3D view shows, as the renderer last reported it (for `partbuddy_view`).
+    let viewState: ViewState | null = null;
+    bridge.handle(invokeChannels.viewerState, (state) => {
+      viewState = state;
+      return undefined;
+    });
+    let toolsCache: { port: number; tools: UpstreamTools; close(): Promise<void> } | null = null;
     const tools = async () => {
       const port = supervisor.connectedPort();
       const executable = findExecutable(systemEnvironment);
       if (port === null || !executable) return null;
       if (toolsCache?.port !== port) {
-        await toolsCache?.tools.close();
+        await toolsCache?.close();
         const projects = join(app.getPath('documents'), 'PartBuddy');
         mkdirSync(projects, { recursive: true });
         const next = new SolidCraftTools({ solidcraftExe: executable, port, allowPath: projects, env: process.env });
         await next.connect();
-        toolsCache = { port, tools: next };
+        toolsCache = { port, tools: withViewTool(next, () => viewState), close: () => next.close() };
       }
       return toolsCache.tools;
     };
@@ -208,8 +216,8 @@ if (!app.requestSingleInstanceLock()) {
       await claude.allowApiBilling(allow);
       return agent.state();
     });
-    bridge.handle(invokeChannels.agentSend, async ({ text }) => {
-      await agent.send(text);
+    bridge.handle(invokeChannels.agentSend, async ({ text, selection }) => {
+      await agent.send(text, selection);
       return undefined;
     });
     bridge.handle(invokeChannels.agentStop, async () => {
@@ -237,7 +245,7 @@ if (!app.requestSingleInstanceLock()) {
       if (quitting) return;
       quitting = true;
       event.preventDefault();
-      void Promise.allSettled([agent.dispose(), toolsCache?.tools.close()])
+      void Promise.allSettled([agent.dispose(), toolsCache?.close()])
         .then(() => supervisor.shutdown())
         .finally(() => {
           app.quit();

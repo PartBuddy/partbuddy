@@ -114,6 +114,42 @@ export const appInfoSchema = z
 
 export const agentKindSchema = z.enum(['claude-code', 'chatgpt']);
 
+// Zod 4 numbers are finite by default.
+const finite = z.number();
+const point3 = z.tuple([finite, finite, finite]);
+
+/**
+ * The face the user selected in PartBuddy's view, as the assistant gets it with a message: a
+ * few words of text instead of a screenshot (decided 2026-11-04, keep token use low).
+ */
+export const faceSelectionSchema = z
+  .object({
+    body: z.string().min(1).max(200),
+    /** SolidCraft's stable face name (ADR 0004). */
+    face: z.string().min(1).max(200),
+    surface: z.enum(['plane', 'cylinder', 'other']),
+    area: finite.nonnegative(),
+    /** Where the user clicked, on the face, in mm. */
+    point: point3,
+    normal: point3,
+    radius: finite.positive().optional(),
+  })
+  .strict();
+
+/**
+ * What the user sees in PartBuddy's 3D view, reported by the renderer when it changes; the
+ * assistant reads it with the `partbuddy_view` tool.
+ */
+export const viewStateSchema = z
+  .object({
+    camera: z.object({ position: point3, target: point3 }).strict().nullable(),
+    selection: faceSelectionSchema.nullable(),
+    bodies: z.array(z.object({ name: z.string().max(200), faces: z.number().int().nonnegative() }).strict()).max(500),
+    sketches: z.array(z.object({ name: z.string().max(200), active: z.boolean() }).strict()).max(500),
+    changes: z.object({ faces: z.number().int().nonnegative(), sketchCurves: z.number().int().nonnegative() }).strict().nullable(),
+  })
+  .strict();
+
 /**
  * Assistant route (ADR 0015): the user's Claude Code, or ChatGPT plan usage in PartBuddy's own
  * loop. Shows sign-in state, plan and, for ChatGPT, the signed-in account's e-mail to the user.
@@ -135,7 +171,7 @@ export const agentStatusSchema = z
   .strict();
 
 export const agentEventSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('user'), text: z.string() }).strict(),
+  z.object({ type: z.literal('user'), text: z.string(), selection: z.string().max(400).optional() }).strict(),
   z.object({ type: z.literal('textDelta'), text: z.string() }).strict(),
   z.object({ type: z.literal('text'), text: z.string() }).strict(),
   z
@@ -153,7 +189,7 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('error'), message: z.string().max(500) }).strict(),
 ]);
 
-export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000) }).strict();
+export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000), selection: faceSelectionSchema.optional() }).strict();
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
 export const assistantStateSchema = z.object({ selected: agentKindSchema, agents: z.array(agentStatusSchema) }).strict();
@@ -174,6 +210,7 @@ export const invokeContract = {
   [invokeChannels.agentSend]: { request: agentMessageSchema, response: none },
   [invokeChannels.agentStop]: { request: none, response: none },
   [invokeChannels.agentSignIn]: { request: none, response: none },
+  [invokeChannels.viewerState]: { request: viewStateSchema, response: none },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -194,6 +231,8 @@ export type AgentKind = z.infer<typeof agentKindSchema>;
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
 export type AssistantState = z.infer<typeof assistantStateSchema>;
 export type AgentEvent = z.infer<typeof agentEventSchema>;
+export type FaceSelection = z.infer<typeof faceSelectionSchema>;
+export type ViewState = z.infer<typeof viewStateSchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;
 export type InvokeResponse<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['response']>;

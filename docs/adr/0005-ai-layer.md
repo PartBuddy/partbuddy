@@ -79,6 +79,16 @@ keys. [ADR 0015](0015-subscription-access.md) adds two routes without replacing 
   so tool permissions and gates still hold outside the model's control. Skills and the prompt
   layout of this loop do not apply there; a short role prompt is appended instead.
 
+### Update 2026-11-04: what the assistant knows about the view
+
+Decided 2026-11-04 (keep token use low): the face selected in PartBuddy's view goes with each
+message as one line in front of the user's text (`[PartBuddy: the user selected face "F1:+z" of
+body "Body1" (plane, normal …, picked at … mm)]`, about 40 tokens). The tool `partbuddy_view`,
+answered by PartBuddy itself on every route, returns the selection, the camera direction in words,
+the bodies and sketches shown and what the last step changed as compact JSON (about 100 tokens).
+The role prompt asks for screenshots only when the look of the part matters. The renderer reports
+the view state when the camera comes to rest, the selection changes or a revision arrives.
+
 ### Consequences
 
 * Good, because every provider goes through the same loop, so gates and guards apply equally.

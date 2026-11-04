@@ -2,7 +2,7 @@ import { CameraControls, GizmoHelper, GizmoViewcube, Grid, Line } from '@react-t
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
 import { IconMapPin } from '@tabler/icons-react';
 import { featureOf, SKETCH_STYLE, surfaceKind, type ViewerModel } from '@partbuddy/geometry';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box3, BufferAttribute, Mesh, Object3D, Sphere, Vector3 } from 'three';
 import { acceleratedRaycast } from 'three-mesh-bvh';
@@ -13,6 +13,8 @@ import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
 import { LiveBar } from './LiveBar';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
+import { viewStateOf, type CameraView } from './viewState';
+import { platform } from '../platform';
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 Mesh.prototype.raycast = acceleratedRaycast;
@@ -220,6 +222,48 @@ function FollowChanges() {
   return null;
 }
 
+/** Quiet time before the view is reported again, so orbiting does not flood the bridge. */
+const REPORT_DELAY_MS = 300;
+
+/**
+ * Reports what the view shows to the main process when the camera comes to rest, the selection
+ * changes or a revision arrives, for the assistant's `partbuddy_view` tool. Runs inside the
+ * canvas, where the camera controls live.
+ */
+function ViewReporter() {
+  const controls = useThree((state) => state.controls) as CameraControls | null;
+  const model = useStudio((s) => s.model);
+  const selection = useStudio((s) => s.selection);
+  const changes = useStudio((s) => s.changes);
+  const [camera, setCamera] = useState<CameraView | null>(null);
+
+  useEffect(() => {
+    if (!controls) return;
+    const read = () => {
+      const position = controls.getPosition(new Vector3());
+      const target = controls.getTarget(new Vector3());
+      setCamera({ position: position.toArray(), target: target.toArray() });
+    };
+    read();
+    controls.addEventListener('rest', read);
+    controls.addEventListener('controlend', read);
+    return () => {
+      controls.removeEventListener('rest', read);
+      controls.removeEventListener('controlend', read);
+    };
+  }, [controls]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void platform().viewer.report(viewStateOf(model, selection, changes, camera));
+    }, REPORT_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [model, selection, changes, camera]);
+  return null;
+}
+
 function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[] }) {
   const { t } = useTranslation();
   const colors = useTokenColors();
@@ -260,6 +304,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <CameraControls makeDefault />
       <FrameDesign documentId={documentId} bodies={bodies} sketches={sketches} />
       <FollowChanges />
+      <ViewReporter />
       <GizmoHelper alignment="top-right" margin={scene.gizmoMargin}>
         <GizmoViewcube
           faces={cubeFaces}

@@ -1,4 +1,4 @@
-import { IconArrowUp, IconCheck, IconPlayerStop, IconShieldX, IconTool, IconX } from '@tabler/icons-react';
+import { IconArrowUp, IconCheck, IconPlayerStop, IconPointer, IconShieldX, IconTool, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Form, TextArea, TextField, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
@@ -6,6 +6,7 @@ import { Button as AriaButton, Form, TextArea, TextField, ToggleButton, ToggleBu
 import type { AgentStatus } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
+import { faceSelectionOf } from '../viewer/viewState';
 import { Button } from '../ui/Button';
 import { Busy, StatusDot } from '../ui/Feedback';
 import { Markdown } from './Markdown';
@@ -181,7 +182,17 @@ function Item({ item }: { item: ConversationItem }) {
   const { t } = useTranslation();
   switch (item.kind) {
     case 'user':
-      return <p className="ml-6 self-end rounded-lg bg-accent-subtle px-3 py-2 text-md whitespace-pre-wrap text-text">{item.text}</p>;
+      return (
+        <div className="ml-6 flex flex-col items-end gap-1 self-end">
+          {item.selection ? (
+            <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-selection">
+              <IconPointer className="size-icon-sm" aria-hidden />
+              {t('assistant.withSelection', { face: item.selection })}
+            </span>
+          ) : null}
+          <p className="rounded-lg bg-accent-subtle px-3 py-2 text-md whitespace-pre-wrap text-text">{item.text}</p>
+        </div>
+      );
     case 'assistant':
       return (
         <div className="mr-6" data-testid="assistant-text">
@@ -237,6 +248,9 @@ export function AssistantPanel() {
   const status = selectedStatus(useAssistant((s) => s.state));
   const items = useAssistant((s) => s.items);
   const connected = useStudio((s) => s.connection.state === 'connected');
+  const model = useStudio((s) => s.model);
+  const pick = useStudio((s) => s.selection);
+  const selection = faceSelectionOf(model, pick);
   const [draft, setDraft] = useState('');
   const list = useRef<HTMLDivElement>(null);
   const busy = status.state === 'busy';
@@ -250,7 +264,7 @@ export function AssistantPanel() {
     const text = draft.trim();
     if (!text || !ready) return;
     setDraft('');
-    void platform().agent.send(text);
+    void platform().agent.send(text, selection ?? undefined);
   };
 
   return (
@@ -285,7 +299,13 @@ export function AssistantPanel() {
             }}
           />
         </TextField>
-        <div className="flex justify-end gap-2">
+        <div className="flex items-center justify-end gap-2">
+          {selection ? (
+            <span className="mr-auto flex min-w-0 items-center gap-1 truncate text-xs text-text-muted" data-testid="composer-selection">
+              <IconPointer className="size-icon-sm shrink-0" aria-hidden />
+              {t('assistant.selectionGoesWith', { face: `${selection.face} · ${selection.body}` })}
+            </span>
+          ) : null}
           {busy ? (
             <Button
               onPress={() => {

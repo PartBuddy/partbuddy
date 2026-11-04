@@ -143,7 +143,9 @@
     "needsSubscriptionTitle": "Sign in to Claude Code with your Claude subscription",
     "needsSubscriptionBody": "Claude Code is signed in with an API key, which Anthropic bills separately from your plan. By default PartBuddy uses only your Claude Pro or Max subscription: sign in with your Claude account and check again. You can also allow the API key on purpose.",
     "allowApiBilling": "Use the API key anyway (billed separately)",
-    "subscriptionOnly": "Use the subscription only"
+    "subscriptionOnly": "Use the subscription only",
+    "withSelection": "With selection {face}",
+    "selectionGoesWith": "Selected face goes with the message: {face}"
   },
   "live": {
     "step": "Step {number} · {label}",

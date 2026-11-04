@@ -24,6 +24,8 @@ const ALLOWED = new Set([
   'undo',
   'redo',
   'skill_reference',
+  // Answered by PartBuddy itself from its own view (viewContext.ts), never forwarded.
+  'partbuddy_view',
 ]);
 
 /**

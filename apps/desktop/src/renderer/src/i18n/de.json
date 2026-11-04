@@ -143,7 +143,9 @@
     "needsSubscriptionTitle": "Claude Code mit deinem Claude-Abo anmelden",
     "needsSubscriptionBody": "Claude Code ist mit einem API-Key angemeldet, den Anthropic getrennt von deinem Abo abrechnet. Standardmäßig verwendet PartBuddy nur dein Claude-Pro- oder Max-Abo: Melde dich mit deinem Claude-Konto an und prüfe erneut. Du kannst den API-Key auch bewusst freigeben.",
     "allowApiBilling": "Trotzdem mit API-Key nutzen (getrennt abgerechnet)",
-    "subscriptionOnly": "Nur Abo verwenden"
+    "subscriptionOnly": "Nur Abo verwenden",
+    "withSelection": "Mit Auswahl {face}",
+    "selectionGoesWith": "Ausgewählte Fläche geht mit: {face}"
   },
   "live": {
     "step": "Schritt {number} · {label}",
