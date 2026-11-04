@@ -1,12 +1,12 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve, sep } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { app, BrowserWindow, ipcMain, net, protocol, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } from 'electron';
 
 import { invokeChannels, eventChannels } from '../shared/channels';
-import type { AgentEvent, ViewState } from '../shared/contract';
+import type { AgentEvent, ExportFormat, ViewState } from '../shared/contract';
 import { AgentService } from './agents/agentService';
 import { Assistant } from './agents/assistant';
 import { SolidCraftTools } from './agents/solidcraftTools';
@@ -18,6 +18,7 @@ import { hostId } from './chatgpt/oauth';
 import { SecretStore } from './credentials/secretStore';
 import { Bridge, trustedSender } from './bridge';
 import { findExecutable, systemEnvironment } from './solidcraft/discovery';
+import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
 
 app.setName('PartBuddy');
@@ -42,6 +43,12 @@ function serveRenderer(request: Request): Response | Promise<Response> {
   }
   return net.fetch(pathToFileURL(file).href);
 }
+
+const EXPORT_FILTERS: Record<ExportFormat, { name: string; extensions: string[] }> = {
+  '3mf': { name: '3MF', extensions: ['3mf'] },
+  stl: { name: 'STL', extensions: ['stl'] },
+  step: { name: 'STEP', extensions: ['step', 'stp'] },
+};
 
 const devServerUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined;
 const rendererOrigin = devServerUrl ? new URL(devServerUrl).origin : `${APP_SCHEME}://${APP_HOST}`;
@@ -123,7 +130,8 @@ if (!app.requestSingleInstanceLock()) {
 
     const bridge = new Bridge(ipcMain, trustedSender(() => mainWindow?.webContents.id, rendererOrigin), !app.isPackaged);
     // The user's project folder: the only place the assistant's SolidCraft may read and write.
-    const projects = join(app.getPath('documents'), 'PartBuddy');
+    // PARTBUDDY_PROJECTS_DIR: tests keep the user's documents untouched.
+    const projects = process.env.PARTBUDDY_PROJECTS_DIR ?? join(app.getPath('documents'), 'PartBuddy');
     mkdirSync(projects, { recursive: true });
     const supervisor = new SolidCraftSupervisor(
       {
@@ -134,7 +142,7 @@ if (!app.requestSingleInstanceLock()) {
         // SolidCraft without a window by default (ADR 0016); the window only on purpose.
         launchMode: process.env.PARTBUDDY_SOLIDCRAFT_WINDOW === '1' ? 'window' : 'headless',
         designsDir: join(app.getPath('userData'), 'designs'),
-        allowPaths: [projects],
+        projectsDir: projects,
         log,
       },
       {
@@ -253,6 +261,36 @@ if (!app.requestSingleInstanceLock()) {
       return undefined;
     });
     void agent.refresh();
+
+    // The user's own actions on the design (ADR 0016). They wait while the assistant works, so
+    // the two never change the design at the same time.
+    const assistantIdle = () => {
+      if (agent.state().agents.some((status) => status.state === 'busy')) throw new Error('the assistant is working on the design');
+    };
+    bridge.handle(invokeChannels.designUndo, async () => {
+      assistantIdle();
+      await supervisor.undo();
+      return undefined;
+    });
+    bridge.handle(invokeChannels.designRedo, async () => {
+      assistantIdle();
+      await supervisor.redo();
+      return undefined;
+    });
+    bridge.handle(invokeChannels.designExport, async ({ format }) => {
+      const name = safeDesignFileName(supervisor.currentRevision()?.designName ?? '');
+      const options = { title: 'Export', defaultPath: join(projects, `${name}.${format}`), filters: [EXPORT_FILTERS[format]] };
+      const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
+      if (choice.canceled || !choice.filePath) return null;
+      await supervisor.exportDesign(format, choice.filePath);
+      log(`exported the design as ${format}`);
+      return { file: basename(choice.filePath) };
+    });
+    bridge.handle(invokeChannels.designOpenInSolidCraft, async () => {
+      assistantIdle();
+      await supervisor.openInSolidCraft();
+      return undefined;
+    });
 
     mainWindow = createWindow();
     mainWindow.on('closed', () => {

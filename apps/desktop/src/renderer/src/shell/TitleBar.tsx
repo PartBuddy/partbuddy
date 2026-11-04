@@ -6,6 +6,7 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { StatusDot, type Tone } from '../ui/Feedback';
 import { BrandMark } from './BrandMark';
+import { DesignActions } from './DesignActions';
 
 function connectionTone(status: ConnectionStatus): Tone {
   if (status.state === 'connected') return status.mirror === 'failed' ? 'warning' : status.mirror === 'rebuilding' ? 'info' : 'success';
@@ -66,6 +67,7 @@ export function TitleBar() {
           {designName}
         </span>
       </nav>
+      <DesignActions />
       <div className="ml-auto flex items-center gap-2" data-testid="connection-status" data-engine={connection.engine}>
         <StatusDot
           tone={connectionTone(connection)}

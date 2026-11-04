@@ -60,12 +60,37 @@ command and the reason, as the control channel does.
   separators). If the file does not open, PartBuddy starts with a new design and keeps the file.
   Saving moves the revision; PartBuddy records it without mirroring again.
 
+### The user's own actions (added 2026-11-04)
+
+Without the window the user had no way to export, undo or edit by hand. PartBuddy now offers these
+in its title bar; they work with both engines and wait while the assistant changes the design:
+
+* **Undo / Redo** (buttons, Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z outside text fields): `edit.undo` and
+  `edit.redo` in one `engine.batch`. `document.inspect` reports `undo` and `redo` depths; the
+  mirror passes them on, so the buttons know when there is nothing to undo.
+* **Export** as 3MF, STL or STEP: the user picks the file in the system's save dialog; SolidCraft
+  writes into the cache folder only and PartBuddy copies the file to the chosen place, so the
+  engine's allowed folders do not grow. This is the user's own export; the assistant's tools stay
+  refused until the check and export gates of [ADR 0010](0010-rule-engine-and-check-gates.md).
+* **Open in SolidCraft:** PartBuddy saves the design to the project folder (`Documents\PartBuddy`),
+  ends the engine and opens the file in the SolidCraft window (`solidcraft --control PORT FILE`),
+  which it then follows over the control channel. The user owns that window: PartBuddy does not
+  quit it on exit. When the user closes it, PartBuddy starts the engine again with that file
+  (`resume` in the supervisor machine). A design from the project folder is autosaved back to its
+  own file from then on; the note of the last design accepts paths in the designs and project
+  folders only.
+
+**Measured** with SolidCraft 0.30.1 on 2026-11-04: undo and redo move the revision and the depths;
+the export of a 20 × 20 × 10 mm box gives a binary STL with 12 triangles; the full round trip
+(open in the window, follow it, close it, run headless again with the same design) passes in the
+contract test.
+
 ### Consequences
 
 * Good, because there is one window and PartBuddy starts SolidCraft in milliseconds.
 * Good, because mirror, tools, policy and view context are the same code for both engines.
-* Bad, because the user can no longer edit in SolidCraft's own interface while PartBuddy runs it;
-  changes go through the assistant. Opening the SolidCraft window on purpose still works.
+* Bad, because the user can no longer edit in SolidCraft's own interface while PartBuddy runs it.
+  PartBuddy therefore offers the basics itself (added 2026-11-04, see "The user's own actions").
 * Bad, because the design lives in the engine process; a crash loses the changes since the last
   autosave (at most 1.5 s plus the save). After a crash PartBuddy shows "SolidCraft is not running"
   and starts the engine again on request, with the saved design.
@@ -80,6 +105,9 @@ command and the reason, as the control channel does.
   restart the saved design is open again under its name.
 * Unit tests cover the file names of the designs folder (no traversal, fallback name) and the note
   of the last design.
+* The same contract test undoes and redoes a step, exports an STL outside SolidCraft's allowed
+  folders and runs "Open in SolidCraft" there and back. Unit tests cover the handoff states of the
+  supervisor machine, undo, redo and export over the control channel, and project-folder notes.
 
 ## Pros and Cons of the Options
 

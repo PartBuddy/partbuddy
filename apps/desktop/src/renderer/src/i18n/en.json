@@ -155,5 +155,29 @@
     "clear": "Hide the change highlight",
     "follow": "Camera follows changes",
     "sketchChanged": "{count, plural, one {# sketch curve changed} other {# sketch curves changed}}"
+  },
+  "actions": {
+    "toolbar": "Design actions",
+    "undo": "Undo",
+    "redo": "Redo",
+    "export": "Export",
+    "format": {
+      "3mf": {
+        "name": "3MF",
+        "hint": "For the slicer, such as OrcaSlicer or Bambu Studio"
+      },
+      "stl": {
+        "name": "STL",
+        "hint": "For any slicer and older programs"
+      },
+      "step": {
+        "name": "STEP",
+        "hint": "For other CAD programs"
+      }
+    },
+    "exported": "Saved as {file}",
+    "openInSolidCraft": "Open in SolidCraft",
+    "openedInSolidCraft": "The design is in Documents\\PartBuddy and opens in SolidCraft. PartBuddy shows your changes there live.",
+    "failed": "That did not work: {detail}"
   }
 }

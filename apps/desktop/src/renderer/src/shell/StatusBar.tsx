@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useStudio } from '../state/store';
@@ -8,6 +9,18 @@ export function StatusBar() {
   const selection = useStudio((s) => s.selection);
   const hover = useStudio((s) => s.hover);
   const latency = useStudio((s) => s.latency);
+  const notice = useStudio((s) => s.notice);
+  const setNotice = useStudio((s) => s.setNotice);
+  // A success fades after a few seconds; an error stays until the next action.
+  useEffect(() => {
+    if (notice?.tone !== 'success') return;
+    const timer = setTimeout(() => {
+      setNotice(null);
+    }, 6000);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [notice, setNotice]);
   const number = new Intl.NumberFormat(i18n.language);
   const focus = hover ?? selection;
   const bodies = model.status === 'ready' ? model.bodies : [];
@@ -36,6 +49,9 @@ export function StatusBar() {
         <span data-testid="mirror-latency">{t('status.latency', { ms: latency.mirrorMs + latency.parseMs })}</span>
       ) : null}
       {faceName ? <span className="font-mono">{faceName}</span> : <span>{t('status.noFace')}</span>}
+      <span role="status" className={`ml-auto truncate ${notice?.tone === 'danger' ? 'text-danger' : 'text-text'}`} data-testid="notice">
+        {notice?.text}
+      </span>
     </footer>
   );
 }

@@ -18,6 +18,10 @@ export const invokeChannels = {
   agentAllowApiBilling: 'agent:allow-api-billing',
   viewerState: 'viewer:state',
   windowTitleBar: 'window:title-bar',
+  designUndo: 'design:undo',
+  designRedo: 'design:redo',
+  designExport: 'design:export',
+  designOpenInSolidCraft: 'design:open-in-solidcraft',
 } as const;
 
 export const eventChannels = {

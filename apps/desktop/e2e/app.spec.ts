@@ -1,3 +1,7 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
@@ -44,6 +48,44 @@ test('the mirrored model appears and follows design changes', async () => {
   solidcraft.change();
   await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 2');
   await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+});
+
+test('the user undoes, redoes and exports without the assistant (ADR 0016)', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.undoDepth = 1;
+  await fake.start();
+  const { page, app } = launched;
+  await page.getByRole('button', { name: 'Look again' }).click();
+  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 1');
+
+  const undo = page.getByRole('button', { name: 'Undo' });
+  const redo = page.getByRole('button', { name: 'Redo' });
+  await expect(undo).toBeEnabled();
+  await expect(redo).toBeDisabled();
+  await undo.click();
+  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 2');
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeEnabled();
+  // Ctrl+Y redoes, also from the keyboard.
+  await page.getByTestId('viewport').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Control+y');
+  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 3');
+  await expect(undo).toBeEnabled();
+
+  // The save dialog is the system's; the test answers it with a file in its own folder.
+  const target = join(mkdtempSync(join(tmpdir(), 'partbuddy-e2e-export-')), 'clip.3mf');
+  await app.evaluate(({ dialog }, filePath) => {
+    dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath });
+  }, target);
+  await page.getByRole('button', { name: 'Export' }).click();
+  await page.getByRole('menuitem', { name: /3MF/ }).click();
+  await expect(page.getByTestId('notice')).toHaveText('Saved as clip.3mf');
+  expect(readFileSync(target, 'utf8')).toBe('fake 3mf');
+  rmSync(dirname(target), { recursive: true, force: true });
+
+  // "Open in SolidCraft" exists only while PartBuddy runs SolidCraft without a window.
+  await expect(page.getByRole('button', { name: 'Open in SolidCraft' })).toHaveCount(0);
 });
 
 test('the view highlights the faces a step changed and can follow them', async () => {
@@ -150,7 +192,7 @@ test('the renderer sees only the typed bridge', async () => {
     };
   });
   expect(globals).toEqual({
-    bridge: ['agent', 'appInfo', 'mirror', 'solidcraft', 'viewer', 'window'],
+    bridge: ['agent', 'appInfo', 'design', 'mirror', 'solidcraft', 'viewer', 'window'],
     solidcraft: ['onStatus', 'retry', 'start', 'status'],
     require: 'undefined',
     process: 'undefined',

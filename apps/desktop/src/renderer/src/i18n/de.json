@@ -155,5 +155,29 @@
     "clear": "Markierung der Änderung ausblenden",
     "follow": "Kamera folgt Änderungen",
     "sketchChanged": "{count, plural, one {# Skizzenkurve geändert} other {# Skizzenkurven geändert}}"
+  },
+  "actions": {
+    "toolbar": "Design-Aktionen",
+    "undo": "Rückgängig",
+    "redo": "Wiederholen",
+    "export": "Exportieren",
+    "format": {
+      "3mf": {
+        "name": "3MF",
+        "hint": "Für den Slicer, z. B. OrcaSlicer oder Bambu Studio"
+      },
+      "stl": {
+        "name": "STL",
+        "hint": "Für jeden Slicer und ältere Programme"
+      },
+      "step": {
+        "name": "STEP",
+        "hint": "Für andere CAD-Programme"
+      }
+    },
+    "exported": "Gespeichert als {file}",
+    "openInSolidCraft": "In SolidCraft öffnen",
+    "openedInSolidCraft": "Das Design liegt in Dokumente\\PartBuddy und öffnet sich in SolidCraft. PartBuddy zeigt deine Änderungen dort live.",
+    "failed": "Das hat nicht geklappt: {detail}"
   }
 }

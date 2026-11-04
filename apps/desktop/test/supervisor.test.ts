@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -98,6 +98,53 @@ describe('SolidCraft supervisor', () => {
     expect(fake.methods.filter((method) => method === 'engine.batch')).toHaveLength(1);
   });
 
+  it('undoes and redoes the user\'s steps and mirrors the history depth (ADR 0016)', async () => {
+    const { supervisor, revisions, controlDir } = setup();
+    const fake = await startFake(controlDir);
+    fake.undoDepth = 2;
+    supervisor.start();
+    await vi.waitFor(() => expect(revisions).toHaveLength(1), { timeout: 5000 });
+    expect(revisions[0]?.history).toEqual({ undo: 2, redo: 0 });
+
+    await supervisor.undo();
+    await vi.waitFor(() => expect(revisions.at(-1)?.history).toEqual({ undo: 1, redo: 1 }), { timeout: 5000 });
+    await supervisor.redo();
+    await vi.waitFor(() => expect(revisions.at(-1)?.history).toEqual({ undo: 2, redo: 0 }), { timeout: 5000 });
+
+    fake.redoDepth = 0;
+    await expect(supervisor.redo()).rejects.toThrow(/nothing to redo/);
+  });
+
+  it('exports every body through the cache folder and copies the file to where the user saves it', async () => {
+    const { supervisor, revisions, controlDir, cacheDir } = setup();
+    const fake = await startFake(controlDir);
+    supervisor.start();
+    await vi.waitFor(() => expect(revisions).toHaveLength(1), { timeout: 5000 });
+    const target = mkdtempSync(join(tmpdir(), 'partbuddy-export-'));
+    cleanups.push(() => {
+      rmSync(target, { recursive: true, force: true });
+    });
+    const file = join(target, 'Unterordner', 'Kabelclip.stl');
+
+    await supervisor.exportDesign('stl', file);
+    expect(readFileSync(file, 'utf8')).toBe('fake stl');
+    const [written] = fake.exports.filter((entry) => entry.format === 'stl');
+    // SolidCraft only writes into the cache folder; PartBuddy copies from there and cleans up.
+    expect(written?.path.startsWith(cacheDir)).toBe(true);
+    expect(written?.bodies).toEqual(['CableClip']);
+    expect(readdirSync(cacheDir)).toEqual([]);
+  });
+
+  it('refuses to export a design without a body', async () => {
+    const { supervisor, revisions, controlDir } = setup();
+    const fake = await startFake(controlDir);
+    fake.bodies = [];
+    supervisor.start();
+    await vi.waitFor(() => expect(revisions).toHaveLength(1), { timeout: 5000 });
+    await expect(supervisor.exportDesign('3mf', join(tmpdir(), 'never.3mf'))).rejects.toThrow(/no body/);
+    expect(supervisor.canOpenInSolidCraft()).toBe(false);
+  });
+
   it('mirrors again on design.changed and coalesces bursts', async () => {
     const { supervisor, revisions, controlDir } = setup();
     const fake = await startFake(controlDir, 150);
@@ -158,7 +205,7 @@ describe('mirror scheduler', () => {
         await new Promise<void>((done) => {
           release = done;
         });
-        return { documentId: 'd', revision, designName: '', bodies: [], sketches: [], mirrorMs: 1 };
+        return { documentId: 'd', revision, designName: '', bodies: [], sketches: [], history: { undo: 0, redo: 0 }, mirrorMs: 1 };
       },
       { started: () => undefined, delivered: (r) => delivered.push(r.revision), failed: () => undefined, idle: () => undefined },
     );
