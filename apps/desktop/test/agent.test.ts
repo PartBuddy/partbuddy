@@ -144,6 +144,7 @@ describe('agent service with a fake Claude Code', () => {
       rmSync(workDir, { recursive: true, force: true });
     });
     const { upstream, calls } = fakeUpstream();
+    const billing = { allowed: false };
     const statuses: AgentStatus[] = [];
     const events: AgentEvent[] = [];
     const service = new AgentService(
@@ -155,6 +156,7 @@ describe('agent service with a fake Claude Code', () => {
         },
         home: workDir,
         workDir,
+        apiBilling: { get: () => billing.allowed, set: (allow: boolean) => (billing.allowed = allow) },
         tools: () => Promise.resolve(upstream),
         log: () => undefined,
       },
@@ -167,7 +169,7 @@ describe('agent service with a fake Claude Code', () => {
   it('shows the plan but never account data', async () => {
     const { service } = setup();
     const status = await service.refresh();
-    expect(status).toEqual({ agent: 'claude-code', state: 'ready', version: '9.9.9', method: 'claude.ai', plan: 'max' });
+    expect(status).toEqual({ agent: 'claude-code', state: 'ready', version: '9.9.9', method: 'claude.ai', plan: 'max', apiBillingAllowed: false });
     expect(JSON.stringify(status)).not.toContain('example.com');
   });
 
@@ -176,6 +178,22 @@ describe('agent service with a fake Claude Code', () => {
     expect((await service.refresh()).state).toBe('signedOut');
     await expect(service.send('hello')).rejects.toThrow(/signedOut/);
   });
+
+  it('uses Claude Code with a subscription unless the user allowed API billing', async () => {
+    const { service, events } = setup({ FAKE_CLAUDE_API_KEY: '1' });
+    const status = await service.refresh();
+    expect(status.state).toBe('needsSubscription');
+    await expect(service.send('hello')).rejects.toThrow(/needsSubscription/);
+    expect(events).toEqual([]);
+
+    // The user may allow API billing explicitly; then the session runs.
+    await service.allowApiBilling(true);
+    expect(service.status()).toMatchObject({ state: 'ready', apiBillingAllowed: true });
+    await service.send('How many bodies?');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 15_000 });
+    await service.allowApiBilling(false);
+    expect(service.status().state).toBe('needsSubscription');
+  }, 30_000);
 
   it('runs a turn through the gate proxy and streams the answer', async () => {
     const { service, events, calls, statuses } = setup();

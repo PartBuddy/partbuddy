@@ -77,7 +77,7 @@
     "title": "Assistent",
     "preview": "Vorschau",
     "plan": "{plan}-Abo",
-    "apiKey": "API-Key",
+    "apiKey": "API-Key, getrennt abgerechnet",
     "signedIn": "Claude Code {version} · {plan}",
     "state": {
       "claude-code": {
@@ -86,7 +86,8 @@
         "signedOut": "Nicht bei Claude Code angemeldet",
         "ready": "Bereit",
         "busy": "Arbeitet",
-        "unavailable": "Claude Code nicht verfügbar"
+        "unavailable": "Claude Code nicht verfügbar",
+        "needsSubscription": "Claude Code nutzt kein Claude-Abo"
       },
       "chatgpt": {
         "checking": "Warte auf die ChatGPT-Anmeldung",
@@ -94,7 +95,8 @@
         "unavailable": "ChatGPT-Plan nicht freigegeben",
         "ready": "Bereit",
         "busy": "Arbeitet",
-        "notInstalled": "Nicht verfügbar"
+        "notInstalled": "Nicht verfügbar",
+        "needsSubscription": "Nicht verfügbar"
       }
     },
     "notInstalledTitle": "Claude Code ist nicht installiert",
@@ -135,7 +137,11 @@
       "signedOutBody": "Melde dich mit deinem ChatGPT-Konto an. Anfragen zählen auf deinen Plus- oder Pro-Plan; PartBuddy hält die Anmeldung nur im Windows-Anmeldeinformationsspeicher.",
       "planDisabledTitle": "ChatGPT-Plan ist nicht freigegeben",
       "continue": "Weiter mit ChatGPT"
-    }
+    },
+    "needsSubscriptionTitle": "Claude Code mit deinem Claude-Abo anmelden",
+    "needsSubscriptionBody": "Claude Code ist mit einem API-Key angemeldet, den Anthropic getrennt von deinem Abo abrechnet. Standardmäßig verwendet PartBuddy nur dein Claude-Pro- oder Max-Abo: Melde dich mit deinem Claude-Konto an und prüfe erneut. Du kannst den API-Key auch bewusst freigeben.",
+    "allowApiBilling": "Trotzdem mit API-Key nutzen (getrennt abgerechnet)",
+    "subscriptionOnly": "Nur Abo verwenden"
   },
   "live": {
     "step": "Schritt {number} · {label}",

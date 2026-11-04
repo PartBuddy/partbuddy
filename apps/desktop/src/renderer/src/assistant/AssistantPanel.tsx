@@ -53,6 +53,16 @@ function Header() {
       </ToggleButtonGroup>
       <div className="flex items-center justify-between gap-2" data-testid="agent-status">
         <StatusDot tone={signedIn ? 'success' : status.state === 'checking' ? 'neutral' : 'warning'} label={statusLabel(t, status)} />
+        {status.agent === 'claude-code' && status.apiBillingAllowed ? (
+          <AriaButton
+            onPress={() => {
+              void platform().agent.allowApiBilling(false);
+            }}
+            className="text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+          >
+            {t('assistant.subscriptionOnly')}
+          </AriaButton>
+        ) : null}
         {status.agent === 'chatgpt' && signedIn ? (
           <AriaButton
             onPress={() => {
@@ -132,6 +142,28 @@ function Setup() {
           {t('assistant.signIn')}
         </Button>
         {refresh}
+      </Notice>
+    );
+  }
+  if (status.state === 'needsSubscription') {
+    return (
+      <Notice title={t('assistant.needsSubscriptionTitle')} body={t('assistant.needsSubscriptionBody')}>
+        <Button
+          variant="primary"
+          onPress={() => {
+            void api.signIn();
+          }}
+        >
+          {t('assistant.signIn')}
+        </Button>
+        {refresh}
+        <Button
+          onPress={() => {
+            void api.allowApiBilling(true);
+          }}
+        >
+          {t('assistant.allowApiBilling')}
+        </Button>
       </Notice>
     );
   }

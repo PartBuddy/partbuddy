@@ -77,7 +77,7 @@
     "title": "Assistant",
     "preview": "Preview",
     "plan": "{plan} subscription",
-    "apiKey": "API key",
+    "apiKey": "API key, billed separately",
     "signedIn": "Claude Code {version} · {plan}",
     "state": {
       "claude-code": {
@@ -86,7 +86,8 @@
         "signedOut": "Not signed in to Claude Code",
         "ready": "Ready",
         "busy": "Working",
-        "unavailable": "Claude Code not available"
+        "unavailable": "Claude Code not available",
+        "needsSubscription": "Claude Code is not using a Claude subscription"
       },
       "chatgpt": {
         "checking": "Waiting for the ChatGPT sign-in",
@@ -94,7 +95,8 @@
         "unavailable": "ChatGPT plan usage not allowed",
         "ready": "Ready",
         "busy": "Working",
-        "notInstalled": "Not available"
+        "notInstalled": "Not available",
+        "needsSubscription": "Not available"
       }
     },
     "notInstalledTitle": "Claude Code is not installed",
@@ -135,7 +137,11 @@
       "signedOutBody": "Sign in with your ChatGPT account. Requests count towards your ChatGPT Plus or Pro plan; PartBuddy keeps the sign-in only in the Windows credential store.",
       "planDisabledTitle": "ChatGPT plan usage is not allowed",
       "continue": "Continue with ChatGPT"
-    }
+    },
+    "needsSubscriptionTitle": "Sign in to Claude Code with your Claude subscription",
+    "needsSubscriptionBody": "Claude Code is signed in with an API key, which Anthropic bills separately from your plan. By default PartBuddy uses only your Claude Pro or Max subscription: sign in with your Claude account and check again. You can also allow the API key on purpose.",
+    "allowApiBilling": "Use the API key anyway (billed separately)",
+    "subscriptionOnly": "Use the subscription only"
   },
   "live": {
     "step": "Step {number} · {label}",
