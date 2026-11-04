@@ -42,6 +42,18 @@ through another service.
   prompt progress (`return_progress` on llama.cpp and Strata, `/slots` polling) and a visible stop
   button.
 
+### Update 2026-11-04: subscription profiles
+
+[ADR 0015](0015-subscription-access.md) adds two profile kinds next to API keys and local servers:
+
+* **ChatGPT plan** (Sign in with ChatGPT): issued client ID, host ID and OAuth tokens in the Windows
+  credential store, one profile per ChatGPT account; refresh near expiry; sign-out revokes the
+  refresh token.
+* **External agent** (Claude Code, later Gemini CLI): detection of the installed program and its
+  version, and the sign-in state from the program itself (`claude auth status --json`: signed in,
+  method, plan). The manager stores no credentials for these; sign-in runs in the program's own
+  flow.
+
 ### Consequences
 
 * Good, because users see why a local run is slow or impossible before it fails.

@@ -9,8 +9,9 @@ Free desktop app for AI-assisted parametric design of FDM 3D-print parts. An ass
 step by step in the SolidCraft CAD kernel while PartBuddy mirrors every step in its own 3D view.
 Notes pinned to faces, edges and features become context for the assistant; clarifying questions
 arrive as cards with options and a recommendation; every part carries honest verification levels
-from "created" to "confirmed by print". Users choose their model freely: cloud providers with their
-own API key or local servers such as Strata, Ollama or LM Studio.
+from "created" to "confirmed by print". Users choose their model freely: their existing Claude or ChatGPT
+subscription, cloud providers with their own API key, or local servers such as Strata, Ollama or
+LM Studio.
 
 ![Main view of the click dummy](docs/screens/main-1440-light.png)
 
