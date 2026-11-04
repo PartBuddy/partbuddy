@@ -16,6 +16,7 @@ import { guardNotes } from './agents/noteGuard';
 import { withViewTool } from './agents/viewContext';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
+import { Variants } from './agents/variants';
 import { describeDrawing } from '../shared/drawing';
 import { describeUserAction } from '../shared/stepPhrases';
 import { ChatGptAccount } from './chatgpt/account';
@@ -256,8 +257,13 @@ if (!app.requestSingleInstanceLock()) {
       viewState = state;
       return undefined;
     });
+    // Variants (M2c, ADR 0021); made once the work log exists. The assistant comes later.
+    let variants: Variants | null = null;
+    const late: { agent: Assistant | null } = { agent: null };
     const emitEvent = (event: AgentEvent) => {
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentEvent, event);
+      // The end of a variant turn keeps the variant and asks for the next one.
+      variants?.observe(event);
     };
     const steps = new WorkLog({
       history: () => supervisor.history(),
@@ -267,9 +273,37 @@ if (!app.requestSingleInstanceLock()) {
     workLog = steps;
     // Questions and plans as cards (M2a); changes wait until the user answered.
     const questions = new Questions(emitEvent);
+    const variantRun = new Variants({
+      history: () => supervisor.history(),
+      travel: (command, count) => supervisor.travel(command, count),
+      mirrored: async () => (await supervisor.mirrorNow()).bodies,
+      measure: () => supervisor.measureDesign(),
+      replay: (engine) => supervisor.replaySteps(engine),
+      send: async (text, note, variant) => {
+        if (!late.agent) throw new Error('the assistant is not ready');
+        await late.agent.send(text, [], note, { variant });
+      },
+      quiet: (on) => {
+        steps.quiet(on);
+      },
+      recordUser: (phrase, work) => steps.recordUser(phrase, work),
+      mention: (text) => {
+        steps.mention(text);
+      },
+      emit: (state) => {
+        bridge.emit(mainWindow?.webContents ?? null, eventChannels.variantsChanged, state);
+      },
+    });
+    variants = variantRun;
     // The model reads notes only through PartBuddy; results lose the note data, undo may not take a note (ADR 0020).
+    // Variant turns are recorded (ADR 0021).
     const track = (upstream: UpstreamTools) =>
-      questions.tools(steps.tools(withViewTool(guardNotes(upstream, (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView())));
+      questions.tools(
+        variantRun.tools(
+          steps.tools(withViewTool(guardNotes(upstream, (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView())),
+          (args) => questions.offerVariants(args),
+        ),
+      );
     let toolsCache: { port: number; tools: UpstreamTools; close(): Promise<void> } | null = null;
     const tools = async () => {
       const headless = supervisor.headlessTools();
@@ -321,6 +355,7 @@ if (!app.requestSingleInstanceLock()) {
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentStatus, state);
     });
     const agent = assistant;
+    late.agent = agent;
     bridge.handle(invokeChannels.agentStatus, () => agent.state());
     bridge.handle(invokeChannels.agentRefresh, () => agent.refresh());
     bridge.handle(invokeChannels.agentSelect, ({ agent: kind }) => {
@@ -341,7 +376,7 @@ if (!app.requestSingleInstanceLock()) {
         drawing ? describeDrawing(drawing.strokes, drawing.image !== undefined) : null,
       ].filter((line): line is string => line !== null);
       const sent = drawing ? { strokes: drawing.strokes.length, image: drawing.image ?? null } : null;
-      await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, sent);
+      await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, { drawing: sent });
       return undefined;
     });
     bridge.handle(invokeChannels.agentStop, async () => {
@@ -432,6 +467,29 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.designVisibility, async (command) => {
       await supervisor.visibility(command);
+      return undefined;
+    });
+    // Variants (M2c, ADR 0021): started by the user (Variants button, or the assistant's offer card).
+    bridge.handle(invokeChannels.variantsCurrent, () => variantRun.snapshot());
+    bridge.handle(invokeChannels.variantsStart, async ({ request, count, question }) => {
+      assistantIdle();
+      const answered = question && questions.isOpen(question) ? questions.answer({ question, choice: 'go' }) : null;
+      const lines = [answered, steps.takeNote()].filter((line): line is string => line !== null);
+      await variantRun.begin(request, count, lines.length > 0 ? lines.join('\n') : null);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.variantsThumbnail, ({ index, image }) => {
+      variantRun.thumbnail(index, image);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.variantsShape, ({ index }) => variantRun.shape(index));
+    bridge.handle(invokeChannels.variantsTake, async ({ index }) => {
+      assistantIdle();
+      await variantRun.take(index);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.variantsDiscard, () => {
+      variantRun.discard();
       return undefined;
     });
     // The user's notes (M2b); like every change of the design they wait while the assistant works.

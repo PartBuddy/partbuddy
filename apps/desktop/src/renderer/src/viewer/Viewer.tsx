@@ -33,6 +33,8 @@ import { selectedStatus, useAssistant } from '../assistant/store';
 import { NotePins } from '../notes/NotePins';
 import { Pen, ViewCapture } from './Pen';
 import { DimensionMarks, LooseDimensions, useDimensionMarks } from './Dimensions';
+import { VariantThumbs } from '../variants/VariantThumbs';
+import { PreviewBar } from '../variants/VariantStrip';
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 Mesh.prototype.raycast = acceleratedRaycast;
@@ -582,7 +584,11 @@ function ScenePins({ bodies }: { bodies: BodyModel[] }) {
   return <NotePins bodies={bodies} busy={busy} />;
 }
 
-function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[] }) {
+/**
+ * The 3D view. `preview`: a kept variant is shown instead of the part (M2c); then nothing can be
+ * picked, measured, noted or drawn, because none of it would reach the part.
+ */
+function Scene({ documentId, bodies, sketches, preview = false }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[]; preview?: boolean }) {
   const { t } = useTranslation();
   // Drawing on the view (M2b-2) takes the left button from the camera controls.
   const pen = useStudio((s) => s.pen);
@@ -613,12 +619,17 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
         <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} />
       ))}
       <Highlights bodies={bodies} colors={colors} />
-      <DimensionHud bodies={bodies} accent={colors.selection} />
-      <ScenePins bodies={bodies} />
-      <Pen bodies={bodies} meshes={meshes} color={colors.note} />
-      <DimensionMarks color={colors.sketch} ghostColor={colors.selection} />
-      <ViewCapture />
-      <Picker bodies={bodies} meshes={meshes} />
+      {preview ? null : (
+        <>
+          <DimensionHud bodies={bodies} accent={colors.selection} />
+          <ScenePins bodies={bodies} />
+          <Pen bodies={bodies} meshes={meshes} color={colors.note} />
+          <DimensionMarks color={colors.sketch} ghostColor={colors.selection} />
+          <ViewCapture />
+          <Picker bodies={bodies} meshes={meshes} />
+          <VariantThumbs />
+        </>
+      )}
       {sketches.map((sketch) => (
         <Sketch key={sketch.id} sketch={sketch} colors={colors} />
       ))}
@@ -636,8 +647,8 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <FrameDesign documentId={documentId} bodies={bodies} sketches={sketches} />
       <StandardViews bodies={bodies} sketches={sketches} />
       <FollowChanges />
-      <ViewReporter />
-      <StepPreviews />
+      {preview ? null : <ViewReporter />}
+      {preview ? null : <StepPreviews />}
       <GizmoHelper alignment="top-right" margin={scene.gizmoMargin}>
         <GizmoViewcube
           faces={cubeFaces}
@@ -743,6 +754,7 @@ export function Viewer() {
   const model = useStudio((s) => s.model);
   const connection = useStudio((s) => s.connection);
   const pen = useStudio((s) => s.pen);
+  const variantPreview = useStudio((s) => s.preview);
   const offline = connection.state !== 'connected';
   useDimensionMarks();
 
@@ -757,7 +769,12 @@ export function Viewer() {
       {model.status === 'ready' && (model.bodies.length > 0 || model.sketches.length > 0) ? (
         <>
           <div className={`h-full w-full ${offline ? 'opacity-50 grayscale' : ''}`} data-testid="viewport">
-            <Scene documentId={model.documentId} bodies={model.bodies} sketches={model.sketches} />
+            <Scene
+              documentId={model.documentId}
+              bodies={variantPreview?.bodies ?? model.bodies}
+              sketches={variantPreview ? [] : model.sketches}
+              preview={variantPreview !== null}
+            />
           </div>
           <SelectionBar bodies={model.bodies} />
           <PenHint />
@@ -776,8 +793,9 @@ export function Viewer() {
             <Busy label={t('viewer.rebuilding')} />
           </div>
         ) : null}
+        <PreviewBar />
         <ConnectionNotice />
-        <LiveBar />
+        {variantPreview ? null : <LiveBar />}
         <LooseDimensions />
       </div>
     </main>

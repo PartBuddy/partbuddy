@@ -752,3 +752,68 @@ test('the dimensions of the box show in the view, and its height changes through
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('three variants are built, the part comes back after each, and the one taken is replayed (M2c)', async () => {
+  test.setTimeout(180_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-variants-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7907',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    // "build variant k of n" makes the test double round the front top edge with R k (test/fakeClaude.mjs).
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    const composer = page.getByRole('textbox', { name: 'Message to the assistant' });
+    await composer.fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+
+    await composer.fill('Round the front top edge');
+    await page.getByTestId('variants-3').click();
+    await page.getByRole('button', { name: 'Send' }).click();
+    const cards = page.getByTestId('variant-card');
+    await expect(cards).toHaveCount(3, { timeout: 60_000 });
+    await expect(page.getByTestId('variant-strip')).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
+    for (const i of [0, 1, 2]) {
+      await expect(cards.nth(i)).toHaveAttribute('data-status', 'kept');
+      await expect(cards.nth(i).getByTestId('variant-thumbnail')).toHaveAttribute('src', /^data:image\//);
+    }
+    await expect(cards.nth(1)).toContainText('R2');
+    await expect(cards.nth(1)).toContainText('Fillet R2 on the front top edge');
+    // The part is back at the box, and the variant turns left no step cards.
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces');
+    await expect(page.getByTestId('step-card')).toHaveCount(1);
+    await expect(page.getByTestId('message-variant').last()).toHaveText('Variant 3 of 3');
+
+    await cards.nth(1).getByTestId('variant-show').click();
+    await expect(page.getByTestId('preview-bar')).toContainText('Preview: R2');
+    await page.screenshot({ path: test.info().outputPath('variants-preview.png') });
+    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="variant-strip"]').include('aside').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+
+    await cards.nth(1).getByTestId('variant-take').click();
+    await expect(page.getByTestId('variant-strip')).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByTestId('preview-bar')).toHaveCount(0);
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 7 faces', { timeout: 15_000 });
+    const steps = page.getByTestId('step-card');
+    await expect(steps).toHaveCount(2);
+    await expect(steps.nth(1).getByTestId('step-text')).toHaveText('Variant “R2” taken');
+
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 15_000 });
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('variants-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

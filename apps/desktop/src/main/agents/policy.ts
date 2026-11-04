@@ -31,6 +31,9 @@ const ALLOWED = new Set([
   // Cards in PartBuddy's chat (questions.ts), never forwarded.
   'partbuddy_ask',
   'partbuddy_plan',
+  // Variants (variants.ts, ADR 0021), never forwarded.
+  'partbuddy_variant_done',
+  'partbuddy_offer_variants',
 ]);
 
 /**

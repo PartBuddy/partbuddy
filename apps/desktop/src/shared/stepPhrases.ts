@@ -38,6 +38,7 @@ export const STEP_PHRASE_KEYS = [
   'suppress',
   'unsuppress',
   'construction',
+  'variantTaken',
   'command',
 ] as const;
 
@@ -234,7 +235,8 @@ export function describeUserAction(
     | { kind: 'dimension'; parameter: string; value: number }
     | { kind: 'action'; action: 'fillet' | 'chamfer' | 'extrude' | 'hole' | 'shell'; size: number; count: number; depth?: number | undefined }
     | { kind: 'rollTo'; position: number | 'end' }
-    | { kind: 'suppress'; suppressed: boolean },
+    | { kind: 'suppress'; suppressed: boolean }
+    | { kind: 'variant'; name: string },
 ): StepPhrase {
   const round = (value: number) => Math.round(value * 100) / 100;
   switch (action.kind) {
@@ -244,6 +246,8 @@ export function describeUserAction(
       return action.position === 'end' ? { key: 'rollToEnd', values: {} } : { key: 'rollTo', values: { position: action.position } };
     case 'suppress':
       return { key: action.suppressed ? 'suppress' : 'unsuppress', values: {} };
+    case 'variant':
+      return { key: 'variantTaken', values: { name: action.name.slice(0, 60) } };
     case 'action':
       switch (action.action) {
         case 'fillet':
@@ -294,6 +298,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     deleteFeature: '{count, plural, one {Feature deleted} other {# features deleted}}',
     rollTo: 'Timeline rolled back to step {position}',
     rollToEnd: 'Timeline rolled to the end',
+    variantTaken: 'Variant “{name}” taken',
     suppress: 'Feature suppressed',
     unsuppress: 'Feature switched on again',
     construction: 'Construction geometry',
@@ -328,6 +333,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     deleteFeature: '{count, plural, one {Feature gelöscht} other {# Features gelöscht}}',
     rollTo: 'Zeitleiste auf Schritt {position} zurückgerollt',
     rollToEnd: 'Zeitleiste ans Ende gerollt',
+    variantTaken: 'Variante „{name}“ übernommen',
     suppress: 'Feature unterdrückt',
     unsuppress: 'Feature wieder eingeschaltet',
     construction: 'Hilfsgeometrie',

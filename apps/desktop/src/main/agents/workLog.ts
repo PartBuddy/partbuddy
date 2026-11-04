@@ -51,6 +51,8 @@ export class WorkLog {
   private queue: Promise<unknown> = Promise.resolve();
   private notes: string[] = [];
   private shown = '';
+  /** Variant turns (ADR 0021) add no step cards: the variants keep their own record. */
+  private silent = false;
 
   constructor(private readonly options: WorkLogOptions) {}
 
@@ -63,7 +65,7 @@ export class WorkLog {
       instructions: () => upstream.instructions(),
       listTools: () => upstream.listTools(),
       callTool: (name, args, callId) => {
-        if (!CHANGING_TOOLS.has(name)) return upstream.callTool(name, args, callId);
+        if (!CHANGING_TOOLS.has(name) || this.silent) return upstream.callTool(name, args, callId);
         return this.serial(async () => {
           const before = await this.readHistory();
           const result: ToolResult = await upstream.callTool(name, args, callId);
@@ -92,6 +94,17 @@ export class WorkLog {
         this.publish();
       }
     });
+  }
+
+  /** Quiet mode for variant turns; leaving it reads the history again, so the cards show where the design stands. */
+  quiet(on: boolean): void {
+    this.silent = on;
+    if (!on) {
+      void this.serial(async () => {
+        await this.readHistory();
+        this.publish();
+      });
+    }
   }
 
   /** Something the user did that the model should hear about with the next message (a note, ADR 0020). */

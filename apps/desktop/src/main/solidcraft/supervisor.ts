@@ -360,6 +360,51 @@ export class SolidCraftSupervisor {
     return [...marks.values()].slice(0, 400);
   }
 
+  /**
+   * Mirrors the design right now and shows it (variants, ADR 0021): the result is exactly the
+   * state the caller sees, with its revision, whatever probes moved the revision before.
+   */
+  async mirrorNow(): Promise<MirrorRevision> {
+    await this.probing;
+    const requester = this.requester();
+    const revision = await mirrorActiveDesign(requester, this.options.cacheDir);
+    this.latest = revision;
+    this.listeners.revision(revision);
+    return revision;
+  }
+
+  /** Volume, face count and bounds of every body (`inspect.measure`), to compare a replay with its recording. */
+  async measureDesign(): Promise<{ volume: number; faces: number; bbox: { min: [number, number, number]; max: [number, number, number] } | null } | null> {
+    const batch = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'inspect.measure', params: {} }], rollback: false }, 60_000);
+    if (batch.failed) return null;
+    const result = (batch.results[0] ?? {}) as { total?: { volume_mm3?: unknown; faces?: unknown }; bodies?: { bbox?: { min?: unknown; max?: unknown } }[] };
+    if (typeof result.total?.volume_mm3 !== 'number') return null;
+    const boxes = (result.bodies ?? []).flatMap((body) =>
+      Array.isArray(body.bbox?.min) && Array.isArray(body.bbox.max) ? [{ min: body.bbox.min as number[], max: body.bbox.max as number[] }] : [],
+    );
+    const bbox =
+      boxes.length > 0
+        ? {
+            min: [0, 1, 2].map((i) => Math.min(...boxes.map((box) => box.min[i] ?? 0))) as [number, number, number],
+            max: [0, 1, 2].map((i) => Math.max(...boxes.map((box) => box.max[i] ?? 0))) as [number, number, number],
+          }
+        : null;
+    return { volume: result.total.volume_mm3, faces: typeof result.total.faces === 'number' ? result.total.faces : 0, bbox };
+  }
+
+  /** Runs engine steps for real, all or nothing (taking a variant, ADR 0021); mirrored as usual. */
+  async replaySteps(steps: { command: string; params: Record<string, unknown> }[]): Promise<void> {
+    if (steps.length === 0) return;
+    await this.probing;
+    const batch = await this.requester().request<{ failed?: { index: number; command: string; error: string } }>(
+      'engine.batch',
+      { commands: steps, rollback: true },
+      10 * 60 * 1000,
+    );
+    if (batch.failed) throw new Error(`step ${String(batch.failed.index + 1)} (${batch.failed.command}) failed: ${batch.failed.error}`);
+    await this.engine?.checkForChange();
+  }
+
   /** Whether "Open in SolidCraft" is possible: the headless engine runs and holds the design. */
   canOpenInSolidCraft(): boolean {
     return this.actor.getSnapshot().value === 'connected' && this.engine?.isOpen === true && Boolean(this.options.projectsDir);

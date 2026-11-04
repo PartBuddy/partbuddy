@@ -1,4 +1,4 @@
-import { IconArrowUp, IconPencil, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
+import { IconArrowUp, IconLayoutColumns, IconPencil, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, CheckboxButton, CheckboxField, Form, TextArea, TextField, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
@@ -11,6 +11,7 @@ import { Button } from '../ui/Button';
 import { Busy, StatusDot } from '../ui/Feedback';
 import { Markdown } from './Markdown';
 import { sendToAssistant } from './send';
+import { variantsAsked } from '../variants/variantRequest';
 import { QuestionCard } from './QuestionCard';
 import { Details, StepCard } from './StepCard';
 import { selectedStatus, useAssistant, type ConversationItem } from './store';
@@ -194,6 +195,12 @@ function Item({ item }: { item: ConversationItem }) {
               {t('assistant.withSelection', { face: item.selection })}
             </span>
           ) : null}
+          {item.variant ? (
+            <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-variant">
+              <IconLayoutColumns className="size-icon-sm" aria-hidden />
+              {t('variants.message', { index: item.variant.index, count: item.variant.count })}
+            </span>
+          ) : null}
           {item.drawing ? (
             <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-drawing">
               <IconPencil className="size-icon-sm" aria-hidden />
@@ -297,7 +304,7 @@ function DrawingChip() {
           aria-hidden
           className="inline-flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
         >
-          {image ? <span className="size-1.5 rounded-full bg-on-accent" /> : null}
+          {image ? <span className="size-dot rounded-full bg-on-accent" /> : null}
         </span>
         {t('assistant.drawingImage')}
         </CheckboxButton>
@@ -317,6 +324,10 @@ export function AssistantPanel() {
   const selections = selectionsOf(model, picks);
   const [selection] = selections;
   const [draft, setDraft] = useState('');
+  // Variants (M2c): the Variants switch, or "show me three" in the text, builds 2–4 variants instead.
+  const [variantCount, setVariantCount] = useState<number | null>(null);
+  const setNotice = useStudio((s) => s.setNotice);
+  const variantsBusy = useStudio((s) => s.variants.state === 'building');
   const list = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const busy = status.state === 'busy';
@@ -330,6 +341,16 @@ export function AssistantPanel() {
     const text = draft.trim();
     if (!text || !ready) return;
     setDraft('');
+    const count = variantCount ?? variantsAsked(text);
+    if (count !== null) {
+      setVariantCount(null);
+      void platform()
+        .variants.start(text, count)
+        .catch((error: unknown) => {
+          setNotice({ tone: 'danger', text: t('variants.failed', { detail: (error as Error).message.slice(0, 200) }) });
+        });
+      return;
+    }
     void sendToAssistant(text, selections);
   };
 
@@ -407,6 +428,34 @@ export function AssistantPanel() {
           </div>
         ) : null}
         <div className="flex items-center justify-end gap-2">
+          <ToggleButtonGroup
+            aria-label={t('variants.button')}
+            selectionMode="single"
+            selectedKeys={variantCount === null ? [] : [String(variantCount)]}
+            onSelectionChange={(keys) => {
+              const key = [...keys][0];
+              setVariantCount(key === undefined ? null : Number(key));
+            }}
+            isDisabled={!ready || variantsBusy}
+            className="flex items-center gap-hairline rounded-md border border-border p-hairline"
+            data-testid="composer-variants"
+          >
+            <span className="flex items-center gap-1 px-1 text-xs text-text-muted">
+              <IconLayoutColumns className="size-icon-sm" aria-hidden />
+              {t('variants.button')}
+            </span>
+            {[2, 3, 4].map((count) => (
+              <ToggleButton
+                key={count}
+                id={String(count)}
+                aria-label={t('variants.count', { count })}
+                className="inline-flex h-control-sm min-w-6 items-center justify-center rounded-sm px-1 text-xs text-text outline-none hover:bg-surface-hover selected:bg-accent selected:text-on-accent focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+                data-testid={`variants-${String(count)}`}
+              >
+                {count}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
           {selection && selections.length === 1 ? (
             <span className="mr-auto flex min-w-0 items-center gap-1 truncate text-xs text-text-muted" data-testid="composer-selection">
               <IconPointer className="size-icon-sm shrink-0" aria-hidden />

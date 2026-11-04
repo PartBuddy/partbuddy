@@ -40,6 +40,12 @@ export const invokeChannels = {
   notesReattach: 'notes:reattach',
   notesRestore: 'notes:restore',
   notesDismiss: 'notes:dismiss',
+  variantsCurrent: 'variants:current',
+  variantsStart: 'variants:start',
+  variantsThumbnail: 'variants:thumbnail',
+  variantsShape: 'variants:shape',
+  variantsTake: 'variants:take',
+  variantsDiscard: 'variants:discard',
 } as const;
 
 export const eventChannels = {
@@ -48,6 +54,7 @@ export const eventChannels = {
   agentStatus: 'agent:status-changed',
   agentEvent: 'agent:event',
   notesChanged: 'notes:changed',
+  variantsChanged: 'variants:changed',
 } as const;
 
 export type InvokeChannel = (typeof invokeChannels)[keyof typeof invokeChannels];

@@ -1,8 +1,10 @@
-import { IconCheck, IconHelpCircle, IconListCheck, IconPencil, IconPlayerPlay, IconX } from '@tabler/icons-react';
+import { IconCheck, IconHelpCircle, IconLayoutColumns, IconListCheck, IconPencil, IconPlayerPlay, IconX } from '@tabler/icons-react';
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { MessageAnswer } from '../../../shared/contract';
+import { platform } from '../platform';
+import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
 import type { ConversationItem } from './store';
 
@@ -35,6 +37,48 @@ export function QuestionCard({ item, ready, answer, change }: Props) {
   const headingId = useId();
   const { question } = item;
   const open = !item.answered;
+  const setNotice = useStudio((s) => s.setNotice);
+
+  if (question.kind === 'variants') {
+    return (
+      <section aria-labelledby={headingId} data-testid="question-card" data-kind="variants" className="flex flex-col gap-2 rounded-md border border-accent bg-accent-subtle p-3">
+        <p id={headingId} className="flex items-center gap-1 text-xs font-medium text-text-muted">
+          <IconLayoutColumns className="size-icon-sm" aria-hidden />
+          {t('variants.offer.title', { count: question.count })}
+        </p>
+        <p className="text-md text-text">{question.request}</p>
+        {open ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="primary"
+              isDisabled={!ready}
+              onPress={() => {
+                void platform()
+                  .variants.start(question.request, question.count, question.id)
+                  .catch((error: unknown) => {
+                    setNotice({ tone: 'danger', text: t('variants.failed', { detail: (error as Error).message.slice(0, 200) }) });
+                  });
+              }}
+              data-testid="variants-accept"
+            >
+              <IconLayoutColumns className="size-icon-sm" aria-hidden />
+              {t('variants.offer.accept', { count: question.count })}
+            </Button>
+            <Button
+              isDisabled={!ready}
+              onPress={() => {
+                answer(t('variants.offer.declineMessage'), { question: question.id, choice: 'cancel' });
+              }}
+            >
+              {t('variants.offer.decline')}
+            </Button>
+          </div>
+        ) : (
+          <Answered text={t(item.choice === 'go' ? 'variants.offer.accepted' : 'variants.offer.declined')} />
+        )}
+      </section>
+    );
+  }
 
   if (question.kind === 'ask') {
     const picked = item.choice !== null ? question.options[Number(item.choice)] : undefined;

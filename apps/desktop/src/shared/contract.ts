@@ -276,6 +276,8 @@ export const agentQuestionSchema = z.discriminatedUnion('kind', [
     })
     .strict(),
   z.object({ id: z.string().max(40), kind: z.literal('plan'), summary: z.string().max(300), steps: z.array(z.string().max(200)).min(1).max(12) }).strict(),
+  /** The assistant offers to build variants (M2c); it builds only after the user's click. */
+  z.object({ id: z.string().max(40), kind: z.literal('variants'), request: z.string().min(1).max(300), count: z.number().int().min(2).max(4) }).strict(),
 ]);
 /** The button the user pressed on a question card: the option's index, or go / cancel for a plan. */
 export const messageAnswerSchema = z
@@ -289,6 +291,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
       selection: z.string().max(400).optional(),
       /** Strokes drawn on the view that went with the message, and whether a picture went too (M2b-2). */
       drawing: z.object({ strokes: z.number().int().min(1).max(20), image: z.boolean() }).strict().optional(),
+      /** The message asks for variant `index` of `count` (M2c, ADR 0021). */
+      variant: z.object({ index: z.number().int().min(1).max(4), count: z.number().int().min(2).max(4) }).strict().optional(),
     })
     .strict(),
   z.object({ type: z.literal('textDelta'), text: z.string() }).strict(),
@@ -499,6 +503,42 @@ export const noteEditSchema = z.object({ id: noteId, text: noteText }).strict();
 export const noteIdRequestSchema = z.object({ id: noteId }).strict();
 export const noteReattachSchema = z.object({ id: noteId, selection: selectionSchema }).strict();
 
+/**
+ * Variants (M2c, ADR 0021): built one after another by the assistant, recorded, the design reset
+ * after each; the user browses the kept shapes and takes one, which replays its changes.
+ */
+export const variantSchema = z
+  .object({
+    index: z.number().int().min(1).max(4),
+    /** building: the assistant works on it; capturing: PartBuddy takes its picture; kept; failed. */
+    status: z.enum(['building', 'capturing', 'kept', 'failed']),
+    name: z.string().max(60).nullable(),
+    difference: z.string().max(200).nullable(),
+    /** A small picture of the view (data URL), once kept. */
+    thumbnail: z.string().max(300_000).regex(/^data:image\/(webp|png|jpeg);base64,/).nullable(),
+    /** The revision that shows it, while PartBuddy takes its picture. */
+    revision: z.number().int().nonnegative().nullable(),
+  })
+  .strict();
+export const variantsStateSchema = z
+  .object({
+    state: z.enum(['idle', 'building', 'ready']),
+    request: z.string().max(2000).nullable(),
+    count: z.number().int().min(0).max(4),
+    documentId: z.string().max(200).nullable(),
+    variants: z.array(variantSchema).max(4),
+    /** Taking a variant replayed it, but volume or bounds differ from the recording. */
+    mismatch: z.string().max(300).nullable(),
+  })
+  .strict();
+export const variantsStartSchema = z
+  .object({ request: z.string().min(1).max(2000), count: z.number().int().min(2).max(4), question: z.string().min(1).max(40).optional() })
+  .strict();
+export const variantIndexSchema = z.object({ index: z.number().int().min(1).max(4) }).strict();
+export const variantThumbnailSchema = z
+  .object({ index: z.number().int().min(1).max(4), image: z.string().max(300_000).regex(/^data:image\/(webp|png|jpeg);base64,/) })
+  .strict();
+
 const none = z.undefined();
 
 export const invokeContract = {
@@ -539,6 +579,12 @@ export const invokeContract = {
   [invokeChannels.notesReattach]: { request: noteReattachSchema, response: none },
   [invokeChannels.notesRestore]: { request: noteIdRequestSchema, response: none },
   [invokeChannels.notesDismiss]: { request: noteIdRequestSchema, response: none },
+  [invokeChannels.variantsCurrent]: { request: none, response: variantsStateSchema },
+  [invokeChannels.variantsStart]: { request: variantsStartSchema, response: none },
+  [invokeChannels.variantsThumbnail]: { request: variantThumbnailSchema, response: none },
+  [invokeChannels.variantsShape]: { request: variantIndexSchema, response: z.array(mirroredBodySchema).max(500) },
+  [invokeChannels.variantsTake]: { request: variantIndexSchema, response: none },
+  [invokeChannels.variantsDiscard]: { request: none, response: none },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -547,6 +593,7 @@ export const eventContract = {
   [eventChannels.agentStatus]: assistantStateSchema,
   [eventChannels.agentEvent]: agentEventSchema,
   [eventChannels.notesChanged]: notesStateSchema,
+  [eventChannels.variantsChanged]: variantsStateSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type FaceTableMessage = z.infer<typeof faceTableSchema>;
@@ -586,6 +633,8 @@ export type VisibilityCommand = z.infer<typeof visibilityCommandSchema>;
 export type NoteView = z.infer<typeof noteViewSchema>;
 export type Drawing = z.infer<typeof drawingSchema>;
 export type DimensionMark = z.infer<typeof dimensionMarkSchema>;
+export type Variant = z.infer<typeof variantSchema>;
+export type VariantsState = z.infer<typeof variantsStateSchema>;
 export type NotesState = z.infer<typeof notesStateSchema>;
 
 export type InvokeRequest<C extends InvokeChannel> = z.infer<(typeof invokeContract)[C]['request']>;

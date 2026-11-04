@@ -2,10 +2,11 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { jsonSchema, stepCountIs, streamText, tool, type ModelMessage, type ToolSet } from 'ai';
 
 import type { AgentEvent, AgentStatus, Selection } from '../../shared/contract';
-import { userEvent, type AgentBackend, type SentDrawing } from '../agents/assistant';
+import { userEvent, type AgentBackend, type SendExtra } from '../agents/assistant';
 import type { ToolResult, UpstreamTools } from '../agents/gateProxy';
 import { decide } from '../agents/policy';
 import { QUESTION_GUIDANCE } from '../agents/questions';
+import { VARIANT_GUIDANCE } from '../agents/variants';
 import { withToolNotes } from '../agents/toolNotes';
 import { composeMessage, VIEW_GUIDANCE } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
@@ -28,6 +29,7 @@ const INSTRUCTIONS = [
   'Answer in the language the user writes in.',
   VIEW_GUIDANCE,
   QUESTION_GUIDANCE,
+  VARIANT_GUIDANCE,
 ].join(' ');
 const MAX_STEPS = 25;
 
@@ -112,7 +114,7 @@ export class ChatGptAgent implements AgentBackend {
     await this.stop();
   }
 
-  async send(text: string, selections: Selection[] = [], note: string | null = null, drawing: SentDrawing | null = null): Promise<void> {
+  async send(text: string, selections: Selection[] = [], note: string | null = null, extra: SendExtra = {}): Promise<void> {
     if (this.status().state !== 'ready') throw new Error(`assistant is ${this.status().state}`);
     const upstream = await this.options.tools();
     if (!upstream) {
@@ -121,8 +123,8 @@ export class ChatGptAgent implements AgentBackend {
     }
     this.model ??= await this.pickModel();
     const message = composeMessage(text, selections, note);
-    this.options.event(userEvent(text, message.label, drawing));
-    const image = drawing?.image ?? null;
+    this.options.event(userEvent(text, message.label, extra));
+    const image = extra.drawing?.image ?? null;
     this.history.push(
       image
         ? { role: 'user', content: [{ type: 'text', text: message.prompt }, { type: 'image', image, mediaType: 'image/png' }] }

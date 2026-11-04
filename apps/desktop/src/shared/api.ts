@@ -21,6 +21,8 @@ import type {
   Selection,
   MirrorRevision,
   NotesState,
+  MirroredBody,
+  VariantsState,
   TitleBarColors,
   ViewState,
 } from './contract';
@@ -87,6 +89,19 @@ export interface PartBuddyApi {
     /** Removes a note from the restore list for good. */
     dismiss(id: string): Promise<void>;
     onChange(listener: (state: NotesState) => void): () => void;
+  };
+  /** Variants (M2c, ADR 0021): built by the assistant, browsed as kept shapes, one taken. */
+  variants: {
+    current(): Promise<VariantsState>;
+    /** Starts building `count` variants of the request; `question` when it answers the assistant's offer. */
+    start(request: string, count: number, question?: string): Promise<void>;
+    /** The picture of a variant, taken from the view while it shows. */
+    thumbnail(index: number, image: string): Promise<void>;
+    /** The kept bodies of a variant, for the preview. */
+    shape(index: number): Promise<MirroredBody[]>;
+    take(index: number): Promise<void>;
+    discard(): Promise<void>;
+    onChange(listener: (state: VariantsState) => void): () => void;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

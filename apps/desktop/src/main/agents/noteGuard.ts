@@ -1,5 +1,8 @@
 import { METADATA_PREFIX } from '../notes/noteRecord';
+import { engineSteps, type EngineStep } from './engineSteps';
 import type { ToolResult, UpstreamTools } from './gateProxy';
+
+export type { EngineStep } from './engineSteps';
 
 /**
  * Keeps the user's notes away from the model's own hands (ADR 0020). SolidCraft returns the
@@ -10,10 +13,6 @@ import type { ToolResult, UpstreamTools } from './gateProxy';
  * through PartBuddy (selection notes and `partbuddy_view`), and only the user's own.
  */
 
-export interface EngineStep {
-  command: string;
-  params: Record<string, unknown>;
-}
 
 /**
  * Runs steps on trial and puts the design back exactly, undo history included (ADR 0017); the
@@ -61,33 +60,8 @@ export function scrubResult(result: ToolResult): ToolResult {
 
 /** Engine steps of a tool call that may undo something; null when it undoes nothing. */
 export function undoSteps(name: string, args: Record<string, unknown>): EngineStep[] | null {
-  const steps: EngineStep[] = [];
-  const found = { undo: false };
-  const add = (tool: string, params: Record<string, unknown>) => {
-    if (tool === 'undo' || tool === 'edit.undo') {
-      found.undo = true;
-      steps.push({ command: 'edit.undo', params: {} });
-    } else if (tool === 'redo' || tool === 'edit.redo') {
-      steps.push({ command: 'edit.redo', params: {} });
-    } else if (tool === 'execute') {
-      if (typeof params.command === 'string') add(params.command, (params.params as Record<string, unknown> | undefined) ?? {});
-    } else if (tool === 'set_parameter') {
-      const value = params.value ?? params.expression;
-      steps.push({ command: 'parameters.change', params: { name: params.name, expression: value } });
-    } else if (/^[a-z]+(\.[a-z_]+)+$/.test(tool)) {
-      steps.push({ command: tool, params });
-    }
-    // Other tools in a batch (measure, inspect_design, list_commands …) only read.
-  };
-  if (name === 'batch' && Array.isArray(args.commands)) {
-    for (const step of args.commands as unknown[]) {
-      const entry = (step ?? {}) as { command?: unknown; params?: unknown };
-      if (typeof entry.command === 'string') add(entry.command, (entry.params as Record<string, unknown> | undefined) ?? {});
-    }
-  } else {
-    add(name, args);
-  }
-  return found.undo ? steps : null;
+  const steps = engineSteps([{ name, args }]);
+  return steps.some((step) => step.command === 'edit.undo') ? steps : null;
 }
 
 function noteKeys(metadata: unknown): Map<string, string> {

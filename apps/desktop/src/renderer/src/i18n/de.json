@@ -373,5 +373,36 @@
       "horizontal": "Horizontal",
       "vertical": "Vertikal"
     }
+  },
+  "variants": {
+    "title": "Varianten",
+    "button": "Varianten",
+    "count": "{count} Varianten bauen",
+    "heading": "{count} Varianten",
+    "progress": "Variante {index} von {count} wird gebaut …",
+    "message": "Variante {index} von {count}",
+    "unnamed": "Variante {letter}",
+    "picture": "Bild von {name}",
+    "status": {
+      "building": "Wird gebaut …",
+      "capturing": "Bild wird aufgenommen …",
+      "failed": "Nicht fertig geworden"
+    },
+    "show": "Ansehen",
+    "hide": "Zum Teil",
+    "take": "Diese nehmen",
+    "discard": "Verwerfen",
+    "previewing": "Vorschau: {name} – das Teil ist unverändert",
+    "backToPart": "Zurück zum Teil",
+    "mismatch": "Die übernommene Variante weicht von der Aufnahme ab ({detail}). Prüfe sie oder mach sie mit Rückgängig rückgängig.",
+    "failed": "Varianten: {detail}",
+    "offer": {
+      "title": "Vorschlag: {count} Varianten",
+      "accept": "{count} Varianten zeigen",
+      "decline": "Nein, danke",
+      "declineMessage": "Keine Varianten, bitte.",
+      "accepted": "Die Varianten werden gebaut",
+      "declined": "Keine Varianten"
+    }
   }
 }

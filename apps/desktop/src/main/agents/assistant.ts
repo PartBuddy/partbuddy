@@ -6,13 +6,20 @@ export interface SentDrawing {
   image: Uint8Array | null;
 }
 
-/** The user event of a message, with what went along (selection label, drawing). */
-export function userEvent(text: string, label: string | undefined, drawing: SentDrawing | null) {
+/** What goes along with a message besides the selection: a drawing (M2b-2), or which variant it asks for (M2c). */
+export interface SendExtra {
+  drawing?: SentDrawing | null;
+  variant?: { index: number; count: number };
+}
+
+/** The user event of a message, with what went along (selection label, drawing, variant). */
+export function userEvent(text: string, label: string | undefined, extra: SendExtra) {
   return {
     type: 'user' as const,
     text,
     ...(label ? { selection: label } : {}),
-    ...(drawing ? { drawing: { strokes: drawing.strokes, image: drawing.image !== null } } : {}),
+    ...(extra.drawing ? { drawing: { strokes: extra.drawing.strokes, image: extra.drawing.image !== null } } : {}),
+    ...(extra.variant ? { variant: extra.variant } : {}),
   };
 }
 
@@ -25,7 +32,7 @@ export interface AgentBackend {
    * `note`: what the user changed or undid since the model's last turn (work log, M2a), notes and drawings.
    * `drawing`: strokes on the view that went with it; their words are in `note`, a picture in `image`.
    */
-  send(text: string, selections?: Selection[], note?: string | null, drawing?: SentDrawing | null): Promise<void>;
+  send(text: string, selections?: Selection[], note?: string | null, extra?: SendExtra): Promise<void>;
   stop(): Promise<void>;
   signIn(): void;
   signOut(): Promise<void>;
@@ -65,8 +72,8 @@ export class Assistant {
     return this.state();
   }
 
-  send(text: string, selections: Selection[] = [], note: string | null = null, drawing: SentDrawing | null = null): Promise<void> {
-    return this.current().send(text, selections, note, drawing);
+  send(text: string, selections: Selection[] = [], note: string | null = null, extra: SendExtra = {}): Promise<void> {
+    return this.current().send(text, selections, note, extra);
   }
 
   stop(): Promise<void> {

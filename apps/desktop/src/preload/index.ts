@@ -55,6 +55,15 @@ const api: PartBuddyApi = {
     dismiss: (id) => ipcRenderer.invoke(invokeChannels.notesDismiss, { id }),
     onChange: (listener) => subscribe(eventChannels.notesChanged, listener),
   },
+  variants: {
+    current: () => ipcRenderer.invoke(invokeChannels.variantsCurrent),
+    start: (request, count, question) => ipcRenderer.invoke(invokeChannels.variantsStart, { request, count, ...(question ? { question } : {}) }),
+    thumbnail: (index, image) => ipcRenderer.invoke(invokeChannels.variantsThumbnail, { index, image }),
+    shape: (index) => ipcRenderer.invoke(invokeChannels.variantsShape, { index }),
+    take: (index) => ipcRenderer.invoke(invokeChannels.variantsTake, { index }),
+    discard: () => ipcRenderer.invoke(invokeChannels.variantsDiscard),
+    onChange: (listener) => subscribe(eventChannels.variantsChanged, listener),
+  },
   viewer: {
     report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),
   },

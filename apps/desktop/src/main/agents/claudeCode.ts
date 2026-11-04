@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { QUESTION_GUIDANCE } from './questions';
+import { VARIANT_GUIDANCE } from './variants';
 import { VIEW_GUIDANCE } from './viewContext';
 
 /**
@@ -131,6 +132,7 @@ const ROLE = [
   'Answer in the language the user writes in.',
   VIEW_GUIDANCE,
   QUESTION_GUIDANCE,
+  VARIANT_GUIDANCE,
 ].join(' ');
 
 export interface SessionOptions {

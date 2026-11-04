@@ -64,6 +64,17 @@ Variants live for the session, in memory. The assistant's normal tool policy and
 apply in variant turns; the note guard (ADR 0020) keeps it from undoing past the starting state
 into the user's notes.
 
+### Built (M2c)
+
+`main/agents/variants.ts` runs the loop; `engineSteps.ts` turns recorded tool calls into engine
+steps (shared with the note guard's undo trial). The kept state is mirrored at once
+(`supervisor.mirrorNow`), so the renderer shows exactly that revision and takes the picture
+(`VariantThumbs`) before PartBuddy resets; it waits at most 6 s for it. The work log is quiet
+during variant turns (no step cards); taking a variant is one user step "Variant “B” taken".
+The strip sits between the view and the timeline; while a variant is shown, picking, the HUD,
+notes, dimensions and the pen rest. "show me three" / "zeig mir drei" in a message starts
+variants as well as the composer's Variants switch.
+
 ### Consequences
 
 * Good, because each variant is built in the open, like any change, and taking one is exact.

@@ -51,6 +51,18 @@ if (args[0] === '--version') {
     await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }));
     // "notes" (M2b): looks for the note text in inspect_design, tries to undo the user's note and
     // tells whether PartBuddy's note came with the message.
+    // Variants (M2c): "build variant k of n" rounds the box's front top edge with R k and ends
+    // the variant, so each one differs and taking one is easy to check.
+    const variant = /build variant (\d) of (\d)/.exec(content);
+    if (variant) {
+      const k = Number(variant[1]);
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.fillet', params: { edges: [[10, 0, 10]], radius: k } } });
+      await client.callTool({ name: 'partbuddy_variant_done', arguments: { name: `R${k}`, difference: `Fillet R${k} on the front top edge` } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: `Variant ${k} built.` }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "drew" (M2b-2): repeats how the drawing arrived.
     if (content.includes('What did I draw')) {
       await client.close();

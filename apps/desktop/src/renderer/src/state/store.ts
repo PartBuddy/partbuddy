@@ -3,7 +3,7 @@ import { create } from 'zustand';
 
 import type { DrawingStroke } from '../../../shared/drawing';
 
-import type { ConnectionStatus, DimensionMark, MirroredSketch, NotesState, Structure } from '../../../shared/contract';
+import type { ConnectionStatus, DimensionMark, MirroredSketch, NotesState, Structure, VariantsState } from '../../../shared/contract';
 
 export interface BodyModel {
   name: string;
@@ -135,6 +135,12 @@ interface StudioState {
   /** The dimension whose field is open, by mark id. */
   openMark: string | null;
   setOpenMark: (id: string | null) => void;
+  /** Variants (M2c, ADR 0021), as the main process reports them. */
+  variants: VariantsState;
+  setVariants: (variants: VariantsState) => void;
+  /** The variant shown in the view instead of the part, with its kept bodies; null shows the part. */
+  preview: { index: number; bodies: BodyModel[] } | null;
+  setPreview: (preview: { index: number; bodies: BodyModel[] } | null) => void;
 }
 
 /** A stroke on the view: its summary for the assistant and its line on the model, lifted off the faces. */
@@ -252,6 +258,16 @@ export const useStudio = create<StudioState>()((set) => ({
   openMark: null,
   setOpenMark: (openMark) => {
     set({ openMark });
+  },
+  variants: { state: 'idle', request: null, count: 0, documentId: null, variants: [], mismatch: null },
+  setVariants: (variants) => {
+    const preview = useStudio.getState().preview;
+    const keep = preview && variants.variants.some((variant) => variant.index === preview.index && variant.status === 'kept');
+    set(keep ? { variants } : { variants, preview: null });
+  },
+  preview: null,
+  setPreview: (preview) => {
+    set({ preview, hover: null, selection: null, selections: [], openNote: null, openMark: null });
   },
 }));
 

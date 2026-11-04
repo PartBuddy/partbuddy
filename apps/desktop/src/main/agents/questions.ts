@@ -136,6 +136,10 @@ export class Questions {
     this.pending = null;
     const choice = answer?.question === question.id ? answer.choice : null;
     this.emit({ type: 'answered', id: question.id, choice });
+    if (question.kind === 'variants') {
+      if (choice === 'go') return `[PartBuddy: the user chose to see ${String(question.count)} variants of "${question.request}". PartBuddy asks for them one by one.]`;
+      return '[PartBuddy: the user did not take your offer of variants; this message says what they want instead.]';
+    }
     if (question.kind === 'plan') {
       if (choice === 'go') return '[PartBuddy: the user pressed Go on your plan. Build it now, in small visible steps.]';
       if (choice === 'cancel') return '[PartBuddy: the user cancelled your plan. Do not change the design; ask what they want instead.]';
@@ -144,6 +148,23 @@ export class Questions {
     const option = choice !== null ? question.options[Number(choice)] : undefined;
     if (option) return `[PartBuddy: the user answered your question "${question.question}" with the button "${option.label}".]`;
     return `[PartBuddy: this message answers your question "${question.question}".]`;
+  }
+
+  /** The assistant offers variants (M2c): a card with a button; nothing is built before the click. */
+  offerVariants(args: Record<string, unknown>): ToolResult {
+    if (this.pending) return refusal('A question or plan is already waiting for the user. End your turn now.');
+    const request = typeof args.request === 'string' ? args.request.trim().slice(0, 300) : '';
+    if (!request) return refusal('partbuddy_offer_variants needs a request.');
+    const count = typeof args.count === 'number' && Number.isInteger(args.count) && args.count >= 2 && args.count <= 4 ? args.count : 3;
+    this.sequence += 1;
+    this.pending = { id: `question-${String(this.sequence)}`, kind: 'variants', request, count };
+    this.emit({ type: 'question', question: this.pending });
+    return text('PartBuddy shows the offer to the user with a button. End your turn now without changing the design.');
+  }
+
+  /** The open question, if it is this id; for the variants button. */
+  isOpen(id: string): boolean {
+    return this.pending?.id === id;
   }
 
   /** Drops an open question, for example when the conversation starts anew. */
