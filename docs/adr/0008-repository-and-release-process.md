@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-04
 ---
 
@@ -42,8 +42,8 @@ keeps every release reviewable.
 * **Checks on every pull request:** lint, typecheck, unit tests, build, Playwright flows, privacy
   scan of the full history, actionlint, zizmor, commitlint, `pnpm audit`, licence gate.
   CodeQL, dependency review and GitHub secret scanning are not available for private repositories of
-  personal accounts; the open-source checks above cover these risks until the repository moves to
-  an organisation with GitHub Advanced Security.
+  personal accounts; the open-source checks above cover these risks until the repository becomes
+  public at the MVP (ADR 0007), when these GitHub features are free.
 * **Updates:** Renovate (configured in `renovate.json`). Dependabot version updates were rejected
   because they do not read the two-document lockfile that pnpm 12 writes when it pins its own version.
 * **SBOM:** `pnpm sbom` (CycloneDX) per release, attached to the GitHub release (with the

@@ -449,6 +449,12 @@ The full selection with exact pins, licences and rejected alternatives is in
 
 ## 5. Law and licences
 
+> Decision update (2026-11-04): the product is offered free of charge under GPL-3.0-or-later with
+> donations ([ADR 0007](adr/0007-licensing-model.md)). The research below assumed a paid,
+> closed-source product; findings on third-party licences, provider terms and data protection still
+> apply, while the restrictions that existed only for closed-source distribution (PyMeshLab, Blender
+> script) fall away.
+
 Decision: [ADR 0007](adr/0007-licensing-model.md); privacy in the repository:
 [ADR 0009](adr/0009-privacy-guardrails.md). Not legal advice.
 

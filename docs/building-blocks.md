@@ -39,7 +39,7 @@ npm registry and the GitHub REST API on 2026-11-04 [2][3].
 | Styling | `tailwindcss@4.3.3` + `@tailwindcss/vite@4.3.3` (2026-07-16), `tailwindcss-react-aria-components@2.2.0` (2026-06-18); tokens as CSS custom properties in one `tokens.css` | MIT / Apache-2.0 (plugin) | 13 releases per year | CSS Modules, `@vanilla-extract/css@1.21.3` | Tokens live in `@theme` variables, light/dark by redefining them; Streamdown and assistant-ui assume Tailwind [18][19] |
 | Icons | `@tabler/icons-react@3.50.0` (2026-10-27) | MIT | 18 releases per year; 92 open, 22.5k stars | `lucide-react@1.62.0` (ISC, drop-in alternative), Fluent icons 2.0.344, Phosphor 2.1.10 (no release in 12 months), Material Symbols 0.48.2 | 5,203 icons on one 24 px grid with the most CAD-relevant glyphs [17] |
 | CAD icon glyphs | **Own build**: about a dozen SVGs on the Tabler grid ([ADR 0014](adr/0014-cad-icon-glyphs.md)) | Own code | Own | Lucide, Fluent, Phosphor, Material Symbols | No checked set has extrude, fillet, chamfer, shell, section-plane, view-cube or print-orientation glyphs [17] |
-| Docking | `dockview-react@8.7.1`, `dockview@8.7.1`, `dockview-core@8.7.1` (2026-10-27) | MIT; `dockview-enterprise` is proprietary and banned by a lint rule | 42 releases per year; 95 open, 3.5k stars | 8.8.3 (newer); `flexlayout-react@0.11.1`, `rc-dock@4.1.0`, `golden-layout@2.6.0` (no release since 2022), `react-mosaic-component@7.2.1` | Floating groups, popout windows, ARIA, CSS-variable theming in the MIT tier; keyboard docking is Enterprise-only, so panel moves go through own palette commands [20] |
+| Docking | `dockview-react@8.7.1`, `dockview@8.7.1`, `dockview-core@8.7.1` (2026-10-27) | MIT; `dockview-enterprise` is proprietary and blocked by an ESLint `no-restricted-imports` rule | 42 releases per year; 95 open, 3.5k stars | 8.8.3 (newer); `flexlayout-react@0.11.1`, `rc-dock@4.1.0`, `golden-layout@2.6.0` (no release since 2022), `react-mosaic-component@7.2.1` | Floating groups, popout windows, ARIA, CSS-variable theming in the MIT tier; keyboard docking is Enterprise-only, so panel moves go through own palette commands [20] |
 | 3D renderer | `three@0.186.1` (2026-09-24), `@types/three@0.186.0` (2026-09-11) | MIT | 12 releases per year, 117k stars | 0.187.0 (2026-10-30, eligible 2026-11-06); Babylon.js | WebGLRenderer, `LineSegments2` for edges, clipping planes for sections; the benchmark ran on 0.187.0 [2] |
 | React binding | `@react-three/fiber@9.8.2` (2026-10-14) | MIT | 9 releases per year; 29 open, 33.5k stars | Imperative three.js only | Declarative scene graph and the R3F ecosystem [2] |
 | Helpers | `@react-three/drei@10.7.9` (2026-09-25) | MIT | 3 releases per year; 151 open | `three-viewport-gizmo@2.2.0` (no release in 12 months) | Gizmo/ViewCube, `CameraControls`, `Html` note pins, `Edges`, `Line`, `Bvh` [17] |
@@ -114,8 +114,8 @@ only calls them as separate processes or over the network ([ADR 0007](adr/0007-l
 
 ## Licence compatibility
 
-Checked for closed-source commercial distribution of the packaged app. Nothing under GPL, AGPL, SSPL
-or BSL is linked into or shipped with the app.
+Checked for distribution of the packaged app under GPL-3.0-or-later ([ADR 0007](adr/0007-licensing-model.md)); the table was first
+written for a closed-source product and every listed licence is also compatible with GPL-3.0.
 
 | Licence | Shipped blocks | Obligation | Verdict |
 |---|---|---|---|

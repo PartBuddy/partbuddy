@@ -23,9 +23,10 @@ docs.github.com on 2026-11-04 ([research § 7](research.md#7-github-features-on-
 | GitHub Projects | yes | yes | one board |
 | Actions minutes per month | about 2,000 Linux | about 3,000 Linux | Windows builds count double |
 
-The CodeQL CLI licence does not allow analysing closed-source code in CI, so it cannot fill the gap
-outside GitHub. Moving the repository to an organisation with GitHub Advanced Security (Secret
-Protection, Code Security) would close the remaining gaps.
+The repository becomes public once the MVP runs ([ADR 0007](adr/0007-licensing-model.md)). Public
+repositories get rulesets, CodeQL, secret scanning with push protection, dependency review and
+private vulnerability reporting free of charge; the setup script is then re-run for the ruleset and a
+CodeQL workflow is added.
 
 ## Before running the script
 

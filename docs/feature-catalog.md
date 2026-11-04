@@ -1,7 +1,7 @@
 # Feature catalogue
 
-Features ordered by MoSCoW. **MVP** marks the proposed first release; the cut is confirmed by the
-product owner. Existing workflows of the earlier CAD workspace come first: the product makes them
+Features ordered by MoSCoW. **MVP** marks the first release; the product owner confirmed the cut on
+2026-11-04. Existing workflows of the earlier CAD workspace come first: the product makes them
 usable without a terminal. Sources of the patterns: [research § Role models](research.md#6-role-models-competitors-and-names).
 
 Verification levels used throughout the product (from the earlier workspace, rewritten):
@@ -36,7 +36,8 @@ A level is shown only when its proof exists; higher levels never replace lower o
 | Connection states: SolidCraft not running, local server unreachable, model without tool calling, offline | No silent failures | MVP |
 | API keys only in the Windows credential store (DPAPI) | Security requirement | MVP |
 | German and English UI | Target market | MVP |
-| Signed installer and auto-update | Commercial distribution | MVP |
+| Signed installer and auto-update | Trusted distribution without SmartScreen warnings | MVP |
+| About dialog with licence notice and a "Support the project" link (GitHub Sponsors) | Required by GPL-3.0 section 0; donations fund the project | MVP |
 
 ## Should
 
@@ -72,7 +73,7 @@ A level is shown only when its proof exists; higher levels never replace lower o
 | Feature | Reason |
 | --- | --- |
 | Own CAD kernel | SolidCraft is the kernel (ADR 0004) |
-| Bundling SolidCraft, OrcaSlicer or Blender | Licence and CRA obligations (ADR 0007) |
+| Bundling SolidCraft, OrcaSlicer or Blender | Keeps the installer small and their updates independent (ADR 0007) |
 | Sign-in with Claude consumer plans | Not allowed by Anthropic for third-party apps |
 | Cloud sync and team features | Not needed for the first market; privacy first |
 | macOS and Linux builds | Windows first; the stack keeps them possible (ADR 0002) |

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-04
 ---
 
@@ -10,7 +10,7 @@ date: 2026-11-04
 The domain checks of the earlier workflow exist as tested Python tools: mesh check, overhang
 analysis, print gate with OrcaSlicer, measurement evaluation, tolerance chains. They use numpy,
 scipy, trimesh, pydantic and PyMeshLab. CAD-Studio needs these checks without rewriting them in
-TypeScript, and must ship them under a commercial licence.
+TypeScript, and must ship them under the product licence (GPL-3.0-or-later, ADR 0007).
 
 ## Considered Options
 
@@ -27,8 +27,8 @@ already tested in this domain; porting would replace them with own code.
   validated with a schema on both sides (pydantic, Zod).
 * Bundled: `uv` (pinned) and a pinned python-build-standalone runtime; the environment is created
   offline from a wheelhouse with `uv sync --frozen --offline`; Python downloads are disabled.
-* **PyMeshLab is removed** (GPL-3.0). Its uses are replaced with trimesh (MIT) before the sidecar
-  ships; results are compared against the earlier tool on the same files.
+* PyMeshLab (GPL-3.0) is compatible with the product licence and stays where it checks better than
+  trimesh (MIT); each replacement is compared against the earlier tool on the same files.
 * The sidecar never sees provider API keys.
 * The tools are rewritten into the product repository (`apps/cad-tools`), not copied; each rewrite
   is recorded in [provenance](../provenance.md).

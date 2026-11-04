@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-04
 ---
 
@@ -18,7 +18,7 @@ Evidence: [research § AI layer](../research.md#3-ai-layer).
 ## Decision Drivers
 
 * All providers equal: one abstraction for cloud and local models
-* Licence fit for a closed commercial product; no vendor-only SDK as the core
+* Licence fit for distribution under GPL-3.0-or-later; no vendor-only SDK as the core
 * Control over the loop: gates must run outside the model's control, tool output must be
   truncated early, the prompt prefix must stay byte-stable for local prompt caches
 * Release stability of the core
