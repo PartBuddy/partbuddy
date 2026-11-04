@@ -88,6 +88,53 @@ test('the user undoes, redoes and exports without the assistant (ADR 0016)', asy
   await expect(page.getByRole('button', { name: 'Open in SolidCraft' })).toHaveCount(0);
 });
 
+test('edges and vertices can be picked, and the view switches projection and standard views (M1a)', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+  const box = await page.getByTestId('viewport').boundingBox();
+  if (!box) throw new Error('viewport not visible');
+  const bar = page.getByTestId('selection-bar');
+
+  // Scan across the middle of the part until an edge is under the pointer.
+  const findKind = async (kind: string, points: { x: number; y: number }[]) => {
+    for (const point of points) {
+      await page.mouse.click(point.x, point.y);
+      // Read without waiting: the bar is hidden while nothing is selected.
+      const found = (await bar.count()) > 0 ? await bar.getAttribute('data-kind') : null;
+      if (found === kind) return point;
+    }
+    return null;
+  };
+  await page.waitForTimeout(500);
+  const row = Array.from({ length: 200 }, (_, i) => ({ x: box.x + box.width * 0.2 + i * 3, y: box.y + box.height / 2 }));
+  expect(await findKind('edge', row), 'an edge on the middle row').not.toBeNull();
+  await expect(page.getByTestId('selected-face')).toHaveText(/^F\d+:[^|]+\|F\d+:/);
+  await expect(bar).toContainText(/Length/);
+  await expect(page.getByTestId('composer-selection')).toHaveText(/Selected edge goes with the message: F\d+:.*\|.* · CableClip/);
+  await page.screenshot({ path: test.info().outputPath('edge-selected.png') });
+
+  const grid: { x: number; y: number }[] = [];
+  for (let y = 0.3; y <= 0.7; y += 0.025) for (let x = 0.25; x <= 0.75; x += 0.0125) grid.push({ x: box.x + box.width * x, y: box.y + box.height * y });
+  expect(await findKind('vertex', grid), 'a visible vertex').not.toBeNull();
+  await expect(page.getByTestId('composer-selection')).toHaveText(/Selected vertex goes with the message: [-\d. ]+ · CableClip/);
+
+  // Escape clears the selection; a click into empty space too.
+  await page.keyboard.press('Escape');
+  await expect(bar).toBeHidden();
+
+  // Orthographic projection with the 5 key, front view with 1.
+  await page.keyboard.press('5');
+  await expect(page.getByTestId('projection')).toHaveAttribute('data-selected', 'true');
+  await page.keyboard.press('1');
+  await page.waitForTimeout(800);
+  expect(await countViewportPixels(page, '--cs-viewer-edge')).toBeGreaterThan(200);
+  await page.screenshot({ path: test.info().outputPath('ortho-front.png') });
+  await page.getByRole('button', { name: 'Isometric' }).click();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: test.info().outputPath('ortho-iso.png') });
+});
+
 test('the view highlights the faces a step changed and can follow them', async () => {
   const { app, fake: solidcraft } = await connectedApp();
   const { page } = app;
@@ -156,6 +203,13 @@ test('the title bar is part of the window, with the system window buttons beside
     return { visible: overlay?.visible ?? false, width: overlay?.getTitlebarAreaRect().width ?? 0, viewport: view.innerWidth };
   });
   expect(overlay.visible).toBe(true);
+  // Test windows open on the leftmost monitor, away from the developer's main screen.
+  const bounds = await launched.app.evaluate(({ BrowserWindow, screen }) => ({
+    window: BrowserWindow.getAllWindows()[0]?.getBounds().x ?? 0,
+    leftmost: Math.min(...screen.getAllDisplays().map((display) => display.bounds.x)),
+  }));
+  expect(bounds.window).toBeGreaterThanOrEqual(bounds.leftmost);
+  expect(bounds.window).toBeLessThan(bounds.leftmost + 100);
   // The window buttons take room at the side; the title bar keeps clear of them.
   expect(overlay.width).toBeGreaterThan(0);
   expect(overlay.width).toBeLessThan(overlay.viewport);

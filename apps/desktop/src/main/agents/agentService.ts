@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { AgentEvent, AgentStatus, FaceSelection } from '../../shared/contract';
+import type { AgentEvent, AgentStatus, Selection } from '../../shared/contract';
 import { ClaudeSession, findClaudeCode, readAuth, readVersion, startSignIn, type ClaudeAuth, type ClaudeCommand } from './claudeCode';
 import type { AgentBackend } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
@@ -85,7 +85,7 @@ export class AgentService implements AgentBackend {
     });
   }
 
-  async send(text: string, selection?: FaceSelection): Promise<void> {
+  async send(text: string, selection?: Selection): Promise<void> {
     if (this.current.state !== 'ready') throw new Error(`assistant is ${this.current.state}`);
     const tools = await this.options.tools();
     if (!tools) {

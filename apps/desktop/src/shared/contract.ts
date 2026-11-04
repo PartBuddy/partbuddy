@@ -133,13 +133,17 @@ export const agentKindSchema = z.enum(['claude-code', 'chatgpt']);
 const finite = z.number();
 const point3 = z.tuple([finite, finite, finite]);
 
+const bodyName = z.string().min(1).max(200);
+
 /**
- * The face the user selected in PartBuddy's view, as the assistant gets it with a message: a
- * few words of text instead of a screenshot (decided 2026-11-04, keep token use low).
+ * What the user selected in PartBuddy's view, as the assistant gets it with a message: a few
+ * words of text instead of a screenshot (decided 2026-11-04, keep token use low). A face, an edge
+ * or a vertex (M1, decided 2026-11-04).
  */
 export const faceSelectionSchema = z
   .object({
-    body: z.string().min(1).max(200),
+    kind: z.literal('face'),
+    body: bodyName,
     /** SolidCraft's stable face name (ADR 0004). */
     face: z.string().min(1).max(200),
     surface: z.enum(['plane', 'cylinder', 'other']),
@@ -151,6 +155,28 @@ export const faceSelectionSchema = z
   })
   .strict();
 
+export const edgeSelectionSchema = z
+  .object({
+    kind: z.literal('edge'),
+    body: bodyName,
+    /** SolidCraft's edge name: both face names, sorted, joined by "|". */
+    edge: z.string().min(1).max(410),
+    /** False when the two faces meet along more than one edge; the point tells them apart. */
+    exact: z.boolean(),
+    length: finite.nonnegative(),
+    /** Where the user clicked, on the edge, in mm. */
+    point: point3,
+    /** End points of an open edge; none for a closed loop such as a full circle. */
+    ends: z.array(point3).max(2),
+    /** Radius when the edge lies on a cylinder (a hole or boss rim). */
+    radius: finite.positive().optional(),
+  })
+  .strict();
+
+export const vertexSelectionSchema = z.object({ kind: z.literal('vertex'), body: bodyName, point: point3 }).strict();
+
+export const selectionSchema = z.discriminatedUnion('kind', [faceSelectionSchema, edgeSelectionSchema, vertexSelectionSchema]);
+
 /**
  * What the user sees in PartBuddy's 3D view, reported by the renderer when it changes; the
  * assistant reads it with the `partbuddy_view` tool.
@@ -158,7 +184,7 @@ export const faceSelectionSchema = z
 export const viewStateSchema = z
   .object({
     camera: z.object({ position: point3, target: point3 }).strict().nullable(),
-    selection: faceSelectionSchema.nullable(),
+    selection: selectionSchema.nullable(),
     bodies: z.array(z.object({ name: z.string().max(200), faces: z.number().int().nonnegative() }).strict()).max(500),
     sketches: z.array(z.object({ name: z.string().max(200), active: z.boolean() }).strict()).max(500),
     changes: z.object({ faces: z.number().int().nonnegative(), sketchCurves: z.number().int().nonnegative() }).strict().nullable(),
@@ -210,7 +236,7 @@ export const exportRequestSchema = z.object({ format: exportFormatSchema }).stri
 /** The saved file's name only, never the folder (no paths outside the app's own folders here). */
 export const exportResultSchema = z.object({ file: z.string().min(1).max(260) }).strict().nullable();
 
-export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000), selection: faceSelectionSchema.optional() }).strict();
+export const agentMessageSchema = z.object({ text: z.string().min(1).max(20_000), selection: selectionSchema.optional() }).strict();
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
 export const assistantStateSchema = z.object({ selected: agentKindSchema, agents: z.array(agentStatusSchema) }).strict();
@@ -258,6 +284,8 @@ export type AgentStatus = z.infer<typeof agentStatusSchema>;
 export type AssistantState = z.infer<typeof assistantStateSchema>;
 export type AgentEvent = z.infer<typeof agentEventSchema>;
 export type FaceSelection = z.infer<typeof faceSelectionSchema>;
+export type EdgeSelection = z.infer<typeof edgeSelectionSchema>;
+export type Selection = z.infer<typeof selectionSchema>;
 export type ViewState = z.infer<typeof viewStateSchema>;
 export type TitleBarColors = z.infer<typeof titleBarColorsSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;

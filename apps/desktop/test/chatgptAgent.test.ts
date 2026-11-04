@@ -92,7 +92,7 @@ describe('ChatGPT agent', () => {
   it('sends the selected face as a note and shows it as a label (#view context)', async () => {
     const { agent, openai, events } = setup();
     await agent.refresh();
-    await agent.send('Round this face', { body: 'Body1', face: 'F1:+z', surface: 'plane', area: 400, point: [10, 10, 20], normal: [0, 0, 1] });
+    await agent.send('Round this face', { kind: 'face', body: 'Body1', face: 'F1:+z', surface: 'plane', area: 400, point: [10, 10, 20], normal: [0, 0, 1] });
     await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
     expect(events[0]).toEqual({ type: 'user', text: 'Round this face', selection: 'F1:+z · Body1' });
     const input = JSON.stringify(openai.bodies[0]?.input);

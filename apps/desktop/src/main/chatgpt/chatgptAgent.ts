@@ -1,7 +1,7 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { jsonSchema, stepCountIs, streamText, tool, type ModelMessage, type ToolSet } from 'ai';
 
-import type { AgentEvent, AgentStatus, FaceSelection } from '../../shared/contract';
+import type { AgentEvent, AgentStatus, Selection } from '../../shared/contract';
 import type { AgentBackend } from '../agents/assistant';
 import type { ToolResult, UpstreamTools } from '../agents/gateProxy';
 import { decide } from '../agents/policy';
@@ -101,7 +101,7 @@ export class ChatGptAgent implements AgentBackend {
     await this.stop();
   }
 
-  async send(text: string, selection?: FaceSelection): Promise<void> {
+  async send(text: string, selection?: Selection): Promise<void> {
     if (this.status().state !== 'ready') throw new Error(`assistant is ${this.status().state}`);
     const upstream = await this.options.tools();
     if (!upstream) {

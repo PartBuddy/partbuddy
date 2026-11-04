@@ -14,6 +14,18 @@ export interface ViewerModel {
   vertexFaces: Uint32Array;
   /** B-rep edges as line segments. */
   edges: BufferGeometry;
+  /** The same segments as plain numbers, xyz xyz per segment, for picking. */
+  edgeSegments: Float32Array;
+  /** B-rep edge index per segment. */
+  edgeOfSegment: Uint32Array;
+  /** Per B-rep edge: its two face indices (lower first). */
+  edgeFaces: Uint32Array;
+  /** Per B-rep edge: first segment and segment count. */
+  edgeRanges: Uint32Array;
+  /** Per B-rep edge: length in mm. */
+  edgeLengths: Float32Array;
+  /** B-rep vertices, xyz per vertex. */
+  vertices: Float32Array;
 }
 
 /** Wraps render buffers into three.js geometry with a BVH (runs once per mirrored revision). */
@@ -31,7 +43,25 @@ export function buildViewerModel(mesh: RenderMesh, table: FaceTable): ViewerMode
   const edges = new BufferGeometry();
   edges.setAttribute('position', new BufferAttribute(mesh.edgeSegments, 3));
 
-  return { table, triangleFaces: mesh.triangleFaces, geometry, vertexFaces: mesh.vertexFaces, edges };
+  const edgeOfSegment = new Uint32Array(mesh.edgeSegments.length / 6);
+  for (let e = 0; e < mesh.edgeLengths.length; e += 1) {
+    const first = mesh.edgeRanges[e * 2] ?? 0;
+    edgeOfSegment.fill(e, first, first + (mesh.edgeRanges[e * 2 + 1] ?? 0));
+  }
+
+  return {
+    table,
+    triangleFaces: mesh.triangleFaces,
+    geometry,
+    vertexFaces: mesh.vertexFaces,
+    edges,
+    edgeSegments: mesh.edgeSegments,
+    edgeOfSegment,
+    edgeFaces: mesh.edgeFaces,
+    edgeRanges: mesh.edgeRanges,
+    edgeLengths: mesh.edgeLengths,
+    vertices: mesh.vertices,
+  };
 }
 
 /** Frees the GPU buffers and the BVH of a model that is no longer shown. */

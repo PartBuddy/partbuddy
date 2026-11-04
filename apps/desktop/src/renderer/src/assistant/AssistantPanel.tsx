@@ -6,7 +6,7 @@ import { Button as AriaButton, Form, TextArea, TextField, ToggleButton, ToggleBu
 import type { AgentStatus } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
-import { faceSelectionOf } from '../viewer/viewState';
+import { selectionName, selectionOf } from '../viewer/viewState';
 import { Button } from '../ui/Button';
 import { Busy, StatusDot } from '../ui/Feedback';
 import { Markdown } from './Markdown';
@@ -250,7 +250,7 @@ export function AssistantPanel() {
   const connected = useStudio((s) => s.connection.state === 'connected');
   const model = useStudio((s) => s.model);
   const pick = useStudio((s) => s.selection);
-  const selection = faceSelectionOf(model, pick);
+  const selection = selectionOf(model, pick);
   const [draft, setDraft] = useState('');
   const list = useRef<HTMLDivElement>(null);
   const busy = status.state === 'busy';
@@ -303,7 +303,7 @@ export function AssistantPanel() {
           {selection ? (
             <span className="mr-auto flex min-w-0 items-center gap-1 truncate text-xs text-text-muted" data-testid="composer-selection">
               <IconPointer className="size-icon-sm shrink-0" aria-hidden />
-              {t('assistant.selectionGoesWith', { face: `${selection.face} · ${selection.body}` })}
+              {t('assistant.selectionGoesWith', { kind: selection.kind, name: `${selectionName(selection)} · ${selection.body}` })}
             </span>
           ) : null}
           {busy ? (

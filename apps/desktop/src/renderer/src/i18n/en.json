@@ -42,7 +42,7 @@
   },
   "viewer": {
     "canvasLabel": "3D view of the design",
-    "selection": "Selected face",
+    "selection": "Selection",
     "surface": {
       "plane": "Plane",
       "cylinder": "Cylinder",
@@ -58,7 +58,7 @@
     "rebuilding": "Rebuilding in SolidCraft",
     "errorTitle": "The model could not be read",
     "errorBody": "The mirrored file is damaged or has an unknown format ({message}).",
-    "hint": "Click a face to select it. Drag to orbit, right-drag to pan, scroll to zoom.",
+    "hint": "Click a face, edge or vertex to select it. Drag to orbit, right-drag to pan, scroll to zoom.",
     "cube": {
       "right": "Right",
       "left": "Left",
@@ -66,12 +66,30 @@
       "front": "Front",
       "top": "Top",
       "bottom": "Bottom"
+    },
+    "kind": {
+      "edge": "Edge",
+      "vertex": "Vertex"
+    },
+    "length": "Length",
+    "position": "Position",
+    "from": "From",
+    "to": "To",
+    "views": {
+      "toolbar": "View",
+      "fit": "Fit",
+      "iso": "Isometric",
+      "front": "Front",
+      "right": "Right",
+      "top": "Top",
+      "ortho": "Orthographic",
+      "perspective": "Perspective"
     }
   },
   "status": {
     "units": "mm",
     "mesh": "{bodies, plural, one {# body} other {# bodies}} · {faces, plural, one {# face} other {# faces}} · {triangles} triangles",
-    "noFace": "No face selected",
+    "noFace": "Nothing selected",
     "latency": "mirrored in {ms, number} ms",
     "sketches": "{count, plural, one {# sketch} other {# sketches}}",
     "sketchesEditing": "{count, plural, one {# sketch} other {# sketches}} · editing {name}"
@@ -146,7 +164,7 @@
     "allowApiBilling": "Use the API key anyway (billed separately)",
     "subscriptionOnly": "Use the subscription only",
     "withSelection": "With selection {face}",
-    "selectionGoesWith": "Selected face goes with the message: {face}"
+    "selectionGoesWith": "{kind, select, face {Selected face} edge {Selected edge} other {Selected vertex}} goes with the message: {name}"
   },
   "live": {
     "step": "Step {number} · {label}",
