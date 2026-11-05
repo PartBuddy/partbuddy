@@ -87,6 +87,16 @@ const planTool: UpstreamTool = {
   annotations: { readOnlyHint: true },
 };
 
+/**
+ * How long answers are (UI upgrade, chat): PartBuddy shows every step, the parameters and the
+ * dimensions itself, so the chat needs only what changed and what to decide. Added to the role
+ * prompt of every route.
+ */
+export const ANSWER_GUIDANCE =
+  'Keep answers short: two or three sentences on what you built, found or need from the user. PartBuddy already shows ' +
+  'every step, the parameters with their values and the dimensions, so do not repeat them as tables, lists or headings; ' +
+  'name a parameter when the user may want to change it. Write more only when the user asks for an explanation or a check.';
+
 /** Added to the role prompt of every route. */
 export const QUESTION_GUIDANCE =
   `For a larger job (a new part, or several features at once) first call ${PLAN_TOOL} and end your turn; build only after ` +

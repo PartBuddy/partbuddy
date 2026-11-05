@@ -253,6 +253,14 @@
         "ready": "bereit",
         "busy": "arbeitet"
       }
+    },
+    "resize": "Chatbreite",
+    "resizeHint": "Ziehen ändert die Breite · Doppelklick stellt die Standardbreite her",
+    "showMore": "Mehr anzeigen",
+    "showLess": "Weniger anzeigen",
+    "work": {
+      "steps": "{count, plural, one {# Schritt} other {# Schritte}}",
+      "queries": "{count, plural, one {# Abfrage} other {# Abfragen}}"
     }
   },
   "live": {

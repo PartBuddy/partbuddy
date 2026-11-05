@@ -8,13 +8,16 @@ import { useStudio } from '../state/store';
 import { selectionName, selectionsOf } from '../viewer/viewState';
 import { Button } from '../ui/Button';
 import { Busy } from '../ui/Feedback';
+import { ChatResizer, useChatWidth } from '../shell/ChatResizer';
 import { AgentChip } from './AgentChip';
-import { Markdown } from './Markdown';
 import { sendToAssistant } from './send';
 import { QuestionCard } from './QuestionCard';
-import { Details, StepCard } from './StepCard';
+import { Answer } from './Answer';
+import { rowsOf } from './rows';
+import { StepCard } from './StepCard';
+import { Queries, WorkGroup } from './WorkGroup';
 import { selectedStatus, useAssistant, type ConversationItem } from './store';
-import { ToolCall, type ToolItem } from './ToolCall';
+import { ToolCall } from './ToolCall';
 
 function Notice({ title, body, children }: { title: string; body: string; children?: React.ReactNode }) {
   return (
@@ -115,7 +118,7 @@ function Setup() {
   return null;
 }
 
-function Item({ item }: { item: ConversationItem }) {
+function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
   const { t } = useTranslation();
   switch (item.kind) {
     case 'user':
@@ -138,9 +141,7 @@ function Item({ item }: { item: ConversationItem }) {
       );
     case 'assistant':
       return (
-        <div className="mr-6" data-testid="assistant-text">
-          <Markdown text={item.text} streaming={item.open} />
-        </div>
+        <Answer text={item.text} streaming={item.open} quiet={quiet} />
       );
     case 'tool':
       return <ToolCall item={item} />;
@@ -156,51 +157,6 @@ function Item({ item }: { item: ConversationItem }) {
         </p>
       );
   }
-}
-
-type Row =
-  | { kind: 'item'; item: ConversationItem }
-  | { kind: 'step'; item: Extract<ConversationItem, { kind: 'step' }>; tools: ToolItem[] }
-  | { kind: 'queries'; tools: ToolItem[] };
-
-/**
- * The conversation as rows (M2a): a step card holds the tool call that made it, and tool calls
- * that only read are folded into one line; refused calls stay visible on their own.
- */
-export function rowsOf(items: ConversationItem[]): Row[] {
-  const rows: Row[] = [];
-  for (const item of items) {
-    if (item.kind === 'step') {
-      const tools = items.filter((candidate): candidate is ToolItem => candidate.kind === 'tool' && candidate.step === item.step.id);
-      rows.push({ kind: 'step', item, tools });
-      continue;
-    }
-    if (item.kind === 'tool' && item.step) continue;
-    // A question or plan shows as its own card; its tool call adds nothing unless it failed.
-    if (item.kind === 'tool' && (item.name === 'partbuddy_ask' || item.name === 'partbuddy_plan') && item.ok !== false) continue;
-    if (item.kind === 'tool' && item.decision === 'allowed') {
-      const last = rows.at(-1);
-      if (last?.kind === 'queries') last.tools.push(item);
-      else rows.push({ kind: 'queries', tools: [item] });
-      continue;
-    }
-    rows.push({ kind: 'item', item });
-  }
-  return rows;
-}
-
-function Queries({ tools }: { tools: ToolItem[] }) {
-  const { t } = useTranslation();
-  const running = tools.some((tool) => tool.ok === undefined);
-  return (
-    <div data-testid="tool-queries">
-      <Details label={t(running ? 'assistant.queriesRunning' : 'assistant.queries', { count: tools.length })}>
-        {tools.map((tool) => (
-          <ToolCall key={tool.key} item={tool} />
-        ))}
-      </Details>
-    </div>
-  );
 }
 
 /** The strokes drawn on the view that go with the next message, and whether a picture goes too. */
@@ -254,6 +210,7 @@ export function AssistantPanel() {
   const composer = useRef<HTMLTextAreaElement>(null);
   const busy = status.state === 'busy';
   const ready = status.state === 'ready' && connected;
+  const [width, setWidth, maxWidth] = useChatWidth();
 
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight });
@@ -267,7 +224,8 @@ export function AssistantPanel() {
   };
 
   return (
-    <aside aria-labelledby="assistant-title" className="flex w-dialog-sm shrink-0 flex-col border-l border-border bg-surface">
+    <aside aria-labelledby="assistant-title" className="relative flex shrink-0 flex-col border-l border-border bg-surface" style={{ width }} data-testid="assistant-panel">
+      <ChatResizer width={width} max={maxWidth} onChange={setWidth} />
       {/* The route and its status live in the chip beside the composer; the heading stays for screen readers. */}
       <h2 id="assistant-title" className="sr-only">
         {t('assistant.title')}
@@ -275,7 +233,7 @@ export function AssistantPanel() {
       <div ref={list} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
         <Setup />
         {items.length === 0 && (status.state === 'ready' || busy) ? <p className="text-sm text-text-muted">{t('assistant.empty')}</p> : null}
-        {rowsOf(items).map((row) =>
+        {rowsOf(items, busy).map((row) =>
           row.kind === 'item' && row.item.kind === 'question' ? (
             <QuestionCard
               key={row.item.key}
@@ -293,8 +251,10 @@ export function AssistantPanel() {
             <StepCard key={row.item.key} item={row.item} tools={row.tools} disabled={busy || !connected} />
           ) : row.kind === 'queries' ? (
             <Queries key={row.tools[0]?.key} tools={row.tools} />
+          ) : row.kind === 'work' ? (
+            <WorkGroup key={row.key} entries={row.entries} live={row.live} disabled={busy || !connected} />
           ) : (
-            <Item key={row.item.key} item={row.item} />
+            <Item key={row.item.key} item={row.item} quiet={row.quiet} />
           ),
         )}
         {busy ? <Busy label={t(`assistant.working.${status.agent}`)} /> : null}
