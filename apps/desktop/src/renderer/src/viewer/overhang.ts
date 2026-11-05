@@ -1,0 +1,78 @@
+/**
+ * Overhangs for FDM printing (UI upgrade step 12): how far a downward face leans from the vertical,
+ * with the part printed along +Z on a bed at its lowest point. Faces up to 35° from the vertical
+ * print fine, 35–45° are borderline, beyond 45° they need support; faces lying on the bed are not
+ * overhangs. Pure, on the render buffers; the print direction from M7's orientation comes later.
+ */
+
+export const Overhang = { Fine: 0, Bed: 1, Borderline: 2, Support: 3 } as const;
+export type Overhang = (typeof Overhang)[keyof typeof Overhang];
+
+/** Degrees from the vertical where a downward face becomes borderline, and where it needs support. */
+export const OVERHANG_LIMITS = { borderline: 35, support: 45 } as const;
+
+/** How close to the bed (mm) a face must lie to count as lying on it. */
+const BED_TOLERANCE = 0.05;
+
+const SIN_BORDERLINE = Math.sin((OVERHANG_LIMITS.borderline * Math.PI) / 180);
+const SIN_SUPPORT = Math.sin((OVERHANG_LIMITS.support * Math.PI) / 180);
+
+/** The class of a direction: `down` is how much it points down (−z of the unit normal). */
+function classOf(down: number): Overhang {
+  if (down > SIN_SUPPORT) return Overhang.Support;
+  if (down > SIN_BORDERLINE) return Overhang.Borderline;
+  return Overhang.Fine;
+}
+
+export interface OverhangMap {
+  /** Class per render vertex, from its normal: curved faces shade from fine to support. */
+  vertices: Uint8Array;
+  /** Area in mm² per class, from each triangle's own normal. */
+  area: [number, number, number, number];
+}
+
+export interface OverhangInput {
+  positions: Float32Array;
+  normals: Float32Array;
+  index: Uint32Array;
+  vertexFaces: Uint32Array;
+  faceCount: number;
+}
+
+/** Overhang classes of one body printed on a bed at height `bedZ`. */
+export function overhangOf(mesh: OverhangInput, bedZ: number): OverhangMap {
+  const { positions, normals, index, vertexFaces, faceCount } = mesh;
+  // A face lies on the bed when none of its vertices is above it.
+  const top = new Float64Array(faceCount).fill(Number.NEGATIVE_INFINITY);
+  for (let v = 0; v < vertexFaces.length; v += 1) {
+    const face = vertexFaces[v] ?? 0;
+    top[face] = Math.max(top[face] ?? Number.NEGATIVE_INFINITY, positions[v * 3 + 2] ?? 0);
+  }
+  const onBed = (face: number) => (top[face] ?? Number.POSITIVE_INFINITY) <= bedZ + BED_TOLERANCE;
+
+  const vertices = new Uint8Array(vertexFaces.length);
+  for (let v = 0; v < vertexFaces.length; v += 1) {
+    vertices[v] = onBed(vertexFaces[v] ?? 0) ? Overhang.Bed : classOf(-(normals[v * 3 + 2] ?? 0));
+  }
+
+  const area: [number, number, number, number] = [0, 0, 0, 0];
+  for (let i = 0; i < index.length; i += 3) {
+    const a = (index[i] ?? 0) * 3;
+    const b = (index[i + 1] ?? 0) * 3;
+    const c = (index[i + 2] ?? 0) * 3;
+    const ux = (positions[b] ?? 0) - (positions[a] ?? 0);
+    const uy = (positions[b + 1] ?? 0) - (positions[a + 1] ?? 0);
+    const uz = (positions[b + 2] ?? 0) - (positions[a + 2] ?? 0);
+    const vx = (positions[c] ?? 0) - (positions[a] ?? 0);
+    const vy = (positions[c + 1] ?? 0) - (positions[a + 1] ?? 0);
+    const vz = (positions[c + 2] ?? 0) - (positions[a + 2] ?? 0);
+    const nx = uy * vz - uz * vy;
+    const ny = uz * vx - ux * vz;
+    const nz = ux * vy - uy * vx;
+    const length = Math.hypot(nx, ny, nz);
+    if (length === 0) continue;
+    const kind = onBed(vertexFaces[index[i] ?? 0] ?? 0) ? Overhang.Bed : classOf(-nz / length);
+    area[kind] += length / 2;
+  }
+  return { vertices, area };
+}

@@ -1,4 +1,4 @@
-import { IconArrowsExchange, IconBox, IconBoxMultiple, IconCheck, IconCube, IconMaximize, IconPencil, IconPerspective, IconRulerMeasure, IconSlice } from '@tabler/icons-react';
+import { IconAngle, IconArrowsExchange, IconBox, IconBoxMultiple, IconCheck, IconCube, IconMaximize, IconPencil, IconPerspective, IconRulerMeasure, IconSlice } from '@tabler/icons-react';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -165,6 +165,8 @@ export function ViewTools() {
   const dimensions = useStudio((s) => s.dimensions);
   const setDimensions = useStudio((s) => s.setDimensions);
   const section = useStudio((s) => s.section);
+  const overhang = useStudio((s) => s.overhang);
+  const setOverhang = useStudio((s) => s.setOverhang);
   const setSection = useStudio((s) => s.setSection);
 
   useEffect(() => {
@@ -293,6 +295,11 @@ export function ViewTools() {
         </ToggleButton>
       </Tip>
       {section ? <SectionPanel section={section} /> : null}
+      <Tip label={t('overhang.tool')}>
+        <ToggleButton aria-label={t('overhang.tool')} isSelected={overhang} onChange={setOverhang} className={tool} data-testid="overhang">
+          <IconAngle className="size-icon-sm" aria-hidden />
+        </ToggleButton>
+      </Tip>
     </div>
   );
 }

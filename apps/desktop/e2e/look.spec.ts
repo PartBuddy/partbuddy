@@ -54,6 +54,11 @@ test('the view of the wall holder, light and dark', async () => {
     await shoot(page, '3-dimensions');
     await page.getByTestId('dimensions').click();
 
+    await page.getByTestId('overhang').click();
+    await page.waitForTimeout(600);
+    await shoot(page, '5-overhang');
+    await page.getByTestId('overhang').click();
+
     await page.keyboard.press('1');
     await page.keyboard.press('5');
     await page.waitForTimeout(1200);

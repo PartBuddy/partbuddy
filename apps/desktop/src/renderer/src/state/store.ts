@@ -103,6 +103,9 @@ interface StudioState {
   /** Ghost of a value typed into the parameter panel: the body with the new value (face-tagged 3MF). */
   parameterGhost: Uint8Array | null;
   setParameterGhost: (ghost: Uint8Array | null) => void;
+  /** Faces coloured by how far they overhang when printed along +Z (UI upgrade step 12). */
+  overhang: boolean;
+  setOverhang: (overhang: boolean) => void;
   /** The ghost of a value or action typed into the selection dock (UI upgrade step 11). */
   selectionGhost: Uint8Array | null;
   setSelectionGhost: (ghost: Uint8Array | null) => void;
@@ -196,6 +199,10 @@ export const useStudio = create<StudioState>()((set) => ({
   },
   setNotice: (notice) => {
     set({ notice });
+  },
+  overhang: false,
+  setOverhang: (overhang) => {
+    set({ overhang });
   },
   selectionGhost: null,
   setSelectionGhost: (selectionGhost) => {

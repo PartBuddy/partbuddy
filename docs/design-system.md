@@ -135,6 +135,11 @@ flat ground), with the tone kept neutral rather than warm:
   when rolled back, crossed when suppressed. The rollback bar sits after the last active step;
   drag it, or move it with the arrow keys and press Enter, and the design rolls back once on
   release (a rebuild can take minutes). A normal part fits without a scrollbar.
+* Overhang view (UI upgrade step 12, view tools): faces coloured by how far they lean over when the
+  part is printed along +Z on its lowest point: up to 35° from the vertical in the body colour,
+  35–45° amber (borderline), beyond 45° red (needs support), faces on the bed green. Curved faces
+  shade per vertex. A legend lists the area per class. The print direction will come from M7's
+  orientation; until then it is +Z.
 * Dimensions in their own colour (`viewer-dimension`): extension lines that start off the part and
   run past the dimension line, arrowheads of a fixed screen size, leaders with the arrow on the rim
   for radii and diameters, labels as slim pills (parameter name subtle, value bold).

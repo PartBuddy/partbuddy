@@ -460,5 +460,13 @@
       "light": "Hell",
       "dark": "Dunkel"
     }
+  },
+  "overhang": {
+    "title": "Überhänge",
+    "tool": "Überhänge für den Druck",
+    "direction": "Gedruckt entlang +Z, auf der untersten Fläche stehend",
+    "support": "Braucht Stütze (über {degrees}°)",
+    "borderline": "Grenzwertig ({from}–{to}°)",
+    "bed": "Auf dem Druckbett"
   }
 }
