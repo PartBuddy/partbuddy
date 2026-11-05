@@ -5,6 +5,19 @@ import { execFileSync } from 'node:child_process';
 
 import { launchApp } from './launch';
 
+/** A renderer element in evaluate callbacks, typed loosely because this file is compiled for Node. */
+interface LooseRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+interface LooseElement {
+  getAttribute(name: string): string | null;
+  firstElementChild: LooseElement | null;
+  getBoundingClientRect(): LooseRect;
+}
+
 /** Running processes with this image name (Windows). */
 function countProcesses(image: string): number {
   const out = execFileSync('tasklist', ['/FI', `IMAGENAME eq ${image}`, '/FO', 'CSV', '/NH'], { encoding: 'utf8' });
@@ -725,7 +738,7 @@ test('the dimensions of the box show in the view, and its height changes through
     const viewport = await page.getByTestId('viewport').boundingBox();
     if (viewport) await page.mouse.move(viewport.x + viewport.width / 2, viewport.y + viewport.height / 2);
     await page.mouse.wheel(0, 800);
-    const shown = () => page.getByTestId('mark-slot').evaluateAll((all) => all.map((slot) => slot.getAttribute('data-shown')));
+    const shown = () => page.getByTestId('mark-slot').evaluateAll((all) => (all as unknown as LooseElement[]).map((slot) => slot.getAttribute('data-shown')));
     // The width runs along the far side of the box, hidden by it in the iso view.
     await expect.poll(shown, { timeout: 10_000 }).toEqual(['shown', 'behind', 'shown']);
     await page.screenshot({ path: test.info().outputPath('dimensions.png') });
@@ -790,14 +803,16 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     // the model: boxes on formula corners too, the countersink angle at its rim.
     await expect(slots).toHaveCount(17, { timeout: 20_000 });
     await expect(page.getByTestId('loose-dimensions')).toHaveCount(0);
-    await expect.poll(() => slots.evaluateAll((all) => all.every((slot) => slot.getAttribute('data-shown') !== null)), { timeout: 10_000 }).toBe(true);
+    await expect.poll(() => slots.evaluateAll((all) => (all as unknown as LooseElement[]).every((slot) => slot.getAttribute('data-shown') !== null)), { timeout: 10_000 }).toBe(true);
     await page.waitForTimeout(500);
     await page.screenshot({ path: test.info().outputPath('dimensions-all.png') });
 
     // Runs in the renderer; typed loosely because this file is compiled for Node.
-    const layout = await slots.evaluateAll((all) => {
-      const viewer = document.querySelector('[data-testid="viewport"]')?.getBoundingClientRect();
-      const shown = all.filter((slot) => slot.getAttribute('data-shown') === 'shown').map((slot) => (slot.firstElementChild as HTMLElement).getBoundingClientRect());
+    const layout = await slots.evaluateAll((found) => {
+      const all = found as unknown as LooseElement[];
+      const page = globalThis as unknown as { document: { querySelector(selector: string): LooseElement | null } };
+      const viewer = page.document.querySelector('[data-testid="viewport"]')?.getBoundingClientRect();
+      const shown = all.filter((slot) => slot.getAttribute('data-shown') === 'shown').flatMap((slot) => (slot.firstElementChild ? [slot.firstElementChild.getBoundingClientRect()] : []));
       const overlaps = shown.flatMap((a, i) => shown.slice(i + 1).filter((b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom).map(() => i));
       const outside = viewer ? shown.filter((r) => r.left < viewer.left || r.top < viewer.top || r.right > viewer.right || r.bottom > viewer.bottom).length : -1;
       return { shown: shown.length, behind: all.filter((slot) => slot.getAttribute('data-shown') === 'behind').length, overlaps: overlaps.length, outside };
@@ -810,7 +825,7 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     await page.keyboard.press('3');
     await page.waitForTimeout(1200);
     await page.screenshot({ path: test.info().outputPath('dimensions-all-right.png') });
-    const behind = await slots.evaluateAll((all) => all.filter((slot) => slot.getAttribute('data-shown') === 'behind').length);
+    const behind = await slots.evaluateAll((all) => (all as unknown as LooseElement[]).filter((slot) => slot.getAttribute('data-shown') === 'behind').length);
     test.info().annotations.push({ type: 'layout', description: JSON.stringify({ ...layout, behindFromRight: behind }) });
     expect(behind).toBeGreaterThan(0);
   } catch (error) {
