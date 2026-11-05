@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
-import { reportOf } from '../src/renderer/src/print/usePrintCheck';
+import { reportOf } from '../src/renderer/src/print/report';
 import { printCheckReportSchema } from '../src/shared/contract';
 
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
