@@ -683,70 +683,6 @@ test('a note on a face stays with the design, out of the assistant\'s reach, and
   }
 });
 
-test('a loop drawn on the top face reaches the assistant as words and, when asked, as a picture (M2b-2)', async () => {
-  test.setTimeout(120_000);
-  const { mkdtempSync, rmSync } = await import('node:fs');
-  const { tmpdir } = await import('node:os');
-  const { join } = await import('node:path');
-  const work = mkdtempSync(join(tmpdir(), 'partbuddy-drawing-'));
-  const env = {
-    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
-    PARTBUDDY_SOLIDCRAFT_PORT: '7903',
-    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
-    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
-    // "What did I draw" makes the test double repeat how the drawing arrived (test/fakeClaude.mjs).
-    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
-  };
-  const launched = await launchApp({ isolated: false, work, env });
-  const { page } = launched;
-  try {
-    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
-    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
-    await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
-    await page.waitForTimeout(1000);
-    const box = await page.getByTestId('viewport').boundingBox();
-    if (!box) throw new Error('viewport not visible');
-
-    await page.getByTestId('pen').click();
-    await expect(page.getByTestId('pen-hint')).toContainText('Draw on the view');
-    // A small circle on the top face of the box (where the face pick of the notes test lands).
-    const cx = box.x + box.width * 0.68;
-    const cy = box.y + box.height * 0.39;
-    const r = 22;
-    await page.mouse.move(cx + r, cy);
-    await page.mouse.down();
-    for (let i = 1; i <= 36; i += 1) {
-      const a = (i / 36) * 2 * Math.PI;
-      await page.mouse.move(cx + r * Math.cos(a), cy + r * Math.sin(a));
-    }
-    await page.mouse.up();
-    await expect(page.getByTestId('pen-hint')).toContainText('1 stroke goes to the assistant');
-    await expect(page.getByTestId('composer-drawing')).toContainText('1 stroke goes along');
-    // Drawing never selects anything.
-    await expect(page.getByTestId('selection-bar')).toHaveCount(0);
-    await page.screenshot({ path: test.info().outputPath('drawing.png') });
-    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('aside').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
-    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
-
-    await page.getByTestId('drawing-image').click();
-    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('What did I draw');
-    await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByTestId('assistant-text').last()).toHaveText('a loop on the top face with a picture', { timeout: 30_000 });
-    await expect(page.getByTestId('message-drawing').last()).toHaveText('with drawing (1 stroke) and image');
-    await expect(page.getByTestId('composer-drawing')).toHaveCount(0);
-
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('pen-hint')).toHaveCount(0);
-  } catch (error) {
-    await page.screenshot({ path: test.info().outputPath('drawing-failed.png') }).catch(() => undefined);
-    throw error;
-  } finally {
-    await launched.close();
-    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
-  }
-});
-
 test('the dimensions of the box show in the view, and its height changes through its label (M2b-3)', async () => {
   test.setTimeout(120_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
@@ -790,8 +726,6 @@ test('the dimensions of the box show in the view, and its height changes through
     await page.getByTestId('mark-input').fill('15');
     await expect(page.getByTestId('mark-status')).toHaveAttribute('data-ok', 'true', { timeout: 15_000 });
     await expect(page.getByTestId('mark-status')).toHaveText('Preview in the view – Enter changes it directly');
-    // While a value is tried, a slider weighs the part against the preview (UI upgrade step 13).
-    await expect(page.getByTestId('compare')).toHaveAttribute('data-mode', 'preview');
     await page.screenshot({ path: test.info().outputPath('dimension-label-preview.png') });
     const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="viewer"]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
@@ -801,18 +735,6 @@ test('the dimensions of the box show in the view, and its height changes through
     const cards = page.getByTestId('step-card');
     await expect(cards).toHaveCount(2);
     await expect(cards.nth(1).getByTestId('step-text')).toHaveText('Dimension Box1 · Height set to 15 mm');
-
-    // Before/after: the box as it was (10 mm) fades into the new one (15 mm) along the slider.
-    await page.getByTestId('compare-start').click();
-    const slider = page.getByTestId('compare-slider').getByRole('slider');
-    await expect(page.getByTestId('compare')).toHaveAttribute('data-mode', 'compare');
-    await expect(slider).toHaveValue('0');
-    await page.screenshot({ path: test.info().outputPath('compare-before.png') });
-    await slider.focus();
-    await page.keyboard.press('End');
-    await expect(slider).toHaveValue('100');
-    await page.getByTestId('compare-close').click();
-    await expect(page.getByTestId('compare')).toHaveCount(0);
 
     // "All" shows every dimension of the design; off hides them.
     await page.getByTestId('dimensions-all').click();
@@ -897,19 +819,7 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     test.info().annotations.push({ type: 'layout', description: JSON.stringify({ ...layout, behindFromRight: behind }) });
     expect(behind).toBeGreaterThan(0);
 
-    // The overhang view (UI upgrade step 12): the bottom of plate and hook lies on the bed, the
-    // upper halves of the horizontal countersunk holes overhang and need support.
     await page.getByTestId('dimensions').click();
-    await page.getByTestId('overhang').click();
-    const legend = page.getByTestId('overhang-legend');
-    await expect(legend).toBeVisible();
-    expect(Number(await page.getByTestId('overhang-bed').getAttribute('data-area'))).toBeGreaterThan(2000);
-    expect(Number(await page.getByTestId('overhang-support').getAttribute('data-area'))).toBeGreaterThan(0);
-    await page.keyboard.press('0');
-    await page.waitForTimeout(800);
-    await page.screenshot({ path: test.info().outputPath('overhang.png') });
-    await page.getByTestId('overhang').click();
-    await expect(legend).toBeHidden();
 
     // The ready-to-print check (M7, plan step R1): the upper halves of the lying countersunk holes
     // lean past the overhang angle, a yellow hint by angle only; whether they need support is the slicer's.

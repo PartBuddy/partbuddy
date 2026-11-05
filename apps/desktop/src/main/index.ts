@@ -17,7 +17,6 @@ import { guardNotes } from './agents/noteGuard';
 import { withViewTool } from './agents/viewContext';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
-import { describeDrawing } from '../shared/drawing';
 import { describeUserAction } from '../shared/stepPhrases';
 import { ChatGptAccount } from './chatgpt/account';
 import { ChatGptAgent } from './chatgpt/chatgptAgent';
@@ -32,7 +31,6 @@ import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
-import { Measurements } from './print/measurements';
 import { printCheckNote } from './print/printCheckNote';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
 
@@ -287,11 +285,6 @@ if (!app.requestSingleInstanceLock()) {
       return saved;
     });
     bridge.handle(invokeChannels.printPart, () => printProfiles.part());
-    // Measurements after printing (M7), for suggestions to the material.
-    const measurements = new Measurements(join(app.getPath('userData'), 'print-measurements.json'), log);
-    bridge.handle(invokeChannels.printMeasurements, () => measurements.all());
-    bridge.handle(invokeChannels.printAddMeasurement, ({ material, measurement }) => measurements.add(material, measurement));
-    bridge.handle(invokeChannels.printRemoveMeasurement, ({ id }) => measurements.remove(id));
     bridge.handle(invokeChannels.printSetMaterial, ({ material }) => {
       const part = printProfiles.setMaterial(material);
       printChanged();
@@ -418,7 +411,7 @@ if (!app.requestSingleInstanceLock()) {
       await claude.allowApiBilling(allow);
       return agent.state();
     });
-    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, drawing }) => {
+    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer }) => {
       const conversation = agent.conversation();
       const lines = [
         // Once after a restart: what the earlier conversation about this design was about.
@@ -429,12 +422,9 @@ if (!app.requestSingleInstanceLock()) {
         questions.answer(answer),
         steps.takeNote(),
         notesService.selectionNote(selections ?? []),
-        // Strokes on the view as words (M2b-2, ADR 0020); a picture only when the user ticked it.
-        drawing ? describeDrawing(drawing.strokes, drawing.image !== undefined) : null,
       ].filter((line): line is string => line !== null);
-      const sent = drawing ? { strokes: drawing.strokes.length, image: drawing.image ?? null } : null;
       try {
-        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, sent);
+        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null);
       } catch (error) {
         profileNote.forget();
         checkNote.forget();

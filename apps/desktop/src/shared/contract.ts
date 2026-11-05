@@ -321,8 +321,6 @@ export const agentEventSchema = z.discriminatedUnion('type', [
       selection: z.string().max(400).optional(),
       /** What the selection holds, for a short line in the chat; `selection` keeps the names. */
       selected: selectionSummarySchema.optional(),
-      /** Strokes drawn on the view that went with the message, and whether a picture went too (M2b-2). */
-      drawing: z.object({ strokes: z.number().int().min(1).max(20), image: z.boolean() }).strict().optional(),
     })
     .strict(),
   z.object({ type: z.literal('textDelta'), text: z.string() }).strict(),
@@ -479,39 +477,11 @@ export const visibilityCommandSchema = z
   .strict()
   .refine((command) => command.bodies.length + command.sketches.length > 0, 'nothing to show or hide');
 
-/** One stroke drawn on the view (M2b-2, ADR 0020), as `shared/drawing.ts` summarises it. */
-const shortName = z.string().min(1).max(410);
-export const drawingStrokeSchema = z
-  .object({
-    kind: z.enum(['dot', 'line', 'loop']),
-    body: bodyName.nullable(),
-    faces: z.array(shortName).max(12),
-    points: z.array(point3).min(1).max(64),
-    length: finite.nonnegative().max(1_000_000),
-    size: z.tuple([finite.nonnegative(), finite.nonnegative()]).optional(),
-    inside: z.object({ faces: z.array(shortName).max(12), edges: z.array(shortName).max(12) }).strict().optional(),
-    direction: z.enum(['left', 'right', 'above', 'below']).optional(),
-  })
-  .strict();
-/** A PNG of the view with the strokes, only when the user ticked "Send as image". */
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-export const drawingSchema = z
-  .object({
-    strokes: z.array(drawingStrokeSchema).min(1).max(20),
-    image: z
-      .instanceof(Uint8Array)
-      .refine((bytes) => bytes.length <= MAX_IMAGE_BYTES, 'image too large')
-      .refine((bytes) => bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47, 'not a PNG')
-      .optional(),
-  })
-  .strict();
-
 export const agentMessageSchema = z
   .object({
     text: z.string().min(1).max(20_000),
     selections: z.array(selectionSchema).min(1).max(20).optional(),
     answer: messageAnswerSchema.optional(),
-    drawing: drawingSchema.optional(),
   })
   .strict();
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
@@ -609,8 +579,6 @@ export const materialProfileSchema = z
     holeShrink: range(0, 1),
     /** Clearance per side between two mating parts, per fit. */
     clearance: z.object({ clamp: range(-0.5, 2), push: range(-0.5, 2), slide: range(-0.5, 2), turn: range(-0.5, 2) }).strict(),
-    /** How much larger than drawn an outer size (pin, wall, width) comes out, mm; from measuring (M7). */
-    outerGrowth: range(-1, 1).default(0),
   })
   .strict();
 
@@ -647,23 +615,6 @@ export const partPrintSchema = z
   })
   .strict();
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();
-
-/**
- * A measurement after printing (M7, "measure after printing"), per material: a hole or an outer
- * size as drawn and as measured, or how a fit felt. Suggestions for the material come from these.
- */
-export const measurementSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('hole'), drawn: range(0.1, 1000), measured: range(0.1, 1000) }).strict(),
-  z.object({ kind: z.literal('outer'), drawn: range(0.1, 1000), measured: range(0.1, 1000) }).strict(),
-  z.object({ kind: z.literal('fit'), fit: fitKindSchema, verdict: z.enum(['tight', 'ok', 'loose']), clearance: range(-0.5, 2) }).strict(),
-]);
-export const storedMeasurementSchema = z.intersection(
-  measurementSchema,
-  z.object({ id: z.string().regex(/^[a-z0-9-]{1,40}$/), material: profileId, at: z.string().max(40) }),
-);
-export const measurementAddSchema = z.object({ material: profileId, measurement: measurementSchema }).strict();
-export const measurementIdSchema = z.object({ id: z.string().regex(/^[a-z0-9-]{1,40}$/) }).strict();
-export const measurementsSchema = z.array(storedMeasurementSchema).max(500);
 
 /**
  * The result of the ready-to-print check (M7) as the renderer reports it, for the note to the
@@ -743,9 +694,6 @@ export const invokeContract = {
   [invokeChannels.printPart]: { request: none, response: partPrintSchema },
   [invokeChannels.printSetMaterial]: { request: partMaterialRequestSchema, response: partPrintSchema },
   [invokeChannels.printReportCheck]: { request: printCheckReportSchema, response: none },
-  [invokeChannels.printMeasurements]: { request: none, response: measurementsSchema },
-  [invokeChannels.printAddMeasurement]: { request: measurementAddSchema, response: measurementsSchema },
-  [invokeChannels.printRemoveMeasurement]: { request: measurementIdSchema, response: measurementsSchema },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -789,8 +737,6 @@ export type FitKind = z.infer<typeof fitKindSchema>;
 export type PrintSettings = z.infer<typeof printSettingsSchema>;
 export type PartPrint = z.infer<typeof partPrintSchema>;
 export type PrintCheckReport = z.infer<typeof printCheckReportSchema>;
-export type Measurement = z.infer<typeof measurementSchema>;
-export type StoredMeasurement = z.infer<typeof storedMeasurementSchema>;
 export type DesignParameter = z.infer<typeof designParameterSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type ExportResult = z.infer<typeof exportResultSchema>;
@@ -807,7 +753,6 @@ export type Structure = z.infer<typeof structureSchema>;
 export type TimelineCommand = z.infer<typeof timelineCommandSchema>;
 export type VisibilityCommand = z.infer<typeof visibilityCommandSchema>;
 export type NoteView = z.infer<typeof noteViewSchema>;
-export type Drawing = z.infer<typeof drawingSchema>;
 export type DimensionMark = z.infer<typeof dimensionMarkSchema>;
 export type NotesState = z.infer<typeof notesStateSchema>;
 

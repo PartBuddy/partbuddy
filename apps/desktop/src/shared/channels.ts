@@ -53,9 +53,6 @@ export const invokeChannels = {
   printPart: 'print:part',
   printSetMaterial: 'print:set-material',
   printReportCheck: 'print:report-check',
-  printMeasurements: 'print:measurements',
-  printAddMeasurement: 'print:add-measurement',
-  printRemoveMeasurement: 'print:remove-measurement',
 } as const;
 
 export const eventChannels = {

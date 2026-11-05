@@ -1,4 +1,4 @@
-import { IconAdjustmentsHorizontal, IconCheck, IconPrinter, IconRulerMeasure } from '@tabler/icons-react';
+import { IconAdjustmentsHorizontal, IconCheck, IconPrinter } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator, Tooltip, TooltipTrigger } from 'react-aria-components';
@@ -58,8 +58,8 @@ export function MaterialMenu() {
           aria-label={t('print.menuLabel')}
           className="max-h-menu-max overflow-auto outline-none"
           onAction={(key) => {
-            if (key !== 'edit' && key !== 'measure') return;
-            setProfilesTab(key === 'measure' ? 'measure' : 'printer');
+            if (key !== 'edit') return;
+            setProfilesTab('printer');
             setProfilesOpen(true);
           }}
         >
@@ -99,10 +99,6 @@ export function MaterialMenu() {
             <MenuItem id="edit" textValue={t('print.edit')} className={itemClass} data-testid="print-profiles-open">
               <IconAdjustmentsHorizontal className="size-icon-sm text-text-muted" aria-hidden />
               <span className="flex-1">{t('print.edit')}</span>
-            </MenuItem>
-            <MenuItem id="measure" textValue={t('measure.open')} className={itemClass} data-testid="measure-open">
-              <IconRulerMeasure className="size-icon-sm text-text-muted" aria-hidden />
-              <span className="flex-1">{t('measure.open')}</span>
             </MenuItem>
           </MenuSection>
         </Menu>

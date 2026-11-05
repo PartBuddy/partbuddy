@@ -26,7 +26,7 @@ const material = (
   overhang: number,
   holeShrink: number,
   [clamp, push, slide, turn]: [number, number, number, number],
-): MaterialProfile => ({ id, name, overhang, holeShrink, clearance: { clamp, push, slide, turn }, outerGrowth: 0 });
+): MaterialProfile => ({ id, name, overhang, holeShrink, clearance: { clamp, push, slide, turn } });
 
 export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   version: 1,
@@ -63,6 +63,18 @@ export interface PrintProfilesOptions {
   log(message: string): void;
 }
 
+/** Profiles saved before plan step R2 carry the outer growth from measuring; it is dropped when read. */
+function withoutOuterGrowth(stored: unknown): unknown {
+  if (typeof stored !== 'object' || stored === null || !Array.isArray((stored as { materials?: unknown }).materials)) return stored;
+  const materials = (stored as { materials: unknown[] }).materials.map((item) => {
+    if (typeof item !== 'object' || item === null) return item;
+    const rest: Record<string, unknown> = { ...(item as Record<string, unknown>) };
+    delete rest.outerGrowth;
+    return rest;
+  });
+  return { ...stored, materials };
+}
+
 /**
  * Printer and material profiles (M7): one file for the installation, and the material of each part
  * in a small file next to its design, like the conversation. A choice made before the design has a
@@ -76,7 +88,7 @@ export class PrintProfiles {
   settings(): PrintSettings {
     if (!existsSync(this.options.file)) return DEFAULT_PRINT_SETTINGS;
     try {
-      const parsed = printSettingsSchema.safeParse(JSON.parse(readFileSync(this.options.file, 'utf8')));
+      const parsed = printSettingsSchema.safeParse(withoutOuterGrowth(JSON.parse(readFileSync(this.options.file, 'utf8'))));
       if (parsed.success) return parsed.data;
       this.options.log('the print profiles do not match their format; the starting values are used');
     } catch (error) {
@@ -180,7 +192,6 @@ export function printNote({ printer, material: used, supportFree }: PartPrint): 
     `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(wall)} (two lines) and details under ${mm(printer.nozzle)} print poorly.`,
     `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter.`,
     `Clearance per side between mating parts: clamp ${mm(clamp)}, push ${mm(push)}, slide ${mm(slide)}, turn ${mm(turn)}.`,
-    ...(used.outerGrowth !== 0 ? [`Measured prints: outer sizes (pins, walls, widths) come out ${mm(used.outerGrowth)} ${used.outerGrowth > 0 ? 'larger' : 'smaller'} than drawn; allow for it on pins.`] : []),
     'It is printed as designed, standing on its lowest point along +Z.',
     ...(supportFree ? supportFreeLines(used.overhang) : []),
     'Keep nominal sizes as parameters, add the clearance and the hole allowance as their own parameters, and say which fit you chose.]',

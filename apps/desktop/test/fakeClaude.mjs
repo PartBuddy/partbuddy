@@ -75,15 +75,6 @@ if (args[0] === '--version') {
     await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }));
     // "notes" (M2b): looks for the note text in inspect_design, tries to undo the user's note and
     // tells whether PartBuddy's note came with the message.
-    // "drew" (M2b-2): repeats how the drawing arrived.
-    if (content.includes('What did I draw')) {
-      await client.close();
-      const loop = /loop on "F1:\+z" of body "Body1" around/.test(content);
-      const reply = `${loop ? 'a loop on the top face' : 'no loop'}${content.includes('[image]') ? ' with a picture' : ''}`;
-      out({ type: 'assistant', message: { content: [{ type: 'text', text: reply }] } });
-      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
-      continue;
-    }
     // "wall holder" (UI upgrade step 10): the part of the UI inventory, boxes on formula corners
     // and countersunk holes, built step by step.
     if (content.includes('wall holder')) {

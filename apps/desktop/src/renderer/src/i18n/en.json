@@ -93,10 +93,6 @@
       "ortho": "Orthographic",
       "perspective": "Perspective"
     },
-    "pen": {
-      "tool": "Draw",
-      "hint": "Draw on the view – {count, plural, =0 {the strokes go} one {# stroke goes} other {# strokes go}} to the assistant with your next message. Esc stops."
-    },
     "display": {
       "title": "Display",
       "shadedEdges": "Shaded with edges",
@@ -231,11 +227,6 @@
         "change": "Change requested"
       }
     },
-    "drawingGoesWith": "{count, plural, one {# stroke goes} other {# strokes go}} along",
-    "removeDrawing": "Discard the strokes",
-    "drawingImage": "Send as image too",
-    "withDrawing": "with drawing ({count, plural, one {# stroke} other {# strokes}})",
-    "withDrawingImage": "with drawing ({count, plural, one {# stroke} other {# strokes}}) and image",
     "chip": {
       "label": "Assistant: {status}",
       "apiKey": "API key",
@@ -468,25 +459,6 @@
       "dark": "Dark"
     }
   },
-  "overhang": {
-    "title": "Overhangs",
-    "tool": "Overhangs for printing",
-    "direction": "Printed along +Z, standing on its lowest face",
-    "support": "Needs support (over {degrees}°)",
-    "borderline": "Borderline ({from}–{to}°)",
-    "bed": "On the print bed",
-    "material": "Limits from the material {material}"
-  },
-  "compare": {
-    "title": "Before and after",
-    "previewTitle": "Part and preview",
-    "start": "Before/after",
-    "before": "Before",
-    "after": "After",
-    "now": "Now",
-    "tried": "Preview",
-    "close": "Stop comparing"
-  },
   "print": {
     "title": "Printer and material",
     "edit": "Printer and material …",
@@ -498,8 +470,7 @@
     "loading": "Loading profiles …",
     "tab": {
       "printer": "Printer",
-      "material": "Material",
-      "measure": "Measure"
+      "material": "Material"
     },
     "printers": "Printers",
     "materials": "Materials",
@@ -516,7 +487,6 @@
     "printerHint": "The highlighted printer is in use. Walls under two line widths print poorly; the assistant is told.",
     "overhang": "Overhang without support up to",
     "holeShrink": "Holes smaller by (Ø)",
-    "outerGrowth": "Outer sizes larger by",
     "clearance": "Clearance per side",
     "fit": {
       "clamp": "Clamp",
@@ -560,57 +530,6 @@
       "cancel": "Cancel",
       "go": "Export anyway"
     }
-  },
-  "fit": {
-    "open": "Fit",
-    "kind": "Kind of fit",
-    "matingPin": "Counterpart Ø (shaft, pin, screw)",
-    "matingHole": "Counterpart Ø (hole)",
-    "which": "Which side to change",
-    "changeHole": "Change the hole",
-    "changePin": "Change the pin",
-    "targetHole": "Hole Ø{target} mm = {mating} + 2 × {clearance} clearance + {shrink} hole allowance ({material})",
-    "targetPin": "Pin Ø{target} mm = {mating} − 2 × {clearance} clearance ({material})",
-    "already": "Already this size.",
-    "direct": "Directly through {label}, preview in the view",
-    "viaAssistant": "No single parameter drives it: the assistant does it",
-    "apply": "Apply",
-    "ask": "Ask the assistant",
-    "requestHole": "Make {name} a hole with a “{fit}” fit for a Ø{mating} mm counterpart: Ø{target} mm ({clearance} mm clearance per side and {shrink} mm hole allowance for {material}). Keep the nominal size and the clearance as their own parameters and leave the rest of the part as it is.",
-    "requestPin": "Make {name} a pin with a “{fit}” fit for a hole that prints at Ø{mating} mm: Ø{target} mm ({clearance} mm clearance per side, {material}). Keep the nominal size and the clearance as their own parameters and leave the rest of the part as it is.",
-    "targetPinGrowth": "Pin Ø{target} mm = {mating} − 2 × {clearance} clearance − {growth} measured growth ({material})"
-  },
-  "measure": {
-    "open": "Measure prints …",
-    "intro": "Measurements after printing for {material}. Choose another material in the “Material” tab. From the measurements PartBuddy suggests the hole allowance, outer growth and clearances.",
-    "kind": "What was measured",
-    "kinds": {
-      "hole": "Hole",
-      "outer": "Outer size",
-      "fit": "Fit"
-    },
-    "drawn": "Drawn",
-    "measured": "Measured",
-    "verdictLabel": "How did it feel",
-    "verdict": {
-      "tight": "Too tight",
-      "ok": "Fits",
-      "loose": "Too loose"
-    },
-    "add": "Add",
-    "invalid": "Enter drawn and measured as numbers in mm.",
-    "failed": "The measurement could not be saved.",
-    "suggestions": "Suggestions",
-    "suggestHole": "Hole allowance {from} → {to} mm ({count, plural, one {from # measurement} other {median of # measurements}})",
-    "suggestOuter": "Outer growth {from} → {to} mm ({count, plural, one {from # measurement} other {median of # measurements}})",
-    "suggestFit": "Clearance {fit} {from} → {to} mm (latest feedback)",
-    "apply": "Use",
-    "noSuggestion": "The measurements match the current values.",
-    "entries": "Measurements",
-    "entryHole": "Hole: drawn Ø{drawn}, measured Ø{measured}",
-    "entryOuter": "Outer size: drawn {drawn}, measured {measured}",
-    "entryFit": "{fit} with {clearance} mm clearance: {verdict}",
-    "remove": "Delete measurement"
   },
   "engine": {
     "menu": "SolidCraft …",

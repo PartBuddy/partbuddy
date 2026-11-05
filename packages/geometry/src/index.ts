@@ -19,7 +19,6 @@ export {
   type FaceTable,
   type SurfaceKind,
 } from './faceTable';
-export { counterpartOf, cylinderKind, fitDiameter, printedDiameter, type CylinderKind, type FitKind as CylinderFitKind, type FitMaterial } from './fits';
 export {
   checkPrint,
   minimumWall,
