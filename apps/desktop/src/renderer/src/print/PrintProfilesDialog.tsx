@@ -376,6 +376,26 @@ function Editor({ close }: { close: () => void }) {
           <MeasureTab material={material} onChange={setMaterial} />
         </TabPanel>
       </Tabs>
+      <div className="flex flex-col gap-1 border-t border-border pt-3">
+        <CheckboxField
+          isSelected={draft.supportFree}
+          onChange={(supportFree) => {
+            setDraft({ ...draft, supportFree });
+          }}
+          data-testid="support-free"
+        >
+          <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
+            <span
+              aria-hidden
+              className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
+            >
+              <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
+            </span>
+            {t('print.supportFree')}
+          </CheckboxButton>
+        </CheckboxField>
+        <p className="text-xs text-text-subtle">{t('print.supportFreeHint')}</p>
+      </div>
       {error ? (
         <p role="alert" className="text-sm text-danger">
           {error}

@@ -49,6 +49,26 @@ const PARTS: Part[] = [
   },
 ];
 
+/**
+ * M7f (designing without support, decided 2026-11-05): parts that need the rules, a lying hole too
+ * wide to bridge and countersinks that open towards the bed. PARTBUDDY_PRACTICE_SET=m7f picks them.
+ */
+const PARTS_M7F: Part[] = [
+  {
+    id: 'f1-rohrhalter',
+    request:
+      'Baue einen Halter für ein Rohr mit 20 mm Durchmesser: einen Block 40 × 30 × 30 mm, der flach auf dem Druckbett liegt, mit einer waagrechten ' +
+      'Durchgangsbohrung für das Rohr (gleitend) und zwei senkrechten Bohrungen für M4-Schrauben daneben.',
+  },
+  {
+    id: 'f2-montageplatte',
+    request:
+      'Baue eine Montageplatte 80 × 50 × 8 mm mit vier Senkbohrungen für M4-Senkkopfschrauben, 8 mm vom Rand. Die Schrauben kommen von unten, ' +
+      'die Senkungen liegen also auf der Unterseite. Runde alle Außenkanten mit 3 mm ab.',
+  },
+];
+const SELECTED = process.env.PARTBUDDY_PRACTICE_SET === 'm7f' ? PARTS_M7F : PARTS;
+
 /** Manuel's printer (OrcaSlicer settings, 2026-11-05): Bambu Lab H2S, 340 × 320 × 340 mm, 0.4 mm nozzle. */
 const PRINTER = { name: 'Bambu Lab H2S', bed: { x: '340', y: '320', z: '340' } };
 
@@ -192,17 +212,25 @@ async function slice(file: string, out: string): Promise<Record<string, unknown>
   const filament = join(profiles, 'filament', 'Bambu PLA Basic @BBL H2S.json');
   mkdirSync(out, { recursive: true });
   const plain = await runSlicer(['--slice', '0', '--load-settings', settings, '--load-filaments', filament, '--outputdir', out, file], out);
-  // Once more with tree supports on: does the slicer agree with the light's overhang findings?
-  const supportOut = `${out}-support`;
-  mkdirSync(supportOut, { recursive: true });
-  const supportProcess = join(supportOut, 'process-support.json');
+  // Once more in each of Bambu's support modes, at its default threshold: does the slicer agree with
+  // the light? The modes disagree (M7f, 2026-11-05): tree supports prop up every flat bridge, even a
+  // 4.5 mm slot; normal supports that leave bridges alone prop up the tops of small round holes and a
+  // 1 mm groove ceiling. Both print fine without support, so the slicer "needs support" only where
+  // both modes put some (a hook laid on its side: both do).
   const standard = JSON.parse(readFileSync(join(profiles, 'process', '0.20mm Standard @BBL H2S.json'), 'utf8')) as Record<string, unknown>;
-  writeFileSync(supportProcess, JSON.stringify({ ...standard, name: '0.20mm Standard support check', enable_support: '1', support_type: 'tree(auto)' }));
-  const supported = await runSlicer(
-    ['--slice', '0', '--load-settings', [join(profiles, 'machine', 'Bambu Lab H2S 0.4 nozzle.json'), supportProcess].join(';'), '--load-filaments', filament, '--outputdir', supportOut, file],
-    supportOut,
-  );
-  return { ...plain, supportMinutes: supported.minutes, supportLines: supported.supportLines, supportFailure: supported.failure };
+  const machine = join(profiles, 'machine', 'Bambu Lab H2S 0.4 nozzle.json');
+  const withSupport = async (mode: string, settings: Record<string, string>) => {
+    const modeOut = `${out}-${mode}`;
+    mkdirSync(modeOut, { recursive: true });
+    const processFile = join(modeOut, 'process.json');
+    writeFileSync(processFile, JSON.stringify({ ...standard, name: `0.20mm Standard ${mode} support check`, enable_support: '1', ...settings }));
+    return runSlicer(['--slice', '0', '--load-settings', [machine, processFile].join(';'), '--load-filaments', filament, '--outputdir', modeOut, file], modeOut);
+  };
+  const tree = await withSupport('tree', { support_type: 'tree(auto)' });
+  const normal = await withSupport('normal', { support_type: 'normal(auto)', bridge_no_support: '1' });
+  const treeLines = Number(tree.supportLines ?? 0);
+  const normalLines = Number(normal.supportLines ?? 0);
+  return { ...plain, supportTree: treeLines, supportNormal: normalLines, slicerNeedsSupport: treeLines > 0 && normalLines > 0, supportFailure: tree.failure ?? normal.failure };
 }
 
 async function runSlicer(args: string[], out: string): Promise<Record<string, unknown>> {
@@ -271,14 +299,14 @@ async function turnedExport(app: ElectronApplication, page: Page, id: string): P
   return { chosen, current, exported, sliced };
 }
 
-for (const part of PARTS) {
+for (const part of SELECTED) {
   test(`practice M7: ${part.id}`, async () => {
     test.setTimeout(45 * 60 * 1000);
     const work = mkdtempSync(join(tmpdir(), `partbuddy-practice-m7-${part.id}-`));
     const launched = await launchApp({
       isolated: false,
       work,
-      env: { SOLIDCRAFT_CONTROL_DIR: join(work, 'control'), PARTBUDDY_SOLIDCRAFT_PORT: String(7930 + PARTS.indexOf(part)), PARTBUDDY_PROJECTS_DIR: join(work, 'projects') },
+      env: { SOLIDCRAFT_CONTROL_DIR: join(work, 'control'), PARTBUDDY_SOLIDCRAFT_PORT: String(7930 + SELECTED.indexOf(part)), PARTBUDDY_PROJECTS_DIR: join(work, 'projects') },
     });
     const { app, page } = launched;
     const report: Record<string, unknown> = { part: part.id, request: part.request };

@@ -1,5 +1,5 @@
 import { isAsDesigned, proposeOrientations, type OrientationOption } from '@partbuddy/geometry';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { PrintOrientation } from '../../../shared/contract';
@@ -38,6 +38,9 @@ export function OrientationSection() {
   const setNotice = useStudio((s) => s.setNotice);
   const text = useOrientationText();
   const [options, setOptions] = useState<OrientationOption[] | null>(null);
+  // The pressed "Use" goes away with the list; focus moves to the new orientation, so it is read
+  // out and Escape still closes the panel (practice run 2026-11-05: Escape did nothing).
+  const current = useRef<HTMLParagraphElement>(null);
   if (!print || model.status !== 'ready') return null;
   const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 });
   const { orientation, loads } = print;
@@ -47,6 +50,7 @@ export function OrientationSection() {
     platform()
       .print.setOrientation(next)
       .then(() => {
+        current.current?.focus();
         setOptions(null);
         setStepHighlight(null);
       })
@@ -69,7 +73,7 @@ export function OrientationSection() {
           {t('orientation.propose')}
         </Button>
       </div>
-      <p className="text-sm text-text" data-testid="orientation-current">
+      <p ref={current} tabIndex={-1} className="text-sm text-text outline-none" data-testid="orientation-current">
         {text(orientation)}
       </p>
       {loadFaces > 0 ? (

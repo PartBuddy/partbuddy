@@ -529,6 +529,8 @@
     "defaultMaterial": "Standard für neue Teile",
     "materialHint": "Startwerte für einen üblichen Drucker. Passe sie an deine Probedrucke an; der Assistent baut mit diesen Spielen.",
     "nameMissing": "Jedes Profil braucht einen Namen.",
+    "supportFree": "Stützfrei konstruieren",
+    "supportFreeHint": "Der Assistent gibt Kanten zum Druckbett eine Fase statt einer Rundung, gibt breiten liegenden Bohrungen ein Tropfendach und überbrückt Senkungen, die nach unten zeigen. So braucht der Slicer keine Stützen.",
     "saveFailed": "Die Profile konnten nicht gespeichert werden.",
     "cancel": "Abbrechen",
     "save": "Speichern"

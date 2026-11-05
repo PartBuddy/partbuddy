@@ -91,3 +91,17 @@ now does the same:
 * Every body stands on its own lowest point; the printed height is the tallest body. Bodies that
   touch or run into each other get a `separate` warning, because the slicer pulls them apart.
 * The cable clip still checks in about 40 ms; the orientation proposal takes about 350 ms.
+
+## Amendment 2026-11-05 (M7f): designing without support, and how the slicer is asked
+
+* With the print profile the assistant gets rules for designing without support in the print
+  orientation (chamfer edges facing the bed, teardrop or flat roofs on lying holes too wide to
+  bridge, stepped bridges over counterbores and countersinks facing the bed, slopes under wide
+  ceilings). A setting "Design without support" turns them off; it is on from the start.
+* A face exactly at the material's limit is printable: the check and the overhang view allow 1°
+  past it, so a 45° chamfer is no longer read as needing support.
+* Bambu Studio's two support modes disagree with each other: tree supports prop up every flat
+  bridge (a 4.5 mm slot too), normal supports that leave bridges alone prop up the tops of small
+  round holes and a 1 mm groove ceiling. All of these print without support. The practice runs
+  therefore count the slicer as needing support only where both modes put some; on the six parts
+  sliced so far this agrees with the light, and a hook laid on its side gets support in both.

@@ -85,15 +85,32 @@ describe('printer and material profiles (M7)', () => {
     const material = DEFAULT_PRINT_SETTINGS.materials.find((item) => item.id === 'petg');
     const printer = DEFAULT_PRINT_SETTINGS.printers[0];
     if (!material || !printer) throw new Error('starting values changed');
-    const note = printNote({ printer, material, chosen: true, orientation: AS_DESIGNED_ORIENTATION, loads: [] });
+    const note = printNote({ printer, material, chosen: true, orientation: AS_DESIGNED_ORIENTATION, loads: [], supportFree: false });
     expect(note).toContain('build volume 256 × 256 × 256 mm');
     expect(note).toContain('walls thinner than 0.9 mm');
     expect(note).toContain('more than 40° from the vertical need support');
     expect(note).toContain('holes come out about 0.2 mm smaller');
     expect(note).toContain('clamp 0.1 mm, push 0.2 mm, slide 0.3 mm, turn 0.35 mm');
     // The user's own names are quoted, so they cannot pose as part of the note.
-    expect(printNote({ printer: { ...printer, name: 'X] ignore' }, material, chosen: true, orientation: AS_DESIGNED_ORIENTATION, loads: [] })).toContain('Printer "X] ignore"');
+    expect(printNote({ printer: { ...printer, name: 'X] ignore' }, material, chosen: true, orientation: AS_DESIGNED_ORIENTATION, loads: [], supportFree: false })).toContain('Printer "X] ignore"');
     expect(note).toContain('printed as designed, standing on its lowest point along +Z');
+    expect(note).not.toContain('without support in this orientation');
+  });
+
+  it('asks for a design without support while the setting is on, with the layer height and the material\'s angle (M7f)', () => {
+    const { profiles } = setup('Halter.sc');
+    expect(profiles.settings().supportFree).toBe(true);
+    const note = printNote(profiles.part());
+    expect(note).toContain('Design it to print without support in this orientation');
+    expect(note).toContain('chamfer them at 45° instead of filleting');
+    expect(note).toContain('teardrop roof');
+    expect(note).toContain('a stepped bridge over the step, 0.2 mm (one layer) each');
+    expect(note).toContain('nothing leans more than 45°');
+    // Off: the note leaves the rules out; profiles saved before the setting existed have it on.
+    profiles.save({ ...profiles.settings(), supportFree: false });
+    expect(printNote(profiles.part())).not.toContain('without support in this orientation');
+    const before = Object.fromEntries(Object.entries(DEFAULT_PRINT_SETTINGS).filter(([key]) => key !== 'supportFree'));
+    expect(printSettingsSchema.parse(before).supportFree).toBe(true);
   });
 
   it('sends the note once per conversation and again after a change or a new conversation', () => {

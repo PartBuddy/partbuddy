@@ -604,6 +604,11 @@ export const printSettingsSchema = z
     materials: z.array(materialProfileSchema).min(1).max(50).refine(uniqueIds, 'material ids must be unique'),
     /** The material of a part that has none of its own. */
     material: profileId,
+    /**
+     * Design to print without support (M7f, decided 2026-11-05): the assistant gets the rules for it
+     * with the profile. On unless the user turns it off; files from before it have it on.
+     */
+    supportFree: z.boolean().default(true),
   })
   .strict()
   .refine((settings) => settings.printers.some((printer) => printer.id === settings.printer), 'the printer in use must exist')
@@ -633,6 +638,8 @@ export const partPrintSchema = z
     chosen: z.boolean(),
     orientation: printOrientationSchema,
     loads: loadPlacesSchema,
+    /** Whether the assistant designs to print without support. */
+    supportFree: z.boolean(),
   })
   .strict();
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();

@@ -551,6 +551,11 @@ test('the part material is chosen in the status bar and the profiles are edited 
   const overhang = dialog.getByTestId('material-overhang').getByRole('textbox');
   await overhang.fill('35');
   await overhang.press('Tab');
+  // Designing without support is on from the start (M7f) and is turned off here.
+  const supportFree = dialog.getByTestId('support-free').getByRole('checkbox');
+  await expect(supportFree).toBeChecked();
+  await dialog.getByTestId('support-free').getByText('Design without support').click();
+  await expect(supportFree).not.toBeChecked();
   await page.screenshot({ path: test.info().outputPath('print-profiles.png') });
   await dialog.getByTestId('print-save').click();
   await expect(dialog).toHaveCount(0);
@@ -560,6 +565,7 @@ test('the part material is chosen in the status bar and the profiles are edited 
   // Cancel keeps what was saved.
   await page.getByTestId('settings').click();
   await page.getByTestId('settings-print').click();
+  await expect(dialog.getByTestId('support-free').getByRole('checkbox')).not.toBeChecked();
   await dialog.getByTestId('printer-name').getByRole('textbox').fill('Anders');
   await dialog.getByTestId('print-cancel').click();
   await expect(dialog).toHaveCount(0);
@@ -620,7 +626,12 @@ test('the print orientation is proposed, set from a face, and loads are marked (
   await expect(options.first()).toContainText('Recommended');
   await expect(options.first()).toContainText(/Support [\d,]+ mm² · on the bed [\d,]+ mm² · height [\d.]+ mm/);
   await page.screenshot({ path: test.info().outputPath('orientation-proposal.png') });
+  // Using a proposal moves the focus to the new orientation, so Escape still closes the panel (M7f).
+  await options.nth(1).getByTestId('orientation-apply').click();
+  await expect(section.getByTestId('orientation-current')).not.toHaveText('As designed, +Z up');
+  await expect(section.getByTestId('orientation-current')).toBeFocused();
   await page.keyboard.press('Escape');
+  await expect(page.getByTestId('print-check-panel')).toHaveCount(0);
 
   // A face in the middle of the view: print the part lying on it.
   const box = await page.getByTestId('viewport').boundingBox();

@@ -23,13 +23,20 @@ export function overhangLimits(support: number): OverhangLimits {
   return { borderline: Math.max(0, support - 10), support };
 }
 
+/**
+ * Degrees past the limit before a face needs support: a 45° chamfer is exactly at the usual limit,
+ * and rounding in its normals must not tip it over (practice run 2026-11-05: a 45° bottom chamfer
+ * read as 1,006 mm² needing support).
+ */
+export const ANGLE_TOLERANCE = 1;
+
 /** How close to the bed (mm) a face must lie to count as lying on it. */
 const BED_TOLERANCE = 0.05;
 
 /** The class of a direction: `down` is how much it points down (−z of the unit normal). */
 function classifier(limits: OverhangLimits): (down: number) => Overhang {
   const sinBorderline = Math.sin((limits.borderline * Math.PI) / 180);
-  const sinSupport = Math.sin((limits.support * Math.PI) / 180);
+  const sinSupport = Math.sin(((limits.support + ANGLE_TOLERANCE) * Math.PI) / 180);
   return (down) => {
     if (down > sinSupport) return Overhang.Support;
     if (down > sinBorderline) return Overhang.Borderline;
