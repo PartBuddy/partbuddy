@@ -26,8 +26,16 @@ function line(finding: Finding, nozzle: number): string {
         ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than the ${mm(nozzle)} nozzle, so they do not print${where(finding.places)}.`
         : `- ${tag}: walls down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} of two lines${where(finding.places)}.`;
     case 'support': {
-      const what = finding.cause === 'fillet' ? 'of fillets facing the bed ' : finding.cause === 'hole' ? 'on top of lying holes too wide to bridge ' : '';
-      const fix = finding.cause === 'fillet' ? ' (chamfer them at 45° instead)' : finding.cause === 'hole' ? ' (give them a teardrop or flat roof)' : '';
+      const what =
+        finding.cause === 'fillet' ? 'of fillets facing the bed ' : finding.cause === 'hole' ? 'on top of lying holes too wide to bridge ' : finding.cause === 'counterbore' ? 'of counterbore steps facing the bed (the hole cuts the bridge) ' : '';
+      const fix =
+        finding.cause === 'fillet'
+          ? ' (chamfer them at 45° instead)'
+          : finding.cause === 'hole'
+            ? ' (give them a teardrop or flat roof)'
+            : finding.cause === 'counterbore'
+              ? ' (add a stepped bridge: one layer with a slot as wide as the hole, one with a square)'
+              : '';
       return `- ${tag}: ${String(finding.area)} mm² ${what}lean more than ${String(finding.limit)}° from the vertical and need support${where(finding.places)}${fix}.`;
     }
     case 'contact':

@@ -138,3 +138,41 @@ export function prismBody(name: string, outline: readonly (readonly [number, num
   }
   return finish(name, built);
 }
+
+/**
+ * A body turned about vertical axes from a closed profile in (radius, z), counter-clockwise with the
+ * material on its left (radius right, z up), once per centre. Each profile edge is one face
+ * `F<k>:p<i>` (k counts the centres): a cylinder where the radius stays, a plane where the height stays.
+ */
+export function revolvedBody(name: string, profile: readonly (readonly [number, number])[], segments = 48, centers: readonly (readonly [number, number])[] = [[0, 0]]) {
+  const n = profile.length;
+  const built: Built = { positions: [], indices: [], triangleFaces: [], names: [], normals: [], cylinders: [] };
+  centers.forEach(([cx, cy], c) => {
+    const ring = profile.map(([r, z]) => {
+      const start = built.positions.length / 3;
+      for (let k = 0; k < segments; k += 1) {
+        const angle = (k * 2 * Math.PI) / segments;
+        built.positions.push(cx + r * Math.cos(angle), cy + r * Math.sin(angle), z);
+      }
+      return start;
+    });
+    for (let i = 0; i < n; i += 1) {
+      const j = (i + 1) % n;
+      const [ri, zi] = profile[i] ?? [0, 0];
+      const [rj, zj] = profile[j] ?? [0, 0];
+      const face = built.names.length;
+      built.names.push(`F${String(c + 1)}:p${String(i)}`);
+      // Outward is to the right of the profile's direction (dr, dz): (dz, -dr) in (radius, z).
+      built.normals.push(zi === zj ? [0, 0, rj > ri ? -1 : 1] : undefined);
+      built.cylinders?.push(ri === rj ? { origin: [cx, cy, 0], axis: [0, 0, 1], radius: ri } : undefined);
+      const a = ring[i] ?? 0;
+      const b = ring[j] ?? 0;
+      for (let k = 0; k < segments; k += 1) {
+        const l = (k + 1) % segments;
+        built.indices.push(a + k, a + l, b + l, a + k, b + l, b + k);
+        built.triangleFaces.push(face, face);
+      }
+    }
+  });
+  return finish(name, built);
+}

@@ -118,3 +118,20 @@ now does the same:
   gets a roof cut along it from a sketch at its start, 45° flanks, flat on top up to a 10 mm bridge
   and pointed beyond. Each fix is one step of the work log; what SolidCraft refuses goes to the
   assistant on request, with the faces named.
+
+## Amendment 2026-11-05 (M7f step 3): counterbores facing the bed
+
+* A counterbore that opens towards the bed (a wide bore from below, a narrower hole above, the
+  flat step between them facing down) is its own cause. The rays see a bridge over the step, but
+  the hole cuts every strand that crosses it; Bambu Studio supports an 8/4.5 mm counterbore in both
+  support modes. Steps of at most 1.5 mm (a short overhang) are left alone. Found from the face
+  table: coaxial upright hole cylinders and the planar step between them, around their own axis.
+* The fix is a stepped bridge cut into the layers above the step: a slot as wide as the hole across
+  the bore, one layer deep, its ends 0.05 mm off the bore's wall, and a square as wide as the hole,
+  two layers deep. Both cuts start 0.01 mm below the step: a cut that starts in the step's plane
+  makes SolidCraft retry its boolean and warn, and slot corners on the bore's wall leave faces
+  without area. After it, Bambu's tree supports drop from 14 layers to none; its normal supports
+  still fill the bore (as without the fix), so the practice reading "support only where both modes
+  put some" calls it free of support.
+* `model.faces` reports such a face without area with `point: null`; the face table takes its
+  centroid then instead of failing the whole mirror.

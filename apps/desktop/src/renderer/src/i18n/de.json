@@ -555,6 +555,7 @@
       "contact": "Nur {area} mm² liegen auf dem Druckbett: kann sich lösen oder kippen",
       "supportFillet": "{area} mm² Rundung an Kanten zum Druckbett neigen sich über {limit}° und brauchen Stützen",
       "supportHole": "{area} mm² über liegenden Bohrungen, zu breit zum Überbrücken, brauchen Stützen",
+      "supportCounterbore": "{area} mm² Stufe von Stufenbohrungen zum Druckbett: Die Bohrung unterbricht die Brücke darüber, deshalb brauchen sie Stützen",
       "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",
       "feature": "{feature}: {message}"
     },
@@ -568,12 +569,14 @@
   "fix": {
     "try": {
       "chamfer": "Fase statt Rundung",
-      "roof": "{count, plural, one {Der Bohrung ein Dach geben} other {Den # Bohrungen ein Dach geben}}"
+      "roof": "{count, plural, one {Der Bohrung ein Dach geben} other {Den # Bohrungen ein Dach geben}}",
+      "bridge": "{count, plural, one {Stufenbohrung gestuft überbrücken} other {# Stufenbohrungen gestuft überbrücken}}"
     },
     "trying": "Wird probiert …",
     "preview": {
       "chamfer": "Der Geist zeigt Fasen gleicher Größe unter 45°: Sie drucken ohne Stützen.",
-      "roof": "Der Geist zeigt das Dach: 45°-Flanken, oben flach, wo der Slicer überbrückt."
+      "roof": "Der Geist zeigt das Dach: 45°-Flanken, oben flach, wo der Slicer überbrückt.",
+      "bridge": "Der Geist zeigt die gestufte Brücke: eine Schicht mit einem Schlitz in Lochbreite, eine mit einem Quadrat. Beide überbrückt der Slicer von Wand zu Wand."
     },
     "apply": "Übernehmen",
     "cancel": "Abbrechen",
@@ -582,11 +585,13 @@
     "failed": "Die Änderung ist fehlgeschlagen: {detail}",
     "done": {
       "chamfer": "Die Rundungen zum Druckbett sind jetzt Fasen.",
-      "roof": "{count, plural, one {Die Bohrung hat jetzt ein Dach.} other {Die # Bohrungen haben jetzt ein Dach.}}"
+      "roof": "{count, plural, one {Die Bohrung hat jetzt ein Dach.} other {Die # Bohrungen haben jetzt ein Dach.}}",
+      "bridge": "{count, plural, one {Die Stufenbohrung ist jetzt gestuft überbrückt.} other {Die # Stufenbohrungen sind jetzt gestuft überbrückt.}}"
     },
     "request": {
       "chamfer": "Mach aus den Rundungen an den Kanten zum Druckbett ({faces}) 45°-Fasen gleicher Größe, damit sie ohne Stützen drucken.",
-      "roof": "Gib den liegenden Bohrungen ({faces}) ein 45°-Tropfendach, oben flach, wo der Slicer überbrücken kann, damit sich nichts über {limit}° neigt."
+      "roof": "Gib den liegenden Bohrungen ({faces}) ein 45°-Tropfendach, oben flach, wo der Slicer überbrücken kann, damit sich nichts über {limit}° neigt.",
+      "bridge": "Setz über die Stufen der Stufenbohrungen zum Druckbett ({faces}) eine gestufte Brücke: eine Schicht mit einem Schlitz in Lochbreite quer über die Senkung, eine mit einem Quadrat, damit sie ohne Stützen drucken."
     }
   },
   "orientation": {

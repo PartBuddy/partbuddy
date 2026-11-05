@@ -18,6 +18,9 @@ const DOT: Record<PrintStatus | 'info', string> = {
   info: 'bg-info',
 };
 
+/** The text of a support finding by its cause (M7f). */
+const SUPPORT_TEXT = { fillet: 'supportFillet', hole: 'supportHole', counterbore: 'supportCounterbore', other: 'support' } as const;
+
 const severityDot = (finding: PrintFinding) => DOT[finding.severity === 'block' ? 'block' : finding.severity === 'warn' ? 'warn' : 'info'];
 
 /** One finding in words, with the numbers that matter. */
@@ -37,7 +40,7 @@ export function useFindingText(): (finding: PrintFinding) => string {
           ? t('check.finding.wallTooThin', { thickness: number.format(finding.thickness), nozzle: number.format(nozzle) })
           : t('check.finding.wallThin', { thickness: number.format(finding.thickness), minimum: number.format(finding.minimum) });
       case 'support':
-        return t(finding.cause === 'fillet' ? 'check.finding.supportFillet' : finding.cause === 'hole' ? 'check.finding.supportHole' : 'check.finding.support', {
+        return t(`check.finding.${SUPPORT_TEXT[finding.cause]}`, {
           area: number.format(finding.area),
           limit: finding.limit,
         });
@@ -72,10 +75,10 @@ function FixControl({ finding }: { finding: Extract<PrintFinding, { kind: 'suppo
     },
     [setSelectionGhost],
   );
-  const fix = model.status === 'ready' ? fixFor(finding, model.bodies, print?.orientation.down ?? AS_DESIGNED) : null;
+  const fix = model.status === 'ready' ? fixFor(finding, model.bodies, print?.orientation.down ?? AS_DESIGNED, print?.printer.layer ?? 0.2) : null;
   if (!fix) return null;
   const kind = fix.fix;
-  const count = fix.fix === 'roof' ? fix.roofs.length : fix.fillets.length;
+  const count = fix.fix === 'roof' ? fix.roofs.length : fix.fix === 'bridge' ? fix.bridges.length : fix.fillets.length;
 
   const tryIt = () => {
     setState({ step: 'trying' });

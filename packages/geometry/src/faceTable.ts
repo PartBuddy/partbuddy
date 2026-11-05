@@ -82,8 +82,11 @@ export function faceTableFromModelFaces(result: unknown, body: string, model: st
     if (typeof e.name !== 'string' || e.name === '') fail(i, 'name missing');
     if (typeof e.exact !== 'boolean') fail(i, 'exact flag missing');
     if (typeof e.area !== 'number' || !Number.isFinite(e.area)) fail(i, 'area missing');
-    if (!isVec3(e.centroid) || !isVec3(e.point)) fail(i, 'centroid or point missing');
-    const face: FaceInfo = { index: i, name: e.name, exact: e.exact, area: e.area, centroid: e.centroid, point: e.point };
+    // A face without area (a sliver where two cuts touch) has no point on it; SolidCraft 0.30.1
+    // reports point null and centroid [0, 0, 0] for it (2026-11-05). It cannot be picked anyway.
+    const point = e.point === null && e.area === 0 ? e.centroid : e.point;
+    if (!isVec3(e.centroid) || !isVec3(point)) fail(i, 'centroid or point missing');
+    const face: FaceInfo = { index: i, name: e.name, exact: e.exact, area: e.area, centroid: e.centroid, point };
     if (e.plane_normal !== undefined && e.plane_normal !== null) {
       if (!isVec3(e.plane_normal)) fail(i, 'plane_normal malformed');
       face.planeNormal = e.plane_normal;

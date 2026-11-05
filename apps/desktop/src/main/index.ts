@@ -273,7 +273,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.printApplyFix, async (fix) => {
       assistantIdle();
-      const phrase = describeUserAction({ kind: 'fix', fix: fix.fix, count: fix.fix === 'chamfer' ? fix.fillets.length : fix.roofs.length });
+      const phrase = describeUserAction({ kind: 'fix', fix: fix.fix, count: fix.fix === 'chamfer' ? fix.fillets.length : fix.fix === 'roof' ? fix.roofs.length : fix.bridges.length });
       await steps.recordUser(phrase, () => supervisor.applyFix(fix));
       log(`applied the ${fix.fix} fix for support`);
       return undefined;

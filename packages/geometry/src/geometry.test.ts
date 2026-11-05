@@ -200,6 +200,13 @@ describe('model.faces conversion', () => {
     expect(() => faceTableFromModelFaces({ faces: [{ ...raw.faces[0], point: [1, 2] }] }, 'Body', 'design')).toThrow(
       /point/,
     );
+    // Only a face with some area must have a point on it.
+    expect(() => faceTableFromModelFaces({ faces: [{ ...raw.faces[0], point: null }] }, 'Body', 'design')).toThrow(/point/);
+  });
+
+  it('takes a face without area and without a point, as SolidCraft reports a sliver (M7f)', () => {
+    const sliver = { index: 0, name: 'F4:start#[F2:cbore:side:1,F4:side:l2,F4:side:l3]', exact: true, area: 0, centroid: [0, 0, 0], point: null, plane_normal: null };
+    expect(faceTableFromModelFaces({ faces: [sliver] }, 'Body', 'design').faces[0]).toMatchObject({ area: 0, point: [0, 0, 0] });
   });
 });
 

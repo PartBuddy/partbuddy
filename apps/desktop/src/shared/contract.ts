@@ -670,6 +670,29 @@ export const printFixSchema = z.discriminatedUnion('fix', [
         .max(20),
     })
     .strict(),
+  z
+    .object({
+      fix: z.literal('bridge'),
+      body: bodyName,
+      /** Stepped bridges over counterbores facing the bed: a slot for one layer, a square for two. */
+      bridges: z
+        .array(
+          z
+            .object({
+              origin: point3,
+              xDir: unitDirection,
+              yDir: unitDirection,
+              slot: z.array(point2).length(4),
+              square: z.array(point2).length(4),
+              slotDepth: finite.min(0.04).max(1.3),
+              squareDepth: finite.min(0.08).max(2.5),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(20),
+    })
+    .strict(),
 ]);
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();
 export const partLoadsRequestSchema = z.object({ loads: loadPlacesSchema }).strict();
@@ -705,7 +728,7 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('size'), severity: findingSeveritySchema, size: z.tuple([mmValue, mmValue, mmValue]), bed: z.tuple([mmValue, mmValue, mmValue]), lying: z.boolean() }).strict(),
   z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z
-    .object({ kind: z.literal('support'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), cause: z.enum(['fillet', 'hole', 'other']), places: findingPlacesSchema })
+    .object({ kind: z.literal('support'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), cause: z.enum(['fillet', 'hole', 'counterbore', 'other']), places: findingPlacesSchema })
     .strict(),
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),

@@ -79,5 +79,15 @@ export {
   type NoteAnchor,
   type ResolvedAnchor,
 } from './noteAnchors';
-export { filletFeatureOf, holeRoof, supportCause, type HoleRoof, type SupportCause } from './printFixes';
+export {
+  counterboresOf,
+  filletFeatureOf,
+  holeRoof,
+  steppedBridge,
+  supportCause,
+  type Counterbore,
+  type HoleRoof,
+  type SteppedBridge,
+  type SupportCause,
+} from './printFixes';
 export { BRIDGE_SPAN, SHORT_OVERHANG, supportNeed, type SupportNeed } from './supportReach';

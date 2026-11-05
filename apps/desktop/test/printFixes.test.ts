@@ -69,4 +69,27 @@ describe('fixes for support at the light (M7f)', () => {
     expect(printFixSchema.safeParse({ fix: 'roof', body: 'Holder', roofs: [{ ...roof, xDir: [0, 2, 0] }] }).success).toBe(false);
     expect(printFixSchema.safeParse({ fix: 'roof', body: 'Holder', roofs: [{ ...roof, points: [[0, 0], [1, 1]] }] }).success).toBe(false);
   });
+
+  it('bridges a counterbore in steps: a slot one layer deep, a square two layers deep', async () => {
+    const { engine, batches } = fakeEngine({});
+    const bridge = {
+      origin: [20, 15, 3],
+      xDir: [1, 0, 0],
+      yDir: [0, 1, 0],
+      slot: [[-3.3072, -2.25], [3.3072, -2.25], [3.3072, 2.25], [-3.3072, 2.25]],
+      square: [[-2.25, -2.25], [2.25, -2.25], [2.25, 2.25], [-2.25, 2.25]],
+      slotDepth: 0.21,
+      squareDepth: 0.41,
+    };
+    await new PrintFixService(() => engine, 'cache').apply(printFixSchema.parse({ fix: 'bridge', body: 'Plate', bridges: [bridge] }));
+    const plane = { plane: { origin: [20, 15, 3], x_dir: [1, 0, 0], y_dir: [0, 1, 0] }, name: 'Print bridge' };
+    expect(batches[0]?.commands).toEqual([
+      { command: 'sketch.create', params: plane },
+      { command: 'sketch.line', params: { points: bridge.slot, closed: true } },
+      { command: 'solid.extrude', params: { distance: '0.21 mm', operation: 'cut', targets: ['Plate'], name: 'Print bridge' } },
+      { command: 'sketch.create', params: plane },
+      { command: 'sketch.line', params: { points: bridge.square, closed: true } },
+      { command: 'solid.extrude', params: { distance: '0.41 mm', operation: 'cut', targets: ['Plate'], name: 'Print bridge' } },
+    ]);
+  });
 });

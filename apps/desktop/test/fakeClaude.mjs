@@ -37,6 +37,14 @@ const PIPE_HOLDER = [
   { command: 'solid.hole', params: { position: [20, 0, 15], direction: [0, 1, 0], diameter: '20.65 mm', name: 'Rohrbohrung' } },
   { command: 'solid.fillet', params: { edges: [[20, 0, 0], [20, 30, 0], [0, 15, 30]], radius: '3 mm', name: 'Kanten' } },
 ];
+// "counterbore plate" (M7f step 3): two M4 counterbores opening towards the bed.
+const COUNTERBORE_PLATE = [
+  { command: 'solid.box', params: { length: 40, width: 30, height: 8, name: 'Platte', body_name: 'Montageplatte' } },
+  ...[10, 30].map((x) => ({
+    command: 'solid.hole',
+    params: { position: [x, 15, 0], direction: [0, 0, 1], diameter: '4.5 mm', type: 'counterbore', cb_diameter: '8 mm', cb_depth: '3 mm', name: `Stufenbohrung ${String(x)}` },
+  })),
+];
 const out = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
 
 if (args[0] === '--version') {
@@ -96,6 +104,13 @@ if (args[0] === '--version') {
       for (const step of WALL_HOLDER) await client.callTool({ name: 'execute', arguments: step });
       await client.close();
       out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The wall holder is built.' }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
+    if (content.includes('counterbore plate')) {
+      for (const step of COUNTERBORE_PLATE) await client.callTool({ name: 'execute', arguments: step });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The counterbore plate is built.' }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
