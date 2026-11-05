@@ -1,9 +1,10 @@
-import { IconBox, IconCube, IconMaximize, IconPencil, IconPerspective, IconRuler2, IconRulerMeasure } from '@tabler/icons-react';
+import { IconBox, IconCube, IconMaximize, IconPencil, IconPerspective, IconRulerMeasure } from '@tabler/icons-react';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, ToggleButton, Tooltip, TooltipTrigger } from 'react-aria-components';
 
 import { useStudio, type StandardView } from '../state/store';
+import { CadIcon } from '../ui/CadIcon';
 
 const tool =
   'inline-flex size-control-md items-center justify-center rounded-md text-xs font-semibold text-text outline-none transition-colors ' +
@@ -104,7 +105,7 @@ export function ViewTools() {
           className={tool}
           data-testid="dimensions"
         >
-          <IconRuler2 className="size-icon-sm" aria-hidden />
+          <CadIcon name="dimension" className="size-icon-sm" />
         </ToggleButton>
       </Tip>
       {dimensions === 'off' ? null : (

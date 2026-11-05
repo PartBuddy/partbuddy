@@ -331,6 +331,8 @@
       "Sketch": "Sketch",
       "Extrude": "Extrude",
       "Revolve": "Revolve",
+      "Sweep": "Sweep",
+      "Loft": "Loft",
       "Fillet": "Fillet",
       "Chamfer": "Chamfer",
       "Hole": "Hole",
@@ -338,6 +340,13 @@
       "Box": "Box",
       "Cylinder": "Cylinder",
       "Mirror": "Mirror",
+      "Pattern": "Pattern",
+      "LinearPattern": "Linear pattern",
+      "CircularPattern": "Circular pattern",
+      "Split": "Split",
+      "Thread": "Thread",
+      "Combine": "Combine",
+      "Plane": "Plane",
       "PressPull": "Press/pull"
     }
   },

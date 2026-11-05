@@ -1,9 +1,12 @@
 ---
-status: accepted
+status: superseded
 date: 2026-11-04
 ---
 
 # Own CAD feature glyphs on the Tabler grid (own implementation)
+
+> **Superseded on 2026-11-05 by [ADR 0023](0023-cad-icons-from-zoo.md):** CAD operations use Zoo
+> Design Studio's icons instead of own glyphs.
 
 ## Context and Problem Statement
 

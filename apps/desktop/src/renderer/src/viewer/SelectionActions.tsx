@@ -1,4 +1,3 @@
-import { IconCircleDot, IconLayersSubtract, IconRuler2, IconSquareRoundedArrowUp, IconVectorBezier2 } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Input, Label, TextField, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
@@ -6,6 +5,7 @@ import { Input, Label, TextField, ToggleButton, ToggleButtonGroup } from 'react-
 import type { DesignAction, MeasureItem, MeasureResult } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
+import { CadIcon } from '../ui/CadIcon';
 import { actionsFor, type ActionKind } from './actionKinds';
 import { parseLength } from './lengthInput';
 
@@ -14,11 +14,11 @@ const DEFAULT_SIZE: Record<ActionKind, number> = { fillet: 1, chamfer: 0.5, extr
 const PREVIEW_DELAY_MS = 250;
 
 const ICONS: Record<ActionKind, ReactNode> = {
-  fillet: <IconVectorBezier2 className="size-icon-sm" aria-hidden />,
-  chamfer: <IconRuler2 className="size-icon-sm" aria-hidden />,
-  extrude: <IconSquareRoundedArrowUp className="size-icon-sm" aria-hidden />,
-  hole: <IconCircleDot className="size-icon-sm" aria-hidden />,
-  shell: <IconLayersSubtract className="size-icon-sm" aria-hidden />,
+  fillet: <CadIcon name="fillet" className="size-icon-sm" />,
+  chamfer: <CadIcon name="chamfer" className="size-icon-sm" />,
+  extrude: <CadIcon name="extrude" className="size-icon-sm" />,
+  hole: <CadIcon name="hole" className="size-icon-sm" />,
+  shell: <CadIcon name="shell" className="size-icon-sm" />,
 };
 
 function actionOf(kind: ActionKind, body: string, picks: Pick[], size: number): DesignAction {
