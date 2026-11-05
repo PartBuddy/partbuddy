@@ -1,87 +1,20 @@
 import { IconArrowUp, IconPencil, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, CheckboxButton, CheckboxField, Form, TextArea, TextField, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
+import { Button as AriaButton, CheckboxButton, CheckboxField, Form, TextArea, TextField } from 'react-aria-components';
 
-import type { AgentStatus } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { selectionName, selectionsOf } from '../viewer/viewState';
 import { Button } from '../ui/Button';
-import { Busy, StatusDot } from '../ui/Feedback';
+import { Busy } from '../ui/Feedback';
+import { AgentChip } from './AgentChip';
 import { Markdown } from './Markdown';
 import { sendToAssistant } from './send';
 import { QuestionCard } from './QuestionCard';
 import { Details, StepCard } from './StepCard';
 import { selectedStatus, useAssistant, type ConversationItem } from './store';
 import { ToolCall, type ToolItem } from './ToolCall';
-
-function statusLabel(t: ReturnType<typeof useTranslation>['t'], status: AgentStatus): string {
-  const signedIn = status.state === 'ready' || status.state === 'busy';
-  if (!signedIn) return t(`assistant.state.${status.agent}.${status.state}`);
-  if (status.agent === 'chatgpt') return t('assistant.chatgpt.signedIn', { account: status.account ?? '', model: status.model ?? '' });
-  const plan = status.method === 'claude.ai' && status.plan ? t('assistant.plan', { plan: status.plan }) : t('assistant.apiKey');
-  return t('assistant.signedIn', { plan, version: status.version ?? '' });
-}
-
-function Header() {
-  const { t } = useTranslation();
-  const state = useAssistant((s) => s.state);
-  const status = selectedStatus(state);
-  const signedIn = status.state === 'ready' || status.state === 'busy';
-  return (
-    <header className="flex flex-col gap-2 border-b border-border px-3 py-2">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-md font-semibold text-text">{t('assistant.title')}</h2>
-        <span className="rounded-sm border border-border px-1 text-xs text-text-muted">{t('assistant.preview')}</span>
-      </div>
-      <ToggleButtonGroup
-        aria-label={t('assistant.route')}
-        selectionMode="single"
-        disallowEmptySelection
-        selectedKeys={[state.selected]}
-        onSelectionChange={(keys) => {
-          const [key] = [...keys];
-          if (key === 'claude-code' || key === 'chatgpt') void platform().agent.select(key);
-        }}
-        className="flex rounded-md border border-border-strong p-hairline"
-      >
-        {(['claude-code', 'chatgpt'] as const).map((kind) => (
-          <ToggleButton
-            key={kind}
-            id={kind}
-            className="flex-1 rounded-sm px-2 py-1 text-sm text-text-muted outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:bg-surface-selected selected:font-medium selected:text-text"
-          >
-            {t(`assistant.routes.${kind}`)}
-          </ToggleButton>
-        ))}
-      </ToggleButtonGroup>
-      <div className="flex items-center justify-between gap-2" data-testid="agent-status">
-        <StatusDot tone={signedIn ? 'success' : status.state === 'checking' ? 'neutral' : 'warning'} label={statusLabel(t, status)} />
-        {status.agent === 'claude-code' && status.apiBillingAllowed ? (
-          <AriaButton
-            onPress={() => {
-              void platform().agent.allowApiBilling(false);
-            }}
-            className="text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
-          >
-            {t('assistant.subscriptionOnly')}
-          </AriaButton>
-        ) : null}
-        {status.agent === 'chatgpt' && signedIn ? (
-          <AriaButton
-            onPress={() => {
-              void platform().agent.signOut();
-            }}
-            className="text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
-          >
-            {t('assistant.chatgpt.signOut')}
-          </AriaButton>
-        ) : null}
-      </div>
-    </header>
-  );
-}
 
 function Notice({ title, body, children }: { title: string; body: string; children?: React.ReactNode }) {
   return (
@@ -334,8 +267,11 @@ export function AssistantPanel() {
   };
 
   return (
-    <aside aria-label={t('assistant.title')} className="flex w-dialog-sm shrink-0 flex-col border-l border-border bg-surface">
-      <Header />
+    <aside aria-labelledby="assistant-title" className="flex w-dialog-sm shrink-0 flex-col border-l border-border bg-surface">
+      {/* The route and its status live in the chip beside the composer; the heading stays for screen readers. */}
+      <h2 id="assistant-title" className="sr-only">
+        {t('assistant.title')}
+      </h2>
       <div ref={list} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
         <Setup />
         {items.length === 0 && (status.state === 'ready' || busy) ? <p className="text-sm text-text-muted">{t('assistant.empty')}</p> : null}
@@ -406,13 +342,16 @@ export function AssistantPanel() {
             ))}
           </div>
         ) : null}
+        {selection && selections.length === 1 ? (
+          <span className="flex min-w-0 items-center gap-1 truncate text-xs text-text-muted" data-testid="composer-selection">
+            <IconPointer className="size-icon-sm shrink-0" aria-hidden />
+            {t('assistant.selectionGoesWith', { kind: selection.kind, name: `${selectionName(selection)} · ${selection.body}` })}
+          </span>
+        ) : null}
         <div className="flex items-center justify-end gap-2">
-          {selection && selections.length === 1 ? (
-            <span className="mr-auto flex min-w-0 items-center gap-1 truncate text-xs text-text-muted" data-testid="composer-selection">
-              <IconPointer className="size-icon-sm shrink-0" aria-hidden />
-              {t('assistant.selectionGoesWith', { kind: selection.kind, name: `${selectionName(selection)} · ${selection.body}` })}
-            </span>
-          ) : null}
+          <span className="mr-auto flex min-w-0">
+            <AgentChip />
+          </span>
           {busy ? (
             <Button
               onPress={() => {

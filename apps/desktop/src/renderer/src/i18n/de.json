@@ -214,7 +214,25 @@
     "removeDrawing": "Striche verwerfen",
     "drawingImage": "Auch als Bild senden",
     "withDrawing": "mit Zeichnung ({count, plural, one {# Strich} other {# Striche}})",
-    "withDrawingImage": "mit Zeichnung ({count, plural, one {# Strich} other {# Striche}}) und Bild"
+    "withDrawingImage": "mit Zeichnung ({count, plural, one {# Strich} other {# Striche}}) und Bild",
+    "chip": {
+      "label": "Assistent: {status}",
+      "apiKey": "API-Key",
+      "switchNote": "Ein Wechsel bricht eine laufende Antwort ab. Der andere Assistent kennt das bisherige Gespräch nicht.",
+      "describe": {
+        "claude-code": "Dein Claude-Pro- oder Max-Abo, über Claude Code",
+        "chatgpt": "Dein ChatGPT-Abo, hier angemeldet"
+      },
+      "state": {
+        "checking": "wird geprüft",
+        "notInstalled": "nicht installiert",
+        "signedOut": "nicht angemeldet",
+        "needsSubscription": "kein Abo",
+        "unavailable": "nicht verfügbar",
+        "ready": "bereit",
+        "busy": "arbeitet"
+      }
+    }
   },
   "live": {
     "step": "Schritt {number} · {label}",
