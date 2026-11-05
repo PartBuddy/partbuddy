@@ -4,14 +4,10 @@ import { useTranslation } from 'react-i18next';
 import {
   CheckboxButton,
   CheckboxField,
-  Dialog,
-  Heading,
   Input,
   Label,
   ListBox,
   ListBoxItem,
-  Modal,
-  ModalOverlay,
   NumberField,
   Tab,
   TabList,
@@ -248,7 +244,8 @@ function MaterialForm({
   );
 }
 
-function Editor({ close }: { close: () => void }) {
+/** The printer and material profiles as a form with Save and Cancel; in its dialog and in the settings (B6). */
+export function PrintProfilesEditor({ close }: { close: () => void }) {
   const { t } = useTranslation();
   const part = useStudio((s) => s.print);
   const tab = useStudio((s) => s.profilesTab);
@@ -371,26 +368,6 @@ function Editor({ close }: { close: () => void }) {
           </ProfileColumns>
         </TabPanel>
       </Tabs>
-      <div className="flex flex-col gap-1 border-t border-border pt-3">
-        <CheckboxField
-          isSelected={draft.supportFree}
-          onChange={(supportFree) => {
-            setDraft({ ...draft, supportFree });
-          }}
-          data-testid="support-free"
-        >
-          <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
-            <span
-              aria-hidden
-              className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
-            >
-              <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
-            </span>
-            {t('print.supportFree')}
-          </CheckboxButton>
-        </CheckboxField>
-        <p className="text-xs text-text-subtle">{t('print.supportFreeHint')}</p>
-      </div>
       {error ? (
         <p role="alert" className="text-sm text-danger">
           {error}
@@ -409,27 +386,46 @@ function Editor({ close }: { close: () => void }) {
 }
 
 /**
- * Printer and material profiles (M7, decided 2026-11-05): printers for the whole installation with
- * one in use, materials with a default for new parts; entered by hand. Changes apply on "Save".
+ * Design to print without support (M7f): the assistant gets the rules for it with the print
+ * profile. In the settings' assistant section (B6); saved at once.
  */
-export function PrintProfilesDialog() {
+export function SupportFreeSwitch() {
   const { t } = useTranslation();
-  const open = useStudio((s) => s.profilesOpen);
-  const setOpen = useStudio((s) => s.setProfilesOpen);
+  const [settings, setSettings] = useState<PrintSettings | null>(null);
+  useEffect(() => {
+    let live = true;
+    void platform()
+      .print.settings()
+      .then((loaded) => {
+        if (live) setSettings(loaded);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!settings) return null;
   return (
-    <ModalOverlay isOpen={open} onOpenChange={setOpen} isDismissable className="fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset">
-      <Modal className="w-dialog-lg max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
-        <Dialog className="flex flex-col gap-4 p-5 outline-none" data-testid="print-profiles">
-          {({ close }) => (
-            <>
-              <Heading slot="title" className="text-lg font-semibold text-text">
-                {t('print.title')}
-              </Heading>
-              <Editor close={close} />
-            </>
-          )}
-        </Dialog>
-      </Modal>
-    </ModalOverlay>
+    <div className="flex flex-col gap-1">
+      <CheckboxField
+        isSelected={settings.supportFree}
+        onChange={(supportFree) => {
+          const next = { ...settings, supportFree };
+          setSettings(next);
+          void platform().print.saveSettings(next).then(setSettings);
+        }}
+        data-testid="support-free"
+      >
+        <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
+          <span
+            aria-hidden
+            className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
+          >
+            <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
+          </span>
+          {t('print.supportFree')}
+        </CheckboxButton>
+      </CheckboxField>
+      <p className="text-xs text-text-subtle">{t('print.supportFreeHint')}</p>
+    </div>
   );
 }

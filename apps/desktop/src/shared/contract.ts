@@ -257,6 +257,22 @@ export const versionIdSchema = z.object({ id: z.string().regex(/^v-[a-z0-9]{1,20
 /** The colour theme: follow the system (Windows), or always light or dark. */
 export const themeSchema = z.enum(['system', 'light', 'dark']);
 export const themeRequestSchema = z.object({ theme: themeSchema }).strict();
+/** The language of the interface (B6): follow Windows, German or English. */
+export const languageSchema = z.enum(['system', 'de', 'en']);
+export const languageRequestSchema = z.object({ language: languageSchema }).strict();
+/**
+ * General settings (B6): the language, Windows' own language (for "follow Windows") and the project
+ * folder, where it comes from and whether a restart is needed before it applies.
+ */
+export const generalSettingsSchema = z
+  .object({
+    language: languageSchema,
+    systemLocale: z.string().max(40),
+    projectsFolder: z.string().max(1000),
+    projectsSource: z.enum(['default', 'setting', 'override']),
+    restartNeeded: z.boolean(),
+  })
+  .strict();
 
 export const agentKindSchema = z.enum(['claude-code', 'chatgpt']);
 
@@ -804,6 +820,10 @@ export const invokeContract = {
   [invokeChannels.windowTitleBar]: { request: titleBarColorsSchema, response: none },
   [invokeChannels.windowTheme]: { request: none, response: themeSchema },
   [invokeChannels.windowSetTheme]: { request: themeRequestSchema, response: themeSchema },
+  [invokeChannels.settingsGeneral]: { request: none, response: generalSettingsSchema },
+  [invokeChannels.settingsSetLanguage]: { request: languageRequestSchema, response: generalSettingsSchema },
+  [invokeChannels.settingsChooseProjectsFolder]: { request: none, response: generalSettingsSchema },
+  [invokeChannels.settingsResetProjectsFolder]: { request: none, response: generalSettingsSchema },
   [invokeChannels.designUndo]: { request: none, response: none },
   [invokeChannels.designRedo]: { request: none, response: none },
   [invokeChannels.designExport]: { request: exportRequestSchema, response: exportResultSchema },
@@ -859,6 +879,8 @@ export type ProjectInfo = z.infer<typeof projectInfoSchema>;
 export type ProjectRenameResult = z.infer<typeof projectRenameResultSchema>;
 export type ProjectOpenResult = z.infer<typeof projectOpenResultSchema>;
 export type InsertResult = z.infer<typeof insertResultSchema>;
+export type Language = z.infer<typeof languageSchema>;
+export type GeneralSettingsInfo = z.infer<typeof generalSettingsSchema>;
 export type VersionEntry = z.infer<typeof versionEntrySchema>;
 export type VersionComparison = z.infer<typeof versionComparisonSchema>;
 export type RepairResult = z.infer<typeof repairResultSchema>;

@@ -16,7 +16,7 @@ const itemClass = 'flex cursor-default items-center gap-2 rounded-sm px-2 py-1 t
 export function MaterialMenu() {
   const { t } = useTranslation();
   const print = useStudio((s) => s.print);
-  const setProfilesOpen = useStudio((s) => s.setProfilesOpen);
+  const setSettingsSection = useStudio((s) => s.setSettingsSection);
   const setProfilesTab = useStudio((s) => s.setProfilesTab);
   const setNotice = useStudio((s) => s.setNotice);
   const [materials, setMaterials] = useState<MaterialProfile[]>([]);
@@ -60,7 +60,7 @@ export function MaterialMenu() {
           onAction={(key) => {
             if (key !== 'edit') return;
             setProfilesTab('printer');
-            setProfilesOpen(true);
+            setSettingsSection('print');
           }}
         >
           <MenuSection

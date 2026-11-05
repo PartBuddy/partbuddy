@@ -8,6 +8,8 @@ import type {
   ProjectEntry,
   ProjectOpenResult,
   InsertResult,
+  GeneralSettingsInfo,
+  Language,
   VersionComparison,
   VersionEntry,
   RepairResult,
@@ -51,6 +53,15 @@ export interface PartBuddyApi {
   appInfo(): Promise<AppInfo>;
   /** Restarts PartBuddy (after choosing another SolidCraft); the design is saved first. */
   relaunch(): Promise<void>;
+  /** General settings (B6): language and project folder. */
+  settings: {
+    general(): Promise<GeneralSettingsInfo>;
+    setLanguage(language: Language): Promise<GeneralSettingsInfo>;
+    /** Asks for another project folder; it applies after a restart. */
+    chooseProjectsFolder(): Promise<GeneralSettingsInfo>;
+    /** Back to Documents\PartBuddy after a restart. */
+    resetProjectsFolder(): Promise<GeneralSettingsInfo>;
+  };
   /** Projects (B2): one folder per part in the project folder. Switching saves the open design first. */
   project: {
     info(): Promise<ProjectInfo>;

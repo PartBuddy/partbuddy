@@ -48,6 +48,9 @@
   --cs-size-dock: 640px;
   --cs-size-field-dock: 136px;
   --cs-size-dialog-lg: 640px;
+  /* Settings (B6): sections on the left, the chosen one beside them. */
+  --cs-size-dialog-xl: 880px;
+  --cs-size-settings-nav: 180px;
   --cs-size-dialog-offset: 12vh;
   /* Start page (B3): the narrowest project tile, the page's width and the search field. */
   --cs-size-tile: 220px;

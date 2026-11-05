@@ -11,6 +11,7 @@ import { invokeChannels, eventChannels } from '../shared/channels';
 import type { AgentEvent, ExportFormat, PrintCheckReport, ViewState } from '../shared/contract';
 import { AgentService } from './agents/agentService';
 import { AppearanceSettings } from './appearance';
+import { GeneralSettings } from './generalSettings';
 import { Assistant } from './agents/assistant';
 import { SolidCraftTools } from './agents/solidcraftTools';
 import type { UpstreamTools } from './agents/gateProxy';
@@ -164,6 +165,14 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
+// The language the user chose (B6) is Chromium's locale, set before the app is ready; a `--lang`
+// on the command line (tests) wins.
+const general = new GeneralSettings(join(app.getPath('userData'), 'general.json'));
+const chosenLanguage = general.language();
+if (chosenLanguage !== 'system' && !process.argv.some((arg) => arg.startsWith('--lang'))) {
+  app.commandLine.appendSwitch('lang', chosenLanguage === 'de' ? 'de-DE' : 'en-US');
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -184,11 +193,12 @@ if (!app.requestSingleInstanceLock()) {
     const bridge = new Bridge(ipcMain, trustedSender(() => mainWindow?.webContents.id, rendererOrigin), !app.isPackaged);
     // The user's project folder: the only place the assistant's SolidCraft may read and write.
     // PARTBUDDY_PROJECTS_DIR: tests keep the user's documents untouched.
-    const projects = process.env.PARTBUDDY_PROJECTS_DIR ?? join(app.getPath('documents'), 'PartBuddy');
+    const defaultProjects = join(app.getPath('documents'), 'PartBuddy');
+    const projects = process.env.PARTBUDDY_PROJECTS_DIR ?? general.projectsFolder() ?? defaultProjects;
     mkdirSync(projects, { recursive: true });
     // Projects (B2): one folder per part; designs kept in PartBuddy's own folder before become projects once.
     const designsDir = join(app.getPath('userData'), 'designs');
-    const german = app.getLocale().toLowerCase().startsWith('de');
+    let german = app.getLocale().toLowerCase().startsWith('de');
     const projectStore = new ProjectStore(projects, designsDir, german ? 'Teil' : 'Part');
     const migrated = migrateDesigns(designsDir, projectStore, log);
     if (migrated > 0) log(`${String(migrated)} earlier designs became projects`);
@@ -348,6 +358,45 @@ if (!app.requestSingleInstanceLock()) {
       appearance.setTheme(theme);
       nativeTheme.themeSource = theme;
       return theme;
+    });
+    // General settings (B6): the language applies at once in the window and fully after a restart;
+    // the project folder after a restart (SolidCraft gets its allowed folders when it starts).
+    const generalInfo = () => {
+      const chosen = general.projectsFolder();
+      const override = process.env.PARTBUDDY_PROJECTS_DIR;
+      const folder = override ?? chosen ?? defaultProjects;
+      return {
+        language: general.language(),
+        systemLocale: app.getSystemLocale().slice(0, 40),
+        projectsFolder: folder,
+        projectsSource: override ? ('override' as const) : chosen ? ('setting' as const) : ('default' as const),
+        restartNeeded: resolve(folder) !== resolve(projects),
+      };
+    };
+    bridge.handle(invokeChannels.settingsGeneral, generalInfo);
+    bridge.handle(invokeChannels.settingsSetLanguage, ({ language }) => {
+      general.setLanguage(language);
+      german = (language === 'system' ? app.getSystemLocale() : language).toLowerCase().startsWith('de');
+      log(`the interface language is now ${language}`);
+      return generalInfo();
+    });
+    bridge.handle(invokeChannels.settingsChooseProjectsFolder, async () => {
+      const options: Electron.OpenDialogOptions = {
+        title: german ? 'Projektordner wählen' : 'Choose the project folder',
+        defaultPath: generalInfo().projectsFolder,
+        properties: ['openDirectory', 'createDirectory'],
+      };
+      const picked = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
+      const [folder] = picked.filePaths;
+      if (!picked.canceled && folder && existsSync(folder) && statSync(folder).isDirectory()) {
+        general.setProjectsFolder(resolve(folder) === resolve(defaultProjects) ? null : folder);
+        log('chose another project folder');
+      }
+      return generalInfo();
+    });
+    bridge.handle(invokeChannels.settingsResetProjectsFolder, () => {
+      general.setProjectsFolder(null);
+      return generalInfo();
     });
     bridge.handle(invokeChannels.viewerState, (state) => {
       viewState = state;
