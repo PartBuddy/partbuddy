@@ -46,6 +46,17 @@ instead of a clean Linux environment.
   Claude desktop app, the setup's writes to AppData land in the app's private package folder, where
   Explorer and the shortcuts never see them. GitHub holds jobs while
   the runner is off and cancels them after 24 hours in the queue.
+* Lifetime: the four listeners live only as long as the hidden `wsl.exe` that runs
+  `start-listener.sh`. The control script first started it with `Start-Process`, which made it a
+  child of the caller and a member of the caller's job object. On 2026-11-05 a Claude Code session
+  ran `-Action Start -Quiet`; when that session's process tree was torn down, `wsl.exe` went with
+  it, all four `Runner.Listener` processes ended without a log line, GitHub showed the runners
+  offline and pull request checks stayed pending. The autostart was not affected, because Explorer
+  outlives the sign-in. The control script now creates `wsl.exe` through WMI
+  (`Win32_Process.Create` with `Win32_ProcessStartup.ShowWindow = 0`): its parent is `WmiPrvSE`,
+  it belongs to no job of the caller, and no window appears. This needs no scheduled task or other
+  system configuration. Verified by starting the runners from a shell inside a kill-on-close job
+  object, ending that job and its tree with `taskkill /T`: all four runners stayed online.
 * Notification: a job-completed hook (`ACTIONS_RUNNER_HOOK_JOB_COMPLETED`) writes one line per
   finished job to `job-events.log`. `tools/runner/watch-pr-checks.sh` follows that file from
   Windows and, right after a pull request's job finished, asks GitHub whether all checks are done;

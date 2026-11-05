@@ -125,7 +125,8 @@ done
 SCRIPT
 
 # Starts every registered instance in the foreground; runner-control.ps1 keeps this alive from
-# one hidden wsl.exe process. Logs are rotated at 10 MB.
+# one hidden wsl.exe process that WMI creates outside the caller's process tree, so the listeners
+# outlive whatever ran the start. Logs are rotated at 10 MB.
 cat >"${RUNNER_HOME}/start-listener.sh" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
