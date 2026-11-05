@@ -11,7 +11,7 @@
     2. Ubuntu 24.04 als eigene Distribution "partbuddy-runner" importieren (Prüfsumme geprüft).
     3. provision.sh darin als root ausführen (Pakete, Benutzer "runner", Runner, Abschottung).
     4. Den Runner beim Repository registrieren (Token über gh, nie auf einer Befehlszeile).
-    5. runner-control.ps1 nach %LOCALAPPDATA%\PartBuddyRunner kopieren, Desktop-Verknüpfung und
+    5. runner-control.ps1 nach %USERPROFILE%\.partbuddy\runner kopieren, Desktop-Verknüpfung und
        Autostart anlegen, Runner starten.
 
 .PARAMETER Repository
@@ -43,7 +43,10 @@ $RunnerHome = "/home/$RunnerUser"
 $RootfsUrl = 'https://cloud-images.ubuntu.com/wsl/releases/24.04/20240423/ubuntu-noble-wsl-amd64-24.04lts.rootfs.tar.gz'
 $RootfsSha256 = '2a790896740b14d637dbdc583cce1ba081ac53b9e9cdb46dc09a2f73abbd9934'
 
-$InstallRoot = Join-Path $env:LOCALAPPDATA 'PartBuddyRunner'
+# Nicht unter AppData: Startet ein MSIX-Paket (etwa die Claude-App) dieses Skript, leitet Windows
+# Schreibzugriffe in AppData in den privaten Paketordner um; Explorer und Verknüpfungen fänden die
+# Dateien dann nicht. Das Benutzerprofil außerhalb von AppData wird nicht umgeleitet.
+$InstallRoot = Join-Path $env:USERPROFILE '.partbuddy\runner'
 $DistroDir = Join-Path $InstallRoot 'wsl'
 $ControlScript = Join-Path $InstallRoot 'runner-control.ps1'
 $Wsl = Join-Path $env:WINDIR 'System32\wsl.exe'
