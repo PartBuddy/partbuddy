@@ -21,6 +21,8 @@ export const STEP_PHRASE_KEYS = [
   'sphere',
   'fillet',
   'chamfer',
+  'fixChamfer',
+  'fixRoof',
   'hole',
   'shell',
   'pressPull',
@@ -234,7 +236,8 @@ export function describeUserAction(
     | { kind: 'dimension'; parameter: string; value: number }
     | { kind: 'action'; action: 'fillet' | 'chamfer' | 'extrude' | 'hole' | 'shell'; size: number; count: number; depth?: number | undefined }
     | { kind: 'rollTo'; position: number | 'end' }
-    | { kind: 'suppress'; suppressed: boolean },
+    | { kind: 'suppress'; suppressed: boolean }
+    | { kind: 'fix'; fix: 'chamfer' | 'roof'; count: number },
 ): StepPhrase {
   const round = (value: number) => Math.round(value * 100) / 100;
   switch (action.kind) {
@@ -244,6 +247,8 @@ export function describeUserAction(
       return action.position === 'end' ? { key: 'rollToEnd', values: {} } : { key: 'rollTo', values: { position: action.position } };
     case 'suppress':
       return { key: action.suppressed ? 'suppress' : 'unsuppress', values: {} };
+    case 'fix':
+      return { key: action.fix === 'chamfer' ? 'fixChamfer' : 'fixRoof', values: { count: action.count } };
     case 'action':
       switch (action.action) {
         case 'fillet':
@@ -280,6 +285,8 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     sphere: 'Sphere ⌀ {diameter} mm',
     fillet: 'Fillet {radius} mm on {count, plural, one {# edge} other {# edges}}',
     chamfer: 'Chamfer {distance} mm on {count, plural, one {# edge} other {# edges}}',
+    fixChamfer: 'Rounds facing the bed made chamfers ({count, plural, one {# fillet} other {# fillets}})',
+    fixRoof: '{count, plural, one {Roof over a lying hole} other {Roofs over # lying holes}}',
     hole: '{depth, select, through {Hole ⌀ {diameter} mm, through} other {Hole ⌀ {diameter} mm, {depth} mm deep}}',
     shell: 'Shelled with {thickness} mm walls',
     pressPull: 'Face moved by {distance} mm',
@@ -314,6 +321,8 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     sphere: 'Kugel ⌀ {diameter} mm',
     fillet: 'Verrundung {radius} mm an {count, plural, one {# Kante} other {# Kanten}}',
     chamfer: 'Fase {distance} mm an {count, plural, one {# Kante} other {# Kanten}}',
+    fixChamfer: 'Rundungen zum Druckbett zu Fasen gemacht ({count, plural, one {# Verrundung} other {# Verrundungen}})',
+    fixRoof: '{count, plural, one {Dach über einer liegenden Bohrung} other {Dächer über # liegenden Bohrungen}}',
     hole: '{depth, select, through {Bohrung ⌀ {diameter} mm, durchgehend} other {Bohrung ⌀ {diameter} mm, {depth} mm tief}}',
     shell: 'Schale mit {thickness} mm Wand',
     pressPull: 'Fläche um {distance} mm verschoben',

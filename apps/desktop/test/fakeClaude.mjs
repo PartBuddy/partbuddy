@@ -31,6 +31,12 @@ const WALL_HOLDER = [
   { command: 'solid.fillet', params: { edges: [[25, 6, 6]], radius: '2 mm', name: 'Innenradien' } },
   { command: 'solid.fillet', params: { edges: [[0, 3, 100], [50, 3, 100]], radius: '5 mm', name: 'Aussenkanten' } },
 ];
+// "pipe holder" (M7f step 2): rounds on the bottom edges and a lying Ø20.65 hole, both needing support.
+const PIPE_HOLDER = [
+  { command: 'solid.box', params: { length: 40, width: 30, height: 30, name: 'Block', body_name: 'Rohrhalter' } },
+  { command: 'solid.hole', params: { position: [20, 0, 15], direction: [0, 1, 0], diameter: '20.65 mm', name: 'Rohrbohrung' } },
+  { command: 'solid.fillet', params: { edges: [[20, 0, 0], [20, 30, 0], [0, 15, 30]], radius: '3 mm', name: 'Kanten' } },
+];
 const out = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
 
 if (args[0] === '--version') {
@@ -90,6 +96,13 @@ if (args[0] === '--version') {
       for (const step of WALL_HOLDER) await client.callTool({ name: 'execute', arguments: step });
       await client.close();
       out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The wall holder is built.' }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
+    if (content.includes('pipe holder')) {
+      for (const step of PIPE_HOLDER) await client.callTool({ name: 'execute', arguments: step });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The pipe holder is built.' }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }

@@ -553,6 +553,8 @@
       "wallThin": "Wände nur {thickness} mm, mindestens {minimum} mm (zwei Linien)",
       "support": "{area} mm² Überhang über {limit}° brauchen Stütze",
       "contact": "Nur {area} mm² liegen auf dem Druckbett: kann sich lösen oder kippen",
+      "supportFillet": "{area} mm² Rundung an Kanten zum Druckbett neigen sich über {limit}° und brauchen Stützen",
+      "supportHole": "{area} mm² über liegenden Bohrungen, zu breit zum Überbrücken, brauchen Stützen",
       "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",
       "feature": "{feature}: {message}"
     },
@@ -561,6 +563,30 @@
       "body": "Die Druckprüfung ist rot. So wird das Teil voraussichtlich nicht sauber gedruckt:",
       "cancel": "Abbrechen",
       "go": "Trotzdem exportieren"
+    }
+  },
+  "fix": {
+    "try": {
+      "chamfer": "Fase statt Rundung",
+      "roof": "{count, plural, one {Der Bohrung ein Dach geben} other {Den # Bohrungen ein Dach geben}}"
+    },
+    "trying": "Wird probiert …",
+    "preview": {
+      "chamfer": "Der Geist zeigt Fasen gleicher Größe unter 45°: Sie drucken ohne Stützen.",
+      "roof": "Der Geist zeigt das Dach: 45°-Flanken, oben flach, wo der Slicer überbrückt."
+    },
+    "apply": "Übernehmen",
+    "cancel": "Abbrechen",
+    "refused": "So kann SolidCraft es nicht umsetzen: {detail}",
+    "ask": "Assistenten fragen",
+    "failed": "Die Änderung ist fehlgeschlagen: {detail}",
+    "done": {
+      "chamfer": "Die Rundungen zum Druckbett sind jetzt Fasen.",
+      "roof": "{count, plural, one {Die Bohrung hat jetzt ein Dach.} other {Die # Bohrungen haben jetzt ein Dach.}}"
+    },
+    "request": {
+      "chamfer": "Mach aus den Rundungen an den Kanten zum Druckbett ({faces}) 45°-Fasen gleicher Größe, damit sie ohne Stützen drucken.",
+      "roof": "Gib den liegenden Bohrungen ({faces}) ein 45°-Tropfendach, oben flach, wo der Slicer überbrücken kann, damit sich nichts über {limit}° neigt."
     }
   },
   "orientation": {

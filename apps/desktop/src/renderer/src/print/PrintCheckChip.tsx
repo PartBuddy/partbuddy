@@ -1,9 +1,14 @@
-import type { PrintFinding, PrintStatus } from '@partbuddy/geometry';
-import { IconCrosshair } from '@tabler/icons-react';
+import { AS_DESIGNED, type PrintFinding, type PrintStatus } from '@partbuddy/geometry';
+import { IconCrosshair, IconTool } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover } from 'react-aria-components';
 
+import { selectedStatus, useAssistant } from '../assistant/store';
+import { platform } from '../platform';
 import { useStudio } from '../state/store';
+import { Button } from '../ui/Button';
+import { fixFor } from './fixes';
 import { OrientationSection } from './OrientationSection';
 
 const DOT: Record<PrintStatus | 'info', string> = {
@@ -32,7 +37,10 @@ export function useFindingText(): (finding: PrintFinding) => string {
           ? t('check.finding.wallTooThin', { thickness: number.format(finding.thickness), nozzle: number.format(nozzle) })
           : t('check.finding.wallThin', { thickness: number.format(finding.thickness), minimum: number.format(finding.minimum) });
       case 'support':
-        return t('check.finding.support', { area: number.format(finding.area), limit: finding.limit });
+        return t(finding.cause === 'fillet' ? 'check.finding.supportFillet' : finding.cause === 'hole' ? 'check.finding.supportHole' : 'check.finding.support', {
+          area: number.format(finding.area),
+          limit: finding.limit,
+        });
       case 'contact':
         return t('check.finding.contact', { area: number.format(finding.area) });
       case 'separate':
@@ -41,6 +49,110 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.feature', { feature: finding.feature, message: finding.message });
     }
   };
+}
+
+type FixState = { step: 'idle' } | { step: 'trying' } | { step: 'ready' } | { step: 'failed'; error: string };
+
+/**
+ * The fix of a support finding (M7f step 2, decided 2026-11-05): tried on press with the result as
+ * a ghost on the part, applied on "Apply"; what SolidCraft refuses goes to the assistant on request.
+ */
+function FixControl({ finding }: { finding: Extract<PrintFinding, { kind: 'support' }> }) {
+  const { t } = useTranslation();
+  const model = useStudio((s) => s.model);
+  const print = useStudio((s) => s.print);
+  const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy';
+  const setSelectionGhost = useStudio((s) => s.setSelectionGhost);
+  const setNotice = useStudio((s) => s.setNotice);
+  const [state, setState] = useState<FixState>({ step: 'idle' });
+  // The ghost goes with the panel.
+  useEffect(
+    () => () => {
+      setSelectionGhost(null);
+    },
+    [setSelectionGhost],
+  );
+  const fix = model.status === 'ready' ? fixFor(finding, model.bodies, print?.orientation.down ?? AS_DESIGNED) : null;
+  if (!fix) return null;
+  const kind = fix.fix;
+  const count = fix.fix === 'roof' ? fix.roofs.length : fix.fillets.length;
+
+  const tryIt = () => {
+    setState({ step: 'trying' });
+    platform()
+      .print.previewFix(fix)
+      .then((result) => {
+        if (result.ok) {
+          setSelectionGhost(result.preview);
+          setState({ step: 'ready' });
+        } else {
+          setState({ step: 'failed', error: result.error });
+        }
+      })
+      .catch((error: unknown) => {
+        setState({ step: 'failed', error: (error as Error).message.slice(0, 200) });
+      });
+  };
+  const cancel = () => {
+    setSelectionGhost(null);
+    setState({ step: 'idle' });
+  };
+  const apply = () => {
+    setSelectionGhost(null);
+    setState({ step: 'idle' });
+    platform()
+      .print.applyFix(fix)
+      .then(() => {
+        setNotice({ tone: 'success', text: t(`fix.done.${kind}`, { count }) });
+      })
+      .catch((error: unknown) => {
+        setNotice({ tone: 'danger', text: t('fix.failed', { detail: (error as Error).message.slice(0, 200) }) });
+      });
+  };
+  const ask = () => {
+    const faces = finding.places.flatMap((place) => place.faces).slice(0, 12).join(', ');
+    setState({ step: 'idle' });
+    void platform().agent.send(t(`fix.request.${kind}`, { faces, limit: finding.limit }));
+  };
+
+  return (
+    <div className="flex flex-col gap-1 pb-1 pl-6 pr-2" data-testid="fix" data-fix={kind} data-step={state.step}>
+      {state.step === 'ready' ? (
+        <>
+          <p className="text-xs text-text-muted" role="status">
+            {t(`fix.preview.${kind}`)}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="primary" onPress={apply} isDisabled={busy} data-testid="fix-apply">
+              {t('fix.apply')}
+            </Button>
+            <Button onPress={cancel} data-testid="fix-cancel">
+              {t('fix.cancel')}
+            </Button>
+          </div>
+        </>
+      ) : state.step === 'failed' ? (
+        <>
+          <p className="text-xs text-danger" role="alert">
+            {t('fix.refused', { detail: state.error })}
+          </p>
+          <div className="flex gap-2">
+            <Button onPress={ask} isDisabled={busy} data-testid="fix-ask">
+              {t('fix.ask')}
+            </Button>
+            <Button onPress={cancel} data-testid="fix-cancel">
+              {t('fix.cancel')}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <Button onPress={tryIt} isDisabled={busy || state.step === 'trying'} data-testid="fix-try">
+          <IconTool className="size-icon-sm" aria-hidden />
+          {t(state.step === 'trying' ? 'fix.trying' : `fix.try.${kind}`, { count })}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 function FindingRow({ finding }: { finding: PrintFinding }) {
@@ -90,6 +202,7 @@ function FindingRow({ finding }: { finding: PrintFinding }) {
         {body}
         <IconCrosshair className="mt-0 size-icon-sm shrink-0 text-text-muted group-hover:text-text" aria-hidden />
       </AriaButton>
+      {finding.kind === 'support' ? <FixControl finding={finding} /> : null}
     </li>
   );
 }

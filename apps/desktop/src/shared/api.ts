@@ -28,6 +28,7 @@ import type {
   LoadPlaces,
   Measurement,
   PrintCheckReport,
+  PrintFix,
   PrintOrientation,
   PrintSettings,
   StoredMeasurement,
@@ -122,6 +123,10 @@ export interface PartBuddyApi {
     setOrientation(orientation: PrintOrientation): Promise<PartPrint>;
     /** The faces where a load acts on the open part. */
     setLoads(loads: LoadPlaces): Promise<PartPrint>;
+    /** A fix for support at the light, tried for the ghost; nothing changes. */
+    previewFix(fix: PrintFix): Promise<ActionPreviewResult>;
+    /** Applies a fix for support; one step in the work log. */
+    applyFix(fix: PrintFix): Promise<void>;
     /** Measurements after printing, all materials, newest last. */
     measurements(): Promise<StoredMeasurement[]>;
     addMeasurement(material: string, measurement: Measurement): Promise<StoredMeasurement[]>;

@@ -15,7 +15,7 @@ export function reportOf(result: PrintCheck, nozzle: number): PrintCheckReport {
         case 'thinWall':
           return { kind: finding.kind, severity: finding.severity, thickness: finding.thickness, minimum: finding.minimum, area: finding.area, places };
         case 'support':
-          return { kind: finding.kind, severity: finding.severity, area: finding.area, limit: finding.limit, places };
+          return { kind: finding.kind, severity: finding.severity, area: finding.area, limit: finding.limit, cause: finding.cause, places };
         case 'contact':
           return { kind: finding.kind, severity: finding.severity, area: finding.area, places };
       }

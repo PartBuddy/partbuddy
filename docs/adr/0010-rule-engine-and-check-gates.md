@@ -105,3 +105,16 @@ now does the same:
   round holes and a 1 mm groove ceiling. All of these print without support. The practice runs
   therefore count the slicer as needing support only where both modes put some; on the six parts
   sliced so far this agrees with the light, and a hook laid on its side gets support in both.
+
+## Amendment 2026-11-05 (M7f step 2): fixes at the light
+
+* A support finding names its cause: fillets facing the bed (faces named `F<n>:blend:…`), lying
+  holes too wide to bridge (a cylinder with the material outside, its axis level in the print), or
+  anything else. One finding per cause.
+* Fillets and holes have a fix, built by PartBuddy from SolidCraft commands and shown as a ghost
+  first (decided with the product owner): the fillet keeps the edges that do not face the bed and
+  the others get a chamfer of its size (`timeline.edit`/`timeline.delete`, `solid.chamfer`; the
+  edges are matched by the distance of each definition edge point to the faces' triangles); a hole
+  gets a roof cut along it from a sketch at its start, 45° flanks, flat on top up to a 10 mm bridge
+  and pointed beyond. Each fix is one step of the work log; what SolidCraft refuses goes to the
+  assistant on request, with the faces named.

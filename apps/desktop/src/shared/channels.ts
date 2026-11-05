@@ -52,6 +52,8 @@ export const invokeChannels = {
   printReportCheck: 'print:report-check',
   printSetOrientation: 'print:set-orientation',
   printSetLoads: 'print:set-loads',
+  printPreviewFix: 'print:preview-fix',
+  printApplyFix: 'print:apply-fix',
   printMeasurements: 'print:measurements',
   printAddMeasurement: 'print:add-measurement',
   printRemoveMeasurement: 'print:remove-measurement',

@@ -642,6 +642,35 @@ export const partPrintSchema = z
     supportFree: z.boolean(),
   })
   .strict();
+/**
+ * Fixes for support at the light (M7f step 2, decided 2026-11-05): rounds facing the bed become
+ * chamfers of the same size, lying holes too wide to bridge get a roof. PartBuddy builds the
+ * SolidCraft commands from these numbers itself; a ghost shows the result before it is applied.
+ */
+const point2 = z.tuple([finite, finite]);
+export const printFixSchema = z.discriminatedUnion('fix', [
+  z
+    .object({
+      fix: z.literal('chamfer'),
+      body: bodyName,
+      /** Per fillet feature, the triangles of each of its faces that face the bed (at most 200 per face). */
+      fillets: z
+        .array(z.object({ feature: z.number().int().positive(), faces: z.array(z.array(z.tuple([point3, point3, point3])).min(1).max(200)).min(1).max(50) }).strict())
+        .min(1)
+        .max(20),
+    })
+    .strict(),
+  z
+    .object({
+      fix: z.literal('roof'),
+      body: bodyName,
+      roofs: z
+        .array(z.object({ origin: point3, xDir: unitDirection, yDir: unitDirection, points: z.array(point2).min(3).max(8), length }).strict())
+        .min(1)
+        .max(20),
+    })
+    .strict(),
+]);
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();
 export const partLoadsRequestSchema = z.object({ loads: loadPlacesSchema }).strict();
 
@@ -675,7 +704,9 @@ const mmValue = finite.nonnegative().max(100_000);
 export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('size'), severity: findingSeveritySchema, size: z.tuple([mmValue, mmValue, mmValue]), bed: z.tuple([mmValue, mmValue, mmValue]), lying: z.boolean() }).strict(),
   z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
-  z.object({ kind: z.literal('support'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
+  z
+    .object({ kind: z.literal('support'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), cause: z.enum(['fillet', 'hole', 'other']), places: findingPlacesSchema })
+    .strict(),
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
@@ -738,6 +769,8 @@ export const invokeContract = {
   [invokeChannels.printSetMaterial]: { request: partMaterialRequestSchema, response: partPrintSchema },
   [invokeChannels.printReportCheck]: { request: printCheckReportSchema, response: none },
   [invokeChannels.printSetOrientation]: { request: printOrientationSchema, response: partPrintSchema },
+  [invokeChannels.printPreviewFix]: { request: printFixSchema, response: actionPreviewSchema },
+  [invokeChannels.printApplyFix]: { request: printFixSchema, response: none },
   [invokeChannels.printSetLoads]: { request: partLoadsRequestSchema, response: partPrintSchema },
   [invokeChannels.printMeasurements]: { request: none, response: measurementsSchema },
   [invokeChannels.printAddMeasurement]: { request: measurementAddSchema, response: measurementsSchema },
@@ -783,6 +816,7 @@ export type PrintSettings = z.infer<typeof printSettingsSchema>;
 export type PartPrint = z.infer<typeof partPrintSchema>;
 export type PrintCheckReport = z.infer<typeof printCheckReportSchema>;
 export type PrintOrientation = z.infer<typeof printOrientationSchema>;
+export type PrintFix = z.infer<typeof printFixSchema>;
 export type LoadPlaces = z.infer<typeof loadPlacesSchema>;
 export type Measurement = z.infer<typeof measurementSchema>;
 export type StoredMeasurement = z.infer<typeof storedMeasurementSchema>;
