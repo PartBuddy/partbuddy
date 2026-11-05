@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
@@ -191,8 +191,6 @@ export class HeadlessEngine {
 }
 
 const UNTITLED = 'Untitled';
-/** Body names SolidCraft gives on its own; they say nothing about the part. */
-const GENERIC_BODY = /^(body|k\u00f6rper|solid)\s*\d*$/i;
 
 /** A design name reduced to a safe file name: letters, digits, spaces, `_` and `-` (no separators, no traversal). */
 export function safeDesignFileName(designName: string): string {
@@ -209,73 +207,4 @@ export function isInside(folder: string, file: string): boolean {
   const rel = relative(resolve(folder), resolve(file));
   // `....name.sc` is a file inside; only a `..` segment leaves the folder.
   return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
-}
-
-/**
- * Where PartBuddy keeps the headless design between runs: one file per design name in the
- * designs folder and a note of the last one. The note may also name a design in the user's
- * project folder (after "Open in SolidCraft"); any other path is ignored.
- */
-export class DesignStore {
-  constructor(
-    private readonly dir: string,
-    /** Further folders a remembered design may lie in: the user's project folder. */
-    private readonly roots: string[] = [],
-  ) {}
-
-  get folder(): string {
-    return this.dir;
-  }
-
-  fileFor(designName: string): string {
-    return join(this.dir, `${safeDesignFileName(designName)}.sc`);
-  }
-
-  /** A file for a new design that no existing file in the designs folder has: `Name.sc`, `Name 2.sc` … */
-  fileForNew(name: string): string {
-    const safe = safeDesignFileName(name);
-    for (let n = 1; n < 1000; n += 1) {
-      const file = join(this.dir, `${n === 1 ? safe : `${safe} ${String(n)}`}.sc`);
-      if (!existsSync(file)) return file;
-    }
-    return join(this.dir, `${safe} ${String(Date.now())}.sc`);
-  }
-
-  /**
-   * Where the autosave of the open design goes. A design from the project folder goes back to its
-   * file. A new design (SolidCraft calls it "Untitled") is named after its first body once it has
-   * one, in a file of its own, so new parts no longer overwrite each other; SolidCraft then names
-   * the design after the file. Generic body names ("Body1") keep it untitled until a better one.
-   */
-  autosaveTarget(designFile: string | null, designName: string, bodyNames: string[]): string {
-    if (designFile) return designFile;
-    if (safeDesignFileName(designName) !== UNTITLED) return this.fileFor(designName);
-    const named = bodyNames.find((body) => !GENERIC_BODY.test(body.trim()) && safeDesignFileName(body) !== UNTITLED);
-    return named ? this.fileForNew(named) : this.fileFor(designName);
-  }
-
-  /** The design to open on start, if it still exists in one of the allowed folders. */
-  last(): string | undefined {
-    try {
-      const note = JSON.parse(readFileSync(join(this.dir, 'last.json'), 'utf8')) as { file?: unknown };
-      if (typeof note.file !== 'string' || !note.file.toLowerCase().endsWith('.sc')) return undefined;
-      // A bare name is a file in the designs folder (earlier notes); a full path must lie in an allowed folder.
-      const file = isAbsolute(note.file) ? resolve(note.file) : join(this.dir, note.file.replace(/[\\/]/g, ''));
-      if (![this.dir, ...this.roots].some((root) => isInside(root, file))) return undefined;
-      return existsSync(file) ? file : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
-  remember(file: string): void {
-    mkdirSync(this.dir, { recursive: true });
-    const note = isInside(this.dir, file) ? basename(file) : resolve(file);
-    writeFileSync(join(this.dir, 'last.json'), JSON.stringify({ file: note }));
-  }
-
-  forget(): void {
-    mkdirSync(this.dir, { recursive: true });
-    writeFileSync(join(this.dir, 'last.json'), JSON.stringify({}));
-  }
 }

@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, rm } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 import { createActor, fromCallback, fromPromise } from 'xstate';
 
@@ -14,7 +14,8 @@ import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
 import type { DesignParameter, DimensionMark } from '../../shared/contract';
-import { DesignStore, HeadlessEngine, isInside, safeDesignFileName } from './headless';
+import { ProjectStore } from '../projects/projectStore';
+import { HeadlessEngine, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
 import type { DesignHistory } from '../agents/workLog';
 import { count, mirrorActiveDesign, MirrorScheduler, type BatchResult, type ControlRequester } from './mirror';
@@ -35,8 +36,10 @@ export interface SupervisorOptions {
    * is always used as it is.
    */
   launchMode?: 'headless' | 'window';
-  /** Where the headless design is kept between runs. */
+  /** PartBuddy's own folder for the note of the last project; before B2 it held the designs. */
   designsDir?: string;
+  /** The name of a new part before it has one of its own, in the user's language ("Teil"). */
+  newPartName?: string;
   /**
    * The user's project folder (`Documents\\PartBuddy`): the headless engine may read and write it,
    * and "Open in SolidCraft" saves the design there.
@@ -67,7 +70,9 @@ export class SolidCraftSupervisor {
   private engine: HeadlessEngine | null = null;
   private autosaveTimer: NodeJS.Timeout | null = null;
   private autosaving: Promise<void> = Promise.resolve();
-  private readonly designs: DesignStore | null;
+  private readonly designs: ProjectStore | null;
+  /** Set by switchProject(): the next launch closes the design and opens the project this returns. */
+  private reopen: ((current: string | null) => Promise<string | null>) | null = null;
   /** The file the headless design was opened from, when it lies in the project folder. */
   private designFile: string | null = null;
   /** The file the open design was last opened from or saved to; the chat is kept next to it. */
@@ -93,7 +98,7 @@ export class SolidCraftSupervisor {
   ) {
     this.dimensions = new DimensionService(() => this.requester(), options.cacheDir);
     this.actions = new ActionService(() => this.requester(), options.cacheDir);
-    this.designs = options.designsDir ? new DesignStore(options.designsDir, options.projectsDir ? [options.projectsDir] : []) : null;
+    this.designs = options.designsDir && options.projectsDir ? new ProjectStore(options.projectsDir, options.designsDir, options.newPartName) : null;
     this.scheduler = new MirrorScheduler(
       () => {
         if (this.engine?.isOpen) return mirrorActiveDesign(this.engine.requester, options.cacheDir);
@@ -414,7 +419,7 @@ export class SolidCraftSupervisor {
       this.autosaveTimer = null;
     }
     await this.autosaving;
-    const file = this.designFile ?? join(projects, `${safeDesignFileName(this.latest?.designName ?? '')}.sc`);
+    const file = this.designFile ?? this.designs?.newDesignFile(this.latest?.designName ?? '') ?? join(projects, 'Untitled.sc');
     await engine.save(file);
     this.designFile = file;
     this.designs?.remember(file);
@@ -422,6 +427,31 @@ export class SolidCraftSupervisor {
     this.handoffFile = file;
     this.actor.send({ type: 'HANDOFF' });
     return file;
+  }
+
+  /**
+   * Opens another project (B2): saves the open design, closes it, lets `prepare` work on the files
+   * while nothing holds them (rename, copy, trash) and opens the project it returns, or a new empty
+   * design for null. Only while PartBuddy runs SolidCraft without a window. When `prepare` fails,
+   * the previous project opens again.
+   */
+  async switchProject(prepare: (current: string | null) => Promise<string | null>): Promise<void> {
+    if (this.actor.getSnapshot().value !== 'connected' || !this.engine?.isOpen || !this.designs) {
+      throw new Error('projects can be switched only while PartBuddy runs SolidCraft without a window');
+    }
+    if (this.autosaveTimer) {
+      clearTimeout(this.autosaveTimer);
+      this.autosaveTimer = null;
+      await this.autosave();
+    }
+    await this.autosaving;
+    this.reopen = prepare;
+    this.actor.send({ type: 'REOPEN' });
+  }
+
+  /** The design file of the open project, once it has one. */
+  projectFile(): string | null {
+    return this.designFile;
   }
 
   status(): ConnectionStatus {
@@ -558,14 +588,15 @@ export class SolidCraftSupervisor {
     const cli = cliBeside(executable);
     if (!existsSync(cli)) throw new Error('SolidCraft is installed without solidcraft-cli');
     const allowPaths = [this.options.cacheDir, ...(this.options.projectsDir ? [this.options.projectsDir] : [])];
-    if (this.designs) allowPaths.push(this.designs.folder);
+    // Notes from before projects (B2) may name a design in PartBuddy's own folder.
+    if (this.options.designsDir) allowPaths.push(this.options.designsDir);
     const design = this.designs?.last();
     const start = (file: string | undefined) => HeadlessEngine.start({ cli, allowPaths, design: file, env: this.options.environment.env });
     let engine: HeadlessEngine;
-    const projects = this.options.projectsDir;
     try {
       engine = await start(design);
-      this.designFile = design && projects && isInside(projects, design) ? design : null;
+      // A design outside the projects (an earlier one in PartBuddy's folder) becomes a project on its first save.
+      this.designFile = design && this.designs?.holds(design) ? design : null;
       this.currentFile = design ?? null;
     } catch (error) {
       if (!design) throw new Error(`SolidCraft (headless) could not be started: ${(error as Error).message}`, { cause: error });
@@ -590,21 +621,35 @@ export class SolidCraftSupervisor {
     }, this.options.autosaveDelayMs ?? 1500);
   }
 
-  /** Saves the headless design under its name in the designs folder and notes it for the next start. */
+  /** Saves the headless design into its project and notes it for the next start; an empty new design waits. */
   private autosave(): Promise<void> {
     const engine = this.engine;
     const designs = this.designs;
     if (!engine?.isOpen || !designs) return this.autosaving;
-    // A design from the project folder is saved back to its own file; others go to the designs folder.
+    // A project's design goes back to its own file; a new one gets a project once it has content.
     const latest = this.latest;
     const named = this.savedAs && this.savedAs.documentId === latest?.documentId ? this.savedAs.file : null;
-    const file = designs.autosaveTarget(this.designFile ?? named, latest?.designName ?? '', latest?.bodies.map((body) => body.name) ?? []);
+    const hasContent = (latest?.bodies.length ?? 0) > 0 || (latest?.sketches.length ?? 0) > 0;
+    const file = designs.autosaveTarget(this.designFile ?? named, latest?.designName ?? '', latest?.bodies.map((body) => body.name) ?? [], hasContent);
+    if (!file) return this.autosaving;
+    // The project is chosen once: saves that follow quickly must not each make a new one.
+    if (!this.designFile && designs.holds(file)) this.designFile = file;
     // A new design saved under a name of its own: SolidCraft now calls it by the file name.
     const renamed = latest !== null && basename(file, '.sc') !== safeDesignFileName(latest.designName);
     if (renamed) this.savedAs = { documentId: latest.documentId, file };
     this.setSaveState('saving');
     this.autosaving = this.autosaving
-      .then(() => engine.save(file))
+      .then(async () => {
+        // SolidCraft names a design after the file only when it saves to another path, so a design
+        // whose file was renamed, copied or imported (B2) is saved once under its new name in the
+        // cache first; it has no command to rename a design.
+        if (renamed && resolve(file) === resolve(this.currentFile ?? '')) {
+          const scratch = join(this.options.cacheDir, 'rename', basename(file));
+          await engine.save(scratch);
+          await rm(scratch, { force: true });
+        }
+        await engine.save(file);
+      })
       .then(async () => {
         designs.remember(file);
         this.currentFile = file;
@@ -622,6 +667,30 @@ export class SolidCraftSupervisor {
   private async launch(): Promise<Launched> {
     const executable = findExecutable(this.options.environment);
     if (!executable) throw new Error('SolidCraft is not installed');
+    const reopen = this.reopen;
+    this.reopen = null;
+    if (reopen) {
+      // The design is saved; the engine ends, the files change, and the engine opens the next project.
+      const engine = this.engine;
+      this.engine = null;
+      this.scheduler.reset();
+      this.latest = null;
+      this.savedAs = null;
+      await engine?.close();
+      const previous = this.designFile;
+      let next: string | null;
+      try {
+        next = await reopen(previous);
+      } catch (error) {
+        this.options.log(`the project could not be switched: ${(error as Error).message}`);
+        next = previous;
+      }
+      if (next) this.designs?.remember(next);
+      else this.designs?.forget();
+      this.designFile = null;
+      this.currentFile = null;
+      return this.launchHeadless(executable);
+    }
     const handoff = this.handoffFile;
     this.handoffFile = null;
     if (handoff) {

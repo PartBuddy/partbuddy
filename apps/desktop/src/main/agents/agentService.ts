@@ -136,6 +136,12 @@ export class AgentService implements AgentBackend {
     await this.session?.stop();
   }
 
+  /** Ends the session; Claude Code keeps nothing of it (`--no-session-persistence`). */
+  async newConversation(): Promise<void> {
+    await this.session?.stop();
+    this.session = null;
+  }
+
   /** A stopped or ended Claude Code session is not resumed (`--no-session-persistence`). */
   freshConversation(): boolean {
     return !this.session?.running;

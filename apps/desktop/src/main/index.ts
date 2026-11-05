@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join, resolve, sep } from 'node:path';
+import { existsSync, statSync } from 'node:fs';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen, session, shell } from 'electron';
@@ -28,6 +29,7 @@ import { Bridge, trustedSender } from './bridge';
 import { findExecutable, systemEnvironment } from './solidcraft/discovery';
 import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
+import { migrateDesigns, ProjectStore, whenFree } from './projects/projectStore';
 import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
@@ -181,6 +183,12 @@ if (!app.requestSingleInstanceLock()) {
     // PARTBUDDY_PROJECTS_DIR: tests keep the user's documents untouched.
     const projects = process.env.PARTBUDDY_PROJECTS_DIR ?? join(app.getPath('documents'), 'PartBuddy');
     mkdirSync(projects, { recursive: true });
+    // Projects (B2): one folder per part; designs kept in PartBuddy's own folder before become projects once.
+    const designsDir = join(app.getPath('userData'), 'designs');
+    const german = app.getLocale().toLowerCase().startsWith('de');
+    const projectStore = new ProjectStore(projects, designsDir, german ? 'Teil' : 'Part');
+    const migrated = migrateDesigns(designsDir, projectStore, log);
+    if (migrated > 0) log(`${String(migrated)} earlier designs became projects`);
     // The work log of the conversation (M2a); made once the supervisor exists.
     let workLog: WorkLog | null = null;
     // Notes on the model (M2b, ADR 0020); made once the supervisor exists.
@@ -205,7 +213,8 @@ if (!app.requestSingleInstanceLock()) {
         cacheDir: cacheDirectory(),
         // SolidCraft without a window by default (ADR 0016); the window only on purpose.
         launchMode: process.env.PARTBUDDY_SOLIDCRAFT_WINDOW === '1' ? 'window' : 'headless',
-        designsDir: join(app.getPath('userData'), 'designs'),
+        designsDir,
+        newPartName: german ? 'Teil' : 'Part',
         projectsDir: projects,
         log,
       },
@@ -460,7 +469,11 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.designExport, async ({ format }) => {
       const name = safeDesignFileName(supervisor.currentRevision()?.designName ?? '');
-      const options = { title: 'Export', defaultPath: join(projects, `${name}.${format}`), filters: [EXPORT_FILTERS[format]] };
+      // Exports go to the project's own "exports" folder (B2).
+      const project = supervisor.projectFile();
+      const folder = project ? join(dirname(project), 'exports') : projects;
+      mkdirSync(folder, { recursive: true });
+      const options = { title: 'Export', defaultPath: join(folder, `${name}.${format}`), filters: [EXPORT_FILTERS[format]] };
       const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
       if (choice.canceled || !choice.filePath) return null;
       await supervisor.exportDesign(format, choice.filePath);
@@ -515,6 +528,83 @@ if (!app.requestSingleInstanceLock()) {
     const chatArchive = new ChatArchive({ designFile: () => supervisor.designPath(), log });
     chats = chatArchive;
     bridge.handle(invokeChannels.chatLoad, () => chatArchive.load());
+
+    // Projects (B2): switching saves the design, the conversation and the print settings first;
+    // the next project starts a new conversation with the assistant.
+    const switchProject = async (prepare: (current: string | null) => Promise<string | null>) => {
+      chatArchive.flush();
+      printProfiles.flush();
+      await agent.newConversation();
+      questions.clear();
+      profileNote.forget();
+      checkNote.forget();
+      await supervisor.switchProject(prepare);
+    };
+    const openProject = () => {
+      const file = supervisor.projectFile();
+      return file && projectStore.holds(file) ? file : null;
+    };
+    bridge.handle(invokeChannels.projectInfo, () => {
+      const file = openProject();
+      return file ? { name: basename(file, '.sc'), folder: dirname(file) } : null;
+    });
+    bridge.handle(invokeChannels.projectNew, async () => {
+      await switchProject(() => Promise.resolve(null));
+      log('started a new project');
+      return undefined;
+    });
+    bridge.handle(invokeChannels.projectOpen, async () => {
+      const options: Electron.OpenDialogOptions = {
+        title: german ? 'Projekt öffnen' : 'Open project',
+        defaultPath: projects,
+        properties: ['openFile'],
+        filters: [{ name: 'SolidCraft', extensions: ['sc'] }],
+      };
+      const picked = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
+      const [file] = picked.filePaths;
+      if (picked.canceled || !file) return { opened: false, imported: false };
+      if (!file.toLowerCase().endsWith('.sc') || !existsSync(file) || !statSync(file).isFile()) throw new Error('not a SolidCraft design');
+      // A design from elsewhere is copied into a project of its own; the original stays untouched.
+      const imported = !projectStore.holds(file);
+      await switchProject(() => Promise.resolve(imported ? projectStore.importDesign(file) : file));
+      log(imported ? 'copied a design into a new project and opened it' : 'opened a project');
+      return { opened: true, imported };
+    });
+    bridge.handle(invokeChannels.projectRename, async ({ name }) => {
+      const file = openProject();
+      if (!file) return { ok: false, reason: 'noProject' };
+      const usable = projectStore.usableName(name, file);
+      if (!usable.ok) return { ok: false, reason: usable.reason };
+      if (usable.name === basename(file, '.sc')) return { ok: true };
+      await switchProject((current) => (current ? projectStore.rename(current, usable.name) : Promise.resolve(null)));
+      log('renamed the project');
+      return { ok: true };
+    });
+    bridge.handle(invokeChannels.projectDuplicate, async () => {
+      if (!openProject()) throw new Error('the design has no project yet');
+      await switchProject((current) => Promise.resolve(current ? projectStore.duplicate(current, german ? 'Kopie' : 'copy') : null));
+      log('duplicated the project');
+      return undefined;
+    });
+    bridge.handle(invokeChannels.projectReveal, () => {
+      const file = openProject();
+      if (file) shell.showItemInFolder(file);
+      else void shell.openPath(projects);
+      return undefined;
+    });
+    bridge.handle(invokeChannels.projectTrash, async () => {
+      if (!openProject()) throw new Error('the design has no project yet');
+      await switchProject(async (current) => {
+        // Only a project folder inside the project folder goes to the recycle bin.
+        if (current && projectStore.holds(current)) {
+          const folder = dirname(current);
+          await whenFree(() => shell.trashItem(folder));
+        }
+        return null;
+      });
+      log('moved the project to the recycle bin');
+      return undefined;
+    });
     bridge.handle(invokeChannels.chatSave, ({ items }) => {
       chatArchive.save(items);
       return undefined;

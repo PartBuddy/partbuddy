@@ -138,6 +138,12 @@ export class ChatGptAgent implements AgentBackend {
     await Promise.resolve();
   }
 
+  /** Forgets the conversation; PartBuddy sends the whole history with every request. */
+  async newConversation(): Promise<void> {
+    await this.stop();
+    this.history = [];
+  }
+
   async dispose(): Promise<void> {
     await this.stop();
   }

@@ -178,6 +178,19 @@ export const engineChoiceResultSchema = z
   .object({ info: engineInfoSchema, error: engineChoiceErrorSchema.nullable(), cancelled: z.boolean() })
   .strict();
 
+/** The open project (B2): its name and folder, once the design was saved into one. */
+export const projectInfoSchema = z
+  .object({ name: z.string().min(1).max(120), folder: z.string().max(1000) })
+  .strict()
+  .nullable();
+export const projectRenameSchema = z.object({ name: z.string().min(1).max(120) }).strict();
+export const projectRenameResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true) }).strict(),
+  z.object({ ok: z.literal(false), reason: z.enum(['empty', 'exists', 'noProject', 'busy']) }).strict(),
+]);
+/** Opening asks for a folder or a design file; `imported`: a design from elsewhere was copied into a new project. */
+export const projectOpenResultSchema = z.object({ opened: z.boolean(), imported: z.boolean() }).strict();
+
 /** The colour theme: follow the system (Windows), or always light or dark. */
 export const themeSchema = z.enum(['system', 'light', 'dark']);
 export const themeRequestSchema = z.object({ theme: themeSchema }).strict();
@@ -674,6 +687,13 @@ export const invokeContract = {
   [invokeChannels.solidcraftEngine]: { request: none, response: engineInfoSchema },
   [invokeChannels.solidcraftChooseEngine]: { request: engineChoiceRequestSchema, response: engineChoiceResultSchema },
   [invokeChannels.appRelaunch]: { request: none, response: none },
+  [invokeChannels.projectInfo]: { request: none, response: projectInfoSchema },
+  [invokeChannels.projectNew]: { request: none, response: none },
+  [invokeChannels.projectOpen]: { request: none, response: projectOpenResultSchema },
+  [invokeChannels.projectRename]: { request: projectRenameSchema, response: projectRenameResultSchema },
+  [invokeChannels.projectDuplicate]: { request: none, response: none },
+  [invokeChannels.projectReveal]: { request: none, response: none },
+  [invokeChannels.projectTrash]: { request: none, response: none },
   [invokeChannels.mirrorCurrent]: { request: none, response: mirrorRevisionSchema.nullable() },
   [invokeChannels.agentStatus]: { request: none, response: assistantStateSchema },
   [invokeChannels.agentRefresh]: { request: none, response: assistantStateSchema },
@@ -737,6 +757,9 @@ export type MirroredSketch = z.infer<typeof mirroredSketchSchema>;
 export type MirrorRevision = z.infer<typeof mirrorRevisionSchema>;
 export type AppInfo = z.infer<typeof appInfoSchema>;
 export type EngineInfo = z.infer<typeof engineInfoSchema>;
+export type ProjectInfo = z.infer<typeof projectInfoSchema>;
+export type ProjectRenameResult = z.infer<typeof projectRenameResultSchema>;
+export type ProjectOpenResult = z.infer<typeof projectOpenResultSchema>;
 export type EngineChoiceError = z.infer<typeof engineChoiceErrorSchema>;
 export type EngineChoiceResult = z.infer<typeof engineChoiceResultSchema>;
 export type AgentKind = z.infer<typeof agentKindSchema>;

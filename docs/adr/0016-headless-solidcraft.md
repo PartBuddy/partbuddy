@@ -122,3 +122,28 @@ contract test.
 * Good, because it shows exactly what SolidCraft draws.
 * Bad, because the window stays open, and pictures neither follow PartBuddy's camera nor support
   picking faces and anchoring notes.
+
+## Amendment 2026-11-05 (plan step B2): projects instead of the designs folder
+
+The headless design is no longer kept in PartBuddy's own `designs` folder. Every part is a project:
+a visible folder in the user's project folder (`Documents\PartBuddy\<name>\`) with the design
+`<name>.sc`, its conversation and print settings next to it and an `exports` folder. A new design
+is not saved while it is empty; with its first body or sketch it gets a project named after the
+design, its first body with a real name, or "Part" ("Teil" in German). The note of the last
+project stays in `userData\designs\last.json`.
+
+* **Switching** (new, open, rename, duplicate, recycle bin) goes through the supervisor's
+  `switchProject`: the design is saved, the engine closes, the files change while nothing holds
+  them, and the engine opens the next project. Windows may keep the folder locked for a moment
+  after the engine exits, so file operations try again for up to five seconds; if they fail, the
+  previous project opens again.
+* **Names:** SolidCraft names a design after its file only when it saves to another path and has
+  no command to rename a design. A design whose file name differs from its name is therefore saved
+  once under its new name in the cache, then to its own file.
+* **Opening a design from elsewhere** copies it into a new project (with a conversation and print
+  settings lying next to it); the original stays untouched, which also keeps 0.30 files away from
+  0.40's file format (ADR 0024).
+* **Migration:** designs kept in the old folder are copied into projects once on start; the
+  originals stay as a backup, the last design opens as its project.
+* The conversation belongs to the project: switching writes it, starts a new conversation with the
+  assistant and brings back the conversation saved with the next project.

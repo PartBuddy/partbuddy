@@ -582,5 +582,31 @@
     "restart": "PartBuddy neu starten",
     "close": "Schließen",
     "reading": "SolidCraft wird geprüft …"
+  },
+  "project": {
+    "title": "Projekt",
+    "menu": "Projekt {name}",
+    "new": "Neues Projekt",
+    "open": "Öffnen …",
+    "rename": "Umbenennen …",
+    "duplicate": "Duplizieren",
+    "reveal": "Im Explorer zeigen",
+    "trash": "In den Papierkorb …",
+    "failed": "Das ging nicht: {detail}",
+    "imported": "Die Datei wurde als Kopie in ein neues Projekt übernommen; das Original bleibt unverändert.",
+    "renameTitle": "Projekt umbenennen",
+    "name": "Name",
+    "renameHint": "Ordner und Dateien im Projektordner bekommen diesen Namen.",
+    "renameSave": "Umbenennen",
+    "cancel": "Abbrechen",
+    "renameError": {
+      "empty": "Von diesem Namen bleibt kein gültiger Dateiname übrig.",
+      "exists": "Es gibt schon ein Projekt mit diesem Namen.",
+      "noProject": "Das Design hat noch kein Projekt; es bekommt eines, sobald es Inhalt hat.",
+      "busy": "Gerade nicht möglich."
+    },
+    "trashTitle": "„{name}“ in den Papierkorb?",
+    "trashBody": "Der Projektordner mit Design, Chat und Exporten kommt in den Windows-Papierkorb und lässt sich dort wiederherstellen. Danach beginnt ein neues, leeres Projekt.",
+    "trashConfirm": "In den Papierkorb"
   }
 }

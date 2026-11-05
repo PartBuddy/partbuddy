@@ -23,6 +23,8 @@ export interface AgentBackend {
    */
   send(text: string, selections?: Selection[], note?: string | null, image?: Uint8Array | null): Promise<void>;
   stop(): Promise<void>;
+  /** Ends the conversation; the next message starts a new one (another project, B2). */
+  newConversation(): Promise<void>;
   /** Model and effort from the next turn on; with `asDefault` also kept for new chats (B1). */
   chooseModel(choice: ModelChoice, asDefault: boolean): Promise<void>;
   /** True when the next message starts a new conversation that knows nothing of earlier ones. */
@@ -71,6 +73,11 @@ export class Assistant {
 
   stop(): Promise<void> {
     return this.current().stop();
+  }
+
+  /** Every route starts a new conversation with the next message (another project, B2). */
+  async newConversation(): Promise<void> {
+    await Promise.all(Object.values(this.backends).map((backend) => backend.newConversation()));
   }
 
   async chooseModel(choice: ModelChoice, asDefault: boolean): Promise<AssistantState> {

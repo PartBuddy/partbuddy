@@ -19,6 +19,10 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 - A headless design takes the file's name only when it is saved, without telling: request
   `engine.revision()` right after naming. Saving raises the revision.
 - `engine.batch` and `describe_command` do not exist in `solidcraft-cli run`.
+- SolidCraft names a design after its file only when `save` writes to another path than the one
+  the design was opened from; there is no command to rename a design (checked 2026-11-05, 0.40.0-rc.2).
+- After the headless engine closes, Windows can keep its design folder locked for a moment
+  (renaming it fails with EPERM); file operations on a project retry for a few seconds.
 
 ### Probes, undo and metadata
 

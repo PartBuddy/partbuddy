@@ -105,7 +105,8 @@ test('an assistant step changes the headless design, and it is back after a rest
     const second = await launchApp({ isolated: false, work, env });
     try {
       await expect(second.page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
-      await expect(second.page.getByTestId('design-name')).toHaveText('New part');
+      // The first body gave the design a project named "Part" (B2).
+      await expect(second.page.getByTestId('design-name')).toHaveText('Part');
       // The conversation came back with the design, ending in a line; its step is read only.
       await expect(second.page.getByText('Build a box')).toBeVisible();
       await expect(second.page.getByTestId('earlier-session')).toBeVisible();
@@ -221,6 +222,8 @@ test('the dimension field changes the driving parameter directly, with a preview
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    // The first save names the new part after its project (B2) and mirrors it once more; picks wait for that.
+    await expect(page.getByTestId('design-name')).toHaveText('Part', { timeout: 15_000 });
     await page.waitForTimeout(800);
 
     const box = await page.getByTestId('viewport').boundingBox();
@@ -385,6 +388,8 @@ test('the structure tree hides a body, and the timeline suppresses, rolls back a
     const summary = page.getByTestId('mesh-summary');
     await expect(summary).toContainText('1 body · 6 faces', { timeout: 30_000 });
     await expect(page.getByTestId('timeline-feature')).toHaveText(['Box1']);
+    // The first save names the new part after its project (B2) and mirrors it once more; picks wait for that.
+    await expect(page.getByTestId('design-name')).toHaveText('Part', { timeout: 15_000 });
 
     // A second step: round one edge through the HUD.
     await page.waitForTimeout(800);
@@ -494,6 +499,8 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
 
     await card.getByRole('button', { name: 'Go' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    // The first save names the new part after its project (B2) and mirrors it once more; picks wait for that.
+    await expect(page.getByTestId('design-name')).toHaveText('Part', { timeout: 15_000 });
     await expect(page.getByTestId('step-card').getByTestId('step-text')).toHaveText('Box 20 × 20 × 10 mm');
     await expect(page.getByTestId('step-card').getByTestId('step-preview')).toHaveAttribute('src', /^data:image\//, { timeout: 10_000 });
     await expect(card.getByTestId('question-answered')).toHaveText('Approved, the assistant builds it');
@@ -835,6 +842,106 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     await page.keyboard.press('Escape');
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('tidy-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
+test('a part becomes a project folder that is renamed, duplicated, opened, started anew and trashed (B2)', async () => {
+  test.setTimeout(240_000);
+  const { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, copyFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-projects-'));
+  const projects = join(work, 'projects');
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7899',
+    PARTBUDDY_PROJECTS_DIR: projects,
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page, app } = launched;
+  const name = page.getByTestId('design-name');
+  const menu = page.getByTestId('project-menu');
+  const logs: string[] = [];
+  app.process().stdout?.on('data', (chunk: Buffer) => logs.push(String(chunk)));
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    // An empty design is not saved; the first body gives it a project named "Part" (English UI).
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await expect(name).toHaveText('Part', { timeout: 15_000 });
+    await expect.poll(() => existsSync(join(projects, 'Part', 'Part.sc')), { timeout: 15_000 }).toBe(true);
+    // The conversation is kept in the project, next to the design.
+    await expect.poll(() => existsSync(join(projects, 'Part', 'Part.chat.json')), { timeout: 15_000 }).toBe(true);
+
+    // Rename: folder and files follow; a taken name is refused.
+    mkdirSync(join(projects, 'Taken'));
+    await menu.click();
+    await page.getByTestId('project-rename').click();
+    const input = page.getByTestId('project-name-input');
+    await input.fill('Taken');
+    await page.getByTestId('project-rename-save').click();
+    await expect(page.getByTestId('project-rename-error')).toHaveText('A project of this name exists already.');
+    await input.fill('Wall holder');
+    await page.getByTestId('project-rename-save').click();
+    await expect(name).toHaveText('Wall holder', { timeout: 30_000 });
+    expect(existsSync(join(projects, 'Wall holder', 'Wall holder.sc'))).toBe(true);
+    expect(existsSync(join(projects, 'Wall holder', 'Wall holder.chat.json'))).toBe(true);
+    expect(existsSync(join(projects, 'Part'))).toBe(false);
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    // The conversation came along with the project.
+    await expect(page.getByText('Build a box')).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('project-renamed.png') });
+
+    // Duplicate opens the copy.
+    await menu.click();
+    await page.getByTestId('project-duplicate').click();
+    await expect(name).toHaveText('Wall holder copy', { timeout: 30_000 });
+    expect(existsSync(join(projects, 'Wall holder copy', 'Wall holder copy.sc'))).toBe(true);
+
+    // New: an empty design and an empty conversation; nothing is saved until it has content.
+    await page.keyboard.press('Control+n');
+    await expect(name).toHaveText('New part', { timeout: 30_000 });
+    await expect(page.getByText('Build a box')).toHaveCount(0);
+
+    // Open a design from elsewhere: it is copied into a project of its own, the original stays.
+    const outside = join(work, 'outside');
+    mkdirSync(outside);
+    copyFileSync(join(projects, 'Wall holder', 'Wall holder.sc'), join(outside, 'Bracket.sc'));
+    await app.evaluate(({ dialog }, file) => {
+      dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [file] });
+    }, join(outside, 'Bracket.sc'));
+    await page.keyboard.press('Control+o');
+    await expect(name).toHaveText('Bracket', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    expect(existsSync(join(projects, 'Bracket', 'Bracket.sc'))).toBe(true);
+    expect(existsSync(join(outside, 'Bracket.sc'))).toBe(true);
+
+    // Trash: after a confirmation the folder goes to the recycle bin (recorded here, not done).
+    await app.evaluate(({ shell }) => {
+      (globalThis as unknown as { trashed: string[] }).trashed = [];
+      shell.trashItem = (path: string) => {
+        (globalThis as unknown as { trashed: string[] }).trashed.push(path);
+        return Promise.resolve();
+      };
+    });
+    await menu.click();
+    await page.getByTestId('project-trash').click();
+    await expect(page.getByTestId('project-trash-dialog')).toContainText('Move "Bracket" to the recycle bin?');
+    await page.getByTestId('project-trash-confirm').click();
+    await expect(name).toHaveText('New part', { timeout: 30_000 });
+    const trashed = await app.evaluate(() => (globalThis as unknown as { trashed: string[] }).trashed);
+    expect(trashed).toEqual([join(projects, 'Bracket')]);
+    expect(readFileSync(join(projects, 'Wall holder', 'Wall holder.sc')).length).toBeGreaterThan(0);
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('projects-failed.png') }).catch(() => undefined);
+    test.info().annotations.push({ type: 'main log', description: logs.join('').slice(-4000) });
     throw error;
   } finally {
     await launched.close();
