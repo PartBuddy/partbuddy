@@ -1423,3 +1423,83 @@ test('function blocks are previewed and built at a face: tapped hole, screw hole
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('sketched blocks and a lip are previewed and built: text, nut trap, slot, lip (F1)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-blocks2-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7908',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  type Bridge = {
+    partbuddy: {
+      design: {
+        previewBlock(block: unknown): Promise<{ ok: boolean; preview?: unknown; error?: string }>;
+        applyBlock(block: unknown): Promise<void>;
+        applyAction(action: unknown): Promise<void>;
+      };
+    };
+  };
+  const preview = (block: unknown) => page.evaluate((b) => (globalThis as unknown as Bridge).partbuddy.design.previewBlock(b).then((r) => ({ ok: r.ok, error: r.error ?? null })), block);
+  const apply = (block: unknown) => page.evaluate((b) => (globalThis as unknown as Bridge).partbuddy.design.applyBlock(b), block);
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    // An open case with 3 mm walls: the 20 × 20 × 10 mm box without its top face.
+    await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.applyAction({ action: 'shell', body: 'Body1', points: [[10, 10, 10]], size: 3 }));
+    await expect(page.getByTestId('timeline-feature')).toHaveCount(2, { timeout: 30_000 });
+    const blocks = [
+      { block: 'text', body: 'Body1', point: [10, 0, 5], normal: [0, -1, 0], size: 'M3', text: 'PB', height: 4, depth: 0.6, mode: 'deboss', bold: true },
+      { block: 'nutTrap', body: 'Body1', point: [10, 10, 0], normal: [0, 0, -1], size: 'M2', flats: 4.3, depth: 2 },
+      { block: 'slot', body: 'Body1', point: [20, 10, 5], normal: [1, 0, 0], size: 'M3', length: 6, width: 3.4, depth: 3, along: 'x' },
+      { block: 'lip', body: 'Body1', point: [1.5, 10, 10], size: 'M3', type: 'lip', width: 1.2, height: 2, gap: 0.2 },
+    ];
+    for (const block of blocks) {
+      expect({ block: block.block, ...(await preview(block)) }).toEqual({ block: block.block, ok: true, error: null });
+      await apply(block);
+    }
+    for (const line of ['Text “PB”', 'Nut trap M2', 'Slot 6 mm', 'Lip 1.2 mm']) {
+      await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
+    }
+    await page.screenshot({ path: test.info().outputPath('blocks-sketched.png') });
+
+    // The same through the form: a flat face picked in the view, the face's own direction.
+    const box = await page.getByTestId('viewport').boundingBox();
+    if (!box) throw new Error('viewport not visible');
+    // Every new revision drops the selection (face indices change), so the model settles first:
+    // all ten features mirrored and the design saved. Then pick until the form stays open.
+    await expect(page.getByTestId('timeline-feature')).toHaveCount(10, { timeout: 30_000 });
+    await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'saved', { timeout: 30_000 });
+    await page.waitForTimeout(1000);
+    const spots = [[0.5, 0.75], [0.35, 0.6], [0.7, 0.65], [0.5, 0.5], [0.6, 0.8]] as const;
+    let spot = 0;
+    await expect(async () => {
+      const [x, y] = spots[spot++ % spots.length] ?? [0.5, 0.5];
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+      await page.getByTestId('action-block').click({ timeout: 1500 });
+      await expect(page.getByTestId('block-form')).toBeVisible({ timeout: 1000 });
+    }, 'a flat face of the case and its form').toPass({ timeout: 45_000, intervals: [500] });
+    await page.getByTestId('block-kind').getByRole('button').click();
+    await page.getByRole('option', { name: 'Text' }).click();
+    await expect(page.getByTestId('block-size')).toHaveCount(0);
+    await page.getByTestId('block-text').getByRole('textbox').fill('UI');
+    await page.getByTestId('block-height').getByRole('textbox').fill('3');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    await page.screenshot({ path: test.info().outputPath('block-form-text.png') });
+    await page.getByTestId('block-apply').click();
+    await expect(page.getByText('Text “UI”')).toBeVisible({ timeout: 30_000 });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

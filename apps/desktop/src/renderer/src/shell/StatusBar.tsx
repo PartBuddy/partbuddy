@@ -35,7 +35,7 @@ export function StatusBar() {
   const triangles = bodies.reduce((sum, body) => sum + body.model.triangleFaces.length, 0);
 
   return (
-    <footer className="flex h-statusbar shrink-0 items-center gap-4 border-t border-border bg-surface px-3 text-xs text-text-muted">
+    <footer className="flex h-statusbar shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap border-t border-border bg-surface px-3 text-xs text-text-muted">
       <span>{t('status.units')}</span>
       <MaterialMenu />
       <PrintCheckChip />
@@ -56,7 +56,7 @@ export function StatusBar() {
         </span>
       ) : null}
       {focusName ? (
-        <span className="tabular-nums" data-testid="focus-name">
+        <span className="min-w-0 truncate tabular-nums" title={focusName} data-testid="focus-name">
           {focusName}
         </span>
       ) : (

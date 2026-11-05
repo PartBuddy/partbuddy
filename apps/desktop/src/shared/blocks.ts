@@ -1,7 +1,8 @@
 /**
- * Function blocks (plan step F1, first part): holes and seats for screws, built at a picked flat
- * face with SolidCraft's own commands (`solid.hole`, `plastic.boss`). Sizes and allowances come
- * from standard tables; everything stays editable because printers and inserts differ.
+ * Function blocks (plan step F1): holes and seats for screws, nut traps, slots, text and lips for
+ * lids, built at a picked flat face with SolidCraft's own commands (`solid.hole`, `plastic.boss`,
+ * `solid.emboss`, `plastic.lip`, sketches cut in). Sizes and allowances come from standard tables;
+ * everything stays editable because printers, nuts and inserts differ.
  */
 
 export const BLOCK_SIZES = ['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10'] as const;
@@ -134,6 +135,9 @@ export function planeAt(point: Point, normal: Point): { origin: Point; x_dir: Po
 
 const round6 = (value: number) => Math.round(value * 1e6) / 1e6;
 
+/** The family for bold text: an installed one, since the built-in font has no bold face. */
+export const BOLD_FONT = 'Arial';
+
 type Step = { command: string; params: Record<string, unknown> };
 
 /** The SolidCraft commands of a block, in one batch: one feature, or a sketch and its feature. */
@@ -143,7 +147,8 @@ export function stepsOf(block: FeatureBlock): Step[] {
     case 'text':
       return [
         { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
-        { command: 'sketch.text', params: { text: block.text, at: [0, round(-block.height / 2)], height: block.height, align: 'center', bold: block.bold } },
+        // SolidCraft's built-in font has no bold face; Arial comes with every Windows.
+        { command: 'sketch.text', params: { text: block.text, at: [0, round(-block.height / 2)], height: block.height, align: 'center', ...(block.bold ? { font: BOLD_FONT, bold: true } : {}) } },
         { command: 'solid.emboss', params: { depth: mm(block.depth), mode: block.mode, face: block.point } },
       ];
     case 'nutTrap': {
