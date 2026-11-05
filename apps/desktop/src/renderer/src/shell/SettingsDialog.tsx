@@ -2,7 +2,7 @@ import { IconBrandGithub, IconCube, IconFolder, IconHeart, IconInfoCircle, IconP
 import i18next from 'i18next';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Heading, Modal, ModalOverlay, RadioButton, RadioField, RadioGroup, Tab, TabList, TabPanel, Tabs } from 'react-aria-components';
+import { CheckboxButton, CheckboxField, Dialog, Heading, Modal, ModalOverlay, RadioButton, RadioField, RadioGroup, Tab, TabList, TabPanel, Tabs } from 'react-aria-components';
 
 import type { AppInfo, GeneralSettingsInfo, Language, Theme } from '../../../shared/contract';
 import { AssistantChoice, RadioMark, radioClass } from '../assistant/AgentChip';
@@ -130,6 +130,47 @@ function GeneralSection() {
   );
 }
 
+/** Research on the web (B7): Claude Code's WebSearch and WebFetch, ChatGPT's web search. */
+function ResearchSwitch() {
+  const { t } = useTranslation();
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    void platform()
+      .agent.research()
+      .then((value) => {
+        if (live) setAllowed(value);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (allowed === null) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      <CheckboxField
+        isSelected={allowed}
+        onChange={(allow) => {
+          setAllowed(allow);
+          void platform().agent.setResearch(allow).then(setAllowed);
+        }}
+        data-testid="research"
+      >
+        <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
+          <span
+            aria-hidden
+            className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
+          >
+            <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
+          </span>
+          {t('settings.research.label')}
+        </CheckboxButton>
+      </CheckboxField>
+      <p className="text-xs text-text-subtle">{t('settings.research.hint')}</p>
+    </div>
+  );
+}
+
 function AboutSection() {
   const { t } = useTranslation();
   const [app, setApp] = useState<AppInfo | null>(null);
@@ -228,7 +269,8 @@ export function SettingsDialog() {
             </TabPanel>
             <TabPanel id="assistant" className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-5 outline-none" data-testid="settings-assistant-panel">
               <AssistantChoice />
-              <div className="border-t border-border pt-3">
+              <div className="flex flex-col gap-4 border-t border-border pt-3">
+                <ResearchSwitch />
                 <SupportFreeSwitch />
               </div>
             </TabPanel>

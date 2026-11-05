@@ -3,8 +3,9 @@ import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
-import type { ModelChoice, ModelOption } from '../../shared/contract';
+import type { ModelChoice, ModelOption, ResearchSource } from '../../shared/contract';
 import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
+import { CLAUDE_RESEARCH_TOOLS, RESEARCH_GUIDANCE, sourceOfSearchResult, sourceOfToolUse } from './research';
 import { VIEW_GUIDANCE } from './viewContext';
 
 /**
@@ -159,6 +160,7 @@ export function listModels(claude: ClaudeCommand, env: NodeJS.ProcessEnv, cwd: s
 export type ClaudeEvent =
   | { type: 'started'; model: string | null }
   | { type: 'textDelta'; text: string }
+  | { type: 'source'; source: ResearchSource }
   | { type: 'text'; text: string }
   | { type: 'done'; ok: boolean; durationMs: number | null; detail: string | null }
   | { type: 'exited'; code: number | null };
@@ -188,7 +190,22 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
         .filter((block): block is { type: 'text'; text: string } => (block as { type?: unknown }).type === 'text')
         .map((block) => block.text)
         .join('');
-      return text ? [{ type: 'text', text }] : [];
+      // Research (B7): a search or a page read becomes a card; the text of the page never does.
+      const sources = content
+        .filter((block): block is { type: 'tool_use'; name?: unknown; input?: unknown } => (block as { type?: unknown }).type === 'tool_use')
+        .map((block) => sourceOfToolUse(block.name, block.input))
+        .filter((source): source is ResearchSource => source !== null)
+        .map((source) => ({ type: 'source' as const, source }));
+      return [...sources, ...(text ? [{ type: 'text' as const, text }] : [])];
+    }
+    case 'user': {
+      const content = (message.message as { content?: unknown } | undefined)?.content;
+      if (!Array.isArray(content)) return [];
+      return content
+        .filter((block): block is { type: 'tool_result'; content?: unknown } => (block as { type?: unknown }).type === 'tool_result')
+        .map((block) => sourceOfSearchResult(block.content))
+        .filter((source): source is ResearchSource => source !== null)
+        .map((source) => ({ type: 'source' as const, source }));
     }
     case 'result':
       return [
@@ -204,17 +221,20 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
   }
 }
 
-const ROLE = [
-  'You are the design assistant inside PartBuddy, a desktop app for 3D-printable parts.',
-  'SolidCraft runs in the background and the user watches every step live in PartBuddy\'s 3D view.',
-  'Use only the partbuddy tools to inspect and change the design. Work in small visible steps:',
-  'one sketch or one feature group per call. Units are millimetres.',
-  'If PartBuddy refuses a tool, tell the user why and continue without it.',
-  'Answer in the language the user writes in.',
-  VIEW_GUIDANCE,
-  QUESTION_GUIDANCE,
-  ANSWER_GUIDANCE,
-].join(' ');
+function roleOf(research: boolean): string {
+  return [
+    'You are the design assistant inside PartBuddy, a desktop app for 3D-printable parts.',
+    'SolidCraft runs in the background and the user watches every step live in PartBuddy\'s 3D view.',
+    'Use only the partbuddy tools to inspect and change the design. Work in small visible steps:',
+    'one sketch or one feature group per call. Units are millimetres.',
+    'If PartBuddy refuses a tool, tell the user why and continue without it.',
+    'Answer in the language the user writes in.',
+    VIEW_GUIDANCE,
+    QUESTION_GUIDANCE,
+    ANSWER_GUIDANCE,
+    ...(research ? [RESEARCH_GUIDANCE] : []),
+  ].join(' ');
+}
 
 export interface SessionOptions {
   claude: ClaudeCommand;
@@ -225,6 +245,8 @@ export interface SessionOptions {
   mcpConfigPath: string;
   /** Model and effort to start with (B1); null: Claude Code's own default. */
   choice?: ModelChoice | null;
+  /** Claude Code's WebSearch and WebFetch for research (B7). */
+  research?: boolean;
 }
 
 /**
@@ -250,6 +272,7 @@ export class ClaudeSession {
   start(): void {
     if (this.child) return;
     const { claude, env, cwd, mcpConfigPath } = this.options;
+    const research = this.options.research === true;
     const args = [
       ...claude.prefix,
       '-p',
@@ -257,13 +280,13 @@ export class ClaudeSession {
       '--output-format', 'stream-json',
       '--verbose',
       '--include-partial-messages',
-      '--tools', '',
+      '--tools', research ? CLAUDE_RESEARCH_TOOLS.join(',') : '',
       '--strict-mcp-config',
       '--mcp-config', mcpConfigPath,
-      '--allowedTools', 'mcp__partbuddy',
+      '--allowedTools', ['mcp__partbuddy', ...(research ? CLAUDE_RESEARCH_TOOLS : [])].join(','),
       '--setting-sources', '',
       '--no-session-persistence',
-      '--append-system-prompt', ROLE,
+      '--append-system-prompt', roleOf(research),
       ...choiceArgs(this.options.choice ?? null),
     ];
     // Argument array without a shell; the MCP token is in the config file, not on the command line.

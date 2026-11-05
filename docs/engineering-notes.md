@@ -148,6 +148,17 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 - In tests, fake assistant triggers must not use words from the print-profile rules (a trigger word
   inside the rules made eleven E2E tests fail).
 
+## Research (checked 2026-11-05 with Claude Code 2.1.302)
+
+- `--tools WebSearch,WebFetch` with the same names in `--allowedTools` turns on only these two built-in
+  tools. In stream-json a search is an assistant `tool_use` block `{name: "WebSearch", input: {query}}`;
+  its `tool_result` text starts with `Web search results for query: "…"` and holds
+  `Links: [{"title", "url"}, …]`. WebFetch's result is the model's summary of the page; PartBuddy
+  shows neither result text, only cards with the links.
+- ChatGPT's web search goes through the AI SDK's `openai.tools.webSearch` and reports `source`
+  stream parts; it is not yet checked against the ChatGPT plan backend. If the backend refuses the
+  tool, PartBuddy logs it and goes on without web search for the rest of the session.
+
 ## Repository and machine
 
 - The self-hosted CI runner (ADR 0022) dies with the Claude session that started it; restart with
