@@ -56,7 +56,8 @@ export function StatusBar() {
           {focusName}
         </span>
       ) : (
-        <span>{t('status.noFace')}</span>
+        // The hint how to select and move the view lives here, not on top of the part.
+        <span className="truncate" data-testid="view-hint">{t('viewer.hint')}</span>
       )}
       <span role="status" className={`ml-auto truncate ${notice?.tone === 'danger' ? 'text-danger' : 'text-text'}`} data-testid="notice">
         {notice?.text}

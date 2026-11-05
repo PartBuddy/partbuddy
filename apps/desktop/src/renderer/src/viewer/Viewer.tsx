@@ -2,6 +2,7 @@ import {
   CameraControls,
   GizmoHelper,
   GizmoViewcube,
+  GizmoViewport,
   Grid,
   Line,
   OrthographicCamera,
@@ -9,7 +10,6 @@ import {
   PointMaterial,
 } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { IconMapPin } from '@tabler/icons-react';
 import { featureOf, SKETCH_STYLE, surfaceKind } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -52,6 +52,16 @@ const scene = {
   keyLight: [-70, -90, 130] as [number, number, number],
   fillLight: [100, 30, 50] as [number, number, number],
   gizmoMargin: [64, 64] as [number, number],
+  // The axis triad in the lower left corner.
+  triadMargin: [48, 48] as [number, number],
+  triadScale: 28,
+  // Matte faces and strong model edges (UI upgrade, view look "calm").
+  roughness: 0.8,
+  edgeWidth: 1.7,
+  // How far a changed face moves from the body colour toward the change colour.
+  changeTint: 0.45,
+  hoverTint: 0.35,
+  selectionTint: 0.55,
   // See-through faces in the X-ray display mode.
   xrayOpacity: 0.3,
   // Studio look: soft room light from above (Z up).
@@ -110,6 +120,13 @@ function Body({
   useEffect(() => {
     const attribute = model.geometry.getAttribute('color') as BufferAttribute;
     const changed = new Set(changes?.bodies.find((entry) => entry.body === index)?.faces ?? []);
+    // A body that is new as a whole is not tinted: the whole part in the change colour reads as a
+    // toy, not as a change. Changed faces of an existing body get a tint of the body colour.
+    if (changed.size >= model.table.faces.length) changed.clear();
+    const tint = colors.body.clone().lerp(colors.changed, scene.changeTint);
+    // Hover and selection tint the face; the outline drawn around it carries the strong colour.
+    const hoverTint = colors.body.clone().lerp(colors.hover, scene.hoverTint);
+    const selectedTint = colors.body.clone().lerp(colors.selection, scene.selectionTint);
     // A work-log card under the pointer lights up the faces of its step that still exist.
     const stepFaces = new Set(stepHighlight?.find((entry) => entry.body === body.name)?.faces ?? []);
     if (stepHighlight) {
@@ -121,9 +138,9 @@ function Body({
     for (let v = 0; v < model.vertexFaces.length; v += 1) {
       const face = model.vertexFaces[v] ?? -1;
       let color = colors.body;
-      if (changed.has(face)) color = colors.changed;
-      if (face === hovered) color = colors.hover;
-      if (selected.has(face)) color = colors.selection;
+      if (changed.has(face)) color = stepHighlight ? colors.changed : tint;
+      if (face === hovered) color = hoverTint;
+      if (selected.has(face)) color = selectedTint;
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
@@ -146,7 +163,7 @@ function Body({
         <meshStandardMaterial
           key={`${mode}-${plane ? 'cut' : 'whole'}`}
           vertexColors
-          roughness={0.5}
+          roughness={scene.roughness}
           metalness={0}
           polygonOffset
           polygonOffsetFactor={1}
@@ -165,11 +182,31 @@ function Body({
           <meshBasicMaterial color={colors.section} side={BackSide} clippingPlanes={clipping} />
         </mesh>
       ) : null}
-      {mode === 'shaded' ? null : (
+      {mode === 'shaded' ? null : plane === null && mode !== 'xray' ? (
+        <FatEdges geometry={model.edges} color={colors.edge} width={scene.edgeWidth} />
+      ) : (
         <lineSegments geometry={model.edges} raycast={noRaycast}>
           <lineBasicMaterial key={plane ? 'cut' : 'whole'} color={colors.edge} clippingPlanes={clipping} />
         </lineSegments>
       )}
+    </group>
+  );
+}
+
+/** Model edges as fat lines, for a look with stronger edges (lines of WebGL are always 1 px). */
+function FatEdges({ geometry, color, width }: { geometry: BodyModel['model']['edges']; color: ViewerColors['edge']; width: number }) {
+  const points = useMemo(() => Array.from((geometry.getAttribute('position') as BufferAttribute).array as Float32Array), [geometry]);
+  if (points.length === 0) return null;
+  return <Line points={points} segments color={color} lineWidth={width} raycast={noRaycast} />;
+}
+
+/** The world axes through the origin on the ground, X red and Y green, as CAD programs draw them. */
+function OriginAxes({ colors }: { colors: ViewerColors }) {
+  const reach = scene.gridFade;
+  return (
+    <group name="origin axes" position={[0, 0, 0.02]}>
+      <Line points={[[-reach, 0, 0], [reach, 0, 0]]} color={colors.axisX} lineWidth={1} transparent opacity={0.55} raycast={noRaycast} />
+      <Line points={[[0, -reach, 0], [0, reach, 0]]} color={colors.axisY} lineWidth={1} transparent opacity={0.55} raycast={noRaycast} />
     </group>
   );
 }
@@ -728,7 +765,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <DimensionHud bodies={bodies} accent={colors.selection} />
       <ScenePins bodies={bodies} />
       <Pen bodies={bodies} meshes={meshes} color={colors.note} />
-      <DimensionMarks color={colors.sketch} ghostColor={colors.selection} meshes={meshes} plane={plane} />
+      <DimensionMarks color={colors.dimension} ghostColor={colors.selection} meshes={meshes} plane={plane} />
       <ParameterGhost color={colors.selection} />
       <ViewCapture />
       <Picker bodies={bodies} meshes={meshes} />
@@ -745,6 +782,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
         infiniteGrid
         position={[0, 0, -0.01]}
       />
+      <OriginAxes colors={colors} />
       <CameraControls makeDefault enabled={!pen} />
       <FrameDesign documentId={documentId} bodies={bodies} sketches={sketches} />
       <StandardViews bodies={bodies} sketches={sketches} />
@@ -760,6 +798,12 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
           textColor={`#${colors.cubeText.getHexString()}`}
           strokeColor={`#${colors.cubeStroke.getHexString()}`}
         />
+      </GizmoHelper>
+      {/* Drawn after the cube's helper, which renders the scene: priority 1 would draw the scene again over the cube. */}
+      <GizmoHelper alignment="bottom-left" margin={scene.triadMargin} renderPriority={2}>
+        <GizmoViewport
+          axisColors={[`#${colors.axisX.getHexString()}`, `#${colors.axisY.getHexString()}`, `#${colors.axisZ.getHexString()}`]}
+          labelColor={`#${colors.axisLabel.getHexString()}`} hideNegativeAxes axisHeadScale={0.8} scale={scene.triadScale} disabled />
       </GizmoHelper>
     </Canvas>
   );
@@ -855,7 +899,6 @@ export function Viewer() {
   const { t } = useTranslation();
   const model = useStudio((s) => s.model);
   const connection = useStudio((s) => s.connection);
-  const pen = useStudio((s) => s.pen);
   const offline = connection.state !== 'connected';
   useDimensionMarks();
 
@@ -874,16 +917,11 @@ export function Viewer() {
           </div>
           <SelectionBar bodies={model.bodies} />
           <PenHint />
-          <ViewTools />
-          {pen ? null : (
-            <p className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-1 text-xs text-text-subtle">
-              <IconMapPin className="size-icon-sm" aria-hidden />
-              {t('viewer.hint')}
-            </p>
-          )}
         </>
       ) : null}
+      {/* One column at the top left: view tools first, then what the view reports; nothing overlaps at any width. */}
       <div className="pointer-events-none absolute inset-0 flex flex-col items-start gap-2 p-3">
+        {model.status === 'ready' && (model.bodies.length > 0 || model.sketches.length > 0) ? <ViewTools /> : null}
         {connection.state === 'connected' && connection.mirror === 'rebuilding' ? (
           <div className="rounded-md bg-surface-raised px-2 py-1 shadow-2">
             <Busy label={t('viewer.rebuilding')} />

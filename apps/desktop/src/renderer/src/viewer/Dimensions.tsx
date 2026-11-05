@@ -1,4 +1,4 @@
-import { Html, Line } from '@react-three/drei';
+import { Html } from '@react-three/drei';
 import { IconBolt, IconSparkles, IconVariable } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,20 +11,19 @@ import { selectedStatus, useAssistant } from '../assistant/store';
 import { sendToAssistant } from '../assistant/send';
 import { platform } from '../platform';
 import { useStudio, type ModelState, type Pick } from '../state/store';
+import { DimensionLines } from './DimensionLines';
 import { Ghost } from './DimensionHud';
 import { layoutLabels, type LabelBox } from './labelLayout';
 import { parseLength } from './lengthInput';
 import { keeps } from './section';
 import { edgeLabel } from './viewState';
 
-type Vec3 = [number, number, number];
 type MeshList = RefObject<(Mesh | null)[]>;
 const PROBE_DELAY_MS = 250;
 /** Longest formula a label shows in full; the field shows all of it. */
 const FORMULA_CHARS = 18;
 const PLAIN_NUMBER = /^\s*-?\d+(\.\d+)?\s*(mm|deg)?\s*$/;
 
-const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 
 /** The feature a picked face or edge belongs to: the number in SolidCraft's face name (`F5:…`). */
 function featureOfPick(model: ModelState, pick: Pick | null): number | null {
@@ -204,15 +203,17 @@ function MarkLabel({ mark, open, onToggle }: { mark: DimensionMark; open: boolea
       aria-label={t('dimensions.edit', { name: text.name, value: text.value })}
       aria-expanded={open}
       onPress={onToggle}
-      className={`pointer-events-auto -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm border px-1 font-mono text-xs tabular-nums shadow-2 outline-none focus-visible:outline-2 focus-visible:outline-focus ${
-        open ? 'border-accent bg-surface-selected text-text' : 'border-border bg-surface-raised text-text hover:border-accent'
+      className={`pointer-events-auto flex -translate-x-1/2 -translate-y-1/2 items-baseline gap-1 whitespace-nowrap rounded-full border px-2 text-xs font-semibold tabular-nums text-text shadow-1 outline-none focus-visible:outline-2 focus-visible:outline-focus ${
+        open ? 'border-dimension bg-surface-selected' : 'border-dimension/35 bg-surface-raised/95 hover:border-dimension'
       }`}
       data-testid="mark-label"
       data-mark={mark.id}
       data-parameter={mark.parameter}
     >
-      {text.formula ? <span className="text-text-subtle">{text.formula.length > FORMULA_CHARS ? `${text.formula.slice(0, FORMULA_CHARS - 1)}…` : text.formula} = </span> : null}
-      {text.value}
+      {text.formula ? (
+        <span className="font-normal text-text-subtle">{text.formula.length > FORMULA_CHARS ? `${text.formula.slice(0, FORMULA_CHARS - 1)}…` : text.formula}</span>
+      ) : null}
+      <span>{text.value}</span>
     </AriaButton>
   );
 }
@@ -352,16 +353,6 @@ export function DimensionMarks({ color, ghostColor, meshes, plane }: { color: Co
         const g = mark.geometry;
         if (!g) return null;
         const open = openMark === mark.id;
-        const lines: [Vec3, Vec3][] =
-          g.from[0] === g.to[0] && g.from[1] === g.to[1] && g.from[2] === g.to[2]
-            ? []
-            : g.offset.every((v) => v === 0)
-              ? [[g.from, g.to]]
-              : [
-                  [g.from, add(g.from, g.offset)],
-                  [g.to, add(g.to, g.offset)],
-                  [add(g.from, g.offset), add(g.to, g.offset)],
-                ];
         return (
           <group key={mark.id}>
             <group
@@ -371,9 +362,7 @@ export function DimensionMarks({ color, ghostColor, meshes, plane }: { color: Co
               // Hidden until the layout has placed the label, so nothing flashes on top of another.
               visible={false}
             >
-              {lines.map((segment, i) => (
-                <Line key={i} points={segment} color={color} lineWidth={i === lines.length - 1 ? 1.5 : 1} />
-              ))}
+              <DimensionLines geometry={g} kind={mark.kind} color={color} />
             </group>
             <Html position={g.anchor} zIndexRange={open ? [32, 26] : [16, 11]} style={{ pointerEvents: 'none' }}>
               <div

@@ -109,7 +109,26 @@ mapped onto the tokens.
 └ Status bar: units · mesh · hovered/selected face · data source ─────────────────────────────┘
 ```
 
-* Default widths: navigation 280 px, assistant 400 px; the 3D view takes the rest.
+* Default widths: navigation 240 px, assistant 420 px (drag its left edge between 320 and 760 px;
+  the 3D view keeps at least 480 px); the 3D view takes the rest.
+
+### 3D view look ("calm", chosen 2026-11-05)
+
+Chosen by Manuel from a side-by-side of two looks (classic metal on a gradient, calm matte on a
+flat ground), with the tone kept neutral rather than warm:
+
+* Neutral light grey matte part (roughness 0.8, no metalness) on a flat background; model edges as
+  1.7 px dark lines. Dark theme: the part a step dimmer so it does not glare.
+* A new body is not tinted; changed faces get a tint of the change colour. Hover and selection tint
+  the face, the outline carries the strong colour.
+* World axes: red X and green Y through the origin, an axis triad in the lower left, the view cube
+  in the upper right. View tools as one horizontal bar at the top left, above the live chips, so
+  nothing overlaps at narrow widths; menus open below it.
+  Standard views have cube icons with the viewed face filled. The selection hint lives in the
+  status bar, not on the part.
+* Dimensions in their own colour (`viewer-dimension`): extension lines that start off the part and
+  run past the dimension line, arrowheads of a fixed screen size, leaders with the arrow on the rim
+  for radii and diameters, labels as slim pills (parameter name subtle, value bold).
 * Panels can be resized and re-arranged; floating panels are off in the MVP. Keyboard docking is a
   paid dockview feature, so panel moves get own commands in the command palette.
 * Tabs have no inline close buttons (nested interactive controls fail WCAG checks); panels are
