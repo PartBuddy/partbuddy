@@ -172,11 +172,12 @@ export class SolidCraftSupervisor {
   }
 
   /**
-   * Exports every visible body to `destination`, a file the user picked in the save dialog.
+   * Exports every visible body to `destination`, a file the user picked in the save dialog;
+   * `prepare` may rewrite the exported file before it is copied there.
    * SolidCraft writes into the cache folder only (its allowed folders); PartBuddy copies the file
    * from there, so the user may save anywhere without widening what SolidCraft may write.
    */
-  async exportDesign(format: ExportFormat, destination: string): Promise<void> {
+  async exportDesign(format: ExportFormat, destination: string, prepare?: (file: string) => Promise<void>): Promise<void> {
     const requester = this.requester();
     const bodies = this.latest?.bodies.map((body) => body.name) ?? [];
     if (bodies.length === 0) throw new Error('the design has no body to export');
@@ -189,6 +190,8 @@ export class SolidCraftSupervisor {
         10 * 60 * 1000,
       );
       if (batch.failed) throw new Error(`export failed: ${batch.failed.error}`);
+      // For example turned into the print orientation (M7), still in the cache folder.
+      if (prepare) await prepare(temp);
       await mkdir(dirname(destination), { recursive: true });
       await copyFile(temp, destination);
     } finally {

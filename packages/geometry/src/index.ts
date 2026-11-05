@@ -20,6 +20,23 @@ export {
   type SurfaceKind,
 } from './faceTable';
 export {
+  AS_DESIGNED,
+  evaluateOrientation,
+  faceDown,
+  isAsDesigned,
+  orientBuffers,
+  orientationMatrix,
+  orientationQuaternion,
+  placementMatrix,
+  proposeOrientations,
+  type Down,
+  type LoadPlace,
+  type OrientationBody,
+  type OrientationOption,
+  type OrientationProfile,
+} from './orientation';
+export { orientMeshFile } from './orientFile';
+export {
   checkPrint,
   minimumWall,
   type FindingBox,

@@ -50,6 +50,8 @@ export const invokeChannels = {
   printPart: 'print:part',
   printSetMaterial: 'print:set-material',
   printReportCheck: 'print:report-check',
+  printSetOrientation: 'print:set-orientation',
+  printSetLoads: 'print:set-loads',
 } as const;
 
 export const eventChannels = {

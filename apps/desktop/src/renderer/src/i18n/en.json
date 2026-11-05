@@ -475,7 +475,9 @@
     "support": "Needs support (over {degrees}°)",
     "borderline": "Borderline ({from}–{to}°)",
     "bed": "On the print bed",
-    "material": "Limits from the material {material}"
+    "material": "Limits from the material {material}",
+    "lying": "Printed in the chosen orientation",
+    "lyingOnFace": "Printed lying on {face}"
   },
   "compare": {
     "title": "Before and after",
@@ -537,7 +539,7 @@
       "block": "Not ready to print"
     },
     "none": "Nothing found: the part fits the build volume, the walls are thick enough, nothing needs support.",
-    "basis": "Checked after every change, printed along +Z on its lowest face, with the printer and material of this part.",
+    "basis": "Checked after every change, in the print orientation below, with the printer and material of this part.",
     "faces": "{count, plural, one {# face} other {# faces}}",
     "show": "Show the place",
     "finding": {
@@ -555,5 +557,29 @@
       "cancel": "Cancel",
       "go": "Export anyway"
     }
+  },
+  "orientation": {
+    "title": "Print orientation",
+    "asDesigned": "As designed, +Z up",
+    "onFace": "Lying on {face}",
+    "down": "Lying with {direction} down",
+    "propose": "Propose",
+    "best": "Recommended",
+    "numbers": "Support {support} mm² · on the bed {contact} mm² · height {height} mm",
+    "tooLarge": "Does not fit the build volume this way",
+    "loadAlong": "Load along the layers: strong",
+    "loadAcross": "Load across the layers: weak",
+    "loadSlanted": "Load at an angle to the layers",
+    "apply": "Use",
+    "inUse": "Current",
+    "reset": "Print as designed",
+    "loads": "{count, plural, one {Load marked on # face} other {Load marked on # faces}}",
+    "clearLoads": "Remove loads",
+    "loadHint": "Does a force act on the part? Select a face and “Load acts here”, and the proposal lays the layers to suit.",
+    "printOnFace": "Print on this face",
+    "laid": "Now lying on {face}. 3MF and STL are exported this way.",
+    "markLoad": "Load acts here",
+    "unmarkLoad": "No load here",
+    "failed": "The print orientation could not be saved."
   }
 }

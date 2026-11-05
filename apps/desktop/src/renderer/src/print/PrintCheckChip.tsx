@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover } from 'react-aria-components';
 
 import { useStudio } from '../state/store';
+import { OrientationSection } from './OrientationSection';
 
 const DOT: Record<PrintStatus | 'info', string> = {
   ready: 'bg-success',
@@ -134,6 +135,7 @@ export function PrintCheckChip() {
             </ul>
           )}
           <p className="px-2 text-xs text-text-muted">{t('check.basis')}</p>
+          <OrientationSection />
         </Dialog>
       </Popover>
     </DialogTrigger>

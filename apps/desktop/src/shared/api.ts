@@ -25,7 +25,9 @@ import type {
   MirrorRevision,
   NotesState,
   PartPrint,
+  LoadPlaces,
   PrintCheckReport,
+  PrintOrientation,
   PrintSettings,
   TitleBarColors,
   Theme,
@@ -114,6 +116,10 @@ export interface PartBuddyApi {
     onChange(listener: (part: PartPrint) => void): () => void;
     /** The latest ready-to-print check, for the assistant's next message. */
     reportCheck(report: PrintCheckReport): Promise<void>;
+    /** Lays the open part on the bed another way; kept next to its design file. */
+    setOrientation(orientation: PrintOrientation): Promise<PartPrint>;
+    /** The faces where a load acts on the open part. */
+    setLoads(loads: LoadPlaces): Promise<PartPrint>;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

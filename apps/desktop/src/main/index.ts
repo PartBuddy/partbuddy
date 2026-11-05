@@ -1,9 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { isAsDesigned, orientMeshFile } from '@partbuddy/geometry';
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen, session, shell } from 'electron';
 
 import { invokeChannels, eventChannels } from '../shared/channels';
@@ -254,6 +256,16 @@ if (!app.requestSingleInstanceLock()) {
       return saved;
     });
     bridge.handle(invokeChannels.printPart, () => printProfiles.part());
+    bridge.handle(invokeChannels.printSetOrientation, (orientation) => {
+      const part = printProfiles.setOrientation(orientation);
+      printChanged();
+      return part;
+    });
+    bridge.handle(invokeChannels.printSetLoads, ({ loads }) => {
+      const part = printProfiles.setLoads(loads);
+      printChanged();
+      return part;
+    });
     bridge.handle(invokeChannels.printSetMaterial, ({ material }) => {
       const part = printProfiles.setMaterial(material);
       printChanged();
@@ -438,8 +450,19 @@ if (!app.requestSingleInstanceLock()) {
       const options = { title: 'Export', defaultPath: join(projects, `${name}.${format}`), filters: [EXPORT_FILTERS[format]] };
       const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
       if (choice.canceled || !choice.filePath) return null;
-      await supervisor.exportDesign(format, choice.filePath);
-      log(`exported the design as ${format}`);
+      // 3MF and STL go to the slicer lying the way the check assumed (M7); STEP stays as designed.
+      const { down } = printProfiles.part().orientation;
+      const turn = format !== 'step' && !isAsDesigned(down);
+      await supervisor.exportDesign(
+        format,
+        choice.filePath,
+        turn
+          ? async (file) => {
+              await writeFile(file, orientMeshFile(format, new Uint8Array(await readFile(file)), down));
+            }
+          : undefined,
+      );
+      log(`exported the design as ${format}${turn ? ' in its print orientation' : ''}`);
       return { file: basename(choice.filePath) };
     });
     bridge.handle(invokeChannels.designProbeDimension, ({ target, current, value }) => {

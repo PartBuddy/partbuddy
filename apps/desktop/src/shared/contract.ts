@@ -607,16 +607,34 @@ export const printSettingsSchema = z
   .refine((settings) => settings.printers.some((printer) => printer.id === settings.printer), 'the printer in use must exist')
   .refine((settings) => settings.materials.some((material) => material.id === settings.material), 'the default material must exist');
 
-/** What the open part is printed with: the printer in use and the part's material. */
+const faceName = z.string().min(1).max(200);
+const unitDirection = z
+  .tuple([range(-1, 1), range(-1, 1), range(-1, 1)])
+  .refine((v) => Math.abs(Math.hypot(...v) - 1) < 1e-3, 'must be a unit direction');
+
+/**
+ * How the part lies on the bed (M7): the design direction that points down, and the flat face it
+ * lies on when the direction came from one. `[0, 0, -1]` is as designed.
+ */
+export const printOrientationSchema = z
+  .object({ down: unitDirection, face: z.object({ body: bodyName, name: faceName }).strict().nullable() })
+  .strict();
+/** Faces where a load acts, marked by the user, by body and face name. */
+export const loadPlacesSchema = z.array(z.object({ body: bodyName, faces: z.array(faceName).min(1).max(100) }).strict()).max(20);
+
+/** What the open part is printed with: the printer in use, the part's material and orientation. */
 export const partPrintSchema = z
   .object({
     printer: printerProfileSchema,
     material: materialProfileSchema,
     /** False while the part uses the default material. */
     chosen: z.boolean(),
+    orientation: printOrientationSchema,
+    loads: loadPlacesSchema,
   })
   .strict();
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();
+export const partLoadsRequestSchema = z.object({ loads: loadPlacesSchema }).strict();
 
 /**
  * The result of the ready-to-print check (M7) as the renderer reports it, for the note to the
@@ -692,6 +710,8 @@ export const invokeContract = {
   [invokeChannels.printPart]: { request: none, response: partPrintSchema },
   [invokeChannels.printSetMaterial]: { request: partMaterialRequestSchema, response: partPrintSchema },
   [invokeChannels.printReportCheck]: { request: printCheckReportSchema, response: none },
+  [invokeChannels.printSetOrientation]: { request: printOrientationSchema, response: partPrintSchema },
+  [invokeChannels.printSetLoads]: { request: partLoadsRequestSchema, response: partPrintSchema },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -732,6 +752,8 @@ export type FitKind = z.infer<typeof fitKindSchema>;
 export type PrintSettings = z.infer<typeof printSettingsSchema>;
 export type PartPrint = z.infer<typeof partPrintSchema>;
 export type PrintCheckReport = z.infer<typeof printCheckReportSchema>;
+export type PrintOrientation = z.infer<typeof printOrientationSchema>;
+export type LoadPlaces = z.infer<typeof loadPlacesSchema>;
 export type DesignParameter = z.infer<typeof designParameterSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type ExportResult = z.infer<typeof exportResultSchema>;

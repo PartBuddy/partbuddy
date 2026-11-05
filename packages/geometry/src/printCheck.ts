@@ -1,6 +1,7 @@
 import { DoubleSide, Ray, Vector3 } from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
 
+import { AS_DESIGNED, orientBuffers, type Down } from './orientation';
 import { Overhang, overhangLimits, overhangOf } from './overhang';
 import type { ViewerModel } from './viewerModel';
 
@@ -9,7 +10,8 @@ import type { ViewerModel } from './viewerModel';
  * mirrored render meshes, no sidecar. It looks at what the practice run and the overhang view
  * showed matters: whether the part fits the printer, walls the nozzle cannot print, overhangs that
  * need support, how much of the part lies on the bed, and features SolidCraft could not build.
- * The part is printed along +Z, standing on its lowest point; print orientation comes later.
+ * The part is printed in its print orientation (`down`, as designed by default), standing on its
+ * lowest point.
  */
 
 export interface PrintCheckProfile {
@@ -193,18 +195,16 @@ function locate(bodies: readonly PrintCheckBody[], tallies: readonly FaceTally[]
 
 const round = (value: number, digits = 2) => Math.round(value * 10 ** digits) / 10 ** digits;
 
-function sizeFinding(bodies: readonly PrintCheckBody[], bed: readonly [number, number, number]): PrintFinding | null {
+function sizeFinding(turned: readonly { positions: Float32Array }[], bed: readonly [number, number, number]): PrintFinding | null {
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
-  for (const { model } of bodies) {
-    const box = model.geometry.boundingBox;
-    if (!box) continue;
-    min[0] = Math.min(min[0] ?? Infinity, box.min.x);
-    min[1] = Math.min(min[1] ?? Infinity, box.min.y);
-    min[2] = Math.min(min[2] ?? Infinity, box.min.z);
-    max[0] = Math.max(max[0] ?? -Infinity, box.max.x);
-    max[1] = Math.max(max[1] ?? -Infinity, box.max.y);
-    max[2] = Math.max(max[2] ?? -Infinity, box.max.z);
+  for (const { positions } of turned) {
+    for (let i = 0; i < positions.length; i += 3) {
+      for (let k = 0; k < 3; k += 1) {
+        min[k] = Math.min(min[k] ?? Infinity, positions[i + k] ?? 0);
+        max[k] = Math.max(max[k] ?? -Infinity, positions[i + k] ?? 0);
+      }
+    }
   }
   if (!Number.isFinite(min[0])) return null;
   const size = [0, 1, 2].map((k) => round((max[k] ?? 0) - (min[k] ?? 0), 1)) as [number, number, number];
@@ -219,7 +219,12 @@ function sizeFinding(bodies: readonly PrintCheckBody[], bed: readonly [number, n
 const SEVERITY_ORDER: Record<FindingSeverity, number> = { block: 0, warn: 1, info: 2 };
 
 /** Checks the mirrored bodies against the printer and material of the part. */
-export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintCheckProfile, features: readonly PrintCheckFeature[] = []): PrintCheck {
+export function checkPrint(
+  bodies: readonly PrintCheckBody[],
+  profile: PrintCheckProfile,
+  features: readonly PrintCheckFeature[] = [],
+  down: Down = AS_DESIGNED,
+): PrintCheck {
   const findings: PrintFinding[] = [];
 
   for (const feature of features) {
@@ -230,7 +235,9 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
 
   const visible = bodies.filter((body) => body.model.table.faces.length > 0);
   if (visible.length > 0) {
-    const size = sizeFinding(visible, profile.bed);
+    // The bodies in the print orientation; walls do not depend on it, the rest does.
+    const turned = visible.map(({ model }) => orientBuffers(model.geometry.getAttribute('position').array, model.geometry.getAttribute('normal').array, down));
+    const size = sizeFinding(turned, profile.bed);
     if (size) findings.push(size);
 
     // Walls: under two lines they print poorly, under the nozzle width not at all.
@@ -245,17 +252,19 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
 
     // Overhangs and the bed, with the same rule as the overhang view.
     let bedZ = Infinity;
-    for (const { model } of visible) bedZ = Math.min(bedZ, model.geometry.boundingBox?.min.z ?? Infinity);
+    for (const { positions } of turned) for (let i = 2; i < positions.length; i += 3) bedZ = Math.min(bedZ, positions[i] ?? Infinity);
     const limits = overhangLimits(profile.overhang);
     const support: FaceTally[] = [];
     const contact: FaceTally[] = [];
     let onBed = 0;
-    for (const { model } of visible) {
+    visible.forEach(({ model }, b) => {
       const geometry = model.geometry;
+      const oriented = turned[b];
+      if (!oriented) return;
       const map = overhangOf(
         {
-          positions: geometry.getAttribute('position').array as Float32Array,
-          normals: geometry.getAttribute('normal').array as Float32Array,
+          positions: oriented.positions,
+          normals: oriented.normals,
           index: (geometry.index?.array ?? new Uint32Array()) as Uint32Array,
           vertexFaces: model.vertexFaces,
           faceCount: model.table.faces.length,
@@ -278,7 +287,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       supportTally.area.set(map.supportByFace);
       support.push(supportTally);
       contact.push(contactTally);
-    }
+    });
     const needsSupport = locate(visible, support, MIN_AREA);
     if (needsSupport.area >= MIN_AREA) {
       findings.push({ kind: 'support', severity: 'warn', area: round(needsSupport.area, 0), limit: profile.overhang, places: needsSupport.places, box: needsSupport.box });

@@ -1,13 +1,33 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import { z } from 'zod';
+
 import {
+  loadPlacesSchema,
   partMaterialRequestSchema,
+  printOrientationSchema,
   printSettingsSchema,
+  type LoadPlaces,
   type MaterialProfile,
   type PartPrint,
+  type PrintOrientation,
   type PrintSettings,
 } from '../../shared/contract';
+
+/** What is kept next to a design: its material, how it lies on the bed, where loads act. */
+const partFileSchema = z
+  .object({
+    version: z.literal(1),
+    material: partMaterialRequestSchema.shape.material.optional(),
+    orientation: printOrientationSchema.optional(),
+    loads: loadPlacesSchema.optional(),
+  })
+  .strict();
+type PartFile = Omit<z.infer<typeof partFileSchema>, 'version'>;
+
+/** The part as designed: standing on its lowest point along +Z. */
+export const AS_DESIGNED_ORIENTATION: PrintOrientation = { down: [0, 0, -1], face: null };
 
 /**
  * Starting values (M7, 2026-11-05): a generic printer with a 0.4 mm nozzle and the common
@@ -62,7 +82,7 @@ export interface PrintProfilesOptions {
  * file is held and written once it has one. Both files are read back as untrusted input.
  */
 export class PrintProfiles {
-  private pending: string | null = null;
+  private pending: PartFile | null = null;
 
   constructor(private readonly options: PrintProfilesOptions) {}
 
@@ -84,51 +104,82 @@ export class PrintProfiles {
     return parsed;
   }
 
-  /** The printer in use and the open part's material; a removed material falls back to the default. */
+  /** The printer in use and the open part's material, orientation and loads; a removed material falls back to the default. */
   part(): PartPrint {
     const settings = this.settings();
     const printer = settings.printers.find((item) => item.id === settings.printer) ?? settings.printers[0];
     const fallback = settings.materials.find((item) => item.id === settings.material) ?? settings.materials[0];
     if (!printer || !fallback) throw new Error('print profiles without printer or material');
-    const own = this.partMaterial();
-    const chosen = own === null ? undefined : settings.materials.find((item) => item.id === own);
-    return { printer, material: chosen ?? fallback, chosen: chosen !== undefined };
+    const own = this.partFile();
+    const chosen = own.material === undefined ? undefined : settings.materials.find((item) => item.id === own.material);
+    return {
+      printer,
+      material: chosen ?? fallback,
+      chosen: chosen !== undefined,
+      orientation: own.orientation ?? AS_DESIGNED_ORIENTATION,
+      loads: own.loads ?? [],
+    };
   }
 
   setMaterial(id: string): PartPrint {
     if (!this.settings().materials.some((item) => item.id === id)) throw new Error(`unknown material ${id}`);
-    this.pending = id;
-    this.flush();
-    return this.part();
+    return this.update({ material: id });
   }
 
-  /** Writes a held material choice once the design has a file. */
+  setOrientation(orientation: PrintOrientation): PartPrint {
+    return this.update({ orientation });
+  }
+
+  setLoads(loads: LoadPlaces): PartPrint {
+    return this.update({ loads });
+  }
+
+  /** Writes a held change once the design has a file. */
   flush(): void {
     const design = this.options.designFile();
     if (!design || this.pending === null) return;
     try {
-      writeAtomic(printFileOf(design), { version: 1, material: this.pending });
+      writeAtomic(printFileOf(design), { version: 1, ...this.pending });
       this.pending = null;
     } catch (error) {
-      this.options.log(`the part's material could not be saved: ${(error as Error).message}`);
+      this.options.log(`the part's print settings could not be saved: ${(error as Error).message}`);
     }
   }
 
-  private partMaterial(): string | null {
+  private update(change: PartFile): PartPrint {
+    this.pending = { ...this.partFile(), ...change };
+    this.flush();
+    return this.part();
+  }
+
+  private partFile(): PartFile {
     if (this.pending !== null) return this.pending;
     const design = this.options.designFile();
-    if (!design) return null;
+    if (!design) return {};
     const file = printFileOf(design);
-    if (!existsSync(file)) return null;
+    if (!existsSync(file)) return {};
     try {
-      const stored = JSON.parse(readFileSync(file, 'utf8')) as { version?: unknown; material?: unknown };
-      if (stored.version !== 1) return null;
-      const parsed = partMaterialRequestSchema.safeParse({ material: stored.material });
-      return parsed.success ? parsed.data.material : null;
+      const parsed = partFileSchema.safeParse(JSON.parse(readFileSync(file, 'utf8')));
+      if (!parsed.success) return {};
+      const { material, orientation, loads } = parsed.data;
+      return { ...(material ? { material } : {}), ...(orientation ? { orientation } : {}), ...(loads ? { loads } : {}) };
     } catch {
-      return null;
+      return {};
     }
   }
+}
+
+/** How the part lies on the bed, in the design's own directions, and where loads act. */
+function orientationLine({ down, face }: PrintOrientation, loads: LoadPlaces): string {
+  const axis = ['x', 'y', 'z'].find((_, k) => Math.abs(Math.abs(down[k] ?? 0) - 1) < 1e-6);
+  const k = ['x', 'y', 'z'].indexOf(axis ?? '');
+  const direction = axis ? `${(down[k] ?? 0) < 0 ? '-' : '+'}${axis}` : `[${down.map((v) => String(Math.round(v * 1000) / 1000)).join(', ')}]`;
+  const lying =
+    direction === '-z' && !face
+      ? 'It is printed as designed, standing on its lowest point along +Z.'
+      : `It is printed lying with the design's ${direction} direction down${face ? ` on face ${JSON.stringify(face.name)} of body ${JSON.stringify(face.body)}` : ''}; layers stack along the direction opposite to that.`;
+  const marked = loads.flatMap(({ body, faces }) => faces.map((name) => `${JSON.stringify(name)} of body ${JSON.stringify(body)}`)).slice(0, 12);
+  return marked.length > 0 ? `${lying} The user marked loads on ${marked.join(', ')}; layers are weakest when pulled apart.` : lying;
 }
 
 const mm = (value: number) => `${String(Math.round(value * 100) / 100)} mm`;
@@ -138,7 +189,7 @@ const mm = (value: number) => `${String(Math.round(value * 100) / 100)} mm`;
  * practice run of 2026-11-04 missed: parts were built at nominal size and fits came up only when
  * asked. Names are the user's own text, so they are quoted and cut short.
  */
-export function printNote({ printer, material: used }: PartPrint): string {
+export function printNote({ printer, material: used, orientation, loads }: PartPrint): string {
   const name = (text: string) => JSON.stringify(text.slice(0, 60));
   const [x, y, z] = printer.bed;
   const wall = Math.round(printer.nozzle * 2 * 1.125 * 100) / 100;
@@ -148,6 +199,7 @@ export function printNote({ printer, material: used }: PartPrint): string {
     `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(wall)} (two lines) and details under ${mm(printer.nozzle)} print poorly.`,
     `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter.`,
     `Clearance per side between mating parts: clamp ${mm(clamp)}, push ${mm(push)}, slide ${mm(slide)}, turn ${mm(turn)}.`,
+    orientationLine(orientation, loads),
     'Keep nominal sizes as parameters, add the clearance and the hole allowance as their own parameters, and say which fit you chose.]',
   ].join('\n');
 }
