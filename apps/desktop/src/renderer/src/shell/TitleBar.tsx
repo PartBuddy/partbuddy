@@ -1,3 +1,4 @@
+import { IconAlertTriangle, IconCheck, IconLoader2 } from '@tabler/icons-react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -54,7 +55,10 @@ export function TitleBar() {
   const { t } = useTranslation();
   const connection = useStudio((s) => s.connection);
   const model = useStudio((s) => s.model);
-  const designName = model.status === 'ready' && model.designName ? model.designName : t('app.noDesign');
+  // SolidCraft calls a design "Untitled" until it is saved under a name; PartBuddy names it after
+  // its first body on the first autosave (UI upgrade, 2026-11-04).
+  const untitled = model.status === 'ready' && (model.designName.trim() === '' || model.designName === 'Untitled');
+  const designName = model.status !== 'ready' ? t('app.noDesign') : untitled ? t('app.untitled') : model.designName;
 
   return (
     <header className="title-bar flex h-titlebar shrink-0 items-center gap-3 border-b border-border bg-surface select-none" data-testid="title-bar">
@@ -67,6 +71,7 @@ export function TitleBar() {
         <span className="truncate font-medium text-text" data-testid="design-name">
           {designName}
         </span>
+        {model.status === 'ready' && connection.save ? <SaveState state={connection.save} /> : null}
       </nav>
       <DesignActions />
       <div className="ml-auto flex items-center gap-2" data-testid="connection-status" data-engine={connection.engine}>
@@ -77,5 +82,30 @@ export function TitleBar() {
       </div>
       <SettingsMenu />
     </header>
+  );
+}
+
+/** Whether the design PartBuddy runs without a window is saved; it saves after every change. */
+function SaveState({ state }: { state: NonNullable<ConnectionStatus['save']> }) {
+  const { t } = useTranslation();
+  const icon =
+    state === 'saving' ? (
+      <IconLoader2 className="size-icon-sm animate-spin motion-reduce:animate-none" aria-hidden />
+    ) : state === 'saved' ? (
+      <IconCheck className="size-icon-sm" aria-hidden />
+    ) : (
+      <IconAlertTriangle className="size-icon-sm text-warning" aria-hidden />
+    );
+  return (
+    <span
+      role="status"
+      title={t('app.save.hint')}
+      className={`flex shrink-0 items-center gap-1 text-xs ${state === 'failed' ? 'text-warning' : 'text-text-subtle'}`}
+      data-testid="save-state"
+      data-state={state}
+    >
+      {icon}
+      {t(`app.save.${state}`)}
+    </span>
   );
 }

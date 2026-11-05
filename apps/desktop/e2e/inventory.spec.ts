@@ -219,7 +219,10 @@ test('inventory: states without SolidCraft or sign-in, light and dark', async ()
     await expect(plain.page.getByTestId('connection-status')).toHaveText('SolidCraft not running');
     await step(report, '20-no-solidcraft', () => shot(plain.page, '20-no-solidcraft'));
     await step(report, '21-chatgpt-signin', async () => {
-      await plain.page.getByRole('radio', { name: 'ChatGPT' }).or(plain.page.getByRole('button', { name: 'ChatGPT' })).click();
+      await plain.page.getByTestId('agent-status').click();
+      await plain.page.getByTestId('agent-menu').getByText('ChatGPT', { exact: true }).click();
+      await shot(plain.page, '21-agent-menu');
+      await plain.page.keyboard.press('Escape');
       await expect(plain.page.getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
       await shot(plain.page, '21-chatgpt-signin');
     });

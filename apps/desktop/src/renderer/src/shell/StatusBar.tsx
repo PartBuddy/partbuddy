@@ -36,8 +36,12 @@ export function StatusBar() {
     <footer className="flex h-statusbar shrink-0 items-center gap-4 border-t border-border bg-surface px-3 text-xs text-text-muted">
       <span>{t('status.units')}</span>
       {bodies.length > 0 ? (
-        <span data-testid="mesh-summary" data-revision={model.status === 'ready' ? model.revision : undefined}>
-          {t('status.mesh', { bodies: bodies.length, faces, triangles: number.format(triangles) })}
+        <span
+          data-testid="mesh-summary"
+          data-revision={model.status === 'ready' ? model.revision : undefined}
+          title={t('status.details', { triangles: number.format(triangles), ms: latency ? latency.mirrorMs + latency.parseMs : 0 })}
+        >
+          {t('status.mesh', { bodies: bodies.length, faces })}
         </span>
       ) : null}
       {sketches.length > 0 ? (
@@ -46,9 +50,6 @@ export function StatusBar() {
             ? t('status.sketchesEditing', { count: sketches.length, name: editing.name })
             : t('status.sketches', { count: sketches.length })}
         </span>
-      ) : null}
-      {latency ? (
-        <span data-testid="mirror-latency">{t('status.latency', { ms: latency.mirrorMs + latency.parseMs })}</span>
       ) : null}
       {focusName ? (
         <span className="font-mono" data-testid="focus-name">

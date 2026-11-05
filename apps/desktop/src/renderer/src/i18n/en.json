@@ -2,7 +2,14 @@
   "app": {
     "name": "PartBuddy",
     "design": "Design",
-    "noDesign": "No design"
+    "noDesign": "No design",
+    "untitled": "New part",
+    "save": {
+      "saving": "Saving …",
+      "saved": "Saved",
+      "failed": "Not saved",
+      "hint": "PartBuddy saves the part after every change."
+    }
   },
   "units": {
     "mm": "{value, number, ::.## unit/millimeter}",
@@ -93,11 +100,11 @@
   },
   "status": {
     "units": "mm",
-    "mesh": "{bodies, plural, one {# body} other {# bodies}} · {faces, plural, one {# face} other {# faces}} · {triangles} triangles",
+    "mesh": "{bodies, plural, one {# body} other {# bodies}} · {faces, plural, one {# face} other {# faces}}",
     "noFace": "Nothing selected",
-    "latency": "mirrored in {ms, number} ms",
     "sketches": "{count, plural, one {# sketch} other {# sketches}}",
-    "sketchesEditing": "{count, plural, one {# sketch} other {# sketches}} · editing {name}"
+    "sketchesEditing": "{count, plural, one {# sketch} other {# sketches}} · editing {name}",
+    "details": "{triangles} triangles · mirrored in {ms, number} ms"
   },
   "assistant": {
     "title": "Assistant",
@@ -214,7 +221,25 @@
     "removeDrawing": "Discard the strokes",
     "drawingImage": "Send as image too",
     "withDrawing": "with drawing ({count, plural, one {# stroke} other {# strokes}})",
-    "withDrawingImage": "with drawing ({count, plural, one {# stroke} other {# strokes}}) and image"
+    "withDrawingImage": "with drawing ({count, plural, one {# stroke} other {# strokes}}) and image",
+    "chip": {
+      "label": "Assistant: {status}",
+      "apiKey": "API key",
+      "switchNote": "Switching stops a running answer. The other assistant does not know the conversation so far.",
+      "describe": {
+        "claude-code": "Your Claude Pro or Max plan, through Claude Code",
+        "chatgpt": "Your ChatGPT plan, signed in here"
+      },
+      "state": {
+        "checking": "checking",
+        "notInstalled": "not installed",
+        "signedOut": "not signed in",
+        "needsSubscription": "no subscription",
+        "unavailable": "not available",
+        "ready": "ready",
+        "busy": "working"
+      }
+    }
   },
   "live": {
     "step": "Step {number} · {label}",
