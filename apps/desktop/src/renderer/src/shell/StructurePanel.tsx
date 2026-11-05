@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ToggleButton } from 'react-aria-components';
 
 import { NotesSection } from '../notes/NotesSection';
+import { LooseDimensions } from '../viewer/Dimensions';
 import { ParametersSection } from './ParametersSection';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
@@ -51,6 +52,7 @@ export function StructurePanel() {
   return (
     <nav aria-label={t('structure.title')} className="flex w-menu shrink-0 flex-col gap-3 overflow-y-auto border-r border-border bg-surface p-2" data-testid="structure">
       <ParametersSection />
+      <LooseDimensions />
       <section aria-labelledby="structure-bodies">
         <h2 id="structure-bodies" className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-text-subtle">
           {t('structure.bodies', { count: bodies.length })}

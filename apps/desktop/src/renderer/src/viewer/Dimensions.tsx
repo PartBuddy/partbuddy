@@ -1,9 +1,10 @@
 import { Html, Line } from '@react-three/drei';
 import { IconBolt, IconSparkles, IconVariable } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Input, Label, TextField } from 'react-aria-components';
-import type { Color } from 'three';
+import { Raycaster, Vector2, Vector3, type Color, type Group, type Mesh, type Plane } from 'three';
+import { useFrame, useThree } from '@react-three/fiber';
 
 import type { DimensionMark } from '../../../shared/contract';
 import { selectedStatus, useAssistant } from '../assistant/store';
@@ -11,11 +12,16 @@ import { sendToAssistant } from '../assistant/send';
 import { platform } from '../platform';
 import { useStudio, type ModelState, type Pick } from '../state/store';
 import { Ghost } from './DimensionHud';
+import { layoutLabels, type LabelBox } from './labelLayout';
 import { parseLength } from './lengthInput';
+import { keeps } from './section';
 import { edgeLabel } from './viewState';
 
 type Vec3 = [number, number, number];
+type MeshList = RefObject<(Mesh | null)[]>;
 const PROBE_DELAY_MS = 250;
+/** Longest formula a label shows in full; the field shows all of it. */
+const FORMULA_CHARS = 18;
 const PLAIN_NUMBER = /^\s*-?\d+(\.\d+)?\s*(mm|deg)?\s*$/;
 
 const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -205,18 +211,129 @@ function MarkLabel({ mark, open, onToggle }: { mark: DimensionMark; open: boolea
       data-mark={mark.id}
       data-parameter={mark.parameter}
     >
-      {text.formula ? <span className="text-text-subtle">{text.formula} = </span> : null}
+      {text.formula ? <span className="text-text-subtle">{text.formula.length > FORMULA_CHARS ? `${text.formula.slice(0, FORMULA_CHARS - 1)}…` : text.formula} = </span> : null}
       {text.value}
     </AriaButton>
   );
 }
 
+/** What the layout reaches of one mark: its label's wrapper and its lines. */
+interface Slot {
+  wrapper: HTMLDivElement | null;
+  lines: Group | null;
+}
+
+type Shown = 'shown' | 'behind' | 'crowded';
+
+/** What the layout keeps between frames; all of it lives in one ref. */
+interface Layout {
+  slots: Map<string, Slot>;
+  /** Set when a label mounted or the marks changed: lay out on the next frame even if the view did not move. */
+  dirty: boolean;
+  last: Float64Array;
+  raycaster: Raycaster;
+  ndc: Vector3;
+  pointer: Vector2;
+  anchor: Vector3;
+}
+
+const newLayout = (): Layout => ({
+  slots: new Map(),
+  dirty: true,
+  last: new Float64Array(33),
+  raycaster: new Raycaster(),
+  ndc: new Vector3(),
+  pointer: new Vector2(),
+  anchor: new Vector3(),
+});
+
+/**
+ * Keeps the labels readable (UI upgrade step 10): a label whose anchor the part hides is left out
+ * with its lines, labels that would cover each other move apart or, without room, are left out;
+ * the open one always shows. Runs when the view, the marks or the open label change. Returns
+ * the slot of a mark, for its label and lines to register in when they mount.
+ */
+function useLabelLayout(marks: readonly DimensionMark[], meshes: MeshList, plane: Plane | null, openMark: string | null): (id: string) => Slot {
+  const camera = useThree((state) => state.camera);
+  const size = useThree((state) => state.size);
+  const layout = useRef<Layout>(newLayout());
+
+  useEffect(() => {
+    // Marks that left take their slots with them; new ones are laid out on the next frame.
+    const { slots } = layout.current;
+    for (const id of slots.keys()) if (!marks.some((mark) => mark.id === id)) slots.delete(id);
+    layout.current.dirty = true;
+  }, [marks, openMark]);
+
+  useFrame(() => {
+    const state = layout.current;
+    // Skip frames in which nothing that moves a label changed.
+    const view = [...camera.matrixWorld.elements, ...camera.projectionMatrix.elements, size.width];
+    if (!state.dirty && view.every((value, i) => state.last[i] === value)) return;
+    state.last.set(view);
+    state.dirty = false;
+
+    const { raycaster, ndc, pointer, anchor, slots } = state;
+    // With a section the first hit may lie in the part that is cut away; then every hit is needed.
+    (raycaster as Raycaster & { firstHitOnly?: boolean }).firstHitOnly = plane === null;
+    const bodies = meshes.current.filter((mesh): mesh is Mesh => mesh !== null);
+    const hidden = new Map<string, Shown>();
+    const boxes: (LabelBox & { distance: number; open: boolean })[] = [];
+    for (const mark of marks) {
+      const label = slots.get(mark.id)?.wrapper?.firstElementChild as HTMLElement | null | undefined;
+      if (!mark.geometry || !label) continue;
+      if (label.offsetWidth === 0) state.dirty = true;
+      anchor.set(...mark.geometry.anchor);
+      ndc.copy(anchor).project(camera);
+      raycaster.setFromCamera(pointer.set(ndc.x, ndc.y), camera);
+      const distance = raycaster.ray.origin.distanceTo(anchor);
+      const open = mark.id === openMark;
+      const hit = open || ndc.z > 1 ? null : raycaster.intersectObjects(bodies, false).find((entry) => keeps(plane, entry.point));
+      if (hit && hit.distance < distance - Math.max(0.3, distance * 0.004)) {
+        hidden.set(mark.id, 'behind');
+        continue;
+      }
+      boxes.push({
+        id: mark.id,
+        x: ((ndc.x + 1) / 2) * size.width,
+        y: ((1 - ndc.y) / 2) * size.height,
+        width: label.offsetWidth,
+        height: label.offsetHeight,
+        distance,
+        open,
+      });
+    }
+    // The open label first, then the nearest: what the user looks at keeps its place.
+    boxes.sort((a, b) => Number(b.open) - Number(a.open) || a.distance - b.distance);
+    const placed = layoutLabels(boxes, size);
+    for (const mark of marks) {
+      const slot = slots.get(mark.id);
+      if (!slot?.wrapper) continue;
+      const place = placed.get(mark.id);
+      const shown: Shown = hidden.get(mark.id) ?? (place ? 'shown' : 'crowded');
+      slot.wrapper.style.transform = place ? `translate(${String(place.dx)}px, ${String(place.dy)}px)` : '';
+      slot.wrapper.style.visibility = shown === 'shown' ? '' : 'hidden';
+      slot.wrapper.dataset.shown = shown;
+      if (slot.lines) slot.lines.visible = shown === 'shown';
+    }
+  });
+
+  return (id) => {
+    const { slots } = layout.current;
+    const found = slots.get(id) ?? { wrapper: null, lines: null };
+    slots.set(id, found);
+    layout.current.dirty = true;
+    return found;
+  };
+}
+
 /** Dimension lines and labels in the 3D view; a label opens its field (M2b-3, ADR 0020). */
-export function DimensionMarks({ color, ghostColor }: { color: Color; ghostColor: Color }) {
+export function DimensionMarks({ color, ghostColor, meshes, plane }: { color: Color; ghostColor: Color; meshes: MeshList; plane: Plane | null }) {
   const marks = useStudio((s) => s.marks);
   const openMark = useStudio((s) => s.openMark);
   const setOpenMark = useStudio((s) => s.setOpenMark);
   const [ghost, setGhost] = useState<Uint8Array | null>(null);
+  const slot = useLabelLayout(marks, meshes, plane, openMark);
   // Like the note pins: Html attaches one frame after the scene first mounts.
   const [attached, setAttached] = useState(false);
   useEffect(() => {
@@ -247,11 +364,26 @@ export function DimensionMarks({ color, ghostColor }: { color: Color; ghostColor
                 ];
         return (
           <group key={mark.id}>
-            {lines.map((segment, i) => (
-              <Line key={i} points={segment} color={color} lineWidth={i === lines.length - 1 ? 1.5 : 1} />
-            ))}
+            <group
+              ref={(group) => {
+                slot(mark.id).lines = group;
+              }}
+              // Hidden until the layout has placed the label, so nothing flashes on top of another.
+              visible={false}
+            >
+              {lines.map((segment, i) => (
+                <Line key={i} points={segment} color={color} lineWidth={i === lines.length - 1 ? 1.5 : 1} />
+              ))}
+            </group>
             <Html position={g.anchor} zIndexRange={open ? [32, 26] : [16, 11]} style={{ pointerEvents: 'none' }}>
-              <div className="relative">
+              <div
+                className="relative"
+                style={{ visibility: 'hidden' }}
+                data-testid="mark-slot"
+                ref={(wrapper) => {
+                  slot(mark.id).wrapper = wrapper;
+                }}
+              >
                 <MarkLabel
                   mark={mark}
                   open={open}
@@ -279,7 +411,10 @@ export function DimensionMarks({ color, ghostColor }: { color: Color; ghostColor
   );
 }
 
-/** Inputs PartBuddy cannot place on the model (pattern counts and the like), as a list beside the view. */
+/**
+ * Inputs PartBuddy cannot place on the model (pattern counts, a countersink's tip angle …): a
+ * section of the structure panel under the parameters, so no list covers the part (step 10).
+ */
 export function LooseDimensions() {
   const { t } = useTranslation();
   const all = useStudio((s) => s.marks);
@@ -289,12 +424,10 @@ export function LooseDimensions() {
   const text = useMarkText();
   if (marks.length === 0) return null;
   return (
-    <section
-      aria-label={t('dimensions.loose')}
-      className="pointer-events-auto flex max-w-menu flex-col gap-1 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
-      data-testid="loose-dimensions"
-    >
-      <h2 className="text-xs font-semibold text-text-subtle">{t('dimensions.loose')}</h2>
+    <section aria-labelledby="structure-loose" className="flex flex-col gap-1" data-testid="loose-dimensions">
+      <h2 id="structure-loose" className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-text-subtle">
+        {t('dimensions.loose')}
+      </h2>
       {marks.map((mark) => {
         const shown = text(mark);
         const open = openMark === mark.id;
@@ -305,11 +438,11 @@ export function LooseDimensions() {
               onPress={() => {
                 setOpenMark(open ? null : mark.id);
               }}
-              className="flex items-center justify-between gap-2 rounded-md px-1 text-left text-xs text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+              className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-sm text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
               data-testid="loose-mark"
             >
               <span className="truncate">{shown.name}</span>
-              <span className="font-mono tabular-nums">{shown.value}</span>
+              <span className="shrink-0 font-mono tabular-nums">{shown.formula ? `${shown.formula} = ${shown.value}` : shown.value}</span>
             </AriaButton>
             {open ? (
               <MarkField

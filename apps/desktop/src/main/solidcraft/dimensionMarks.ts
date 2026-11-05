@@ -222,8 +222,80 @@ function inputsOf(feature: RawFeature): Input[] {
   });
 }
 
+/** Keys of a definition that hold a point or a size SolidCraft may keep as an expression. */
+const POINT_KEYS = ['corner', 'position', 'base'] as const;
+const SIZE_KEYS = ['radius'] as const;
+
+/**
+ * The expressions in the points of the given definitions (a box corner such as
+ * `[0, "wall + hook_width", 0]`, a hole position, a cylinder base or radius), which SolidCraft
+ * evaluates with `expr.evaluate` before the marks can be placed.
+ */
+export function pointExpressions(features: readonly RawFeature[]): string[] {
+  const found = new Set<string>();
+  for (const feature of features) {
+    for (const key of POINT_KEYS) {
+      const point = feature.definition[key];
+      if (Array.isArray(point)) for (const part of point) if (typeof part === 'string' && !PLAIN_NUMBER.test(part)) found.add(part);
+    }
+    for (const key of SIZE_KEYS) {
+      const size = feature.definition[key];
+      if (typeof size === 'string' && !PLAIN_NUMBER.test(size)) found.add(size);
+    }
+  }
+  return [...found].slice(0, 200);
+}
+
+/** The definition with its points and sizes as numbers, from the values SolidCraft gave for their expressions. */
+export function resolvePoints(feature: RawFeature, values: ReadonlyMap<string, number>): RawFeature {
+  const number = (part: unknown): unknown => {
+    if (typeof part !== 'string') return part;
+    if (PLAIN_NUMBER.test(part)) return Number.parseFloat(part);
+    return values.get(part) ?? part;
+  };
+  const definition = { ...feature.definition };
+  for (const key of POINT_KEYS) if (Array.isArray(definition[key])) definition[key] = (definition[key] as unknown[]).map(number);
+  for (const key of SIZE_KEYS) if (typeof definition[key] === 'string') definition[key] = number(definition[key]);
+  return { ...feature, definition };
+}
+
+/**
+ * Where the dimensions of a hole sit, each on its own side so none covers another: the diameter
+ * along one side, a countersink or counterbore diameter at right angles to it, the countersink
+ * angle at the opposite rim, depths beside the hole along its axis. Null for what has no place
+ * (a tip angle); an angle is never drawn as a length.
+ */
+function placeHole(position: Vec3, direction: Vec3, label: string, value: number, values: ReadonlyMap<string, number>, kind: DimensionMark['kind']): Placed | null {
+  const side = perpendicular(direction);
+  const across = unit(cross(direction, side));
+  const gap = 2;
+  const hole = (values.get('diameter') ?? 0) / 2;
+  const sink = (values.get('countersink diameter') ?? values.get('counterbore diameter') ?? 0) / 2;
+  const sunk = label.includes('countersink') || label.includes('counterbore');
+  if (kind === 'angle') {
+    if (!label.includes('countersink') || sink <= 0) return null;
+    const rim = add(position, scale(across, -sink));
+    return { from: r3(rim), to: r3(rim), offset: [0, 0, 0], anchor: r3(add(rim, scale(across, -gap))) };
+  }
+  if (label.includes('depth')) {
+    const beside = label.includes('thread') ? scale(side, -(hole + gap)) : sunk ? scale(across, -(sink + gap)) : scale(side, hole + gap);
+    return linear(position, add(position, scale(direction, value)), beside);
+  }
+  if (kind === 'diameter' || kind === 'radius') {
+    const radius = kind === 'diameter' ? value / 2 : value;
+    return leader(position, add(position, scale(sunk ? across : side, radius)));
+  }
+  return null;
+}
+
 /** Where an input of a feature sits, from its definition; null when PartBuddy has no place for it. */
-function placeInput(feature: RawFeature, input: Input, value: number, sketch: RawSketch | null): { geometry: Placed | null; kind: DimensionMark['kind'] } {
+function placeInput(
+  feature: RawFeature,
+  input: Input,
+  value: number,
+  values: ReadonlyMap<string, number>,
+  sketch: RawSketch | null,
+): { geometry: Placed | null; kind: DimensionMark['kind'] } {
   const d = feature.definition;
   const label = input.label.toLowerCase();
   const kindOf = (): DimensionMark['kind'] => (input.unit === 'deg' ? 'angle' : label.includes('diameter') ? 'diameter' : label.includes('radius') ? 'radius' : 'linear');
@@ -251,12 +323,11 @@ function placeInput(feature: RawFeature, input: Input, value: number, sketch: Ra
   }
   const position = vec3(d.position);
   if (feature.type.startsWith('Hole') && position) {
-    const direction = unit(vec3(d.direction) ?? [0, 0, -1]);
-    if (label.includes('depth')) return { geometry: linear(position, add(position, scale(direction, value)), scale(perpendicular(direction), gap)), kind };
-    const radius = kind === 'diameter' ? value / 2 : value;
-    return { geometry: leader(position, add(position, scale(perpendicular(direction), radius))), kind };
+    return { geometry: placeHole(position, unit(vec3(d.direction) ?? [0, 0, -1]), label, value, values, kind), kind };
   }
-  const corner = vec3(d.corner);
+  if (kind === 'angle') return { geometry: null, kind };
+  // SolidCraft leaves the corner out when the box starts at the origin.
+  const corner = d.corner === undefined ? ([0, 0, 0] as Vec3) : vec3(d.corner);
   if (feature.type.startsWith('Box') && corner) {
     const axes: Record<string, { along: Vec3; side: Vec3 }> = {
       length: { along: [1, 0, 0], side: [0, -1, 0] },
@@ -282,9 +353,13 @@ function placeInput(feature: RawFeature, input: Input, value: number, sketch: Ra
 
 /** The inputs of a feature (distance, radius, depth …), placed where PartBuddy knows how. */
 export function featureMarks(feature: RawFeature, parameters: readonly RawParameter[], sketch: RawSketch | null, body: string | null): DimensionMark[] {
-  return inputsOf(feature).map((input) => {
-    const value = parameters.find((parameter) => parameter.name === input.param)?.value ?? Number.parseFloat(input.expression);
-    const { geometry, kind } = placeInput(feature, input, value, sketch);
+  const inputs = inputsOf(feature);
+  const valueOf = (input: Input) => parameters.find((parameter) => parameter.name === input.param)?.value ?? Number.parseFloat(input.expression);
+  // The feature's other inputs by label: a countersink angle sits at the countersink's rim.
+  const values = new Map(inputs.map((input) => [input.label.toLowerCase(), valueOf(input)]));
+  return inputs.map((input) => {
+    const value = valueOf(input);
+    const { geometry, kind } = placeInput(feature, input, value, values, sketch);
     return {
       id: `${String(feature.id)}:${input.param}`,
       parameter: input.param,

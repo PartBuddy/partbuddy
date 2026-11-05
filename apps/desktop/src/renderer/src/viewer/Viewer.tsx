@@ -35,7 +35,7 @@ import { platform } from '../platform';
 import { selectedStatus, useAssistant } from '../assistant/store';
 import { NotePins } from '../notes/NotePins';
 import { Pen, ViewCapture } from './Pen';
-import { DimensionMarks, LooseDimensions, useDimensionMarks } from './Dimensions';
+import { DimensionMarks, useDimensionMarks } from './Dimensions';
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 Mesh.prototype.raycast = acceleratedRaycast;
@@ -728,7 +728,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <DimensionHud bodies={bodies} accent={colors.selection} />
       <ScenePins bodies={bodies} />
       <Pen bodies={bodies} meshes={meshes} color={colors.note} />
-      <DimensionMarks color={colors.sketch} ghostColor={colors.selection} />
+      <DimensionMarks color={colors.sketch} ghostColor={colors.selection} meshes={meshes} plane={plane} />
       <ParameterGhost color={colors.selection} />
       <ViewCapture />
       <Picker bodies={bodies} meshes={meshes} />
@@ -891,7 +891,6 @@ export function Viewer() {
         ) : null}
         <ConnectionNotice />
         <LiveBar />
-        <LooseDimensions />
       </div>
     </main>
   );

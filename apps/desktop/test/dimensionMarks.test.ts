@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { editOf, featureMarks, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from '../src/main/solidcraft/dimensionMarks';
-import { dimensionMarkSchema } from '../src/shared/contract';
+import { editOf, featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from '../src/main/solidcraft/dimensionMarks';
+import { dimensionMarkSchema, type DimensionMark } from '../src/shared/contract';
 
 // Shapes as SolidCraft 0.30.1 reported them on 2026-11-04 (headless): a 40 × 30 rectangle with
 // a Ø10 circle, its width driven by the user parameter W, extruded W/4.
@@ -106,6 +106,62 @@ describe('dimensions in the view (M2b-3)', () => {
     expect(cylinder[0]?.geometry).toMatchObject({ from: [0, 0, 0], to: [0, 0, 8] });
     const pattern = featureMarks(feature(9, 'Pattern1', 'PatternFeature', [{ expression: '4', label: 'Count', param: 'd20', unit: '' }], {}), parameters, null, null);
     expect(pattern[0]?.geometry).toBeNull();
+  });
+
+  // A wall holder as SolidCraft 0.30.1 reported it on 2026-11-05 (headless): boxes on formula
+  // corners and countersunk holes, whose angle used to become a 90 mm line out of the picture.
+  it('places boxes on formula corners once SolidCraft has evaluated them', () => {
+    const lip = feature(3, 'Hakenlippe', 'BoxFeature', [{ expression: 'plate_width', label: 'Length', param: 'd7', unit: 'mm' }], {
+      corner: [0, 'wall + hook_width', 0],
+      height: 'lip_height',
+    });
+    const origin = feature(1, 'Wandplatte', 'BoxFeature', [{ expression: 'plate_width', label: 'Length', param: 'd1', unit: 'mm' }], {});
+    expect(pointExpressions([lip, origin])).toEqual(['wall + hook_width']);
+    const known: RawParameter[] = [{ name: 'd7', expression: 'plate_width', unit: 'mm', value: 50 }, { name: 'd1', expression: 'plate_width', unit: 'mm', value: 50 }];
+    const resolved = resolvePoints(lip, new Map([['wall + hook_width', 46]]));
+    expect(resolved.definition.corner).toEqual([0, 46, 0]);
+    expect(featureMarks(resolved, known, null, 'Wandhalter')[0]?.geometry).toMatchObject({ from: [0, 46, 0], to: [50, 46, 0] });
+    // Without a value the corner stays unplaced rather than guessed.
+    expect(featureMarks(lip, known, null, 'Wandhalter')[0]?.geometry).toBeNull();
+    // A box at the origin has no corner in its definition.
+    expect(featureMarks(origin, known, null, 'Wandhalter')[0]?.geometry).toMatchObject({ from: [0, 0, 0], to: [50, 0, 0] });
+  });
+
+  it('gives each dimension of a countersunk hole its own side and never draws the angle as a length', () => {
+    const marks = featureMarks(
+      feature(
+        4,
+        'Senkbohrung',
+        'HoleFeature',
+        [
+          { expression: '4.5 mm', label: 'Diameter', param: 'd10', unit: 'mm' },
+          { expression: '9 mm', label: 'Countersink diameter', param: 'd11', unit: 'mm' },
+          { expression: '90 deg', label: 'Countersink angle', param: 'd12', unit: 'deg' },
+        ],
+        { diameter: '4.5 mm', direction: [0, 1, 0], hole: { type: 'countersink' }, position: [25, 0, 80] },
+      ),
+      [
+        { name: 'd10', expression: '4.5 mm', unit: 'mm', value: 4.5 },
+        { name: 'd11', expression: '9 mm', unit: 'mm', value: 9 },
+        { name: 'd12', expression: '90 deg', unit: 'deg', value: 90 },
+      ],
+      null,
+      'Wandhalter',
+    );
+    const [diameter, sink, angle] = marks;
+    expect(diameter).toMatchObject({ kind: 'diameter', geometry: { from: [25, 0, 80] } });
+    expect(sink).toMatchObject({ kind: 'diameter', geometry: { from: [25, 0, 80] } });
+    expect(angle?.kind).toBe('angle');
+    const reach = (mark: DimensionMark | undefined) => {
+      const g = mark?.geometry;
+      return g ? [g.anchor[0] - 25, g.anchor[1], g.anchor[2] - 80] : [0, 0, 0];
+    };
+    // Three different directions from the hole's centre, none further than the countersink and a gap.
+    const [a, b, c] = [reach(diameter), reach(sink), reach(angle)];
+    const cos = (u: number[], v: number[]) => u.reduce((sum, value, i) => sum + value * (v[i] ?? 0), 0) / (Math.hypot(...u) * Math.hypot(...v));
+    expect(cos(a, b)).toBeCloseTo(0, 5);
+    expect(cos(b, c)).toBeCloseTo(-1, 5);
+    for (const v of [a, b, c]) expect(Math.hypot(...v)).toBeLessThan(9 / 2 + 3);
   });
 
   it('never offers to overwrite a formula: plain numbers direct, one parameter through it, the rest to the assistant', () => {
