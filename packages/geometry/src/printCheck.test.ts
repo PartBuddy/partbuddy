@@ -72,57 +72,40 @@ describe('the ready-to-print check (M7)', () => {
     expect(foil.findings.find((f) => f.kind === 'thinWall')).toMatchObject({ severity: 'block', thickness: 0.3 });
   });
 
-  it('finds the ceiling of a table top as needing support, and the small foot on the bed', () => {
+  it('marks the ceiling of a table top as an overhang by angle, and the small foot on the bed', () => {
     const table = checkPrint([boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]])], PLA);
     expect(table.status).toBe('warn');
-    const support = table.findings.find((f) => f.kind === 'support');
-    expect(support).toMatchObject({ severity: 'warn', limit: 45, places: [{ body: 'Table', faces: ['F2:-z'] }] });
-    // The top reaches 9 mm out from the leg; only the first 1.5 mm around it grows from the leg.
-    const area = support && 'area' in support ? support.area : 0;
-    expect(area).toBeGreaterThan(330);
-    expect(area).toBeLessThan(396);
+    // By angle only: the whole ceiling, without guessing what the slicer bridges or grows from the leg.
+    expect(table.findings.find((f) => f.kind === 'overhang')).toMatchObject({ severity: 'warn', limit: 45, area: 400, places: [{ body: 'Table', faces: ['F2:-z'] }] });
     expect(table.findings.find((f) => f.kind === 'contact')).toMatchObject({ area: 4, places: [{ body: 'Table', faces: ['F1:-z'] }] });
+    // An overhang never makes the light red.
+    expect(table.findings.every((f) => f.severity !== 'block')).toBe(true);
   });
 
   it('lays every body on the bed by itself, as the slicer does, and warns when bodies touch', () => {
     // The same table as two bodies: in the slicer the top lies on the bed apart from the leg.
     const apart = checkPrint([box('Leg', [9, 9, 0], [11, 11, 10]), box('Top', [0, 0, 10], [20, 20, 12])], PLA);
-    expect(apart.findings.map((f) => f.kind)).not.toContain('support');
+    expect(apart.findings.map((f) => f.kind)).not.toContain('overhang');
     expect(apart.findings.find((f) => f.kind === 'separate')).toMatchObject({ severity: 'warn', bodies: ['Leg', 'Top'] });
-    // Three sleeves of 5, 10 and 15 mm printed upside down: each still stands on its own end.
-    const sleeves = [box('S5', [0, 0, 0], [12, 12, 5]), box('S10', [17, 0, 0], [29, 12, 10]), box('S15', [34, 0, 0], [46, 12, 15])];
-    const flipped = checkPrint(sleeves, PLA, [], [0, 0, 1]);
-    expect(flipped).toEqual({ status: 'ready', findings: [] });
   });
 
-  it('lets bridges and short overhangs print without support, as the slicer does', () => {
-    const bridge = (gap: number) =>
-      checkPrint([boxesBody('Bridge', [[[0, 0, 0], [5, 10, 10]], [[5 + gap, 0, 0], [10 + gap, 10, 10]], [[0, 0, 10], [10 + gap, 10, 14]]])], PLA);
-    expect(bridge(4).findings.map((f) => f.kind)).not.toContain('support');
-    expect(bridge(8).findings.map((f) => f.kind)).not.toContain('support');
-    const wide = bridge(20).findings.find((f) => f.kind === 'support');
-    expect(wide && 'area' in wide ? wide.area : 0).toBeGreaterThan(100);
-
-    // A ledge sticking out of a wall: 1 mm grows from the wall, 8 mm needs support.
-    const ledge = (reach: number) => checkPrint([boxesBody('Ledge', [[[0, 0, 0], [10, 10, 10]], [[10, 0, 5], [10 + reach, 10, 10]]])], PLA);
-    expect(ledge(1).findings.map((f) => f.kind)).not.toContain('support');
-    expect(ledge(8).findings.find((f) => f.kind === 'support')).toMatchObject({ places: [{ body: 'Ledge', faces: ['F2:-z'] }] });
-  });
-
-  it('takes a 45° chamfer facing the bed as printable, a flatter one not (M7f)', () => {
+  it('takes a 45° chamfer facing the bed as printable, a flatter one as an overhang', () => {
     // A bar with its lower edges chamfered: 3 mm at 45°, and 5 mm across, 3 mm up (59° from the vertical).
     const at45 = checkPrint([prismBody('Bar', [[3, 0], [17, 0], [20, 3], [20, 10], [0, 10], [0, 3]], 40)], PLA);
     expect(at45).toEqual({ status: 'ready', findings: [] });
     const flat = checkPrint([prismBody('Bar', [[5, 0], [15, 0], [20, 3], [20, 10], [0, 10], [0, 3]], 40)], PLA);
-    expect(flat.findings.find((f) => f.kind === 'support')).toMatchObject({ places: [{ body: 'Bar', faces: ['F1:s1', 'F1:s5'] }] });
+    expect(flat.findings.find((f) => f.kind === 'overhang')).toMatchObject({ places: [{ body: 'Bar', faces: ['F1:s1', 'F1:s5'] }] });
   });
 
-  it('bridges the top of a lying hole, but supports the underside of a lying tube', () => {
-    const result = checkPrint([lyingTube('Tube', 6, 2.25, 10)], PLA);
-    const support = result.findings.find((f) => f.kind === 'support');
-    const faces = support && 'places' in support ? support.places.flatMap((place) => place.faces) : [];
-    expect(faces).not.toContain('F1:hole');
-    expect(faces).toContain('F1:outer');
+  it('follows the overhang angle of the material', () => {
+    const tube = lyingTube('Tube', 6, 2.25, 10);
+    const faces = (limit: number) => {
+      const finding = checkPrint([tube], { ...PLA, overhang: limit }).findings.find((f) => f.kind === 'overhang');
+      return finding && 'area' in finding ? finding.area : 0;
+    };
+    // A steeper limit leaves less of the round underside as an overhang.
+    expect(faces(60)).toBeLessThan(faces(45));
+    expect(faces(45)).toBeGreaterThan(0);
   });
 
   it('blocks on a feature SolidCraft could not build and warns on its warnings; rolled back ones do not count', () => {

@@ -19,24 +19,7 @@ export {
   type FaceTable,
   type SurfaceKind,
 } from './faceTable';
-export {
-  AS_DESIGNED,
-  evaluateOrientation,
-  faceDown,
-  isAsDesigned,
-  orientBuffers,
-  orientationMatrix,
-  orientationQuaternion,
-  placementMatrix,
-  proposeOrientations,
-  type Down,
-  type LoadPlace,
-  type OrientationBody,
-  type OrientationOption,
-  type OrientationProfile,
-} from './orientation';
 export { counterpartOf, cylinderKind, fitDiameter, printedDiameter, type CylinderKind, type FitKind as CylinderFitKind, type FitMaterial } from './fits';
-export { orientMeshFile } from './orientFile';
 export {
   checkPrint,
   minimumWall,
@@ -79,18 +62,3 @@ export {
   type NoteAnchor,
   type ResolvedAnchor,
 } from './noteAnchors';
-export {
-  counterboresOf,
-  filletFeatureOf,
-  holeRoof,
-  steppedBridge,
-  supportCause,
-  type Counterbore,
-  type HoleRoof,
-  type SteppedBridge,
-  type SupportCause,
-} from './printFixes';
-export { BRIDGE_SPAN, SHORT_OVERHANG, supportNeed, type SupportNeed } from './supportReach';
-export { SUPPORT_BODY, isSupportBody } from './supportBody';
-export { ribsFor, supportRibs, type RibOptions, type SupportRib } from './supportRibs';
-export { mergeSupportObjects, objectNames3mf } from './supportExport';

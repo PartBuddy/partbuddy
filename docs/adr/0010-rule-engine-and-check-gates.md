@@ -153,3 +153,26 @@ now does the same:
 * For the ghost, which shows one body, the walls are joined into one on trial; SolidCraft warns that
   a join of walls apart from each other leaves a body in pieces, which is why applying makes them
   separate bodies.
+
+## Amendment 2026-11-05 (plan step R1): back to what only the design decides
+
+The product owner reset the plan on 2026-11-05: supports, bridges and the orientation in detail are
+the slicer's job, and the slicer does them better. The amendments "the check follows what the slicer
+prints", "fixes at the light", "counterbores facing the bed" and "support printed into the model"
+are withdrawn, and with them the print orientation of the first amendment (proposal, marked loads,
+"print on this face", the turned 3MF and STL export).
+
+* The check looks at the part **as designed**, standing on its lowest point; each body on its own
+  bed as before. It reports the build volume, walls under two lines or the nozzle, bodies that touch,
+  too little on the bed and features SolidCraft could not build.
+* **Overhangs are a hint by angle only:** faces leaning past the material's angle form one yellow
+  finding that points at its faces and says that the slicer decides about support. It never makes
+  the light red. The slicer-style reach (short overhangs, bridges up to 10 mm), the causes and the
+  fix buttons are gone (`supportReach`, `printFixes`, `supportRibs`, `supportExport`,
+  `orientation` and `orientFile` in the geometry package).
+* The rules for designing without support stay in the assistant's note, without the stepped bridge
+  over counterbores: Bambu Studio and OrcaSlicer build that themselves (`counterbore_hole_bridging`).
+* Print files of parts written before keep their material; an orientation or loads in them are
+  ignored. Work-log phrases of the removed fixes stay readable.
+* Where SolidCraft itself marks the face a part prints on (`body.print_face`), PartBuddy offers it
+  in plan step B8 as a plain action, without orientation logic of its own.

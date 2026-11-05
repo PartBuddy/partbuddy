@@ -304,7 +304,6 @@
       }
     },
     "exported": "Saved as {file}",
-    "exportedWithSupport": "Saved as {file}. It has support printed in: turn the slicer's supports off.",
     "openInSolidCraft": "Open in SolidCraft",
     "openedInSolidCraft": "The design is in Documents\\PartBuddy and opens in SolidCraft. PartBuddy shows your changes there live.",
     "failed": "That did not work: {detail}"
@@ -476,9 +475,7 @@
     "support": "Needs support (over {degrees}°)",
     "borderline": "Borderline ({from}–{to}°)",
     "bed": "On the print bed",
-    "material": "Limits from the material {material}",
-    "lying": "Printed in the chosen orientation",
-    "lyingOnFace": "Printed lying on {face}"
+    "material": "Limits from the material {material}"
   },
   "compare": {
     "title": "Before and after",
@@ -543,8 +540,8 @@
       "warn": "{count, plural, one {# warning} other {# warnings}}",
       "block": "Not ready to print"
     },
-    "none": "Nothing found: the part fits the build volume, the walls are thick enough, nothing needs support.",
-    "basis": "Checked after every change, in the print orientation below, with the printer and material of this part.",
+    "none": "Nothing found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
+    "basis": "Checked after every change, as designed (standing on its lowest point), with the printer and material of this part. Supports, bridges and the orientation are up to the slicer.",
     "faces": "{count, plural, one {# face} other {# faces}}",
     "show": "Show the place",
     "finding": {
@@ -552,11 +549,7 @@
       "sizeLying": "Too large for the build volume: {size} mm, the printer takes {bed} mm. Laid on another side it would fit.",
       "wallTooThin": "Walls only {thickness} mm, thinner than the nozzle ({nozzle} mm): they do not print",
       "wallThin": "Walls only {thickness} mm, at least {minimum} mm (two lines)",
-      "support": "{area} mm² overhang beyond {limit}° need support",
-      "supportFillet": "{area} mm² of rounded edges facing the bed lean beyond {limit}° and need support",
-      "supportHole": "{area} mm² on top of lying holes too wide to bridge need support",
-      "supportRibs": "{area} mm² that need support stand on support walls printed into the model: turn the slicer's supports off",
-      "supportCounterbore": "{area} mm² of counterbore steps facing the bed: the hole cuts the bridge over them, so they need support",
+      "overhang": "{area} mm² lean beyond {limit}°: the slicer decides whether they need support",
       "contact": "Only {area} mm² lie on the bed: may come loose or tip over",
       "separate": "{bodies} touch but are separate bodies: the slicer lays each on the bed by itself. Combine them if they are one part.",
       "feature": "{feature}: {message}"
@@ -567,62 +560,6 @@
       "cancel": "Cancel",
       "go": "Export anyway"
     }
-  },
-  "fix": {
-    "try": {
-      "chamfer": "Chamfer instead of round",
-      "roof": "{count, plural, one {Give the hole a roof} other {Give the # holes a roof}}",
-      "bridge": "{count, plural, one {Bridge the counterbore in steps} other {Bridge the # counterbores in steps}}",
-      "ribs": "{count, plural, one {Print a support wall into the model} other {Print # support walls into the model}}"
-    },
-    "trying": "Trying …",
-    "preview": {
-      "chamfer": "The ghost shows chamfers of the same size at 45°: they print without support.",
-      "roof": "The ghost shows the roof: 45° flanks, flat on top where the slicer bridges it.",
-      "bridge": "The ghost shows the stepped bridge: one layer with a slot as wide as the hole, one with a square. The slicer bridges both from wall to wall.",
-      "ribs": "The ghost shows the walls: 1 mm thick, 4 mm apart, one layer below the part and 0.5 mm off its sides. They break off after printing; turn the slicer's supports off."
-    },
-    "apply": "Apply",
-    "cancel": "Cancel",
-    "refused": "SolidCraft cannot do it this way: {detail}",
-    "ask": "Ask the assistant",
-    "failed": "The change failed: {detail}",
-    "done": {
-      "chamfer": "The rounds facing the bed are chamfers now.",
-      "roof": "{count, plural, one {The hole has a roof now.} other {The # holes have a roof now.}}",
-      "bridge": "{count, plural, one {The counterbore is bridged in steps now.} other {The # counterbores are bridged in steps now.}}",
-      "ribs": "{count, plural, one {A support wall is printed into the model now.} other {# support walls are printed into the model now.}}"
-    },
-    "request": {
-      "chamfer": "Make the rounded edges facing the bed ({faces}) 45° chamfers of the same size, so they print without support.",
-      "roof": "Give the lying holes ({faces}) a 45° teardrop roof, flat on top where the slicer can bridge it, so nothing leans more than {limit}°.",
-      "bridge": "Add a stepped bridge over the counterbore steps facing the bed ({faces}): one layer with a slot as wide as the hole across the bore, one with a square, so they print without support.",
-      "ribs": "Print breakaway support walls into the model under the overhangs ({faces}): separate bodies named \"Print support\", 1 mm thick, 4 mm apart, standing on the bed, one layer below the part and 0.5 mm off its sides."
-    }
-  },
-  "orientation": {
-    "title": "Print orientation",
-    "asDesigned": "As designed, +Z up",
-    "onFace": "Lying on {face}",
-    "down": "Lying with {direction} down",
-    "propose": "Propose",
-    "best": "Recommended",
-    "numbers": "Support {support} mm² · on the bed {contact} mm² · height {height} mm",
-    "tooLarge": "Does not fit the build volume this way",
-    "loadAlong": "Load along the layers: strong",
-    "loadAcross": "Load across the layers: weak",
-    "loadSlanted": "Load at an angle to the layers",
-    "apply": "Use",
-    "inUse": "Current",
-    "reset": "Print as designed",
-    "loads": "{count, plural, one {Load marked on # face} other {Load marked on # faces}}",
-    "clearLoads": "Remove loads",
-    "loadHint": "Does a force act on the part? Select a face and “Load acts here”, and the proposal lays the layers to suit.",
-    "printOnFace": "Print on this face",
-    "laid": "Now lying on {face}. 3MF and STL are exported this way.",
-    "markLoad": "Load acts here",
-    "unmarkLoad": "No load here",
-    "failed": "The print orientation could not be saved."
   },
   "fit": {
     "open": "Fit",
