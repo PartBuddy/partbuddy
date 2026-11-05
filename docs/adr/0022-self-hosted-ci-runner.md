@@ -48,7 +48,8 @@ instead of a clean Linux environment.
   Windows and, right after a pull request's job finished, asks GitHub whether all checks are done;
   it prints one line per head commit, green or red. Claude Code runs it with its Monitor tool, so a
   green pull request is merged without anyone having to look.
-* Workflows: `runs-on: [self-hosted, partbuddy]`. Every checkout fetches Git LFS files. System
+* Workflows: `runs-on: [self-hosted, partbuddy]`. Every checkout fetches Git LFS files, and pnpm
+  is installed into each instance's tool cache (the default `~/setup-pnpm` is shared). System
   libraries, `xvfb` and Git LFS come with the runner, so the `sudo` steps are gone; the pnpm store, Node.js, Playwright's Chromium and Electron
   stay cached on the runner. CI, privacy and security checks no longer run again on `main` after a
   squash merge, because the pull request already checked the merge result. The weekly privacy and
