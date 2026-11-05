@@ -359,6 +359,10 @@
     "range": "Range {min} to {max} {unit}"
   },
   "timeline": {
+    "handle": "Rollback bar",
+    "handleHint": "Drag, or use the arrow keys and Enter, to roll the design back",
+    "handleEnd": "at the end, every step active",
+    "handleAfter": "after {name}",
     "title": "Timeline",
     "step": "{name}, {kind}",
     "rebuild": "{ms} ms",

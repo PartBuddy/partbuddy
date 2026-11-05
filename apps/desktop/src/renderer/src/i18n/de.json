@@ -359,6 +359,10 @@
     "range": "Bereich {min} bis {max} {unit}"
   },
   "timeline": {
+    "handle": "Rückroll-Balken",
+    "handleHint": "Ziehen, oder Pfeiltasten und Enter, um das Design zurückzurollen",
+    "handleEnd": "am Ende, alle Schritte aktiv",
+    "handleAfter": "nach {name}",
     "title": "Zeitleiste",
     "step": "{name}, {kind}",
     "rebuild": "{ms} ms",

@@ -393,11 +393,28 @@ test('the structure tree hides a body, and the timeline suppresses, rolls back a
     await page.getByRole('menuitem', { name: 'Roll back to here' }).click();
     await expect(summary).toContainText('1 body · 6 faces', { timeout: 15_000 });
     await expect(page.getByTestId('timeline-feature').last()).toHaveAttribute('data-state', 'rolledBack');
-    await expect(page.getByTestId('timeline-marker')).toBeVisible();
+    const handle = page.getByTestId('timeline-handle');
+    await expect(handle).toHaveAttribute('data-position', '1');
     await page.screenshot({ path: test.info().outputPath('timeline-rolled-back.png') });
     await page.getByTestId('timeline-end').click();
     await expect(summary).toContainText('1 body · 7 faces', { timeout: 15_000 });
-    await expect(page.getByTestId('timeline-marker')).toBeHidden();
+    await expect(handle).toHaveAttribute('data-position', '2');
+
+    // The rollback bar: dragged left of the fillet it rolls the fillet back; the keyboard brings it to the end again.
+    const fillet = await page.getByTestId('timeline-feature').last().boundingBox();
+    const bar = await handle.boundingBox();
+    if (!fillet || !bar) throw new Error('timeline not visible');
+    await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(fillet.x - 2, bar.y + bar.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await expect(summary).toContainText('1 body · 6 faces', { timeout: 15_000 });
+    await expect(handle).toHaveAttribute('data-position', '1');
+    await handle.focus();
+    await page.keyboard.press('End');
+    await page.keyboard.press('Enter');
+    await expect(summary).toContainText('1 body · 7 faces', { timeout: 15_000 });
+    await expect(handle).toHaveAttribute('data-position', '2');
 
     // Suppress the fillet and activate it again.
     await page.getByTestId('timeline-feature').last().click();
