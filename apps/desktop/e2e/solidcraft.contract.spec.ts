@@ -407,6 +407,10 @@ test('the structure tree hides a body, and the timeline suppresses, rolls back a
     await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
     await page.mouse.down();
     await page.mouse.move(fillet.x - 2, bar.y + bar.height / 2, { steps: 6 });
+    // While held, the bar follows the pointer and nothing is rolled back yet.
+    await expect.poll(async () => (await handle.boundingBox())?.x ?? 0).toBeLessThan(fillet.x);
+    await expect(handle).toHaveAttribute('data-position', '1');
+    await expect(summary).toContainText('1 body · 7 faces');
     await page.mouse.up();
     await expect(summary).toContainText('1 body · 6 faces', { timeout: 15_000 });
     await expect(handle).toHaveAttribute('data-position', '1');
