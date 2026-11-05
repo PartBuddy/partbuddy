@@ -1006,3 +1006,55 @@ test('the light fixes rounds facing the bed and a lying hole too wide to bridge,
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('the light bridges counterbores that open towards the bed in steps (M7f)', async () => {
+  test.setTimeout(180_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-bridge-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7908',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build the counterbore plate');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText('The counterbore plate is built.')).toBeVisible({ timeout: 60_000 });
+
+    // The steps of both counterbores face the bed; the hole cuts the bridge over them.
+    const light = page.getByTestId('print-check');
+    await expect(light).toHaveAttribute('data-status', 'warn', { timeout: 20_000 });
+    await light.click();
+    const panel = page.getByTestId('print-check-panel');
+    const support = panel.getByTestId('check-finding').and(page.locator('[data-kind="support"]'));
+    await expect(support).toHaveCount(1);
+    await expect(support).toContainText('counterbore steps facing the bed');
+    await expect(support).toContainText('2 faces');
+
+    const bridge = panel.locator('[data-testid="fix"][data-fix="bridge"]');
+    await expect(bridge.getByTestId('fix-try')).toHaveText('Bridge the 2 counterbores in steps');
+    await bridge.getByTestId('fix-try').click();
+    await expect(bridge).toHaveAttribute('data-step', 'ready', { timeout: 30_000 });
+    await page.screenshot({ path: test.info().outputPath('bridge-ghost.png') });
+    await bridge.getByTestId('fix-apply').click();
+    await expect(page.getByTestId('notice')).toHaveText('The 2 counterbores are bridged in steps now.', { timeout: 30_000 });
+    await expect(light).toHaveAttribute('data-status', 'ready', { timeout: 20_000 });
+
+    await page.screenshot({ path: test.info().outputPath('bridge-done.png') });
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('step-text').filter({ hasText: 'Stepped bridges over 2 counterbores' })).toHaveCount(1);
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('bridge-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

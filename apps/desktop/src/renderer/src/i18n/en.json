@@ -554,6 +554,7 @@
       "support": "{area} mm² overhang beyond {limit}° need support",
       "supportFillet": "{area} mm² of rounded edges facing the bed lean beyond {limit}° and need support",
       "supportHole": "{area} mm² on top of lying holes too wide to bridge need support",
+      "supportCounterbore": "{area} mm² of counterbore steps facing the bed: the hole cuts the bridge over them, so they need support",
       "contact": "Only {area} mm² lie on the bed: may come loose or tip over",
       "separate": "{bodies} touch but are separate bodies: the slicer lays each on the bed by itself. Combine them if they are one part.",
       "feature": "{feature}: {message}"
@@ -568,12 +569,14 @@
   "fix": {
     "try": {
       "chamfer": "Chamfer instead of round",
-      "roof": "{count, plural, one {Give the hole a roof} other {Give the # holes a roof}}"
+      "roof": "{count, plural, one {Give the hole a roof} other {Give the # holes a roof}}",
+      "bridge": "{count, plural, one {Bridge the counterbore in steps} other {Bridge the # counterbores in steps}}"
     },
     "trying": "Trying …",
     "preview": {
       "chamfer": "The ghost shows chamfers of the same size at 45°: they print without support.",
-      "roof": "The ghost shows the roof: 45° flanks, flat on top where the slicer bridges it."
+      "roof": "The ghost shows the roof: 45° flanks, flat on top where the slicer bridges it.",
+      "bridge": "The ghost shows the stepped bridge: one layer with a slot as wide as the hole, one with a square. The slicer bridges both from wall to wall."
     },
     "apply": "Apply",
     "cancel": "Cancel",
@@ -582,11 +585,13 @@
     "failed": "The change failed: {detail}",
     "done": {
       "chamfer": "The rounds facing the bed are chamfers now.",
-      "roof": "{count, plural, one {The hole has a roof now.} other {The # holes have a roof now.}}"
+      "roof": "{count, plural, one {The hole has a roof now.} other {The # holes have a roof now.}}",
+      "bridge": "{count, plural, one {The counterbore is bridged in steps now.} other {The # counterbores are bridged in steps now.}}"
     },
     "request": {
       "chamfer": "Make the rounded edges facing the bed ({faces}) 45° chamfers of the same size, so they print without support.",
-      "roof": "Give the lying holes ({faces}) a 45° teardrop roof, flat on top where the slicer can bridge it, so nothing leans more than {limit}°."
+      "roof": "Give the lying holes ({faces}) a 45° teardrop roof, flat on top where the slicer can bridge it, so nothing leans more than {limit}°.",
+      "bridge": "Add a stepped bridge over the counterbore steps facing the bed ({faces}): one layer with a slot as wide as the hole across the bore, one with a square, so they print without support."
     }
   },
   "orientation": {

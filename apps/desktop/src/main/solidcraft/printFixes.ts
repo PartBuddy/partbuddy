@@ -11,6 +11,8 @@ import type { ControlRequester } from './mirror';
  * - chamfer: the fillet keeps the edges that do not face the bed (`timeline.edit` with the rest of
  *   its `edges`, or `timeline.delete` when none is left), and those edges get a chamfer of the
  *   fillet's size (`solid.chamfer`, the radius's expression as the distance);
+ * - bridge: two sketches on the step of a counterbore facing the bed, a slot as wide as the hole cut
+ *   one layer deep and a square cut two layers deep (stepped bridging);
  * - roof: a sketch across the hole at its start (`sketch.create` with an explicit plane), the roof
  *   outline (`sketch.line` closed) and a cut along the hole (`solid.extrude` with `operation: cut`).
  * Previews run like the actions' (ADR 0017): the commands, an export, and a failing read that
@@ -112,6 +114,19 @@ export class PrintFixService {
 
   /** The commands of a fix; a chamfer reads its fillets first. */
   async steps(fix: PrintFix): Promise<Step[]> {
+    if (fix.fix === 'bridge') {
+      return fix.bridges.flatMap((bridge) => {
+        const plane = { plane: { origin: bridge.origin, x_dir: bridge.xDir, y_dir: bridge.yDir }, name: 'Print bridge' };
+        return [
+          { command: 'sketch.create', params: plane },
+          { command: 'sketch.line', params: { points: bridge.slot, closed: true } },
+          { command: 'solid.extrude', params: { distance: mm(bridge.slotDepth), operation: 'cut', targets: [fix.body], name: 'Print bridge' } },
+          { command: 'sketch.create', params: plane },
+          { command: 'sketch.line', params: { points: bridge.square, closed: true } },
+          { command: 'solid.extrude', params: { distance: mm(bridge.squareDepth), operation: 'cut', targets: [fix.body], name: 'Print bridge' } },
+        ];
+      });
+    }
     if (fix.fix === 'roof') {
       return fix.roofs.flatMap((roof) => [
         { command: 'sketch.create', params: { plane: { origin: roof.origin, x_dir: roof.xDir, y_dir: roof.yDir }, name: 'Print roof' } },

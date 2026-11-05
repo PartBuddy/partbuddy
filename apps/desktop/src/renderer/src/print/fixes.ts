@@ -1,4 +1,4 @@
-import { filletFeatureOf, holeRoof, type Down, type PrintFinding, type ViewerModel } from '@partbuddy/geometry';
+import { counterboresOf, filletFeatureOf, holeRoof, steppedBridge, type Down, type PrintFinding, type ViewerModel } from '@partbuddy/geometry';
 
 import type { PrintFix } from '../../../shared/contract';
 
@@ -28,7 +28,7 @@ function trianglesOf(model: ViewerModel, face: number): Triangle[] {
 }
 
 /** The fix of a support finding for its first body, or null when it has none (cause "other"). */
-export function fixFor(finding: PrintFinding, bodies: readonly Body[], down: Down): PrintFix | null {
+export function fixFor(finding: PrintFinding, bodies: readonly Body[], down: Down, layer: number): PrintFix | null {
   if (finding.kind !== 'support' || finding.cause === 'other') return null;
   const place = finding.places[0];
   const body = bodies.find((item) => item.name === place?.body);
@@ -47,6 +47,15 @@ export function fixFor(finding: PrintFinding, bodies: readonly Body[], down: Dow
     }
     const fillets = [...byFeature].slice(0, 20).map(([feature, faces]) => ({ feature, faces }));
     return fillets.length > 0 ? { fix: 'chamfer', body: body.name, fillets } : null;
+  }
+
+  if (finding.cause === 'counterbore') {
+    const wanted = new Set(place.faces.map(faceIndex));
+    const bridges = counterboresOf(body.model, down)
+      .filter((counterbore) => wanted.has(counterbore.step))
+      .slice(0, 20)
+      .map((counterbore) => steppedBridge(counterbore, down, layer));
+    return bridges.length > 0 ? { fix: 'bridge', body: body.name, bridges } : null;
   }
 
   // One roof per hole: SolidCraft splits a cylinder into pieces with the same roof.

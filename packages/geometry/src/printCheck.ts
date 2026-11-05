@@ -3,7 +3,7 @@ import type { MeshBVH } from 'three-mesh-bvh';
 
 import { AS_DESIGNED, bedOfPositions, orientBuffers, printedSize, type Down } from './orientation';
 import { Overhang, overhangLimits, overhangOf } from './overhang';
-import { supportCause, type SupportCause } from './printFixes';
+import { counterboresOf, supportCause, type SupportCause } from './printFixes';
 import { supportNeed } from './supportReach';
 import type { ViewerModel } from './viewerModel';
 
@@ -299,8 +299,8 @@ export function checkPrint(
 
     // Overhangs and the bed: each body on its own bed, steep overhangs only where nothing carries them.
     const limits = overhangLimits(profile.overhang);
-    const SUPPORT_CAUSES: readonly SupportCause[] = ['fillet', 'hole', 'other'];
-    const support: Record<SupportCause, FaceTally[]> = { fillet: [], hole: [], other: [] };
+    const SUPPORT_CAUSES: readonly SupportCause[] = ['fillet', 'hole', 'counterbore', 'other'];
+    const support: Record<SupportCause, FaceTally[]> = { fillet: [], hole: [], counterbore: [], other: [] };
     const contact: FaceTally[] = [];
     let onBed = 0;
     visible.forEach(({ model }, b) => {
@@ -322,20 +322,29 @@ export function checkPrint(
       );
       onBed += map.area[Overhang.Bed];
       const faces = model.table.faces.length;
-      const supportTally: Record<SupportCause, FaceTally> = { fillet: new FaceTally(faces), hole: new FaceTally(faces), other: new FaceTally(faces) };
-      const causes = Array.from({ length: faces }, (_, face) => ((need.byFace[face] ?? 0) > 0 ? supportCause(model, face, down) : 'other'));
+      const supportTally: Record<SupportCause, FaceTally> = {
+        fillet: new FaceTally(faces),
+        hole: new FaceTally(faces),
+        counterbore: new FaceTally(faces),
+        other: new FaceTally(faces),
+      };
+      // The steps of counterbores facing the bed need support even where the rays see a bridge:
+      // the hole cuts the strands (M7f step 3).
+      const steps = new Set(counterboresOf(model, down).map((counterbore) => counterbore.step));
+      const causes = Array.from({ length: faces }, (_, face) => (steps.has(face) ? 'counterbore' : (need.byFace[face] ?? 0) > 0 ? supportCause(model, face, down) : 'other'));
       const contactTally = new FaceTally(model.table.faces.length);
       const positions = geometry.getAttribute('position').array;
       const index = geometry.index?.array ?? [];
       for (let t = 0; t < index.length / 3; t += 1) {
         const face = model.triangleFaces[t] ?? 0;
         const { corners, area } = triangle(positions, index, t);
-        if ((need.byFace[face] ?? 0) > 0) supportTally[causes[face] ?? 'other'].add(face, 0, 0, corners);
+        if (steps.has(face)) supportTally.counterbore.add(face, area, 0, corners);
+        else if ((need.byFace[face] ?? 0) > 0) supportTally[causes[face] ?? 'other'].add(face, 0, 0, corners);
         const vertex = index[t * 3] ?? 0;
         if (map.vertices[vertex] === Overhang.Bed) contactTally.add(face, area, 0, corners);
       }
       need.byFace.forEach((area, face) => {
-        if (area > 0) supportTally[causes[face] ?? 'other'].area[face] = area;
+        if (area > 0 && !steps.has(face)) supportTally[causes[face] ?? 'other'].area[face] = area;
       });
       for (const cause of SUPPORT_CAUSES) support[cause].push(supportTally[cause]);
       contact.push(contactTally);
