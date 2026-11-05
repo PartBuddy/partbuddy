@@ -2,7 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { jsonSchema, stepCountIs, streamText, tool, type ModelMessage, type ToolSet } from 'ai';
 
 import type { AgentEvent, AgentStatus, Selection } from '../../shared/contract';
-import { userEvent, type AgentBackend, type SentDrawing } from '../agents/assistant';
+import { userEvent, type AgentBackend } from '../agents/assistant';
 import type { ToolResult, UpstreamTools } from '../agents/gateProxy';
 import { decide } from '../agents/policy';
 import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from '../agents/questions';
@@ -117,7 +117,7 @@ export class ChatGptAgent implements AgentBackend {
     return this.history.length === 0;
   }
 
-  async send(text: string, selections: Selection[] = [], note: string | null = null, drawing: SentDrawing | null = null): Promise<void> {
+  async send(text: string, selections: Selection[] = [], note: string | null = null, image: Uint8Array | null = null): Promise<void> {
     if (this.status().state !== 'ready') throw new Error(`assistant is ${this.status().state}`);
     const upstream = await this.options.tools();
     if (!upstream) {
@@ -126,8 +126,7 @@ export class ChatGptAgent implements AgentBackend {
     }
     this.model ??= await this.pickModel();
     const message = composeMessage(text, selections, note);
-    this.options.event(userEvent(text, message.label, drawing, message.summary));
-    const image = drawing?.image ?? null;
+    this.options.event(userEvent(text, message.label, message.summary));
     this.history.push(
       image
         ? { role: 'user', content: [{ type: 'text', text: message.prompt }, { type: 'image', image, mediaType: 'image/png' }] }

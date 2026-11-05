@@ -551,15 +551,11 @@ test('the part material is chosen in the status bar and the profiles are edited 
     return root.scrollHeight - root.clientHeight;
   });
   expect(overflow).toBe(0);
-  await page.getByTestId('overhang').click();
-  await expect(page.getByTestId('overhang-support')).toContainText('over 45°');
 
-  // The part's material from the status bar: the overhang limits follow it.
+  // The part's material from the status bar.
   await chip.click();
   await page.getByTestId('material-option').filter({ hasText: /^PETG(?!-)/ }).click();
   await expect(chip).toHaveAttribute('data-material', 'petg');
-  await expect(page.getByTestId('overhang-support')).toContainText('over 40°');
-  await expect(page.getByTestId('overhang-material')).toContainText('PETG');
 
   // The profiles in their dialog, opened from the settings; changes apply on save.
   await page.getByTestId('settings').click();
@@ -582,7 +578,6 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await page.screenshot({ path: test.info().outputPath('print-profiles.png') });
   await dialog.getByTestId('print-save').click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByTestId('overhang-support')).toContainText('over 35°');
   await expect(chip).toContainText('Werkstatt');
 
   // Cancel keeps what was saved.
@@ -630,85 +625,4 @@ test('the ready-to-print light follows the printer, points at its findings and a
   await page.screenshot({ path: test.info().outputPath('export-confirm.png') });
   await confirm.getByTestId('export-confirm-cancel').click();
   await expect(confirm).toHaveCount(0);
-});
-
-test('the fit assistant sizes a hole for its counterpart from the material (M7)', async () => {
-  const { app } = await connectedApp();
-  const { page } = app;
-  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
-  const box = await page.getByTestId('viewport').boundingBox();
-  if (!box) throw new Error('viewport not visible');
-  // Pick the cable channel (a hole-like cylinder) by scanning across the middle of the part.
-  const name = page.getByTestId('selected-face');
-  let found = false;
-  for (let y = 0.35; y <= 0.65 && !found; y += 0.03) {
-    for (let x = 0.35; x <= 0.65 && !found; x += 0.02) {
-      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
-      const kind = await page.getByTestId('selection-bar').getAttribute('data-kind', { timeout: 300 }).catch(() => null);
-      const text = kind === 'face' ? await name.textContent({ timeout: 300 }).catch(() => null) : null;
-      found = text?.startsWith('F5:side') ?? false;
-    }
-  }
-  expect(found).toBe(true);
-
-  await page.getByTestId('fit-open').click();
-  const panel = page.getByTestId('fit-panel');
-  // A 12 mm channel for a 12 mm cable, sliding, in PLA: 12 + 2 × 0.25 + 0.15.
-  const mating = panel.getByTestId('fit-mating').getByRole('textbox');
-  await expect(mating).toHaveValue('12');
-  await panel.getByTestId('fit-slide').click();
-  await expect(panel.getByTestId('fit-target')).toHaveAttribute('data-target', '12.65');
-  await expect(panel.getByTestId('fit-target')).toContainText('Hole Ø12.65 mm = 12 + 2 × 0.25 clearance + 0.15 hole allowance (PLA)');
-  await panel.getByTestId('fit-clamp').click();
-  await expect(panel.getByTestId('fit-target')).toHaveAttribute('data-target', '12.25');
-  await mating.fill('10');
-  await expect(panel.getByTestId('fit-target')).toHaveAttribute('data-target', '10.25');
-  // SolidCraft is asked whether one parameter drives it; the answer decides direct or assistant.
-  await expect(panel.getByTestId('fit-status')).not.toHaveAttribute('data-mode', 'probing', { timeout: 10_000 });
-  await page.screenshot({ path: test.info().outputPath('fit.png') });
-});
-
-test('measurements after printing suggest new material values that save with the profile (M7)', async () => {
-  const { app } = await connectedApp();
-  const { page } = app;
-  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
-
-  // From the status bar straight to measuring, for the part's material (PLA).
-  await page.getByTestId('material-chip').click();
-  await page.getByTestId('measure-open').click();
-  const dialog = page.getByTestId('print-profiles');
-  const tab = dialog.getByTestId('measure');
-  await expect(tab).toContainText('Measurements after printing for PLA');
-
-  // A hole drawn at Ø6.8 measured Ø6.55: holes shrink by 0.25, not the 0.15 of the starting values.
-  await tab.getByTestId('measure-drawn').getByRole('textbox').fill('6.8');
-  await tab.getByTestId('measure-measured').getByRole('textbox').fill('6.55');
-  await tab.getByTestId('measure-add').click();
-  await expect(tab.getByTestId('measure-entry')).toHaveCount(1);
-  await expect(tab.getByTestId('measure-suggestion')).toHaveText(/Hole allowance 0\.15 → 0\.25 mm \(from 1 measurement\)/);
-
-  // A slide fit that was too tight moves its clearance one step.
-  await tab.getByTestId('measure-kind-fit').click();
-  await tab.getByTestId('measure-fit-slide').click();
-  await tab.getByTestId('measure-verdict-tight').click();
-  await tab.getByTestId('measure-add').click();
-  await expect(tab.getByTestId('measure-suggestion')).toHaveCount(2);
-  await page.screenshot({ path: test.info().outputPath('measure.png') });
-  const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="print-profiles"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
-  expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
-  await tab.getByTestId('measure-apply').first().click();
-  await tab.getByTestId('measure-apply').first().click();
-  await expect(tab.getByTestId('measure-suggestion')).toHaveCount(0);
-  await expect(tab).toContainText('The measurements match the current values.');
-  await dialog.getByTestId('print-save').click();
-  await expect(dialog).toHaveCount(0);
-
-  // Saved: the material now has the measured values, and the fit assistant uses them.
-  await page.getByTestId('settings').click();
-  await page.getByTestId('settings-print').click();
-  await dialog.getByTestId('print-tab-material').click();
-  await expect(dialog.getByTestId('material-hole').getByRole('textbox')).toHaveValue('0.25');
-  await expect(dialog.getByTestId('material-fit-slide').getByRole('textbox')).toHaveValue('0.3');
-  // The outer growth, new with measuring, is a value of its own; nothing was measured for it.
-  await expect(dialog.getByTestId('material-outer').getByRole('textbox')).toHaveValue('0');
 });

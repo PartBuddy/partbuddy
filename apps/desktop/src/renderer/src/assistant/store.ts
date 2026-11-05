@@ -15,7 +15,6 @@ export type ConversationItem =
       text: string;
       selection?: string | undefined;
       selected?: { faces: number; edges: number; vertices: number; bodies: string[] } | undefined;
-      drawing?: { strokes: number; image: boolean } | undefined;
     }
   | { kind: 'assistant'; key: number; text: string; open: boolean }
   | {
@@ -75,7 +74,7 @@ export function reduce(items: ConversationItem[], event: AgentEvent): Conversati
   const key = nextKey++;
   switch (event.type) {
     case 'user':
-      return [...items, { kind: 'user', key, text: event.text, selection: event.selection, selected: event.selected, drawing: event.drawing }];
+      return [...items, { kind: 'user', key, text: event.text, selection: event.selection, selected: event.selected }];
     case 'textDelta':
       if (last?.kind === 'assistant' && last.open) return [...items.slice(0, -1), { ...last, text: last.text + event.text }];
       return [...items, { kind: 'assistant', key, text: event.text, open: true }];

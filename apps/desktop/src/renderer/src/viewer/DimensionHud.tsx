@@ -1,6 +1,5 @@
 import { parseTagged3mf, type ViewerModel } from '@partbuddy/geometry';
 import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
-import { FitPanel } from '../print/FitPanel';
 import { ActionPanel, MeasureLine } from './SelectionActions';
 import { NoteComposer } from '../notes/NoteComposer';
 import { sendToAssistant } from '../assistant/send';
@@ -14,7 +13,7 @@ import { selectedStatus, useAssistant } from '../assistant/store';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { parseLength } from './lengthInput';
-import { blendWeights, GHOST_OPACITY } from './blend';
+import { blendWeights, GHOST_OPACITY, PREVIEW_BLEND } from './blend';
 import { SelectionInfo } from './SelectionInfo';
 import { edgeLabel, selectionName, selectionOf, selectionsOf } from './viewState';
 
@@ -73,8 +72,7 @@ export function dimensionOf(bodies: BodyModel[], pick: Pick): Dimension | null {
 }
 
 export function Ghost({ preview, color }: { preview: Uint8Array; color: Color }) {
-  const blend = useStudio((s) => s.previewBlend);
-  const opacity = blendWeights(blend).after * GHOST_OPACITY;
+  const opacity = blendWeights(PREVIEW_BLEND).after * GHOST_OPACITY;
   const geometry = useMemo(() => {
     try {
       const mesh = parseTagged3mf(preview);
@@ -259,7 +257,6 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
           {picks.length === 1 ? <NoteComposer selection={current} busy={busy} /> : null}
         </div>
       </div>
-      <FitPanel bodies={bodies} picks={picks} busy={busy} />
       {status ? (
         <p className="flex items-center gap-1 text-xs text-text-muted" role="status" data-testid="dimension-status" data-mode={result?.mode ?? 'probing'}>
           {result?.mode === 'direct' ? <IconBolt className="size-icon-sm text-accent" aria-hidden /> : null}

@@ -1,4 +1,4 @@
-import { IconAngle, IconArrowsExchange, IconBox, IconBoxMultiple, IconCheck, IconCube, IconMaximize, IconPencil, IconPerspective, IconRulerMeasure, IconSlice } from '@tabler/icons-react';
+import { IconArrowsExchange, IconBox, IconBoxMultiple, IconCheck, IconCube, IconMaximize, IconPerspective, IconRulerMeasure, IconSlice } from '@tabler/icons-react';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -160,22 +160,16 @@ export function ViewTools() {
   const setProjection = useStudio((s) => s.setProjection);
   const requestView = useStudio((s) => s.requestView);
   const ortho = projection === 'orthographic';
-  const pen = useStudio((s) => s.pen);
-  const setPen = useStudio((s) => s.setPen);
   const dimensions = useStudio((s) => s.dimensions);
   const setDimensions = useStudio((s) => s.setDimensions);
   const section = useStudio((s) => s.section);
-  const overhang = useStudio((s) => s.overhang);
-  const setOverhang = useStudio((s) => s.setOverhang);
   const setSection = useStudio((s) => s.setSection);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey || inTextField(event.target)) return;
       const key = event.key.toLowerCase();
-      if (key === 'd') {
-        setPen(!useStudio.getState().pen);
-      } else if (key === 'm') {
+      if (key === 'm') {
         setDimensions(useStudio.getState().dimensions === 'off' ? 'feature' : 'off');
       } else if (key === '5') {
         setProjection(useStudio.getState().projection === 'orthographic' ? 'perspective' : 'orthographic');
@@ -190,7 +184,7 @@ export function ViewTools() {
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [requestView, setProjection, setPen, setDimensions]);
+  }, [requestView, setProjection, setDimensions]);
 
   const views: { view: StandardView; key: string; icon: ReactNode }[] = [
     { view: 'fit', key: 'F', icon: <IconMaximize className="size-icon-sm" aria-hidden /> },
@@ -253,18 +247,6 @@ export function ViewTools() {
           </ToggleButton>
         </Tip>
       )}
-      <Tip label={`${t('viewer.pen.tool')} (D)`}>
-        <ToggleButton
-          aria-label={t('viewer.pen.tool')}
-          aria-keyshortcuts="D"
-          isSelected={pen}
-          onChange={setPen}
-          className={tool}
-          data-testid="pen"
-        >
-          <IconPencil className="size-icon-sm" aria-hidden />
-        </ToggleButton>
-      </Tip>
       <Tip label={`${t(ortho ? 'viewer.views.ortho' : 'viewer.views.perspective')} (5)`}>
         <ToggleButton
           aria-label={t('viewer.views.ortho')}
@@ -295,11 +277,6 @@ export function ViewTools() {
         </ToggleButton>
       </Tip>
       {section ? <SectionPanel section={section} /> : null}
-      <Tip label={t('overhang.tool')}>
-        <ToggleButton aria-label={t('overhang.tool')} isSelected={overhang} onChange={setOverhang} className={tool} data-testid="overhang">
-          <IconAngle className="size-icon-sm" aria-hidden />
-        </ToggleButton>
-      </Tip>
     </div>
   );
 }

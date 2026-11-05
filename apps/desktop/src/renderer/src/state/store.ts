@@ -1,7 +1,6 @@
 import type { FindingBox, PrintCheck, ViewerModel } from '@partbuddy/geometry';
 import { create } from 'zustand';
 
-import type { DrawingStroke } from '../../../shared/drawing';
 
 import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, NotesState, PartPrint, Structure } from '../../../shared/contract';
 
@@ -75,12 +74,12 @@ export type Projection = 'perspective' | 'orthographic';
 export type StandardView = 'fit' | 'iso' | 'front' | 'right' | 'top';
 /** How bodies are drawn (UI upgrade step 9): faces and edges, faces only, see-through, edges only. */
 /** The tabs of the printer and material dialog (M7). */
-export type ProfilesTab = 'printer' | 'material' | 'measure';
+export type ProfilesTab = 'printer' | 'material';
 
 export type DisplayMode = 'shadedEdges' | 'shaded' | 'xray' | 'wireframe';
 /**
  * A section through the design along one axis: `position` from 0 to 1 across the bodies' box,
- * `flip` keeps the other side. Picks and pen strokes never reach the part that is cut away.
+ * `flip` keeps the other side. Picks never reach the part that is cut away.
  */
 export interface Section {
   axis: 'x' | 'y' | 'z';
@@ -106,9 +105,6 @@ interface StudioState {
   /** Ghost of a value typed into the parameter panel: the body with the new value (face-tagged 3MF). */
   parameterGhost: Uint8Array | null;
   setParameterGhost: (ghost: Uint8Array | null) => void;
-  /** Faces coloured by how far they overhang when printed along +Z (UI upgrade step 12). */
-  overhang: boolean;
-  setOverhang: (overhang: boolean) => void;
   /** The printer in use and the open part's material (M7); null until the main process answered. */
   print: PartPrint | null;
   setPrint: (print: PartPrint | null) => void;
@@ -147,18 +143,7 @@ interface StudioState {
   latency: MirrorLatency | null;
   setConnection: (status: ConnectionStatus) => void;
   setModel: (model: ModelState) => void;
-  showRevision: (model: ModelState, changes: LiveChanges | null, latency: MirrorLatency, before?: BodyModel[] | null) => void;
-  /** The bodies before the latest change, kept for comparing (UI upgrade step 13). */
-  before: BodyModel[] | null;
-  /**
-   * Before/after (UI upgrade step 13): how far the view shows the new state, 0 the old one, 1 the
-   * new one. `compare` is on while the user compares with the state before the latest change;
-   * `previewBlend` weighs the ghost of a tried value against the part.
-   */
-  compare: number | null;
-  setCompare: (compare: number | null) => void;
-  previewBlend: number;
-  setPreviewBlend: (blend: number) => void;
+  showRevision: (model: ModelState, changes: LiveChanges | null, latency: MirrorLatency) => void;
   /** The ghost of a value typed into a dimension label's field. */
   markGhost: Uint8Array | null;
   setMarkGhost: (ghost: Uint8Array | null) => void;
@@ -175,19 +160,6 @@ interface StudioState {
   /** The note whose card is open at its pin, or null. */
   openNote: string | null;
   setOpenNote: (id: string | null) => void;
-  /** Pen mode (M2b-2): the pointer draws strokes on the view instead of selecting and turning. */
-  pen: boolean;
-  setPen: (pen: boolean) => void;
-  /** Strokes drawn since the last message; they go with the next one. */
-  strokes: DrawnStroke[];
-  addStroke: (stroke: DrawnStroke) => void;
-  clearStrokes: () => void;
-  /** Send a picture of the view with the strokes too (off by default, ADR 0020). */
-  drawingImage: boolean;
-  setDrawingImage: (image: boolean) => void;
-  /** Renders the view with the strokes to a PNG; set by the 3D view while it is shown. */
-  captureView: (() => Promise<Uint8Array<ArrayBuffer> | null>) | null;
-  setCaptureView: (capture: (() => Promise<Uint8Array<ArrayBuffer> | null>) | null) => void;
   /** Dimensions in the view (M2b-3): off, those of the selected feature, or all. */
   dimensions: 'off' | 'feature' | 'all';
   setDimensions: (dimensions: 'off' | 'feature' | 'all') => void;
@@ -199,17 +171,8 @@ interface StudioState {
   setOpenMark: (id: string | null) => void;
 }
 
-/** A stroke on the view: its summary for the assistant and its line on the model, lifted off the faces. */
-export interface DrawnStroke {
-  id: number;
-  summary: DrawingStroke;
-  line: [number, number, number][];
-}
-
 /** As many as one message to the assistant may carry (contract: 20). */
 const MAX_SELECTIONS = 20;
-/** As many strokes as one message may carry (contract: 20). */
-const MAX_STROKES = 20;
 
 export const useStudio = create<StudioState>()((set) => ({
   connection: { state: 'searching', owned: false, mirror: 'idle' },
@@ -237,10 +200,6 @@ export const useStudio = create<StudioState>()((set) => ({
   },
   setNotice: (notice) => {
     set({ notice });
-  },
-  overhang: false,
-  setOverhang: (overhang) => {
-    set({ overhang });
   },
   print: null,
   setPrint: (print) => {
@@ -295,17 +254,8 @@ export const useStudio = create<StudioState>()((set) => ({
     // Face indices change on every rebuild (ADR 0004), so a selection does not survive one.
     set({ model, hover: null, selection: null, selections: [] });
   },
-  showRevision: (model, changes, latency, before = null) => {
-    set({ model, changes, latency, before, compare: null, hover: null, selection: null, selections: [] });
-  },
-  before: null,
-  compare: null,
-  setCompare: (compare) => {
-    set({ compare });
-  },
-  previewBlend: 0.25,
-  setPreviewBlend: (previewBlend) => {
-    set({ previewBlend });
+  showRevision: (model, changes, latency) => {
+    set({ model, changes, latency, hover: null, selection: null, selections: [] });
   },
   markGhost: null,
   setMarkGhost: (markGhost) => {
@@ -343,25 +293,6 @@ export const useStudio = create<StudioState>()((set) => ({
   openNote: null,
   setOpenNote: (openNote) => {
     set({ openNote });
-  },
-  pen: false,
-  setPen: (pen) => {
-    set(pen ? { pen, hover: null, selection: null, selections: [] } : { pen });
-  },
-  strokes: [],
-  addStroke: (stroke) => {
-    set((state) => ({ strokes: [...state.strokes, stroke].slice(-MAX_STROKES) }));
-  },
-  clearStrokes: () => {
-    set({ strokes: [] });
-  },
-  drawingImage: false,
-  setDrawingImage: (drawingImage) => {
-    set({ drawingImage });
-  },
-  captureView: null,
-  setCaptureView: (captureView) => {
-    set({ captureView });
   },
   dimensions: 'off',
   setDimensions: (dimensions) => {

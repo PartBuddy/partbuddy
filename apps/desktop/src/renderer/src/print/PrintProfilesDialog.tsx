@@ -24,7 +24,6 @@ import { FIT_KINDS, type MaterialProfile, type PrinterProfile, type PrintSetting
 import { platform } from '../platform';
 import { useStudio, type ProfilesTab } from '../state/store';
 import { Button } from '../ui/Button';
-import { MeasureTab } from './MeasureTab';
 
 const inputClass =
   'h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus invalid:border-danger';
@@ -211,10 +210,9 @@ function MaterialForm({
   return (
     <>
       <Name label={t('print.name')} value={material.name} onChange={(name) => onChange({ ...material, name })} testId="material-name" />
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <Measure label={t('print.overhang')} value={material.overhang} min={20} max={70} step={1} unit="°" testId="material-overhang" onChange={(overhang) => onChange({ ...material, overhang })} />
         <Measure label={t('print.holeShrink')} value={material.holeShrink} min={0} max={1} step={0.05} unit="mm" testId="material-hole" onChange={(holeShrink) => onChange({ ...material, holeShrink })} />
-        <Measure label={t('print.outerGrowth')} value={material.outerGrowth} min={-1} max={1} step={0.05} unit="mm" testId="material-outer" onChange={(outerGrowth) => onChange({ ...material, outerGrowth })} />
       </div>
       <fieldset className="flex flex-col gap-1">
         <legend className={labelClass}>{t('print.clearance')}</legend>
@@ -308,7 +306,7 @@ function Editor({ close }: { close: () => void }) {
     <>
       <Tabs className="flex flex-col gap-3" selectedKey={tab} onSelectionChange={(key) => setTab(key as ProfilesTab)}>
         <TabList aria-label={t('print.title')} className="flex gap-1 border-b border-border">
-          {(['printer', 'material', 'measure'] as const).map((id) => (
+          {(['printer', 'material'] as const).map((id) => (
             <Tab
               key={id}
               id={id}
@@ -371,9 +369,6 @@ function Editor({ close }: { close: () => void }) {
               onChange={setMaterial}
             />
           </ProfileColumns>
-        </TabPanel>
-        <TabPanel id="measure" className="outline-none">
-          <MeasureTab material={material} onChange={setMaterial} />
         </TabPanel>
       </Tabs>
       <div className="flex flex-col gap-1 border-t border-border pt-3">

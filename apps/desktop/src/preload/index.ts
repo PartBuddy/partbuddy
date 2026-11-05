@@ -66,9 +66,6 @@ const api: PartBuddyApi = {
     setMaterial: (material) => ipcRenderer.invoke(invokeChannels.printSetMaterial, { material }),
     onChange: (listener) => subscribe(eventChannels.printChanged, listener),
     reportCheck: (report) => ipcRenderer.invoke(invokeChannels.printReportCheck, report),
-    measurements: () => ipcRenderer.invoke(invokeChannels.printMeasurements),
-    addMeasurement: (material, measurement) => ipcRenderer.invoke(invokeChannels.printAddMeasurement, { material, measurement }),
-    removeMeasurement: (id) => ipcRenderer.invoke(invokeChannels.printRemoveMeasurement, { id }),
   },
   viewer: {
     report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),
@@ -85,12 +82,11 @@ const api: PartBuddyApi = {
   agent: {
     status: () => ipcRenderer.invoke(invokeChannels.agentStatus),
     refresh: () => ipcRenderer.invoke(invokeChannels.agentRefresh),
-    send: (text, selections, answer, drawing) =>
+    send: (text, selections, answer) =>
       ipcRenderer.invoke(invokeChannels.agentSend, {
         text,
         ...(selections && selections.length > 0 ? { selections } : {}),
         ...(answer ? { answer } : {}),
-        ...(drawing ? { drawing } : {}),
       }),
     stop: () => ipcRenderer.invoke(invokeChannels.agentStop),
     select: (agent) => ipcRenderer.invoke(invokeChannels.agentSelect, { agent }),

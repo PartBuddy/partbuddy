@@ -8,7 +8,6 @@ import type {
   ActionPreviewResult,
   DesignParameter,
   ConnectionStatus,
-  Drawing,
   DesignAction,
   DimensionApply,
   DimensionMark,
@@ -27,10 +26,8 @@ import type {
   MirrorRevision,
   NotesState,
   PartPrint,
-  Measurement,
   PrintCheckReport,
   PrintSettings,
-  StoredMeasurement,
   TitleBarColors,
   Theme,
   ViewState,
@@ -124,10 +121,6 @@ export interface PartBuddyApi {
     onChange(listener: (part: PartPrint) => void): () => void;
     /** The latest ready-to-print check, for the assistant's next message. */
     reportCheck(report: PrintCheckReport): Promise<void>;
-    /** Measurements after printing, all materials, newest last. */
-    measurements(): Promise<StoredMeasurement[]>;
-    addMeasurement(material: string, measurement: Measurement): Promise<StoredMeasurement[]>;
-    removeMeasurement(id: string): Promise<StoredMeasurement[]>;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */
@@ -149,11 +142,8 @@ export interface PartBuddyApi {
     select(agent: AgentKind): Promise<AssistantState>;
     /** Let Claude Code run with an API key, billed separately; off by default. */
     allowApiBilling(allow: boolean): Promise<AssistantState>;
-    /**
-     * Sends a message; what is selected in the view goes with it as a short note, strokes drawn on
-     * the view as words (and a picture when the user asked for one).
-     */
-    send(text: string, selections?: Selection[], answer?: MessageAnswer, drawing?: Drawing): Promise<void>;
+    /** Sends a message; what is selected in the view goes with it as a short note. */
+    send(text: string, selections?: Selection[], answer?: MessageAnswer): Promise<void>;
     stop(): Promise<void>;
     /** Start the selected route's sign-in flow; it opens the browser. */
     signIn(): Promise<void>;

@@ -1,8 +1,8 @@
-import { IconArrowUp, IconPencil, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
+import { IconArrowUp, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button as AriaButton, CheckboxButton, CheckboxField, Form, TextArea, TextField } from 'react-aria-components';
+import { Button as AriaButton, Form, TextArea, TextField } from 'react-aria-components';
 
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
@@ -142,12 +142,6 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
               {item.selected ? selectionSummary(t, item.selected) : t('assistant.withSelection', { face: item.selection })}
             </span>
           ) : null}
-          {item.drawing ? (
-            <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-drawing">
-              <IconPencil className="size-icon-sm" aria-hidden />
-              {t(item.drawing.image ? 'assistant.withDrawingImage' : 'assistant.withDrawing', { count: item.drawing.strokes })}
-            </span>
-          ) : null}
           <p className="rounded-lg bg-accent-subtle px-3 py-2 text-md whitespace-pre-wrap text-text">{item.text}</p>
         </div>
       );
@@ -177,42 +171,6 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
         </p>
       );
   }
-}
-
-/** The strokes drawn on the view that go with the next message, and whether a picture goes too. */
-function DrawingChip() {
-  const { t } = useTranslation();
-  const strokes = useStudio((s) => s.strokes.length);
-  const image = useStudio((s) => s.drawingImage);
-  const setImage = useStudio((s) => s.setDrawingImage);
-  const clear = useStudio((s) => s.clearStrokes);
-  if (strokes === 0) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-2" data-testid="composer-drawing">
-      <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-sunken py-0 pl-2 pr-1 text-xs text-text">
-        <IconPencil className="size-icon-sm" aria-hidden />
-        {t('assistant.drawingGoesWith', { count: strokes })}
-        <AriaButton
-          aria-label={t('assistant.removeDrawing')}
-          className="inline-flex size-icon items-center justify-center rounded-full text-text-subtle outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
-          onPress={clear}
-        >
-          <IconX className="size-icon-sm" aria-hidden />
-        </AriaButton>
-      </span>
-      <CheckboxField isSelected={image} onChange={setImage} data-testid="drawing-image">
-        <CheckboxButton className="group inline-flex items-center gap-1 text-xs text-text-muted outline-none">
-        <span
-          aria-hidden
-          className="inline-flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
-        >
-          {image ? <span className="size-dot rounded-full bg-on-accent" /> : null}
-        </span>
-        {t('assistant.drawingImage')}
-        </CheckboxButton>
-      </CheckboxField>
-    </div>
-  );
 }
 
 export function AssistantPanel() {
@@ -301,7 +259,6 @@ export function AssistantPanel() {
             }}
           />
         </TextField>
-        <DrawingChip />
         {selections.length > 1 ? (
           <div className="flex flex-wrap items-center gap-1" data-testid="composer-selections" aria-label={t('assistant.selectionsGoWith', { count: selections.length })}>
             <span className="text-xs text-text-muted">{t('assistant.selectionsGoWith', { count: selections.length })}</span>

@@ -1,4 +1,4 @@
-import { IconArrowsLeftRight, IconFocus2, IconX } from '@tabler/icons-react';
+import { IconFocus2, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, SwitchButton, SwitchField } from 'react-aria-components';
 
@@ -12,9 +12,6 @@ function Changes() {
   const follow = useStudio((s) => s.followChanges);
   const setFollow = useStudio((s) => s.setFollowChanges);
   const clear = useStudio((s) => s.clearChanges);
-  const before = useStudio((s) => s.before !== null);
-  const comparing = useStudio((s) => s.compare !== null);
-  const setCompare = useStudio((s) => s.setCompare);
   return (
     <div className="pointer-events-auto flex items-center gap-3 rounded-md bg-surface-raised px-2 py-1 text-sm text-text shadow-2">
       {changes ? (
@@ -34,19 +31,6 @@ function Changes() {
             <IconX className="size-icon-sm" aria-hidden />
           </AriaButton>
         </span>
-      ) : null}
-      {changes && before ? (
-        <AriaButton
-          onPress={() => {
-            setCompare(comparing ? null : 0);
-          }}
-          className={`inline-flex items-center gap-1 rounded-sm px-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus ${comparing ? 'text-accent' : 'text-text-muted'}`}
-          aria-pressed={comparing}
-          data-testid="compare-start"
-        >
-          <IconArrowsLeftRight className="size-icon-sm" aria-hidden />
-          {t('compare.start')}
-        </AriaButton>
       ) : null}
       <SwitchField isSelected={follow} onChange={setFollow}>
         <SwitchButton className="group flex items-center gap-1 outline-none">

@@ -21,9 +21,6 @@ const names = {
   // Sketch curves (#21): free, fully constrained and construction geometry.
   sketch: '--cs-viewer-sketch',
   dimension: '--cs-viewer-dimension',
-  overhang: '--cs-viewer-overhang',
-  overhangRisk: '--cs-viewer-overhang-risk',
-  bed: '--cs-viewer-bed',
   sketchConstrained: '--cs-viewer-sketch-constrained',
   sketchConstruction: '--cs-viewer-sketch-construction',
   axisX: '--cs-viewer-axis-x',

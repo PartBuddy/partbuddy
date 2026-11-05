@@ -10,7 +10,7 @@ import {
   PointMaterial,
 } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Overhang, OVERHANG_LIMITS, overhangLimits, SKETCH_STYLE } from '@partbuddy/geometry';
+import { SKETCH_STYLE } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BackSide, Box3, BufferAttribute, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, Sphere, Vector2, Vector3 } from 'three';
@@ -25,10 +25,7 @@ import { Ghost, SelectionDock, SelectionGhost } from './DimensionHud';
 import { GradientBackground, GroundShadow, KeyLight, SkyLight } from './SceneLook';
 import { keeps, useSectionPlane } from './section';
 import { LiveBar } from './LiveBar';
-import { blendWeights } from './blend';
-import { CompareSlider } from './CompareSlider';
-import { OverhangLegend } from './OverhangLegend';
-import { bedOf, overhangFor } from './useOverhang';
+import { blendWeights, PREVIEW_BLEND } from './blend';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
 import { StepPreviews } from './StepPreviews';
@@ -38,7 +35,6 @@ import { viewStateOf, type CameraView } from './viewState';
 import { platform } from '../platform';
 import { selectedStatus, useAssistant } from '../assistant/store';
 import { NotePins } from '../notes/NotePins';
-import { Pen, ViewCapture } from './Pen';
 import { DimensionMarks, useDimensionMarks } from './Dimensions';
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
@@ -66,8 +62,6 @@ const scene = {
   changeTint: 0.45,
   hoverTint: 0.35,
   selectionTint: 0.55,
-  // How strongly the overhang view colours a face (the shading stays readable).
-  overhangTint: 0.8,
   // See-through faces in the X-ray display mode.
   xrayOpacity: 0.3,
   // Studio look: soft room light from above (Z up).
@@ -109,8 +103,6 @@ function Body({
   register,
   mode,
   plane,
-  bedZ,
-  support,
 }: {
   index: number;
   body: BodyModel;
@@ -118,19 +110,13 @@ function Body({
   register: (index: number, mesh: Mesh | null) => void;
   mode: DisplayMode;
   plane: Plane | null;
-  /** The print bed for the overhang view, or null when it is off. */
-  bedZ: number | null;
-  /** Degrees from the vertical beyond which a face needs support. */
-  support: number;
 }) {
   const hover = useStudio((s) => s.hover);
   const selections = useStudio((s) => s.selections);
   const changes = useStudio((s) => s.changes);
   const stepHighlight = useStudio((s) => s.stepHighlight);
-  // Before/after: how much of the part as it is now shows (UI upgrade step 13).
-  const fade = useStudio((s) =>
-    s.compare !== null && s.before ? blendWeights(s.compare).after : s.selectionGhost || s.parameterGhost || s.markGhost ? blendWeights(s.previewBlend).before : 1,
-  );
+  // With a ghost on screen, how much of the part as it is now shows.
+  const fade = useStudio((s) => (s.selectionGhost || s.parameterGhost || s.markGhost ? blendWeights(PREVIEW_BLEND).before : 1));
   const { model } = body;
 
   useEffect(() => {
@@ -143,14 +129,6 @@ function Body({
     // Hover and selection tint the face; the outline drawn around it carries the strong colour.
     const hoverTint = colors.body.clone().lerp(colors.hover, scene.hoverTint);
     const selectedTint = colors.body.clone().lerp(colors.selection, scene.selectionTint);
-    // The overhang view: each vertex by how far its face leans over, from its normal.
-    const overhang = bedZ === null ? null : overhangFor(model, bedZ, overhangLimits(support)).vertices;
-    const byClass = [
-      colors.body,
-      colors.body.clone().lerp(colors.bed, scene.overhangTint),
-      colors.body.clone().lerp(colors.overhang, scene.overhangTint),
-      colors.body.clone().lerp(colors.overhangRisk, scene.overhangTint),
-    ];
     // A work-log card under the pointer lights up the faces of its step that still exist.
     const stepFaces = new Set(stepHighlight?.find((entry) => entry.body === body.name)?.faces ?? []);
     if (stepHighlight) {
@@ -161,14 +139,14 @@ function Body({
     const selected = new Set(selections.filter((pick) => pick.kind === 'face' && pick.body === index).map((pick) => (pick.kind === 'face' ? pick.face : -1)));
     for (let v = 0; v < model.vertexFaces.length; v += 1) {
       const face = model.vertexFaces[v] ?? -1;
-      let color = overhang ? (byClass[overhang[v] ?? Overhang.Fine] ?? colors.body) : colors.body;
-      if (changed.has(face) && !overhang) color = stepHighlight ? colors.changed : tint;
+      let color = colors.body;
+      if (changed.has(face)) color = stepHighlight ? colors.changed : tint;
       if (face === hovered) color = hoverTint;
       if (selected.has(face)) color = selectedTint;
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
-  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name, bedZ, support]);
+  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name]);
 
   const clipping = useMemo(() => (plane ? [plane] : []), [plane]);
   return (
@@ -222,32 +200,6 @@ function FatEdges({ geometry, color, width, opacity }: { geometry: BodyModel['mo
   const points = useMemo(() => Array.from((geometry.getAttribute('position') as BufferAttribute).array as Float32Array), [geometry]);
   if (points.length === 0) return null;
   return <Line points={points} segments color={color} lineWidth={width} transparent={opacity < 1} opacity={opacity} raycast={noRaycast} />;
-}
-
-/**
- * The part before the latest change, while the user compares (UI upgrade step 13): drawn in the
- * body colour, fading out as the slider moves to "after".
- */
-function BeforeBodies({ colors }: { colors: ViewerColors }) {
-  const before = useStudio((s) => s.before);
-  const compare = useStudio((s) => s.compare);
-  if (!before || compare === null) return null;
-  const opacity = blendWeights(compare).before;
-  if (opacity === 0) return null;
-  return (
-    <group name="before">
-      {before.map((body, i) => (
-        <group key={`${body.name}-${i}`}>
-          <mesh geometry={body.model.geometry} raycast={noRaycast} renderOrder={2}>
-            <meshStandardMaterial color={colors.body} roughness={scene.roughness} transparent={opacity < 1} opacity={opacity} depthWrite={opacity > 0.5} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
-          </mesh>
-          <lineSegments geometry={body.model.edges} raycast={noRaycast} renderOrder={2}>
-            <lineBasicMaterial color={colors.edge} transparent opacity={opacity} />
-          </lineSegments>
-        </group>
-      ))}
-    </group>
-  );
 }
 
 /** The world axes through the origin on the ground, X red and Y green, as CAD programs draw them. */
@@ -405,11 +357,9 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
     let frame = 0;
     let last: { x: number; y: number } | null = null;
     let pressed: { x: number; y: number } | null = null;
-    // In pen mode the pointer draws (Pen.tsx); nothing is hovered or selected.
-    const drawing = () => useStudio.getState().pen;
     const onMove = (event: PointerEvent) => {
       last = { x: event.clientX, y: event.clientY };
-      if (frame || event.buttons !== 0 || drawing()) return;
+      if (frame || event.buttons !== 0) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
         if (last) setHover(pickAt(last.x, last.y));
@@ -420,7 +370,7 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
       setHover(null);
     };
     const onDown = (event: PointerEvent) => {
-      pressed = event.button === 0 && !drawing() ? { x: event.clientX, y: event.clientY } : null;
+      pressed = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
     };
     const onUp = (event: PointerEvent) => {
       if (!pressed || event.button !== 0) return;
@@ -790,16 +740,9 @@ function ScenePins({ bodies }: { bodies: BodyModel[] }) {
 
 function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[] }) {
   const { t } = useTranslation();
-  // Drawing on the view (M2b-2) takes the left button from the camera controls.
-  const pen = useStudio((s) => s.pen);
   const displayMode = useStudio((s) => s.displayMode);
   const plane = useSectionPlane(bodies);
   const colors = useTokenColors();
-  const overhang = useStudio((s) => s.overhang);
-  // The part's material sets where an overhang begins (M7).
-  const support = useStudio((s) => s.print?.material.overhang ?? OVERHANG_LIMITS.support);
-  // Each body stands on its own bed, as the slicer lays them (M7, practice run 2026-11-05).
-  const beds = useMemo(() => (overhang ? bodies.map((body) => bedOf([body])) : null), [overhang, bodies]);
   const meshes = useRef<(Mesh | null)[]>([]);
   const register = useCallback((index: number, mesh: Mesh | null) => {
     meshes.current[index] = mesh;
@@ -831,16 +774,13 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.75 : 0.4} />
       <directionalLight position={scene.fillLight} intensity={0.3} />
       {bodies.map((body, i) => (
-        <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} bedZ={beds?.[i] ?? null} support={support} />
+        <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} />
       ))}
-      <BeforeBodies colors={colors} />
       <Highlights bodies={bodies} colors={colors} />
       <SelectionGhost color={colors.selection} />
       <ScenePins bodies={bodies} />
-      <Pen bodies={bodies} meshes={meshes} color={colors.note} />
       <DimensionMarks color={colors.dimension} ghostColor={colors.selection} meshes={meshes} plane={plane} />
       <ParameterGhost color={colors.selection} />
-      <ViewCapture />
       <Picker bodies={bodies} meshes={meshes} />
       {sketches.map((sketch) => (
         <Sketch key={sketch.id} sketch={sketch} colors={colors} />
@@ -858,7 +798,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
         position={[0, 0, -0.01]}
       />
       <OriginAxes colors={colors} />
-      <CameraControls makeDefault enabled={!pen} />
+      <CameraControls makeDefault />
       <FrameDesign documentId={documentId} bodies={bodies} sketches={sketches} />
       <StandardViews bodies={bodies} sketches={sketches} />
       <FollowChanges />
@@ -885,23 +825,6 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
   );
 }
 
-/** While the pen is on: what it does, how many strokes wait, how to leave it. */
-function PenHint() {
-  const { t } = useTranslation();
-  const pen = useStudio((s) => s.pen);
-  const strokes = useStudio((s) => s.strokes.length);
-  if (!pen) return null;
-  return (
-    <p
-      role="status"
-      className="pointer-events-none absolute bottom-3 left-1/2 flex max-w-dialog-sm -translate-x-1/2 items-center gap-1 rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-text shadow-2"
-      data-testid="pen-hint"
-    >
-      {t('viewer.pen.hint', { count: strokes })}
-    </p>
-  );
-}
-
 export function Viewer() {
   const { t } = useTranslation();
   const model = useStudio((s) => s.model);
@@ -923,7 +846,6 @@ export function Viewer() {
             <Scene documentId={model.documentId} bodies={model.bodies} sketches={model.sketches} />
           </div>
           <SelectionDock bodies={model.bodies} />
-          <PenHint />
         </>
       ) : null}
       {/* One column at the top left: view tools first, then what the view reports; nothing overlaps at any width. */}
@@ -936,8 +858,6 @@ export function Viewer() {
         ) : null}
         <ConnectionNotice />
         <LiveBar />
-        <CompareSlider />
-        {model.status === 'ready' ? <OverhangLegend bodies={model.bodies} /> : null}
       </div>
     </main>
   );

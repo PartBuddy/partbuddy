@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { AgentEvent, AgentStatus, Selection } from '../../shared/contract';
 import { ClaudeSession, findClaudeCode, readAuth, readVersion, startSignIn, type ClaudeAuth, type ClaudeCommand } from './claudeCode';
-import { userEvent, type AgentBackend, type SentDrawing } from './assistant';
+import { userEvent, type AgentBackend } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
 import { composeMessage } from './viewContext';
 
@@ -85,7 +85,7 @@ export class AgentService implements AgentBackend {
     });
   }
 
-  async send(text: string, selections: Selection[] = [], note: string | null = null, drawing: SentDrawing | null = null): Promise<void> {
+  async send(text: string, selections: Selection[] = [], note: string | null = null, image: Uint8Array | null = null): Promise<void> {
     if (this.current.state !== 'ready') throw new Error(`assistant is ${this.current.state}`);
     const tools = await this.options.tools();
     if (!tools) {
@@ -94,9 +94,9 @@ export class AgentService implements AgentBackend {
     }
     await this.ensureSession(tools);
     const message = composeMessage(text, selections, note);
-    this.listeners.event(userEvent(text, message.label, drawing, message.summary));
+    this.listeners.event(userEvent(text, message.label, message.summary));
     this.setStatus({ ...this.current, state: 'busy' });
-    this.session?.send(message.prompt, drawing?.image ?? null);
+    this.session?.send(message.prompt, image);
   }
 
   async allowApiBilling(allow: boolean): Promise<void> {

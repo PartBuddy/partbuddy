@@ -164,20 +164,6 @@ test('inventory: real part, every state, light and dark', async () => {
       await page.keyboard.press('Escape');
       await page.getByTestId('dimensions').click();
     });
-    await step(report, '15-pen', async () => {
-      await page.getByTestId('pen').click();
-      const box = await viewport(page);
-      await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.4);
-      await page.mouse.down();
-      for (let i = 0; i <= 24; i += 1) {
-        const angle = (i / 24) * Math.PI * 2;
-        await page.mouse.move(box.x + box.width * (0.45 + 0.06 * Math.cos(angle)), box.y + box.height * (0.45 + 0.08 * Math.sin(angle)));
-      }
-      await page.mouse.up();
-      await page.waitForTimeout(500);
-      await shot(page, '15-pen');
-      await page.keyboard.press('Escape');
-    });
     await step(report, '16-export', async () => {
       await page.getByRole('button', { name: 'Export' }).click();
       await page.waitForTimeout(400);

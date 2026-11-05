@@ -103,16 +103,16 @@ describe('ChatGPT agent', () => {
   });
 
 
-  it('sends a picture of the drawing as an image part, and says so in the conversation (M2b-2)', async () => {
+  it('sends a picture as an image part along with the message (kept for the photo import)', async () => {
     const { agent, openai, events } = setup();
     await agent.refresh();
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]);
-    await agent.send('Round this', [], '[PartBuddy: the user drew one stroke]', { strokes: 1, image: png });
+    await agent.send('Hold this', [], '[PartBuddy: a photo of the object]', png);
     await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
-    expect(events[0]).toEqual({ type: 'user', text: 'Round this', drawing: { strokes: 1, image: true } });
+    expect(events[0]).toEqual({ type: 'user', text: 'Hold this' });
     const input = JSON.stringify(openai.bodies[0]?.input);
     expect(input).toContain('input_image');
-    expect(input).toContain('the user drew one stroke');
+    expect(input).toContain('a photo of the object');
   });
 
   it('follows the preview rules of Sign in with ChatGPT and runs the tool loop', async () => {

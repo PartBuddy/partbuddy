@@ -238,3 +238,11 @@ M2b-2 drawing, M2b-3 dimensions.
 ### Foreign notes never sent
 
 * Bad, because a colleague's useful note ("wall too thin here") could never reach the assistant.
+
+## Amendment 2026-11-05 (plan step R2): drawing on the view and before/after removed
+
+The product owner removed drawing on the view and the before/after slider in the walk-through of
+2026-11-05; notes on the model and dimensions in the view stay. The pen, the strokes as words
+(`shared/drawing.ts`), the picture of the view and the slider that weighed the part against a ghost
+are gone; a ghost now always shows at a fixed weight (`PREVIEW_BLEND`). The routes to the assistant
+keep the ability to send a PNG along with a message, for the photo import (plan step F6).
