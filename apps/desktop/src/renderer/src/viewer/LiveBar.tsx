@@ -26,19 +26,6 @@ function Changes() {
           ]
             .filter(Boolean)
             .join(' · ')}
-          {before ? (
-            <AriaButton
-              onPress={() => {
-                setCompare(comparing ? null : 0);
-              }}
-              className={`inline-flex items-center gap-1 rounded-sm px-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus ${comparing ? 'text-accent' : 'text-text-muted'}`}
-              aria-pressed={comparing}
-              data-testid="compare-start"
-            >
-              <IconArrowsLeftRight className="size-icon-sm" aria-hidden />
-              {t('compare.start')}
-            </AriaButton>
-          ) : null}
           <AriaButton
             aria-label={t('live.clear')}
             onPress={clear}
@@ -47,6 +34,19 @@ function Changes() {
             <IconX className="size-icon-sm" aria-hidden />
           </AriaButton>
         </span>
+      ) : null}
+      {changes && before ? (
+        <AriaButton
+          onPress={() => {
+            setCompare(comparing ? null : 0);
+          }}
+          className={`inline-flex items-center gap-1 rounded-sm px-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus ${comparing ? 'text-accent' : 'text-text-muted'}`}
+          aria-pressed={comparing}
+          data-testid="compare-start"
+        >
+          <IconArrowsLeftRight className="size-icon-sm" aria-hidden />
+          {t('compare.start')}
+        </AriaButton>
       ) : null}
       <SwitchField isSelected={follow} onChange={setFollow}>
         <SwitchButton className="group flex items-center gap-1 outline-none">
