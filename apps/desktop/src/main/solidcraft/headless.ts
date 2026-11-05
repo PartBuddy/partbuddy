@@ -190,6 +190,10 @@ export class HeadlessEngine {
   }
 }
 
+const UNTITLED = 'Untitled';
+/** Body names SolidCraft gives on its own; they say nothing about the part. */
+const GENERIC_BODY = /^(body|k\u00f6rper|solid)\s*\d*$/i;
+
 /** A design name reduced to a safe file name: letters, digits, spaces, `_` and `-` (no separators, no traversal). */
 export function safeDesignFileName(designName: string): string {
   const safe = designName
@@ -197,7 +201,7 @@ export function safeDesignFileName(designName: string): string {
     .replace(/[^\p{L}\p{N} _-]/gu, '')
     .trim()
     .slice(0, 80);
-  return safe || 'Untitled';
+  return safe || UNTITLED;
 }
 
 /** True when `file` lies inside `folder` (after resolving `..` and separators). */
@@ -225,6 +229,29 @@ export class DesignStore {
 
   fileFor(designName: string): string {
     return join(this.dir, `${safeDesignFileName(designName)}.sc`);
+  }
+
+  /** A file for a new design that no existing file in the designs folder has: `Name.sc`, `Name 2.sc` … */
+  fileForNew(name: string): string {
+    const safe = safeDesignFileName(name);
+    for (let n = 1; n < 1000; n += 1) {
+      const file = join(this.dir, `${n === 1 ? safe : `${safe} ${String(n)}`}.sc`);
+      if (!existsSync(file)) return file;
+    }
+    return join(this.dir, `${safe} ${String(Date.now())}.sc`);
+  }
+
+  /**
+   * Where the autosave of the open design goes. A design from the project folder goes back to its
+   * file. A new design (SolidCraft calls it "Untitled") is named after its first body once it has
+   * one, in a file of its own, so new parts no longer overwrite each other; SolidCraft then names
+   * the design after the file. Generic body names ("Body1") keep it untitled until a better one.
+   */
+  autosaveTarget(designFile: string | null, designName: string, bodyNames: string[]): string {
+    if (designFile) return designFile;
+    if (safeDesignFileName(designName) !== UNTITLED) return this.fileFor(designName);
+    const named = bodyNames.find((body) => !GENERIC_BODY.test(body.trim()) && safeDesignFileName(body) !== UNTITLED);
+    return named ? this.fileForNew(named) : this.fileFor(designName);
   }
 
   /** The design to open on start, if it still exists in one of the allowed folders. */

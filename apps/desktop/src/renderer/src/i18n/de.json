@@ -2,7 +2,14 @@
   "app": {
     "name": "PartBuddy",
     "design": "Design",
-    "noDesign": "Kein Design"
+    "noDesign": "Kein Design",
+    "untitled": "Neues Teil",
+    "save": {
+      "saving": "Speichert …",
+      "saved": "Gespeichert",
+      "failed": "Nicht gespeichert",
+      "hint": "PartBuddy speichert das Teil nach jeder Änderung."
+    }
   },
   "units": {
     "mm": "{value, number, ::.## unit/millimeter}",
@@ -93,11 +100,11 @@
   },
   "status": {
     "units": "mm",
-    "mesh": "{bodies, plural, one {# Körper} other {# Körper}} · {faces, plural, one {# Fläche} other {# Flächen}} · {triangles} Dreiecke",
+    "mesh": "{bodies, plural, one {# Körper} other {# Körper}} · {faces, plural, one {# Fläche} other {# Flächen}}",
     "noFace": "Nichts ausgewählt",
-    "latency": "gespiegelt in {ms, number} ms",
     "sketches": "{count, plural, one {# Skizze} other {# Skizzen}}",
-    "sketchesEditing": "{count, plural, one {# Skizze} other {# Skizzen}} · {name} in Bearbeitung"
+    "sketchesEditing": "{count, plural, one {# Skizze} other {# Skizzen}} · {name} in Bearbeitung",
+    "details": "{triangles} Dreiecke · gespiegelt in {ms, number} ms"
   },
   "assistant": {
     "title": "Assistent",

@@ -57,6 +57,8 @@ export const connectionStatusSchema = z
     engine: z.enum(['window', 'headless']).optional(),
     /** Mirror state: idle, a newer revision is being mirrored, or the last mirror failed. */
     mirror: z.enum(['idle', 'rebuilding', 'failed']),
+    /** Autosave of the design PartBuddy runs without a window: being saved, saved, or the last save failed. */
+    save: z.enum(['saving', 'saved', 'failed']).optional(),
     /** Short technical detail for the failed and lost states; never contains a token. */
     detail: z.string().max(500).optional(),
   })

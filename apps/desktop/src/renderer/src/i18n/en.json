@@ -2,7 +2,14 @@
   "app": {
     "name": "PartBuddy",
     "design": "Design",
-    "noDesign": "No design"
+    "noDesign": "No design",
+    "untitled": "New part",
+    "save": {
+      "saving": "Saving …",
+      "saved": "Saved",
+      "failed": "Not saved",
+      "hint": "PartBuddy saves the part after every change."
+    }
   },
   "units": {
     "mm": "{value, number, ::.## unit/millimeter}",
@@ -93,11 +100,11 @@
   },
   "status": {
     "units": "mm",
-    "mesh": "{bodies, plural, one {# body} other {# bodies}} · {faces, plural, one {# face} other {# faces}} · {triangles} triangles",
+    "mesh": "{bodies, plural, one {# body} other {# bodies}} · {faces, plural, one {# face} other {# faces}}",
     "noFace": "Nothing selected",
-    "latency": "mirrored in {ms, number} ms",
     "sketches": "{count, plural, one {# sketch} other {# sketches}}",
-    "sketchesEditing": "{count, plural, one {# sketch} other {# sketches}} · editing {name}"
+    "sketchesEditing": "{count, plural, one {# sketch} other {# sketches}} · editing {name}",
+    "details": "{triangles} triangles · mirrored in {ms, number} ms"
   },
   "assistant": {
     "title": "Assistant",

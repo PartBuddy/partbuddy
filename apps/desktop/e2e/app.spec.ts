@@ -139,7 +139,8 @@ test('the view highlights the faces a step changed and can follow them', async (
   const { app, fake: solidcraft } = await connectedApp();
   const { page } = app;
   await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
-  await expect(page.getByTestId('mirror-latency')).toHaveText(/^mirrored in [\d,]+ ms$/);
+  // Triangles and mirror time are details for the curious, in the tooltip of the summary.
+  await expect(page.getByTestId('mesh-summary')).toHaveAttribute('title', /triangles · mirrored in [\d,]+ ms$/);
   await expect(page.getByTestId('live-changes')).toBeHidden();
 
   solidcraft.change({ moveFaces: ['F1:+z', 'F1:-z'] });
