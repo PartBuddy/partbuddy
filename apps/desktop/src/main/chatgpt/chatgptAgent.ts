@@ -122,7 +122,7 @@ export class ChatGptAgent implements AgentBackend {
     }
     this.model ??= await this.pickModel();
     const message = composeMessage(text, selections, note);
-    this.options.event(userEvent(text, message.label, drawing));
+    this.options.event(userEvent(text, message.label, drawing, message.summary));
     const image = drawing?.image ?? null;
     this.history.push(
       image

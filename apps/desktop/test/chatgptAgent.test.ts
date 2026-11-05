@@ -94,7 +94,7 @@ describe('ChatGPT agent', () => {
     await agent.refresh();
     await agent.send('Round this face', [{ kind: 'face', body: 'Body1', face: 'F1:+z', surface: 'plane', area: 400, point: [10, 10, 20], normal: [0, 0, 1] }]);
     await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
-    expect(events[0]).toEqual({ type: 'user', text: 'Round this face', selection: 'F1:+z · Body1' });
+    expect(events[0]).toEqual({ type: 'user', text: 'Round this face', selection: 'F1:+z · Body1', selected: { faces: 1, edges: 0, vertices: 0, bodies: ['Body1'] } });
     const input = JSON.stringify(openai.bodies[0]?.input);
     expect(input).toContain('[PartBuddy: the user selected face \\"F1:+z\\" of body \\"Body1\\"');
     expect(String(openai.bodies[0]?.instructions)).toContain('partbuddy_view');
