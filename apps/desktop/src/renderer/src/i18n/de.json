@@ -318,6 +318,17 @@
     "hide": "{name} ausblenden",
     "show": "{name} einblenden"
   },
+  "parameters": {
+    "title": "Parameter ({count})",
+    "none": "Noch keine Parameter. Der Assistent benennt hier die wichtigen Werte eines Teils.",
+    "change": "{name} ändern",
+    "favorite": "Favorit",
+    "outside": "Außerhalb des vorgesehenen Bereichs {min} bis {max}",
+    "enter": "Vorschau in der Ansicht – Enter ändert, Escape verwirft",
+    "formulaHint": "Eine Formel bleibt erhalten; den Assistenten bitten, sie zu ändern",
+    "slider": "{name}, Schieberegler",
+    "range": "Bereich {min} bis {max} {unit}"
+  },
   "timeline": {
     "title": "Zeitleiste",
     "step": "{name}, {kind}",

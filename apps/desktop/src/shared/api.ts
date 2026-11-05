@@ -4,6 +4,7 @@ import type {
   AppInfo,
   AssistantState,
   ActionPreviewResult,
+  DesignParameter,
   ConnectionStatus,
   Drawing,
   DesignAction,
@@ -71,6 +72,8 @@ export interface PartBuddyApi {
     dimensions(features: number[] | 'all'): Promise<DimensionMark[]>;
     /** Tries a value of a parameter for the ghost preview, without changing the design. */
     probeParameter(parameter: string, value: number, body: string | null): Promise<ActionPreviewResult>;
+    /** The user parameters of the design (parameter panel); favourites first. */
+    parameters(): Promise<DesignParameter[]>;
   };
   /** Notes on the model (M2b, ADR 0020), stored in the design file. */
   notes: {

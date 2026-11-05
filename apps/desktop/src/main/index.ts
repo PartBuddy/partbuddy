@@ -437,6 +437,7 @@ if (!app.requestSingleInstanceLock()) {
       return undefined;
     });
     bridge.handle(invokeChannels.designDimensions, ({ features }) => supervisor.dimensionMarks(features));
+    bridge.handle(invokeChannels.designParameters, () => supervisor.parameters());
     bridge.handle(invokeChannels.designProbeParameter, ({ parameter, value, body }) => {
       assistantIdle();
       return supervisor.probeParameter(parameter, value, body);

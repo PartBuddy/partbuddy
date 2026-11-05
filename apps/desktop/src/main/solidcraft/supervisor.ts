@@ -13,7 +13,7 @@ import type { DesignAction, MeasureItem, MeasureResult, TimelineCommand, Visibil
 import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { featureMarks, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
-import type { DimensionMark } from '../../shared/contract';
+import type { DesignParameter, DimensionMark } from '../../shared/contract';
 import { DesignStore, HeadlessEngine, isInside, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
 import type { DesignHistory } from '../agents/workLog';
@@ -216,6 +216,12 @@ export class SolidCraftSupervisor {
     await this.probing;
     await this.dimensions.apply(parameter, value, factor);
     await this.engine?.checkForChange();
+  }
+
+  /** The user parameters of the design for the parameter panel; reading changes nothing. */
+  async parameters(): Promise<DesignParameter[]> {
+    await this.probing;
+    return this.dimensions.userParameters();
   }
 
   /** One trial at a time, like the dimension probes; the headless engine records the moved revision quietly. */

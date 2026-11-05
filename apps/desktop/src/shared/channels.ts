@@ -34,6 +34,7 @@ export const invokeChannels = {
   designGoToStep: 'design:go-to-step',
   designDimensions: 'design:dimensions',
   designProbeParameter: 'design:probe-parameter',
+  designParameters: 'design:parameters',
   notesCurrent: 'notes:current',
   notesAdd: 'notes:add',
   notesEdit: 'notes:edit',

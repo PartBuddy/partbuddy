@@ -126,3 +126,22 @@ describe('dimension field: direct where unambiguous (M1b)', () => {
     expect(measured({ measure: 'radius', body: 'B', face: 'F3:hole' }, { faces: [{ name: 'F3:hole', cylinder: null }] })).toBeNull();
   });
 });
+
+describe('parameter panel (UI upgrade step 6)', () => {
+  const user = (name: string, expression: string, value: number, extra: Record<string, unknown> = {}) =>
+    ({ name, expression, value, unit: 'mm', source: 'user', comment: '', favorite: false, error: null, used_by: [], ...extra }) as unknown as Parameter;
+
+  it('lists only user parameters, favourites first, and marks plain lengths as editable', async () => {
+    const { service } = boxEngine({ d1: 40 }, [
+      user('wand', 'breite / 10', 4, { used_by: ['d3'] }),
+      user('breite', '40 mm', 40, { favorite: true, comment: 'Plate width [30..60]', used_by: ['d1', 'wand'] }),
+      user('winkel', '30 deg', 30, { unit: 'deg' }),
+      user('bad name', '1', 1),
+    ]);
+    const list = await service.userParameters();
+    expect(list.map((entry) => entry.name)).toEqual(['breite', 'wand', 'winkel']);
+    expect(list[0]).toMatchObject({ favorite: true, comment: 'Plate width [30..60]', usedBy: 2, editable: true, error: null });
+    expect(list[1]).toMatchObject({ expression: 'breite / 10', editable: false });
+    expect(list[2]).toMatchObject({ unit: 'deg', editable: false });
+  });
+});

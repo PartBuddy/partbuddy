@@ -396,6 +396,28 @@ export const dimensionMarksRequestSchema = z
   .object({ features: z.union([z.array(z.number().int().nonnegative()).max(50), z.literal('all')]) })
   .strict();
 export const dimensionMarksSchema = z.array(dimensionMarkSchema).max(400);
+/**
+ * A user parameter of the design for the parameter panel (UI upgrade step 6): what SolidCraft's
+ * `parameters.list` reports for parameters the user or the assistant created, not the dimensions
+ * of single features. `editable` marks a plain length, which the panel may change directly; a
+ * formula stays the designer's intent (ADR 0017).
+ */
+export const designParameterSchema = z
+  .object({
+    name: parameterName,
+    expression: z.string().max(500),
+    value: finite,
+    unit: z.string().max(20),
+    comment: z.string().max(500),
+    favorite: z.boolean(),
+    error: z.string().max(500).nullable(),
+    /** Parameters and feature inputs that follow this one. */
+    usedBy: z.number().int().nonnegative(),
+    editable: z.boolean(),
+  })
+  .strict();
+export const designParametersSchema = z.array(designParameterSchema).max(300);
+
 /** Tries a value of a parameter for the ghost preview; nothing changes in the design. */
 export const parameterProbeSchema = z.object({ parameter: parameterName, value: finite.positive().max(100_000), body: bodyName.nullable() }).strict();
 
@@ -538,6 +560,7 @@ export const invokeContract = {
   [invokeChannels.designGoToStep]: { request: goToStepSchema, response: none },
   [invokeChannels.designDimensions]: { request: dimensionMarksRequestSchema, response: dimensionMarksSchema },
   [invokeChannels.designProbeParameter]: { request: parameterProbeSchema, response: actionPreviewSchema },
+  [invokeChannels.designParameters]: { request: none, response: designParametersSchema },
   [invokeChannels.designVisibility]: { request: visibilityCommandSchema, response: none },
   [invokeChannels.notesCurrent]: { request: none, response: notesStateSchema },
   [invokeChannels.notesAdd]: { request: noteAddSchema, response: none },
@@ -578,6 +601,7 @@ export type WorkStepState = z.infer<typeof workStepStateSchema>;
 export type ViewState = z.infer<typeof viewStateSchema>;
 export type TitleBarColors = z.infer<typeof titleBarColorsSchema>;
 export type Theme = z.infer<typeof themeSchema>;
+export type DesignParameter = z.infer<typeof designParameterSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type ExportResult = z.infer<typeof exportResultSchema>;
 export type DimensionTarget = z.infer<typeof dimensionTargetSchema>;
