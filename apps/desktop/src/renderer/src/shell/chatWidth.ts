@@ -10,9 +10,14 @@ export const MAX_CHAT_WIDTH = 760;
 /** What the structure panel and the 3D view need at least beside the chat. */
 const MIN_VIEW = 240 + 480;
 
+/** The widest the panel can be in a window this wide. */
+export function maxChatWidth(windowWidth: number): number {
+  return Math.max(MIN_CHAT_WIDTH, Math.min(MAX_CHAT_WIDTH, windowWidth - MIN_VIEW));
+}
+
 /** The width the panel can take in a window this wide. */
 export function clampChatWidth(width: number, windowWidth: number): number {
-  const max = Math.max(MIN_CHAT_WIDTH, Math.min(MAX_CHAT_WIDTH, windowWidth - MIN_VIEW));
+  const max = maxChatWidth(windowWidth);
   if (!Number.isFinite(width)) return Math.min(DEFAULT_CHAT_WIDTH, max);
   return Math.round(Math.min(max, Math.max(MIN_CHAT_WIDTH, width)));
 }

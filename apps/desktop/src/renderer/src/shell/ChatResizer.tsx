@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { clampChatWidth, DEFAULT_CHAT_WIDTH, MIN_CHAT_WIDTH } from './chatWidth';
+import { clampChatWidth, DEFAULT_CHAT_WIDTH, maxChatWidth, MIN_CHAT_WIDTH } from './chatWidth';
 
 const KEY_STEP = 16;
 /** Kept in the renderer's localStorage, which lives in the user's profile folder. */
@@ -42,7 +42,7 @@ export function useChatWidth(): [number, (width: number) => void, number] {
     setWanted(next);
     saveChatWidth(next);
   };
-  return [clampChatWidth(wanted, windowWidth), set, clampChatWidth(Number.POSITIVE_INFINITY, windowWidth)];
+  return [clampChatWidth(wanted, windowWidth), set, maxChatWidth(windowWidth)];
 }
 
 /**

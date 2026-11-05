@@ -356,15 +356,19 @@ test('the chat is as wide as the user drags it, by mouse or keyboard, and stays 
     await expect(handle).toHaveAttribute('aria-valuenow', '420');
     const box = await handle.boundingBox();
     if (!box) throw new Error('no handle');
-    // Dragging left widens the chat.
+    // Dragging left widens the chat, as far as the window leaves the view its room.
     await page.mouse.move(box.x + box.width / 2, box.y + 200);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 - 160, box.y + 200, { steps: 8 });
     await page.mouse.up();
-    await expect.poll(() => width(page)).toBeGreaterThan(560);
+    const max = Number(await handle.getAttribute('aria-valuemax'));
+    expect(max).toBeGreaterThan(500);
+    await expect.poll(() => width(page)).toBe(Math.min(580, max));
     await page.screenshot({ path: test.info().outputPath('chat-wide.png') });
     // The keyboard narrows it; it never gets narrower than the minimum.
     await handle.focus();
+    await page.keyboard.press('End');
+    await expect(handle).toHaveAttribute('aria-valuenow', String(max));
     await page.keyboard.press('Home');
     await expect(handle).toHaveAttribute('aria-valuenow', '320');
     await page.keyboard.press('ArrowLeft');

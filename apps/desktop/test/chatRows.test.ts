@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { rowsOf } from '../src/renderer/src/assistant/rows';
 import type { ConversationItem } from '../src/renderer/src/assistant/store';
-import { clampChatWidth, DEFAULT_CHAT_WIDTH, MAX_CHAT_WIDTH, MIN_CHAT_WIDTH } from '../src/renderer/src/shell/chatWidth';
+import { clampChatWidth, DEFAULT_CHAT_WIDTH, MAX_CHAT_WIDTH, maxChatWidth, MIN_CHAT_WIDTH } from '../src/renderer/src/shell/chatWidth';
 
 let key = 0;
 const user = (text: string): ConversationItem => ({ kind: 'user', key: ++key, text });
@@ -48,5 +48,8 @@ describe('chat width', () => {
     expect(clampChatWidth(Number.NaN, 1800)).toBe(DEFAULT_CHAT_WIDTH);
     // A window too small for both keeps the chat usable.
     expect(clampChatWidth(500, 900)).toBe(MIN_CHAT_WIDTH);
+    // The separator's largest value is the real limit, not the standard width.
+    expect(maxChatWidth(1280)).toBe(560);
+    expect(maxChatWidth(1824)).toBe(MAX_CHAT_WIDTH);
   });
 });
