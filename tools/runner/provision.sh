@@ -18,10 +18,12 @@ apt-get -y -q full-upgrade </dev/null
 
 echo "==> Installing tools and the libraries Chromium and Electron need"
 # Tools for checkout (Git LFS), the workflow steps and a virtual display for the Electron tests.
+# libatomic1: the official Node.js builds need it; GitHub's hosted image has it preinstalled.
 # The library list follows `playwright install-deps chromium` for Ubuntu 24.04, plus GTK and the
 # few extras Electron loads.
 apt-get install -y -q --no-install-recommends </dev/null \
   ca-certificates curl git git-lfs gnupg jq tar unzip xz-utils zstd \
+  libatomic1 \
   xvfb xauth \
   libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 libatspi2.0-0t64 libcairo2 libcups2t64 \
   libdbus-1-3 libdrm2 libgbm1 libglib2.0-0t64 libgtk-3-0t64 libnotify4 libnspr4 libnss3 \
