@@ -770,6 +770,8 @@ test('the dimensions of the box show in the view, and its height changes through
     await page.getByTestId('mark-input').fill('15');
     await expect(page.getByTestId('mark-status')).toHaveAttribute('data-ok', 'true', { timeout: 15_000 });
     await expect(page.getByTestId('mark-status')).toHaveText('Preview in the view – Enter changes it directly');
+    // While a value is tried, a slider weighs the part against the preview (UI upgrade step 13).
+    await expect(page.getByTestId('compare')).toHaveAttribute('data-mode', 'preview');
     await page.screenshot({ path: test.info().outputPath('dimension-label-preview.png') });
     const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="viewer"]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
@@ -779,6 +781,18 @@ test('the dimensions of the box show in the view, and its height changes through
     const cards = page.getByTestId('step-card');
     await expect(cards).toHaveCount(2);
     await expect(cards.nth(1).getByTestId('step-text')).toHaveText('Dimension Box1 · Height set to 15 mm');
+
+    // Before/after: the box as it was (10 mm) fades into the new one (15 mm) along the slider.
+    await page.getByTestId('compare-start').click();
+    const slider = page.getByTestId('compare-slider').getByRole('slider');
+    await expect(page.getByTestId('compare')).toHaveAttribute('data-mode', 'compare');
+    await expect(slider).toHaveValue('0');
+    await page.screenshot({ path: test.info().outputPath('compare-before.png') });
+    await slider.focus();
+    await page.keyboard.press('End');
+    await expect(slider).toHaveValue('100');
+    await page.getByTestId('compare-close').click();
+    await expect(page.getByTestId('compare')).toHaveCount(0);
 
     // "All" shows every dimension of the design; off hides them.
     await page.getByTestId('dimensions-all').click();

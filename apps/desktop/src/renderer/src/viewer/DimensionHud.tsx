@@ -13,6 +13,7 @@ import { selectedStatus, useAssistant } from '../assistant/store';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { parseLength } from './lengthInput';
+import { blendWeights, GHOST_OPACITY } from './blend';
 import { SelectionInfo } from './SelectionInfo';
 import { edgeLabel, selectionName, selectionOf, selectionsOf } from './viewState';
 
@@ -71,6 +72,8 @@ export function dimensionOf(bodies: BodyModel[], pick: Pick): Dimension | null {
 }
 
 export function Ghost({ preview, color }: { preview: Uint8Array; color: Color }) {
+  const blend = useStudio((s) => s.previewBlend);
+  const opacity = blendWeights(blend).after * GHOST_OPACITY;
   const geometry = useMemo(() => {
     try {
       const mesh = parseTagged3mf(preview);
@@ -87,7 +90,7 @@ export function Ghost({ preview, color }: { preview: Uint8Array; color: Color })
   if (!geometry) return null;
   return (
     <mesh geometry={geometry} raycast={() => null} renderOrder={3} name="dimension preview">
-      <meshStandardMaterial color={color} transparent opacity={0.35} depthWrite={false} />
+      <meshStandardMaterial color={color} transparent opacity={opacity} depthWrite={false} />
     </mesh>
   );
 }

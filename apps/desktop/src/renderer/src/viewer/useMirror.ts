@@ -91,6 +91,8 @@ export function useMirror(): void {
     let newest = 0;
     let shown: Shown = { bodies: [], sketches: [] };
     let shownDocument: string | null = null;
+    // The bodies before the latest change, kept for before/after until the next revision.
+    let kept: Shown['bodies'] = [];
     const postedAt = new Map<number, number>();
     let disposed = false;
 
@@ -110,12 +112,18 @@ export function useMirror(): void {
       const sameDesign = shownDocument === pending.documentId;
       shown = { bodies, sketches };
       shownDocument = pending.documentId;
+      const changes = sameDesign ? liveChanges(previous, shown) : null;
+      // Only a change to the geometry of the same design has a "before" worth comparing.
+      const keep = changes !== null && changes.count > 0 && previous.bodies.length > 0;
       useStudio.getState().showRevision(
         { status: 'ready', documentId: pending.documentId, revision: pending.revision, designName: pending.designName, bodies, sketches, structure: pending.structure },
-        sameDesign ? liveChanges(previous, shown) : null,
+        changes,
         { mirrorMs: pending.mirrorMs, parseMs: Math.round(performance.now() - (postedAt.get(response.id) ?? performance.now())) },
+        keep ? previous.bodies : null,
       );
-      for (const body of previous.bodies) disposeViewerModel(body.model);
+      for (const body of kept) disposeViewerModel(body.model);
+      kept = keep ? previous.bodies : [];
+      if (!keep) for (const body of previous.bodies) disposeViewerModel(body.model);
     };
 
     const requests = new Map<number, MirrorRevision>();
@@ -148,6 +156,7 @@ export function useMirror(): void {
       offRevision();
       worker.terminate();
       for (const body of shown.bodies) disposeViewerModel(body.model);
+      for (const body of kept) disposeViewerModel(body.model);
     };
   }, []);
 }
