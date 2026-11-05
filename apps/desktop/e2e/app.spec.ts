@@ -313,7 +313,15 @@ test('the renderer sees only the typed bridge', async () => {
 test('the assistant shows the signed-in plan and needs SolidCraft', async () => {
   launched = await launchApp();
   const { page } = launched;
-  await expect(page.getByTestId('agent-status')).toHaveText('Claude Code 9.9.9 · max subscription');
+  // The route sits as a small chip beside the composer; its menu holds the full status.
+  const chip = page.getByTestId('agent-status');
+  await expect(chip).toHaveText('Claude Code · Max');
+  await chip.click();
+  await expect(page.getByTestId('agent-detail')).toHaveText('Claude Code 9.9.9 · max subscription');
+  await expect(page.getByRole('radio', { name: /^Claude Code/ })).toBeChecked();
+  await page.screenshot({ path: test.info().outputPath('agent-menu.png') });
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('agent-menu')).toBeHidden();
   await expect(page.getByText('Connect SolidCraft first; the assistant works on the open design.')).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
 });
@@ -321,22 +329,29 @@ test('the assistant shows the signed-in plan and needs SolidCraft', async () => 
 test('Claude Code with an API key runs only when the user allows it', async () => {
   launched = await launchApp({ env: { FAKE_CLAUDE_API_KEY: '1' } });
   const { page } = launched;
-  await expect(page.getByTestId('agent-status')).toHaveText('Claude Code is not using a Claude subscription');
+  const chip = page.getByTestId('agent-status');
+  await expect(chip).toHaveText('Claude Code · no subscription');
   await expect(page.getByText('Sign in to Claude Code with your Claude subscription')).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
 
-  // Allowed on purpose, the API key is used and clearly labelled; it can be taken back.
+  // Allowed on purpose, the API key is used and clearly labelled; it can be taken back in the menu.
   await page.getByRole('button', { name: 'Use the API key anyway (billed separately)' }).click();
-  await expect(page.getByTestId('agent-status')).toContainText('API key, billed separately');
+  await expect(chip).toHaveText('Claude Code · API key');
+  await chip.click();
+  await expect(page.getByTestId('agent-detail')).toContainText('API key, billed separately');
   await page.getByRole('button', { name: 'Use the subscription only' }).click();
-  await expect(page.getByTestId('agent-status')).toContainText('Claude Code is not using a Claude subscription');
+  await expect(page.getByTestId('agent-detail')).toHaveText('Claude Code is not using a Claude subscription');
+  await expect(chip).toHaveText('Claude Code · no subscription');
 });
 
 test('the ChatGPT route offers the sign-in when no account is stored', async () => {
   launched = await launchApp();
   const { page } = launched;
-  await page.getByRole('radio', { name: 'ChatGPT' }).or(page.getByRole('button', { name: 'ChatGPT' })).click();
-  await expect(page.getByTestId('agent-status')).toHaveText('Not signed in to ChatGPT');
+  await page.getByTestId('agent-status').click();
+  await page.getByTestId('agent-menu').getByText('ChatGPT', { exact: true }).click();
+  await expect(page.getByTestId('agent-detail')).toHaveText('Not signed in to ChatGPT');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('agent-status')).toHaveText('ChatGPT · not signed in');
   await expect(page.getByRole('button', { name: 'Continue with ChatGPT' })).toBeVisible();
 });
 

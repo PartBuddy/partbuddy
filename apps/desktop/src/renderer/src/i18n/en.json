@@ -221,7 +221,25 @@
     "removeDrawing": "Discard the strokes",
     "drawingImage": "Send as image too",
     "withDrawing": "with drawing ({count, plural, one {# stroke} other {# strokes}})",
-    "withDrawingImage": "with drawing ({count, plural, one {# stroke} other {# strokes}}) and image"
+    "withDrawingImage": "with drawing ({count, plural, one {# stroke} other {# strokes}}) and image",
+    "chip": {
+      "label": "Assistant: {status}",
+      "apiKey": "API key",
+      "switchNote": "Switching stops a running answer. The other assistant does not know the conversation so far.",
+      "describe": {
+        "claude-code": "Your Claude Pro or Max plan, through Claude Code",
+        "chatgpt": "Your ChatGPT plan, signed in here"
+      },
+      "state": {
+        "checking": "checking",
+        "notInstalled": "not installed",
+        "signedOut": "not signed in",
+        "needsSubscription": "no subscription",
+        "unavailable": "not available",
+        "ready": "ready",
+        "busy": "working"
+      }
+    }
   },
   "live": {
     "step": "Step {number} · {label}",
