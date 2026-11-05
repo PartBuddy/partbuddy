@@ -1,6 +1,7 @@
 import { parseTagged3mf, type ViewerModel } from '@partbuddy/geometry';
 import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
 import { PartPanel } from './PartPanel';
+import { PrintFaceButton } from './PrintFaceButton';
 import { ActionPanel, MeasureLine } from './SelectionActions';
 import { NoteComposer } from '../notes/NoteComposer';
 import { sendToAssistant } from '../assistant/send';
@@ -256,6 +257,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
         <div className={`flex min-w-0 flex-1 flex-wrap items-start gap-1 ${dimension ? 'pt-5' : ''}`}>
           <ActionPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
           <PartPanel bodies={bodies} picks={picks} busy={busy} />
+          <PrintFaceButton bodies={bodies} picks={picks} busy={busy} />
           {picks.length === 1 ? <NoteComposer selection={current} busy={busy} /> : null}
         </div>
       </div>

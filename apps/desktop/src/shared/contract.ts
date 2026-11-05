@@ -637,6 +637,11 @@ export const partInsertSchema = z
   .object({ family: partFamilySchema, size: z.string().min(1).max(40), length: finite.positive().max(1000).optional(), point: point3 })
   .strict();
 export const partInsertResultSchema = z.object({ body: z.string().max(200).nullable() }).strict();
+/** A slicer SolidCraft found on this computer (B8): its id and name, never its path. */
+export const slicersSchema = z.array(z.object({ id: z.string().min(1).max(80), name: z.string().max(120) }).strict()).max(20);
+export const sendToSlicerSchema = z.object({ slicer: z.string().min(1).max(80) }).strict();
+/** The flat face at `point` of `body` becomes the face it lies on in the slicer (B8); null clears it. */
+export const printFaceSchema = z.object({ body: bodyName, point: point3.nullable() }).strict();
 export const actionPreviewSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable() }).strict(),
   z.object({ ok: z.literal(false), error: z.string().max(300) }).strict(),
@@ -876,6 +881,9 @@ export const invokeContract = {
   [invokeChannels.designApplyAction]: { request: designActionSchema, response: none },
   [invokeChannels.designMeasure]: { request: measureRequestSchema, response: measureResultSchema },
   [invokeChannels.designPartsLibrary]: { request: none, response: partsLibrarySchema },
+  [invokeChannels.designSlicers]: { request: none, response: slicersSchema },
+  [invokeChannels.designSendToSlicer]: { request: sendToSlicerSchema, response: z.object({ name: z.string().max(120) }).strict() },
+  [invokeChannels.designPrintFace]: { request: printFaceSchema, response: none },
   [invokeChannels.designInsertPart]: { request: partInsertSchema, response: partInsertResultSchema },
   [invokeChannels.designTimeline]: { request: timelineCommandSchema, response: none },
   [invokeChannels.designGoToStep]: { request: goToStepSchema, response: none },
@@ -924,6 +932,7 @@ export type ProjectRenameResult = z.infer<typeof projectRenameResultSchema>;
 export type ProjectOpenResult = z.infer<typeof projectOpenResultSchema>;
 export type InsertResult = z.infer<typeof insertResultSchema>;
 export type PartFamily = z.infer<typeof partFamilySchema>;
+export type Slicer = z.infer<typeof slicersSchema>[number];
 export type PartsLibrary = z.infer<typeof partsLibrarySchema>;
 export type PartInsert = z.infer<typeof partInsertSchema>;
 export type Language = z.infer<typeof languageSchema>;

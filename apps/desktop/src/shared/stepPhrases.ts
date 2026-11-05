@@ -49,6 +49,9 @@ export const STEP_PHRASE_KEYS = [
   'convertMesh',
   // A standard part seated in a hole (B7).
   'standardPart',
+  // The face a body lies on in the slicer (B8).
+  'printFace',
+  'printFaceCleared',
   'command',
 ] as const;
 
@@ -196,6 +199,8 @@ function phraseOf(command: string, params: Params): StepPhrase | 'curve' | 'dime
       return { key: 'repairBody', values: { name: text(params.body, '?') } };
     case 'mesh.convert':
       return { key: 'convertMesh', values: { name: text(params.body, '?') } };
+    case 'body.print_face':
+      return { key: params.point === undefined || params.point === null ? 'printFaceCleared' : 'printFace', values: {} };
     case 'parts.insert':
     case 'parts.fastener':
       return { key: 'standardPart', values: { name: `${text(params.size, '?')}${typeof params.length === 'number' ? `×${String(params.length)}` : ''}` } };
@@ -263,7 +268,8 @@ export function describeUserAction(
     | { kind: 'suppress'; suppressed: boolean }
     | { kind: 'insertFile'; name: string }
     | { kind: 'repairBody' | 'convertMesh'; body: string }
-    | { kind: 'standardPart'; name: string },
+    | { kind: 'standardPart'; name: string }
+    | { kind: 'printFace'; cleared: boolean },
 ): StepPhrase {
   const round = (value: number) => Math.round(value * 100) / 100;
   switch (action.kind) {
@@ -280,6 +286,8 @@ export function describeUserAction(
       return { key: action.kind, values: { name: action.body.slice(0, 60) } };
     case 'standardPart':
       return { key: 'standardPart', values: { name: action.name.slice(0, 60) } };
+    case 'printFace':
+      return { key: action.cleared ? 'printFaceCleared' : 'printFace', values: {} };
     case 'action':
       switch (action.action) {
         case 'fillet':
@@ -341,6 +349,8 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     repairBody: 'Repaired {name}',
     convertMesh: 'Converted {name} to faces',
     standardPart: 'Standard part {name} seated',
+    printFace: 'Print face set',
+    printFaceCleared: 'Print face cleared',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -383,6 +393,8 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     repairBody: '{name} repariert',
     convertMesh: '{name} in Flächen umgewandelt',
     standardPart: 'Normteil {name} eingesetzt',
+    printFace: 'Druckfläche festgelegt',
+    printFaceCleared: 'Druckfläche zurückgesetzt',
     command: 'SolidCraft: {command}',
   },
 };

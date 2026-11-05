@@ -9,6 +9,7 @@ import type {
   ProjectOpenResult,
   InsertResult,
   PartInsert,
+  Slicer,
   PartsLibrary,
   GeneralSettingsInfo,
   Language,
@@ -131,6 +132,12 @@ export interface PartBuddyApi {
     /** Builds an action (fillet, chamfer, extrude, hole, shell) on trial for the ghost preview. */
     previewAction(action: DesignAction): Promise<ActionPreviewResult>;
     applyAction(action: DesignAction): Promise<void>;
+    /** The slicers SolidCraft found (B8): Bambu Studio, OrcaSlicer and others. */
+    slicers(): Promise<Slicer[]>;
+    /** Opens the printable bodies in a slicer, laid on their print face; returns the slicer's name. */
+    sendToSlicer(slicer: string): Promise<{ name: string }>;
+    /** Marks the flat face at a point as the body's print face, or clears it (null). */
+    setPrintFace(body: string, point: [number, number, number] | null): Promise<void>;
     /** SolidCraft's standard parts (B7): screws, nuts, washers, pins, bearings, with sizes. */
     partsLibrary(): Promise<PartsLibrary>;
     /** Seats a standard part in a hole as a counterpart; returns its body's name. */

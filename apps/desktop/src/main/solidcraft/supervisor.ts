@@ -343,6 +343,41 @@ export class SolidCraftSupervisor {
     });
   }
 
+  /** The slicers SolidCraft found on this computer (B8), by id and name. */
+  async slicers(): Promise<{ id: string; name: string }[]> {
+    const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'file.slicers', params: {} }], rollback: false }, 30_000);
+    if (reply.failed) throw new Error(reply.failed.error);
+    const found = (reply.results[0] as { slicers?: unknown } | undefined)?.slicers;
+    return (Array.isArray(found) ? (found as Record<string, unknown>[]) : [])
+      .filter((slicer) => typeof slicer.id === 'string' && typeof slicer.name === 'string')
+      .slice(0, 20)
+      .map((slicer) => ({ id: (slicer.id as string).slice(0, 80), name: (slicer.name as string).slice(0, 120) }));
+  }
+
+  /**
+   * Opens the printable bodies in a slicer SolidCraft found (B8, `file.send_to_slicer`): standard
+   * parts stay out, each body lies on its print face. The slicer is started without waiting for it.
+   */
+  async sendToSlicer(slicer: string): Promise<string> {
+    const found = (await this.slicers()).find((candidate) => candidate.id === slicer);
+    if (!found) throw new Error('this slicer is not installed');
+    const standard = new Set(this.latest?.structure.standardParts ?? []);
+    const bodies = this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [];
+    if (bodies.length === 0) throw new Error('the design has no body to print');
+    const reply = await this.requester().request<BatchResult>(
+      'engine.batch',
+      { commands: [{ command: 'file.send_to_slicer', params: { slicer: found.id, bodies, wait: 'return' } }], rollback: false },
+      2 * 60 * 1000,
+    );
+    if (reply.failed) throw new Error(reply.failed.error);
+    return found.name;
+  }
+
+  /** Marks or clears the body's print face (B8, `body.print_face`), which the slicer export uses. */
+  setPrintFace(body: string, point: [number, number, number] | null): Promise<void> {
+    return this.run({ command: 'body.print_face', params: { body, ...(point ? { point } : {}) } });
+  }
+
   private library: PartsLibrary | null = null;
 
   /** SolidCraft's standard parts (B7), read once. */

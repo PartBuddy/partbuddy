@@ -167,6 +167,17 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   called `Body<n>` until `body.rename`. PartBuddy notes standard part bodies under
   `io.github.manuelstaggl.partbuddy.standard-parts`; export and the light leave them out.
 
+## Slicer (0.40, checked 2026-11-05)
+
+- `file.slicers` lists `{id, name, program}` (here `bambu`, `orca`). `file.send_to_slicer {slicer,
+  bodies, wait: "return"}` also works without a window: it writes the 3MF to
+  `%LOCALAPPDATA%\SolidCraft\slicer` (outside `--allow-path`), lays bodies on their print face and
+  answers in about 50 ms without waiting for the slicer.
+- The started slicer inherits the pipes of `solidcraft-cli`, so closing the MCP client waits until
+  the slicer ends; PartBuddy waits at most 3 s when it closes the engine.
+- `body.print_face {body, point}` takes a point on a flat face of a solid body and refuses others;
+  without `point` it clears the print face.
+
 ## Repository and machine
 
 - The self-hosted CI runner (ADR 0022) dies with the Claude session that started it; restart with

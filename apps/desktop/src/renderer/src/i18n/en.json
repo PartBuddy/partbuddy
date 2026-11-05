@@ -321,7 +321,13 @@
     "exported": "Saved as {file}",
     "openInSolidCraft": "Open in SolidCraft",
     "openedInSolidCraft": "The design is in Documents\\PartBuddy and opens in SolidCraft. PartBuddy shows your changes there live.",
-    "failed": "That did not work: {detail}"
+    "failed": "That did not work: {detail}",
+    "sentToSlicer": "Opened in {name}.",
+    "slicer": {
+      "title": "Open in the slicer",
+      "open": "Open in {name}",
+      "hint": "Printable bodies on their print face; standard parts stay out"
+    }
   },
   "hud": {
     "dock": "Selection",
@@ -731,5 +737,10 @@
       "dowel_pin": "Dowel pin",
       "bearing": "Ball bearing"
     }
+  },
+  "printFace": {
+    "action": "Print on this face",
+    "hint": "The slicer lays the body on this face. One face per body; choosing another replaces it.",
+    "done": "{name} lies on this face in the slicer."
   }
 }
