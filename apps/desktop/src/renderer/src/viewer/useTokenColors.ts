@@ -4,6 +4,10 @@ import { Color } from 'three';
 
 const names = {
   background: '--cs-viewer-background',
+  backgroundTop: '--cs-viewer-background-top',
+  sky: '--cs-viewer-sky',
+  ground: '--cs-viewer-ground',
+  shadow: '--cs-viewer-shadow',
   grid: '--cs-viewer-grid',
   body: '--cs-viewer-body',
   edge: '--cs-viewer-edge',

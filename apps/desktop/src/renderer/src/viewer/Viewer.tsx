@@ -22,6 +22,7 @@ import { samePick, useStudio, type BodyModel, type Pick, type StandardView } fro
 import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
 import { DimensionHud, Ghost } from './DimensionHud';
+import { GradientBackground, GroundShadow, KeyLight, SkyLight } from './SceneLook';
 import { LiveBar } from './LiveBar';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
@@ -45,11 +46,13 @@ const scene = {
   gridCell: 4,
   gridSection: 20,
   gridFade: 260,
-  keyLight: [60, -80, 120] as [number, number, number],
-  fillLight: [-90, 60, 40] as [number, number, number],
+  // Key light from front left and above, the camera from front right: shadows fall where the
+  // camera sees them, which gives depth. The fill light from the right softens them.
+  keyLight: [-70, -90, 130] as [number, number, number],
+  fillLight: [100, 30, 50] as [number, number, number],
   gizmoMargin: [64, 64] as [number, number],
   // Studio look: soft room light from above (Z up).
-  environmentIntensity: 0.55,
+  environmentIntensity: 0.45,
   // Highlight line widths in CSS pixels.
   hoverEdgeWidth: 3,
   selectedEdgeWidth: 3.5,
@@ -117,6 +120,8 @@ function Body({ index, body, colors, register }: { index: number; body: BodyMode
         }}
         geometry={model.geometry}
         userData={{ body: index }}
+        castShadow
+        receiveShadow
       >
         <meshStandardMaterial
           vertexColors
@@ -656,6 +661,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
   return (
     <Canvas
       dpr={[1, 2]}
+      shadows="soft"
       // The canvas starts with a camera of its own before ours takes over; with the same field of
       // view, a framing done in between keeps fitting.
       camera={{ fov: scene.fieldOfView, near: 0.5, far: 5000, position: lastView.position.toArray() }}
@@ -667,10 +673,12 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       }}
     >
       <Cameras />
-      <color attach="background" args={[colors.background]} />
+      <GradientBackground top={colors.backgroundTop} bottom={colors.background} />
       <StudioLight />
-      <directionalLight position={scene.keyLight} intensity={1.2} />
-      <directionalLight position={scene.fillLight} intensity={0.35} />
+      <SkyLight sky={colors.sky} ground={colors.ground} />
+      <KeyLight bodies={bodies} direction={scene.keyLight} intensity={1.1} />
+      <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.75 : 0.4} />
+      <directionalLight position={scene.fillLight} intensity={0.3} />
       {bodies.map((body, i) => (
         <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} />
       ))}
