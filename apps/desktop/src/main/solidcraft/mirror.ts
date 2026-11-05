@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { faceTableFromModelFaces, sketchFromInspect, tessellateSketch, type SketchLines } from '@partbuddy/geometry';
 
 import type { MirroredBody, MirroredSketch, MirrorRevision, Structure } from '../../shared/contract';
+import { standardPartsOf } from './standardParts';
 
 /** The part of the control client the mirror needs. */
 export interface ControlRequester {
@@ -20,6 +21,7 @@ interface InspectResult {
   redo?: unknown;
   timeline?: unknown;
   marker?: unknown;
+  metadata?: unknown;
 }
 
 const text = (value: unknown, max: number): string | null => (typeof value === 'string' ? value.slice(0, max) : null);
@@ -53,6 +55,7 @@ export function structureOf(inspect: InspectResult): Structure {
     sketches: (inspect.sketches ?? [])
       .filter((sketch) => Number.isInteger(sketch.id))
       .map((sketch) => ({ id: sketch.id as number, name: text(sketch.name, 200) ?? '', visible: sketch.visible !== false })),
+    standardParts: standardPartsOf(inspect.metadata),
   };
 }
 

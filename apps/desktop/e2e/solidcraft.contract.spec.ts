@@ -1278,3 +1278,61 @@ test('the assistant researches on the web with sources as cards, and not when it
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a standard screw is seated in a hole as a counterpart that is neither exported nor checked (B7)', async () => {
+  test.setTimeout(180_000);
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-parts-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7905',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page, app } = launched;
+  type Bridge = {
+    partbuddy: {
+      design: {
+        applyAction(action: unknown): Promise<void>;
+        partsLibrary(): Promise<{ family: string; sizes: { size: string }[] }[]>;
+        insertPart(part: unknown): Promise<{ body: string | null }>;
+        export(format: string): Promise<unknown>;
+      };
+    };
+  };
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    // A 3.4 mm hole through the 20 × 20 × 10 mm box, then an M3 × 12 screw in it.
+    await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.applyAction({ action: 'hole', body: 'Body1', points: [[10, 10, 10]], size: 3.4 }));
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 7 faces', { timeout: 30_000 });
+    const families = await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.partsLibrary());
+    expect(families.map((family) => family.family)).toContain('bearing');
+    const inserted = await page.evaluate(() =>
+      (globalThis as unknown as Bridge).partbuddy.design.insertPart({ family: 'socket_head_cap_screw', size: 'M3', length: 12, point: [11.7, 10, 5] }),
+    );
+    expect(inserted.body).toBe('SHCS M3x12');
+    const screw = page.getByTestId('structure-body').filter({ hasText: 'SHCS M3x12' });
+    await expect(screw).toContainText('standard part', { timeout: 30_000 });
+    await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'ready', { timeout: 15_000 });
+    await page.screenshot({ path: test.info().outputPath('standard-part.png') });
+
+    // The export holds the box only.
+    await app.evaluate(({ dialog }, path) => {
+      dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath: path });
+    }, join(work, 'Box.step'));
+    await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.export('step'));
+    const step = readFileSync(join(work, 'Box.step'), 'utf8');
+    expect(step).toContain('Body1');
+    expect(step).not.toContain('SHCS');
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

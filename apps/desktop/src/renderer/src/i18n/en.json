@@ -376,7 +376,8 @@
     "repairHint": "Repairs faces the kernel refuses, sews gaps and closes holes of an imported part.",
     "repairDone": "{name} was repaired.",
     "nothingToRepair": "Nothing to repair: {name} is fine as it is.",
-    "openMesh": "{name} is not closed, so SolidCraft cannot turn it into faces. It can still be exported; the slicer repairs small holes itself."
+    "openMesh": "{name} is not closed, so SolidCraft cannot turn it into faces. It can still be exported; the slicer repairs small holes itself.",
+    "standardPart": "standard part"
   },
   "parameters": {
     "title": "Parameters ({count})",
@@ -709,6 +710,26 @@
       "export": "At export",
       "assistant": "Before the assistant",
       "restore": "Before restoring"
+    }
+  },
+  "parts": {
+    "action": "Standard part",
+    "hole": "Hole ⌀ {diameter} mm",
+    "family": "Kind",
+    "size": "Size",
+    "length": "Length",
+    "insert": "Seat in the hole",
+    "hint": "A counterpart from SolidCraft's library: it shows in the view, but is neither exported nor printed.",
+    "inserted": "{name} seated as a counterpart.",
+    "families": {
+      "socket_head_cap_screw": "Socket head cap screw",
+      "button_head_cap_screw": "Button head screw",
+      "hex_bolt": "Hex bolt",
+      "set_screw": "Set screw",
+      "hex_nut": "Hex nut",
+      "washer": "Washer",
+      "dowel_pin": "Dowel pin",
+      "bearing": "Ball bearing"
     }
   }
 }

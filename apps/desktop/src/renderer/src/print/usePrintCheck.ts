@@ -22,7 +22,9 @@ export function usePrintCheck(): void {
       return;
     }
     const timer = setTimeout(() => {
-      const result = checkPrint(model.bodies, { bed: print.printer.bed, nozzle: print.printer.nozzle, overhang: print.material.overhang }, model.structure.features);
+      // Standard parts (B7) are counterparts and are not printed.
+      const standard = new Set(model.structure.standardParts ?? []);
+      const result = checkPrint(model.bodies.filter((body) => !standard.has(body.name)), { bed: print.printer.bed, nozzle: print.printer.nozzle, overhang: print.material.overhang }, model.structure.features);
       useStudio.getState().setPrintCheck({ revision: model.revision, result });
       void platform()
         .print.reportCheck(reportOf(result, print.printer.nozzle))

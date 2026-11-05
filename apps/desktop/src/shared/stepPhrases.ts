@@ -47,6 +47,8 @@ export const STEP_PHRASE_KEYS = [
   'insertFile',
   'repairBody',
   'convertMesh',
+  // A standard part seated in a hole (B7).
+  'standardPart',
   'command',
 ] as const;
 
@@ -194,6 +196,9 @@ function phraseOf(command: string, params: Params): StepPhrase | 'curve' | 'dime
       return { key: 'repairBody', values: { name: text(params.body, '?') } };
     case 'mesh.convert':
       return { key: 'convertMesh', values: { name: text(params.body, '?') } };
+    case 'parts.insert':
+    case 'parts.fastener':
+      return { key: 'standardPart', values: { name: `${text(params.size, '?')}${typeof params.length === 'number' ? `×${String(params.length)}` : ''}` } };
   }
   if (command.startsWith('sketch.')) return 'curve';
   if (command.startsWith('construct.')) return { key: 'construction', values: {} };
@@ -257,7 +262,8 @@ export function describeUserAction(
     | { kind: 'rollTo'; position: number | 'end' }
     | { kind: 'suppress'; suppressed: boolean }
     | { kind: 'insertFile'; name: string }
-    | { kind: 'repairBody' | 'convertMesh'; body: string },
+    | { kind: 'repairBody' | 'convertMesh'; body: string }
+    | { kind: 'standardPart'; name: string },
 ): StepPhrase {
   const round = (value: number) => Math.round(value * 100) / 100;
   switch (action.kind) {
@@ -272,6 +278,8 @@ export function describeUserAction(
     case 'repairBody':
     case 'convertMesh':
       return { key: action.kind, values: { name: action.body.slice(0, 60) } };
+    case 'standardPart':
+      return { key: 'standardPart', values: { name: action.name.slice(0, 60) } };
     case 'action':
       switch (action.action) {
         case 'fillet':
@@ -332,6 +340,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     insertFile: 'Inserted {name}',
     repairBody: 'Repaired {name}',
     convertMesh: 'Converted {name} to faces',
+    standardPart: 'Standard part {name} seated',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -373,6 +382,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     insertFile: '{name} eingefügt',
     repairBody: '{name} repariert',
     convertMesh: '{name} in Flächen umgewandelt',
+    standardPart: 'Normteil {name} eingesetzt',
     command: 'SolidCraft: {command}',
   },
 };

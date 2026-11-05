@@ -119,6 +119,8 @@ export const structureSchema = z
     marker: z.number().int().nonnegative().nullable(),
     bodies: z.array(z.object({ name: z.string().max(200), visible: z.boolean(), feature: z.number().int().nullable() }).strict()).max(500),
     sketches: z.array(z.object({ id: z.number().int().nonnegative(), name: z.string().max(200), visible: z.boolean() }).strict()).max(2000),
+    /** Bodies that are standard parts (B7): counterparts, neither exported nor checked for printing. */
+    standardParts: z.array(z.string().max(200)).max(500).optional(),
   })
   .strict();
 
@@ -616,6 +618,25 @@ export const designActionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('hole'), body: bodyName, points: z.array(point3).length(1), size: length, depth: length.optional() }).strict(),
   z.object({ action: z.literal('shell'), body: bodyName, points: actionPoints, size: length }).strict(),
 ]);
+/** The standard part families PartBuddy offers (B7), metric, from SolidCraft's library. */
+export const partFamilySchema = z.enum(['socket_head_cap_screw', 'button_head_cap_screw', 'hex_bolt', 'set_screw', 'hex_nut', 'washer', 'dowel_pin', 'bearing']);
+export const partsLibrarySchema = z
+  .array(
+    z
+      .object({
+        family: partFamilySchema,
+        name: z.string().max(200),
+        lengths: z.array(finite).max(100).nullable(),
+        sizes: z.array(z.object({ size: z.string().max(40), diameter: finite.nullable(), defaultLength: finite.nullable() }).strict()).max(100),
+      })
+      .strict(),
+  )
+  .max(20);
+/** Seats a standard part in the hole at `point` (a point on the hole's wall). */
+export const partInsertSchema = z
+  .object({ family: partFamilySchema, size: z.string().min(1).max(40), length: finite.positive().max(1000).optional(), point: point3 })
+  .strict();
+export const partInsertResultSchema = z.object({ body: z.string().max(200).nullable() }).strict();
 export const actionPreviewSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable() }).strict(),
   z.object({ ok: z.literal(false), error: z.string().max(300) }).strict(),
@@ -854,6 +875,8 @@ export const invokeContract = {
   [invokeChannels.designPreviewAction]: { request: designActionSchema, response: actionPreviewSchema },
   [invokeChannels.designApplyAction]: { request: designActionSchema, response: none },
   [invokeChannels.designMeasure]: { request: measureRequestSchema, response: measureResultSchema },
+  [invokeChannels.designPartsLibrary]: { request: none, response: partsLibrarySchema },
+  [invokeChannels.designInsertPart]: { request: partInsertSchema, response: partInsertResultSchema },
   [invokeChannels.designTimeline]: { request: timelineCommandSchema, response: none },
   [invokeChannels.designGoToStep]: { request: goToStepSchema, response: none },
   [invokeChannels.designDimensions]: { request: dimensionMarksRequestSchema, response: dimensionMarksSchema },
@@ -900,6 +923,9 @@ export type ProjectInfo = z.infer<typeof projectInfoSchema>;
 export type ProjectRenameResult = z.infer<typeof projectRenameResultSchema>;
 export type ProjectOpenResult = z.infer<typeof projectOpenResultSchema>;
 export type InsertResult = z.infer<typeof insertResultSchema>;
+export type PartFamily = z.infer<typeof partFamilySchema>;
+export type PartsLibrary = z.infer<typeof partsLibrarySchema>;
+export type PartInsert = z.infer<typeof partInsertSchema>;
 export type Language = z.infer<typeof languageSchema>;
 export type GeneralSettingsInfo = z.infer<typeof generalSettingsSchema>;
 export type VersionEntry = z.infer<typeof versionEntrySchema>;
