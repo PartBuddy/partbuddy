@@ -18,6 +18,8 @@ import {
 
 import { useStudio, type DisplayMode, type Section, type StandardView } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
+import { ViewIcon } from '../ui/ViewIcon';
+import { LOOK } from './look';
 
 const tool =
   'inline-flex size-control-md items-center justify-center rounded-md text-xs font-semibold text-text outline-none transition-colors ' +
@@ -34,7 +36,7 @@ function Tip({ label, children }: { label: string; children: ReactNode }) {
   return (
     <TooltipTrigger delay={400}>
       {children}
-      <Tooltip placement="left" offset={6} className="rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
+      <Tooltip placement={LOOK.toolbar === 'top' ? 'bottom' : 'top'} offset={6} className="rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
         {label}
       </Tooltip>
     </TooltipTrigger>
@@ -55,7 +57,7 @@ function DisplayModeMenu() {
           <IconBoxMultiple className="size-icon-sm" aria-hidden />
         </AriaButton>
       </Tip>
-      <Popover placement="left" offset={8} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+      <Popover placement={LOOK.toolbar === 'top' ? 'bottom' : 'top'} offset={8} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
         <Menu
           aria-label={t('viewer.display.title')}
           selectionMode="single"
@@ -92,7 +94,7 @@ function SectionPanel({ section }: { section: Section }) {
     <div
       role="group"
       aria-label={t('viewer.section.title')}
-      className="pointer-events-auto absolute right-full bottom-0 mr-2 flex w-menu flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      className={`pointer-events-auto absolute left-1/2 flex w-menu -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2 ${LOOK.toolbar === 'top' ? 'top-full mt-2' : 'bottom-full mb-2'}`}
       data-testid="section-panel"
     >
       <div className="flex items-center gap-2">
@@ -192,17 +194,18 @@ export function ViewTools() {
   const views: { view: StandardView; key: string; icon: ReactNode }[] = [
     { view: 'fit', key: 'F', icon: <IconMaximize className="size-icon-sm" aria-hidden /> },
     { view: 'iso', key: '0', icon: <IconCube className="size-icon-sm" aria-hidden /> },
-    { view: 'front', key: '1', icon: <span aria-hidden>{t('viewer.views.front').slice(0, 1)}</span> },
-    { view: 'right', key: '3', icon: <span aria-hidden>{t('viewer.views.right').slice(0, 1)}</span> },
-    { view: 'top', key: '7', icon: <span aria-hidden>{t('viewer.views.top').slice(0, 1)}</span> },
+    { view: 'front', key: '1', icon: <ViewIcon face="front" className="size-icon-sm" /> },
+    { view: 'right', key: '3', icon: <ViewIcon face="right" className="size-icon-sm" /> },
+    { view: 'top', key: '7', icon: <ViewIcon face="top" className="size-icon-sm" /> },
   ];
 
   return (
     <div
       role="toolbar"
-      aria-orientation="vertical"
+      aria-orientation="horizontal"
       aria-label={t('viewer.views.toolbar')}
-      className="pointer-events-auto absolute bottom-3 right-3 flex flex-col gap-1 rounded-lg border border-border bg-surface-raised p-1 shadow-2"
+      className={`pointer-events-auto absolute left-1/2 flex -translate-x-1/2 flex-row items-center gap-1 rounded-lg border border-border bg-surface-raised p-1 shadow-2 ${LOOK.toolbar === 'top' ? 'top-3' : 'bottom-3'}`}
+      data-look={LOOK.toolbar}
       data-testid="view-tools"
     >
       {views.map(({ view, key, icon }) => (
@@ -219,7 +222,7 @@ export function ViewTools() {
           </AriaButton>
         </Tip>
       ))}
-      <span aria-hidden className="mx-1 h-hairline bg-border" />
+      <span aria-hidden className="my-1 w-hairline self-stretch bg-border" />
       <Tip label={`${t('dimensions.tool')} (M)`}>
         <ToggleButton
           aria-label={t('dimensions.tool')}
@@ -275,7 +278,7 @@ export function ViewTools() {
           {ortho ? <IconBox className="size-icon-sm" aria-hidden /> : <IconPerspective className="size-icon-sm" aria-hidden />}
         </ToggleButton>
       </Tip>
-      <span aria-hidden className="mx-1 h-hairline bg-border" />
+      <span aria-hidden className="my-1 w-hairline self-stretch bg-border" />
       <DisplayModeMenu />
       <Tip label={t('viewer.section.title')}>
         <ToggleButton

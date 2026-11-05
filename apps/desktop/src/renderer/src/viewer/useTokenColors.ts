@@ -21,8 +21,12 @@ const names = {
   sketch: '--cs-viewer-sketch',
   sketchConstrained: '--cs-viewer-sketch-constrained',
   sketchConstruction: '--cs-viewer-sketch-construction',
+  axisX: '--cs-viewer-axis-x',
+  axisY: '--cs-viewer-axis-y',
+  axisZ: '--cs-viewer-axis-z',
+  axisLabel: '--cs-viewer-axis-label',
   cube: '--cs-color-surface-raised',
-  cubeText: '--cs-color-text-muted',
+  cubeText: '--cs-color-text',
   cubeStroke: '--cs-color-border-strong',
 } as const;
 
