@@ -52,7 +52,7 @@ export function StatusBar() {
         </span>
       ) : null}
       {focusName ? (
-        <span className="font-mono" data-testid="focus-name">
+        <span className="tabular-nums" data-testid="focus-name">
           {focusName}
         </span>
       ) : (

@@ -215,7 +215,7 @@ function HudCard({ bodies, accent, selection, picks }: { bodies: BodyModel[]; ac
                 {t(`hud.${dimension.shown}`)} · {t('units.mmShort')}
               </Label>
               <Input
-                className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 font-mono text-md tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+                className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 text-md tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     event.preventDefault();

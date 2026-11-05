@@ -813,7 +813,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-xs text-text-subtle">{label}</dt>
-      <dd className="font-mono tabular-nums text-text">{value}</dd>
+      <dd className="tabular-nums text-text">{value}</dd>
     </div>
   );
 }
@@ -863,7 +863,7 @@ function SelectionBar({ bodies }: { bodies: BodyModel[] }) {
         <span className="text-xs text-text-subtle">
           {kind} · {t('viewer.body')} {body.name}
         </span>
-        <span className="font-mono text-sm text-text" data-testid="selected-face">
+        <span className="tabular-nums text-sm text-text" data-testid="selected-face">
           {name}
         </span>
       </div>

@@ -286,7 +286,7 @@ export function AssistantPanel() {
           <div className="flex flex-wrap items-center gap-1" data-testid="composer-selections" aria-label={t('assistant.selectionsGoWith', { count: selections.length })}>
             <span className="text-xs text-text-muted">{t('assistant.selectionsGoWith', { count: selections.length })}</span>
             {selections.map((entry, i) => (
-              <span key={`${entry.kind}-${i}`} className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-sunken py-0 pl-2 pr-1 font-mono text-xs text-text">
+              <span key={`${entry.kind}-${i}`} className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-sunken py-0 pl-2 pr-1 tabular-nums text-xs text-text">
                 <span className="truncate">{selectionName(entry)}</span>
                 <AriaButton
                   aria-label={t('assistant.removeSelection', { name: selectionName(entry) })}

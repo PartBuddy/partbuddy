@@ -70,7 +70,7 @@ export function NotesSection() {
             </AriaButton>
             <div className="flex flex-wrap items-center gap-1 pl-7">
               <NoteStatus note={note} />
-              {note.target ? <span className="truncate font-mono text-xs text-text-subtle">{note.target}</span> : null}
+              {note.target ? <span className="truncate tabular-nums text-xs text-text-subtle">{note.target}</span> : null}
             </div>
             {!note.own || note.status === 'orphaned' || note.status === 'ambiguous' ? (
               <div className="flex flex-wrap gap-1 pl-6">
