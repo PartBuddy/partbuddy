@@ -530,6 +530,8 @@
     "materialHint": "Starting values for a common printer. Adjust them to your test prints; the assistant builds with these clearances.",
     "nameMissing": "Every profile needs a name.",
     "saveFailed": "The profiles could not be saved.",
+    "supportFree": "Design without support",
+    "supportFreeHint": "The assistant chamfers edges facing the bed instead of rounding them, gives wide lying holes a teardrop roof and bridges countersinks that open downwards, so the slicer needs no support.",
     "cancel": "Cancel",
     "save": "Save"
   },

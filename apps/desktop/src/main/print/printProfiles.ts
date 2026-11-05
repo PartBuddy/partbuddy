@@ -54,6 +54,7 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
     material('tpu', 'TPU', 35, 0.25, [0, 0.1, 0.3, 0.4]),
   ],
   material: 'pla',
+  supportFree: true,
 };
 
 /** The print file of a design: `Grundplatte.sc` → `Grundplatte.print.json`, next to it. */
@@ -118,6 +119,7 @@ export class PrintProfiles {
       chosen: chosen !== undefined,
       orientation: own.orientation ?? AS_DESIGNED_ORIENTATION,
       loads: own.loads ?? [],
+      supportFree: settings.supportFree,
     };
   }
 
@@ -189,7 +191,24 @@ const mm = (value: number) => `${String(Math.round(value * 100) / 100)} mm`;
  * practice run of 2026-11-04 missed: parts were built at nominal size and fits came up only when
  * asked. Names are the user's own text, so they are quoted and cut short.
  */
-export function printNote({ printer, material: used, orientation, loads }: PartPrint): string {
+/**
+ * Rules for designing without support (M7f, decided 2026-11-05), from what the practice run and
+ * the slicer showed and the common design-for-printing advice (Prusa knowledge base, Hackaday's
+ * stepped bridging of counterbores, teardrop holes). They match the check's numbers: overhangs up
+ * to 1.5 mm from a wall and bridges up to 10 mm print without support.
+ */
+function supportFreeLines(layer: number, overhang: number): string[] {
+  return [
+    'Design it to print without support in this orientation (the user\'s setting); where that cannot be done, say so and why:',
+    `- Edges that face down towards the bed: chamfer them at 45° instead of filleting (the bottom of a fillet ends flat); fillets that face up or sideways are fine.`,
+    `- Holes lying across the layers: up to about 10 mm wide the slicer bridges them; wider ones get a teardrop roof (45° to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
+    `- Counterbores and countersinks that open towards the bed: a stepped bridge over the step, ${mm(layer)} (one layer) each: the first layer leaves only a slot as wide as the hole open, the next only a square of that width at 90° to it; then the hole continues round.`,
+    '- Ceilings and ledges: walls at most 10 mm apart are bridged, ledges up to 1.5 mm out from a wall print; anything wider gets a 45° slope underneath, or say which orientation lays it on the bed.',
+    'Model these as their own features with parameters (layer height, roof angle) and name them when you report.',
+  ];
+}
+
+export function printNote({ printer, material: used, orientation, loads, supportFree }: PartPrint): string {
   const name = (text: string) => JSON.stringify(text.slice(0, 60));
   const [x, y, z] = printer.bed;
   const wall = Math.round(printer.nozzle * 2 * 1.125 * 100) / 100;
@@ -201,6 +220,7 @@ export function printNote({ printer, material: used, orientation, loads }: PartP
     `Clearance per side between mating parts: clamp ${mm(clamp)}, push ${mm(push)}, slide ${mm(slide)}, turn ${mm(turn)}.`,
     ...(used.outerGrowth !== 0 ? [`Measured prints: outer sizes (pins, walls, widths) come out ${mm(used.outerGrowth)} ${used.outerGrowth > 0 ? 'larger' : 'smaller'} than drawn; allow for it on pins.`] : []),
     orientationLine(orientation, loads),
+    ...(supportFree ? supportFreeLines(printer.layer, used.overhang) : []),
     'Keep nominal sizes as parameters, add the clearance and the hole allowance as their own parameters, and say which fit you chose.]',
   ].join('\n');
 }

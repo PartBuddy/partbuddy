@@ -2,6 +2,7 @@ import { DoubleSide, Ray, Vector3 } from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
 
 import type { Down } from './orientation';
+import { ANGLE_TOLERANCE } from './overhang';
 import type { ViewerModel } from './viewerModel';
 
 /**
@@ -49,7 +50,7 @@ export function supportNeed(model: ViewerModel, turned: ArrayLike<number>, down:
   const faceCount = model.table.faces.length;
   const triangles = index.length / 3;
   const byFace = new Float64Array(faceCount);
-  const sinSupport = Math.sin((supportAngle * Math.PI) / 180);
+  const sinSupport = Math.sin(((supportAngle + ANGLE_TOLERANCE) * Math.PI) / 180);
 
   // Faces lying on the bed are no overhang: none of their vertices is above it (as in overhangOf).
   const top = new Float64Array(faceCount).fill(Number.NEGATIVE_INFINITY);

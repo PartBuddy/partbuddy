@@ -6,7 +6,7 @@ import type { FaceTable } from './faceTable';
 import { checkPrint, minimumWall, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
-import { boxesBody, lyingTube } from './testShapes';
+import { boxesBody, lyingTube, prismBody } from './testShapes';
 import { buildViewerModel } from './viewerModel';
 
 const PLA: PrintCheckProfile = { bed: [256, 256, 256], nozzle: 0.4, overhang: 45 };
@@ -107,6 +107,14 @@ describe('the ready-to-print check (M7)', () => {
     const ledge = (reach: number) => checkPrint([boxesBody('Ledge', [[[0, 0, 0], [10, 10, 10]], [[10, 0, 5], [10 + reach, 10, 10]]])], PLA);
     expect(ledge(1).findings.map((f) => f.kind)).not.toContain('support');
     expect(ledge(8).findings.find((f) => f.kind === 'support')).toMatchObject({ places: [{ body: 'Ledge', faces: ['F2:-z'] }] });
+  });
+
+  it('takes a 45° chamfer facing the bed as printable, a flatter one not (M7f)', () => {
+    // A bar with its lower edges chamfered: 3 mm at 45°, and 5 mm across, 3 mm up (59° from the vertical).
+    const at45 = checkPrint([prismBody('Bar', [[3, 0], [17, 0], [20, 3], [20, 10], [0, 10], [0, 3]], 40)], PLA);
+    expect(at45).toEqual({ status: 'ready', findings: [] });
+    const flat = checkPrint([prismBody('Bar', [[5, 0], [15, 0], [20, 3], [20, 10], [0, 10], [0, 3]], 40)], PLA);
+    expect(flat.findings.find((f) => f.kind === 'support')).toMatchObject({ places: [{ body: 'Bar', faces: ['F1:s1', 'F1:s5'] }] });
   });
 
   it('bridges the top of a lying hole, but supports the underside of a lying tube', () => {

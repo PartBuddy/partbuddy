@@ -99,3 +99,33 @@ export function lyingTube(name: string, outer: number, inner: number, length: nu
   }
   return finish(name, built);
 }
+
+/**
+ * A prism along Y: the convex outline in the XZ plane (counter-clockwise seen from -y, i.e. with
+ * X right and Z up), `length` deep. Faces `F1:s0`, `F1:s1` … per outline edge, then `F1:-y`, `F1:+y`.
+ */
+export function prismBody(name: string, outline: readonly (readonly [number, number])[], length: number) {
+  const n = outline.length;
+  const built: Built = { positions: [], indices: [], triangleFaces: [], names: [], normals: [] };
+  for (const [x, z] of outline) built.positions.push(x, 0, z);
+  for (const [x, z] of outline) built.positions.push(x, length, z);
+  for (let i = 0; i < n; i += 1) {
+    const j = (i + 1) % n;
+    const face = built.names.length;
+    built.names.push(`F1:s${String(i)}`);
+    built.normals.push(undefined);
+    // Seen from outside: front edge i→j, then back.
+    built.indices.push(i, n + j, j, i, n + i, n + j);
+    built.triangleFaces.push(face, face);
+  }
+  const front = built.names.length;
+  built.names.push('F1:-y', 'F1:+y');
+  built.normals.push([0, -1, 0], [0, 1, 0]);
+  for (let i = 1; i < n - 1; i += 1) {
+    built.indices.push(0, i, i + 1);
+    built.triangleFaces.push(front);
+    built.indices.push(n, n + i + 1, n + i);
+    built.triangleFaces.push(front + 1);
+  }
+  return finish(name, built);
+}
