@@ -1,0 +1,4 @@
+self-hosted-runner:
+  # The self-hosted runner in WSL2 (ADR 0022, tools/runner).
+  labels:
+    - partbuddy
