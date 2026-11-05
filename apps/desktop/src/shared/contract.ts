@@ -192,6 +192,25 @@ export const projectRenameResultSchema = z.discriminatedUnion('ok', [
 ]);
 /** Opening asks for a folder or a design file; `imported`: a design from elsewhere was copied into a new project. */
 export const projectOpenResultSchema = z.object({ opened: z.boolean(), imported: z.boolean() }).strict();
+/**
+ * Import (B4): a file the user dropped onto the window, or none to ask with the open dialog. The
+ * main process checks the path (absolute, an existing file of a known kind, not too large).
+ */
+export const importRequestSchema = z.object({ path: z.string().min(1).max(1000).optional() }).strict();
+/** A file inserted into the open design: its name and the bodies it brought; nothing when cancelled. */
+export const insertResultSchema = z
+  .object({ inserted: z.boolean(), name: z.string().max(255).nullable(), bodies: z.array(z.string().max(200)).max(500) })
+  .strict();
+/** Repair an imported part (`body.repair`) or convert a mesh body to faces (`mesh.convert`). */
+export const repairRequestSchema = z.object({ body: z.string().min(1).max(200), how: z.enum(['repair', 'convert']) }).strict();
+/**
+ * How a repair went: done, nothing to repair, a mesh that is not closed (SolidCraft converts only
+ * closed meshes), or SolidCraft's own reason.
+ */
+export const repairResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true) }).strict(),
+  z.object({ ok: z.literal(false), reason: z.enum(['nothing', 'openMesh', 'other']), detail: z.string().max(500) }).strict(),
+]);
 
 /** The ready-to-print light of a project on the start page (B3), as at its last preview. */
 export const projectCheckSchema = z.enum(['ready', 'warn', 'block']);
@@ -726,7 +745,7 @@ export const invokeContract = {
   [invokeChannels.projectTrash]: { request: none, response: none },
   [invokeChannels.projectList]: { request: none, response: projectListSchema },
   [invokeChannels.projectOpenFolder]: { request: projectOpenFolderSchema, response: projectOpenResultSchema },
-  [invokeChannels.projectImport]: { request: none, response: projectOpenResultSchema },
+  [invokeChannels.projectImport]: { request: importRequestSchema, response: projectOpenResultSchema },
   [invokeChannels.projectSavePreview]: { request: projectPreviewSchema, response: none },
   [invokeChannels.mirrorCurrent]: { request: none, response: mirrorRevisionSchema.nullable() },
   [invokeChannels.agentStatus]: { request: none, response: assistantStateSchema },
@@ -759,6 +778,8 @@ export const invokeContract = {
   [invokeChannels.chatLoad]: { request: none, response: storedChatSchema.nullable() },
   [invokeChannels.chatSave]: { request: chatSaveSchema, response: none },
   [invokeChannels.designVisibility]: { request: visibilityCommandSchema, response: none },
+  [invokeChannels.designInsert]: { request: importRequestSchema, response: insertResultSchema },
+  [invokeChannels.designRepair]: { request: repairRequestSchema, response: repairResultSchema },
   [invokeChannels.notesCurrent]: { request: none, response: notesStateSchema },
   [invokeChannels.notesAdd]: { request: noteAddSchema, response: none },
   [invokeChannels.notesEdit]: { request: noteEditSchema, response: none },
@@ -794,6 +815,8 @@ export type EngineInfo = z.infer<typeof engineInfoSchema>;
 export type ProjectInfo = z.infer<typeof projectInfoSchema>;
 export type ProjectRenameResult = z.infer<typeof projectRenameResultSchema>;
 export type ProjectOpenResult = z.infer<typeof projectOpenResultSchema>;
+export type InsertResult = z.infer<typeof insertResultSchema>;
+export type RepairResult = z.infer<typeof repairResultSchema>;
 export type ProjectCheck = z.infer<typeof projectCheckSchema>;
 export type ProjectEntry = z.infer<typeof projectEntrySchema>;
 export type ProjectPreview = z.infer<typeof projectPreviewSchema>;

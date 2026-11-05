@@ -1,6 +1,6 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 
 import { createActor, fromCallback, fromPromise } from 'xstate';
@@ -14,6 +14,7 @@ import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
 import type { DesignParameter, DimensionMark } from '../../shared/contract';
+import { insertCommand, type ImportKind } from '../projects/importFile';
 import { ProjectStore } from '../projects/projectStore';
 import { HeadlessEngine, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
@@ -194,8 +195,10 @@ export class SolidCraftSupervisor {
     const requester = this.requester();
     const bodies = this.latest?.bodies.map((body) => body.name) ?? [];
     if (bodies.length === 0) throw new Error('the design has no body to export');
-    await mkdir(this.options.cacheDir, { recursive: true });
-    const temp = join(this.options.cacheDir, `export-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${format}`);
+    // The file keeps the name the user chose: STEP and 3MF carry it as the part's name.
+    const folder = join(this.options.cacheDir, `export-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+    await mkdir(folder, { recursive: true });
+    const temp = join(folder, `${safeDesignFileName(basename(destination).replace(/\.[^.]*$/, ''))}.${format}`);
     try {
       const batch = await requester.request<{ failed?: { error: string } }>(
         'engine.batch',
@@ -206,8 +209,75 @@ export class SolidCraftSupervisor {
       await mkdir(dirname(destination), { recursive: true });
       await copyFile(temp, destination);
     } finally {
-      await rm(temp, { force: true });
+      await rm(folder, { recursive: true, force: true });
     }
+  }
+
+  /**
+   * Inserts a STEP, IGES or mesh file into the open design (B4) as SolidCraft's import feature in
+   * a component named after the file. SolidCraft reads only its allowed folders, so the file is
+   * copied into the cache first; the design keeps the geometry, not the path, so the copy goes
+   * again afterwards. Returns the bodies the file brought.
+   */
+  async insertFile(source: string, kind: Exclude<ImportKind, 'design'>): Promise<string[]> {
+    await this.probing;
+    const folder = join(this.options.cacheDir, `import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+    await mkdir(folder, { recursive: true });
+    const copy = join(folder, basename(source));
+    try {
+      await copyFile(source, copy);
+      const batch = await this.requester().request<BatchResult>(
+        'engine.batch',
+        { commands: [insertCommand(kind, copy)], rollback: false, allow_paths: [this.options.cacheDir] },
+        10 * 60 * 1000,
+      );
+      if (batch.failed) throw new Error(batch.failed.error);
+      await this.engine?.checkForChange();
+      const created = (batch.results[0] as { created_bodies?: unknown } | undefined)?.created_bodies;
+      return Array.isArray(created) ? created.filter((name): name is string => typeof name === 'string') : [];
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
+  }
+
+  /**
+   * Makes a new design file from a STEP, IGES or mesh file (B4: import as a new project) with
+   * `solidcraft-cli run`, without touching the open design; the project opens it afterwards.
+   */
+  async designFromFile(source: string, kind: Exclude<ImportKind, 'design'>, target: string): Promise<void> {
+    const executable = findExecutable(this.options.environment);
+    if (!executable) throw new Error('SolidCraft is not installed');
+    const cli = cliBeside(executable);
+    if (!existsSync(cli)) throw new Error('SolidCraft is installed without solidcraft-cli');
+    await mkdir(this.options.cacheDir, { recursive: true });
+    await mkdir(dirname(target), { recursive: true });
+    const script = join(this.options.cacheDir, `import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.json`);
+    await writeFile(script, JSON.stringify([insertCommand(kind, source)]));
+    try {
+      await new Promise<void>((done, fail) => {
+        // Argument array, no shell (architecture: security boundaries).
+        execFile(
+          cli,
+          ['run', script, '--save', target, '--quiet'],
+          { env: this.options.environment.env, windowsHide: true, timeout: 10 * 60 * 1000, maxBuffer: 4 * 1024 * 1024 },
+          (error, _stdout, stderr) => {
+            if (!error) done();
+            else fail(new Error(stderr.trim().replace(/^error:\s*/i, '').slice(0, 500) || error.message));
+          },
+        );
+      });
+      if (!existsSync(target)) throw new Error('SolidCraft wrote no design');
+    } finally {
+      await rm(script, { force: true });
+    }
+  }
+
+  /**
+   * Repairs an imported part SolidCraft's kernel refuses or that is open (`body.repair`), or turns
+   * a mesh body into faces (`mesh.convert`), each one undoable feature (B4).
+   */
+  repairBody(body: string, how: 'repair' | 'convert'): Promise<void> {
+    return this.run(how === 'repair' ? { command: 'body.repair', params: { body, patch_holes: true } } : { command: 'mesh.convert', params: { body } });
   }
 
   /**

@@ -363,7 +363,16 @@
     "noSketches": "Keine Skizzen",
     "editing": "in Bearbeitung",
     "hide": "{name} ausblenden",
-    "show": "{name} einblenden"
+    "show": "{name} einblenden",
+    "mesh": "Mesh",
+    "convert": "{name} in Flächen umwandeln",
+    "convertHint": "Macht aus dem Mesh bearbeitbare Flächen. Geht bei geschlossenen Meshes technischer Teile.",
+    "convertDone": "{name} hat jetzt bearbeitbare Flächen.",
+    "repair": "{name} reparieren",
+    "repairHint": "Repariert Flächen, die der Kern ablehnt, schließt Spalten und Löcher eines importierten Teils.",
+    "repairDone": "{name} wurde repariert.",
+    "nothingToRepair": "Nichts zu reparieren: {name} ist in Ordnung.",
+    "openMesh": "{name} ist nicht geschlossen, deshalb kann SolidCraft es nicht in Flächen umwandeln. Exportieren geht trotzdem; kleine Löcher repariert der Slicer selbst."
   },
   "parameters": {
     "title": "Parameter ({count})",
@@ -593,7 +602,7 @@
     "reveal": "Im Explorer zeigen",
     "trash": "In den Papierkorb …",
     "failed": "Das ging nicht: {detail}",
-    "imported": "Die Datei wurde als Kopie in ein neues Projekt übernommen; das Original bleibt unverändert.",
+    "imported": "Die Datei ist jetzt ein neues Projekt; das Original bleibt unverändert.",
     "renameTitle": "Projekt umbenennen",
     "name": "Name",
     "renameHint": "Ordner und Dateien im Projektordner bekommen diesen Namen.",
@@ -607,7 +616,15 @@
     },
     "trashTitle": "„{name}“ in den Papierkorb?",
     "trashBody": "Der Projektordner mit Design, Chat und Exporten kommt in den Windows-Papierkorb und lässt sich dort wiederherstellen. Danach beginnt ein neues, leeres Projekt.",
-    "trashConfirm": "In den Papierkorb"
+    "trashConfirm": "In den Papierkorb",
+    "import": "Als neues Projekt importieren …",
+    "insert": "Datei einfügen …",
+    "inserted": "{name} eingefügt ({count, plural, one {# Körper} other {# Körper}}).",
+    "dropAsProject": "Loslassen für ein neues Projekt",
+    "dropIntoDesign": "Loslassen zum Einfügen in dieses Projekt",
+    "dropKinds": "STEP, IGES, STL, 3MF, OBJ oder ein SolidCraft-Design",
+    "dropUnknown": "PartBuddy importiert STEP, IGES, STL, 3MF, OBJ und SolidCraft-Designs.",
+    "dropNoPath": "Diese Datei liegt noch nicht auf dem Datenträger. Erst speichern, dann aus dem Explorer ziehen."
   },
   "home": {
     "title": "Projekte",
@@ -617,7 +634,7 @@
     "import": "Importieren …",
     "list": "{count, plural, one {# Projekt} other {# Projekte}}",
     "emptyTitle": "Noch keine Projekte",
-    "emptyBody": "Beginne ein neues Projekt, öffne eines oder importiere ein Design. Jedes Projekt bekommt einen eigenen Ordner unter Dokumente\\PartBuddy.",
+    "emptyBody": "Starte ein neues Projekt, öffne eines oder importiere eine Datei (STEP, IGES, STL, 3MF, OBJ oder ein SolidCraft-Design), auch per Ziehen aufs Fenster. Jedes Projekt bekommt einen eigenen Ordner unter Dokumente\\PartBuddy.",
     "noMatch": "Kein Projekt passt zu „{query}“.",
     "openNow": "Gerade geöffnet",
     "justNow": "gerade eben",

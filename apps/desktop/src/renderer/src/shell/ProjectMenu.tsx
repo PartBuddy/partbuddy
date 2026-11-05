@@ -1,4 +1,4 @@
-import { IconChevronDown, IconCopy, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconChevronDown, IconCopy, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPackageImport, IconPencil, IconTrash } from '@tabler/icons-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -23,6 +23,7 @@ import { beforeProjectSwitch } from '../assistant/useAssistantBridge';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
+import { useFileImport } from './fileImport';
 import { useProjectSwitch } from './projectSwitch';
 
 const itemClass =
@@ -54,6 +55,7 @@ export function ProjectMenu({ designName }: { designName: string }) {
   const connection = useStudio((s) => s.connection);
   const revision = useStudio((s) => (s.model.status === 'ready' ? `${s.model.documentId}:${String(s.model.revision)}` : null));
   const run = useProjectSwitch();
+  const files = useFileImport();
   const [project, setProject] = useState<ProjectInfo>(null);
   const [dialog, setDialog] = useState<'rename' | 'trash' | null>(null);
   const ready = connection.state === 'connected' && connection.engine === 'headless';
@@ -112,10 +114,12 @@ export function ProjectMenu({ designName }: { designName: string }) {
           <Menu
             aria-label={t('project.title')}
             className="outline-none"
-            disabledKeys={[...(ready ? [] : ['new', 'open']), ...(ready && project ? [] : ['rename', 'duplicate', 'trash'])]}
+            disabledKeys={[...(ready ? [] : ['new', 'open', 'import']), ...(connection.state === 'connected' ? [] : ['insert']), ...(ready && project ? [] : ['rename', 'duplicate', 'trash'])]}
             onAction={(key) => {
               if (key === 'new') create();
               else if (key === 'open') open();
+              else if (key === 'import') files.asProject();
+              else if (key === 'insert') files.intoDesign();
               else if (key === 'rename') setDialog('rename');
               else if (key === 'trash') setDialog('trash');
               else if (key === 'duplicate') run(() => api.duplicate());
@@ -124,6 +128,8 @@ export function ProjectMenu({ designName }: { designName: string }) {
           >
             <Item id="new" icon={<IconFilePlus className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.new')} shortcut="Ctrl+N" testId="project-new" />
             <Item id="open" icon={<IconFolderOpen className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.open')} shortcut="Ctrl+O" testId="project-open" />
+            <Item id="import" icon={<IconFileImport className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.import')} testId="project-import" />
+            <Item id="insert" icon={<IconPackageImport className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.insert')} testId="project-insert" />
             <Separator className="my-1 border-t border-border" />
             <Item id="rename" icon={<IconPencil className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.rename')} testId="project-rename" />
             <Item id="duplicate" icon={<IconCopy className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.duplicate')} testId="project-duplicate" />

@@ -46,6 +46,8 @@ export const invokeChannels = {
   designMeasure: 'design:measure',
   designTimeline: 'design:timeline',
   designVisibility: 'design:visibility',
+  designInsert: 'design:insert',
+  designRepair: 'design:repair',
   designGoToStep: 'design:go-to-step',
   designDimensions: 'design:dimensions',
   designProbeParameter: 'design:probe-parameter',

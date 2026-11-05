@@ -64,6 +64,20 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   `solid.shell {faces, thickness}`; `inspect.measure` with two items gives distance and angle.
 - Countersunk hole inputs: Diameter, Countersink diameter, Countersink angle.
 
+### Import (0.40, checked 2026-11-05)
+
+- `file.insert_step {path}` (STEP, IGES, also FreeCAD and Rhino files) adds a `BaseFeature` in a new
+  component named after the file; the body keeps the solid's own name, which in a STEP written by
+  SolidCraft is the export file's name. `file.insert_mesh {path}` (STL, 3MF, OBJ, PLY, glTF) adds a
+  `MeshFeature`; the body is named after the file. Both embed the geometry: the source file may go
+  afterwards. `solidcraft-cli run script.json --save new.sc` builds a design from a file without the
+  open engine (the target folder must exist).
+- A mesh body mirrors like any body (one face entry). `body.repair` refuses mesh bodies ("convert it
+  first") and reports "nothing to repair" for a sound part; `mesh.convert` takes only closed,
+  consistently oriented meshes ("two triangles per edge"). There is no command to repair a mesh.
+- After `mesh.convert` the body's `feature` in `document.inspect` points at the conversion, so the
+  feature type tells mesh (`MeshFeature`), imported (`BaseFeature`) and modelled bodies apart.
+
 ### Kernel change to solidcore (0.40, checked 2026-11-05)
 
 - 29 designs of 0.30.1 rebuilt with 0.40.0-rc.2: 10 unchanged, 19 lose fillets, chamfers and

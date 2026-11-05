@@ -4,6 +4,7 @@ import { useProjectPreview } from './home/useProjectPreview';
 import { useAssistantBridge, useChatPersistence } from './assistant/useAssistantBridge';
 import { useNotesBridge } from './notes/useNotesBridge';
 import { PrintProfilesDialog } from './print/PrintProfilesDialog';
+import { FileDrop } from './shell/FileDrop';
 import { SolidCraftDialog } from './shell/SolidCraftDialog';
 import { usePrintBridge } from './print/usePrintBridge';
 import { usePrintCheck } from './print/usePrintCheck';
@@ -44,6 +45,7 @@ export function App() {
       <StatusBar />
       <PrintProfilesDialog />
       <SolidCraftDialog />
+      <FileDrop />
     </div>
   );
 }
