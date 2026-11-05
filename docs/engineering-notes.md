@@ -78,6 +78,16 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 - After `mesh.convert` the body's `feature` in `document.inspect` points at the conversion, so the
   feature type tells mesh (`MeshFeature`), imported (`BaseFeature`) and modelled bodies apart.
 
+### Versions (0.40, checked 2026-11-05)
+
+- Saving an unchanged design writes the same bytes, so a hash tells whether a version is new.
+- `component.insert_design` refuses a copy of the open design ("can't be linked into itself": same
+  document id). A version is compared by writing it as STEP (`solidcraft-cli run --in v.sc --out
+  v.step`), inserting that on trial and running `inspect.compare {a, b}` per body pair; the failing
+  last step takes everything back.
+- `file.insert_step` replaces placeholder solid names such as `Body1` with the product's name (the
+  file name) unless `names: 'solid'` is given; an inserted body whose name exists gets ` (2)`.
+
 ### Kernel change to solidcore (0.40, checked 2026-11-05)
 
 - 29 designs of 0.30.1 rebuilt with 0.40.0-rc.2: 10 unchanged, 19 lose fillets, chamfers and

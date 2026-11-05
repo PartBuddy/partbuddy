@@ -1,5 +1,5 @@
-import { IconArrowBackUp, IconArrowForwardUp, IconChevronDown, IconDownload, IconExternalLink } from '@tabler/icons-react';
-import { useCallback, useEffect, useRef } from 'react';
+import { IconArrowBackUp, IconArrowForwardUp, IconChevronDown, IconDownload, IconExternalLink, IconHistory } from '@tabler/icons-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover, Tooltip, TooltipTrigger } from 'react-aria-components';
 
@@ -8,6 +8,7 @@ import { useAssistant, selectedStatus } from '../assistant/store';
 import { ExportConfirm } from '../print/ExportConfirm';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
+import { VersionsDialog } from './VersionsDialog';
 
 const iconButton =
   'inline-flex h-control-sm items-center justify-center gap-1 rounded-md px-2 text-sm text-text outline-none transition-colors ' +
@@ -58,6 +59,7 @@ export function DesignActions() {
   const connection = useStudio((s) => s.connection);
   const history = useStudio((s) => s.history);
   const model = useStudio((s) => s.model);
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const setNotice = useStudio((s) => s.setNotice);
   const assistantBusy = useAssistant((s) => selectedStatus(s.state).state === 'busy');
   const working = useRef(false);
@@ -148,6 +150,9 @@ export function DesignActions() {
       <ToolButton label={t('actions.redo')} shortcut="Ctrl+Y" isDisabled={!canRedo} onPress={redo} testId="redo">
         <IconArrowForwardUp className="size-icon-sm" aria-hidden />
       </ToolButton>
+      <ToolButton label={t('versions.title')} isDisabled={connection.state !== 'connected' || connection.engine !== 'headless'} onPress={() => setVersionsOpen(true)} testId="versions-button">
+        <IconHistory className="size-icon-sm" aria-hidden />
+      </ToolButton>
       <span aria-hidden className="mx-1 h-icon w-hairline bg-border" />
       <MenuTrigger>
         <AriaButton isDisabled={!connected || !hasBodies} className={iconButton} data-testid="export">
@@ -184,6 +189,7 @@ export function DesignActions() {
         </ToolButton>
       ) : null}
       <ExportConfirm onConfirm={exportNow} />
+      <VersionsDialog open={versionsOpen} onClose={() => setVersionsOpen(false)} />
     </div>
   );
 }

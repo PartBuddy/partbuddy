@@ -240,6 +240,20 @@ export const projectPreviewSchema = z
   })
   .strict();
 
+/** A saved version of the open project (B5), newest first in the list. */
+export const versionEntrySchema = z
+  .object({
+    id: z.string().regex(/^v-[a-z0-9]{1,20}$/),
+    created: z.number().nonnegative(),
+    reason: z.enum(['manual', 'export', 'assistant', 'restore']),
+    label: z.string().max(200),
+    preview: z.string().max(1_500_000).startsWith('data:image/png;base64,').nullable(),
+  })
+  .strict();
+export const versionListSchema = z.array(versionEntrySchema).max(300);
+export const versionSaveSchema = z.object({ label: z.string().trim().min(1).max(200) }).strict();
+export const versionIdSchema = z.object({ id: z.string().regex(/^v-[a-z0-9]{1,20}$/) }).strict();
+
 /** The colour theme: follow the system (Windows), or always light or dark. */
 export const themeSchema = z.enum(['system', 'light', 'dark']);
 export const themeRequestSchema = z.object({ theme: themeSchema }).strict();
@@ -251,6 +265,31 @@ const finite = z.number();
 const point3 = z.tuple([finite, finite, finite]);
 
 const bodyName = z.string().min(1).max(200);
+
+/**
+ * What changed between a version and the open design, body by body (B5, from `inspect.compare`):
+ * material added or removed since the version, with the places where it differs.
+ */
+export const versionComparisonSchema = z
+  .object({
+    bodies: z
+      .array(
+        z
+          .object({
+            body: bodyName,
+            status: z.enum(['same', 'changed', 'moved', 'added', 'removed']),
+            volumeBefore: finite.nullable(),
+            volumeAfter: finite.nullable(),
+            addedMm3: finite,
+            removedMm3: finite,
+            movedMm: finite,
+            regions: z.array(z.object({ side: z.enum(['added', 'removed']), volume: finite.nullable(), center: point3.nullable() }).strict()).max(20),
+          })
+          .strict(),
+      )
+      .max(500),
+  })
+  .strict();
 
 /**
  * What the user selected in PartBuddy's view, as the assistant gets it with a message: a few
@@ -747,6 +786,10 @@ export const invokeContract = {
   [invokeChannels.projectOpenFolder]: { request: projectOpenFolderSchema, response: projectOpenResultSchema },
   [invokeChannels.projectImport]: { request: importRequestSchema, response: projectOpenResultSchema },
   [invokeChannels.projectSavePreview]: { request: projectPreviewSchema, response: none },
+  [invokeChannels.projectVersions]: { request: none, response: versionListSchema },
+  [invokeChannels.projectSaveVersion]: { request: versionSaveSchema, response: none },
+  [invokeChannels.projectRestoreVersion]: { request: versionIdSchema, response: none },
+  [invokeChannels.projectCompareVersion]: { request: versionIdSchema, response: versionComparisonSchema },
   [invokeChannels.mirrorCurrent]: { request: none, response: mirrorRevisionSchema.nullable() },
   [invokeChannels.agentStatus]: { request: none, response: assistantStateSchema },
   [invokeChannels.agentRefresh]: { request: none, response: assistantStateSchema },
@@ -816,6 +859,8 @@ export type ProjectInfo = z.infer<typeof projectInfoSchema>;
 export type ProjectRenameResult = z.infer<typeof projectRenameResultSchema>;
 export type ProjectOpenResult = z.infer<typeof projectOpenResultSchema>;
 export type InsertResult = z.infer<typeof insertResultSchema>;
+export type VersionEntry = z.infer<typeof versionEntrySchema>;
+export type VersionComparison = z.infer<typeof versionComparisonSchema>;
 export type RepairResult = z.infer<typeof repairResultSchema>;
 export type ProjectCheck = z.infer<typeof projectCheckSchema>;
 export type ProjectEntry = z.infer<typeof projectEntrySchema>;

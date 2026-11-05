@@ -643,5 +643,33 @@
       "warn": "Hints",
       "block": "Not ready to print"
     }
+  },
+  "versions": {
+    "title": "Versions",
+    "close": "Close versions",
+    "name": "Name of the version",
+    "namePlaceholder": "For example: before the lid",
+    "save": "Save version",
+    "hint": "PartBuddy also saves a version at every export and before each request to the assistant when the design changed.",
+    "empty": "No versions yet. The project gets one once it has content.",
+    "list": "{count, plural, one {# version} other {# versions}}",
+    "compare": "Compare with now",
+    "comparing": "Comparing …",
+    "restore": "Restore",
+    "restoreQuestion": "Keep the current state as a version and open this one?",
+    "restored": "The version is open again; the state before is kept as a version.",
+    "compareEmpty": "Neither the version nor the design has a body.",
+    "compareSame": "Nothing changed since this version.",
+    "same": "unchanged",
+    "added": "new since this version",
+    "removed": "removed since this version",
+    "changed": "{added} mm³ added, {removed} mm³ removed ({regions, plural, one {# place} other {# places}})",
+    "moved": "moved by {distance} mm",
+    "reason": {
+      "manual": "Saved by you",
+      "export": "At export",
+      "assistant": "Before the assistant",
+      "restore": "Before restoring"
+    }
   }
 }

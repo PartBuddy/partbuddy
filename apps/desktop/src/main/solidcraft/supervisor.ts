@@ -245,31 +245,99 @@ export class SolidCraftSupervisor {
    * `solidcraft-cli run`, without touching the open design; the project opens it afterwards.
    */
   async designFromFile(source: string, kind: Exclude<ImportKind, 'design'>, target: string): Promise<void> {
-    const executable = findExecutable(this.options.environment);
-    if (!executable) throw new Error('SolidCraft is not installed');
-    const cli = cliBeside(executable);
-    if (!existsSync(cli)) throw new Error('SolidCraft is installed without solidcraft-cli');
+    const cli = this.cli();
     await mkdir(this.options.cacheDir, { recursive: true });
     await mkdir(dirname(target), { recursive: true });
     const script = join(this.options.cacheDir, `import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.json`);
     await writeFile(script, JSON.stringify([insertCommand(kind, source)]));
     try {
-      await new Promise<void>((done, fail) => {
-        // Argument array, no shell (architecture: security boundaries).
-        execFile(
-          cli,
-          ['run', script, '--save', target, '--quiet'],
-          { env: this.options.environment.env, windowsHide: true, timeout: 10 * 60 * 1000, maxBuffer: 4 * 1024 * 1024 },
-          (error, _stdout, stderr) => {
-            if (!error) done();
-            else fail(new Error(stderr.trim().replace(/^error:\s*/i, '').slice(0, 500) || error.message));
-          },
-        );
-      });
+      await this.runCli(cli, ['run', script, '--save', target, '--quiet']);
       if (!existsSync(target)) throw new Error('SolidCraft wrote no design');
     } finally {
       await rm(script, { force: true });
     }
+  }
+
+  /** `solidcraft-cli` beside the SolidCraft PartBuddy uses. */
+  private cli(): string {
+    const executable = findExecutable(this.options.environment);
+    if (!executable) throw new Error('SolidCraft is not installed');
+    const cli = cliBeside(executable);
+    if (!existsSync(cli)) throw new Error('SolidCraft is installed without solidcraft-cli');
+    return cli;
+  }
+
+  private runCli(cli: string, args: string[]): Promise<void> {
+    return new Promise<void>((done, fail) => {
+      // Argument array, no shell (architecture: security boundaries).
+      execFile(cli, args, { env: this.options.environment.env, windowsHide: true, timeout: 10 * 60 * 1000, maxBuffer: 4 * 1024 * 1024 }, (error, _stdout, stderr) => {
+        if (!error) done();
+        else fail(new Error(stderr.trim().replace(/^error:\s*/i, '').slice(0, 500) || error.message));
+      });
+    });
+  }
+
+  /**
+   * Saves the open design now instead of after the quiet time (B5: a version copies the file).
+   * Returns the design file, or null while the design has no project yet.
+   */
+  async saveNow(): Promise<string | null> {
+    if (this.autosaveTimer) {
+      clearTimeout(this.autosaveTimer);
+      this.autosaveTimer = null;
+      await this.autosave();
+    }
+    await this.autosaving;
+    return this.designFile;
+  }
+
+  /**
+   * Compares a saved version with the open design (B5). The version's bodies are written as STEP
+   * by `solidcraft-cli` (a design cannot be linked into itself), inserted on trial and compared
+   * body by body with `inspect.compare`; the trial leaves the design as it was. Bodies are paired
+   * by name: SolidCraft names an inserted body that exists already `Name (2)`.
+   */
+  async compareWith(versionFile: string): Promise<{ pairs: { body: string; result: unknown }[]; onlyInVersion: string[]; onlyNow: string[] }> {
+    const cli = this.cli();
+    const folder = join(this.options.cacheDir, `compare-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+    await mkdir(folder, { recursive: true });
+    try {
+      const step = join(folder, 'version.step');
+      await this.runCli(cli, ['run', '--in', versionFile, '--out', step, '--quiet']);
+      const insert = { command: 'file.insert_step', params: { path: step, name: 'PartBuddy version', names: 'solid' } };
+      const first = await this.trialInCache([insert]);
+      const created = (first?.[0] as { created_bodies?: unknown } | undefined)?.created_bodies;
+      const versionBodies = Array.isArray(created) ? created.filter((name): name is string => typeof name === 'string') : [];
+      const current = this.latest?.structure.bodies.map((body) => body.name) ?? [];
+      const pairs: { version: string; body: string }[] = [];
+      const onlyInVersion: string[] = [];
+      for (const name of versionBodies) {
+        const base = name.replace(/ \(\d+\)$/, '');
+        if (base !== name && current.includes(base)) pairs.push({ version: name, body: base });
+        else onlyInVersion.push(name);
+      }
+      const paired = new Set(pairs.map((pair) => pair.body));
+      const onlyNow = current.filter((name) => !paired.has(name));
+      if (pairs.length === 0) return { pairs: [], onlyInVersion, onlyNow };
+      const second = await this.trialInCache([insert, ...pairs.map((pair) => ({ command: 'inspect.compare', params: { a: pair.version, b: pair.body } }))]);
+      if (!second) throw new Error('the versions could not be compared');
+      return { pairs: pairs.map((pair, i) => ({ body: pair.body, result: second[i + 1] })), onlyInVersion, onlyNow };
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
+  }
+
+  /** Like `trialSteps`, for steps that read files from the cache folder. */
+  private trialInCache(steps: { command: string; params: Record<string, unknown> }[]): Promise<unknown[] | null> {
+    return this.trial(async () => {
+      const reply = await this.requester().request<BatchResult & { failed?: { index: number; error: string } }>(
+        'engine.batch',
+        { commands: [...steps, { command: 'sketch.inspect', params: { sketch: 2147483647 } }], rollback: true, allow_paths: [this.options.cacheDir] },
+        10 * 60 * 1000,
+      );
+      if (reply.failed && reply.failed.index < steps.length) throw new Error(reply.failed.error);
+      return reply.failed?.index === steps.length ? reply.results.slice(0, steps.length) : null;
+    });
   }
 
   /**

@@ -8,6 +8,8 @@ import type {
   ProjectEntry,
   ProjectOpenResult,
   InsertResult,
+  VersionComparison,
+  VersionEntry,
   RepairResult,
   ProjectPreview,
   ProjectRenameResult,
@@ -74,6 +76,14 @@ export interface PartBuddyApi {
     import(path?: string): Promise<ProjectOpenResult>;
     /** The path of a file dropped onto the window, for import (B4); empty for a file without one. */
     pathOfFile(file: File): string;
+    /** The saved versions of the open project, newest first (B5). */
+    versions(): Promise<VersionEntry[]>;
+    /** Saves the open design as a version with the user's name. */
+    saveVersion(label: string): Promise<void>;
+    /** Opens a version in place of the design; the state before is kept as a version first. */
+    restoreVersion(id: string): Promise<void>;
+    /** What changed between a version and the open design. */
+    compareVersion(id: string): Promise<VersionComparison>;
     /** Keeps the preview picture of the open project (base64 PNG) and its ready-to-print light. */
     savePreview(preview: ProjectPreview): Promise<void>;
   };
