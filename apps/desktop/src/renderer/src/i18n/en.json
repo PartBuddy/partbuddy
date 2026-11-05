@@ -242,12 +242,18 @@
     }
   },
   "live": {
-    "step": "Step {number} · {label}",
     "thinking": "The assistant is planning the next step",
     "changed": "{count, plural, one {# face changed} other {# faces changed}}",
     "clear": "Hide the change highlight",
     "follow": "Camera follows changes",
     "sketchChanged": "{count, plural, one {# sketch curve changed} other {# sketch curves changed}}"
+  },
+  "build": {
+    "title": "The assistant is building",
+    "running": "Now: {what}",
+    "last": "Last: {what}",
+    "working": "Working in SolidCraft",
+    "progress": "{steps, plural, =0 {No change yet} one {# change} other {# changes}} · {calls, plural, one {# call to SolidCraft} other {# calls to SolidCraft}}"
   },
   "actions": {
     "toolbar": "Design actions",
