@@ -1,4 +1,4 @@
-import { IconBox, IconEye, IconEyeOff, IconPencil } from '@tabler/icons-react';
+import { IconBox, IconEye, IconEyeOff } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ToggleButton } from 'react-aria-components';
@@ -6,6 +6,7 @@ import { ToggleButton } from 'react-aria-components';
 import { NotesSection } from '../notes/NotesSection';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
+import { CadIcon } from '../ui/CadIcon';
 
 function Row({ icon, name, note, visible, onToggle, testId }: { icon: ReactNode; name: string; note?: string; visible: boolean; onToggle: (visible: boolean) => void; testId: string }) {
   const { t } = useTranslation();
@@ -77,7 +78,7 @@ export function StructurePanel() {
           {sketches.map((sketch) => (
             <Row
               key={sketch.id}
-              icon={<IconPencil className="size-icon-sm shrink-0" aria-hidden />}
+              icon={<CadIcon name="sketch" className="size-icon-sm shrink-0" />}
               name={sketch.name || `#${String(sketch.id)}`}
               {...(editing.has(sketch.id) ? { note: t('structure.editing') } : {})}
               visible={sketch.visible}

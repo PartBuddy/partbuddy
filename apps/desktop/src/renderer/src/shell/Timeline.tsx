@@ -1,20 +1,4 @@
-import {
-  IconAlertCircle,
-  IconAlertTriangle,
-  IconArrowBarUp,
-  IconBox,
-  IconCircleDot,
-  IconCylinder,
-  IconFlipVertical,
-  IconGridDots,
-  IconLayersSubtract,
-  IconPencil,
-  IconPlayerTrackNext,
-  IconPoint,
-  IconRotate360,
-  IconRuler2,
-  IconVectorBezier2,
-} from '@tabler/icons-react';
+import { IconAlertCircle, IconAlertTriangle, IconBox, IconCylinder, IconPlayerTrackNext, IconPoint } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover } from 'react-aria-components';
@@ -23,31 +7,44 @@ import type { TimelineCommand, TimelineFeature } from '../../../shared/contract'
 import { selectedStatus, useAssistant } from '../assistant/store';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
+import { CadIcon, type CadIconName } from '../ui/CadIcon';
 
 /** "ExtrudeFeature" → "Extrude": the kind of step, as the timeline names it. */
 export function featureKind(type: string): string {
   return type.replace(/Feature$/, '');
 }
 
-const ICONS: Record<string, ReactNode> = {
-  Sketch: <IconPencil className="size-icon-sm" aria-hidden />,
-  Extrude: <IconArrowBarUp className="size-icon-sm" aria-hidden />,
-  Revolve: <IconRotate360 className="size-icon-sm" aria-hidden />,
-  Fillet: <IconVectorBezier2 className="size-icon-sm" aria-hidden />,
-  Chamfer: <IconRuler2 className="size-icon-sm" aria-hidden />,
-  Hole: <IconCircleDot className="size-icon-sm" aria-hidden />,
-  Shell: <IconLayersSubtract className="size-icon-sm" aria-hidden />,
-  Box: <IconBox className="size-icon-sm" aria-hidden />,
-  Cylinder: <IconCylinder className="size-icon-sm" aria-hidden />,
-  Mirror: <IconFlipVertical className="size-icon-sm" aria-hidden />,
+/** CAD operations by feature kind (ADR 0023); primitives keep Tabler's box and cylinder. */
+const CAD_ICONS: Record<string, CadIconName> = {
+  Sketch: 'sketch',
+  Extrude: 'extrude',
+  Revolve: 'revolve',
+  Sweep: 'sweep',
+  Loft: 'loft',
+  Fillet: 'fillet',
+  Chamfer: 'chamfer',
+  Hole: 'hole',
+  Shell: 'shell',
+  Mirror: 'mirror',
+  Split: 'split',
+  Thread: 'helix',
+  Helix: 'helix',
+  Combine: 'union',
+  Plane: 'plane',
+  ConstructionPlane: 'plane',
 };
 
 function iconOf(feature: TimelineFeature): ReactNode {
   if (feature.error) return <IconAlertCircle className="size-icon-sm text-danger" aria-hidden />;
   if (feature.warning) return <IconAlertTriangle className="size-icon-sm text-warning" aria-hidden />;
   const kind = featureKind(feature.type);
-  if (kind.startsWith('Pattern')) return <IconGridDots className="size-icon-sm" aria-hidden />;
-  return ICONS[kind] ?? <IconPoint className="size-icon-sm" aria-hidden />;
+  if (kind === 'Box') return <IconBox className="size-icon-sm" aria-hidden />;
+  if (kind === 'Cylinder') return <IconCylinder className="size-icon-sm" aria-hidden />;
+  if (kind.includes('Pattern')) {
+    return <CadIcon name={kind.includes('Circular') ? 'patternCircular' : 'patternLinear'} className="size-icon-sm" />;
+  }
+  const name = CAD_ICONS[kind];
+  return name ? <CadIcon name={name} className="size-icon-sm" /> : <IconPoint className="size-icon-sm" aria-hidden />;
 }
 
 /**

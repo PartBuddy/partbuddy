@@ -48,7 +48,7 @@
     },
     "notes": "{count, plural, one {# Notiz} other {# Notizen}}",
     "rollbackEnd": "Ende der Zeitleiste",
-    "featureError": "Rundung passt nicht: Radius größer, als die angrenzende Fläche erlaubt",
+    "featureError": "Verrundung passt nicht: Radius größer, als die angrenzende Fläche erlaubt",
     "errors": "{count, plural, one {# Fehler} other {# Fehler}}"
   },
   "parameters": {
