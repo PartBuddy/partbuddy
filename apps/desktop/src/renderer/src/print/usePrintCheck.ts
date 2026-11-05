@@ -26,6 +26,7 @@ export function usePrintCheck(): void {
         model.bodies,
         { bed: print.printer.bed, nozzle: print.printer.nozzle, overhang: print.material.overhang },
         model.structure.features,
+        print.orientation.down,
       );
       useStudio.getState().setPrintCheck({ revision: model.revision, result });
       void platform()

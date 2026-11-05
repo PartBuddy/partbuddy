@@ -595,3 +595,44 @@ test('the ready-to-print light follows the printer, points at its findings and a
   await confirm.getByTestId('export-confirm-cancel').click();
   await expect(confirm).toHaveCount(0);
 });
+
+test('the print orientation is proposed, set from a face, and loads are marked (M7)', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+  const light = page.getByTestId('print-check');
+  await expect(light).toHaveAttribute('data-status', 'ready');
+
+  // The proposal lists the best ways to lay the clip, with the numbers that decided.
+  await light.click();
+  const section = page.getByTestId('orientation');
+  await expect(section.getByTestId('orientation-current')).toHaveText('As designed, +Z up');
+  await section.getByTestId('orientation-propose').click();
+  const options = section.getByTestId('orientation-option');
+  await expect(options).toHaveCount(3);
+  await expect(options.first()).toContainText('Recommended');
+  await expect(options.first()).toContainText(/Support [\d,]+ mm² · on the bed [\d,]+ mm² · height [\d.]+ mm/);
+  await page.screenshot({ path: test.info().outputPath('orientation-proposal.png') });
+  await page.keyboard.press('Escape');
+
+  // A face in the middle of the view: print the part lying on it.
+  const box = await page.getByTestId('viewport').boundingBox();
+  if (!box) throw new Error('viewport not visible');
+  await expect(async () => {
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(page.getByTestId('selected-face')).toHaveText(/^F\d+:/, { timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  const face = (await page.getByTestId('selected-face').textContent()) ?? '';
+  await page.getByTestId('mark-load').click();
+  await expect(page.getByTestId('mark-load')).toHaveAttribute('data-marked', 'true');
+  await page.getByTestId('print-on-face').click();
+  await expect(page.getByTestId('notice')).toContainText('Now lying on');
+  await page.getByTestId('overhang').click();
+  await expect(page.getByTestId('overhang-direction')).toContainText('Printed lying on');
+
+  await light.click();
+  await expect(section.getByTestId('orientation-current')).toContainText(`Lying on ${face.split(' ')[0] ?? ''}`);
+  await expect(section.getByTestId('orientation-loads')).toHaveText('Load marked on 1 face');
+  await section.getByTestId('orientation-reset').click();
+  await expect(section.getByTestId('orientation-current')).toHaveText('As designed, +Z up');
+});

@@ -63,6 +63,8 @@ const api: PartBuddyApi = {
     setMaterial: (material) => ipcRenderer.invoke(invokeChannels.printSetMaterial, { material }),
     onChange: (listener) => subscribe(eventChannels.printChanged, listener),
     reportCheck: (report) => ipcRenderer.invoke(invokeChannels.printReportCheck, report),
+    setOrientation: (orientation) => ipcRenderer.invoke(invokeChannels.printSetOrientation, orientation),
+    setLoads: (loads) => ipcRenderer.invoke(invokeChannels.printSetLoads, { loads }),
   },
   viewer: {
     report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),

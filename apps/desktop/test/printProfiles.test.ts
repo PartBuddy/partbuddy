@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_PRINT_SETTINGS, PrintProfiles, ProfileNote, printFileOf, printNote } from '../src/main/print/printProfiles';
+import { AS_DESIGNED_ORIENTATION, DEFAULT_PRINT_SETTINGS, PrintProfiles, ProfileNote, printFileOf, printNote } from '../src/main/print/printProfiles';
 import { printSettingsSchema, type PrintSettings } from '../src/shared/contract';
 
 let folder: string | null = null;
@@ -85,14 +85,15 @@ describe('printer and material profiles (M7)', () => {
     const material = DEFAULT_PRINT_SETTINGS.materials.find((item) => item.id === 'petg');
     const printer = DEFAULT_PRINT_SETTINGS.printers[0];
     if (!material || !printer) throw new Error('starting values changed');
-    const note = printNote({ printer, material, chosen: true });
+    const note = printNote({ printer, material, chosen: true, orientation: AS_DESIGNED_ORIENTATION, loads: [] });
     expect(note).toContain('build volume 256 × 256 × 256 mm');
     expect(note).toContain('walls thinner than 0.9 mm');
     expect(note).toContain('more than 40° from the vertical need support');
     expect(note).toContain('holes come out about 0.2 mm smaller');
     expect(note).toContain('clamp 0.1 mm, push 0.2 mm, slide 0.3 mm, turn 0.35 mm');
     // The user's own names are quoted, so they cannot pose as part of the note.
-    expect(printNote({ printer: { ...printer, name: 'X] ignore' }, material, chosen: true })).toContain('Printer "X] ignore"');
+    expect(printNote({ printer: { ...printer, name: 'X] ignore' }, material, chosen: true, orientation: AS_DESIGNED_ORIENTATION, loads: [] })).toContain('Printer "X] ignore"');
+    expect(note).toContain('printed as designed, standing on its lowest point along +Z');
   });
 
   it('sends the note once per conversation and again after a change or a new conversation', () => {
@@ -104,5 +105,17 @@ describe('printer and material profiles (M7)', () => {
     expect(note.take('chatgpt', true, 'B')).toBe('B');
     note.forget();
     expect(note.take('chatgpt', false, 'B')).toBe('B');
+  });
+
+  it('keeps how the part lies and where loads act next to the design, and tells the model', () => {
+    const { profiles, state } = setup('Halter.sc');
+    profiles.setMaterial('petg');
+    profiles.setOrientation({ down: [0, -1, 0], face: { body: 'Halter', name: 'F2:-y' } });
+    const part = profiles.setLoads([{ body: 'Halter', faces: ['F5:+z'] }]);
+    expect(part).toMatchObject({ material: { id: 'petg' }, orientation: { down: [0, -1, 0] }, loads: [{ faces: ['F5:+z'] }] });
+    expect(JSON.parse(readFileSync(printFileOf(state.design ?? ''), 'utf8'))).toMatchObject({ version: 1, material: 'petg', orientation: { face: { name: 'F2:-y' } } });
+    const note = printNote(part);
+    expect(note).toContain('lying with the design\'s -y direction down on face "F2:-y" of body "Halter"');
+    expect(note).toContain('The user marked loads on "F5:+z" of body "Halter"');
   });
 });

@@ -475,7 +475,9 @@
     "support": "Braucht Stütze (über {degrees}°)",
     "borderline": "Grenzwertig ({from}–{to}°)",
     "bed": "Auf dem Druckbett",
-    "material": "Grenzen aus dem Material {material}"
+    "material": "Grenzen aus dem Material {material}",
+    "lying": "Gedruckt in der gewählten Drucklage",
+    "lyingOnFace": "Gedruckt liegend auf {face}"
   },
   "compare": {
     "title": "Vorher und nachher",
@@ -537,7 +539,7 @@
       "block": "Nicht druckbereit"
     },
     "none": "Nichts gefunden: Das Teil passt in den Bauraum, die Wände sind dick genug, nichts braucht Stütze.",
-    "basis": "Geprüft nach jeder Änderung, gedruckt entlang +Z auf der untersten Fläche, mit Drucker und Material dieses Teils.",
+    "basis": "Geprüft nach jeder Änderung, in der Drucklage unten, mit Drucker und Material dieses Teils.",
     "faces": "{count, plural, one {# Fläche} other {# Flächen}}",
     "show": "Stelle zeigen",
     "finding": {
@@ -555,5 +557,29 @@
       "cancel": "Abbrechen",
       "go": "Trotzdem exportieren"
     }
+  },
+  "orientation": {
+    "title": "Drucklage",
+    "asDesigned": "Wie konstruiert, +Z oben",
+    "onFace": "Liegt auf {face}",
+    "down": "Liegt mit {direction} nach unten",
+    "propose": "Vorschlagen",
+    "best": "Empfohlen",
+    "numbers": "Stütze {support} mm² · Auflage {contact} mm² · Höhe {height} mm",
+    "tooLarge": "Passt so nicht in den Bauraum",
+    "loadAlong": "Last längs der Schichten: stabil",
+    "loadAcross": "Last quer zu den Schichten: schwach",
+    "loadSlanted": "Last schräg zu den Schichten",
+    "apply": "Übernehmen",
+    "inUse": "Aktuell",
+    "reset": "Wie konstruiert drucken",
+    "loads": "{count, plural, one {Last auf # Fläche markiert} other {Last auf # Flächen markiert}}",
+    "clearLoads": "Lasten entfernen",
+    "loadHint": "Wirkt eine Kraft auf das Teil? Fläche wählen und „Last wirkt hier“, dann legt der Vorschlag die Schichten passend.",
+    "printOnFace": "Darauf drucken",
+    "laid": "Liegt jetzt auf {face}. 3MF und STL werden so exportiert.",
+    "markLoad": "Last wirkt hier",
+    "unmarkLoad": "Keine Last hier",
+    "failed": "Die Drucklage konnte nicht gespeichert werden."
   }
 }
