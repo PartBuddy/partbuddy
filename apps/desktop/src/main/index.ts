@@ -202,6 +202,9 @@ if (!app.requestSingleInstanceLock()) {
     const projectStore = new ProjectStore(projects, designsDir, german ? 'Teil' : 'Part');
     const migrated = migrateDesigns(designsDir, projectStore, log);
     if (migrated > 0) log(`${String(migrated)} earlier designs became projects`);
+    // The first-start setup (B9) shows once; not for installations that have projects already and
+    // not in tests that start without it (PARTBUDDY_FIRST_START=0).
+    const setupNeeded = process.env.PARTBUDDY_FIRST_START !== '0' && !general.setupDone() && projectStore.list().length === 0;
     // The work log of the conversation (M2a); made once the supervisor exists.
     let workLog: WorkLog | null = null;
     // Notes on the model (M2b, ADR 0020); made once the supervisor exists.
@@ -371,6 +374,7 @@ if (!app.requestSingleInstanceLock()) {
         projectsFolder: folder,
         projectsSource: override ? ('override' as const) : chosen ? ('setting' as const) : ('default' as const),
         restartNeeded: resolve(folder) !== resolve(projects),
+        setupDone: !setupNeeded || general.setupDone(),
       };
     };
     bridge.handle(invokeChannels.settingsGeneral, generalInfo);
@@ -392,6 +396,11 @@ if (!app.requestSingleInstanceLock()) {
         general.setProjectsFolder(resolve(folder) === resolve(defaultProjects) ? null : folder);
         log('chose another project folder');
       }
+      return generalInfo();
+    });
+    bridge.handle(invokeChannels.settingsFinishSetup, () => {
+      general.finishSetup();
+      log('the first-start setup is done');
       return generalInfo();
     });
     bridge.handle(invokeChannels.settingsResetProjectsFolder, () => {

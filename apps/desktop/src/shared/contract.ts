@@ -273,6 +273,8 @@ export const generalSettingsSchema = z
     projectsFolder: z.string().max(1000),
     projectsSource: z.enum(['default', 'setting', 'override']),
     restartNeeded: z.boolean(),
+    /** False until the first-start setup (B9) was finished or skipped. */
+    setupDone: z.boolean(),
   })
   .strict();
 
@@ -871,6 +873,7 @@ export const invokeContract = {
   [invokeChannels.settingsSetLanguage]: { request: languageRequestSchema, response: generalSettingsSchema },
   [invokeChannels.settingsChooseProjectsFolder]: { request: none, response: generalSettingsSchema },
   [invokeChannels.settingsResetProjectsFolder]: { request: none, response: generalSettingsSchema },
+  [invokeChannels.settingsFinishSetup]: { request: none, response: generalSettingsSchema },
   [invokeChannels.designUndo]: { request: none, response: none },
   [invokeChannels.designRedo]: { request: none, response: none },
   [invokeChannels.designExport]: { request: exportRequestSchema, response: exportResultSchema },

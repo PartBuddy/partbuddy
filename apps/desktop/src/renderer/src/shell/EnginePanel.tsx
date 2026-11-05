@@ -18,7 +18,7 @@ const badgeClass: Record<EngineInfo['support'], string> = {
  * 0.30.1). A new choice takes effect after a restart, so the open design never changes kernel. In
  * its own dialog and in the settings (B6).
  */
-export function EnginePanel({ close }: { close: () => void }) {
+export function EnginePanel({ close, closable = true }: { close: () => void; closable?: boolean }) {
   const { t } = useTranslation();
   const [info, setInfo] = useState<EngineInfo | null>(null);
   const [error, setError] = useState<EngineChoiceError | null>(null);
@@ -99,11 +99,11 @@ export function EnginePanel({ close }: { close: () => void }) {
         <Button variant="primary" onPress={() => void platform().relaunch()} data-testid="engine-restart">
           {t('engine.restart')}
         </Button>
-      ) : (
+      ) : closable ? (
         <Button variant="primary" onPress={close}>
           {t('engine.close')}
         </Button>
-      )}
+      ) : null}
     </div>
     </>
   );

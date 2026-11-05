@@ -45,6 +45,7 @@ export const invokeChannels = {
   settingsSetLanguage: 'settings:set-language',
   settingsChooseProjectsFolder: 'settings:choose-projects-folder',
   settingsResetProjectsFolder: 'settings:reset-projects-folder',
+  settingsFinishSetup: 'settings:finish-setup',
   designUndo: 'design:undo',
   designRedo: 'design:redo',
   designExport: 'design:export',

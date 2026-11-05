@@ -49,6 +49,40 @@ function Choice<T extends string>({ label, value, options, onChange, testId }: {
   );
 }
 
+/** The project folder with "choose another" and "back to Documents" (B6); also in the first-start setup (B9). */
+export function ProjectsFolderField({ info, onChange }: { info: GeneralSettingsInfo; onChange: (info: GeneralSettingsInfo) => void }) {
+  const { t } = useTranslation();
+  return (
+    <Field label={t('settings.projects.title')}>
+      <div className="flex items-start gap-2 text-sm text-text">
+        <IconFolder className="mt-1 size-icon-sm shrink-0 text-text-muted" aria-hidden />
+        <span className="break-all" data-testid="settings-projects-folder">
+          {info.projectsFolder}
+        </span>
+      </div>
+      <p className="text-xs text-text-subtle">{t(`settings.projects.source.${info.projectsSource}`)}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button isDisabled={info.projectsSource === 'override'} onPress={() => void platform().settings.chooseProjectsFolder().then(onChange)} data-testid="settings-projects-choose">
+          {t('settings.projects.choose')}
+        </Button>
+        {info.projectsSource === 'setting' ? (
+          <Button onPress={() => void platform().settings.resetProjectsFolder().then(onChange)} data-testid="settings-projects-reset">
+            {t('settings.projects.reset')}
+          </Button>
+        ) : null}
+      </div>
+      {info.restartNeeded ? (
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-md bg-warning-subtle px-3 py-2 text-sm text-text" data-testid="settings-restart-hint">
+          <span className="flex-1">{t('settings.projects.restartHint')}</span>
+          <Button variant="primary" onPress={() => void platform().relaunch()} data-testid="settings-restart">
+            {t('engine.restart')}
+          </Button>
+        </div>
+      ) : null}
+    </Field>
+  );
+}
+
 /** Language, colour theme and project folder (B6). */
 function GeneralSection() {
   const { t } = useTranslation();
@@ -99,33 +133,7 @@ function GeneralSection() {
           testId="settings-theme"
         />
       </Field>
-      <Field label={t('settings.projects.title')}>
-        <div className="flex items-start gap-2 text-sm text-text">
-          <IconFolder className="mt-1 size-icon-sm shrink-0 text-text-muted" aria-hidden />
-          <span className="break-all" data-testid="settings-projects-folder">
-            {info.projectsFolder}
-          </span>
-        </div>
-        <p className="text-xs text-text-subtle">{t(`settings.projects.source.${info.projectsSource}`)}</p>
-        <div className="flex flex-wrap gap-2">
-          <Button isDisabled={info.projectsSource === 'override'} onPress={() => void platform().settings.chooseProjectsFolder().then(setInfo)} data-testid="settings-projects-choose">
-            {t('settings.projects.choose')}
-          </Button>
-          {info.projectsSource === 'setting' ? (
-            <Button onPress={() => void platform().settings.resetProjectsFolder().then(setInfo)} data-testid="settings-projects-reset">
-              {t('settings.projects.reset')}
-            </Button>
-          ) : null}
-        </div>
-        {info.restartNeeded ? (
-          <div role="status" className="flex flex-wrap items-center gap-2 rounded-md bg-warning-subtle px-3 py-2 text-sm text-text" data-testid="settings-restart-hint">
-            <span className="flex-1">{t('settings.projects.restartHint')}</span>
-            <Button variant="primary" onPress={() => void platform().relaunch()} data-testid="settings-restart">
-              {t('engine.restart')}
-            </Button>
-          </div>
-        ) : null}
-      </Field>
+      <ProjectsFolderField info={info} onChange={setInfo} />
     </div>
   );
 }

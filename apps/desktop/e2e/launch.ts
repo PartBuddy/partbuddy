@@ -40,6 +40,8 @@ export async function launchApp(
     PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
     // Most tests start in the work area with the last project; the start page tests turn it on (B3).
     PARTBUDDY_START_PAGE: '0',
+    // The first-start setup (B9) only where a test asks for it.
+    PARTBUDDY_FIRST_START: '0',
     // Beside all displays, without focus or taskbar button: tests never disturb the developer.
     // PARTBUDDY_WINDOW_DISPLAY=leftmost shows the window on purpose.
     PARTBUDDY_WINDOW_DISPLAY: process.env.PARTBUDDY_WINDOW_DISPLAY === 'leftmost' ? 'leftmost' : 'offscreen',

@@ -742,5 +742,24 @@
     "action": "Auf dieser Fläche drucken",
     "hint": "Der Slicer legt den Körper auf diese Fläche. Eine Fläche je Körper; eine andere ersetzt sie.",
     "done": "{name} liegt im Slicer auf dieser Fläche."
+  },
+  "firstStart": {
+    "title": "Willkommen bei PartBuddy",
+    "progress": "Schritt {step} von {count}: {name}",
+    "step": {
+      "solidcraft": "SolidCraft",
+      "assistant": "Assistent",
+      "print": "Drucker und Material",
+      "projects": "Projektordner"
+    },
+    "solidcraft": "PartBuddy zeigt und ändert deine Teile über SolidCraft, ein freies CAD-Programm, das im Hintergrund läuft. PartBuddy sucht es selbst; ist es nicht installiert, lade es herunter und such erneut.",
+    "download": "SolidCraft herunterladen (GitHub)",
+    "assistant": "Wähle den Assistenten, den du schon bezahlst: Claude über dein Claude Code oder ChatGPT mit deinem Abo. Anmelden geht auch später.",
+    "print": "Trag Drucker und Material einmal ein; der Assistent konstruiert passend dazu. Speichern oder diesen Schritt überspringen.",
+    "projects": "Jedes Projekt bekommt hier einen eigenen Ordner mit Design, Gespräch, Versionen und Exporten.",
+    "skip": "Einrichtung überspringen",
+    "back": "Zurück",
+    "next": "Weiter",
+    "done": "Fertig"
   }
 }

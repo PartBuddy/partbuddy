@@ -742,5 +742,24 @@
     "action": "Print on this face",
     "hint": "The slicer lays the body on this face. One face per body; choosing another replaces it.",
     "done": "{name} lies on this face in the slicer."
+  },
+  "firstStart": {
+    "title": "Welcome to PartBuddy",
+    "progress": "Step {step} of {count}: {name}",
+    "step": {
+      "solidcraft": "SolidCraft",
+      "assistant": "Assistant",
+      "print": "Printer and material",
+      "projects": "Project folder"
+    },
+    "solidcraft": "PartBuddy shows and changes your parts through SolidCraft, a free CAD program that runs in the background. PartBuddy looks for it on its own; if it is not installed, download it and look again.",
+    "download": "Download SolidCraft (GitHub)",
+    "assistant": "Choose the assistant you already pay for: Claude through your Claude Code, or ChatGPT with your plan. You can sign in later as well.",
+    "print": "Enter your printer and material once; the assistant designs for them. Save or skip this step.",
+    "projects": "Every project gets a folder of its own here, with the design, the conversation, versions and exports.",
+    "skip": "Skip setup",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done"
   }
 }

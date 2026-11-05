@@ -6,6 +6,7 @@ import { languageSchema, type Language } from '../shared/contract';
 interface Stored {
   language?: unknown;
   projectsFolder?: unknown;
+  setupDone?: unknown;
 }
 
 /**
@@ -53,5 +54,14 @@ export class GeneralSettings {
 
   setProjectsFolder(folder: string | null): void {
     this.write({ projectsFolder: folder });
+  }
+
+  /** Whether the first-start setup (B9) was finished or skipped. */
+  setupDone(): boolean {
+    return this.read().setupDone === true;
+  }
+
+  finishSetup(): void {
+    this.write({ setupDone: true });
   }
 }

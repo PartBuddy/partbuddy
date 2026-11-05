@@ -380,6 +380,46 @@ test('the settings switch the language at once and show the project folder and t
   }
 });
 
+test('the first start walks through SolidCraft, assistant, printer and project folder once (B9)', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-first-'));
+  try {
+    launched = await launchApp({ work, env: { PARTBUDDY_FIRST_START: '1' } });
+    let { page } = launched;
+    const setup = page.getByTestId('first-start');
+    await expect(setup).toHaveAttribute('data-step', 'solidcraft');
+    await expect(setup.getByTestId('first-start-download')).toHaveAttribute('href', 'https://github.com/tangency-labs/solidcraft/releases');
+    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="first-start"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    await page.screenshot({ path: test.info().outputPath('first-start.png') });
+    await setup.getByTestId('first-start-next').click();
+    await expect(setup).toHaveAttribute('data-step', 'assistant');
+    await expect(setup.getByRole('radio', { name: /^Claude Code/ })).toBeChecked();
+    await setup.getByTestId('first-start-next').click();
+    await expect(setup).toHaveAttribute('data-step', 'print');
+    await setup.getByTestId('printer-name').getByRole('textbox').fill('Werkstatt');
+    await setup.getByTestId('print-save').click();
+    await expect(setup).toHaveAttribute('data-step', 'projects');
+    await expect(setup.getByTestId('settings-projects-folder')).toHaveText(join(work, 'projects'));
+    await setup.getByTestId('first-start-back').click();
+    await expect(setup).toHaveAttribute('data-step', 'print');
+    await setup.getByTestId('first-start-next').click();
+    await setup.getByTestId('first-start-next').click();
+    await expect(setup).toHaveCount(0);
+    await expect(page.getByTestId('material-chip')).toContainText('Werkstatt');
+
+    // Once done, it does not come back.
+    await launched.close();
+    launched = await launchApp({ work, env: { PARTBUDDY_FIRST_START: '1' } });
+    ({ page } = launched);
+    await expect(page.getByTestId('connection-status')).toBeVisible();
+    await expect(page.getByTestId('first-start')).toHaveCount(0);
+  } finally {
+    await launched?.close();
+    launched = null;
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('the settings show which SolidCraft runs and its version (R0)', async () => {
   launched = await launchApp();
   const { page } = launched;
