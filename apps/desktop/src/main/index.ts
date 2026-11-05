@@ -4,11 +4,12 @@ import { homedir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen, session, shell } from 'electron';
 
 import { invokeChannels, eventChannels } from '../shared/channels';
 import type { AgentEvent, ExportFormat, ViewState } from '../shared/contract';
 import { AgentService } from './agents/agentService';
+import { AppearanceSettings } from './appearance';
 import { Assistant } from './agents/assistant';
 import { SolidCraftTools } from './agents/solidcraftTools';
 import type { UpstreamTools } from './agents/gateProxy';
@@ -167,6 +168,9 @@ if (!app.requestSingleInstanceLock()) {
       callback(false);
     });
 
+    const appearance = new AppearanceSettings(join(app.getPath('userData'), 'appearance.json'));
+    nativeTheme.themeSource = appearance.theme();
+
     const bridge = new Bridge(ipcMain, trustedSender(() => mainWindow?.webContents.id, rendererOrigin), !app.isPackaged);
     // The user's project folder: the only place the assistant's SolidCraft may read and write.
     // PARTBUDDY_PROJECTS_DIR: tests keep the user's documents untouched.
@@ -251,6 +255,13 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.windowTitleBar, (colors) => {
       if (process.platform !== 'darwin') mainWindow?.setTitleBarOverlay(colors);
       return undefined;
+    });
+    // The chosen theme drives Chromium's colour scheme, so the tokens and the window buttons follow.
+    bridge.handle(invokeChannels.windowTheme, () => appearance.theme());
+    bridge.handle(invokeChannels.windowSetTheme, ({ theme }) => {
+      appearance.setTheme(theme);
+      nativeTheme.themeSource = theme;
+      return theme;
     });
     bridge.handle(invokeChannels.viewerState, (state) => {
       viewState = state;

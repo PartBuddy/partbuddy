@@ -18,6 +18,8 @@ export const invokeChannels = {
   agentAllowApiBilling: 'agent:allow-api-billing',
   viewerState: 'viewer:state',
   windowTitleBar: 'window:title-bar',
+  windowTheme: 'window:theme',
+  windowSetTheme: 'window:set-theme',
   designUndo: 'design:undo',
   designRedo: 'design:redo',
   designExport: 'design:export',

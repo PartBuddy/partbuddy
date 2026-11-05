@@ -398,5 +398,14 @@
       "horizontal": "Horizontal",
       "vertical": "Vertikal"
     }
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "theme": {
+      "title": "Darstellung",
+      "system": "Wie Windows",
+      "light": "Hell",
+      "dark": "Dunkel"
+    }
   }
 }

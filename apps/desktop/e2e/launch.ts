@@ -18,7 +18,17 @@ export interface LaunchedApp {
  * (SwiftShader), so the test sees only the SolidCraft it starts itself.
  */
 export async function launchApp(
-  options: { env?: Record<string, string>; isolated?: boolean; /** Reuse this work folder (profile, cache) and keep it on close. */ work?: string } = {},
+  options: {
+    env?: Record<string, string>;
+    isolated?: boolean;
+    /** Reuse this work folder (profile, cache) and keep it on close. */
+    work?: string;
+    /**
+     * Playwright emulates `prefers-color-scheme: light` by default, which hides the app's own
+     * colour theme (`nativeTheme.themeSource`). `null` turns the emulation off.
+     */
+    colorScheme?: 'light' | 'dark' | null;
+  } = {},
 ): Promise<LaunchedApp> {
   const isolated = options.isolated ?? true;
   const work = options.work ?? mkdtempSync(join(tmpdir(), 'partbuddy-e2e-'));
@@ -47,6 +57,7 @@ export async function launchApp(
     args: [appDir, '--lang=en-US', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', `--user-data-dir=${join(work, 'profile')}`],
     cwd: appDir,
     env,
+    colorScheme: options.colorScheme === undefined ? 'light' : options.colorScheme,
   });
   const page = await app.firstWindow();
   return {
