@@ -30,19 +30,26 @@ Slimming alone cannot cut 7,000 minutes to 2,000, and a local status script woul
 instead of a clean Linux environment.
 
 * `tools/runner/setup-runner.ps1` imports Ubuntu 24.04 (checksum verified) as the distribution
-  `partbuddy-runner`, runs `provision.sh` as root and registers the runner with the label
-  `partbuddy`. The registration token goes through stdin into `ACTIONS_RUNNER_INPUT_TOKEN`, never
-  onto a command line.
+  `partbuddy-runner`, runs `provision.sh` as root and registers four runner instances
+  (`partbuddy-wsl-1` to `-4`, label `partbuddy`), so the seven jobs of a push run in parallel.
+  Each instance has its own workspace and its own port for the click dummy (`CLICKDUMMY_PORT`
+  5180 to 5183 in the instance's `.env`). The registration token goes through stdin into
+  `ACTIONS_RUNNER_INPUT_TOKEN`, never onto a command line.
 * Isolation: jobs run as the user `runner` without sudo. `/etc/wsl.conf` turns off the Windows
   drive mounts, starting Windows programs and the Windows `PATH`, and systemd. `.wslconfig` caps the
-  VM at 16 GB and 12 logical processors, keeps ports inside WSL and turns off WSLg, so Electron under
-  test never opens a window on the desktop.
+  VM at 20 GB and 16 of the 28 logical processors, keeps ports inside WSL and turns off WSLg, so
+  Electron under test never opens a window on the desktop.
 * Load: while idle, only the listener waits for jobs (no CPU, a few hundred MB for the VM). A
   desktop shortcut "PartBuddy-Runner" starts or stops it; stopped, the distribution is terminated
   and uses nothing. A shortcut in the Startup folder starts it at sign-in. GitHub holds jobs while
   the runner is off and cancels them after 24 hours in the queue.
-* Workflows: `runs-on: [self-hosted, partbuddy]`. System libraries, `xvfb` and Git LFS come with the
-  runner, so the `sudo` steps are gone; the pnpm store, Node.js, Playwright's Chromium and Electron
+* Notification: a job-completed hook (`ACTIONS_RUNNER_HOOK_JOB_COMPLETED`) writes one line per
+  finished job to `job-events.log`. `tools/runner/watch-pr-checks.sh` follows that file from
+  Windows and, right after a pull request's job finished, asks GitHub whether all checks are done;
+  it prints one line per head commit, green or red. Claude Code runs it with its Monitor tool, so a
+  green pull request is merged without anyone having to look.
+* Workflows: `runs-on: [self-hosted, partbuddy]`. Every checkout fetches Git LFS files. System
+  libraries, `xvfb` and Git LFS come with the runner, so the `sudo` steps are gone; the pnpm store, Node.js, Playwright's Chromium and Electron
   stay cached on the runner. CI, privacy and security checks no longer run again on `main` after a
   squash merge, because the pull request already checked the merge result. The weekly privacy and
   security scans stay on GitHub-hosted runners so they run while the PC is off.
@@ -51,7 +58,7 @@ instead of a clean Linux environment.
 
 * Good: no Actions minutes for pull requests; runs are faster on a 20-core machine.
 * Good: jobs cannot reach Windows files or programs from inside the distribution.
-* Bad: the PC must be on for checks to run; one runner works through jobs one after another.
+* Bad: the PC must be on for checks to run.
 * Bad: dependency updates (Renovate) execute on the PC. Install scripts run only for allowed
   packages (`allowBuilds`) and versions must be seven days old (`minimumReleaseAge`); the
   distribution has no access to Windows.

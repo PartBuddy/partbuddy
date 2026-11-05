@@ -97,7 +97,7 @@ function Start-Runner {
             return
         }
     }
-    throw "Der Runner ist nicht angelaufen. Protokoll: \\wsl.localhost\$Distro\home\$RunnerUser\runner.log"
+    throw "Der Runner ist nicht angelaufen. Protokolle: \\wsl.localhost\$Distro\home\$RunnerUser\actions-runner-*.log"
 }
 
 function Stop-Runner {

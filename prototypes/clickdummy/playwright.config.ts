@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const port = 5180;
+// The self-hosted CI runners give each instance its own port (tools/runner/provision.sh).
+const port = Number(process.env.CLICKDUMMY_PORT ?? 5180);
 
 export default defineConfig({
   testDir: 'e2e',

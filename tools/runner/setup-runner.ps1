@@ -17,6 +17,9 @@
 .PARAMETER Repository
     owner/name des Repositorys, für das der Runner Aufträge annimmt.
 
+.PARAMETER RunnerCount
+    Anzahl paralleler Runner-Instanzen (Standard 4). Sie heißen <RunnerName>-1 bis -n.
+
 .PARAMETER NoAutostart
     Keine Verknüpfung im Autostart-Ordner anlegen.
 #>
@@ -25,6 +28,8 @@ param(
     [string]$Repository = 'ManuelStaggl/partbuddy',
     [string]$RunnerName = 'partbuddy-wsl',
     [string]$RunnerLabels = 'partbuddy',
+    [ValidateRange(1, 8)]
+    [int]$RunnerCount = 4,
     [switch]$NoAutostart
 )
 
@@ -75,16 +80,14 @@ New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
 # --- 1. .wslconfig ----------------------------------------------------------------------------
 Write-Step 'Prüfe .wslconfig'
 $wslConfig = Join-Path $env:USERPROFILE '.wslconfig'
-if (Test-Path $wslConfig) {
-    Write-Warning ".wslconfig existiert schon und bleibt unverändert: $wslConfig"
-}
-else {
-    @'
-# Written by PartBuddy tools/runner/setup-runner.ps1 (ADR 0022). Applies to every WSL 2 distribution.
+$wslConfigMarker = '# Written by PartBuddy tools/runner/setup-runner.ps1'
+$wslConfigContent = @"
+$wslConfigMarker (ADR 0022). Applies to every WSL 2 distribution.
 [wsl2]
-# Upper limits for the CI runner, so a test run never takes the whole machine.
-memory=16GB
-processors=12
+# Upper limits for the CI runners ($RunnerCount jobs in parallel), so test runs never take the whole
+# machine (28 logical processors, 64 GB).
+memory=20GB
+processors=16
 # Test servers in WSL stay inside WSL; nothing appears on Windows' localhost.
 localhostForwarding=false
 # No WSLg: Linux GUI programs (Electron under test) never open a window on the Windows desktop.
@@ -93,7 +96,14 @@ guiApplications=false
 [experimental]
 # Give freed disk space back to Windows; cached memory is reclaimed by default (dropCache).
 sparseVhd=true
-'@ | Set-Content -Path $wslConfig -Encoding utf8
+"@
+$current = if (Test-Path $wslConfig) { Get-Content -Raw $wslConfig } else { $null }
+if ($current -and -not $current.StartsWith($wslConfigMarker)) {
+    Write-Warning ".wslconfig stammt nicht von diesem Skript und bleibt unverändert: $wslConfig"
+}
+elseif ($current -ne $wslConfigContent) {
+    Set-Content -Path $wslConfig -Value $wslConfigContent -Encoding utf8 -NoNewline
+    # Die neuen Grenzen gelten erst nach einem Neustart der WSL-VM.
     & $Wsl --shutdown
 }
 
@@ -128,27 +138,34 @@ Write-Step 'Richte die Distribution ein (dauert beim ersten Mal einige Minuten)'
 $provision = Get-Content -Raw (Join-Path $PSScriptRoot 'provision.sh')
 $provision | & $Wsl -d $Distro -u root -- sh -c 'tr -d "\r" > /root/provision.sh && chmod 0700 /root/provision.sh'
 Assert-LastExit 'Das Kopieren von provision.sh'
-& $Wsl -d $Distro -u root -- /root/provision.sh
+& $Wsl -d $Distro -u root -- env "RUNNER_COUNT=$RunnerCount" /root/provision.sh
 Assert-LastExit 'Die Provisionierung'
 # wsl.conf (Abschottung von Windows) greift erst nach einem Neustart der Distribution.
 & $Wsl --terminate $Distro
 
 # --- 4. Registrierung -------------------------------------------------------------------------
-& $Wsl -d $Distro -u $RunnerUser -- test -f "$RunnerHome/actions-runner/.runner" *> $null
-if ($LASTEXITCODE -eq 0) {
-    Write-Step 'Runner ist schon registriert'
+$token = $null
+try {
+    foreach ($i in 1..$RunnerCount) {
+        $dir = "actions-runner-$i"
+        $name = "$RunnerName-$i"
+        & $Wsl -d $Distro -u $RunnerUser -- test -f "$RunnerHome/$dir/.runner" *> $null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Step "Runner '$name' ist schon registriert"
+            continue
+        }
+        Write-Step "Registriere den Runner '$name' für $Repository"
+        if (-not $token) {
+            # Ein Registrierungs-Token gilt eine Stunde und für mehrere Runner.
+            $token = & gh api -X POST "repos/$Repository/actions/runners/registration-token" --jq .token
+            Assert-LastExit 'Das Anfordern des Registrierungs-Tokens'
+        }
+        $token | & $Wsl -d $Distro -u $RunnerUser -- "$RunnerHome/register.sh" $dir "https://github.com/$Repository" $name $RunnerLabels
+        Assert-LastExit "Die Registrierung von '$name'"
+    }
 }
-else {
-    Write-Step "Registriere den Runner '$RunnerName' für $Repository"
-    $token = & gh api -X POST "repos/$Repository/actions/runners/registration-token" --jq .token
-    Assert-LastExit 'Das Anfordern des Registrierungs-Tokens'
-    try {
-        $token | & $Wsl -d $Distro -u $RunnerUser -- "$RunnerHome/register.sh" "https://github.com/$Repository" $RunnerName $RunnerLabels
-        Assert-LastExit 'Die Registrierung des Runners'
-    }
-    finally {
-        $token = $null
-    }
+finally {
+    $token = $null
 }
 
 # --- 5. Steuerung, Verknüpfungen, Start -------------------------------------------------------
@@ -189,4 +206,4 @@ Assert-LastExit 'Der Start des Runners'
 & $powershell -NoProfile -File $ControlScript -Action Status
 
 Write-Host ''
-Write-Host "Fertig. Runner-Protokoll: \\wsl.localhost\$Distro\home\$RunnerUser\runner.log"
+Write-Host "Fertig. Protokolle: \\wsl.localhost\$Distro\home\$RunnerUser\actions-runner-*.log"
