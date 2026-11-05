@@ -12,7 +12,7 @@ import { GateProxy, type ToolCallRecord, type UpstreamTools } from '../src/main/
 import { decide } from '../src/main/agents/policy';
 import { TOOL_NOTES } from '../src/main/agents/toolNotes';
 import { reduce, type ConversationItem } from '../src/renderer/src/assistant/store';
-import type { AgentEvent, AgentStatus } from '../src/shared/contract';
+import type { AgentEvent, AgentStatus, ModelChoice } from '../src/shared/contract';
 
 const cleanups: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
@@ -176,6 +176,8 @@ describe('agent service with a fake Claude Code', () => {
     });
     const { upstream, calls } = fakeUpstream();
     const billing = { allowed: false };
+    const kept: { choice: ModelChoice | null } = { choice: null };
+    const choices = { get: () => kept.choice, set: (_route: string, choice: ModelChoice) => (kept.choice = choice) };
     const statuses: AgentStatus[] = [];
     const events: AgentEvent[] = [];
     const service = new AgentService(
@@ -190,18 +192,46 @@ describe('agent service with a fake Claude Code', () => {
         apiBilling: { get: () => billing.allowed, set: (allow: boolean) => (billing.allowed = allow) },
         tools: () => Promise.resolve(upstream),
         log: () => undefined,
+        choices,
       },
       { status: (status) => statuses.push(status), event: (event) => events.push(event) },
     );
     cleanups.push(() => service.dispose());
-    return { service, statuses, events, calls, workDir };
+    return { service, statuses, events, calls, workDir, kept };
   }
 
   it('shows the plan but never account data', async () => {
     const { service } = setup();
     const status = await service.refresh();
-    expect(status).toEqual({ agent: 'claude-code', state: 'ready', version: '9.9.9', method: 'claude.ai', plan: 'max', apiBillingAllowed: false });
+    expect(status).toMatchObject({ agent: 'claude-code', state: 'ready', version: '9.9.9', method: 'claude.ai', plan: 'max', apiBillingAllowed: false });
     expect(JSON.stringify(status)).not.toContain('example.com');
+  });
+
+  it('lists the models of the plan and changes model and effort, also in a running session (B1)', async () => {
+    const { service, events, kept } = setup();
+    const status = await service.refresh();
+    // The aliases with their effort levels; pinned older versions are left out.
+    expect(status.models?.map((model) => model.id)).toEqual(['default', 'opus', 'sonnet', 'haiku']);
+    expect(status.models?.find((model) => model.id === 'haiku')?.efforts).toEqual(['low', 'medium', 'high']);
+    expect(status.model).toBeUndefined();
+
+    // Chosen before the first message: the session starts with it, and it is kept for new chats.
+    await service.chooseModel({ model: 'sonnet', effort: 'low' }, true);
+    expect(service.status()).toMatchObject({ model: 'sonnet', effort: 'low', defaultChoice: { model: 'sonnet', effort: 'low' } });
+    expect(kept.choice).toEqual({ model: 'sonnet', effort: 'low' });
+    await service.send('Which model?');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(1), { timeout: 15_000 });
+    expect(events.filter((e) => e.type === 'text').at(-1)).toEqual({ type: 'text', text: 'model sonnet effort low' });
+
+    // Changed mid-conversation: the running session switches; the kept default stays.
+    await service.chooseModel({ model: 'haiku', effort: 'max' }, false);
+    expect(service.status()).toMatchObject({ model: 'haiku', defaultChoice: { model: 'sonnet' } });
+    expect(service.status().effort).toBeUndefined();
+    await service.send('Which model now?');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 15_000 });
+    expect(events.filter((e) => e.type === 'text').at(-1)).toEqual({ type: 'text', text: 'model haiku effort none' });
+
+    await expect(service.chooseModel({ model: 'gpt-9', effort: null }, false)).rejects.toThrow(/not offered/);
   });
 
   it('asks the user to sign in when Claude Code is signed out', async () => {

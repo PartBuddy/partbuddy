@@ -100,6 +100,7 @@ describe.skipIf(!enabled)('ChatGPT agent loop (live)', () => {
     const calls: string[] = [];
     const agent = new ChatGptAgent({
       account,
+      choices: { get: () => null, set: () => undefined },
       tools: () =>
         Promise.resolve({
           instructions: () => undefined,

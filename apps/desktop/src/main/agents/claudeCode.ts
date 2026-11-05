@@ -2,6 +2,8 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { createInterface } from 'node:readline';
+
+import type { ModelChoice, ModelOption } from '../../shared/contract';
 import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
 import { VIEW_GUIDANCE } from './viewContext';
 
@@ -74,6 +76,86 @@ export function startSignIn(claude: ClaudeCommand, env: NodeJS.ProcessEnv): Chil
   });
 }
 
+/**
+ * The models of the user's plan as Claude Code lists them in its answer to `initialize`: the
+ * aliases (default, opus, fable, sonnet, haiku) with their effort levels. Pinned older versions
+ * are left out to keep the choice short; nothing else of the answer (account, e-mail) is kept.
+ */
+export function modelsFromInitialize(response: unknown): ModelOption[] {
+  const models = (response as { models?: unknown } | null)?.models;
+  if (!Array.isArray(models)) return [];
+  const options: ModelOption[] = [];
+  for (const raw of models as Record<string, unknown>[]) {
+    const id = raw.value;
+    if (typeof id !== 'string' || !/^[a-z]{1,20}$/.test(id)) continue;
+    const name = typeof raw.displayName === 'string' ? raw.displayName.slice(0, 80) : id;
+    const efforts = Array.isArray(raw.supportedEffortLevels)
+      ? raw.supportedEffortLevels.filter((level): level is string => typeof level === 'string' && /^[a-z]{1,20}$/.test(level)).slice(0, 12)
+      : [];
+    const option: ModelOption = { id, name, efforts };
+    if (typeof raw.description === 'string') option.description = raw.description.slice(0, 200);
+    options.push(option);
+  }
+  return options.slice(0, 30);
+}
+
+/** The arguments for the model and effort a session starts with; nothing for Claude Code's own default. */
+export function choiceArgs(choice: ModelChoice | null): string[] {
+  if (!choice) return [];
+  return [...(choice.model !== 'default' ? ['--model', choice.model] : []), ...(choice.effort ? ['--effort', choice.effort] : [])];
+}
+
+/**
+ * Asks Claude Code for the models of the user's plan (B1): a short session that only sends the
+ * `initialize` control request of the stream-json protocol, so no prompt reaches a model.
+ */
+export function listModels(claude: ClaudeCommand, env: NodeJS.ProcessEnv, cwd: string, timeoutMs = 20_000): Promise<ModelOption[]> {
+  return new Promise((resolve, reject) => {
+    const args = [...claude.prefix, '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--tools', '', '--setting-sources', '', '--no-session-persistence'];
+    const child = spawn(claude.command, args, { cwd, env, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, shell: false });
+    // The answer is passed on once the process has exited: Windows keeps its folder locked until then.
+    let outcome: { error: Error | null; models: ModelOption[] } | null = null;
+    let exited = false;
+    const settle = () => {
+      if (!outcome || !exited) return;
+      clearTimeout(timer);
+      if (outcome.error) reject(outcome.error);
+      else resolve(outcome.models);
+    };
+    const finish = (error: Error | null, models: ModelOption[] = []) => {
+      if (outcome) return;
+      outcome = { error, models };
+      if (!exited) child.kill();
+      settle();
+    };
+    const timer = setTimeout(() => {
+      finish(new Error('Claude Code did not list its models in time'));
+    }, timeoutMs);
+    createInterface({ input: child.stdout }).on('line', (line) => {
+      let message: { type?: unknown; response?: { request_id?: unknown; subtype?: unknown; response?: unknown; error?: unknown } };
+      try {
+        message = JSON.parse(line) as typeof message;
+      } catch {
+        return;
+      }
+      if (message.type !== 'control_response' || message.response?.request_id !== 'partbuddy-models') return;
+      if (message.response.subtype !== 'success') finish(new Error(`initialize: ${typeof message.response.error === 'string' ? message.response.error.slice(0, 200) : 'failed'}`));
+      else finish(null, modelsFromInitialize(message.response.response));
+    });
+    child.once('error', (error) => {
+      exited = true;
+      finish(error);
+      settle();
+    });
+    child.once('exit', () => {
+      exited = true;
+      finish(new Error('Claude Code ended before it listed its models'));
+      settle();
+    });
+    child.stdin.write(`${JSON.stringify({ type: 'control_request', request_id: 'partbuddy-models', request: { subtype: 'initialize' } })}\n`);
+  });
+}
+
 export type ClaudeEvent =
   | { type: 'started'; model: string | null }
   | { type: 'textDelta'; text: string }
@@ -141,6 +223,8 @@ export interface SessionOptions {
   cwd: string;
   /** MCP configuration file that points Claude Code at the gate proxy only. */
   mcpConfigPath: string;
+  /** Model and effort to start with (B1); null: Claude Code's own default. */
+  choice?: ModelChoice | null;
 }
 
 /**
@@ -149,6 +233,7 @@ export interface SessionOptions {
  */
 export class ClaudeSession {
   private child: ChildProcess | null = null;
+  private control = 0;
   private readonly listeners = new Set<(event: ClaudeEvent) => void>();
 
   constructor(private readonly options: SessionOptions) {}
@@ -179,6 +264,7 @@ export class ClaudeSession {
       '--setting-sources', '',
       '--no-session-persistence',
       '--append-system-prompt', ROLE,
+      ...choiceArgs(this.options.choice ?? null),
     ];
     // Argument array without a shell; the MCP token is in the config file, not on the command line.
     const child = spawn(claude.command, args, { cwd, env, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, shell: false });
@@ -208,6 +294,21 @@ export class ClaudeSession {
       : text;
     const message = { type: 'user', message: { role: 'user', content } };
     this.child.stdin.write(`${JSON.stringify(message)}\n`);
+  }
+
+  /**
+   * Changes model and effort of the running session from the next turn on (B1), through the
+   * stream-json control requests `set_model` and `apply_flag_settings`; `null` effort returns to
+   * the model's own default.
+   */
+  choose(choice: ModelChoice): void {
+    if (!this.child?.stdin) return;
+    this.control += 1;
+    const id = `partbuddy-choice-${String(this.control)}`;
+    this.child.stdin.write(`${JSON.stringify({ type: 'control_request', request_id: `${id}-model`, request: { subtype: 'set_model', model: choice.model } })}\n`);
+    this.child.stdin.write(
+      `${JSON.stringify({ type: 'control_request', request_id: `${id}-effort`, request: { subtype: 'apply_flag_settings', settings: { effortLevel: choice.effort } } })}\n`,
+    );
   }
 
   /** Ends the session and resolves once the process has exited (Windows keeps its folder locked until then). */

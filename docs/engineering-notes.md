@@ -129,3 +129,18 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   "machine.json;process.json" --load-filaments f.json --outputdir D file.3mf`; `result.json` has the
   bounding box per object. The product owner's printer is a Bambu Lab H2S with a 0.4 mm nozzle
   (340 × 320 × 340 mm).
+
+## Claude Code control protocol (checked 2026-11-05 with 2.1.302)
+
+- In stream-json input mode Claude Code takes control requests on stdin:
+  `{"type":"control_request","request_id":…,"request":{"subtype":…}}`, answered with
+  `{"type":"control_response","response":{"subtype":"success","request_id":…,"response":{…}}}`.
+- `initialize` sends no prompt (no usage) and answers with the plan's `models`
+  (`value`, `displayName`, `description`, `supportedEffortLevels`, plus pinned older versions) and
+  `account` (with the e-mail address: never keep it). PartBuddy lists the aliases only.
+- `set_model {model}` and `apply_flag_settings {settings: {effortLevel}}` change a running session
+  from the next turn; `effortLevel: null` returns to the model's default. An unknown effort name is
+  accepted silently, so PartBuddy checks it against `supportedEffortLevels` itself.
+- The ChatGPT model list (`/models`) carries `display_name`, `supported_reasoning_levels[].effort`
+  and `default_reasoning_level`, as the Codex model info does. The AI SDK sends
+  `reasoningEffort` only for models it treats as reasoning models (`gpt-5…`, o-series).

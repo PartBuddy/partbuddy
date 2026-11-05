@@ -2,7 +2,7 @@ import { IconChevronDown } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover, RadioButton, RadioField, RadioGroup } from 'react-aria-components';
 
-import type { AgentKind, AgentStatus } from '../../../shared/contract';
+import type { AgentKind, AgentStatus, ModelChoice } from '../../../shared/contract';
 import { platform } from '../platform';
 import { StatusDot } from '../ui/Feedback';
 import { selectedStatus, useAssistant } from './store';
@@ -29,15 +29,128 @@ export function statusLabel(t: T, status: AgentStatus): string {
   return t('assistant.signedIn', { plan, version: status.version ?? '' });
 }
 
-/** The short status on the chip: the route and, in a word or two, the plan or what is missing. */
+/** An effort level in words; levels PartBuddy does not know yet show as they come. */
+export function effortLabel(t: T, effort: string): string {
+  return t(`assistant.effort.level.${effort}`, { defaultValue: effort });
+}
+
+/** The model in use by its display name, and the effort when one is set (B1). */
+function modelLabel(t: T, status: AgentStatus): string | null {
+  if (!status.model) return null;
+  const name = status.models?.find((model) => model.id === status.model)?.name ?? status.model;
+  return status.effort ? `${name} · ${effortLabel(t, status.effort)}` : name;
+}
+
+/** The short status on the chip: the route and the model with its effort, or the plan or what is missing. */
 function chipLabel(t: T, status: AgentStatus): string {
   const route = t(`assistant.routes.${status.agent}`);
   let detail: string;
   if (!signedIn(status)) detail = t(`assistant.chip.state.${status.state}`);
-  else if (status.agent === 'chatgpt') detail = status.model ?? '';
-  else if (status.method === 'claude.ai' && status.plan) detail = status.plan.charAt(0).toUpperCase() + status.plan.slice(1);
-  else detail = t('assistant.chip.apiKey');
+  else detail = modelLabel(t, status) ?? (status.method === 'claude.ai' && status.plan ? status.plan.charAt(0).toUpperCase() + status.plan.slice(1) : status.agent === 'chatgpt' ? '' : t('assistant.chip.apiKey'));
   return detail ? `${route} · ${detail}` : route;
+}
+
+const radioClass =
+  'group flex cursor-default items-start gap-2 rounded-sm px-2 py-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:bg-surface-selected';
+
+function RadioMark() {
+  return (
+    <span aria-hidden className="mt-1 inline-flex size-icon-sm shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface group-selected:border-accent">
+      <span className="size-dot rounded-full bg-accent opacity-0 group-selected:opacity-100" />
+    </span>
+  );
+}
+
+/**
+ * Model and effort of the selected route (B1, decided 2026-11-05): only what the plan offers, in
+ * effect from the next answer, also in a running conversation; "Keep for new chats" stores it.
+ */
+function ModelChoiceSection({ status }: { status: AgentStatus }) {
+  const { t } = useTranslation();
+  const api = platform().agent;
+  const models = status.models ?? [];
+  if (!signedIn(status) || models.length === 0) return null;
+  const current = models.find((model) => model.id === status.model) ?? models[0];
+  if (!current) return null;
+  const effort = status.effort ?? null;
+  const choose = (choice: ModelChoice, asDefault = false) => {
+    void api.chooseModel(choice, asDefault);
+  };
+  const kept = status.defaultChoice;
+  const isDefault = kept?.model === current.id && (kept.effort ?? null) === effort;
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-2" data-testid="agent-model">
+      <RadioGroup
+        aria-label={t('assistant.model.title')}
+        value={current.id}
+        onChange={(id) => {
+          const next = models.find((model) => model.id === id);
+          if (next) choose({ model: next.id, effort: effort !== null && next.efforts.includes(effort) ? effort : null });
+        }}
+        className="flex max-h-menu-max flex-col gap-1 overflow-auto"
+      >
+        <span className="px-2 text-xs font-semibold text-text-muted">{t('assistant.model.title')}</span>
+        {models.map((model) => (
+          <RadioField key={model.id} value={model.id}>
+            <RadioButton className={radioClass} data-testid="model-option">
+              <RadioMark />
+              <span className="flex flex-col">
+                <span className="text-sm text-text">{model.name}</span>
+                {model.description ? <span className="text-xs text-text-muted">{model.description}</span> : null}
+              </span>
+            </RadioButton>
+          </RadioField>
+        ))}
+      </RadioGroup>
+      {current.efforts.length > 0 ? (
+        <RadioGroup
+          aria-label={t('assistant.effort.title')}
+          value={effort ?? 'standard'}
+          onChange={(value) => {
+            choose({ model: current.id, effort: value === 'standard' ? null : value });
+          }}
+          orientation="horizontal"
+          className="flex flex-col gap-1"
+        >
+          <span className="px-2 text-xs font-semibold text-text-muted">{t('assistant.effort.title')}</span>
+          <div className="flex flex-wrap gap-1 px-1">
+            {['standard', ...current.efforts].map((value) => (
+              <RadioField key={value} value={value}>
+                <RadioButton
+                  className="inline-flex cursor-default items-center rounded-full border border-border px-2 py-0 text-xs text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:border-accent selected:bg-accent-subtle"
+                  data-testid="effort-option"
+                >
+                  {value === 'standard'
+                    ? current.defaultEffort
+                      ? t('assistant.effort.standardIs', { level: effortLabel(t, current.defaultEffort) })
+                      : t('assistant.effort.standard')
+                    : effortLabel(t, value)}
+                </RadioButton>
+              </RadioField>
+            ))}
+          </div>
+        </RadioGroup>
+      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-2">
+        <span className="text-xs text-text-subtle">{t('assistant.model.applies')}</span>
+        {isDefault ? (
+          <span className="text-xs text-text-muted" data-testid="model-is-default">
+            {t('assistant.model.isDefault')}
+          </span>
+        ) : (
+          <AriaButton
+            className="text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+            onPress={() => {
+              choose({ model: current.id, effort }, true);
+            }}
+            data-testid="model-keep"
+          >
+            {t('assistant.model.keep')}
+          </AriaButton>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -64,7 +177,7 @@ export function AgentChip() {
         <StatusDot tone={toneOf(status)} label={label} />
         <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
       </AriaButton>
-      <Popover placement="top start" offset={6} className="w-menu rounded-md border border-border bg-surface-raised shadow-2">
+      <Popover placement="top start" offset={6} className="w-dialog-sm max-w-full rounded-md border border-border bg-surface-raised shadow-2">
         <Dialog aria-label={t('assistant.title')} className="flex flex-col gap-3 p-3 outline-none" data-testid="agent-menu">
           <div className="flex items-center justify-between gap-2">
             <Heading slot="title" className="text-sm font-semibold text-text">
@@ -82,13 +195,8 @@ export function AgentChip() {
           >
             {ROUTES.map((kind) => (
               <RadioField key={kind} value={kind}>
-                <RadioButton className="group flex cursor-default items-start gap-2 rounded-sm px-2 py-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:bg-surface-selected">
-                  <span
-                    aria-hidden
-                    className="mt-1 inline-flex size-icon-sm shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface group-selected:border-accent"
-                  >
-                    <span className="size-dot rounded-full bg-accent opacity-0 group-selected:opacity-100" />
-                  </span>
+                <RadioButton className={radioClass}>
+                  <RadioMark />
                   <span className="flex flex-col">
                     <span className="text-sm font-medium text-text">{t(`assistant.routes.${kind}`)}</span>
                     <span className="text-xs text-text-muted">{t(`assistant.chip.describe.${kind}`)}</span>
@@ -97,6 +205,7 @@ export function AgentChip() {
               </RadioField>
             ))}
           </RadioGroup>
+          <ModelChoiceSection status={status} />
           <div className="flex flex-col gap-1 border-t border-border pt-2">
             <span data-testid="agent-detail">
               <StatusDot tone={toneOf(status)} label={statusLabel(t, status)} />
