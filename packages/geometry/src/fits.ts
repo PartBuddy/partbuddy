@@ -60,3 +60,27 @@ export function fitDiameter(kind: CylinderKind, mating: number, fit: FitKind, ma
 export function printedDiameter(kind: CylinderKind, drawn: number, material: FitMaterial): number {
   return Math.round((kind === 'hole' ? drawn - material.holeShrink : drawn + (material.outerGrowth ?? 0)) * 1000) / 1000;
 }
+
+/** Fits tried when guessing the counterpart, the most common first. */
+const GUESS_ORDER: readonly FitKind[] = ['slide', 'push', 'clamp', 'turn'];
+
+/**
+ * The counterpart a drawn hole or pin was most likely made for (practice run 2026-11-05: the
+ * assistant draws an M8 hole at 8 + 2 × 0.25 + 0.15 = 8.65 mm, and 9 is no screw). A drawn size on
+ * a round number is the counterpart itself; else the fit whose clearance leads back to a round
+ * number (whole mm before half ones) names it, with that fit. Otherwise the drawn size, rounded.
+ */
+export function counterpartOf(kind: CylinderKind, drawn: number, material: FitMaterial): { mating: number; fit: FitKind | null } {
+  // Whole millimetres first, over all fits, then half ones: 5.5 is rarer than 6.
+  for (const step of [1, 0.5]) {
+    const round = (value: number) => Math.round(value / step) * step;
+    const isRound = (value: number) => value > 0 && Math.abs(value - round(value)) < 0.005;
+    if (isRound(drawn)) return { mating: round(drawn), fit: null };
+    for (const fit of GUESS_ORDER) {
+      const gap = 2 * material.clearance[fit];
+      const mating = kind === 'hole' ? drawn - gap - material.holeShrink : drawn + gap + (material.outerGrowth ?? 0);
+      if (isRound(mating)) return { mating: round(mating), fit };
+    }
+  }
+  return { mating: Math.round(drawn), fit: null };
+}

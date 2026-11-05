@@ -551,6 +551,7 @@
       "wallThin": "Wände nur {thickness} mm, mindestens {minimum} mm (zwei Linien)",
       "support": "{area} mm² Überhang über {limit}° brauchen Stütze",
       "contact": "Nur {area} mm² liegen auf dem Druckbett: kann sich lösen oder kippen",
+      "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",
       "feature": "{feature}: {message}"
     },
     "confirm": {

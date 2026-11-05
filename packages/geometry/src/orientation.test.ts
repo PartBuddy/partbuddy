@@ -10,6 +10,7 @@ import { orientMeshFile } from './orientFile';
 import { checkPrint } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
+import { boxesBody } from './testShapes';
 import { buildViewerModel } from './viewerModel';
 
 const PLA = { bed: [256, 256, 256] as const, overhang: 45 };
@@ -49,17 +50,23 @@ describe('print orientation (M7)', () => {
   });
 
   it('proposes laying a table upside down: no support, the whole top on the bed', () => {
-    const table = [box('Leg', [9, 9, 0], [11, 11, 10]), box('Top', [0, 0, 10], [20, 20, 12])];
+    const table = [boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]])];
     const asDesigned = evaluateOrientation(table, PLA, [0, 0, -1]);
-    expect(Math.round(asDesigned.support)).toBe(400);
+    expect(asDesigned.support).toBeGreaterThan(330);
     expect(Math.round(asDesigned.contact)).toBe(4);
     const [best] = proposeOrientations(table, PLA);
-    // Leg and top are two bodies here: the leg's end inside the top faces down once turned (4 mm²).
-    expect(best).toMatchObject({ down: [0, 0, 1], face: { body: 'Top', name: 'F1:+z' }, support: 4, contact: 400, height: 12 });
-    // The check agrees in that orientation: nothing blocks, no contact warning.
+    // The leg's end inside the top faces down once turned, but it rests on the top's material.
+    expect(best).toMatchObject({ down: [0, 0, 1], face: { body: 'Table', name: 'F2:+z' }, support: 0, contact: 400, height: 12 });
+    // The check agrees in that orientation: nothing to support, no contact warning.
     const check = checkPrint(table, { ...PLA, nozzle: 0.4 }, [], best!.down);
-    expect(check.status).not.toBe('block');
-    expect(check.findings.map((f) => f.kind)).not.toContain('contact');
+    expect(check).toEqual({ status: 'ready', findings: [] });
+  });
+
+  it('stands every body on its own bed: the height is the tallest body', () => {
+    const sleeves = [box('S5', [0, 0, 0], [12, 12, 5]), box('S15', [17, 0, 0], [29, 12, 15])];
+    const flipped = evaluateOrientation(sleeves, PLA, [0, 0, 1]);
+    expect(flipped).toMatchObject({ support: 0, height: 15 });
+    expect(Math.round(flipped.contact)).toBe(288);
   });
 
   it('puts the layers along a marked load, even with less on the bed', () => {

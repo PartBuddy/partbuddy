@@ -35,6 +35,8 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.support', { area: number.format(finding.area), limit: finding.limit });
       case 'contact':
         return t('check.finding.contact', { area: number.format(finding.area) });
+      case 'separate':
+        return t('check.finding.separate', { bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
       case 'feature':
         return t('check.finding.feature', { feature: finding.feature, message: finding.message });
     }
@@ -46,7 +48,7 @@ function FindingRow({ finding }: { finding: PrintFinding }) {
   const text = useFindingText();
   const setStepHighlight = useStudio((s) => s.setStepHighlight);
   const requestFocus = useStudio((s) => s.requestFocus);
-  const located = finding.kind !== 'size' && finding.kind !== 'feature' ? finding : null;
+  const located = 'places' in finding ? finding : null;
   const faces = located ? located.places.reduce((sum, place) => sum + place.faces.length, 0) : 0;
   const body = (
     <>

@@ -911,10 +911,22 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     await page.getByTestId('overhang').click();
     await expect(legend).toBeHidden();
 
-    // The ready-to-print check (M7) finds the same overhangs on its own and points at them.
+    // The ready-to-print check (M7) agrees with the slicer: the tops of the countersunk holes are
+    // bridged, so as designed nothing needs support (practice run 2026-11-05).
     const light = page.getByTestId('print-check');
-    await expect(light).toHaveAttribute('data-status', 'warn');
+    await expect(light).toHaveAttribute('data-status', 'ready');
+    // Laid the first way that needs support, the check finds it and points at it.
     await light.click();
+    await page.getByTestId('orientation-propose').click();
+    const options = page.getByTestId('orientation-option');
+    await expect(options.first()).toBeVisible();
+    const texts = await options.allTextContents();
+    const needing = texts.findIndex((text) => /Support [1-9]/.test(text));
+    expect(needing).toBeGreaterThan(-1);
+    await options.nth(needing).getByTestId('orientation-apply').click();
+    // The panel stays open and follows the new orientation.
+    await expect(light).toHaveAttribute('data-status', 'warn');
+    await expect(page.getByTestId('print-check-panel')).toBeVisible();
     const support = page.getByTestId('check-finding').and(page.locator('[data-kind="support"]'));
     await expect(support).toContainText('need support');
     await support.getByRole('button').click();

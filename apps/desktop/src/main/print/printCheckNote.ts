@@ -29,6 +29,8 @@ function line(finding: Finding, nozzle: number): string {
       return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical and need support${where(finding.places)}.`;
     case 'contact':
       return `- ${tag}: only ${String(finding.area)} mm² lie on the bed, the part may come loose or tip over${where(finding.places)}.`;
+    case 'separate':
+      return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(', ')} touch but are separate; the slicer lays each on the bed by itself. Combine them if they are one part.`;
     case 'feature':
       return `- ${tag}: feature ${JSON.stringify(finding.feature)} reports ${JSON.stringify(finding.message.slice(0, 200))}.`;
   }
@@ -40,7 +42,8 @@ function line(finding: Finding, nozzle: number): string {
  * from the design, so they are quoted.
  */
 export function printCheckNote(report: PrintCheckReport): string {
-  const head = '[PartBuddy: ready-to-print check of the part as it is now (printed along +Z, standing on its lowest point):';
+  const head =
+    '[PartBuddy: ready-to-print check of the part as it is now (printed along +Z, each body standing on its own lowest point; steep overhangs count only where no wall within 1.5 mm and no bridge under 10 mm carries them):';
   if (report.findings.length === 0) return `${head} ready to print, nothing found.]`;
   const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? 'prints, with warnings' : 'ready to print';
   const lines = report.findings.slice(0, 12).map((finding) => line(finding, report.nozzle));

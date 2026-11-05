@@ -6,6 +6,7 @@ import type { FaceTable } from './faceTable';
 import { checkPrint, minimumWall, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
+import { boxesBody, lyingTube } from './testShapes';
 import { buildViewerModel } from './viewerModel';
 
 const PLA: PrintCheckProfile = { bed: [256, 256, 256], nozzle: 0.4, overhang: 45 };
@@ -72,13 +73,48 @@ describe('the ready-to-print check (M7)', () => {
   });
 
   it('finds the ceiling of a table top as needing support, and the small foot on the bed', () => {
-    const table = checkPrint([box('Leg', [9, 9, 0], [11, 11, 10]), box('Top', [0, 0, 10], [20, 20, 12])], PLA);
+    const table = checkPrint([boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]])], PLA);
     expect(table.status).toBe('warn');
     const support = table.findings.find((f) => f.kind === 'support');
-    expect(support).toMatchObject({ severity: 'warn', limit: 45 });
-    expect(support && 'area' in support ? support.area : 0).toBe(400);
-    expect(support && 'places' in support ? support.places : []).toEqual([{ body: 'Top', faces: ['F1:-z'] }]);
-    expect(table.findings.find((f) => f.kind === 'contact')).toMatchObject({ area: 4, places: [{ body: 'Leg', faces: ['F1:-z'] }] });
+    expect(support).toMatchObject({ severity: 'warn', limit: 45, places: [{ body: 'Table', faces: ['F2:-z'] }] });
+    // The top reaches 9 mm out from the leg; only the first 1.5 mm around it grows from the leg.
+    const area = support && 'area' in support ? support.area : 0;
+    expect(area).toBeGreaterThan(330);
+    expect(area).toBeLessThan(396);
+    expect(table.findings.find((f) => f.kind === 'contact')).toMatchObject({ area: 4, places: [{ body: 'Table', faces: ['F1:-z'] }] });
+  });
+
+  it('lays every body on the bed by itself, as the slicer does, and warns when bodies touch', () => {
+    // The same table as two bodies: in the slicer the top lies on the bed apart from the leg.
+    const apart = checkPrint([box('Leg', [9, 9, 0], [11, 11, 10]), box('Top', [0, 0, 10], [20, 20, 12])], PLA);
+    expect(apart.findings.map((f) => f.kind)).not.toContain('support');
+    expect(apart.findings.find((f) => f.kind === 'separate')).toMatchObject({ severity: 'warn', bodies: ['Leg', 'Top'] });
+    // Three sleeves of 5, 10 and 15 mm printed upside down: each still stands on its own end.
+    const sleeves = [box('S5', [0, 0, 0], [12, 12, 5]), box('S10', [17, 0, 0], [29, 12, 10]), box('S15', [34, 0, 0], [46, 12, 15])];
+    const flipped = checkPrint(sleeves, PLA, [], [0, 0, 1]);
+    expect(flipped).toEqual({ status: 'ready', findings: [] });
+  });
+
+  it('lets bridges and short overhangs print without support, as the slicer does', () => {
+    const bridge = (gap: number) =>
+      checkPrint([boxesBody('Bridge', [[[0, 0, 0], [5, 10, 10]], [[5 + gap, 0, 0], [10 + gap, 10, 10]], [[0, 0, 10], [10 + gap, 10, 14]]])], PLA);
+    expect(bridge(4).findings.map((f) => f.kind)).not.toContain('support');
+    expect(bridge(8).findings.map((f) => f.kind)).not.toContain('support');
+    const wide = bridge(20).findings.find((f) => f.kind === 'support');
+    expect(wide && 'area' in wide ? wide.area : 0).toBeGreaterThan(100);
+
+    // A ledge sticking out of a wall: 1 mm grows from the wall, 8 mm needs support.
+    const ledge = (reach: number) => checkPrint([boxesBody('Ledge', [[[0, 0, 0], [10, 10, 10]], [[10, 0, 5], [10 + reach, 10, 10]]])], PLA);
+    expect(ledge(1).findings.map((f) => f.kind)).not.toContain('support');
+    expect(ledge(8).findings.find((f) => f.kind === 'support')).toMatchObject({ places: [{ body: 'Ledge', faces: ['F2:-z'] }] });
+  });
+
+  it('bridges the top of a lying hole, but supports the underside of a lying tube', () => {
+    const result = checkPrint([lyingTube('Tube', 6, 2.25, 10)], PLA);
+    const support = result.findings.find((f) => f.kind === 'support');
+    const faces = support && 'places' in support ? support.places.flatMap((place) => place.faces) : [];
+    expect(faces).not.toContain('F1:hole');
+    expect(faces).toContain('F1:outer');
   });
 
   it('blocks on a feature SolidCraft could not build and warns on its warnings; rolled back ones do not count', () => {
