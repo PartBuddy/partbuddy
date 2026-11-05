@@ -81,6 +81,7 @@ cat >"${RUNNER_HOME}/register.sh" <<'EOF'
 set -euo pipefail
 url="$1"; name="$2"; labels="$3"
 IFS= read -r token
+token="${token%$'\r'}"  # PowerShell pipes CRLF
 cd "$HOME/actions-runner"
 ACTIONS_RUNNER_INPUT_TOKEN="$token" ./config.sh --unattended --replace \
   --url "$url" --name "$name" --labels "$labels" --work _work
@@ -91,6 +92,7 @@ cat >"${RUNNER_HOME}/unregister.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 IFS= read -r token
+token="${token%$'\r'}"  # PowerShell pipes CRLF
 cd "$HOME/actions-runner"
 ACTIONS_RUNNER_INPUT_TOKEN="$token" ./config.sh remove
 EOF

@@ -124,8 +124,9 @@ else {
 
 # --- 3. Provisionierung -----------------------------------------------------------------------
 Write-Step 'Richte die Distribution ein (dauert beim ersten Mal einige Minuten)'
-$provision = (Get-Content -Raw (Join-Path $PSScriptRoot 'provision.sh')) -replace "`r`n", "`n"
-$provision | & $Wsl -d $Distro -u root -- sh -c 'cat > /root/provision.sh && chmod 0700 /root/provision.sh'
+# PowerShell hängt beim Weiterreichen an native Programme ein CRLF an; tr entfernt jedes CR.
+$provision = Get-Content -Raw (Join-Path $PSScriptRoot 'provision.sh')
+$provision | & $Wsl -d $Distro -u root -- sh -c 'tr -d "\r" > /root/provision.sh && chmod 0700 /root/provision.sh'
 Assert-LastExit 'Das Kopieren von provision.sh'
 & $Wsl -d $Distro -u root -- /root/provision.sh
 Assert-LastExit 'Die Provisionierung'
