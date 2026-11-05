@@ -49,6 +49,7 @@ export const invokeChannels = {
   printSaveSettings: 'print:save-settings',
   printPart: 'print:part',
   printSetMaterial: 'print:set-material',
+  printReportCheck: 'print:report-check',
 } as const;
 
 export const eventChannels = {

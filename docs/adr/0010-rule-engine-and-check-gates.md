@@ -53,3 +53,23 @@ model's control, and the rules are CAD domain logic.
 ### Open Policy Agent
 
 * Bad, because it adds a policy language and a separate runtime for a dozen fixed rules.
+
+## Amendment 2026-11-05: the ready-to-print check (M7)
+
+The first check that shipped does not run in the Python sidecar, which does not exist yet: it is
+pure TypeScript in `packages/geometry` (`checkPrint`), on the render meshes the view already has
+with their BVH. It checks the build volume of the printer in use, walls under two extrusion lines
+(a ray from each triangle into the material; only walls facing back within 30° count, so sharp
+but printable edges are not reported), overhangs beyond the material's limit with the same rule
+as the overhang view, the area on the bed, and features SolidCraft reports with errors or
+warnings. 12,000 triangles take about 50 ms, so it runs after every revision.
+
+* The result is a light in the status bar: green, yellow (`warn`) or red (`block`), with every
+  finding pointing at its faces on the model.
+* Red does not stop an export: decided with the product owner, the export asks once and then goes
+  ahead. This replaces the fail-closed print gate above for the user's own exports.
+* The assistant hears of the result with its next message whenever it changed, worded by the main
+  process from the renderer's report. Gates around the assistant's own tool calls are still to
+  come with the rule engine.
+* A sidecar stays an option for checks that need a mesh kernel (slicing, wall thickness on the
+  exact B-rep); the findings keep their shape.

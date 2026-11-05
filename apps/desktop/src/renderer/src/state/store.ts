@@ -1,9 +1,9 @@
-import type { ViewerModel } from '@partbuddy/geometry';
+import type { FindingBox, PrintCheck, ViewerModel } from '@partbuddy/geometry';
 import { create } from 'zustand';
 
 import type { DrawingStroke } from '../../../shared/drawing';
 
-import type { ConnectionStatus, DimensionMark, MirroredSketch, NotesState, PartPrint, Structure } from '../../../shared/contract';
+import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, NotesState, PartPrint, Structure } from '../../../shared/contract';
 
 export interface BodyModel {
   name: string;
@@ -112,6 +112,15 @@ interface StudioState {
   /** The dialog with the printer and material profiles. */
   profilesOpen: boolean;
   setProfilesOpen: (open: boolean) => void;
+  /** The ready-to-print check of the bodies on screen (M7); null until it ran. */
+  printCheck: { revision: number; result: PrintCheck } | null;
+  setPrintCheck: (check: { revision: number; result: PrintCheck } | null) => void;
+  /** A place the camera should move to (a finding of the check), with a serial to repeat it. */
+  focusRequest: { box: FindingBox; serial: number } | null;
+  requestFocus: (box: FindingBox) => void;
+  /** An export waiting for the user to confirm it despite a red check. */
+  exportConfirm: ExportFormat | null;
+  setExportConfirm: (format: ExportFormat | null) => void;
   /** The ghost of a value or action typed into the selection dock (UI upgrade step 11). */
   selectionGhost: Uint8Array | null;
   setSelectionGhost: (ghost: Uint8Array | null) => void;
@@ -231,6 +240,18 @@ export const useStudio = create<StudioState>()((set) => ({
   profilesOpen: false,
   setProfilesOpen: (profilesOpen) => {
     set({ profilesOpen });
+  },
+  printCheck: null,
+  setPrintCheck: (printCheck) => {
+    set({ printCheck });
+  },
+  focusRequest: null,
+  requestFocus: (box) => {
+    set((state) => ({ focusRequest: { box, serial: (state.focusRequest?.serial ?? 0) + 1 } }));
+  },
+  exportConfirm: null,
+  setExportConfirm: (exportConfirm) => {
+    set({ exportConfirm });
   },
   selectionGhost: null,
   setSelectionGhost: (selectionGhost) => {

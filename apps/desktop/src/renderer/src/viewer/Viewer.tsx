@@ -10,7 +10,7 @@ import {
   PointMaterial,
 } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { SKETCH_STYLE } from '@partbuddy/geometry';
+import { Overhang, OVERHANG_LIMITS, overhangLimits, SKETCH_STYLE } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BackSide, Box3, BufferAttribute, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, Sphere, Vector2, Vector3 } from 'three';
@@ -28,7 +28,6 @@ import { LiveBar } from './LiveBar';
 import { blendWeights } from './blend';
 import { CompareSlider } from './CompareSlider';
 import { OverhangLegend } from './OverhangLegend';
-import { Overhang, OVERHANG_LIMITS, overhangLimits } from './overhang';
 import { bedOf, overhangFor } from './useOverhang';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
@@ -724,6 +723,23 @@ function FollowChanges() {
   return null;
 }
 
+/** Moves the camera to a finding of the ready-to-print check (M7) when the user asks for it. */
+function FocusRequest() {
+  const controls = useThree((state) => state.controls) as CameraControls | null;
+  const request = useStudio((s) => s.focusRequest);
+  const done = useRef(0);
+  useEffect(() => {
+    if (!controls || !request || request.serial === done.current) return;
+    done.current = request.serial;
+    const target = new Box3(new Vector3(...request.box.min), new Vector3(...request.box.max));
+    // A small spot stays in context: frame at least a 30 mm neighbourhood.
+    const size = target.getSize(new Vector3());
+    target.expandByVector(new Vector3(Math.max(0, 30 - size.x) / 2, Math.max(0, 30 - size.y) / 2, Math.max(0, 30 - size.z) / 2));
+    void controls.fitToBox(target, true, { paddingTop: 12, paddingBottom: 12, paddingLeft: 12, paddingRight: 12 });
+  }, [controls, request]);
+  return null;
+}
+
 /** Quiet time before the view is reported again, so orbiting does not flood the bridge. */
 const REPORT_DELAY_MS = 300;
 
@@ -845,6 +861,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <FrameDesign documentId={documentId} bodies={bodies} sketches={sketches} />
       <StandardViews bodies={bodies} sketches={sketches} />
       <FollowChanges />
+      <FocusRequest />
       <ViewReporter />
       <StepPreviews />
       <GizmoHelper alignment="top-right" margin={scene.gizmoMargin}>

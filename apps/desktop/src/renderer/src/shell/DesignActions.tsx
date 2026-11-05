@@ -5,6 +5,7 @@ import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover, Tooltip, To
 
 import type { ExportFormat } from '../../../shared/contract';
 import { useAssistant, selectedStatus } from '../assistant/store';
+import { ExportConfirm } from '../print/ExportConfirm';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 
@@ -115,11 +116,20 @@ export function DesignActions() {
     };
   }, [canUndo, canRedo, undo, redo]);
 
-  const exportAs = (format: ExportFormat) => {
+  // A red ready-to-print check asks once before the export (M7); it does not stop it.
+  const exportNow = (format: ExportFormat) => {
     void run(async () => {
       const result = await platform().design.export(format);
       return result ? t('actions.exported', { file: result.file }) : null;
     });
+  };
+
+  const exportAs = (format: ExportFormat) => {
+    if (useStudio.getState().printCheck?.result.status === 'block') {
+      useStudio.getState().setExportConfirm(format);
+      return;
+    }
+    exportNow(format);
   };
 
   const openInSolidCraft = () => {
@@ -172,6 +182,7 @@ export function DesignActions() {
           <IconExternalLink className="size-icon-sm" aria-hidden />
         </ToolButton>
       ) : null}
+      <ExportConfirm onConfirm={exportNow} />
     </div>
   );
 }

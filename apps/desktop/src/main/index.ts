@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen, session, shell } from 'electron';
 
 import { invokeChannels, eventChannels } from '../shared/channels';
-import type { AgentEvent, ExportFormat, ViewState } from '../shared/contract';
+import type { AgentEvent, ExportFormat, PrintCheckReport, ViewState } from '../shared/contract';
 import { AgentService } from './agents/agentService';
 import { AppearanceSettings } from './appearance';
 import { Assistant } from './agents/assistant';
@@ -30,6 +30,7 @@ import { findExecutable, systemEnvironment } from './solidcraft/discovery';
 import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
+import { printCheckNote } from './print/printCheckNote';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
 
 app.setName('PartBuddy');
@@ -236,6 +237,13 @@ if (!app.requestSingleInstanceLock()) {
     const printProfiles = new PrintProfiles({ file: join(app.getPath('userData'), 'print-profiles.json'), designFile: () => supervisor.designPath(), log });
     prints = printProfiles;
     const profileNote = new ProfileNote();
+    // The ready-to-print check (M7), as the renderer last reported it.
+    const checkNote = new ProfileNote();
+    let printCheck: PrintCheckReport | null = null;
+    bridge.handle(invokeChannels.printReportCheck, (report) => {
+      printCheck = report;
+      return undefined;
+    });
     const printChanged = () => {
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.printChanged, printProfiles.part());
     };
@@ -379,6 +387,7 @@ if (!app.requestSingleInstanceLock()) {
         chats?.takeDigest() ?? null,
         // The printer and material (M7), once per conversation and again after a change.
         profileNote.take(conversation.route, conversation.fresh, printNote(printProfiles.part())),
+        printCheck ? checkNote.take(conversation.route, conversation.fresh, printCheckNote(printCheck)) : null,
         questions.answer(answer),
         steps.takeNote(),
         notesService.selectionNote(selections ?? []),
@@ -390,6 +399,7 @@ if (!app.requestSingleInstanceLock()) {
         await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, sent);
       } catch (error) {
         profileNote.forget();
+        checkNote.forget();
         throw error;
       }
       return undefined;

@@ -558,3 +558,40 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await expect(dialog).toHaveCount(0);
   await expect(chip).toContainText('Werkstatt');
 });
+
+test('the ready-to-print light follows the printer, points at its findings and asks before a red export (M7)', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  const light = page.getByTestId('print-check');
+  await expect(light).toHaveAttribute('data-status', 'ready');
+  await expect(light).toHaveText('Ready to print');
+
+  // A printer too small for the 64 mm clip turns it red.
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-print').click();
+  const dialog = page.getByTestId('print-profiles');
+  for (const axis of ['x', 'y']) {
+    const field = dialog.getByTestId(`printer-bed-${axis}`).getByRole('textbox');
+    await field.fill('50');
+    await field.press('Tab');
+  }
+  await dialog.getByTestId('print-save').click();
+  await expect(light).toHaveAttribute('data-status', 'block');
+  await expect(light).toHaveText('Not ready to print');
+  await light.click();
+  const panel = page.getByTestId('print-check-panel');
+  await expect(panel.getByTestId('check-finding').first()).toHaveAttribute('data-kind', 'size');
+  await expect(panel).toContainText('Too large for the build volume: 64 × 32 × 20 mm, the printer takes 50 × 50 × 256 mm');
+  const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="print-check-panel"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+  expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  await page.keyboard.press('Escape');
+
+  // Exporting while red asks once; cancelling exports nothing.
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  const confirm = page.getByTestId('export-confirm');
+  await expect(confirm).toContainText('Too large for the build volume');
+  await page.screenshot({ path: test.info().outputPath('export-confirm.png') });
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+});

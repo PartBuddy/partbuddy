@@ -910,6 +910,17 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     await page.screenshot({ path: test.info().outputPath('overhang.png') });
     await page.getByTestId('overhang').click();
     await expect(legend).toBeHidden();
+
+    // The ready-to-print check (M7) finds the same overhangs on its own and points at them.
+    const light = page.getByTestId('print-check');
+    await expect(light).toHaveAttribute('data-status', 'warn');
+    await light.click();
+    const support = page.getByTestId('check-finding').and(page.locator('[data-kind="support"]'));
+    await expect(support).toContainText('need support');
+    await support.getByRole('button').click();
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: test.info().outputPath('check-support.png') });
+    await page.keyboard.press('Escape');
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('tidy-failed.png') }).catch(() => undefined);
     throw error;

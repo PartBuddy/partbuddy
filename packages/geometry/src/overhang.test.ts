@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { Overhang, overhangLimits, overhangOf } from '../src/renderer/src/viewer/overhang';
+import { Overhang, overhangLimits, overhangOf } from './overhang';
 
 /** One square face of side 10 per entry, as render buffers: corners, normal and face index. */
 function faces(list: { corners: number[][]; normal: number[] }[]) {
