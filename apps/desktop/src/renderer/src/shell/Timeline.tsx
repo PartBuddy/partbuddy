@@ -1,5 +1,5 @@
 import { IconAlertCircle, IconAlertTriangle, IconBox, IconCylinder, IconPlayerTrackNext, IconPoint } from '@tabler/icons-react';
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Tooltip, TooltipTrigger } from 'react-aria-components';
 
@@ -77,7 +77,6 @@ function RollbackBar({
 }) {
   const { t } = useTranslation();
   const dragging = useRef(false);
-  const handle = useRef<HTMLSpanElement>(null);
   const clamp = (value: number) => Math.min(count, Math.max(1, value));
   const buttons = () => [...(list.current?.querySelectorAll<HTMLElement>('[data-testid="timeline-feature"]') ?? [])];
   const commit = (value: number) => {
@@ -92,16 +91,11 @@ function RollbackBar({
         return box.left + box.width / 2 < x;
       }).length,
     );
-  // Sits in the gap after the last active step, measured from the buttons after every render.
-  useLayoutEffect(() => {
-    const button = buttons()[shown - 1];
-    if (!handle.current) return;
-    handle.current.style.left = button ? `${String(button.offsetLeft + button.offsetWidth + SLOT_GAP / 2)}px` : '0px';
-    handle.current.style.visibility = button ? '' : 'hidden';
-  });
   return (
     <span
-      ref={handle}
+      // In the gap after the last active step. Every step is a button of the same width, so the
+      // place follows from the count alone: nothing to measure, right from the first frame.
+      style={{ left: `calc(${String(shown)} * (var(--cs-control-sm) + ${String(SLOT_GAP)}px) - ${String(SLOT_GAP / 2)}px)` }}
       role="slider"
       tabIndex={busy ? -1 : 0}
       aria-label={t('timeline.handle')}

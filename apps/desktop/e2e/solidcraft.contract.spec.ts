@@ -103,6 +103,13 @@ test('an assistant step changes the headless design, and it is back after a rest
     try {
       await expect(second.page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
       await expect(second.page.getByTestId('design-name')).toHaveText('New part');
+      // A reopened design shows the rollback bar right after its last step from the first frame.
+      const handle = second.page.getByTestId('timeline-handle');
+      await expect(handle).toBeVisible();
+      const last = await second.page.getByTestId('timeline-feature').last().boundingBox();
+      const bar = await handle.boundingBox();
+      // Its middle sits in the middle of the 8 px gap after the last step.
+      expect(bar && last ? Math.abs(bar.x + bar.width / 2 - (last.x + last.width + 4)) : 99).toBeLessThan(1.5);
     } finally {
       await second.close();
     }
