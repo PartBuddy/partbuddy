@@ -1,6 +1,7 @@
 import { Matrix4, Quaternion, Vector3 } from 'three';
 
 import { Overhang, overhangLimits, overhangOf } from './overhang';
+import { supportNeed } from './supportReach';
 import type { ViewerModel } from './viewerModel';
 
 /**
@@ -44,6 +45,35 @@ export function orientBuffers(positions: ArrayLike<number>, normals: ArrayLike<n
     outN[i + 2] = v.z;
   }
   return { positions: outP, normals: outN };
+}
+
+/** The footprint of all bodies together and the height of the tallest, each on its own bed. */
+export function printedSize(turned: readonly { positions: ArrayLike<number> }[]): [number, number, number] | null {
+  const min = [Infinity, Infinity];
+  const max = [-Infinity, -Infinity];
+  let height = 0;
+  for (const { positions } of turned) {
+    let low = Infinity;
+    let high = -Infinity;
+    for (let i = 0; i < positions.length; i += 3) {
+      for (let k = 0; k < 2; k += 1) {
+        min[k] = Math.min(min[k] ?? Infinity, positions[i + k] ?? 0);
+        max[k] = Math.max(max[k] ?? -Infinity, positions[i + k] ?? 0);
+      }
+      low = Math.min(low, positions[i + 2] ?? 0);
+      high = Math.max(high, positions[i + 2] ?? 0);
+    }
+    if (Number.isFinite(low)) height = Math.max(height, high - low);
+  }
+  if (!Number.isFinite(min[0])) return null;
+  return [(max[0] ?? 0) - (min[0] ?? 0), (max[1] ?? 0) - (min[1] ?? 0), height];
+}
+
+/** The lowest point of one body's turned positions: the bed it stands on. */
+export function bedOfPositions(positions: ArrayLike<number>): number {
+  let low = Infinity;
+  for (let i = 2; i < positions.length; i += 3) low = Math.min(low, positions[i] ?? Infinity);
+  return Number.isFinite(low) ? low : 0;
 }
 
 /** The faces where a load acts (marked by the user), by body and face name. */
@@ -138,32 +168,23 @@ export function evaluateOrientation(
     const geometry = model.geometry;
     return orientBuffers(geometry.getAttribute('position').array, geometry.getAttribute('normal').array, down);
   });
-  const min = [Infinity, Infinity, Infinity];
-  const max = [-Infinity, -Infinity, -Infinity];
-  for (const { positions } of turned) {
-    for (let i = 0; i < positions.length; i += 3) {
-      for (let k = 0; k < 3; k += 1) {
-        min[k] = Math.min(min[k] ?? Infinity, positions[i + k] ?? 0);
-        max[k] = Math.max(max[k] ?? -Infinity, positions[i + k] ?? 0);
-      }
-    }
-  }
-  const size = [0, 1, 2].map((k) => (max[k] ?? 0) - (min[k] ?? 0)) as [number, number, number];
+  const size = printedSize(turned) ?? [0, 0, 0];
   const { bed } = profile;
   const fits = (size[2] <= bed[2] && size[0] <= bed[0] && size[1] <= bed[1]) || (size[2] <= bed[2] && size[1] <= bed[0] && size[0] <= bed[1]);
-  const bedZ = min[2] ?? 0;
   const limits = overhangLimits(profile.overhang);
   let support = 0;
   let contact = 0;
   bodies.forEach(({ model }, i) => {
     const buffers = turned[i];
     if (!buffers) return;
+    // Each body on its own bed, as the slicer lays them.
+    const bedZ = bedOfPositions(buffers.positions);
     const map = overhangOf(
       { positions: buffers.positions, normals: buffers.normals, index: (model.geometry.index?.array ?? new Uint32Array()) as Uint32Array, vertexFaces: model.vertexFaces, faceCount: model.table.faces.length },
       bedZ,
       limits,
     );
-    support += map.area[Overhang.Support];
+    support += supportNeed(model, buffers.positions, down, bedZ, profile.overhang).area;
     contact += map.area[Overhang.Bed];
   });
 

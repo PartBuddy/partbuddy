@@ -35,7 +35,7 @@ export {
   type OrientationOption,
   type OrientationProfile,
 } from './orientation';
-export { cylinderKind, fitDiameter, printedDiameter, type CylinderKind, type FitKind as CylinderFitKind, type FitMaterial } from './fits';
+export { counterpartOf, cylinderKind, fitDiameter, printedDiameter, type CylinderKind, type FitKind as CylinderFitKind, type FitMaterial } from './fits';
 export { orientMeshFile } from './orientFile';
 export {
   checkPrint,

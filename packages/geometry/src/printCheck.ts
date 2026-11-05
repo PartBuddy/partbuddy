@@ -1,8 +1,9 @@
-import { DoubleSide, Ray, Vector3 } from 'three';
+import { Box3, DoubleSide, Ray, Vector3 } from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
 
-import { AS_DESIGNED, orientBuffers, type Down } from './orientation';
+import { AS_DESIGNED, bedOfPositions, orientBuffers, printedSize, type Down } from './orientation';
 import { Overhang, overhangLimits, overhangOf } from './overhang';
+import { supportNeed } from './supportReach';
 import type { ViewerModel } from './viewerModel';
 
 /**
@@ -10,8 +11,9 @@ import type { ViewerModel } from './viewerModel';
  * mirrored render meshes, no sidecar. It looks at what the practice run and the overhang view
  * showed matters: whether the part fits the printer, walls the nozzle cannot print, overhangs that
  * need support, how much of the part lies on the bed, and features SolidCraft could not build.
- * The part is printed in its print orientation (`down`, as designed by default), standing on its
- * lowest point.
+ * The part is printed in its print orientation (`down`, as designed by default). Each body stands on
+ * its own lowest point: the slicer lays every object of the 3MF onto the bed by itself (seen in
+ * Bambu Studio, practice run 2026-11-05), so bodies that touch fall apart there.
  */
 
 export interface PrintCheckProfile {
@@ -60,6 +62,7 @@ export type PrintFinding =
   | ({ kind: 'thinWall'; severity: FindingSeverity; thickness: number; minimum: number; area: number } & Located)
   | ({ kind: 'support'; severity: FindingSeverity; area: number; limit: number } & Located)
   | ({ kind: 'contact'; severity: FindingSeverity; area: number } & Located)
+  | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
   | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string };
 
 export interface PrintCheck {
@@ -195,19 +198,48 @@ function locate(bodies: readonly PrintCheckBody[], tallies: readonly FaceTally[]
 
 const round = (value: number, digits = 2) => Math.round(value * 10 ** digits) / 10 ** digits;
 
-function sizeFinding(turned: readonly { positions: Float32Array }[], bed: readonly [number, number, number]): PrintFinding | null {
-  const min = [Infinity, Infinity, Infinity];
-  const max = [-Infinity, -Infinity, -Infinity];
-  for (const { positions } of turned) {
-    for (let i = 0; i < positions.length; i += 3) {
-      for (let k = 0; k < 3; k += 1) {
-        min[k] = Math.min(min[k] ?? Infinity, positions[i + k] ?? 0);
-        max[k] = Math.max(max[k] ?? -Infinity, positions[i + k] ?? 0);
-      }
+/** How close (mm) two bodies must come to count as touching. */
+const TOUCH = 0.05;
+/** Vertices per body looked at for touching, at most. */
+const MAX_TOUCH_VERTICES = 4000;
+
+function boundsOf(body: PrintCheckBody): Box3 {
+  const geometry = body.model.geometry;
+  if (!geometry.boundingBox) geometry.computeBoundingBox();
+  return geometry.boundingBox ?? new Box3();
+}
+
+/** Whether body `a` touches or runs into body `b` (in the design frame, before turning). */
+function touches(a: PrintCheckBody, b: PrintCheckBody): boolean {
+  const boxA = boundsOf(a);
+  const boxB = boundsOf(b);
+  if (!boxA.clone().expandByScalar(TOUCH).intersectsBox(boxB)) return false;
+  const bvh = b.model.geometry.boundsTree as unknown as MeshBVH | undefined;
+  if (!bvh) return false;
+  const positions = a.model.geometry.getAttribute('position').array;
+  const count = positions.length / 3;
+  const stride = Math.max(1, Math.ceil(count / MAX_TOUCH_VERTICES));
+  const point = new Vector3();
+  const ray = new Ray();
+  const down = new Vector3(0, 0, -1);
+  for (let v = 0; v < count; v += stride) {
+    point.fromArray(positions, v * 3);
+    if (boxB.containsPoint(point)) {
+      // Inside b's box: inside b itself when the first surface below is one b's material leaves through.
+      ray.set(point, down);
+      const hit = bvh.raycastFirst(ray, DoubleSide);
+      if (hit?.face && hit.face.normal.z < 0 && hit.distance > TOUCH) return true;
     }
+    const closest = bvh.closestPointToPoint(point, undefined, 0, TOUCH);
+    if (closest && closest.distance <= TOUCH) return true;
   }
-  if (!Number.isFinite(min[0])) return null;
-  const size = [0, 1, 2].map((k) => round((max[k] ?? 0) - (min[k] ?? 0), 1)) as [number, number, number];
+  return false;
+}
+
+function sizeFinding(turned: readonly { positions: Float32Array }[], bed: readonly [number, number, number]): PrintFinding | null {
+  const printed = printedSize(turned);
+  if (!printed) return null;
+  const size = printed.map((value) => round(value, 1)) as [number, number, number];
   const fits = (x: number, y: number, z: number) => x <= bed[0] && y <= bed[1] && z <= bed[2];
   const [x, y, z] = size;
   // Turned on the bed, the slicer places it; that is no finding.
@@ -250,9 +282,21 @@ export function checkPrint(
       findings.push({ kind: 'thinWall', severity, thickness: round(thin.extreme), minimum, area: round(thin.area, 0), places: thin.places, box: thin.box });
     }
 
-    // Overhangs and the bed, with the same rule as the overhang view.
-    let bedZ = Infinity;
-    for (const { positions } of turned) for (let i = 2; i < positions.length; i += 3) bedZ = Math.min(bedZ, positions[i] ?? Infinity);
+    // Bodies that touch fall apart in the slicer, each laid onto the bed by itself.
+    const separate = new Set<string>();
+    for (let i = 0; i < visible.length; i += 1) {
+      for (let j = i + 1; j < visible.length; j += 1) {
+        const a = visible[i];
+        const b = visible[j];
+        if (a && b && (touches(a, b) || touches(b, a))) {
+          separate.add(a.name);
+          separate.add(b.name);
+        }
+      }
+    }
+    if (separate.size > 0) findings.push({ kind: 'separate', severity: 'warn', bodies: [...separate] });
+
+    // Overhangs and the bed: each body on its own bed, steep overhangs only where nothing carries them.
     const limits = overhangLimits(profile.overhang);
     const support: FaceTally[] = [];
     const contact: FaceTally[] = [];
@@ -261,6 +305,8 @@ export function checkPrint(
       const geometry = model.geometry;
       const oriented = turned[b];
       if (!oriented) return;
+      const bedZ = bedOfPositions(oriented.positions);
+      const need = supportNeed(model, oriented.positions, down, bedZ, profile.overhang);
       const map = overhangOf(
         {
           positions: oriented.positions,
@@ -280,11 +326,11 @@ export function checkPrint(
       for (let t = 0; t < index.length / 3; t += 1) {
         const face = model.triangleFaces[t] ?? 0;
         const { corners, area } = triangle(positions, index, t);
-        if ((map.supportByFace[face] ?? 0) > 0) supportTally.add(face, 0, 0, corners);
+        if ((need.byFace[face] ?? 0) > 0) supportTally.add(face, 0, 0, corners);
         const vertex = index[t * 3] ?? 0;
         if (map.vertices[vertex] === Overhang.Bed) contactTally.add(face, area, 0, corners);
       }
-      supportTally.area.set(map.supportByFace);
+      supportTally.area.set(need.byFace);
       support.push(supportTally);
       contact.push(contactTally);
     });

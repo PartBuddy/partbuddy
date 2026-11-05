@@ -46,7 +46,7 @@ export function overhangFor(model: BodyModel['model'], bedZ: number, limits: Ove
   return map;
 }
 
-/** The print bed: the lowest point of all bodies in the print orientation, which the part stands on. */
+/** The print bed: the lowest point of the given bodies in the print orientation (one body: its own bed). */
 export function bedOf(bodies: readonly BodyModel[], down: Down = AS_DESIGNED): number {
   if (isAsDesigned(down)) {
     const box = bodiesBox(bodies);
@@ -60,12 +60,11 @@ export function bedOf(bodies: readonly BodyModel[], down: Down = AS_DESIGNED): n
   return Number.isFinite(min) ? min : 0;
 }
 
-/** Overhang area in mm² of all bodies, per class. */
+/** Overhang area in mm² of all bodies, per class, each body on its own bed. */
 export function overhangArea(bodies: readonly BodyModel[], limits: OverhangLimits, down: Down = AS_DESIGNED): [number, number, number, number] {
-  const bedZ = bedOf(bodies, down);
   const total: [number, number, number, number] = [0, 0, 0, 0];
   for (const body of bodies) {
-    const { area } = overhangFor(body.model, bedZ, limits, down);
+    const { area } = overhangFor(body.model, bedOf([body], down), limits, down);
     for (let i = 0; i < 4; i += 1) total[i] = (total[i] ?? 0) + (area[i] ?? 0);
   }
   return total;

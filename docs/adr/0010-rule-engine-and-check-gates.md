@@ -73,3 +73,21 @@ warnings. 12,000 triangles take about 50 ms, so it runs after every revision.
   come with the rule engine.
 * A sidecar stays an option for checks that need a mesh kernel (slicing, wall thickness on the
   exact B-rep); the findings keep their shape.
+
+## Amendment 2026-11-05 (later): the check follows what the slicer prints
+
+The practice run before the first prints sliced every export with Bambu Studio (no window,
+H2S 0.4 · 0.20 mm Standard · PLA, once with tree supports on). The slicer printed the tops of
+horizontal Ø4.5 holes, their countersinks and a 1 mm groove ceiling without a single support,
+where the light was yellow; and it laid every body of the 3MF onto the bed by itself. The check
+now does the same:
+
+* A face steeper than the material's limit needs support only where nothing carries it
+  (`supportNeed` in `packages/geometry/src/supportReach.ts`): just under each spot, eight
+  horizontal rays look for walls of the layer below. A wall of another face within 1.5 mm makes it
+  a short overhang, walls on two opposite sides within 10 mm a bridge, and a spot over material
+  rests on it. The orientation proposal uses the same rule; the overhang view still shades by
+  angle alone.
+* Every body stands on its own lowest point; the printed height is the tallest body. Bodies that
+  touch or run into each other get a `separate` warning, because the slicer pulls them apart.
+* The cable clip still checks in about 40 ms; the orientation proposal takes about 350 ms.

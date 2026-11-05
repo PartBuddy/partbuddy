@@ -1,4 +1,4 @@
-import { cylinderKind, fitDiameter, printedDiameter, type CylinderKind } from '@partbuddy/geometry';
+import { counterpartOf, cylinderKind, fitDiameter, printedDiameter, type CylinderKind, type FitMaterial } from '@partbuddy/geometry';
 import { IconRuler2 } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +13,8 @@ import { parseLength } from '../viewer/lengthInput';
 import { selectionName, selectionOf } from '../viewer/viewState';
 
 const PROBE_DELAY_MS = 250;
+/** Before the print profile is known: no clearance, no allowance. */
+const NO_FIT: FitMaterial = { clearance: { clamp: 0, push: 0, slide: 0, turn: 0 }, holeShrink: 0 };
 
 interface Cylinder {
   pick: Extract<Pick, { kind: 'face' }>;
@@ -52,17 +54,19 @@ export function FitPanel({ bodies, picks, busy }: { bodies: BodyModel[]; picks: 
   const setNotice = useStudio((s) => s.setNotice);
   const setSelectionGhost = useStudio((s) => s.setSelectionGhost);
   const setup = setupOf(cylindersOf(bodies, picks), picks.length);
+  // What the hole or pin was drawn for: an 8.65 mm hole with PLA's sliding clearance is for 8 mm.
+  const [guess] = useState(() => (setup && 'single' in setup ? counterpartOf(setup.single.kind, setup.single.diameter, print?.material ?? NO_FIT) : null));
   const [open, setOpen] = useState(false);
-  const [fit, setFit] = useState<FitKind>('slide');
+  const [fit, setFit] = useState<FitKind>(guess?.fit ?? 'slide');
   const [change, setChange] = useState<CylinderKind>('hole');
-  const [mating, setMating] = useState(() => (setup && 'single' in setup ? String(Math.round(setup.single.diameter)) : ''));
+  const [mating, setMating] = useState(() => (guess ? String(guess.mating) : ''));
   const [probe, setProbe] = useState<{ key: string; result: DimensionProbeResult } | null>(null);
   const latest = useRef(0);
   const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 });
 
   const material = print?.material ?? null;
   const changed = !setup ? null : 'single' in setup ? setup.single : change === 'hole' ? setup.hole : setup.pin;
-  const counterpart = !setup || 'single' in setup ? parseLength(mating) : printedDiameter(change === 'hole' ? 'pin' : 'hole', change === 'hole' ? setup.pin.diameter : setup.hole.diameter, material ?? { clearance: { clamp: 0, push: 0, slide: 0, turn: 0 }, holeShrink: 0 });
+  const counterpart = !setup || 'single' in setup ? parseLength(mating) : printedDiameter(change === 'hole' ? 'pin' : 'hole', change === 'hole' ? setup.pin.diameter : setup.hole.diameter, material ?? NO_FIT);
   const target = changed && material && Number.isFinite(counterpart) && counterpart > 0 ? fitDiameter(changed.kind, counterpart, fit, material) : null;
   const dimension = changed ? dimensionOf(bodies, changed.pick) : null;
   const value = target === null || !dimension ? null : dimension.shown === 'diameter' ? target : target / 2;
