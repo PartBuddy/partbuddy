@@ -19,7 +19,10 @@ $PSNativeCommandUseErrorActionPreference = $false
 
 $Distro = 'partbuddy-runner'
 $RunnerUser = 'runner'
-$InstallRoot = Join-Path $env:LOCALAPPDATA 'PartBuddyRunner'
+# Nicht unter AppData: Startet ein MSIX-Paket (etwa die Claude-App) dieses Skript, leitet Windows
+# Schreibzugriffe in AppData in den privaten Paketordner um; Explorer und Verknüpfungen fänden die
+# Dateien dann nicht. Das Benutzerprofil außerhalb von AppData wird nicht umgeleitet.
+$InstallRoot = Join-Path $env:USERPROFILE '.partbuddy\runner'
 $Wsl = Join-Path $env:WINDIR 'System32\wsl.exe'
 $env:WSL_UTF8 = '1'
 

@@ -9,7 +9,7 @@
     Gestoppt wird er geordnet (SIGINT), danach wird die Distribution beendet, damit sie keinen
     Arbeitsspeicher mehr belegt. GitHub hält neue Läufe zurück, solange der Runner gestoppt ist.
 
-    setup-runner.ps1 kopiert dieses Skript nach %LOCALAPPDATA%\PartBuddyRunner und legt die
+    setup-runner.ps1 kopiert dieses Skript nach %USERPROFILE%\.partbuddy\runner und legt die
     Desktop-Verknüpfung (Toggle) und den Autostart (Start -Quiet) an.
 
 .PARAMETER Action
@@ -32,7 +32,10 @@ $ErrorActionPreference = 'Stop'
 $Distro = 'partbuddy-runner'
 $RunnerUser = 'runner'
 $Title = 'PartBuddy-Runner'
-$LogFile = Join-Path $env:LOCALAPPDATA 'PartBuddyRunner\control.log'
+# Nicht unter AppData: Startet ein MSIX-Paket (etwa die Claude-App) dieses Skript, leitet Windows
+# Schreibzugriffe in AppData in den privaten Paketordner um; Explorer und Verknüpfungen fänden die
+# Dateien dann nicht. Das Benutzerprofil außerhalb von AppData wird nicht umgeleitet.
+$LogFile = Join-Path $env:USERPROFILE '.partbuddy\runner\control.log'
 $Wsl = Join-Path $env:WINDIR 'System32\wsl.exe'
 
 # wsl.exe schreibt sonst UTF-16, das in PowerShell 5.1 als Zeichensalat ankommt.

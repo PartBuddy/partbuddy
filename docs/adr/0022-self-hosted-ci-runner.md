@@ -41,7 +41,10 @@ instead of a clean Linux environment.
   Electron under test never opens a window on the desktop.
 * Load: while idle, only the listener waits for jobs (no CPU, a few hundred MB for the VM). A
   desktop shortcut "PartBuddy-Runner" starts or stops it; stopped, the distribution is terminated
-  and uses nothing. A shortcut in the Startup folder starts it at sign-in. GitHub holds jobs while
+  and uses nothing. A shortcut in the Startup folder starts it at sign-in. The control script lives
+  in `%USERPROFILE%\.partbuddy\runner`, not in AppData: run from an MSIX-packaged app such as the
+  Claude desktop app, the setup's writes to AppData land in the app's private package folder, where
+  Explorer and the shortcuts never see them. GitHub holds jobs while
   the runner is off and cancels them after 24 hours in the queue.
 * Notification: a job-completed hook (`ACTIONS_RUNNER_HOOK_JOB_COMPLETED`) writes one line per
   finished job to `job-events.log`. `tools/runner/watch-pr-checks.sh` follows that file from
