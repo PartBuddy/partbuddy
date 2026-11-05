@@ -178,6 +178,18 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 - `body.print_face {body, point}` takes a point on a flat face of a solid body and refuses others;
   without `point` it clears the print face.
 
+## Installer (checked 2026-11-05, electron-builder 26.18.0, electron-updater 6.8.11)
+
+- electron-builder copies every `dependencies` entry into the asar, also libraries Vite already
+  bundled into the renderer (235 MB). The main process therefore bundles all dependencies except
+  `@napi-rs/keyring` (native), and `files` keeps only that one in `node_modules` (9 MB asar).
+- The production CSS minifier shortens `#ffffff` to `#fff`; colours read from computed styles go
+  through `hexColor` before the strict bridge schema (the window buttons stayed uncoloured before).
+- `pnpm dist:dir` packs without an installer; `app-update.yml` is written only by a real target.
+  While the repository is private the update check ends in an error (404), shown as such.
+- Installing from a Claude Code session would land in the MSIX package folder (AppData is
+  redirected), so the installer is handed to the user instead of being run here.
+
 ## Repository and machine
 
 - The self-hosted CI runner (ADR 0022) dies with the Claude session that started it; restart with

@@ -12,6 +12,7 @@ import type { AgentEvent, ExportFormat, PrintCheckReport, ViewState } from '../s
 import { AgentService } from './agents/agentService';
 import { AppearanceSettings } from './appearance';
 import { GeneralSettings } from './generalSettings';
+import { Updates } from './updates';
 import { Assistant } from './agents/assistant';
 import { SolidCraftTools } from './agents/solidcraftTools';
 import type { UpstreamTools } from './agents/gateProxy';
@@ -398,6 +399,22 @@ if (!app.requestSingleInstanceLock()) {
       }
       return generalInfo();
     });
+    // Updates (B10): one quiet look after the start; download and install only on the user's word.
+    const updates = new Updates(log);
+    updates.onChange((state) => {
+      bridge.emit(mainWindow?.webContents ?? null, eventChannels.updatesState, state);
+    });
+    bridge.handle(invokeChannels.updatesState, () => updates.current());
+    bridge.handle(invokeChannels.updatesCheck, () => updates.check());
+    bridge.handle(invokeChannels.updatesDownload, async () => {
+      await updates.download();
+      return undefined;
+    });
+    bridge.handle(invokeChannels.updatesInstall, () => {
+      updates.install();
+      return undefined;
+    });
+    if (updates.enabled) setTimeout(() => void updates.check(), 10_000);
     bridge.handle(invokeChannels.settingsFinishSetup, () => {
       general.finishSetup();
       log('the first-start setup is done');

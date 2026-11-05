@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
@@ -41,10 +43,19 @@ function contentSecurityPolicy(): Plugin {
   };
 }
 
+/**
+ * The main process bundles every dependency except the native credential store, so the installer
+ * (B10) carries no second copy of the renderer's libraries in `node_modules`.
+ */
+const NATIVE = ['@napi-rs/keyring'];
+const bundled = Object.keys((JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { dependencies: Record<string, string> }).dependencies).filter(
+  (name) => !NATIVE.includes(name),
+);
+
 export default defineConfig({
   main: {
-    // Workspace packages ship TypeScript sources and are bundled in.
-    build: { target: 'node24', sourcemap: true, externalizeDeps: { exclude: ['@partbuddy/geometry'] } },
+    // Workspace packages ship TypeScript sources and are bundled in, like every other dependency.
+    build: { target: 'node24', sourcemap: true, externalizeDeps: { exclude: bundled } },
   },
   preload: {
     // A sandboxed preload can only require 'electron', so everything else is bundled in.

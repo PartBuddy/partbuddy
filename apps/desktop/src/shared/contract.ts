@@ -259,6 +259,21 @@ export const versionIdSchema = z.object({ id: z.string().regex(/^v-[a-z0-9]{1,20
 /** The colour theme: follow the system (Windows), or always light or dark. */
 export const themeSchema = z.enum(['system', 'light', 'dark']);
 export const themeRequestSchema = z.object({ theme: themeSchema }).strict();
+/**
+ * The update state of the installed app (B10): not available in a development build, checking,
+ * up to date, a newer version available, downloading, ready to install, or the check failed.
+ */
+export const updateStateSchema = z.discriminatedUnion('state', [
+  z.object({ state: z.literal('unavailable') }).strict(),
+  z.object({ state: z.literal('idle') }).strict(),
+  z.object({ state: z.literal('checking') }).strict(),
+  z.object({ state: z.literal('current'), version: z.string().max(40) }).strict(),
+  z.object({ state: z.literal('available'), version: z.string().max(40) }).strict(),
+  z.object({ state: z.literal('downloading'), percent: z.number().int().min(0).max(100) }).strict(),
+  z.object({ state: z.literal('ready'), version: z.string().max(40) }).strict(),
+  z.object({ state: z.literal('error') }).strict(),
+]);
+
 /** The language of the interface (B6): follow Windows, German or English. */
 export const languageSchema = z.enum(['system', 'de', 'en']);
 export const languageRequestSchema = z.object({ language: languageSchema }).strict();
@@ -874,6 +889,10 @@ export const invokeContract = {
   [invokeChannels.settingsChooseProjectsFolder]: { request: none, response: generalSettingsSchema },
   [invokeChannels.settingsResetProjectsFolder]: { request: none, response: generalSettingsSchema },
   [invokeChannels.settingsFinishSetup]: { request: none, response: generalSettingsSchema },
+  [invokeChannels.updatesState]: { request: none, response: updateStateSchema },
+  [invokeChannels.updatesCheck]: { request: none, response: updateStateSchema },
+  [invokeChannels.updatesDownload]: { request: none, response: none },
+  [invokeChannels.updatesInstall]: { request: none, response: none },
   [invokeChannels.designUndo]: { request: none, response: none },
   [invokeChannels.designRedo]: { request: none, response: none },
   [invokeChannels.designExport]: { request: exportRequestSchema, response: exportResultSchema },
@@ -917,6 +936,7 @@ export const eventContract = {
   [eventChannels.solidcraftStatus]: connectionStatusSchema,
   [eventChannels.mirrorRevision]: mirrorRevisionSchema,
   [eventChannels.agentStatus]: assistantStateSchema,
+  [eventChannels.updatesState]: updateStateSchema,
   [eventChannels.agentEvent]: agentEventSchema,
   [eventChannels.notesChanged]: notesStateSchema,
   [eventChannels.printChanged]: partPrintSchema,
@@ -939,6 +959,7 @@ export type Slicer = z.infer<typeof slicersSchema>[number];
 export type PartsLibrary = z.infer<typeof partsLibrarySchema>;
 export type PartInsert = z.infer<typeof partInsertSchema>;
 export type Language = z.infer<typeof languageSchema>;
+export type UpdateState = z.infer<typeof updateStateSchema>;
 export type GeneralSettingsInfo = z.infer<typeof generalSettingsSchema>;
 export type VersionEntry = z.infer<typeof versionEntrySchema>;
 export type VersionComparison = z.infer<typeof versionComparisonSchema>;

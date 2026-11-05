@@ -13,6 +13,8 @@ minimumReleaseAge: 10080
 # Install scripts run only for reviewed packages.
 allowBuilds:
   lefthook: true
+  # Squirrel's installer tool comes with electron-builder; PartBuddy builds NSIS and does not need it.
+  electron-winstaller: false
 
 # Security override: GHSA-g3hv-75wg-m249 is fixed only in minimatch 11.0.1, while ESLint 10.13
 # still requests ^10.2. ESLint is a development tool; the CI lint job shows that it still works.
