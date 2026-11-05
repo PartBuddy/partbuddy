@@ -171,7 +171,7 @@ export function MarkField({ mark, onGhost, onClose }: { mark: DimensionMark; onG
         </Label>
         <Input
           autoFocus
-          className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 font-mono text-md tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+          className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 text-md tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault();
@@ -431,7 +431,7 @@ export function LooseDimensions() {
               data-testid="loose-mark"
             >
               <span className="truncate">{shown.name}</span>
-              <span className="shrink-0 font-mono tabular-nums">{shown.formula ? `${shown.formula} = ${shown.value}` : shown.value}</span>
+              <span className="shrink-0 tabular-nums">{shown.formula ? `${shown.formula} = ${shown.value}` : shown.value}</span>
             </AriaButton>
             {open ? (
               <MarkField

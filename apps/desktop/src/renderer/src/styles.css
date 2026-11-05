@@ -37,3 +37,12 @@ body,
   }
 }
 
+
+/*
+ * Names and values the assistant writes as inline code (`plate_height`) read in the normal face:
+ * Manuel does not want terminal fonts in the app. Only real code blocks keep the monospace face.
+ */
+.cs-markdown :not(pre) > code {
+  font-family: var(--cs-font-sans);
+  font-variant-numeric: tabular-nums;
+}

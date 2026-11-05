@@ -30,13 +30,13 @@ export function ToolCall({ item }: { item: ToolItem }) {
     <div className="flex flex-col gap-1 rounded-md border border-border bg-surface-sunken px-2 py-1 text-sm" data-testid="tool-call">
       <span className="flex items-center gap-1 text-text">
         {icon}
-        <span className="font-mono">{item.name}</span>
+        <span className="font-medium">{item.name}</span>
         <span className="text-text-subtle">· {state}</span>
       </span>
       {item.reason ? <span className="text-text-muted">{item.reason}</span> : null}
-      <code className="truncate font-mono text-xs text-text-subtle" title={item.summary}>
+      <span className="truncate text-xs text-text-subtle" title={item.summary}>
         {item.summary}
-      </code>
+      </span>
     </div>
   );
 }

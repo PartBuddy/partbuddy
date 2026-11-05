@@ -125,7 +125,7 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
           </Label>
           <Input
             autoFocus
-            className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 font-mono text-md tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+            className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 text-md tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();
@@ -171,7 +171,7 @@ export function MeasureLine({ bodies, picks }: { bodies: BodyModel[]; picks: Pic
   if (!result || result.distance === null) return null;
   const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 });
   return (
-    <p className="font-mono text-sm tabular-nums text-text" data-testid="hud-measure">
+    <p className="text-sm tabular-nums text-text" data-testid="hud-measure">
       {t('hud.distance', { value: number.format(result.distance) })}
       {result.angle !== null ? ` · ${t('hud.angle', { value: number.format(result.angle) })}` : ''}
     </p>

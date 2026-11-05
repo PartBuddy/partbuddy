@@ -83,7 +83,7 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
     <li className="flex flex-col gap-1 rounded-md px-2 py-1" data-testid="parameter" data-name={parameter.name}>
       <div className="flex items-center gap-2">
         {parameter.favorite ? <IconStar className="size-icon-sm shrink-0 text-text-subtle" aria-label={t('parameters.favorite')} /> : null}
-        <span className="min-w-0 flex-1 truncate font-mono text-sm text-text" title={parameter.name}>
+        <span className="min-w-0 flex-1 truncate tabular-nums text-sm text-text" title={parameter.name}>
           {parameter.name}
         </span>
         {parameter.editable ? (
@@ -98,7 +98,7 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
             data-testid="parameter-field"
           >
             <Input
-              className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-1 text-right font-mono text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus invalid:border-danger disabled:opacity-50"
+              className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-1 text-right text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus invalid:border-danger disabled:opacity-50"
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
@@ -115,12 +115,12 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
             />
           </TextField>
         ) : (
-          <span className="shrink-0 font-mono text-sm tabular-nums text-text">{format(parameter.value)}</span>
+          <span className="shrink-0 text-sm tabular-nums text-text">{format(parameter.value)}</span>
         )}
         <span className="w-5 shrink-0 text-xs text-text-subtle">{parameter.unit}</span>
       </div>
       {parameter.editable ? null : (
-        <p className="truncate font-mono text-xs text-text-subtle" title={t('parameters.formulaHint')}>
+        <p className="truncate tabular-nums text-xs text-text-subtle" title={t('parameters.formulaHint')}>
           = {parameter.expression}
         </p>
       )}
