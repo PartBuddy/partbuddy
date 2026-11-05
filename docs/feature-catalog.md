@@ -6,33 +6,73 @@ usable without a terminal. Sources of the patterns: [research § Role models](re
 
 ## Direction and roadmap
 
-Decided by the product owner in the idea round of 2026-11-04 and trimmed the same evening: M2 is
-done without variants, the next step is a practice run (five real parts with the real assistant,
-noting what gets in the way), then M7 comes first; M3 keeps only local models for later, M6 only the
-exploded view. It sets the order of work; the MoSCoW tables below stay the reference for each
-feature's benefit.
+Reset by the product owner on 2026-11-05 after a walk through everything PartBuddy has and plans.
+The work had drifted into slicer territory (support detection, bridges, print orientation) while
+basics such as opening, importing and versions were missing. This plan replaces the milestones
+M1–M7 of 2026-11-04; what M1, M2 and the first part of M7 built stays unless it is listed for
+removal below. The MoSCoW tables further down describe each feature's benefit; where they disagree
+with this plan, the plan wins.
 
-**Guiding idea:** PartBuddy is a real CAD workspace for makers, with SolidCraft as the engine behind
-it ([ADR 0016](adr/0016-headless-solidcraft.md)). The user points at geometry and changes it; the
-assistant does what needs intent. **Direct where it is unambiguous, the assistant where intent is
-needed:** a dimension driven by a parameter or sketch dimension changes at once, without tokens and
-with a preview; anything else becomes a short, structured request to the assistant, which asks
-with a clarification card when there are several sensible ways.
+**Core:** design printable parts together with the assistant, and research with the user to find
+solutions for special objects. **Not PartBuddy's job:** whatever the slicer does itself and better
+(supports, bridges, orientation in detail, calibration). Before a new feature, ask whether it is
+design (geometry that is only decided while designing) or slicer work.
 
-| Milestone | Content |
+**Guiding idea of the workspace:** PartBuddy is a real CAD workspace for makers, with SolidCraft as
+the engine behind it ([ADR 0016](adr/0016-headless-solidcraft.md)). The user points at geometry and
+changes it; the assistant does what needs intent. **Direct where it is unambiguous, the assistant
+where intent is needed:** a dimension driven by a parameter or sketch dimension changes at once,
+without tokens and with a preview; anything else becomes a short, structured request to the
+assistant, which asks with a clarification card when there are several sensible ways. Where
+SolidCraft already has a command for a task, PartBuddy offers that command instead of building its
+own geometry logic.
+
+Work runs in three phases, one pull request per step, in this order.
+
+### Phase 0: engine and clean-up
+
+| Step | Content |
 | --- | --- |
-| M1 Workspace | Layout with a structure tree (bodies, sketches, features) on the left, the timeline at the bottom and the chat on the right. CAD look: model edges and silhouettes, studio lighting, pre-highlight on hover and outline selection for faces, edges and vertices, orthographic and perspective views with standard views. Selection HUD: a dimension field at the selection (direct or through the assistant, see above), actions that fit the selection (fillet, chamfer, extrude by, hole, shell), free text to the assistant with the selection attached, multiple selection shown as chips in the chat, and measurements of the selection. |
-| M2 Assistant work log and markups (done) | The chat as a work log: plan, steps and result; every step a card with a preview and plain text that highlights its faces on hover and can be gone back to ([ADR 0018](adr/0018-work-log.md)); tool details only on demand. Markups: notes on the model (ADR 0006), drawing on the view (sent to the assistant as text, an image only on request), dimensions of the selected feature shown in the view, clearer before/after of the last step later ([ADR 0020](adr/0020-markups.md)). Variants ("show me three") were built and dropped on 2026-11-04 ([ADR 0021](adr/0021-variants.md), rejected). |
-| Practice run (next) | Five parts the product owner really needs, built with the real assistant (Claude Code, ChatGPT); what gets in the way decides the next work. |
-| M7 Ready to print (now) | In this order (decided 2026-11-05): printer and material profiles, entered by hand: printers for the whole installation with one in use, the material chosen per part (status bar) with a default for new parts; the assistant gets the profile once per conversation and after every change, and the overhang view takes its limits from the material (done). Then the "ready to print" indicator with reasons that point at the spot on the model (ADR 0010); red warns, export goes ahead after one confirmation (done). Then the print orientation per part: a proposal from the six axes and the largest flat faces, weighing fit, support, area on the bed, height and marked loads (layers along the load), "print on this face" at the selection; check and overhang view use it, 3MF and STL are exported lying that way, STEP stays as designed (done). Then the fit assistant at a selected cylinder: a hole or pin sized for its counterpart (typed in, or the selected mating pin or hole) with the clearance of clamp, push, slide or turn and the hole allowance of the material, changed directly through the driving parameter or asked of the assistant with the numbers (done; flat fits like tongue and groove later). Last, measuring after printing (done): holes and outer sizes as drawn and as measured, and how a fit felt, per material; the median of the latest measurements suggests the hole allowance and a new outer growth (used for pins), a fit that felt tight or loose moves its clearance one step; suggestions are applied in the profile dialog and reach the assistant with the profile note. |
-| M3 Local models (later) | Provider manager for local models ([ADR 0011](adr/0011-provider-manager.md), #26). Gemini CLI over ACP (#17) and OpenCode over ACP (#27) were dropped on 2026-11-04: Claude Code and ChatGPT cover the subscriptions, each further route has to be kept working. |
-| M4 Building blocks and templates | Function blocks inserted parametrically on a picked face: heat-set insert seat, countersunk screw hole, snap hook, hinge, nut trap, slot. Template gallery as starting points (box with lid, wall holder, cable clip, housing, adapter). New parts also from an opened STEP, STL or 3MF, and from a rough 2D sketch drawn with the mouse. |
-| M5 Photo import | Holder for the object in a photo, rebuilding a part from photos, a photographed hand sketch with dimensions, and a photo as background for comparing outlines (`compare_picture`). The scale comes from the user: the assistant asks for the two or three critical dimensions with a hint where and how to measure. |
-| M6 Exploded view | For prints of several parts: PartBuddy works out the direction each part comes off (contact faces and SolidCraft's joints), a slider from assembled to apart, explosion lines, also for the bodies of a single part. Animation, renders by GPU path tracing and videos were dropped on 2026-11-04: little use for printed parts. |
+| R0 SolidCraft 0.40 | Develop against SolidCraft 0.40.0-rc.2 with the new kernel solidcore instead of 0.30.1. PartBuddy's interface runs on it unchanged (contract tests pass on both), the command set only grew. Checked on 2026-11-05 with 29 existing designs: 10 rebuild unchanged, 19 lose fillets, chamfers and threads on cylinder faces because solidcore names those faces differently ("reselect it"); designs made in 0.40 do not have that problem. Parts with knurls or modelled threads rebuild up to seven times slower, other booleans much faster. 0.40 saves file format 50, which 0.30.1 cannot open. The step: the SolidCraft path becomes a setting with a version check, the CI runner and the test version run 0.40, test designs are backed up first, an ADR records the findings. Move to 0.40.0 final when it is released; keep 0.30.1 selectable until then. |
+| R1 Remove slicer work | Support walls in the model (#83), fix buttons at the indicator (#81), stepped bridges (#82), the cause detection and the slicer-style support reach behind them, and the print orientation with its proposal, marked loads, "print on this face" and the turned 3MF/STL export (#75). The "ready to print" indicator keeps build volume, thin walls, feature errors and bed contact, plus overhang by angle as a yellow hint that points at the spot (never red). The parked branch of the overhang view rework is deleted. The rules for designing without support stay in the assistant's instructions, with their switch. |
+| R2 Remove further | Fit assistant (#76), measuring after printing with its calibration suggestions (#77), the overhang view, drawing on the view and the before/after slider. The print profile becomes lean: printer with build volume, nozzle and layer height; material with clearance, hole allowance and overhang angle. ADRs and this catalogue are updated in the same step. |
 
-Also wanted, not yet placed in a milestone: project overview with preview tiles, named versions per
-part with compare and restore, and a sharing package (3MF, STEP, preview images, description) for
-Printables and MakerWorld. Not for now: a dark theme and a personal library of own parts.
+### Phase 1: basics in every area
+
+| Step | Content |
+| --- | --- |
+| B1 Model and effort | The provider chip in the chat input shows provider, model and effort (for example "Claude · Opus · high"); a click chooses model and effort among what the subscription offers. It applies per chat and can change mid-conversation; the default for new chats is a setting. Claude Code gets `--model` and `--effort`, ChatGPT the model and `reasoning.effort`. Today neither is chosen: Claude Code runs with the account default and ChatGPT with a model PartBuddy picks. |
+| B2 Projects | One visible folder per project, by default `Documents\PartBuddy\<project>`, the root a setting. It holds the design (one `.sc` file, several bodies allowed, e.g. housing and lid), the chat, the versions and the exports. Saving stays automatic; the title bar shows "saved". Project actions: new, open, rename, duplicate, show in Explorer, delete (to the recycle bin). The single design under AppData moves into a project on first start. |
+| B3 Start page | Project tiles with preview image, name, last change and indicator state, a search, and new, open and import. Reached through the logo in the title bar. |
+| B4 Import | STEP and IGES as editable bodies (`file.insert_step`), STL, 3MF and OBJ as mesh bodies (`file.insert_mesh`), either as a new project or into the open one (a circuit board to build a housing around). Repair for broken meshes (`body.repair`) and "convert to faces" where SolidCraft can (`mesh.convert`). Also by dragging a file onto the window. |
+| B5 Versions | PartBuddy saves a version at every export and before larger assistant requests; the user can save one with a name at any time. A list with preview images to view and restore, and a comparison of two versions (`inspect.compare`: what was added, removed, moved). |
+| B6 Settings | A settings window with sections: General (language, theme, project folder, SolidCraft path), Assistant (provider, sign-in, default model and effort, design without support), Printer and material (lean, see R2), About (version, licence notice, GitHub Sponsors link). Replaces the gear menu. |
+| B7 Research | The assistant may search the web and read pages (Claude Code's WebSearch and WebFetch, ChatGPT's web search). Sources appear as cards in the chat with their link; dimensions taken from a data sheet name their source. Page content is data, never instructions (prompt injection is considered). Standard parts from SolidCraft (`parts.insert`: screws, nuts, washers, bearings, pins) can be inserted as counterparts. |
+| B8 To the slicer | "Open in Bambu Studio / OrcaSlicer" next to export, through SolidCraft's slicer detection (`file.slicers`, `file.send_to_slicer`). "Print on this face" at a selected flat face sets SolidCraft's own print face (`body.print_face`), which the slicer export uses; PartBuddy adds no orientation logic of its own. |
+| B9 First start | A short setup that can be skipped: find SolidCraft (otherwise a hint with the download link), sign in to an assistant, choose printer and material, confirm the project folder. |
+| B10 Installer | An installer with a Start menu entry and an update check through GitHub releases, unsigned for now (SmartScreen warns); signing comes before the public release. Replaces the hand-copied test version. |
+
+### Phase 2: features
+
+| Step | Content |
+| --- | --- |
+| F1 Function blocks | Inserted at a picked face, built on SolidCraft's commands: modelled threads and tapped holes (`solid.thread`, `solid.hole`), countersunk holes, snap fits, screw bosses and lids with lip or groove (`plastic.snap_fit`, `plastic.boss`, `plastic.lip`), text and logos embossed or engraved (`sketch.text`, `sketch.insert_svg`, `solid.emboss`), plus heat-set insert seats, nut traps and slots where SolidCraft has no command. |
+| F2 Clearance between parts | For prints of several parts, the indicator checks clearance and overlap between bodies (`inspect.clearance`, `inspect.interference`). |
+| F3 Templates | A gallery of parametric starting points: box with lid, wall holder, cable clip, housing, adapter. |
+| F4 Rough sketch | Draw a 2D sketch with the mouse; the assistant makes a part from it. |
+| F5 Sharing package | 3MF, STEP, preview images and a description for Printables and MakerWorld. |
+| F6 Photo import | Limited to one or two cases when planned: a holder for the object in a photo, an outline compared with the photo (`canvas.insert`, `compare_picture`). The assistant asks for the two or three critical dimensions. |
+| F7 Exploded view | For prints of several parts: a slider from assembled to apart, explosion lines. |
+| F8 Local models | Provider manager for local models ([ADR 0011](adr/0011-provider-manager.md), #26). |
+
+When convenient, between steps: small follow-ups of the view (hide dimension labels behind the
+model, the HUD moves out of the way, ground shadow, silhouettes), a parity test (every action in the
+interface is an assistant tool or has a written reason), a loop guard in the gate proxy, the
+signing key on GitHub, Renovate.
+
+**Dropped on 2026-11-05:** the command palette (Ctrl+K), and everything listed under R1 and R2.
+Earlier: variants (ADR 0021), animation, renders and videos, Gemini CLI (#17) and OpenCode (#27).
+Not for now: a personal library of own parts.
 
 Verification levels used throughout the product (from the earlier workspace, rewritten):
 
