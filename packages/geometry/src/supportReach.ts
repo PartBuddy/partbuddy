@@ -33,6 +33,8 @@ const DIRECTIONS = 8;
 export interface SupportNeed {
   /** mm² per B-rep face that needs support. */
   byFace: Float64Array;
+  /** 1 for each render triangle with a spot that needs support (M7f: where support ribs go). */
+  triangles: Uint8Array;
   /** mm² that need support in all. */
   area: number;
   /** mm² steeper than the limit that print anyway: short, bridged or resting. */
@@ -50,6 +52,7 @@ export function supportNeed(model: ViewerModel, turned: ArrayLike<number>, down:
   const faceCount = model.table.faces.length;
   const triangles = index.length / 3;
   const byFace = new Float64Array(faceCount);
+  const flagged = new Uint8Array(triangles);
   const sinSupport = Math.sin(((supportAngle + ANGLE_TOLERANCE) * Math.PI) / 180);
 
   // Faces lying on the bed are no overhang: none of their vertices is above it (as in overhangOf).
@@ -149,11 +152,12 @@ export function supportNeed(model: ViewerModel, turned: ArrayLike<number>, down:
             carriedArea += share;
           } else {
             byFace[face] = (byFace[face] ?? 0) + share;
+            flagged[t] = 1;
             area += share;
           }
         }
       }
     }
   }
-  return { byFace, area, carried: carriedArea };
+  return { byFace, triangles: flagged, area, carried: carriedArea };
 }

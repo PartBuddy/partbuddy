@@ -26,6 +26,7 @@ function line(finding: Finding, nozzle: number): string {
         ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than the ${mm(nozzle)} nozzle, so they do not print${where(finding.places)}.`
         : `- ${tag}: walls down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} of two lines${where(finding.places)}.`;
     case 'support': {
+      if (finding.ribs) return `- ${tag}: ${String(finding.area)} mm² that need support are carried by support walls printed into the model (bodies "Print support …")${where(finding.places)}; the slicer's supports go off.`;
       const what =
         finding.cause === 'fillet' ? 'of fillets facing the bed ' : finding.cause === 'hole' ? 'on top of lying holes too wide to bridge ' : finding.cause === 'counterbore' ? 'of counterbore steps facing the bed (the hole cuts the bridge) ' : '';
       const fix =

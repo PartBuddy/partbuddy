@@ -1,4 +1,4 @@
-import { AS_DESIGNED, type PrintFinding, type PrintStatus } from '@partbuddy/geometry';
+import type { PrintFinding, PrintStatus } from '@partbuddy/geometry';
 import { IconCrosshair, IconTool } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -40,7 +40,7 @@ export function useFindingText(): (finding: PrintFinding) => string {
           ? t('check.finding.wallTooThin', { thickness: number.format(finding.thickness), nozzle: number.format(nozzle) })
           : t('check.finding.wallThin', { thickness: number.format(finding.thickness), minimum: number.format(finding.minimum) });
       case 'support':
-        return t(`check.finding.${SUPPORT_TEXT[finding.cause]}`, {
+        return t(`check.finding.${finding.ribs ? 'supportRibs' : SUPPORT_TEXT[finding.cause]}`, {
           area: number.format(finding.area),
           limit: finding.limit,
         });
@@ -75,10 +75,13 @@ function FixControl({ finding }: { finding: Extract<PrintFinding, { kind: 'suppo
     },
     [setSelectionGhost],
   );
-  const fix = model.status === 'ready' ? fixFor(finding, model.bodies, print?.orientation.down ?? AS_DESIGNED, print?.printer.layer ?? 0.2) : null;
+  const fix =
+    model.status === 'ready' && print
+      ? fixFor(finding, model.bodies, print.orientation.down, { layer: print.printer.layer, overhang: print.material.overhang })
+      : null;
   if (!fix) return null;
   const kind = fix.fix;
-  const count = fix.fix === 'roof' ? fix.roofs.length : fix.fix === 'bridge' ? fix.bridges.length : fix.fillets.length;
+  const count = fix.fix === 'roof' ? fix.roofs.length : fix.fix === 'bridge' ? fix.bridges.length : fix.fix === 'ribs' ? fix.ribs.length : fix.fillets.length;
 
   const tryIt = () => {
     setState({ step: 'trying' });

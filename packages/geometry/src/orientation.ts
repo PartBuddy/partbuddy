@@ -1,6 +1,7 @@
 import { Matrix4, Quaternion, Vector3 } from 'three';
 
 import { Overhang, overhangLimits, overhangOf } from './overhang';
+import { isSupportBody } from './supportBody';
 import { supportNeed } from './supportReach';
 import type { ViewerModel } from './viewerModel';
 
@@ -241,10 +242,12 @@ function candidates(bodies: readonly OrientationBody[]): { down: Vector3; face: 
  * user sees the numbers that decided.
  */
 export function proposeOrientations(
-  bodies: readonly OrientationBody[],
+  all: readonly OrientationBody[],
   profile: OrientationProfile,
   loads: readonly LoadPlace[] = [],
 ): OrientationOption[] {
+  // Support printed into the model belongs to the current orientation only (M7f step 4).
+  const bodies = all.filter((body) => !isSupportBody(body.name));
   const options = candidates(bodies).map(({ down, face }) => {
     const result = evaluateOrientation(bodies, profile, [down.x, down.y, down.z], loads);
     return {

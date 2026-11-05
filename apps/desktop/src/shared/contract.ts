@@ -693,6 +693,23 @@ export const printFixSchema = z.discriminatedUnion('fix', [
         .max(20),
     })
     .strict(),
+  z
+    .object({
+      fix: z.literal('ribs'),
+      body: bodyName,
+      /** The number of the first new support body (`Print support <first>`). */
+      first: z.number().int().min(1).max(10_000),
+      /** Walls standing on the bed: a vertical sketch each, extruded symmetrically by its thickness. */
+      ribs: z
+        .array(
+          z
+            .object({ origin: point3, xDir: unitDirection, yDir: unitDirection, points: z.array(point2).min(3).max(200), thickness: finite.min(0.4).max(5) })
+            .strict(),
+        )
+        .min(1)
+        .max(60),
+    })
+    .strict(),
 ]);
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();
 export const partLoadsRequestSchema = z.object({ loads: loadPlacesSchema }).strict();
@@ -728,7 +745,7 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('size'), severity: findingSeveritySchema, size: z.tuple([mmValue, mmValue, mmValue]), bed: z.tuple([mmValue, mmValue, mmValue]), lying: z.boolean() }).strict(),
   z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z
-    .object({ kind: z.literal('support'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), cause: z.enum(['fillet', 'hole', 'counterbore', 'other']), places: findingPlacesSchema })
+    .object({ kind: z.literal('support'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), cause: z.enum(['fillet', 'hole', 'counterbore', 'other']), ribs: z.boolean().optional(), places: findingPlacesSchema })
     .strict(),
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),

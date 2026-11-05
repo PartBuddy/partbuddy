@@ -24,6 +24,7 @@ export const STEP_PHRASE_KEYS = [
   'fixChamfer',
   'fixRoof',
   'fixBridge',
+  'fixRibs',
   'hole',
   'shell',
   'pressPull',
@@ -232,13 +233,15 @@ export function describeToolCall(tool: string, args: Params): StepPhrase[] {
 }
 
 /** The phrase of one action of the user (M1b dimension field, M1b-2 actions, M1c timeline). */
+const FIX_PHRASE = { chamfer: 'fixChamfer', roof: 'fixRoof', bridge: 'fixBridge', ribs: 'fixRibs' } as const;
+
 export function describeUserAction(
   action:
     | { kind: 'dimension'; parameter: string; value: number }
     | { kind: 'action'; action: 'fillet' | 'chamfer' | 'extrude' | 'hole' | 'shell'; size: number; count: number; depth?: number | undefined }
     | { kind: 'rollTo'; position: number | 'end' }
     | { kind: 'suppress'; suppressed: boolean }
-    | { kind: 'fix'; fix: 'chamfer' | 'roof' | 'bridge'; count: number },
+    | { kind: 'fix'; fix: 'chamfer' | 'roof' | 'bridge' | 'ribs'; count: number },
 ): StepPhrase {
   const round = (value: number) => Math.round(value * 100) / 100;
   switch (action.kind) {
@@ -249,7 +252,7 @@ export function describeUserAction(
     case 'suppress':
       return { key: action.suppressed ? 'suppress' : 'unsuppress', values: {} };
     case 'fix':
-      return { key: action.fix === 'chamfer' ? 'fixChamfer' : action.fix === 'roof' ? 'fixRoof' : 'fixBridge', values: { count: action.count } };
+      return { key: FIX_PHRASE[action.fix], values: { count: action.count } };
     case 'action':
       switch (action.action) {
         case 'fillet':
@@ -289,6 +292,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     fixChamfer: 'Rounds facing the bed made chamfers ({count, plural, one {# fillet} other {# fillets}})',
     fixRoof: '{count, plural, one {Roof over a lying hole} other {Roofs over # lying holes}}',
     fixBridge: '{count, plural, one {Stepped bridge over a counterbore} other {Stepped bridges over # counterbores}}',
+    fixRibs: '{count, plural, one {Support wall printed into the model} other {# support walls printed into the model}}',
     hole: '{depth, select, through {Hole ⌀ {diameter} mm, through} other {Hole ⌀ {diameter} mm, {depth} mm deep}}',
     shell: 'Shelled with {thickness} mm walls',
     pressPull: 'Face moved by {distance} mm',
@@ -326,6 +330,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     fixChamfer: 'Rundungen zum Druckbett zu Fasen gemacht ({count, plural, one {# Verrundung} other {# Verrundungen}})',
     fixRoof: '{count, plural, one {Dach über einer liegenden Bohrung} other {Dächer über # liegenden Bohrungen}}',
     fixBridge: '{count, plural, one {Gestufte Brücke über einer Stufenbohrung} other {Gestufte Brücken über # Stufenbohrungen}}',
+    fixRibs: '{count, plural, one {Stützwand ins Modell gesetzt} other {# Stützwände ins Modell gesetzt}}',
     hole: '{depth, select, through {Bohrung ⌀ {diameter} mm, durchgehend} other {Bohrung ⌀ {diameter} mm, {depth} mm tief}}',
     shell: 'Schale mit {thickness} mm Wand',
     pressPull: 'Fläche um {distance} mm verschoben',
