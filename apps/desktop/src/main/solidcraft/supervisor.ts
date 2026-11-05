@@ -70,6 +70,8 @@ export class SolidCraftSupervisor {
   private readonly designs: DesignStore | null;
   /** The file the headless design was opened from, when it lies in the project folder. */
   private designFile: string | null = null;
+  /** The file the open design was last opened from or saved to; the chat is kept next to it. */
+  private currentFile: string | null = null;
   /** Set by openInSolidCraft(): the next launch opens this file in the SolidCraft window. */
   private handoffFile: string | null = null;
   private mirrorState: Mirror = 'idle';
@@ -386,6 +388,11 @@ export class SolidCraftSupervisor {
     return [...marks.values()].slice(0, 400);
   }
 
+  /** The file of the open design, or null while it has none (a new design before its first save). */
+  designPath(): string | null {
+    return this.currentFile;
+  }
+
   /** Whether "Open in SolidCraft" is possible: the headless engine runs and holds the design. */
   canOpenInSolidCraft(): boolean {
     return this.actor.getSnapshot().value === 'connected' && this.engine?.isOpen === true && Boolean(this.options.projectsDir);
@@ -410,6 +417,7 @@ export class SolidCraftSupervisor {
     await engine.save(file);
     this.designFile = file;
     this.designs?.remember(file);
+    this.currentFile = file;
     this.handoffFile = file;
     this.actor.send({ type: 'HANDOFF' });
     return file;
@@ -557,12 +565,14 @@ export class SolidCraftSupervisor {
     try {
       engine = await start(design);
       this.designFile = design && projects && isInside(projects, design) ? design : null;
+      this.currentFile = design ?? null;
     } catch (error) {
       if (!design) throw new Error(`SolidCraft (headless) could not be started: ${(error as Error).message}`, { cause: error });
       // The saved design did not open (moved, damaged, newer format): start empty, keep the file.
       this.options.log(`the last design did not open (${(error as Error).message}); starting a new one`);
       this.designs?.forget();
       this.designFile = null;
+      this.currentFile = null;
       engine = await start(undefined);
     }
     this.engine = engine;
@@ -596,6 +606,7 @@ export class SolidCraftSupervisor {
       .then(() => engine.save(file))
       .then(async () => {
         designs.remember(file);
+        this.currentFile = file;
         this.setSaveState('saved');
         // Without a window SolidCraft announces nothing, so the new name is mirrored right away.
         if (renamed) this.scheduler.request(await engine.revision());

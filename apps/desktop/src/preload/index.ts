@@ -64,6 +64,10 @@ const api: PartBuddyApi = {
     theme: () => ipcRenderer.invoke(invokeChannels.windowTheme),
     setTheme: (theme) => ipcRenderer.invoke(invokeChannels.windowSetTheme, { theme }),
   },
+  chat: {
+    load: () => ipcRenderer.invoke(invokeChannels.chatLoad),
+    save: (items) => ipcRenderer.invoke(invokeChannels.chatSave, { items }),
+  },
   agent: {
     status: () => ipcRenderer.invoke(invokeChannels.agentStatus),
     refresh: () => ipcRenderer.invoke(invokeChannels.agentRefresh),

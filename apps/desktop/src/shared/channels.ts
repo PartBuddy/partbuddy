@@ -35,6 +35,8 @@ export const invokeChannels = {
   designDimensions: 'design:dimensions',
   designProbeParameter: 'design:probe-parameter',
   designParameters: 'design:parameters',
+  chatLoad: 'chat:load',
+  chatSave: 'chat:save',
   notesCurrent: 'notes:current',
   notesAdd: 'notes:add',
   notesEdit: 'notes:edit',

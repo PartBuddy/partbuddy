@@ -29,6 +29,7 @@ import { Bridge, trustedSender } from './bridge';
 import { findExecutable, systemEnvironment } from './solidcraft/discovery';
 import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
+import { ChatArchive } from './chat/chatArchive';
 
 app.setName('PartBuddy');
 // Windows counts a window beside all displays as covered and stops painting it; test runs
@@ -180,6 +181,7 @@ if (!app.requestSingleInstanceLock()) {
     let workLog: WorkLog | null = null;
     // Notes on the model (M2b, ADR 0020); made once the supervisor exists.
     let notes: NotesService | null = null;
+    let chats: ChatArchive | null = null;
     const supervisor = new SolidCraftSupervisor(
       {
         environment: systemEnvironment,
@@ -195,6 +197,8 @@ if (!app.requestSingleInstanceLock()) {
       {
         status: (status) => {
           bridge.emit(mainWindow?.webContents ?? null, eventChannels.solidcraftStatus, status);
+          // A conversation held before the design had a file goes next to it after the first save.
+          if (status.state === 'connected' && status.save === 'saved') chats?.flush();
         },
         revision: (revision) => {
           bridge.emit(mainWindow?.webContents ?? null, eventChannels.mirrorRevision, revision);
@@ -345,6 +349,8 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, drawing }) => {
       const lines = [
+        // Once after a restart: what the earlier conversation about this design was about.
+        chats?.takeDigest() ?? null,
         questions.answer(answer),
         steps.takeNote(),
         notesService.selectionNote(selections ?? []),
@@ -438,6 +444,13 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.designDimensions, ({ features }) => supervisor.dimensionMarks(features));
     bridge.handle(invokeChannels.designParameters, () => supervisor.parameters());
+    const chatArchive = new ChatArchive({ designFile: () => supervisor.designPath(), log });
+    chats = chatArchive;
+    bridge.handle(invokeChannels.chatLoad, () => chatArchive.load());
+    bridge.handle(invokeChannels.chatSave, ({ items }) => {
+      chatArchive.save(items);
+      return undefined;
+    });
     bridge.handle(invokeChannels.designProbeParameter, ({ parameter, value, body }) => {
       assistantIdle();
       return supervisor.probeParameter(parameter, value, body);

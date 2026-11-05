@@ -267,7 +267,8 @@
       "edges": "{count, plural, one {# Kante} other {# Kanten}}",
       "vertices": "{count, plural, one {# Ecke} other {# Ecken}}",
       "line": "Auswahl: {what} · {bodies}"
-    }
+    },
+    "earlierSession": "Frühere Sitzung, bis {date, date, short} {date, time, short}"
   },
   "live": {
     "thinking": "Der Assistent plant den nächsten Schritt",
