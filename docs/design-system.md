@@ -131,6 +131,10 @@ flat ground), with the tone kept neutral rather than warm:
   field, the actions and Note, the distance between two picks and the wish to the assistant. The
   ghost of a tried value still shows on the part. Dimension labels keep clear of the dock, the
   view tools and the live chips (`data-view-overlay`).
+* Timeline (UI upgrade step 14): one icon per step with its name and kind in a tooltip, faded
+  when rolled back, crossed when suppressed. The rollback bar sits after the last active step;
+  drag it, or move it with the arrow keys and press Enter, and the design rolls back once on
+  release (a rebuild can take minutes). A normal part fits without a scrollbar.
 * Dimensions in their own colour (`viewer-dimension`): extension lines that start off the part and
   run past the dimension line, arrowheads of a fixed screen size, leaders with the arrow on the rim
   for radii and diameters, labels as slim pills (parameter name subtle, value bold).
