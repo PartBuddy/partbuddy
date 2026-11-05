@@ -62,6 +62,7 @@ live-view latency test, which builds the synthetic cable clip step by step in an
 | --- | --- |
 | `PARTBUDDY_SOLIDCRAFT_PORT` | Control port used when PartBuddy starts SolidCraft (default 7878) |
 | `PARTBUDDY_SOLIDCRAFT_EXE` | Path of the SolidCraft executable, if it is not in Program Files or on `PATH` |
+| `PARTBUDDY_START_PAGE` | `0` starts in the work area with the last project instead of on the start page; the E2E launcher sets it, the start page tests turn it back on |
 | `PARTBUDDY_SOLIDCRAFT_AUTOSTART=0` | Never start SolidCraft automatically |
 | `PARTBUDDY_CACHE_DIR` | Folder for mirrored exports (default `%LOCALAPPDATA%\PartBuddy\cache\mirror`) |
 | `PARTBUDDY_CLAUDE_COMMAND` | JSON array that replaces the Claude Code program, for tests (`["node", "test/fakeClaude.mjs"]`) |

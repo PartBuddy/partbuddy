@@ -668,7 +668,7 @@ test('the ready-to-print light follows the printer, points at its findings and a
   await expect(confirm).toHaveCount(0);
 });
 
-test('the logo opens the start page with the projects, which searches and closes again (B3)', async () => {
+test('PartBuddy starts on the start page with the projects, which searches and closes again (B3)', async () => {
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-home-'));
   const projects = join(work, 'projects');
   const png = Buffer.from(
@@ -690,9 +690,9 @@ test('the logo opens the start page with the projects, which searches and closes
   seed('Cable clip', 60 * 30, 'block');
   seed('Übersicht', 60 * 24 * 3);
   try {
-    launched = await launchApp({ work });
+    launched = await launchApp({ work, env: { PARTBUDDY_START_PAGE: '1' } });
     const { page } = launched;
-    await page.getByTestId('home-button').click();
+    // The window opens on the start page, without the logo.
     const home = page.getByTestId('home-page');
     await expect(home.getByRole('heading', { name: 'Projects' })).toBeVisible();
     const tiles = home.getByTestId('home-tile');

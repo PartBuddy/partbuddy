@@ -212,7 +212,8 @@ export const useStudio = create<StudioState>()((set) => ({
   setProfilesOpen: (profilesOpen) => {
     set({ profilesOpen });
   },
-  homeOpen: false,
+  // PartBuddy starts on the start page (B3); tests that start in the work area turn it off.
+  homeOpen: true,
   setHomeOpen: (homeOpen) => {
     set({ homeOpen });
   },
