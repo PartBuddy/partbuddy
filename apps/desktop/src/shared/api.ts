@@ -64,6 +64,8 @@ export interface PartBuddyApi {
     chooseProjectsFolder(): Promise<GeneralSettingsInfo>;
     /** Back to Documents\PartBuddy after a restart. */
     resetProjectsFolder(): Promise<GeneralSettingsInfo>;
+    /** Marks the first-start setup (B9) as finished or skipped. */
+    finishSetup(): Promise<GeneralSettingsInfo>;
   };
   /** Projects (B2): one folder per part in the project folder. Switching saves the open design first. */
   project: {

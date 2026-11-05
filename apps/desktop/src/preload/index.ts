@@ -24,6 +24,7 @@ const api: PartBuddyApi = {
     setLanguage: (language) => ipcRenderer.invoke(invokeChannels.settingsSetLanguage, { language }),
     chooseProjectsFolder: () => ipcRenderer.invoke(invokeChannels.settingsChooseProjectsFolder),
     resetProjectsFolder: () => ipcRenderer.invoke(invokeChannels.settingsResetProjectsFolder),
+    finishSetup: () => ipcRenderer.invoke(invokeChannels.settingsFinishSetup),
   },
   project: {
     info: () => ipcRenderer.invoke(invokeChannels.projectInfo),
