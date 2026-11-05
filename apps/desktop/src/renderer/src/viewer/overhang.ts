@@ -1,27 +1,40 @@
 /**
  * Overhangs for FDM printing (UI upgrade step 12): how far a downward face leans from the vertical,
  * with the part printed along +Z on a bed at its lowest point. Faces up to 35° from the vertical
- * print fine, 35–45° are borderline, beyond 45° they need support; faces lying on the bed are not
- * overhangs. Pure, on the render buffers; the print direction from M7's orientation comes later.
+ * print fine, 35–45° are borderline, beyond 45° they need support (the material's profile moves
+ * these limits, M7); faces lying on the bed are not overhangs. Pure, on the render buffers; the
+ * print direction from M7's orientation comes later.
  */
 
 export const Overhang = { Fine: 0, Bed: 1, Borderline: 2, Support: 3 } as const;
 export type Overhang = (typeof Overhang)[keyof typeof Overhang];
 
 /** Degrees from the vertical where a downward face becomes borderline, and where it needs support. */
-export const OVERHANG_LIMITS = { borderline: 35, support: 45 } as const;
+export interface OverhangLimits {
+  borderline: number;
+  support: number;
+}
+
+/** The limits without a print profile. */
+export const OVERHANG_LIMITS: OverhangLimits = { borderline: 35, support: 45 };
+
+/** The limits for a material (M7): support beyond its overhang angle, borderline 10° before. */
+export function overhangLimits(support: number): OverhangLimits {
+  return { borderline: Math.max(0, support - 10), support };
+}
 
 /** How close to the bed (mm) a face must lie to count as lying on it. */
 const BED_TOLERANCE = 0.05;
 
-const SIN_BORDERLINE = Math.sin((OVERHANG_LIMITS.borderline * Math.PI) / 180);
-const SIN_SUPPORT = Math.sin((OVERHANG_LIMITS.support * Math.PI) / 180);
-
 /** The class of a direction: `down` is how much it points down (−z of the unit normal). */
-function classOf(down: number): Overhang {
-  if (down > SIN_SUPPORT) return Overhang.Support;
-  if (down > SIN_BORDERLINE) return Overhang.Borderline;
-  return Overhang.Fine;
+function classifier(limits: OverhangLimits): (down: number) => Overhang {
+  const sinBorderline = Math.sin((limits.borderline * Math.PI) / 180);
+  const sinSupport = Math.sin((limits.support * Math.PI) / 180);
+  return (down) => {
+    if (down > sinSupport) return Overhang.Support;
+    if (down > sinBorderline) return Overhang.Borderline;
+    return Overhang.Fine;
+  };
 }
 
 export interface OverhangMap {
@@ -40,7 +53,8 @@ export interface OverhangInput {
 }
 
 /** Overhang classes of one body printed on a bed at height `bedZ`. */
-export function overhangOf(mesh: OverhangInput, bedZ: number): OverhangMap {
+export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLimits = OVERHANG_LIMITS): OverhangMap {
+  const classOf = classifier(limits);
   const { positions, normals, index, vertexFaces, faceCount } = mesh;
   // A face lies on the bed when none of its vertices is above it.
   const top = new Float64Array(faceCount).fill(Number.NEGATIVE_INFINITY);

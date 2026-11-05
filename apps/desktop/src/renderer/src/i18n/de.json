@@ -474,7 +474,8 @@
     "direction": "Gedruckt entlang +Z, auf der untersten Fläche stehend",
     "support": "Braucht Stütze (über {degrees}°)",
     "borderline": "Grenzwertig ({from}–{to}°)",
-    "bed": "Auf dem Druckbett"
+    "bed": "Auf dem Druckbett",
+    "material": "Grenzen aus dem Material {material}"
   },
   "compare": {
     "title": "Vorher und nachher",
@@ -485,5 +486,47 @@
     "now": "Jetzt",
     "tried": "Vorschau",
     "close": "Vergleich beenden"
+  },
+  "print": {
+    "title": "Drucker und Material",
+    "edit": "Drucker und Material …",
+    "chipHint": "Material dieses Teils und Drucker ändern",
+    "menuLabel": "Material dieses Teils",
+    "partMaterial": "Material dieses Teils",
+    "overhangShort": "bis {degrees}°",
+    "materialFailed": "Das Material konnte nicht gesetzt werden.",
+    "loading": "Profile werden geladen …",
+    "tab": {
+      "printer": "Drucker",
+      "material": "Material"
+    },
+    "printers": "Drucker",
+    "materials": "Materialien",
+    "inUse": "in Gebrauch",
+    "thisPart": "dieses Teil",
+    "default": "Standard",
+    "copy": "Kopieren",
+    "copySuffix": "(Kopie)",
+    "delete": "Löschen",
+    "name": "Name",
+    "bed": "Bauraum",
+    "nozzle": "Düse",
+    "layer": "Schichthöhe",
+    "printerHint": "Der markierte Drucker ist in Gebrauch. Wände unter zwei Linienbreiten druckt er schlecht; das bekommt der Assistent mit.",
+    "overhang": "Überhang ohne Stütze bis",
+    "holeShrink": "Löcher kleiner um (Ø)",
+    "clearance": "Spiel je Seite",
+    "fit": {
+      "clamp": "Klemmen",
+      "push": "Stecken",
+      "slide": "Gleiten",
+      "turn": "Drehen"
+    },
+    "defaultMaterial": "Standard für neue Teile",
+    "materialHint": "Startwerte für einen üblichen Drucker. Passe sie an deine Probedrucke an; der Assistent baut mit diesen Spielen.",
+    "nameMissing": "Jedes Profil braucht einen Namen.",
+    "saveFailed": "Die Profile konnten nicht gespeichert werden.",
+    "cancel": "Abbrechen",
+    "save": "Speichern"
   }
 }

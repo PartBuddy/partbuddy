@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { MaterialMenu } from '../print/MaterialMenu';
 import { useStudio } from '../state/store';
 import { selectionName, selectionOf } from '../viewer/viewState';
 
@@ -35,6 +36,7 @@ export function StatusBar() {
   return (
     <footer className="flex h-statusbar shrink-0 items-center gap-4 border-t border-border bg-surface px-3 text-xs text-text-muted">
       <span>{t('status.units')}</span>
+      <MaterialMenu />
       {bodies.length > 0 ? (
         <span
           data-testid="mesh-summary"

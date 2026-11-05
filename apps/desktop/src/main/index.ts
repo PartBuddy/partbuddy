@@ -30,6 +30,7 @@ import { findExecutable, systemEnvironment } from './solidcraft/discovery';
 import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
+import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
 
 app.setName('PartBuddy');
 // Windows counts a window beside all displays as covered and stops painting it; test runs
@@ -182,6 +183,7 @@ if (!app.requestSingleInstanceLock()) {
     // Notes on the model (M2b, ADR 0020); made once the supervisor exists.
     let notes: NotesService | null = null;
     let chats: ChatArchive | null = null;
+    let prints: PrintProfiles | null = null;
     const supervisor = new SolidCraftSupervisor(
       {
         environment: systemEnvironment,
@@ -198,7 +200,10 @@ if (!app.requestSingleInstanceLock()) {
         status: (status) => {
           bridge.emit(mainWindow?.webContents ?? null, eventChannels.solidcraftStatus, status);
           // A conversation held before the design had a file goes next to it after the first save.
-          if (status.state === 'connected' && status.save === 'saved') chats?.flush();
+          if (status.state === 'connected' && status.save === 'saved') {
+            chats?.flush();
+            prints?.flush();
+          }
         },
         revision: (revision) => {
           bridge.emit(mainWindow?.webContents ?? null, eventChannels.mirrorRevision, revision);
@@ -226,6 +231,26 @@ if (!app.requestSingleInstanceLock()) {
       return undefined;
     });
     bridge.handle(invokeChannels.mirrorCurrent, () => supervisor.currentRevision());
+
+    // Printer and material profiles (M7); the part's material lives next to its design file.
+    const printProfiles = new PrintProfiles({ file: join(app.getPath('userData'), 'print-profiles.json'), designFile: () => supervisor.designPath(), log });
+    prints = printProfiles;
+    const profileNote = new ProfileNote();
+    const printChanged = () => {
+      bridge.emit(mainWindow?.webContents ?? null, eventChannels.printChanged, printProfiles.part());
+    };
+    bridge.handle(invokeChannels.printSettings, () => printProfiles.settings());
+    bridge.handle(invokeChannels.printSaveSettings, (settings) => {
+      const saved = printProfiles.save(settings);
+      printChanged();
+      return saved;
+    });
+    bridge.handle(invokeChannels.printPart, () => printProfiles.part());
+    bridge.handle(invokeChannels.printSetMaterial, ({ material }) => {
+      const part = printProfiles.setMaterial(material);
+      printChanged();
+      return part;
+    });
 
     const secrets = new SecretStore();
     let noteKey: Buffer;
@@ -348,9 +373,12 @@ if (!app.requestSingleInstanceLock()) {
       return agent.state();
     });
     bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, drawing }) => {
+      const conversation = agent.conversation();
       const lines = [
         // Once after a restart: what the earlier conversation about this design was about.
         chats?.takeDigest() ?? null,
+        // The printer and material (M7), once per conversation and again after a change.
+        profileNote.take(conversation.route, conversation.fresh, printNote(printProfiles.part())),
         questions.answer(answer),
         steps.takeNote(),
         notesService.selectionNote(selections ?? []),
@@ -358,7 +386,12 @@ if (!app.requestSingleInstanceLock()) {
         drawing ? describeDrawing(drawing.strokes, drawing.image !== undefined) : null,
       ].filter((line): line is string => line !== null);
       const sent = drawing ? { strokes: drawing.strokes.length, image: drawing.image ?? null } : null;
-      await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, sent);
+      try {
+        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, sent);
+      } catch (error) {
+        profileNote.forget();
+        throw error;
+      }
       return undefined;
     });
     bridge.handle(invokeChannels.agentStop, async () => {

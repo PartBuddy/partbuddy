@@ -163,6 +163,7 @@ describe('assistant routes', () => {
         calls.push('stop');
         return Promise.resolve();
       },
+      freshConversation: () => false,
       signIn: () => calls.push('signIn'),
       signOut: () => {
         calls.push('signOut');

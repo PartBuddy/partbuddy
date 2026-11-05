@@ -114,6 +114,11 @@ export class AgentService implements AgentBackend {
     await this.session?.stop();
   }
 
+  /** A stopped or ended Claude Code session is not resumed (`--no-session-persistence`). */
+  freshConversation(): boolean {
+    return !this.session?.running;
+  }
+
   async dispose(): Promise<void> {
     await this.session?.stop();
     this.session = null;

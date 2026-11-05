@@ -113,6 +113,10 @@ export class ChatGptAgent implements AgentBackend {
     await this.stop();
   }
 
+  freshConversation(): boolean {
+    return this.history.length === 0;
+  }
+
   async send(text: string, selections: Selection[] = [], note: string | null = null, drawing: SentDrawing | null = null): Promise<void> {
     if (this.status().state !== 'ready') throw new Error(`assistant is ${this.status().state}`);
     const upstream = await this.options.tools();

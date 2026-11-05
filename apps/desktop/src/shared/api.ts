@@ -24,6 +24,8 @@ import type {
   StoredChatItem,
   MirrorRevision,
   NotesState,
+  PartPrint,
+  PrintSettings,
   TitleBarColors,
   Theme,
   ViewState,
@@ -99,6 +101,16 @@ export interface PartBuddyApi {
     /** Removes a note from the restore list for good. */
     dismiss(id: string): Promise<void>;
     onChange(listener: (state: NotesState) => void): () => void;
+  };
+  /** Printer and material profiles (M7): the printer in use, and the material per part. */
+  print: {
+    settings(): Promise<PrintSettings>;
+    saveSettings(settings: PrintSettings): Promise<PrintSettings>;
+    /** The printer in use and the material of the open part. */
+    part(): Promise<PartPrint>;
+    /** Chooses the material of the open part; kept next to its design file. */
+    setMaterial(material: string): Promise<PartPrint>;
+    onChange(listener: (part: PartPrint) => void): () => void;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

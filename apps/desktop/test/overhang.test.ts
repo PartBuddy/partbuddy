@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { Overhang, overhangOf } from '../src/renderer/src/viewer/overhang';
+import { Overhang, overhangLimits, overhangOf } from '../src/renderer/src/viewer/overhang';
 
 /** One square face of side 10 per entry, as render buffers: corners, normal and face index. */
 function faces(list: { corners: number[][]; normal: number[] }[]) {
@@ -55,5 +55,17 @@ describe('overhangs for FDM printing (UI upgrade step 12)', () => {
     ]);
     const map = overhangOf(mesh, 0);
     expect([map.vertices[0], map.vertices[4], map.vertices[8]]).toEqual([Overhang.Borderline, Overhang.Support, Overhang.Fine]);
+  });
+
+  it('moves the limits with the material (M7): PETG at 40° needs support at 45°, borderline from 30°', () => {
+    const at = (degrees: number) => -Math.sin((degrees * Math.PI) / 180);
+    const slope = (degrees: number, z: number) => ({
+      corners: [[0, 0, z], [10, 0, z], [10, 1, z + 1], [0, 1, z + 1]],
+      normal: [0, Math.cos((degrees * Math.PI) / 180), at(degrees)],
+    });
+    const mesh = faces([slope(25, 5), slope(35, 7), slope(45, 9)]);
+    const map = overhangOf(mesh, 0, overhangLimits(40));
+    expect([map.vertices[0], map.vertices[4], map.vertices[8]]).toEqual([Overhang.Fine, Overhang.Borderline, Overhang.Support]);
+    expect(overhangLimits(40)).toEqual({ borderline: 30, support: 40 });
   });
 });

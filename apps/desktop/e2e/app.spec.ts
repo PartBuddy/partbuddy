@@ -449,7 +449,7 @@ test('the renderer sees only the typed bridge', async () => {
     };
   });
   expect(globals).toEqual({
-    bridge: ['agent', 'appInfo', 'chat', 'design', 'mirror', 'notes', 'solidcraft', 'viewer', 'window'],
+    bridge: ['agent', 'appInfo', 'chat', 'design', 'mirror', 'notes', 'print', 'solidcraft', 'viewer', 'window'],
     solidcraft: ['onStatus', 'retry', 'start', 'status'],
     require: 'undefined',
     process: 'undefined',
@@ -513,4 +513,48 @@ test('the main view has no WCAG 2.2 AA violations that axe can detect', async ()
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+});
+
+test('the part material is chosen in the status bar and the profiles are edited in a dialog (M7)', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+  const chip = page.getByTestId('material-chip');
+  await expect(chip).toHaveAttribute('data-material', 'pla');
+  await page.getByTestId('overhang').click();
+  await expect(page.getByTestId('overhang-support')).toContainText('over 45°');
+
+  // The part's material from the status bar: the overhang limits follow it.
+  await chip.click();
+  await page.getByTestId('material-option').filter({ hasText: /^PETG(?!-)/ }).click();
+  await expect(chip).toHaveAttribute('data-material', 'petg');
+  await expect(page.getByTestId('overhang-support')).toContainText('over 40°');
+  await expect(page.getByTestId('overhang-material')).toContainText('PETG');
+
+  // The profiles in their dialog, opened from the settings; changes apply on save.
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-print').click();
+  const dialog = page.getByTestId('print-profiles');
+  await expect(dialog).toBeVisible();
+  const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="print-profiles"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+  expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  await dialog.getByTestId('printer-name').getByRole('textbox').fill('Werkstatt');
+  await dialog.getByTestId('print-tab-material').click();
+  await expect(dialog.getByTestId('materials-list').getByRole('option', { selected: true })).toContainText('PETG');
+  const overhang = dialog.getByTestId('material-overhang').getByRole('textbox');
+  await overhang.fill('35');
+  await overhang.press('Tab');
+  await page.screenshot({ path: test.info().outputPath('print-profiles.png') });
+  await dialog.getByTestId('print-save').click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId('overhang-support')).toContainText('over 35°');
+  await expect(chip).toContainText('Werkstatt');
+
+  // Cancel keeps what was saved.
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-print').click();
+  await dialog.getByTestId('printer-name').getByRole('textbox').fill('Anders');
+  await dialog.getByTestId('print-cancel').click();
+  await expect(dialog).toHaveCount(0);
+  await expect(chip).toContainText('Werkstatt');
 });
