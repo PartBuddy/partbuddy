@@ -244,7 +244,7 @@ test('the colour theme can be chosen in the settings and is kept', async () => {
   const dark = (page: LaunchedApp['page']) =>
     page.evaluate(() => (globalThis as unknown as { matchMedia(query: string): { matches: boolean } }).matchMedia('(prefers-color-scheme: dark)').matches);
   try {
-    launched = await launchApp({ work });
+    launched = await launchApp({ work, colorScheme: null });
     let { page } = launched;
     await page.getByTestId('settings').click();
     await expect(page.getByRole('menuitemradio', { name: 'Like Windows' })).toHaveAttribute('aria-checked', 'true');
@@ -254,7 +254,7 @@ test('the colour theme can be chosen in the settings and is kept', async () => {
 
     // The choice survives a restart.
     await launched.close();
-    launched = await launchApp({ work });
+    launched = await launchApp({ work, colorScheme: null });
     ({ page } = launched);
     await expect.poll(() => dark(page)).toBe(true);
     await page.getByTestId('settings').click();
