@@ -1,6 +1,7 @@
 import { IconAlertTriangle, IconCheck, IconLoader2 } from '@tabler/icons-react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Button as AriaButton } from 'react-aria-components';
 
 import type { ConnectionStatus } from '../../../shared/contract';
 import { platform } from '../platform';
@@ -56,6 +57,8 @@ export function TitleBar() {
   const { t } = useTranslation();
   const connection = useStudio((s) => s.connection);
   const model = useStudio((s) => s.model);
+  const homeOpen = useStudio((s) => s.homeOpen);
+  const setHomeOpen = useStudio((s) => s.setHomeOpen);
   // SolidCraft calls a design "Untitled" until it is saved under a name; PartBuddy names it after
   // its first body on the first autosave (UI upgrade, 2026-11-04).
   const untitled = model.status === 'ready' && (model.designName.trim() === '' || model.designName === 'Untitled');
@@ -63,10 +66,20 @@ export function TitleBar() {
 
   return (
     <header className="title-bar flex h-titlebar shrink-0 items-center gap-3 border-b border-border bg-surface select-none" data-testid="title-bar">
-      <div className="flex items-center gap-2">
+      {/* The logo opens the start page with the projects (B3) and closes it again. */}
+      <AriaButton
+        onPress={() => {
+          setHomeOpen(!homeOpen);
+        }}
+        // The visible name starts the accessible one (WCAG 2.5.3).
+        aria-label={`${t('app.name')}, ${homeOpen ? t('home.close') : t('home.open')}`}
+        aria-pressed={homeOpen}
+        className="flex items-center gap-2 rounded-sm px-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus pressed:bg-surface-selected"
+        data-testid="home-button"
+      >
         <BrandMark />
         <span className="font-display text-lg font-semibold text-text">{t('app.name')}</span>
-      </div>
+      </AriaButton>
       <nav aria-label={t('app.design')} className="flex min-w-0 items-center gap-2 text-md">
         <span className="text-text-subtle">/</span>
         <ProjectMenu designName={designName} />

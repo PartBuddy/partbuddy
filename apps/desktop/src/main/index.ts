@@ -605,6 +605,41 @@ if (!app.requestSingleInstanceLock()) {
       log('moved the project to the recycle bin');
       return undefined;
     });
+    // The start page (B3): the projects with preview and light, opening one, importing a design.
+    bridge.handle(invokeChannels.projectList, () => projectStore.list());
+    bridge.handle(invokeChannels.projectOpenFolder, async ({ folder }) => {
+      const design = projectStore.designOfFolder(folder);
+      if (!design) throw new Error('not a project in the project folder');
+      if (supervisor.projectFile() === design) return { opened: true, imported: false };
+      await switchProject(() => Promise.resolve(design));
+      log('opened a project from the start page');
+      return { opened: true, imported: false };
+    });
+    bridge.handle(invokeChannels.projectImport, async () => {
+      const options: Electron.OpenDialogOptions = {
+        title: german ? 'Design importieren' : 'Import design',
+        defaultPath: app.getPath('documents'),
+        properties: ['openFile'],
+        filters: [{ name: 'SolidCraft', extensions: ['sc'] }],
+      };
+      const picked = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
+      const [file] = picked.filePaths;
+      if (picked.canceled || !file) return { opened: false, imported: false };
+      if (!file.toLowerCase().endsWith('.sc') || !existsSync(file) || !statSync(file).isFile()) throw new Error('not a SolidCraft design');
+      // Always a copy, also of a design inside the project folder: importing never moves the original.
+      await switchProject(() => Promise.resolve(projectStore.importDesign(file)));
+      log('imported a design into a new project');
+      return { opened: true, imported: true };
+    });
+    bridge.handle(invokeChannels.projectSavePreview, ({ documentId, revision, png, check }) => {
+      // Only a picture of the design that is open now goes into its project, never one that
+      // arrives after a switch.
+      const current = supervisor.currentRevision();
+      const file = openProject();
+      if (!file || !current || current.documentId !== documentId || revision > current.revision) return undefined;
+      if (!projectStore.writePreview(file, Buffer.from(png, 'base64'), check)) log('a preview picture was refused');
+      return undefined;
+    });
     bridge.handle(invokeChannels.chatSave, ({ items }) => {
       chatArchive.save(items);
       return undefined;

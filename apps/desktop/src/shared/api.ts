@@ -5,7 +5,9 @@ import type {
   EngineChoiceResult,
   EngineInfo,
   ProjectInfo,
+  ProjectEntry,
   ProjectOpenResult,
+  ProjectPreview,
   ProjectRenameResult,
   AssistantState,
   ActionPreviewResult,
@@ -59,6 +61,14 @@ export interface PartBuddyApi {
     reveal(): Promise<void>;
     /** Moves the open project to the recycle bin and starts a new, empty design. */
     trash(): Promise<void>;
+    /** The projects in the project folder, newest first, for the start page (B3). */
+    list(): Promise<ProjectEntry[]>;
+    /** Opens a project of the start page by its folder. */
+    openFolder(folder: string): Promise<ProjectOpenResult>;
+    /** Asks for a design file from anywhere and copies it into a new project (B4 adds STEP, STL …). */
+    import(): Promise<ProjectOpenResult>;
+    /** Keeps the preview picture of the open project (base64 PNG) and its ready-to-print light. */
+    savePreview(preview: ProjectPreview): Promise<void>;
   };
   solidcraft: {
     /** The SolidCraft program in use and its version. */

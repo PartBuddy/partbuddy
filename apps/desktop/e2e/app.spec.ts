@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -666,4 +666,68 @@ test('the ready-to-print light follows the printer, points at its findings and a
   await page.screenshot({ path: test.info().outputPath('export-confirm.png') });
   await confirm.getByTestId('export-confirm-cancel').click();
   await expect(confirm).toHaveCount(0);
+});
+
+test('the logo opens the start page with the projects, which searches and closes again (B3)', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-home-'));
+  const projects = join(work, 'projects');
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  const seed = (name: string, ageMinutes: number, check?: string) => {
+    mkdirSync(join(projects, name), { recursive: true });
+    const design = join(projects, name, `${name}.sc`);
+    writeFileSync(design, 'design');
+    const time = (Date.now() - ageMinutes * 60_000) / 1000;
+    utimesSync(design, time, time);
+    if (check) {
+      writeFileSync(join(projects, name, 'preview.png'), png);
+      writeFileSync(join(projects, name, 'preview.json'), JSON.stringify({ check }));
+    }
+  };
+  seed('Wall holder', 5, 'ready');
+  seed('Cable clip', 60 * 30, 'block');
+  seed('Übersicht', 60 * 24 * 3);
+  try {
+    launched = await launchApp({ work });
+    const { page } = launched;
+    await page.getByTestId('home-button').click();
+    const home = page.getByTestId('home-page');
+    await expect(home.getByRole('heading', { name: 'Projects' })).toBeVisible();
+    const tiles = home.getByTestId('home-tile');
+    await expect(tiles).toHaveCount(3);
+    // Newest first, with the last change and the light at the last preview.
+    await expect(tiles.nth(0)).toHaveAttribute('data-name', 'Wall holder');
+    await expect(tiles.nth(0)).toContainText('5 minutes ago');
+    await expect(tiles.nth(0)).toContainText('Ready to print');
+    await expect(tiles.nth(0).getByTestId('home-preview')).toBeVisible();
+    await expect(tiles.nth(1)).toContainText('Not ready to print');
+    await expect(tiles.nth(2)).toHaveAttribute('data-name', 'Übersicht');
+    await expect(tiles.nth(2).getByTestId('home-preview')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('home.png') });
+
+    // The search ignores case and accents; nothing found says so.
+    await page.getByTestId('home-search').fill('ubersicht');
+    await expect(tiles).toHaveCount(1);
+    await page.getByTestId('home-search').fill('lamp');
+    await expect(page.getByTestId('home-no-match')).toHaveText('No project matches “lamp”.');
+    await page.getByTestId('home-search').fill('');
+    await expect(tiles).toHaveCount(3);
+
+    const results = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="home-page"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+
+    // Escape and the logo both go back to the work area.
+    await page.keyboard.press('Escape');
+    await expect(home).toHaveCount(0);
+    await page.getByTestId('home-button').click();
+    await expect(home).toBeVisible();
+    await page.getByTestId('home-button').click();
+    await expect(home).toHaveCount(0);
+  } finally {
+    await launched?.close();
+    launched = null;
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
 });

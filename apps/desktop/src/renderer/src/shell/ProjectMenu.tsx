@@ -23,6 +23,7 @@ import { beforeProjectSwitch } from '../assistant/useAssistantBridge';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
+import { useProjectSwitch } from './projectSwitch';
 
 const itemClass =
   'flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover disabled:text-text-subtle';
@@ -52,7 +53,7 @@ export function ProjectMenu({ designName }: { designName: string }) {
   const { t } = useTranslation();
   const connection = useStudio((s) => s.connection);
   const revision = useStudio((s) => (s.model.status === 'ready' ? `${s.model.documentId}:${String(s.model.revision)}` : null));
-  const setNotice = useStudio((s) => s.setNotice);
+  const run = useProjectSwitch();
   const [project, setProject] = useState<ProjectInfo>(null);
   const [dialog, setDialog] = useState<'rename' | 'trash' | null>(null);
   const ready = connection.state === 'connected' && connection.engine === 'headless';
@@ -71,21 +72,11 @@ export function ProjectMenu({ designName }: { designName: string }) {
     };
   }, [api, revision, connection.save]);
 
-  const run = (work: () => Promise<unknown>) => {
-    void beforeProjectSwitch()
-      .then(work)
-      .catch((error: unknown) => {
-        setNotice({ tone: 'danger', text: t('project.failed', { detail: (error as Error).message.slice(0, 200) }) });
-      });
-  };
   const create = () => {
     run(() => api.create());
   };
   const open = () => {
-    run(async () => {
-      const result = await api.open();
-      if (result.imported) setNotice({ tone: 'success', text: t('project.imported') });
-    });
+    run(() => api.open());
   };
 
   useEffect(() => {
@@ -158,7 +149,10 @@ function RenameDialog({ open, name, onClose }: { open: boolean; name: string; on
     void beforeProjectSwitch()
       .then(() => platform().project.rename(value))
       .then((result) => {
-        if (result.ok) onClose();
+        if (result.ok) {
+          onClose();
+          useStudio.getState().setHomeOpen(false);
+        }
         else setError(t(`project.renameError.${result.reason}`));
       })
       .catch((failure: unknown) => {

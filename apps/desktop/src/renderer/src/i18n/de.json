@@ -608,5 +608,23 @@
     "trashTitle": "„{name}“ in den Papierkorb?",
     "trashBody": "Der Projektordner mit Design, Chat und Exporten kommt in den Windows-Papierkorb und lässt sich dort wiederherstellen. Danach beginnt ein neues, leeres Projekt.",
     "trashConfirm": "In den Papierkorb"
+  },
+  "home": {
+    "title": "Projekte",
+    "open": "Startseite mit den Projekten",
+    "close": "Zurück zum Projekt",
+    "search": "Projekte suchen",
+    "import": "Importieren …",
+    "list": "{count, plural, one {# Projekt} other {# Projekte}}",
+    "emptyTitle": "Noch keine Projekte",
+    "emptyBody": "Beginne ein neues Projekt, öffne eines oder importiere ein Design. Jedes Projekt bekommt einen eigenen Ordner unter Dokumente\\PartBuddy.",
+    "noMatch": "Kein Projekt passt zu „{query}“.",
+    "openNow": "Gerade geöffnet",
+    "justNow": "gerade eben",
+    "check": {
+      "ready": "Druckbereit",
+      "warn": "Hinweise",
+      "block": "Nicht druckbereit"
+    }
   }
 }
