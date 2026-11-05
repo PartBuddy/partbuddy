@@ -126,6 +126,11 @@ flat ground), with the tone kept neutral rather than warm:
   nothing overlaps at narrow widths; menus open below it.
   Standard views have cube icons with the viewed face filled. The selection hint lives in the
   status bar, not on the part.
+* Selection dock (UI upgrade step 11): everything about a selection sits in one panel docked at
+  the bottom centre of the view, never on the part: kind, body, name and measures, the dimension
+  field, the actions and Note, the distance between two picks and the wish to the assistant. The
+  ghost of a tried value still shows on the part. Dimension labels keep clear of the dock, the
+  view tools and the live chips (`data-view-overlay`).
 * Dimensions in their own colour (`viewer-dimension`): extension lines that start off the part and
   run past the dimension line, arrowheads of a fixed screen size, leaders with the arrow on the rim
   for radii and diameters, labels as slim pills (parameter name subtle, value bold).

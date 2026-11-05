@@ -77,6 +77,8 @@
   --spacing-chat-max: var(--cs-size-chat-max);
   --spacing-dialog-sm: var(--cs-size-dialog-sm);
   --spacing-step-preview: var(--cs-size-step-preview);
+  --spacing-dock: var(--cs-size-dock);
+  --spacing-field-dock: var(--cs-size-field-dock);
   --spacing-dialog-lg: var(--cs-size-dialog-lg);
   --spacing-dialog-offset: var(--cs-size-dialog-offset);
 

@@ -44,6 +44,9 @@
   --cs-size-dialog-sm: 420px;
   /* Picture of a work-log step in the assistant (M2a), 16:10. */
   --cs-size-step-preview: 112px;
+  /* The selection dock at the bottom of the 3D view and its dimension field (UI upgrade step 11). */
+  --cs-size-dock: 640px;
+  --cs-size-field-dock: 136px;
   --cs-size-dialog-lg: 640px;
   --cs-size-dialog-offset: 12vh;
 

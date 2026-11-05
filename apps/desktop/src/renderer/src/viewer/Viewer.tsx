@@ -10,7 +10,7 @@ import {
   PointMaterial,
 } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { featureOf, SKETCH_STYLE, surfaceKind } from '@partbuddy/geometry';
+import { SKETCH_STYLE } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BackSide, Box3, BufferAttribute, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, Sphere, Vector2, Vector3 } from 'three';
@@ -21,7 +21,7 @@ import type { MirroredSketch } from '../../../shared/contract';
 import { samePick, useStudio, type BodyModel, type DisplayMode, type Pick, type StandardView } from '../state/store';
 import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
-import { DimensionHud, Ghost } from './DimensionHud';
+import { Ghost, SelectionDock, SelectionGhost } from './DimensionHud';
 import { GradientBackground, GroundShadow, KeyLight, SkyLight } from './SceneLook';
 import { keeps, useSectionPlane } from './section';
 import { LiveBar } from './LiveBar';
@@ -30,7 +30,7 @@ import { useTokenColors, type ViewerColors } from './useTokenColors';
 import { StepPreviews } from './StepPreviews';
 import { needsReframe } from './framing';
 import { ViewTools } from './ViewTools';
-import { edgeLabel, viewStateOf, type CameraView } from './viewState';
+import { viewStateOf, type CameraView } from './viewState';
 import { platform } from '../platform';
 import { selectedStatus, useAssistant } from '../assistant/store';
 import { NotePins } from '../notes/NotePins';
@@ -762,7 +762,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
         <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} />
       ))}
       <Highlights bodies={bodies} colors={colors} />
-      <DimensionHud bodies={bodies} accent={colors.selection} />
+      <SelectionGhost color={colors.selection} />
       <ScenePins bodies={bodies} />
       <Pen bodies={bodies} meshes={meshes} color={colors.note} />
       <DimensionMarks color={colors.dimension} ghostColor={colors.selection} meshes={meshes} plane={plane} />
@@ -809,75 +809,6 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-xs text-text-subtle">{label}</dt>
-      <dd className="tabular-nums text-text">{value}</dd>
-    </div>
-  );
-}
-
-function SelectionBar({ bodies }: { bodies: BodyModel[] }) {
-  const { t } = useTranslation();
-  const selection = useStudio((s) => s.selection);
-  if (!selection) return null;
-  const body = bodies[selection.body];
-  if (!body) return null;
-  const model = body.model;
-  const mm = (value: number) => t('units.mm', { value });
-  const point = (values: ArrayLike<number>) => Array.from(values, (value) => Math.round(value * 100) / 100).join('  ');
-
-  let kind: string;
-  let name: string;
-  let facts: { label: string; value: string }[];
-  if (selection.kind === 'face') {
-    const face = model.table.faces[selection.face];
-    if (!face) return null;
-    kind = `${t(`viewer.surface.${surfaceKind(face)}`)} · ${featureOf(face)}`;
-    name = face.name;
-    facts = [
-      ...(face.cylinder ? [{ label: t('viewer.radius'), value: mm(face.cylinder.radius) }] : []),
-      { label: t('viewer.area'), value: t('units.mm2', { value: face.area }) },
-      { label: t('viewer.anchor'), value: face.exact ? t('viewer.anchorExact') : t('viewer.anchorGeometric') },
-    ];
-  } else if (selection.kind === 'edge') {
-    const label = edgeLabel(model, selection.edge);
-    kind = t('viewer.kind.edge');
-    name = label.name;
-    facts = [{ label: t('viewer.length'), value: mm(model.edgeLengths[selection.edge] ?? 0) }];
-  } else {
-    kind = t('viewer.kind.vertex');
-    name = point(model.vertices.subarray(selection.vertex * 3, selection.vertex * 3 + 3));
-    facts = [];
-  }
-  return (
-    <div
-      role="region"
-      aria-label={t('viewer.selection')}
-      className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-border bg-surface-raised px-3 py-2 shadow-2"
-      data-testid="selection-bar"
-      data-kind={selection.kind}
-    >
-      <div className="flex flex-col">
-        <span className="text-xs text-text-subtle">
-          {kind} · {t('viewer.body')} {body.name}
-        </span>
-        <span className="tabular-nums text-sm text-text" data-testid="selected-face">
-          {name}
-        </span>
-      </div>
-      {facts.length > 0 ? (
-        <dl className="flex gap-3 text-sm">
-          {facts.map((fact) => (
-            <Fact key={fact.label} {...fact} />
-          ))}
-        </dl>
-      ) : null}
-    </div>
-  );
-}
-
 /** While the pen is on: what it does, how many strokes wait, how to leave it. */
 function PenHint() {
   const { t } = useTranslation();
@@ -915,7 +846,7 @@ export function Viewer() {
           <div className={`h-full w-full ${offline ? 'opacity-50 grayscale' : ''}`} data-testid="viewport">
             <Scene documentId={model.documentId} bodies={model.bodies} sketches={model.sketches} />
           </div>
-          <SelectionBar bodies={model.bodies} />
+          <SelectionDock bodies={model.bodies} />
           <PenHint />
         </>
       ) : null}

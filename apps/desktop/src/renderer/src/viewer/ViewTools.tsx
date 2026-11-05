@@ -204,6 +204,7 @@ export function ViewTools() {
       aria-orientation="horizontal"
       aria-label={t('viewer.views.toolbar')}
       className="pointer-events-auto relative flex flex-row items-center gap-1 rounded-lg border border-border bg-surface-raised p-1 shadow-2"
+      data-view-overlay
       data-testid="view-tools"
     >
       {views.map(({ view, key, icon }) => (

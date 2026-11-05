@@ -1,4 +1,3 @@
-import { Html } from '@react-three/drei';
 import { parseTagged3mf, type ViewerModel } from '@partbuddy/geometry';
 import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
 import { ActionPanel, MeasureLine } from './SelectionActions';
@@ -14,6 +13,7 @@ import { selectedStatus, useAssistant } from '../assistant/store';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { parseLength } from './lengthInput';
+import { SelectionInfo } from './SelectionInfo';
 import { edgeLabel, selectionName, selectionOf, selectionsOf } from './viewState';
 
 /** Quiet time after typing before PartBuddy tries the value in SolidCraft. */
@@ -95,22 +95,29 @@ export function Ghost({ preview, color }: { preview: Uint8Array; color: Color })
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
 
+/** The ghost of what the selection dock tries, drawn in the 3D view (UI upgrade step 11). */
+export function SelectionGhost({ color }: { color: Color }) {
+  const ghost = useStudio((s) => s.selectionGhost);
+  return ghost ? <Ghost preview={ghost} color={color} /> : null;
+}
+
 /**
- * The selection HUD (M1b): next to the latest selection a card with the dimension field (one
- * edge or cylinder), actions with a preview (fillet, chamfer, extrude, hole, shell), the distance
- * and angle between two selections, and a text field that sends any wish about the selection to
- * the assistant.
+ * The selection dock (M1b, docked in UI upgrade step 11): at the bottom of the view instead of on
+ * the part, what is selected with its measures, the dimension field (one edge or cylinder),
+ * actions with a preview (fillet, chamfer, extrude, hole, shell), a note, the distance and angle
+ * between two selections, and a text field that sends any wish about the selection to the
+ * assistant. The part stays visible; the ghost of a tried value shows on it.
  */
-export function DimensionHud({ bodies, accent }: { bodies: BodyModel[]; accent: Color }) {
+export function SelectionDock({ bodies }: { bodies: BodyModel[] }) {
   const selection = useStudio((s) => s.selection);
   const selections = useStudio((s) => s.selections);
   if (!selection) return null;
-  // A new selection gets a fresh card that starts from its current size.
+  // A new selection gets a fresh dock that starts from its current size.
   const key = selections.map((pick) => `${pick.kind}:${pick.body}:${pick.kind === 'face' ? pick.face : pick.kind === 'edge' ? pick.edge : pick.vertex}`).join(',');
-  return <HudCard key={key} bodies={bodies} accent={accent} selection={selection} picks={selections} />;
+  return <HudCard key={key} bodies={bodies} selection={selection} picks={selections} />;
 }
 
-function HudCard({ bodies, accent, selection, picks }: { bodies: BodyModel[]; accent: Color; selection: Pick; picks: Pick[] }) {
+function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection: Pick; picks: Pick[] }) {
   const { t, i18n } = useTranslation();
   const model = useStudio((s) => s.model);
   const setNotice = useStudio((s) => s.setNotice);
@@ -151,10 +158,22 @@ function HudCard({ bodies, accent, selection, picks }: { bodies: BodyModel[]; ac
     };
   }, [dimension, value, changed, busy]);
 
+  const result = probe !== null && probe.value === value ? probe.result : null;
+  const ghost = actionGhost ?? (result?.mode === 'direct' ? result.preview : null);
+  const setSelectionGhost = useStudio((s) => s.setSelectionGhost);
+  useEffect(() => {
+    setSelectionGhost(ghost);
+  }, [ghost, setSelectionGhost]);
+  useEffect(
+    () => () => {
+      setSelectionGhost(null);
+    },
+    [setSelectionGhost],
+  );
+
   const current = selectionOf(model, selection);
   const all = selectionsOf(model, picks);
   if (!current) return null;
-  const result = probe !== null && probe.value === value ? probe.result : null;
   const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 3 });
 
   const apply = () => {
@@ -191,77 +210,79 @@ function HudCard({ bodies, accent, selection, picks }: { bodies: BodyModel[]; ac
     else if (result.mode === 'direct') status = t('hud.direct', { label: result.label });
     else status = assistantReady ? t(`hud.assistant.${result.reason}`) : t('hud.noAssistant');
   }
-  const ghost = actionGhost ?? (result?.mode === 'direct' ? result.preview : null);
-
   return (
-    <>
-      {ghost ? <Ghost preview={ghost} color={accent} /> : null}
-      <Html position={selection.point} zIndexRange={[20, 10]} style={{ pointerEvents: 'none' }}>
-        <div
-          className="pointer-events-auto ml-4 flex w-menu -translate-y-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
-          data-testid="selection-hud"
-          onPointerDown={(event) => {
-            event.stopPropagation();
-          }}
-        >
-          {picks.length > 1 ? (
-            <p className="text-xs text-text-subtle" data-testid="hud-count">
-              {t('hud.selected', { count: picks.length })}
-            </p>
-          ) : null}
-          {dimension ? (
-            <TextField value={text} onChange={setText} inputMode="decimal" isDisabled={busy} className="flex flex-col gap-1" data-testid="dimension-field">
-              <Label className="text-xs text-text-subtle">
-                {t(`hud.${dimension.shown}`)} · {t('units.mmShort')}
-              </Label>
-              <Input
-                className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 text-md tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    apply();
-                  } else if (event.key === 'Escape' && changed) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setText(show(dimension.value));
-                  }
-                }}
-              />
-            </TextField>
-          ) : null}
-          {status ? (
-            <p className="flex items-center gap-1 text-xs text-text-muted" role="status" data-testid="dimension-status" data-mode={result?.mode ?? 'probing'}>
-              {result?.mode === 'direct' ? <IconBolt className="size-icon-sm text-accent" aria-hidden /> : null}
-              {result?.mode === 'assistant' ? <IconSparkles className="size-icon-sm text-accent" aria-hidden /> : null}
-              {status}
-            </p>
-          ) : null}
-          {picks.length === 2 ? <MeasureLine bodies={bodies} picks={picks} /> : null}
-          <ActionPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
-          {picks.length === 1 ? <NoteComposer selection={current} busy={busy} /> : null}
-          <TextField value={wish} onChange={setWish} aria-label={t('hud.ask')} isDisabled={!assistantReady} className="flex items-center gap-1">
+    <div
+      role="region"
+      aria-label={t('hud.dock')}
+      // Docked at the bottom of the view, clear of the axis triad and the view cube on either side.
+      className="pointer-events-auto absolute bottom-3 left-1/2 z-10 flex w-dock -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-3 shadow-2"
+      style={{ maxWidth: 'calc(100% - 12rem)' }}
+      data-testid="selection-hud"
+      data-view-overlay
+    >
+      <div className="flex items-start justify-between gap-3">
+        <SelectionInfo bodies={bodies} selection={selection} />
+        {picks.length > 1 ? (
+          <span className="shrink-0 rounded-full bg-accent-subtle px-2 text-xs text-accent" data-testid="hud-count">
+            {t('hud.selected', { count: picks.length })}
+          </span>
+        ) : null}
+      </div>
+      {picks.length === 2 ? <MeasureLine bodies={bodies} picks={picks} /> : null}
+      <div className="flex flex-wrap items-start gap-3">
+        {dimension ? (
+          <TextField value={text} onChange={setText} inputMode="decimal" isDisabled={busy} className="flex w-field-dock flex-col gap-1" data-testid="dimension-field">
+            <Label className="text-xs text-text-subtle">
+              {t(`hud.${dimension.shown}`)} · {t('units.mmShort')}
+            </Label>
             <Input
-              placeholder={t('hud.ask')}
-              className="h-control-md min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+              className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  ask();
+                  apply();
+                } else if (event.key === 'Escape' && changed) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setText(show(dimension.value));
                 }
               }}
-              data-testid="hud-ask"
             />
-            <AriaButton
-              aria-label={t('assistant.send')}
-              isDisabled={!assistantReady || wish.trim() === ''}
-              onPress={ask}
-              className="inline-flex size-control-md items-center justify-center rounded-md bg-accent text-on-accent outline-none hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
-            >
-              <IconArrowUp className="size-icon-sm" aria-hidden />
-            </AriaButton>
           </TextField>
+        ) : null}
+        <div className={`flex min-w-0 flex-1 flex-wrap items-start gap-1 ${dimension ? 'pt-5' : ''}`}>
+          <ActionPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
+          {picks.length === 1 ? <NoteComposer selection={current} busy={busy} /> : null}
         </div>
-      </Html>
-    </>
+      </div>
+      {status ? (
+        <p className="flex items-center gap-1 text-xs text-text-muted" role="status" data-testid="dimension-status" data-mode={result?.mode ?? 'probing'}>
+          {result?.mode === 'direct' ? <IconBolt className="size-icon-sm text-accent" aria-hidden /> : null}
+          {result?.mode === 'assistant' ? <IconSparkles className="size-icon-sm text-accent" aria-hidden /> : null}
+          {status}
+        </p>
+      ) : null}
+      <TextField value={wish} onChange={setWish} aria-label={t('hud.ask')} isDisabled={!assistantReady} className="flex items-center gap-1">
+        <Input
+          placeholder={t('hud.ask')}
+          className="h-control-sm min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              ask();
+            }
+          }}
+          data-testid="hud-ask"
+        />
+        <AriaButton
+          aria-label={t('assistant.send')}
+          isDisabled={!assistantReady || wish.trim() === ''}
+          onPress={ask}
+          className="inline-flex size-control-sm items-center justify-center rounded-md bg-accent text-on-accent outline-none hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+        >
+          <IconArrowUp className="size-icon-sm" aria-hidden />
+        </AriaButton>
+      </TextField>
+    </div>
   );
 }
