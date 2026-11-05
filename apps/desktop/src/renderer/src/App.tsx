@@ -2,6 +2,7 @@ import { AssistantPanel } from './assistant/AssistantPanel';
 import { useAssistantBridge, useChatPersistence } from './assistant/useAssistantBridge';
 import { useNotesBridge } from './notes/useNotesBridge';
 import { PrintProfilesDialog } from './print/PrintProfilesDialog';
+import { SolidCraftDialog } from './shell/SolidCraftDialog';
 import { usePrintBridge } from './print/usePrintBridge';
 import { usePrintCheck } from './print/usePrintCheck';
 import { StatusBar } from './shell/StatusBar';
@@ -31,6 +32,7 @@ export function App() {
       </div>
       <StatusBar />
       <PrintProfilesDialog />
+      <SolidCraftDialog />
     </div>
   );
 }

@@ -18,7 +18,10 @@ function subscribe<C extends EventChannel>(channel: C, listener: (payload: Event
 
 const api: PartBuddyApi = {
   appInfo: () => ipcRenderer.invoke(invokeChannels.appInfo),
+  relaunch: () => ipcRenderer.invoke(invokeChannels.appRelaunch),
   solidcraft: {
+    engine: () => ipcRenderer.invoke(invokeChannels.solidcraftEngine),
+    chooseEngine: (automatic) => ipcRenderer.invoke(invokeChannels.solidcraftChooseEngine, { automatic }),
     status: () => ipcRenderer.invoke(invokeChannels.solidcraftStatus),
     retry: () => ipcRenderer.invoke(invokeChannels.solidcraftRetry),
     start: () => ipcRenderer.invoke(invokeChannels.solidcraftStart),

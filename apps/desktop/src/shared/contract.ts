@@ -157,6 +157,27 @@ export const appInfoSchema = z
   })
   .strict();
 
+/** The SolidCraft program PartBuddy runs and its version (R0, ADR 0024). */
+export const engineInfoSchema = z
+  .object({
+    /** The desktop app's path; null when none is found (or the chosen one is gone). */
+    path: z.string().max(1000).nullable(),
+    source: z.enum(['override', 'setting', 'automatic']),
+    version: z.string().max(60).nullable(),
+    support: z.enum(['recommended', 'supported', 'tooOld', 'unknown']),
+    minimum: z.string().max(60),
+    recommended: z.string().max(60),
+    /** The program differs from the one PartBuddy started with: it takes effect after a restart. */
+    restartNeeded: z.boolean(),
+  })
+  .strict();
+export const engineChoiceErrorSchema = z.enum(['notSolidCraft', 'noCli', 'noVersion', 'tooOld']);
+/** `automatic: true` goes back to the automatic search; otherwise the main process asks for the program. */
+export const engineChoiceRequestSchema = z.object({ automatic: z.boolean() }).strict();
+export const engineChoiceResultSchema = z
+  .object({ info: engineInfoSchema, error: engineChoiceErrorSchema.nullable(), cancelled: z.boolean() })
+  .strict();
+
 /** The colour theme: follow the system (Windows), or always light or dark. */
 export const themeSchema = z.enum(['system', 'light', 'dark']);
 export const themeRequestSchema = z.object({ theme: themeSchema }).strict();
@@ -765,6 +786,9 @@ export const invokeContract = {
   [invokeChannels.solidcraftStatus]: { request: none, response: connectionStatusSchema },
   [invokeChannels.solidcraftRetry]: { request: none, response: none },
   [invokeChannels.solidcraftStart]: { request: none, response: none },
+  [invokeChannels.solidcraftEngine]: { request: none, response: engineInfoSchema },
+  [invokeChannels.solidcraftChooseEngine]: { request: engineChoiceRequestSchema, response: engineChoiceResultSchema },
+  [invokeChannels.appRelaunch]: { request: none, response: none },
   [invokeChannels.mirrorCurrent]: { request: none, response: mirrorRevisionSchema.nullable() },
   [invokeChannels.agentStatus]: { request: none, response: assistantStateSchema },
   [invokeChannels.agentRefresh]: { request: none, response: assistantStateSchema },
@@ -833,6 +857,9 @@ export type MirroredBody = z.infer<typeof mirroredBodySchema>;
 export type MirroredSketch = z.infer<typeof mirroredSketchSchema>;
 export type MirrorRevision = z.infer<typeof mirrorRevisionSchema>;
 export type AppInfo = z.infer<typeof appInfoSchema>;
+export type EngineInfo = z.infer<typeof engineInfoSchema>;
+export type EngineChoiceError = z.infer<typeof engineChoiceErrorSchema>;
+export type EngineChoiceResult = z.infer<typeof engineChoiceResultSchema>;
 export type AgentKind = z.infer<typeof agentKindSchema>;
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
 export type AssistantState = z.infer<typeof assistantStateSchema>;
