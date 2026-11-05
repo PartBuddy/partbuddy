@@ -443,7 +443,7 @@ if (!app.requestSingleInstanceLock()) {
       },
     };
     const claude = new AgentService(
-      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), apiBilling, log, tools, choices: assistantSettings },
+      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), apiBilling, log, tools, choices: assistantSettings, research: () => assistantSettings.webResearch() },
       { status: changed, event: emitEvent },
     );
     // ChatGPT tokens live only in the Windows credential store (ADR 0011, ADR 0015).
@@ -457,7 +457,7 @@ if (!app.requestSingleInstanceLock()) {
       onStatus: changed,
     });
     account.load();
-    const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log, choices: assistantSettings });
+    const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log, choices: assistantSettings, research: () => assistantSettings.webResearch() });
     assistant = new Assistant({ 'claude-code': claude, chatgpt }, (state) => {
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentStatus, state);
     });
@@ -510,6 +510,13 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.agentStop, async () => {
       await agent.stop();
       return undefined;
+    });
+    // Research on the web (B7): Claude Code reads the switch when a conversation starts, ChatGPT per request.
+    bridge.handle(invokeChannels.agentResearch, () => assistantSettings.webResearch());
+    bridge.handle(invokeChannels.agentSetResearch, ({ allow }) => {
+      assistantSettings.setWebResearch(allow);
+      log(`web research ${allow ? 'allowed' : 'turned off'}`);
+      return assistantSettings.webResearch();
     });
     bridge.handle(invokeChannels.agentSignIn, () => {
       agent.signIn();

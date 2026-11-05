@@ -35,6 +35,8 @@ export const invokeChannels = {
   agentSelect: 'agent:select',
   agentAllowApiBilling: 'agent:allow-api-billing',
   agentChooseModel: 'agent:choose-model',
+  agentResearch: 'agent:research',
+  agentSetResearch: 'agent:set-research',
   viewerState: 'viewer:state',
   windowTitleBar: 'window:title-bar',
   windowTheme: 'window:theme',

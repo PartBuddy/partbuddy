@@ -453,6 +453,23 @@ export const selectionSummarySchema = z
   .object({ faces: z.number().int().min(0), edges: z.number().int().min(0), vertices: z.number().int().min(0), bodies: z.array(z.string().max(200)).max(20) })
   .strict();
 
+/** A web address the assistant searched or read (B7); only http and https. */
+const webUrl = z.string().max(2000).regex(/^https?:\/\//i);
+/**
+ * A source of the assistant's research (B7): a web search with its query and the pages it found,
+ * or a page it read. Shown as a card with its link; the pages' text never reaches the chat.
+ */
+export const researchSourceSchema = z
+  .object({
+    kind: z.enum(['search', 'page']),
+    query: z.string().max(300).optional(),
+    url: webUrl.optional(),
+    title: z.string().max(300).optional(),
+    links: z.array(z.object({ url: webUrl, title: z.string().max(300) }).strict()).max(8).optional(),
+  })
+  .strict();
+export const researchRequestSchema = z.object({ allow: z.boolean() }).strict();
+
 export const agentEventSchema = z.discriminatedUnion('type', [
   z
     .object({
@@ -478,6 +495,7 @@ export const agentEventSchema = z.discriminatedUnion('type', [
     .strict(),
   z.object({ type: z.literal('done'), ok: z.boolean(), durationMs: z.number().nullable(), detail: z.string().nullable() }).strict(),
   z.object({ type: z.literal('error'), message: z.string().max(500) }).strict(),
+  z.object({ type: z.literal('source'), source: researchSourceSchema }).strict(),
   z.object({ type: z.literal('step'), step: workStepSchema }).strict(),
   z.object({ type: z.literal('question'), question: agentQuestionSchema }).strict(),
   /** The user's next message answered the question; `choice` when a button was pressed. */
@@ -679,6 +697,7 @@ export const storedChatItemSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('step'), step: workStepSchema, state: workStepStateSchema }).strict(),
   z.object({ kind: z.literal('question'), question: agentQuestionSchema, choice: z.string().max(40).nullable() }).strict(),
   z.object({ kind: z.literal('error'), message: z.string().max(2000) }).strict(),
+  z.object({ kind: z.literal('source'), source: researchSourceSchema }).strict(),
 ]);
 export const storedChatSchema = z
   .object({ version: z.literal(1), savedAt: z.string().max(40), items: z.array(storedChatItemSchema).max(400) })
@@ -812,6 +831,8 @@ export const invokeContract = {
   [invokeChannels.agentSelect]: { request: agentSelectionSchema, response: assistantStateSchema },
   [invokeChannels.agentAllowApiBilling]: { request: apiBillingSchema, response: assistantStateSchema },
   [invokeChannels.agentChooseModel]: { request: modelChoiceRequestSchema, response: assistantStateSchema },
+  [invokeChannels.agentResearch]: { request: none, response: z.boolean() },
+  [invokeChannels.agentSetResearch]: { request: researchRequestSchema, response: z.boolean() },
   [invokeChannels.agentSignOut]: { request: none, response: none },
   [invokeChannels.agentSend]: { request: agentMessageSchema, response: none },
   [invokeChannels.agentStop]: { request: none, response: none },
@@ -895,6 +916,7 @@ export type ModelOption = z.infer<typeof modelOptionSchema>;
 export type ModelChoice = z.infer<typeof modelChoiceSchema>;
 export type AssistantState = z.infer<typeof assistantStateSchema>;
 export type AgentEvent = z.infer<typeof agentEventSchema>;
+export type ResearchSource = z.infer<typeof researchSourceSchema>;
 export type FaceSelection = z.infer<typeof faceSelectionSchema>;
 export type EdgeSelection = z.infer<typeof edgeSelectionSchema>;
 export type Selection = z.infer<typeof selectionSchema>;

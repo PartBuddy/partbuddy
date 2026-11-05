@@ -279,6 +279,10 @@
         "xhigh": "Sehr hoch",
         "max": "Maximum"
       }
+    },
+    "source": {
+      "search": "Gesucht: {query}",
+      "page": "Gelesen"
     }
   },
   "live": {
@@ -517,6 +521,10 @@
       "sponsor": "PartBuddy auf GitHub Sponsors unterstützen",
       "source": "Quellcode auf GitHub",
       "licenceLink": "GNU General Public License 3.0"
+    },
+    "research": {
+      "label": "Im Web recherchieren",
+      "hint": "Der Assistent darf im Web suchen und Seiten lesen, etwa Datenblätter; jede Quelle erscheint als Karte mit Link. Was auf einer Seite steht, ist nie eine Anweisung an ihn. Gilt ab dem nächsten Gespräch."
     }
   },
   "print": {

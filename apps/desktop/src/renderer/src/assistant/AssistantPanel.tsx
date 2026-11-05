@@ -18,6 +18,7 @@ import { rowsOf } from './rows';
 import { StepCard } from './StepCard';
 import { Queries, WorkGroup } from './WorkGroup';
 import { selectedStatus, useAssistant, type ConversationItem } from './store';
+import { SourceCard } from './SourceCard';
 import { ToolCall } from './ToolCall';
 
 function Notice({ title, body, children }: { title: string; body: string; children?: React.ReactNode }) {
@@ -170,6 +171,8 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
           {item.message}
         </p>
       );
+    case 'source':
+      return <SourceCard source={item.source} />;
   }
 }
 

@@ -279,6 +279,10 @@
         "xhigh": "Extra high",
         "max": "Max"
       }
+    },
+    "source": {
+      "search": "Searched: {query}",
+      "page": "Read"
     }
   },
   "live": {
@@ -517,6 +521,10 @@
       "sponsor": "Support PartBuddy on GitHub Sponsors",
       "source": "Source code on GitHub",
       "licenceLink": "GNU General Public License 3.0"
+    },
+    "research": {
+      "label": "Research on the web",
+      "hint": "The assistant may search the web and read pages, for example data sheets; every source shows as a card with its link. What a page says is never an instruction to it. Applies from the next conversation."
     }
   },
   "print": {

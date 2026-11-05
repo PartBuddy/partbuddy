@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { AgentEvent, AgentQuestion, AgentStatus, AssistantState, StoredChat, StoredChatItem, WorkStep, WorkStepState } from '../../../shared/contract';
+import type { AgentEvent, AgentQuestion, AgentStatus, AssistantState, ResearchSource, StoredChat, StoredChatItem, WorkStep, WorkStepState } from '../../../shared/contract';
 
 /** Faces a step changed, by body and SolidCraft face name (indices change on rebuilds, ADR 0004). */
 export interface ChangedFaces {
@@ -53,7 +53,9 @@ export type ConversationItem =
   | { kind: 'stopped'; key: number; detail: string | null }
   /** Where the conversation of an earlier session ends (restored with the design). */
   | { kind: 'session'; key: number; savedAt: string }
-  | { kind: 'error'; key: number; message: string };
+  | { kind: 'error'; key: number; message: string }
+  /** A web search or a page the assistant read (B7), as a card with its link. */
+  | { kind: 'source'; key: number; source: ResearchSource };
 
 interface AssistantStore {
   state: AssistantState;
@@ -123,6 +125,14 @@ export function reduce(items: ConversationItem[], event: AgentEvent): Conversati
     }
     case 'error':
       return [...items, { kind: 'error', key, message: event.message }];
+    case 'source': {
+      // Claude Code reports a search when it starts and again with the pages it found: one card.
+      const last = items.at(-1);
+      if (last?.kind === 'source' && last.source.kind === 'search' && event.source.kind === 'search' && last.source.query === event.source.query) {
+        return [...items.slice(0, -1), { ...last, source: event.source.links ? event.source : last.source }];
+      }
+      return [...items, { kind: 'source', key, source: event.source }];
+    }
   }
 }
 
@@ -141,6 +151,8 @@ export function toStored(items: readonly ConversationItem[]): StoredChatItem[] {
           return [{ kind: 'question', question: item.question, choice: item.choice }];
         case 'error':
           return [{ kind: 'error', message: item.message.slice(0, 2000) }];
+        case 'source':
+          return [{ kind: 'source', source: item.source }];
         default:
           return [];
       }
@@ -164,6 +176,8 @@ export function fromStored(chat: StoredChat): ConversationItem[] {
         return { kind: 'question', key, question: item.question, answered: true, choice: item.choice };
       case 'error':
         return { kind: 'error', key, message: item.message };
+      case 'source':
+        return { kind: 'source', key, source: item.source };
     }
   });
   return [...items, { kind: 'session', key: nextKey++, savedAt: chat.savedAt }];

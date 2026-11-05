@@ -30,6 +30,8 @@ export interface AgentServiceOptions {
   tools(): Promise<UpstreamTools | null>;
   /** The model and effort kept for new chats (B1). */
   choices: ChoiceStore;
+  /** Whether the assistant may research on the web (B7); read when a conversation starts. */
+  research?: () => boolean;
   /** Lists the models of the plan; Claude Code's own `initialize` answer by default (tests replace it). */
   listModels?: (claude: ClaudeCommand) => Promise<ModelOption[]>;
   log(message: string): void;
@@ -185,11 +187,12 @@ export class AgentService implements AgentBackend {
     this.configPath = configPath;
 
     let announced = false;
-    const session = new ClaudeSession({ claude: this.claude, env: this.options.env, cwd: this.options.workDir, mcpConfigPath: configPath, choice: this.choice });
+    const session = new ClaudeSession({ claude: this.claude, env: this.options.env, cwd: this.options.workDir, mcpConfigPath: configPath, choice: this.choice, research: this.options.research?.() ?? false });
     session.onEvent((event) => {
       switch (event.type) {
         case 'textDelta':
         case 'text':
+        case 'source':
           this.listeners.event(event);
           break;
         case 'done':

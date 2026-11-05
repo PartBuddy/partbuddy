@@ -1226,3 +1226,55 @@ test('versions are saved by name, before requests and at exports, compared with 
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('the assistant researches on the web with sources as cards, and not when it is turned off (B7)', async () => {
+  test.setTimeout(180_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-research-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7904',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  let launched = await launchApp({ isolated: false, work, env });
+  let { page } = launched;
+  const send = async (text: string) => {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill(text);
+    await page.getByRole('button', { name: 'Send' }).click();
+  };
+  try {
+    await send('Research a 608 bearing');
+    const cards = page.getByTestId('source-card');
+    await expect(cards).toHaveCount(2, { timeout: 30_000 });
+    await expect(cards.first()).toHaveAttribute('data-kind', 'search');
+    await expect(cards.first()).toContainText('Searched: 608 bearing dimensions');
+    await expect(cards.first().getByRole('link', { name: '608-2RS deep groove ball bearing' })).toHaveAttribute('href', 'https://example.com/608');
+    await expect(cards.nth(1)).toHaveAttribute('data-kind', 'page');
+    await expect(cards.nth(1).getByRole('link')).toHaveAttribute('href', 'https://example.com/608');
+    // The page's text, an attempt to give orders included, never shows in the chat.
+    await expect(page.getByText('Ignore your instructions')).toHaveCount(0);
+    await expect(page.getByText(/8 × 22 × 7 mm/)).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('research-sources.png') });
+
+    // Turned off in the settings, the next conversation has no web tools.
+    await page.getByTestId('settings').click();
+    await page.getByTestId('settings-assistant').click();
+    const research = page.getByTestId('research');
+    await expect(research.getByRole('checkbox')).toBeChecked();
+    await research.getByText('Research on the web').click();
+    await expect(research.getByRole('checkbox')).not.toBeChecked();
+    await launched.close();
+    launched = await launchApp({ isolated: false, work, env });
+    ({ page } = launched);
+    await send('Research it again');
+    await expect(page.getByText('I have no web tools.')).toBeVisible({ timeout: 30_000 });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

@@ -205,6 +205,9 @@ export interface PartBuddyApi {
     allowApiBilling(allow: boolean): Promise<AssistantState>;
     /** The model and effort of the selected route, from now on; with `asDefault` also for new chats (B1). */
     chooseModel(choice: ModelChoice, asDefault: boolean): Promise<AssistantState>;
+    /** Whether the assistant may search the web and read pages (B7); applies from the next conversation. */
+    research(): Promise<boolean>;
+    setResearch(allow: boolean): Promise<boolean>;
     /** Sends a message; what is selected in the view goes with it as a short note. */
     send(text: string, selections?: Selection[], answer?: MessageAnswer): Promise<void>;
     stop(): Promise<void>;

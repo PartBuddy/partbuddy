@@ -7,6 +7,7 @@ import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelCh
 import type { ToolResult, UpstreamTools } from '../agents/gateProxy';
 import { decide } from '../agents/policy';
 import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from '../agents/questions';
+import { RESEARCH_GUIDANCE, sourceOfUrl } from '../agents/research';
 import { withToolNotes } from '../agents/toolNotes';
 import { composeMessage, VIEW_GUIDANCE } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
@@ -37,8 +38,8 @@ const MAX_STEPS = 25;
  * PartBuddy's role, then SolidCraft's server instructions with PartBuddy's tool notes: the gate
  * proxy hands those to Claude Code as MCP instructions, this loop has to pass them itself.
  */
-function instructionsFor(upstream: UpstreamTools): string {
-  return `${INSTRUCTIONS}\n\n${withToolNotes(upstream.instructions())}`;
+function instructionsFor(upstream: UpstreamTools, research: boolean): string {
+  return `${INSTRUCTIONS}${research ? ` ${RESEARCH_GUIDANCE}` : ''}\n\n${withToolNotes(upstream.instructions())}`;
 }
 
 export interface ChatGptAgentOptions {
@@ -49,6 +50,8 @@ export interface ChatGptAgentOptions {
   log(message: string): void;
   /** The model and effort kept for new chats (B1). */
   choices: ChoiceStore;
+  /** Whether ChatGPT may search the web (B7); read for every request. */
+  research?: () => boolean;
   fetch?: typeof fetch;
 }
 
@@ -91,6 +94,8 @@ export class ChatGptAgent implements AgentBackend {
   private abort: AbortController | null = null;
   private busy = false;
   private sequence = 0;
+  /** Set when the plan's backend refused the web search tool; requests go on without it. */
+  private webSearchRefused = false;
 
   constructor(private readonly options: ChatGptAgentOptions) {}
 
@@ -180,18 +185,20 @@ export class ChatGptAgent implements AgentBackend {
 
   private async run(upstream: UpstreamTools, signal: AbortSignal): Promise<void> {
     const started = Date.now();
+    let research = false;
     try {
       const provider = createOpenAI({ apiKey: 'replaced-per-request', baseURL: RESOURCE, fetch: this.authorizedFetch() });
+      research = (this.options.research?.() ?? false) && !this.webSearchRefused;
       const result = streamText({
         model: provider.responses(this.choice?.model ?? ''),
         messages: this.history,
-        tools: await this.toolSet(upstream),
+        tools: { ...(await this.toolSet(upstream)), ...(research ? { web_search: provider.tools.webSearch({}) } : {}) },
         stopWhen: stepCountIs(MAX_STEPS),
         abortSignal: signal,
         providerOptions: {
           openai: {
             store: false,
-            instructions: instructionsFor(upstream),
+            instructions: instructionsFor(upstream, research),
             systemMessageMode: 'remove',
             ...(this.choice?.effort ? { reasoningEffort: this.choice.effort } : {}),
           },
@@ -199,12 +206,21 @@ export class ChatGptAgent implements AgentBackend {
       });
       for await (const part of result.stream) {
         if (part.type === 'text-delta') this.options.event({ type: 'textDelta', text: part.text });
+        if (part.type === 'source' && part.sourceType === 'url') {
+          const source = sourceOfUrl(part.url, part.title);
+          if (source) this.options.event({ type: 'source', source });
+        }
         if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error));
       }
       this.history.push(...(await result.responseMessages));
       this.options.event({ type: 'done', ok: true, durationMs: Date.now() - started, detail: null });
     } catch (error) {
       const stopped = signal.aborted;
+      if (research && /web.?search/i.test(describeError(error))) {
+        // The plan does not offer the web search: say so once and go on without it.
+        this.webSearchRefused = true;
+        this.options.log('ChatGPT refused the web search; requests go on without it');
+      }
       if (!stopped) this.options.event({ type: 'error', message: describeError(error) });
       this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: stopped ? 'stopped' : 'failed' });
     }

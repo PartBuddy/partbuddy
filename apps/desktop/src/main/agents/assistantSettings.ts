@@ -6,6 +6,8 @@ import type { ChoiceStore } from './modelChoice';
 
 interface Stored {
   claudeApiBilling?: boolean;
+  /** Off only when the user turned research off (B7). */
+  webResearch?: false;
   models?: Partial<Record<AgentKind, ModelChoice>>;
 }
 
@@ -25,6 +27,17 @@ export class AssistantSettings implements ChoiceStore {
     this.write({ ...this.read(), claudeApiBilling: allow });
   }
 
+  /** Whether the assistant may search the web and read pages (B7); on unless the user turned it off. */
+  webResearch(): boolean {
+    return this.read().webResearch !== false;
+  }
+
+  setWebResearch(allow: boolean): void {
+    const stored = this.read();
+    delete stored.webResearch;
+    this.write(allow ? stored : { ...stored, webResearch: false });
+  }
+
   get(route: AgentKind): ModelChoice | null {
     return this.read().models?.[route] ?? null;
   }
@@ -42,9 +55,10 @@ export class AssistantSettings implements ChoiceStore {
       return {};
     }
     if (typeof raw !== 'object' || raw === null) return {};
-    const { claudeApiBilling, models } = raw as { claudeApiBilling?: unknown; models?: unknown };
+    const { claudeApiBilling, models, webResearch } = raw as { claudeApiBilling?: unknown; models?: unknown; webResearch?: unknown };
     const stored: Stored = {};
     if (claudeApiBilling === true) stored.claudeApiBilling = true;
+    if (webResearch === false) stored.webResearch = false;
     if (typeof models === 'object' && models !== null) {
       for (const [route, choice] of Object.entries(models)) {
         const kind = agentKindSchema.safeParse(route);
