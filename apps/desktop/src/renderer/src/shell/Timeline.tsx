@@ -1,5 +1,5 @@
 import { IconAlertCircle, IconAlertTriangle, IconBox, IconCylinder, IconPlayerTrackNext, IconPoint } from '@tabler/icons-react';
-import { useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Tooltip, TooltipTrigger } from 'react-aria-components';
 
@@ -47,30 +47,61 @@ function iconOf(feature: TimelineFeature): ReactNode {
   return name ? <CadIcon name={name} className="size-icon-sm" /> : <IconPoint className="size-icon-sm" aria-hidden />;
 }
 
+/** Room between two steps, where the rollback bar sits (CSS px; matches `gap-2`). */
+const SLOT_GAP = 8;
+
 /**
  * The rollback bar (UI upgrade step 14): drag it between the steps, or move it with the arrow keys
- * and press Enter, to roll the design back to that place; at the end every step is active. It moves
- * on screen right away and asks SolidCraft once, when let go, since a rebuild can take long.
+ * and press Enter, to roll the design back to that place; at the end every step is active. It is
+ * one element laid over the list and follows the pointer; the steps after it fade while it moves.
+ * SolidCraft is asked once, when it is let go, since a rebuild can take long.
  */
-function RollbackBar({ position, count, names, busy, list, onRoll }: { position: number; count: number; names: string[]; busy: boolean; list: React.RefObject<HTMLOListElement | null>; onRoll: (position: number) => void }) {
+function RollbackBar({
+  shown,
+  position,
+  count,
+  names,
+  busy,
+  list,
+  onMove,
+  onRoll,
+}: {
+  shown: number;
+  position: number;
+  count: number;
+  names: string[];
+  busy: boolean;
+  list: React.RefObject<HTMLOListElement | null>;
+  onMove: (position: number | null) => void;
+  onRoll: (position: number) => void;
+}) {
   const { t } = useTranslation();
-  const [pending, setPending] = useState<number | null>(null);
-  const shown = pending ?? position;
+  const dragging = useRef(false);
+  const handle = useRef<HTMLSpanElement>(null);
   const clamp = (value: number) => Math.min(count, Math.max(1, value));
+  const buttons = () => [...(list.current?.querySelectorAll<HTMLElement>('[data-testid="timeline-feature"]') ?? [])];
   const commit = (value: number) => {
-    setPending(null);
+    onMove(null);
     if (value !== position) onRoll(value);
   };
   // The position under the pointer: how many steps lie left of it.
-  const at = (x: number) => {
-    const buttons = [...(list.current?.querySelectorAll<HTMLElement>('[data-testid="timeline-feature"]') ?? [])];
-    return clamp(buttons.filter((button) => {
-      const box = button.getBoundingClientRect();
-      return box.left + box.width / 2 < x;
-    }).length);
-  };
+  const at = (x: number) =>
+    clamp(
+      buttons().filter((button) => {
+        const box = button.getBoundingClientRect();
+        return box.left + box.width / 2 < x;
+      }).length,
+    );
+  // Sits in the gap after the last active step, measured from the buttons after every render.
+  useLayoutEffect(() => {
+    const button = buttons()[shown - 1];
+    if (!handle.current) return;
+    handle.current.style.left = button ? `${String(button.offsetLeft + button.offsetWidth + SLOT_GAP / 2)}px` : '0px';
+    handle.current.style.visibility = button ? '' : 'hidden';
+  });
   return (
     <span
+      ref={handle}
       role="slider"
       tabIndex={busy ? -1 : 0}
       aria-label={t('timeline.handle')}
@@ -80,39 +111,44 @@ function RollbackBar({ position, count, names, busy, list, onRoll }: { position:
       aria-valuetext={shown === count ? t('timeline.handleEnd') : t('timeline.handleAfter', { name: names[shown - 1] ?? '' })}
       aria-disabled={busy}
       title={t('timeline.handleHint')}
-      className={`group flex h-control-sm w-3 shrink-0 cursor-ew-resize touch-none items-center justify-center rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-focus ${busy ? 'opacity-50' : ''}`}
+      className={`group absolute top-1/2 flex h-control-sm w-3 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-focus ${busy ? 'opacity-50' : ''}`}
       data-testid="timeline-handle"
       data-position={shown}
       onPointerDown={(event) => {
         if (busy || event.button !== 0) return;
+        event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
-        setPending(position);
+        dragging.current = true;
+        onMove(position);
       }}
       onPointerMove={(event) => {
-        if (pending !== null) setPending(at(event.clientX));
+        if (dragging.current) onMove(at(event.clientX));
       }}
-      onPointerUp={() => {
-        if (pending !== null) commit(pending);
+      onPointerUp={(event) => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        commit(at(event.clientX));
       }}
       onPointerCancel={() => {
-        setPending(null);
+        dragging.current = false;
+        onMove(null);
       }}
       onKeyDown={(event) => {
         if (busy) return;
-        if (event.key === 'ArrowLeft') setPending(clamp(shown - 1));
-        else if (event.key === 'ArrowRight') setPending(clamp(shown + 1));
-        else if (event.key === 'Home') setPending(1);
-        else if (event.key === 'End') setPending(count);
+        if (event.key === 'ArrowLeft') onMove(clamp(shown - 1));
+        else if (event.key === 'ArrowRight') onMove(clamp(shown + 1));
+        else if (event.key === 'Home') onMove(1);
+        else if (event.key === 'End') onMove(count);
         else if (event.key === 'Enter') commit(shown);
-        else if (event.key === 'Escape') setPending(null);
+        else if (event.key === 'Escape') onMove(null);
         else return;
         event.preventDefault();
       }}
       onBlur={() => {
-        setPending(null);
+        if (!dragging.current) onMove(null);
       }}
     >
-      <span aria-hidden className={`h-full w-1 rounded-full ${pending !== null ? 'bg-accent-hover' : 'bg-accent group-hover:bg-accent-hover'}`} />
+      <span aria-hidden className={`h-full w-1 rounded-full ${shown !== position ? 'bg-accent-hover' : 'bg-accent group-hover:bg-accent-hover'}`} />
     </span>
   );
 }
@@ -129,8 +165,12 @@ export function Timeline() {
   const setNotice = useStudio((s) => s.setNotice);
   const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy';
   const list = useRef<HTMLOListElement>(null);
+  // Where the rollback bar is while the user moves it; null when it rests at the design's place.
+  const [moving, setMoving] = useState<number | null>(null);
   if (model.status !== 'ready' || model.structure.features.length === 0) return null;
   const { features, marker } = model.structure;
+  const position = marker ?? features.length;
+  const shown = moving ?? position;
 
   const run = (command: TimelineCommand) => {
     void platform()
@@ -143,9 +183,10 @@ export function Timeline() {
   return (
     <section aria-label={t('timeline.title')} className="flex h-control-lg shrink-0 items-center gap-2 border-t border-border bg-surface px-2" data-testid="timeline" data-marker={marker ?? 'end'}>
       <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-text-subtle">{t('timeline.title')}</span>
-      <ol ref={list} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
+      <ol ref={list} className="relative flex min-w-0 flex-1 items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
         {features.map((feature, index) => {
-          const faded = feature.suppressed || feature.rolledBack;
+          // While the bar moves, the steps it would roll back fade already.
+          const faded = feature.suppressed || (moving === null ? feature.rolledBack : index + 1 > moving);
           const kind = featureKind(feature.type);
           return (
             <li key={feature.id} className="flex shrink-0 items-center gap-1">
@@ -200,21 +241,21 @@ export function Timeline() {
                   </Menu>
                 </Popover>
               </MenuTrigger>
-              {(marker ?? features.length) === index + 1 ? (
-                <RollbackBar
-                  position={marker ?? features.length}
-                  count={features.length}
-                  names={features.map((entry) => entry.name)}
-                  busy={busy}
-                  list={list}
-                  onRoll={(position) => {
-                    run({ action: 'rollTo', position: position === features.length ? 'end' : position });
-                  }}
-                />
-              ) : null}
             </li>
           );
         })}
+        <RollbackBar
+          shown={shown}
+          position={position}
+          count={features.length}
+          names={features.map((entry) => entry.name)}
+          busy={busy}
+          list={list}
+          onMove={setMoving}
+          onRoll={(next) => {
+            run({ action: 'rollTo', position: next === features.length ? 'end' : next });
+          }}
+        />
       </ol>
       {marker !== null ? (
         <AriaButton
