@@ -33,6 +33,11 @@ export const contrastPairs = [
   { fg: '--cs-viewer-sketch-constrained', bg: '--cs-viewer-background', min: 3 },
   { fg: '--cs-viewer-sketch-construction', bg: '--cs-viewer-background', min: 3 },
   { fg: '--cs-viewer-changed', bg: '--cs-viewer-background', min: 3 },
+  // The background runs into a lighter (dark theme: darker) top; sketches stay readable there too.
+  { fg: '--cs-viewer-sketch', bg: '--cs-viewer-background-top', min: 3 },
+  { fg: '--cs-viewer-sketch-constrained', bg: '--cs-viewer-background-top', min: 3 },
+  { fg: '--cs-viewer-sketch-construction', bg: '--cs-viewer-background-top', min: 3 },
+  { fg: '--cs-viewer-changed', bg: '--cs-viewer-background-top', min: 3 },
 ];
 
 /**
