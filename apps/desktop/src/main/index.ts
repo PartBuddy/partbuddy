@@ -32,6 +32,7 @@ import { findExecutable, systemEnvironment } from './solidcraft/discovery';
 import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
+import { Measurements } from './print/measurements';
 import { printCheckNote } from './print/printCheckNote';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
 
@@ -256,6 +257,11 @@ if (!app.requestSingleInstanceLock()) {
       return saved;
     });
     bridge.handle(invokeChannels.printPart, () => printProfiles.part());
+    // Measurements after printing (M7), for suggestions to the material.
+    const measurements = new Measurements(join(app.getPath('userData'), 'print-measurements.json'), log);
+    bridge.handle(invokeChannels.printMeasurements, () => measurements.all());
+    bridge.handle(invokeChannels.printAddMeasurement, ({ material, measurement }) => measurements.add(material, measurement));
+    bridge.handle(invokeChannels.printRemoveMeasurement, ({ id }) => measurements.remove(id));
     bridge.handle(invokeChannels.printSetOrientation, (orientation) => {
       const part = printProfiles.setOrientation(orientation);
       printChanged();

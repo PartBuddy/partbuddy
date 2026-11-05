@@ -65,6 +65,9 @@ const api: PartBuddyApi = {
     reportCheck: (report) => ipcRenderer.invoke(invokeChannels.printReportCheck, report),
     setOrientation: (orientation) => ipcRenderer.invoke(invokeChannels.printSetOrientation, orientation),
     setLoads: (loads) => ipcRenderer.invoke(invokeChannels.printSetLoads, { loads }),
+    measurements: () => ipcRenderer.invoke(invokeChannels.printMeasurements),
+    addMeasurement: (material, measurement) => ipcRenderer.invoke(invokeChannels.printAddMeasurement, { material, measurement }),
+    removeMeasurement: (id) => ipcRenderer.invoke(invokeChannels.printRemoveMeasurement, { id }),
   },
   viewer: {
     report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),

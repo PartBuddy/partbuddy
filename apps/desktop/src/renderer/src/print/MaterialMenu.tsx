@@ -1,29 +1,13 @@
-import {
-  IconAdjustmentsHorizontal,
-  IconCheck,
-  IconPrinter,
-} from "@tabler/icons-react";
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import {
-  Button as AriaButton,
-  Header,
-  Menu,
-  MenuItem,
-  MenuSection,
-  MenuTrigger,
-  Popover,
-  Separator,
-  Tooltip,
-  TooltipTrigger,
-} from "react-aria-components";
+import { IconAdjustmentsHorizontal, IconCheck, IconPrinter, IconRulerMeasure } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator, Tooltip, TooltipTrigger } from 'react-aria-components';
 
-import type { MaterialProfile } from "../../../shared/contract";
-import { platform } from "../platform";
-import { useStudio } from "../state/store";
+import type { MaterialProfile } from '../../../shared/contract';
+import { platform } from '../platform';
+import { useStudio } from '../state/store';
 
-const itemClass =
-  "flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover";
+const itemClass = 'flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover';
 
 /**
  * The part's material in the status bar (M7): what the part is printed with, always in sight, and
@@ -33,6 +17,7 @@ export function MaterialMenu() {
   const { t } = useTranslation();
   const print = useStudio((s) => s.print);
   const setProfilesOpen = useStudio((s) => s.setProfilesOpen);
+  const setProfilesTab = useStudio((s) => s.setProfilesTab);
   const setNotice = useStudio((s) => s.setNotice);
   const [materials, setMaterials] = useState<MaterialProfile[]>([]);
   const [open, setOpen] = useState(false);
@@ -64,24 +49,18 @@ export function MaterialMenu() {
           <span>{print.material.name}</span>
           <span>· {print.printer.name}</span>
         </AriaButton>
-        <Tooltip
-          placement="top"
-          offset={6}
-          className="rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2"
-        >
-          {t("print.chipHint")}
+        <Tooltip placement="top" offset={6} className="rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
+          {t('print.chipHint')}
         </Tooltip>
       </TooltipTrigger>
-      <Popover
-        placement="top start"
-        offset={4}
-        className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2"
-      >
+      <Popover placement="top start" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
         <Menu
-          aria-label={t("print.menuLabel")}
+          aria-label={t('print.menuLabel')}
           className="max-h-menu-max overflow-auto outline-none"
           onAction={(key) => {
-            if (key === "edit") setProfilesOpen(true);
+            if (key !== 'edit' && key !== 'measure') return;
+            setProfilesTab(key === 'measure' ? 'measure' : 'printer');
+            setProfilesOpen(true);
           }}
         >
           <MenuSection
@@ -89,44 +68,27 @@ export function MaterialMenu() {
             disallowEmptySelection
             selectedKeys={[print.material.id]}
             onSelectionChange={(keys) => {
-              if (keys === "all") return;
+              if (keys === 'all') return;
               const [key] = [...keys];
-              if (typeof key !== "string" || key === print.material.id) return;
+              if (typeof key !== 'string' || key === print.material.id) return;
               void platform()
                 .print.setMaterial(key)
                 .catch(() => {
                   setNotice({
-                    tone: "danger",
-                    text: t("print.materialFailed"),
+                    tone: 'danger',
+                    text: t('print.materialFailed'),
                   });
                 });
             }}
           >
-            <Header className="px-2 py-1 text-xs font-semibold text-text-muted">
-              {t("print.partMaterial")}
-            </Header>
+            <Header className="px-2 py-1 text-xs font-semibold text-text-muted">{t('print.partMaterial')}</Header>
             {materials.map((material) => (
-              <MenuItem
-                key={material.id}
-                id={material.id}
-                textValue={material.name}
-                className={itemClass}
-                data-testid="material-option"
-              >
+              <MenuItem key={material.id} id={material.id} textValue={material.name} className={itemClass} data-testid="material-option">
                 {({ isSelected }) => (
                   <>
                     <span className="flex-1">{material.name}</span>
-                    <span className="tabular-nums text-xs text-text-muted">
-                      {t("print.overhangShort", { degrees: material.overhang })}
-                    </span>
-                    <span className="flex size-icon-sm items-center">
-                      {isSelected ? (
-                        <IconCheck
-                          className="size-icon-sm text-accent-text"
-                          aria-hidden
-                        />
-                      ) : null}
-                    </span>
+                    <span className="tabular-nums text-xs text-text-muted">{t('print.overhangShort', { degrees: material.overhang })}</span>
+                    <span className="flex size-icon-sm items-center">{isSelected ? <IconCheck className="size-icon-sm text-accent-text" aria-hidden /> : null}</span>
                   </>
                 )}
               </MenuItem>
@@ -134,17 +96,13 @@ export function MaterialMenu() {
           </MenuSection>
           <Separator className="my-1 border-t border-border" />
           <MenuSection>
-            <MenuItem
-              id="edit"
-              textValue={t("print.edit")}
-              className={itemClass}
-              data-testid="print-profiles-open"
-            >
-              <IconAdjustmentsHorizontal
-                className="size-icon-sm text-text-muted"
-                aria-hidden
-              />
-              <span className="flex-1">{t("print.edit")}</span>
+            <MenuItem id="edit" textValue={t('print.edit')} className={itemClass} data-testid="print-profiles-open">
+              <IconAdjustmentsHorizontal className="size-icon-sm text-text-muted" aria-hidden />
+              <span className="flex-1">{t('print.edit')}</span>
+            </MenuItem>
+            <MenuItem id="measure" textValue={t('measure.open')} className={itemClass} data-testid="measure-open">
+              <IconRulerMeasure className="size-icon-sm text-text-muted" aria-hidden />
+              <span className="flex-1">{t('measure.open')}</span>
             </MenuItem>
           </MenuSection>
         </Menu>

@@ -47,7 +47,9 @@ export function SettingsMenu() {
         <Menu
           aria-label={t('settings.title')}
           onAction={(key) => {
-            if (key === 'print') setProfilesOpen(true);
+            if (key !== 'print') return;
+            useStudio.getState().setProfilesTab('printer');
+            setProfilesOpen(true);
           }}
           className="outline-none"
         >

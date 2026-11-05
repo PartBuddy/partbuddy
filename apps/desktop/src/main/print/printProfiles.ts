@@ -40,7 +40,7 @@ const material = (
   overhang: number,
   holeShrink: number,
   [clamp, push, slide, turn]: [number, number, number, number],
-): MaterialProfile => ({ id, name, overhang, holeShrink, clearance: { clamp, push, slide, turn } });
+): MaterialProfile => ({ id, name, overhang, holeShrink, clearance: { clamp, push, slide, turn }, outerGrowth: 0 });
 
 export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   version: 1,
@@ -199,6 +199,7 @@ export function printNote({ printer, material: used, orientation, loads }: PartP
     `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(wall)} (two lines) and details under ${mm(printer.nozzle)} print poorly.`,
     `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter.`,
     `Clearance per side between mating parts: clamp ${mm(clamp)}, push ${mm(push)}, slide ${mm(slide)}, turn ${mm(turn)}.`,
+    ...(used.outerGrowth !== 0 ? [`Measured prints: outer sizes (pins, walls, widths) come out ${mm(used.outerGrowth)} ${used.outerGrowth > 0 ? 'larger' : 'smaller'} than drawn; allow for it on pins.`] : []),
     orientationLine(orientation, loads),
     'Keep nominal sizes as parameters, add the clearance and the hole allowance as their own parameters, and say which fit you chose.]',
   ].join('\n');

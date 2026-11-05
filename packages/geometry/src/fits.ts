@@ -15,6 +15,8 @@ export interface FitMaterial {
   clearance: Readonly<Record<FitKind, number>>;
   /** How much smaller a printed hole comes out, on the diameter, mm. */
   holeShrink: number;
+  /** How much larger a printed outer size comes out, mm (measured after printing); 0 when unknown. */
+  outerGrowth?: number;
 }
 
 /**
@@ -49,11 +51,12 @@ export function cylinderKind(model: ViewerModel, face: number): CylinderKind | n
 /** The diameter to draw a hole or a pin at, for a counterpart of diameter `mating`. */
 export function fitDiameter(kind: CylinderKind, mating: number, fit: FitKind, material: FitMaterial): number {
   const gap = 2 * material.clearance[fit];
-  const value = kind === 'hole' ? mating + gap + material.holeShrink : mating - gap;
+  // A pin prints larger by the measured outer growth, so it is drawn smaller by as much.
+  const value = kind === 'hole' ? mating + gap + material.holeShrink : mating - gap - (material.outerGrowth ?? 0);
   return Math.round(value * 1000) / 1000;
 }
 
 /** The diameter a drawn hole or pin comes out at when printed: holes shrink by the allowance. */
 export function printedDiameter(kind: CylinderKind, drawn: number, material: FitMaterial): number {
-  return Math.round((kind === 'hole' ? drawn - material.holeShrink : drawn) * 1000) / 1000;
+  return Math.round((kind === 'hole' ? drawn - material.holeShrink : drawn + (material.outerGrowth ?? 0)) * 1000) / 1000;
 }

@@ -185,7 +185,8 @@ export function FitPanel({ bodies, picks, busy }: { bodies: BodyModel[]; picks: 
           )}
           {target !== null ? (
             <p className="text-sm tabular-nums text-text" data-testid="fit-target" data-target={target}>
-              {t(changed.kind === 'hole' ? 'fit.targetHole' : 'fit.targetPin', {
+              {t(changed.kind === 'hole' ? 'fit.targetHole' : material.outerGrowth !== 0 ? 'fit.targetPinGrowth' : 'fit.targetPin', {
+                growth: number.format(material.outerGrowth),
                 target: number.format(target),
                 mating: number.format(counterpart),
                 clearance: number.format(clearance),

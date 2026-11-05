@@ -588,6 +588,8 @@ export const materialProfileSchema = z
     holeShrink: range(0, 1),
     /** Clearance per side between two mating parts, per fit. */
     clearance: z.object({ clamp: range(-0.5, 2), push: range(-0.5, 2), slide: range(-0.5, 2), turn: range(-0.5, 2) }).strict(),
+    /** How much larger than drawn an outer size (pin, wall, width) comes out, mm; from measuring (M7). */
+    outerGrowth: range(-1, 1).default(0),
   })
   .strict();
 
@@ -635,6 +637,23 @@ export const partPrintSchema = z
   .strict();
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();
 export const partLoadsRequestSchema = z.object({ loads: loadPlacesSchema }).strict();
+
+/**
+ * A measurement after printing (M7, "measure after printing"), per material: a hole or an outer
+ * size as drawn and as measured, or how a fit felt. Suggestions for the material come from these.
+ */
+export const measurementSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('hole'), drawn: range(0.1, 1000), measured: range(0.1, 1000) }).strict(),
+  z.object({ kind: z.literal('outer'), drawn: range(0.1, 1000), measured: range(0.1, 1000) }).strict(),
+  z.object({ kind: z.literal('fit'), fit: fitKindSchema, verdict: z.enum(['tight', 'ok', 'loose']), clearance: range(-0.5, 2) }).strict(),
+]);
+export const storedMeasurementSchema = z.intersection(
+  measurementSchema,
+  z.object({ id: z.string().regex(/^[a-z0-9-]{1,40}$/), material: profileId, at: z.string().max(40) }),
+);
+export const measurementAddSchema = z.object({ material: profileId, measurement: measurementSchema }).strict();
+export const measurementIdSchema = z.object({ id: z.string().regex(/^[a-z0-9-]{1,40}$/) }).strict();
+export const measurementsSchema = z.array(storedMeasurementSchema).max(500);
 
 /**
  * The result of the ready-to-print check (M7) as the renderer reports it, for the note to the
@@ -712,6 +731,9 @@ export const invokeContract = {
   [invokeChannels.printReportCheck]: { request: printCheckReportSchema, response: none },
   [invokeChannels.printSetOrientation]: { request: printOrientationSchema, response: partPrintSchema },
   [invokeChannels.printSetLoads]: { request: partLoadsRequestSchema, response: partPrintSchema },
+  [invokeChannels.printMeasurements]: { request: none, response: measurementsSchema },
+  [invokeChannels.printAddMeasurement]: { request: measurementAddSchema, response: measurementsSchema },
+  [invokeChannels.printRemoveMeasurement]: { request: measurementIdSchema, response: measurementsSchema },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -754,6 +776,8 @@ export type PartPrint = z.infer<typeof partPrintSchema>;
 export type PrintCheckReport = z.infer<typeof printCheckReportSchema>;
 export type PrintOrientation = z.infer<typeof printOrientationSchema>;
 export type LoadPlaces = z.infer<typeof loadPlacesSchema>;
+export type Measurement = z.infer<typeof measurementSchema>;
+export type StoredMeasurement = z.infer<typeof storedMeasurementSchema>;
 export type DesignParameter = z.infer<typeof designParameterSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type ExportResult = z.infer<typeof exportResultSchema>;
