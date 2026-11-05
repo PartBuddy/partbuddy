@@ -23,6 +23,9 @@ jobs:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The self-hosted runner shares one workspace between workflows; a checkout without LFS
+          # would leave pointer files that a later checkout with LFS does not replace (ADR 0022).
+          lfs: true
           persist-credentials: false
 
       - name: Install actionlint (checksum verified)
