@@ -6,6 +6,7 @@
 .DESCRIPTION
     Der Runner lebt in der WSL2-Distribution "partbuddy-runner". Gestartet wird er von einem
     unsichtbaren wsl.exe-Prozess, der die Distribution so lange am Leben hält, wie der Runner läuft.
+    Diesen Prozess legt der WMI-Dienst an (Win32_Process.Create), damit er den Aufrufer überlebt.
     Gestoppt wird er geordnet (SIGINT), danach wird die Distribution beendet, damit sie keinen
     Arbeitsspeicher mehr belegt. GitHub hält neue Läufe zurück, solange der Runner gestoppt ist.
 
@@ -79,6 +80,26 @@ function Test-InDistro([string]$Pattern) {
     return ((Invoke-WslQuiet @('-d', $Distro, '-u', $RunnerUser, '--', 'pgrep', '-f', $Pattern)) -eq 0)
 }
 
+# Startet einen Prozess unsichtbar und vom Aufrufer gelöst. Start-Process hängt das Kind an den
+# Prozessbaum und das Job-Objekt des Aufrufers: Räumt der Aufrufer seinen Baum ab (etwa eine
+# Claude-Code-Sitzung, die "-Action Start -Quiet" ausführte), endet wsl.exe mit ihm, und mit
+# wsl.exe die Listener, ohne eine Zeile ins Protokoll zu schreiben. Über Win32_Process.Create legt
+# der WMI-Dienst den Prozess an; sein Elternprozess ist dann WmiPrvSE, nicht der Aufrufer.
+# ShowWindow 0 (SW_HIDE) verhindert das Konsolenfenster, und der Fokus bleibt, wo er ist.
+function Start-Detached([string]$CommandLine) {
+    $startupClass = Get-CimClass -Namespace 'root/cimv2' -ClassName 'Win32_ProcessStartup'
+    $startup = New-CimInstance -CimClass $startupClass -ClientOnly -Property @{ ShowWindow = [uint16]0 }
+    $result = Invoke-CimMethod -Namespace 'root/cimv2' -ClassName 'Win32_Process' -MethodName 'Create' -Arguments @{
+        CommandLine               = $CommandLine
+        CurrentDirectory          = $env:USERPROFILE
+        ProcessStartupInformation = $startup
+    }
+    if ($result.ReturnValue -ne 0) {
+        throw "Win32_Process.Create ist fehlgeschlagen (Rückgabewert $($result.ReturnValue)): $CommandLine"
+    }
+    return $result.ProcessId
+}
+
 function Test-ListenerRunning { Test-InDistro 'Runner.Listener' }
 function Test-JobRunning { Test-InDistro 'Runner.Worker' }
 
@@ -88,15 +109,13 @@ function Start-Runner {
     }
     if (Test-ListenerRunning) { return }
 
-    Start-Process -FilePath $Wsl -WindowStyle Hidden -ArgumentList @(
-        '-d', $Distro, '-u', $RunnerUser, '--', "/home/$RunnerUser/start-listener.sh"
-    ) | Out-Null
+    $processId = Start-Detached "`"$Wsl`" -d $Distro -u $RunnerUser -- /home/$RunnerUser/start-listener.sh"
 
     $deadline = (Get-Date).AddSeconds(30)
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Milliseconds 500
         if (Test-ListenerRunning) {
-            Write-Log 'Runner gestartet.'
+            Write-Log "Runner gestartet (wsl.exe, PID $processId)."
             return
         }
     }

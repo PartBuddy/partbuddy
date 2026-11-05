@@ -204,6 +204,8 @@ else {
 }
 
 Write-Step 'Starte den Runner'
+# runner-control.ps1 lässt wsl.exe vom WMI-Dienst anlegen; der Runner läuft also weiter, wenn
+# dieses Fenster oder die Sitzung, die das Setup gestartet hat, geschlossen wird.
 & $powershell -NoProfile -File $ControlScript -Action Start -Quiet
 Assert-LastExit 'Der Start des Runners'
 & $powershell -NoProfile -File $ControlScript -Action Status
