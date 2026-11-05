@@ -6,6 +6,8 @@
  * steps.
  */
 
+import { stepOf, type FeatureBlock } from './blocks';
+
 export const STEP_PHRASE_KEYS = [
   'sketch',
   'sketchOnFace',
@@ -56,6 +58,11 @@ export const STEP_PHRASE_KEYS = [
   'tappedHole',
   'screwHole',
   'boss',
+  'textBlock',
+  'nutTrap',
+  'slot',
+  'lip',
+  'groove',
   'command',
 ] as const;
 
@@ -207,6 +214,10 @@ function phraseOf(command: string, params: Params): StepPhrase | 'curve' | 'dime
       return { key: 'convertMesh', values: { name: text(params.body, '?') } };
     case 'body.print_face':
       return { key: params.point === undefined || params.point === null ? 'printFaceCleared' : 'printFace', values: {} };
+    case 'solid.emboss':
+      return { key: 'textBlock', values: { text: '…' } };
+    case 'plastic.lip':
+      return { key: params.type === 'groove' ? 'groove' : 'lip', values: { width: size(params.width) ?? '?' } };
     case 'plastic.boss':
       return { key: 'boss', values: { diameter: size(params.diameter) ?? '?' } };
     case 'parts.insert':
@@ -312,6 +323,23 @@ export function describeUserAction(
   }
 }
 
+/** The work-log line of a function block the user built (F1). */
+export function blockPhrase(block: FeatureBlock): StepPhrase {
+  const round = (value: number) => Math.round(value * 100) / 100;
+  switch (block.block) {
+    case 'text':
+      return { key: 'textBlock', values: { text: block.text.slice(0, 40) } };
+    case 'nutTrap':
+      return { key: 'nutTrap', values: { size: block.size } };
+    case 'slot':
+      return { key: 'slot', values: { length: round(block.length) } };
+    case 'lip':
+      return { key: block.type, values: { width: round(block.width) } };
+    default:
+      return describeCommands([stepOf(block)])[0] ?? { key: 'command', values: { command: block.block } };
+  }
+}
+
 /**
  * ICU messages of the phrases. English is also what the model reads in notes; German is the
  * second UI language (the renderer adds both to its translations under `steps`).
@@ -362,6 +390,11 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     tappedHole: 'Tapped hole {thread}',
     screwHole: 'Screw hole {size}',
     boss: 'Screw boss ⌀ {diameter} mm',
+    textBlock: 'Text “{text}”',
+    nutTrap: 'Nut trap {size}',
+    slot: 'Slot {length} mm',
+    lip: 'Lip {width} mm',
+    groove: 'Groove {width} mm',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -409,6 +442,11 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     tappedHole: 'Gewindebohrung {thread}',
     screwHole: 'Schraubenloch {size}',
     boss: 'Schraubdom ⌀ {diameter} mm',
+    textBlock: 'Text „{text}“',
+    nutTrap: 'Mutternfalle {size}',
+    slot: 'Langloch {length} mm',
+    lip: 'Deckelrand {width} mm',
+    groove: 'Nut {width} mm',
     command: 'SolidCraft: {command}',
   },
 };

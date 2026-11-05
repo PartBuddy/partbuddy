@@ -669,6 +669,27 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
     .strict(),
   z.object({ block: z.literal('insertSeat'), body: bodyName, point: point3, size: blockSize, diameter: blockLength, depth: blockLength }).strict(),
   z.object({ block: z.literal('boss'), body: bodyName, point: point3, size: blockSize, diameter: blockLength, height: blockLength }).strict(),
+  z
+    .object({
+      block: z.literal('text'),
+      body: bodyName,
+      point: point3,
+      normal: point3,
+      size: blockSize,
+      text: z.string().trim().min(1).max(80),
+      height: blockLength,
+      depth: blockLength,
+      mode: z.enum(['emboss', 'deboss']),
+      bold: z.boolean(),
+    })
+    .strict(),
+  z.object({ block: z.literal('nutTrap'), body: bodyName, point: point3, normal: point3, size: blockSize, flats: blockLength, depth: blockLength }).strict(),
+  z
+    .object({ block: z.literal('slot'), body: bodyName, point: point3, normal: point3, size: blockSize, length: blockLength, width: blockLength, depth: blockLength.nullable(), along: z.enum(['x', 'y']) })
+    .strict(),
+  z
+    .object({ block: z.literal('lip'), body: bodyName, point: point3, size: blockSize, type: z.enum(['lip', 'groove']), width: blockLength, height: blockLength, gap: finite.min(0).max(5) })
+    .strict(),
 ]);
 export const actionPreviewSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable() }).strict(),

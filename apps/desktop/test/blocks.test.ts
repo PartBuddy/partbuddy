@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaultBlock, sizesOf, stepOf } from '../src/shared/blocks';
+import { defaultBlock, sizesOf, stepsOf, type FeatureBlock } from '../src/shared/blocks';
+
+const stepOf = (block: FeatureBlock) => stepsOf(block)[0] ?? { command: '', params: {} };
 import { describeCommands } from '../src/shared/stepPhrases';
 
 const at: [number, number, number] = [10, 10, 10];

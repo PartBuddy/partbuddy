@@ -197,6 +197,12 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   `cs_diameter` and `cs_angle` (`"90 deg"`) or `cb_diameter` and `cb_depth` given explicitly.
 - `plastic.boss {position, diameter, height, hole_diameter, hole_depth}` builds out of the face.
 - A modelled thread costs about 2 s per rebuild of a small part.
+- `sketch.create {plane: {face: point}}` projects the face's edges into the sketch (they can become
+  profiles); `project_edges: false` avoids that. An explicit plane `{origin, x_dir, y_dir}` puts the
+  sketch origin at the picked point; following commands use the new sketch without its id.
+- `solid.extrude` with a negative `distance` and `operation: cut` cuts into the face's material;
+  `through_all` cut outward and changed nothing (checked with a slot on a top face).
+- `solid.emboss {depth, mode: emboss|deboss, face}` works on `sketch.text` profiles.
 
 ## Repository and machine
 
