@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -27,6 +27,7 @@ import { NotesService } from './notes/notesService';
 import { Bridge, trustedSender } from './bridge';
 import { findExecutable, systemEnvironment } from './solidcraft/discovery';
 import { EngineChoice } from './solidcraft/engineChoice';
+import { AssistantSettings } from './agents/assistantSettings';
 import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
@@ -367,21 +368,16 @@ if (!app.requestSingleInstanceLock()) {
     let assistant: Assistant | null = null;
     const changed = () => assistant?.changed();
     // The user's choice to allow API billing for Claude Code (off by default), kept per installation.
-    const assistantSettings = join(app.getPath('userData'), 'assistant-settings.json');
+    // API billing for Claude Code and the model and effort per route for new chats (B1).
+    const assistantSettings = new AssistantSettings(join(app.getPath('userData'), 'assistant-settings.json'));
     const apiBilling = {
-      get: (): boolean => {
-        try {
-          return (JSON.parse(readFileSync(assistantSettings, 'utf8')) as { claudeApiBilling?: unknown }).claudeApiBilling === true;
-        } catch {
-          return false;
-        }
-      },
+      get: () => assistantSettings.apiBilling(),
       set: (allow: boolean) => {
-        writeFileSync(assistantSettings, JSON.stringify({ claudeApiBilling: allow }));
+        assistantSettings.setApiBilling(allow);
       },
     };
     const claude = new AgentService(
-      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), apiBilling, log, tools },
+      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), apiBilling, log, tools, choices: assistantSettings },
       { status: changed, event: emitEvent },
     );
     // ChatGPT tokens live only in the Windows credential store (ADR 0011, ADR 0015).
@@ -395,7 +391,7 @@ if (!app.requestSingleInstanceLock()) {
       onStatus: changed,
     });
     account.load();
-    const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log });
+    const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log, choices: assistantSettings });
     assistant = new Assistant({ 'claude-code': claude, chatgpt }, (state) => {
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentStatus, state);
     });
@@ -407,6 +403,7 @@ if (!app.requestSingleInstanceLock()) {
       questions.clear();
       return agent.select(kind);
     });
+    bridge.handle(invokeChannels.agentChooseModel, ({ choice, asDefault }) => agent.chooseModel(choice, asDefault));
     bridge.handle(invokeChannels.agentAllowApiBilling, async ({ allow }) => {
       await claude.allowApiBilling(allow);
       return agent.state();

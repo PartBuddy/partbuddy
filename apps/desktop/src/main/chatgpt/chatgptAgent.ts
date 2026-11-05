@@ -1,8 +1,9 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { jsonSchema, stepCountIs, streamText, tool, type ModelMessage, type ToolSet } from 'ai';
 
-import type { AgentEvent, AgentStatus, Selection } from '../../shared/contract';
+import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
 import { userEvent, type AgentBackend } from '../agents/assistant';
+import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import type { ToolResult, UpstreamTools } from '../agents/gateProxy';
 import { decide } from '../agents/policy';
 import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from '../agents/questions';
@@ -46,7 +47,32 @@ export interface ChatGptAgentOptions {
   event(event: AgentEvent): void;
   changed(): void;
   log(message: string): void;
+  /** The model and effort kept for new chats (B1). */
+  choices: ChoiceStore;
   fetch?: typeof fetch;
+}
+
+/**
+ * The models of the ChatGPT account from `/models` (B1): those listed for pickers, with their
+ * names and reasoning levels as the Codex model list carries them (`display_name`,
+ * `supported_reasoning_levels[].effort`, `default_reasoning_level`). Unknown fields are ignored.
+ */
+export function modelsFromList(body: unknown): ModelOption[] {
+  const models = (body as { models?: unknown } | null)?.models;
+  if (!Array.isArray(models)) return [];
+  const word = (value: unknown) => (typeof value === 'string' && /^[a-z][a-z0-9_-]{0,19}$/.test(value) ? value : null);
+  const options: ModelOption[] = [];
+  for (const raw of models as Record<string, unknown>[]) {
+    if (raw.visibility !== 'list' || typeof raw.slug !== 'string' || raw.slug.length === 0 || raw.slug.length > 80) continue;
+    const levels = Array.isArray(raw.supported_reasoning_levels) ? (raw.supported_reasoning_levels as { effort?: unknown }[]) : [];
+    const efforts = levels.map((level) => word(level.effort)).filter((effort): effort is string => effort !== null).slice(0, 12);
+    const option: ModelOption = { id: raw.slug, name: typeof raw.display_name === 'string' ? raw.display_name.slice(0, 80) : raw.slug, efforts };
+    if (typeof raw.description === 'string') option.description = raw.description.slice(0, 200);
+    const fallback = word(raw.default_reasoning_level);
+    if (fallback && efforts.includes(fallback)) option.defaultEffort = fallback;
+    options.push(option);
+  }
+  return options.slice(0, 30);
 }
 
 /** Text of an MCP tool result for the model; images are summarised, not forwarded. */
@@ -57,7 +83,10 @@ function resultText(result: ToolResult): string {
 }
 
 export class ChatGptAgent implements AgentBackend {
-  private model: string | null = null;
+  /** The models of the account, once listed. */
+  private models: ModelOption[] | null = null;
+  /** Model and effort from the next turn on. */
+  private choice: ModelChoice | null = null;
   private history: ModelMessage[] = [];
   private abort: AbortController | null = null;
   private busy = false;
@@ -75,15 +104,14 @@ export class ChatGptAgent implements AgentBackend {
       status.detail = 'ChatGPT plan usage was not allowed for PartBuddy';
     }
     if (account.email) status.account = account.email;
-    if (this.model) status.model = this.model;
     if (account.detail && !status.detail) status.detail = account.detail;
-    return status;
+    return { ...status, ...choiceStatus(this.models, this.choice, this.options.choices.get('chatgpt')) };
   }
 
   async refresh(): Promise<AgentStatus> {
-    if (this.options.account.status().state === 'signedIn' && !this.model) {
+    if (this.options.account.status().state === 'signedIn' && !this.models) {
       try {
-        this.model = await this.pickModel();
+        await this.readModels();
       } catch (error) {
         this.options.log(`ChatGPT model list failed: ${(error as Error).message}`);
       }
@@ -99,7 +127,8 @@ export class ChatGptAgent implements AgentBackend {
   async signOut(): Promise<void> {
     await this.stop();
     this.history = [];
-    this.model = null;
+    this.models = null;
+    this.choice = null;
     await this.options.account.signOut();
     this.options.changed();
   }
@@ -124,7 +153,7 @@ export class ChatGptAgent implements AgentBackend {
       this.options.event({ type: 'error', message: 'SolidCraft is not connected' });
       return;
     }
-    this.model ??= await this.pickModel();
+    if (!this.choice) await this.readModels();
     const message = composeMessage(text, selections, note);
     this.options.event(userEvent(text, message.label, message.summary));
     this.history.push(
@@ -148,13 +177,18 @@ export class ChatGptAgent implements AgentBackend {
     try {
       const provider = createOpenAI({ apiKey: 'replaced-per-request', baseURL: RESOURCE, fetch: this.authorizedFetch() });
       const result = streamText({
-        model: provider.responses(this.model ?? ''),
+        model: provider.responses(this.choice?.model ?? ''),
         messages: this.history,
         tools: await this.toolSet(upstream),
         stopWhen: stepCountIs(MAX_STEPS),
         abortSignal: signal,
         providerOptions: {
-          openai: { store: false, instructions: instructionsFor(upstream), systemMessageMode: 'remove' },
+          openai: {
+            store: false,
+            instructions: instructionsFor(upstream),
+            systemMessageMode: 'remove',
+            ...(this.choice?.effort ? { reasoningEffort: this.choice.effort } : {}),
+          },
         },
       });
       for await (const part of result.stream) {
@@ -214,16 +248,27 @@ export class ChatGptAgent implements AgentBackend {
     }
   }
 
-  /** The first model OpenAI lists for this ChatGPT account. */
-  private async pickModel(): Promise<string> {
+  /** Model and effort from the next turn on (B1); the conversation keeps its history. */
+  async chooseModel(choice: ModelChoice, asDefault: boolean): Promise<void> {
+    if (!this.models) await this.readModels();
+    const allowed = allowedChoice(this.models ?? [], choice);
+    if (!allowed) throw new Error(`model ${choice.model} is not offered for this ChatGPT account`);
+    this.choice = allowed;
+    if (asDefault) this.options.choices.set('chatgpt', allowed);
+    this.options.changed();
+  }
+
+  /** The models OpenAI lists for this ChatGPT account, and the choice: the kept one if offered, else the first. */
+  private async readModels(): Promise<void> {
     const response = await (this.options.fetch ?? fetch)(`${RESOURCE}/models`, {
       headers: { Authorization: `Bearer ${await this.options.account.accessToken()}` },
     });
     if (!response.ok) throw new Error(`model list: HTTP ${response.status}`);
-    const body = (await response.json()) as { models?: { slug?: unknown; visibility?: unknown }[] };
-    const slug = body.models?.find((model) => model.visibility === 'list' && typeof model.slug === 'string')?.slug;
-    if (typeof slug !== 'string') throw new Error('no model is available for this ChatGPT account');
-    return slug;
+    const models = modelsFromList(await response.json());
+    const first = models[0];
+    if (!first) throw new Error('no model is available for this ChatGPT account');
+    this.models = models;
+    this.choice = allowedChoice(models, this.choice ?? this.options.choices.get('chatgpt')) ?? { model: first.id, effort: null };
   }
 }
 

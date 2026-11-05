@@ -1,4 +1,4 @@
-import type { AgentKind, AgentStatus, AssistantState, Selection } from '../../shared/contract';
+import type { AgentKind, AgentStatus, AssistantState, ModelChoice, Selection } from '../../shared/contract';
 import type { SelectionSummary } from './viewContext';
 
 /** The user event of a message, with the selection that went along. */
@@ -23,6 +23,8 @@ export interface AgentBackend {
    */
   send(text: string, selections?: Selection[], note?: string | null, image?: Uint8Array | null): Promise<void>;
   stop(): Promise<void>;
+  /** Model and effort from the next turn on; with `asDefault` also kept for new chats (B1). */
+  chooseModel(choice: ModelChoice, asDefault: boolean): Promise<void>;
   /** True when the next message starts a new conversation that knows nothing of earlier ones. */
   freshConversation(): boolean;
   signIn(): void;
@@ -69,6 +71,11 @@ export class Assistant {
 
   stop(): Promise<void> {
     return this.current().stop();
+  }
+
+  async chooseModel(choice: ModelChoice, asDefault: boolean): Promise<AssistantState> {
+    await this.current().chooseModel(choice, asDefault);
+    return this.state();
   }
 
   /** Which route the next message goes to, and whether it starts a new conversation there. */

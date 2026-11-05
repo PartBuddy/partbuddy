@@ -2,10 +2,11 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { AgentEvent, AgentStatus, Selection } from '../../shared/contract';
-import { ClaudeSession, findClaudeCode, readAuth, readVersion, startSignIn, type ClaudeAuth, type ClaudeCommand } from './claudeCode';
+import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
+import { ClaudeSession, findClaudeCode, listModels, readAuth, readVersion, startSignIn, type ClaudeAuth, type ClaudeCommand } from './claudeCode';
 import { userEvent, type AgentBackend } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
+import { allowedChoice, choiceStatus, withoutChoice, type ChoiceStore } from './modelChoice';
 import { composeMessage } from './viewContext';
 
 /**
@@ -27,6 +28,10 @@ export interface AgentServiceOptions {
   apiBilling: { get(): boolean; set(allow: boolean): void };
   /** SolidCraft's tools for the connected app, or null while SolidCraft is not connected. */
   tools(): Promise<UpstreamTools | null>;
+  /** The model and effort kept for new chats (B1). */
+  choices: ChoiceStore;
+  /** Lists the models of the plan; Claude Code's own `initialize` answer by default (tests replace it). */
+  listModels?: (claude: ClaudeCommand) => Promise<ModelOption[]>;
   log(message: string): void;
 }
 
@@ -46,6 +51,10 @@ export class AgentService implements AgentBackend {
   private session: ClaudeSession | null = null;
   private proxy: GateProxy | null = null;
   private configPath: string | null = null;
+  /** The models of the user's plan, once Claude Code listed them. */
+  private models: ModelOption[] | null = null;
+  /** Model and effort from the next turn on; null: Claude Code's own default. */
+  private choice: ModelChoice | null = null;
 
   constructor(
     private readonly options: AgentServiceOptions,
@@ -71,6 +80,7 @@ export class AgentService implements AgentBackend {
       if (auth.plan) status.plan = auth.plan;
       if (this.session?.running && auth.loggedIn) status.state = this.current.state === 'busy' ? 'busy' : 'ready';
       this.setStatus(status);
+      if (auth.loggedIn) await this.readModels(claude);
     } catch (error) {
       this.setStatus({ agent: 'claude-code', state: 'unavailable', detail: (error as Error).message.slice(0, 500) });
     }
@@ -97,6 +107,18 @@ export class AgentService implements AgentBackend {
     this.listeners.event(userEvent(text, message.label, message.summary));
     this.setStatus({ ...this.current, state: 'busy' });
     this.session?.send(message.prompt, image);
+  }
+
+  /** Model and effort from the next turn on, in a running session too (B1). */
+  async chooseModel(choice: ModelChoice, asDefault: boolean): Promise<void> {
+    if (!this.models) throw new Error('Claude Code has not listed its models yet');
+    const allowed = allowedChoice(this.models, choice);
+    if (!allowed) throw new Error(`model ${choice.model} is not offered by this plan`);
+    this.choice = allowed;
+    if (asDefault) this.options.choices.set('claude-code', allowed);
+    this.session?.choose(allowed);
+    this.setStatus(this.current);
+    await Promise.resolve();
   }
 
   async allowApiBilling(allow: boolean): Promise<void> {
@@ -157,7 +179,7 @@ export class AgentService implements AgentBackend {
     this.configPath = configPath;
 
     let announced = false;
-    const session = new ClaudeSession({ claude: this.claude, env: this.options.env, cwd: this.options.workDir, mcpConfigPath: configPath });
+    const session = new ClaudeSession({ claude: this.claude, env: this.options.env, cwd: this.options.workDir, mcpConfigPath: configPath, choice: this.choice });
     session.onEvent((event) => {
       switch (event.type) {
         case 'textDelta':
@@ -187,8 +209,21 @@ export class AgentService implements AgentBackend {
     this.session = session;
   }
 
+  /** Reads the plan's models once per refresh; the kept choice applies once it proves offered. */
+  private async readModels(claude: ClaudeCommand): Promise<void> {
+    try {
+      mkdirSync(this.options.workDir, { recursive: true });
+      const models = await (this.options.listModels ?? ((command) => listModels(command, this.options.env, this.options.workDir)))(claude);
+      this.models = models;
+      this.choice = allowedChoice(models, this.choice ?? this.options.choices.get('claude-code'));
+      this.setStatus(this.current);
+    } catch (error) {
+      this.options.log(`Claude Code models could not be listed: ${(error as Error).message}`);
+    }
+  }
+
   private setStatus(status: AgentStatus): void {
-    this.current = status;
-    this.listeners.status(status);
+    this.current = { ...withoutChoice(status), ...choiceStatus(this.models, this.choice, this.options.choices.get('claude-code')) };
+    this.listeners.status(this.current);
   }
 }

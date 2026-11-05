@@ -259,7 +259,27 @@
       "vertices": "{count, plural, one {# Ecke} other {# Ecken}}",
       "line": "Auswahl: {what} · {bodies}"
     },
-    "earlierSession": "Frühere Sitzung, bis {date, date, short} {date, time, short}"
+    "earlierSession": "Frühere Sitzung, bis {date, date, short} {date, time, short}",
+    "model": {
+      "title": "Modell",
+      "applies": "Gilt ab der nächsten Antwort, auch mitten im Gespräch.",
+      "keep": "Für neue Chats merken",
+      "isDefault": "Standard für neue Chats"
+    },
+    "effort": {
+      "title": "Effort",
+      "standard": "Standard",
+      "standardIs": "Standard ({level})",
+      "level": {
+        "none": "Aus",
+        "minimal": "Minimal",
+        "low": "Niedrig",
+        "medium": "Mittel",
+        "high": "Hoch",
+        "xhigh": "Sehr hoch",
+        "max": "Maximum"
+      }
+    }
   },
   "live": {
     "thinking": "Der Assistent plant den nächsten Schritt",

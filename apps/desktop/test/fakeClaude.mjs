@@ -48,12 +48,43 @@ if (args[0] === '--version') {
     }),
   );
 } else if (args.includes('-p')) {
-  const config = JSON.parse(readFileSync(args[args.indexOf('--mcp-config') + 1], 'utf8'));
-  const server = config.mcpServers.partbuddy;
+  // The model listing (B1) starts without an MCP configuration and only asks `initialize`.
+  const config = args.includes('--mcp-config') ? JSON.parse(readFileSync(args[args.indexOf('--mcp-config') + 1], 'utf8')) : null;
+  const server = config?.mcpServers.partbuddy;
+  // Model and effort as started (B1), changed later by control requests.
+  let model = args.includes('--model') ? args[args.indexOf('--model') + 1] : 'default';
+  let effort = args.includes('--effort') ? args[args.indexOf('--effort') + 1] : 'none';
   out({ type: 'system', subtype: 'init', model: 'fake-model' });
   const lines = createInterface({ input: process.stdin });
   for await (const line of lines) {
     const message = JSON.parse(line);
+    if (message.type === 'control_request') {
+      const request = message.request;
+      if (request.subtype === 'set_model') model = request.model;
+      if (request.subtype === 'apply_flag_settings' && 'effortLevel' in request.settings) effort = request.settings.effortLevel ?? 'none';
+      const levels = ['low', 'medium', 'high', 'xhigh', 'max'];
+      const response =
+        request.subtype === 'initialize'
+          ? {
+              account: { email: 'someone@example.com', subscriptionType: 'max' },
+              models: [
+                { value: 'default', displayName: 'Default (recommended)', description: 'Opus 9 · fake', supportedEffortLevels: levels },
+                { value: 'opus', displayName: 'Opus 9', description: 'Best for complex tasks', supportedEffortLevels: levels },
+                { value: 'sonnet', displayName: 'Sonnet 9', description: 'Efficient for routine tasks', supportedEffortLevels: levels },
+                { value: 'haiku', displayName: 'Haiku 9', description: 'Fastest', supportedEffortLevels: ['low', 'medium', 'high'] },
+                { value: 'claude-haiku-1-0-20240101', displayName: 'Haiku 1.0', description: 'Old' },
+              ],
+            }
+          : {};
+      out({ type: 'control_response', response: { subtype: 'success', request_id: message.request_id, response } });
+      continue;
+    }
+    // "Which model" (B1): tells which model and effort the session runs with now.
+    if (JSON.stringify(message).includes('Which model')) {
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: `model ${model} effort ${effort}` }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // Text, or text and image blocks when a picture of the view goes along (M2b-2).
     const raw = message.message.content;
     const content = typeof raw === 'string' ? raw : raw.map((block) => (block.type === 'text' ? block.text : `[${block.type}]`)).join('\n');

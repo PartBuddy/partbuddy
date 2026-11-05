@@ -498,6 +498,47 @@ test('the assistant shows the signed-in plan and needs SolidCraft', async () => 
   await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
 });
 
+test('model and effort are chosen at the chip and kept for new chats (B1)', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-model-'));
+  try {
+    launched = await launchApp({ work });
+    let { page } = launched;
+    let chip = page.getByTestId('agent-status');
+    await chip.click();
+    const menu = page.getByTestId('agent-menu');
+    // Only what the plan offers: the aliases, without pinned older versions.
+    await expect(menu.getByTestId('model-option')).toHaveText([/^Default \(recommended\)/, /^Opus 9/, /^Sonnet 9/, /^Haiku 9/]);
+    await menu.getByTestId('model-option').filter({ hasText: 'Sonnet 9' }).click();
+    await menu.getByTestId('effort-option').filter({ hasText: /^Low$/ }).click();
+    await expect(menu.getByRole('radio', { name: 'Low' })).toBeChecked();
+    await expect(chip).toHaveText('Claude Code · Sonnet 9 · Low');
+    await menu.getByTestId('model-keep').click();
+    await expect(menu.getByTestId('model-is-default')).toBeVisible();
+    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="agent-menu"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    await page.screenshot({ path: test.info().outputPath('agent-model.png') });
+
+    // Another model keeps the effort where it takes it; Haiku takes no "max". That a running
+    // session switches mid-conversation is covered by the agent tests with the stream-json protocol.
+    await menu.getByTestId('model-option').filter({ hasText: 'Haiku 9' }).click();
+    await expect(menu.getByTestId('effort-option')).toHaveText(['Default', 'Low', 'Medium', 'High']);
+    await expect(menu.getByTestId('model-keep')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(chip).toHaveText('Claude Code · Haiku 9 · Low');
+
+    // A new start begins with the choice kept for new chats.
+    await launched.close();
+    launched = await launchApp({ work });
+    ({ page } = launched);
+    chip = page.getByTestId('agent-status');
+    await expect(chip).toHaveText('Claude Code · Sonnet 9 · Low', { timeout: 15_000 });
+  } finally {
+    await launched?.close();
+    launched = null;
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('Claude Code with an API key runs only when the user allows it', async () => {
   launched = await launchApp({ env: { FAKE_CLAUDE_API_KEY: '1' } });
   const { page } = launched;

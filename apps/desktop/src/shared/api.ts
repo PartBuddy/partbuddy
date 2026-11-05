@@ -24,6 +24,7 @@ import type {
   StoredChat,
   StoredChatItem,
   MirrorRevision,
+  ModelChoice,
   NotesState,
   PartPrint,
   PrintCheckReport,
@@ -142,6 +143,8 @@ export interface PartBuddyApi {
     select(agent: AgentKind): Promise<AssistantState>;
     /** Let Claude Code run with an API key, billed separately; off by default. */
     allowApiBilling(allow: boolean): Promise<AssistantState>;
+    /** The model and effort of the selected route, from now on; with `asDefault` also for new chats (B1). */
+    chooseModel(choice: ModelChoice, asDefault: boolean): Promise<AssistantState>;
     /** Sends a message; what is selected in the view goes with it as a short note. */
     send(text: string, selections?: Selection[], answer?: MessageAnswer): Promise<void>;
     stop(): Promise<void>;

@@ -259,7 +259,27 @@
       "vertices": "{count, plural, one {# vertex} other {# vertices}}",
       "line": "Selected: {what} · {bodies}"
     },
-    "earlierSession": "Earlier session, until {date, date, short} {date, time, short}"
+    "earlierSession": "Earlier session, until {date, date, short} {date, time, short}",
+    "model": {
+      "title": "Model",
+      "applies": "Applies from the next answer, also mid-conversation.",
+      "keep": "Keep for new chats",
+      "isDefault": "Default for new chats"
+    },
+    "effort": {
+      "title": "Effort",
+      "standard": "Default",
+      "standardIs": "Default ({level})",
+      "level": {
+        "none": "Off",
+        "minimal": "Minimal",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "xhigh": "Extra high",
+        "max": "Max"
+      }
+    }
   },
   "live": {
     "thinking": "The assistant is planning the next step",

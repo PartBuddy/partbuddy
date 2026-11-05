@@ -26,7 +26,17 @@ function fakeOpenAI(firstTool: string) {
   const auth: string[] = [];
   const fetchFn = ((url: string | URL, init?: RequestInit): Promise<Response> => {
     auth.push(new Headers(init?.headers).get('Authorization') ?? '');
-    if (String(url).endsWith('/models')) return Promise.resolve(Response.json({ models: [{ slug: 'gpt-test', visibility: 'list' }] }));
+    if (String(url).endsWith('/models')) {
+      return Promise.resolve(
+        Response.json({
+          models: [
+            { slug: 'gpt-5-test', display_name: 'GPT Test', visibility: 'list', default_reasoning_level: 'medium', supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }] },
+            { slug: 'gpt-hidden', visibility: 'hide' },
+            { slug: 'gpt-mini', display_name: 'GPT Mini', visibility: 'list', supported_reasoning_levels: [] },
+          ],
+        }),
+      );
+    }
     const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>;
     bodies.push(body);
     if (bodies.length === 1) {
@@ -83,6 +93,7 @@ function setup(firstTool = 'measure') {
     event: (event) => events.push(event),
     changed: () => undefined,
     log: () => undefined,
+    choices: { get: () => null, set: () => undefined },
     fetch: openai.fetchFn,
   });
   return { agent, openai, calls, events };
@@ -103,6 +114,25 @@ describe('ChatGPT agent', () => {
   });
 
 
+  it('lists the account\'s models and sends the chosen model with its reasoning effort (B1)', async () => {
+    const { agent, openai, events } = setup();
+    const status = await agent.refresh();
+    expect(status.models).toEqual([
+      { id: 'gpt-5-test', name: 'GPT Test', efforts: ['low', 'medium', 'high'], defaultEffort: 'medium' },
+      { id: 'gpt-mini', name: 'GPT Mini', efforts: [] },
+    ]);
+    expect(status.model).toBe('gpt-5-test');
+    await agent.chooseModel({ model: 'gpt-5-test', effort: 'high' }, false);
+    await agent.send('Hello');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
+    expect(openai.bodies[0]).toMatchObject({ model: 'gpt-5-test', reasoning: { effort: 'high' } });
+    await expect(agent.chooseModel({ model: 'gpt-hidden', effort: null }, false)).rejects.toThrow(/not offered/);
+    // An effort the model does not take falls back to the model's own default.
+    await agent.chooseModel({ model: 'gpt-mini', effort: 'high' }, false);
+    expect(agent.status()).toMatchObject({ model: 'gpt-mini' });
+    expect(agent.status().effort).toBeUndefined();
+  });
+
   it('sends a picture as an image part along with the message (kept for the photo import)', async () => {
     const { agent, openai, events } = setup();
     await agent.refresh();
@@ -117,14 +147,14 @@ describe('ChatGPT agent', () => {
 
   it('follows the preview rules of Sign in with ChatGPT and runs the tool loop', async () => {
     const { agent, openai, calls, events } = setup();
-    expect((await agent.refresh()).model).toBe('gpt-test');
+    expect((await agent.refresh()).model).toBe('gpt-5-test');
     await agent.send('How big is it?');
     await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
 
     expect(calls).toEqual(['measure']);
     expect(openai.auth.every((header) => header === 'Bearer access-token-1')).toBe(true);
     const first = openai.bodies[0] ?? {};
-    expect(first).toMatchObject({ model: 'gpt-test', store: false, stream: true });
+    expect(first).toMatchObject({ model: 'gpt-5-test', store: false, stream: true });
     expect(typeof first.instructions).toBe('string');
     for (const field of ['temperature', 'max_output_tokens', 'previous_response_id', 'top_p']) expect(first).not.toHaveProperty(field);
     expect(JSON.stringify(first.input)).not.toContain('"role":"system"');
@@ -135,7 +165,7 @@ describe('ChatGPT agent', () => {
     expect(events.filter((e) => e.type === 'textDelta').map((e) => (e as { text: string }).text).join('')).toBe('Volume: 4000 mm³');
     expect(events.find((e) => e.type === 'tool')).toMatchObject({ name: 'measure', decision: 'allowed' });
     expect(events.find((e) => e.type === 'done')).toMatchObject({ ok: true });
-    expect(agent.status()).toMatchObject({ agent: 'chatgpt', state: 'ready', account: 'someone@example.com', model: 'gpt-test' });
+    expect(agent.status()).toMatchObject({ agent: 'chatgpt', state: 'ready', account: 'someone@example.com', model: 'gpt-5-test' });
   });
 
   it('refuses gated tools without calling SolidCraft', async () => {
@@ -163,6 +193,7 @@ describe('assistant routes', () => {
         calls.push('stop');
         return Promise.resolve();
       },
+      chooseModel: () => Promise.resolve(),
       freshConversation: () => false,
       signIn: () => calls.push('signIn'),
       signOut: () => {

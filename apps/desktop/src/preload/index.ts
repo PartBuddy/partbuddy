@@ -91,6 +91,7 @@ const api: PartBuddyApi = {
     stop: () => ipcRenderer.invoke(invokeChannels.agentStop),
     select: (agent) => ipcRenderer.invoke(invokeChannels.agentSelect, { agent }),
     allowApiBilling: (allow) => ipcRenderer.invoke(invokeChannels.agentAllowApiBilling, { allow }),
+    chooseModel: (choice, asDefault) => ipcRenderer.invoke(invokeChannels.agentChooseModel, { choice, asDefault }),
     signIn: () => ipcRenderer.invoke(invokeChannels.agentSignIn),
     signOut: () => ipcRenderer.invoke(invokeChannels.agentSignOut),
     onStatus: (listener) => subscribe(eventChannels.agentStatus, listener),

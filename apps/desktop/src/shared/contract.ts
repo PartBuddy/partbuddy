@@ -250,6 +250,20 @@ export const viewStateSchema = z
  * Assistant route (ADR 0015): the user's Claude Code, or ChatGPT plan usage in PartBuddy's own
  * loop. Shows sign-in state, plan and, for ChatGPT, the signed-in account's e-mail to the user.
  */
+/** A model the user's plan offers (B1), with the effort levels it takes; none when it has no levels. */
+const effortName = z.string().min(1).max(20);
+export const modelOptionSchema = z
+  .object({
+    id: z.string().min(1).max(80),
+    name: z.string().min(1).max(80),
+    description: z.string().max(200).optional(),
+    efforts: z.array(effortName).max(12),
+    defaultEffort: effortName.optional(),
+  })
+  .strict();
+/** The model and effort a route works with; `effort` null is the model's own default. */
+export const modelChoiceSchema = z.object({ model: z.string().min(1).max(80), effort: effortName.nullable() }).strict();
+
 export const agentStatusSchema = z
   .object({
     agent: agentKindSchema,
@@ -261,10 +275,19 @@ export const agentStatusSchema = z
     account: z.string().max(200).optional(),
     /** The user allowed Claude Code to run with an API key, billed separately (off by default). */
     apiBillingAllowed: z.boolean().optional(),
+    /** The model in use (B1): the user's choice, else the default for new chats. */
     model: z.string().max(80).optional(),
+    /** The effort in use; absent: the model's own default. */
+    effort: effortName.optional(),
+    /** What the plan offers, once read. */
+    models: z.array(modelOptionSchema).max(30).optional(),
+    /** The choice kept for new chats, when the user set one. */
+    defaultChoice: modelChoiceSchema.optional(),
     detail: z.string().max(500).optional(),
   })
   .strict();
+/** `asDefault`: keep the choice for new chats too. */
+export const modelChoiceRequestSchema = z.object({ choice: modelChoiceSchema, asDefault: z.boolean() }).strict();
 
 /** One line of a work-log step (M2a): a message key and its values, shown in the user's language. */
 export const stepPhraseSchema = z
@@ -656,6 +679,7 @@ export const invokeContract = {
   [invokeChannels.agentRefresh]: { request: none, response: assistantStateSchema },
   [invokeChannels.agentSelect]: { request: agentSelectionSchema, response: assistantStateSchema },
   [invokeChannels.agentAllowApiBilling]: { request: apiBillingSchema, response: assistantStateSchema },
+  [invokeChannels.agentChooseModel]: { request: modelChoiceRequestSchema, response: assistantStateSchema },
   [invokeChannels.agentSignOut]: { request: none, response: none },
   [invokeChannels.agentSend]: { request: agentMessageSchema, response: none },
   [invokeChannels.agentStop]: { request: none, response: none },
@@ -717,6 +741,8 @@ export type EngineChoiceError = z.infer<typeof engineChoiceErrorSchema>;
 export type EngineChoiceResult = z.infer<typeof engineChoiceResultSchema>;
 export type AgentKind = z.infer<typeof agentKindSchema>;
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
+export type ModelOption = z.infer<typeof modelOptionSchema>;
+export type ModelChoice = z.infer<typeof modelChoiceSchema>;
 export type AssistantState = z.infer<typeof assistantStateSchema>;
 export type AgentEvent = z.infer<typeof agentEventSchema>;
 export type FaceSelection = z.infer<typeof faceSelectionSchema>;
