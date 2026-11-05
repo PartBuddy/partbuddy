@@ -581,5 +581,23 @@
     "markLoad": "Load acts here",
     "unmarkLoad": "No load here",
     "failed": "The print orientation could not be saved."
+  },
+  "fit": {
+    "open": "Fit",
+    "kind": "Kind of fit",
+    "matingPin": "Counterpart Ø (shaft, pin, screw)",
+    "matingHole": "Counterpart Ø (hole)",
+    "which": "Which side to change",
+    "changeHole": "Change the hole",
+    "changePin": "Change the pin",
+    "targetHole": "Hole Ø{target} mm = {mating} + 2 × {clearance} clearance + {shrink} hole allowance ({material})",
+    "targetPin": "Pin Ø{target} mm = {mating} − 2 × {clearance} clearance ({material})",
+    "already": "Already this size.",
+    "direct": "Directly through {label}, preview in the view",
+    "viaAssistant": "No single parameter drives it: the assistant does it",
+    "apply": "Apply",
+    "ask": "Ask the assistant",
+    "requestHole": "Make {name} a hole with a “{fit}” fit for a Ø{mating} mm counterpart: Ø{target} mm ({clearance} mm clearance per side and {shrink} mm hole allowance for {material}). Keep the nominal size and the clearance as their own parameters and leave the rest of the part as it is.",
+    "requestPin": "Make {name} a pin with a “{fit}” fit for a hole that prints at Ø{mating} mm: Ø{target} mm ({clearance} mm clearance per side, {material}). Keep the nominal size and the clearance as their own parameters and leave the rest of the part as it is."
   }
 }

@@ -1,6 +1,7 @@
 import { parseTagged3mf, type ViewerModel } from '@partbuddy/geometry';
 import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
 import { FacePrintActions } from '../print/FacePrintActions';
+import { FitPanel } from '../print/FitPanel';
 import { ActionPanel, MeasureLine } from './SelectionActions';
 import { NoteComposer } from '../notes/NoteComposer';
 import { sendToAssistant } from '../assistant/send';
@@ -260,6 +261,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
           <FacePrintActions bodies={bodies} picks={picks} />
         </div>
       </div>
+      <FitPanel bodies={bodies} picks={picks} busy={busy} />
       {status ? (
         <p className="flex items-center gap-1 text-xs text-text-muted" role="status" data-testid="dimension-status" data-mode={result?.mode ?? 'probing'}>
           {result?.mode === 'direct' ? <IconBolt className="size-icon-sm text-accent" aria-hidden /> : null}

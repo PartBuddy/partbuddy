@@ -581,5 +581,23 @@
     "markLoad": "Last wirkt hier",
     "unmarkLoad": "Keine Last hier",
     "failed": "Die Drucklage konnte nicht gespeichert werden."
+  },
+  "fit": {
+    "open": "Passung",
+    "kind": "Art der Passung",
+    "matingPin": "Gegenstück Ø (Welle, Stift, Schraube)",
+    "matingHole": "Gegenstück Ø (Bohrung)",
+    "which": "Welche Seite anpassen",
+    "changeHole": "Bohrung anpassen",
+    "changePin": "Zapfen anpassen",
+    "targetHole": "Bohrung Ø{target} mm = {mating} + 2 × {clearance} Spiel + {shrink} Lochzugabe ({material})",
+    "targetPin": "Zapfen Ø{target} mm = {mating} − 2 × {clearance} Spiel ({material})",
+    "already": "Hat schon dieses Maß.",
+    "direct": "Direkt über {label}, Vorschau in der Ansicht",
+    "viaAssistant": "Kein eindeutiger Parameter: der Assistent setzt es um",
+    "apply": "Übernehmen",
+    "ask": "Assistent fragen",
+    "requestHole": "Mach {name} zur Bohrung mit Passung „{fit}“ für ein Gegenstück Ø{mating} mm: Ø{target} mm ({clearance} mm Spiel je Seite und {shrink} mm Lochzugabe für {material}). Leg Nennmaß und Spiel als eigene Parameter an und lass den Rest des Teils, wie er ist.",
+    "requestPin": "Mach {name} zum Zapfen mit Passung „{fit}“ für eine Bohrung, die Ø{mating} mm druckt: Ø{target} mm ({clearance} mm Spiel je Seite, {material}). Leg Nennmaß und Spiel als eigene Parameter an und lass den Rest des Teils, wie er ist."
   }
 }
