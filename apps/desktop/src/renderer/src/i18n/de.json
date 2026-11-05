@@ -261,6 +261,12 @@
     "work": {
       "steps": "{count, plural, one {# Schritt} other {# Schritte}}",
       "queries": "{count, plural, one {# Abfrage} other {# Abfragen}}"
+    },
+    "selected": {
+      "faces": "{count, plural, one {# Fläche} other {# Flächen}}",
+      "edges": "{count, plural, one {# Kante} other {# Kanten}}",
+      "vertices": "{count, plural, one {# Ecke} other {# Ecken}}",
+      "line": "Auswahl: {what} · {bodies}"
     }
   },
   "live": {

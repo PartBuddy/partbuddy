@@ -10,6 +10,7 @@ const names = {
   shadow: '--cs-viewer-shadow',
   section: '--cs-viewer-section',
   grid: '--cs-viewer-grid',
+  gridSection: '--cs-viewer-grid-section',
   body: '--cs-viewer-body',
   edge: '--cs-viewer-edge',
   hover: '--cs-viewer-hover',

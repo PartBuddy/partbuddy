@@ -1,6 +1,7 @@
 import { IconArrowUp, IconPencil, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Button as AriaButton, CheckboxButton, CheckboxField, Form, TextArea, TextField } from 'react-aria-components';
 
 import { platform } from '../platform';
@@ -118,6 +119,16 @@ function Setup() {
   return null;
 }
 
+/** "8 faces · Base plate", "2 faces, 1 edge · Base plate, Lid". */
+function selectionSummary(t: TFunction, selected: { faces: number; edges: number; vertices: number; bodies: string[] }): string {
+  const parts = [
+    selected.faces > 0 ? t('assistant.selected.faces', { count: selected.faces }) : null,
+    selected.edges > 0 ? t('assistant.selected.edges', { count: selected.edges }) : null,
+    selected.vertices > 0 ? t('assistant.selected.vertices', { count: selected.vertices }) : null,
+  ].filter(Boolean);
+  return t('assistant.selected.line', { what: parts.join(', '), bodies: selected.bodies.join(', ') });
+}
+
 function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
   const { t } = useTranslation();
   switch (item.kind) {
@@ -125,9 +136,10 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
       return (
         <div className="ml-6 flex flex-col items-end gap-1 self-end">
           {item.selection ? (
-            <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-selection">
-              <IconPointer className="size-icon-sm" aria-hidden />
-              {t('assistant.withSelection', { face: item.selection })}
+            // The count and the body; the exact names, which mean little to most people, on hover.
+            <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-selection" title={item.selection}>
+              <IconPointer className="size-icon-sm shrink-0" aria-hidden />
+              {item.selected ? selectionSummary(t, item.selected) : t('assistant.withSelection', { face: item.selection })}
             </span>
           ) : null}
           {item.drawing ? (

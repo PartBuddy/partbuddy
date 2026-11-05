@@ -293,6 +293,11 @@ export const agentEventSchema = z.discriminatedUnion('type', [
       type: z.literal('user'),
       text: z.string(),
       selection: z.string().max(400).optional(),
+      /** What the selection holds, for a short line in the chat; `selection` keeps the names. */
+      selected: z
+        .object({ faces: z.number().int().min(0), edges: z.number().int().min(0), vertices: z.number().int().min(0), bodies: z.array(z.string().max(200)).max(20) })
+        .strict()
+        .optional(),
       /** Strokes drawn on the view that went with the message, and whether a picture went too (M2b-2). */
       drawing: z.object({ strokes: z.number().int().min(1).max(20), image: z.boolean() }).strict().optional(),
     })

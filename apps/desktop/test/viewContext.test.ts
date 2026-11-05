@@ -26,6 +26,12 @@ describe('view context for the assistant', () => {
     expect(composeMessage('hello')).toEqual({ prompt: 'hello' });
   });
 
+  it('counts the selection for the chat line, apart from the names the model reads', () => {
+    const fillet: FaceSelection = { ...top, face: 'F27:blend:F1:+x|F1:+y' };
+    const { summary } = composeMessage('Add a texture here', [top, fillet, { kind: 'vertex', body: 'Lid', point: [0, 0, 10] }]);
+    expect(summary).toEqual({ faces: 2, edges: 0, vertices: 1, bodies: ['Body1', 'Lid'] });
+  });
+
   it('names a selected edge or vertex the same way, with SolidCraft\'s edge name', () => {
     const edge = composeMessage('Fillet this edge 1 mm', [{
       kind: 'edge',

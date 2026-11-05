@@ -1,4 +1,5 @@
 import type { AgentKind, AgentStatus, AssistantState, Selection } from '../../shared/contract';
+import type { SelectionSummary } from './viewContext';
 
 /** Strokes drawn on the view that go with a message (M2b-2): their count, and the picture if the user asked for it. */
 export interface SentDrawing {
@@ -7,11 +8,12 @@ export interface SentDrawing {
 }
 
 /** The user event of a message, with what went along (selection label, drawing). */
-export function userEvent(text: string, label: string | undefined, drawing: SentDrawing | null) {
+export function userEvent(text: string, label: string | undefined, drawing: SentDrawing | null, summary?: SelectionSummary) {
   return {
     type: 'user' as const,
     text,
     ...(label ? { selection: label } : {}),
+    ...(summary ? { selected: summary } : {}),
     ...(drawing ? { drawing: { strokes: drawing.strokes, image: drawing.image !== null } } : {}),
   };
 }

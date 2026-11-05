@@ -828,7 +828,9 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
         cellSize={scene.gridCell}
         sectionSize={scene.gridSection}
         cellColor={colors.grid}
-        sectionColor={colors.grid}
+        sectionColor={colors.gridSection}
+        cellThickness={0.6}
+        sectionThickness={1}
         fadeDistance={scene.gridFade}
         infiniteGrid
         position={[0, 0, -0.01]}

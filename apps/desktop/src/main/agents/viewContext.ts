@@ -79,19 +79,37 @@ function describeSelection(selection: Selection): Record<string, unknown> {
  * The message as the model gets it, and the label the conversation shows. `note` (from the work
  * log) goes first: what changed outside the model's turns.
  */
-export function composeMessage(text: string, selections: Selection[] = [], note: string | null = null): { prompt: string; label?: string } {
+/** What a selection holds, counted, for the line in the chat. */
+export interface SelectionSummary {
+  faces: number;
+  edges: number;
+  vertices: number;
+  bodies: string[];
+}
+
+export function summarizeSelection(selections: readonly Selection[]): SelectionSummary {
+  return {
+    faces: selections.filter((selection) => selection.kind === 'face').length,
+    edges: selections.filter((selection) => selection.kind === 'edge').length,
+    vertices: selections.filter((selection) => selection.kind === 'vertex').length,
+    bodies: [...new Set(selections.map((selection) => selection.body))].slice(0, 20),
+  };
+}
+
+export function composeMessage(text: string, selections: Selection[] = [], note: string | null = null): { prompt: string; label?: string; summary?: SelectionSummary } {
   const composed = composeSelection(text, selections);
   return note ? { ...composed, prompt: `${note}\n${composed.prompt}` } : composed;
 }
 
-function composeSelection(text: string, selections: Selection[]): { prompt: string; label?: string } {
+function composeSelection(text: string, selections: Selection[]): { prompt: string; label?: string; summary?: SelectionSummary } {
   const [first] = selections;
   if (!first) return { prompt: text };
   const label = selections.map(selectionLabel).join('; ').slice(0, 400);
-  if (selections.length === 1) return { prompt: `${selectionNote(first)}\n\n${text}`, label };
+  const summary = summarizeSelection(selections);
+  if (selections.length === 1) return { prompt: `${selectionNote(first)}\n\n${text}`, label, summary };
   const notes = selections.map((selection, i) => `${i + 1}. ${selectionNote(selection, false)}`).join('\n');
   const together = `[PartBuddy: the user selected these ${selections.length} elements together; "these" or "the selected ones" means all of them.]`;
-  return { prompt: `${together}\n${notes}\n\n${text}`, label };
+  return { prompt: `${together}\n${notes}\n\n${text}`, label, summary };
 }
 
 /** Where the camera looks from, in words: `front-right-top`, `top`, … (Z up, front is -Y). */

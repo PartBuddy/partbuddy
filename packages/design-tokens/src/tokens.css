@@ -139,7 +139,9 @@
   --cs-viewer-shadow: #1b2430;
   /* Cut faces of a section (drawn flat, so they read as filled). */
   --cs-viewer-section: #e0915f;
-  --cs-viewer-grid: #d9dce0;
+  /* The CAD grid on the ground: fine cells and stronger lines every few cells, kept quiet. */
+  --cs-viewer-grid: #d3d7dc;
+  --cs-viewer-grid-section: #b9bfc7;
   --cs-viewer-body: #d6d9dd;
   --cs-viewer-edge: #2a2e34;
   --cs-viewer-hover: #6f9ce8;
@@ -203,7 +205,8 @@
     --cs-viewer-ground: #202327;
     --cs-viewer-shadow: #000000;
     --cs-viewer-section: #c97a4a;
-    --cs-viewer-grid: #34383e;
+    --cs-viewer-grid: #353a41;
+    --cs-viewer-grid-section: #4b525c;
     --cs-viewer-body: #a3a8af;
     --cs-viewer-edge: #121417;
     --cs-viewer-hover: #6f9ce8;
@@ -257,7 +260,8 @@
   --cs-viewer-ground: #202327;
   --cs-viewer-shadow: #000000;
   --cs-viewer-section: #c97a4a;
-  --cs-viewer-grid: #34383e;
+  --cs-viewer-grid: #353a41;
+  --cs-viewer-grid-section: #4b525c;
   --cs-viewer-body: #a3a8af;
   --cs-viewer-edge: #121417;
   --cs-viewer-hover: #6f9ce8;
