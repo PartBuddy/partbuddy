@@ -14,7 +14,7 @@ concurrency:
 jobs:
   release-please:
     name: Release PR and tag
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, partbuddy]
     timeout-minutes: 10
     permissions:
       contents: write
