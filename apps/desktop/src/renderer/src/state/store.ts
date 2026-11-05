@@ -1,8 +1,10 @@
 import type { FindingBox, PrintCheck, ViewerModel } from '@partbuddy/geometry';
 import { create } from 'zustand';
 
-
 import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, NotesState, PartPrint, Structure } from '../../../shared/contract';
+
+/** A section of the settings (B6). */
+export type SettingsSection = 'general' | 'solidcraft' | 'assistant' | 'print' | 'about';
 
 export interface BodyModel {
   name: string;
@@ -108,16 +110,13 @@ interface StudioState {
   /** The printer in use and the open part's material (M7); null until the main process answered. */
   print: PartPrint | null;
   setPrint: (print: PartPrint | null) => void;
-  /** The dialog with the printer and material profiles. */
-  profilesOpen: boolean;
-  setProfilesOpen: (open: boolean) => void;
   /** The start page with the project tiles (B3), over the work area; the logo opens it. */
   homeOpen: boolean;
   setHomeOpen: (open: boolean) => void;
-  /** The dialog that shows and chooses the SolidCraft program (R0). */
-  engineOpen: boolean;
-  setEngineOpen: (open: boolean) => void;
-  /** Which tab of that dialog shows. */
+  /** The settings (B6) at this section, or null while they are closed. */
+  settingsSection: SettingsSection | null;
+  setSettingsSection: (section: SettingsSection | null) => void;
+  /** Which tab of the printer and material profiles shows. */
   profilesTab: ProfilesTab;
   setProfilesTab: (tab: ProfilesTab) => void;
   /** The ready-to-print check of the bodies on screen (M7); null until it ran. */
@@ -208,18 +207,14 @@ export const useStudio = create<StudioState>()((set) => ({
   setPrint: (print) => {
     set({ print });
   },
-  profilesOpen: false,
-  setProfilesOpen: (profilesOpen) => {
-    set({ profilesOpen });
-  },
   // PartBuddy starts on the start page (B3); tests that start in the work area turn it off.
   homeOpen: true,
   setHomeOpen: (homeOpen) => {
     set({ homeOpen });
   },
-  engineOpen: false,
-  setEngineOpen: (engineOpen) => {
-    set({ engineOpen });
+  settingsSection: null,
+  setSettingsSection: (settingsSection) => {
+    set({ settingsSection });
   },
   profilesTab: 'printer',
   setProfilesTab: (profilesTab) => {

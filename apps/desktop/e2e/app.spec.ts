@@ -325,10 +325,13 @@ test('the colour theme can be chosen in the settings and is kept', async () => {
     launched = await launchApp({ work, colorScheme: null });
     let { page } = launched;
     await page.getByTestId('settings').click();
-    await expect(page.getByRole('menuitemradio', { name: 'Like Windows' })).toHaveAttribute('aria-checked', 'true');
-    await page.getByRole('menuitemradio', { name: 'Dark' }).click();
+    let themes = page.getByTestId('settings-theme');
+    await expect(themes.getByRole('radio', { name: 'Like Windows' })).toBeChecked();
+    await themes.getByText('Dark').click();
     await expect.poll(() => dark(page)).toBe(true);
     await page.screenshot({ path: test.info().outputPath('theme-dark.png') });
+    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="settings-dialog"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
 
     // The choice survives a restart.
     await launched.close();
@@ -336,9 +339,40 @@ test('the colour theme can be chosen in the settings and is kept', async () => {
     ({ page } = launched);
     await expect.poll(() => dark(page)).toBe(true);
     await page.getByTestId('settings').click();
-    await expect(page.getByRole('menuitemradio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'true');
-    await page.getByRole('menuitemradio', { name: 'Light' }).click();
+    themes = page.getByTestId('settings-theme');
+    await expect(themes.getByRole('radio', { name: 'Dark' })).toBeChecked();
+    await themes.getByText('Light').click();
     await expect.poll(() => dark(page)).toBe(false);
+  } finally {
+    await launched?.close();
+    launched = null;
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
+test('the settings switch the language at once and show the project folder and the licence (B6)', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-settings-'));
+  try {
+    launched = await launchApp({ work });
+    const { page } = launched;
+    await page.getByTestId('settings').click();
+    const dialog = page.getByTestId('settings-dialog');
+    await expect(dialog.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    // Tests set the project folder themselves, so it cannot be changed here.
+    await expect(dialog.getByTestId('settings-projects-folder')).toHaveText(join(work, 'projects'));
+    await expect(dialog.getByTestId('settings-projects-choose')).toBeDisabled();
+    await dialog.getByTestId('settings-language').getByText('Deutsch').click();
+    await expect(dialog.getByRole('heading', { name: 'Einstellungen' })).toBeVisible();
+    await expect(page.getByTestId('settings-about')).toHaveText('Über');
+    await page.getByTestId('settings-about').click();
+    await expect(dialog.getByTestId('settings-version')).toHaveText(/^Version \d/);
+    await expect(dialog.getByTestId('settings-sponsor')).toHaveAttribute('href', 'https://github.com/sponsors/ManuelStaggl');
+    await page.screenshot({ path: test.info().outputPath('settings-about.png') });
+    await page.getByTestId('settings-general').click();
+    await dialog.getByTestId('settings-language').getByText('English').click();
+    await expect(dialog.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
   } finally {
     await launched?.close();
     launched = null;
@@ -472,7 +506,7 @@ test('the renderer sees only the typed bridge', async () => {
     };
   });
   expect(globals).toEqual({
-    bridge: ['agent', 'appInfo', 'chat', 'design', 'mirror', 'notes', 'print', 'project', 'relaunch', 'solidcraft', 'viewer', 'window'],
+    bridge: ['agent', 'appInfo', 'chat', 'design', 'mirror', 'notes', 'print', 'project', 'relaunch', 'settings', 'solidcraft', 'viewer', 'window'],
     solidcraft: ['chooseEngine', 'engine', 'onStatus', 'retry', 'start', 'status'],
     require: 'undefined',
     process: 'undefined',
@@ -611,24 +645,30 @@ test('the part material is chosen in the status bar and the profiles are edited 
   const overhang = dialog.getByTestId('material-overhang').getByRole('textbox');
   await overhang.fill('35');
   await overhang.press('Tab');
-  // Designing without support is on from the start (M7f) and is turned off here.
-  const supportFree = dialog.getByTestId('support-free').getByRole('checkbox');
-  await expect(supportFree).toBeChecked();
-  await dialog.getByTestId('support-free').getByText('Design without support').click();
-  await expect(supportFree).not.toBeChecked();
   await page.screenshot({ path: test.info().outputPath('print-profiles.png') });
   await dialog.getByTestId('print-save').click();
   await expect(dialog).toHaveCount(0);
   await expect(chip).toContainText('Werkstatt');
 
-  // Cancel keeps what was saved.
+  // Designing without support is on from the start (M7f); it sits with the assistant (B6) and is turned off there.
   await page.getByTestId('settings').click();
+  await page.getByTestId('settings-assistant').click();
+  const assistant = page.getByTestId('settings-assistant-panel');
+  const supportFree = assistant.getByTestId('support-free').getByRole('checkbox');
+  await expect(supportFree).toBeChecked();
+  await assistant.getByTestId('support-free').getByText('Design without support').click();
+  await expect(supportFree).not.toBeChecked();
+
+  // Cancel keeps what was saved, the switch included.
   await page.getByTestId('settings-print').click();
-  await expect(dialog.getByTestId('support-free').getByRole('checkbox')).not.toBeChecked();
   await dialog.getByTestId('printer-name').getByRole('textbox').fill('Anders');
   await dialog.getByTestId('print-cancel').click();
   await expect(dialog).toHaveCount(0);
   await expect(chip).toContainText('Werkstatt');
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-assistant').click();
+  await expect(page.getByTestId('settings-assistant-panel').getByTestId('support-free').getByRole('checkbox')).not.toBeChecked();
+  await page.keyboard.press('Escape');
 });
 
 test('the ready-to-print light follows the printer, points at its findings and asks before a red export (M7)', async () => {

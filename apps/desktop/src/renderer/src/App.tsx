@@ -3,9 +3,8 @@ import { HomePage } from './home/HomePage';
 import { useProjectPreview } from './home/useProjectPreview';
 import { useAssistantBridge, useChatPersistence } from './assistant/useAssistantBridge';
 import { useNotesBridge } from './notes/useNotesBridge';
-import { PrintProfilesDialog } from './print/PrintProfilesDialog';
 import { FileDrop } from './shell/FileDrop';
-import { SolidCraftDialog } from './shell/SolidCraftDialog';
+import { SettingsDialog } from './shell/SettingsDialog';
 import { usePrintBridge } from './print/usePrintBridge';
 import { usePrintCheck } from './print/usePrintCheck';
 import { StatusBar } from './shell/StatusBar';
@@ -43,8 +42,7 @@ export function App() {
         {homeOpen ? <HomePage /> : null}
       </div>
       <StatusBar />
-      <PrintProfilesDialog />
-      <SolidCraftDialog />
+      <SettingsDialog />
       <FileDrop />
     </div>
   );

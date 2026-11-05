@@ -486,6 +486,37 @@
       "system": "Wie Windows",
       "light": "Hell",
       "dark": "Dunkel"
+    },
+    "section": {
+      "general": "Allgemein",
+      "solidcraft": "SolidCraft",
+      "assistant": "Assistent",
+      "print": "Drucker und Material",
+      "about": "Über"
+    },
+    "language": {
+      "title": "Sprache",
+      "system": "Wie Windows",
+      "de": "Deutsch",
+      "en": "English"
+    },
+    "projects": {
+      "title": "Projektordner",
+      "choose": "Anderen Ordner wählen …",
+      "reset": "Zurück zu Dokumente\\PartBuddy",
+      "source": {
+        "default": "Der Standardordner unter Dokumente.",
+        "setting": "Von dir gewählt.",
+        "override": "Von der Umgebung vorgegeben (PARTBUDDY_PROJECTS_DIR)."
+      },
+      "restartHint": "Der neue Projektordner gilt nach einem Neustart."
+    },
+    "about": {
+      "version": "Version {version}",
+      "licence": "PartBuddy ist freie Software unter der GNU General Public License, Version 3 oder neuer, und kommt ohne jede Gewährleistung. SolidCraft und die Assistenten sind eigene Programme mit eigenen Lizenzen.",
+      "sponsor": "PartBuddy auf GitHub Sponsors unterstützen",
+      "source": "Quellcode auf GitHub",
+      "licenceLink": "GNU General Public License 3.0"
     }
   },
   "print": {

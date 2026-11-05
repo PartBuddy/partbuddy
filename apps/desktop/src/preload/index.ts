@@ -19,6 +19,12 @@ function subscribe<C extends EventChannel>(channel: C, listener: (payload: Event
 const api: PartBuddyApi = {
   appInfo: () => ipcRenderer.invoke(invokeChannels.appInfo),
   relaunch: () => ipcRenderer.invoke(invokeChannels.appRelaunch),
+  settings: {
+    general: () => ipcRenderer.invoke(invokeChannels.settingsGeneral),
+    setLanguage: (language) => ipcRenderer.invoke(invokeChannels.settingsSetLanguage, { language }),
+    chooseProjectsFolder: () => ipcRenderer.invoke(invokeChannels.settingsChooseProjectsFolder),
+    resetProjectsFolder: () => ipcRenderer.invoke(invokeChannels.settingsResetProjectsFolder),
+  },
   project: {
     info: () => ipcRenderer.invoke(invokeChannels.projectInfo),
     create: () => ipcRenderer.invoke(invokeChannels.projectNew),

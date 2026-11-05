@@ -131,6 +131,11 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 - A hidden browser pane has no `requestAnimationFrame`: WebGL stays empty, use Playwright headless
   with SwiftShader. The test window is placed beside all displays (`launch.ts`), never in front.
 
+- The interface language is Chromium's `--lang`, appended before the app is ready from PartBuddy's
+  `general.json`; a `--lang` on the command line (tests) wins. A change applies at once through
+  `i18next.changeLanguage`. A new project folder applies after a restart: SolidCraft gets its
+  allowed folders when it starts.
+
 ## Assistants
 
 - Claude Code `stream-json` reports `system/init` for every message of the same session; the

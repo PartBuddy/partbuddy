@@ -50,10 +50,10 @@ function chipLabel(t: T, status: AgentStatus): string {
   return detail ? `${route} · ${detail}` : route;
 }
 
-const radioClass =
+export const radioClass =
   'group flex cursor-default items-start gap-2 rounded-sm px-2 py-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:bg-surface-selected';
 
-function RadioMark() {
+export function RadioMark() {
   return (
     <span aria-hidden className="mt-1 inline-flex size-icon-sm shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface group-selected:border-accent">
       <span className="size-dot rounded-full bg-accent opacity-0 group-selected:opacity-100" />
@@ -154,6 +154,79 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
 }
 
 /**
+ * The assistant's route, model and effort, and its sign-in state (B1); in the chip's menu and in the
+ * settings (B6).
+ */
+export function AssistantChoice() {
+  const { t } = useTranslation();
+  const state = useAssistant((s) => s.state);
+  const status = selectedStatus(state);
+  const api = platform().agent;
+  const linkButton =
+    'text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus';
+  return (
+    <>
+      <RadioGroup
+        aria-label={t('assistant.route')}
+        value={state.selected}
+        onChange={(key) => {
+          if (key === 'claude-code' || key === 'chatgpt') void api.select(key);
+        }}
+        className="flex flex-col gap-1"
+      >
+        {ROUTES.map((kind) => (
+          <RadioField key={kind} value={kind}>
+            <RadioButton className={radioClass}>
+              <RadioMark />
+              <span className="flex flex-col">
+                <span className="text-sm font-medium text-text">{t(`assistant.routes.${kind}`)}</span>
+                <span className="text-xs text-text-muted">{t(`assistant.chip.describe.${kind}`)}</span>
+              </span>
+            </RadioButton>
+          </RadioField>
+        ))}
+      </RadioGroup>
+      <ModelChoiceSection status={status} />
+      <div className="flex flex-col gap-1 border-t border-border pt-2">
+        <span data-testid="agent-detail">
+          <StatusDot tone={toneOf(status)} label={statusLabel(t, status)} />
+        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <AriaButton
+            className={linkButton}
+            onPress={() => {
+              void api.refresh();
+            }}
+          >
+            {t('assistant.refresh')}
+          </AriaButton>
+          {status.agent === 'claude-code' && status.apiBillingAllowed ? (
+            <AriaButton
+              className={linkButton}
+              onPress={() => {
+                void api.allowApiBilling(false);
+              }}
+            >
+              {t('assistant.subscriptionOnly')}
+            </AriaButton>
+          ) : null}
+          {status.agent === 'chatgpt' && signedIn(status) ? (
+            <AriaButton
+              className={linkButton}
+              onPress={() => {
+                void api.signOut();
+              }}
+            >
+              {t('assistant.chatgpt.signOut')}
+            </AriaButton>
+          ) : null}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/**
  * The assistant route as a small chip beside the composer (UI upgrade, 2026-11-04): the route is
  * chosen once, so it takes no room above the conversation. The menu holds the choice, the full
  * status and the account actions; what needs doing shows as a notice in the conversation.
@@ -162,10 +235,7 @@ export function AgentChip() {
   const { t } = useTranslation();
   const state = useAssistant((s) => s.state);
   const status = selectedStatus(state);
-  const api = platform().agent;
   const label = chipLabel(t, status);
-  const linkButton =
-    'text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus';
 
   return (
     <DialogTrigger>
@@ -185,62 +255,7 @@ export function AgentChip() {
             </Heading>
             <span className="rounded-sm border border-border px-1 text-xs text-text-muted">{t('assistant.preview')}</span>
           </div>
-          <RadioGroup
-            aria-label={t('assistant.route')}
-            value={state.selected}
-            onChange={(key) => {
-              if (key === 'claude-code' || key === 'chatgpt') void api.select(key);
-            }}
-            className="flex flex-col gap-1"
-          >
-            {ROUTES.map((kind) => (
-              <RadioField key={kind} value={kind}>
-                <RadioButton className={radioClass}>
-                  <RadioMark />
-                  <span className="flex flex-col">
-                    <span className="text-sm font-medium text-text">{t(`assistant.routes.${kind}`)}</span>
-                    <span className="text-xs text-text-muted">{t(`assistant.chip.describe.${kind}`)}</span>
-                  </span>
-                </RadioButton>
-              </RadioField>
-            ))}
-          </RadioGroup>
-          <ModelChoiceSection status={status} />
-          <div className="flex flex-col gap-1 border-t border-border pt-2">
-            <span data-testid="agent-detail">
-              <StatusDot tone={toneOf(status)} label={statusLabel(t, status)} />
-            </span>
-            <div className="flex flex-wrap items-center gap-3">
-              <AriaButton
-                className={linkButton}
-                onPress={() => {
-                  void api.refresh();
-                }}
-              >
-                {t('assistant.refresh')}
-              </AriaButton>
-              {status.agent === 'claude-code' && status.apiBillingAllowed ? (
-                <AriaButton
-                  className={linkButton}
-                  onPress={() => {
-                    void api.allowApiBilling(false);
-                  }}
-                >
-                  {t('assistant.subscriptionOnly')}
-                </AriaButton>
-              ) : null}
-              {status.agent === 'chatgpt' && signedIn(status) ? (
-                <AriaButton
-                  className={linkButton}
-                  onPress={() => {
-                    void api.signOut();
-                  }}
-                >
-                  {t('assistant.chatgpt.signOut')}
-                </AriaButton>
-              ) : null}
-            </div>
-          </div>
+          <AssistantChoice />
           <p className="text-xs text-text-subtle">{t('assistant.chip.switchNote')}</p>
         </Dialog>
       </Popover>
