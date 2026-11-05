@@ -93,7 +93,7 @@ function SectionPanel({ section }: { section: Section }) {
     <div
       role="group"
       aria-label={t('viewer.section.title')}
-      className="pointer-events-auto absolute left-1/2 top-full mt-2 flex w-menu -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      className="pointer-events-auto absolute left-0 top-full z-10 mt-2 flex w-menu flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
       data-testid="section-panel"
     >
       <div className="flex items-center gap-2">
@@ -203,7 +203,7 @@ export function ViewTools() {
       role="toolbar"
       aria-orientation="horizontal"
       aria-label={t('viewer.views.toolbar')}
-      className="pointer-events-auto absolute left-1/2 top-3 flex -translate-x-1/2 flex-row items-center gap-1 rounded-lg border border-border bg-surface-raised p-1 shadow-2"
+      className="pointer-events-auto relative flex flex-row items-center gap-1 rounded-lg border border-border bg-surface-raised p-1 shadow-2"
       data-testid="view-tools"
     >
       {views.map(({ view, key, icon }) => (

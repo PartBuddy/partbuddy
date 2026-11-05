@@ -122,7 +122,8 @@ flat ground), with the tone kept neutral rather than warm:
 * A new body is not tinted; changed faces get a tint of the change colour. Hover and selection tint
   the face, the outline carries the strong colour.
 * World axes: red X and green Y through the origin, an axis triad in the lower left, the view cube
-  in the upper right. View tools as one horizontal bar at the top centre; menus open below it.
+  in the upper right. View tools as one horizontal bar at the top left, above the live chips, so
+  nothing overlaps at narrow widths; menus open below it.
   Standard views have cube icons with the viewed face filled. The selection hint lives in the
   status bar, not on the part.
 * Dimensions in their own colour (`viewer-dimension`): extension lines that start off the part and
