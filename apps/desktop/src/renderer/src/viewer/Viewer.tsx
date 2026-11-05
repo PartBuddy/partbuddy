@@ -36,7 +36,6 @@ import { selectedStatus, useAssistant } from '../assistant/store';
 import { NotePins } from '../notes/NotePins';
 import { Pen, ViewCapture } from './Pen';
 import { DimensionMarks, useDimensionMarks } from './Dimensions';
-import { LOOK } from './look';
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 Mesh.prototype.raycast = acceleratedRaycast;
@@ -56,6 +55,9 @@ const scene = {
   // The axis triad in the lower left corner.
   triadMargin: [48, 48] as [number, number],
   triadScale: 28,
+  // Matte faces and strong model edges (UI upgrade, view look "calm").
+  roughness: 0.8,
+  edgeWidth: 1.7,
   // How far a changed face moves from the body colour toward the change colour.
   changeTint: 0.45,
   hoverTint: 0.35,
@@ -161,8 +163,8 @@ function Body({
         <meshStandardMaterial
           key={`${mode}-${plane ? 'cut' : 'whole'}`}
           vertexColors
-          roughness={LOOK.roughness}
-          metalness={LOOK.metalness}
+          roughness={scene.roughness}
+          metalness={0}
           polygonOffset
           polygonOffsetFactor={1}
           polygonOffsetUnits={1}
@@ -180,8 +182,8 @@ function Body({
           <meshBasicMaterial color={colors.section} side={BackSide} clippingPlanes={clipping} />
         </mesh>
       ) : null}
-      {mode === 'shaded' ? null : LOOK.edgeWidth > 1 && plane === null && mode !== 'xray' ? (
-        <FatEdges geometry={model.edges} color={colors.edge} width={LOOK.edgeWidth} />
+      {mode === 'shaded' ? null : plane === null && mode !== 'xray' ? (
+        <FatEdges geometry={model.edges} color={colors.edge} width={scene.edgeWidth} />
       ) : (
         <lineSegments geometry={model.edges} raycast={noRaycast}>
           <lineBasicMaterial key={plane ? 'cut' : 'whole'} color={colors.edge} clippingPlanes={clipping} />
@@ -763,7 +765,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <DimensionHud bodies={bodies} accent={colors.selection} />
       <ScenePins bodies={bodies} />
       <Pen bodies={bodies} meshes={meshes} color={colors.note} />
-      <DimensionMarks color={colors.sketch} ghostColor={colors.selection} meshes={meshes} plane={plane} />
+      <DimensionMarks color={colors.dimension} ghostColor={colors.selection} meshes={meshes} plane={plane} />
       <ParameterGhost color={colors.selection} />
       <ViewCapture />
       <Picker bodies={bodies} meshes={meshes} />

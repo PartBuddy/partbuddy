@@ -215,7 +215,10 @@ test('the dimension field changes the driving parameter directly, with a preview
       for (let y = 0.3; y <= 0.75; y += 0.05) {
         for (let x = 0.2; x <= 0.8; x += 0.01) {
           await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
-          if ((await bar.count()) > 0 && (await bar.getAttribute('data-kind')) === 'edge' && (await bar.textContent())?.includes(length)) return true;
+          // The bar may go between two reads when the click selected nothing; a short timeout keeps that from stalling.
+          const kind = await bar.getAttribute('data-kind', { timeout: 500 }).catch(() => null);
+          const text = kind === 'edge' ? await bar.textContent({ timeout: 500 }).catch(() => null) : null;
+          if (text?.includes(length)) return true;
         }
       }
       return false;

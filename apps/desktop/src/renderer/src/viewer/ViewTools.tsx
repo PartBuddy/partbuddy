@@ -19,7 +19,6 @@ import {
 import { useStudio, type DisplayMode, type Section, type StandardView } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
 import { ViewIcon } from '../ui/ViewIcon';
-import { LOOK } from './look';
 
 const tool =
   'inline-flex size-control-md items-center justify-center rounded-md text-xs font-semibold text-text outline-none transition-colors ' +
@@ -36,7 +35,7 @@ function Tip({ label, children }: { label: string; children: ReactNode }) {
   return (
     <TooltipTrigger delay={400}>
       {children}
-      <Tooltip placement={LOOK.toolbar === 'top' ? 'bottom' : 'top'} offset={6} className="rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
+      <Tooltip placement="bottom" offset={6} className="rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
         {label}
       </Tooltip>
     </TooltipTrigger>
@@ -57,7 +56,7 @@ function DisplayModeMenu() {
           <IconBoxMultiple className="size-icon-sm" aria-hidden />
         </AriaButton>
       </Tip>
-      <Popover placement={LOOK.toolbar === 'top' ? 'bottom' : 'top'} offset={8} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+      <Popover placement="bottom" offset={8} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
         <Menu
           aria-label={t('viewer.display.title')}
           selectionMode="single"
@@ -94,7 +93,7 @@ function SectionPanel({ section }: { section: Section }) {
     <div
       role="group"
       aria-label={t('viewer.section.title')}
-      className={`pointer-events-auto absolute left-1/2 flex w-menu -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2 ${LOOK.toolbar === 'top' ? 'top-full mt-2' : 'bottom-full mb-2'}`}
+      className="pointer-events-auto absolute left-1/2 top-full mt-2 flex w-menu -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
       data-testid="section-panel"
     >
       <div className="flex items-center gap-2">
@@ -204,8 +203,7 @@ export function ViewTools() {
       role="toolbar"
       aria-orientation="horizontal"
       aria-label={t('viewer.views.toolbar')}
-      className={`pointer-events-auto absolute left-1/2 flex -translate-x-1/2 flex-row items-center gap-1 rounded-lg border border-border bg-surface-raised p-1 shadow-2 ${LOOK.toolbar === 'top' ? 'top-3' : 'bottom-3'}`}
-      data-look={LOOK.toolbar}
+      className="pointer-events-auto absolute left-1/2 top-3 flex -translate-x-1/2 flex-row items-center gap-1 rounded-lg border border-border bg-surface-raised p-1 shadow-2"
       data-testid="view-tools"
     >
       {views.map(({ view, key, icon }) => (

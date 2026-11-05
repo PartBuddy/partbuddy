@@ -19,6 +19,7 @@ const names = {
   changed: '--cs-viewer-changed',
   // Sketch curves (#21): free, fully constrained and construction geometry.
   sketch: '--cs-viewer-sketch',
+  dimension: '--cs-viewer-dimension',
   sketchConstrained: '--cs-viewer-sketch-constrained',
   sketchConstruction: '--cs-viewer-sketch-construction',
   axisX: '--cs-viewer-axis-x',

@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { launchApp } from './launch';
 
-// Pictures for choosing the view's look (UI upgrade, professional look): the wall holder built
+// Pictures of the 3D view (UI upgrade, view look): the wall holder built
 // in the headless SolidCraft, the same views light and dark. Opt in with PARTBUDDY_LOOK_SHOTS set
 // to the folder the pictures go to; needs SolidCraft.
 const folder = process.env.PARTBUDDY_LOOK_SHOTS;
