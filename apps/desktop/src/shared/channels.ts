@@ -60,6 +60,8 @@ export const invokeChannels = {
   designApplyAction: 'design:apply-action',
   designMeasure: 'design:measure',
   designPartsLibrary: 'design:parts-library',
+  designPreviewBlock: 'design:preview-block',
+  designApplyBlock: 'design:apply-block',
   designSlicers: 'design:slicers',
   designSendToSlicer: 'design:send-to-slicer',
   designPrintFace: 'design:print-face',

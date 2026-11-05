@@ -52,6 +52,10 @@ export const STEP_PHRASE_KEYS = [
   // The face a body lies on in the slicer (B8).
   'printFace',
   'printFaceCleared',
+  // Function blocks (F1).
+  'tappedHole',
+  'screwHole',
+  'boss',
   'command',
 ] as const;
 
@@ -155,6 +159,8 @@ function phraseOf(command: string, params: Params): StepPhrase | 'curve' | 'dime
     case 'solid.chamfer':
       return { key: 'chamfer', values: { distance: size(params.distance) ?? '?', count: Math.max(1, count(params.edges)) } };
     case 'solid.hole': {
+      if (typeof params.thread === 'string') return { key: 'tappedHole', values: { thread: text(params.thread, 'M') } };
+      if (typeof params.clearance === 'string') return { key: 'screwHole', values: { size: text(params.clearance, 'M') } };
       const depth = size(params.depth);
       return { key: 'hole', values: { diameter: diameter(params) ?? '?', depth: depth ?? 'through' } };
     }
@@ -201,6 +207,8 @@ function phraseOf(command: string, params: Params): StepPhrase | 'curve' | 'dime
       return { key: 'convertMesh', values: { name: text(params.body, '?') } };
     case 'body.print_face':
       return { key: params.point === undefined || params.point === null ? 'printFaceCleared' : 'printFace', values: {} };
+    case 'plastic.boss':
+      return { key: 'boss', values: { diameter: size(params.diameter) ?? '?' } };
     case 'parts.insert':
     case 'parts.fastener':
       return { key: 'standardPart', values: { name: `${text(params.size, '?')}${typeof params.length === 'number' ? `×${String(params.length)}` : ''}` } };
@@ -351,6 +359,9 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     standardPart: 'Standard part {name} seated',
     printFace: 'Print face set',
     printFaceCleared: 'Print face cleared',
+    tappedHole: 'Tapped hole {thread}',
+    screwHole: 'Screw hole {size}',
+    boss: 'Screw boss ⌀ {diameter} mm',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -395,6 +406,9 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     standardPart: 'Normteil {name} eingesetzt',
     printFace: 'Druckfläche festgelegt',
     printFaceCleared: 'Druckfläche zurückgesetzt',
+    tappedHole: 'Gewindebohrung {thread}',
+    screwHole: 'Schraubenloch {size}',
+    boss: 'Schraubdom ⌀ {diameter} mm',
     command: 'SolidCraft: {command}',
   },
 };

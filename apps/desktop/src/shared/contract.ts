@@ -659,6 +659,17 @@ export const slicersSchema = z.array(z.object({ id: z.string().min(1).max(80), n
 export const sendToSlicerSchema = z.object({ slicer: z.string().min(1).max(80) }).strict();
 /** The flat face at `point` of `body` becomes the face it lies on in the slicer (B8); null clears it. */
 export const printFaceSchema = z.object({ body: bodyName, point: point3.nullable() }).strict();
+/** A function block at a picked flat face (F1); `shared/blocks.ts` turns it into SolidCraft's command. */
+const blockSize = z.enum(['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10']);
+const blockLength = finite.positive().max(500);
+export const featureBlockSchema = z.discriminatedUnion('block', [
+  z.object({ block: z.literal('tappedHole'), body: bodyName, point: point3, size: blockSize, depth: blockLength.nullable(), modeled: z.boolean() }).strict(),
+  z
+    .object({ block: z.literal('screwHole'), body: bodyName, point: point3, size: blockSize, head: z.enum(['none', 'cap', 'countersunk']), fit: z.enum(['close', 'normal', 'loose']) })
+    .strict(),
+  z.object({ block: z.literal('insertSeat'), body: bodyName, point: point3, size: blockSize, diameter: blockLength, depth: blockLength }).strict(),
+  z.object({ block: z.literal('boss'), body: bodyName, point: point3, size: blockSize, diameter: blockLength, height: blockLength }).strict(),
+]);
 export const actionPreviewSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable() }).strict(),
   z.object({ ok: z.literal(false), error: z.string().max(300) }).strict(),
@@ -903,6 +914,8 @@ export const invokeContract = {
   [invokeChannels.designApplyAction]: { request: designActionSchema, response: none },
   [invokeChannels.designMeasure]: { request: measureRequestSchema, response: measureResultSchema },
   [invokeChannels.designPartsLibrary]: { request: none, response: partsLibrarySchema },
+  [invokeChannels.designPreviewBlock]: { request: featureBlockSchema, response: actionPreviewSchema },
+  [invokeChannels.designApplyBlock]: { request: featureBlockSchema, response: none },
   [invokeChannels.designSlicers]: { request: none, response: slicersSchema },
   [invokeChannels.designSendToSlicer]: { request: sendToSlicerSchema, response: z.object({ name: z.string().max(120) }).strict() },
   [invokeChannels.designPrintFace]: { request: printFaceSchema, response: none },
