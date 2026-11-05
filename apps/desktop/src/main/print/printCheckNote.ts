@@ -25,8 +25,11 @@ function line(finding: Finding, nozzle: number): string {
       return finding.severity === 'block'
         ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than the ${mm(nozzle)} nozzle, so they do not print${where(finding.places)}.`
         : `- ${tag}: walls down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} of two lines${where(finding.places)}.`;
-    case 'support':
-      return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical and need support${where(finding.places)}.`;
+    case 'support': {
+      const what = finding.cause === 'fillet' ? 'of fillets facing the bed ' : finding.cause === 'hole' ? 'on top of lying holes too wide to bridge ' : '';
+      const fix = finding.cause === 'fillet' ? ' (chamfer them at 45° instead)' : finding.cause === 'hole' ? ' (give them a teardrop or flat roof)' : '';
+      return `- ${tag}: ${String(finding.area)} mm² ${what}lean more than ${String(finding.limit)}° from the vertical and need support${where(finding.places)}${fix}.`;
+    }
     case 'contact':
       return `- ${tag}: only ${String(finding.area)} mm² lie on the bed, the part may come loose or tip over${where(finding.places)}.`;
     case 'separate':

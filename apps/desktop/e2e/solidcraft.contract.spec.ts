@@ -929,12 +929,77 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     await expect(page.getByTestId('print-check-panel')).toBeVisible();
     const support = page.getByTestId('check-finding').and(page.locator('[data-kind="support"]'));
     await expect(support).toContainText('need support');
-    await support.getByRole('button').click();
+    await support.getByRole('button', { name: /Show the place/ }).click();
     await page.waitForTimeout(800);
     await page.screenshot({ path: test.info().outputPath('check-support.png') });
     await page.keyboard.press('Escape');
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('tidy-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
+test('the light fixes rounds facing the bed and a lying hole too wide to bridge, with a ghost first (M7f)', async () => {
+  test.setTimeout(180_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-fixes-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7907',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build the pipe holder');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText('The pipe holder is built.')).toBeVisible({ timeout: 60_000 });
+
+    // The light names the two causes, each with its fix.
+    const light = page.getByTestId('print-check');
+    await expect(light).toHaveAttribute('data-status', 'warn', { timeout: 20_000 });
+    await light.click();
+    const panel = page.getByTestId('print-check-panel');
+    const support = panel.getByTestId('check-finding').and(page.locator('[data-kind="support"]'));
+    await expect(support).toHaveCount(2);
+    await expect(support.nth(0)).toContainText('rounded edges facing the bed');
+    await expect(support.nth(1)).toContainText('lying holes too wide to bridge');
+
+    // Chamfer instead of round: the ghost first, then the change.
+    const chamfer = panel.locator('[data-testid="fix"][data-fix="chamfer"]');
+    await chamfer.getByTestId('fix-try').click();
+    await expect(chamfer).toHaveAttribute('data-step', 'ready', { timeout: 20_000 });
+    await expect(chamfer).toContainText('chamfers of the same size at 45°');
+    await page.screenshot({ path: test.info().outputPath('fix-chamfer-ghost.png') });
+    await chamfer.getByTestId('fix-apply').click();
+    await expect(page.getByTestId('notice')).toHaveText('The rounds facing the bed are chamfers now.', { timeout: 20_000 });
+    await expect(support).toHaveCount(1, { timeout: 20_000 });
+
+    // A roof on the hole: 2 × 10.325 × (√2 − 1) = 8.6 mm flat on top, bridged.
+    const roof = panel.locator('[data-testid="fix"][data-fix="roof"]');
+    await expect(roof.getByTestId('fix-try')).toHaveText('Give the hole a roof');
+    await roof.getByTestId('fix-try').click();
+    await expect(roof).toHaveAttribute('data-step', 'ready', { timeout: 20_000 });
+    await page.screenshot({ path: test.info().outputPath('fix-roof-ghost.png') });
+    await roof.getByTestId('fix-apply').click();
+    await expect(page.getByTestId('notice')).toHaveText('The hole has a roof now.', { timeout: 20_000 });
+    await expect(light).toHaveAttribute('data-status', 'ready', { timeout: 20_000 });
+    await page.screenshot({ path: test.info().outputPath('fix-done.png') });
+
+    // Both changes are steps of the work log, and Ctrl+Z takes the roof back.
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('step-text').filter({ hasText: 'Roof over a lying hole' })).toHaveCount(1);
+    await expect(page.getByTestId('step-text').filter({ hasText: 'Rounds facing the bed made chamfers' })).toHaveCount(1);
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('fixes-failed.png') }).catch(() => undefined);
     throw error;
   } finally {
     await launched.close();

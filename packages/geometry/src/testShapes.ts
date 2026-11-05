@@ -16,6 +16,7 @@ interface Built {
   triangleFaces: number[];
   names: string[];
   normals: (Point | undefined)[];
+  cylinders?: ({ origin: Point; axis: Point; radius: number } | undefined)[];
 }
 
 function finish(name: string, built: Built): { name: string; model: ViewerModel } {
@@ -32,7 +33,8 @@ function finish(name: string, built: Built): { name: string; model: ViewerModel 
     units: 'mm',
     faces: built.names.map((faceName, index) => {
       const planeNormal = built.normals[index];
-      return { index, name: faceName, exact: true, area: 0, centroid: [0, 0, 0], point: [0, 0, 0], ...(planeNormal ? { planeNormal } : {}) };
+      const cylinder = built.cylinders?.[index];
+      return { index, name: faceName, exact: true, area: 0, centroid: [0, 0, 0], point: [0, 0, 0], ...(planeNormal ? { planeNormal } : {}), ...(cylinder ? { cylinder } : {}) };
     }),
   };
   return { name, model: buildViewerModel(buildRenderMesh(mesh, table), table) };
@@ -72,7 +74,14 @@ export function boxBody(name: string, min: Point, max: Point) {
  * Faces: `F1:outer`, `F1:hole`, `F1:-x`, `F1:+x`.
  */
 export function lyingTube(name: string, outer: number, inner: number, length: number, segments = 48) {
-  const built: Built = { positions: [], indices: [], triangleFaces: [], names: ['F1:outer', 'F1:hole', 'F1:-x', 'F1:+x'], normals: [undefined, undefined, [-1, 0, 0], [1, 0, 0]] };
+  const built: Built = {
+    positions: [],
+    indices: [],
+    triangleFaces: [],
+    names: ['F1:outer', 'F1:hole', 'F1:-x', 'F1:+x'],
+    normals: [undefined, undefined, [-1, 0, 0], [1, 0, 0]],
+    cylinders: [{ origin: [0, 0, outer], axis: [1, 0, 0], radius: outer }, { origin: [0, 0, outer], axis: [1, 0, 0], radius: inner }],
+  };
   // Rings: outer at x=0, outer at x=length, inner at x=0, inner at x=length; angle 0 points down.
   const ring = (radius: number, x: number) => {
     const start = built.positions.length / 3;

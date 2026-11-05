@@ -267,6 +267,17 @@ if (!app.requestSingleInstanceLock()) {
       printChanged();
       return part;
     });
+    bridge.handle(invokeChannels.printPreviewFix, (fix) => {
+      assistantIdle();
+      return supervisor.previewFix(fix);
+    });
+    bridge.handle(invokeChannels.printApplyFix, async (fix) => {
+      assistantIdle();
+      const phrase = describeUserAction({ kind: 'fix', fix: fix.fix, count: fix.fix === 'chamfer' ? fix.fillets.length : fix.roofs.length });
+      await steps.recordUser(phrase, () => supervisor.applyFix(fix));
+      log(`applied the ${fix.fix} fix for support`);
+      return undefined;
+    });
     bridge.handle(invokeChannels.printSetLoads, ({ loads }) => {
       const part = printProfiles.setLoads(loads);
       printChanged();

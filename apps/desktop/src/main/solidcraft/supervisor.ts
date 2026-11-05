@@ -9,8 +9,9 @@ import type { ConnectionStatus, ExportFormat, MirrorRevision } from '../../share
 import type { UpstreamTools } from '../agents/gateProxy';
 import { ControlClient, ControlError } from './controlClient';
 import { endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
-import type { DesignAction, MeasureItem, MeasureResult, TimelineCommand, VisibilityCommand } from '../../shared/contract';
+import type { DesignAction, MeasureItem, MeasureResult, PrintFix, TimelineCommand, VisibilityCommand } from '../../shared/contract';
 import { ActionService, type ActionPreview } from './actions';
+import { PrintFixService } from './printFixes';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
 import type { DesignParameter, DimensionMark } from '../../shared/contract';
@@ -84,6 +85,7 @@ export class SolidCraftSupervisor {
   private readonly scheduler: MirrorScheduler;
   private readonly dimensions: DimensionService;
   private readonly actions: ActionService;
+  private readonly fixes: PrintFixService;
   /** Probes run one after another; SolidCraft runs one batch at a time anyway. */
   private probing: Promise<unknown> = Promise.resolve();
 
@@ -93,6 +95,7 @@ export class SolidCraftSupervisor {
   ) {
     this.dimensions = new DimensionService(() => this.requester(), options.cacheDir);
     this.actions = new ActionService(() => this.requester(), options.cacheDir);
+    this.fixes = new PrintFixService(() => this.requester(), options.cacheDir);
     this.designs = options.designsDir ? new DesignStore(options.designsDir, options.projectsDir ? [options.projectsDir] : []) : null;
     this.scheduler = new MirrorScheduler(
       () => {
@@ -249,6 +252,17 @@ export class SolidCraftSupervisor {
   async applyAction(action: DesignAction): Promise<void> {
     await this.probing;
     await this.actions.apply(action);
+    await this.engine?.checkForChange();
+  }
+
+  /** A fix for support at the light (M7f), tried for the ghost. */
+  previewFix(fix: PrintFix): Promise<ActionPreview> {
+    return this.trial(() => this.fixes.preview(fix));
+  }
+
+  async applyFix(fix: PrintFix): Promise<void> {
+    await this.probing;
+    await this.fixes.apply(fix);
     await this.engine?.checkForChange();
   }
 

@@ -3,6 +3,7 @@ import type { MeshBVH } from 'three-mesh-bvh';
 
 import { AS_DESIGNED, bedOfPositions, orientBuffers, printedSize, type Down } from './orientation';
 import { Overhang, overhangLimits, overhangOf } from './overhang';
+import { supportCause, type SupportCause } from './printFixes';
 import { supportNeed } from './supportReach';
 import type { ViewerModel } from './viewerModel';
 
@@ -60,7 +61,7 @@ interface Located {
 export type PrintFinding =
   | { kind: 'size'; severity: FindingSeverity; size: [number, number, number]; bed: [number, number, number]; lying: boolean }
   | ({ kind: 'thinWall'; severity: FindingSeverity; thickness: number; minimum: number; area: number } & Located)
-  | ({ kind: 'support'; severity: FindingSeverity; area: number; limit: number } & Located)
+  | ({ kind: 'support'; severity: FindingSeverity; area: number; limit: number; cause: SupportCause } & Located)
   | ({ kind: 'contact'; severity: FindingSeverity; area: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
   | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string };
@@ -298,7 +299,8 @@ export function checkPrint(
 
     // Overhangs and the bed: each body on its own bed, steep overhangs only where nothing carries them.
     const limits = overhangLimits(profile.overhang);
-    const support: FaceTally[] = [];
+    const SUPPORT_CAUSES: readonly SupportCause[] = ['fillet', 'hole', 'other'];
+    const support: Record<SupportCause, FaceTally[]> = { fillet: [], hole: [], other: [] };
     const contact: FaceTally[] = [];
     let onBed = 0;
     visible.forEach(({ model }, b) => {
@@ -319,24 +321,31 @@ export function checkPrint(
         limits,
       );
       onBed += map.area[Overhang.Bed];
-      const supportTally = new FaceTally(model.table.faces.length);
+      const faces = model.table.faces.length;
+      const supportTally: Record<SupportCause, FaceTally> = { fillet: new FaceTally(faces), hole: new FaceTally(faces), other: new FaceTally(faces) };
+      const causes = Array.from({ length: faces }, (_, face) => ((need.byFace[face] ?? 0) > 0 ? supportCause(model, face, down) : 'other'));
       const contactTally = new FaceTally(model.table.faces.length);
       const positions = geometry.getAttribute('position').array;
       const index = geometry.index?.array ?? [];
       for (let t = 0; t < index.length / 3; t += 1) {
         const face = model.triangleFaces[t] ?? 0;
         const { corners, area } = triangle(positions, index, t);
-        if ((need.byFace[face] ?? 0) > 0) supportTally.add(face, 0, 0, corners);
+        if ((need.byFace[face] ?? 0) > 0) supportTally[causes[face] ?? 'other'].add(face, 0, 0, corners);
         const vertex = index[t * 3] ?? 0;
         if (map.vertices[vertex] === Overhang.Bed) contactTally.add(face, area, 0, corners);
       }
-      supportTally.area.set(need.byFace);
-      support.push(supportTally);
+      need.byFace.forEach((area, face) => {
+        if (area > 0) supportTally[causes[face] ?? 'other'].area[face] = area;
+      });
+      for (const cause of SUPPORT_CAUSES) support[cause].push(supportTally[cause]);
       contact.push(contactTally);
     });
-    const needsSupport = locate(visible, support, MIN_AREA);
-    if (needsSupport.area >= MIN_AREA) {
-      findings.push({ kind: 'support', severity: 'warn', area: round(needsSupport.area, 0), limit: profile.overhang, places: needsSupport.places, box: needsSupport.box });
+    // One finding per cause, each with its own fix (M7f step 2).
+    for (const cause of SUPPORT_CAUSES) {
+      const needsSupport = locate(visible, support[cause], MIN_AREA);
+      if (needsSupport.area >= MIN_AREA) {
+        findings.push({ kind: 'support', severity: 'warn', area: round(needsSupport.area, 0), limit: profile.overhang, cause, places: needsSupport.places, box: needsSupport.box });
+      }
     }
     if (onBed < MIN_CONTACT) {
       const lying = locate(visible, contact, 1e-6);
