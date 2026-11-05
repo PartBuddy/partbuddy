@@ -10,7 +10,7 @@ import {
   PointMaterial,
 } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { AS_DESIGNED, Overhang, OVERHANG_LIMITS, overhangLimits, SKETCH_STYLE, type Down } from '@partbuddy/geometry';
+import { Overhang, OVERHANG_LIMITS, overhangLimits, SKETCH_STYLE } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BackSide, Box3, BufferAttribute, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, Sphere, Vector2, Vector3 } from 'three';
@@ -111,7 +111,6 @@ function Body({
   plane,
   bedZ,
   support,
-  down,
 }: {
   index: number;
   body: BodyModel;
@@ -123,8 +122,6 @@ function Body({
   bedZ: number | null;
   /** Degrees from the vertical beyond which a face needs support. */
   support: number;
-  /** How the part lies on the bed (M7), as the design direction that points down. */
-  down: Down;
 }) {
   const hover = useStudio((s) => s.hover);
   const selections = useStudio((s) => s.selections);
@@ -147,7 +144,7 @@ function Body({
     const hoverTint = colors.body.clone().lerp(colors.hover, scene.hoverTint);
     const selectedTint = colors.body.clone().lerp(colors.selection, scene.selectionTint);
     // The overhang view: each vertex by how far its face leans over, from its normal.
-    const overhang = bedZ === null ? null : overhangFor(model, bedZ, overhangLimits(support), down).vertices;
+    const overhang = bedZ === null ? null : overhangFor(model, bedZ, overhangLimits(support)).vertices;
     const byClass = [
       colors.body,
       colors.body.clone().lerp(colors.bed, scene.overhangTint),
@@ -171,7 +168,7 @@ function Body({
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
-  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name, bedZ, support, down]);
+  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name, bedZ, support]);
 
   const clipping = useMemo(() => (plane ? [plane] : []), [plane]);
   return (
@@ -799,11 +796,10 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
   const plane = useSectionPlane(bodies);
   const colors = useTokenColors();
   const overhang = useStudio((s) => s.overhang);
-  // The part's material sets where an overhang needs support, its orientation which way is down (M7).
+  // The part's material sets where an overhang begins (M7).
   const support = useStudio((s) => s.print?.material.overhang ?? OVERHANG_LIMITS.support);
-  const down = useStudio((s) => s.print?.orientation.down ?? AS_DESIGNED);
   // Each body stands on its own bed, as the slicer lays them (M7, practice run 2026-11-05).
-  const beds = useMemo(() => (overhang ? bodies.map((body) => bedOf([body], down)) : null), [overhang, bodies, down]);
+  const beds = useMemo(() => (overhang ? bodies.map((body) => bedOf([body])) : null), [overhang, bodies]);
   const meshes = useRef<(Mesh | null)[]>([]);
   const register = useCallback((index: number, mesh: Mesh | null) => {
     meshes.current[index] = mesh;
@@ -835,7 +831,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.75 : 0.4} />
       <directionalLight position={scene.fillLight} intensity={0.3} />
       {bodies.map((body, i) => (
-        <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} bedZ={beds?.[i] ?? null} support={support} down={down} />
+        <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} bedZ={beds?.[i] ?? null} support={support} />
       ))}
       <BeforeBodies colors={colors} />
       <Highlights bodies={bodies} colors={colors} />

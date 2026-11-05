@@ -27,11 +27,8 @@ import type {
   MirrorRevision,
   NotesState,
   PartPrint,
-  LoadPlaces,
   Measurement,
   PrintCheckReport,
-  PrintFix,
-  PrintOrientation,
   PrintSettings,
   StoredMeasurement,
   TitleBarColors,
@@ -127,14 +124,6 @@ export interface PartBuddyApi {
     onChange(listener: (part: PartPrint) => void): () => void;
     /** The latest ready-to-print check, for the assistant's next message. */
     reportCheck(report: PrintCheckReport): Promise<void>;
-    /** Lays the open part on the bed another way; kept next to its design file. */
-    setOrientation(orientation: PrintOrientation): Promise<PartPrint>;
-    /** The faces where a load acts on the open part. */
-    setLoads(loads: LoadPlaces): Promise<PartPrint>;
-    /** A fix for support at the light, tried for the ghost; nothing changes. */
-    previewFix(fix: PrintFix): Promise<ActionPreviewResult>;
-    /** Applies a fix for support; one step in the work log. */
-    applyFix(fix: PrintFix): Promise<void>;
     /** Measurements after printing, all materials, newest last. */
     measurements(): Promise<StoredMeasurement[]>;
     addMeasurement(material: string, measurement: Measurement): Promise<StoredMeasurement[]>;

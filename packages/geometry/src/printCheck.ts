@@ -1,31 +1,26 @@
 import { Box3, DoubleSide, Ray, Vector3 } from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
 
-import { AS_DESIGNED, bedOfPositions, orientBuffers, printedSize, type Down } from './orientation';
 import { Overhang, overhangLimits, overhangOf } from './overhang';
-import { counterboresOf, supportCause, type SupportCause } from './printFixes';
-import { supportNeed } from './supportReach';
-import { isSupportBody } from './supportBody';
 import type { ViewerModel } from './viewerModel';
 
 /**
- * The "ready to print" check (M7, ADR 0010 as amended on 2026-11-05): pure TypeScript on the
- * mirrored render meshes, no sidecar. It looks at what the practice run and the overhang view
- * showed matters: whether the part fits the printer, walls the nozzle cannot print, overhangs that
- * need support, how much of the part lies on the bed, and features SolidCraft could not build.
- * The part is printed in its print orientation (`down`, as designed by default). Each body stands on
- * its own lowest point: the slicer lays every object of the 3MF onto the bed by itself (seen in
- * Bambu Studio, practice run 2026-11-05), so bodies that touch fall apart there.
+ * The "ready to print" check (M7, ADR 0010 as amended on 2026-11-05 for plan step R1): pure
+ * TypeScript on the mirrored render meshes, no sidecar. It checks what only the design decides:
+ * whether the part fits the printer, walls the nozzle cannot print, bodies that touch, how much of
+ * the part lies on the bed, and features SolidCraft could not build. Overhangs are a hint by angle
+ * only (yellow, never red): whether something needs support, and how, is the slicer's job.
+ * The part is checked as designed, Z up. Each body stands on its own lowest point: the slicer lays
+ * every object of the 3MF onto the bed by itself (seen in Bambu Studio, 2026-11-05), so bodies that
+ * touch fall apart there.
  */
 
 export interface PrintCheckProfile {
   /** Build volume X, Y, Z in mm. */
   bed: readonly [number, number, number];
   nozzle: number;
-  /** Degrees from the vertical beyond which a face needs support. */
+  /** Degrees from the vertical beyond which a face is an overhang. */
   overhang: number;
-  /** Layer height, mm: the air between support printed into the model and the part (default 0.2). */
-  layer?: number;
 }
 
 export interface PrintCheckBody {
@@ -41,8 +36,8 @@ export interface PrintCheckFeature {
   rolledBack: boolean;
 }
 
-/** `block`: does not print as it is; `warn`: prints, but check it; `info`: worth knowing. */
-export type FindingSeverity = 'block' | 'warn' | 'info';
+/** `block`: does not print as it is; `warn`: prints, but check it. */
+export type FindingSeverity = 'block' | 'warn';
 export type PrintStatus = 'ready' | 'warn' | 'block';
 
 /** Where a finding is: the faces by their SolidCraft names, per body. */
@@ -64,7 +59,7 @@ interface Located {
 export type PrintFinding =
   | { kind: 'size'; severity: FindingSeverity; size: [number, number, number]; bed: [number, number, number]; lying: boolean }
   | ({ kind: 'thinWall'; severity: FindingSeverity; thickness: number; minimum: number; area: number } & Located)
-  | ({ kind: 'support'; severity: FindingSeverity; area: number; limit: number; cause: SupportCause; ribs?: boolean } & Located)
+  | ({ kind: 'overhang'; severity: FindingSeverity; area: number; limit: number } & Located)
   | ({ kind: 'contact'; severity: FindingSeverity; area: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
   | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string };
@@ -202,20 +197,6 @@ function locate(bodies: readonly PrintCheckBody[], tallies: readonly FaceTally[]
 
 const round = (value: number, digits = 2) => Math.round(value * 10 ** digits) / 10 ** digits;
 
-/** How far (mm) a wall printed into the model may be beside a spot and still carry it: half the spacing and some. */
-const RIB_REACH = 2.6;
-
-/** Whether a wall printed into the model stands right under a spot (its top one layer below it). */
-function carriedByRibs(supports: readonly PrintCheckBody[], spot: Vector3, up: Vector3, layer: number): boolean {
-  const below = spot.clone().addScaledVector(up, -(layer + 0.05));
-  for (const support of supports) {
-    const bvh = support.model.geometry.boundsTree as unknown as MeshBVH | undefined;
-    const hit = bvh?.closestPointToPoint(below, undefined, 0, RIB_REACH);
-    if (hit && hit.point.dot(up) >= below.dot(up) - 0.6) return true;
-  }
-  return false;
-}
-
 /** How close (mm) two bodies must come to count as touching. */
 const TOUCH = 0.05;
 /** Vertices per body looked at for touching, at most. */
@@ -254,8 +235,37 @@ function touches(a: PrintCheckBody, b: PrintCheckBody): boolean {
   return false;
 }
 
-function sizeFinding(turned: readonly { positions: Float32Array }[], bed: readonly [number, number, number]): PrintFinding | null {
-  const printed = printedSize(turned);
+/** Width and depth of all bodies together, and the height of the tallest one on its own bed. */
+function printedSize(bodies: readonly { positions: ArrayLike<number> }[]): [number, number, number] | null {
+  const min = [Infinity, Infinity];
+  const max = [-Infinity, -Infinity];
+  let height = 0;
+  for (const { positions } of bodies) {
+    let low = Infinity;
+    let high = -Infinity;
+    for (let i = 0; i < positions.length; i += 3) {
+      for (let k = 0; k < 2; k += 1) {
+        min[k] = Math.min(min[k] ?? Infinity, positions[i + k] ?? 0);
+        max[k] = Math.max(max[k] ?? -Infinity, positions[i + k] ?? 0);
+      }
+      low = Math.min(low, positions[i + 2] ?? 0);
+      high = Math.max(high, positions[i + 2] ?? 0);
+    }
+    if (Number.isFinite(low)) height = Math.max(height, high - low);
+  }
+  if (!Number.isFinite(min[0])) return null;
+  return [(max[0] ?? 0) - (min[0] ?? 0), (max[1] ?? 0) - (min[1] ?? 0), height];
+}
+
+/** The lowest point of one body: the bed it stands on. */
+function bedOf(positions: ArrayLike<number>): number {
+  let low = Infinity;
+  for (let i = 2; i < positions.length; i += 3) low = Math.min(low, positions[i] ?? Infinity);
+  return Number.isFinite(low) ? low : 0;
+}
+
+function sizeFinding(bodies: readonly { positions: ArrayLike<number> }[], bed: readonly [number, number, number]): PrintFinding | null {
+  const printed = printedSize(bodies);
   if (!printed) return null;
   const size = printed.map((value) => round(value, 1)) as [number, number, number];
   const fits = (x: number, y: number, z: number) => x <= bed[0] && y <= bed[1] && z <= bed[2];
@@ -266,15 +276,10 @@ function sizeFinding(turned: readonly { positions: Float32Array }[], bed: readon
   return { kind: 'size', severity: 'block', size, bed: [...bed], lying };
 }
 
-const SEVERITY_ORDER: Record<FindingSeverity, number> = { block: 0, warn: 1, info: 2 };
+const SEVERITY_ORDER: Record<FindingSeverity, number> = { block: 0, warn: 1 };
 
 /** Checks the mirrored bodies against the printer and material of the part. */
-export function checkPrint(
-  bodies: readonly PrintCheckBody[],
-  profile: PrintCheckProfile,
-  features: readonly PrintCheckFeature[] = [],
-  down: Down = AS_DESIGNED,
-): PrintCheck {
+export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintCheckProfile, features: readonly PrintCheckFeature[] = []): PrintCheck {
   const findings: PrintFinding[] = [];
 
   for (const feature of features) {
@@ -283,16 +288,11 @@ export function checkPrint(
     else if (feature.warning) findings.push({ kind: 'feature', severity: 'warn', feature: feature.name, message: feature.warning });
   }
 
-  const visible = bodies.filter((body) => body.model.table.faces.length > 0);
-  if (visible.length > 0) {
-    // The bodies in the print orientation; walls do not depend on it, the rest does.
-    const turned = visible.map(({ model }) => orientBuffers(model.geometry.getAttribute('position').array, model.geometry.getAttribute('normal').array, down));
-    const size = sizeFinding(turned, profile.bed);
+  const parts = bodies.filter((body) => body.model.table.faces.length > 0);
+  if (parts.length > 0) {
+    const meshes = parts.map(({ model }) => ({ positions: model.geometry.getAttribute('position').array, normals: model.geometry.getAttribute('normal').array }));
+    const size = sizeFinding(meshes, profile.bed);
     if (size) findings.push(size);
-    // Support printed into the model (M7f step 4) is checked for size only: it is no part, it carries.
-    const supports = visible.filter((body) => isSupportBody(body.name));
-    const partTurned = turned.filter((_, i) => !isSupportBody(visible[i]?.name ?? ''));
-    const parts = visible.filter((body) => !isSupportBody(body.name));
 
     // Walls: under two lines they print poorly, under the nozzle width not at all.
     const minimum = minimumWall(profile.nozzle);
@@ -318,86 +318,46 @@ export function checkPrint(
     }
     if (separate.size > 0) findings.push({ kind: 'separate', severity: 'warn', bodies: [...separate] });
 
-    // Overhangs and the bed: each body on its own bed, steep overhangs only where nothing carries them.
+    // Overhangs by angle and the area on the bed, each body on its own bed.
     const limits = overhangLimits(profile.overhang);
-    const SUPPORT_CAUSES: readonly SupportCause[] = ['fillet', 'hole', 'counterbore', 'other'];
-    const support: Record<SupportCause, FaceTally[]> = { fillet: [], hole: [], counterbore: [], other: [] };
+    const overhang: FaceTally[] = [];
     const contact: FaceTally[] = [];
-    const ribbed: FaceTally[] = [];
-    const up = new Vector3(...down).normalize().negate();
     let onBed = 0;
     parts.forEach(({ model }, b) => {
       const geometry = model.geometry;
-      const oriented = partTurned[b];
-      if (!oriented) return;
-      const bedZ = bedOfPositions(oriented.positions);
-      const need = supportNeed(model, oriented.positions, down, bedZ, profile.overhang);
+      const mesh = meshes[b];
+      if (!mesh) return;
+      const index = geometry.index?.array ?? [];
       const map = overhangOf(
         {
-          positions: oriented.positions,
-          normals: oriented.normals,
-          index: (geometry.index?.array ?? new Uint32Array()) as Uint32Array,
+          positions: mesh.positions as Float32Array,
+          normals: mesh.normals as Float32Array,
+          index: index as Uint32Array,
           vertexFaces: model.vertexFaces,
           faceCount: model.table.faces.length,
         },
-        bedZ,
+        bedOf(mesh.positions),
         limits,
       );
       onBed += map.area[Overhang.Bed];
       const faces = model.table.faces.length;
-      const supportTally: Record<SupportCause, FaceTally> = {
-        fillet: new FaceTally(faces),
-        hole: new FaceTally(faces),
-        counterbore: new FaceTally(faces),
-        other: new FaceTally(faces),
-      };
-      // The steps of counterbores facing the bed need support even where the rays see a bridge:
-      // the hole cuts the strands (M7f step 3).
-      const steps = new Set(counterboresOf(model, down).map((counterbore) => counterbore.step));
-      const causes = Array.from({ length: faces }, (_, face) => (steps.has(face) ? 'counterbore' : (need.byFace[face] ?? 0) > 0 ? supportCause(model, face, down) : 'other'));
-      const contactTally = new FaceTally(model.table.faces.length);
-      const ribTally = new FaceTally(faces);
-      const positions = geometry.getAttribute('position').array;
-      const index = geometry.index?.array ?? [];
-      // Which of the spots that need support stand over walls printed into the model.
-      const flagged = new Float64Array(faces);
-      const carried = new Float64Array(faces);
+      const overhangTally = new FaceTally(faces);
+      const contactTally = new FaceTally(faces);
       for (let t = 0; t < index.length / 3; t += 1) {
         const face = model.triangleFaces[t] ?? 0;
-        const { corners, area } = triangle(positions, index, t);
-        if (supports.length > 0 && need.triangles[t] && !steps.has(face)) {
-          flagged[face] = (flagged[face] ?? 0) + area;
-          if (carriedByRibs(supports, triangle(positions, index, t).centroid, up, profile.layer ?? 0.2)) {
-            carried[face] = (carried[face] ?? 0) + area;
-            ribTally.add(face, 0, 0, corners);
-          }
-        }
-        if (steps.has(face)) supportTally.counterbore.add(face, area, 0, corners);
-        else if ((need.byFace[face] ?? 0) > 0) supportTally[causes[face] ?? 'other'].add(face, 0, 0, corners);
-        const vertex = index[t * 3] ?? 0;
-        if (map.vertices[vertex] === Overhang.Bed) contactTally.add(face, area, 0, corners);
+        const { corners, area } = triangle(mesh.positions, index, t);
+        if ((map.supportByFace[face] ?? 0) > 0) overhangTally.add(face, 0, 0, corners);
+        if (map.vertices[index[t * 3] ?? 0] === Overhang.Bed) contactTally.add(face, area, 0, corners);
       }
-      need.byFace.forEach((area, face) => {
-        if (area <= 0 || steps.has(face)) return;
-        const share = (flagged[face] ?? 0) > 0 ? (carried[face] ?? 0) / (flagged[face] ?? 1) : 0;
-        ribTally.area[face] = area * share;
-        supportTally[causes[face] ?? 'other'].area[face] = area * (1 - share);
+      map.supportByFace.forEach((area, face) => {
+        overhangTally.area[face] = area;
       });
-      for (const cause of SUPPORT_CAUSES) support[cause].push(supportTally[cause]);
-      ribbed.push(ribTally);
+      overhang.push(overhangTally);
       contact.push(contactTally);
     });
-    // One finding per cause, each with its own fix (M7f step 2).
-    for (const cause of SUPPORT_CAUSES) {
-      const needsSupport = locate(parts, support[cause], MIN_AREA);
-      if (needsSupport.area >= MIN_AREA) {
-        findings.push({ kind: 'support', severity: 'warn', area: round(needsSupport.area, 0), limit: profile.overhang, cause, places: needsSupport.places, box: needsSupport.box });
-      }
-    }
-    // What the walls printed into the model carry is worth knowing: the slicer's supports go off.
-    const onRibs = locate(parts, ribbed, MIN_AREA);
-    if (onRibs.area >= MIN_AREA) {
-      findings.push({ kind: 'support', severity: 'info', area: round(onRibs.area, 0), limit: profile.overhang, cause: 'other', ribs: true, places: onRibs.places, box: onRibs.box });
+    const steep = locate(parts, overhang, MIN_AREA);
+    if (steep.area >= MIN_AREA) {
+      findings.push({ kind: 'overhang', severity: 'warn', area: round(steep.area, 0), limit: profile.overhang, places: steep.places, box: steep.box });
     }
     if (onBed < MIN_CONTACT) {
       const lying = locate(parts, contact, 1e-6);

@@ -3,31 +3,17 @@ import { dirname } from 'node:path';
 
 import { z } from 'zod';
 
-import {
-  loadPlacesSchema,
-  partMaterialRequestSchema,
-  printOrientationSchema,
-  printSettingsSchema,
-  type LoadPlaces,
-  type MaterialProfile,
-  type PartPrint,
-  type PrintOrientation,
-  type PrintSettings,
-} from '../../shared/contract';
+import { partMaterialRequestSchema, printSettingsSchema, type MaterialProfile, type PartPrint, type PrintSettings } from '../../shared/contract';
 
-/** What is kept next to a design: its material, how it lies on the bed, where loads act. */
-const partFileSchema = z
-  .object({
-    version: z.literal(1),
-    material: partMaterialRequestSchema.shape.material.optional(),
-    orientation: printOrientationSchema.optional(),
-    loads: loadPlacesSchema.optional(),
-  })
-  .strict();
+/**
+ * What is kept next to a design: its material. Files written before plan step R1 may also hold an
+ * orientation and loads; those keys are dropped when read.
+ */
+const partFileSchema = z.object({
+  version: z.literal(1),
+  material: partMaterialRequestSchema.shape.material.optional(),
+});
 type PartFile = Omit<z.infer<typeof partFileSchema>, 'version'>;
-
-/** The part as designed: standing on its lowest point along +Z. */
-export const AS_DESIGNED_ORIENTATION: PrintOrientation = { down: [0, 0, -1], face: null };
 
 /**
  * Starting values (M7, 2026-11-05): a generic printer with a 0.4 mm nozzle and the common
@@ -105,7 +91,7 @@ export class PrintProfiles {
     return parsed;
   }
 
-  /** The printer in use and the open part's material, orientation and loads; a removed material falls back to the default. */
+  /** The printer in use and the open part's material; a removed material falls back to the default. */
   part(): PartPrint {
     const settings = this.settings();
     const printer = settings.printers.find((item) => item.id === settings.printer) ?? settings.printers[0];
@@ -117,8 +103,6 @@ export class PrintProfiles {
       printer,
       material: chosen ?? fallback,
       chosen: chosen !== undefined,
-      orientation: own.orientation ?? AS_DESIGNED_ORIENTATION,
-      loads: own.loads ?? [],
       supportFree: settings.supportFree,
     };
   }
@@ -126,14 +110,6 @@ export class PrintProfiles {
   setMaterial(id: string): PartPrint {
     if (!this.settings().materials.some((item) => item.id === id)) throw new Error(`unknown material ${id}`);
     return this.update({ material: id });
-  }
-
-  setOrientation(orientation: PrintOrientation): PartPrint {
-    return this.update({ orientation });
-  }
-
-  setLoads(loads: LoadPlaces): PartPrint {
-    return this.update({ loads });
   }
 
   /** Writes a held change once the design has a file. */
@@ -163,25 +139,12 @@ export class PrintProfiles {
     try {
       const parsed = partFileSchema.safeParse(JSON.parse(readFileSync(file, 'utf8')));
       if (!parsed.success) return {};
-      const { material, orientation, loads } = parsed.data;
-      return { ...(material ? { material } : {}), ...(orientation ? { orientation } : {}), ...(loads ? { loads } : {}) };
+      const { material } = parsed.data;
+      return material ? { material } : {};
     } catch {
       return {};
     }
   }
-}
-
-/** How the part lies on the bed, in the design's own directions, and where loads act. */
-function orientationLine({ down, face }: PrintOrientation, loads: LoadPlaces): string {
-  const axis = ['x', 'y', 'z'].find((_, k) => Math.abs(Math.abs(down[k] ?? 0) - 1) < 1e-6);
-  const k = ['x', 'y', 'z'].indexOf(axis ?? '');
-  const direction = axis ? `${(down[k] ?? 0) < 0 ? '-' : '+'}${axis}` : `[${down.map((v) => String(Math.round(v * 1000) / 1000)).join(', ')}]`;
-  const lying =
-    direction === '-z' && !face
-      ? 'It is printed as designed, standing on its lowest point along +Z.'
-      : `It is printed lying with the design's ${direction} direction down${face ? ` on face ${JSON.stringify(face.name)} of body ${JSON.stringify(face.body)}` : ''}; layers stack along the direction opposite to that.`;
-  const marked = loads.flatMap(({ body, faces }) => faces.map((name) => `${JSON.stringify(name)} of body ${JSON.stringify(body)}`)).slice(0, 12);
-  return marked.length > 0 ? `${lying} The user marked loads on ${marked.join(', ')}; layers are weakest when pulled apart.` : lying;
 }
 
 const mm = (value: number) => `${String(Math.round(value * 100) / 100)} mm`;
@@ -194,21 +157,20 @@ const mm = (value: number) => `${String(Math.round(value * 100) / 100)} mm`;
 /**
  * Rules for designing without support (M7f, decided 2026-11-05), from what the practice run and
  * the slicer showed and the common design-for-printing advice (Prusa knowledge base, Hackaday's
- * stepped bridging of counterbores, teardrop holes). They match the check's numbers: overhangs up
- * to 1.5 mm from a wall and bridges up to 10 mm print without support.
+ * teardrop holes). Bridges over counterbores facing the bed are left to the slicer, which builds
+ * them itself (plan step R1).
  */
-function supportFreeLines(layer: number, overhang: number): string[] {
+function supportFreeLines(overhang: number): string[] {
   return [
-    'Design it to print without support in this orientation (the user\'s setting); where that cannot be done, say so and why:',
+    'Design it to print without support as designed, standing on its lowest point (the user\'s setting); where that cannot be done, say so and why:',
     `- Edges that face down towards the bed: chamfer them at 45° instead of filleting (the bottom of a fillet ends flat); fillets that face up or sideways are fine.`,
     `- Holes lying across the layers: up to about 10 mm wide the slicer bridges them; wider ones get a teardrop roof (45° to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
-    `- Counterbores and countersinks that open towards the bed: a stepped bridge over the step, ${mm(layer)} (one layer) each: the first layer leaves only a slot as wide as the hole open, the next only a square of that width at 90° to it; then the hole continues round.`,
-    '- Ceilings and ledges: walls at most 10 mm apart are bridged, ledges up to 1.5 mm out from a wall print; anything wider gets a 45° slope underneath, or say which orientation lays it on the bed.',
+    '- Ceilings and ledges: walls at most 10 mm apart are bridged, ledges up to 1.5 mm out from a wall print; anything wider gets a 45° slope underneath, or say which side the part should rather stand on.',
     'Model these as their own features with parameters (layer height, roof angle) and name them when you report.',
   ];
 }
 
-export function printNote({ printer, material: used, orientation, loads, supportFree }: PartPrint): string {
+export function printNote({ printer, material: used, supportFree }: PartPrint): string {
   const name = (text: string) => JSON.stringify(text.slice(0, 60));
   const [x, y, z] = printer.bed;
   const wall = Math.round(printer.nozzle * 2 * 1.125 * 100) / 100;
@@ -219,8 +181,8 @@ export function printNote({ printer, material: used, orientation, loads, support
     `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter.`,
     `Clearance per side between mating parts: clamp ${mm(clamp)}, push ${mm(push)}, slide ${mm(slide)}, turn ${mm(turn)}.`,
     ...(used.outerGrowth !== 0 ? [`Measured prints: outer sizes (pins, walls, widths) come out ${mm(used.outerGrowth)} ${used.outerGrowth > 0 ? 'larger' : 'smaller'} than drawn; allow for it on pins.`] : []),
-    orientationLine(orientation, loads),
-    ...(supportFree ? supportFreeLines(printer.layer, used.overhang) : []),
+    'It is printed as designed, standing on its lowest point along +Z.',
+    ...(supportFree ? supportFreeLines(used.overhang) : []),
     'Keep nominal sizes as parameters, add the clearance and the hole allowance as their own parameters, and say which fit you chose.]',
   ].join('\n');
 }

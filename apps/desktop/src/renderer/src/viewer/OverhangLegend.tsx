@@ -1,4 +1,4 @@
-import { AS_DESIGNED, isAsDesigned, Overhang, OVERHANG_LIMITS, overhangLimits } from '@partbuddy/geometry';
+import { Overhang, OVERHANG_LIMITS, overhangLimits } from '@partbuddy/geometry';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -14,9 +14,7 @@ export function OverhangLegend({ bodies }: { bodies: BodyModel[] }) {
   const on = useStudio((s) => s.overhang);
   const material = useStudio((s) => s.print?.material ?? null);
   const limits = useMemo(() => (material ? overhangLimits(material.overhang) : OVERHANG_LIMITS), [material]);
-  const orientation = useStudio((s) => s.print?.orientation ?? null);
-  const down = orientation?.down ?? AS_DESIGNED;
-  const area = useMemo(() => (on ? overhangArea(bodies, limits, down) : null), [on, bodies, limits, down]);
+  const area = useMemo(() => (on ? overhangArea(bodies, limits) : null), [on, bodies, limits]);
   if (!area) return null;
   const rows = [
     { key: 'support', swatch: 'bg-overhang-risk', label: t('overhang.support', { degrees: limits.support }), area: area[Overhang.Support] },
@@ -32,7 +30,7 @@ export function OverhangLegend({ bodies }: { bodies: BodyModel[] }) {
     >
       <h2 className="font-semibold">{t('overhang.title')}</h2>
       <p className="text-text-subtle" data-testid="overhang-direction">
-        {isAsDesigned(down) ? t('overhang.direction') : orientation?.face ? t('overhang.lyingOnFace', { face: orientation.face.name }) : t('overhang.lying')}
+        {t('overhang.direction')}
       </p>
       {material ? (
         <p className="text-text-subtle" data-testid="overhang-material">

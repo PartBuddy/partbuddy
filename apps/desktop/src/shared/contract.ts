@@ -635,105 +635,18 @@ export const printSettingsSchema = z
   .refine((settings) => settings.printers.some((printer) => printer.id === settings.printer), 'the printer in use must exist')
   .refine((settings) => settings.materials.some((material) => material.id === settings.material), 'the default material must exist');
 
-const faceName = z.string().min(1).max(200);
-const unitDirection = z
-  .tuple([range(-1, 1), range(-1, 1), range(-1, 1)])
-  .refine((v) => Math.abs(Math.hypot(...v) - 1) < 1e-3, 'must be a unit direction');
-
-/**
- * How the part lies on the bed (M7): the design direction that points down, and the flat face it
- * lies on when the direction came from one. `[0, 0, -1]` is as designed.
- */
-export const printOrientationSchema = z
-  .object({ down: unitDirection, face: z.object({ body: bodyName, name: faceName }).strict().nullable() })
-  .strict();
-/** Faces where a load acts, marked by the user, by body and face name. */
-export const loadPlacesSchema = z.array(z.object({ body: bodyName, faces: z.array(faceName).min(1).max(100) }).strict()).max(20);
-
-/** What the open part is printed with: the printer in use, the part's material and orientation. */
+/** What the open part is printed with: the printer in use and the part's material. */
 export const partPrintSchema = z
   .object({
     printer: printerProfileSchema,
     material: materialProfileSchema,
     /** False while the part uses the default material. */
     chosen: z.boolean(),
-    orientation: printOrientationSchema,
-    loads: loadPlacesSchema,
     /** Whether the assistant designs to print without support. */
     supportFree: z.boolean(),
   })
   .strict();
-/**
- * Fixes for support at the light (M7f step 2, decided 2026-11-05): rounds facing the bed become
- * chamfers of the same size, lying holes too wide to bridge get a roof. PartBuddy builds the
- * SolidCraft commands from these numbers itself; a ghost shows the result before it is applied.
- */
-const point2 = z.tuple([finite, finite]);
-export const printFixSchema = z.discriminatedUnion('fix', [
-  z
-    .object({
-      fix: z.literal('chamfer'),
-      body: bodyName,
-      /** Per fillet feature, the triangles of each of its faces that face the bed (at most 200 per face). */
-      fillets: z
-        .array(z.object({ feature: z.number().int().positive(), faces: z.array(z.array(z.tuple([point3, point3, point3])).min(1).max(200)).min(1).max(50) }).strict())
-        .min(1)
-        .max(20),
-    })
-    .strict(),
-  z
-    .object({
-      fix: z.literal('roof'),
-      body: bodyName,
-      roofs: z
-        .array(z.object({ origin: point3, xDir: unitDirection, yDir: unitDirection, points: z.array(point2).min(3).max(8), length }).strict())
-        .min(1)
-        .max(20),
-    })
-    .strict(),
-  z
-    .object({
-      fix: z.literal('bridge'),
-      body: bodyName,
-      /** Stepped bridges over counterbores facing the bed: a slot for one layer, a square for two. */
-      bridges: z
-        .array(
-          z
-            .object({
-              origin: point3,
-              xDir: unitDirection,
-              yDir: unitDirection,
-              slot: z.array(point2).length(4),
-              square: z.array(point2).length(4),
-              slotDepth: finite.min(0.04).max(1.3),
-              squareDepth: finite.min(0.08).max(2.5),
-            })
-            .strict(),
-        )
-        .min(1)
-        .max(20),
-    })
-    .strict(),
-  z
-    .object({
-      fix: z.literal('ribs'),
-      body: bodyName,
-      /** The number of the first new support body (`Print support <first>`). */
-      first: z.number().int().min(1).max(10_000),
-      /** Walls standing on the bed: a vertical sketch each, extruded symmetrically by its thickness. */
-      ribs: z
-        .array(
-          z
-            .object({ origin: point3, xDir: unitDirection, yDir: unitDirection, points: z.array(point2).min(3).max(200), thickness: finite.min(0.4).max(5) })
-            .strict(),
-        )
-        .min(1)
-        .max(60),
-    })
-    .strict(),
-]);
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();
-export const partLoadsRequestSchema = z.object({ loads: loadPlacesSchema }).strict();
 
 /**
  * A measurement after printing (M7, "measure after printing"), per material: a hole or an outer
@@ -757,7 +670,7 @@ export const measurementsSchema = z.array(storedMeasurementSchema).max(500);
  * assistant. Worked out in the renderer from the mirrored meshes (`checkPrint` in the geometry
  * package); the main process only words it.
  */
-const findingSeveritySchema = z.enum(['block', 'warn', 'info']);
+const findingSeveritySchema = z.enum(['block', 'warn']);
 const findingPlacesSchema = z
   .array(z.object({ body: bodyName, faces: z.array(z.string().min(1).max(200)).max(40) }).strict())
   .max(20);
@@ -765,9 +678,7 @@ const mmValue = finite.nonnegative().max(100_000);
 export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('size'), severity: findingSeveritySchema, size: z.tuple([mmValue, mmValue, mmValue]), bed: z.tuple([mmValue, mmValue, mmValue]), lying: z.boolean() }).strict(),
   z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
-  z
-    .object({ kind: z.literal('support'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), cause: z.enum(['fillet', 'hole', 'counterbore', 'other']), ribs: z.boolean().optional(), places: findingPlacesSchema })
-    .strict(),
+  z.object({ kind: z.literal('overhang'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
@@ -832,10 +743,6 @@ export const invokeContract = {
   [invokeChannels.printPart]: { request: none, response: partPrintSchema },
   [invokeChannels.printSetMaterial]: { request: partMaterialRequestSchema, response: partPrintSchema },
   [invokeChannels.printReportCheck]: { request: printCheckReportSchema, response: none },
-  [invokeChannels.printSetOrientation]: { request: printOrientationSchema, response: partPrintSchema },
-  [invokeChannels.printPreviewFix]: { request: printFixSchema, response: actionPreviewSchema },
-  [invokeChannels.printApplyFix]: { request: printFixSchema, response: none },
-  [invokeChannels.printSetLoads]: { request: partLoadsRequestSchema, response: partPrintSchema },
   [invokeChannels.printMeasurements]: { request: none, response: measurementsSchema },
   [invokeChannels.printAddMeasurement]: { request: measurementAddSchema, response: measurementsSchema },
   [invokeChannels.printRemoveMeasurement]: { request: measurementIdSchema, response: measurementsSchema },
@@ -882,9 +789,6 @@ export type FitKind = z.infer<typeof fitKindSchema>;
 export type PrintSettings = z.infer<typeof printSettingsSchema>;
 export type PartPrint = z.infer<typeof partPrintSchema>;
 export type PrintCheckReport = z.infer<typeof printCheckReportSchema>;
-export type PrintOrientation = z.infer<typeof printOrientationSchema>;
-export type PrintFix = z.infer<typeof printFixSchema>;
-export type LoadPlaces = z.infer<typeof loadPlacesSchema>;
 export type Measurement = z.infer<typeof measurementSchema>;
 export type StoredMeasurement = z.infer<typeof storedMeasurementSchema>;
 export type DesignParameter = z.infer<typeof designParameterSchema>;

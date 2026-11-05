@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 
-// Shared by the practice runs (practice.spec.ts, practice-m7.spec.ts): talk to the assistant like a
+// Shared by the practice runs (practice.spec.ts): talk to the assistant like a
 // user would and collect what happened.
 
 const TURN_TIMEOUT_MS = 12 * 60 * 1000;

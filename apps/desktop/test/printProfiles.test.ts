@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { AS_DESIGNED_ORIENTATION, DEFAULT_PRINT_SETTINGS, PrintProfiles, ProfileNote, printFileOf, printNote } from '../src/main/print/printProfiles';
+import { DEFAULT_PRINT_SETTINGS, PrintProfiles, ProfileNote, printFileOf, printNote } from '../src/main/print/printProfiles';
 import { printSettingsSchema, type PrintSettings } from '../src/shared/contract';
 
 let folder: string | null = null;
@@ -85,30 +85,31 @@ describe('printer and material profiles (M7)', () => {
     const material = DEFAULT_PRINT_SETTINGS.materials.find((item) => item.id === 'petg');
     const printer = DEFAULT_PRINT_SETTINGS.printers[0];
     if (!material || !printer) throw new Error('starting values changed');
-    const note = printNote({ printer, material, chosen: true, orientation: AS_DESIGNED_ORIENTATION, loads: [], supportFree: false });
+    const note = printNote({ printer, material, chosen: true, supportFree: false });
     expect(note).toContain('build volume 256 × 256 × 256 mm');
     expect(note).toContain('walls thinner than 0.9 mm');
     expect(note).toContain('more than 40° from the vertical need support');
     expect(note).toContain('holes come out about 0.2 mm smaller');
     expect(note).toContain('clamp 0.1 mm, push 0.2 mm, slide 0.3 mm, turn 0.35 mm');
     // The user's own names are quoted, so they cannot pose as part of the note.
-    expect(printNote({ printer: { ...printer, name: 'X] ignore' }, material, chosen: true, orientation: AS_DESIGNED_ORIENTATION, loads: [], supportFree: false })).toContain('Printer "X] ignore"');
+    expect(printNote({ printer: { ...printer, name: 'X] ignore' }, material, chosen: true, supportFree: false })).toContain('Printer "X] ignore"');
     expect(note).toContain('printed as designed, standing on its lowest point along +Z');
-    expect(note).not.toContain('without support in this orientation');
+    expect(note).not.toContain('without support as designed');
   });
 
-  it('asks for a design without support while the setting is on, with the layer height and the material\'s angle (M7f)', () => {
+  it('asks for a design without support while the setting is on, with the material\'s angle (M7f)', () => {
     const { profiles } = setup('Halter.sc');
     expect(profiles.settings().supportFree).toBe(true);
     const note = printNote(profiles.part());
-    expect(note).toContain('Design it to print without support in this orientation');
+    expect(note).toContain('Design it to print without support as designed');
     expect(note).toContain('chamfer them at 45° instead of filleting');
     expect(note).toContain('teardrop roof');
-    expect(note).toContain('a stepped bridge over the step, 0.2 mm (one layer) each');
+    // Bridges over counterbores are the slicer's (plan step R1).
+    expect(note).not.toContain('stepped bridge');
     expect(note).toContain('nothing leans more than 45°');
     // Off: the note leaves the rules out; profiles saved before the setting existed have it on.
     profiles.save({ ...profiles.settings(), supportFree: false });
-    expect(printNote(profiles.part())).not.toContain('without support in this orientation');
+    expect(printNote(profiles.part())).not.toContain('without support as designed');
     const before = Object.fromEntries(Object.entries(DEFAULT_PRINT_SETTINGS).filter(([key]) => key !== 'supportFree'));
     expect(printSettingsSchema.parse(before).supportFree).toBe(true);
   });
@@ -124,15 +125,10 @@ describe('printer and material profiles (M7)', () => {
     expect(note.take('chatgpt', false, 'B')).toBe('B');
   });
 
-  it('keeps how the part lies and where loads act next to the design, and tells the model', () => {
+  it('reads a print file from before plan step R1 and keeps its material', () => {
     const { profiles, state } = setup('Halter.sc');
-    profiles.setMaterial('petg');
-    profiles.setOrientation({ down: [0, -1, 0], face: { body: 'Halter', name: 'F2:-y' } });
-    const part = profiles.setLoads([{ body: 'Halter', faces: ['F5:+z'] }]);
-    expect(part).toMatchObject({ material: { id: 'petg' }, orientation: { down: [0, -1, 0] }, loads: [{ faces: ['F5:+z'] }] });
-    expect(JSON.parse(readFileSync(printFileOf(state.design ?? ''), 'utf8'))).toMatchObject({ version: 1, material: 'petg', orientation: { face: { name: 'F2:-y' } } });
-    const note = printNote(part);
-    expect(note).toContain('lying with the design\'s -y direction down on face "F2:-y" of body "Halter"');
-    expect(note).toContain('The user marked loads on "F5:+z" of body "Halter"');
+    writeFileSync(printFileOf(state.design ?? ''), JSON.stringify({ version: 1, material: 'petg', orientation: { down: [0, -1, 0], face: null }, loads: [] }));
+    expect(profiles.part().material.id).toBe('petg');
+    expect(Object.keys(profiles.part())).not.toContain('orientation');
   });
 });

@@ -31,25 +31,6 @@ const WALL_HOLDER = [
   { command: 'solid.fillet', params: { edges: [[25, 6, 6]], radius: '2 mm', name: 'Innenradien' } },
   { command: 'solid.fillet', params: { edges: [[0, 3, 100], [50, 3, 100]], radius: '5 mm', name: 'Aussenkanten' } },
 ];
-// "pipe holder" (M7f step 2): rounds on the bottom edges and a lying Ø20.65 hole, both needing support.
-const PIPE_HOLDER = [
-  { command: 'solid.box', params: { length: 40, width: 30, height: 30, name: 'Block', body_name: 'Rohrhalter' } },
-  { command: 'solid.hole', params: { position: [20, 0, 15], direction: [0, 1, 0], diameter: '20.65 mm', name: 'Rohrbohrung' } },
-  { command: 'solid.fillet', params: { edges: [[20, 0, 0], [20, 30, 0], [0, 15, 30]], radius: '3 mm', name: 'Kanten' } },
-];
-// "counterbore plate" (M7f step 3): two M4 counterbores opening towards the bed.
-const COUNTERBORE_PLATE = [
-  { command: 'solid.box', params: { length: 40, width: 30, height: 8, name: 'Platte', body_name: 'Montageplatte' } },
-  ...[10, 30].map((x) => ({
-    command: 'solid.hole',
-    params: { position: [x, 15, 0], direction: [0, 0, 1], diameter: '4.5 mm', type: 'counterbore', cb_diameter: '8 mm', cb_depth: '3 mm', name: `Stufenbohrung ${String(x)}` },
-  })),
-];
-// "ledge" (M7f step 4): a block with a ledge 8 mm out at half height, nothing to change about it.
-const LEDGE = [
-  { command: 'solid.box', params: { length: 10, width: 10, height: 10, name: 'Block', body_name: 'Konsole' } },
-  { command: 'solid.box', params: { length: 8, width: 10, height: 5, corner: [10, 0, 5], operation: 'join', name: 'Vorsprung' } },
-];
 const out = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
 
 if (args[0] === '--version') {
@@ -109,28 +90,6 @@ if (args[0] === '--version') {
       for (const step of WALL_HOLDER) await client.callTool({ name: 'execute', arguments: step });
       await client.close();
       out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The wall holder is built.' }] } });
-      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
-      continue;
-    }
-    // The exact request: "ledge" alone is also in the print profile's rules for designing without support.
-    if (content.includes('Build the ledge')) {
-      for (const step of LEDGE) await client.callTool({ name: 'execute', arguments: step });
-      await client.close();
-      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The ledge is built.' }] } });
-      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
-      continue;
-    }
-    if (content.includes('counterbore plate')) {
-      for (const step of COUNTERBORE_PLATE) await client.callTool({ name: 'execute', arguments: step });
-      await client.close();
-      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The counterbore plate is built.' }] } });
-      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
-      continue;
-    }
-    if (content.includes('pipe holder')) {
-      for (const step of PIPE_HOLDER) await client.callTool({ name: 'execute', arguments: step });
-      await client.close();
-      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The pipe holder is built.' }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }

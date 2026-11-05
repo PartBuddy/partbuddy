@@ -17,7 +17,7 @@ function where(places: Places): string {
 }
 
 function line(finding: Finding, nozzle: number): string {
-  const tag = finding.severity === 'block' ? 'blocks printing' : finding.severity === 'warn' ? 'warning' : 'note';
+  const tag = finding.severity === 'block' ? 'blocks printing' : 'warning';
   switch (finding.kind) {
     case 'size':
       return `- ${tag}: the part is ${finding.size.map(String).join(' × ')} mm, the printer takes ${finding.bed.map(String).join(' × ')} mm${finding.lying ? '; it would fit lying on another side' : ''}.`;
@@ -25,20 +25,8 @@ function line(finding: Finding, nozzle: number): string {
       return finding.severity === 'block'
         ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than the ${mm(nozzle)} nozzle, so they do not print${where(finding.places)}.`
         : `- ${tag}: walls down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} of two lines${where(finding.places)}.`;
-    case 'support': {
-      if (finding.ribs) return `- ${tag}: ${String(finding.area)} mm² that need support are carried by support walls printed into the model (bodies "Print support …")${where(finding.places)}; the slicer's supports go off.`;
-      const what =
-        finding.cause === 'fillet' ? 'of fillets facing the bed ' : finding.cause === 'hole' ? 'on top of lying holes too wide to bridge ' : finding.cause === 'counterbore' ? 'of counterbore steps facing the bed (the hole cuts the bridge) ' : '';
-      const fix =
-        finding.cause === 'fillet'
-          ? ' (chamfer them at 45° instead)'
-          : finding.cause === 'hole'
-            ? ' (give them a teardrop or flat roof)'
-            : finding.cause === 'counterbore'
-              ? ' (add a stepped bridge: one layer with a slot as wide as the hole, one with a square)'
-              : '';
-      return `- ${tag}: ${String(finding.area)} mm² ${what}lean more than ${String(finding.limit)}° from the vertical and need support${where(finding.places)}${fix}.`;
-    }
+    case 'overhang':
+      return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical${where(finding.places)}; the slicer decides whether they need support.`;
     case 'contact':
       return `- ${tag}: only ${String(finding.area)} mm² lie on the bed, the part may come loose or tip over${where(finding.places)}.`;
     case 'separate':
@@ -55,7 +43,7 @@ function line(finding: Finding, nozzle: number): string {
  */
 export function printCheckNote(report: PrintCheckReport): string {
   const head =
-    '[PartBuddy: ready-to-print check of the part as it is now (printed along +Z, each body standing on its own lowest point; steep overhangs count only where no wall within 1.5 mm and no bridge under 10 mm carries them):';
+    '[PartBuddy: ready-to-print check of the part as it is now (printed as designed along +Z, each body standing on its own lowest point; overhangs by angle only):';
   if (report.findings.length === 0) return `${head} ready to print, nothing found.]`;
   const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? 'prints, with warnings' : 'ready to print';
   const lines = report.findings.slice(0, 12).map((finding) => line(finding, report.nozzle));

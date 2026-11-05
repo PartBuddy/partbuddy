@@ -21,6 +21,7 @@ export const STEP_PHRASE_KEYS = [
   'sphere',
   'fillet',
   'chamfer',
+  // Fixes at the light, removed in plan step R1; kept so stored work logs still read.
   'fixChamfer',
   'fixRoof',
   'fixBridge',
@@ -233,15 +234,12 @@ export function describeToolCall(tool: string, args: Params): StepPhrase[] {
 }
 
 /** The phrase of one action of the user (M1b dimension field, M1b-2 actions, M1c timeline). */
-const FIX_PHRASE = { chamfer: 'fixChamfer', roof: 'fixRoof', bridge: 'fixBridge', ribs: 'fixRibs' } as const;
-
 export function describeUserAction(
   action:
     | { kind: 'dimension'; parameter: string; value: number }
     | { kind: 'action'; action: 'fillet' | 'chamfer' | 'extrude' | 'hole' | 'shell'; size: number; count: number; depth?: number | undefined }
     | { kind: 'rollTo'; position: number | 'end' }
-    | { kind: 'suppress'; suppressed: boolean }
-    | { kind: 'fix'; fix: 'chamfer' | 'roof' | 'bridge' | 'ribs'; count: number },
+    | { kind: 'suppress'; suppressed: boolean },
 ): StepPhrase {
   const round = (value: number) => Math.round(value * 100) / 100;
   switch (action.kind) {
@@ -251,8 +249,6 @@ export function describeUserAction(
       return action.position === 'end' ? { key: 'rollToEnd', values: {} } : { key: 'rollTo', values: { position: action.position } };
     case 'suppress':
       return { key: action.suppressed ? 'suppress' : 'unsuppress', values: {} };
-    case 'fix':
-      return { key: FIX_PHRASE[action.fix], values: { count: action.count } };
     case 'action':
       switch (action.action) {
         case 'fillet':

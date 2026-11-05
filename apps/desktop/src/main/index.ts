@@ -1,15 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { isAsDesigned, mergeSupportObjects, orientMeshFile } from '@partbuddy/geometry';
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen, session, shell } from 'electron';
 
 import { invokeChannels, eventChannels } from '../shared/channels';
-import type { AgentEvent, ExportFormat, PrintCheckReport, PrintFix, ViewState } from '../shared/contract';
+import type { AgentEvent, ExportFormat, PrintCheckReport, ViewState } from '../shared/contract';
 import { AgentService } from './agents/agentService';
 import { AppearanceSettings } from './appearance';
 import { Assistant } from './agents/assistant';
@@ -37,20 +35,6 @@ import { ChatArchive } from './chat/chatArchive';
 import { Measurements } from './print/measurements';
 import { printCheckNote } from './print/printCheckNote';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
-
-/** How many things a fix for support changes: fillets, holes, counterbores or walls (the work-log phrase counts them). */
-function fixCount(fix: PrintFix): number {
-  switch (fix.fix) {
-    case 'chamfer':
-      return fix.fillets.length;
-    case 'roof':
-      return fix.roofs.length;
-    case 'bridge':
-      return fix.bridges.length;
-    case 'ribs':
-      return fix.ribs.length;
-  }
-}
 
 app.setName('PartBuddy');
 // Windows counts a window beside all displays as covered and stops painting it; test runs
@@ -308,27 +292,6 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.printMeasurements, () => measurements.all());
     bridge.handle(invokeChannels.printAddMeasurement, ({ material, measurement }) => measurements.add(material, measurement));
     bridge.handle(invokeChannels.printRemoveMeasurement, ({ id }) => measurements.remove(id));
-    bridge.handle(invokeChannels.printSetOrientation, (orientation) => {
-      const part = printProfiles.setOrientation(orientation);
-      printChanged();
-      return part;
-    });
-    bridge.handle(invokeChannels.printPreviewFix, (fix) => {
-      assistantIdle();
-      return supervisor.previewFix(fix);
-    });
-    bridge.handle(invokeChannels.printApplyFix, async (fix) => {
-      assistantIdle();
-      const phrase = describeUserAction({ kind: 'fix', fix: fix.fix, count: fixCount(fix) });
-      await steps.recordUser(phrase, () => supervisor.applyFix(fix));
-      log(`applied the ${fix.fix} fix for support`);
-      return undefined;
-    });
-    bridge.handle(invokeChannels.printSetLoads, ({ loads }) => {
-      const part = printProfiles.setLoads(loads);
-      printChanged();
-      return part;
-    });
     bridge.handle(invokeChannels.printSetMaterial, ({ material }) => {
       const part = printProfiles.setMaterial(material);
       printChanged();
@@ -513,24 +476,8 @@ if (!app.requestSingleInstanceLock()) {
       const options = { title: 'Export', defaultPath: join(projects, `${name}.${format}`), filters: [EXPORT_FILTERS[format]] };
       const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
       if (choice.canceled || !choice.filePath) return null;
-      // 3MF and STL go to the slicer lying the way the check assumed (M7); STEP stays as designed.
-      const { down } = printProfiles.part().orientation;
-      const turn = format !== 'step' && !isAsDesigned(down);
-      // Support printed into the model goes into the object of its part, so the slicer cannot move
-      // it away (M7f step 4); an STL is one mesh anyway.
-      await supervisor.exportDesign(
-        format,
-        choice.filePath,
-        format === 'step'
-          ? undefined
-          : async (file) => {
-              let data: Uint8Array = new Uint8Array(await readFile(file));
-              if (format === '3mf') data = mergeSupportObjects(data);
-              if (turn) data = orientMeshFile(format, data, down);
-              await writeFile(file, data);
-            },
-      );
-      log(`exported the design as ${format}${turn ? ' in its print orientation' : ''}`);
+      await supervisor.exportDesign(format, choice.filePath);
+      log(`exported the design as ${format}`);
       return { file: basename(choice.filePath) };
     });
     bridge.handle(invokeChannels.designProbeDimension, ({ target, current, value }) => {
