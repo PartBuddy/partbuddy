@@ -52,7 +52,7 @@ export function LiveBar() {
   const ready = useStudio((s) => s.model.status === 'ready' && (s.model.bodies.length > 0 || s.model.sketches.length > 0));
   if (!ready) return null;
   return (
-    <div className="flex flex-col items-start gap-2">
+    <div className="flex flex-col items-start gap-2" data-view-overlay>
       <BuildLine />
       <Changes />
     </div>

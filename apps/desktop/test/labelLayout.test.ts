@@ -34,3 +34,12 @@ describe('dimension label layout (UI upgrade step 10)', () => {
     expect(placed.get('edge')).toEqual({ dx: 33, dy: 0 });
   });
 });
+
+describe('dimension labels and the bars on the view (UI upgrade step 11)', () => {
+  it('moves a label off the selection dock and the view tools', () => {
+    const dock = { left: 300, top: 520, right: 500, bottom: 590 };
+    const placed = layoutLabels([label('under-dock', 400, 530)], view, [dock]);
+    // Not on the dock and not touching it: two label heights up is the first free place.
+    expect(placed.get('under-dock')).toEqual({ dx: 0, dy: -38 });
+  });
+});

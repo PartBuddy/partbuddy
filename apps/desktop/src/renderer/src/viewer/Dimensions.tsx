@@ -231,7 +231,8 @@ interface Layout {
   slots: Map<string, Slot>;
   /** Set when a label mounted or the marks changed: lay out on the next frame even if the view did not move. */
   dirty: boolean;
-  last: Float64Array;
+  /** What the last layout was made for: the view and the places of the bars on it. */
+  last: string;
   raycaster: Raycaster;
   ndc: Vector3;
   pointer: Vector2;
@@ -241,7 +242,7 @@ interface Layout {
 const newLayout = (): Layout => ({
   slots: new Map(),
   dirty: true,
-  last: new Float64Array(33),
+  last: '',
   raycaster: new Raycaster(),
   ndc: new Vector3(),
   pointer: new Vector2(),
@@ -257,6 +258,7 @@ const newLayout = (): Layout => ({
 function useLabelLayout(marks: readonly DimensionMark[], meshes: MeshList, plane: Plane | null, openMark: string | null): (id: string) => Slot {
   const camera = useThree((state) => state.camera);
   const size = useThree((state) => state.size);
+  const canvas = useThree((state) => state.gl.domElement);
   const layout = useRef<Layout>(newLayout());
 
   useEffect(() => {
@@ -268,10 +270,16 @@ function useLabelLayout(marks: readonly DimensionMark[], meshes: MeshList, plane
 
   useFrame(() => {
     const state = layout.current;
+    // The view's bars and panels (tools, chips, the selection dock), in canvas pixels: no label covers them.
+    const origin = canvas.getBoundingClientRect();
+    const blocked = [...(canvas.closest('main')?.querySelectorAll<HTMLElement>('[data-view-overlay]') ?? [])].map((element) => {
+      const r = element.getBoundingClientRect();
+      return { left: r.left - origin.left, top: r.top - origin.top, right: r.right - origin.left, bottom: r.bottom - origin.top };
+    });
     // Skip frames in which nothing that moves a label changed.
-    const view = [...camera.matrixWorld.elements, ...camera.projectionMatrix.elements, size.width];
-    if (!state.dirty && view.every((value, i) => state.last[i] === value)) return;
-    state.last.set(view);
+    const key = [...camera.matrixWorld.elements, ...camera.projectionMatrix.elements, size.width, size.height, ...blocked.flatMap((r) => [r.left, r.top, r.right, r.bottom])].join(',');
+    if (!state.dirty && key === state.last) return;
+    state.last = key;
     state.dirty = false;
 
     const { raycaster, ndc, pointer, anchor, slots } = state;
@@ -306,7 +314,7 @@ function useLabelLayout(marks: readonly DimensionMark[], meshes: MeshList, plane
     }
     // The open label first, then the nearest: what the user looks at keeps its place.
     boxes.sort((a, b) => Number(b.open) - Number(a.open) || a.distance - b.distance);
-    const placed = layoutLabels(boxes, size);
+    const placed = layoutLabels(boxes, size, blocked);
     for (const mark of marks) {
       const slot = slots.get(mark.id);
       if (!slot?.wrapper) continue;

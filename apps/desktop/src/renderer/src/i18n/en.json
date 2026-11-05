@@ -302,6 +302,7 @@
     "failed": "That did not work: {detail}"
   },
   "hud": {
+    "dock": "Selection",
     "length": "Length",
     "diameter": "Diameter",
     "radius": "Radius",
