@@ -1,4 +1,4 @@
-import { counterboresOf, filletFeatureOf, holeRoof, steppedBridge, type Down, type PrintFinding, type ViewerModel } from '@partbuddy/geometry';
+import { counterboresOf, filletFeatureOf, holeRoof, isSupportBody, ribsFor, steppedBridge, type Down, type PrintFinding, type ViewerModel } from '@partbuddy/geometry';
 
 import type { PrintFix } from '../../../shared/contract';
 
@@ -27,13 +27,29 @@ function trianglesOf(model: ViewerModel, face: number): Triangle[] {
   return mine.filter((_, i) => i % stride === 0).map((t) => [corner(index[t * 3] ?? 0), corner(index[t * 3 + 1] ?? 0), corner(index[t * 3 + 2] ?? 0)]);
 }
 
-/** The fix of a support finding for its first body, or null when it has none (cause "other"). */
-export function fixFor(finding: PrintFinding, bodies: readonly Body[], down: Down, layer: number): PrintFix | null {
-  if (finding.kind !== 'support' || finding.cause === 'other') return null;
+/** What the fix needs of the print profile: the printer's layer and the material's overhang limit. */
+export interface FixProfile {
+  layer: number;
+  overhang: number;
+}
+
+/**
+ * The fix of a support finding for its first body, or null when there is none. Overhangs without
+ * a shape to change ("other") get support walls printed into the model (M7f step 4).
+ */
+export function fixFor(finding: PrintFinding, bodies: readonly Body[], down: Down, profile: FixProfile): PrintFix | null {
+  if (finding.kind !== 'support' || finding.ribs) return null;
   const place = finding.places[0];
   const body = bodies.find((item) => item.name === place?.body);
   if (!place || !body) return null;
   const faceIndex = (name: string) => body.model.table.faces.findIndex((face) => face.name === name);
+  const { layer } = profile;
+
+  if (finding.cause === 'other') {
+    const ribs = ribsFor(body.model, down, profile.overhang, layer).slice(0, 60);
+    const first = bodies.filter((item) => isSupportBody(item.name)).length + 1;
+    return ribs.length > 0 ? { fix: 'ribs', body: body.name, first, ribs } : null;
+  }
 
   if (finding.cause === 'fillet') {
     const byFeature = new Map<number, Triangle[][]>();

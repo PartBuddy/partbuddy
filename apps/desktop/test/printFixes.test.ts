@@ -92,4 +92,22 @@ describe('fixes for support at the light (M7f)', () => {
       { command: 'solid.extrude', params: { distance: '0.41 mm', operation: 'cut', targets: ['Plate'], name: 'Print bridge' } },
     ]);
   });
+
+  it('prints support walls into the model as bodies of their own, joined into one for the ghost', async () => {
+    const rib = { origin: [12, 0.5, 0], xDir: [0, 1, 0], yDir: [0, 0, 1], points: [[0, 0], [9, 0], [9, 4.8], [0, 4.8]], thickness: 1 };
+    const fix = printFixSchema.parse({ fix: 'ribs', body: 'Ledge', first: 3, ribs: [rib, { ...rib, origin: [16, 0.5, 0] }] });
+    const { engine, batches } = fakeEngine({});
+    const service = new PrintFixService(() => engine, 'cache');
+    await service.apply(fix);
+    const extrudes = batches[0]?.commands.filter((step) => step.command === 'solid.extrude').map((step) => step.params);
+    expect(extrudes).toEqual([
+      { distance: '1 mm', direction: 'symmetric', operation: 'new', body_name: 'Print support 3', name: 'Print support' },
+      { distance: '1 mm', direction: 'symmetric', operation: 'new', body_name: 'Print support 4', name: 'Print support' },
+    ]);
+    const preview = await service.steps(fix, true);
+    expect(preview.filter((step) => step.command === 'solid.extrude').map((step) => [step.params.operation, step.params.body_name ?? step.params.targets])).toEqual([
+      ['new', 'Print support preview'],
+      ['join', ['Print support preview']],
+    ]);
+  });
 });

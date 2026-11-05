@@ -1058,3 +1058,64 @@ test('the light bridges counterbores that open towards the bed in steps (M7f)', 
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('the light prints support walls into the model under a ledge, as bodies of their own (M7f)', async () => {
+  test.setTimeout(180_000);
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-ribs-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7909',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { app, page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build the ledge');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText('The ledge is built.')).toBeVisible({ timeout: 60_000 });
+
+    const light = page.getByTestId('print-check');
+    await expect(light).toHaveAttribute('data-status', 'warn', { timeout: 20_000 });
+    await light.click();
+    const panel = page.getByTestId('print-check-panel');
+    const ribs = panel.locator('[data-testid="fix"][data-fix="ribs"]');
+    await expect(ribs.getByTestId('fix-try')).toHaveText('Print 2 support walls into the model');
+    await ribs.getByTestId('fix-try').click();
+    await expect(ribs).toHaveAttribute('data-step', 'ready', { timeout: 30_000 });
+    await page.screenshot({ path: test.info().outputPath('ribs-ghost.png') });
+    await ribs.getByTestId('fix-apply').click();
+    await expect(page.getByTestId('notice')).toHaveText('2 support walls are printed into the model now.', { timeout: 30_000 });
+
+    // The ledge stands on the walls now: the light is green and says so; the walls are bodies of their own.
+    await expect(light).toHaveAttribute('data-status', 'ready', { timeout: 20_000 });
+    const carried = panel.getByTestId('check-finding').and(page.locator('[data-severity="info"]'));
+    await expect(carried).toContainText('stand on support walls printed into the model');
+    await page.screenshot({ path: test.info().outputPath('ribs-done.png') });
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('mesh-summary')).toContainText('3 bodies');
+
+    // The export says to turn the slicer's supports off.
+    const target = join(work, 'ledge.3mf');
+    await app.evaluate(({ dialog }, filePath) => {
+      dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath });
+    }, target);
+    await page.getByTestId('export').click();
+    await page.getByTestId('export-3mf').click();
+    await expect(page.getByTestId('notice')).toHaveText("Saved as ledge.3mf. It has support printed in: turn the slicer's supports off.", { timeout: 30_000 });
+    // One object: the walls went into the part's, so the slicer cannot arrange them away from it.
+    const { objectNames3mf } = await import('@partbuddy/geometry');
+    expect(objectNames3mf(new Uint8Array(readFileSync(target)))).toEqual(['Konsole']);
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('ribs-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

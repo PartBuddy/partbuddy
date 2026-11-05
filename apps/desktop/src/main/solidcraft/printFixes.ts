@@ -13,6 +13,8 @@ import type { ControlRequester } from './mirror';
  *   fillet's size (`solid.chamfer`, the radius's expression as the distance);
  * - bridge: two sketches on the step of a counterbore facing the bed, a slot as wide as the hole cut
  *   one layer deep and a square cut two layers deep (stepped bridging);
+ * - ribs: support walls standing on the bed, a vertical sketch each extruded symmetrically, one
+ *   body each (`Print support <n>`);
  * - roof: a sketch across the hole at its start (`sketch.create` with an explicit plane), the roof
  *   outline (`sketch.line` closed) and a cut along the hole (`solid.extrude` with `operation: cut`).
  * Previews run like the actions' (ADR 0017): the commands, an export, and a failing read that
@@ -21,6 +23,8 @@ import type { ControlRequester } from './mirror';
 
 type Step = { command: string; params: Record<string, unknown> };
 
+/** The support walls joined into one body for the ghost only; the preview is undone. */
+const PREVIEW_BODY = 'Print support preview';
 const UNDO_ALL: Step = { command: 'sketch.inspect', params: { sketch: 2147483647 } };
 const mm = (value: number) => `${Number(value.toFixed(6))} mm`;
 
@@ -112,8 +116,24 @@ export class PrintFixService {
     return this.engine().request<BatchReply>('engine.batch', { commands, rollback, allow_paths: [this.cacheDir] }, 10 * 60 * 1000);
   }
 
-  /** The commands of a fix; a chamfer reads its fillets first. */
-  async steps(fix: PrintFix): Promise<Step[]> {
+  /**
+   * The commands of a fix; a chamfer reads its fillets first. Support walls become one body each
+   * when applied; for the ghost, which shows one body, they are joined into one.
+   */
+  async steps(fix: PrintFix, preview = false): Promise<Step[]> {
+    if (fix.fix === 'ribs') {
+      return fix.ribs.flatMap((rib, i) => [
+        { command: 'sketch.create', params: { plane: { origin: rib.origin, x_dir: rib.xDir, y_dir: rib.yDir }, name: 'Print support' } },
+        { command: 'sketch.line', params: { points: rib.points, closed: true } },
+        {
+          command: 'solid.extrude',
+          params:
+            preview && i > 0
+              ? { distance: mm(rib.thickness), direction: 'symmetric', operation: 'join', targets: [PREVIEW_BODY], name: 'Print support' }
+              : { distance: mm(rib.thickness), direction: 'symmetric', operation: 'new', body_name: preview ? PREVIEW_BODY : `Print support ${String(fix.first + i)}`, name: 'Print support' },
+        },
+      ]);
+    }
     if (fix.fix === 'bridge') {
       return fix.bridges.flatMap((bridge) => {
         const plane = { plane: { origin: bridge.origin, x_dir: bridge.xDir, y_dir: bridge.yDir }, name: 'Print bridge' };
@@ -155,8 +175,9 @@ export class PrintFixService {
   async preview(fix: PrintFix): Promise<ActionPreview> {
     const file = join(this.cacheDir, `fix-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.3mf`);
     try {
-      const steps = await this.steps(fix);
-      const reply = await this.batch([...steps, { command: 'file.export', params: { path: file, format: '3mf-tagged', bodies: [fix.body], quality: 'standard' } }, UNDO_ALL], true);
+      const steps = await this.steps(fix, true);
+      const shown = fix.fix === 'ribs' ? PREVIEW_BODY : fix.body;
+      const reply = await this.batch([...steps, { command: 'file.export', params: { path: file, format: '3mf-tagged', bodies: [shown], quality: 'standard' } }, UNDO_ALL], true);
       if (reply.failed?.index !== steps.length + 1) return { ok: false, error: (reply.failed?.error ?? 'SolidCraft did not build it').slice(0, 300) };
       return { ok: true, preview: new Uint8Array(await readFile(file)) };
     } catch (error) {

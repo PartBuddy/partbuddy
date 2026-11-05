@@ -135,3 +135,21 @@ now does the same:
   put some" calls it free of support.
 * `model.faces` reports such a face without area with `point: null`; the face table takes its
   centroid then instead of failing the whole mirror.
+
+## Amendment 2026-11-05 (M7f step 4): support printed into the model
+
+* An overhang without a shape to change ("other") gets support walls printed into the model on
+  request: walls 1 mm thick, 4 mm apart, along the longer side of the spots, one layer of air under
+  the part and 0.5 mm beside it, each a body of its own named `Print support <n>`. Only walls that
+  stand on the bed are made: the slicer lays every object onto the bed by itself.
+* The check leaves support bodies out of everything but the build volume, and reads spots with a
+  wall right under them (within 2.6 mm sideways, its top one layer below) as carried: an info
+  finding that says to turn the slicer's supports off. The orientation proposal ignores them.
+* Bambu Studio arranges the objects of a 3MF on its own and turned the walls away from the part.
+  The 3MF export therefore moves each support body's mesh into the object of the part it stands
+  under (most overlap from above); in the design they stay bodies of their own. An export that is
+  no readable package goes out unchanged. After the export the notice says to turn the slicer's
+  supports off.
+* For the ghost, which shows one body, the walls are joined into one on trial; SolidCraft warns that
+  a join of walls apart from each other leaves a body in pieces, which is why applying makes them
+  separate bodies.

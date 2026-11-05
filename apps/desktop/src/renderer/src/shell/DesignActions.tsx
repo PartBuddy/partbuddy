@@ -1,3 +1,4 @@
+import { isSupportBody } from '@partbuddy/geometry';
 import { IconArrowBackUp, IconArrowForwardUp, IconChevronDown, IconDownload, IconExternalLink } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -120,7 +121,11 @@ export function DesignActions() {
   const exportNow = (format: ExportFormat) => {
     void run(async () => {
       const result = await platform().design.export(format);
-      return result ? t('actions.exported', { file: result.file }) : null;
+      if (!result) return null;
+      // Support printed into the model (M7f) needs the slicer's supports off.
+      const model = useStudio.getState().model;
+      const support = model.status === 'ready' && model.bodies.some((body) => isSupportBody(body.name));
+      return t(support ? 'actions.exportedWithSupport' : 'actions.exported', { file: result.file });
     });
   };
 

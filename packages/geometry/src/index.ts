@@ -91,3 +91,6 @@ export {
   type SupportCause,
 } from './printFixes';
 export { BRIDGE_SPAN, SHORT_OVERHANG, supportNeed, type SupportNeed } from './supportReach';
+export { SUPPORT_BODY, isSupportBody } from './supportBody';
+export { ribsFor, supportRibs, type RibOptions, type SupportRib } from './supportRibs';
+export { mergeSupportObjects, objectNames3mf } from './supportExport';

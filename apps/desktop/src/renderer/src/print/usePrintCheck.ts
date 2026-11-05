@@ -24,7 +24,7 @@ export function usePrintCheck(): void {
     const timer = setTimeout(() => {
       const result = checkPrint(
         model.bodies,
-        { bed: print.printer.bed, nozzle: print.printer.nozzle, overhang: print.material.overhang },
+        { bed: print.printer.bed, nozzle: print.printer.nozzle, overhang: print.material.overhang, layer: print.printer.layer },
         model.structure.features,
         print.orientation.down,
       );
