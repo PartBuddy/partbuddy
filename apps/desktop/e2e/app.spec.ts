@@ -673,7 +673,7 @@ test('a file dragged over the window says where it goes, and one without a place
   const { page } = launched;
   const drag = (type: string, name: string) =>
     page.evaluate(
-      ([kind, file]) => {
+      ({ kind, file }) => {
         // Runs in the renderer; typed loosely because this file is compiled for Node.
         const view = globalThis as unknown as {
           DataTransfer: new () => { items: { add(file: unknown): void } };
@@ -685,7 +685,7 @@ test('a file dragged over the window says where it goes, and one without a place
         data.items.add(new view.File(['solid x'], file));
         view.dispatchEvent(new view.DragEvent(kind, { dataTransfer: data, bubbles: true, cancelable: true }));
       },
-      [type, name],
+      { kind: type, file: name },
     );
   await expect(page.getByTestId('connection-status')).toBeVisible();
   await drag('dragenter', 'Platine.step');
