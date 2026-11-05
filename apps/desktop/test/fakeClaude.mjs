@@ -7,6 +7,30 @@ import { createInterface } from 'node:readline';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 
 const args = process.argv.slice(2);
+
+const sunk = (name, z) => ({
+  command: 'solid.hole',
+  params: { position: [25, 0, z], direction: [0, 1, 0], diameter: '4.5 mm', type: 'countersink', cs_diameter: '9 mm', cs_angle: '90 deg', name },
+});
+const WALL_HOLDER = [
+  ...[
+    ['plate_height', '100 mm'],
+    ['plate_width', '50 mm'],
+    ['wall', '6 mm'],
+    ['hook_width', '40 mm'],
+    ['lip_height', '25 mm'],
+  ].map(([name, expression]) => ({ command: 'parameters.add', params: { name, expression } })),
+  { command: 'solid.box', params: { length: 'plate_width', width: 'wall', height: 'plate_height', name: 'Wandplatte', body_name: 'Wandhalter' } },
+  {
+    command: 'solid.box',
+    params: { length: 'plate_width', width: 'hook_width + wall', height: 'wall', center: ['plate_width/2', 'wall + (hook_width+wall)/2', 'wall/2'], name: 'Hakenboden', operation: 'join' },
+  },
+  { command: 'solid.box', params: { length: 'plate_width', width: 'wall', height: 'lip_height', corner: [0, 'wall + hook_width', 0], name: 'Hakenlippe', operation: 'join' } },
+  sunk('Senkbohrung oben', 80),
+  sunk('Senkbohrung', 40),
+  { command: 'solid.fillet', params: { edges: [[25, 6, 6]], radius: '2 mm', name: 'Innenradien' } },
+  { command: 'solid.fillet', params: { edges: [[0, 3, 100], [50, 3, 100]], radius: '5 mm', name: 'Aussenkanten' } },
+];
 const out = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
 
 if (args[0] === '--version') {
@@ -57,6 +81,15 @@ if (args[0] === '--version') {
       const loop = /loop on "F1:\+z" of body "Body1" around/.test(content);
       const reply = `${loop ? 'a loop on the top face' : 'no loop'}${content.includes('[image]') ? ' with a picture' : ''}`;
       out({ type: 'assistant', message: { content: [{ type: 'text', text: reply }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
+    // "wall holder" (UI upgrade step 10): the part of the UI inventory, boxes on formula corners
+    // and countersunk holes, built step by step.
+    if (content.includes('wall holder')) {
+      for (const step of WALL_HOLDER) await client.callTool({ name: 'execute', arguments: step });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The wall holder is built.' }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }

@@ -12,7 +12,7 @@ import { endpointForPort, findExecutable, findRunning, type ControlEndpoint, typ
 import type { DesignAction, MeasureItem, MeasureResult, TimelineCommand, VisibilityCommand } from '../../shared/contract';
 import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
-import { featureMarks, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
+import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
 import type { DesignParameter, DimensionMark } from '../../shared/contract';
 import { DesignStore, HeadlessEngine, isInside, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
@@ -320,7 +320,7 @@ export class SolidCraftSupervisor {
       { commands: wanted.map((entry) => ({ command: 'timeline.inspect', params: { feature: entry.id } })), rollback: false },
       60_000,
     );
-    const raw: RawFeature[] = wanted.map((entry, i) => {
+    const inspected: RawFeature[] = wanted.map((entry, i) => {
       const result = (timeline.results[i] ?? {}) as { inputs?: unknown; definition?: unknown };
       return {
         id: entry.id as number,
@@ -330,6 +330,21 @@ export class SolidCraftSupervisor {
         definition: typeof result.definition === 'object' && result.definition !== null ? (result.definition as Record<string, unknown>) : {},
       };
     });
+    // Points kept as expressions (a box corner at "wall + hook_width") are evaluated by SolidCraft.
+    const expressions = pointExpressions(inspected);
+    const values = new Map<string, number>();
+    if (expressions.length > 0) {
+      const evaluated = await requester.request<BatchResult>(
+        'engine.batch',
+        { commands: expressions.map((expression) => ({ command: 'expr.evaluate', params: { expression, kind: 'length' } })), rollback: false },
+        60_000,
+      );
+      expressions.forEach((expression, i) => {
+        const result = (evaluated.results[i] ?? {}) as { ok?: unknown; value?: unknown };
+        if (result.ok !== false && typeof result.value === 'number' && Number.isFinite(result.value)) values.set(expression, result.value);
+      });
+    }
+    const raw = inspected.map((feature) => resolvePoints(feature, values));
     // Sketch features name their sketch; features built on a sketch carry its id.
     const sketchIdOf = (feature: RawFeature): number | null => {
       if (feature.type === 'Sketch') {

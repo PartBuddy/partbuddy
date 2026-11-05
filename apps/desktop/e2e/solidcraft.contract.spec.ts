@@ -5,6 +5,19 @@ import { execFileSync } from 'node:child_process';
 
 import { launchApp } from './launch';
 
+/** A renderer element in evaluate callbacks, typed loosely because this file is compiled for Node. */
+interface LooseRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+interface LooseElement {
+  getAttribute(name: string): string | null;
+  firstElementChild: LooseElement | null;
+  getBoundingClientRect(): LooseRect;
+}
+
 /** Running processes with this image name (Windows). */
 function countProcesses(image: string): number {
   const out = execFileSync('tasklist', ['/FI', `IMAGENAME eq ${image}`, '/FO', 'CSV', '/NH'], { encoding: 'utf8' });
@@ -89,7 +102,7 @@ test('an assistant step changes the headless design, and it is back after a rest
     const second = await launchApp({ isolated: false, work, env });
     try {
       await expect(second.page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
-      await expect(second.page.getByTestId('design-name')).toHaveText('Untitled');
+      await expect(second.page.getByTestId('design-name')).toHaveText('New part');
     } finally {
       await second.close();
     }
@@ -720,6 +733,14 @@ test('the dimensions of the box show in the view, and its height changes through
     // Box1: length, width and height, each a label on the model.
     await expect(labels).toHaveCount(3, { timeout: 15_000 });
     await expect(labels).toHaveText(['20', '20', '10']);
+    // The framing fits the box tightly: a label beside it lies off the view and waits until the
+    // user zooms out, rather than covering the panel next to the view (UI upgrade step 10).
+    const viewport = await page.getByTestId('viewport').boundingBox();
+    if (viewport) await page.mouse.move(viewport.x + viewport.width / 2, viewport.y + viewport.height / 2);
+    await page.mouse.wheel(0, 800);
+    const shown = () => page.getByTestId('mark-slot').evaluateAll((all) => (all as unknown as LooseElement[]).map((slot) => slot.getAttribute('data-shown')));
+    // The width runs along the far side of the box, hidden by it in the iso view.
+    await expect.poll(shown, { timeout: 10_000 }).toEqual(['shown', 'behind', 'shown']);
     await page.screenshot({ path: test.info().outputPath('dimensions.png') });
 
     await labels.nth(2).click();
@@ -746,6 +767,69 @@ test('the dimensions of the box show in the view, and its height changes through
     await expect(labels).toHaveCount(0);
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('dimensions-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
+test('the dimensions of the wall holder neither cover each other nor show through the part (UI upgrade step 10)', async () => {
+  test.setTimeout(180_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-tidy-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7906',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build the wall holder');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText('The wall holder is built.')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
+
+    await page.getByTestId('dimensions').click();
+    await page.getByTestId('dimensions-all').click();
+    const slots = page.getByTestId('mark-slot');
+    // Every input of the three boxes, the two countersunk holes and the two fillets has a place on
+    // the model: boxes on formula corners too, the countersink angle at its rim.
+    await expect(slots).toHaveCount(17, { timeout: 20_000 });
+    await expect(page.getByTestId('loose-dimensions')).toHaveCount(0);
+    await expect.poll(() => slots.evaluateAll((all) => (all as unknown as LooseElement[]).every((slot) => slot.getAttribute('data-shown') !== null)), { timeout: 10_000 }).toBe(true);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: test.info().outputPath('dimensions-all.png') });
+
+    // Runs in the renderer; typed loosely because this file is compiled for Node.
+    const layout = await slots.evaluateAll((found) => {
+      const all = found as unknown as LooseElement[];
+      const page = globalThis as unknown as { document: { querySelector(selector: string): LooseElement | null } };
+      const viewer = page.document.querySelector('[data-testid="viewport"]')?.getBoundingClientRect();
+      const shown = all.filter((slot) => slot.getAttribute('data-shown') === 'shown').flatMap((slot) => (slot.firstElementChild ? [slot.firstElementChild.getBoundingClientRect()] : []));
+      const overlaps = shown.flatMap((a, i) => shown.slice(i + 1).filter((b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom).map(() => i));
+      const outside = viewer ? shown.filter((r) => r.left < viewer.left || r.top < viewer.top || r.right > viewer.right || r.bottom > viewer.bottom).length : -1;
+      return { shown: shown.length, behind: all.filter((slot) => slot.getAttribute('data-shown') === 'behind').length, overlaps: overlaps.length, outside };
+    });
+    expect(layout.overlaps).toBe(0);
+    expect(layout.outside).toBe(0);
+    expect(layout.shown).toBeGreaterThan(5);
+
+    // Seen from the right, the dimensions on the far side of the part are hidden by it.
+    await page.keyboard.press('3');
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: test.info().outputPath('dimensions-all-right.png') });
+    const behind = await slots.evaluateAll((all) => (all as unknown as LooseElement[]).filter((slot) => slot.getAttribute('data-shown') === 'behind').length);
+    test.info().annotations.push({ type: 'layout', description: JSON.stringify({ ...layout, behindFromRight: behind }) });
+    expect(behind).toBeGreaterThan(0);
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('tidy-failed.png') }).catch(() => undefined);
     throw error;
   } finally {
     await launched.close();

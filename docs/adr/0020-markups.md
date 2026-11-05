@@ -148,7 +148,8 @@ Sources, checked on 2026-11-04:
 * Feature inputs from `timeline.inspect`: label, parameter, expression and unit; extrude
   distances along the extrusion at a corner of the profile, fillet and chamfer sizes as a leader
   at the picked edge, hole diameters at the hole. Inputs without a place (pattern counts and
-  similar) appear in a small list next to the view.
+  similar) appear in a small list next to the view (since UI upgrade step 10: in the structure
+  panel under the parameters, so no list covers the part).
 
 Labels are HTML buttons over the canvas (keyboard and screen reader reachable), hidden behind
 the model only when the anchor point is occluded. A click opens the dimension field of ADR 0017
@@ -160,11 +161,28 @@ goes to the assistant.
 Built in M2b-3 (`main/solidcraft/dimensionMarks.ts`, `renderer/src/viewer/Dimensions.tsx`):
 switch `M`; the target feature is the one whose face or edge was picked last (it stays while
 nothing is selected, since a change clears the selection), else the newest active feature. Labels
-are not hidden behind the model yet; occlusion is a later refinement. The ghost preview shows the
+were not hidden behind the model at first (see step 10 below). The ghost preview shows the
 body named by the feature, or the only visible body. The 3D view's `role="img"` moved from the
 canvas wrapper to the `<canvas>` itself: drei's `Html` puts labels, note pins and the HUD into
 that wrapper, and inside an image role screen readers would not reach their buttons. Picking a
 feature in the timeline to show its dimensions is a follow-up.
+
+Tidied in UI upgrade step 10 (2026-11-05, after the UI inventory showed labels on top of each
+other, a line out of the picture and a list over the part):
+
+* Occlusion: per changed view, a ray from the camera to each label's anchor (three-mesh-bvh, the
+  section plane respected like picking); a label the part hides is left out together with its
+  lines. The open label always shows.
+* Collision: labels are laid out in screen space (`viewer/labelLayout.ts`), the open one first,
+  then nearest first; one that would cover another moves by its own height or width to the first
+  free place nearby, and without one it is left out instead of stacked. A label whose anchor lies
+  off the view is left out too, rather than covering the panels beside it.
+* Placement: SolidCraft keeps box corners, hole positions and cylinder bases as expressions when
+  the assistant writes them so (`[0, "wall + hook_width", 0]`); they are evaluated with
+  `expr.evaluate` before placing, and a box without a corner starts at the origin. A countersunk
+  or counterbored hole puts its diameter, sink diameter, sink angle and depths on different sides;
+  an angle is never drawn as a length (the 90° countersink angle used to become a 90 mm line).
+* A formula on a label is cut after 18 characters; the field shows all of it.
 
 ### Delivery
 
