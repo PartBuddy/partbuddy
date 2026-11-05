@@ -56,6 +56,13 @@ const api: PartBuddyApi = {
     dismiss: (id) => ipcRenderer.invoke(invokeChannels.notesDismiss, { id }),
     onChange: (listener) => subscribe(eventChannels.notesChanged, listener),
   },
+  print: {
+    settings: () => ipcRenderer.invoke(invokeChannels.printSettings),
+    saveSettings: (settings) => ipcRenderer.invoke(invokeChannels.printSaveSettings, settings),
+    part: () => ipcRenderer.invoke(invokeChannels.printPart),
+    setMaterial: (material) => ipcRenderer.invoke(invokeChannels.printSetMaterial, { material }),
+    onChange: (listener) => subscribe(eventChannels.printChanged, listener),
+  },
   viewer: {
     report: (state) => ipcRenderer.invoke(invokeChannels.viewerState, state),
   },

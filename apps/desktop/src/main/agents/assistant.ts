@@ -29,6 +29,8 @@ export interface AgentBackend {
    */
   send(text: string, selections?: Selection[], note?: string | null, drawing?: SentDrawing | null): Promise<void>;
   stop(): Promise<void>;
+  /** True when the next message starts a new conversation that knows nothing of earlier ones. */
+  freshConversation(): boolean;
   signIn(): void;
   signOut(): Promise<void>;
   dispose(): Promise<void>;
@@ -73,6 +75,11 @@ export class Assistant {
 
   stop(): Promise<void> {
     return this.current().stop();
+  }
+
+  /** Which route the next message goes to, and whether it starts a new conversation there. */
+  conversation(): { route: AgentKind; fresh: boolean } {
+    return { route: this.selected, fresh: this.current().freshConversation() };
   }
 
   signIn(): void {

@@ -554,6 +554,70 @@ export const storedChatSchema = z
   .strict();
 export const chatSaveSchema = z.object({ items: z.array(storedChatItemSchema).max(400) }).strict();
 
+/**
+ * Printer and material profiles (M7, decided 2026-11-05): printers are kept for the whole
+ * installation and one of them is in use; the material is chosen per part, with a default for
+ * new parts. Entered by hand, no slicer import. Lengths in mm, angles in degrees.
+ */
+const profileId = z.string().regex(/^[a-z0-9-]{1,40}$/);
+const profileName = z.string().trim().min(1).max(60);
+const range = (min: number, max: number) => finite.min(min).max(max);
+
+export const printerProfileSchema = z
+  .object({
+    id: profileId,
+    name: profileName,
+    /** Build volume X, Y, Z. */
+    bed: z.tuple([range(20, 2000), range(20, 2000), range(20, 2000)]),
+    nozzle: range(0.1, 2),
+    layer: range(0.04, 1.2),
+  })
+  .strict();
+
+/** Fits from tightest to loosest: held by clamping, pushed together and apart, sliding, turning. */
+export const fitKindSchema = z.enum(['clamp', 'push', 'slide', 'turn']);
+export const FIT_KINDS = fitKindSchema.options;
+
+export const materialProfileSchema = z
+  .object({
+    id: profileId,
+    name: profileName,
+    /** How far a downward face may lean from the vertical and still print without support. */
+    overhang: range(20, 70),
+    /** How much smaller than drawn a hole comes out, on the diameter. */
+    holeShrink: range(0, 1),
+    /** Clearance per side between two mating parts, per fit. */
+    clearance: z.object({ clamp: range(-0.5, 2), push: range(-0.5, 2), slide: range(-0.5, 2), turn: range(-0.5, 2) }).strict(),
+  })
+  .strict();
+
+const uniqueIds = (items: readonly { id: string }[]) => new Set(items.map((item) => item.id)).size === items.length;
+
+export const printSettingsSchema = z
+  .object({
+    version: z.literal(1),
+    printers: z.array(printerProfileSchema).min(1).max(20).refine(uniqueIds, 'printer ids must be unique'),
+    /** The printer in use. */
+    printer: profileId,
+    materials: z.array(materialProfileSchema).min(1).max(50).refine(uniqueIds, 'material ids must be unique'),
+    /** The material of a part that has none of its own. */
+    material: profileId,
+  })
+  .strict()
+  .refine((settings) => settings.printers.some((printer) => printer.id === settings.printer), 'the printer in use must exist')
+  .refine((settings) => settings.materials.some((material) => material.id === settings.material), 'the default material must exist');
+
+/** What the open part is printed with: the printer in use and the part's material. */
+export const partPrintSchema = z
+  .object({
+    printer: printerProfileSchema,
+    material: materialProfileSchema,
+    /** False while the part uses the default material. */
+    chosen: z.boolean(),
+  })
+  .strict();
+export const partMaterialRequestSchema = z.object({ material: profileId }).strict();
+
 export const invokeContract = {
   [invokeChannels.appInfo]: { request: none, response: appInfoSchema },
   [invokeChannels.solidcraftStatus]: { request: none, response: connectionStatusSchema },
@@ -597,6 +661,10 @@ export const invokeContract = {
   [invokeChannels.notesReattach]: { request: noteReattachSchema, response: none },
   [invokeChannels.notesRestore]: { request: noteIdRequestSchema, response: none },
   [invokeChannels.notesDismiss]: { request: noteIdRequestSchema, response: none },
+  [invokeChannels.printSettings]: { request: none, response: printSettingsSchema },
+  [invokeChannels.printSaveSettings]: { request: printSettingsSchema, response: printSettingsSchema },
+  [invokeChannels.printPart]: { request: none, response: partPrintSchema },
+  [invokeChannels.printSetMaterial]: { request: partMaterialRequestSchema, response: partPrintSchema },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -605,6 +673,7 @@ export const eventContract = {
   [eventChannels.agentStatus]: assistantStateSchema,
   [eventChannels.agentEvent]: agentEventSchema,
   [eventChannels.notesChanged]: notesStateSchema,
+  [eventChannels.printChanged]: partPrintSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type FaceTableMessage = z.infer<typeof faceTableSchema>;
@@ -630,6 +699,11 @@ export type WorkStepState = z.infer<typeof workStepStateSchema>;
 export type ViewState = z.infer<typeof viewStateSchema>;
 export type TitleBarColors = z.infer<typeof titleBarColorsSchema>;
 export type Theme = z.infer<typeof themeSchema>;
+export type PrinterProfile = z.infer<typeof printerProfileSchema>;
+export type MaterialProfile = z.infer<typeof materialProfileSchema>;
+export type FitKind = z.infer<typeof fitKindSchema>;
+export type PrintSettings = z.infer<typeof printSettingsSchema>;
+export type PartPrint = z.infer<typeof partPrintSchema>;
 export type DesignParameter = z.infer<typeof designParameterSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type ExportResult = z.infer<typeof exportResultSchema>;

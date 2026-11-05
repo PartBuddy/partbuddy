@@ -3,7 +3,7 @@ import { create } from 'zustand';
 
 import type { DrawingStroke } from '../../../shared/drawing';
 
-import type { ConnectionStatus, DimensionMark, MirroredSketch, NotesState, Structure } from '../../../shared/contract';
+import type { ConnectionStatus, DimensionMark, MirroredSketch, NotesState, PartPrint, Structure } from '../../../shared/contract';
 
 export interface BodyModel {
   name: string;
@@ -106,6 +106,12 @@ interface StudioState {
   /** Faces coloured by how far they overhang when printed along +Z (UI upgrade step 12). */
   overhang: boolean;
   setOverhang: (overhang: boolean) => void;
+  /** The printer in use and the open part's material (M7); null until the main process answered. */
+  print: PartPrint | null;
+  setPrint: (print: PartPrint | null) => void;
+  /** The dialog with the printer and material profiles. */
+  profilesOpen: boolean;
+  setProfilesOpen: (open: boolean) => void;
   /** The ghost of a value or action typed into the selection dock (UI upgrade step 11). */
   selectionGhost: Uint8Array | null;
   setSelectionGhost: (ghost: Uint8Array | null) => void;
@@ -217,6 +223,14 @@ export const useStudio = create<StudioState>()((set) => ({
   overhang: false,
   setOverhang: (overhang) => {
     set({ overhang });
+  },
+  print: null,
+  setPrint: (print) => {
+    set({ print });
+  },
+  profilesOpen: false,
+  setProfilesOpen: (profilesOpen) => {
+    set({ profilesOpen });
   },
   selectionGhost: null,
   setSelectionGhost: (selectionGhost) => {

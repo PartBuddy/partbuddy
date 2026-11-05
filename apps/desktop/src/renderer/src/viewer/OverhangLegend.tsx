@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useStudio, type BodyModel } from '../state/store';
-import { Overhang, OVERHANG_LIMITS } from './overhang';
+import { Overhang, OVERHANG_LIMITS, overhangLimits } from './overhang';
 import { overhangArea } from './useOverhang';
 
 /**
@@ -12,11 +12,13 @@ import { overhangArea } from './useOverhang';
 export function OverhangLegend({ bodies }: { bodies: BodyModel[] }) {
   const { t } = useTranslation();
   const on = useStudio((s) => s.overhang);
-  const area = useMemo(() => (on ? overhangArea(bodies) : null), [on, bodies]);
+  const material = useStudio((s) => s.print?.material ?? null);
+  const limits = useMemo(() => (material ? overhangLimits(material.overhang) : OVERHANG_LIMITS), [material]);
+  const area = useMemo(() => (on ? overhangArea(bodies, limits) : null), [on, bodies, limits]);
   if (!area) return null;
   const rows = [
-    { key: 'support', swatch: 'bg-overhang-risk', label: t('overhang.support', { degrees: OVERHANG_LIMITS.support }), area: area[Overhang.Support] },
-    { key: 'borderline', swatch: 'bg-overhang', label: t('overhang.borderline', { from: OVERHANG_LIMITS.borderline, to: OVERHANG_LIMITS.support }), area: area[Overhang.Borderline] },
+    { key: 'support', swatch: 'bg-overhang-risk', label: t('overhang.support', { degrees: limits.support }), area: area[Overhang.Support] },
+    { key: 'borderline', swatch: 'bg-overhang', label: t('overhang.borderline', { from: limits.borderline, to: limits.support }), area: area[Overhang.Borderline] },
     { key: 'bed', swatch: 'bg-bed', label: t('overhang.bed'), area: area[Overhang.Bed] },
   ];
   return (
@@ -28,6 +30,11 @@ export function OverhangLegend({ bodies }: { bodies: BodyModel[] }) {
     >
       <h2 className="font-semibold">{t('overhang.title')}</h2>
       <p className="text-text-subtle">{t('overhang.direction')}</p>
+      {material ? (
+        <p className="text-text-subtle" data-testid="overhang-material">
+          {t('overhang.material', { material: material.name })}
+        </p>
+      ) : null}
       <dl className="flex flex-col gap-1">
         {rows.map((row) => (
           <div key={row.key} className="flex items-center gap-2" data-testid={`overhang-${row.key}`} data-area={Math.round(row.area)}>

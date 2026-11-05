@@ -474,7 +474,8 @@
     "direction": "Printed along +Z, standing on its lowest face",
     "support": "Needs support (over {degrees}°)",
     "borderline": "Borderline ({from}–{to}°)",
-    "bed": "On the print bed"
+    "bed": "On the print bed",
+    "material": "Limits from the material {material}"
   },
   "compare": {
     "title": "Before and after",
@@ -485,5 +486,47 @@
     "now": "Now",
     "tried": "Preview",
     "close": "Stop comparing"
+  },
+  "print": {
+    "title": "Printer and material",
+    "edit": "Printer and material …",
+    "chipHint": "Change the material of this part and the printer",
+    "menuLabel": "Material of this part",
+    "partMaterial": "Material of this part",
+    "overhangShort": "up to {degrees}°",
+    "materialFailed": "The material could not be set.",
+    "loading": "Loading profiles …",
+    "tab": {
+      "printer": "Printer",
+      "material": "Material"
+    },
+    "printers": "Printers",
+    "materials": "Materials",
+    "inUse": "in use",
+    "thisPart": "this part",
+    "default": "default",
+    "copy": "Copy",
+    "copySuffix": "(copy)",
+    "delete": "Delete",
+    "name": "Name",
+    "bed": "Build volume",
+    "nozzle": "Nozzle",
+    "layer": "Layer height",
+    "printerHint": "The highlighted printer is in use. Walls under two line widths print poorly; the assistant is told.",
+    "overhang": "Overhang without support up to",
+    "holeShrink": "Holes smaller by (Ø)",
+    "clearance": "Clearance per side",
+    "fit": {
+      "clamp": "Clamp",
+      "push": "Push",
+      "slide": "Slide",
+      "turn": "Turn"
+    },
+    "defaultMaterial": "Default for new parts",
+    "materialHint": "Starting values for a common printer. Adjust them to your test prints; the assistant builds with these clearances.",
+    "nameMissing": "Every profile needs a name.",
+    "saveFailed": "The profiles could not be saved.",
+    "cancel": "Cancel",
+    "save": "Save"
   }
 }
