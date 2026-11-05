@@ -790,12 +790,38 @@
     "head": "Schraubenkopf",
     "fit": "Spiel",
     "apply": "Bauen",
+    "text": "Text",
+    "textHeight": "Schrifthöhe",
+    "textMode": "Art",
+    "textModes": {
+      "deboss": "Vertieft",
+      "emboss": "Erhaben"
+    },
+    "bold": "Fett",
+    "flats": "Schlüsselweite",
+    "length": "Länge",
+    "width": "Breite",
+    "along": "Richtung",
+    "alongs": {
+      "x": "Waagrecht",
+      "y": "Senkrecht"
+    },
+    "lipType": "Art",
+    "lipTypes": {
+      "lip": "Lippe (Unterteil)",
+      "groove": "Nut (Deckel)"
+    },
+    "gap": "Spalt",
     "ready": "In der Ansicht gezeigt – Bauen übernimmt es",
     "kinds": {
       "tappedHole": "Gewindebohrung",
       "screwHole": "Schraubenloch",
       "insertSeat": "Sitz für Einschmelzmutter",
-      "boss": "Schraubdom"
+      "boss": "Schraubdom",
+      "nutTrap": "Mutternfalle",
+      "slot": "Langloch",
+      "text": "Text",
+      "lip": "Lippe oder Nut für Deckel"
     },
     "heads": {
       "cap": "Zylinderkopf (Senkung)",
@@ -811,7 +837,11 @@
       "tappedHole": "Eine Bohrung mit SolidCraft-Gewinde dieser Größe, mit Kernlochdurchmesser gebohrt.",
       "screwHole": "Durchgangsloch nach ISO 273 mit Platz für den Kopf nach ISO 4762 oder ISO 10642, plus 0,6 mm für den Druck.",
       "insertSeat": "Typische Werte für ruthex-Einsätze, einen Millimeter tiefer als der Einsatz. Prüf das Datenblatt deines Einsatzes.",
-      "boss": "Ein Dom mit Sitz für eine Einschmelzmutter dieser Größe und mindestens 2 mm Wand."
+      "boss": "Ein Dom mit Sitz für eine Einschmelzmutter dieser Größe und mindestens 2 mm Wand.",
+      "nutTrap": "Sechskanttasche nach ISO 4032 mit 0,3 mm Luft und 0,4 mm Tiefenzugabe, darunter ein Durchgangsloch nach ISO 273.",
+      "slot": "Ein Langloch mit der Breite des mittleren Durchgangslochs, mittig am Punkt, zum Verstellen der Schraube.",
+      "text": "Text mittig am Punkt, waagrecht lesbar. Vertieft ab 0,6 mm und erhaben ab 0,4 mm Tiefe druckt sauber; Schrift ab etwa 5 mm Höhe.",
+      "lip": "Für ein ausgehöhltes Gehäuse: Fläche am Rand wählen. Die Lippe kommt aufs Unterteil, die Nut mit Spalt in den Deckel."
     }
   }
 }

@@ -20,8 +20,7 @@ import { guardNotes } from './agents/noteGuard';
 import { withViewTool } from './agents/viewContext';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
-import { describeCommands, describeUserAction } from '../shared/stepPhrases';
-import { stepOf } from '../shared/blocks';
+import { blockPhrase, describeUserAction } from '../shared/stepPhrases';
 import { ChatGptAccount } from './chatgpt/account';
 import { ChatGptAgent } from './chatgpt/chatgptAgent';
 import { hostId } from './chatgpt/oauth';
@@ -780,7 +779,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.designApplyBlock, async (block) => {
       assistantIdle();
-      await steps.recordUser(describeCommands([stepOf(block)])[0] ?? { key: 'command', values: { command: block.block } }, () => supervisor.applyBlock(block));
+      await steps.recordUser(blockPhrase(block), () => supervisor.applyBlock(block));
       log(`built the function block ${block.block}`);
       return undefined;
     });

@@ -51,11 +51,12 @@ export function SelectionInfo({ bodies, selection }: { bodies: BodyModel[]; sele
       data-testid="selection-bar"
       data-kind={selection.kind}
     >
-      <div className="flex flex-col">
-        <span className="text-xs text-text-subtle">
+      {/* Names from history can run to hundreds of characters after cuts: cut short, whole on hover. */}
+      <div className="flex min-w-0 max-w-full flex-col">
+        <span className="truncate text-xs text-text-subtle">
           {kind} · {t('viewer.body')} {body.name}
         </span>
-        <span className="tabular-nums text-sm text-text" data-testid="selected-face">
+        <span className="truncate tabular-nums text-sm text-text" title={name} data-testid="selected-face">
           {name}
         </span>
       </div>

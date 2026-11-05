@@ -283,9 +283,11 @@ export function AssistantPanel() {
           </div>
         ) : null}
         {selection && selections.length === 1 ? (
-          <span className="flex min-w-0 items-center gap-1 truncate text-xs text-text-muted" data-testid="composer-selection">
+          <span className="flex min-w-0 items-center gap-1 text-xs text-text-muted" data-testid="composer-selection">
             <IconPointer className="size-icon-sm shrink-0" aria-hidden />
-            {t('assistant.selectionGoesWith', { kind: selection.kind, name: `${selectionName(selection)} · ${selection.body}` })}
+            <span className="truncate" title={`${selectionName(selection)} · ${selection.body}`}>
+              {t('assistant.selectionGoesWith', { kind: selection.kind, name: `${selectionName(selection)} · ${selection.body}` })}
+            </span>
           </span>
         ) : null}
         <div className="flex items-center justify-end gap-2">

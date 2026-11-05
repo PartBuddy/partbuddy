@@ -56,18 +56,18 @@ export class ActionService {
 
   /** Builds the action on trial and exports the body for the ghost; SolidCraft's refusal comes back as text. */
   preview(action: DesignAction): Promise<ActionPreview> {
-    return this.previewStep(commandOf(action), action.body);
+    return this.previewSteps([commandOf(action)], action.body);
   }
 
-  /** Builds one command on trial and exports the body for the ghost (actions, function blocks F1). */
-  async previewStep(step: Step, body: string): Promise<ActionPreview> {
+  /** Builds commands on trial and exports the body for the ghost (actions, function blocks F1). */
+  async previewSteps(steps: Step[], body: string): Promise<ActionPreview> {
     const file = join(this.cacheDir, `action-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.3mf`);
     try {
       const reply = await this.batch(
-        [step, { command: 'file.export', params: { path: file, format: '3mf-tagged', bodies: [body], quality: 'standard' } }, UNDO_ALL],
+        [...steps, { command: 'file.export', params: { path: file, format: '3mf-tagged', bodies: [body], quality: 'standard' } }, UNDO_ALL],
         true,
       );
-      if (reply.failed?.index !== 2) return { ok: false, error: (reply.failed?.error ?? 'SolidCraft did not build it').slice(0, 300) };
+      if (reply.failed?.index !== steps.length + 1) return { ok: false, error: (reply.failed?.error ?? 'SolidCraft did not build it').slice(0, 300) };
       return { ok: true, preview: new Uint8Array(await readFile(file)) };
     } finally {
       await rm(file, { force: true });
@@ -75,11 +75,11 @@ export class ActionService {
   }
 
   apply(action: DesignAction): Promise<void> {
-    return this.applyStep(commandOf(action));
+    return this.applySteps([commandOf(action)]);
   }
 
-  async applyStep(step: Step): Promise<void> {
-    const reply = await this.batch([step], true);
+  async applySteps(steps: Step[]): Promise<void> {
+    const reply = await this.batch(steps, true);
     if (reply.failed) throw new Error(`SolidCraft refused it: ${reply.failed.error}`);
   }
 

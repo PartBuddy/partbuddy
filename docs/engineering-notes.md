@@ -197,6 +197,24 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   `cs_diameter` and `cs_angle` (`"90 deg"`) or `cb_diameter` and `cb_depth` given explicitly.
 - `plastic.boss {position, diameter, height, hole_diameter, hole_depth}` builds out of the face.
 - A modelled thread costs about 2 s per rebuild of a small part.
+- `sketch.create {plane: {face: point}}` projects the face's edges into the sketch (they can become
+  profiles); `project_edges: false` avoids that. An explicit plane `{origin, x_dir, y_dir}` puts the
+  sketch origin at the picked point; following commands use the new sketch without its id.
+- `solid.extrude` with a negative `distance` and `operation: cut` cuts into the face's material;
+  `through_all` cut outward and changed nothing (checked with a slot on a top face).
+- `solid.emboss {depth, mode: emboss|deboss, face}` works on `sketch.text` profiles.
+- `sketch.text` uses the built-in Liberation Sans, which has no bold face: `bold: true` alone is
+  refused; with `font: 'Arial'` (any installed family) it works. `at` is the baseline start, with
+  `align: center` its middle. `solid.emboss` takes the new sketch without its id (0.40.0-rc.2).
+- `sketch.polygon.circumscribed {center, radius, sides}`: the radius goes to the edge midpoints, so
+  it is half the width across flats. `plastic.lip {face, type, width, height, gap?, side?}` needs a
+  point on the rim face of a shelled body.
+- `plane_normal` in `model.faces` points out of the material, also on the inner walls and the floor
+  of a shell; a sketch plane with that normal and a negative extrusion therefore always cuts in.
+- Face names from history can run to hundreds of characters after cuts and embossing
+  (`F1:-y#[F1:+x,…,F4:face:55]`); every place that shows one must cut it short.
+- `solidcraft-cli commands` prints every command with its parameters as JSON, the quickest way to
+  check a parameter before a contract test.
 
 ## Repository and machine
 

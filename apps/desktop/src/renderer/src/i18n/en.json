@@ -790,12 +790,38 @@
     "head": "Screw head",
     "fit": "Clearance",
     "apply": "Build",
+    "text": "Text",
+    "textHeight": "Letter height",
+    "textMode": "Kind",
+    "textModes": {
+      "deboss": "Engraved",
+      "emboss": "Embossed"
+    },
+    "bold": "Bold",
+    "flats": "Across flats",
+    "length": "Length",
+    "width": "Width",
+    "along": "Direction",
+    "alongs": {
+      "x": "Level",
+      "y": "Upright"
+    },
+    "lipType": "Kind",
+    "lipTypes": {
+      "lip": "Lip (base)",
+      "groove": "Groove (lid)"
+    },
+    "gap": "Gap",
     "ready": "Shown in the view – Build makes it",
     "kinds": {
       "tappedHole": "Tapped hole",
       "screwHole": "Screw hole",
       "insertSeat": "Heat-set insert seat",
-      "boss": "Screw boss"
+      "boss": "Screw boss",
+      "nutTrap": "Nut trap",
+      "slot": "Slot",
+      "text": "Text",
+      "lip": "Lip or groove for a lid"
     },
     "heads": {
       "cap": "Cap screw (counterbore)",
@@ -811,7 +837,11 @@
       "tappedHole": "A hole with SolidCraft's thread of this size, drilled with the tap drill.",
       "screwHole": "Clearance after ISO 273 with room for the head after ISO 4762 or ISO 10642, plus 0.6 mm for printing.",
       "insertSeat": "Typical values for ruthex inserts, one millimetre deeper than the insert. Check your insert's data sheet.",
-      "boss": "A boss with a seat for a heat-set insert of this size and at least 2 mm of wall."
+      "boss": "A boss with a seat for a heat-set insert of this size and at least 2 mm of wall.",
+      "nutTrap": "A hexagonal pocket after ISO 4032 with 0.3 mm of room and 0.4 mm of extra depth, with a clearance hole after ISO 273 below.",
+      "slot": "A slot as wide as the normal clearance hole, centred on the point, to adjust the screw.",
+      "text": "Text centred on the point, reading level. Engraved from 0.6 mm and embossed from 0.4 mm depth prints cleanly; letters from about 5 mm high.",
+      "lip": "For a shelled case: pick the face on the rim. The lip goes on the base, the groove with its gap into the lid."
     }
   }
 }

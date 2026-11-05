@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, CheckboxButton, CheckboxField, Input, Label, ListBox, ListBoxItem, Popover, Select, SelectValue, TextField, ToggleButton } from 'react-aria-components';
 
-import { BLOCK_KINDS, defaultBlock, sizesOf, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import { BLOCK_KINDS, defaultBlock, needsNormal, sizesOf, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
@@ -55,6 +55,25 @@ function Length({ label, value, onChange, testId }: { label: string; value: numb
   );
 }
 
+function Words({ label, value, onChange, testId }: { label: string; value: string; onChange: (value: string) => void; testId: string }) {
+  const [text, setText] = useState(value);
+  return (
+    <TextField
+      value={text}
+      onChange={(next) => {
+        setText(next);
+        if (next.trim()) onChange(next.trim().slice(0, 80));
+      }}
+      maxLength={80}
+      className="col-span-2 flex min-w-0 flex-col gap-1"
+      data-testid={testId}
+    >
+      <Label className="text-xs text-text-subtle">{label}</Label>
+      <Input className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none focus-visible:outline-2 focus-visible:outline-focus" />
+    </TextField>
+  );
+}
+
 function Check({ label, selected, onChange, testId }: { label: string; selected: boolean; onChange: (selected: boolean) => void; testId: string }) {
   return (
     <CheckboxField isSelected={selected} onChange={onChange} data-testid={testId}>
@@ -71,20 +90,27 @@ function Check({ label, selected, onChange, testId }: { label: string; selected:
   );
 }
 
+type Vec = [number, number, number];
+
 /** One picked flat face of a body that is no standard part, or null. */
-function flatFace(bodies: BodyModel[], picks: Pick[]): { body: string; point: [number, number, number] } | null {
+function flatFace(bodies: BodyModel[], picks: Pick[]): { body: string; point: Vec; normal: Vec } | null {
   const [pick] = picks;
   if (picks.length !== 1 || pick?.kind !== 'face') return null;
   const body = bodies[pick.body];
-  if (!body?.model.table.faces[pick.face]?.planeNormal) return null;
+  const normal = body?.model.table.faces[pick.face]?.planeNormal;
+  if (!body || !normal) return null;
   const model = useStudio.getState().model;
   if (model.status === 'ready' && model.structure.standardParts?.includes(body.name)) return null;
-  return { body: body.name, point: pick.point };
+  return { body: body.name, point: pick.point, normal };
 }
+
+/** Text and lips have no screw size to choose. */
+const hasSize = (kind: BlockKind) => kind !== 'text' && kind !== 'lip';
 
 /**
  * Function blocks at a picked flat face (plan step F1): a tapped hole, a screw hole with room for
- * the head, a seat for a heat-set insert, a screw boss. Sizes come from standard tables and stay
+ * the head, a seat for a heat-set insert, a nut trap, a screw boss, a slot, text, and a lip or
+ * groove for a lid. Sizes come from standard tables and stay
  * editable; the ghost shows the result before it is built.
  */
 export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel[]; picks: Pick[]; busy: boolean; onGhost: (ghost: Uint8Array | null) => void }) {
@@ -95,11 +121,12 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   const [spec, setBlock] = useState<FeatureBlock>(() => defaultBlock('tappedHole', '', [0, 0, 0], 'M3'));
   const [status, setStatus] = useState<{ ok: boolean; error?: string } | null>(null);
   const latest = useRef(0);
-  const at = face ? `${face.body}\u0000${face.point.join(',')}` : null;
+  const at = face ? `${face.body}\u0000${face.point.join(',')}\u0000${face.normal.join(',')}` : null;
   const block = useMemo<FeatureBlock | null>(() => {
     if (!at) return null;
-    const [body = '', point = ''] = at.split('\u0000');
-    return { ...spec, body, point: point.split(',').map(Number) as [number, number, number] };
+    const [body = '', point = '', normal = ''] = at.split('\u0000');
+    const vec = (text: string) => text.split(',').map(Number) as Vec;
+    return { ...spec, body, point: vec(point), ...(needsNormal(spec.block) ? { normal: vec(normal) } : {}) };
   }, [spec, at]);
 
   useEffect(() => {
@@ -125,11 +152,11 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   if (!face || !block) return null;
   const kind = (next: BlockKind) => {
     const sizes = sizesOf(next);
-    setBlock(defaultBlock(next, face.body, face.point, sizes.includes(block.size) ? block.size : (sizes[2] ?? 'M3')));
+    setBlock(defaultBlock(next, face.body, face.point, sizes.includes(block.size) ? block.size : (sizes[2] ?? 'M3'), face.normal));
     setStatus(null);
   };
   const size = (next: BlockSize) => {
-    setBlock(block.block === 'screwHole' ? { ...block, size: next } : defaultBlock(block.block, face.body, face.point, next));
+    setBlock(block.block === 'screwHole' ? { ...block, size: next } : block.block === 'slot' ? { ...defaultBlock('slot', face.body, face.point, next, face.normal), length: block.length, depth: block.depth, along: block.along } as FeatureBlock : defaultBlock(block.block, face.body, face.point, next, face.normal));
     setStatus(null);
   };
   const apply = () => {
@@ -163,7 +190,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
         <div className="flex flex-col gap-2 rounded-md border border-border bg-surface p-2" data-testid="block-form">
           <div className="grid grid-cols-2 gap-2">
             <Choice label={t('blocks.kind')} value={block.block} items={BLOCK_KINDS.map((id) => ({ id, label: t(`blocks.kinds.${id}`) }))} onChange={(id) => kind(id as BlockKind)} testId="block-kind" />
-            <Choice label={t('blocks.size')} value={block.size} items={sizes.map((id) => ({ id, label: id }))} onChange={(id) => size(id as BlockSize)} testId="block-size" />
+            {hasSize(block.block) ? <Choice label={t('blocks.size')} value={block.size} items={sizes.map((id) => ({ id, label: id }))} onChange={(id) => size(id as BlockSize)} testId="block-size" /> : null}
           </div>
           {block.block === 'tappedHole' ? (
             <div className="flex flex-col gap-2" key={`${block.block}-${block.size}`}>
@@ -191,10 +218,42 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               <Length label={t('blocks.diameter')} value={block.diameter} onChange={(diameter) => setBlock({ ...block, diameter })} testId="block-diameter" />
               <Length label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
             </div>
-          ) : (
+          ) : block.block === 'boss' ? (
             <div className="grid grid-cols-2 gap-2" key={`${block.block}-${block.size}`}>
               <Length label={t('blocks.diameter')} value={block.diameter} onChange={(diameter) => setBlock({ ...block, diameter })} testId="block-diameter" />
               <Length label={t('blocks.height')} value={block.height} onChange={(height) => setBlock({ ...block, height })} testId="block-height" />
+            </div>
+          ) : block.block === 'nutTrap' ? (
+            <div className="grid grid-cols-2 gap-2" key={`${block.block}-${block.size}`}>
+              <Length label={t('blocks.flats')} value={block.flats} onChange={(flats) => setBlock({ ...block, flats })} testId="block-flats" />
+              <Length label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
+            </div>
+          ) : block.block === 'slot' ? (
+            <div className="grid grid-cols-2 gap-2" key={`${block.block}-${block.size}`}>
+              <Length label={t('blocks.length')} value={block.length} onChange={(length) => setBlock({ ...block, length })} testId="block-length" />
+              <Length label={t('blocks.width')} value={block.width} onChange={(width) => setBlock({ ...block, width })} testId="block-width" />
+              <Choice label={t('blocks.along')} value={block.along} items={(['x', 'y'] as const).map((id) => ({ id, label: t(`blocks.alongs.${id}`) }))} onChange={(id) => setBlock({ ...block, along: id as 'x' | 'y' })} testId="block-along" />
+              <div className="col-span-2">
+                <Check label={t('blocks.through')} selected={block.depth === null} onChange={(through) => setBlock({ ...block, depth: through ? null : 5 })} testId="block-through" />
+              </div>
+              {block.depth !== null ? <Length label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" /> : null}
+            </div>
+          ) : block.block === 'text' ? (
+            <div className="grid grid-cols-2 gap-2" key={block.block}>
+              <Words label={t('blocks.text')} value={block.text} onChange={(text) => setBlock({ ...block, text })} testId="block-text" />
+              <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id as 'emboss' | 'deboss', depth: id === 'emboss' ? 0.4 : 0.6 })} testId="block-mode" />
+              <Length key={block.mode} label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
+              <Length label={t('blocks.textHeight')} value={block.height} onChange={(height) => setBlock({ ...block, height })} testId="block-height" />
+              <div className="flex items-end pb-1">
+                <Check label={t('blocks.bold')} selected={block.bold} onChange={(bold) => setBlock({ ...block, bold })} testId="block-bold" />
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2" key={block.block}>
+              <Choice label={t('blocks.lipType')} value={block.type} items={(['lip', 'groove'] as const).map((id) => ({ id, label: t(`blocks.lipTypes.${id}`) }))} onChange={(id) => setBlock({ ...block, type: id as 'lip' | 'groove' })} testId="block-lip-type" />
+              <Length label={t('blocks.width')} value={block.width} onChange={(width) => setBlock({ ...block, width })} testId="block-width" />
+              <Length label={t('blocks.height')} value={block.height} onChange={(height) => setBlock({ ...block, height })} testId="block-height" />
+              {block.type === 'groove' ? <Length label={t('blocks.gap')} value={block.gap} onChange={(gap) => setBlock({ ...block, gap })} testId="block-gap" /> : null}
             </div>
           )}
           <p className="text-xs text-text-subtle">{t(`blocks.hint.${block.block}`)}</p>
