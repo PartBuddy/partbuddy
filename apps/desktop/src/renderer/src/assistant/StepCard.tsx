@@ -47,7 +47,7 @@ export function StepCard({ item, tools, disabled }: { item: StepItem; tools: Too
   const { step, state, current } = item;
   const { lines, more } = useStepLines(item);
   const highlight = () => {
-    if (item.changed && item.changed.length > 0 && state === 'applied') setStepHighlight(item.changed);
+    if (!item.archived && item.changed && item.changed.length > 0 && state === 'applied') setStepHighlight(item.changed);
   };
   const unhighlight = () => {
     setStepHighlight(null);
@@ -105,7 +105,7 @@ export function StepCard({ item, tools, disabled }: { item: StepItem; tools: Too
             </span>
           ) : null}
         </AriaButton>
-        {!current && state !== 'discarded' ? (
+        {!current && state !== 'discarded' && !item.archived ? (
           <AriaButton
             aria-label={state === 'undone' ? t('assistant.step.restore') : t('assistant.step.goTo')}
             onPress={goTo}

@@ -267,7 +267,8 @@
       "edges": "{count, plural, one {# edge} other {# edges}}",
       "vertices": "{count, plural, one {# vertex} other {# vertices}}",
       "line": "Selected: {what} · {bodies}"
-    }
+    },
+    "earlierSession": "Earlier session, until {date, date, short} {date, time, short}"
   },
   "live": {
     "thinking": "The assistant is planning the next step",

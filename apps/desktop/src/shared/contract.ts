@@ -287,6 +287,11 @@ export const agentQuestionSchema = z.discriminatedUnion('kind', [
 export const messageAnswerSchema = z
   .object({ question: z.string().min(1).max(40), choice: z.union([z.enum(['go', 'cancel']), z.string().regex(/^[0-4]$/)]) })
   .strict();
+/** What a selection that went with a message holds, counted for the chat line. */
+export const selectionSummarySchema = z
+  .object({ faces: z.number().int().min(0), edges: z.number().int().min(0), vertices: z.number().int().min(0), bodies: z.array(z.string().max(200)).max(20) })
+  .strict();
+
 export const agentEventSchema = z.discriminatedUnion('type', [
   z
     .object({
@@ -294,10 +299,7 @@ export const agentEventSchema = z.discriminatedUnion('type', [
       text: z.string(),
       selection: z.string().max(400).optional(),
       /** What the selection holds, for a short line in the chat; `selection` keeps the names. */
-      selected: z
-        .object({ faces: z.number().int().min(0), edges: z.number().int().min(0), vertices: z.number().int().min(0), bodies: z.array(z.string().max(200)).max(20) })
-        .strict()
-        .optional(),
+      selected: selectionSummarySchema.optional(),
       /** Strokes drawn on the view that went with the message, and whether a picture went too (M2b-2). */
       drawing: z.object({ strokes: z.number().int().min(1).max(20), image: z.boolean() }).strict().optional(),
     })
@@ -534,6 +536,24 @@ export const noteReattachSchema = z.object({ id: noteId, selection: selectionSch
 
 const none = z.undefined();
 
+
+/**
+ * The conversation about a design, kept next to its file (`Grundplatte.chat.json`) so it is there
+ * again after a restart. Only what the chat shows: no tool details, no pictures. Read back as
+ * untrusted input.
+ */
+export const storedChatItemSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('user'), text: z.string().max(20_000), selection: z.string().max(400).optional(), selected: selectionSummarySchema.optional() }).strict(),
+  z.object({ kind: z.literal('assistant'), text: z.string().max(50_000) }).strict(),
+  z.object({ kind: z.literal('step'), step: workStepSchema, state: workStepStateSchema }).strict(),
+  z.object({ kind: z.literal('question'), question: agentQuestionSchema, choice: z.string().max(40).nullable() }).strict(),
+  z.object({ kind: z.literal('error'), message: z.string().max(2000) }).strict(),
+]);
+export const storedChatSchema = z
+  .object({ version: z.literal(1), savedAt: z.string().max(40), items: z.array(storedChatItemSchema).max(400) })
+  .strict();
+export const chatSaveSchema = z.object({ items: z.array(storedChatItemSchema).max(400) }).strict();
+
 export const invokeContract = {
   [invokeChannels.appInfo]: { request: none, response: appInfoSchema },
   [invokeChannels.solidcraftStatus]: { request: none, response: connectionStatusSchema },
@@ -566,6 +586,8 @@ export const invokeContract = {
   [invokeChannels.designDimensions]: { request: dimensionMarksRequestSchema, response: dimensionMarksSchema },
   [invokeChannels.designProbeParameter]: { request: parameterProbeSchema, response: actionPreviewSchema },
   [invokeChannels.designParameters]: { request: none, response: designParametersSchema },
+  [invokeChannels.chatLoad]: { request: none, response: storedChatSchema.nullable() },
+  [invokeChannels.chatSave]: { request: chatSaveSchema, response: none },
   [invokeChannels.designVisibility]: { request: visibilityCommandSchema, response: none },
   [invokeChannels.notesCurrent]: { request: none, response: notesStateSchema },
   [invokeChannels.notesAdd]: { request: noteAddSchema, response: none },
@@ -599,6 +621,8 @@ export type AgentEvent = z.infer<typeof agentEventSchema>;
 export type FaceSelection = z.infer<typeof faceSelectionSchema>;
 export type EdgeSelection = z.infer<typeof edgeSelectionSchema>;
 export type Selection = z.infer<typeof selectionSchema>;
+export type StoredChatItem = z.infer<typeof storedChatItemSchema>;
+export type StoredChat = z.infer<typeof storedChatSchema>;
 export type WorkStep = z.infer<typeof workStepSchema>;
 export type AgentQuestion = z.infer<typeof agentQuestionSchema>;
 export type MessageAnswer = z.infer<typeof messageAnswerSchema>;

@@ -1,5 +1,5 @@
 import { AssistantPanel } from './assistant/AssistantPanel';
-import { useAssistantBridge } from './assistant/useAssistantBridge';
+import { useAssistantBridge, useChatPersistence } from './assistant/useAssistantBridge';
 import { useNotesBridge } from './notes/useNotesBridge';
 import { StatusBar } from './shell/StatusBar';
 import { StructurePanel } from './shell/StructurePanel';
@@ -11,6 +11,7 @@ import { Viewer } from './viewer/Viewer';
 export function App() {
   useMirror();
   useAssistantBridge();
+  useChatPersistence();
   useNotesBridge();
   return (
     <div className="flex h-full flex-col bg-canvas text-text">

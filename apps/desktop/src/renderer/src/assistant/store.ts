@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { AgentEvent, AgentQuestion, AgentStatus, AssistantState, WorkStep, WorkStepState } from '../../../shared/contract';
+import type { AgentEvent, AgentQuestion, AgentStatus, AssistantState, StoredChat, StoredChatItem, WorkStep, WorkStepState } from '../../../shared/contract';
 
 /** Faces a step changed, by body and SolidCraft face name (indices change on rebuilds, ADR 0004). */
 export interface ChangedFaces {
@@ -40,6 +40,8 @@ export type ConversationItem =
       /** Small picture of PartBuddy's view right after the step (data URL). */
       preview?: string | undefined;
       changed?: ChangedFaces[] | undefined;
+      /** From an earlier session: read only, SolidCraft no longer knows its undo state. */
+      archived?: boolean | undefined;
     }
   | {
       kind: 'question';
@@ -50,6 +52,8 @@ export type ConversationItem =
       choice: string | null;
     }
   | { kind: 'stopped'; key: number; detail: string | null }
+  /** Where the conversation of an earlier session ends (restored with the design). */
+  | { kind: 'session'; key: number; savedAt: string }
   | { kind: 'error'; key: number; message: string };
 
 interface AssistantStore {
@@ -57,6 +61,8 @@ interface AssistantStore {
   items: ConversationItem[];
   setState: (state: AssistantState) => void;
   apply: (event: AgentEvent) => void;
+  /** Puts back the conversation saved with the design, before anything new was said. */
+  restore: (chat: StoredChat) => void;
   /** The view's picture and changed faces of a step, taken once its revision is on screen. */
   attachPreview: (step: string, preview: string | null, changed: ChangedFaces[]) => void;
 }
@@ -105,8 +111,9 @@ export function reduce(items: ConversationItem[], event: AgentEvent): Conversati
       return items.map((item) => (item.kind === 'question' && item.question.id === event.id ? { ...item, answered: true, choice: event.choice } : item));
     case 'steps': {
       const states = new Map(event.states.map((entry) => [entry.id, entry.state]));
+      // Steps of an earlier session keep what they were; this session's log does not know them.
       return items.map((item) =>
-        item.kind === 'step' ? { ...item, state: states.get(item.step.id) ?? 'discarded', current: item.step.id === event.current } : item,
+        item.kind === 'step' && !item.archived ? { ...item, state: states.get(item.step.id) ?? 'discarded', current: item.step.id === event.current } : item,
       );
     }
     case 'done': {
@@ -118,6 +125,49 @@ export function reduce(items: ConversationItem[], event: AgentEvent): Conversati
   }
 }
 
+/** The conversation as it is kept with the design: what the chat shows, without tool details and pictures. */
+export function toStored(items: readonly ConversationItem[]): StoredChatItem[] {
+  return items
+    .flatMap((item): StoredChatItem[] => {
+      switch (item.kind) {
+        case 'user':
+          return [{ kind: 'user', text: item.text, ...(item.selection ? { selection: item.selection } : {}), ...(item.selected ? { selected: item.selected } : {}) }];
+        case 'assistant':
+          return item.open || item.text.trim() === '' ? [] : [{ kind: 'assistant', text: item.text }];
+        case 'step':
+          return [{ kind: 'step', step: item.step, state: item.state }];
+        case 'question':
+          return [{ kind: 'question', question: item.question, choice: item.choice }];
+        case 'error':
+          return [{ kind: 'error', message: item.message.slice(0, 2000) }];
+        default:
+          return [];
+      }
+    })
+    .slice(-400);
+}
+
+/** A saved conversation as items: steps and questions read only, a line where it ends. */
+export function fromStored(chat: StoredChat): ConversationItem[] {
+  if (chat.items.length === 0) return [];
+  const items = chat.items.map((item): ConversationItem => {
+    const key = nextKey++;
+    switch (item.kind) {
+      case 'user':
+        return { kind: 'user', key, text: item.text, selection: item.selection, selected: item.selected };
+      case 'assistant':
+        return { kind: 'assistant', key, text: item.text, open: false };
+      case 'step':
+        return { kind: 'step', key, step: item.step, state: item.state, current: false, archived: true };
+      case 'question':
+        return { kind: 'question', key, question: item.question, answered: true, choice: item.choice };
+      case 'error':
+        return { kind: 'error', key, message: item.message };
+    }
+  });
+  return [...items, { kind: 'session', key: nextKey++, savedAt: chat.savedAt }];
+}
+
 export const useAssistant = create<AssistantStore>()((set) => ({
   state: { selected: 'claude-code', agents: [] },
   items: [],
@@ -126,6 +176,9 @@ export const useAssistant = create<AssistantStore>()((set) => ({
   },
   apply: (event) => {
     set((state) => ({ items: reduce(state.items, event) }));
+  },
+  restore: (chat) => {
+    set((state) => ({ items: [...fromStored(chat), ...state.items] }));
   },
   attachPreview: (step, preview, changed) => {
     set((state) => ({

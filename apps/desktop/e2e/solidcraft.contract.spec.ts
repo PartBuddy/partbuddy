@@ -91,7 +91,10 @@ test('an assistant step changes the headless design, and it is back after a rest
       await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
       await page.getByRole('button', { name: 'Send' }).click();
       await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+      await expect(page.getByTestId('assistant-text').last()).toHaveText('The design has one body.');
       await page.screenshot({ path: test.info().outputPath('headless-box.png') });
+      // The conversation is written next to the design a second after the chat went quiet.
+      await page.waitForTimeout(2000);
     } catch (error) {
       await first.page.screenshot({ path: test.info().outputPath('headless-failed.png') }).catch(() => undefined);
       throw error;
@@ -103,6 +106,12 @@ test('an assistant step changes the headless design, and it is back after a rest
     try {
       await expect(second.page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
       await expect(second.page.getByTestId('design-name')).toHaveText('New part');
+      // The conversation came back with the design, ending in a line; its step is read only.
+      await expect(second.page.getByText('Build a box')).toBeVisible();
+      await expect(second.page.getByTestId('earlier-session')).toBeVisible();
+      await expect(second.page.getByTestId('step-card')).toHaveCount(1);
+      await expect(second.page.getByTestId('step-card').getByRole('button', { name: 'Go back to this state' })).toHaveCount(0);
+      await second.page.screenshot({ path: test.info().outputPath('chat-restored.png') });
       // A reopened design shows the rollback bar right after its last step from the first frame.
       const handle = second.page.getByTestId('timeline-handle');
       await expect(handle).toBeVisible();

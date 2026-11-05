@@ -162,6 +162,14 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
       return null;
     case 'stopped':
       return <p className="text-sm text-text-muted">{t('assistant.stopped')}</p>;
+    case 'session':
+      return (
+        <div className="flex items-center gap-2 py-1 text-xs text-text-subtle" role="separator" data-testid="earlier-session">
+          <span aria-hidden className="h-hairline flex-1 bg-border" />
+          {t('assistant.earlierSession', { date: new Date(item.savedAt) })}
+          <span aria-hidden className="h-hairline flex-1 bg-border" />
+        </div>
+      );
     case 'error':
       return (
         <p role="alert" className="text-sm text-danger">

@@ -20,6 +20,8 @@ import type {
   TimelineCommand,
   VisibilityCommand,
   Selection,
+  StoredChat,
+  StoredChatItem,
   MirrorRevision,
   NotesState,
   TitleBarColors,
@@ -74,6 +76,12 @@ export interface PartBuddyApi {
     probeParameter(parameter: string, value: number, body: string | null): Promise<ActionPreviewResult>;
     /** The user parameters of the design (parameter panel); favourites first. */
     parameters(): Promise<DesignParameter[]>;
+  };
+  /** The conversation about the open design, kept next to its file. */
+  chat: {
+    /** The conversation saved with the design, or null when there is none. */
+    load(): Promise<StoredChat | null>;
+    save(items: StoredChatItem[]): Promise<void>;
   };
   /** Notes on the model (M2b, ADR 0020), stored in the design file. */
   notes: {

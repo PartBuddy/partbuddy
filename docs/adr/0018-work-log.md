@@ -78,3 +78,19 @@ A part built in twenty steps filled the chat with twenty cards. The log now read
 * The chat's width can be dragged (320 px up to 760 px, leaving the view at least 480 px),
   changed with the arrow keys on its separator, and reset with a double-click; it is kept per
   profile.
+
+### The conversation kept with the design (2026-11-05)
+
+Decided with Manuel: the chat comes back when a design is opened again, without filling the
+model's context.
+
+* What the chat shows (requests, answers, steps, questions, errors; no tool details, no pictures)
+  is written to `<design>.chat.json` next to the design file, a second after the chat went quiet
+  (`main/chat/chatArchive.ts`). Before the design has a file it is held and written after the
+  first autosave. The file is read back as untrusted input against `storedChatSchema`.
+* After a restart it comes back above anything new, ending in a line "Earlier session, until …".
+  Its steps are read only: SolidCraft's undo history is new, so they cannot be gone back to.
+* The model does not get the old conversation. With the first message after the restart it gets
+  one short note (at most 1,500 characters): the last requests, its last answer and the last steps,
+  and to inspect the design before changing it. Resuming the old Claude Code session was left out:
+  it would bring back all the old tool output and does not exist for the ChatGPT route.
