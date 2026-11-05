@@ -643,5 +643,33 @@
       "warn": "Hinweise",
       "block": "Nicht druckbereit"
     }
+  },
+  "versions": {
+    "title": "Versionen",
+    "close": "Versionen schließen",
+    "name": "Name der Version",
+    "namePlaceholder": "Zum Beispiel: vor dem Deckel",
+    "save": "Version speichern",
+    "hint": "PartBuddy speichert außerdem bei jedem Export und vor jeder Anfrage an den Assistenten eine Version, wenn sich das Design geändert hat.",
+    "empty": "Noch keine Versionen. Das Projekt bekommt eine, sobald es Inhalt hat.",
+    "list": "{count, plural, one {# Version} other {# Versionen}}",
+    "compare": "Mit jetzt vergleichen",
+    "comparing": "Vergleiche …",
+    "restore": "Wiederherstellen",
+    "restoreQuestion": "Aktuellen Stand als Version sichern und diese öffnen?",
+    "restored": "Die Version ist wieder offen; der Stand davor ist als Version gesichert.",
+    "compareEmpty": "Weder die Version noch das Design hat einen Körper.",
+    "compareSame": "Seit dieser Version hat sich nichts geändert.",
+    "same": "unverändert",
+    "added": "neu seit dieser Version",
+    "removed": "seit dieser Version entfernt",
+    "changed": "{added} mm³ dazu, {removed} mm³ weg ({regions, plural, one {# Stelle} other {# Stellen}})",
+    "moved": "um {distance} mm verschoben",
+    "reason": {
+      "manual": "Von dir gespeichert",
+      "export": "Beim Export",
+      "assistant": "Vor dem Assistenten",
+      "restore": "Vor dem Wiederherstellen"
+    }
   }
 }

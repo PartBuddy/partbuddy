@@ -1140,3 +1140,89 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('versions are saved by name, before requests and at exports, compared with now and restored (B5)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-versions-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7903',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page, app } = launched;
+  const summary = page.getByTestId('mesh-summary');
+  const dialog = page.getByTestId('versions-dialog');
+  const versions = dialog.getByTestId('version');
+  const ask = async (text: string, bodies: string) => {
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill(text);
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(summary).toContainText(bodies, { timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Send' })).toBeVisible({ timeout: 30_000 });
+  };
+  const logs: string[] = [];
+  app.process().stdout?.on('data', (chunk: Buffer) => logs.push(String(chunk)));
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await ask('Build a box', '1 body');
+    await expect(page.getByTestId('design-name')).toHaveText('Part', { timeout: 15_000 });
+
+    // A version with a name of the user's.
+    await page.getByTestId('versions-button').click();
+    await expect(dialog.getByTestId('versions-empty')).toBeVisible();
+    await dialog.getByTestId('version-name').fill('First box');
+    await dialog.getByTestId('version-save').click();
+    await expect(versions).toHaveCount(1);
+    await expect(versions.first().getByTestId('version-label')).toHaveText('First box');
+    await page.keyboard.press('Escape');
+
+    // Before a request: none while the design is as the newest version, one after a change.
+    await ask('Build a box', '2 bodies');
+    await ask('Build one more box', '3 bodies');
+    await page.getByTestId('versions-button').click();
+    await expect(versions).toHaveCount(2);
+    await expect(versions.first()).toHaveAttribute('data-reason', 'assistant');
+    await expect(versions.first().getByTestId('version-label')).toHaveText('Build one more box');
+
+    // Compared with now: the first box is as it was, two boxes are new.
+    const first = versions.filter({ hasText: 'First box' });
+    await first.getByTestId('version-compare').click();
+    const changes = first.getByTestId('version-change');
+    await expect(changes).toHaveCount(3, { timeout: 60_000 });
+    await expect(first.locator('[data-status="same"]')).toHaveCount(1);
+    await expect(first.locator('[data-status="added"]')).toHaveCount(2);
+    await page.screenshot({ path: test.info().outputPath('versions-compare.png') });
+
+    // Restoring keeps the state before as a version and opens the first box again.
+    await first.getByTestId('version-restore').click();
+    await first.getByTestId('version-restore-confirm').click();
+    await expect(dialog).toHaveCount(0);
+    await expect(summary).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await page.getByTestId('versions-button').click();
+    await expect(versions).toHaveCount(3);
+    await expect(versions.first()).toHaveAttribute('data-reason', 'restore');
+    await page.keyboard.press('Escape');
+
+    // An export keeps a version as well.
+    await app.evaluate(({ dialog: dialogs }, path) => {
+      dialogs.showSaveDialog = () => Promise.resolve({ canceled: false, filePath: path });
+    }, join(work, 'Box.3mf'));
+    await page.evaluate(() => (globalThis as unknown as { partbuddy: { design: { export(format: string): Promise<unknown> } } }).partbuddy.design.export('3mf'));
+    await page.getByTestId('versions-button').click();
+    await expect(versions).toHaveCount(4);
+    await expect(versions.first()).toHaveAttribute('data-reason', 'export');
+    await expect(versions.first().getByTestId('version-label')).toHaveText('Box.3mf');
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('versions-failed.png') }).catch(() => undefined);
+    test.info().annotations.push({ type: 'main log', description: logs.join('').slice(-4000) });
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

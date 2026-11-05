@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { existsSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, rmSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -31,6 +31,8 @@ import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
 import { checkImportFile, IMPORT_EXTENSIONS, importName, type ImportKind } from './projects/importFile';
 import { migrateDesigns, ProjectStore, whenFree } from './projects/projectStore';
+import { summarizeComparison } from './projects/versionCompare';
+import { VersionStore, type VersionReason } from './projects/versionStore';
 import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
@@ -423,7 +425,19 @@ if (!app.requestSingleInstanceLock()) {
       await claude.allowApiBilling(allow);
       return agent.state();
     });
+    // Versions (B5): a copy of the saved design in the project, by the user, at an export and
+    // before a request to the assistant (automatic ones only when the design changed since).
+    const versions = new VersionStore();
+    const keepVersion = async (reason: VersionReason, label: string, skipUnchanged: boolean): Promise<string | null> => {
+      const file = await supervisor.saveNow();
+      if (!file || !projectStore.holds(file) || !existsSync(file)) return null;
+      return versions.save(file, reason, label, skipUnchanged);
+    };
     bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer }) => {
+      // The design as it was before the assistant changes it; a failure never stops the request.
+      await keepVersion('assistant', text.replace(/\s+/g, ' ').slice(0, 120), true).catch((error: unknown) => {
+        log(`no version before the request: ${(error as Error).message}`);
+      });
       const conversation = agent.conversation();
       const lines = [
         // Once after a restart: what the earlier conversation about this design was about.
@@ -484,6 +498,9 @@ if (!app.requestSingleInstanceLock()) {
       if (choice.canceled || !choice.filePath) return null;
       await supervisor.exportDesign(format, choice.filePath);
       log(`exported the design as ${format}`);
+      await keepVersion('export', basename(choice.filePath), true).catch((error: unknown) => {
+        log(`no version at the export: ${(error as Error).message}`);
+      });
       return { file: basename(choice.filePath) };
     });
     bridge.handle(invokeChannels.designProbeDimension, ({ target, current, value }) => {
@@ -685,6 +702,36 @@ if (!app.requestSingleInstanceLock()) {
         if (/must be closed/i.test(detail)) return { ok: false, reason: 'openMesh', detail };
         return { ok: false, reason: 'other', detail };
       }
+    });
+    bridge.handle(invokeChannels.projectVersions, () => {
+      const file = openProject();
+      return file ? versions.list(file) : [];
+    });
+    bridge.handle(invokeChannels.projectSaveVersion, async ({ label }) => {
+      if (!openProject()) throw new Error('the design has no project yet');
+      if (!(await keepVersion('manual', label, false))) throw new Error('the design could not be saved');
+      log('saved a version');
+      return undefined;
+    });
+    bridge.handle(invokeChannels.projectRestoreVersion, async ({ id }) => {
+      assistantIdle();
+      const design = openProject();
+      const file = design ? versions.fileOf(design, id) : null;
+      if (!design || !file) throw new Error('not a version of the open project');
+      // The state before stays as a version, so a restore can be taken back.
+      await keepVersion('restore', german ? 'Vor dem Wiederherstellen' : 'Before restoring', true);
+      await switchProject(async (current) => {
+        if (current) await whenFree(() => copyFileSync(file, current));
+        return current;
+      });
+      log('restored a version');
+      return undefined;
+    });
+    bridge.handle(invokeChannels.projectCompareVersion, async ({ id }) => {
+      const design = openProject();
+      const file = design ? versions.fileOf(design, id) : null;
+      if (!design || !file) throw new Error('not a version of the open project');
+      return summarizeComparison(await supervisor.compareWith(file));
     });
     bridge.handle(invokeChannels.projectSavePreview, ({ documentId, revision, png, check }) => {
       // Only a picture of the design that is open now goes into its project, never one that

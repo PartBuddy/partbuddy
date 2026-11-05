@@ -32,6 +32,10 @@ const api: PartBuddyApi = {
     import: (path) => ipcRenderer.invoke(invokeChannels.projectImport, path === undefined ? {} : { path }),
     pathOfFile: (file) => webUtils.getPathForFile(file),
     savePreview: (preview) => ipcRenderer.invoke(invokeChannels.projectSavePreview, preview),
+    versions: () => ipcRenderer.invoke(invokeChannels.projectVersions),
+    saveVersion: (label) => ipcRenderer.invoke(invokeChannels.projectSaveVersion, { label }),
+    restoreVersion: (id) => ipcRenderer.invoke(invokeChannels.projectRestoreVersion, { id }),
+    compareVersion: (id) => ipcRenderer.invoke(invokeChannels.projectCompareVersion, { id }),
   },
   solidcraft: {
     engine: () => ipcRenderer.invoke(invokeChannels.solidcraftEngine),
