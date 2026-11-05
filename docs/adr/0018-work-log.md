@@ -58,3 +58,23 @@ kept, so a jump back could never be followed by a jump forward. `document.inspec
 * Bad: the log lives in memory; after a restart or "Open in SolidCraft" the undo history is new and
   older cards can no longer be reached. Keeping versions per part is a later roadmap item.
 * Bad: a change made directly in the SolidCraft window is not a card; the states still follow it.
+
+### Quieter chat (UI upgrade, 2026-11-05)
+
+A part built in twenty steps filled the chat with twenty cards. The log now reads like this
+(`renderer/src/assistant/rows.ts`, `WorkGroup.tsx`, `StepCard.tsx`, `Answer.tsx`):
+
+* Every step and query of one request folds into one line where the work began ("12 steps ·
+  3 queries", "current state" when the design stands at one of them, the newest step while the
+  assistant works). A request with a single step shows that step's line directly; a change the
+  user made in the view stays its own line.
+* A step is one quiet line: who made it, its plain text and "current state". The changed faces
+  still light up on hover and focus; "Go back to this state" appears on hover and focus. A click
+  opens the picture, every phrase and the tool details.
+* Only the newest answer shows in full; earlier ones and the narration between tool calls are cut
+  to about four lines with "Show more".
+* Both routes tell the model to answer in two or three sentences and not to repeat steps,
+  parameters or dimensions as tables, since PartBuddy shows them (`ANSWER_GUIDANCE`).
+* The chat's width can be dragged (320 px up to 760 px, leaving the view at least 480 px),
+  changed with the arrow keys on its separator, and reset with a double-click; it is kept per
+  profile.

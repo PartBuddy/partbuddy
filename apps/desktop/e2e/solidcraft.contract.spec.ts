@@ -242,7 +242,7 @@ test('the dimension field changes the driving parameter directly, with a preview
     const cards = page.getByTestId('step-card');
     await expect(cards).toHaveCount(2);
     await expect(cards.nth(0).getByTestId('step-text')).toHaveText('Box 20 × 20 × 10 mm');
-    await expect(cards.nth(1)).toContainText('By you');
+    await expect(cards.nth(1).getByRole('img', { name: 'By you' })).toBeVisible();
     await expect(cards.nth(1).getByTestId('step-text')).toHaveText(/Dimension Box1 · (Length|Width) set to 32 mm/);
     await expect(cards.nth(1)).toHaveAttribute('data-current', 'true');
     await expect(cards.nth(0).getByTestId('step-preview')).toHaveAttribute('src', /^data:image\//, { timeout: 10_000 });
@@ -795,6 +795,20 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText('The wall holder is built.')).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
+
+    // The chat holds the whole build as one line that opens to its steps (UI upgrade, chat).
+    const group = page.getByTestId('work-group');
+    await expect(group).toHaveCount(1);
+    await expect(page.getByTestId('work-summary')).toContainText(/\d+ steps/);
+    await expect(page.getByTestId('work-summary')).toContainText('current state');
+    const cards = group.getByTestId('step-card');
+    expect(await cards.count()).toBeGreaterThan(6);
+    await expect(cards.first()).toBeHidden();
+    await page.screenshot({ path: test.info().outputPath('chat-folded.png') });
+    await page.getByTestId('work-summary').click();
+    await expect(cards.first()).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('chat-open.png') });
+    await page.getByTestId('work-summary').click();
 
     await page.getByTestId('dimensions').click();
     await page.getByTestId('dimensions-all').click();

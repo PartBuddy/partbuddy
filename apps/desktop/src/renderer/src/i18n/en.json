@@ -253,6 +253,14 @@
         "ready": "ready",
         "busy": "working"
       }
+    },
+    "resize": "Chat width",
+    "resizeHint": "Drag to change the width · double-click for the standard width",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "work": {
+      "steps": "{count, plural, one {# step} other {# steps}}",
+      "queries": "{count, plural, one {# query} other {# queries}}"
     }
   },
   "live": {

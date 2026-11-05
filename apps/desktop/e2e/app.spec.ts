@@ -346,6 +346,44 @@ test('the colour theme can be chosen in the settings and is kept', async () => {
   }
 });
 
+test('the chat is as wide as the user drags it, by mouse or keyboard, and stays so', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-chat-width-'));
+  const width = async (page: LaunchedApp['page']) => (await page.getByTestId('assistant-panel').boundingBox())?.width ?? 0;
+  try {
+    launched = await launchApp({ work });
+    let { page } = launched;
+    const handle = page.getByRole('separator', { name: 'Chat width' });
+    await expect(handle).toHaveAttribute('aria-valuenow', '420');
+    const box = await handle.boundingBox();
+    if (!box) throw new Error('no handle');
+    // Dragging left widens the chat.
+    await page.mouse.move(box.x + box.width / 2, box.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 - 160, box.y + 200, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(() => width(page)).toBeGreaterThan(560);
+    await page.screenshot({ path: test.info().outputPath('chat-wide.png') });
+    // The keyboard narrows it; it never gets narrower than the minimum.
+    await handle.focus();
+    await page.keyboard.press('Home');
+    await expect(handle).toHaveAttribute('aria-valuenow', '320');
+    await page.keyboard.press('ArrowLeft');
+    await expect(handle).toHaveAttribute('aria-valuenow', '336');
+
+    // The width survives a restart; a double-click brings back the standard width.
+    await launched.close();
+    launched = await launchApp({ work });
+    ({ page } = launched);
+    await expect(page.getByRole('separator', { name: 'Chat width' })).toHaveAttribute('aria-valuenow', '336');
+    await page.getByRole('separator', { name: 'Chat width' }).dblclick();
+    await expect(page.getByRole('separator', { name: 'Chat width' })).toHaveAttribute('aria-valuenow', '420');
+  } finally {
+    await launched?.close();
+    launched = null;
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('the title bar is part of the window, with the system window buttons beside it', async () => {
   launched = await launchApp();
   const { page } = launched;

@@ -5,7 +5,7 @@ import type { AgentEvent, AgentStatus, Selection } from '../../shared/contract';
 import { userEvent, type AgentBackend, type SentDrawing } from '../agents/assistant';
 import type { ToolResult, UpstreamTools } from '../agents/gateProxy';
 import { decide } from '../agents/policy';
-import { QUESTION_GUIDANCE } from '../agents/questions';
+import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from '../agents/questions';
 import { withToolNotes } from '../agents/toolNotes';
 import { composeMessage, VIEW_GUIDANCE } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
@@ -28,6 +28,7 @@ const INSTRUCTIONS = [
   'Answer in the language the user writes in.',
   VIEW_GUIDANCE,
   QUESTION_GUIDANCE,
+  ANSWER_GUIDANCE,
 ].join(' ');
 const MAX_STEPS = 25;
 
