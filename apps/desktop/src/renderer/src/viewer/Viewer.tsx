@@ -25,6 +25,9 @@ import { Ghost, SelectionDock, SelectionGhost } from './DimensionHud';
 import { GradientBackground, GroundShadow, KeyLight, SkyLight } from './SceneLook';
 import { keeps, useSectionPlane } from './section';
 import { LiveBar } from './LiveBar';
+import { Overhang } from './overhang';
+import { OverhangLegend } from './OverhangLegend';
+import { bedOf, overhangFor } from './useOverhang';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
 import { StepPreviews } from './StepPreviews';
@@ -62,6 +65,8 @@ const scene = {
   changeTint: 0.45,
   hoverTint: 0.35,
   selectionTint: 0.55,
+  // How strongly the overhang view colours a face (the shading stays readable).
+  overhangTint: 0.8,
   // See-through faces in the X-ray display mode.
   xrayOpacity: 0.3,
   // Studio look: soft room light from above (Z up).
@@ -103,6 +108,7 @@ function Body({
   register,
   mode,
   plane,
+  bedZ,
 }: {
   index: number;
   body: BodyModel;
@@ -110,6 +116,8 @@ function Body({
   register: (index: number, mesh: Mesh | null) => void;
   mode: DisplayMode;
   plane: Plane | null;
+  /** The print bed for the overhang view, or null when it is off. */
+  bedZ: number | null;
 }) {
   const hover = useStudio((s) => s.hover);
   const selections = useStudio((s) => s.selections);
@@ -127,6 +135,14 @@ function Body({
     // Hover and selection tint the face; the outline drawn around it carries the strong colour.
     const hoverTint = colors.body.clone().lerp(colors.hover, scene.hoverTint);
     const selectedTint = colors.body.clone().lerp(colors.selection, scene.selectionTint);
+    // The overhang view: each vertex by how far its face leans over, from its normal.
+    const overhang = bedZ === null ? null : overhangFor(model, bedZ).vertices;
+    const byClass = [
+      colors.body,
+      colors.body.clone().lerp(colors.bed, scene.overhangTint),
+      colors.body.clone().lerp(colors.overhang, scene.overhangTint),
+      colors.body.clone().lerp(colors.overhangRisk, scene.overhangTint),
+    ];
     // A work-log card under the pointer lights up the faces of its step that still exist.
     const stepFaces = new Set(stepHighlight?.find((entry) => entry.body === body.name)?.faces ?? []);
     if (stepHighlight) {
@@ -137,14 +153,14 @@ function Body({
     const selected = new Set(selections.filter((pick) => pick.kind === 'face' && pick.body === index).map((pick) => (pick.kind === 'face' ? pick.face : -1)));
     for (let v = 0; v < model.vertexFaces.length; v += 1) {
       const face = model.vertexFaces[v] ?? -1;
-      let color = colors.body;
-      if (changed.has(face)) color = stepHighlight ? colors.changed : tint;
+      let color = overhang ? (byClass[overhang[v] ?? Overhang.Fine] ?? colors.body) : colors.body;
+      if (changed.has(face) && !overhang) color = stepHighlight ? colors.changed : tint;
       if (face === hovered) color = hoverTint;
       if (selected.has(face)) color = selectedTint;
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
-  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name]);
+  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name, bedZ]);
 
   const clipping = useMemo(() => (plane ? [plane] : []), [plane]);
   return (
@@ -728,6 +744,8 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
   const displayMode = useStudio((s) => s.displayMode);
   const plane = useSectionPlane(bodies);
   const colors = useTokenColors();
+  const overhang = useStudio((s) => s.overhang);
+  const bedZ = useMemo(() => (overhang ? bedOf(bodies) : null), [overhang, bodies]);
   const meshes = useRef<(Mesh | null)[]>([]);
   const register = useCallback((index: number, mesh: Mesh | null) => {
     meshes.current[index] = mesh;
@@ -759,7 +777,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.75 : 0.4} />
       <directionalLight position={scene.fillLight} intensity={0.3} />
       {bodies.map((body, i) => (
-        <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} />
+        <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} bedZ={bedZ} />
       ))}
       <Highlights bodies={bodies} colors={colors} />
       <SelectionGhost color={colors.selection} />
@@ -860,6 +878,7 @@ export function Viewer() {
         ) : null}
         <ConnectionNotice />
         <LiveBar />
+        {model.status === 'ready' ? <OverhangLegend bodies={model.bodies} /> : null}
       </div>
     </main>
   );

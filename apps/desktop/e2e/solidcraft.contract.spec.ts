@@ -862,6 +862,20 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     const behind = await slots.evaluateAll((all) => (all as unknown as LooseElement[]).filter((slot) => slot.getAttribute('data-shown') === 'behind').length);
     test.info().annotations.push({ type: 'layout', description: JSON.stringify({ ...layout, behindFromRight: behind }) });
     expect(behind).toBeGreaterThan(0);
+
+    // The overhang view (UI upgrade step 12): the bottom of plate and hook lies on the bed, the
+    // upper halves of the horizontal countersunk holes overhang and need support.
+    await page.getByTestId('dimensions').click();
+    await page.getByTestId('overhang').click();
+    const legend = page.getByTestId('overhang-legend');
+    await expect(legend).toBeVisible();
+    expect(Number(await page.getByTestId('overhang-bed').getAttribute('data-area'))).toBeGreaterThan(2000);
+    expect(Number(await page.getByTestId('overhang-support').getAttribute('data-area'))).toBeGreaterThan(0);
+    await page.keyboard.press('0');
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: test.info().outputPath('overhang.png') });
+    await page.getByTestId('overhang').click();
+    await expect(legend).toBeHidden();
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('tidy-failed.png') }).catch(() => undefined);
     throw error;

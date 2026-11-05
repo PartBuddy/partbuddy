@@ -45,6 +45,9 @@
   --color-note: var(--cs-viewer-note);
   --color-changed: var(--cs-viewer-changed);
   --color-dimension: var(--cs-viewer-dimension);
+  --color-overhang: var(--cs-viewer-overhang);
+  --color-overhang-risk: var(--cs-viewer-overhang-risk);
+  --color-bed: var(--cs-viewer-bed);
   --color-overlay: var(--cs-overlay);
   --color-transparent: transparent;
 

@@ -460,5 +460,13 @@
       "light": "Light",
       "dark": "Dark"
     }
+  },
+  "overhang": {
+    "title": "Overhangs",
+    "tool": "Overhangs for printing",
+    "direction": "Printed along +Z, standing on its lowest face",
+    "support": "Needs support (over {degrees}°)",
+    "borderline": "Borderline ({from}–{to}°)",
+    "bed": "On the print bed"
   }
 }
