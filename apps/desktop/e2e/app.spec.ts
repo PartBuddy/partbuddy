@@ -239,6 +239,52 @@ test('the camera keeps a growing design in view until the user moves it', async 
   expect(await sketchPixels(8)).toBeGreaterThan(0);
 });
 
+test('the parameter panel lists the design parameters and changes a length with a preview first', async () => {
+  const { app, fake: solidcraft } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 1');
+  const user = { source: 'user' as const, error: null, favorite: false, comment: '', unit: 'mm' };
+  solidcraft.parameters = [
+    { ...user, name: 'wand', expression: 'breite / 10', value: 4, used_by: ['d3'] },
+    { ...user, name: 'breite', expression: '40 mm', value: 40, favorite: true, comment: 'Plate width [30..60]', used_by: ['d1', 'wand'] },
+  ];
+  solidcraft.change();
+
+  const panel = page.getByTestId('parameters');
+  await expect(panel.getByRole('heading', { name: 'Parameters (2)' })).toBeVisible();
+  // Favourites first; a formula is shown, not editable; the range in the comment becomes a hint.
+  await expect(panel.getByTestId('parameter').first()).toHaveAttribute('data-name', 'breite');
+  await expect(panel.getByText('= breite / 10')).toBeVisible();
+  await expect(panel.getByText('Plate width', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('textbox', { name: 'Change wand' })).toHaveCount(0);
+  // A favourite with a range in its comment gets a slider and the range as its own line.
+  await expect(panel.getByRole('slider', { name: 'breite, slider' })).toBeVisible();
+  await expect(panel.getByText('Range 30 to 60 mm')).toBeVisible();
+
+  const field = panel.getByRole('textbox', { name: 'Change breite' });
+  await expect(field).toHaveValue('40');
+  await field.fill('70');
+  await expect(panel.getByText('Outside the intended range 30 to 60')).toBeVisible();
+
+  // Typing tries the value in SolidCraft for the ghost; the design stays as it is.
+  const ghosts = solidcraft.exports.length;
+  await field.fill('50');
+  await expect(panel.getByText('Preview in the view – Enter changes it, Escape cancels')).toBeVisible();
+  await expect.poll(() => solidcraft.exports.length).toBeGreaterThan(ghosts);
+  await page.screenshot({ path: test.info().outputPath('parameters-preview.png') });
+  expect(solidcraft.parameters.find((entry) => entry.name === 'breite')?.value).toBe(40);
+
+  await field.press('Enter');
+  await expect.poll(() => solidcraft.parameters.find((entry) => entry.name === 'breite')?.value).toBe(50);
+  await expect(field).toHaveValue('50');
+
+  // A value SolidCraft cannot build is refused before Enter; Escape brings the current value back.
+  await field.fill('2000');
+  await expect(panel.getByText('SolidCraft cannot build the part with this value')).toBeVisible();
+  await field.press('Escape');
+  await expect(field).toHaveValue('50');
+});
+
 test('the colour theme can be chosen in the settings and is kept', async () => {
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-theme-'));
   const dark = (page: LaunchedApp['page']) =>

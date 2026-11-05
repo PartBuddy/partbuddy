@@ -54,6 +54,18 @@ export interface FakeOptions {
   batchDelayMs?: number;
 }
 
+export interface FakeParameter {
+  name: string;
+  expression: string;
+  value: number;
+  unit: string;
+  source: 'user';
+  comment: string;
+  favorite: boolean;
+  error: string | null;
+  used_by: string[];
+}
+
 export class FakeSolidCraft {
   readonly token = randomBytes(32).toString('hex');
   readonly documentId = `fake-${randomBytes(4).toString('hex')}-1`;
@@ -69,6 +81,8 @@ export class FakeSolidCraft {
   /** Faces whose geometry changed in the latest revision. */
   moved = new Set<string>();
   quitRequested = false;
+  /** User parameters as `parameters.list` reports them; `parameters.change` sets plain values. */
+  parameters: FakeParameter[] = [];
   /** Steps `edit.undo` and `edit.redo` can take, as `document.inspect` reports them. */
   undoDepth = 0;
   redoDepth = 0;
@@ -173,13 +187,24 @@ export class FakeSolidCraft {
         if (this.options.batchDelayMs) await new Promise((done) => setTimeout(done, this.options.batchDelayMs));
         const allowed = (params.allow_paths as string[] | undefined) ?? [];
         const commands = params.commands as { command: string; params: Record<string, unknown> }[];
-        try {
-          const results = commands.map((step) => this.execute(step.command, step.params, allowed));
-          return { completed: results.length, results, undone: 0 };
-        } catch (error) {
-          // SolidCraft answers a failed step inside the batch result, not as a protocol error.
-          return { completed: 0, results: [], failed: { index: 0, command: commands[0]?.command ?? '', error: (error as Error).message } };
+        const before = this.parameters.map((entry) => ({ ...entry }));
+        const results: unknown[] = [];
+        for (const [index, step] of commands.entries()) {
+          try {
+            results.push(this.execute(step.command, step.params, allowed));
+          } catch (error) {
+            // SolidCraft answers a failed step inside the batch result, not as a protocol error; with
+            // rollback it undoes the steps before it.
+            if (params.rollback === true) this.parameters = before;
+            return { completed: index, results, failed: { index, command: step.command, error: (error as Error).message } };
+          }
         }
+        if (commands.some((step) => step.command === 'parameters.change')) {
+          setTimeout(() => {
+            this.change();
+          }, 0);
+        }
+        return { completed: results.length, results, undone: 0 };
       }
       case 'app.quit':
         this.quitRequested = true;
@@ -212,6 +237,17 @@ export class FakeSolidCraft {
         else throw new Error(`fake does not export ${String(params.format)}`);
         this.exports.push({ path, format: params.format, bodies: params.bodies });
         return { path };
+      }
+      case 'parameters.list':
+        return { count: this.parameters.length, cycles: [], parameters: this.parameters };
+      case 'parameters.change': {
+        const parameter = this.parameters.find((entry) => entry.name === params.name);
+        if (!parameter) throw new Error(`no parameter ${String(params.name)}`);
+        const value = Number.parseFloat(String(params.expression));
+        if (!Number.isFinite(value) || value <= 0 || value > 1000) throw new Error('the part cannot be built with this value');
+        parameter.expression = String(params.expression);
+        parameter.value = value;
+        return { name: parameter.name, value, recomputed: parameter.used_by.length };
       }
       case 'edit.undo':
       case 'edit.redo': {

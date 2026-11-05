@@ -318,6 +318,17 @@
     "hide": "Hide {name}",
     "show": "Show {name}"
   },
+  "parameters": {
+    "title": "Parameters ({count})",
+    "none": "No parameters yet. The assistant names the important values of a part here.",
+    "change": "Change {name}",
+    "favorite": "Favourite",
+    "outside": "Outside the intended range {min} to {max}",
+    "enter": "Preview in the view – Enter changes it, Escape cancels",
+    "formulaHint": "A formula stays as it is; ask the assistant to change it",
+    "slider": "{name}, slider",
+    "range": "Range {min} to {max} {unit}"
+  },
   "timeline": {
     "title": "Timeline",
     "step": "{name}, {kind}",

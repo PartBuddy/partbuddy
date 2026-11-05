@@ -21,7 +21,7 @@ import type { MirroredSketch } from '../../../shared/contract';
 import { samePick, useStudio, type BodyModel, type Pick, type StandardView } from '../state/store';
 import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
-import { DimensionHud } from './DimensionHud';
+import { DimensionHud, Ghost } from './DimensionHud';
 import { LiveBar } from './LiveBar';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
@@ -73,6 +73,12 @@ const noRaycast = () => null;
 
 /** The body meshes, for picking; filled by each body, indexed like the bodies. */
 type MeshList = RefObject<(Mesh | null)[]>;
+
+/** The ghost of a value typed into the parameter panel (UI upgrade step 6). */
+function ParameterGhost({ color }: { color: ViewerColors['selection'] }) {
+  const ghost = useStudio((s) => s.parameterGhost);
+  return ghost ? <Ghost preview={ghost} color={color} /> : null;
+}
 
 function Body({ index, body, colors, register }: { index: number; body: BodyModel; colors: ViewerColors; register: (index: number, mesh: Mesh | null) => void }) {
   const hover = useStudio((s) => s.hover);
@@ -673,6 +679,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <ScenePins bodies={bodies} />
       <Pen bodies={bodies} meshes={meshes} color={colors.note} />
       <DimensionMarks color={colors.sketch} ghostColor={colors.selection} />
+      <ParameterGhost color={colors.selection} />
       <ViewCapture />
       <Picker bodies={bodies} meshes={meshes} />
       {sketches.map((sketch) => (

@@ -85,6 +85,9 @@ interface StudioState {
   notice: Notice | null;
   setHistory: (history: History) => void;
   setNotice: (notice: Notice | null) => void;
+  /** Ghost of a value typed into the parameter panel: the body with the new value (face-tagged 3MF). */
+  parameterGhost: Uint8Array | null;
+  setParameterGhost: (ghost: Uint8Array | null) => void;
   model: ModelState;
   hover: Pick | null;
   /** The latest picked element; the dimension field and the HUD belong to it. */
@@ -167,6 +170,10 @@ export const useStudio = create<StudioState>()((set) => ({
   },
   setNotice: (notice) => {
     set({ notice });
+  },
+  parameterGhost: null,
+  setParameterGhost: (parameterGhost) => {
+    set({ parameterGhost });
   },
   hover: null,
   selection: null,

@@ -34,6 +34,8 @@
   --cs-size-pin: 24px;
   --cs-size-progress: 64px;
   --cs-size-field-number: 96px;
+  /* A value field in a list row (parameter panel): room for about seven digits. */
+  --cs-size-field-value: 64px;
   --cs-size-index-column: 24px;
   --cs-size-menu: 240px;
   --cs-size-menu-max-height: 70vh;

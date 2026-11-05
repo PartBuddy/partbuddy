@@ -1,6 +1,7 @@
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import type { DesignParameter } from '../../shared/contract';
 import type { ControlRequester } from './mirror';
 
 /**
@@ -47,6 +48,8 @@ const MAX_CANDIDATES = 8;
 const UNDO_ALL = { command: 'sketch.inspect', params: { sketch: 2147483647 } };
 /** Plain numbers with an optional length unit; formulas are the designer's intent and stay untouched. */
 const PLAIN_NUMBER = /^\s*-?\d+(?:\.\d+)?\s*(?:mm)?\s*$/;
+/** Names the contract accepts (letters, digits, underscore). */
+const PARAMETER_NAME = /^[\p{L}_][\p{L}\p{N}_]{0,99}$/u;
 
 function isParameter(entry: unknown): entry is Parameter {
   const p = entry as Partial<Parameter> | null;
@@ -158,6 +161,33 @@ export class DimensionService {
     } finally {
       await rm(file, { force: true });
     }
+  }
+
+  /**
+   * The user parameters of the design for the parameter panel: favourites first, then in
+   * SolidCraft's order. Feature inputs (`d1`, `d2`, ...) are left out; they show as dimensions.
+   */
+  async userParameters(): Promise<DesignParameter[]> {
+    const reply = await this.batch([{ command: 'parameters.list', params: {} }], false);
+    const list = (reply.results?.[0] as { parameters?: unknown[] } | undefined)?.parameters ?? [];
+    const found: DesignParameter[] = [];
+    for (const entry of list) {
+      if (!isParameter(entry)) continue;
+      const raw = entry as Parameter & { source?: unknown; comment?: unknown; favorite?: unknown; error?: unknown; used_by?: unknown };
+      if (raw.source !== 'user' || !PARAMETER_NAME.test(raw.name)) continue;
+      found.push({
+        name: raw.name,
+        expression: raw.expression.slice(0, 500),
+        value: raw.value,
+        unit: raw.unit.slice(0, 20),
+        comment: typeof raw.comment === 'string' ? raw.comment.slice(0, 500) : '',
+        favorite: raw.favorite === true,
+        error: typeof raw.error === 'string' && raw.error !== '' ? raw.error.slice(0, 500) : null,
+        usedBy: Array.isArray(raw.used_by) ? raw.used_by.length : 0,
+        editable: raw.unit === 'mm' && PLAIN_NUMBER.test(raw.expression),
+      });
+    }
+    return [...found.filter((entry) => entry.favorite), ...found.filter((entry) => !entry.favorite)].slice(0, 300);
   }
 
   /**

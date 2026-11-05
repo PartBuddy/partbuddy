@@ -68,6 +68,7 @@
   --spacing-pin: var(--cs-size-pin);
   --spacing-progress: var(--cs-size-progress);
   --spacing-field-number: var(--cs-size-field-number);
+  --spacing-field-value: var(--cs-size-field-value);
   --spacing-index-column: var(--cs-size-index-column);
   --spacing-menu: var(--cs-size-menu);
   --spacing-menu-max: var(--cs-size-menu-max-height);
