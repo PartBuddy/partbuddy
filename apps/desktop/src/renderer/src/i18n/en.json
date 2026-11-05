@@ -528,5 +528,32 @@
     "saveFailed": "The profiles could not be saved.",
     "cancel": "Cancel",
     "save": "Save"
+  },
+  "check": {
+    "title": "Ready to print?",
+    "status": {
+      "ready": "Ready to print",
+      "warn": "{count, plural, one {# warning} other {# warnings}}",
+      "block": "Not ready to print"
+    },
+    "none": "Nothing found: the part fits the build volume, the walls are thick enough, nothing needs support.",
+    "basis": "Checked after every change, printed along +Z on its lowest face, with the printer and material of this part.",
+    "faces": "{count, plural, one {# face} other {# faces}}",
+    "show": "Show the place",
+    "finding": {
+      "size": "Too large for the build volume: {size} mm, the printer takes {bed} mm",
+      "sizeLying": "Too large for the build volume: {size} mm, the printer takes {bed} mm. Laid on another side it would fit.",
+      "wallTooThin": "Walls only {thickness} mm, thinner than the nozzle ({nozzle} mm): they do not print",
+      "wallThin": "Walls only {thickness} mm, at least {minimum} mm (two lines)",
+      "support": "{area} mm² overhang beyond {limit}° need support",
+      "contact": "Only {area} mm² lie on the bed: may come loose or tip over",
+      "feature": "{feature}: {message}"
+    },
+    "confirm": {
+      "title": "Export anyway?",
+      "body": "The print check is red. As it is, the part will likely not print cleanly:",
+      "cancel": "Cancel",
+      "go": "Export anyway"
+    }
   }
 }

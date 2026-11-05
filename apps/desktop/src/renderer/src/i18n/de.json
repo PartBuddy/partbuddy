@@ -528,5 +528,32 @@
     "saveFailed": "Die Profile konnten nicht gespeichert werden.",
     "cancel": "Abbrechen",
     "save": "Speichern"
+  },
+  "check": {
+    "title": "Druckbereit?",
+    "status": {
+      "ready": "Druckbereit",
+      "warn": "{count, plural, one {# Hinweis} other {# Hinweise}}",
+      "block": "Nicht druckbereit"
+    },
+    "none": "Nichts gefunden: Das Teil passt in den Bauraum, die Wände sind dick genug, nichts braucht Stütze.",
+    "basis": "Geprüft nach jeder Änderung, gedruckt entlang +Z auf der untersten Fläche, mit Drucker und Material dieses Teils.",
+    "faces": "{count, plural, one {# Fläche} other {# Flächen}}",
+    "show": "Stelle zeigen",
+    "finding": {
+      "size": "Zu groß für den Bauraum: {size} mm, Platz ist {bed} mm",
+      "sizeLying": "Zu groß für den Bauraum: {size} mm, Platz ist {bed} mm. Auf eine andere Seite gelegt würde es passen.",
+      "wallTooThin": "Wände nur {thickness} mm, dünner als die Düse ({nozzle} mm): werden nicht gedruckt",
+      "wallThin": "Wände nur {thickness} mm, mindestens {minimum} mm (zwei Linien)",
+      "support": "{area} mm² Überhang über {limit}° brauchen Stütze",
+      "contact": "Nur {area} mm² liegen auf dem Druckbett: kann sich lösen oder kippen",
+      "feature": "{feature}: {message}"
+    },
+    "confirm": {
+      "title": "Trotzdem exportieren?",
+      "body": "Die Druckprüfung ist rot. So wird das Teil voraussichtlich nicht sauber gedruckt:",
+      "cancel": "Abbrechen",
+      "go": "Trotzdem exportieren"
+    }
   }
 }

@@ -1,8 +1,8 @@
+import { Overhang, OVERHANG_LIMITS, overhangLimits } from '@partbuddy/geometry';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useStudio, type BodyModel } from '../state/store';
-import { Overhang, OVERHANG_LIMITS, overhangLimits } from './overhang';
 import { overhangArea } from './useOverhang';
 
 /**

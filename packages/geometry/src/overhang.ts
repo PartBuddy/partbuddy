@@ -42,6 +42,8 @@ export interface OverhangMap {
   vertices: Uint8Array;
   /** Area in mm² per class, from each triangle's own normal. */
   area: [number, number, number, number];
+  /** Area in mm² per B-rep face that needs support (the print check's findings, M7). */
+  supportByFace: Float64Array;
 }
 
 export interface OverhangInput {
@@ -70,6 +72,7 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
   }
 
   const area: [number, number, number, number] = [0, 0, 0, 0];
+  const supportByFace = new Float64Array(faceCount);
   for (let i = 0; i < index.length; i += 3) {
     const a = (index[i] ?? 0) * 3;
     const b = (index[i + 1] ?? 0) * 3;
@@ -85,8 +88,10 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
     const nz = ux * vy - uy * vx;
     const length = Math.hypot(nx, ny, nz);
     if (length === 0) continue;
-    const kind = onBed(vertexFaces[index[i] ?? 0] ?? 0) ? Overhang.Bed : classOf(-nz / length);
+    const face = vertexFaces[index[i] ?? 0] ?? 0;
+    const kind = onBed(face) ? Overhang.Bed : classOf(-nz / length);
     area[kind] += length / 2;
+    if (kind === Overhang.Support) supportByFace[face] = (supportByFace[face] ?? 0) + length / 2;
   }
-  return { vertices, area };
+  return { vertices, area, supportByFace };
 }

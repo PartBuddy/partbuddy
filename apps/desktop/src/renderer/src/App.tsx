@@ -3,6 +3,7 @@ import { useAssistantBridge, useChatPersistence } from './assistant/useAssistant
 import { useNotesBridge } from './notes/useNotesBridge';
 import { PrintProfilesDialog } from './print/PrintProfilesDialog';
 import { usePrintBridge } from './print/usePrintBridge';
+import { usePrintCheck } from './print/usePrintCheck';
 import { StatusBar } from './shell/StatusBar';
 import { StructurePanel } from './shell/StructurePanel';
 import { Timeline } from './shell/Timeline';
@@ -16,6 +17,7 @@ export function App() {
   useChatPersistence();
   useNotesBridge();
   usePrintBridge();
+  usePrintCheck();
   return (
     <div className="flex h-full flex-col bg-canvas text-text">
       <TitleBar />

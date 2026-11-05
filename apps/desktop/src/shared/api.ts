@@ -25,6 +25,7 @@ import type {
   MirrorRevision,
   NotesState,
   PartPrint,
+  PrintCheckReport,
   PrintSettings,
   TitleBarColors,
   Theme,
@@ -111,6 +112,8 @@ export interface PartBuddyApi {
     /** Chooses the material of the open part; kept next to its design file. */
     setMaterial(material: string): Promise<PartPrint>;
     onChange(listener: (part: PartPrint) => void): () => void;
+    /** The latest ready-to-print check, for the assistant's next message. */
+    reportCheck(report: PrintCheckReport): Promise<void>;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

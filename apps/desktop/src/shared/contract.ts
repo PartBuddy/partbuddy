@@ -618,6 +618,32 @@ export const partPrintSchema = z
   .strict();
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();
 
+/**
+ * The result of the ready-to-print check (M7) as the renderer reports it, for the note to the
+ * assistant. Worked out in the renderer from the mirrored meshes (`checkPrint` in the geometry
+ * package); the main process only words it.
+ */
+const findingSeveritySchema = z.enum(['block', 'warn', 'info']);
+const findingPlacesSchema = z
+  .array(z.object({ body: bodyName, faces: z.array(z.string().min(1).max(200)).max(40) }).strict())
+  .max(20);
+const mmValue = finite.nonnegative().max(100_000);
+export const printFindingSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('size'), severity: findingSeveritySchema, size: z.tuple([mmValue, mmValue, mmValue]), bed: z.tuple([mmValue, mmValue, mmValue]), lying: z.boolean() }).strict(),
+  z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('support'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
+]);
+export const printCheckReportSchema = z
+  .object({
+    status: z.enum(['ready', 'warn', 'block']),
+    findings: z.array(printFindingSchema).max(40),
+    /** The printer's nozzle the check used, for the wording of walls under it. */
+    nozzle: range(0.1, 2),
+  })
+  .strict();
+
 export const invokeContract = {
   [invokeChannels.appInfo]: { request: none, response: appInfoSchema },
   [invokeChannels.solidcraftStatus]: { request: none, response: connectionStatusSchema },
@@ -665,6 +691,7 @@ export const invokeContract = {
   [invokeChannels.printSaveSettings]: { request: printSettingsSchema, response: printSettingsSchema },
   [invokeChannels.printPart]: { request: none, response: partPrintSchema },
   [invokeChannels.printSetMaterial]: { request: partMaterialRequestSchema, response: partPrintSchema },
+  [invokeChannels.printReportCheck]: { request: printCheckReportSchema, response: none },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {
@@ -704,6 +731,7 @@ export type MaterialProfile = z.infer<typeof materialProfileSchema>;
 export type FitKind = z.infer<typeof fitKindSchema>;
 export type PrintSettings = z.infer<typeof printSettingsSchema>;
 export type PartPrint = z.infer<typeof partPrintSchema>;
+export type PrintCheckReport = z.infer<typeof printCheckReportSchema>;
 export type DesignParameter = z.infer<typeof designParameterSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type ExportResult = z.infer<typeof exportResultSchema>;

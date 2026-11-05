@@ -1,8 +1,8 @@
+import { overhangOf, type OverhangLimits, type OverhangMap } from '@partbuddy/geometry';
 import type { BufferAttribute } from 'three';
 
 import type { BodyModel } from '../state/store';
 import { bodiesBox } from './section';
-import { overhangOf, type OverhangLimits, type OverhangMap } from './overhang';
 
 /** Overhang classes per body model, bed height and limits, worked out once per mirrored revision. */
 const cache = new WeakMap<BodyModel['model'], { bedZ: number; limits: OverhangLimits; map: OverhangMap }>();
