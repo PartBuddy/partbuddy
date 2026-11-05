@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 
 /**
  * Finds a running SolidCraft through the files its control channel writes (SolidCraft 0.30.1,
@@ -14,6 +14,8 @@ export interface Environment {
   home: string;
   /** True when a process with this id exists. */
   isAlive(pid: number): boolean;
+  /** The SolidCraft program the user chose in the settings (R0), or null for the automatic search. */
+  configured?: () => string | null;
 }
 
 export const systemEnvironment: Environment = {
@@ -83,11 +85,23 @@ export function findRunning(environment: Environment): EndpointLookup {
   return endpointForPort(environment, port);
 }
 
-/** Path of the SolidCraft desktop app, or null when it is not installed. */
-export function findExecutable(environment: Environment, exists: (path: string) => boolean = existsSync): string | null {
+/** Where the SolidCraft program came from: a test override, the user's choice, or the automatic search. */
+export type ExecutableSource = 'override' | 'setting' | 'automatic';
+
+/**
+ * The SolidCraft desktop app PartBuddy uses, or null when none is found. A test override wins, then
+ * the program the user chose; a chosen program that no longer exists counts as missing instead of
+ * silently falling back to another version.
+ */
+export function locateExecutable(
+  environment: Environment,
+  exists: (path: string) => boolean = existsSync,
+): { path: string | null; source: ExecutableSource } {
   const { env, platform } = environment;
   const override = env.PARTBUDDY_SOLIDCRAFT_EXE;
-  if (override) return exists(override) ? override : null;
+  if (override) return { path: exists(override) ? override : null, source: 'override' };
+  const configured = environment.configured?.() ?? null;
+  if (configured) return { path: exists(configured) ? configured : null, source: 'setting' };
   const name = platform === 'win32' ? 'solidcraft.exe' : 'solidcraft';
   const candidates: string[] = [];
   if (platform === 'win32') {
@@ -98,5 +112,15 @@ export function findExecutable(environment: Environment, exists: (path: string) 
   for (const dir of (env.PATH ?? env.Path ?? '').split(delimiter)) {
     if (dir) candidates.push(join(dir, name));
   }
-  return candidates.find((path) => exists(path)) ?? null;
+  return { path: candidates.find((path) => exists(path)) ?? null, source: 'automatic' };
+}
+
+/** Path of the SolidCraft desktop app, or null when it is not installed. */
+export function findExecutable(environment: Environment, exists: (path: string) => boolean = existsSync): string | null {
+  return locateExecutable(environment, exists).path;
+}
+
+/** The command-line program next to the desktop app (`solidcraft-cli`), which runs the headless engine. */
+export function cliBeside(executable: string, platform: NodeJS.Platform = process.platform): string {
+  return join(dirname(executable), platform === 'win32' ? 'solidcraft-cli.exe' : 'solidcraft-cli');
 }

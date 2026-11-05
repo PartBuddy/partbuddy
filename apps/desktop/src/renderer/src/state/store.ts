@@ -115,6 +115,9 @@ interface StudioState {
   /** The dialog with the printer and material profiles. */
   profilesOpen: boolean;
   setProfilesOpen: (open: boolean) => void;
+  /** The dialog that shows and chooses the SolidCraft program (R0). */
+  engineOpen: boolean;
+  setEngineOpen: (open: boolean) => void;
   /** Which tab of that dialog shows. */
   profilesTab: ProfilesTab;
   setProfilesTab: (tab: ProfilesTab) => void;
@@ -246,6 +249,10 @@ export const useStudio = create<StudioState>()((set) => ({
   profilesOpen: false,
   setProfilesOpen: (profilesOpen) => {
     set({ profilesOpen });
+  },
+  engineOpen: false,
+  setEngineOpen: (engineOpen) => {
+    set({ engineOpen });
   },
   profilesTab: 'printer',
   setProfilesTab: (profilesTab) => {

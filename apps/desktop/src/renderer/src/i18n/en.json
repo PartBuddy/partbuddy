@@ -674,5 +674,37 @@
     "entryOuter": "Outer size: drawn {drawn}, measured {measured}",
     "entryFit": "{fit} with {clearance} mm clearance: {verdict}",
     "remove": "Delete measurement"
+  },
+  "engine": {
+    "menu": "SolidCraft …",
+    "title": "SolidCraft",
+    "program": "Program",
+    "none": "No SolidCraft found",
+    "source": {
+      "automatic": "Found automatically",
+      "setting": "Chosen by you",
+      "override": "Set by the test environment"
+    },
+    "version": "Version",
+    "unknownVersion": "unknown",
+    "support": {
+      "recommended": "Recommended",
+      "supported": "Supported",
+      "tooOld": "Too old",
+      "unknown": "Unknown"
+    },
+    "hint": "PartBuddy is developed with SolidCraft {recommended} (new kernel solidcore). It also runs from {minimum}, but older designs can lose chamfers, fillets and threads in 0.40. What 0.40 saves, 0.30 cannot open.",
+    "error": {
+      "notSolidCraft": "This is not the SolidCraft program. Choose solidcraft.exe.",
+      "noCli": "solidcraft-cli is missing next to this program; PartBuddy needs it to work without a window.",
+      "noVersion": "This SolidCraft does not tell its version.",
+      "tooOld": "This SolidCraft is too old. PartBuddy needs at least {minimum}."
+    },
+    "restartHint": "The chosen SolidCraft applies after PartBuddy restarts. Your design is saved first.",
+    "automatic": "Search automatically",
+    "choose": "Choose program …",
+    "restart": "Restart PartBuddy",
+    "close": "Close",
+    "reading": "Checking SolidCraft …"
   }
 }

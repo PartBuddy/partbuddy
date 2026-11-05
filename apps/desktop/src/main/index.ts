@@ -29,6 +29,8 @@ import { loadNoteKey } from './notes/noteRecord';
 import { NotesService } from './notes/notesService';
 import { Bridge, trustedSender } from './bridge';
 import { findExecutable, systemEnvironment } from './solidcraft/discovery';
+import { EngineChoice } from './solidcraft/engineChoice';
+import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
@@ -202,9 +204,19 @@ if (!app.requestSingleInstanceLock()) {
     let notes: NotesService | null = null;
     let chats: ChatArchive | null = null;
     let prints: PrintProfiles | null = null;
+    // Which SolidCraft runs (R0, ADR 0024): the automatic search or the program the user chose.
+    const engineChoice = new EngineChoice({
+      file: join(app.getPath('userData'), 'solidcraft-settings.json'),
+      environment: systemEnvironment,
+      readVersion,
+    });
+    const engineEnvironment = engineChoice.environment();
+    void engineChoice.info().then((engine) => {
+      log(`SolidCraft ${engine.version ?? 'version unknown'} (${engine.source}, ${engine.support})`);
+    });
     const supervisor = new SolidCraftSupervisor(
       {
-        environment: systemEnvironment,
+        environment: engineEnvironment,
         launchPort: launchPort(),
         autoStart: process.env.PARTBUDDY_SOLIDCRAFT_AUTOSTART !== '0',
         cacheDir: cacheDirectory(),
@@ -240,6 +252,26 @@ if (!app.requestSingleInstanceLock()) {
       platform: process.platform === 'win32' || process.platform === 'darwin' ? process.platform : 'linux',
     }));
     bridge.handle(invokeChannels.solidcraftStatus, () => supervisor.status());
+    bridge.handle(invokeChannels.solidcraftEngine, () => engineChoice.info());
+    bridge.handle(invokeChannels.solidcraftChooseEngine, async ({ automatic }) => {
+      if (automatic) return { ...(await engineChoice.choose(null)), cancelled: false };
+      const current = (await engineChoice.info()).path;
+      const options: Electron.OpenDialogOptions = {
+        title: 'SolidCraft',
+        properties: ['openFile'],
+        filters: process.platform === 'win32' ? [{ name: 'SolidCraft', extensions: ['exe'] }] : [],
+        ...(current ? { defaultPath: current } : {}),
+      };
+      const picked = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
+      const [file] = picked.filePaths;
+      if (picked.canceled || !file) return { info: await engineChoice.info(), error: null, cancelled: true };
+      return { ...(await engineChoice.choose(file)), cancelled: false };
+    });
+    bridge.handle(invokeChannels.appRelaunch, () => {
+      app.relaunch();
+      app.quit();
+      return undefined;
+    });
     bridge.handle(invokeChannels.solidcraftRetry, () => {
       supervisor.retry();
       return undefined;
@@ -366,7 +398,7 @@ if (!app.requestSingleInstanceLock()) {
       const headless = supervisor.headlessTools();
       if (headless) return track(headless);
       const port = supervisor.connectedPort();
-      const executable = findExecutable(systemEnvironment);
+      const executable = findExecutable(engineEnvironment);
       if (port === null || !executable) return null;
       if (toolsCache?.port !== port) {
         await toolsCache?.close();

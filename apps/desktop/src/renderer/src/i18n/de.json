@@ -674,5 +674,37 @@
     "entryOuter": "Außenmaß: gezeichnet {drawn}, gemessen {measured}",
     "entryFit": "{fit} mit {clearance} mm Spiel: {verdict}",
     "remove": "Messung löschen"
+  },
+  "engine": {
+    "menu": "SolidCraft …",
+    "title": "SolidCraft",
+    "program": "Programm",
+    "none": "Kein SolidCraft gefunden",
+    "source": {
+      "automatic": "Automatisch gefunden",
+      "setting": "Von dir gewählt",
+      "override": "Von der Testumgebung vorgegeben"
+    },
+    "version": "Version",
+    "unknownVersion": "unbekannt",
+    "support": {
+      "recommended": "Empfohlen",
+      "supported": "Unterstützt",
+      "tooOld": "Zu alt",
+      "unknown": "Unbekannt"
+    },
+    "hint": "PartBuddy wird mit SolidCraft {recommended} entwickelt (neuer Kern solidcore). Ab {minimum} läuft es auch, ältere Designs können in 0.40 aber Fasen, Rundungen und Gewinde verlieren. Was 0.40 speichert, öffnet 0.30 nicht mehr.",
+    "error": {
+      "notSolidCraft": "Das ist nicht das SolidCraft-Programm. Wähle solidcraft.exe.",
+      "noCli": "Neben diesem Programm fehlt solidcraft-cli, PartBuddy braucht es für die Arbeit ohne Fenster.",
+      "noVersion": "Dieses SolidCraft nennt keine Version.",
+      "tooOld": "Dieses SolidCraft ist zu alt. PartBuddy braucht mindestens {minimum}."
+    },
+    "restartHint": "Das gewählte SolidCraft gilt nach einem Neustart von PartBuddy. Dein Design wird vorher gesichert.",
+    "automatic": "Automatisch suchen",
+    "choose": "Programm wählen …",
+    "restart": "PartBuddy neu starten",
+    "close": "Schließen",
+    "reading": "SolidCraft wird geprüft …"
   }
 }

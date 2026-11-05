@@ -1,4 +1,4 @@
-import { IconCheck, IconDeviceDesktop, IconMoon, IconPrinter, IconSettings, IconSun } from '@tabler/icons-react';
+import { IconCheck, IconCube, IconDeviceDesktop, IconMoon, IconPrinter, IconSettings, IconSun } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator } from 'react-aria-components';
@@ -16,7 +16,8 @@ const THEMES: { theme: Theme; icon: typeof IconSun }[] = [
 /**
  * Settings in the title bar (UI upgrade, 2026-11-04): the colour theme (follow Windows, light or
  * dark; the main process keeps the choice and sets Chromium's colour scheme, so the design tokens,
- * the 3D view and the window buttons all follow) and the printer and material profiles (M7).
+ * the 3D view and the window buttons all follow), the printer and material profiles (M7) and the
+ * SolidCraft program (R0).
  */
 export function SettingsMenu() {
   const { t } = useTranslation();
@@ -47,6 +48,10 @@ export function SettingsMenu() {
         <Menu
           aria-label={t('settings.title')}
           onAction={(key) => {
+            if (key === 'solidcraft') {
+              useStudio.getState().setEngineOpen(true);
+              return;
+            }
             if (key !== 'print') return;
             useStudio.getState().setProfilesTab('printer');
             setProfilesOpen(true);
@@ -93,6 +98,15 @@ export function SettingsMenu() {
             >
               <IconPrinter className="size-icon-sm text-text-muted" aria-hidden />
               <span className="flex-1">{t('print.edit')}</span>
+            </MenuItem>
+            <MenuItem
+              id="solidcraft"
+              textValue={t('engine.menu')}
+              className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover"
+              data-testid="settings-solidcraft"
+            >
+              <IconCube className="size-icon-sm text-text-muted" aria-hidden />
+              <span className="flex-1">{t('engine.menu')}</span>
             </MenuItem>
           </MenuSection>
         </Menu>

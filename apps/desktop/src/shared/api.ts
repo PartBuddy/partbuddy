@@ -2,6 +2,8 @@ import type {
   AgentEvent,
   AgentKind,
   AppInfo,
+  EngineChoiceResult,
+  EngineInfo,
   AssistantState,
   ActionPreviewResult,
   DesignParameter,
@@ -43,7 +45,13 @@ import type {
  */
 export interface PartBuddyApi {
   appInfo(): Promise<AppInfo>;
+  /** Restarts PartBuddy (after choosing another SolidCraft); the design is saved first. */
+  relaunch(): Promise<void>;
   solidcraft: {
+    /** The SolidCraft program in use and its version. */
+    engine(): Promise<EngineInfo>;
+    /** Asks for the SolidCraft program and keeps it, or goes back to the automatic search. */
+    chooseEngine(automatic: boolean): Promise<EngineChoiceResult>;
     status(): Promise<ConnectionStatus>;
     /** Look for SolidCraft again now instead of waiting for the next poll. */
     retry(): Promise<void>;

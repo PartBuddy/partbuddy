@@ -8,7 +8,7 @@ import { createActor, fromCallback, fromPromise } from 'xstate';
 import type { ConnectionStatus, ExportFormat, MirrorRevision } from '../../shared/contract';
 import type { UpstreamTools } from '../agents/gateProxy';
 import { ControlClient, ControlError } from './controlClient';
-import { endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
+import { cliBeside, endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
 import type { DesignAction, MeasureItem, MeasureResult, PrintFix, TimelineCommand, VisibilityCommand } from '../../shared/contract';
 import { ActionService, type ActionPreview } from './actions';
 import { PrintFixService } from './printFixes';
@@ -571,7 +571,7 @@ export class SolidCraftSupervisor {
 
   private async launchHeadless(executable: string): Promise<Launched> {
     const launchedAt = Date.now();
-    const cli = join(dirname(executable), process.platform === 'win32' ? 'solidcraft-cli.exe' : 'solidcraft-cli');
+    const cli = cliBeside(executable);
     if (!existsSync(cli)) throw new Error('SolidCraft is installed without solidcraft-cli');
     const allowPaths = [this.options.cacheDir, ...(this.options.projectsDir ? [this.options.projectsDir] : [])];
     if (this.designs) allowPaths.push(this.designs.folder);

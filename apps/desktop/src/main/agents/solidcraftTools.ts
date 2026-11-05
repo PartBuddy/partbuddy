@@ -1,8 +1,7 @@
-import { dirname, join } from 'node:path';
-
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
+import { cliBeside } from '../solidcraft/discovery';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
 /**
@@ -26,7 +25,7 @@ export class SolidCraftTools implements UpstreamTools {
 
   async connect(): Promise<void> {
     if (this.client) return;
-    const cli = join(dirname(this.options.solidcraftExe), process.platform === 'win32' ? 'solidcraft-cli.exe' : 'solidcraft-cli');
+    const cli = cliBeside(this.options.solidcraftExe);
     const transport = new StdioClientTransport({
       command: cli,
       args: ['mcp', '--connect', `127.0.0.1:${this.options.port}`, '--allow-path', this.options.allowPath],

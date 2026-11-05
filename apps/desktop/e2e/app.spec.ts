@@ -346,6 +346,29 @@ test('the colour theme can be chosen in the settings and is kept', async () => {
   }
 });
 
+test('the settings show which SolidCraft runs and its version (R0)', async () => {
+  launched = await launchApp();
+  const { page } = launched;
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-solidcraft').click();
+  const dialog = page.getByTestId('solidcraft-engine');
+  await expect(dialog).toBeVisible();
+  // The test environment names the program; it is no SolidCraft, so its version stays unknown.
+  await expect(dialog.getByText('Set by the test environment')).toBeVisible();
+  await expect(page.getByTestId('engine-version')).toHaveText('unknown');
+  await expect(page.getByTestId('engine-support')).toHaveText('Unknown');
+  await expect(page.getByTestId('engine-choose')).toBeDisabled();
+  await expect(page.getByTestId('engine-restart')).toHaveCount(0);
+  const results = await new AxeBuilder({ page })
+    .setLegacyMode(true)
+    .include('[data-testid="solidcraft-engine"]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(results.violations.map((v) => v.id)).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+});
+
 test('the chat is as wide as the user drags it, by mouse or keyboard, and stays so', async () => {
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-chat-width-'));
   const width = async (page: LaunchedApp['page']) => (await page.getByTestId('assistant-panel').boundingBox())?.width ?? 0;
@@ -449,8 +472,8 @@ test('the renderer sees only the typed bridge', async () => {
     };
   });
   expect(globals).toEqual({
-    bridge: ['agent', 'appInfo', 'chat', 'design', 'mirror', 'notes', 'print', 'solidcraft', 'viewer', 'window'],
-    solidcraft: ['onStatus', 'retry', 'start', 'status'],
+    bridge: ['agent', 'appInfo', 'chat', 'design', 'mirror', 'notes', 'print', 'relaunch', 'solidcraft', 'viewer', 'window'],
+    solidcraft: ['chooseEngine', 'engine', 'onStatus', 'retry', 'start', 'status'],
     require: 'undefined',
     process: 'undefined',
   });
