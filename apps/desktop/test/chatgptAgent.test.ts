@@ -194,6 +194,7 @@ describe('assistant routes', () => {
         return Promise.resolve();
       },
       chooseModel: () => Promise.resolve(),
+      newConversation: () => Promise.resolve(),
       freshConversation: () => false,
       signIn: () => calls.push('signIn'),
       signOut: () => {

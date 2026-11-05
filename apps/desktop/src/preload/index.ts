@@ -19,6 +19,15 @@ function subscribe<C extends EventChannel>(channel: C, listener: (payload: Event
 const api: PartBuddyApi = {
   appInfo: () => ipcRenderer.invoke(invokeChannels.appInfo),
   relaunch: () => ipcRenderer.invoke(invokeChannels.appRelaunch),
+  project: {
+    info: () => ipcRenderer.invoke(invokeChannels.projectInfo),
+    create: () => ipcRenderer.invoke(invokeChannels.projectNew),
+    open: () => ipcRenderer.invoke(invokeChannels.projectOpen),
+    rename: (name) => ipcRenderer.invoke(invokeChannels.projectRename, { name }),
+    duplicate: () => ipcRenderer.invoke(invokeChannels.projectDuplicate),
+    reveal: () => ipcRenderer.invoke(invokeChannels.projectReveal),
+    trash: () => ipcRenderer.invoke(invokeChannels.projectTrash),
+  },
   solidcraft: {
     engine: () => ipcRenderer.invoke(invokeChannels.solidcraftEngine),
     chooseEngine: (automatic) => ipcRenderer.invoke(invokeChannels.solidcraftChooseEngine, { automatic }),

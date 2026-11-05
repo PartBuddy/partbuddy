@@ -255,7 +255,10 @@ export const useStudio = create<StudioState>()((set) => ({
     set({ model, hover: null, selection: null, selections: [] });
   },
   showRevision: (model, changes, latency) => {
-    set({ model, changes, latency, hover: null, selection: null, selections: [] });
+    // A revision that changed no geometry of the same design (a save that renamed it, B2) keeps
+    // what the user selected; anything else starts without a selection.
+    const unchanged = changes !== null && changes.count === 0 && changes.sketchCurves === 0;
+    set(unchanged ? { model, latency } : { model, changes, latency, hover: null, selection: null, selections: [] });
   },
   markGhost: null,
   setMarkGhost: (markGhost) => {

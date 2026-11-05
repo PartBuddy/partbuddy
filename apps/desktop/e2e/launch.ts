@@ -36,6 +36,8 @@ export async function launchApp(
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     PARTBUDDY_CACHE_DIR: join(work, 'cache'),
+    // Projects (B2) always go to the test's own folder, never into the user's documents.
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
     // Beside all displays, without focus or taskbar button: tests never disturb the developer.
     // PARTBUDDY_WINDOW_DISPLAY=leftmost shows the window on purpose.
     PARTBUDDY_WINDOW_DISPLAY: process.env.PARTBUDDY_WINDOW_DISPLAY === 'leftmost' ? 'leftmost' : 'offscreen',

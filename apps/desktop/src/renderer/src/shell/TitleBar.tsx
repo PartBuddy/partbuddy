@@ -8,6 +8,7 @@ import { useStudio } from '../state/store';
 import { StatusDot, type Tone } from '../ui/Feedback';
 import { BrandMark } from './BrandMark';
 import { DesignActions } from './DesignActions';
+import { ProjectMenu } from './ProjectMenu';
 import { SettingsMenu } from './SettingsMenu';
 
 function connectionTone(status: ConnectionStatus): Tone {
@@ -68,9 +69,7 @@ export function TitleBar() {
       </div>
       <nav aria-label={t('app.design')} className="flex min-w-0 items-center gap-2 text-md">
         <span className="text-text-subtle">/</span>
-        <span className="truncate font-medium text-text" data-testid="design-name">
-          {designName}
-        </span>
+        <ProjectMenu designName={designName} />
         {model.status === 'ready' && connection.save ? <SaveState state={connection.save} /> : null}
       </nav>
       <DesignActions />

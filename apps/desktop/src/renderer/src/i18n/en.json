@@ -582,5 +582,31 @@
     "restart": "Restart PartBuddy",
     "close": "Close",
     "reading": "Checking SolidCraft …"
+  },
+  "project": {
+    "title": "Project",
+    "menu": "Project {name}",
+    "new": "New project",
+    "open": "Open …",
+    "rename": "Rename …",
+    "duplicate": "Duplicate",
+    "reveal": "Show in Explorer",
+    "trash": "Move to recycle bin …",
+    "failed": "That did not work: {detail}",
+    "imported": "The file was copied into a new project; the original stays unchanged.",
+    "renameTitle": "Rename project",
+    "name": "Name",
+    "renameHint": "The folder and files in the project folder get this name.",
+    "renameSave": "Rename",
+    "cancel": "Cancel",
+    "renameError": {
+      "empty": "Nothing of this name is left for a valid file name.",
+      "exists": "A project of this name exists already.",
+      "noProject": "The design has no project yet; it gets one once it has content.",
+      "busy": "Not possible right now."
+    },
+    "trashTitle": "Move \"{name}\" to the recycle bin?",
+    "trashBody": "The project folder with design, conversation and exports goes to the Windows recycle bin and can be restored from there. A new, empty project starts afterwards.",
+    "trashConfirm": "Move to recycle bin"
   }
 }

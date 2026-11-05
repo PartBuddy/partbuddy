@@ -49,6 +49,8 @@ export type SupervisorEvent =
   | { type: 'START' }
   /** Save the headless design and open it in the SolidCraft window instead. */
   | { type: 'HANDOFF' }
+  /** Close the headless design and start the engine again with another project (B2). */
+  | { type: 'REOPEN' }
   | { type: 'REVISION'; documentId: string; revision: number }
   | { type: 'LOST'; reason: string };
 
@@ -200,6 +202,7 @@ export const supervisorMachine = setup({
           actions: assign({ detail: ({ event }) => event.reason }),
         },
         HANDOFF: 'starting',
+        REOPEN: 'starting',
       },
     },
     lost: {

@@ -4,6 +4,9 @@ import type {
   AppInfo,
   EngineChoiceResult,
   EngineInfo,
+  ProjectInfo,
+  ProjectOpenResult,
+  ProjectRenameResult,
   AssistantState,
   ActionPreviewResult,
   DesignParameter,
@@ -42,6 +45,21 @@ export interface PartBuddyApi {
   appInfo(): Promise<AppInfo>;
   /** Restarts PartBuddy (after choosing another SolidCraft); the design is saved first. */
   relaunch(): Promise<void>;
+  /** Projects (B2): one folder per part in the project folder. Switching saves the open design first. */
+  project: {
+    info(): Promise<ProjectInfo>;
+    /** Closes the open project and starts a new, empty design. */
+    create(): Promise<void>;
+    /** Asks for a project folder or a design file; a design from elsewhere is copied into a new project. */
+    open(): Promise<ProjectOpenResult>;
+    rename(name: string): Promise<ProjectRenameResult>;
+    /** Copies the open project and opens the copy. */
+    duplicate(): Promise<void>;
+    /** Shows the project folder in Explorer. */
+    reveal(): Promise<void>;
+    /** Moves the open project to the recycle bin and starts a new, empty design. */
+    trash(): Promise<void>;
+  };
   solidcraft: {
     /** The SolidCraft program in use and its version. */
     engine(): Promise<EngineInfo>;

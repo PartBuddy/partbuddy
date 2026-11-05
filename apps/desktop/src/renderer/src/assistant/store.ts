@@ -62,6 +62,8 @@ interface AssistantStore {
   apply: (event: AgentEvent) => void;
   /** Puts back the conversation saved with the design, before anything new was said. */
   restore: (chat: StoredChat) => void;
+  /** Empties the conversation (another project opens, B2). */
+  reset: () => void;
   /** The view's picture and changed faces of a step, taken once its revision is on screen. */
   attachPreview: (step: string, preview: string | null, changed: ChangedFaces[]) => void;
 }
@@ -178,6 +180,9 @@ export const useAssistant = create<AssistantStore>()((set) => ({
   },
   restore: (chat) => {
     set((state) => ({ items: [...fromStored(chat), ...state.items] }));
+  },
+  reset: () => {
+    set({ items: [] });
   },
   attachPreview: (step, preview, changed) => {
     set((state) => ({
