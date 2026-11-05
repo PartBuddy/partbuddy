@@ -74,6 +74,9 @@ export interface Notice {
 export type Projection = 'perspective' | 'orthographic';
 export type StandardView = 'fit' | 'iso' | 'front' | 'right' | 'top';
 /** How bodies are drawn (UI upgrade step 9): faces and edges, faces only, see-through, edges only. */
+/** The tabs of the printer and material dialog (M7). */
+export type ProfilesTab = 'printer' | 'material' | 'measure';
+
 export type DisplayMode = 'shadedEdges' | 'shaded' | 'xray' | 'wireframe';
 /**
  * A section through the design along one axis: `position` from 0 to 1 across the bodies' box,
@@ -112,6 +115,9 @@ interface StudioState {
   /** The dialog with the printer and material profiles. */
   profilesOpen: boolean;
   setProfilesOpen: (open: boolean) => void;
+  /** Which tab of that dialog shows. */
+  profilesTab: ProfilesTab;
+  setProfilesTab: (tab: ProfilesTab) => void;
   /** The ready-to-print check of the bodies on screen (M7); null until it ran. */
   printCheck: { revision: number; result: PrintCheck } | null;
   setPrintCheck: (check: { revision: number; result: PrintCheck } | null) => void;
@@ -240,6 +246,10 @@ export const useStudio = create<StudioState>()((set) => ({
   profilesOpen: false,
   setProfilesOpen: (profilesOpen) => {
     set({ profilesOpen });
+  },
+  profilesTab: 'printer',
+  setProfilesTab: (profilesTab) => {
+    set({ profilesTab });
   },
   printCheck: null,
   setPrintCheck: (printCheck) => {

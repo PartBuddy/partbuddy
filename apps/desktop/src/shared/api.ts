@@ -26,9 +26,11 @@ import type {
   NotesState,
   PartPrint,
   LoadPlaces,
+  Measurement,
   PrintCheckReport,
   PrintOrientation,
   PrintSettings,
+  StoredMeasurement,
   TitleBarColors,
   Theme,
   ViewState,
@@ -120,6 +122,10 @@ export interface PartBuddyApi {
     setOrientation(orientation: PrintOrientation): Promise<PartPrint>;
     /** The faces where a load acts on the open part. */
     setLoads(loads: LoadPlaces): Promise<PartPrint>;
+    /** Measurements after printing, all materials, newest last. */
+    measurements(): Promise<StoredMeasurement[]>;
+    addMeasurement(material: string, measurement: Measurement): Promise<StoredMeasurement[]>;
+    removeMeasurement(id: string): Promise<StoredMeasurement[]>;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

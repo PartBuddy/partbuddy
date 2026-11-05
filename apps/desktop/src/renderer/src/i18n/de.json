@@ -500,7 +500,8 @@
     "loading": "Profile werden geladen …",
     "tab": {
       "printer": "Drucker",
-      "material": "Material"
+      "material": "Material",
+      "measure": "Nachmessen"
     },
     "printers": "Drucker",
     "materials": "Materialien",
@@ -517,6 +518,7 @@
     "printerHint": "Der markierte Drucker ist in Gebrauch. Wände unter zwei Linienbreiten druckt er schlecht; das bekommt der Assistent mit.",
     "overhang": "Überhang ohne Stütze bis",
     "holeShrink": "Löcher kleiner um (Ø)",
+    "outerGrowth": "Außenmaß größer um",
     "clearance": "Spiel je Seite",
     "fit": {
       "clamp": "Klemmen",
@@ -598,6 +600,39 @@
     "apply": "Übernehmen",
     "ask": "Assistent fragen",
     "requestHole": "Mach {name} zur Bohrung mit Passung „{fit}“ für ein Gegenstück Ø{mating} mm: Ø{target} mm ({clearance} mm Spiel je Seite und {shrink} mm Lochzugabe für {material}). Leg Nennmaß und Spiel als eigene Parameter an und lass den Rest des Teils, wie er ist.",
-    "requestPin": "Mach {name} zum Zapfen mit Passung „{fit}“ für eine Bohrung, die Ø{mating} mm druckt: Ø{target} mm ({clearance} mm Spiel je Seite, {material}). Leg Nennmaß und Spiel als eigene Parameter an und lass den Rest des Teils, wie er ist."
+    "requestPin": "Mach {name} zum Zapfen mit Passung „{fit}“ für eine Bohrung, die Ø{mating} mm druckt: Ø{target} mm ({clearance} mm Spiel je Seite, {material}). Leg Nennmaß und Spiel als eigene Parameter an und lass den Rest des Teils, wie er ist.",
+    "targetPinGrowth": "Zapfen Ø{target} mm = {mating} − 2 × {clearance} Spiel − {growth} gemessenes Aufmaß ({material})"
+  },
+  "measure": {
+    "open": "Nachmessen …",
+    "intro": "Messungen nach dem Druck für {material}. Ein anderes Material wählst du im Reiter „Material“. Aus den Messungen schlägt PartBuddy Lochzugabe, Außenmaß und Spiele vor.",
+    "kind": "Was gemessen",
+    "kinds": {
+      "hole": "Bohrung",
+      "outer": "Außenmaß",
+      "fit": "Passung"
+    },
+    "drawn": "Gezeichnet",
+    "measured": "Gemessen",
+    "verdictLabel": "Wie war es",
+    "verdict": {
+      "tight": "Zu stramm",
+      "ok": "Passt",
+      "loose": "Zu locker"
+    },
+    "add": "Eintragen",
+    "invalid": "Gezeichnet und gemessen als Zahl in mm eingeben.",
+    "failed": "Die Messung konnte nicht gespeichert werden.",
+    "suggestions": "Vorschläge",
+    "suggestHole": "Lochzugabe {from} → {to} mm ({count, plural, one {aus # Messung} other {Median aus # Messungen}})",
+    "suggestOuter": "Außenmaß {from} → {to} mm ({count, plural, one {aus # Messung} other {Median aus # Messungen}})",
+    "suggestFit": "Spiel {fit} {from} → {to} mm (letzte Rückmeldung)",
+    "apply": "Übernehmen",
+    "noSuggestion": "Die Messungen passen zu den aktuellen Werten.",
+    "entries": "Messungen",
+    "entryHole": "Bohrung: gezeichnet Ø{drawn}, gemessen Ø{measured}",
+    "entryOuter": "Außenmaß: gezeichnet {drawn}, gemessen {measured}",
+    "entryFit": "{fit} mit {clearance} mm Spiel: {verdict}",
+    "remove": "Messung löschen"
   }
 }

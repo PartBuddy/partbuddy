@@ -679,3 +679,48 @@ test('the fit assistant sizes a hole for its counterpart from the material (M7)'
   await expect(panel.getByTestId('fit-status')).not.toHaveAttribute('data-mode', 'probing', { timeout: 10_000 });
   await page.screenshot({ path: test.info().outputPath('fit.png') });
 });
+
+test('measurements after printing suggest new material values that save with the profile (M7)', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+
+  // From the status bar straight to measuring, for the part's material (PLA).
+  await page.getByTestId('material-chip').click();
+  await page.getByTestId('measure-open').click();
+  const dialog = page.getByTestId('print-profiles');
+  const tab = dialog.getByTestId('measure');
+  await expect(tab).toContainText('Measurements after printing for PLA');
+
+  // A hole drawn at Ø6.8 measured Ø6.55: holes shrink by 0.25, not the 0.15 of the starting values.
+  await tab.getByTestId('measure-drawn').getByRole('textbox').fill('6.8');
+  await tab.getByTestId('measure-measured').getByRole('textbox').fill('6.55');
+  await tab.getByTestId('measure-add').click();
+  await expect(tab.getByTestId('measure-entry')).toHaveCount(1);
+  await expect(tab.getByTestId('measure-suggestion')).toHaveText(/Hole allowance 0\.15 → 0\.25 mm \(from 1 measurement\)/);
+
+  // A slide fit that was too tight moves its clearance one step.
+  await tab.getByTestId('measure-kind-fit').click();
+  await tab.getByTestId('measure-fit-slide').click();
+  await tab.getByTestId('measure-verdict-tight').click();
+  await tab.getByTestId('measure-add').click();
+  await expect(tab.getByTestId('measure-suggestion')).toHaveCount(2);
+  await page.screenshot({ path: test.info().outputPath('measure.png') });
+  const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="print-profiles"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+  expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  await tab.getByTestId('measure-apply').first().click();
+  await tab.getByTestId('measure-apply').first().click();
+  await expect(tab.getByTestId('measure-suggestion')).toHaveCount(0);
+  await expect(tab).toContainText('The measurements match the current values.');
+  await dialog.getByTestId('print-save').click();
+  await expect(dialog).toHaveCount(0);
+
+  // Saved: the material now has the measured values, and the fit assistant uses them.
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-print').click();
+  await dialog.getByTestId('print-tab-material').click();
+  await expect(dialog.getByTestId('material-hole').getByRole('textbox')).toHaveValue('0.25');
+  await expect(dialog.getByTestId('material-fit-slide').getByRole('textbox')).toHaveValue('0.3');
+  // The outer growth, new with measuring, is a value of its own; nothing was measured for it.
+  await expect(dialog.getByTestId('material-outer').getByRole('textbox')).toHaveValue('0');
+});

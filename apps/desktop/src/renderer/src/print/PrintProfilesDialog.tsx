@@ -22,8 +22,9 @@ import {
 
 import { FIT_KINDS, type MaterialProfile, type PrinterProfile, type PrintSettings } from '../../../shared/contract';
 import { platform } from '../platform';
-import { useStudio } from '../state/store';
+import { useStudio, type ProfilesTab } from '../state/store';
 import { Button } from '../ui/Button';
+import { MeasureTab } from './MeasureTab';
 
 const inputClass =
   'h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus invalid:border-danger';
@@ -210,9 +211,10 @@ function MaterialForm({
   return (
     <>
       <Name label={t('print.name')} value={material.name} onChange={(name) => onChange({ ...material, name })} testId="material-name" />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <Measure label={t('print.overhang')} value={material.overhang} min={20} max={70} step={1} unit="°" testId="material-overhang" onChange={(overhang) => onChange({ ...material, overhang })} />
         <Measure label={t('print.holeShrink')} value={material.holeShrink} min={0} max={1} step={0.05} unit="mm" testId="material-hole" onChange={(holeShrink) => onChange({ ...material, holeShrink })} />
+        <Measure label={t('print.outerGrowth')} value={material.outerGrowth} min={-1} max={1} step={0.05} unit="mm" testId="material-outer" onChange={(outerGrowth) => onChange({ ...material, outerGrowth })} />
       </div>
       <fieldset className="flex flex-col gap-1">
         <legend className={labelClass}>{t('print.clearance')}</legend>
@@ -251,6 +253,8 @@ function MaterialForm({
 function Editor({ close }: { close: () => void }) {
   const { t } = useTranslation();
   const part = useStudio((s) => s.print);
+  const tab = useStudio((s) => s.profilesTab);
+  const setTab = useStudio((s) => s.setProfilesTab);
   const [draft, setDraft] = useState<PrintSettings | null>(null);
   const [materialId, setMaterialId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -302,16 +306,16 @@ function Editor({ close }: { close: () => void }) {
 
   return (
     <>
-      <Tabs className="flex flex-col gap-3">
+      <Tabs className="flex flex-col gap-3" selectedKey={tab} onSelectionChange={(key) => setTab(key as ProfilesTab)}>
         <TabList aria-label={t('print.title')} className="flex gap-1 border-b border-border">
-          {(['printer', 'material'] as const).map((tab) => (
+          {(['printer', 'material', 'measure'] as const).map((id) => (
             <Tab
-              key={tab}
-              id={tab}
+              key={id}
+              id={id}
               className="-mb-px cursor-default border-b-2 border-transparent px-3 py-1 text-sm text-text-muted outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus selected:border-accent selected:text-text"
-              data-testid={`print-tab-${tab}`}
+              data-testid={`print-tab-${id}`}
             >
-              {t(`print.tab.${tab}`)}
+              {t(`print.tab.${id}`)}
             </Tab>
           ))}
         </TabList>
@@ -367,6 +371,9 @@ function Editor({ close }: { close: () => void }) {
               onChange={setMaterial}
             />
           </ProfileColumns>
+        </TabPanel>
+        <TabPanel id="measure" className="outline-none">
+          <MeasureTab material={material} onChange={setMaterial} />
         </TabPanel>
       </Tabs>
       {error ? (

@@ -36,4 +36,11 @@ describe('fits for printed parts (M7)', () => {
     expect(fitDiameter('pin', printed, 'slide', PETG)).toBe(6);
     expect(printedDiameter('pin', 6, PETG)).toBe(6);
   });
+
+  it('draws pins smaller by the outer growth measured after printing', () => {
+    const measured = { ...PETG, outerGrowth: 0.1 };
+    expect(fitDiameter('pin', 6, 'slide', measured)).toBe(5.3);
+    expect(printedDiameter('pin', 5.3, measured)).toBe(5.4);
+    expect(fitDiameter('hole', 6, 'slide', measured)).toBe(6.8);
+  });
 });

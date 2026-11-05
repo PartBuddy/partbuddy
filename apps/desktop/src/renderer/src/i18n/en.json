@@ -500,7 +500,8 @@
     "loading": "Loading profiles …",
     "tab": {
       "printer": "Printer",
-      "material": "Material"
+      "material": "Material",
+      "measure": "Measure"
     },
     "printers": "Printers",
     "materials": "Materials",
@@ -517,6 +518,7 @@
     "printerHint": "The highlighted printer is in use. Walls under two line widths print poorly; the assistant is told.",
     "overhang": "Overhang without support up to",
     "holeShrink": "Holes smaller by (Ø)",
+    "outerGrowth": "Outer sizes larger by",
     "clearance": "Clearance per side",
     "fit": {
       "clamp": "Clamp",
@@ -598,6 +600,39 @@
     "apply": "Apply",
     "ask": "Ask the assistant",
     "requestHole": "Make {name} a hole with a “{fit}” fit for a Ø{mating} mm counterpart: Ø{target} mm ({clearance} mm clearance per side and {shrink} mm hole allowance for {material}). Keep the nominal size and the clearance as their own parameters and leave the rest of the part as it is.",
-    "requestPin": "Make {name} a pin with a “{fit}” fit for a hole that prints at Ø{mating} mm: Ø{target} mm ({clearance} mm clearance per side, {material}). Keep the nominal size and the clearance as their own parameters and leave the rest of the part as it is."
+    "requestPin": "Make {name} a pin with a “{fit}” fit for a hole that prints at Ø{mating} mm: Ø{target} mm ({clearance} mm clearance per side, {material}). Keep the nominal size and the clearance as their own parameters and leave the rest of the part as it is.",
+    "targetPinGrowth": "Pin Ø{target} mm = {mating} − 2 × {clearance} clearance − {growth} measured growth ({material})"
+  },
+  "measure": {
+    "open": "Measure prints …",
+    "intro": "Measurements after printing for {material}. Choose another material in the “Material” tab. From the measurements PartBuddy suggests the hole allowance, outer growth and clearances.",
+    "kind": "What was measured",
+    "kinds": {
+      "hole": "Hole",
+      "outer": "Outer size",
+      "fit": "Fit"
+    },
+    "drawn": "Drawn",
+    "measured": "Measured",
+    "verdictLabel": "How did it feel",
+    "verdict": {
+      "tight": "Too tight",
+      "ok": "Fits",
+      "loose": "Too loose"
+    },
+    "add": "Add",
+    "invalid": "Enter drawn and measured as numbers in mm.",
+    "failed": "The measurement could not be saved.",
+    "suggestions": "Suggestions",
+    "suggestHole": "Hole allowance {from} → {to} mm ({count, plural, one {from # measurement} other {median of # measurements}})",
+    "suggestOuter": "Outer growth {from} → {to} mm ({count, plural, one {from # measurement} other {median of # measurements}})",
+    "suggestFit": "Clearance {fit} {from} → {to} mm (latest feedback)",
+    "apply": "Use",
+    "noSuggestion": "The measurements match the current values.",
+    "entries": "Measurements",
+    "entryHole": "Hole: drawn Ø{drawn}, measured Ø{measured}",
+    "entryOuter": "Outer size: drawn {drawn}, measured {measured}",
+    "entryFit": "{fit} with {clearance} mm clearance: {verdict}",
+    "remove": "Delete measurement"
   }
 }
