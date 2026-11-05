@@ -2,8 +2,6 @@ name: Privacy and secret scan
 
 on:
   pull_request:
-  push:
-    branches: [main]
   schedule:
     - cron: "17 4 * * 1"
 
@@ -21,7 +19,9 @@ env:
 jobs:
   gitleaks:
     name: Scan full history
-    runs-on: ubuntu-24.04
+    # Pull requests run on the self-hosted runner (ADR 0022); the weekly scan stays on a
+    # GitHub-hosted runner so it runs even when the PC is off (a few minutes a month).
+    runs-on: ${{ github.event_name == 'schedule' && 'ubuntu-24.04' || 'partbuddy' }}
     timeout-minutes: 10
     steps:
       - name: Check out full history
