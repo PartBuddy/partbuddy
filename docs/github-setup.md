@@ -21,7 +21,7 @@ docs.github.com on 2026-11-04 ([research § 7](research.md#7-github-features-on-
 | Dependency review action | no | no | replaced by `pnpm audit` and the licence gate |
 | Private vulnerability reporting | no | no | issues with label `type: security` until a public channel exists |
 | GitHub Projects | yes | yes | one board |
-| Actions minutes per month | about 2,000 Linux | about 3,000 Linux | Windows builds count double |
+| Actions minutes per month | about 2,000 Linux | about 3,000 Linux | pull request checks on a self-hosted runner in WSL2 ([ADR 0022](adr/0022-self-hosted-ci-runner.md)); only the weekly scans use hosted minutes |
 
 The repository becomes public once the MVP runs ([ADR 0007](adr/0007-licensing-model.md)). Public
 repositories get rulesets, CodeQL, secret scanning with push protection, dependency review and
