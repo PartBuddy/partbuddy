@@ -47,6 +47,12 @@ export interface SupervisorOptions {
   projectsDir?: string;
   /** Quiet time after a change before the headless design is saved. */
   autosaveDelayMs?: number;
+  /**
+   * Whether the first start of the engine opens the last project. The app starts on the start
+   * page with an empty design instead (B3, decided 2026-11-05); later starts of the engine (after
+   * the SolidCraft window closed, after a crash) reopen the design open at that time.
+   */
+  openLastOnStart?: boolean;
   log(message: string): void;
 }
 
@@ -75,6 +81,8 @@ export class SolidCraftSupervisor {
   private reopen: ((current: string | null) => Promise<string | null>) | null = null;
   /** The file the headless design was opened from, when it lies in the project folder. */
   private designFile: string | null = null;
+  /** Whether the engine ran before in this session (see `openLastOnStart`). */
+  private launchedBefore = false;
   /** The file the open design was last opened from or saved to; the chat is kept next to it. */
   private currentFile: string | null = null;
   /** Set by openInSolidCraft(): the next launch opens this file in the SolidCraft window. */
@@ -590,6 +598,10 @@ export class SolidCraftSupervisor {
     const allowPaths = [this.options.cacheDir, ...(this.options.projectsDir ? [this.options.projectsDir] : [])];
     // Notes from before projects (B2) may name a design in PartBuddy's own folder.
     if (this.options.designsDir) allowPaths.push(this.options.designsDir);
+    // The first start opens no project when the app starts on the start page; the note of the last
+    // project is cleared, so a restart of the engine before the user chose one stays empty as well.
+    if (!this.launchedBefore && this.options.openLastOnStart === false) this.designs?.forget();
+    this.launchedBefore = true;
     const design = this.designs?.last();
     const start = (file: string | undefined) => HeadlessEngine.start({ cli, allowPaths, design: file, env: this.options.environment.env });
     let engine: HeadlessEngine;

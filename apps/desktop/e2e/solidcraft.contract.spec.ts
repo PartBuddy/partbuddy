@@ -949,7 +949,7 @@ test('a part becomes a project folder that is renamed, duplicated, opened, start
   }
 });
 
-test('a saved part gets a preview, and the start page opens and imports projects (B3)', async () => {
+test('PartBuddy starts on the start page with no project open; a saved part gets a preview, and tiles open and import projects (B3)', async () => {
   test.setTimeout(240_000);
   const { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
@@ -960,17 +960,22 @@ test('a saved part gets a preview, and the start page opens and imports projects
     SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
     PARTBUDDY_SOLIDCRAFT_PORT: '7901',
     PARTBUDDY_PROJECTS_DIR: projects,
+    PARTBUDDY_START_PAGE: '1',
     PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
     PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
   };
-  const launched = await launchApp({ isolated: false, work, env });
-  const { page, app } = launched;
-  const name = page.getByTestId('design-name');
-  const home = page.getByTestId('home-page');
+  let launched = await launchApp({ isolated: false, work, env });
+  let { page, app } = launched;
+  let name = page.getByTestId('design-name');
+  let home = page.getByTestId('home-page');
   const logs: string[] = [];
   app.process().stdout?.on('data', (chunk: Buffer) => logs.push(String(chunk)));
   try {
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    // The window opens on the start page; with no projects yet it says how to begin.
+    await expect(home.getByTestId('home-empty')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(home).toHaveCount(0);
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
@@ -1011,6 +1016,22 @@ test('a saved part gets a preview, and the start page opens and imports projects
     await page.getByTestId('home-button').click();
     await expect(home.getByTestId('home-tile')).toHaveCount(2);
     await expect(home.getByTestId('home-tile').first()).toHaveAttribute('data-name', 'Bracket');
+
+    // After a restart the start page shows again and no project is open until the user picks one.
+    await launched.close();
+    launched = await launchApp({ isolated: false, work, env });
+    ({ page, app } = launched);
+    name = page.getByTestId('design-name');
+    home = page.getByTestId('home-page');
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await expect(home.getByTestId('home-tile')).toHaveCount(2);
+    await expect(home.locator('[data-open="true"]')).toHaveCount(0);
+    await expect(name).toHaveText('New part');
+    await page.screenshot({ path: test.info().outputPath('home-after-restart.png') });
+    await home.getByTestId('home-tile').filter({ hasText: 'Part' }).click();
+    await expect(home).toHaveCount(0);
+    await expect(name).toHaveText('Part', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('home-failed.png') }).catch(() => undefined);
     test.info().annotations.push({ type: 'main log', description: logs.join('').slice(-4000) });

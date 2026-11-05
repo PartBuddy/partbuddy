@@ -154,6 +154,8 @@ export const appInfoSchema = z
     version: z.string(),
     locale: z.string(),
     platform: z.enum(['win32', 'darwin', 'linux']),
+    /** Whether the window opens on the start page with no project open (B3); off only in tests. */
+    startOnHome: z.boolean(),
   })
   .strict();
 

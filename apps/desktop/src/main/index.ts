@@ -205,6 +205,8 @@ if (!app.requestSingleInstanceLock()) {
     void engineChoice.info().then((engine) => {
       log(`SolidCraft ${engine.version ?? 'version unknown'} (${engine.source}, ${engine.support})`);
     });
+    // Tests that start in the work area set PARTBUDDY_START_PAGE=0; the app always starts on the start page.
+    const startOnHome = process.env.PARTBUDDY_START_PAGE !== '0';
     const supervisor = new SolidCraftSupervisor(
       {
         environment: engineEnvironment,
@@ -216,6 +218,8 @@ if (!app.requestSingleInstanceLock()) {
         designsDir,
         newPartName: german ? 'Teil' : 'Part',
         projectsDir: projects,
+        // PartBuddy starts on the start page and opens no project on its own (B3, Manuel 2026-11-05).
+        openLastOnStart: !startOnHome,
         log,
       },
       {
@@ -242,6 +246,7 @@ if (!app.requestSingleInstanceLock()) {
       version: app.getVersion(),
       locale: app.getLocale(),
       platform: process.platform === 'win32' || process.platform === 'darwin' ? process.platform : 'linux',
+      startOnHome,
     }));
     bridge.handle(invokeChannels.solidcraftStatus, () => supervisor.status());
     bridge.handle(invokeChannels.solidcraftEngine, () => engineChoice.info());

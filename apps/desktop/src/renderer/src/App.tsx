@@ -11,6 +11,7 @@ import { StatusBar } from './shell/StatusBar';
 import { StructurePanel } from './shell/StructurePanel';
 import { Timeline } from './shell/Timeline';
 import { TitleBar } from './shell/TitleBar';
+import { useStartPage } from './home/useStartPage';
 import { useStudio } from './state/store';
 import { useMirror } from './viewer/useMirror';
 import { Viewer } from './viewer/Viewer';
@@ -24,6 +25,7 @@ export function App() {
   usePrintCheck();
   useProjectPreview();
   const homeOpen = useStudio((s) => s.homeOpen);
+  useStartPage();
   return (
     <div className="flex h-full flex-col bg-canvas text-text">
       <TitleBar />
