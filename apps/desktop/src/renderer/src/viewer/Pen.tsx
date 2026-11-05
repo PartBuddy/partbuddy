@@ -5,6 +5,7 @@ import { Box3, Plane, Raycaster, Vector2, Vector3, type Color, type Mesh } from 
 
 import { insidePolygon, SAMPLE_PIXELS, summarizeStroke, type ScreenDirection, type StrokeSample, type Vec2, type Vec3 } from '../../../shared/drawing';
 import { useStudio, type BodyModel } from '../state/store';
+import { keeps, useSectionPlane } from './section';
 import { edgeLabel } from './viewState';
 
 /** Strokes sit this far in front of the faces, so the model does not hide them. */
@@ -37,6 +38,7 @@ export function Pen({ bodies, meshes, color }: { bodies: BodyModel[]; meshes: Re
   const gl = useThree((state) => state.gl);
   const get = useThree((state) => state.get);
   const [live, setLive] = useState<Vec3[] | null>(null);
+  const section = useSectionPlane(bodies);
   const serial = useRef(0);
 
   useEffect(() => {
@@ -45,7 +47,8 @@ export function Pen({ bodies, meshes, color }: { bodies: BodyModel[]; meshes: Re
     const controls = get().controls as ({ getTarget?: (out: Vector3) => Vector3 } & object) | null;
     const dom = gl.domElement;
     const raycaster = new Raycaster();
-    (raycaster as Raycaster & { firstHitOnly?: boolean }).firstHitOnly = true;
+    // With a section the first hit may lie in the part that is cut away (UI upgrade step 9).
+    (raycaster as Raycaster & { firstHitOnly?: boolean }).firstHitOnly = section === null;
     const ndc = new Vector2();
     const scratch = new Vector3();
     const bounds = new Box3();
@@ -70,7 +73,7 @@ export function Pen({ bodies, meshes, color }: { bodies: BodyModel[]; meshes: Re
       const plane = new Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new Vector3()), target);
       const offPoint = raycaster.ray.intersectPlane(plane, new Vector3()) ?? raycaster.ray.at(10, new Vector3());
       const off: Vec3 = [offPoint.x, offPoint.y, offPoint.z];
-      const hit = raycaster.intersectObjects(meshList(), false)[0];
+      const hit = raycaster.intersectObjects(meshList(), false).find((candidate) => keeps(section, candidate.point));
       if (!hit || hit.faceIndex == null || !hit.face) return { hit: null, off };
       const body = (hit.object.userData as { body?: number }).body ?? 0;
       const model = bodies.at(body)?.model;
@@ -176,7 +179,7 @@ export function Pen({ bodies, meshes, color }: { bodies: BodyModel[]; meshes: Re
       window.removeEventListener('keydown', onKey);
       setLive(null);
     };
-  }, [pen, bodies, meshes, camera, gl, get, addStroke, setPen]);
+  }, [pen, bodies, meshes, camera, gl, get, addStroke, setPen, section]);
 
   const radius = Math.max(0.6, LIFT_MM * 3);
   return (

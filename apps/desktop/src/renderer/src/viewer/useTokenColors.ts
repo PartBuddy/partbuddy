@@ -8,6 +8,7 @@ const names = {
   sky: '--cs-viewer-sky',
   ground: '--cs-viewer-ground',
   shadow: '--cs-viewer-shadow',
+  section: '--cs-viewer-section',
   grid: '--cs-viewer-grid',
   body: '--cs-viewer-body',
   edge: '--cs-viewer-edge',

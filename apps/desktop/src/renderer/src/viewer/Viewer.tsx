@@ -13,16 +13,17 @@ import { IconMapPin } from '@tabler/icons-react';
 import { featureOf, SKETCH_STYLE, surfaceKind } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box3, BufferAttribute, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, PMREMGenerator, Raycaster, Sphere, Vector2, Vector3 } from 'three';
+import { BackSide, Box3, BufferAttribute, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, Sphere, Vector2, Vector3 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { acceleratedRaycast } from 'three-mesh-bvh';
 
 import type { MirroredSketch } from '../../../shared/contract';
-import { samePick, useStudio, type BodyModel, type Pick, type StandardView } from '../state/store';
+import { samePick, useStudio, type BodyModel, type DisplayMode, type Pick, type StandardView } from '../state/store';
 import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
 import { DimensionHud, Ghost } from './DimensionHud';
 import { GradientBackground, GroundShadow, KeyLight, SkyLight } from './SceneLook';
+import { keeps, useSectionPlane } from './section';
 import { LiveBar } from './LiveBar';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
@@ -51,6 +52,8 @@ const scene = {
   keyLight: [-70, -90, 130] as [number, number, number],
   fillLight: [100, 30, 50] as [number, number, number],
   gizmoMargin: [64, 64] as [number, number],
+  // See-through faces in the X-ray display mode.
+  xrayOpacity: 0.3,
   // Studio look: soft room light from above (Z up).
   environmentIntensity: 0.45,
   // Highlight line widths in CSS pixels.
@@ -83,7 +86,21 @@ function ParameterGhost({ color }: { color: ViewerColors['selection'] }) {
   return ghost ? <Ghost preview={ghost} color={color} /> : null;
 }
 
-function Body({ index, body, colors, register }: { index: number; body: BodyModel; colors: ViewerColors; register: (index: number, mesh: Mesh | null) => void }) {
+function Body({
+  index,
+  body,
+  colors,
+  register,
+  mode,
+  plane,
+}: {
+  index: number;
+  body: BodyModel;
+  colors: ViewerColors;
+  register: (index: number, mesh: Mesh | null) => void;
+  mode: DisplayMode;
+  plane: Plane | null;
+}) {
   const hover = useStudio((s) => s.hover);
   const selections = useStudio((s) => s.selections);
   const changes = useStudio((s) => s.changes);
@@ -112,6 +129,7 @@ function Body({ index, body, colors, register }: { index: number; body: BodyMode
     attribute.needsUpdate = true;
   }, [model, index, colors, hover, selections, changes, stepHighlight, body.name]);
 
+  const clipping = useMemo(() => (plane ? [plane] : []), [plane]);
   return (
     <group name={body.name}>
       <mesh
@@ -120,21 +138,38 @@ function Body({ index, body, colors, register }: { index: number; body: BodyMode
         }}
         geometry={model.geometry}
         userData={{ body: index }}
-        castShadow
+        // A cut part would cast the shadow of what is cut away.
+        castShadow={plane === null}
         receiveShadow
       >
+        {/* Wireframe keeps the faces for picking but does not draw them. */}
         <meshStandardMaterial
+          key={`${mode}-${plane ? 'cut' : 'whole'}`}
           vertexColors
           roughness={0.5}
           metalness={0}
           polygonOffset
           polygonOffsetFactor={1}
           polygonOffsetUnits={1}
+          visible={mode !== 'wireframe'}
+          transparent={mode === 'xray'}
+          opacity={mode === 'xray' ? scene.xrayOpacity : 1}
+          depthWrite={mode !== 'xray'}
+          clippingPlanes={clipping}
         />
       </mesh>
-      <lineSegments geometry={model.edges} raycast={noRaycast}>
-        <lineBasicMaterial color={colors.edge} />
-      </lineSegments>
+      {plane && (mode === 'shadedEdges' || mode === 'shaded') ? (
+        // The inside of the cut, seen through the open section: drawn flat in the section colour,
+        // it reads as a filled cut face. Not in X-ray, where every inside shows through.
+        <mesh geometry={model.geometry} raycast={noRaycast}>
+          <meshBasicMaterial color={colors.section} side={BackSide} clippingPlanes={clipping} />
+        </mesh>
+      ) : null}
+      {mode === 'shaded' ? null : (
+        <lineSegments geometry={model.edges} raycast={noRaycast}>
+          <lineBasicMaterial key={plane ? 'cut' : 'whole'} color={colors.edge} clippingPlanes={clipping} />
+        </lineSegments>
+      )}
     </group>
   );
 }
@@ -208,6 +243,7 @@ function Highlights({ bodies, colors }: { bodies: BodyModel[]; colors: ViewerCol
  * clears the selection.
  */
 function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
+  const plane = useSectionPlane(bodies);
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
   const setHover = useStudio((s) => s.setHover);
@@ -217,7 +253,8 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
   useEffect(() => {
     const dom = gl.domElement;
     const raycaster = new Raycaster();
-    (raycaster as Raycaster & { firstHitOnly?: boolean }).firstHitOnly = true;
+    // With a section the first hit may lie in the part that is cut away; then every hit is needed.
+    (raycaster as Raycaster & { firstHitOnly?: boolean }).firstHitOnly = plane === null;
     const ndc = new Vector2();
     const scratch = new Vector3();
     const radius = boundsOf(bodies, []).radius;
@@ -235,9 +272,10 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
       const firstHit = (x: number, y: number) => {
         ndc.set((x / rect.width) * 2 - 1, -(y / rect.height) * 2 + 1);
         raycaster.setFromCamera(ndc, camera);
-        return raycaster.intersectObjects(list, false)[0] ?? null;
+        return raycaster.intersectObjects(list, false).find((hit) => keeps(plane, hit.point)) ?? null;
       };
       const visible = (point: [number, number, number]) => {
+        if (!keeps(plane, point)) return false;
         const screen = project(...point);
         if (!screen) return false;
         const hit = firstHit(screen.x, screen.y);
@@ -325,7 +363,7 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
       dom.removeEventListener('pointerup', onUp);
       window.removeEventListener('keydown', onKey);
     };
-  }, [camera, gl, bodies, meshes, setHover, select, toggle]);
+  }, [camera, gl, bodies, meshes, setHover, select, toggle, plane]);
   return null;
 }
 
@@ -650,6 +688,8 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
   const { t } = useTranslation();
   // Drawing on the view (M2b-2) takes the left button from the camera controls.
   const pen = useStudio((s) => s.pen);
+  const displayMode = useStudio((s) => s.displayMode);
+  const plane = useSectionPlane(bodies);
   const colors = useTokenColors();
   const meshes = useRef<(Mesh | null)[]>([]);
   const register = useCallback((index: number, mesh: Mesh | null) => {
@@ -666,6 +706,8 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       // view, a framing done in between keeps fitting.
       camera={{ fov: scene.fieldOfView, near: 0.5, far: 5000, position: lastView.position.toArray() }}
       onCreated={({ gl }) => {
+        // Sections clip the bodies only, not the grid, the highlights or the pins.
+        gl.localClippingEnabled = true;
         // The picture itself is the image; labels, pins and the HUD are HTML beside the canvas and
         // stay reachable for keyboards and screen readers (a role="img" wrapper would hide them).
         gl.domElement.setAttribute('role', 'img');
@@ -680,7 +722,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.75 : 0.4} />
       <directionalLight position={scene.fillLight} intensity={0.3} />
       {bodies.map((body, i) => (
-        <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} />
+        <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} />
       ))}
       <Highlights bodies={bodies} colors={colors} />
       <DimensionHud bodies={bodies} accent={colors.selection} />

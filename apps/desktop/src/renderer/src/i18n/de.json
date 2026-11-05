@@ -96,6 +96,20 @@
     "pen": {
       "tool": "Zeichnen",
       "hint": "Zeichne auf die Ansicht – {count, plural, =0 {die Striche gehen} one {# Strich geht} other {# Striche gehen}} mit deiner nächsten Nachricht an den Assistenten. Esc beendet."
+    },
+    "display": {
+      "title": "Darstellung",
+      "shadedEdges": "Schattiert mit Kanten",
+      "shaded": "Schattiert",
+      "xray": "Röntgen",
+      "wireframe": "Nur Kanten"
+    },
+    "section": {
+      "title": "Schnitt",
+      "axis": "Schnittachse",
+      "along": "Quer zu {axis} schneiden",
+      "position": "Wo der Schnitt liegt",
+      "flip": "Andere Seite zeigen"
     }
   },
   "status": {

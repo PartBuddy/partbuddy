@@ -1,9 +1,22 @@
-import { IconBox, IconCube, IconMaximize, IconPencil, IconPerspective, IconRulerMeasure } from '@tabler/icons-react';
+import { IconArrowsExchange, IconBox, IconBoxMultiple, IconCheck, IconCube, IconMaximize, IconPencil, IconPerspective, IconRulerMeasure, IconSlice } from '@tabler/icons-react';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, ToggleButton, Tooltip, TooltipTrigger } from 'react-aria-components';
+import {
+  Button as AriaButton,
+  Menu,
+  MenuItem,
+  MenuTrigger,
+  Popover,
+  Slider,
+  SliderThumb,
+  SliderTrack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  TooltipTrigger,
+} from 'react-aria-components';
 
-import { useStudio, type StandardView } from '../state/store';
+import { useStudio, type DisplayMode, type Section, type StandardView } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
 
 const tool =
@@ -28,6 +41,117 @@ function Tip({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+const DISPLAY_MODES: DisplayMode[] = ['shadedEdges', 'shaded', 'xray', 'wireframe'];
+
+/** How the bodies are drawn (UI upgrade step 9): a menu with one choice. */
+function DisplayModeMenu() {
+  const { t } = useTranslation();
+  const mode = useStudio((s) => s.displayMode);
+  const setMode = useStudio((s) => s.setDisplayMode);
+  return (
+    <MenuTrigger>
+      <Tip label={t('viewer.display.title')}>
+        <AriaButton aria-label={t('viewer.display.title')} className={tool} data-testid="display-mode">
+          <IconBoxMultiple className="size-icon-sm" aria-hidden />
+        </AriaButton>
+      </Tip>
+      <Popover placement="left" offset={8} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+        <Menu
+          aria-label={t('viewer.display.title')}
+          selectionMode="single"
+          disallowEmptySelection
+          selectedKeys={[mode]}
+          onSelectionChange={(keys) => {
+            if (keys === 'all') return;
+            const [key] = [...keys];
+            if (DISPLAY_MODES.includes(key as DisplayMode)) setMode(key as DisplayMode);
+          }}
+          className="outline-none"
+        >
+          {DISPLAY_MODES.map((id) => (
+            <MenuItem key={id} id={id} className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover">
+              {({ isSelected }) => (
+                <>
+                  <span className="flex-1">{t(`viewer.display.${id}`)}</span>
+                  {isSelected ? <IconCheck className="size-icon-sm text-accent-text" aria-hidden /> : null}
+                </>
+              )}
+            </MenuItem>
+          ))}
+        </Menu>
+      </Popover>
+    </MenuTrigger>
+  );
+}
+
+/** The settings of an open section: axis, where it cuts, and which side stays. */
+function SectionPanel({ section }: { section: Section }) {
+  const { t } = useTranslation();
+  const setSection = useStudio((s) => s.setSection);
+  return (
+    <div
+      role="group"
+      aria-label={t('viewer.section.title')}
+      className="pointer-events-auto absolute right-full bottom-0 mr-2 flex w-menu flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      data-testid="section-panel"
+    >
+      <div className="flex items-center gap-2">
+        <ToggleButtonGroup
+          aria-label={t('viewer.section.axis')}
+          selectionMode="single"
+          disallowEmptySelection
+          selectedKeys={[section.axis]}
+          onSelectionChange={(keys) => {
+            const [axis] = [...keys];
+            if (axis === 'x' || axis === 'y' || axis === 'z') setSection({ ...section, axis });
+          }}
+          className="flex gap-1"
+        >
+          {(['x', 'y', 'z'] as const).map((axis) => (
+            <ToggleButton key={axis} id={axis} aria-label={t('viewer.section.along', { axis: axis.toUpperCase() })} className={tool}>
+              {axis.toUpperCase()}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+        <span className="flex-1" />
+        <Tip label={t('viewer.section.flip')}>
+          <AriaButton
+            aria-label={t('viewer.section.flip')}
+            className={tool}
+            onPress={() => {
+              setSection({ ...section, flip: !section.flip });
+            }}
+            data-testid="section-flip"
+          >
+            <IconArrowsExchange className="size-icon-sm" aria-hidden />
+          </AriaButton>
+        </Tip>
+      </div>
+      <Slider
+        aria-label={t('viewer.section.position')}
+        value={Math.round(section.position * 100)}
+        minValue={0}
+        maxValue={100}
+        onChange={(value) => {
+          setSection({ ...section, position: value / 100 });
+        }}
+        className="w-full"
+        data-testid="section-position"
+      >
+        <SliderTrack className="relative h-4 w-full">
+          {({ state }) => (
+            <>
+              <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
+              <span aria-hidden className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ width: `${String(state.getThumbPercent(0) * 100)}%` }} />
+              <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:outline-2 focus-visible:outline-focus" />
+            </>
+          )}
+        </SliderTrack>
+      </Slider>
+    </div>
+  );
+}
+
 /** Standard views and the projection switch, beside the view cube (M1a). */
 export function ViewTools() {
   const { t } = useTranslation();
@@ -39,6 +163,8 @@ export function ViewTools() {
   const setPen = useStudio((s) => s.setPen);
   const dimensions = useStudio((s) => s.dimensions);
   const setDimensions = useStudio((s) => s.setDimensions);
+  const section = useStudio((s) => s.section);
+  const setSection = useStudio((s) => s.setSection);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -149,6 +275,22 @@ export function ViewTools() {
           {ortho ? <IconBox className="size-icon-sm" aria-hidden /> : <IconPerspective className="size-icon-sm" aria-hidden />}
         </ToggleButton>
       </Tip>
+      <span aria-hidden className="mx-1 h-hairline bg-border" />
+      <DisplayModeMenu />
+      <Tip label={t('viewer.section.title')}>
+        <ToggleButton
+          aria-label={t('viewer.section.title')}
+          isSelected={section !== null}
+          onChange={(on) => {
+            setSection(on ? { axis: 'z', position: 0.5, flip: false } : null);
+          }}
+          className={tool}
+          data-testid="section"
+        >
+          <IconSlice className="size-icon-sm" aria-hidden />
+        </ToggleButton>
+      </Tip>
+      {section ? <SectionPanel section={section} /> : null}
     </div>
   );
 }

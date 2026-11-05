@@ -73,12 +73,27 @@ export interface Notice {
 
 export type Projection = 'perspective' | 'orthographic';
 export type StandardView = 'fit' | 'iso' | 'front' | 'right' | 'top';
+/** How bodies are drawn (UI upgrade step 9): faces and edges, faces only, see-through, edges only. */
+export type DisplayMode = 'shadedEdges' | 'shaded' | 'xray' | 'wireframe';
+/**
+ * A section through the design along one axis: `position` from 0 to 1 across the bodies' box,
+ * `flip` keeps the other side. Picks and pen strokes never reach the part that is cut away.
+ */
+export interface Section {
+  axis: 'x' | 'y' | 'z';
+  position: number;
+  flip: boolean;
+}
 
 interface StudioState {
   projection: Projection;
   /** The last standard view the user asked for; `serial` repeats the same view on request. */
   viewRequest: { view: StandardView; serial: number } | null;
   setProjection: (projection: Projection) => void;
+  displayMode: DisplayMode;
+  setDisplayMode: (mode: DisplayMode) => void;
+  section: Section | null;
+  setSection: (section: Section | null) => void;
   requestView: (view: StandardView) => void;
   connection: ConnectionStatus;
   history: History;
@@ -159,6 +174,14 @@ export const useStudio = create<StudioState>()((set) => ({
   viewRequest: null,
   setProjection: (projection) => {
     set({ projection });
+  },
+  displayMode: 'shadedEdges',
+  setDisplayMode: (displayMode) => {
+    set({ displayMode });
+  },
+  section: null,
+  setSection: (section) => {
+    set({ section });
   },
   requestView: (view) => {
     set((state) => ({ viewRequest: { view, serial: (state.viewRequest?.serial ?? 0) + 1 } }));
