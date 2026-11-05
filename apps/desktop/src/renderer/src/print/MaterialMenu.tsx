@@ -56,7 +56,7 @@ export function MaterialMenu() {
       {/* The visible text is the name (WCAG 2.5.3); what the button does is its tooltip. */}
       <TooltipTrigger delay={400}>
         <AriaButton
-          className="-my-1 inline-flex items-center gap-1 rounded-sm px-1 py-1 text-xs text-text-muted outline-none hover:bg-surface-hover hover:text-text pressed:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+          className="inline-flex h-full items-center gap-1 rounded-sm px-1 text-xs text-text-muted outline-none hover:bg-surface-hover hover:text-text pressed:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
           data-testid="material-chip"
           data-material={print.material.id}
         >

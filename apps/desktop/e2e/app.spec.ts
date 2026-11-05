@@ -521,6 +521,13 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
   const chip = page.getByTestId('material-chip');
   await expect(chip).toHaveAttribute('data-material', 'pla');
+  await expect(page.getByTestId('print-check')).toBeVisible();
+  // The chips fit the status bar: the window never scrolls.
+  const overflow = await page.evaluate(() => {
+    const root = (globalThis as unknown as { document: { documentElement: { scrollHeight: number; clientHeight: number } } }).document.documentElement;
+    return root.scrollHeight - root.clientHeight;
+  });
+  expect(overflow).toBe(0);
   await page.getByTestId('overhang').click();
   await expect(page.getByTestId('overhang-support')).toContainText('over 45°');
 
@@ -635,4 +642,40 @@ test('the print orientation is proposed, set from a face, and loads are marked (
   await expect(section.getByTestId('orientation-loads')).toHaveText('Load marked on 1 face');
   await section.getByTestId('orientation-reset').click();
   await expect(section.getByTestId('orientation-current')).toHaveText('As designed, +Z up');
+});
+
+test('the fit assistant sizes a hole for its counterpart from the material (M7)', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+  const box = await page.getByTestId('viewport').boundingBox();
+  if (!box) throw new Error('viewport not visible');
+  // Pick the cable channel (a hole-like cylinder) by scanning across the middle of the part.
+  const name = page.getByTestId('selected-face');
+  let found = false;
+  for (let y = 0.35; y <= 0.65 && !found; y += 0.03) {
+    for (let x = 0.35; x <= 0.65 && !found; x += 0.02) {
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+      const kind = await page.getByTestId('selection-bar').getAttribute('data-kind', { timeout: 300 }).catch(() => null);
+      const text = kind === 'face' ? await name.textContent({ timeout: 300 }).catch(() => null) : null;
+      found = text?.startsWith('F5:side') ?? false;
+    }
+  }
+  expect(found).toBe(true);
+
+  await page.getByTestId('fit-open').click();
+  const panel = page.getByTestId('fit-panel');
+  // A 12 mm channel for a 12 mm cable, sliding, in PLA: 12 + 2 × 0.25 + 0.15.
+  const mating = panel.getByTestId('fit-mating').getByRole('textbox');
+  await expect(mating).toHaveValue('12');
+  await panel.getByTestId('fit-slide').click();
+  await expect(panel.getByTestId('fit-target')).toHaveAttribute('data-target', '12.65');
+  await expect(panel.getByTestId('fit-target')).toContainText('Hole Ø12.65 mm = 12 + 2 × 0.25 clearance + 0.15 hole allowance (PLA)');
+  await panel.getByTestId('fit-clamp').click();
+  await expect(panel.getByTestId('fit-target')).toHaveAttribute('data-target', '12.25');
+  await mating.fill('10');
+  await expect(panel.getByTestId('fit-target')).toHaveAttribute('data-target', '10.25');
+  // SolidCraft is asked whether one parameter drives it; the answer decides direct or assistant.
+  await expect(panel.getByTestId('fit-status')).not.toHaveAttribute('data-mode', 'probing', { timeout: 10_000 });
+  await page.screenshot({ path: test.info().outputPath('fit.png') });
 });
