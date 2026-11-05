@@ -119,9 +119,15 @@ function Get-RunnerState {
     return 'gestoppt'
 }
 
+# Windows lets a hidden process (the shortcut starts PowerShell without a window) show a dialog only
+# in the background, where it merely flashes in the taskbar. MessageBox flags MB_TOPMOST and
+# MB_SETFOREGROUND bring it to the front. Returns 'Yes', 'No' or 'OK'.
 function Show-Message([string]$Text, [string]$Buttons = 'OK', [string]$Icon = 'Information') {
-    Add-Type -AssemblyName PresentationFramework
-    [System.Windows.MessageBox]::Show($Text, $Title, $Buttons, $Icon)
+    $flags = 0x40000 -bor 0x10000
+    $flags = $flags -bor $(switch ($Buttons) { 'YesNo' { 4 } default { 0 } })
+    $flags = $flags -bor $(switch ($Icon) { 'Error' { 16 } 'Question' { 32 } 'Warning' { 48 } default { 64 } })
+    $answer = (New-Object -ComObject WScript.Shell).Popup($Text, 0, $Title, $flags)
+    switch ($answer) { 6 { 'Yes' } 7 { 'No' } default { 'OK' } }
 }
 
 try {
