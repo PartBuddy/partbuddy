@@ -1,13 +1,13 @@
 import { IconArrowBackUp, IconArrowForwardUp, IconChevronDown, IconDownload, IconExternalLink, IconHistory } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover, Tooltip, TooltipTrigger } from 'react-aria-components';
+import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator, Tooltip, TooltipTrigger } from 'react-aria-components';
 
-import type { ExportFormat } from '../../../shared/contract';
+import type { ExportFormat, Slicer } from '../../../shared/contract';
 import { useAssistant, selectedStatus } from '../assistant/store';
 import { ExportConfirm } from '../print/ExportConfirm';
 import { platform } from '../platform';
-import { useStudio } from '../state/store';
+import { useStudio, type ExportTarget } from '../state/store';
 import { VersionsDialog } from './VersionsDialog';
 
 const iconButton =
@@ -60,6 +60,7 @@ export function DesignActions() {
   const history = useStudio((s) => s.history);
   const model = useStudio((s) => s.model);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [slicers, setSlicers] = useState<Slicer[]>([]);
   const setNotice = useStudio((s) => s.setNotice);
   const assistantBusy = useAssistant((s) => selectedStatus(s.state).state === 'busy');
   const working = useRef(false);
@@ -119,20 +120,36 @@ export function DesignActions() {
   }, [canUndo, canRedo, undo, redo]);
 
   // A red ready-to-print check asks once before the export (M7); it does not stop it.
-  const exportNow = (format: ExportFormat) => {
+  const exportNow = (target: ExportTarget) => {
     void run(async () => {
-      const result = await platform().design.export(format);
+      if (target.startsWith('slicer:')) {
+        // To the slicer (B8): SolidCraft starts it with the printable bodies on their print faces.
+        const { name } = await platform().design.sendToSlicer(target.slice('slicer:'.length));
+        return t('actions.sentToSlicer', { name });
+      }
+      const result = await platform().design.export(target as ExportFormat);
       if (!result) return null;
       return t('actions.exported', { file: result.file });
     });
   };
 
-  const exportAs = (format: ExportFormat) => {
+  const exportAs = (target: ExportTarget) => {
     if (useStudio.getState().printCheck?.result.status === 'block') {
-      useStudio.getState().setExportConfirm(format);
+      useStudio.getState().setExportConfirm(target);
       return;
     }
-    exportNow(format);
+    exportNow(target);
+  };
+
+  // The slicers SolidCraft finds, read each time the menu opens (one may have been installed since).
+  const loadSlicers = (open: boolean) => {
+    if (!open || !connected) return;
+    void platform()
+      .design.slicers()
+      .then(setSlicers)
+      .catch(() => {
+        setSlicers([]);
+      });
   };
 
   const openInSolidCraft = () => {
@@ -154,7 +171,7 @@ export function DesignActions() {
         <IconHistory className="size-icon-sm" aria-hidden />
       </ToolButton>
       <span aria-hidden className="mx-1 h-icon w-hairline bg-border" />
-      <MenuTrigger>
+      <MenuTrigger onOpenChange={loadSlicers}>
         <AriaButton isDisabled={!connected || !hasBodies} className={iconButton} data-testid="export">
           <IconDownload className="size-icon-sm" aria-hidden />
           {t('actions.export')}
@@ -165,21 +182,44 @@ export function DesignActions() {
             aria-label={t('actions.export')}
             className="outline-none"
             onAction={(key) => {
-              exportAs(key as ExportFormat);
+              exportAs(key as ExportTarget);
             }}
           >
-            {FORMATS.map((format) => (
-              <MenuItem
-                key={format}
-                id={format}
-                textValue={t(`actions.format.${format}.name`)}
-                className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
-                data-testid={`export-${format}`}
-              >
-                <span className="text-sm font-medium text-text">{t(`actions.format.${format}.name`)}</span>
-                <span className="text-xs text-text-muted">{t(`actions.format.${format}.hint`)}</span>
-              </MenuItem>
-            ))}
+            <MenuSection>
+              {FORMATS.map((format) => (
+                <MenuItem
+                  key={format}
+                  id={format}
+                  textValue={t(`actions.format.${format}.name`)}
+                  className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                  data-testid={`export-${format}`}
+                >
+                  <span className="text-sm font-medium text-text">{t(`actions.format.${format}.name`)}</span>
+                  <span className="text-xs text-text-muted">{t(`actions.format.${format}.hint`)}</span>
+                </MenuItem>
+              ))}
+            </MenuSection>
+            {slicers.length > 0 ? (
+              <>
+                <Separator className="my-1 border-t border-border" />
+                <MenuSection>
+                  <Header className="px-2 py-1 text-xs font-semibold text-text-muted">{t('actions.slicer.title')}</Header>
+                  {slicers.map((slicer) => (
+                    <MenuItem
+                      key={slicer.id}
+                      id={`slicer:${slicer.id}`}
+                      textValue={t('actions.slicer.open', { name: slicer.name })}
+                      className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                      data-testid="export-slicer"
+                      data-slicer={slicer.id}
+                    >
+                      <span className="text-sm font-medium text-text">{t('actions.slicer.open', { name: slicer.name })}</span>
+                      <span className="text-xs text-text-muted">{t('actions.slicer.hint')}</span>
+                    </MenuItem>
+                  ))}
+                </MenuSection>
+              </>
+            ) : null}
           </Menu>
         </Popover>
       </MenuTrigger>

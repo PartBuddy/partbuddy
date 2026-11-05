@@ -746,6 +746,19 @@ if (!app.requestSingleInstanceLock()) {
       log(`inserted a ${kind} file into the design`);
       return { inserted: true, name, bodies: bodies.slice(0, 500) };
     });
+    // To the slicer (B8): through SolidCraft's slicer detection; the print face is SolidCraft's own.
+    bridge.handle(invokeChannels.designSlicers, () => supervisor.slicers());
+    bridge.handle(invokeChannels.designSendToSlicer, async ({ slicer }) => {
+      const name = await supervisor.sendToSlicer(slicer);
+      log(`opened the design in ${name}`);
+      return { name };
+    });
+    bridge.handle(invokeChannels.designPrintFace, async ({ body, point }) => {
+      assistantIdle();
+      await steps.recordUser(describeUserAction({ kind: 'printFace', cleared: point === null }), () => supervisor.setPrintFace(body, point));
+      log(point ? 'set a print face' : 'cleared a print face');
+      return undefined;
+    });
     // Standard parts (B7): seated in a hole as counterparts, one step of the work log.
     bridge.handle(invokeChannels.designPartsLibrary, () => supervisor.partsLibrary());
     bridge.handle(invokeChannels.designInsertPart, async (part) => {

@@ -1,8 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Dialog, Heading, Modal, ModalOverlay } from 'react-aria-components';
 
-import type { ExportFormat } from '../../../shared/contract';
-import { useStudio } from '../state/store';
+import { useStudio, type ExportTarget } from '../state/store';
 import { Button } from '../ui/Button';
 import { useFindingText } from './PrintCheckChip';
 
@@ -10,7 +9,7 @@ import { useFindingText } from './PrintCheckChip';
  * Asks once before an export while the ready-to-print check is red (decided 2026-11-05): the user
  * may know better, so it only asks, it does not stop the export.
  */
-export function ExportConfirm({ onConfirm }: { onConfirm: (format: ExportFormat) => void }) {
+export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget) => void }) {
   const { t } = useTranslation();
   const format = useStudio((s) => s.exportConfirm);
   const setFormat = useStudio((s) => s.setExportConfirm);

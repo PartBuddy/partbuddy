@@ -3,6 +3,9 @@ import { create } from 'zustand';
 
 import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, NotesState, PartPrint, Structure } from '../../../shared/contract';
 
+/** What goes out: a file format, or a slicer by its id (B8). */
+export type ExportTarget = ExportFormat | `slicer:${string}`;
+
 /** A section of the settings (B6). */
 export type SettingsSection = 'general' | 'solidcraft' | 'assistant' | 'print' | 'about';
 
@@ -126,8 +129,8 @@ interface StudioState {
   focusRequest: { box: FindingBox; serial: number } | null;
   requestFocus: (box: FindingBox) => void;
   /** An export waiting for the user to confirm it despite a red check. */
-  exportConfirm: ExportFormat | null;
-  setExportConfirm: (format: ExportFormat | null) => void;
+  exportConfirm: ExportTarget | null;
+  setExportConfirm: (target: ExportTarget | null) => void;
   /** The ghost of a value or action typed into the selection dock (UI upgrade step 11). */
   selectionGhost: Uint8Array | null;
   setSelectionGhost: (ghost: Uint8Array | null) => void;

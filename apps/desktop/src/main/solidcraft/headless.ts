@@ -17,6 +17,7 @@ import type { ControlRequester } from './mirror';
 /** Rebuilds of large parts take minutes; the SDK's default request timeout is one minute. */
 const LONG_TIMEOUT_MS = 10 * 60 * 1000;
 const SHORT_TIMEOUT_MS = 30_000;
+const CLOSE_WAIT_MS = 3000;
 
 export interface Revision {
   documentId: string;
@@ -168,7 +169,9 @@ export class HeadlessEngine {
 
   async close(): Promise<void> {
     if (this.closed) return;
-    await this.client.close().catch(() => undefined);
+    // A slicer started from SolidCraft (B8) inherits its pipes and keeps them open after the engine
+    // ends, so closing does not wait for them longer than a moment.
+    await Promise.race([this.client.close().catch(() => undefined), new Promise((resolve) => setTimeout(resolve, CLOSE_WAIT_MS))]);
     this.shutdown('closed');
   }
 
