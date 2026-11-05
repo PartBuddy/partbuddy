@@ -5,6 +5,7 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
 import { Busy, EmptyState } from '../ui/Feedback';
+import { BuildCard, useAssistantBusy } from './BuildStatus';
 
 /**
  * Explains every connection state in place of the model or above it, with the next action
@@ -16,6 +17,7 @@ export function ConnectionNotice() {
   const model = useStudio((s) => s.model);
   // A design with only sketches is a model too (#21): the view draws them.
   const hasModel = model.status === 'ready' && (model.bodies.length > 0 || model.sketches.length > 0);
+  const busy = useAssistantBusy();
 
   const retry = (
     <Button
@@ -88,6 +90,7 @@ export function ConnectionNotice() {
         return card(t('viewer.errorTitle'), t('viewer.errorBody', { message: model.message }), null);
       }
       if (model.status === 'ready' && !hasModel) {
+        if (busy) return <BuildCard />;
         return (
           <div className="pointer-events-auto flex w-full flex-1 items-center justify-center">
             <EmptyState

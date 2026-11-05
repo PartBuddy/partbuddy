@@ -2,39 +2,8 @@ import { IconFocus2, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, SwitchButton, SwitchField } from 'react-aria-components';
 
-import { selectedStatus, useAssistant, type ConversationItem } from '../assistant/store';
 import { useStudio } from '../state/store';
-
-/** Short label of a tool call: the tool and the SolidCraft commands it runs. */
-export function stepLabel(item: Extract<ConversationItem, { kind: 'tool' }>): string {
-  try {
-    const args = JSON.parse(item.summary) as { command?: unknown; commands?: { command?: unknown }[] };
-    const commands =
-      typeof args.command === 'string'
-        ? [args.command]
-        : (args.commands ?? []).map((step) => step.command).filter((command): command is string => typeof command === 'string');
-    const shown = commands.slice(0, 2).join(', ') + (commands.length > 2 ? ` +${commands.length - 2}` : '');
-    return shown ? `${item.name} · ${shown}` : item.name;
-  } catch {
-    return item.name;
-  }
-}
-
-/** The assistant's current step, while it works. */
-function CurrentStep() {
-  const { t } = useTranslation();
-  const busy = useAssistant((s) => selectedStatus(s.state).state === 'busy');
-  const items = useAssistant((s) => s.items);
-  if (!busy) return null;
-  const turnStart = items.findLastIndex((item) => item.kind === 'user');
-  const tools = items.slice(turnStart + 1).filter((item): item is Extract<ConversationItem, { kind: 'tool' }> => item.kind === 'tool');
-  const last = tools.at(-1);
-  return (
-    <p className="rounded-md bg-surface-raised px-2 py-1 text-sm text-text shadow-2" data-testid="live-step">
-      {last ? t('live.step', { number: tools.length, label: stepLabel(last) }) : t('live.thinking')}
-    </p>
-  );
-}
+import { BuildLine } from './BuildStatus';
 
 /** How many faces and sketch curves the latest step changed, with the camera follow switch. */
 function Changes() {
@@ -84,7 +53,7 @@ export function LiveBar() {
   if (!ready) return null;
   return (
     <div className="flex flex-col items-start gap-2">
-      <CurrentStep />
+      <BuildLine />
       <Changes />
     </div>
   );
