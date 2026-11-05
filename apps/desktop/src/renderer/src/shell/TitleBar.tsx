@@ -8,6 +8,7 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { StatusDot, type Tone } from '../ui/Feedback';
 import { BrandMark } from './BrandMark';
+import { hexColor } from './hexColor';
 import { DesignActions } from './DesignActions';
 import { ProjectMenu } from './ProjectMenu';
 import { SettingsMenu } from './SettingsMenu';
@@ -34,8 +35,8 @@ function useWindowButtonColors(): void {
       const style = getComputedStyle(document.documentElement);
       const read = (name: string) => style.getPropertyValue(name).trim();
       const height = Number.parseInt(read('--cs-titlebar-height'), 10);
-      const color = read('--cs-color-surface');
-      const symbolColor = read('--cs-color-text');
+      const color = hexColor(read('--cs-color-surface'));
+      const symbolColor = hexColor(read('--cs-color-text'));
       if (!Number.isInteger(height) || !color || !symbolColor) return;
       // One pixel less, so the bar's bottom border stays visible under the buttons.
       void platform().window.setTitleBarColors({ color, symbolColor, height: height - 1 });

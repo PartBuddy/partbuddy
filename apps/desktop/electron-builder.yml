@@ -1,0 +1,43 @@
+# Windows installer of PartBuddy (plan step B10): NSIS, per user, with Start menu and desktop
+# shortcuts. Unsigned for now, so SmartScreen warns; signing comes before the public release.
+# Updates come from the GitHub releases of the repository (electron-updater).
+appId: io.github.manuelstaggl.partbuddy
+productName: PartBuddy
+copyright: Copyright (C) 2026 ManuelStaggl and contributors
+directories:
+  output: dist
+  buildResources: build
+# The main process bundles every dependency (electron.vite.config.ts); only the native credential
+# store is loaded from node_modules at run time.
+files:
+  - out/**
+  - "!out/**/*.map"
+  - package.json
+  - "!node_modules/**"
+  - node_modules/@napi-rs/keyring/**
+  - node_modules/@napi-rs/keyring-win32-x64-msvc/**
+asar: true
+asarUnpack:
+  - "**/*.node"
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: ../../assets/brand/icon/png/partbuddy-256.png
+  # No certificate yet, so nothing is signed; the version and icon are still written into the exe.
+  signAndEditExecutable: true
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createStartMenuShortcut: true
+  createDesktopShortcut: true
+  shortcutName: PartBuddy
+  artifactName: PartBuddy-Setup-${version}.${ext}
+  license: ../../LICENSE
+  deleteAppDataOnUninstall: false
+publish:
+  provider: github
+  owner: ManuelStaggl
+  repo: partbuddy
+  releaseType: release

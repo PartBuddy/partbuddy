@@ -26,6 +26,13 @@ const api: PartBuddyApi = {
     resetProjectsFolder: () => ipcRenderer.invoke(invokeChannels.settingsResetProjectsFolder),
     finishSetup: () => ipcRenderer.invoke(invokeChannels.settingsFinishSetup),
   },
+  updates: {
+    state: () => ipcRenderer.invoke(invokeChannels.updatesState),
+    check: () => ipcRenderer.invoke(invokeChannels.updatesCheck),
+    download: () => ipcRenderer.invoke(invokeChannels.updatesDownload),
+    install: () => ipcRenderer.invoke(invokeChannels.updatesInstall),
+    onState: (listener) => subscribe(eventChannels.updatesState, listener),
+  },
   project: {
     info: () => ipcRenderer.invoke(invokeChannels.projectInfo),
     create: () => ipcRenderer.invoke(invokeChannels.projectNew),

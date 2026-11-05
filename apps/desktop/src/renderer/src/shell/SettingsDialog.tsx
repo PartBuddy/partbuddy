@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, Dialog, Heading, Modal, ModalOverlay, RadioButton, RadioField, RadioGroup, Tab, TabList, TabPanel, Tabs } from 'react-aria-components';
 
-import type { AppInfo, GeneralSettingsInfo, Language, Theme } from '../../../shared/contract';
+import type { AppInfo, GeneralSettingsInfo, Language, Theme, UpdateState } from '../../../shared/contract';
 import { AssistantChoice, RadioMark, radioClass } from '../assistant/AgentChip';
 import { localeFrom } from '../i18n';
 import { PrintProfilesEditor, SupportFreeSwitch } from '../print/PrintProfilesEditor';
@@ -179,6 +179,53 @@ function ResearchSwitch() {
   );
 }
 
+/** Updates through GitHub releases (B10): look now, download, restart and install. */
+function UpdatesBlock() {
+  const { t } = useTranslation();
+  const [state, setState] = useState<UpdateState | null>(null);
+  useEffect(() => {
+    let live = true;
+    const api = platform().updates;
+    void api.state().then((current) => {
+      if (live) setState(current);
+    });
+    const off = api.onState(setState);
+    return () => {
+      live = false;
+      off();
+    };
+  }, []);
+  if (!state) return null;
+  const api = platform().updates;
+  return (
+    <div className="flex flex-col gap-2" data-testid="updates" data-state={state.state}>
+      <h3 className="text-sm font-semibold text-text">{t('updates.title')}</h3>
+      <p className="text-sm text-text-muted" role="status">
+        {state.state === 'available' || state.state === 'ready' || state.state === 'current'
+          ? t(`updates.state.${state.state}`, { version: state.version })
+          : state.state === 'downloading'
+            ? t('updates.state.downloading', { percent: state.percent })
+            : t(`updates.state.${state.state}`)}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {state.state === 'available' ? (
+          <Button variant="primary" onPress={() => void api.download()} data-testid="updates-download">
+            {t('updates.download')}
+          </Button>
+        ) : state.state === 'ready' ? (
+          <Button variant="primary" onPress={() => void api.install()} data-testid="updates-install">
+            {t('updates.install')}
+          </Button>
+        ) : state.state !== 'unavailable' ? (
+          <Button isDisabled={state.state === 'checking' || state.state === 'downloading'} onPress={() => void api.check().then(setState)} data-testid="updates-check">
+            {t('updates.check')}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function AboutSection() {
   const { t } = useTranslation();
   const [app, setApp] = useState<AppInfo | null>(null);
@@ -203,6 +250,7 @@ function AboutSection() {
         </span>
       </div>
       <p className="max-w-text-max text-text-muted">{t('settings.about.licence')}</p>
+      <UpdatesBlock />
       <div className="flex flex-col gap-2">
         <a href={SPONSORS} target="_blank" rel="noreferrer" className={link} data-testid="settings-sponsor">
           <IconHeart className="size-icon-sm" aria-hidden />

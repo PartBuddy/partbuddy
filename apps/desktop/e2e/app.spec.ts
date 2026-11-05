@@ -367,6 +367,8 @@ test('the settings switch the language at once and show the project folder and t
     await page.getByTestId('settings-about').click();
     await expect(dialog.getByTestId('settings-version')).toHaveText(/^Version \d/);
     await expect(dialog.getByTestId('settings-sponsor')).toHaveAttribute('href', 'https://github.com/sponsors/ManuelStaggl');
+    // A development build does not update itself (B10).
+    await expect(dialog.getByTestId('updates')).toHaveAttribute('data-state', 'unavailable');
     await page.screenshot({ path: test.info().outputPath('settings-about.png') });
     await page.getByTestId('settings-general').click();
     await dialog.getByTestId('settings-language').getByText('English').click();
@@ -546,7 +548,7 @@ test('the renderer sees only the typed bridge', async () => {
     };
   });
   expect(globals).toEqual({
-    bridge: ['agent', 'appInfo', 'chat', 'design', 'mirror', 'notes', 'print', 'project', 'relaunch', 'settings', 'solidcraft', 'viewer', 'window'],
+    bridge: ['agent', 'appInfo', 'chat', 'design', 'mirror', 'notes', 'print', 'project', 'relaunch', 'settings', 'solidcraft', 'updates', 'viewer', 'window'],
     solidcraft: ['chooseEngine', 'engine', 'onStatus', 'retry', 'start', 'status'],
     require: 'undefined',
     process: 'undefined',

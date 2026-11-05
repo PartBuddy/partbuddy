@@ -12,6 +12,7 @@ import type {
   Slicer,
   PartsLibrary,
   GeneralSettingsInfo,
+  UpdateState,
   Language,
   VersionComparison,
   VersionEntry,
@@ -66,6 +67,15 @@ export interface PartBuddyApi {
     resetProjectsFolder(): Promise<GeneralSettingsInfo>;
     /** Marks the first-start setup (B9) as finished or skipped. */
     finishSetup(): Promise<GeneralSettingsInfo>;
+  };
+  /** Updates of the installed app through GitHub releases (B10); "unavailable" in development. */
+  updates: {
+    state(): Promise<UpdateState>;
+    check(): Promise<UpdateState>;
+    download(): Promise<void>;
+    /** Quits, installs the downloaded version and starts it. */
+    install(): Promise<void>;
+    onState(listener: (state: UpdateState) => void): () => void;
   };
   /** Projects (B2): one folder per part in the project folder. Switching saves the open design first. */
   project: {

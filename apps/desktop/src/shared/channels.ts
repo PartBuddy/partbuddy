@@ -46,6 +46,10 @@ export const invokeChannels = {
   settingsChooseProjectsFolder: 'settings:choose-projects-folder',
   settingsResetProjectsFolder: 'settings:reset-projects-folder',
   settingsFinishSetup: 'settings:finish-setup',
+  updatesState: 'updates:state',
+  updatesCheck: 'updates:check',
+  updatesDownload: 'updates:download',
+  updatesInstall: 'updates:install',
   designUndo: 'design:undo',
   designRedo: 'design:redo',
   designExport: 'design:export',
@@ -86,6 +90,7 @@ export const invokeChannels = {
 } as const;
 
 export const eventChannels = {
+  updatesState: 'updates:state-changed',
   solidcraftStatus: 'solidcraft:status-changed',
   mirrorRevision: 'mirror:revision',
   agentStatus: 'agent:status-changed',

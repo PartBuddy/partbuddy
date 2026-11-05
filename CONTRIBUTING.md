@@ -50,6 +50,7 @@ git config commit.gpgsign true
 pnpm --filter @partbuddy/desktop dev        # Electron with hot reload
 pnpm --filter @partbuddy/desktop build      # bundle into apps/desktop/out
 pnpm --filter @partbuddy/desktop test:e2e   # Electron flows against a fake SolidCraft
+pnpm --filter @partbuddy/desktop dist       # Windows installer in apps/desktop/dist (B10)
 ```
 
 The app finds a running SolidCraft through its control folder, or starts `solidcraft --control 7878`
@@ -70,6 +71,21 @@ live-view latency test, which builds the synthetic cable clip step by step in an
 | `PARTBUDDY_E2E_CHATGPT=1` | Run the live ChatGPT tests: the first run opens the browser to sign in; they spend ChatGPT plan usage |
 | `PARTBUDDY_KEYRING_SERVICE` | Credential-store service name (default `PartBuddy`); the Electron tests use their own |
 | `SOLIDCRAFT_CONTROL_DIR` | SolidCraft's own setting for its control folder; PartBuddy reads the same folder |
+| `PARTBUDDY_FIRST_START` | `0` never shows the first-start setup; the E2E launcher sets it |
+| `PARTBUDDY_PROJECTS_DIR` | The project folder, instead of the setting or `Documents\PartBuddy` |
+| `PARTBUDDY_UPDATES=0` | The installed app does not look for updates |
+| `PARTBUDDY_E2E_PACKAGED=1` | Run the smoke test of the packaged app after `dist:dir` or `dist` |
+
+### Installer and releases
+
+`dist` builds the NSIS installer `PartBuddy-Setup-<version>.exe` with `latest.yml` (electron-builder,
+`apps/desktop/electron-builder.yml`): per user, with Start menu and desktop shortcuts, unsigned for
+now, so SmartScreen warns until code signing comes before the public release. The installed app
+looks for updates in the GitHub releases (electron-updater) and installs them only on the user's
+word. The CI runners are Linux, so a release is built on Windows: after release-please's release
+exists, run `dist` and upload the installer, its `.blockmap` and `latest.yml` to that release
+(`gh release upload v<version> apps/desktop/dist/PartBuddy-Setup-<version>.exe
+apps/desktop/dist/PartBuddy-Setup-<version>.exe.blockmap apps/desktop/dist/latest.yml`).
 
 ## Licence of contributions
 

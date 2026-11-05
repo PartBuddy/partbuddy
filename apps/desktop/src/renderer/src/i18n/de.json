@@ -761,5 +761,21 @@
     "back": "Zurück",
     "next": "Weiter",
     "done": "Fertig"
+  },
+  "updates": {
+    "title": "Updates",
+    "check": "Nach Updates suchen",
+    "download": "Herunterladen",
+    "install": "Neu starten und installieren",
+    "state": {
+      "unavailable": "Dieser Build aktualisiert sich nicht selbst; die installierte App sucht neue Versionen auf GitHub.",
+      "idle": "Noch nicht gesucht.",
+      "checking": "Suche nach einer neuen Version …",
+      "current": "PartBuddy {version} ist die neueste Version.",
+      "available": "Version {version} ist verfügbar.",
+      "downloading": "Lade herunter … {percent} %",
+      "ready": "Version {version} ist geladen und wird beim Neustart installiert.",
+      "error": "Keine Update-Information lesbar (offline, oder die Releases sind noch nicht öffentlich)."
+    }
   }
 }

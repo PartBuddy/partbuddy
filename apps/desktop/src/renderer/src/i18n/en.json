@@ -761,5 +761,21 @@
     "back": "Back",
     "next": "Next",
     "done": "Done"
+  },
+  "updates": {
+    "title": "Updates",
+    "check": "Look for updates",
+    "download": "Download",
+    "install": "Restart and install",
+    "state": {
+      "unavailable": "This build does not update itself; the installed app looks for new versions on GitHub.",
+      "idle": "Not looked yet.",
+      "checking": "Looking for a new version …",
+      "current": "PartBuddy {version} is the newest version.",
+      "available": "Version {version} is available.",
+      "downloading": "Downloading … {percent} %",
+      "ready": "Version {version} is downloaded and installs on restart.",
+      "error": "No update information could be read (offline, or the releases are not public yet)."
+    }
   }
 }

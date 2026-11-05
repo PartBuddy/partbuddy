@@ -13,7 +13,9 @@
     "lint": "eslint .",
     "typecheck": "tsc6 --noEmit -p tsconfig.node.json && tsc6 --noEmit -p tsconfig.web.json",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "dist": "electron-vite build && electron-builder --win --publish never",
+    "dist:dir": "electron-vite build && electron-builder --win --dir --publish never"
   },
   "dependencies": {
     "@ai-sdk/openai": "4.0.104",
@@ -26,6 +28,7 @@
     "@react-three/fiber": "9.8.2",
     "@tabler/icons-react": "3.50.0",
     "ai": "7.0.155",
+    "electron-updater": "6.8.11",
     "i18next": "26.5.11",
     "i18next-icu": "2.6.1",
     "intl-messageformat": "12.1.4",
@@ -53,6 +56,7 @@
     "@types/three": "0.186.0",
     "@vitejs/plugin-react": "6.1.2",
     "electron": "45.1.0",
+    "electron-builder": "26.18.0",
     "electron-vite": "6.0.0",
     "eslint": "10.13.0",
     "eslint-plugin-react-hooks": "7.1.1",
