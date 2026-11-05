@@ -159,6 +159,14 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   stream parts; it is not yet checked against the ChatGPT plan backend. If the backend refuses the
   tool, PartBuddy logs it and goes on without web search for the rest of the session.
 
+## Standard parts (0.40, checked 2026-11-05)
+
+- `parts.library {}` lists every family with sizes (`d`, for bearings `bore`, `outer`, `width`),
+  `lengths` and `default_length`. `parts.insert {family, size, length?, at: [x, y, z]}` with a point
+  on a hole's wall seats the part with a rigid joint in a new component (`SHCS M3x12`); the body is
+  called `Body<n>` until `body.rename`. PartBuddy notes standard part bodies under
+  `io.github.manuelstaggl.partbuddy.standard-parts`; export and the light leave them out.
+
 ## Repository and machine
 
 - The self-hosted CI runner (ADR 0022) dies with the Claude session that started it; restart with

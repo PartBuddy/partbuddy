@@ -746,6 +746,18 @@ if (!app.requestSingleInstanceLock()) {
       log(`inserted a ${kind} file into the design`);
       return { inserted: true, name, bodies: bodies.slice(0, 500) };
     });
+    // Standard parts (B7): seated in a hole as counterparts, one step of the work log.
+    bridge.handle(invokeChannels.designPartsLibrary, () => supervisor.partsLibrary());
+    bridge.handle(invokeChannels.designInsertPart, async (part) => {
+      assistantIdle();
+      let body: string | null = null;
+      const name = `${part.size}${part.length ? `×${String(part.length)}` : ''}`;
+      await steps.recordUser(describeUserAction({ kind: 'standardPart', name }), async () => {
+        body = await supervisor.insertPart(part);
+      });
+      log('seated a standard part');
+      return { body };
+    });
     bridge.handle(invokeChannels.designRepair, async ({ body, how }) => {
       assistantIdle();
       try {

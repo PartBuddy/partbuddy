@@ -376,7 +376,8 @@
     "repairHint": "Repariert Flächen, die der Kern ablehnt, schließt Spalten und Löcher eines importierten Teils.",
     "repairDone": "{name} wurde repariert.",
     "nothingToRepair": "Nichts zu reparieren: {name} ist in Ordnung.",
-    "openMesh": "{name} ist nicht geschlossen, deshalb kann SolidCraft es nicht in Flächen umwandeln. Exportieren geht trotzdem; kleine Löcher repariert der Slicer selbst."
+    "openMesh": "{name} ist nicht geschlossen, deshalb kann SolidCraft es nicht in Flächen umwandeln. Exportieren geht trotzdem; kleine Löcher repariert der Slicer selbst.",
+    "standardPart": "Normteil"
   },
   "parameters": {
     "title": "Parameter ({count})",
@@ -709,6 +710,26 @@
       "export": "Beim Export",
       "assistant": "Vor dem Assistenten",
       "restore": "Vor dem Wiederherstellen"
+    }
+  },
+  "parts": {
+    "action": "Normteil",
+    "hole": "Bohrung ⌀ {diameter} mm",
+    "family": "Art",
+    "size": "Größe",
+    "length": "Länge",
+    "insert": "In die Bohrung setzen",
+    "hint": "Ein Gegenstück aus der SolidCraft-Bibliothek: Es erscheint in der Ansicht, wird aber weder exportiert noch gedruckt.",
+    "inserted": "{name} als Gegenstück eingesetzt.",
+    "families": {
+      "socket_head_cap_screw": "Zylinderschraube",
+      "button_head_cap_screw": "Linsenkopfschraube",
+      "hex_bolt": "Sechskantschraube",
+      "set_screw": "Gewindestift",
+      "hex_nut": "Sechskantmutter",
+      "washer": "Unterlegscheibe",
+      "dowel_pin": "Zylinderstift",
+      "bearing": "Kugellager"
     }
   }
 }

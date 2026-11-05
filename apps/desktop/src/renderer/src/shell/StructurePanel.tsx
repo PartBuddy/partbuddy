@@ -108,13 +108,14 @@ export function StructurePanel() {
         <ul>
           {bodies.map((body) => {
             const kind = bodyKindOf(body, model.structure.features);
+            const standard = model.structure.standardParts?.includes(body.name) === true;
             return (
               <Row
                 key={body.name}
                 icon={<IconBox className="size-icon-sm shrink-0" aria-hidden />}
                 name={body.name}
-                {...(kind === 'mesh' ? { note: t('structure.mesh') } : {})}
-                {...(kind === 'model' ? {} : { action: <RepairButton body={body.name} kind={kind} /> })}
+                {...(standard ? { note: t('structure.standardPart') } : kind === 'mesh' ? { note: t('structure.mesh') } : {})}
+                {...(kind === 'model' || standard ? {} : { action: <RepairButton body={body.name} kind={kind} /> })}
                 visible={body.visible}
                 onToggle={(visible) => {
                   toggle({ bodies: [body.name], sketches: [], visible });

@@ -8,6 +8,8 @@ import type {
   ProjectEntry,
   ProjectOpenResult,
   InsertResult,
+  PartInsert,
+  PartsLibrary,
   GeneralSettingsInfo,
   Language,
   VersionComparison,
@@ -129,6 +131,10 @@ export interface PartBuddyApi {
     /** Builds an action (fillet, chamfer, extrude, hole, shell) on trial for the ghost preview. */
     previewAction(action: DesignAction): Promise<ActionPreviewResult>;
     applyAction(action: DesignAction): Promise<void>;
+    /** SolidCraft's standard parts (B7): screws, nuts, washers, pins, bearings, with sizes. */
+    partsLibrary(): Promise<PartsLibrary>;
+    /** Seats a standard part in a hole as a counterpart; returns its body's name. */
+    insertPart(part: PartInsert): Promise<{ body: string | null }>;
     /** Distance and angle between two selections. */
     measure(items: MeasureItem[]): Promise<MeasureResult>;
     /** Rolls the timeline back or forward, or suppresses a feature (M1c). */

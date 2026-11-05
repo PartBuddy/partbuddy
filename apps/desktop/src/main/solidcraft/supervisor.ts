@@ -9,12 +9,13 @@ import type { ConnectionStatus, ExportFormat, MirrorRevision } from '../../share
 import type { UpstreamTools } from '../agents/gateProxy';
 import { ControlClient, ControlError } from './controlClient';
 import { cliBeside, endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
-import type { DesignAction, MeasureItem, MeasureResult, TimelineCommand, VisibilityCommand } from '../../shared/contract';
+import type { DesignAction, MeasureItem, MeasureResult, PartInsert, PartsLibrary, TimelineCommand, VisibilityCommand } from '../../shared/contract';
 import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
 import type { DesignParameter, DimensionMark } from '../../shared/contract';
 import { insertCommand, type ImportKind } from '../projects/importFile';
+import { freeBodyName, libraryOf, STANDARD_PARTS_KEY, standardPartsOf } from './standardParts';
 import { ProjectStore } from '../projects/projectStore';
 import { HeadlessEngine, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
@@ -193,7 +194,9 @@ export class SolidCraftSupervisor {
    */
   async exportDesign(format: ExportFormat, destination: string): Promise<void> {
     const requester = this.requester();
-    const bodies = this.latest?.bodies.map((body) => body.name) ?? [];
+    // Standard parts (B7) are counterparts: they are not printed, so they are not exported.
+    const standard = new Set(this.latest?.structure.standardParts ?? []);
+    const bodies = this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [];
     if (bodies.length === 0) throw new Error('the design has no body to export');
     // The file keeps the name the user chose: STEP and 3MF carry it as the part's name.
     const folder = join(this.options.cacheDir, `export-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
@@ -338,6 +341,54 @@ export class SolidCraftSupervisor {
       if (reply.failed && reply.failed.index < steps.length) throw new Error(reply.failed.error);
       return reply.failed?.index === steps.length ? reply.results.slice(0, steps.length) : null;
     });
+  }
+
+  private library: PartsLibrary | null = null;
+
+  /** SolidCraft's standard parts (B7), read once. */
+  async partsLibrary(): Promise<PartsLibrary> {
+    if (this.library) return this.library;
+    const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'parts.library', params: {} }], rollback: false }, 30_000);
+    if (reply.failed) throw new Error(reply.failed.error);
+    this.library = libraryOf(reply.results[0]);
+    return this.library;
+  }
+
+  /**
+   * Seats a standard part in the hole at a point of its wall (B7, `parts.insert` with a rigid
+   * joint). Its body gets the part's name (`SHCS M3x12`) and is noted as a standard part in the
+   * design's metadata, so export and the ready-to-print light leave it out. Returns the body name.
+   */
+  async insertPart(part: PartInsert): Promise<string | null> {
+    await this.probing;
+    const requester = this.requester();
+    const before = new Set(this.latest?.structure.bodies.map((body) => body.name) ?? []);
+    const params = { family: part.family, size: part.size, ...(part.length ? { length: part.length } : {}), at: part.point };
+    const reply = await requester.request<BatchResult>(
+      'engine.batch',
+      { commands: [{ command: 'parts.insert', params }, { command: 'document.inspect', params: {} }], rollback: false },
+      10 * 60 * 1000,
+    );
+    if (reply.failed) throw new Error(reply.failed.error);
+    const inserted = reply.results[0] as { name?: unknown } | undefined;
+    const inspect = reply.results[1] as { bodies?: { name?: unknown }[]; metadata?: unknown } | undefined;
+    const names = (inspect?.bodies ?? []).map((body) => body.name).filter((name): name is string => typeof name === 'string');
+    const added = names.filter((name) => !before.has(name));
+    let body: string | null = added[0] ?? null;
+    if (body) {
+      const steps: { command: string; params: Record<string, unknown> }[] = [];
+      if (added.length === 1 && typeof inserted?.name === 'string') {
+        const wanted = freeBodyName(inserted.name, names);
+        steps.push({ command: 'body.rename', params: { body, name: wanted } });
+        body = wanted;
+      }
+      const marked = [...standardPartsOf(inspect?.metadata).filter((name) => names.includes(name)), ...(added.length === 1 ? [body] : added)];
+      steps.push({ command: 'document.metadata.set', params: { values: { [STANDARD_PARTS_KEY]: { bodies: marked } } } });
+      const naming = await requester.request<BatchResult>('engine.batch', { commands: steps, rollback: false }, 60_000);
+      if (naming.failed) this.options.log(`the standard part was not named: ${naming.failed.error}`);
+    }
+    await this.engine?.checkForChange();
+    return body;
   }
 
   /**
