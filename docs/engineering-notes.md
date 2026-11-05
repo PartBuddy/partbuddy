@@ -190,6 +190,14 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 - Installing from a Claude Code session would land in the MSIX package folder (AppData is
   redirected), so the installer is handed to the user instead of being run here.
 
+## Function blocks (0.40, checked 2026-11-05)
+
+- `solid.hole {position, thread: "M4", modeled: true, depth?}` cuts a printable thread with the tap
+  drill; `clearance: "M3", fit` gives ISO 273 holes, but `type: countersink|counterbore` needs
+  `cs_diameter` and `cs_angle` (`"90 deg"`) or `cb_diameter` and `cb_depth` given explicitly.
+- `plastic.boss {position, diameter, height, hole_diameter, hole_depth}` builds out of the face.
+- A modelled thread costs about 2 s per rebuild of a small part.
+
 ## Repository and machine
 
 - The self-hosted CI runner (ADR 0022) dies with the Claude session that started it; restart with

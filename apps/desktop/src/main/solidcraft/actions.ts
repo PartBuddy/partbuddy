@@ -55,11 +55,16 @@ export class ActionService {
   }
 
   /** Builds the action on trial and exports the body for the ghost; SolidCraft's refusal comes back as text. */
-  async preview(action: DesignAction): Promise<ActionPreview> {
+  preview(action: DesignAction): Promise<ActionPreview> {
+    return this.previewStep(commandOf(action), action.body);
+  }
+
+  /** Builds one command on trial and exports the body for the ghost (actions, function blocks F1). */
+  async previewStep(step: Step, body: string): Promise<ActionPreview> {
     const file = join(this.cacheDir, `action-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.3mf`);
     try {
       const reply = await this.batch(
-        [commandOf(action), { command: 'file.export', params: { path: file, format: '3mf-tagged', bodies: [action.body], quality: 'standard' } }, UNDO_ALL],
+        [step, { command: 'file.export', params: { path: file, format: '3mf-tagged', bodies: [body], quality: 'standard' } }, UNDO_ALL],
         true,
       );
       if (reply.failed?.index !== 2) return { ok: false, error: (reply.failed?.error ?? 'SolidCraft did not build it').slice(0, 300) };
@@ -69,8 +74,12 @@ export class ActionService {
     }
   }
 
-  async apply(action: DesignAction): Promise<void> {
-    const reply = await this.batch([commandOf(action)], true);
+  apply(action: DesignAction): Promise<void> {
+    return this.applyStep(commandOf(action));
+  }
+
+  async applyStep(step: Step): Promise<void> {
+    const reply = await this.batch([step], true);
     if (reply.failed) throw new Error(`SolidCraft refused it: ${reply.failed.error}`);
   }
 

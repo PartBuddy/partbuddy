@@ -777,5 +777,41 @@
       "ready": "Version {version} ist geladen und wird beim Neustart installiert.",
       "error": "Keine Update-Information lesbar (offline, oder die Releases sind noch nicht öffentlich)."
     }
+  },
+  "blocks": {
+    "action": "Funktionsbaustein",
+    "kind": "Baustein",
+    "size": "Größe",
+    "through": "Durchgehend",
+    "depth": "Tiefe",
+    "diameter": "Durchmesser",
+    "height": "Höhe",
+    "modeled": "Gewinde modellieren (druckbar etwa ab M5; kleinere besser nachschneiden)",
+    "head": "Schraubenkopf",
+    "fit": "Spiel",
+    "apply": "Bauen",
+    "ready": "In der Ansicht gezeigt – Bauen übernimmt es",
+    "kinds": {
+      "tappedHole": "Gewindebohrung",
+      "screwHole": "Schraubenloch",
+      "insertSeat": "Sitz für Einschmelzmutter",
+      "boss": "Schraubdom"
+    },
+    "heads": {
+      "cap": "Zylinderkopf (Senkung)",
+      "countersunk": "Senkkopf (90°)",
+      "none": "Ohne Platz für den Kopf"
+    },
+    "fits": {
+      "close": "Eng",
+      "normal": "Mittel",
+      "loose": "Grob"
+    },
+    "hint": {
+      "tappedHole": "Eine Bohrung mit SolidCraft-Gewinde dieser Größe, mit Kernlochdurchmesser gebohrt.",
+      "screwHole": "Durchgangsloch nach ISO 273 mit Platz für den Kopf nach ISO 4762 oder ISO 10642, plus 0,6 mm für den Druck.",
+      "insertSeat": "Typische Werte für ruthex-Einsätze, einen Millimeter tiefer als der Einsatz. Prüf das Datenblatt deines Einsatzes.",
+      "boss": "Ein Dom mit Sitz für eine Einschmelzmutter dieser Größe und mindestens 2 mm Wand."
+    }
   }
 }

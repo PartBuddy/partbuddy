@@ -777,5 +777,41 @@
       "ready": "Version {version} is downloaded and installs on restart.",
       "error": "No update information could be read (offline, or the releases are not public yet)."
     }
+  },
+  "blocks": {
+    "action": "Function block",
+    "kind": "Block",
+    "size": "Size",
+    "through": "Through",
+    "depth": "Depth",
+    "diameter": "Diameter",
+    "height": "Height",
+    "modeled": "Modelled thread (print it from about M5; smaller ones are better tapped)",
+    "head": "Screw head",
+    "fit": "Clearance",
+    "apply": "Build",
+    "ready": "Shown in the view – Build makes it",
+    "kinds": {
+      "tappedHole": "Tapped hole",
+      "screwHole": "Screw hole",
+      "insertSeat": "Heat-set insert seat",
+      "boss": "Screw boss"
+    },
+    "heads": {
+      "cap": "Cap screw (counterbore)",
+      "countersunk": "Countersunk (90°)",
+      "none": "No room for the head"
+    },
+    "fits": {
+      "close": "Close",
+      "normal": "Normal",
+      "loose": "Loose"
+    },
+    "hint": {
+      "tappedHole": "A hole with SolidCraft's thread of this size, drilled with the tap drill.",
+      "screwHole": "Clearance after ISO 273 with room for the head after ISO 4762 or ISO 10642, plus 0.6 mm for printing.",
+      "insertSeat": "Typical values for ruthex inserts, one millimetre deeper than the insert. Check your insert's data sheet.",
+      "boss": "A boss with a seat for a heat-set insert of this size and at least 2 mm of wall."
+    }
   }
 }

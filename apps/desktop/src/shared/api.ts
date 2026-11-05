@@ -49,6 +49,8 @@ import type {
   ViewState,
 } from './contract';
 
+import type { FeatureBlock } from './blocks';
+
 /**
  * What the preload exposes as `window.partbuddy`. Each member is bound to one channel of the
  * contract; there is no generic invoke (ADR 0013).
@@ -150,6 +152,10 @@ export interface PartBuddyApi {
     sendToSlicer(slicer: string): Promise<{ name: string }>;
     /** Marks the flat face at a point as the body's print face, or clears it (null). */
     setPrintFace(body: string, point: [number, number, number] | null): Promise<void>;
+    /** Builds a function block (F1) on trial for the ghost preview. */
+    previewBlock(block: FeatureBlock): Promise<ActionPreviewResult>;
+    /** Builds a function block for real; one step of the work log. */
+    applyBlock(block: FeatureBlock): Promise<void>;
     /** SolidCraft's standard parts (B7): screws, nuts, washers, pins, bearings, with sizes. */
     partsLibrary(): Promise<PartsLibrary>;
     /** Seats a standard part in a hole as a counterpart; returns its body's name. */

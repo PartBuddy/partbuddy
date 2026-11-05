@@ -1376,3 +1376,50 @@ test('the export menu offers the slicers SolidCraft finds, and a print face is s
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('function blocks are previewed and built at a face: tapped hole, screw hole, insert seat and boss (F1)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-blocks-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7907',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  type Bridge = { partbuddy: { design: { previewBlock(block: unknown): Promise<{ ok: boolean; preview?: unknown; error?: string }>; applyBlock(block: unknown): Promise<void> } } };
+  const preview = (block: unknown) => page.evaluate((b) => (globalThis as unknown as Bridge).partbuddy.design.previewBlock(b).then((r) => ({ ok: r.ok, error: r.error ?? null })), block);
+  const apply = (block: unknown) => page.evaluate((b) => (globalThis as unknown as Bridge).partbuddy.design.applyBlock(b), block);
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    const top = (x: number, y: number) => ({ body: 'Body1', point: [x, y, 10] });
+    const blocks = [
+      { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: true },
+      { block: 'screwHole', ...top(15, 5), size: 'M3', head: 'countersunk', fit: 'normal' },
+      { block: 'insertSeat', ...top(5, 15), size: 'M3', diameter: 4, depth: 6.7 },
+      { block: 'boss', ...top(15, 15), size: 'M2', diameter: 7.2, height: 6 },
+    ];
+    for (const block of blocks) {
+      expect(await preview(block)).toEqual({ ok: true, error: null });
+      await apply(block);
+    }
+    for (const line of ['Tapped hole M4', 'Screw hole M3', 'Hole ⌀ 4 mm, 6.7 mm deep', 'Screw boss ⌀ 7.2 mm']) {
+      await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
+    }
+    // The design changed only through the four blocks: previews leave nothing behind.
+    await expect(page.getByTestId('timeline-feature')).toHaveCount(5, { timeout: 30_000 });
+    expect((await preview({ block: 'boss', body: 'Body1', point: [10, 10, 5], size: 'M3', diameter: 8, height: 5 })).ok).toBe(false);
+    await page.screenshot({ path: test.info().outputPath('blocks.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

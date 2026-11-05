@@ -20,7 +20,8 @@ import { guardNotes } from './agents/noteGuard';
 import { withViewTool } from './agents/viewContext';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
-import { describeUserAction } from '../shared/stepPhrases';
+import { describeCommands, describeUserAction } from '../shared/stepPhrases';
+import { stepOf } from '../shared/blocks';
 import { ChatGptAccount } from './chatgpt/account';
 import { ChatGptAgent } from './chatgpt/chatgptAgent';
 import { hostId } from './chatgpt/oauth';
@@ -771,6 +772,17 @@ if (!app.requestSingleInstanceLock()) {
       });
       log(`inserted a ${kind} file into the design`);
       return { inserted: true, name, bodies: bodies.slice(0, 500) };
+    });
+    // Function blocks (F1): previewed like actions, built as one step of the work log.
+    bridge.handle(invokeChannels.designPreviewBlock, (block) => {
+      assistantIdle();
+      return supervisor.previewBlock(block);
+    });
+    bridge.handle(invokeChannels.designApplyBlock, async (block) => {
+      assistantIdle();
+      await steps.recordUser(describeCommands([stepOf(block)])[0] ?? { key: 'command', values: { command: block.block } }, () => supervisor.applyBlock(block));
+      log(`built the function block ${block.block}`);
+      return undefined;
     });
     // To the slicer (B8): through SolidCraft's slicer detection; the print face is SolidCraft's own.
     bridge.handle(invokeChannels.designSlicers, () => supervisor.slicers());

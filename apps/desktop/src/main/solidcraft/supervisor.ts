@@ -14,6 +14,7 @@ import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
 import type { DesignParameter, DimensionMark } from '../../shared/contract';
+import { stepOf, type FeatureBlock } from '../../shared/blocks';
 import { insertCommand, type ImportKind } from '../projects/importFile';
 import { freeBodyName, libraryOf, STANDARD_PARTS_KEY, standardPartsOf } from './standardParts';
 import { ProjectStore } from '../projects/projectStore';
@@ -484,6 +485,17 @@ export class SolidCraftSupervisor {
   async applyAction(action: DesignAction): Promise<void> {
     await this.probing;
     await this.actions.apply(action);
+    await this.engine?.checkForChange();
+  }
+
+  /** A function block (F1) on trial for the ghost, like an action. */
+  previewBlock(block: FeatureBlock): Promise<ActionPreview> {
+    return this.trial(() => this.actions.previewStep(stepOf(block), block.body));
+  }
+
+  async applyBlock(block: FeatureBlock): Promise<void> {
+    await this.probing;
+    await this.actions.applyStep(stepOf(block));
     await this.engine?.checkForChange();
   }
 
