@@ -468,5 +468,15 @@
     "support": "Braucht Stütze (über {degrees}°)",
     "borderline": "Grenzwertig ({from}–{to}°)",
     "bed": "Auf dem Druckbett"
+  },
+  "compare": {
+    "title": "Vorher und nachher",
+    "previewTitle": "Teil und Vorschau",
+    "start": "Vorher/Nachher",
+    "before": "Vorher",
+    "after": "Nachher",
+    "now": "Jetzt",
+    "tried": "Vorschau",
+    "close": "Vergleich beenden"
   }
 }

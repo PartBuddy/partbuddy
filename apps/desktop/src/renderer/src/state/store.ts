@@ -123,7 +123,21 @@ interface StudioState {
   latency: MirrorLatency | null;
   setConnection: (status: ConnectionStatus) => void;
   setModel: (model: ModelState) => void;
-  showRevision: (model: ModelState, changes: LiveChanges | null, latency: MirrorLatency) => void;
+  showRevision: (model: ModelState, changes: LiveChanges | null, latency: MirrorLatency, before?: BodyModel[] | null) => void;
+  /** The bodies before the latest change, kept for comparing (UI upgrade step 13). */
+  before: BodyModel[] | null;
+  /**
+   * Before/after (UI upgrade step 13): how far the view shows the new state, 0 the old one, 1 the
+   * new one. `compare` is on while the user compares with the state before the latest change;
+   * `previewBlend` weighs the ghost of a tried value against the part.
+   */
+  compare: number | null;
+  setCompare: (compare: number | null) => void;
+  previewBlend: number;
+  setPreviewBlend: (blend: number) => void;
+  /** The ghost of a value typed into a dimension label's field. */
+  markGhost: Uint8Array | null;
+  setMarkGhost: (ghost: Uint8Array | null) => void;
   clearChanges: () => void;
   setFollowChanges: (follow: boolean) => void;
   setHover: (pick: Pick | null) => void;
@@ -229,8 +243,21 @@ export const useStudio = create<StudioState>()((set) => ({
     // Face indices change on every rebuild (ADR 0004), so a selection does not survive one.
     set({ model, hover: null, selection: null, selections: [] });
   },
-  showRevision: (model, changes, latency) => {
-    set({ model, changes, latency, hover: null, selection: null, selections: [] });
+  showRevision: (model, changes, latency, before = null) => {
+    set({ model, changes, latency, before, compare: null, hover: null, selection: null, selections: [] });
+  },
+  before: null,
+  compare: null,
+  setCompare: (compare) => {
+    set({ compare });
+  },
+  previewBlend: 0.25,
+  setPreviewBlend: (previewBlend) => {
+    set({ previewBlend });
+  },
+  markGhost: null,
+  setMarkGhost: (markGhost) => {
+    set({ markGhost });
   },
   clearChanges: () => {
     set({ changes: null });

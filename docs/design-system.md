@@ -140,6 +140,11 @@ flat ground), with the tone kept neutral rather than warm:
   35–45° amber (borderline), beyond 45° red (needs support), faces on the bed green. Curved faces
   shade per vertex. A legend lists the area per class. The print direction will come from M7's
   orientation; until then it is +Z.
+* Before/after (UI upgrade step 13): while a value or action is tried, a slider "Now – Preview"
+  weighs the part against the ghost of the result. After a change of the geometry, PartBuddy keeps
+  the bodies from before it (until the next revision); "Before/after" in the change chip opens a
+  slider from the old state to the new one. Each side stays solid for the first half of the way
+  (`viewer/blend.ts`), so the ends show one state alone and the middle both.
 * Dimensions in their own colour (`viewer-dimension`): extension lines that start off the part and
   run past the dimension line, arrowheads of a fixed screen size, leaders with the arrow on the rim
   for radii and diameters, labels as slim pills (parameter name subtle, value bold).

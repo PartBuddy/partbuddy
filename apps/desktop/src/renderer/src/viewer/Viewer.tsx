@@ -25,6 +25,8 @@ import { Ghost, SelectionDock, SelectionGhost } from './DimensionHud';
 import { GradientBackground, GroundShadow, KeyLight, SkyLight } from './SceneLook';
 import { keeps, useSectionPlane } from './section';
 import { LiveBar } from './LiveBar';
+import { blendWeights } from './blend';
+import { CompareSlider } from './CompareSlider';
 import { Overhang } from './overhang';
 import { OverhangLegend } from './OverhangLegend';
 import { bedOf, overhangFor } from './useOverhang';
@@ -123,6 +125,10 @@ function Body({
   const selections = useStudio((s) => s.selections);
   const changes = useStudio((s) => s.changes);
   const stepHighlight = useStudio((s) => s.stepHighlight);
+  // Before/after: how much of the part as it is now shows (UI upgrade step 13).
+  const fade = useStudio((s) =>
+    s.compare !== null && s.before ? blendWeights(s.compare).after : s.selectionGhost || s.parameterGhost || s.markGhost ? blendWeights(s.previewBlend).before : 1,
+  );
   const { model } = body;
 
   useEffect(() => {
@@ -177,7 +183,7 @@ function Body({
       >
         {/* Wireframe keeps the faces for picking but does not draw them. */}
         <meshStandardMaterial
-          key={`${mode}-${plane ? 'cut' : 'whole'}`}
+          key={`${mode}-${plane ? 'cut' : 'whole'}-${fade < 1 ? 'fade' : 'solid'}`}
           vertexColors
           roughness={scene.roughness}
           metalness={0}
@@ -185,9 +191,9 @@ function Body({
           polygonOffsetFactor={1}
           polygonOffsetUnits={1}
           visible={mode !== 'wireframe'}
-          transparent={mode === 'xray'}
-          opacity={mode === 'xray' ? scene.xrayOpacity : 1}
-          depthWrite={mode !== 'xray'}
+          transparent={mode === 'xray' || fade < 1}
+          opacity={(mode === 'xray' ? scene.xrayOpacity : 1) * fade}
+          depthWrite={mode !== 'xray' && fade > 0.5}
           clippingPlanes={clipping}
         />
       </mesh>
@@ -198,8 +204,8 @@ function Body({
           <meshBasicMaterial color={colors.section} side={BackSide} clippingPlanes={clipping} />
         </mesh>
       ) : null}
-      {mode === 'shaded' ? null : plane === null && mode !== 'xray' ? (
-        <FatEdges geometry={model.edges} color={colors.edge} width={scene.edgeWidth} />
+      {mode === 'shaded' || fade === 0 ? null : plane === null && mode !== 'xray' ? (
+        <FatEdges geometry={model.edges} color={colors.edge} width={scene.edgeWidth} opacity={fade} />
       ) : (
         <lineSegments geometry={model.edges} raycast={noRaycast}>
           <lineBasicMaterial key={plane ? 'cut' : 'whole'} color={colors.edge} clippingPlanes={clipping} />
@@ -210,10 +216,36 @@ function Body({
 }
 
 /** Model edges as fat lines, for a look with stronger edges (lines of WebGL are always 1 px). */
-function FatEdges({ geometry, color, width }: { geometry: BodyModel['model']['edges']; color: ViewerColors['edge']; width: number }) {
+function FatEdges({ geometry, color, width, opacity }: { geometry: BodyModel['model']['edges']; color: ViewerColors['edge']; width: number; opacity: number }) {
   const points = useMemo(() => Array.from((geometry.getAttribute('position') as BufferAttribute).array as Float32Array), [geometry]);
   if (points.length === 0) return null;
-  return <Line points={points} segments color={color} lineWidth={width} raycast={noRaycast} />;
+  return <Line points={points} segments color={color} lineWidth={width} transparent={opacity < 1} opacity={opacity} raycast={noRaycast} />;
+}
+
+/**
+ * The part before the latest change, while the user compares (UI upgrade step 13): drawn in the
+ * body colour, fading out as the slider moves to "after".
+ */
+function BeforeBodies({ colors }: { colors: ViewerColors }) {
+  const before = useStudio((s) => s.before);
+  const compare = useStudio((s) => s.compare);
+  if (!before || compare === null) return null;
+  const opacity = blendWeights(compare).before;
+  if (opacity === 0) return null;
+  return (
+    <group name="before">
+      {before.map((body, i) => (
+        <group key={`${body.name}-${i}`}>
+          <mesh geometry={body.model.geometry} raycast={noRaycast} renderOrder={2}>
+            <meshStandardMaterial color={colors.body} roughness={scene.roughness} transparent={opacity < 1} opacity={opacity} depthWrite={opacity > 0.5} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
+          </mesh>
+          <lineSegments geometry={body.model.edges} raycast={noRaycast} renderOrder={2}>
+            <lineBasicMaterial color={colors.edge} transparent opacity={opacity} />
+          </lineSegments>
+        </group>
+      ))}
+    </group>
+  );
 }
 
 /** The world axes through the origin on the ground, X red and Y green, as CAD programs draw them. */
@@ -779,6 +811,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       {bodies.map((body, i) => (
         <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} bedZ={bedZ} />
       ))}
+      <BeforeBodies colors={colors} />
       <Highlights bodies={bodies} colors={colors} />
       <SelectionGhost color={colors.selection} />
       <ScenePins bodies={bodies} />
@@ -878,6 +911,7 @@ export function Viewer() {
         ) : null}
         <ConnectionNotice />
         <LiveBar />
+        <CompareSlider />
         {model.status === 'ready' ? <OverhangLegend bodies={model.bodies} /> : null}
       </div>
     </main>

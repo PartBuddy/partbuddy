@@ -341,7 +341,12 @@ export function DimensionMarks({ color, ghostColor, meshes, plane }: { color: Co
   const marks = useStudio((s) => s.marks);
   const openMark = useStudio((s) => s.openMark);
   const setOpenMark = useStudio((s) => s.setOpenMark);
-  const [ghost, setGhost] = useState<Uint8Array | null>(null);
+  const ghost = useStudio((s) => s.markGhost);
+  const setGhost = useStudio((s) => s.setMarkGhost);
+  useEffect(() => {
+    // A closed field leaves no ghost behind.
+    if (openMark === null) setGhost(null);
+  }, [openMark, setGhost]);
   const slot = useLabelLayout(marks, meshes, plane, openMark);
   // Like the note pins: Html attaches one frame after the scene first mounts.
   const [attached, setAttached] = useState(false);
