@@ -285,6 +285,38 @@ test('the parameter panel lists the design parameters and changes a length with 
   await expect(field).toHaveValue('50');
 });
 
+test('the view switches display modes and opens a section with its own controls', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+  const shot = (name: string) => page.getByTestId('viewport').screenshot({ path: test.info().outputPath(`${name}.png`) });
+
+  await page.getByTestId('display-mode').click();
+  await expect(page.getByRole('menuitemradio', { name: 'Shaded with edges' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('menuitemradio', { name: 'X-ray' }).click();
+  await page.getByTestId('display-mode').click();
+  await expect(page.getByRole('menuitemradio', { name: 'X-ray' })).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
+  await shot('xray');
+  await page.getByTestId('display-mode').click();
+  await page.getByRole('menuitemradio', { name: 'Shaded with edges' }).click();
+
+  // A section across Z through the middle; the other side and another axis are one press away.
+  await page.getByTestId('section').click();
+  const panel = page.getByTestId('section-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole('radio', { name: 'Cut across Z' })).toBeChecked();
+  await shot('section-z');
+  await panel.getByRole('radio', { name: 'Cut across X' }).click();
+  await panel.getByTestId('section-flip').click();
+  await expect(panel.getByRole('slider', { name: 'Where the section cuts' })).toHaveValue('50');
+  await shot('section-x-flipped');
+
+  // Off again: the panel goes.
+  await page.getByTestId('section').click();
+  await expect(panel).toHaveCount(0);
+});
+
 test('the colour theme can be chosen in the settings and is kept', async () => {
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-theme-'));
   const dark = (page: LaunchedApp['page']) =>

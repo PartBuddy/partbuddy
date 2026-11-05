@@ -134,6 +134,8 @@
   --cs-viewer-ground: #7d8692;
   /* The soft contact shadow under the part. */
   --cs-viewer-shadow: #1b2430;
+  /* Cut faces of a section (drawn flat, so they read as filled). */
+  --cs-viewer-section: #e0915f;
   --cs-viewer-grid: #c9ced5;
   --cs-viewer-body: #a9b1bb;
   --cs-viewer-edge: #2a3038;
@@ -187,6 +189,7 @@
     --cs-viewer-sky: #d6dde6;
     --cs-viewer-ground: #15171b;
     --cs-viewer-shadow: #000000;
+    --cs-viewer-section: #c97a4a;
     --cs-viewer-grid: #3a414b;
     --cs-viewer-body: #8a939e;
     --cs-viewer-edge: #0c0e10;
@@ -237,6 +240,7 @@
   --cs-viewer-sky: #d6dde6;
   --cs-viewer-ground: #15171b;
   --cs-viewer-shadow: #000000;
+  --cs-viewer-section: #c97a4a;
   --cs-viewer-grid: #3a414b;
   --cs-viewer-body: #8a939e;
   --cs-viewer-edge: #0c0e10;
