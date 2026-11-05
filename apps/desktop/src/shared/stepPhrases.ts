@@ -43,6 +43,10 @@ export const STEP_PHRASE_KEYS = [
   'suppress',
   'unsuppress',
   'construction',
+  // Import (B4): a file inserted into the design, a part repaired, a mesh converted to faces.
+  'insertFile',
+  'repairBody',
+  'convertMesh',
   'command',
 ] as const;
 
@@ -73,6 +77,11 @@ function count(value: unknown): number {
 
 function text(value: unknown, fallback = ''): string {
   return typeof value === 'string' && value.trim() !== '' ? value.trim().slice(0, 60) : fallback;
+}
+
+/** The last part of a file path, without folders (`Teile\Platine.step` → `Platine.step`). */
+function fileName(value: unknown): string {
+  return typeof value === 'string' ? text(value.split(/[\\/]/).pop(), '?') : '?';
 }
 
 /** Corner points [x, y] of a rectangle, when both are plain numbers. */
@@ -178,6 +187,13 @@ function phraseOf(command: string, params: Params): StepPhrase | 'curve' | 'dime
         : { key: 'rollTo', values: { position: Number(params.position) || 0 } };
     case 'timeline.suppress':
       return { key: params.suppressed === false ? 'unsuppress' : 'suppress', values: {} };
+    case 'file.insert_step':
+    case 'file.insert_mesh':
+      return { key: 'insertFile', values: { name: fileName(params.path) } };
+    case 'body.repair':
+      return { key: 'repairBody', values: { name: text(params.body, '?') } };
+    case 'mesh.convert':
+      return { key: 'convertMesh', values: { name: text(params.body, '?') } };
   }
   if (command.startsWith('sketch.')) return 'curve';
   if (command.startsWith('construct.')) return { key: 'construction', values: {} };
@@ -239,7 +255,9 @@ export function describeUserAction(
     | { kind: 'dimension'; parameter: string; value: number }
     | { kind: 'action'; action: 'fillet' | 'chamfer' | 'extrude' | 'hole' | 'shell'; size: number; count: number; depth?: number | undefined }
     | { kind: 'rollTo'; position: number | 'end' }
-    | { kind: 'suppress'; suppressed: boolean },
+    | { kind: 'suppress'; suppressed: boolean }
+    | { kind: 'insertFile'; name: string }
+    | { kind: 'repairBody' | 'convertMesh'; body: string },
 ): StepPhrase {
   const round = (value: number) => Math.round(value * 100) / 100;
   switch (action.kind) {
@@ -249,6 +267,11 @@ export function describeUserAction(
       return action.position === 'end' ? { key: 'rollToEnd', values: {} } : { key: 'rollTo', values: { position: action.position } };
     case 'suppress':
       return { key: action.suppressed ? 'suppress' : 'unsuppress', values: {} };
+    case 'insertFile':
+      return { key: 'insertFile', values: { name: action.name.slice(0, 60) } };
+    case 'repairBody':
+    case 'convertMesh':
+      return { key: action.kind, values: { name: action.body.slice(0, 60) } };
     case 'action':
       switch (action.action) {
         case 'fillet':
@@ -306,6 +329,9 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     suppress: 'Feature suppressed',
     unsuppress: 'Feature switched on again',
     construction: 'Construction geometry',
+    insertFile: 'Inserted {name}',
+    repairBody: 'Repaired {name}',
+    convertMesh: 'Converted {name} to faces',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -344,6 +370,9 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     suppress: 'Feature unterdrückt',
     unsuppress: 'Feature wieder eingeschaltet',
     construction: 'Hilfsgeometrie',
+    insertFile: '{name} eingefügt',
+    repairBody: '{name} repariert',
+    convertMesh: '{name} in Flächen umgewandelt',
     command: 'SolidCraft: {command}',
   },
 };

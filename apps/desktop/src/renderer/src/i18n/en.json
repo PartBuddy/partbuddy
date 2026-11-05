@@ -363,7 +363,16 @@
     "noSketches": "No sketches",
     "editing": "editing",
     "hide": "Hide {name}",
-    "show": "Show {name}"
+    "show": "Show {name}",
+    "mesh": "mesh",
+    "convert": "Convert {name} to faces",
+    "convertHint": "Turns the mesh into faces you can edit. Works for closed meshes of mechanical parts.",
+    "convertDone": "{name} now has faces you can edit.",
+    "repair": "Repair {name}",
+    "repairHint": "Repairs faces the kernel refuses, sews gaps and closes holes of an imported part.",
+    "repairDone": "{name} was repaired.",
+    "nothingToRepair": "Nothing to repair: {name} is fine as it is.",
+    "openMesh": "{name} is not closed, so SolidCraft cannot turn it into faces. It can still be exported; the slicer repairs small holes itself."
   },
   "parameters": {
     "title": "Parameters ({count})",
@@ -593,7 +602,7 @@
     "reveal": "Show in Explorer",
     "trash": "Move to recycle bin …",
     "failed": "That did not work: {detail}",
-    "imported": "The file was copied into a new project; the original stays unchanged.",
+    "imported": "The file became a new project; the original stays unchanged.",
     "renameTitle": "Rename project",
     "name": "Name",
     "renameHint": "The folder and files in the project folder get this name.",
@@ -607,7 +616,15 @@
     },
     "trashTitle": "Move \"{name}\" to the recycle bin?",
     "trashBody": "The project folder with design, conversation and exports goes to the Windows recycle bin and can be restored from there. A new, empty project starts afterwards.",
-    "trashConfirm": "Move to recycle bin"
+    "trashConfirm": "Move to recycle bin",
+    "import": "Import as new project …",
+    "insert": "Insert file …",
+    "inserted": "Inserted {name} ({count, plural, one {# body} other {# bodies}}).",
+    "dropAsProject": "Drop to make a new project",
+    "dropIntoDesign": "Drop to insert into this project",
+    "dropKinds": "STEP, IGES, STL, 3MF, OBJ or a SolidCraft design",
+    "dropUnknown": "PartBuddy imports STEP, IGES, STL, 3MF, OBJ and SolidCraft designs.",
+    "dropNoPath": "This file has no place on the disk yet. Save it first, then drop it from Explorer."
   },
   "home": {
     "title": "Projects",
@@ -617,7 +634,7 @@
     "import": "Import …",
     "list": "{count, plural, one {# project} other {# projects}}",
     "emptyTitle": "No projects yet",
-    "emptyBody": "Start a new project, open one or import a design. Every project gets a folder of its own under Documents\\PartBuddy.",
+    "emptyBody": "Start a new project, open one or import a file (STEP, IGES, STL, 3MF, OBJ or a SolidCraft design), also by dropping it onto the window. Every project gets a folder of its own under Documents\\PartBuddy.",
     "noMatch": "No project matches “{query}”.",
     "openNow": "Open now",
     "justNow": "just now",

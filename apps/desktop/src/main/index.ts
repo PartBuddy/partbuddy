@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, rmSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -29,6 +29,7 @@ import { Bridge, trustedSender } from './bridge';
 import { findExecutable, systemEnvironment } from './solidcraft/discovery';
 import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
+import { checkImportFile, IMPORT_EXTENSIONS, importName, type ImportKind } from './projects/importFile';
 import { migrateDesigns, ProjectStore, whenFree } from './projects/projectStore';
 import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
@@ -620,21 +621,70 @@ if (!app.requestSingleInstanceLock()) {
       log('opened a project from the start page');
       return { opened: true, imported: false };
     });
-    bridge.handle(invokeChannels.projectImport, async () => {
+    // Import (B4): the open dialog offers every kind PartBuddy reads, or only files to insert.
+    const pickImport = async (insert: boolean): Promise<string | null> => {
+      const kinds: ImportKind[] = insert ? ['step', 'mesh'] : ['design', 'step', 'mesh'];
+      const names: Record<ImportKind, string> = { design: 'SolidCraft', step: 'STEP, IGES', mesh: 'STL, 3MF, OBJ' };
       const options: Electron.OpenDialogOptions = {
-        title: german ? 'Design importieren' : 'Import design',
+        title: insert ? (german ? 'Datei einfügen' : 'Insert file') : german ? 'Importieren' : 'Import',
         defaultPath: app.getPath('documents'),
         properties: ['openFile'],
-        filters: [{ name: 'SolidCraft', extensions: ['sc'] }],
+        filters: [
+          { name: german ? 'Alle unterstützten Dateien' : 'All supported files', extensions: kinds.flatMap((kind) => [...IMPORT_EXTENSIONS[kind]]) },
+          ...kinds.map((kind) => ({ name: names[kind], extensions: [...IMPORT_EXTENSIONS[kind]] })),
+        ],
       };
       const picked = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
       const [file] = picked.filePaths;
-      if (picked.canceled || !file) return { opened: false, imported: false };
-      if (!file.toLowerCase().endsWith('.sc') || !existsSync(file) || !statSync(file).isFile()) throw new Error('not a SolidCraft design');
+      return picked.canceled || !file ? null : file;
+    };
+    bridge.handle(invokeChannels.projectImport, async ({ path }) => {
+      const file = path ?? (await pickImport(false));
+      if (!file) return { opened: false, imported: false };
+      const kind = checkImportFile(file);
       // Always a copy, also of a design inside the project folder: importing never moves the original.
-      await switchProject(() => Promise.resolve(projectStore.importDesign(file)));
-      log('imported a design into a new project');
+      let target: string;
+      if (kind === 'design') target = projectStore.importDesign(file);
+      else {
+        // The new design is made before the switch, so a file SolidCraft cannot read leaves the open project as it is.
+        target = projectStore.newDesignFile(importName(file));
+        try {
+          await supervisor.designFromFile(file, kind, target);
+        } catch (error) {
+          rmSync(dirname(target), { recursive: true, force: true });
+          throw error;
+        }
+      }
+      await switchProject(() => Promise.resolve(target));
+      log(kind === 'design' ? 'imported a design into a new project' : `made a new project from a ${kind} file`);
       return { opened: true, imported: true };
+    });
+    bridge.handle(invokeChannels.designInsert, async ({ path }) => {
+      assistantIdle();
+      const file = path ?? (await pickImport(true));
+      if (!file) return { inserted: false, name: null, bodies: [] };
+      const kind = checkImportFile(file);
+      if (kind === 'design') throw new Error('a SolidCraft design opens as a project of its own');
+      const name = basename(file).slice(0, 255);
+      let bodies: string[] = [];
+      await steps.recordUser(describeUserAction({ kind: 'insertFile', name }), async () => {
+        bodies = await supervisor.insertFile(file, kind);
+      });
+      log(`inserted a ${kind} file into the design`);
+      return { inserted: true, name, bodies: bodies.slice(0, 500) };
+    });
+    bridge.handle(invokeChannels.designRepair, async ({ body, how }) => {
+      assistantIdle();
+      try {
+        await steps.recordUser(describeUserAction(how === 'repair' ? { kind: 'repairBody', body } : { kind: 'convertMesh', body }), () => supervisor.repairBody(body, how));
+        log(how === 'repair' ? 'repaired a part' : 'converted a mesh body to faces');
+        return { ok: true };
+      } catch (error) {
+        const detail = (error as Error).message.replace(/^\S+ failed: /, '').slice(0, 500);
+        if (/nothing to repair/i.test(detail)) return { ok: false, reason: 'nothing', detail };
+        if (/must be closed/i.test(detail)) return { ok: false, reason: 'openMesh', detail };
+        return { ok: false, reason: 'other', detail };
+      }
     });
     bridge.handle(invokeChannels.projectSavePreview, ({ documentId, revision, png, check }) => {
       // Only a picture of the design that is open now goes into its project, never one that

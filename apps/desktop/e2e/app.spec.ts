@@ -668,6 +668,37 @@ test('the ready-to-print light follows the printer, points at its findings and a
   await expect(confirm).toHaveCount(0);
 });
 
+test('a file dragged over the window says where it goes, and one without a place on disk is refused (B4)', async () => {
+  launched = await launchApp();
+  const { page } = launched;
+  const drag = (type: string, name: string) =>
+    page.evaluate(
+      ([kind, file]) => {
+        // Runs in the renderer; typed loosely because this file is compiled for Node.
+        const view = globalThis as unknown as {
+          DataTransfer: new () => { items: { add(file: unknown): void } };
+          File: new (parts: string[], name: string) => unknown;
+          DragEvent: new (type: string, init: { dataTransfer: unknown; bubbles: boolean; cancelable: boolean }) => unknown;
+          dispatchEvent(event: unknown): boolean;
+        };
+        const data = new view.DataTransfer();
+        data.items.add(new view.File(['solid x'], file));
+        view.dispatchEvent(new view.DragEvent(kind, { dataTransfer: data, bubbles: true, cancelable: true }));
+      },
+      [type, name],
+    );
+  await expect(page.getByTestId('connection-status')).toBeVisible();
+  await drag('dragenter', 'Platine.step');
+  await expect(page.getByTestId('file-drop')).toHaveText(/Drop to insert into this project/);
+  await drag('drop', 'Platine.step');
+  await expect(page.getByTestId('file-drop')).toHaveCount(0);
+  // A file made in the page has no path on disk, like one dragged out of a browser.
+  await expect(page.getByTestId('notice')).toHaveText(/Save it first/);
+  await drag('dragenter', 'notes.txt');
+  await drag('drop', 'notes.txt');
+  await expect(page.getByTestId('notice')).toHaveText(/PartBuddy imports STEP/);
+});
+
 test('PartBuddy starts on the start page with the projects, which searches and closes again (B3)', async () => {
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-home-'));
   const projects = join(work, 'projects');

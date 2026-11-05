@@ -5,6 +5,7 @@ import { Button as AriaButton, Heading, Input, SearchField } from 'react-aria-co
 
 import type { ProjectCheck, ProjectEntry, ProjectInfo } from '../../../shared/contract';
 import { platform } from '../platform';
+import { useFileImport } from '../shell/fileImport';
 import { useProjectSwitch } from '../shell/projectSwitch';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
@@ -24,6 +25,7 @@ export function HomePage() {
   const connection = useStudio((s) => s.connection);
   const setHomeOpen = useStudio((s) => s.setHomeOpen);
   const run = useProjectSwitch();
+  const { asProject } = useFileImport();
   const [projects, setProjects] = useState<ProjectEntry[] | null>(null);
   const [current, setCurrent] = useState<ProjectInfo>(null);
   const [query, setQuery] = useState('');
@@ -98,7 +100,7 @@ export function HomePage() {
             <IconFolderOpen className="size-icon" aria-hidden />
             {t('project.open')}
           </Button>
-          <Button isDisabled={!ready} onPress={() => run(() => api.import())} data-testid="home-import">
+          <Button isDisabled={!ready} onPress={() => asProject()} data-testid="home-import">
             <IconFileImport className="size-icon" aria-hidden />
             {t('home.import')}
           </Button>

@@ -7,6 +7,8 @@ import type {
   ProjectInfo,
   ProjectEntry,
   ProjectOpenResult,
+  InsertResult,
+  RepairResult,
   ProjectPreview,
   ProjectRenameResult,
   AssistantState,
@@ -65,8 +67,13 @@ export interface PartBuddyApi {
     list(): Promise<ProjectEntry[]>;
     /** Opens a project of the start page by its folder. */
     openFolder(folder: string): Promise<ProjectOpenResult>;
-    /** Asks for a design file from anywhere and copies it into a new project (B4 adds STEP, STL …). */
-    import(): Promise<ProjectOpenResult>;
+    /**
+     * Makes a new project from a file (B4): a SolidCraft design is copied, a STEP, IGES, STL, 3MF
+     * or OBJ file is inserted into a new design. Asks with the open dialog when no path is given.
+     */
+    import(path?: string): Promise<ProjectOpenResult>;
+    /** The path of a file dropped onto the window, for import (B4); empty for a file without one. */
+    pathOfFile(file: File): string;
     /** Keeps the preview picture of the open project (base64 PNG) and its ready-to-print light. */
     savePreview(preview: ProjectPreview): Promise<void>;
   };
@@ -107,6 +114,10 @@ export interface PartBuddyApi {
     timeline(command: TimelineCommand): Promise<void>;
     /** Shows or hides bodies and sketches. */
     visibility(command: VisibilityCommand): Promise<void>;
+    /** Inserts a STEP, IGES, STL, 3MF or OBJ file into the open design (B4); asks when no path is given. */
+    insert(path?: string): Promise<InsertResult>;
+    /** Repairs an imported part or converts a mesh body to faces (B4). */
+    repair(body: string, how: 'repair' | 'convert'): Promise<RepairResult>;
     /** "Go back to this state": undoes or redoes to a step of the work log (M2a). */
     goToStep(step: string): Promise<void>;
     /** The dimensions of these features, or of all, placed in the view (M2b-3). */

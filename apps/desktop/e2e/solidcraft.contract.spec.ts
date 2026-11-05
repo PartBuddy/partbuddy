@@ -1041,3 +1041,102 @@ test('PartBuddy starts on the start page with no project open; a saved part gets
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a STEP file becomes a project, meshes are inserted into it, converted to faces, and an open mesh is refused with its reason (B4)', async () => {
+  test.setTimeout(240_000);
+  const { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-import-'));
+  const projects = join(work, 'projects');
+  const outside = join(work, 'outside');
+  mkdirSync(outside);
+  // A closed box of 20 × 10 × 5 mm as STL, and the same with two triangles missing.
+  const v = [[0, 0, 0], [20, 0, 0], [20, 10, 0], [0, 10, 0], [0, 0, 5], [20, 0, 5], [20, 10, 5], [0, 10, 5]];
+  const triangles = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]];
+  const stl = (list: number[][]) =>
+    `solid box\n${list.map((t) => `facet normal 0 0 0\nouter loop\n${t.map((i) => `vertex ${(v[i] ?? []).join(' ')}`).join('\n')}\nendloop\nendfacet`).join('\n')}\nendsolid box\n`;
+  writeFileSync(join(outside, 'Deckel.stl'), stl(triangles));
+  writeFileSync(join(outside, 'Kaputt.stl'), stl(triangles.slice(0, 10)));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7902',
+    PARTBUDDY_PROJECTS_DIR: projects,
+    PARTBUDDY_START_PAGE: '1',
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page, app } = launched;
+  const name = page.getByTestId('design-name');
+  const home = page.getByTestId('home-page');
+  const bodies = page.getByTestId('structure-body');
+  const notice = page.getByTestId('notice');
+  // The bridge as the renderer sees it, typed loosely because this file is compiled for Node.
+  type Bridge = { partbuddy: { design: { export(format: string): Promise<unknown>; insert(path?: string): Promise<unknown> } } };
+  const pick = (file: string) =>
+    app.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [path] });
+      dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath: path });
+    }, file);
+  const logs: string[] = [];
+  app.process().stdout?.on('data', (chunk: Buffer) => logs.push(String(chunk)));
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    // A STEP file to import: the assistant builds a box, PartBuddy exports it outside the projects.
+    await page.keyboard.press('Escape');
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await pick(join(outside, 'Platine.step'));
+    await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.export('step'));
+    expect(existsSync(join(outside, 'Platine.step'))).toBe(true);
+
+    // Import from the start page: the STEP file becomes a project named after it, with faces.
+    await page.getByTestId('home-button').click();
+    await home.getByTestId('home-import').click();
+    await expect(home).toHaveCount(0);
+    await expect(name).toHaveText('Platine', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    expect(existsSync(join(projects, 'Platine', 'Platine.sc'))).toBe(true);
+    // The export names the part after the file the user chose, so the import does as well.
+    await expect(bodies).toHaveCount(1);
+    await expect(bodies.first()).toContainText('Platine');
+    // The imported part can be repaired; this one is fine as it is.
+    await bodies.first().getByTestId('structure-repair').click();
+    await expect(notice).toContainText('Nothing to repair', { timeout: 15_000 });
+
+    // Insert a closed mesh into the open project and convert it to faces.
+    await pick(join(outside, 'Deckel.stl'));
+    await page.getByTestId('project-menu').click();
+    await page.getByTestId('project-insert').click();
+    await expect(notice).toContainText('Inserted Deckel.stl', { timeout: 30_000 });
+    await expect(bodies).toHaveCount(2, { timeout: 30_000 });
+    const lid = bodies.filter({ hasText: 'Deckel' });
+    await expect(lid).toContainText('mesh');
+    await lid.getByTestId('structure-convert').click();
+    await expect(notice).toContainText('now has faces', { timeout: 30_000 });
+    await expect(lid).not.toContainText('mesh', { timeout: 15_000 });
+    await expect(lid.getByTestId('structure-convert')).toHaveCount(0);
+
+    // An open mesh stays a mesh; PartBuddy says why.
+    await pick(join(outside, 'Kaputt.stl'));
+    await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.insert());
+    await expect(bodies).toHaveCount(3, { timeout: 30_000 });
+    await bodies.filter({ hasText: 'Kaputt' }).getByTestId('structure-convert').click();
+    await expect(notice).toContainText('is not closed', { timeout: 30_000 });
+    await expect(bodies.filter({ hasText: 'Kaputt' })).toContainText('mesh');
+    await page.screenshot({ path: test.info().outputPath('import-three-bodies.png') });
+
+    // A file of another kind is refused before SolidCraft sees it.
+    writeFileSync(join(outside, 'notes.txt'), 'x');
+    await expect(page.evaluate((file) => (globalThis as unknown as Bridge).partbuddy.design.insert(file), join(outside, 'notes.txt'))).rejects.toThrow('cannot import');
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('import-failed.png') }).catch(() => undefined);
+    test.info().annotations.push({ type: 'main log', description: logs.join('').slice(-4000) });
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 
 import type { PartBuddyApi } from '../shared/api';
 import { eventChannels, invokeChannels, type EventChannel } from '../shared/channels';
@@ -29,7 +29,8 @@ const api: PartBuddyApi = {
     trash: () => ipcRenderer.invoke(invokeChannels.projectTrash),
     list: () => ipcRenderer.invoke(invokeChannels.projectList),
     openFolder: (folder) => ipcRenderer.invoke(invokeChannels.projectOpenFolder, { folder }),
-    import: () => ipcRenderer.invoke(invokeChannels.projectImport),
+    import: (path) => ipcRenderer.invoke(invokeChannels.projectImport, path === undefined ? {} : { path }),
+    pathOfFile: (file) => webUtils.getPathForFile(file),
     savePreview: (preview) => ipcRenderer.invoke(invokeChannels.projectSavePreview, preview),
   },
   solidcraft: {
@@ -56,6 +57,8 @@ const api: PartBuddyApi = {
     measure: (items) => ipcRenderer.invoke(invokeChannels.designMeasure, { items }),
     timeline: (command) => ipcRenderer.invoke(invokeChannels.designTimeline, command),
     visibility: (command) => ipcRenderer.invoke(invokeChannels.designVisibility, command),
+    insert: (path) => ipcRenderer.invoke(invokeChannels.designInsert, path === undefined ? {} : { path }),
+    repair: (body, how) => ipcRenderer.invoke(invokeChannels.designRepair, { body, how }),
     goToStep: (step) => ipcRenderer.invoke(invokeChannels.designGoToStep, { step }),
     dimensions: (features) => ipcRenderer.invoke(invokeChannels.designDimensions, { features }),
     probeParameter: (parameter, value, body) => ipcRenderer.invoke(invokeChannels.designProbeParameter, { parameter, value, body }),
