@@ -27,6 +27,10 @@ const api: PartBuddyApi = {
     duplicate: () => ipcRenderer.invoke(invokeChannels.projectDuplicate),
     reveal: () => ipcRenderer.invoke(invokeChannels.projectReveal),
     trash: () => ipcRenderer.invoke(invokeChannels.projectTrash),
+    list: () => ipcRenderer.invoke(invokeChannels.projectList),
+    openFolder: (folder) => ipcRenderer.invoke(invokeChannels.projectOpenFolder, { folder }),
+    import: () => ipcRenderer.invoke(invokeChannels.projectImport),
+    savePreview: (preview) => ipcRenderer.invoke(invokeChannels.projectSavePreview, preview),
   },
   solidcraft: {
     engine: () => ipcRenderer.invoke(invokeChannels.solidcraftEngine),

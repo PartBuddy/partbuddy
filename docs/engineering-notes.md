@@ -77,6 +77,11 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 
 - Electron 45 has no install script: the binary comes on first start; in CI run
   `node …/electron/install.js`. axe in Electron needs `setLegacyMode(true)`.
+- axe flags `label-content-name-mismatch` when an `aria-label` does not contain the visible text
+  (logo button, tiles): start the label with the visible name or leave it to the content.
+- The start page's preview pictures come from a second, small `WebGLRenderer` that draws the
+  view's own `BufferGeometry` (three.js uploads it once per context); `toDataURL` right after
+  `render` needs no animation frame.
 - Playwright's `electron.launch` emulates `prefers-color-scheme: light` and hides
   `nativeTheme.themeSource`: tests of the app's own theme pass `colorScheme: null`. The strict CSP
   blocks string `waitForFunction`; use the function form. E2E clicks on faces need about 1 s after

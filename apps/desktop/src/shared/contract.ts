@@ -191,6 +191,34 @@ export const projectRenameResultSchema = z.discriminatedUnion('ok', [
 /** Opening asks for a folder or a design file; `imported`: a design from elsewhere was copied into a new project. */
 export const projectOpenResultSchema = z.object({ opened: z.boolean(), imported: z.boolean() }).strict();
 
+/** The ready-to-print light of a project on the start page (B3), as at its last preview. */
+export const projectCheckSchema = z.enum(['ready', 'warn', 'block']);
+/** A project tile of the start page (B3): name, folder, last change, preview and light. */
+export const projectEntrySchema = z
+  .object({
+    name: z.string().min(1).max(255),
+    folder: z.string().min(1).max(1000),
+    modified: z.number().nonnegative(),
+    preview: z.string().max(1_500_000).startsWith('data:image/png;base64,').nullable(),
+    check: projectCheckSchema.nullable(),
+  })
+  .strict();
+export const projectListSchema = z.array(projectEntrySchema).max(500);
+/** Opens a project of the start page by its folder; the main process checks it is one. */
+export const projectOpenFolderSchema = z.object({ folder: z.string().min(1).max(1000) }).strict();
+/**
+ * The preview picture of the open design after a save (B3), rendered by the renderer from the
+ * mirrored meshes; written only when it still belongs to the newest revision of that design.
+ */
+export const projectPreviewSchema = z
+  .object({
+    documentId: z.string().min(1).max(200),
+    revision: z.number().int().nonnegative(),
+    png: z.string().min(1).max(1_400_000).regex(/^[A-Za-z0-9+/]+={0,2}$/),
+    check: projectCheckSchema.nullable(),
+  })
+  .strict();
+
 /** The colour theme: follow the system (Windows), or always light or dark. */
 export const themeSchema = z.enum(['system', 'light', 'dark']);
 export const themeRequestSchema = z.object({ theme: themeSchema }).strict();
@@ -694,6 +722,10 @@ export const invokeContract = {
   [invokeChannels.projectDuplicate]: { request: none, response: none },
   [invokeChannels.projectReveal]: { request: none, response: none },
   [invokeChannels.projectTrash]: { request: none, response: none },
+  [invokeChannels.projectList]: { request: none, response: projectListSchema },
+  [invokeChannels.projectOpenFolder]: { request: projectOpenFolderSchema, response: projectOpenResultSchema },
+  [invokeChannels.projectImport]: { request: none, response: projectOpenResultSchema },
+  [invokeChannels.projectSavePreview]: { request: projectPreviewSchema, response: none },
   [invokeChannels.mirrorCurrent]: { request: none, response: mirrorRevisionSchema.nullable() },
   [invokeChannels.agentStatus]: { request: none, response: assistantStateSchema },
   [invokeChannels.agentRefresh]: { request: none, response: assistantStateSchema },
@@ -760,6 +792,9 @@ export type EngineInfo = z.infer<typeof engineInfoSchema>;
 export type ProjectInfo = z.infer<typeof projectInfoSchema>;
 export type ProjectRenameResult = z.infer<typeof projectRenameResultSchema>;
 export type ProjectOpenResult = z.infer<typeof projectOpenResultSchema>;
+export type ProjectCheck = z.infer<typeof projectCheckSchema>;
+export type ProjectEntry = z.infer<typeof projectEntrySchema>;
+export type ProjectPreview = z.infer<typeof projectPreviewSchema>;
 export type EngineChoiceError = z.infer<typeof engineChoiceErrorSchema>;
 export type EngineChoiceResult = z.infer<typeof engineChoiceResultSchema>;
 export type AgentKind = z.infer<typeof agentKindSchema>;

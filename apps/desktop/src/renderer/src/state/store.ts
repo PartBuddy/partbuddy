@@ -111,6 +111,9 @@ interface StudioState {
   /** The dialog with the printer and material profiles. */
   profilesOpen: boolean;
   setProfilesOpen: (open: boolean) => void;
+  /** The start page with the project tiles (B3), over the work area; the logo opens it. */
+  homeOpen: boolean;
+  setHomeOpen: (open: boolean) => void;
   /** The dialog that shows and chooses the SolidCraft program (R0). */
   engineOpen: boolean;
   setEngineOpen: (open: boolean) => void;
@@ -208,6 +211,10 @@ export const useStudio = create<StudioState>()((set) => ({
   profilesOpen: false,
   setProfilesOpen: (profilesOpen) => {
     set({ profilesOpen });
+  },
+  homeOpen: false,
+  setHomeOpen: (homeOpen) => {
+    set({ homeOpen });
   },
   engineOpen: false,
   setEngineOpen: (engineOpen) => {

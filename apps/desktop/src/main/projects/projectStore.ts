@@ -9,6 +9,29 @@ const GENERIC_BODY = /^(body|körper|solid)\s*\d*$/i;
 const UNTITLED = 'Untitled';
 /** Files that belong to a design and travel with it: the conversation and the print settings. */
 const COMPANIONS = ['.chat.json', '.print.json'];
+/** The picture of a project on the start page (B3), written by PartBuddy after a save. */
+export const PREVIEW_FILE = 'preview.png';
+/** The ready-to-print state the picture was taken with, for the light on the start page. */
+const PREVIEW_NOTE = 'preview.json';
+/** A preview is a small picture; anything larger is not one of PartBuddy's. */
+export const MAX_PREVIEW_BYTES = 1024 * 1024;
+/** More projects than the start page shows; the oldest are left out. */
+const MAX_PROJECTS = 500;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+export type ProjectCheck = 'ready' | 'warn' | 'block';
+
+/** A project as the start page shows it (B3). */
+export interface ProjectEntry {
+  name: string;
+  folder: string;
+  /** When the design file was last written, in milliseconds since 1970. */
+  modified: number;
+  /** The preview picture as a data URL, or null when there is none yet. */
+  preview: string | null;
+  /** The ready-to-print light at the last preview, or null when it is not known. */
+  check: ProjectCheck | null;
+}
 
 /** `Grundplatte.sc` → `Grundplatte.chat.json` (as `chatFileOf` and `printFileOf` name them). */
 function companionOf(design: string, suffix: string): string {
@@ -72,6 +95,53 @@ export class ProjectStore {
     if (safeDesignFileName(designName) !== UNTITLED) return this.newDesignFile(designName);
     const named = bodyNames.find((body) => !GENERIC_BODY.test(body.trim()) && safeDesignFileName(body) !== UNTITLED);
     return this.newDesignFile(named ?? this.fallbackName);
+  }
+
+  /**
+   * The projects in the project folder, newest first (B3): every folder directly in it that holds
+   * a design named like the folder. Folders without one are someone else's and are left out.
+   */
+  list(): ProjectEntry[] {
+    let entries: string[];
+    try {
+      entries = readdirSync(this.root);
+    } catch {
+      return [];
+    }
+    const projects: Omit<ProjectEntry, 'preview' | 'check'>[] = [];
+    for (const entry of entries) {
+      const folder = join(this.root, entry);
+      const design = ProjectStore.designIn(folder);
+      try {
+        if (!statSync(folder).isDirectory()) continue;
+        const stats = statSync(design);
+        if (stats.isFile()) projects.push({ name: entry, folder, modified: stats.mtimeMs });
+      } catch {
+        // No design in it: not a project.
+      }
+    }
+    projects.sort((a, b) => b.modified - a.modified);
+    return projects.slice(0, MAX_PROJECTS).map((project) => ({ ...project, ...readPreview(project.folder) }));
+  }
+
+  /** The design of a project folder from the start page, if it is a project of this store. */
+  designOfFolder(folder: string): string | null {
+    if (!isAbsolute(folder) || resolve(dirname(folder)) !== resolve(this.root)) return null;
+    const design = ProjectStore.designIn(resolve(folder));
+    return existsSync(design) && statSync(design).isFile() ? design : null;
+  }
+
+  /**
+   * Writes the preview picture of a project and the light it was taken with (B3). Only a PNG of at
+   * most 1 MiB goes into a project of this store; the files are replaced in one step each.
+   */
+  writePreview(design: string, png: Buffer, check: ProjectCheck | null): boolean {
+    if (!this.holds(design) || !existsSync(design)) return false;
+    if (png.length > MAX_PREVIEW_BYTES || png.length < PNG_SIGNATURE.length || !png.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) return false;
+    const folder = ProjectStore.folderOf(design);
+    replaceFile(join(folder, PREVIEW_FILE), png);
+    replaceFile(join(folder, PREVIEW_NOTE), JSON.stringify({ check }));
+    return true;
   }
 
   /** Whether a design file belongs to a project of this store. */
@@ -148,6 +218,35 @@ export class ProjectStore {
     }
     return target;
   }
+}
+
+/** Writes a file next to its place first and then moves it there, so no reader sees half of it. */
+function replaceFile(file: string, content: Buffer | string): void {
+  const temporary = `${file}.${String(process.pid)}.tmp`;
+  writeFileSync(temporary, content);
+  renameSync(temporary, file);
+}
+
+/** The preview of a project folder and its light; nothing when the files are missing or wrong. */
+function readPreview(folder: string): Pick<ProjectEntry, 'preview' | 'check'> {
+  let preview: string | null = null;
+  let check: ProjectCheck | null = null;
+  try {
+    const file = join(folder, PREVIEW_FILE);
+    if (statSync(file).size <= MAX_PREVIEW_BYTES) {
+      const png = readFileSync(file);
+      if (png.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) preview = `data:image/png;base64,${png.toString('base64')}`;
+    }
+  } catch {
+    preview = null;
+  }
+  try {
+    const note = JSON.parse(readFileSync(join(folder, PREVIEW_NOTE), 'utf8')) as { check?: unknown };
+    if (note.check === 'ready' || note.check === 'warn' || note.check === 'block') check = note.check;
+  } catch {
+    check = null;
+  }
+  return { preview, check };
 }
 
 /**

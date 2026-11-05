@@ -1,4 +1,6 @@
 import { AssistantPanel } from './assistant/AssistantPanel';
+import { HomePage } from './home/HomePage';
+import { useProjectPreview } from './home/useProjectPreview';
 import { useAssistantBridge, useChatPersistence } from './assistant/useAssistantBridge';
 import { useNotesBridge } from './notes/useNotesBridge';
 import { PrintProfilesDialog } from './print/PrintProfilesDialog';
@@ -9,6 +11,7 @@ import { StatusBar } from './shell/StatusBar';
 import { StructurePanel } from './shell/StructurePanel';
 import { Timeline } from './shell/Timeline';
 import { TitleBar } from './shell/TitleBar';
+import { useStudio } from './state/store';
 import { useMirror } from './viewer/useMirror';
 import { Viewer } from './viewer/Viewer';
 
@@ -19,16 +22,22 @@ export function App() {
   useNotesBridge();
   usePrintBridge();
   usePrintCheck();
+  useProjectPreview();
+  const homeOpen = useStudio((s) => s.homeOpen);
   return (
     <div className="flex h-full flex-col bg-canvas text-text">
       <TitleBar />
-      <div className="flex min-h-0 flex-1">
-        <StructurePanel />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Viewer />
-          <Timeline />
+      <div className="relative flex min-h-0 flex-1">
+        {/* The work area stays mounted under the start page (B3), so the view and the chat keep their state. */}
+        <div className="flex min-h-0 min-w-0 flex-1" inert={homeOpen}>
+          <StructurePanel />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <Viewer />
+            <Timeline />
+          </div>
+          <AssistantPanel />
         </div>
-        <AssistantPanel />
+        {homeOpen ? <HomePage /> : null}
       </div>
       <StatusBar />
       <PrintProfilesDialog />

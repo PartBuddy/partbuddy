@@ -948,3 +948,75 @@ test('a part becomes a project folder that is renamed, duplicated, opened, start
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a saved part gets a preview, and the start page opens and imports projects (B3)', async () => {
+  test.setTimeout(240_000);
+  const { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-home-'));
+  const projects = join(work, 'projects');
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7901',
+    PARTBUDDY_PROJECTS_DIR: projects,
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page, app } = launched;
+  const name = page.getByTestId('design-name');
+  const home = page.getByTestId('home-page');
+  const logs: string[] = [];
+  app.process().stdout?.on('data', (chunk: Buffer) => logs.push(String(chunk)));
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await expect(name).toHaveText('Part', { timeout: 15_000 });
+    // After the save the project gets its picture and the light it was taken with.
+    const preview = join(projects, 'Part', 'preview.png');
+    await expect.poll(() => existsSync(preview), { timeout: 15_000 }).toBe(true);
+    expect(readFileSync(preview).subarray(1, 4).toString()).toBe('PNG');
+    await expect.poll(() => (existsSync(join(projects, 'Part', 'preview.json')) ? (JSON.parse(readFileSync(join(projects, 'Part', 'preview.json'), 'utf8')) as { check: unknown }).check : null), { timeout: 15_000 }).toBe('ready');
+
+    // A new project from the start page, then back to the first one through its tile.
+    await page.getByTestId('home-button').click();
+    await expect(home.getByTestId('home-tile')).toHaveCount(1);
+    await expect(home.getByTestId('home-tile').first()).toHaveAttribute('data-open', 'true');
+    await expect(home.getByTestId('home-preview')).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('home-one-project.png') });
+    await home.getByTestId('home-new').click();
+    await expect(home).toHaveCount(0);
+    await expect(name).toHaveText('New part', { timeout: 30_000 });
+    await page.getByTestId('home-button').click();
+    await home.getByTestId('home-tile').filter({ hasText: 'Part' }).click();
+    await expect(home).toHaveCount(0);
+    await expect(name).toHaveText('Part', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+
+    // Import copies a design from elsewhere into a new project and opens it.
+    const outside = join(work, 'outside');
+    mkdirSync(outside);
+    copyFileSync(join(projects, 'Part', 'Part.sc'), join(outside, 'Bracket.sc'));
+    await app.evaluate(({ dialog }, file) => {
+      dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [file] });
+    }, join(outside, 'Bracket.sc'));
+    await page.getByTestId('home-button').click();
+    await home.getByTestId('home-import').click();
+    await expect(name).toHaveText('Bracket', { timeout: 30_000 });
+    expect(existsSync(join(projects, 'Bracket', 'Bracket.sc'))).toBe(true);
+    expect(existsSync(join(outside, 'Bracket.sc'))).toBe(true);
+    await page.getByTestId('home-button').click();
+    await expect(home.getByTestId('home-tile')).toHaveCount(2);
+    await expect(home.getByTestId('home-tile').first()).toHaveAttribute('data-name', 'Bracket');
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('home-failed.png') }).catch(() => undefined);
+    test.info().annotations.push({ type: 'main log', description: logs.join('').slice(-4000) });
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

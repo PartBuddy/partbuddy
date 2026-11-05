@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 
@@ -124,5 +124,76 @@ describe('projects (B2)', () => {
     expect(isInside(base, base)).toBe(false);
     expect(isInside(base, `${base}-evil${sep}a.sc`)).toBe(false);
     expect(safeDesignFileName('../x')).toBe('x');
+  });
+});
+
+describe('the start page (B3)', () => {
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('picture')]);
+
+  function project(root: string, name: string, modified: number): string {
+    const design = ProjectStore.designIn(join(root, name));
+    mkdirSync(join(root, name), { recursive: true });
+    writeFileSync(design, 'design');
+    utimesSync(design, modified / 1000, modified / 1000);
+    return design;
+  }
+
+  it('lists the project folders newest first and leaves out folders without their design', () => {
+    const { root, store } = folders();
+    project(root, 'Alt', 1_700_000_000_000);
+    project(root, 'Neu', 1_800_000_000_000);
+    mkdirSync(join(root, 'Fremd'));
+    writeFileSync(join(root, 'Fremd', 'other.sc'), 'x');
+    writeFileSync(join(root, 'lose.sc'), 'x');
+    const list = store.list();
+    expect(list.map((entry) => entry.name)).toEqual(['Neu', 'Alt']);
+    expect(list[0]).toMatchObject({ folder: join(root, 'Neu'), preview: null, check: null });
+    expect(list[0]?.modified).toBe(1_800_000_000_000);
+  });
+
+  it('writes the preview and the light into the project and reads them back', () => {
+    const { root, store } = folders();
+    const design = project(root, 'Halter', Date.now());
+    expect(store.writePreview(design, png, 'warn')).toBe(true);
+    const [entry] = store.list();
+    expect(entry?.check).toBe('warn');
+    expect(entry?.preview).toBe(`data:image/png;base64,${png.toString('base64')}`);
+    expect(readFileSync(join(root, 'Halter', 'preview.png'))).toEqual(png);
+  });
+
+  it('refuses a picture that is no PNG, too large, or outside the project folder', () => {
+    const { root, store } = folders();
+    const design = project(root, 'Halter', Date.now());
+    expect(store.writePreview(design, Buffer.from('<svg/>'), null)).toBe(false);
+    expect(store.writePreview(design, Buffer.concat([png, Buffer.alloc(1024 * 1024)]), null)).toBe(false);
+    const elsewhere = mkdtempSync(join(tmpdir(), 'partbuddy-else-'));
+    dirs.push(elsewhere);
+    const outside = join(elsewhere, 'X.sc');
+    writeFileSync(outside, 'design');
+    expect(store.writePreview(outside, png, null)).toBe(false);
+    expect(existsSync(join(root, 'Halter', 'preview.png'))).toBe(false);
+  });
+
+  it('opens only project folders directly in the project folder', () => {
+    const { root, store } = folders();
+    const design = project(root, 'Halter', Date.now());
+    expect(store.designOfFolder(join(root, 'Halter'))).toBe(design);
+    expect(store.designOfFolder(join(root, 'Halter', '..', 'Halter'))).toBe(design);
+    expect(store.designOfFolder(join(root, 'Fehlt'))).toBeNull();
+    expect(store.designOfFolder(root)).toBeNull();
+    expect(store.designOfFolder(join(root, '..'))).toBeNull();
+    expect(store.designOfFolder('Halter')).toBeNull();
+  });
+
+  it('a renamed or duplicated project keeps its preview', async () => {
+    const { root, store } = folders();
+    const design = project(root, 'Halter', Date.now());
+    store.writePreview(design, png, 'ready');
+    const renamed = await store.rename(design, 'Wandhalter');
+    const copy = store.duplicate(renamed, 'Kopie');
+    const list = store.list().map((entry) => [entry.name, entry.check]);
+    expect(list).toHaveLength(2);
+    expect(list).toEqual(expect.arrayContaining([['Wandhalter', 'ready'], ['Wandhalter Kopie', 'ready']]));
+    expect(existsSync(join(ProjectStore.folderOf(copy), 'preview.png'))).toBe(true);
   });
 });

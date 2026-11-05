@@ -608,5 +608,23 @@
     "trashTitle": "Move \"{name}\" to the recycle bin?",
     "trashBody": "The project folder with design, conversation and exports goes to the Windows recycle bin and can be restored from there. A new, empty project starts afterwards.",
     "trashConfirm": "Move to recycle bin"
+  },
+  "home": {
+    "title": "Projects",
+    "open": "Start page with the projects",
+    "close": "Back to the project",
+    "search": "Search projects",
+    "import": "Import …",
+    "list": "{count, plural, one {# project} other {# projects}}",
+    "emptyTitle": "No projects yet",
+    "emptyBody": "Start a new project, open one or import a design. Every project gets a folder of its own under Documents\\PartBuddy.",
+    "noMatch": "No project matches “{query}”.",
+    "openNow": "Open now",
+    "justNow": "just now",
+    "check": {
+      "ready": "Ready to print",
+      "warn": "Hints",
+      "block": "Not ready to print"
+    }
   }
 }

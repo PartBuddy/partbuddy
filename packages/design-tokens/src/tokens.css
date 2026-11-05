@@ -49,6 +49,10 @@
   --cs-size-field-dock: 136px;
   --cs-size-dialog-lg: 640px;
   --cs-size-dialog-offset: 12vh;
+  /* Start page (B3): the narrowest project tile, the page's width and the search field. */
+  --cs-size-tile: 220px;
+  --cs-size-page-max: 1200px;
+  --cs-size-search: 280px;
 
   /* Default panel layout (dockview reads these in pixels) */
   --cs-layout-navigation-width: 280px;

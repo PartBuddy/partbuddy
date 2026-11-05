@@ -81,6 +81,9 @@
   --spacing-field-dock: var(--cs-size-field-dock);
   --spacing-dialog-lg: var(--cs-size-dialog-lg);
   --spacing-dialog-offset: var(--cs-size-dialog-offset);
+  --spacing-tile: var(--cs-size-tile);
+  --spacing-page-max: var(--cs-size-page-max);
+  --spacing-search: var(--cs-size-search);
 
   --animate-progress: cs-progress var(--cs-duration-slow) var(--cs-easing-standard) infinite;
 
