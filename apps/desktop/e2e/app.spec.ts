@@ -40,10 +40,11 @@ test('the mirrored model appears and follows design changes', async () => {
   // The first frames may still be framing the camera, so the click is repeated until it hits.
   await expect(async () => {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await expect(page.getByTestId('selected-face')).toHaveText(/^F\d+:/, { timeout: 1000 });
+    await expect(page.getByTestId('selected-face')).toHaveAttribute('data-name', /^F\d+:/, { timeout: 1000 });
   }).toPass({ timeout: 15_000 });
   // The selection goes with the next message to the assistant, as a short note.
-  await expect(page.getByTestId('composer-selection')).toHaveText(/Selected face goes with the message: F\d+:.* · CableClip/);
+  // A readable name; SolidCraft's name stays on hover and goes to the assistant (polish round 2).
+  await expect(page.getByTestId('composer-selection')).toHaveText(/Selected face goes with the message: (Plane|Cylinder Ø [\d.]+ mm|Surface) · CableClip/);
 
   solidcraft.change();
   await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 2');
@@ -109,15 +110,16 @@ test('edges and vertices can be picked, and the view switches projection and sta
   await page.waitForTimeout(500);
   const row = Array.from({ length: 200 }, (_, i) => ({ x: box.x + box.width * 0.2 + i * 3, y: box.y + box.height / 2 }));
   expect(await findKind('edge', row), 'an edge on the middle row').not.toBeNull();
-  await expect(page.getByTestId('selected-face')).toHaveText(/^F\d+:[^|]+\|F\d+:/);
+  await expect(page.getByTestId('selected-face')).toHaveAttribute('data-name', /^F\d+:[^|]+\|F\d+:/);
+  await expect(page.getByTestId('selected-face')).toHaveText(/^Edge [\d.]+ mm$/);
   await expect(bar).toContainText(/Length/);
-  await expect(page.getByTestId('composer-selection')).toHaveText(/Selected edge goes with the message: F\d+:.*\|.* · CableClip/);
+  await expect(page.getByTestId('composer-selection')).toHaveText(/Selected edge goes with the message: Edge [\d.]+ mm · CableClip/);
   await page.screenshot({ path: test.info().outputPath('edge-selected.png') });
 
   const grid: { x: number; y: number }[] = [];
   for (let y = 0.3; y <= 0.7; y += 0.025) for (let x = 0.25; x <= 0.75; x += 0.0125) grid.push({ x: box.x + box.width * x, y: box.y + box.height * y });
   expect(await findKind('vertex', grid), 'a visible vertex').not.toBeNull();
-  await expect(page.getByTestId('composer-selection')).toHaveText(/Selected vertex goes with the message: [-\d. ]+ · CableClip/);
+  await expect(page.getByTestId('composer-selection')).toHaveText(/Selected vertex goes with the message: Vertex · CableClip/);
 
   // Escape clears the selection; a click into empty space too.
   await page.keyboard.press('Escape');

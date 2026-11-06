@@ -6,7 +6,7 @@ import { Button as AriaButton, Dialog, Form, Modal, ModalOverlay, TextArea, Text
 
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
-import { selectionName, selectionsOf } from '../viewer/viewState';
+import { selectionLabel, selectionName, selectionsOf } from '../viewer/viewState';
 import { Button } from '../ui/Button';
 import { Busy } from '../ui/Feedback';
 import { ChatResizer, useChatWidth } from '../shell/ChatResizer';
@@ -435,9 +435,9 @@ export function AssistantPanel() {
             <span className="text-xs text-text-muted">{t('assistant.selectionsGoWith', { count: selections.length })}</span>
             {selections.map((entry, i) => (
               <span key={`${entry.kind}-${i}`} className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-sunken py-0 pl-2 pr-1 tabular-nums text-xs text-text">
-                <span className="truncate">{selectionName(entry)}</span>
+                <span className="truncate" title={selectionName(entry)}>{selectionLabel(t, entry)}</span>
                 <AriaButton
-                  aria-label={t('assistant.removeSelection', { name: selectionName(entry) })}
+                  aria-label={t('assistant.removeSelection', { name: selectionLabel(t, entry) })}
                   className="inline-flex size-icon items-center justify-center rounded-full text-text-subtle outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
                   onPress={() => {
                     const pick = picks[i];
@@ -454,7 +454,7 @@ export function AssistantPanel() {
           <span className="flex min-w-0 items-center gap-1 text-xs text-text-muted" data-testid="composer-selection">
             <IconPointer className="size-icon-sm shrink-0" aria-hidden />
             <span className="truncate" title={`${selectionName(selection)} · ${selection.body}`}>
-              {t('assistant.selectionGoesWith', { kind: selection.kind, name: `${selectionName(selection)} · ${selection.body}` })}
+              {t('assistant.selectionGoesWith', { kind: selection.kind, name: `${selectionLabel(t, selection)} · ${selection.body}` })}
             </span>
           </span>
         ) : null}

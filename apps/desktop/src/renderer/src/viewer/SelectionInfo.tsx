@@ -22,26 +22,26 @@ export function SelectionInfo({ bodies, selection }: { bodies: BodyModel[]; sele
   const mm = (value: number) => t('units.mm', { value });
   const point = (values: ArrayLike<number>) => Array.from(values, (value) => Math.round(value * 100) / 100).join('  ');
 
-  let kind: string;
+  let label: string;
   let name: string;
   let facts: { label: string; value: string }[];
   if (selection.kind === 'face') {
     const face = model.table.faces[selection.face];
     if (!face) return null;
-    kind = `${t(`viewer.surface.${surfaceKind(face)}`)} · ${featureOf(face)}`;
-    name = face.name;
+    label = face.cylinder ? `${t(`viewer.surface.${surfaceKind(face)}`)} Ø ${mm(face.cylinder.radius * 2)}` : t(`viewer.surface.${surfaceKind(face)}`);
+    name = `${face.name} (${featureOf(face)})`;
     facts = [
       ...(face.cylinder ? [{ label: t('viewer.radius'), value: mm(face.cylinder.radius) }] : []),
       { label: t('viewer.area'), value: t('units.mm2', { value: face.area }) },
       { label: t('viewer.anchor'), value: face.exact ? t('viewer.anchorExact') : t('viewer.anchorGeometric') },
     ];
   } else if (selection.kind === 'edge') {
-    const label = edgeLabel(model, selection.edge);
-    kind = t('viewer.kind.edge');
-    name = label.name;
+    const edge = edgeLabel(model, selection.edge);
+    label = `${t('viewer.kind.edge')} ${mm(model.edgeLengths[selection.edge] ?? 0)}`;
+    name = edge.name;
     facts = [{ label: t('viewer.length'), value: mm(model.edgeLengths[selection.edge] ?? 0) }];
   } else {
-    kind = t('viewer.kind.vertex');
+    label = t('viewer.kind.vertex');
     name = point(model.vertices.subarray(selection.vertex * 3, selection.vertex * 3 + 3));
     facts = [];
   }
@@ -51,13 +51,13 @@ export function SelectionInfo({ bodies, selection }: { bodies: BodyModel[]; sele
       data-testid="selection-bar"
       data-kind={selection.kind}
     >
-      {/* Names from history can run to hundreds of characters after cuts: cut short, whole on hover. */}
+      {/* A readable name (polish round 2); SolidCraft's name, which can run to hundreds of characters, on hover. */}
       <div className="flex min-w-0 max-w-full flex-col">
         <span className="truncate text-xs text-text-subtle">
-          {kind} · {t('viewer.body')} {body.name}
+          {t('viewer.body')} {body.name}
         </span>
-        <span className="truncate tabular-nums text-sm text-text" title={name} data-testid="selected-face">
-          {name}
+        <span className="truncate tabular-nums text-sm text-text" title={name} data-testid="selected-face" data-name={selection.kind === 'face' ? model.table.faces[selection.face]?.name : name}>
+          {label}
         </span>
       </div>
       {facts.length > 0 ? (

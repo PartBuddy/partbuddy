@@ -165,7 +165,47 @@ function adapter(): Step[] {
 
 const BUILDERS: Record<TemplateId, () => Step[]> = { boxWithLid, housing, wallHolder, cableClip, adapter };
 
-/** The SolidCraft script of a template: its parameters first, then the geometry over them. */
-export function templateSteps(id: TemplateId): Step[] {
-  return BUILDERS[id]();
+/** The parameter comments in German (polish round 2); names stay the same, so expressions and the assistant find them. */
+const GERMAN: Record<string, string> = {
+  'Outer length of box and lid': 'Außenlänge von Box und Deckel',
+  'Outer width of box and lid': 'Außenbreite von Box und Deckel',
+  'Outer height of the box': 'Außenhöhe der Box',
+  'Wall, floor and lid thickness': 'Stärke von Wand, Boden und Deckel',
+  "How deep the lid's lip reaches into the box":'Wie tief der Rand des Deckels in die Box greift',
+  'Gap per side between the lip and the box wall': 'Spalt je Seite zwischen Deckelrand und Boxwand',
+  'Outer length of housing and lid': 'Außenlänge von Gehäuse und Deckel',
+  'Outer width of housing and lid': 'Außenbreite von Gehäuse und Deckel',
+  'Outer height of the housing without the lid': 'Außenhöhe des Gehäuses ohne Deckel',
+  'Diameter of the screw bosses in the corners': 'Durchmesser der Schraubdome in den Ecken',
+  'Hole for an M3 heat-set insert (ruthex: 4 mm)': 'Loch für eine M3-Einschmelzmutter (ruthex: 4 mm)',
+  'Depth of that hole: insert length plus 1 mm': 'Tiefe dieses Lochs: Länge der Mutter plus 1 mm',
+  'Hole in the lid for the M3 screws (ISO 273, normal)': 'Loch im Deckel für die M3-Schrauben (ISO 273, mittel)',
+  'Height of the plate on the wall': 'Höhe der Platte an der Wand',
+  'Width of the holder': 'Breite des Halters',
+  'Thickness of plate, floor and lip': 'Stärke von Platte, Boden und Rand',
+  'Room between plate and lip': 'Platz zwischen Platte und Rand',
+  'Height of the front lip': 'Höhe des vorderen Rands',
+  'Hole for the wall screws (4 mm wood screws)': 'Loch für die Wandschrauben (4-mm-Holzschrauben)',
+  'Diameter of the countersink for their heads': 'Durchmesser der Senkung für ihre Köpfe',
+  'Diameter of the cable': 'Durchmesser des Kabels',
+  'Wall of the clip': 'Wand des Clips',
+  'Width of the clip along the cable': 'Breite des Clips entlang des Kabels',
+  'Length of the tab with the screw hole': 'Länge der Lasche mit dem Schraubloch',
+  'Hole for an M3 screw (ISO 273, normal)': 'Loch für eine M3-Schraube (ISO 273, mittel)',
+  'Inner diameter at the bottom end': 'Innendurchmesser am unteren Ende',
+  'Inner diameter at the top end': 'Innendurchmesser am oberen Ende',
+  'Wall thickness': 'Wandstärke',
+  'Length of the bottom end': 'Länge des unteren Endes',
+  'Length of the top end': 'Länge des oberen Endes',
+  'Length of the cone; at least half the difference of the diameters, so it prints without support': 'Länge des Kegels; mindestens die halbe Durchmesser-Differenz, damit er ohne Stützen druckt',
+};
+
+/** The SolidCraft script of a template: its parameters first, then the geometry over them; comments in German on request. */
+export function templateSteps(id: TemplateId, german = false): Step[] {
+  const steps = BUILDERS[id]();
+  if (!german) return steps;
+  return steps.map((step) => {
+    const comment = step.command === 'parameters.add' ? step.params.comment : undefined;
+    return typeof comment === 'string' && GERMAN[comment] ? { ...step, params: { ...step.params, comment: GERMAN[comment] } } : step;
+  });
 }

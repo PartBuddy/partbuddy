@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { MaterialMenu } from '../print/MaterialMenu';
 import { PrintCheckChip } from '../print/PrintCheckChip';
 import { useStudio } from '../state/store';
-import { selectionName, selectionOf } from '../viewer/viewState';
+import { selectionLabel, selectionName, selectionOf } from '../viewer/viewState';
 
 export function StatusBar() {
   const { t, i18n } = useTranslation();
@@ -31,6 +31,7 @@ export function StatusBar() {
   const editing = sketches.find((sketch) => sketch.active);
   const focused = selectionOf(model, focus);
   const focusName = focused ? selectionName(focused) : undefined;
+  const focusLabel = focused ? `${selectionLabel(t, focused)} · ${focused.body}` : undefined;
   const faces = bodies.reduce((sum, body) => sum + body.model.table.faces.length, 0);
   const triangles = bodies.reduce((sum, body) => sum + body.model.triangleFaces.length, 0);
 
@@ -56,8 +57,8 @@ export function StatusBar() {
         </span>
       ) : null}
       {focusName ? (
-        <span className="min-w-0 truncate tabular-nums" title={focusName} data-testid="focus-name">
-          {focusName}
+        <span className="min-w-0 truncate tabular-nums" title={focusName} data-testid="focus-name" data-name={focusName}>
+          {focusLabel}
         </span>
       ) : (
         // The hint how to select and move the view lives here, not on top of the part.

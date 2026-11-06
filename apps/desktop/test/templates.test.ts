@@ -55,4 +55,15 @@ describe('templates (F3)', () => {
     expect(templateRequestSchema.safeParse({ template: 'rocket', name: 'Rocket' }).success).toBe(false);
     expect(templateRequestSchema.safeParse({ template: 'housing', name: '  ' }).success).toBe(false);
   });
+
+  it('comments every parameter in German on request, with the same names (polish round 2)', () => {
+    for (const id of TEMPLATE_IDS) {
+      const english = templateSteps(id).filter((step) => step.command === 'parameters.add');
+      const german = templateSteps(id, true).filter((step) => step.command === 'parameters.add');
+      expect(german.map((step) => step.params.name)).toEqual(english.map((step) => step.params.name));
+      german.forEach((step, index) => {
+        expect(step.params.comment, `${id} ${String(step.params.name)}`).not.toBe(english[index]?.params.comment);
+      });
+    }
+  });
 });
