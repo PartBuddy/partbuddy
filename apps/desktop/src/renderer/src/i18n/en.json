@@ -287,8 +287,6 @@
     },
     "effort": {
       "title": "Effort",
-      "standard": "Default",
-      "standardIs": "Default ({level})",
       "level": {
         "none": "Off",
         "minimal": "Minimal",

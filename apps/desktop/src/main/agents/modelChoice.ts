@@ -13,15 +13,25 @@ export interface ChoiceStore {
 }
 
 /**
+ * The effort a model runs with when none is chosen: its own default when the plan names it, else
+ * "medium", else its first level. Always a named level, so the menu shows what really runs
+ * (Manuel, 2026-11-06: a "Default" button did not say which level that is).
+ */
+export function fallbackEffort(option: ModelOption): string | null {
+  if (option.defaultEffort && option.efforts.includes(option.defaultEffort)) return option.defaultEffort;
+  return option.efforts.includes('medium') ? 'medium' : (option.efforts[0] ?? null);
+}
+
+/**
  * The choice as the plan allows it: null when the model is not offered; an effort the model does
- * not take falls back to the model's own default (null). Claude Code accepts unknown effort names
- * silently (checked with 2.1.302), so PartBuddy checks them itself.
+ * not take, or none, becomes its fallback level. Claude Code accepts unknown effort names silently
+ * (checked with 2.1.302), so PartBuddy checks them itself.
  */
 export function allowedChoice(options: readonly ModelOption[], choice: ModelChoice | null): ModelChoice | null {
   if (!choice) return null;
   const option = options.find((item) => item.id === choice.model);
   if (!option) return null;
-  return { model: option.id, effort: choice.effort !== null && option.efforts.includes(choice.effort) ? choice.effort : null };
+  return { model: option.id, effort: choice.effort !== null && option.efforts.includes(choice.effort) ? choice.effort : fallbackEffort(option) };
 }
 
 /** The fields of a route's status that show the choice. */

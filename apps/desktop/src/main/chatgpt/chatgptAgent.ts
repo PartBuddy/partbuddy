@@ -234,7 +234,7 @@ export class ChatGptAgent implements AgentBackend {
     const first = models[0];
     if (!first) throw new Error('no model is available for this ChatGPT account');
     this.models = models;
-    this.choice = allowedChoice(models, this.choice ?? this.options.choices.get('chatgpt')) ?? { model: first.id, effort: null };
+    this.choice = allowedChoice(models, this.choice ?? this.options.choices.get('chatgpt')) ?? allowedChoice(models, { model: first.id, effort: null });
   }
 }
 
