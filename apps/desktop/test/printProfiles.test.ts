@@ -53,6 +53,10 @@ describe('printer and material profiles (M7)', () => {
     writeFileSync(join(root, 'print-profiles.json'), '{"version":1,"printers":[]}');
     expect(profiles.settings()).toEqual(DEFAULT_PRINT_SETTINGS);
     expect(logged.join('\n')).toContain('do not match their format');
+    // In a German interface the starting printer is "Mein Drucker" (polish round 4).
+    const german = new PrintProfiles({ file: join(root, 'none.json'), designFile: () => null, log: () => undefined, printerName: () => 'Mein Drucker' });
+    expect(german.settings().printers.map((printer) => printer.name)).toEqual(['Mein Drucker']);
+    expect(printSettingsSchema.safeParse(german.settings()).success).toBe(true);
   });
 
   it('holds the part material until the design has a file, then writes it next to the design', () => {

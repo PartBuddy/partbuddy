@@ -317,7 +317,7 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.mirrorCurrent, () => supervisor.currentRevision());
 
     // Printer and material profiles (M7); the part's material lives next to its design file.
-    const printProfiles = new PrintProfiles({ file: join(app.getPath('userData'), 'print-profiles.json'), designFile: () => supervisor.designPath(), log });
+    const printProfiles = new PrintProfiles({ file: join(app.getPath('userData'), 'print-profiles.json'), designFile: () => supervisor.designPath(), log, printerName: () => (german ? 'Mein Drucker' : 'My printer') });
     prints = printProfiles;
     const profileNote = new ProfileNote();
     // The ready-to-print check (M7), as the renderer last reported it.
