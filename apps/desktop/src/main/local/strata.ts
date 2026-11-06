@@ -16,6 +16,8 @@ export interface StrataFound {
   /** The server wants an API key, which PartBuddy cannot send yet. */
   keyNeeded: boolean;
   loaded: boolean;
+  /** Answering another request when PartBuddy last looked (`/status`). */
+  busy: boolean;
 }
 
 /** What `/health` says, or null when the answer is not Strata's. */
@@ -29,6 +31,7 @@ export function strataFromHealth(body: unknown): StrataFound | null {
     vision: health.images === true,
     keyNeeded: health.api_key === true,
     loaded: health.loaded !== false,
+    busy: false,
   };
 }
 
@@ -36,7 +39,11 @@ export function strataFromHealth(body: unknown): StrataFound | null {
 export async function findStrata(fetchFn: typeof fetch = fetch, base = STRATA_URL, timeoutMs = 1500): Promise<StrataFound | null> {
   try {
     const response = await fetchFn(`${base}/health`, { signal: AbortSignal.timeout(timeoutMs) });
-    return response.ok ? strataFromHealth(await response.json()) : null;
+    const found = response.ok ? strataFromHealth(await response.json()) : null;
+    if (!found || found.keyNeeded) return found;
+    const status = await fetchFn(`${base}/status`, { signal: AbortSignal.timeout(timeoutMs) }).catch(() => null);
+    const body = status?.ok ? ((await status.json()) as { busy?: unknown }) : null;
+    return { ...found, busy: body?.busy === true };
   } catch {
     return null;
   }

@@ -143,6 +143,16 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   local route therefore uses Ollama's own API through `ollama-ai-provider-v2` with
   `providerOptions.ollama.options.num_ctx`. `/api/show` gives `capabilities` (tools, vision, thinking)
   and `<family>.context_length`.
+- Local servers (checked 2026-11-06): PartBuddy's prompt with SolidCraft's tools is about 9,400 tokens,
+  so 16K context is the floor. LM Studio 0.4.28 loads on demand with 8,192 tokens; PartBuddy loads
+  with `POST /api/v1/models/load {model, context_length}`. llama.cpp b12144 gives `supports_tools` in
+  `/props` and `meta.n_ctx` in `/v1/models`. vLLM needs `--enable-auto-tool-choice --tool-call-parser`;
+  Qwen3-1.7B called command names as tools and looped, Qwen3-4B works.
+- Test servers on the home server: llama.cpp in `%USERPROFILE%\.partbuddy\servers\llama.cpp` (`llama-server -hf
+  unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M -c 16384 --jinja`), LM Studio installed (`lms server start`), vLLM
+  in the WSL distro `vllm` (`/opt/vllm-run/start.sh`); `localhostForwarding` is off for the CI runners,
+  so a forwarder to the WSL address is needed. Run one at a time: the GPU has 8 GB. Local E2E:
+  `PARTBUDDY_E2E_OLLAMA=1` with `PARTBUDDY_E2E_LOCAL_PICK=llama.cpp|LM Studio|vLLM|Ollama`.
 - Claude Code `stream-json` reports `system/init` for every message of the same session; the
   context stays. Images go in as content blocks `{type: image, source: {type: base64, …}}`.
   `--bare` reads only API keys; `--setting-sources ""` turns hooks and plugins off;

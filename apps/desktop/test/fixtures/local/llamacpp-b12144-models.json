@@ -1,0 +1,33 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M",
+      "aliases": [
+        "unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M"
+      ],
+      "tags": [],
+      "object": "model",
+      "architecture": {
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "created": 1793951595,
+      "owned_by": "llamacpp",
+      "meta": {
+        "vocab_type": 2,
+        "n_vocab": 151936,
+        "n_ctx": 16384,
+        "n_ctx_train": 262144,
+        "n_embd": 2560,
+        "n_params": 4022468096,
+        "size": 2491323904,
+        "ftype": "Q4_K - Medium"
+      }
+    }
+  ]
+}

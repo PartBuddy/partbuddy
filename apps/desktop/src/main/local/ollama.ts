@@ -5,8 +5,11 @@
  */
 
 export const OLLAMA_URL = 'http://127.0.0.1:11434';
-/** Below this many tokens of context an agent session with SolidCraft's tools does not fit. */
-export const MIN_CONTEXT = 8192;
+/**
+ * Below this many tokens of context an agent session does not fit: PartBuddy's instructions and
+ * SolidCraft's tools alone took 9,376 tokens (LM Studio's count, 2026-11-06), plus the conversation.
+ */
+export const MIN_CONTEXT = 16384;
 /**
  * The context PartBuddy asks for: Ollama's OpenAI endpoint ignores it and runs with 4096 on GPUs
  * under 24 GiB (measured with 0.34.0), so the loop talks to Ollama's own API with `num_ctx`.
@@ -21,6 +24,8 @@ export interface LocalModel {
   vision: boolean;
   /** The model's own context length, when Ollama tells it. */
   context: number | null;
+  /** In memory now (`/api/ps`); otherwise the first request loads it. */
+  loaded: boolean;
 }
 
 export interface OllamaFound {
@@ -38,6 +43,7 @@ export function modelFromShow(id: string, body: unknown): LocalModel {
     tools: capabilities.includes('tools'),
     vision: capabilities.includes('vision'),
     context: typeof length === 'number' && Number.isFinite(length) && length > 0 ? length : null,
+    loaded: false,
   };
 }
 
@@ -72,12 +78,13 @@ export async function findOllama(fetchFn: typeof fetch = fetch, base = OLLAMA_UR
     return null;
   }
   const names = modelNames(await get('/api/tags'));
+  const loaded = new Set(modelNames(await get('/api/ps').catch(() => null)));
   const models = await Promise.all(
     names.map(async (name) => {
       try {
-        return modelFromShow(name, await get('/api/show', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: name }) }));
+        return { ...modelFromShow(name, await get('/api/show', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: name }) })), loaded: loaded.has(name) };
       } catch {
-        return { id: name, tools: false, vision: false, context: null };
+        return { id: name, tools: false, vision: false, context: null, loaded: false };
       }
     }),
   );

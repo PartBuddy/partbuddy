@@ -1,5 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { stepCountIs, streamText, type LanguageModel, type ModelMessage } from 'ai';
+import { generateText, jsonSchema, stepCountIs, streamText, tool, type LanguageModel, type ModelMessage } from 'ai';
 import { createOllama } from 'ollama-ai-provider-v2';
 
 import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
@@ -8,14 +8,16 @@ import type { UpstreamTools } from '../agents/gateProxy';
 import { instructionsFor, MAX_STEPS, policyToolSet } from '../agents/loop';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import { composeMessage } from '../agents/viewContext';
-import { contextFor, findOllama, MIN_CONTEXT, OLLAMA_URL, type OllamaFound } from './ollama';
+import { contextFor, findOllama, LOCAL_CONTEXT, MIN_CONTEXT, OLLAMA_URL, type OllamaFound } from './ollama';
+import { findOpenAiServers, loadInLmStudio, OPENAI_SERVERS, type OpenAiServer } from './openaiServers';
 import { findStrata, STRATA_EFFORTS, STRATA_URL, type StrataFound } from './strata';
 
 /**
  * A local model in PartBuddy's own agent loop (plan step F8, ADR 0011): Ollama through its own API
- * (the context is set per request, `num_ctx`) or Strata through its OpenAI API, SolidCraft's tools
- * behind the same policy as every route; nothing leaves the machine. Only models that can call
- * tools and have room for them are offered.
+ * (the context is set per request, `num_ctx`); Strata, LM Studio, llama.cpp and vLLM through their
+ * OpenAI API. SolidCraft's tools pass the same policy as every route; nothing leaves the machine.
+ * Only models that can call tools and have room for them are offered; where a server does not say
+ * whether a model calls tools, one test call with a dummy tool decides before first use.
  */
 
 export interface LocalAgentOptions {
@@ -25,65 +27,133 @@ export interface LocalAgentOptions {
   log(message: string): void;
   choices: ChoiceStore;
   fetch?: typeof fetch;
-  /** Where Ollama and Strata listen; tests point them elsewhere. */
+  /** Where the servers listen; tests point them elsewhere. */
   url?: string;
   strataUrl?: string;
+  openAiServers?: { name: OpenAiServer['name']; url: string }[];
 }
-
-type Server = 'Ollama' | 'Strata';
 
 /** A model the route can run, with the server that runs it. */
-interface Runnable {
+export interface Runnable {
   option: ModelOption;
-  server: Server;
+  server: string;
   vision: boolean;
-  /** Ollama's context to ask for; Strata keeps its own. */
+  /** Ollama's context to ask for; the other servers keep their own. */
   numCtx: number | null;
+  /** The OpenAI API base of the server; null for Ollama. */
+  openAiBase: string | null;
+  /** The model's name on its server. */
+  serverModel: string;
+  /** The server does not say whether the model calls tools; a test call decides. */
+  toolTest: boolean;
+  /** LM Studio's address when PartBuddy has to load the model there first, with enough context. */
+  loadAt: string | null;
 }
 
-/** The per-request options streamText takes, by provider. */
-type ProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>;
+/** The short key of a server in a model's id, so names never clash between servers. */
+function serverKey(server: { name: string; url: string }): string {
+  const port = new URL(server.url).port;
+  return `${server.name.toLowerCase().replace(/[^a-z]/g, '')}${port}`;
+}
 
-/** Strata's model goes by this prefix, so its name never clashes with an Ollama model. */
-const STRATA_PREFIX = 'strata:';
+/** "In memory · 16K context" and the like: what the menu says about a model. */
+function describe(parts: (string | null | false)[]): { description?: string } {
+  const text = parts.filter((part): part is string => typeof part === 'string').join(' · ');
+  return text ? { description: text.slice(0, 200) } : {};
+}
 
-/** The models an agent session can use: they call tools and have room for SolidCraft's tools. */
-export function usableModels(ollama: OllamaFound | null, strata: StrataFound | null = null): Runnable[] {
+const contextNote = (context: number | null) => (context ? `${String(Math.round(context / 1024))}K context` : null);
+
+/** The models an agent session can use: they call tools (or are still to be tested) and have room for SolidCraft's tools. */
+export function usableModels(ollama: OllamaFound | null, strata: StrataFound | null = null, servers: OpenAiServer[] = [], failed: ReadonlySet<string> = new Set()): Runnable[] {
   const runnable: Runnable[] = (ollama?.models ?? [])
     .filter((model) => model.tools && contextFor(model) !== null)
     .map((model) => ({
-      option: { id: model.id, name: `${model.id} · Ollama`, efforts: [], ...(model.vision ? {} : { description: 'Cannot see pictures' }) },
-      server: 'Ollama' as const,
+      option: {
+        id: model.id,
+        name: `${model.id} · Ollama`.slice(0, 80),
+        efforts: [],
+        ...describe([model.loaded ? 'In memory' : 'Loads on first use', contextNote(contextFor(model)), !model.vision && 'Cannot see pictures']),
+      },
+      server: 'Ollama',
       vision: model.vision,
       numCtx: contextFor(model),
+      openAiBase: null,
+      serverModel: model.id,
+      toolTest: false,
+      loadAt: null,
     }));
   // Strata declares tool calling for every model it serves; a known context below the floor is refused.
   if (strata && !strata.keyNeeded && (strata.context === null || strata.context >= MIN_CONTEXT)) {
-    const notes = [strata.loaded ? null : 'Loads on first use', strata.vision ? null : 'Cannot see pictures'].filter(Boolean);
     runnable.push({
-      option: { id: `${STRATA_PREFIX}${strata.model}`, name: `${strata.model} · Strata`, efforts: STRATA_EFFORTS, ...(notes.length > 0 ? { description: notes.join(' · ') } : {}) },
+      option: {
+        id: `strata:${strata.model}`.slice(0, 80),
+        name: `${strata.model} · Strata`.slice(0, 80),
+        efforts: STRATA_EFFORTS,
+        ...describe([strata.busy && 'Busy with another request', strata.loaded ? 'In memory' : 'Loads on first use', contextNote(strata.context), !strata.vision && 'Cannot see pictures']),
+      },
       server: 'Strata',
       vision: strata.vision,
       numCtx: null,
+      openAiBase: `${STRATA_URL}/v1`,
+      serverModel: strata.model,
+      toolTest: false,
+      loadAt: null,
     });
+  }
+  for (const server of servers) {
+    for (const model of server.models) {
+      const id = `${serverKey(server)}:${model.id}`.slice(0, 80);
+      if (model.tools === false || failed.has(id) || (model.context !== null && model.context < MIN_CONTEXT)) continue;
+      runnable.push({
+        option: {
+          id,
+          name: `${model.id} · ${server.name}`.slice(0, 80),
+          efforts: [],
+          ...describe([
+            model.busy && 'Busy with another request',
+            model.loading ? 'Loads on first use' : 'In memory',
+            contextNote(model.context),
+            model.tools === null && 'Tool calling is tested on first use',
+            !model.vision && 'Cannot see pictures',
+          ]),
+        },
+        server: server.name,
+        vision: model.vision,
+        numCtx: null,
+        openAiBase: `${server.url}/v1`,
+        serverModel: model.id,
+        toolTest: model.tools === null,
+        loadAt: server.name === 'LM Studio' && model.loading ? server.url : null,
+      });
+    }
   }
   return runnable;
 }
 
+/** The dummy tool of the connection test (ADR 0011): it only answers. */
+const PING = 'partbuddy_ping';
+
 export class LocalAgent implements AgentBackend {
   private ollama: OllamaFound | null = null;
   private strata: StrataFound | null = null;
+  private servers: OpenAiServer[] = [];
   private probed = false;
   private choice: ModelChoice | null = null;
   private history: ModelMessage[] = [];
   private abort: AbortController | null = null;
   private busy = false;
   private sequence = 0;
+  /** Models that passed or failed the tool test, by option id; kept while PartBuddy runs. */
+  private readonly tested = new Set<string>();
+  private readonly failed = new Set<string>();
+  /** LM Studio models PartBuddy loaded with enough context. */
+  private readonly prepared = new Set<string>();
 
   constructor(private readonly options: LocalAgentOptions) {}
 
   private runnable(): Runnable[] {
-    return usableModels(this.ollama, this.strata);
+    return usableModels(this.ollama, this.strata, this.servers, this.failed);
   }
 
   private models(): ModelOption[] {
@@ -94,14 +164,14 @@ export class LocalAgent implements AgentBackend {
     const status: AgentStatus = { agent: 'local', state: 'checking' };
     if (this.probed) {
       const chosen = this.runnable().find((entry) => entry.option.id === this.choice?.model);
-      if (!this.ollama && !this.strata) {
+      if (!this.ollama && !this.strata && this.servers.length === 0) {
         status.state = 'unavailable';
-        status.detail = 'No local model server answers. Start Ollama (ollama.com) or Strata and press Check again.';
+        status.detail = 'No local model server answers. Start Ollama, Strata, LM Studio, llama.cpp or vLLM and press Check again.';
       } else if (!chosen) {
         status.state = 'unavailable';
         status.detail = this.strata?.keyNeeded
           ? 'Strata asks for an API key, which PartBuddy cannot send yet. Serve it without a key on this computer ("api_key": "none").'
-          : 'No local model can call tools with enough context. Install one, for example: ollama pull qwen3.5:9b';
+          : 'No local model can call tools with enough context. Load one, for example: ollama pull qwen3.5:9b';
       } else {
         status.state = this.busy ? 'busy' : 'ready';
         status.account = chosen.server;
@@ -112,13 +182,17 @@ export class LocalAgent implements AgentBackend {
   }
 
   async refresh(): Promise<AgentStatus> {
+    const fetchFn = this.options.fetch ?? fetch;
+    const strataUrl = this.options.strataUrl ?? STRATA_URL;
     const [ollama, strata] = await Promise.all([
-      findOllama(this.options.fetch, this.options.url).catch((error: unknown) => {
+      findOllama(fetchFn, this.options.url).catch((error: unknown) => {
         this.options.log(`Ollama could not be read: ${(error as Error).message}`);
         return null;
       }),
-      findStrata(this.options.fetch, this.options.strataUrl),
+      findStrata(fetchFn, strataUrl),
     ]);
+    // Strata and llama.cpp share port 8080; a Strata found there is not asked again as llama.cpp.
+    this.servers = await findOpenAiServers(fetchFn, strata ? [strataUrl] : [], this.options.openAiServers ?? OPENAI_SERVERS);
     this.ollama = ollama;
     this.strata = strata;
     this.probed = true;
@@ -177,16 +251,14 @@ export class LocalAgent implements AgentBackend {
     // A model without vision gets the words only, and the user learns why the picture went nowhere.
     const picture = image && model.vision ? image : null;
     if (image && !picture) this.options.event({ type: 'error', message: `${model.option.name} cannot see pictures; it got your words only.` });
-    this.history.push(
-      picture
-        ? { role: 'user', content: [{ type: 'text', text: message.prompt }, { type: 'image', image: picture, mediaType: 'image/png' }] }
-        : { role: 'user', content: message.prompt },
-    );
+    const turn: ModelMessage = picture
+      ? { role: 'user', content: [{ type: 'text', text: message.prompt }, { type: 'image', image: picture, mediaType: 'image/png' }] }
+      : { role: 'user', content: message.prompt };
     this.busy = true;
     this.options.changed();
     const abort = new AbortController();
     this.abort = abort;
-    void this.run(upstream, model, abort.signal).finally(() => {
+    void this.run(upstream, model, turn, abort.signal).finally(() => {
       this.busy = false;
       this.abort = null;
       this.options.changed();
@@ -196,23 +268,75 @@ export class LocalAgent implements AgentBackend {
   /** The AI SDK model and its request options for the server that runs it. */
   private languageModel(model: Runnable): { model: LanguageModel; providerOptions: ProviderOptions } {
     const fetchOption = this.options.fetch ? { fetch: this.options.fetch } : {};
-    if (model.server === 'Strata') {
-      // Strata needs no key on this computer; the SDK wants one, so it gets a placeholder.
-      const strata = createOpenAI({ baseURL: `${this.options.strataUrl ?? STRATA_URL}/v1`, apiKey: 'none', ...fetchOption });
+    if (model.openAiBase) {
+      // A local server needs no key on this computer; the SDK wants one, so it gets a placeholder.
+      const base = model.server === 'Strata' && this.options.strataUrl ? `${this.options.strataUrl}/v1` : model.openAiBase;
+      const server = createOpenAI({ baseURL: base, apiKey: 'none', ...fetchOption });
       return {
-        model: strata.chat(model.option.id.slice(STRATA_PREFIX.length)),
-        providerOptions: { openai: this.choice?.effort ? { reasoningEffort: this.choice.effort } : {} },
+        model: server.chat(model.serverModel),
+        providerOptions: { openai: model.server === 'Strata' && this.choice?.effort ? { reasoningEffort: this.choice.effort } : {} },
       };
     }
     const ollama = createOllama({ baseURL: `${this.options.url ?? OLLAMA_URL}/api`, ...fetchOption });
     // shortcut: thinking stays off for speed on small GPUs; offer it as the effort once models need it.
-    return { model: ollama(model.option.id), providerOptions: { ollama: { think: false, options: { num_ctx: model.numCtx ?? undefined } } } };
+    return { model: ollama(model.serverModel), providerOptions: { ollama: { think: false, options: { num_ctx: model.numCtx ?? undefined } } } };
   }
 
-  private async run(upstream: UpstreamTools, model: Runnable, signal: AbortSignal): Promise<void> {
+  /**
+   * The connection test (ADR 0011): one short request with a dummy tool the model is asked to call.
+   * Shown as a tool card, so the user sees why the first answer takes a moment.
+   */
+  private async toolTest(model: Runnable, languageModel: LanguageModel, signal: AbortSignal): Promise<string | null> {
+    this.sequence += 1;
+    const id = `local-${String(this.sequence)}`;
+    const summary = `Can ${model.option.name} call tools?`;
+    this.options.event({ type: 'tool', id, name: PING, summary, decision: 'allowed' });
+    let problem: string | null = null;
+    try {
+      const result = await generateText({
+        model: languageModel,
+        messages: [{ role: 'user', content: `Call the tool ${PING} with word "ok". Do not write anything else.` }],
+        tools: {
+          [PING]: tool({
+            description: 'Connection test of PartBuddy: call it when asked.',
+            inputSchema: jsonSchema({ type: 'object', properties: { word: { type: 'string' } }, required: ['word'] }),
+            execute: () => Promise.resolve('pong'),
+          }),
+        },
+        stopWhen: stepCountIs(1),
+        abortSignal: signal,
+        maxRetries: 0,
+      });
+      if (!result.toolCalls.some((call) => call.toolName === PING)) problem = 'it answered without calling the test tool';
+    } catch (error) {
+      if (signal.aborted) throw error;
+      problem = (error instanceof Error ? error.message : String(error)).slice(0, 300);
+    }
+    this.options.event({ type: 'tool', id, name: PING, summary, decision: 'allowed', ok: problem === null });
+    return problem;
+  }
+
+  private async run(upstream: UpstreamTools, model: Runnable, turn: ModelMessage, signal: AbortSignal): Promise<void> {
     const started = Date.now();
     try {
       const { model: languageModel, providerOptions } = this.languageModel(model);
+      if (model.loadAt && !this.prepared.has(model.option.id)) {
+        await loadInLmStudio(this.options.fetch ?? fetch, model.loadAt, model.serverModel, LOCAL_CONTEXT);
+        this.prepared.add(model.option.id);
+      }
+      if (model.toolTest && !this.tested.has(model.option.id)) {
+        const problem = await this.toolTest(model, languageModel, signal);
+        if (problem) {
+          this.failed.add(model.option.id);
+          this.choice = allowedChoice(this.models(), this.choice ? { model: this.models()[0]?.id ?? '', effort: null } : null);
+          this.options.log(`local model ${model.option.id} failed the tool test: ${problem}`);
+          this.options.event({ type: 'error', message: `${model.option.name} cannot call tools (${problem}), so it cannot work on the design. Pick another model.` });
+          this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: 'failed' });
+          return;
+        }
+        this.tested.add(model.option.id);
+      }
+      this.history.push(turn);
       const result = streamText({
         model: languageModel,
         instructions: instructionsFor(upstream, false),
@@ -226,6 +350,8 @@ export class LocalAgent implements AgentBackend {
         stopWhen: stepCountIs(MAX_STEPS),
         abortSignal: signal,
         providerOptions,
+        // A local server that refuses a request refuses it again; the user gets its reason at once.
+        maxRetries: 0,
       });
       for await (const part of result.stream) {
         if (part.type === 'text-delta') this.options.event({ type: 'textDelta', text: part.text });
@@ -235,8 +361,31 @@ export class LocalAgent implements AgentBackend {
       this.options.event({ type: 'done', ok: true, durationMs: Date.now() - started, detail: null });
     } catch (error) {
       const stopped = signal.aborted;
-      if (!stopped) this.options.event({ type: 'error', message: (error instanceof Error ? error.message : String(error)).slice(0, 500) });
+      if (!stopped) this.options.event({ type: 'error', message: serverReason(error) });
       this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: stopped ? 'stopped' : 'failed' });
     }
   }
 }
+
+/**
+ * The server's own words for a failed request: the SDK says only "stream failed before any output"
+ * and keeps the server's answer in `responseBody` ("request (9376 tokens) exceeds the available
+ * context size (8192 tokens)" from LM Studio).
+ */
+export function serverReason(error: unknown): string {
+  const seen = (error as { lastError?: unknown } | null)?.lastError ?? error;
+  const body = (seen as { responseBody?: unknown } | null)?.responseBody;
+  if (typeof body === 'string') {
+    try {
+      const parsed = JSON.parse(body) as { error?: { message?: unknown } | string; message?: unknown };
+      const message = typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message ?? parsed.message);
+      if (typeof message === 'string' && message) return `The local server refused the request: ${message}`.slice(0, 500);
+    } catch {
+      // not JSON: the plain message below
+    }
+  }
+  return (seen instanceof Error ? seen.message : String(seen)).slice(0, 500);
+}
+
+/** The per-request options streamText takes, by provider. */
+type ProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>;
