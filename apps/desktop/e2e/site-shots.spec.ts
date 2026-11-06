@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -16,22 +17,45 @@ test.skip(!folder, 'needs SolidCraft; run pnpm site:shots');
 
 // Its own port, beside the contract tests (7881–7930) and other sessions' SolidCraft.
 const PORT = '7951';
+const CLI = process.env.SOLIDCRAFT_CLI ?? 'C:\\Program Files\\SolidCraft\\solidcraft-cli.exe';
 // With the cable clip, four projects fill one row of the start page.
 const TEMPLATES = [
   ['housing', 'Housing'],
   ['boxWithLid', 'Box with lid'],
   ['wallHolder', 'Wall holder'],
 ] as const;
-// An L-shaped bracket, drawn on the sketch pad.
-const BRACKET: [number, number][] = [[0.25, 0.15], [0.25, 0.8], [0.75, 0.8], [0.75, 0.68], [0.37, 0.68], [0.37, 0.15], [0.25, 0.15]];
+// A synthetic circuit board of 50 × 30 mm, placed to sit in the middle of the housing template.
+const BOARD = [
+  { command: 'solid.box', params: { length: 50, width: 30, height: 1.6, corner: [15, 15, 2], operation: 'new', body_name: 'Circuit board', name: 'Board' } },
+  { command: 'solid.box', params: { length: 12, width: 12, height: 1.2, corner: [34, 24, 3.6], operation: 'join', targets: ['Circuit board'], name: 'Chip' } },
+  { command: 'solid.box', params: { length: 7.5, width: 9, height: 3.2, corner: [15, 25.5, 3.6], operation: 'join', targets: ['Circuit board'], name: 'USB-C' } },
+];
+
+type Bridge = { partbuddy: { design: { insert(path?: string): Promise<unknown>; insertPart(part: unknown): Promise<{ body: string | null }> } } };
+type Shape = { tool: 'line' | 'rect' | 'circle' | 'dimension' | 'text'; from: [number, number]; to?: [number, number]; value?: string };
+// A 40 mm plate with an Ø 8 hole and an M3 hole, and its side view bent with R 3 (F9).
+const SKETCH: Shape[] = [
+  { tool: 'rect', from: [0.12, 0.2], to: [0.6, 0.7] },
+  { tool: 'circle', from: [0.27, 0.45], to: [0.33, 0.45] },
+  { tool: 'circle', from: [0.47, 0.45], to: [0.5, 0.45] },
+  { tool: 'line', from: [0.75, 0.2], to: [0.75, 0.7] },
+  { tool: 'line', from: [0.75, 0.7], to: [0.9, 0.7] },
+  { tool: 'dimension', from: [0.12, 0.8], to: [0.6, 0.8], value: '40' },
+  { tool: 'dimension', from: [0.21, 0.3], to: [0.33, 0.3], value: 'Ø 8' },
+  { tool: 'dimension', from: [0.75, 0.62], to: [0.8, 0.7], value: 'R 3' },
+  { tool: 'text', from: [0.44, 0.56], value: 'M3 hole' },
+];
 
 test('website pictures', async () => {
-  test.setTimeout(15 * 60 * 1000);
+  test.setTimeout(20 * 60 * 1000);
   const out = folder ?? '';
   mkdirSync(out, { recursive: true });
   // The long form of the temp folder: SolidCraft refuses short (8.3) names such as ADMINI~1.
   const work = mkdtempSync(join(realpathSync.native(tmpdir()), 'partbuddy-site-'));
   const projects = join(work, 'projects');
+  const board = join(work, 'Circuit board.step');
+  writeFileSync(join(work, 'board.json'), JSON.stringify({ commands: [...BOARD, { command: 'file.export', params: { path: board, format: 'step' } }] }));
+  execFileSync(CLI, ['run', join(work, 'board.json'), '--quiet'], { stdio: ['ignore', 'ignore', 'inherit'] });
   const launched = await launchApp({
     isolated: false,
     work,
@@ -63,7 +87,9 @@ test('website pictures', async () => {
       await run();
       report[file] = 'ok';
     } catch (error) {
-      report[file] = (error as Error).message.split('\n')[0]?.slice(0, 300) ?? 'failed';
+      // eslint-disable-next-line no-control-regex -- Playwright colours its messages
+      report[file] = (error as Error).message.replace(/\u001b\[\d+m/g, '').split('\n')[0]?.slice(0, 300) ?? 'failed';
+      await page.screenshot({ path: test.info().outputPath(`${file}-failed.png`) }).catch(() => undefined);
       await page.keyboard.press('Escape').catch(() => undefined);
     }
   };
@@ -78,16 +104,37 @@ test('website pictures', async () => {
     await expect(name).toHaveText(title, { timeout: 30_000 });
     await page.waitForTimeout(1000);
   };
-  const draw = async () => {
-    const canvas = page.getByTestId('sketch-pad').getByTestId('sketch-canvas');
-    const box = await canvas.boundingBox();
+  const fresh = async () => {
+    if ((await home.count()) === 0) await page.getByTestId('home-button').click();
+    await home.getByTestId('home-new').click();
+    await expect(name).toHaveText(/^New part/, { timeout: 30_000 });
+  };
+  // Only a project with a design can be renamed; its chat so far then shows as an earlier session.
+  const rename = async (title: string) => {
+    await page.getByTestId('project-menu').click();
+    await page.getByTestId('project-rename').click();
+    await page.getByTestId('project-name-input').fill(title);
+    await page.getByTestId('project-rename-save').click();
+    await expect(name).toHaveText(title, { timeout: 15_000 });
+  };
+  const sketch = async () => {
+    await page.getByTestId('composer-sketch-open').click();
+    const pad = page.getByTestId('sketch-pad');
+    const box = await pad.getByTestId('sketch-canvas').boundingBox();
     if (!box) throw new Error('sketch canvas not visible');
-    const [first, ...rest] = BRACKET;
-    if (!first) return;
-    await page.mouse.move(box.x + box.width * first[0], box.y + box.height * first[1]);
-    await page.mouse.down();
-    for (const [x, y] of rest) await page.mouse.move(box.x + box.width * x, box.y + box.height * y, { steps: 10 });
-    await page.mouse.up();
+    const at = ([x, y]: [number, number]) => [box.x + box.width * x, box.y + box.height * y] as const;
+    for (const shape of SKETCH) {
+      await pad.getByTestId(`sketch-tool-${shape.tool}`).click();
+      await page.mouse.move(...at(shape.from));
+      await page.mouse.down();
+      await page.mouse.move(...at(shape.to ?? shape.from), { steps: 8 });
+      await page.mouse.up();
+      if (shape.value) {
+        await pad.getByTestId('sketch-value').fill(shape.value);
+        await page.keyboard.press('Enter');
+      }
+    }
+    await expect(pad.getByTestId('sketch-canvas')).toHaveAttribute('data-items', String(SKETCH.length));
   };
 
   try {
@@ -102,6 +149,12 @@ test('website pictures', async () => {
     });
     expect(size, 'window 1440 × 900 at scale 2').toEqual([1440, 900, 2]);
 
+    await step('templates', async () => {
+      await expect(home.getByTestId('home-template')).toHaveCount(5);
+      await expect(home.getByTestId('home-empty')).toBeVisible();
+      await shot('templates');
+    });
+
     // A few projects from the templates, each with its picture for the start page.
     for (const [id, title] of TEMPLATES) {
       if ((await home.count()) === 0) await page.getByTestId('home-button').click();
@@ -111,34 +164,22 @@ test('website pictures', async () => {
       await expect.poll(() => existsSync(join(projects, title, 'preview.png')), { timeout: 30_000 }).toBe(true);
     }
 
-    // The cable clip, named first (a rename later starts a new chat session) and built by the assistant.
-    await page.getByTestId('home-button').click();
-    await home.getByTestId('home-new').click();
-    await expect(name).toHaveText('New part', { timeout: 30_000 });
-    await page.getByTestId('project-menu').click();
-    await page.getByTestId('project-rename').click();
-    await page.getByTestId('project-name-input').fill('Cable clip');
-    await page.getByTestId('project-rename-save').click();
-    await expect(name).toHaveText('Cable clip', { timeout: 15_000 });
+    // The cable clip, built by the assistant step by step.
+    await fresh();
     await send('Build a cable clip for a 12 mm cable that I can screw under my desk');
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 60_000 });
+    await rename('Cable clip');
     await page.keyboard.press('0');
 
     await step('params', async () => {
-      const parameters = page.getByTestId('parameters');
-      await expect(parameters.getByTestId('parameter-slider')).not.toHaveCount(0);
+      await expect(page.getByTestId('parameters').getByTestId('parameter-slider')).not.toHaveCount(0);
       await shot('params');
-    });
-    await step('printready', async () => {
-      await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'ready', { timeout: 30_000 });
-      await page.getByTestId('print-check').click();
-      await expect(page.getByTestId('print-check-panel')).toBeVisible();
-      await shot('printready');
-      await page.keyboard.press('Escape');
     });
     await step('blocks', async () => {
       await pickFace(page);
       await page.getByTestId('action-block').click();
+      await page.getByTestId('block-kind').click();
+      await page.getByRole('option', { name: 'Heat-set insert seat' }).click();
       await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
       await shot('blocks');
       await page.getByTestId('action-block').click();
@@ -158,6 +199,17 @@ test('website pictures', async () => {
       await shot('export');
       await page.keyboard.press('Escape');
     });
+    // The package itself: its description goes beside the pictures, the notice is the picture.
+    await step('share', async () => {
+      await page.getByTestId('export').click();
+      await page.getByTestId('export-share').click();
+      await expect(page.getByText(/Sharing package saved in exports/)).toBeVisible({ timeout: 60_000 });
+      await shot('share');
+      const exports = join(projects, 'Cable clip', 'exports');
+      const [made] = readdirSync(exports);
+      copyFileSync(join(exports, made ?? '', 'description.md'), join(out, 'share-description.md'));
+      copyFileSync(join(exports, made ?? '', 'Cable clip-iso.png'), join(out, 'share-iso.png'));
+    });
     await step('versions', async () => {
       const dialog = page.getByTestId('versions-dialog');
       await page.getByTestId('versions-button').click();
@@ -176,18 +228,14 @@ test('website pictures', async () => {
       await shot('versions');
       await page.keyboard.press('Escape');
     });
-    await step('research', async () => {
-      await send('Research the 608 bearing, I want to hold one in a part');
-      await expect(page.getByTestId('source-card')).toHaveCount(2, { timeout: 30_000 });
-      await shot('research');
-    });
     await step('model', async () => {
       await page.getByTestId('agent-status').click();
       await expect(page.getByTestId('agent-menu').getByTestId('model-option')).toHaveCount(4);
+      await expect(page.getByTestId('agent-usage')).toBeVisible();
       await shot('model');
       await page.keyboard.press('Escape');
     });
-    // Before the note: its pin would show through the start page.
+    // Before any note: its pin would show through the start page.
     await step('start', async () => {
       await page.getByTestId('home-button').click();
       await expect(home.getByTestId('home-tile')).toHaveCount(4);
@@ -201,15 +249,36 @@ test('website pictures', async () => {
       await page.getByTestId('note-new-text').fill('Keep 3 mm of wall here – the screw head sits on it.');
       await page.getByTestId('note-new-save').click();
       await expect(page.getByTestId('note-pin')).toHaveCount(1, { timeout: 15_000 });
+      // The face picked again beside the pin: its name shows with the selection.
+      await pickFace(page, [[0.62, 0.72], [0.7, 0.74], [0.45, 0.74]]);
       await shot('view');
       await page.keyboard.press('Escape');
     });
-    await step('clarify', async () => {
+
+    // The housing around an imported circuit board.
+    await step('import', async () => {
       await open('Housing');
-      await send('Fit this housing to a 50 × 30 mm circuit board');
+      await page.evaluate((path) => (globalThis as unknown as Bridge).partbuddy.design.insert(path), board);
+      await expect(page.getByTestId('structure-body')).toHaveCount(3, { timeout: 30_000 });
+      await page.keyboard.press('0');
+      await shot('import');
+    });
+    await step('clarify', async () => {
+      await send('Fit this housing to the circuit board');
       await expect(page.getByTestId('question-card')).toHaveAttribute('data-kind', 'ask', { timeout: 30_000 });
       await shot('clarify');
       await shot('clarify-dark', 'dark');
+    });
+    await step('research', async () => {
+      await send('Research the M3 screws for the lid');
+      await expect(page.getByTestId('source-card')).toHaveCount(2, { timeout: 30_000 });
+      // The standard part the answer speaks of, in the lid hole nearest the camera (lid beside the housing).
+      const inserted = await page.evaluate(() =>
+        (globalThis as unknown as Bridge).partbuddy.design.insertPart({ family: 'socket_head_cap_screw', size: 'M3', length: 10, point: [76.2, 75.5, 1] }),
+      );
+      if (!inserted.body) throw new Error('no screw inserted');
+      await expect(page.getByTestId('structure-body').filter({ hasText: 'standard part' })).toHaveCount(1, { timeout: 30_000 });
+      await shot('research');
     });
     await step('explode', async () => {
       await page.getByTestId('explode').click();
@@ -218,24 +287,56 @@ test('website pictures', async () => {
       // The view is not fitted to the parts apart; a little farther away they all show.
       const view = await page.getByTestId('viewport').boundingBox();
       if (view) await page.mouse.move(view.x + view.width / 2, view.y + view.height / 2);
-      await page.mouse.wheel(0, 500);
+      await page.mouse.wheel(0, 250);
       await page.waitForTimeout(1000);
       await shot('explode');
       await page.getByTestId('explode').click();
     });
+
+    await step('printready', async () => {
+      await fresh();
+      await send('Build a case and a lid for it');
+      await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 60_000 });
+      await page.keyboard.press('0');
+      await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'ready', { timeout: 30_000 });
+      await page.getByTestId('print-check').click();
+      await expect(page.getByTestId('print-check-panel').locator('[data-kind="tight"], [data-kind="overlap"]')).not.toHaveCount(0, { timeout: 30_000 });
+      await shot('printready');
+      await page.keyboard.press('Escape');
+    });
+    await step('photo', async () => {
+      await fresh();
+      // No photo of a real object here; a rendered template picture stands in for one.
+      await page.getByTestId('composer-photo-input').setInputFiles(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'boxWithLid.png'));
+      await page.getByRole('button', { name: 'Send' }).click();
+      await expect(page.getByTestId('question-card')).toHaveAttribute('data-kind', 'ask', { timeout: 30_000 });
+      await shot('photo');
+    });
     await step('sketch', async () => {
-      await page.getByTestId('home-button').click();
-      await home.getByTestId('home-new').click();
-      await expect(name).toHaveText('New part', { timeout: 30_000 });
-      await page.getByTestId('composer-sketch-open').click();
-      await draw();
+      await fresh();
+      await sketch();
+      await shot('sketch');
+    });
+    await step('sketch-chat', async () => {
       await page.getByTestId('sketch-pad').getByTestId('sketch-attach').click();
       await page.getByRole('button', { name: 'Send' }).click();
       await expect(page.getByTestId('question-card')).toHaveAttribute('data-kind', 'ask', { timeout: 30_000 });
-      // The sketch itself shows only on its pad: open it again beside the question.
-      await page.getByTestId('composer-sketch-open').click();
-      await draw();
-      await shot('sketch');
+      await shot('sketch-chat');
+    });
+    await step('settings', async () => {
+      await page.getByTestId('settings').click();
+      // The assistant's page: the general page shows the projects folder with the account's name.
+      await page.getByTestId('settings-assistant').click();
+      await expect(page.getByTestId('settings-assistant-panel')).toBeVisible();
+      await shot('settings');
+      await page.keyboard.press('Escape');
+    });
+    // Last: it switches the assistant to the local model server of this computer.
+    await step('local', async () => {
+      await page.getByTestId('agent-status').click();
+      await page.getByTestId('agent-menu').getByText('Local model', { exact: true }).click();
+      await expect(page.getByTestId('agent-status')).toContainText(/Local model · \S+/, { timeout: 30_000 });
+      await shot('local');
       await page.keyboard.press('Escape');
     });
   } finally {
@@ -250,12 +351,14 @@ test('website pictures', async () => {
   }
 });
 
+const SPOTS = [[0.5, 0.62], [0.42, 0.6], [0.6, 0.62], [0.5, 0.55], [0.35, 0.55], [0.65, 0.55]] as const;
+
 /** Clicks across the view until a face is selected. */
-async function pickFace(page: Page): Promise<void> {
+async function pickFace(page: Page, points: readonly (readonly [number, number])[] = SPOTS): Promise<void> {
   const box = await page.getByTestId('viewport').boundingBox();
   if (!box) throw new Error('viewport not visible');
   const bar = page.getByTestId('selection-bar');
-  for (const [x, y] of [[0.5, 0.62], [0.42, 0.6], [0.6, 0.62], [0.5, 0.55], [0.35, 0.55], [0.65, 0.55]] as const) {
+  for (const [x, y] of points) {
     await page.keyboard.press('Escape');
     await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
     await page.waitForTimeout(400);
