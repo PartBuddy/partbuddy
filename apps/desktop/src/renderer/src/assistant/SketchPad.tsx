@@ -249,9 +249,14 @@ async function render(state: SketchState, names: Record<SheetView, string>, view
   if (!blob) throw new Error('the sketch could not be saved');
   const png = new Uint8Array(await blob.arrayBuffer());
   const small = document.createElement('canvas');
-  small.width = canvas.width / 8;
-  small.height = canvas.height / 8;
-  small.getContext('2d')?.drawImage(canvas, 0, 0, small.width, small.height);
+  // A quarter, smoothed: at an eighth the thin strokes fell between the pixels and parts of shapes vanished.
+  small.width = canvas.width / 4;
+  small.height = canvas.height / 4;
+  const thumb = small.getContext('2d');
+  if (thumb) {
+    thumb.imageSmoothingQuality = 'high';
+    thumb.drawImage(canvas, 0, 0, small.width, small.height);
+  }
   return { png, thumbnail: small.toDataURL('image/png'), elements: describeSheets(state) };
 }
 

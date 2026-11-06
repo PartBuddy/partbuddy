@@ -184,7 +184,7 @@ function Item({ item, quiet, retry = null, open }: { item: ConversationItem; qui
               className="overflow-hidden rounded-md border border-border outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-focus"
               data-testid="message-attachment"
             >
-              <img src={item.attachment.thumbnail} alt="" className="block h-control-lg w-auto" draggable={false} />
+              <img src={item.attachment.thumbnail} alt="" className="block h-[5rem] w-auto" draggable={false} />
             </AriaButton>
           ) : null}
           <p className="rounded-lg bg-accent-subtle px-3 py-2 text-md whitespace-pre-wrap text-text">{item.text}</p>
