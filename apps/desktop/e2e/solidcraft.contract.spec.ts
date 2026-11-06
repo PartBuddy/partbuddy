@@ -495,6 +495,7 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     // The plan's limits from the answer show in the assistant menu.
     await page.getByTestId('agent-status').click();
     await expect(page.getByTestId('agent-usage')).toHaveText(/^Plan usage: 5 hours 23% \(resets .+\) · week 69% \(resets .+\)$/);
+    await expect(page.getByTestId('agent-context')).toHaveText('Context: 22% of 200,000 tokens');
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('step-card')).toHaveCount(0);
     const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('aside').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();

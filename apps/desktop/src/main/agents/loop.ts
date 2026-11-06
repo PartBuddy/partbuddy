@@ -49,6 +49,16 @@ export const repeatsItself: StopCondition<ToolSet> = ({ steps }) => {
 };
 
 /**
+ * How full the context is after a turn: the last request's input plus its answer, which the next
+ * request carries. Null without a known window or when the server reported no token counts.
+ */
+export function contextAfter(steps: { usage: { inputTokens?: number | undefined; outputTokens?: number | undefined } }[], size: number | undefined): { used: number; size: number } | null {
+  const usage = steps.at(-1)?.usage;
+  if (!size || typeof usage?.inputTokens !== 'number') return null;
+  return { used: Math.max(0, Math.round(usage.inputTokens + (usage.outputTokens ?? 0))), size };
+}
+
+/**
  * PartBuddy's role, then SolidCraft's server instructions with PartBuddy's tool notes: the gate
  * proxy hands those to Claude Code as MCP instructions, this loop has to pass them itself.
  */

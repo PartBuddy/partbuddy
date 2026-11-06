@@ -398,6 +398,8 @@ export const modelOptionSchema = z
     description: z.string().max(200).optional(),
     efforts: z.array(effortName).max(12),
     defaultEffort: effortName.optional(),
+    /** The context window in tokens, when the route knows it. */
+    context: z.number().int().positive().optional(),
   })
   .strict();
 /** The model and effort a route works with; `effort` null is the model's own default. */
@@ -428,6 +430,8 @@ export const agentStatusSchema = z
       .array(z.object({ window: z.string().max(40), used: z.number().min(0).max(1), resetsAt: z.number().int().nonnegative().nullable() }).strict())
       .max(4)
       .optional(),
+    /** The conversation's size in tokens after the last request and the model's context window. */
+    context: z.object({ used: z.number().int().nonnegative(), size: z.number().int().positive() }).strict().optional(),
   })
   .strict();
 /** `asDefault`: keep the choice for new chats too. */

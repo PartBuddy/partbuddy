@@ -53,6 +53,8 @@ export class AgentService implements AgentBackend {
   private session: ClaudeSession | null = null;
   private proxy: GateProxy | null = null;
   private usage: AgentStatus['usage'] | null = null;
+  /** The session's size after its last request and its model's window; 0 while unknown. */
+  private context = { used: 0, size: 0 };
   private configPath: string | null = null;
   /** The models of the user's plan, once Claude Code listed them. */
   private models: ModelOption[] | null = null;
@@ -144,6 +146,8 @@ export class AgentService implements AgentBackend {
   async newConversation(): Promise<void> {
     await this.session?.stop();
     this.session = null;
+    this.context = { used: 0, size: 0 };
+    this.setStatus(this.current);
   }
 
   /** A stopped or ended Claude Code session is not resumed (`--no-session-persistence`). */
@@ -189,6 +193,7 @@ export class AgentService implements AgentBackend {
     this.configPath = configPath;
 
     let announced = false;
+    this.context = { used: 0, size: 0 };
     const session = new ClaudeSession({ claude: this.claude, env: this.options.env, cwd: this.options.workDir, mcpConfigPath: configPath, choice: this.choice, research: this.options.research?.() ?? false });
     session.onEvent((event) => {
       switch (event.type) {
@@ -211,6 +216,11 @@ export class AgentService implements AgentBackend {
         case 'usage':
           this.usage = event.windows;
           this.setStatus(this.current);
+          break;
+        case 'context':
+          // Tokens come with each request, the window with the turn's result.
+          this.context = { used: event.used ?? this.context.used, size: event.size ?? this.context.size };
+          if (event.size) this.setStatus(this.current);
           break;
         case 'started':
           // Claude Code reports `init` at the start of every turn of the same session (checked
@@ -245,6 +255,8 @@ export class AgentService implements AgentBackend {
       // The last limits Claude Code reported stay through refreshes until the next answer brings new ones.
       ...(this.usage && status.state !== 'signedOut' && status.state !== 'notInstalled' ? { usage: this.usage } : {}),
     };
+    delete this.current.context;
+    if (this.session?.running && this.context.size > 0 && this.context.used > 0) this.current.context = { ...this.context };
     this.listeners.status(this.current);
   }
 }

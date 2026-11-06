@@ -117,7 +117,7 @@ describe('LM Studio, llama.cpp and vLLM (F8)', () => {
     const server = lmStudio(true);
     const { local, events } = agent(server.fetchFn);
     const status = await local.refresh();
-    expect(status.models).toEqual([{ id: 'lmstudio1234:qwen3-4b', name: 'qwen3-4b · LM Studio', efforts: [], description: 'Loads on first use · 32K context · Tool calling is tested on first use · Cannot see pictures' }]);
+    expect(status.models).toEqual([{ id: 'lmstudio1234:qwen3-4b', name: 'qwen3-4b · LM Studio', efforts: [], description: 'Loads on first use · 32K context · Tool calling is tested on first use · Cannot see pictures', context: 16384 }]);
     expect(status).toMatchObject({ state: 'ready', account: 'LM Studio', model: 'lmstudio1234:qwen3-4b' });
     await local.send('Make a box');
     await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));

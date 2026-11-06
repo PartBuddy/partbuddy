@@ -36,7 +36,14 @@ const WALL_HOLDER = [
   { command: 'solid.fillet', params: { edges: [[25, 6, 6]], radius: '2 mm', name: 'Innenradien' } },
   { command: 'solid.fillet', params: { edges: [[0, 3, 100], [50, 3, 100]], radius: '5 mm', name: 'Aussenkanten' } },
 ];
-const out = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
+// Token counts and the window as Claude Code 2.1.299 reports them: 43,000 of 200,000 after each request.
+const counted = (message) =>
+  message.type === 'assistant'
+    ? { ...message, message: { ...message.message, usage: { input_tokens: 3, cache_read_input_tokens: 40000, cache_creation_input_tokens: 2000, output_tokens: 997 } } }
+    : message.type === 'result'
+      ? { ...message, modelUsage: { 'claude-test': { inputTokens: 3, contextWindow: 200000 } } }
+      : message;
+const out = (message) => process.stdout.write(`${JSON.stringify(counted(message))}\n`);
 
 if (args[0] === '--version') {
   console.log('9.9.9 (Claude Code)');
