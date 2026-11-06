@@ -75,11 +75,15 @@ test('website pictures', async () => {
   const logs: string[] = [];
   launched.app.process().stdout?.on('data', (chunk: Buffer) => logs.push(String(chunk)));
 
+  // The window itself may be smaller than 1440 × 900 on this display; the renderer is told the size,
+  // and CDP takes the picture at that scale (Playwright's screenshot uses the display's own).
+  const cdp = await page.context().newCDPSession(page);
   const shot = async (file: string, scheme: 'light' | 'dark' = 'light') => {
     await page.emulateMedia({ colorScheme: scheme });
     await page.mouse.move(0, 450);
     await page.waitForTimeout(900);
-    await page.screenshot({ path: join(out, `${file}.png`) });
+    const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(join(out, `${file}.png`), Buffer.from(data, 'base64'));
     await page.emulateMedia({ colorScheme: 'light' });
   };
   const step = async (file: string, run: () => Promise<void>) => {
@@ -139,8 +143,6 @@ test('website pictures', async () => {
 
   try {
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 90_000 });
-    // The window itself may be smaller than 1440 × 900 on this display; the renderer is told the size.
-    const cdp = await page.context().newCDPSession(page);
     await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 2, mobile: false });
     await page.waitForTimeout(500);
     const size = await page.evaluate(() => {
@@ -226,7 +228,9 @@ test('website pictures', async () => {
       await first.getByTestId('version-compare').click();
       await expect(first.getByTestId('version-change')).not.toHaveCount(0, { timeout: 60_000 });
       await shot('versions');
-      await page.keyboard.press('Escape');
+      // Escape alone left the dialog open once; its close button always shuts it.
+      await dialog.getByRole('button', { name: 'Close versions' }).click();
+      await expect(dialog).toHaveCount(0);
     });
     await step('model', async () => {
       await page.getByTestId('agent-status').click();
@@ -287,7 +291,7 @@ test('website pictures', async () => {
       // The view is not fitted to the parts apart; a little farther away they all show.
       const view = await page.getByTestId('viewport').boundingBox();
       if (view) await page.mouse.move(view.x + view.width / 2, view.y + view.height / 2);
-      await page.mouse.wheel(0, 250);
+      await page.mouse.wheel(0, 400);
       await page.waitForTimeout(1000);
       await shot('explode');
       await page.getByTestId('explode').click();
