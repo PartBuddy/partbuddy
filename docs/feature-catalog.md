@@ -66,7 +66,7 @@ Work runs in three phases, one pull request per step, in this order.
 | F8 Local models (done) | Provider manager for local models ([ADR 0011](adr/0011-provider-manager.md), #26): the route "Local model" in the chip finds Ollama (11434), Strata (8080, by its `/health`), LM Studio (1234), llama.cpp (9931, 8080) and vLLM (8000) on this computer. Only models that call tools and have at least 16K context are offered (PartBuddy's instructions and SolidCraft's tools alone are about 9,400 tokens); llama.cpp and LM Studio say whether a model calls tools, otherwise one test call with a dummy tool decides before first use and a model that fails is dropped with the reason. Ollama runs through its own API with 16K `num_ctx`, LM Studio models not loaded yet are loaded by PartBuddy with 16K, Strata takes the chosen reasoning effort. The menu shows per model: in memory or loads on first use, busy with another request, context, picture input. Errors carry the server's own reason. Checked for real with Ollama 0.34, llama.cpp b12144, LM Studio 0.4.28 and vLLM 0.33 on the home server; Strata only against its recorded answers. |
 
 When convenient, between steps: small follow-ups of the view (hide dimension labels behind the
-model, the HUD moves out of the way, ground shadow, silhouettes), a parity test (every action in the
+model, the HUD moves out of the way, silhouettes), a parity test (every action in the
 interface is an assistant tool or has a written reason), the
 signing key on GitHub, Renovate.
 

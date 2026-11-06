@@ -125,8 +125,9 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   a bounding sphere of radius −1: always check `radius <= 0`.
 - drei `Html` does not attach on the very first scene render (mount pins a frame later) and puts
   buttons into the canvas wrapper, so the wrapper must not carry `role=img`. Two `GizmoHelper`s need
-  different `renderPriority`. `Outlines` is unusable for silhouettes. `ContactShadows` works with Z
-  up inside a group rotated `[π/2, 0, 0]`; blur counts in texels. A key light from the camera
+  different `renderPriority`. `Outlines` is unusable for silhouettes. `ContactShadows` does not work
+  with Z up: its blur plane is fixed in Y-up world space and the turned shadow camera sees it
+  edge-on, so the texture stays empty; the floor shadow is a `ShadowMaterial` plane. A key light from the camera
   direction throws every shadow behind the part. three r186 turns `PCFSoftShadowMap` into PCF.
 - A hidden browser pane has no `requestAnimationFrame`: WebGL stays empty, use Playwright headless
   with SwiftShader. The test window is placed beside all displays (`launch.ts`), never in front.

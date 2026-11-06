@@ -58,6 +58,11 @@ test('the view of the wall holder, light and dark', async () => {
     await page.keyboard.press('5');
     await page.waitForTimeout(1200);
     await shoot(page, '4-front-ortho');
+
+    // From above, the contact shadow shows around the footprint.
+    await page.keyboard.press('7');
+    await page.waitForTimeout(1200);
+    await shoot(page, '5-top-ortho');
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });

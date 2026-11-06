@@ -1,4 +1,3 @@
-import { ContactShadows } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import { Box3, CanvasTexture, Color, DirectionalLight, SRGBColorSpace, Vector3 } from 'three';
@@ -87,7 +86,8 @@ export function KeyLight({ bodies, direction, intensity }: { bodies: BodyModel[]
     current.target.position.copy(placement.center);
     current.target.updateMatrixWorld();
     const camera = current.shadow.camera;
-    const extent = placement.radius * 1.2;
+    // Wide enough for the shadow the part throws onto the floor, not only onto itself.
+    const extent = placement.radius * 2.5;
     camera.left = -extent;
     camera.right = extent;
     camera.top = extent;
@@ -108,25 +108,27 @@ export function KeyLight({ bodies, direction, intensity }: { bodies: BodyModel[]
       shadow-mapSize-width={2048}
       shadow-mapSize-height={2048}
       shadow-bias={-0.0004}
+      // Soft edges for the floor shadow; PCF in three r186 blurs over this many texels.
+      shadow-radius={6}
       shadow-normalBias={placement ? placement.radius * 0.003 : 0}
     />
   );
 }
 
 /**
- * A soft contact shadow on the floor under the part, as a picture taken from below and blurred
- * (drei's ContactShadows). drei builds it for a Y-up scene; the group turns it to Z up. Its blur
- * works in texels, so a coarse texture gives a visible soft rim on parts of 100 mm and more. It
- * is drawn once per design state, not every frame.
+ * The part's shadow on the floor: a plane that shows nothing but the key light's shadow. drei's
+ * ContactShadows cannot do this with Z up: its blur pass draws a plane fixed in Y-up world space,
+ * which the turned shadow camera sees edge-on, so its texture stayed empty (found 2026-11-06).
  */
 export function GroundShadow({ bodies, opacity, color }: { bodies: BodyModel[]; opacity: number; color: Color }) {
   const placement = usePlacement(bodies);
   if (!placement) return null;
-  const span = Math.max(placement.size.x, placement.size.y) * 1.6 + placement.radius * 0.4;
-  const key = bodies.map((body) => body.model.geometry.uuid).join(',');
+  const span = placement.radius * 5;
   return (
-    <group rotation={[Math.PI / 2, 0, 0]} position={[placement.center.x, placement.center.y, placement.floor - 0.01]}>
-      <ContactShadows key={key} frames={1} scale={span} far={Math.max(placement.size.z, 1)} blur={6} opacity={opacity} resolution={256} color={color} />
-    </group>
+    // Just under the grid, so the grid lines stay on top; never picked.
+    <mesh position={[placement.center.x, placement.center.y, placement.floor - 0.02]} receiveShadow raycast={() => undefined}>
+      <planeGeometry args={[span, span]} />
+      <shadowMaterial color={color} opacity={opacity} transparent depthWrite={false} />
+    </mesh>
   );
 }
