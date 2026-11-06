@@ -61,6 +61,8 @@ export interface PrintProfilesOptions {
   /** The file of the open design, or null while it has none yet. */
   designFile(): string | null;
   log(message: string): void;
+  /** The starting printer's name in the interface language ("Mein Drucker"); English when left out. */
+  printerName?: () => string;
 }
 
 /** Profiles saved before plan step R2 carry the outer growth from measuring; it is dropped when read. */
@@ -85,8 +87,15 @@ export class PrintProfiles {
 
   constructor(private readonly options: PrintProfilesOptions) {}
 
+  /** The starting values, the printer named in the interface language (polish round 4). */
+  private defaults(): PrintSettings {
+    const name = this.options.printerName?.();
+    if (!name) return DEFAULT_PRINT_SETTINGS;
+    return { ...DEFAULT_PRINT_SETTINGS, printers: DEFAULT_PRINT_SETTINGS.printers.map((printer) => ({ ...printer, name })) };
+  }
+
   settings(): PrintSettings {
-    if (!existsSync(this.options.file)) return DEFAULT_PRINT_SETTINGS;
+    if (!existsSync(this.options.file)) return this.defaults();
     try {
       const parsed = printSettingsSchema.safeParse(withoutOuterGrowth(JSON.parse(readFileSync(this.options.file, 'utf8'))));
       if (parsed.success) return parsed.data;
@@ -94,7 +103,7 @@ export class PrintProfiles {
     } catch (error) {
       this.options.log(`the print profiles could not be read: ${(error as Error).message}`);
     }
-    return DEFAULT_PRINT_SETTINGS;
+    return this.defaults();
   }
 
   save(settings: PrintSettings): PrintSettings {
