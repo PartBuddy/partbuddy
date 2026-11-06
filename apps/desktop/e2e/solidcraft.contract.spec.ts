@@ -511,6 +511,16 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     await expect(card.getByTestId('question-answered')).toHaveText('Approved, the assistant builds it');
     await expect(card.getByRole('button', { name: 'Go' })).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('plan-approved.png') });
+    // While the assistant works, Stop takes Send's place and the chip keeps its name (it shrank to a dot beside both).
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Take your time');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Send' })).toHaveCount(0);
+    const chip = await page.getByTestId('agent-status').boundingBox();
+    expect(chip?.width ?? 0).toBeGreaterThan(120);
+    await page.screenshot({ path: test.info().outputPath('composer-busy.png') });
+    await expect(page.getByText('Done, slowly.')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Send' })).toBeVisible();
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('plan-failed.png') }).catch(() => undefined);
     throw error;

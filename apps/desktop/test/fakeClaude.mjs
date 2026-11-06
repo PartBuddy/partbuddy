@@ -104,6 +104,13 @@ if (args[0] === '--version') {
     // Text, or text and image blocks when a picture of the view goes along (M2b-2).
     const raw = message.message.content;
     const content = typeof raw === 'string' ? raw : raw.map((block) => (block.type === 'text' ? block.text : `[${block.type}]`)).join('\n');
+    // "Take your time": a slow turn, so a test sees the composer while the assistant works.
+    if (content.includes('Take your time')) {
+      await new Promise((done) => setTimeout(done, 4000));
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'Done, slowly.' }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 4000 });
+      continue;
+    }
     // A rough sketch (F4): tells what came along, so a test sees the picture and the note arrive.
     const picture = typeof raw === 'string' ? undefined : raw.find((block) => block.type === 'image');
     if (picture) {
