@@ -567,7 +567,7 @@ test('the assistant shows the signed-in plan and needs SolidCraft', async () => 
   // The plan's default model with a named effort; the plan itself is in the menu.
   await expect(chip).toHaveText('Claude Code · Default · Medium');
   await chip.click();
-  await expect(page.getByTestId('agent-detail')).toHaveText('Claude Code 9.9.9 · max subscription');
+  await expect(page.getByTestId('agent-detail')).toHaveText('Claude Code 9.9.9 · Claude subscription');
   await expect(page.getByRole('radio', { name: /^Claude Code/ })).toBeChecked();
   await page.screenshot({ path: test.info().outputPath('agent-menu.png') });
   await page.keyboard.press('Escape');

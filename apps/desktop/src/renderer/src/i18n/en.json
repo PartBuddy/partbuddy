@@ -126,7 +126,7 @@
   "assistant": {
     "title": "Assistant",
     "preview": "Preview",
-    "plan": "{plan} subscription",
+    "plan": "Claude subscription",
     "apiKey": "API key, billed separately",
     "signedIn": "Claude Code {version} · {plan}",
     "state": {
@@ -200,7 +200,7 @@
       "continue": "Continue with ChatGPT"
     },
     "needsSubscriptionTitle": "Sign in to Claude Code with your Claude subscription",
-    "needsSubscriptionBody": "Claude Code is signed in with an API key, which Anthropic bills separately from your plan. By default PartBuddy uses only your Claude Pro or Max subscription: sign in with your Claude account and check again. You can also allow the API key on purpose.",
+    "needsSubscriptionBody": "Claude Code is signed in with an API key, which Anthropic bills separately from your plan. By default PartBuddy uses only your Claude subscription: sign in with your Claude account and check again. You can also allow the API key on purpose.",
     "allowApiBilling": "Use the API key anyway (billed separately)",
     "subscriptionOnly": "Use the subscription only",
     "withSelection": "With selection {face}",
@@ -254,7 +254,7 @@
       "apiKey": "API key",
       "switchNote": "Switching stops a running answer. The other assistant does not know the conversation so far.",
       "describe": {
-        "claude-code": "Your Claude Pro or Max plan, through Claude Code",
+        "claude-code": "Your Claude plan, through Claude Code",
         "chatgpt": "Your ChatGPT plan, signed in here",
         "local": "A model on this computer (Ollama, LM Studio, llama.cpp, vLLM, Strata); nothing leaves it"
       },
