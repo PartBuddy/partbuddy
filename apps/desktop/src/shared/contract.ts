@@ -500,6 +500,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
       selection: z.string().max(400).optional(),
       /** What the selection holds, for a short line in the chat; `selection` keeps the names. */
       selected: selectionSummarySchema.optional(),
+      /** A sketch went along (F4). */
+      sketch: z.literal(true).optional(),
     })
     .strict(),
   z.object({ type: z.literal('textDelta'), text: z.string() }).strict(),
@@ -752,11 +754,18 @@ export const visibilityCommandSchema = z
   .strict()
   .refine((command) => command.bodies.length + command.sketches.length > 0, 'nothing to show or hide');
 
+/** The PNG signature, and at most 4 MB: the sketch pad writes about 50 KB. */
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+export const sketchPngSchema = z
+  .instanceof(Uint8Array)
+  .refine((bytes) => bytes.length > PNG_SIGNATURE.length && bytes.length <= 4 * 1024 * 1024 && PNG_SIGNATURE.every((byte, i) => bytes[i] === byte), 'not a PNG picture');
 export const agentMessageSchema = z
   .object({
     text: z.string().min(1).max(20_000),
     selections: z.array(selectionSchema).min(1).max(20).optional(),
     answer: messageAnswerSchema.optional(),
+    /** A rough sketch the user drew (F4), as a PNG that goes along as a picture. */
+    sketch: sketchPngSchema.optional(),
   })
   .strict();
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
@@ -809,7 +818,7 @@ const none = z.undefined();
  * untrusted input.
  */
 export const storedChatItemSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('user'), text: z.string().max(20_000), selection: z.string().max(400).optional(), selected: selectionSummarySchema.optional() }).strict(),
+  z.object({ kind: z.literal('user'), text: z.string().max(20_000), selection: z.string().max(400).optional(), selected: selectionSummarySchema.optional(), sketch: z.literal(true).optional() }).strict(),
   z.object({ kind: z.literal('assistant'), text: z.string().max(50_000) }).strict(),
   z.object({ kind: z.literal('step'), step: workStepSchema, state: workStepStateSchema }).strict(),
   z.object({ kind: z.literal('question'), question: agentQuestionSchema, choice: z.string().max(40).nullable() }).strict(),

@@ -166,7 +166,7 @@ export class ChatGptAgent implements AgentBackend {
     }
     if (!this.choice) await this.readModels();
     const message = composeMessage(text, selections, note);
-    this.options.event(userEvent(text, message.label, message.summary));
+    this.options.event(userEvent(text, message.label, message.summary, image !== null));
     this.history.push(
       image
         ? { role: 'user', content: [{ type: 'text', text: message.prompt }, { type: 'image', image, mediaType: 'image/png' }] }

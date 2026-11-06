@@ -283,6 +283,22 @@
     "source": {
       "search": "Gesucht: {query}",
       "page": "Gelesen"
+    },
+    "sketch": {
+      "button": "Skizze",
+      "open": "Eine grobe Skizze für den Assistenten zeichnen",
+      "title": "Grobe Skizze",
+      "body": "Zeichne das Teil grob, wie auf Karopapier. Wichtige Maße schreibst du in die Nachricht; fehlende fragt der Assistent nach.",
+      "canvas": "Skizze mit {count, plural, one {# Strich} other {# Strichen}}",
+      "undo": "Rückgängig",
+      "clear": "Leeren",
+      "cancel": "Abbrechen",
+      "attach": "An die Nachricht hängen",
+      "goesWith": "Die Skizze geht mit deiner Nachricht",
+      "edit": "Skizze bearbeiten",
+      "remove": "Skizze entfernen",
+      "sent": "Mit Skizze",
+      "defaultText": "Mach aus meiner Skizze ein Teil."
     }
   },
   "live": {

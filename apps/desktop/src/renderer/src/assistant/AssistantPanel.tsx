@@ -1,4 +1,4 @@
-import { IconArrowUp, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
+import { IconArrowUp, IconPencil, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -18,6 +18,7 @@ import { rowsOf } from './rows';
 import { StepCard } from './StepCard';
 import { Queries, WorkGroup } from './WorkGroup';
 import { selectedStatus, useAssistant, type ConversationItem } from './store';
+import { SketchPad, type SketchPicture, type Stroke } from './SketchPad';
 import { SourceCard } from './SourceCard';
 import { ToolCall } from './ToolCall';
 
@@ -143,6 +144,12 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
               {item.selected ? selectionSummary(t, item.selected) : t('assistant.withSelection', { face: item.selection })}
             </span>
           ) : null}
+          {item.sketch ? (
+            <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-sketch">
+              <IconPencil className="size-icon-sm shrink-0" aria-hidden />
+              {t('assistant.sketch.sent')}
+            </span>
+          ) : null}
           <p className="rounded-lg bg-accent-subtle px-3 py-2 text-md whitespace-pre-wrap text-text">{item.text}</p>
         </div>
       );
@@ -176,6 +183,8 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
   }
 }
 
+const NO_STROKES: Stroke[] = [];
+
 export function AssistantPanel() {
   const { t } = useTranslation();
   const status = selectedStatus(useAssistant((s) => s.state));
@@ -192,16 +201,21 @@ export function AssistantPanel() {
   const busy = status.state === 'busy';
   const ready = status.state === 'ready' && connected;
   const [width, setWidth, maxWidth] = useChatWidth();
+  // A rough sketch for the next message (F4); its strokes stay while it is not sent, to draw on.
+  const [sketching, setSketching] = useState(false);
+  const [sketch, setSketch] = useState<{ strokes: Stroke[]; picture: SketchPicture } | null>(null);
 
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight });
   }, [items]);
 
   const send = () => {
-    const text = draft.trim();
+    // A sketch alone is a message too: build a part from it.
+    const text = draft.trim() || (sketch ? t('assistant.sketch.defaultText') : '');
     if (!text || !ready) return;
     setDraft('');
-    void sendToAssistant(text, selections);
+    setSketch(null);
+    void sendToAssistant(text, selections, undefined, sketch?.picture.png);
   };
 
   return (
@@ -290,10 +304,45 @@ export function AssistantPanel() {
             </span>
           </span>
         ) : null}
+        {sketch ? (
+          <div className="flex items-center gap-2" data-testid="composer-sketch">
+            <AriaButton
+              aria-label={t('assistant.sketch.edit')}
+              onPress={() => {
+                setSketching(true);
+              }}
+              className="overflow-hidden rounded-md border border-border outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-focus"
+            >
+              <img src={sketch.picture.thumbnail} alt="" className="block h-control-lg w-auto" draggable={false} />
+            </AriaButton>
+            <span className="mr-auto text-xs text-text-muted">{t('assistant.sketch.goesWith')}</span>
+            <AriaButton
+              aria-label={t('assistant.sketch.remove')}
+              onPress={() => {
+                setSketch(null);
+              }}
+              className="inline-flex size-control-sm items-center justify-center rounded-sm text-text-subtle outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+              data-testid="composer-sketch-remove"
+            >
+              <IconX className="size-icon-sm" aria-hidden />
+            </AriaButton>
+          </div>
+        ) : null}
         <div className="flex items-center justify-end gap-2">
           <span className="mr-auto flex min-w-0">
             <AgentChip />
           </span>
+          <Button
+            onPress={() => {
+              setSketching(true);
+            }}
+            isDisabled={!ready}
+            aria-label={t('assistant.sketch.open')}
+            data-testid="composer-sketch-open"
+          >
+            <IconPencil className="size-icon-sm" aria-hidden />
+            {t('assistant.sketch.button')}
+          </Button>
           {busy ? (
             <Button
               onPress={() => {
@@ -304,12 +353,25 @@ export function AssistantPanel() {
               {t('assistant.stop')}
             </Button>
           ) : null}
-          <Button type="submit" variant="primary" isDisabled={!ready || draft.trim() === ''}>
+          <Button type="submit" variant="primary" isDisabled={!ready || (draft.trim() === '' && !sketch)}>
             <IconArrowUp className="size-icon-sm" aria-hidden />
             {t('assistant.send')}
           </Button>
         </div>
       </Form>
+      {sketching ? (
+        <SketchPad
+        initial={sketch?.strokes ?? NO_STROKES}
+        onClose={() => {
+          setSketching(false);
+        }}
+        onAttach={(strokes, picture) => {
+          setSketch({ strokes, picture });
+          setSketching(false);
+          composer.current?.focus();
+        }}
+        />
+      ) : null}
     </aside>
   );
 }

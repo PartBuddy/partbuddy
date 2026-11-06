@@ -41,6 +41,7 @@ import { SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
 import { printCheckNote } from './print/printCheckNote';
 import { templateSteps } from '../shared/templates';
+import { SKETCH_NOTE } from './agents/sketchNote';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
 
 app.setName('PartBuddy');
@@ -509,7 +510,7 @@ if (!app.requestSingleInstanceLock()) {
       if (!file || !projectStore.holds(file) || !existsSync(file)) return null;
       return versions.save(file, reason, label, skipUnchanged);
     };
-    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer }) => {
+    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, sketch }) => {
       // The design as it was before the assistant changes it; a failure never stops the request.
       await keepVersion('assistant', text.replace(/\s+/g, ' ').slice(0, 120), true).catch((error: unknown) => {
         log(`no version before the request: ${(error as Error).message}`);
@@ -524,9 +525,10 @@ if (!app.requestSingleInstanceLock()) {
         questions.answer(answer),
         steps.takeNote(),
         notesService.selectionNote(selections ?? []),
+        sketch ? SKETCH_NOTE : null,
       ].filter((line): line is string => line !== null);
       try {
-        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null);
+        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, sketch ?? null);
       } catch (error) {
         profileNote.forget();
         checkNote.forget();

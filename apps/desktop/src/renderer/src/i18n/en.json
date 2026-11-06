@@ -283,6 +283,22 @@
     "source": {
       "search": "Searched: {query}",
       "page": "Read"
+    },
+    "sketch": {
+      "button": "Sketch",
+      "open": "Draw a rough sketch for the assistant",
+      "title": "Rough sketch",
+      "body": "Draw the part roughly, as on squared paper. Write the sizes that matter in your message; the assistant asks for the ones that are missing.",
+      "canvas": "Sketch with {count, plural, one {# stroke} other {# strokes}}",
+      "undo": "Undo",
+      "clear": "Clear",
+      "cancel": "Cancel",
+      "attach": "Attach to the message",
+      "goesWith": "The sketch goes with your message",
+      "edit": "Edit the sketch",
+      "remove": "Remove the sketch",
+      "sent": "With a sketch",
+      "defaultText": "Make a part from my sketch."
     }
   },
   "live": {
