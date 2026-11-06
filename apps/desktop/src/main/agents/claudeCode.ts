@@ -177,7 +177,9 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
     case 'system':
       return message.subtype === 'init' ? [{ type: 'started', model: typeof message.model === 'string' ? message.model : null }] : [];
     case 'stream_event': {
-      const event = message.event as { type?: string; delta?: { type?: string; text?: string } } | undefined;
+      const event = message.event as { type?: string; index?: number; content_block?: { type?: string }; delta?: { type?: string; text?: string } } | undefined;
+      // A further text block of the same message starts a new paragraph, as the final text has it.
+      if (event?.type === 'content_block_start' && event.content_block?.type === 'text' && (event.index ?? 0) > 0) return [{ type: 'textDelta', text: '\n\n' }];
       if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta' && typeof event.delta.text === 'string') {
         return [{ type: 'textDelta', text: event.delta.text }];
       }
@@ -189,7 +191,8 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
       const text = content
         .filter((block): block is { type: 'text'; text: string } => (block as { type?: unknown }).type === 'text')
         .map((block) => block.text)
-        .join('');
+        // Text blocks around a tool call are paragraphs of their own (practice run 2026-11-06: "Schelle.Wenn").
+        .join('\n\n');
       // Research (B7): a search or a page read becomes a card; the text of the page never does.
       const sources = content
         .filter((block): block is { type: 'tool_use'; name?: unknown; input?: unknown } => (block as { type?: unknown }).type === 'tool_use')

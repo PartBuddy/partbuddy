@@ -5,13 +5,13 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 
 import { launchApp } from './launch';
-import { converse } from './practice';
+import { answerRound, converse, waitForTurn } from './practice';
 
 // Practice run (decided 2026-11-04): five real parts, built with the user's own Claude Code
 // through PartBuddy, to see what gets in the way. It spends Claude subscription usage, so it runs
 // only with PARTBUDDY_PRACTICE=1. The window stays off screen; SolidCraft runs headless in its own
 // folders. Each part writes report.json and pictures to its test output folder.
-test.skip(process.env.PARTBUDDY_PRACTICE !== '1', 'spends Claude usage; set PARTBUDDY_PRACTICE=1');
+test.skip(process.env.PARTBUDDY_PRACTICE !== '1' && !process.env.PARTBUDDY_PRACTICE_PHOTO, 'spends Claude usage; set PARTBUDDY_PRACTICE=1');
 test.describe.configure({ mode: 'serial' });
 
 interface Part {
@@ -56,7 +56,7 @@ const PARTS: Part[] = [
 const PRINT_CHECK =
   'Prüfe, ob das Teil gut druckbar ist (Überhänge, Wandstärken, Passungen, Spiel), und nenne die beste Druckausrichtung. Ändere nichts.';
 
-for (const part of PARTS) {
+for (const part of process.env.PARTBUDDY_PRACTICE === '1' ? PARTS : []) {
   test(`practice: ${part.id}`, async () => {
     test.setTimeout(45 * 60 * 1000);
     const work = mkdtempSync(join(tmpdir(), `partbuddy-practice-${part.id}-`));
@@ -95,3 +95,64 @@ for (const part of PARTS) {
     }
   });
 }
+
+// From a photo to a part in question rounds (decided 2026-11-06): the user's example, a holder for
+// a Samsung Galaxy S25 Ultra on the part in the photo. Runs with PARTBUDDY_PRACTICE_PHOTO set to the
+// photo; every round is answered with the assistant's recommendations, the plan with Go.
+test('practice: phone holder from a photo, in question rounds', async () => {
+  const photo = process.env.PARTBUDDY_PRACTICE_PHOTO;
+  test.skip(!photo, 'set PARTBUDDY_PRACTICE_PHOTO to a photo');
+  test.setTimeout(60 * 60 * 1000);
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-practice-holder-'));
+  const launched = await launchApp({
+    isolated: false,
+    work,
+    env: { SOLIDCRAFT_CONTROL_DIR: join(work, 'control'), PARTBUDDY_SOLIDCRAFT_PORT: '7930', PARTBUDDY_PROJECTS_DIR: join(work, 'projects') },
+  });
+  const { page } = launched;
+  const report: Record<string, unknown> = { rounds: [] as unknown[] };
+  const rounds = report.rounds as unknown[];
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 90_000 });
+    await expect(page.getByTestId('agent-status')).toContainText('Claude Code', { timeout: 30_000 });
+    await page.getByTestId('composer-photo-input').setInputFiles(photo ?? '');
+    await expect(page.getByTestId('composer-photo')).toBeVisible();
+    const request = 'Ich benötige eine Halterung für mein Samsung Galaxy S25 Ultra, die an diesem Teil festgemacht wird.';
+    report.request = request;
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill(request);
+    await page.getByRole('button', { name: 'Send' }).click();
+    await waitForTurn(page);
+    for (let round = 1; round <= 10; round += 1) {
+      const open = page.getByTestId('question-card').filter({ hasNot: page.getByTestId('question-answered') });
+      if ((await open.count()) === 0) break;
+      const card = open.first();
+      const kind = (await card.getAttribute('data-kind')) ?? '?';
+      await card.scrollIntoViewIfNeeded();
+      await card.screenshot({ path: test.info().outputPath(`round-${String(round)}-${kind}.png`) });
+      const said = await page.getByTestId('assistant-text').allTextContents();
+      if (kind === 'plan') {
+        rounds.push({ round, kind, card: await card.innerText(), before: said.at(-1) ?? '' });
+        await card.getByRole('button', { name: 'Go' }).click();
+      } else {
+        const text = await card.innerText();
+        await answerRound(card, undefined);
+        rounds.push({ round, kind, card: text, before: said.at(-1) ?? '' });
+      }
+      await waitForTurn(page);
+    }
+    report.answers = await page.getByTestId('assistant-text').allTextContents();
+    report.steps = await page.getByTestId('step-text').allTextContents();
+    report.mesh = await page.getByTestId('mesh-summary').textContent().catch(() => null);
+    await page.screenshot({ path: test.info().outputPath('built.png') });
+    await page.keyboard.press('0');
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: test.info().outputPath('built-iso.png') });
+  } catch (error) {
+    report.failure = (error as Error).message.slice(0, 1000);
+    await page.screenshot({ path: test.info().outputPath('failed.png') }).catch(() => undefined);
+  } finally {
+    writeFileSync(test.info().outputPath('report.json'), JSON.stringify(report, null, 2));
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

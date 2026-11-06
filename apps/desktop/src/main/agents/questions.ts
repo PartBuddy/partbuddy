@@ -38,7 +38,9 @@ const askTool: UpstreamTool = {
   description:
     'Ask the user a round of 1 to 4 questions at once, shown as one card in PartBuddy\'s chat; each question has 2 to 5 ' +
     'answers to pick from and a field for a different answer. Mark the answer you recommend with recommended (it is ' +
-    'preselected) and say why in its detail. Use multiSelect when several answers can apply. Ask what matters for the part ' +
+    'preselected) and say why in its detail; every answer must work as it is, without anything typed, so for a value to ' +
+    'measure offer typical values and let the user type the exact one. Use multiSelect when several answers can apply. ' +
+    'Ask what matters for the part ' +
     'and cannot be settled from the request, the picture or research (what it attaches to and how, sizes of the objects ' +
     'involved, loads, cables and access, print limits); never ask what you can look up. After calling it, end your turn ' +
     'without changing the design: the answers are the next message, one line per question.',
