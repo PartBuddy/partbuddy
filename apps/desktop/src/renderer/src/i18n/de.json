@@ -193,6 +193,8 @@
     "chatgpt": {
       "signedIn": "ChatGPT · {account} · {model}",
       "signOut": "Abmelden",
+      "planInUse": "Nutzt deinen ChatGPT-Plan",
+      "manageUsage": "Verbrauch verwalten",
       "waiting": "Warte auf die Anmeldung in deinem Browser",
       "signedOutTitle": "Deinen ChatGPT-Plan nutzen",
       "signedOutBody": "Melde dich mit deinem ChatGPT-Konto an. Anfragen zählen auf deinen Plus- oder Pro-Plan; PartBuddy hält die Anmeldung nur im Windows-Anmeldeinformationsspeicher.",

@@ -193,6 +193,8 @@
     "chatgpt": {
       "signedIn": "ChatGPT · {account} · {model}",
       "signOut": "Sign out",
+      "planInUse": "Using ChatGPT plan",
+      "manageUsage": "Manage usage",
       "waiting": "Waiting for the sign-in in your browser",
       "signedOutTitle": "Use your ChatGPT plan",
       "signedOutBody": "Sign in with your ChatGPT account. Requests count towards your ChatGPT Plus or Pro plan; PartBuddy keeps the sign-in only in the Windows credential store.",
