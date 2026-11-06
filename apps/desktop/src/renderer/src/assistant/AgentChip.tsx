@@ -50,7 +50,13 @@ function chipLabel(t: T, status: AgentStatus): string {
   let detail: string;
   if (!signedIn(status)) detail = t(`assistant.chip.state.${status.state}`);
   // On the chip without the plan's remarks in brackets ("Default (recommended)"); the menu shows them.
-  else detail = modelLabel(t, status)?.replace(/\s*\([^)]*\)/g, '') ?? (status.method === 'claude.ai' && status.plan ? status.plan.charAt(0).toUpperCase() + status.plan.slice(1) : status.agent === 'claude-code' ? t('assistant.chip.apiKey') : '');
+  else {
+    const model = modelLabel(t, status)?.replace(/\s*\([^)]*\)/g, '');
+    const plan = status.method === 'claude.ai' && status.plan ? status.plan.charAt(0).toUpperCase() + status.plan.slice(1) : null;
+    // Billed apart from the subscription: the chip always says so, beside the model.
+    const apiKey = status.agent === 'claude-code' && status.method !== 'claude.ai' ? t('assistant.chip.apiKey') : null;
+    detail = [apiKey, model ?? plan].filter(Boolean).join(' · ');
+  }
   return detail ? `${route} · ${detail}` : route;
 }
 

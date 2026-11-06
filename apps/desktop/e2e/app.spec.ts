@@ -564,7 +564,8 @@ test('the assistant shows the signed-in plan and needs SolidCraft', async () => 
   const { page } = launched;
   // The route sits as a small chip beside the composer; its menu holds the full status.
   const chip = page.getByTestId('agent-status');
-  await expect(chip).toHaveText('Claude Code · Max');
+  // The plan's default model with a named effort; the plan itself is in the menu.
+  await expect(chip).toHaveText('Claude Code · Default · Medium');
   await chip.click();
   await expect(page.getByTestId('agent-detail')).toHaveText('Claude Code 9.9.9 · max subscription');
   await expect(page.getByRole('radio', { name: /^Claude Code/ })).toBeChecked();
@@ -632,7 +633,7 @@ test('Claude Code with an API key runs only when the user allows it', async () =
 
   // Allowed on purpose, the API key is used and clearly labelled; it can be taken back in the menu.
   await page.getByRole('button', { name: 'Use the API key anyway (billed separately)' }).click();
-  await expect(chip).toHaveText('Claude Code · API key');
+  await expect(chip).toHaveText('Claude Code · API key · Default · Medium');
   await chip.click();
   await expect(page.getByTestId('agent-detail')).toContainText('API key, billed separately');
   await page.getByRole('button', { name: 'Use the subscription only' }).click();

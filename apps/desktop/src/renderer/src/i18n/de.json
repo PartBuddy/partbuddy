@@ -256,7 +256,7 @@
       "describe": {
         "claude-code": "Dein Claude-Pro- oder Max-Abo, über Claude Code",
         "chatgpt": "Dein ChatGPT-Abo, hier angemeldet",
-        "local": "Ein Modell auf diesem Rechner über Ollama oder Strata; nichts verlässt ihn"
+        "local": "Ein Modell auf diesem Rechner (Ollama, LM Studio, llama.cpp, vLLM, Strata); nichts verlässt ihn"
       },
       "state": {
         "checking": "wird geprüft",

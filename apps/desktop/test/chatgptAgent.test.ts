@@ -184,7 +184,10 @@ describe('assistant routes', () => {
     const status: AgentStatus = { agent, state: 'ready' };
     const route: AgentBackend = {
       status: () => status,
-      refresh: () => Promise.resolve(status),
+      refresh: () => {
+        calls.push('refresh');
+        return Promise.resolve(status);
+      },
       send: (text) => {
         calls.push(`send:${text}`);
         return Promise.resolve();
@@ -217,7 +220,10 @@ describe('assistant routes', () => {
     await assistant.send('b');
     assistant.signIn();
     expect(claude.calls).toEqual(['send:a', 'stop']);
-    expect(chatgpt.calls).toEqual(['send:b', 'signIn']);
+    // The picked route looks again before it is used.
+    expect(chatgpt.calls).toEqual(['refresh', 'send:b', 'signIn']);
+    await assistant.select('chatgpt');
+    expect(chatgpt.calls.filter((call) => call === 'refresh')).toHaveLength(1);
     expect(state.selected).toBe('chatgpt');
     expect(state.agents.map((a) => a.agent)).toEqual(['claude-code', 'chatgpt', 'local']);
     expect(states.length).toBeGreaterThan(0);

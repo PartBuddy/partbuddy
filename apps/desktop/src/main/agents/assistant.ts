@@ -65,9 +65,13 @@ export class Assistant {
   }
 
   async select(agent: AgentKind): Promise<AssistantState> {
-    if (agent !== this.selected) await this.current().stop();
+    const switched = agent !== this.selected;
+    if (switched) await this.current().stop();
     this.selected = agent;
     this.changed();
+    // The picked route looks again: a server started after the last look is found without "Check again"
+    // (Manuel, 2026-11-06: Strata with Qwen showed only after pressing it).
+    if (switched) await this.current().refresh();
     return this.state();
   }
 

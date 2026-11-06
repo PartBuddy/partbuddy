@@ -225,7 +225,8 @@ export class AgentService implements AgentBackend {
       mkdirSync(this.options.workDir, { recursive: true });
       const models = await (this.options.listModels ?? ((command) => listModels(command, this.options.env, this.options.workDir)))(claude);
       this.models = models;
-      this.choice = allowedChoice(models, this.choice ?? this.options.choices.get('claude-code'));
+      // Like the other routes: without a kept choice the plan's first model (Claude Code's default) with its fallback effort.
+      this.choice = allowedChoice(models, this.choice ?? this.options.choices.get('claude-code')) ?? allowedChoice(models, models[0] ? { model: models[0].id, effort: null } : null);
       this.setStatus(this.current);
     } catch (error) {
       this.options.log(`Claude Code models could not be listed: ${(error as Error).message}`);
