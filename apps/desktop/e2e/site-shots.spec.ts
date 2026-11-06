@@ -8,7 +8,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { launchApp } from './launch';
 
 // The pictures of the website (partbuddy.github.io), taken from the running app: English UI,
-// 1440 × 900 at device scale 2, SolidCraft headless in its own folders, the scripted assistant of
+// 1440 × 900 at device scale 2, light and dark, SolidCraft headless in its own folders, the scripted assistant of
 // test/siteClaude.mjs and the synthetic cable clip of tools/fixtures. Run with `pnpm site:shots`
 // (tools/site-shots.mjs), which sets PARTBUDDY_SITE_SHOTS to the folder the pictures go to.
 // Each picture is tried on its own; what fails is listed at the end instead of stopping the run.
@@ -89,12 +89,15 @@ test('website pictures', async () => {
   // The window itself may be smaller than 1440 × 900 on this display; the renderer is told the size,
   // and CDP takes the picture at that scale (Playwright's screenshot uses the display's own).
   const cdp = await page.context().newCDPSession(page);
-  const shot = async (file: string, scheme: 'light' | 'dark' = 'light') => {
-    await page.emulateMedia({ colorScheme: scheme });
+  // Every picture light and dark (`<name>-dark.png`): the website follows the viewer's theme.
+  const shot = async (file: string) => {
     await page.mouse.move(0, 450);
-    await page.waitForTimeout(900);
-    const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
-    writeFileSync(join(out, `${file}.png`), Buffer.from(data, 'base64'));
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.waitForTimeout(900);
+      const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      writeFileSync(join(out, `${file}${scheme === 'dark' ? '-dark' : ''}.png`), Buffer.from(data, 'base64'));
+    }
     await page.emulateMedia({ colorScheme: 'light' });
   };
   const step = async (file: string, run: () => Promise<void>) => {
@@ -288,7 +291,6 @@ test('website pictures', async () => {
       await send('Fit this housing to the circuit board');
       await expect(page.getByTestId('question-card')).toHaveAttribute('data-kind', 'ask', { timeout: 30_000 });
       await shot('clarify');
-      await shot('clarify-dark', 'dark');
     });
     await step('research', async () => {
       await send('Research the M3 screws for the lid');
