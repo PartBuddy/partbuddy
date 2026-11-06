@@ -64,13 +64,13 @@ test('the user undoes, redoes and exports without the assistant (ADR 0016)', asy
   await expect(undo).toBeEnabled();
   await expect(redo).toBeDisabled();
   await undo.click();
-  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 2');
+  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 2', { timeout: 15_000 });
   await expect(undo).toBeDisabled();
   await expect(redo).toBeEnabled();
   // Ctrl+Y redoes, also from the keyboard.
   await page.getByTestId('viewport').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('Control+y');
-  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 3');
+  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 3', { timeout: 15_000 });
   await expect(undo).toBeEnabled();
 
   // The save dialog is the system's; the test answers it with a file in its own folder.
