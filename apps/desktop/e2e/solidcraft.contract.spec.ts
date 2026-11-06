@@ -1926,6 +1926,12 @@ test('a rough sketch drawn with the mouse goes to the assistant as a picture wit
     await expect(page.getByText(/I see a PNG picture of \d+ KB with the sketch note, its dimension and its label on two sheets with a scale\./)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('composer-sketch')).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('sketch-sent.png') });
+    // The message shows the sketch it took along; a click opens it again to change it (polish round 1).
+    await page.getByTestId('message-attachment').click();
+    await expect(pad).toBeVisible();
+    await expect(canvas).toHaveAttribute('data-items', '4');
+    await pad.getByRole('button', { name: 'Cancel' }).click();
+    await expect(pad).toHaveCount(0);
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
@@ -2092,6 +2098,11 @@ test('a photo goes to the assistant as a picture with its note and is kept in th
     await expect(page.getByText('Make a part that fits the object in the photo.')).toBeVisible();
     await expect(page.getByText(/I see a PNG picture of \d+ KB with the photo note and its file\./)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('composer-photo')).toHaveCount(0);
+    // The message shows the photo; a click shows it large (polish round 1).
+    await page.getByTestId('message-attachment').click();
+    await expect(page.getByTestId('photo-large')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('photo-large')).toHaveCount(0);
     const project = readdirSync(projects).find((name) => existsSync(join(projects, name, 'photos')));
     expect(project).toBeDefined();
     expect(readdirSync(join(projects, project ?? '', 'photos'))).toEqual([expect.stringMatching(/^photo-\d{8}-\d{6}\.png$/)]);

@@ -2,7 +2,7 @@ import { IconArrowUp, IconPencil, IconPhoto, IconPlayerStop, IconPointer, IconRe
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button as AriaButton, Form, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
+import { Button as AriaButton, Dialog, Form, Modal, ModalOverlay, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
 
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
@@ -17,7 +17,7 @@ import { Answer } from './Answer';
 import { rowsOf } from './rows';
 import { StepCard } from './StepCard';
 import { Queries, WorkGroup } from './WorkGroup';
-import { selectedStatus, useAssistant, type ConversationItem } from './store';
+import { selectedStatus, useAssistant, type Attachment, type ConversationItem } from './store';
 import { emptySketch, SketchPad, type SketchPicture, type SketchState } from './SketchPad';
 import { photoPicture } from './photo';
 import { SourceCard } from './SourceCard';
@@ -149,7 +149,7 @@ const FAILURE_REASONS = new Set(['failed', 'error_during_execution', 'error_max_
 /** Requests an empty chat offers as a start: a holder, a housing, a part after a photo. */
 const EXAMPLES = ['holder', 'housing', 'photo'] as const;
 
-function Item({ item, quiet, retry = null }: { item: ConversationItem; quiet: boolean; retry?: (() => void) | null }) {
+function Item({ item, quiet, retry = null, open }: { item: ConversationItem; quiet: boolean; retry?: (() => void) | null; open?: (attachment: Attachment) => void }) {
   const { t } = useTranslation();
   switch (item.kind) {
     case 'user':
@@ -173,6 +173,19 @@ function Item({ item, quiet, retry = null }: { item: ConversationItem; quiet: bo
               <IconPhoto className="size-icon-sm shrink-0" aria-hidden />
               {t('assistant.photo.sent')}
             </span>
+          ) : null}
+          {item.attachment && open ? (
+            // The picture that went along; a sketch opens again to change it, a photo shows large.
+            <AriaButton
+              onPress={() => {
+                if (item.attachment) open(item.attachment);
+              }}
+              aria-label={t(item.attachment.sketch ? 'assistant.sketch.reopen' : 'assistant.photo.show')}
+              className="overflow-hidden rounded-md border border-border outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-focus"
+              data-testid="message-attachment"
+            >
+              <img src={item.attachment.thumbnail} alt="" className="block h-control-lg w-auto" draggable={false} />
+            </AriaButton>
           ) : null}
           <p className="rounded-lg bg-accent-subtle px-3 py-2 text-md whitespace-pre-wrap text-text">{item.text}</p>
         </div>
@@ -284,7 +297,19 @@ export function AssistantPanel() {
     setDraft('');
     setSketch(null);
     setPhoto(null);
+    useAssistant.getState().attachNext(photo ? { thumbnail: photo.thumbnail, photo: photo.png } : sketch ? { thumbnail: sketch.picture.thumbnail, sketch: sketch.state } : null);
     void sendToAssistant(text, selections, undefined, photo ? undefined : (sketch ?? undefined), photo?.png);
+  };
+  // A sent sketch opens again as the start of a new one; a sent photo shows large.
+  const [padStart, setPadStart] = useState<SketchState | null>(null);
+  const [shownPhoto, setShownPhoto] = useState<string | null>(null);
+  const openAttachment = (attachment: Attachment) => {
+    if (attachment.sketch) {
+      setPadStart(attachment.sketch);
+      setSketching(true);
+    } else if (attachment.photo) {
+      setShownPhoto(URL.createObjectURL(new Blob([new Uint8Array(attachment.photo)], { type: 'image/png' })));
+    }
   };
   // After a failed turn: the last message once more, as text (shortcut: a sketch or photo that went with it does not go again).
   const lastUser = items.findLast((item) => item.kind === 'user');
@@ -371,7 +396,7 @@ export function AssistantPanel() {
           ) : row.kind === 'work' ? (
             <WorkGroup key={row.key} entries={row.entries} live={row.live} disabled={busy || !connected} />
           ) : (
-            <Item key={row.item.key} item={row.item} quiet={row.quiet} retry={row.item === items.at(-1) ? retryLast : null} />
+            <Item key={row.item.key} item={row.item} quiet={row.quiet} retry={row.item === items.at(-1) ? retryLast : null} open={openAttachment} />
           ),
         )}
         {busy ? <Busy label={t(`assistant.working.${status.agent}`)} /> : null}
@@ -547,17 +572,37 @@ export function AssistantPanel() {
       </Form>
       {sketching ? (
         <SketchPad
-        initial={sketch?.state ?? emptySketch()}
+        initial={sketch?.state ?? padStart ?? emptySketch()}
         onClose={() => {
           setSketching(false);
+          setPadStart(null);
         }}
         onAttach={(state, picture) => {
           setSketch({ state, picture });
           setPhoto(null);
           setSketching(false);
+          setPadStart(null);
           composer.current?.focus();
         }}
         />
+      ) : null}
+      {shownPhoto ? (
+        <ModalOverlay
+          isOpen
+          isDismissable
+          onOpenChange={(next) => {
+            if (next) return;
+            URL.revokeObjectURL(shownPhoto);
+            setShownPhoto(null);
+          }}
+          className="fixed inset-0 z-10 flex items-center justify-center bg-overlay p-6"
+        >
+          <Modal className="max-h-full max-w-full overflow-hidden rounded-lg border border-border bg-surface-raised shadow-3">
+            <Dialog aria-label={t('assistant.photo.show')} className="outline-none" data-testid="photo-large">
+              <img src={shownPhoto} alt="" className="block max-h-[calc(100dvh_-_3rem)] max-w-full object-contain" />
+            </Dialog>
+          </Modal>
+        </ModalOverlay>
       ) : null}
     </aside>
   );

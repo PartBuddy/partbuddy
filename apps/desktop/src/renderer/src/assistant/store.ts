@@ -1,11 +1,22 @@
 import { create } from 'zustand';
 
+import type { SketchState } from '../../../shared/sketch';
 import type { AgentEvent, AgentQuestion, AgentStatus, AssistantState, ResearchSource, StoredChat, StoredChatItem, WorkStep, WorkStepState } from '../../../shared/contract';
 
 /** Faces a step changed, by body and SolidCraft face name (indices change on rebuilds, ADR 0004). */
 export interface ChangedFaces {
   body: string;
   faces: string[];
+}
+
+/**
+ * The picture a message took along, as this window sent it (polish round 1): a small picture for the
+ * chat, and the sketch to open again or the photo to show large. Not kept in the chat archive.
+ */
+export interface Attachment {
+  thumbnail: string;
+  sketch?: SketchState | undefined;
+  photo?: Uint8Array | undefined;
 }
 
 export type ConversationItem =
@@ -17,6 +28,7 @@ export type ConversationItem =
       selected?: { faces: number; edges: number; vertices: number; bodies: string[] } | undefined;
       sketch?: true | undefined;
       photo?: true | undefined;
+      attachment?: Attachment | undefined;
     }
   | { kind: 'assistant'; key: number; text: string; open: boolean }
   | {
@@ -70,6 +82,9 @@ interface AssistantStore {
   reset: () => void;
   /** The view's picture and changed faces of a step, taken once its revision is on screen. */
   attachPreview: (step: string, preview: string | null, changed: ChangedFaces[]) => void;
+  /** The picture the next message with a sketch or photo goes with, set when it is sent. */
+  nextAttachment: Attachment | null;
+  attachNext: (attachment: Attachment | null) => void;
 }
 
 let nextKey = 1;
@@ -192,7 +207,17 @@ export const useAssistant = create<AssistantStore>()((set) => ({
     set({ state });
   },
   apply: (event) => {
-    set((state) => ({ items: reduce(state.items, event) }));
+    set((state) => {
+      const items = reduce(state.items, event);
+      // The message with a picture takes the picture this window sent with it.
+      const last = items.at(-1);
+      if (event.type !== 'user' || !state.nextAttachment || last?.kind !== 'user' || !(last.sketch || last.photo)) return { items };
+      return { items: [...items.slice(0, -1), { ...last, attachment: state.nextAttachment }], nextAttachment: null };
+    });
+  },
+  nextAttachment: null,
+  attachNext: (attachment) => {
+    set({ nextAttachment: attachment });
   },
   restore: (chat) => {
     set((state) => ({ items: [...fromStored(chat), ...state.items] }));

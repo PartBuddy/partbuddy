@@ -367,7 +367,8 @@
       "kept": "Earlier sketches of this project",
       "keptNone": "No sketch sent from this project yet.",
       "keptLoading": "Reading the sketches …",
-      "keptElements": "{count, plural, one {# element} other {# elements}}"
+      "keptElements": "{count, plural, one {# element} other {# elements}}",
+      "reopen": "Open this sketch again"
     },
     "photo": {
       "button": "Photo",
@@ -377,7 +378,8 @@
       "failed": "The picture could not be read. PNG, JPEG and WebP work.",
       "drop": "Drop the picture: it goes with your message",
       "sent": "With a photo",
-      "defaultText": "Make a part that fits the object in the photo."
+      "defaultText": "Make a part that fits the object in the photo.",
+      "show": "Show the photo large"
     },
     "local": {
       "ready": "{server} · {model}",

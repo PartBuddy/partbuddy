@@ -367,7 +367,8 @@
       "kept": "Frühere Skizzen dieses Projekts",
       "keptNone": "Aus diesem Projekt wurde noch keine Skizze geschickt.",
       "keptLoading": "Lese die Skizzen …",
-      "keptElements": "{count, plural, one {# Element} other {# Elemente}}"
+      "keptElements": "{count, plural, one {# Element} other {# Elemente}}",
+      "reopen": "Diese Skizze wieder öffnen"
     },
     "photo": {
       "button": "Foto",
@@ -377,7 +378,8 @@
       "failed": "Das Bild ließ sich nicht lesen. PNG, JPEG und WebP gehen.",
       "drop": "Bild loslassen: es geht mit deiner Nachricht",
       "sent": "Mit Foto",
-      "defaultText": "Mach mir ein passendes Teil für den Gegenstand auf dem Foto."
+      "defaultText": "Mach mir ein passendes Teil für den Gegenstand auf dem Foto.",
+      "show": "Foto groß zeigen"
     },
     "local": {
       "ready": "{server} · {model}",
