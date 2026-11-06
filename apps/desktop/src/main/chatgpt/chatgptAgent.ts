@@ -5,7 +5,7 @@ import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } fro
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { instructionsFor, MAX_STEPS, policyToolSet } from '../agents/loop';
+import { instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself } from '../agents/loop';
 import { sourceOfUrl } from '../agents/research';
 import { composeMessage } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
@@ -171,7 +171,7 @@ export class ChatGptAgent implements AgentBackend {
             providerOptions: { openai: { namespace: { name: 'solidcraft', description: 'SolidCraft CAD: inspect and change the open design.' } } },
           })),
           ...(research ? { web_search: provider.tools.webSearch({}) } : {}) },
-        stopWhen: stepCountIs(MAX_STEPS),
+        stopWhen: [stepCountIs(MAX_STEPS), repeatsItself],
         abortSignal: signal,
         providerOptions: {
           openai: {
@@ -191,6 +191,11 @@ export class ChatGptAgent implements AgentBackend {
         if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error));
       }
       this.history.push(...(await result.responseMessages));
+      if (repeatsItself({ steps: await result.steps })) {
+        this.options.event({ type: 'error', message: LOOP_NOTICE });
+        this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: 'failed' });
+        return;
+      }
       this.options.event({ type: 'done', ok: true, durationMs: Date.now() - started, detail: null });
     } catch (error) {
       const stopped = signal.aborted;

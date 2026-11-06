@@ -147,7 +147,9 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   so 16K context is the floor. LM Studio 0.4.28 loads on demand with 8,192 tokens; PartBuddy loads
   with `POST /api/v1/models/load {model, context_length}`. llama.cpp b12144 gives `supports_tools` in
   `/props` and `meta.n_ctx` in `/v1/models`. vLLM needs `--enable-auto-tool-choice --tool-call-parser`;
-  Qwen3-1.7B called command names as tools and looped, Qwen3-4B works.
+  Qwen3-1.7B called command names as tools and looped, Qwen3-4B works. Loop guard: every route stops
+  a turn after three rounds of the same tool calls (`repeatsItself` in `agents/loop.ts`; the gate proxy
+  refuses the third identical call in a row for Claude Code).
 - Test servers on the home server: llama.cpp in `%USERPROFILE%\.partbuddy\servers\llama.cpp` (`llama-server -hf
   unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M -c 16384 --jinja`), LM Studio installed (`lms server start`), vLLM
   in the WSL distro `vllm` (`/opt/vllm-run/start.sh`); `localhostForwarding` is off for the CI runners,

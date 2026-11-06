@@ -1,4 +1,4 @@
-import { jsonSchema, tool, type ToolSet } from 'ai';
+import { jsonSchema, tool, type StopCondition, type ToolSet } from 'ai';
 
 import type { AgentEvent } from '../../shared/contract';
 import type { ToolResult, UpstreamTools } from './gateProxy';
@@ -27,6 +27,26 @@ const INSTRUCTIONS = [
 
 /** Tool rounds per turn before the loop stops. */
 export const MAX_STEPS = 25;
+
+/** Rounds in a row with the same tool calls after which the loop stops: small models can circle. */
+export const REPEAT_LIMIT = 3;
+
+/** Told to the user when {@link repeatsItself} stopped a turn. */
+export const LOOP_NOTICE = 'The model repeated the same tool calls three times in a row, so PartBuddy stopped this turn. Rephrase the request or pick a stronger model.';
+
+/** What a round called; rounds of only unknown or unreadable calls count as one kind, whatever the names. */
+function roundCalls(step: Parameters<StopCondition<ToolSet>>[0]['steps'][number]): string {
+  const calls = step.toolCalls;
+  if (calls.length > 0 && calls.every((call) => call.invalid === true)) return 'invalid';
+  return JSON.stringify(calls.map((call) => [call.toolName, call.input as unknown]));
+}
+
+/** Stop condition: the last {@link REPEAT_LIMIT} rounds made the same tool calls (or only invalid ones). */
+export const repeatsItself: StopCondition<ToolSet> = ({ steps }) => {
+  if (steps.length < REPEAT_LIMIT) return false;
+  const rounds = steps.slice(-REPEAT_LIMIT).map(roundCalls);
+  return rounds[0] !== '[]' && rounds.every((round) => round === rounds[0]);
+};
 
 /**
  * PartBuddy's role, then SolidCraft's server instructions with PartBuddy's tool notes: the gate

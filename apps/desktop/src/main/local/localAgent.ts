@@ -5,7 +5,7 @@ import { createOllama } from 'ollama-ai-provider-v2';
 import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { instructionsFor, MAX_STEPS, policyToolSet } from '../agents/loop';
+import { instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself } from '../agents/loop';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import { composeMessage } from '../agents/viewContext';
 import { contextFor, findOllama, LOCAL_CONTEXT, MIN_CONTEXT, OLLAMA_URL, type OllamaFound } from './ollama';
@@ -347,7 +347,7 @@ export class LocalAgent implements AgentBackend {
             this.options.event(event);
           },
         }),
-        stopWhen: stepCountIs(MAX_STEPS),
+        stopWhen: [stepCountIs(MAX_STEPS), repeatsItself],
         abortSignal: signal,
         providerOptions,
         // A local server that refuses a request refuses it again; the user gets its reason at once.
@@ -358,6 +358,11 @@ export class LocalAgent implements AgentBackend {
         if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error));
       }
       this.history.push(...(await result.responseMessages));
+      if (repeatsItself({ steps: await result.steps })) {
+        this.options.event({ type: 'error', message: LOOP_NOTICE });
+        this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: 'failed' });
+        return;
+      }
       this.options.event({ type: 'done', ok: true, durationMs: Date.now() - started, detail: null });
     } catch (error) {
       const stopped = signal.aborted;

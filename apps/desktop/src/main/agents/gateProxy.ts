@@ -5,6 +5,7 @@ import { Readable } from 'node:stream';
 
 import { Server, WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server';
 
+import { REPEAT_LIMIT } from './loop';
 import { decide } from './policy';
 import { withToolNotes } from './toolNotes';
 
@@ -42,6 +43,9 @@ export interface ToolCallRecord {
 
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
+/** Given to the model instead of a call it repeats {@link REPEAT_LIMIT} times in a row. */
+export const REPEAT_REASON = `PartBuddy refused this call: it is the same call with the same arguments ${String(REPEAT_LIMIT)} times in a row. Stop repeating it and tell the user what blocks you.`;
+
 /**
  * MCP server on 127.0.0.1 that an external agent (Claude Code) uses instead of SolidCraft's own
  * MCP server (ADR 0015). It lists SolidCraft's tools unchanged and runs every call through the
@@ -53,11 +57,19 @@ export class GateProxy {
   readonly token = randomBytes(32).toString('hex');
   port = 0;
   private sequence = 0;
+  private lastCall = '';
+  private repeats = 0;
 
   constructor(
     private readonly upstream: UpstreamTools,
     private readonly onCall: (record: ToolCallRecord) => void,
   ) {}
+
+  /** A new user turn: calls before it no longer count as repeats. */
+  newTurn(): void {
+    this.lastCall = '';
+    this.repeats = 0;
+  }
 
   get url(): string {
     return `http://127.0.0.1:${this.port}/mcp`;
@@ -143,7 +155,10 @@ export class GateProxy {
       this.sequence += 1;
       const id = `call-${this.sequence}`;
       const summary = JSON.stringify(args).slice(0, 2000);
-      const decision = decide(name, args);
+      const key = JSON.stringify([name, args]);
+      this.repeats = key === this.lastCall ? this.repeats + 1 : 1;
+      this.lastCall = key;
+      const decision = this.repeats >= REPEAT_LIMIT ? { allow: false as const, reason: REPEAT_REASON } : decide(name, args);
       if (!decision.allow) {
         this.onCall({ id, name, summary, decision: 'denied', reason: decision.reason });
         return { content: [{ type: 'text' as const, text: decision.reason }], isError: true };

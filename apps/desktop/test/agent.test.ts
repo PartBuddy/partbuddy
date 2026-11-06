@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentService } from '../src/main/agents/agentService';
 import { findClaudeCode, parseStreamLine } from '../src/main/agents/claudeCode';
-import { GateProxy, type ToolCallRecord, type UpstreamTools } from '../src/main/agents/gateProxy';
+import { GateProxy, REPEAT_REASON, type ToolCallRecord, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
 import { TOOL_NOTES } from '../src/main/agents/toolNotes';
 import { reduce, type ConversationItem } from '../src/renderer/src/assistant/store';
@@ -125,6 +125,25 @@ describe('gate proxy', () => {
     expect(result.isError).toBe(true);
     expect(calls).toEqual([]);
     expect(records.at(-1)).toMatchObject({ name: 'export', decision: 'denied' });
+  });
+
+  it('refuses the third identical call in a row until the next turn', async () => {
+    const { proxy, calls, records } = await startProxy();
+    const client = await connect(proxy);
+    const inspect = () => client.callTool({ name: 'inspect_design', arguments: { depth: 1 } });
+    await inspect();
+    await inspect();
+    const third = await inspect();
+    expect(third.isError).toBe(true);
+    expect(calls).toHaveLength(2);
+    expect(records.at(-1)).toMatchObject({ name: 'inspect_design', decision: 'denied', reason: REPEAT_REASON });
+    // Other arguments, or a new turn, start the count again.
+    await client.callTool({ name: 'inspect_design', arguments: { depth: 2 } });
+    await inspect();
+    await inspect();
+    proxy.newTurn();
+    await inspect();
+    expect(calls).toHaveLength(6);
   });
 
   it('refuses requests without the token or for another host', async () => {
