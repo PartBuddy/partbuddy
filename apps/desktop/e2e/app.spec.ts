@@ -589,6 +589,12 @@ test('model and effort are chosen at the chip and kept for new chats (B1)', asyn
     await menu.getByTestId('effort-option').filter({ hasText: /^Low$/ }).click();
     await expect(menu.getByRole('radio', { name: 'Low' })).toBeChecked();
     await expect(chip).toHaveText('Claude Code · Sonnet 9 · Low');
+    // A long model name stays on one line, without the plan's remark in brackets (seen 2026-11-06).
+    await menu.getByTestId('model-option').filter({ hasText: 'Default (recommended)' }).click();
+    await expect(chip).toHaveText('Claude Code · Default · Low');
+    expect((await chip.boundingBox())?.height ?? 99).toBeLessThan(40);
+    await menu.getByTestId('model-option').filter({ hasText: 'Sonnet 9' }).click();
+    await expect(chip).toHaveText('Claude Code · Sonnet 9 · Low');
     await menu.getByTestId('model-keep').click();
     await expect(menu.getByTestId('model-is-default')).toBeVisible();
     const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="agent-menu"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();

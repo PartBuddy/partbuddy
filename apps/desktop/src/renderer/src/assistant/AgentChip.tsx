@@ -16,6 +16,8 @@ function signedIn(status: AgentStatus): boolean {
   return status.state === 'ready' || status.state === 'busy';
 }
 
+const DOT: Record<Tone, string> = { success: 'bg-success', neutral: 'bg-text-subtle', warning: 'bg-warning' };
+
 function toneOf(status: AgentStatus): Tone {
   if (signedIn(status)) return 'success';
   return status.state === 'checking' ? 'neutral' : 'warning';
@@ -47,7 +49,8 @@ function chipLabel(t: T, status: AgentStatus): string {
   const route = t(`assistant.routes.${status.agent}`);
   let detail: string;
   if (!signedIn(status)) detail = t(`assistant.chip.state.${status.state}`);
-  else detail = modelLabel(t, status) ?? (status.method === 'claude.ai' && status.plan ? status.plan.charAt(0).toUpperCase() + status.plan.slice(1) : status.agent === 'claude-code' ? t('assistant.chip.apiKey') : '');
+  // On the chip without the plan's remarks in brackets ("Default (recommended)"); the menu shows them.
+  else detail = modelLabel(t, status)?.replace(/\s*\([^)]*\)/g, '') ?? (status.method === 'claude.ai' && status.plan ? status.plan.charAt(0).toUpperCase() + status.plan.slice(1) : status.agent === 'claude-code' ? t('assistant.chip.apiKey') : '');
   return detail ? `${route} · ${detail}` : route;
 }
 
@@ -242,10 +245,14 @@ export function AgentChip() {
     <DialogTrigger>
       <AriaButton
         aria-label={t('assistant.chip.label', { status: label })}
-        className="inline-flex min-w-0 items-center gap-1 rounded-full border border-border bg-surface-sunken py-0 pl-2 pr-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus pressed:bg-surface-hover"
+        className="inline-flex h-control-md min-w-0 max-w-full items-center gap-2 rounded-full border border-border bg-surface-sunken pl-3 pr-2 text-sm text-text-muted outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus pressed:bg-surface-hover"
         data-testid="agent-status"
       >
-        <StatusDot tone={toneOf(status)} label={label} />
+        {/* One line, cut with an ellipsis when the chat is narrow; the full text is the tooltip and the label. */}
+        <span aria-hidden className={`size-dot shrink-0 rounded-full ${DOT[toneOf(status)]}`} />
+        <span className="min-w-0 truncate whitespace-nowrap" title={label}>
+          {label}
+        </span>
         <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
       </AriaButton>
       <Popover placement="top start" offset={6} className="w-dialog-sm max-w-full rounded-md border border-border bg-surface-raised shadow-2">
