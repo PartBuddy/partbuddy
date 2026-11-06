@@ -777,7 +777,9 @@
     "choose": "Programm wählen …",
     "restart": "PartBuddy neu starten",
     "close": "Schließen",
-    "reading": "SolidCraft wird geprüft …"
+    "reading": "SolidCraft wird geprüft …",
+    "works": "Mit dieser Version arbeitet PartBuddy.",
+    "detailsTitle": "Mehr zu den SolidCraft-Versionen"
   },
   "project": {
     "title": "Projekt",

@@ -777,7 +777,9 @@
     "choose": "Choose program …",
     "restart": "Restart PartBuddy",
     "close": "Close",
-    "reading": "Checking SolidCraft …"
+    "reading": "Checking SolidCraft …",
+    "works": "PartBuddy works with this version.",
+    "detailsTitle": "About SolidCraft versions"
   },
   "project": {
     "title": "Project",

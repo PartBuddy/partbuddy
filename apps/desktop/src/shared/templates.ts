@@ -200,12 +200,22 @@ const GERMAN: Record<string, string> = {
   'Length of the cone; at least half the difference of the diameters, so it prints without support': 'Länge des Kegels; mindestens die halbe Durchmesser-Differenz, damit er ohne Stützen druckt',
 };
 
-/** The SolidCraft script of a template: its parameters first, then the geometry over them; comments in German on request. */
+/** The body names in German (polish round 3); every step that names a body follows. */
+const GERMAN_BODIES: Record<string, string> = { Box: 'Box', Lid: 'Deckel', Housing: 'Gehäuse', 'Wall holder': 'Wandhalter', 'Cable clip': 'Kabelclip', Adapter: 'Adapter' };
+
+/** A step with its parameter comment and the bodies it names in German. */
+function inGerman(step: Step): Step {
+  const params = { ...step.params };
+  const comment = step.command === 'parameters.add' ? params.comment : undefined;
+  if (typeof comment === 'string' && GERMAN[comment]) params.comment = GERMAN[comment];
+  const body = (name: unknown) => (typeof name === 'string' ? (GERMAN_BODIES[name] ?? name) : name);
+  for (const key of ['body_name', 'body'] as const) if (key in params) params[key] = body(params[key]);
+  if (Array.isArray(params.targets)) params.targets = params.targets.map(body);
+  return { ...step, params };
+}
+
+/** The SolidCraft script of a template: its parameters first, then the geometry over them; in German on request. */
 export function templateSteps(id: TemplateId, german = false): Step[] {
   const steps = BUILDERS[id]();
-  if (!german) return steps;
-  return steps.map((step) => {
-    const comment = step.command === 'parameters.add' ? step.params.comment : undefined;
-    return typeof comment === 'string' && GERMAN[comment] ? { ...step, params: { ...step.params, comment: GERMAN[comment] } } : step;
-  });
+  return german ? steps.map(inGerman) : steps;
 }

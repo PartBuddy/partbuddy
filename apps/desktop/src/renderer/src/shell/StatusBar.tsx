@@ -10,6 +10,8 @@ export function StatusBar() {
   const { t, i18n } = useTranslation();
   const model = useStudio((s) => s.model);
   const selection = useStudio((s) => s.selection);
+  // On the start page no part is shown: no counts of bodies and faces, no hints how to pick (polish round 3).
+  const homeOpen = useStudio((s) => s.homeOpen);
   const hover = useStudio((s) => s.hover);
   const latency = useStudio((s) => s.latency);
   const notice = useStudio((s) => s.notice);
@@ -40,7 +42,7 @@ export function StatusBar() {
       <span>{t('status.units')}</span>
       <MaterialMenu />
       <PrintCheckChip />
-      {bodies.length > 0 ? (
+      {bodies.length > 0 && !homeOpen ? (
         <span
           data-testid="mesh-summary"
           data-revision={model.status === 'ready' ? model.revision : undefined}
@@ -49,14 +51,14 @@ export function StatusBar() {
           {t('status.mesh', { bodies: bodies.length, faces })}
         </span>
       ) : null}
-      {sketches.length > 0 ? (
+      {sketches.length > 0 && !homeOpen ? (
         <span data-testid="sketch-summary">
           {editing
             ? t('status.sketchesEditing', { count: sketches.length, name: editing.name })
             : t('status.sketches', { count: sketches.length })}
         </span>
       ) : null}
-      {focusName ? (
+      {homeOpen ? null : focusName ? (
         <span className="min-w-0 truncate tabular-nums" title={focusName} data-testid="focus-name" data-name={focusName}>
           {focusLabel}
         </span>
