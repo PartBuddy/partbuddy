@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_KINDS, defaultBlock, hasSize, hookVector, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, type FeatureBlock } from '../src/shared/blocks';
+import { BLOCK_KINDS, defaultBlock, hasSize, hookVector, LOGO_MAX_BYTES, logoProblem, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, type FeatureBlock } from '../src/shared/blocks';
 import { featureBlockSchema } from '../src/shared/contract';
 import { blockPhrase, describeCommands } from '../src/shared/stepPhrases';
 
@@ -103,9 +103,31 @@ describe('function blocks (F1)', () => {
     expect(hasSize('snapFit')).toBe(false);
   });
 
+  it('engraves a logo with an extrusion, so a ring keeps its hole, and builds it up the other way', () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>';
+    const block = { ...defaultBlock('logo', 'Body1', at, 'M3', [0, 0, 1]), svg, name: 'ring' } as FeatureBlock;
+    const steps = stepsOf(block);
+    expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.insert_svg', 'solid.extrude']);
+    expect(steps[1]?.params).toEqual({ text: svg, at: [0, 0], width: 20, align: 'center' });
+    expect(steps[2]?.params).toEqual({ distance: '-0.6 mm', operation: 'cut' });
+    expect(stepsOf({ ...block, mode: 'emboss', depth: 0.4 } as FeatureBlock)[2]?.params).toEqual({ distance: '0.4 mm', operation: 'join' });
+    expect(blockPhrase(block)).toEqual({ key: 'logo', values: { name: 'ring', mode: 'deboss' } });
+    // A logo without a file is not built.
+    expect(featureBlockSchema.safeParse(defaultBlock('logo', 'Body1', at, 'M3', [0, 0, 1])).success).toBe(false);
+  });
+
+  it('turns away files that are no SVG drawing or too big for a logo', () => {
+    expect(logoProblem('<svg viewBox="0 0 1 1"/>')).toBeNull();
+    expect(logoProblem('<?xml version="1.0"?>\n<svg\n xmlns="http://www.w3.org/2000/svg"></svg>')).toBeNull();
+    expect(logoProblem('<html><body>no</body></html>')).toBe('notSvg');
+    expect(logoProblem(`<svg>${'x'.repeat(LOGO_MAX_BYTES)}</svg>`)).toBe('tooBig');
+  });
+
   it('keeps every default block valid for the contract and named in the work log', () => {
     for (const kind of BLOCK_KINDS) {
-      const block = defaultBlock(kind, 'Body1', at, 'M3', [0, 0, 1]);
+      const plain = defaultBlock(kind, 'Body1', at, 'M3', [0, 0, 1]);
+      // A logo needs its file before it counts as a block.
+      const block = plain.block === 'logo' ? { ...plain, svg: '<svg/>', name: 'logo' } : plain;
       expect(featureBlockSchema.safeParse(block).success).toBe(true);
       expect('normal' in block).toBe(needsNormal(kind));
       expect(blockPhrase(block).key).not.toBe('command');

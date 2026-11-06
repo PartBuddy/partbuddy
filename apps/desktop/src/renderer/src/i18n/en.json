@@ -824,6 +824,14 @@
     },
     "strain": "About {strain} % strain when it snaps in",
     "strainHigh": "About {strain} % strain when it snaps in – more than printed PLA takes (about 2 %, PETG about 3 %): make the arm longer or thinner, or the catch shallower",
+    "logoChoose": "Choose SVG file …",
+    "logoOther": "Other file …",
+    "logoWaiting": "Choose an SVG file for the logo",
+    "logoProblems": {
+      "tooBig": "The file is larger than 512 KB – a logo is usually much smaller; an embedded picture cannot be built.",
+      "notSvg": "This is no SVG drawing.",
+      "unreadable": "The file could not be read."
+    },
     "ready": "Shown in the view – Build makes it",
     "kinds": {
       "tappedHole": "Tapped hole",
@@ -833,6 +841,7 @@
       "nutTrap": "Nut trap",
       "slot": "Slot",
       "text": "Text",
+      "logo": "Logo (SVG)",
       "lip": "Lip or groove for a lid",
       "snapFit": "Snap fit"
     },
@@ -855,7 +864,8 @@
       "slot": "A slot as wide as the normal clearance hole, centred on the point, to adjust the screw.",
       "text": "Text centred on the point, reading level. Engraved from 0.6 mm and embossed from 0.4 mm depth prints cleanly; letters from about 5 mm high.",
       "lip": "For a shelled case: pick the face on the rim. The lip goes on the base, the groove with its gap into the lid.",
-      "snapFit": "A flexible arm with a catch, standing out of the face. Print it lying down so the layers run along the arm: standing upright it breaks along a layer. The other part needs an opening as deep as the catch."
+      "snapFit": "A flexible arm with a catch, standing out of the face. Print it lying down so the layers run along the arm: standing upright it breaks along a layer. The other part needs an opening as deep as the catch.",
+      "logo": "An SVG file centred on the point, as wide as given. Only filled areas are built: turn text and lines into paths first (in Inkscape: Path › Object to Path, Stroke to Path)."
     }
   }
 }

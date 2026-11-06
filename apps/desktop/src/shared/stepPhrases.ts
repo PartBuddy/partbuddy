@@ -64,6 +64,7 @@ export const STEP_PHRASE_KEYS = [
   'lip',
   'groove',
   'snapFit',
+  'logo',
   'command',
 ] as const;
 
@@ -340,6 +341,8 @@ export function blockPhrase(block: FeatureBlock): StepPhrase {
       return { key: block.type, values: { width: round(block.width) } };
     case 'snapFit':
       return { key: 'snapFit', values: { length: round(block.length) } };
+    case 'logo':
+      return { key: 'logo', values: { name: block.name.slice(0, 40) || 'SVG', mode: block.mode } };
     default:
       return describeCommands([stepOf(block)])[0] ?? { key: 'command', values: { command: block.block } };
   }
@@ -401,6 +404,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     lip: 'Lip {width} mm',
     groove: 'Groove {width} mm',
     snapFit: 'Snap fit {length} mm',
+    logo: '{mode, select, emboss {Logo “{name}” embossed} other {Logo “{name}” engraved}}',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -454,6 +458,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     lip: 'Deckelrand {width} mm',
     groove: 'Nut {width} mm',
     snapFit: 'Schnapphaken {length} mm',
+    logo: '{mode, select, emboss {Logo „{name}“ erhaben} other {Logo „{name}“ vertieft}}',
     command: 'SolidCraft: {command}',
   },
 };
