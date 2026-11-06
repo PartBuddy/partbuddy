@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
-import type { ModelChoice, ModelOption, ResearchSource } from '../../shared/contract';
+import type { ModelChoice, ModelOption, ResearchSource, AgentStatus } from '../../shared/contract';
 import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
 import { CLAUDE_RESEARCH_TOOLS, RESEARCH_GUIDANCE, sourceOfSearchResult, sourceOfToolUse } from './research';
 import { VIEW_GUIDANCE } from './viewContext';
@@ -165,7 +165,8 @@ export type ClaudeEvent =
   | { type: 'source'; source: ResearchSource }
   | { type: 'text'; text: string }
   | { type: 'done'; ok: boolean; durationMs: number | null; detail: string | null }
-  | { type: 'exited'; code: number | null };
+  | { type: 'exited'; code: number | null }
+  | { type: 'usage'; windows: NonNullable<AgentStatus['usage']> };
 
 /** Maps one stream-json line of Claude Code to the events PartBuddy shows. */
 export function parseStreamLine(line: string): ClaudeEvent[] {
@@ -186,6 +187,21 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
         return [{ type: 'textDelta', text: event.delta.text }];
       }
       return [];
+    }
+    // After each request, Claude Code 2.1.302 reports the plan's limits, e.g.
+    // {"type":"rate_limit_event","rate_limit_info":{"unifiedWindows":{"seven_day":{"utilization":0.69,"resetsAt":1794117600}}}}.
+    case 'rate_limit_event': {
+      const windows = (message.rate_limit_info as { unifiedWindows?: unknown } | undefined)?.unifiedWindows;
+      if (typeof windows !== 'object' || windows === null) return [];
+      const usage = Object.entries(windows as Record<string, { utilization?: unknown; resetsAt?: unknown } | null>)
+        .filter(([, entry]) => typeof entry?.utilization === 'number' && Number.isFinite(entry.utilization))
+        .slice(0, 4)
+        .map(([window, entry]) => ({
+          window: window.slice(0, 40),
+          used: Math.min(1, Math.max(0, entry?.utilization as number)),
+          resetsAt: typeof entry?.resetsAt === 'number' && Number.isInteger(entry.resetsAt) && entry.resetsAt >= 0 ? entry.resetsAt : null,
+        }));
+      return usage.length > 0 ? [{ type: 'usage', windows: usage }] : [];
     }
     case 'assistant': {
       const content = (message.message as { content?: unknown } | undefined)?.content;

@@ -52,6 +52,7 @@ export class AgentService implements AgentBackend {
   private claude: ClaudeCommand | null = null;
   private session: ClaudeSession | null = null;
   private proxy: GateProxy | null = null;
+  private usage: AgentStatus['usage'] | null = null;
   private configPath: string | null = null;
   /** The models of the user's plan, once Claude Code listed them. */
   private models: ModelOption[] | null = null;
@@ -207,6 +208,10 @@ export class AgentService implements AgentBackend {
           }
           this.options.log(`Claude Code session ended (${event.code ?? 'killed'})`);
           break;
+        case 'usage':
+          this.usage = event.windows;
+          this.setStatus(this.current);
+          break;
         case 'started':
           // Claude Code reports `init` at the start of every turn of the same session (checked
           // with 2.1.302: same session id, earlier messages remembered), so only the first counts.
@@ -234,7 +239,12 @@ export class AgentService implements AgentBackend {
   }
 
   private setStatus(status: AgentStatus): void {
-    this.current = { ...withoutChoice(status), ...choiceStatus(this.models, this.choice, this.options.choices.get('claude-code')) };
+    this.current = {
+      ...withoutChoice(status),
+      ...choiceStatus(this.models, this.choice, this.options.choices.get('claude-code')),
+      // The last limits Claude Code reported stay through refreshes until the next answer brings new ones.
+      ...(this.usage && status.state !== 'signedOut' && status.state !== 'notInstalled' ? { usage: this.usage } : {}),
+    };
     this.listeners.status(this.current);
   }
 }

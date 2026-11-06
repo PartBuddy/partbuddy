@@ -492,6 +492,10 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     await expect(card).toHaveAttribute('data-kind', 'plan', { timeout: 30_000 });
     await expect(card.getByTestId('plan-steps')).toHaveText('Box 20 × 20 × 10 mm');
     await expect(page.getByTestId('assistant-text').last()).toHaveText('Plan shown; building waits for the answer.');
+    // The plan's limits from the answer show in the assistant menu.
+    await page.getByTestId('agent-status').click();
+    await expect(page.getByTestId('agent-usage')).toHaveText(/^Plan usage: 5 hours 23% \(resets .+\) · week 69% \(resets .+\)$/);
+    await page.keyboard.press('Escape');
     await expect(page.getByTestId('step-card')).toHaveCount(0);
     const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('aside').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);

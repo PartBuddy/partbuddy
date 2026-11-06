@@ -197,6 +197,7 @@ export function AssistantChoice() {
         <span data-testid="agent-detail">
           <StatusDot tone={toneOf(status)} label={statusLabel(t, status)} />
         </span>
+        {status.usage && status.usage.length > 0 ? <UsageLine usage={status.usage} /> : null}
         {status.state === 'unavailable' && status.detail ? (
           // There is no log file to look in, so the reason shows here.
           <span className="break-words text-xs text-text-muted" data-testid="agent-reason">
@@ -276,5 +277,22 @@ export function AgentChip() {
         </Dialog>
       </Popover>
     </DialogTrigger>
+  );
+}
+
+/** The plan's limits as the assistant last reported them (Manuel, 2026-11-06): five hours and week, when it says so. */
+function UsageLine({ usage }: { usage: NonNullable<AgentStatus['usage']> }) {
+  const { t, i18n } = useTranslation();
+  const windows = usage.map((entry) => {
+    const window = t(`assistant.usage.windows.${entry.window}`, { defaultValue: entry.window });
+    if (entry.resetsAt === null) return t('assistant.usage.window', { window, used: entry.used });
+    const reset = new Date(entry.resetsAt * 1000).toLocaleString(i18n.language, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+    return t('assistant.usage.windowReset', { window, used: entry.used, reset });
+  });
+  const high = usage.some((entry) => entry.used >= 0.8);
+  return (
+    <span className={`text-xs tabular-nums ${high ? 'text-warning' : 'text-text-muted'}`} data-testid="agent-usage">
+      {t('assistant.usage.title')}: {windows.join(' · ')}
+    </span>
   );
 }

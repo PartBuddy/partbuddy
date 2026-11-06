@@ -185,6 +185,11 @@ describe('Claude Code adapter', () => {
       { type: 'done', ok: false, durationMs: null, detail: 'error_max_turns' },
     ]);
     expect(parseStreamLine('not json')).toEqual([]);
+    // The plan's limits after a request (Claude Code 2.1.302); odd values are left out or clamped.
+    expect(
+      parseStreamLine('{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","unifiedWindows":{"five_hour":{"utilization":1.2},"seven_day":{"utilization":0.69,"resetsAt":1794117600},"odd":{"utilization":"x"}}}}'),
+    ).toEqual([{ type: 'usage', windows: [{ window: 'five_hour', used: 1, resetsAt: null }, { window: 'seven_day', used: 0.69, resetsAt: 1794117600 }] }]);
+    expect(parseStreamLine('{"type":"rate_limit_event","rate_limit_info":{"status":"allowed"}}')).toEqual([]);
   });
 
   it('finds the native install in the user folder', () => {
@@ -250,6 +255,9 @@ describe('agent service with a fake Claude Code', () => {
     await service.send('Which model?');
     await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(1), { timeout: 15_000 });
     expect(events.filter((e) => e.type === 'text').at(-1)).toEqual({ type: 'text', text: 'model sonnet effort low' });
+    // After an answer the status carries the plan's limits, and keeps them through a refresh.
+    expect(service.status().usage).toEqual([{ window: 'five_hour', used: 0.23, resetsAt: 1794117600 }, { window: 'seven_day', used: 0.69, resetsAt: 1794117600 }]);
+    expect((await service.refresh()).usage).toHaveLength(2);
 
     // Changed mid-conversation: the running session switches; the kept default stays.
     await service.chooseModel({ model: 'haiku', effort: 'max' }, false);
