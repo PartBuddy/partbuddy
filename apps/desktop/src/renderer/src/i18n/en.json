@@ -106,6 +106,13 @@
       "along": "Cut across {axis}",
       "position": "Where the section cuts",
       "flip": "Show the other side"
+    },
+    "explode": {
+      "title": "Exploded view",
+      "amount": "How far the parts are apart",
+      "assembled": "Assembled",
+      "apart": "Apart",
+      "hint": "For looking only: selecting, notes and dimensions come back when the view is closed."
     }
   },
   "status": {

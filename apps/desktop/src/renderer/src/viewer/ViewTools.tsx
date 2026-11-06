@@ -1,4 +1,4 @@
-import { IconArrowsExchange, IconBox, IconBoxMultiple, IconCheck, IconCube, IconMaximize, IconPerspective, IconRulerMeasure, IconSlice } from '@tabler/icons-react';
+import { IconArrowsExchange, IconArrowsSplit2, IconBox, IconBoxMultiple, IconCheck, IconCube, IconMaximize, IconPerspective, IconRulerMeasure, IconSlice } from '@tabler/icons-react';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -153,6 +153,47 @@ function SectionPanel({ section }: { section: Section }) {
   );
 }
 
+/** The exploded view (F7): one slider from assembled to fully apart. */
+function ExplodePanel({ amount }: { amount: number }) {
+  const { t } = useTranslation();
+  const setExplode = useStudio((s) => s.setExplode);
+  return (
+    <div
+      role="group"
+      aria-label={t('viewer.explode.title')}
+      className="pointer-events-auto absolute left-0 top-full z-10 mt-2 flex w-menu flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      data-testid="explode-panel"
+    >
+      <Slider
+        aria-label={t('viewer.explode.amount')}
+        value={Math.round(amount * 100)}
+        minValue={0}
+        maxValue={100}
+        onChange={(value) => {
+          setExplode(value / 100);
+        }}
+        className="w-full"
+        data-testid="explode-amount"
+      >
+        <div className="flex justify-between text-xs text-text-muted">
+          <span>{t('viewer.explode.assembled')}</span>
+          <span>{t('viewer.explode.apart')}</span>
+        </div>
+        <SliderTrack className="relative h-4 w-full">
+          {({ state }) => (
+            <>
+              <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
+              <span aria-hidden className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ width: `${String(state.getThumbPercent(0) * 100)}%` }} />
+              <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:outline-2 focus-visible:outline-focus" />
+            </>
+          )}
+        </SliderTrack>
+      </Slider>
+      <p className="text-xs text-text-muted">{t('viewer.explode.hint')}</p>
+    </div>
+  );
+}
+
 /** Standard views and the projection switch, beside the view cube (M1a). */
 export function ViewTools() {
   const { t } = useTranslation();
@@ -164,6 +205,10 @@ export function ViewTools() {
   const setDimensions = useStudio((s) => s.setDimensions);
   const section = useStudio((s) => s.section);
   const setSection = useStudio((s) => s.setSection);
+  const explode = useStudio((s) => s.explode);
+  const setExplode = useStudio((s) => s.setExplode);
+  // The exploded view only means something for a print of several parts.
+  const parts = useStudio((s) => (s.model.status === 'ready' ? s.model.bodies.length : 0));
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -277,6 +322,22 @@ export function ViewTools() {
         </ToggleButton>
       </Tip>
       {section ? <SectionPanel section={section} /> : null}
+      {parts > 1 ? (
+        <Tip label={t('viewer.explode.title')}>
+          <ToggleButton
+            aria-label={t('viewer.explode.title')}
+            isSelected={explode !== null}
+            onChange={(on) => {
+              setExplode(on ? 0.6 : null);
+            }}
+            className={tool}
+            data-testid="explode"
+          >
+            <IconArrowsSplit2 className="size-icon-sm" aria-hidden />
+          </ToggleButton>
+        </Tip>
+      ) : null}
+      {explode !== null && parts > 1 ? <ExplodePanel amount={explode} /> : null}
     </div>
   );
 }

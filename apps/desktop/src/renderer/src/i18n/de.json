@@ -106,6 +106,13 @@
       "along": "Quer zu {axis} schneiden",
       "position": "Wo der Schnitt liegt",
       "flip": "Andere Seite zeigen"
+    },
+    "explode": {
+      "title": "Explosionsansicht",
+      "amount": "Wie weit die Teile auseinander stehen",
+      "assembled": "Zusammengebaut",
+      "apart": "Auseinander",
+      "hint": "Nur zum Ansehen: Auswählen, Notizen und Maße sind wieder da, sobald die Ansicht zu ist."
     }
   },
   "status": {
