@@ -486,6 +486,10 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
   const { page } = launched;
   try {
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    // An empty chat offers examples; one fills the input and sends nothing.
+    await page.getByTestId('chat-example').first().click();
+    await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toHaveValue(/^A wall holder for a cordless drill/);
+    await expect(page.getByTestId('chat-start')).toBeVisible();
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make a plan first');
     await page.getByRole('button', { name: 'Send' }).click();
     const card = page.getByTestId('question-card');
@@ -521,6 +525,16 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     await page.screenshot({ path: test.info().outputPath('composer-busy.png') });
     await expect(page.getByText('Done, slowly.')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('button', { name: 'Send' })).toBeVisible();
+    // A failed turn says so, with its reason and the way to the log, and sends the message again on request.
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make it fail');
+    await page.getByRole('button', { name: 'Send' }).click();
+    const failed = page.getByTestId('turn-failed');
+    await expect(failed).toContainText('An error stopped the assistant while it worked.', { timeout: 30_000 });
+    await expect(failed).toContainText('Settings › About');
+    await failed.getByTestId('turn-retry').click();
+    await expect(page.getByTestId('turn-failed')).toHaveCount(2, { timeout: 30_000 });
+    // Only the newest failure offers to send again.
+    await expect(page.getByTestId('turn-retry')).toHaveCount(1);
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('plan-failed.png') }).catch(() => undefined);
     throw error;

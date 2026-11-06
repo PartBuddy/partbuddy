@@ -1,4 +1,4 @@
-import { IconArrowUp, IconPencil, IconPhoto, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
+import { IconArrowUp, IconPencil, IconPhoto, IconPlayerStop, IconPointer, IconRefresh, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -143,7 +143,13 @@ function selectionSummary(t: TFunction, selected: { faces: number; edges: number
   return t('assistant.selected.line', { what: parts.join(', '), bodies: selected.bodies.join(', ') });
 }
 
-function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
+/** How a turn can end without an answer, as Claude Code and PartBuddy's own loop report it. */
+const FAILURE_REASONS = new Set(['failed', 'error_during_execution', 'error_max_turns']);
+
+/** Requests an empty chat offers as a start: a holder, a housing, a part after a photo. */
+const EXAMPLES = ['holder', 'housing', 'photo'] as const;
+
+function Item({ item, quiet, retry = null }: { item: ConversationItem; quiet: boolean; retry?: (() => void) | null }) {
   const { t } = useTranslation();
   switch (item.kind) {
     case 'user':
@@ -181,7 +187,22 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
     case 'question':
       return null;
     case 'stopped':
-      return <p className="text-sm text-text-muted">{t('assistant.stopped')}</p>;
+      // Stopped by the user stays quiet; anything else failed and says why (polish round 1).
+      if (item.detail === 'stopped' || item.detail === null) return <p className="text-sm text-text-muted">{t('assistant.stopped')}</p>;
+      return (
+        <div role="alert" className="flex flex-col items-start gap-1 rounded-md border border-danger px-3 py-2" data-testid="turn-failed">
+          <p className="text-sm font-medium text-danger">{t('assistant.failed.title')}</p>
+          <p className="text-sm text-text-muted">
+            {t(`assistant.failed.reason.${FAILURE_REASONS.has(item.detail) ? item.detail : 'other'}`)} {t('assistant.failed.log')}
+          </p>
+          {retry ? (
+            <Button onPress={retry} data-testid="turn-retry">
+              <IconRefresh className="size-icon-sm" aria-hidden />
+              {t('assistant.failed.retry')}
+            </Button>
+          ) : null}
+        </div>
+      );
     case 'session':
       return (
         <div className="flex items-center gap-2 py-1 text-xs text-text-subtle" role="separator" data-testid="earlier-session">
@@ -265,6 +286,9 @@ export function AssistantPanel() {
     setPhoto(null);
     void sendToAssistant(text, selections, undefined, photo ? undefined : (sketch ?? undefined), photo?.png);
   };
+  // After a failed turn: the last message once more, as text (shortcut: a sketch or photo that went with it does not go again).
+  const lastUser = items.findLast((item) => item.kind === 'user');
+  const retryLast = ready && lastUser?.kind === 'user' ? () => void sendToAssistant(lastUser.text) : null;
 
   return (
     <aside
@@ -306,7 +330,26 @@ export function AssistantPanel() {
       </h2>
       <div ref={list} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
         <Setup />
-        {items.length === 0 && (status.state === 'ready' || busy) ? <p className="text-sm text-text-muted">{t('assistant.empty')}</p> : null}
+        {items.length === 0 && (status.state === 'ready' || busy) ? (
+          // A way in for an empty chat (polish round 1): examples fill the input, they do not send.
+          <div className="flex flex-col items-start gap-2" data-testid="chat-start">
+            <p className="text-sm text-text-muted">{t('assistant.empty')}</p>
+            {EXAMPLES.map((example) => (
+              <AriaButton
+                key={example}
+                onPress={() => {
+                  setDraft(t(`assistant.examples.${example}`));
+                  composer.current?.focus();
+                }}
+                className="rounded-md border border-border px-3 py-2 text-left text-sm text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+                data-testid="chat-example"
+              >
+                {t(`assistant.examples.${example}`)}
+              </AriaButton>
+            ))}
+            <p className="text-xs text-text-muted">{t('assistant.examples.hint')}</p>
+          </div>
+        ) : null}
         {rowsOf(items, busy).map((row) =>
           row.kind === 'item' && row.item.kind === 'question' ? (
             <QuestionCard
@@ -328,7 +371,7 @@ export function AssistantPanel() {
           ) : row.kind === 'work' ? (
             <WorkGroup key={row.key} entries={row.entries} live={row.live} disabled={busy || !connected} />
           ) : (
-            <Item key={row.item.key} item={row.item} quiet={row.quiet} />
+            <Item key={row.item.key} item={row.item} quiet={row.quiet} retry={row.item === items.at(-1) ? retryLast : null} />
           ),
         )}
         {busy ? <Busy label={t(`assistant.working.${status.agent}`)} /> : null}

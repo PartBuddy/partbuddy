@@ -289,10 +289,11 @@
       "title": "Modell",
       "applies": "Gilt ab der nächsten Antwort, auch mitten im Gespräch.",
       "keep": "Für neue Chats merken",
-      "isDefault": "Standard für neue Chats"
+      "isDefault": "Standard für neue Chats",
+      "defaultName": "Standard (empfohlen)"
     },
     "effort": {
-      "title": "Effort",
+      "title": "Aufwand",
       "level": {
         "none": "Aus",
         "minimal": "Minimal",
@@ -394,6 +395,23 @@
         "seven_day_opus": "Woche Opus",
         "seven_day_sonnet": "Woche Sonnet"
       }
+    },
+    "failed": {
+      "title": "Die Antwort ist gescheitert.",
+      "reason": {
+        "failed": "Der Assistent hat mit einem Fehler aufgehört.",
+        "error_during_execution": "Ein Fehler hat den Assistenten mitten in der Arbeit gestoppt.",
+        "error_max_turns": "Der Assistent hat zu viele Schritte gebraucht und aufgehört.",
+        "other": "Der Assistent hat aufgehört, bevor er fertig war."
+      },
+      "log": "Details stehen in der Logdatei (Einstellungen › Über).",
+      "retry": "Erneut senden"
+    },
+    "examples": {
+      "holder": "Ein Wandhalter für einen Akkuschrauber: eine Platte mit zwei Senkkopfschrauben und ein Haken für einen 35 mm breiten Griff",
+      "housing": "Ein Gehäuse 80 × 50 × 30 mm für eine Platine, mit verschraubtem Deckel und einem Loch für ein USB-C-Kabel",
+      "photo": "Ein Ersatz-Drehknopf, der auf die Achse auf meinem Foto passt",
+      "hint": "Ein Beispiel landet im Eingabefeld, damit du es vorher anpassen kannst. Eine Skizze oder ein Foto kann mitgehen."
     }
   },
   "live": {
