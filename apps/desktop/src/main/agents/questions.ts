@@ -119,11 +119,22 @@ export const ANSWER_GUIDANCE =
   'name a parameter when the user may want to change it. Write more only when the user asks for an explanation or a check.';
 
 /** Added to the role prompt of every route. */
-export const QUESTION_GUIDANCE =
-  `For a new part, first settle what matters in rounds with ${ASK_TOOL} (up to four questions per round, your recommendation ` +
-  'marked), one round per turn, until nothing that matters is open; then call ' +
-  `${PLAN_TOOL} and build only after the user said Go. For several features at once, the plan alone is enough. When a ` +
-  `dimension or choice that matters is unclear later, ask with ${ASK_TOOL} instead of guessing. Small, clear changes need neither.`;
+// Concept, use and function check first: decided 2026-11-06, after a practice phone holder that would not have held the phone.
+export const QUESTION_GUIDANCE = [
+  'For a new part, work like a product designer before you build.',
+  `1. Concept: think about how proven products and good printed designs solve this task (look them up when you may research).`,
+  `Your first ${ASK_TOOL} round offers 2 or 3 such concepts with their trade-offs, your recommendation marked.`,
+  '2. Use: ask what decides the design and you cannot know: how it is used (loads, shocks and vibration, how often it is put',
+  'on and taken off, buttons, ports, cables, viewing angle), where, and the real sizes of the user\'s own items; look up',
+  'product data instead of asking for it. One round per turn, up to four questions, until nothing that matters is open.',
+  '3. Function check: before the plan, go through the part in use. Is it held securely under those loads, can it be put in',
+  'and taken out, does it flex where it must (PLA is stiff: a snap or a lip needs a thin, long arm; otherwise use a band,',
+  'spring, screw or clamp), are levers short and walls strong enough, does it print without supports. If the check fails,',
+  'change the concept and tell the user why.',
+  `Then call ${PLAN_TOOL}, with the function check as its last step, and build only after the user said Go. For several`,
+  `features at once, the plan alone is enough. When a dimension or choice that matters is unclear later, ask with ${ASK_TOOL}`,
+  'instead of guessing. Small, clear changes need neither.',
+].join(' ');
 
 const text = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }] });
 const refusal = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }], isError: true });
