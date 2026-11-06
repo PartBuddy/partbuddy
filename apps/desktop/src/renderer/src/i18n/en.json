@@ -350,7 +350,16 @@
       "dimensionValue": "Size of the dimension",
       "dimensionPlaceholder": "e.g. 40 or Ø 8",
       "labelText": "Label text",
-      "labelPlaceholder": "e.g. M3 hole"
+      "labelPlaceholder": "e.g. M3 hole",
+      "sheets": "Sheets",
+      "sheet": {
+        "free": "Sketch",
+        "front": "Front",
+        "top": "Top",
+        "side": "Side"
+      },
+      "scale": "1 square =",
+      "scaleHint": "Optional: the length of one square in mm. Shapes on the grid then have sizes; typed dimensions win."
     },
     "photo": {
       "button": "Photo",

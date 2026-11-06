@@ -25,6 +25,21 @@ export type SketchItem =
   | { kind: 'dimension'; from: Point; to: Point; value: string }
   | { kind: 'text'; at: Point; text: string };
 
+/** The sheets of one sketch (F10): a free one, and the views of a technical hand sketch. */
+export const SHEET_VIEWS = ['free', 'front', 'top', 'side'] as const;
+export type SheetView = (typeof SHEET_VIEWS)[number];
+
+/** A whole sketch: its sheets and the length of one square in mm, when the user set one. */
+export interface SketchState {
+  sheets: Record<SheetView, SketchItem[]>;
+  scale: number | null;
+}
+
+export const emptySketch = (): SketchState => ({ sheets: { free: [], front: [], top: [], side: [] }, scale: null });
+
+/** The sheets that hold something, in their order. */
+export const drawnSheets = (state: SketchState): SheetView[] => SHEET_VIEWS.filter((view) => state.sheets[view].length > 0);
+
 export type Tool = 'select' | 'pen' | 'line' | 'rect' | 'circle' | 'arc' | 'dimension' | 'text' | 'eraser';
 
 const distance = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -187,7 +202,8 @@ export function hasSize(item: SketchItem): boolean {
 
 /** A position in squares from the top left, to half a square. */
 const squares = (p: Point) => `(${String(Math.round((p[0] / GRID) * 2) / 2)}, ${String(Math.round((p[1] / GRID) * 2) / 2)})`;
-const length = (value: number) => String(Math.round((value / GRID) * 2) / 2);
+const inSquares = (value: number) => Math.round((value / GRID) * 2) / 2;
+const millimetres = (value: number) => String(Math.round(value * 10) / 10);
 const quoted = (text: string) => `"${text.replace(/\s+/g, ' ').replace(/"/g, "'").trim().slice(0, 80)}"`;
 
 /**
@@ -195,7 +211,11 @@ const quoted = (text: string) => `"${text.replace(/\s+/g, ' ').replace(/"/g, "'"
  * left (x to the right, y down), so it can tie each dimension and label to a shape. Freehand
  * strokes are only counted; the picture shows them.
  */
-export function describeSketch(items: readonly SketchItem[]): string {
+export function describeSketch(items: readonly SketchItem[], scale: number | null = null): string {
+  // With a scale (F10) every length also says its size in mm.
+  const length = (value: number) => (scale ? `${String(inSquares(value))} squares (${millimetres(inSquares(value) * scale)} mm)` : `${String(inSquares(value))} squares`);
+  const size = (a: number, b: number) =>
+    scale ? `${String(inSquares(a))} × ${String(inSquares(b))} squares (${millimetres(inSquares(a) * scale)} × ${millimetres(inSquares(b) * scale)} mm)` : `${String(inSquares(a))} × ${String(inSquares(b))} squares`;
   const lines: string[] = [];
   let freehand = 0;
   for (const item of items) {
@@ -204,19 +224,19 @@ export function describeSketch(items: readonly SketchItem[]): string {
         freehand += 1;
         break;
       case 'line':
-        lines.push(`line ${squares(item.from)} to ${squares(item.to)}, ${length(distance(item.from, item.to))} squares long`);
+        lines.push(`line ${squares(item.from)} to ${squares(item.to)}, ${length(distance(item.from, item.to))} long`);
         break;
       case 'rect':
-        lines.push(`rectangle ${squares(item.from)} to ${squares(item.to)}, ${length(Math.abs(item.to[0] - item.from[0]))} × ${length(Math.abs(item.to[1] - item.from[1]))} squares`);
+        lines.push(`rectangle ${squares(item.from)} to ${squares(item.to)}, ${size(Math.abs(item.to[0] - item.from[0]), Math.abs(item.to[1] - item.from[1]))}`);
         break;
       case 'circle':
-        lines.push(`circle centred ${squares(item.center)}, ${length(item.radius * 2)} squares across`);
+        lines.push(`circle centred ${squares(item.center)}, ${length(item.radius * 2)} across`);
         break;
       case 'arc':
         lines.push(`arc ${squares(item.from)} through ${squares(item.through)} to ${squares(item.to)}`);
         break;
       case 'dimension':
-        lines.push(`dimension ${quoted(item.value)} between ${squares(item.from)} and ${squares(item.to)} (${length(distance(item.from, item.to))} squares)`);
+        lines.push(`dimension ${quoted(item.value)} between ${squares(item.from)} and ${squares(item.to)} (${length(distance(item.from, item.to))})`);
         break;
       case 'text':
         lines.push(`label ${quoted(item.text)} at ${squares(item.at)}`);
@@ -225,4 +245,17 @@ export function describeSketch(items: readonly SketchItem[]): string {
   }
   if (freehand > 0) lines.push(`${String(freehand)} freehand stroke${freehand === 1 ? '' : 's'} (see the picture)`);
   return lines.slice(0, 80).map((line) => `- ${line}`).join('\n');
+}
+
+const SHEET_NAMES: Record<SheetView, string> = { free: 'sketch', front: 'front view', top: 'top view', side: 'side view' };
+
+/**
+ * The whole sketch as text (F10): the scale first when set, then each drawn sheet with its view,
+ * in the order the picture shows them.
+ */
+export function describeSheets(state: SketchState): string {
+  const views = drawnSheets(state);
+  const scale = state.scale ? [`- scale set by the user: 1 square = ${millimetres(state.scale)} mm (typed dimensions win)`] : [];
+  if (views.length === 1 && views[0] === 'free') return [...scale, describeSketch(state.sheets.free, state.scale)].join('\n');
+  return [...scale, ...views.map((view) => `Sheet "${SHEET_NAMES[view]}":\n${describeSketch(state.sheets[view], state.scale)}`)].join('\n');
 }

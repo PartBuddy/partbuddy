@@ -18,7 +18,7 @@ import { rowsOf } from './rows';
 import { StepCard } from './StepCard';
 import { Queries, WorkGroup } from './WorkGroup';
 import { selectedStatus, useAssistant, type ConversationItem } from './store';
-import { SketchPad, type SketchItem, type SketchPicture } from './SketchPad';
+import { emptySketch, SketchPad, type SketchPicture, type SketchState } from './SketchPad';
 import { photoPicture } from './photo';
 import { SourceCard } from './SourceCard';
 import { ToolCall } from './ToolCall';
@@ -201,7 +201,6 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
   }
 }
 
-const NO_ITEMS: SketchItem[] = [];
 const tip = 'rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2';
 
 /** The first picture among pasted or dropped files; other files are left to the window's import. */
@@ -232,7 +231,7 @@ export function AssistantPanel() {
   const [width, setWidth, maxWidth] = useChatWidth();
   // A sketch for the next message (F4, F9); its elements stay while it is not sent, to draw on.
   const [sketching, setSketching] = useState(false);
-  const [sketch, setSketch] = useState<{ items: SketchItem[]; picture: SketchPicture } | null>(null);
+  const [sketch, setSketch] = useState<{ state: SketchState; picture: SketchPicture } | null>(null);
   // A photo of a real object for the next message (F6); one picture goes along, a sketch or a photo.
   const [photo, setPhoto] = useState<SketchPicture | null>(null);
   const [photoFailed, setPhotoFailed] = useState(false);
@@ -503,12 +502,12 @@ export function AssistantPanel() {
       </Form>
       {sketching ? (
         <SketchPad
-        initial={sketch?.items ?? NO_ITEMS}
+        initial={sketch?.state ?? emptySketch()}
         onClose={() => {
           setSketching(false);
         }}
-        onAttach={(items, picture) => {
-          setSketch({ items, picture });
+        onAttach={(state, picture) => {
+          setSketch({ state, picture });
           setPhoto(null);
           setSketching(false);
           composer.current?.focus();

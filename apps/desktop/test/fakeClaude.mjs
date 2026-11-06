@@ -112,7 +112,9 @@ if (args[0] === '--version') {
       // A photo (F6) has its own note, and the path of the kept file when a project is open.
       // F9: the list of the sketch's elements comes with the note; the test draws a 40 mm dimension and a label.
       const listed = content.includes('- dimension "40" between') && content.includes('- label "Lid" at') ? ', its dimension and its label' : '';
-      const note = content.includes('sketch the user drew') ? ` with the sketch note${listed}` : content.includes('photo of a real object') ? ` with the photo note${content.includes('/photos/photo-') ? ' and its file' : ''}` : '';
+      // F10: a second sheet and the scale per square.
+      const sheets = content.includes('Sheet "front view":') && content.includes('1 square = 5 mm') ? ' on two sheets with a scale' : '';
+      const note = content.includes('sketch the user drew') ? ` with the sketch note${listed}${sheets}` : content.includes('photo of a real object') ? ` with the photo note${content.includes('/photos/photo-') ? ' and its file' : ''}` : '';
       out({ type: 'assistant', message: { content: [{ type: 'text', text: `I see a ${png ? 'PNG' : 'non-PNG'} picture of ${String(Math.round(bytes.length / 1024))} KB${note}.` }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;

@@ -17,9 +17,10 @@ import { useTranslation } from 'react-i18next';
 import { Dialog, Heading, Modal, ModalOverlay, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
 
 import { Button } from '../ui/Button';
-import { arcCircle, constrain, describeSketch, GRID, hasSize, moved, pick, SKETCH_SIZE, snap, square, type Point, type SketchItem, type Tool } from './sketchModel';
+import { parseLength } from '../viewer/lengthInput';
+import { arcCircle, constrain, describeSheets, drawnSheets, GRID, hasSize, moved, pick, SHEET_VIEWS, SKETCH_SIZE, snap, square, type Point, type SheetView, type SketchItem, type SketchState, type Tool } from './sketchModel';
 
-export { SKETCH_SIZE, type SketchItem } from './sketchModel';
+export { emptySketch, SKETCH_SIZE, type SketchItem, type SketchState } from './sketchModel';
 
 const PEN = 2.5;
 const FONT_SIZE = 14;
@@ -147,24 +148,56 @@ export interface SketchPicture {
   elements?: string;
 }
 
-async function pictureOf(items: readonly SketchItem[]): Promise<SketchPicture> {
-  const scale = 2;
+/** Height of the caption above a sheet in the picture, in paper pixels. */
+const CAPTION = 28;
+
+/**
+ * One picture of all drawn sheets (F10): a lone free sheet as it is, otherwise each sheet under
+ * its view's name, two to a row.
+ */
+async function pictureOf(state: SketchState, names: Record<SheetView, string>): Promise<SketchPicture> {
+  const views = drawnSheets(state);
+  const captioned = !(views.length === 1 && views[0] === 'free');
+  const scale = views.length > 1 ? 1.5 : 2;
+  const columns = views.length > 1 ? 2 : 1;
+  const cell = { width: SKETCH_SIZE.width, height: SKETCH_SIZE.height + (captioned ? CAPTION : 0) };
   const canvas = document.createElement('canvas');
-  canvas.width = SKETCH_SIZE.width * scale;
-  canvas.height = SKETCH_SIZE.height * scale;
+  canvas.width = cell.width * columns * scale;
+  canvas.height = cell.height * Math.ceil(views.length / columns) * scale;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('no 2D canvas');
-  paint(context, items, scale);
+  const colors = sketchColors();
+  context.fillStyle = colors.paper;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  views.forEach((view, index) => {
+    const sheet = document.createElement('canvas');
+    sheet.width = SKETCH_SIZE.width * scale;
+    sheet.height = SKETCH_SIZE.height * scale;
+    const sheetContext = sheet.getContext('2d');
+    if (!sheetContext) return;
+    paint(sheetContext, state.sheets[view], scale);
+    const [left, top] = [(index % columns) * cell.width * scale, Math.floor(index / columns) * cell.height * scale];
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.drawImage(sheet, left, top + (captioned ? CAPTION * scale : 0));
+    if (captioned) {
+      context.setTransform(scale, 0, 0, scale, left, top);
+      context.fillStyle = colors.ink;
+      context.font = `600 ${String(FONT_SIZE + 1)}px ${colors.font}`;
+      context.textAlign = 'left';
+      context.textBaseline = 'middle';
+      context.fillText(names[view], 8, CAPTION / 2);
+    }
+  });
   const blob = await new Promise<Blob | null>((done) => {
     canvas.toBlob(done, 'image/png');
   });
   if (!blob) throw new Error('the sketch could not be saved');
   const png = new Uint8Array(await blob.arrayBuffer());
   const small = document.createElement('canvas');
-  small.width = SKETCH_SIZE.width / 4;
-  small.height = SKETCH_SIZE.height / 4;
+  small.width = canvas.width / 8;
+  small.height = canvas.height / 8;
   small.getContext('2d')?.drawImage(canvas, 0, 0, small.width, small.height);
-  return { png, thumbnail: small.toDataURL('image/png'), elements: describeSketch(items) };
+  return { png, thumbnail: small.toDataURL('image/png'), elements: describeSheets(state) };
 }
 
 const TOOLS: { tool: Tool; key: string; icon: ReactNode }[] = [
@@ -194,12 +227,19 @@ interface Editor {
  * and erased; undo and redo cover every change. The picture and a list of the elements go with
  * the next message.
  */
-export function SketchPad({ initial, onClose, onAttach }: { initial: readonly SketchItem[]; onClose: () => void; onAttach: (items: SketchItem[], picture: SketchPicture) => void }) {
+export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState; onClose: () => void; onAttach: (sketch: SketchState, picture: SketchPicture) => void }) {
   const { t } = useTranslation();
   const canvas = useRef<HTMLCanvasElement>(null);
-  const [items, setItems] = useState<SketchItem[]>(() => [...initial]);
-  const [past, setPast] = useState<SketchItem[][]>([]);
-  const [future, setFuture] = useState<SketchItem[][]>([]);
+  const [sketch, setSketch] = useState<SketchState>(initial);
+  const [view, setView] = useState<SheetView>(() => drawnSheets(initial)[0] ?? 'free');
+  const items = sketch.sheets[view];
+  const withItems = (state: SketchState, list: SketchItem[]): SketchState => ({ ...state, sheets: { ...state.sheets, [view]: list } });
+  const setItems = (list: SketchItem[]) => {
+    setSketch((state) => withItems(state, list));
+  };
+  const [scaleText, setScaleText] = useState(initial.scale ? String(initial.scale) : '');
+  const [past, setPast] = useState<SketchState[]>([]);
+  const [future, setFuture] = useState<SketchState[]>([]);
   const [tool, setTool] = useState<Tool>('pen');
   const [draft, setDraft] = useState<SketchItem | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
@@ -219,32 +259,41 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: readonly Sk
   }, [items, draft, selected]);
 
   const commit = (next: SketchItem[], before: SketchItem[] = items) => {
-    setPast((list) => [...list, before]);
+    setPast((list) => [...list, withItems(sketch, before)]);
     setFuture([]);
     setItems(next);
   };
   const undo = () => {
     const previous = past.at(-1);
     if (!previous) return;
-    setFuture((list) => [items, ...list]);
+    setFuture((list) => [sketch, ...list]);
     setPast((list) => list.slice(0, -1));
-    setItems(previous);
+    setSketch(previous);
     setSelected(null);
   };
   const redo = () => {
     const next = future[0];
     if (!next) return;
-    setPast((list) => [...list, items]);
+    setPast((list) => [...list, sketch]);
     setFuture((list) => list.slice(1));
-    setItems(next);
+    setSketch(next);
     setSelected(null);
   };
+  const sheetName = (sheet: SheetView) => t(`assistant.sketch.sheet.${sheet}`);
+  const names = Object.fromEntries(SHEET_VIEWS.map((sheet) => [sheet, sheetName(sheet)])) as Record<SheetView, string>;
+  const scaleValue = parseLength(scaleText);
+  const scaleInvalid = scaleText.trim() !== '' && !(scaleValue > 0 && scaleValue <= 1000);
   const choose = (next: Tool) => {
     setTool(next);
     setDraft(null);
     setArcEnds(null);
     setEditor(null);
     if (next !== 'select') setSelected(null);
+  };
+  const showSheet = (next: SheetView) => {
+    choose(tool);
+    setSelected(null);
+    setView(next);
   };
   const removeSelected = () => {
     if (selected === null) return;
@@ -425,6 +474,51 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: readonly Sk
           <p className="text-sm text-text-muted">{t('assistant.sketch.body')}</p>
           <div className="flex flex-wrap items-center gap-2">
             <ToggleButtonGroup
+              aria-label={t('assistant.sketch.sheets')}
+              selectionMode="single"
+              disallowEmptySelection
+              selectedKeys={[view]}
+              onSelectionChange={(keys) => {
+                const next = [...keys][0] as SheetView | undefined;
+                if (next) showSheet(next);
+              }}
+              className="flex flex-wrap gap-1"
+            >
+              {SHEET_VIEWS.map((sheet) => (
+                <ToggleButton
+                  key={sheet}
+                  id={sheet}
+                  className="inline-flex h-control-md items-center gap-1 rounded-md border border-border px-2 text-sm text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+                  data-testid={`sketch-sheet-${sheet}`}
+                >
+                  {sheetName(sheet)}
+                  {sketch.sheets[sheet].length > 0 ? <span className="text-xs tabular-nums text-text-muted">{sketch.sheets[sheet].length}</span> : null}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+            <span className="mr-auto" />
+            <label className="flex items-center gap-1 text-sm text-text-muted">
+              {t('assistant.sketch.scale')}
+              <input
+                value={scaleText}
+                onChange={(event) => {
+                  setScaleText(event.target.value);
+                }}
+                inputMode="decimal"
+                placeholder="–"
+                aria-invalid={scaleInvalid}
+                aria-describedby="sketch-scale-hint"
+                className={`h-control-sm w-field-value rounded-sm border bg-surface px-1 text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus ${scaleInvalid ? 'border-danger' : 'border-border-strong'}`}
+                data-testid="sketch-scale"
+              />
+              {t('units.mmShort')}
+            </label>
+            <span id="sketch-scale-hint" className="sr-only">
+              {t('assistant.sketch.scaleHint')}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ToggleButtonGroup
               aria-label={t('assistant.sketch.tools')}
               selectionMode="single"
               disallowEmptySelection
@@ -523,7 +617,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: readonly Sk
                 }}
                 onBlur={finishEditor}
                 maxLength={80}
-                className="absolute h-control-sm w-32 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-accent bg-surface px-1 text-sm text-text outline-none"
+                className="absolute h-control-sm w-field-dock -translate-x-1/2 -translate-y-1/2 rounded-sm border border-accent bg-surface px-1 text-sm text-text outline-none"
                 style={{ left: `${String((editor.at[0] / SKETCH_SIZE.width) * 100)}%`, top: `${String((editor.at[1] / SKETCH_SIZE.height) * 100)}%` }}
                 data-testid="sketch-value"
               />
@@ -533,12 +627,13 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: readonly Sk
             <Button onPress={onClose}>{t('assistant.sketch.cancel')}</Button>
             <Button
               variant="primary"
-              isDisabled={items.length === 0 || saving}
+              isDisabled={drawnSheets(sketch).length === 0 || saving || scaleInvalid}
               onPress={() => {
                 setSaving(true);
-                void pictureOf(items)
+                const finished: SketchState = { ...sketch, scale: scaleValue > 0 ? scaleValue : null };
+                void pictureOf(finished, names)
                   .then((picture) => {
-                    onAttach(items, picture);
+                    onAttach(finished, picture);
                   })
                   .finally(() => {
                     setSaving(false);
