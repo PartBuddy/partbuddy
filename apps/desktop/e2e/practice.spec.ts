@@ -140,7 +140,8 @@ test('practice: phone holder from a photo, in question rounds', async () => {
       }
       await waitForTurn(page);
     }
-    report.answers = await page.getByTestId('assistant-text').allTextContents();
+    // innerText keeps the paragraphs apart; textContent runs them together.
+    report.answers = await page.getByTestId('assistant-text').evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).innerText));
     report.steps = await page.getByTestId('step-text').allTextContents();
     report.mesh = await page.getByTestId('mesh-summary').textContent().catch(() => null);
     await page.screenshot({ path: test.info().outputPath('built.png') });
