@@ -279,6 +279,10 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   zizmor, `pnpm audit` and the licence gate stand in. gitleaks' Windows-path rule also hits test
   inputs that are absolute Windows paths.
 - Squash-merging with `--delete-branch` closes a stacked follow-up PR: retarget it to main first.
+- The repository moved from the owner's account to the organization `PartBuddy` on 2026-11-06. The
+  repository runners, secrets, issues and PRs moved along and old URLs redirect. The organization's
+  Actions settings win over the repository's: "Allow GitHub Actions to create and approve pull
+  requests" has to be on at both levels for release-please.
 - Node 26 ships without corepack: pnpm comes from `npm install -g pnpm@<packageManager version>`.
   On the old development PC the global `pnpm.cmd` was broken, which is why Vite is started through
   node directly.

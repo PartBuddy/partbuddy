@@ -38,6 +38,6 @@ nsis:
   deleteAppDataOnUninstall: false
 publish:
   provider: github
-  owner: ManuelStaggl
+  owner: PartBuddy
   repo: partbuddy
   releaseType: release

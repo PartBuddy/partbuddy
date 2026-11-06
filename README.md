@@ -1,8 +1,8 @@
 # <picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/svg/logo-inverse.svg"><img src="assets/brand/svg/logo.svg" alt="PartBuddy" height="48"></picture>
 
-[![CI](https://github.com/ManuelStaggl/partbuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/ManuelStaggl/partbuddy/actions/workflows/ci.yml)
-[![Privacy scan](https://github.com/ManuelStaggl/partbuddy/actions/workflows/privacy.yml/badge.svg)](https://github.com/ManuelStaggl/partbuddy/actions/workflows/privacy.yml)
-[![Security checks](https://github.com/ManuelStaggl/partbuddy/actions/workflows/security.yml/badge.svg)](https://github.com/ManuelStaggl/partbuddy/actions/workflows/security.yml)
+[![CI](https://github.com/PartBuddy/partbuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/PartBuddy/partbuddy/actions/workflows/ci.yml)
+[![Privacy scan](https://github.com/PartBuddy/partbuddy/actions/workflows/privacy.yml/badge.svg)](https://github.com/PartBuddy/partbuddy/actions/workflows/privacy.yml)
+[![Security checks](https://github.com/PartBuddy/partbuddy/actions/workflows/security.yml/badge.svg)](https://github.com/PartBuddy/partbuddy/actions/workflows/security.yml)
 [![Licence: GPL-3.0-or-later](https://img.shields.io/badge/licence-GPL--3.0--or--later-355f8c)](LICENSE)
 
 Free desktop app for AI-assisted parametric design of FDM 3D-print parts. An assistant builds the part

@@ -43,7 +43,7 @@ CodeQL workflow is added.
 
 | Step | Setting |
 | --- | --- |
-| 1 | Create the private repository `ManuelStaggl/<name>` with description; wiki off |
+| 1 | Create the private repository `PartBuddy/<name>` with description; wiki off |
 | 2 | Merge settings: squash merge only (title = pull request title, signed by GitHub), delete branches after merge, no auto-merge; Actions token read-only by default and allowed to open pull requests (release-please) |
 | 3 | Secret `PRIVACY_DENYLIST` from the local denylist (used by `privacy.yml`) |
 | 4 | Labels for type, status and area (issue forms use `type: bug`, `type: feature`, `status: triage`) |
@@ -63,7 +63,7 @@ Required status checks (names of the CI jobs): "Lint, typecheck, test, build",
 * **Renovate:** install the Renovate GitHub App for this repository only, or run Renovate
   self-hosted in a scheduled workflow with a fine-grained token. The hosted app reads the private
   code; the self-hosted variant keeps it on GitHub's runners.
-* **Project board:** `gh project create --owner ManuelStaggl --title "<name>"`, then link the
+* **Project board:** `gh project create --owner PartBuddy --title "<name>"`, then link the
   repository in the project settings and add views "Board" (by status) and "Roadmap" (by milestone).
 * **Security policy:** set up a public reporting channel before the first public release.
 * **Signing certificate:** when the first installer is built, store the code-signing credentials as
@@ -72,8 +72,8 @@ Required status checks (names of the CI jobs): "Lint, typecheck, test, build",
 ## Verification after setup
 
 ```bash
-gh api repos/ManuelStaggl/<name> --jq '{private, allow_rebase_merge, allow_squash_merge, delete_branch_on_merge}'
-gh api repos/ManuelStaggl/<name>/rulesets --jq '.[].name'
-gh secret list --repo ManuelStaggl/<name>
-gh label list --repo ManuelStaggl/<name>
+gh api repos/PartBuddy/<name> --jq '{private, allow_rebase_merge, allow_squash_merge, delete_branch_on_merge}'
+gh api repos/PartBuddy/<name>/rulesets --jq '.[].name'
+gh secret list --repo PartBuddy/<name>
+gh label list --repo PartBuddy/<name>
 ```
