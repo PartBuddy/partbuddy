@@ -105,7 +105,8 @@
       "axis": "Section axis",
       "along": "Cut across {axis}",
       "position": "Where the section cuts",
-      "flip": "Show the other side"
+      "flip": "Show the other side",
+      "at": "Cut at {axis} = {value, number, ::.# unit/millimeter}"
     },
     "explode": {
       "title": "Exploded view",

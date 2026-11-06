@@ -18,6 +18,7 @@ import {
 
 import { useStudio, type DisplayMode, type Section, type StandardView } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
+import { bodiesBox } from './section';
 import { ViewIcon } from '../ui/ViewIcon';
 
 const tool =
@@ -89,6 +90,11 @@ function DisplayModeMenu() {
 function SectionPanel({ section }: { section: Section }) {
   const { t } = useTranslation();
   const setSection = useStudio((s) => s.setSection);
+  const model = useStudio((s) => s.model);
+  // Where the cut lies in the part, in mm along its axis (polish round 2: the slider alone said nothing).
+  const box = bodiesBox(model.status === 'ready' ? model.bodies : []);
+  const [low, high] = [box.min[section.axis], box.max[section.axis]];
+  const at = Number.isFinite(low) && Number.isFinite(high) ? low + Math.min(1, Math.max(0, section.position)) * (high - low) : null;
   return (
     <div
       role="group"
@@ -96,6 +102,7 @@ function SectionPanel({ section }: { section: Section }) {
       className="pointer-events-auto absolute left-0 top-full z-10 mt-2 flex w-menu flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
       data-testid="section-panel"
     >
+      <span className="px-1 text-xs font-semibold text-text-muted">{t('viewer.section.title')}</span>
       <div className="flex items-center gap-2">
         <ToggleButtonGroup
           aria-label={t('viewer.section.axis')}
@@ -149,6 +156,11 @@ function SectionPanel({ section }: { section: Section }) {
           )}
         </SliderTrack>
       </Slider>
+      {at !== null ? (
+        <span className="px-1 text-xs tabular-nums text-text-muted" data-testid="section-at">
+          {t('viewer.section.at', { axis: section.axis.toUpperCase(), value: Math.round(at * 10) / 10 })}
+        </span>
+      ) : null}
     </div>
   );
 }

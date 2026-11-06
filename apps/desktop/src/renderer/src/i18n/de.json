@@ -105,7 +105,8 @@
       "axis": "Schnittachse",
       "along": "Quer zu {axis} schneiden",
       "position": "Wo der Schnitt liegt",
-      "flip": "Andere Seite zeigen"
+      "flip": "Andere Seite zeigen",
+      "at": "Schnitt bei {axis} = {value, number, ::.# unit/millimeter}"
     },
     "explode": {
       "title": "Explosionsansicht",

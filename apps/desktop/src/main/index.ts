@@ -880,7 +880,7 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.projectFromTemplate, async ({ template, name }) => {
       const target = projectStore.newDesignFile(name);
       try {
-        await supervisor.designFromSteps(templateSteps(template), target);
+        await supervisor.designFromSteps(templateSteps(template, german), target);
       } catch (error) {
         rmSync(dirname(target), { recursive: true, force: true });
         throw error;

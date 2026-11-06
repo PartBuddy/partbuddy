@@ -1,4 +1,5 @@
 import { edgeName, surfaceKind, type ViewerModel } from '@partbuddy/geometry';
+import type { TFunction } from 'i18next';
 
 import type { Selection, ViewState } from '../../../shared/contract';
 import type { LiveChanges, ModelState, Pick } from '../state/store';
@@ -79,7 +80,21 @@ export function selectionOf(model: ModelState, pick: Pick | null): Selection | n
   }
 }
 
-/** Short text for chips and the status bar: the face or edge name, or the vertex position. */
+/**
+ * What a person reads for a selection (polish round 2): "Zylinder Ø 8 mm", "Kante 40 mm", "Ecke".
+ * SolidCraft's own names ("F2:inner:F1:+y#[…]") stay for tooltips and the assistant.
+ */
+export function selectionLabel(t: TFunction, selection: Selection): string {
+  const mm = (value: number) => t('units.mm', { value: Math.round(value * 10) / 10 });
+  if (selection.kind === 'face') {
+    const surface = t(`viewer.surface.${selection.surface}`);
+    return selection.radius ? `${surface} Ø ${mm(selection.radius * 2)}` : surface;
+  }
+  if (selection.kind === 'edge') return `${t('viewer.kind.edge')} ${mm(selection.length)}`;
+  return t('viewer.kind.vertex');
+}
+
+/** SolidCraft's name of a selection: the face or edge name, or the vertex position. */
 export function selectionName(selection: Selection): string {
   if (selection.kind === 'face') return selection.face;
   if (selection.kind === 'edge') return selection.edge;

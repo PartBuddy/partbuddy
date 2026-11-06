@@ -333,7 +333,7 @@ test('two edges are selected with Ctrl, measured, and rounded together with a pr
         const point = { x: box.x + box.width * x, y: box.y + box.height * y };
         await page.mouse.move(point.x, point.y);
         await page.waitForTimeout(30);
-        const name = (await page.getByTestId('focus-name').count()) > 0 ? ((await page.getByTestId('focus-name').textContent()) ?? '') : '';
+        const name = (await page.getByTestId('focus-name').count()) > 0 ? ((await page.getByTestId('focus-name').getAttribute('data-name')) ?? '') : '';
         if (name.includes('|') && !edges.some((edge) => edge.name === name)) edges.push({ ...point, name });
       }
     }
@@ -720,7 +720,7 @@ test('a note on a face stays with the design, out of the assistant\'s reach, and
       if (picked) break;
     }
     expect(picked, 'a face of the box').toBe(true);
-    const face = await page.getByTestId('selected-face').textContent();
+    const face = await page.getByTestId('selected-face').getAttribute('data-name');
 
     await page.getByTestId('hud-note').click();
     await page.getByTestId('note-new-text').fill('Wall 2 mm here');

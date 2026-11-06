@@ -219,9 +219,9 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
     <div
       role="region"
       aria-label={t('hud.dock')}
-      // Docked at the bottom of the view, clear of the axis triad and the view cube on either side.
-      className="pointer-events-auto absolute bottom-3 left-1/2 z-10 flex w-dock -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-3 shadow-2"
-      style={{ maxWidth: 'calc(100% - 12rem)' }}
+      // Bottom right, clear of the axis triad (bottom left) and the view cube (top right); narrow and
+      // scrolling, so an open building block does not cover the part (polish round 2).
+      className="pointer-events-auto absolute bottom-3 right-3 z-10 flex max-h-[calc(100%_-_1.5rem)] w-dialog-sm max-w-[calc(100%_-_1.5rem)] flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-surface-raised p-3 shadow-2"
       data-testid="selection-hud"
       data-view-overlay
     >
