@@ -127,6 +127,11 @@ export function DesignActions() {
         const { name } = await platform().design.sendToSlicer(target.slice('slicer:'.length));
         return t('actions.sentToSlicer', { name });
       }
+      if (target === 'share') {
+        // The sharing package (F5): the main process opens its folder in Explorer.
+        const { folder } = await platform().design.share();
+        return t('actions.share.done', { folder });
+      }
       const result = await platform().design.export(target as ExportFormat);
       if (!result) return null;
       return t('actions.exported', { file: result.file });
@@ -198,6 +203,18 @@ export function DesignActions() {
                   <span className="text-xs text-text-muted">{t(`actions.format.${format}.hint`)}</span>
                 </MenuItem>
               ))}
+            </MenuSection>
+            <Separator className="my-1 border-t border-border" />
+            <MenuSection>
+              <MenuItem
+                id="share"
+                textValue={t('actions.share.name')}
+                className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                data-testid="export-share"
+              >
+                <span className="text-sm font-medium text-text">{t('actions.share.name')}</span>
+                <span className="text-xs text-text-muted">{t('actions.share.hint')}</span>
+              </MenuItem>
             </MenuSection>
             {slicers.length > 0 ? (
               <>

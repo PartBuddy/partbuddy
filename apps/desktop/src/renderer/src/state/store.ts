@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, NotesState, PartPrint, Structure } from '../../../shared/contract';
 
 /** What goes out: a file format, or a slicer by its id (B8). */
-export type ExportTarget = ExportFormat | `slicer:${string}`;
+export type ExportTarget = ExportFormat | `slicer:${string}` | 'share';
 
 /** A section of the settings (B6). */
 export type SettingsSection = 'general' | 'solidcraft' | 'assistant' | 'print' | 'about';
