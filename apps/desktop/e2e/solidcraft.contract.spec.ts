@@ -1849,9 +1849,33 @@ test('a rough sketch drawn with the mouse goes to the assistant as a picture wit
     };
     await line([[0.2, 0.2], [0.2, 0.8], [0.7, 0.8], [0.7, 0.7], [0.3, 0.7], [0.3, 0.2], [0.2, 0.2]]);
     await line([[0.8, 0.1], [0.9, 0.3]]);
-    await expect(canvas).toHaveAttribute('data-strokes', '2');
+    await expect(canvas).toHaveAttribute('data-items', '2');
     await pad.getByTestId('sketch-undo').click();
-    await expect(canvas).toHaveAttribute('data-strokes', '1');
+    await expect(canvas).toHaveAttribute('data-items', '1');
+    await pad.getByTestId('sketch-redo').click();
+    await expect(canvas).toHaveAttribute('data-items', '2');
+    await pad.getByTestId('sketch-undo').click();
+    // F9: a rectangle, a dimension with its value, a label; the tool keys choose the tools.
+    await pad.getByTestId('sketch-tool-rect').click();
+    await line([[0.5, 0.15], [0.9, 0.5]]);
+    await page.keyboard.press('m');
+    await expect(pad.getByTestId('sketch-tool-dimension')).toHaveAttribute('data-selected', 'true');
+    await line([[0.5, 0.6], [0.9, 0.6]]);
+    await pad.getByTestId('sketch-value').fill('40');
+    await page.keyboard.press('Enter');
+    await pad.getByTestId('sketch-tool-text').click();
+    await line([[0.6, 0.3]]);
+    await pad.getByTestId('sketch-value').fill('Lid');
+    await page.keyboard.press('Enter');
+    await expect(canvas).toHaveAttribute('data-items', '4');
+    // Picked and deleted, then taken back.
+    await pad.getByTestId('sketch-tool-select').click();
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    await expect(canvas).toHaveAttribute('data-selected', '1');
+    await page.keyboard.press('Delete');
+    await expect(canvas).toHaveAttribute('data-items', '3');
+    await page.keyboard.press('Control+z');
+    await expect(canvas).toHaveAttribute('data-items', '4');
     await page.screenshot({ path: test.info().outputPath('sketch-pad.png') });
     await pad.getByTestId('sketch-attach').click();
     await expect(pad).toHaveCount(0);
@@ -1860,7 +1884,7 @@ test('a rough sketch drawn with the mouse goes to the assistant as a picture wit
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('message-sketch')).toHaveText('With a sketch', { timeout: 30_000 });
     await expect(page.getByText('Make a part from my sketch.')).toBeVisible();
-    await expect(page.getByText(/I see a PNG picture of \d+ KB with the sketch note\./)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/I see a PNG picture of \d+ KB with the sketch note, its dimension and its label\./)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('composer-sketch')).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('sketch-sent.png') });
   } finally {

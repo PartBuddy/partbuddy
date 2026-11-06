@@ -311,8 +311,8 @@
       "button": "Sketch",
       "open": "Draw a rough sketch for the assistant",
       "title": "Rough sketch",
-      "body": "Draw the part roughly, as on squared paper. Write the sizes that matter in your message; the assistant asks for the ones that are missing.",
-      "canvas": "Sketch with {count, plural, one {# stroke} other {# strokes}}",
+      "body": "Draw the part with shapes on squared paper. Points snap to half squares and to the corners you drew; hold Alt to place freely, Shift to keep lines straight. Dimensions and labels go to the assistant as numbers and text.",
+      "canvas": "Sketch with {count, plural, one {# element} other {# elements}}",
       "undo": "Undo",
       "clear": "Clear",
       "cancel": "Cancel",
@@ -321,7 +321,36 @@
       "edit": "Edit the sketch",
       "remove": "Remove the sketch",
       "sent": "With a sketch",
-      "defaultText": "Make a part from my sketch."
+      "defaultText": "Make a part from my sketch.",
+      "redo": "Redo",
+      "tools": "Drawing tools",
+      "tool": {
+        "select": "Pick and move",
+        "pen": "Freehand",
+        "line": "Line",
+        "rect": "Rectangle",
+        "circle": "Circle",
+        "arc": "Arc",
+        "dimension": "Dimension",
+        "text": "Label",
+        "eraser": "Eraser"
+      },
+      "hint": {
+        "select": "Click an element to pick it, drag to move it, Delete removes it. Double-click a dimension or label to change it.",
+        "pen": "Draw freely with the mouse or a pen.",
+        "line": "Drag from start to end. Shift: in steps of 45°.",
+        "rect": "Drag from corner to corner. Shift: a square.",
+        "circle": "Drag from the centre outwards.",
+        "arc": "Drag from one end to the other, then click where the arc should bulge to.",
+        "arcBulge": "Click where the arc should bulge to. Escape drops it.",
+        "dimension": "Drag between two points, then type the size, e.g. 40, Ø 8 or R 3 (mm).",
+        "text": "Click where the label goes and type it, e.g. M3 hole.",
+        "eraser": "Click or drag over elements to remove them."
+      },
+      "dimensionValue": "Size of the dimension",
+      "dimensionPlaceholder": "e.g. 40 or Ø 8",
+      "labelText": "Label text",
+      "labelPlaceholder": "e.g. M3 hole"
     },
     "photo": {
       "button": "Photo",
