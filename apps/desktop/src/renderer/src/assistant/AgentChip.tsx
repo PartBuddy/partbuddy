@@ -197,6 +197,12 @@ export function AssistantChoice() {
         <span data-testid="agent-detail">
           <StatusDot tone={toneOf(status)} label={statusLabel(t, status)} />
         </span>
+        {status.state === 'unavailable' && status.detail ? (
+          // There is no log file to look in, so the reason shows here.
+          <span className="break-words text-xs text-text-muted" data-testid="agent-reason">
+            {status.detail}
+          </span>
+        ) : null}
         <div className="flex flex-wrap items-center gap-3">
           <AriaButton
             className={linkButton}

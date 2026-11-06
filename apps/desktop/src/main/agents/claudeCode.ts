@@ -44,10 +44,11 @@ export function findClaudeCode(env: NodeJS.ProcessEnv, home: string, exists: (pa
   return found ? { command: found, prefix: [] } : null;
 }
 
-function run(claude: ClaudeCommand, args: string[], env: NodeJS.ProcessEnv): Promise<string> {
+/** `answerOnFailure`: a failing exit that still printed an answer counts as that answer. */
+function run(claude: ClaudeCommand, args: string[], env: NodeJS.ProcessEnv, answerOnFailure = false): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(claude.command, [...claude.prefix, ...args], { env, timeout: 20_000, windowsHide: true }, (error, stdout) => {
-      if (error) reject(new Error(`${args.join(" ")}: ${error.message}`));
+      if (error && !(answerOnFailure && error.code !== undefined && stdout.trim())) reject(new Error(`${args.join(" ")}: ${error.message}`));
       else resolve(stdout);
     });
   });
@@ -59,7 +60,8 @@ export async function readVersion(claude: ClaudeCommand, env: NodeJS.ProcessEnv)
 
 /** Reads only whether, how and with which plan the user is signed in; never the e-mail address. */
 export async function readAuth(claude: ClaudeCommand, env: NodeJS.ProcessEnv): Promise<ClaudeAuth> {
-  const raw = JSON.parse(await run(claude, ['auth', 'status', '--json'], env)) as Record<string, unknown>;
+  // Signed out, Claude Code 2.1.302 answers with exit code 1; that is "signed out", not "unavailable" (seen 2026-11-06).
+  const raw = JSON.parse(await run(claude, ['auth', 'status', '--json'], env, true)) as Record<string, unknown>;
   return {
     loggedIn: raw.loggedIn === true,
     method: typeof raw.authMethod === 'string' ? raw.authMethod : null,
