@@ -80,6 +80,8 @@ export interface PartBuddyApi {
     resetProjectsFolder(): Promise<GeneralSettingsInfo>;
     /** Marks the first-start setup (B9) as finished or skipped. */
     finishSetup(): Promise<GeneralSettingsInfo>;
+    /** Shows PartBuddy's log file in Explorer, for a problem report. */
+    revealLog(): Promise<void>;
   };
   /** Updates of the installed app through GitHub releases (B10); "unavailable" in development. */
   updates: {

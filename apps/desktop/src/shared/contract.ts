@@ -1003,6 +1003,7 @@ export const invokeContract = {
   [invokeChannels.windowTheme]: { request: none, response: themeSchema },
   [invokeChannels.windowSetTheme]: { request: themeRequestSchema, response: themeSchema },
   [invokeChannels.settingsGeneral]: { request: none, response: generalSettingsSchema },
+  [invokeChannels.settingsRevealLog]: { request: none, response: none },
   [invokeChannels.settingsSetLanguage]: { request: languageRequestSchema, response: generalSettingsSchema },
   [invokeChannels.settingsChooseProjectsFolder]: { request: none, response: generalSettingsSchema },
   [invokeChannels.settingsResetProjectsFolder]: { request: none, response: generalSettingsSchema },

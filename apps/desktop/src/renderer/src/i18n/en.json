@@ -643,7 +643,9 @@
       "licence": "PartBuddy is free software under the GNU General Public License, version 3 or later. It comes without any warranty. SolidCraft and the assistants are programs of their own with their own licences.",
       "sponsor": "Support PartBuddy on Ko-fi",
       "source": "Source code on GitHub",
-      "licenceLink": "GNU General Public License 3.0"
+      "licenceLink": "GNU General Public License 3.0",
+      "revealLog": "Show the log file",
+      "revealLogHint": "For a problem report: PartBuddy notes what it does there, without your messages or sign-ins."
     },
     "research": {
       "label": "Research on the web",
