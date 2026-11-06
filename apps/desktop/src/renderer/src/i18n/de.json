@@ -350,7 +350,16 @@
       "dimensionValue": "Wert des Maßes",
       "dimensionPlaceholder": "z. B. 40 oder Ø 8",
       "labelText": "Text der Beschriftung",
-      "labelPlaceholder": "z. B. M3-Loch"
+      "labelPlaceholder": "z. B. M3-Loch",
+      "sheets": "Blätter",
+      "sheet": {
+        "free": "Skizze",
+        "front": "Vorne",
+        "top": "Oben",
+        "side": "Seite"
+      },
+      "scale": "1 Kästchen =",
+      "scaleHint": "Optional: die Länge eines Kästchens in mm. Formen am Raster haben dann Größen; eingetippte Maße haben Vorrang."
     },
     "photo": {
       "button": "Foto",

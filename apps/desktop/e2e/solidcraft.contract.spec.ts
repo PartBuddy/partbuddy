@@ -1877,6 +1877,17 @@ test('a rough sketch drawn with the mouse goes to the assistant as a picture wit
     await page.keyboard.press('Control+z');
     await expect(canvas).toHaveAttribute('data-items', '4');
     await page.screenshot({ path: test.info().outputPath('sketch-pad.png') });
+    // F10: a front view on its own sheet, and a scale; undo and redo cover the sheets.
+    await pad.getByTestId('sketch-sheet-front').click();
+    await expect(canvas).toHaveAttribute('data-items', '0');
+    await pad.getByTestId('sketch-tool-rect').click();
+    await line([[0.2, 0.2], [0.6, 0.6]]);
+    await expect(canvas).toHaveAttribute('data-items', '1');
+    await expect(pad.getByTestId('sketch-sheet-free')).toContainText('4');
+    await pad.getByTestId('sketch-scale').fill('x');
+    await expect(pad.getByTestId('sketch-attach')).toBeDisabled();
+    await pad.getByTestId('sketch-scale').fill('5');
+    await page.screenshot({ path: test.info().outputPath('sketch-front.png') });
     await pad.getByTestId('sketch-attach').click();
     await expect(pad).toHaveCount(0);
     await expect(page.getByTestId('composer-sketch')).toBeVisible();
@@ -1884,7 +1895,7 @@ test('a rough sketch drawn with the mouse goes to the assistant as a picture wit
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('message-sketch')).toHaveText('With a sketch', { timeout: 30_000 });
     await expect(page.getByText('Make a part from my sketch.')).toBeVisible();
-    await expect(page.getByText(/I see a PNG picture of \d+ KB with the sketch note, its dimension and its label\./)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/I see a PNG picture of \d+ KB with the sketch note, its dimension and its label on two sheets with a scale\./)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('composer-sketch')).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('sketch-sent.png') });
   } finally {

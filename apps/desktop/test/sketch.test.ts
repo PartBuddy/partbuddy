@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { sketchNote } from '../src/main/agents/sketchNote';
-import { arcCircle, constrain, describeSketch, hasSize, moved, pick, snap, square, type SketchItem } from '../src/renderer/src/assistant/sketchModel';
+import { arcCircle, constrain, describeSheets, describeSketch, emptySketch, hasSize, moved, pick, snap, square, type SketchItem } from '../src/renderer/src/assistant/sketchModel';
 import { userEvent } from '../src/main/agents/assistant';
 import { agentEventSchema, agentMessageSchema, storedChatItemSchema } from '../src/shared/contract';
 
@@ -95,6 +95,26 @@ describe('the sketch tools (F9)', () => {
       "- dimension \"40 'mm'\" between (2, 9) and (12, 9) (10 squares)",
       '- label "Lid" at (7, 3)',
       '- 2 freehand strokes (see the picture)',
+    ]);
+  });
+});
+
+describe('sketch sheets and scale (F10)', () => {
+  it('lists a lone free sheet as before, and several sheets under their views with the scale first', () => {
+    const lone = emptySketch();
+    lone.sheets.free = [{ kind: 'line', from: [0, 0], to: [200, 0] }];
+    expect(describeSheets(lone)).toBe('- line (0, 0) to (10, 0), 10 squares long');
+
+    const views = emptySketch();
+    views.scale = 5;
+    views.sheets.front = [{ kind: 'rect', from: [40, 40], to: [240, 160] }];
+    views.sheets.top = [{ kind: 'circle', center: [100, 100], radius: 20 }];
+    expect(describeSheets(views).split('\n')).toEqual([
+      '- scale set by the user: 1 square = 5 mm (typed dimensions win)',
+      'Sheet "front view":',
+      '- rectangle (2, 2) to (12, 8), 10 × 6 squares (50 × 30 mm)',
+      'Sheet "top view":',
+      '- circle centred (5, 5), 2 squares (10 mm) across',
     ]);
   });
 });
