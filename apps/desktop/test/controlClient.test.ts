@@ -59,8 +59,8 @@ describe('control channel client', () => {
   });
 
   it('cannot connect where nothing listens', async () => {
-    const port = fake.port;
-    await fake.stop();
-    await expect(ControlClient.open({ port, token: fake.token })).rejects.toThrow();
+    // Not the port the fake just freed: with four CI runners on one machine another test's server
+    // took it at once (seen 2026-11-06). Nothing listens on port 1.
+    await expect(ControlClient.open({ port: 1, token: fake.token })).rejects.toThrow();
   });
 });
