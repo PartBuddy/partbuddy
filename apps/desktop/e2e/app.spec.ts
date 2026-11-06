@@ -79,7 +79,7 @@ test('the user undoes, redoes and exports without the assistant (ADR 0016)', asy
     dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath });
   }, target);
   await page.getByRole('button', { name: 'Export' }).click();
-  await page.getByRole('menuitem', { name: /3MF/ }).click();
+  await page.getByTestId('export-3mf').click();
   await expect(page.getByTestId('notice')).toHaveText('Saved as clip.3mf');
   expect(readFileSync(target, 'utf8')).toBe('fake 3mf');
   rmSync(dirname(target), { recursive: true, force: true });

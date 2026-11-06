@@ -540,6 +540,8 @@ export const exportFormatSchema = z.enum(['3mf', 'stl', 'step']);
 export const exportRequestSchema = z.object({ format: exportFormatSchema }).strict();
 /** The saved file's name only, never the folder (no paths outside the app's own folders here). */
 export const exportResultSchema = z.object({ file: z.string().min(1).max(260) }).strict().nullable();
+/** The sharing package (F5): its folder's name inside the project's exports, never the full path. */
+export const shareResultSchema = z.object({ folder: z.string().min(1).max(260) }).strict();
 
 /** The dimension field at a selection (M1b): an edge length or the radius of a cylindrical face. */
 export const dimensionTargetSchema = z.discriminatedUnion('measure', [
@@ -982,6 +984,7 @@ export const invokeContract = {
   [invokeChannels.designUndo]: { request: none, response: none },
   [invokeChannels.designRedo]: { request: none, response: none },
   [invokeChannels.designExport]: { request: exportRequestSchema, response: exportResultSchema },
+  [invokeChannels.designShare]: { request: none, response: shareResultSchema },
   [invokeChannels.designOpenInSolidCraft]: { request: none, response: none },
   [invokeChannels.designProbeDimension]: { request: dimensionProbeSchema, response: dimensionProbeResultSchema },
   [invokeChannels.designApplyDimension]: { request: dimensionApplySchema, response: none },
@@ -1086,6 +1089,7 @@ export type PrintCheckReport = z.infer<typeof printCheckReportSchema>;
 export type DesignParameter = z.infer<typeof designParameterSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type ExportResult = z.infer<typeof exportResultSchema>;
+export type ShareResult = z.infer<typeof shareResultSchema>;
 export type DimensionTarget = z.infer<typeof dimensionTargetSchema>;
 export type DimensionProbe = z.infer<typeof dimensionProbeSchema>;
 export type DimensionProbeResult = z.infer<typeof dimensionProbeResultSchema>;

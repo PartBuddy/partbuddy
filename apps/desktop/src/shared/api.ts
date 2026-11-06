@@ -30,6 +30,7 @@ import type {
   DimensionProbeResult,
   ExportFormat,
   ExportResult,
+  ShareResult,
   MeasureItem,
   MeasureResult,
   ClearanceResult,
@@ -141,6 +142,8 @@ export interface PartBuddyApi {
     redo(): Promise<void>;
     /** Asks where to save, then exports all bodies; null when the user cancelled. */
     export(format: ExportFormat): Promise<ExportResult>;
+    /** The sharing package (F5): 3MF, STEP, pictures and a description in a folder of the project's exports. */
+    share(): Promise<ShareResult>;
     /** Saves the design to the project folder and opens it in the SolidCraft window. */
     openInSolidCraft(): Promise<void>;
     /** Tries a new edge length or radius without changing the design (the dimension field, M1b). */

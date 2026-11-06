@@ -1808,3 +1808,51 @@ test('a rough sketch drawn with the mouse goes to the assistant as a picture wit
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a sharing package holds 3MF, STEP, four pictures and a description of the part (F5)', async () => {
+  test.setTimeout(240_000);
+  const { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-share-'));
+  const projects = join(work, 'projects');
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7914',
+    PARTBUDDY_PROJECTS_DIR: projects,
+    PARTBUDDY_START_PAGE: '1',
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByTestId('home-page').locator('[data-template="housing"]').click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'ready', { timeout: 30_000 });
+    await page.getByTestId('export').click();
+    await page.getByTestId('export-share').click();
+    await expect(page.getByText(/Sharing package saved in exports\\Housing share \d{4}-\d{2}-\d{2}/)).toBeVisible({ timeout: 60_000 });
+    const exports = join(projects, 'Housing', 'exports');
+    const [folder] = readdirSync(exports);
+    if (!folder) throw new Error('no package folder');
+    const files = readdirSync(join(exports, folder)).sort();
+    expect(files).toEqual(['Housing-front.png', 'Housing-iso.png', 'Housing-right.png', 'Housing-top.png', 'Housing.3mf', 'Housing.step', 'description.md']);
+    expect(readFileSync(join(exports, folder, 'Housing-iso.png')).subarray(1, 4).toString()).toBe('PNG');
+    expect(readFileSync(join(exports, folder, 'Housing.step'), 'utf8').startsWith('ISO-10303-21')).toBe(true);
+    const description = readFileSync(join(exports, folder, 'description.md'), 'utf8');
+    expect(description).toContain('# Housing');
+    expect(description).toContain('- Supports: none needed, it prints as designed');
+    expect(description).toContain('- Housing: 80 × 60 × 30 mm');
+    expect(description).toContain('- `insert_hole` = 4 mm – Hole for an M3 heat-set insert (ruthex: 4 mm)');
+    // A second package goes beside the first, never over it.
+    await page.getByTestId('export').click();
+    await page.getByTestId('export-share').click();
+    await expect.poll(() => existsSync(join(exports, `${folder} (2)`, 'description.md')), { timeout: 60_000 }).toBe(true);
+    expect(readdirSync(exports)).toHaveLength(2);
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

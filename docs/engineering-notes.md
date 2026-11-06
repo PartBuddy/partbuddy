@@ -235,6 +235,9 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   face with normal +Y its x runs along −X). Fillets by edge points followed a size change.
 - `solidcraft-cli snapshot script.json --out x.png --view iso --no-grid --no-axes` renders a script
   without a window; `--section x=35` cuts it, handy to check a hole.
+- `solidcraft-cli snapshot --in design.sc` renders a saved design while the headless engine has it
+  open (about 2 s at 1600 × 1200); `--body NAME:opacity=0` still draws the body's outline, so it
+  does not hide a body. `inspect.measure {bodies}` gives `bodies[].bbox` per body.
 - `solidcraft-cli commands` prints every command with its parameters as JSON, the quickest way to
   check a parameter before a contract test.
 

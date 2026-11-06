@@ -267,6 +267,34 @@ export class SolidCraftSupervisor {
     }
   }
 
+  /**
+   * A picture of a saved design from one of SolidCraft's views (F5), rendered by `solidcraft-cli
+   * snapshot` without a window, so the open design and the user's screen stay as they are.
+   */
+  async snapshot(design: string, view: 'iso' | 'front' | 'top' | 'right', target: string): Promise<void> {
+    await mkdir(dirname(target), { recursive: true });
+    await this.runCli(this.cli(), ['snapshot', '--in', design, '--out', target, '--view', view, '--width', '1600', '--height', '1200', '--no-grid', '--no-axes']);
+    if (!existsSync(target)) throw new Error('SolidCraft wrote no picture');
+  }
+
+  /** The size of each printed body (F5), from `inspect.measure`; null where SolidCraft gave none. */
+  async bodySizes(): Promise<{ name: string; size: [number, number, number] | null }[]> {
+    const standard = new Set(this.latest?.structure.standardParts ?? []);
+    const bodies = this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [];
+    if (bodies.length === 0) return [];
+    const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'inspect.measure', params: { bodies } }], rollback: false }, 60_000);
+    const measured = reply.failed ? [] : ((reply.results[0] as { bodies?: unknown } | undefined)?.bodies ?? []);
+    const list = Array.isArray(measured) ? (measured as { name?: unknown; bbox?: { min?: unknown; max?: unknown } }[]) : [];
+    return bodies.map((name) => {
+      const box = list.find((entry) => entry.name === name)?.bbox;
+      const min = box?.min;
+      const max = box?.max;
+      const ok = (value: unknown): value is number[] => Array.isArray(value) && value.length === 3 && value.every((item) => typeof item === 'number' && Number.isFinite(item));
+      if (!ok(min) || !ok(max)) return { name, size: null };
+      return { name, size: [0, 1, 2].map((i) => Math.round(((max[i] ?? 0) - (min[i] ?? 0)) * 100) / 100) as [number, number, number] };
+    });
+  }
+
   /** `solidcraft-cli` beside the SolidCraft PartBuddy uses. */
   private cli(): string {
     const executable = findExecutable(this.options.environment);

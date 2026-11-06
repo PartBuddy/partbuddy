@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { copyFileSync, existsSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -42,6 +42,8 @@ import { ChatArchive } from './chat/chatArchive';
 import { printCheckNote } from './print/printCheckNote';
 import { templateSteps } from '../shared/templates';
 import { SKETCH_NOTE } from './agents/sketchNote';
+import { shareDescription } from './share/description';
+import { freeFolder } from './share/freeFolder';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
 
 app.setName('PartBuddy');
@@ -587,6 +589,48 @@ if (!app.requestSingleInstanceLock()) {
         log(`no version at the export: ${(error as Error).message}`);
       });
       return { file: basename(choice.filePath) };
+    });
+    // The sharing package (F5): everything Printables or MakerWorld asks for, in one new folder.
+    bridge.handle(invokeChannels.designShare, async () => {
+      const design = await supervisor.saveNow();
+      if (!design || !projectStore.holds(design)) throw new Error('the design has no project yet');
+      const name = safeDesignFileName(supervisor.currentRevision()?.designName ?? basename(design, '.sc'));
+      const day = new Date().toISOString().slice(0, 10);
+      const folder = freeFolder(join(dirname(design), 'exports'), `${name} ${german ? 'Teilen' : 'share'} ${day}`);
+      mkdirSync(folder, { recursive: true });
+      try {
+        const model = `${name}.3mf`;
+        const step = `${name}.step`;
+        await supervisor.exportDesign('3mf', join(folder, model));
+        await supervisor.exportDesign('step', join(folder, step));
+        const pictures: string[] = [];
+        for (const view of ['iso', 'front', 'top', 'right'] as const) {
+          const picture = `${name}-${view}.png`;
+          await supervisor.snapshot(design, view, join(folder, picture));
+          pictures.push(picture);
+        }
+        const print = printProfiles.part();
+        const parameters = (await supervisor.parameters().catch(() => [])).filter((parameter) => parameter.editable);
+        const description = shareDescription({
+          name: supervisor.currentRevision()?.designName ?? name,
+          language: german ? 'de' : 'en',
+          bodies: await supervisor.bodySizes().catch(() => []),
+          parameters: parameters.map((parameter) => ({ name: parameter.name, value: parameter.value, unit: parameter.unit, comment: parameter.comment.replace(/\s*\[[^\]]*\.\.[^\]]*\]\s*/, ' ').trim() || null })),
+          material: print.material.name,
+          layer: print.printer.layer,
+          nozzle: print.printer.nozzle,
+          check: printCheck ? { status: printCheck.status, overhang: printCheck.findings.some((finding) => finding.kind === 'overhang') } : null,
+          files: { model, step, pictures },
+        });
+        writeFileSync(join(folder, german ? 'Beschreibung.md' : 'description.md'), description, 'utf8');
+      } catch (error) {
+        rmSync(folder, { recursive: true, force: true });
+        throw error;
+      }
+      log('saved a sharing package');
+      // Explorer opens on the folder, except in tests, which run without disturbing the screen.
+      if (process.env.PARTBUDDY_WINDOW_DISPLAY !== 'offscreen') void shell.openPath(folder);
+      return { folder: basename(folder) };
     });
     bridge.handle(invokeChannels.designProbeDimension, ({ target, current, value }) => {
       assistantIdle();

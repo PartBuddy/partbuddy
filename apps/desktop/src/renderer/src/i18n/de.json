@@ -343,6 +343,11 @@
       "title": "Im Slicer öffnen",
       "open": "In {name} öffnen",
       "hint": "Druckbare Körper auf ihrer Druckfläche; Normteile bleiben draußen"
+    },
+    "share": {
+      "name": "Teilen-Paket …",
+      "hint": "3MF, STEP, vier Bilder und eine Beschreibung für Printables oder MakerWorld",
+      "done": "Teilen-Paket gespeichert in exports\\{folder}"
     }
   },
   "hud": {

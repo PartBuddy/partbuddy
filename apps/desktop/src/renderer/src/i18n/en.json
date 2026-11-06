@@ -343,6 +343,11 @@
       "title": "Open in the slicer",
       "open": "Open in {name}",
       "hint": "Printable bodies on their print face; standard parts stay out"
+    },
+    "share": {
+      "name": "Sharing package …",
+      "hint": "3MF, STEP, four pictures and a description for Printables or MakerWorld",
+      "done": "Sharing package saved in exports\\{folder}"
     }
   },
   "hud": {

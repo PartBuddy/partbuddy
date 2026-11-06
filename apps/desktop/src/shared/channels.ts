@@ -54,6 +54,7 @@ export const invokeChannels = {
   designUndo: 'design:undo',
   designRedo: 'design:redo',
   designExport: 'design:export',
+  designShare: 'design:share',
   designOpenInSolidCraft: 'design:open-in-solidcraft',
   designProbeDimension: 'design:probe-dimension',
   designApplyDimension: 'design:apply-dimension',
