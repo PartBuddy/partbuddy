@@ -454,22 +454,33 @@ export const workStepSchema = z
 /** applied: part of the design; undone: Redo or "go back" brings it back; discarded: replaced for good. */
 export const workStepStateSchema = z.enum(['applied', 'undone', 'discarded']);
 
-/** A question or plan of the assistant, shown as a card with buttons (M2a). */
+/** One question of a round: 2 to 5 answers, the assistant's recommendation marked, one or several to pick. */
+export const roundQuestionSchema = z
+  .object({
+    header: z.string().max(24).optional(),
+    question: z.string().max(500),
+    options: z
+      .array(z.object({ label: z.string().max(60), detail: z.string().max(200).optional(), recommended: z.literal(true).optional() }).strict())
+      .min(2)
+      .max(5),
+    multiSelect: z.literal(true).optional(),
+  })
+  .strict();
+
+/** A round of questions or a plan of the assistant, shown as a card in the chat (M2a). */
 export const agentQuestionSchema = z.discriminatedUnion('kind', [
-  z
-    .object({
-      id: z.string().max(40),
-      kind: z.literal('ask'),
-      question: z.string().max(500),
-      options: z.array(z.object({ label: z.string().max(60), detail: z.string().max(200).optional() }).strict()).min(2).max(5),
-    })
-    .strict(),
+  z.object({ id: z.string().max(40), kind: z.literal('ask'), questions: z.array(roundQuestionSchema).min(1).max(4) }).strict(),
   z.object({ id: z.string().max(40), kind: z.literal('plan'), summary: z.string().max(300), steps: z.array(z.string().max(200)).min(1).max(12) }).strict(),
 ]);
-/** The button the user pressed on a question card: the option's index, or go / cancel for a plan. */
-export const messageAnswerSchema = z
-  .object({ question: z.string().min(1).max(40), choice: z.union([z.enum(['go', 'cancel']), z.string().regex(/^[0-4]$/)]) })
-  .strict();
+/** How the user answered a card: go / cancel on a plan, or "answered" when a round was sent with its button. */
+export const messageAnswerSchema = z.object({ question: z.string().min(1).max(40), choice: z.enum(['go', 'cancel', 'answered']) }).strict();
+
+/** Chats saved before rounds (2026-11-06) hold one question with its options; read them as a round of one. */
+function roundOfOne(value: unknown): unknown {
+  const item = value as { kind?: unknown; question?: unknown; options?: unknown; id?: unknown } | null;
+  if (item?.kind !== 'ask' || typeof item.question !== 'string') return value;
+  return { id: item.id, kind: 'ask', questions: [{ question: item.question, options: item.options }] };
+}
 /** What a selection that went with a message holds, counted for the chat line. */
 export const selectionSummarySchema = z
   .object({ faces: z.number().int().min(0), edges: z.number().int().min(0), vertices: z.number().int().min(0), bodies: z.array(z.string().max(200)).max(20) })
@@ -828,7 +839,7 @@ export const storedChatItemSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('user'), text: z.string().max(20_000), selection: z.string().max(400).optional(), selected: selectionSummarySchema.optional(), sketch: z.literal(true).optional(), photo: z.literal(true).optional() }).strict(),
   z.object({ kind: z.literal('assistant'), text: z.string().max(50_000) }).strict(),
   z.object({ kind: z.literal('step'), step: workStepSchema, state: workStepStateSchema }).strict(),
-  z.object({ kind: z.literal('question'), question: agentQuestionSchema, choice: z.string().max(40).nullable() }).strict(),
+  z.object({ kind: z.literal('question'), question: z.preprocess(roundOfOne, agentQuestionSchema), choice: z.string().max(40).nullable() }).strict(),
   z.object({ kind: z.literal('error'), message: z.string().max(2000) }).strict(),
   z.object({ kind: z.literal('source'), source: researchSourceSchema }).strict(),
 ]);

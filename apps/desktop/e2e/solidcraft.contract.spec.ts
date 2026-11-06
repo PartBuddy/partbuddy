@@ -515,6 +515,61 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
   }
 });
 
+test('a round of questions comes with the recommendation picked and answers in one message', async () => {
+  test.setTimeout(120_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-round-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7919',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    // The test double asks a round for "phone holder" and repeats the answers (test/fakeClaude.mjs).
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('I need a phone holder for this part');
+    await page.getByRole('button', { name: 'Send' }).click();
+    const card = page.getByTestId('question-card');
+    await expect(card).toHaveAttribute('data-kind', 'ask', { timeout: 30_000 });
+    await expect(page.getByTestId('assistant-text').last()).toHaveText('Round shown; building waits for the answers.');
+    await expect(card.getByTestId('round-question')).toHaveCount(2);
+    // The recommendations come picked; the second question takes several answers.
+    await expect(card.getByRole('radio', { name: /Clamp/ })).toBeChecked();
+    await expect(card.getByRole('checkbox', { name: /USB-C/ })).toBeChecked();
+    await expect(card.getByTestId('option-recommended')).toHaveCount(2);
+    await card.getByRole('checkbox', { name: /Camera/ }).check({ force: true });
+    await card.getByRole('textbox', { name: 'Other answer to Openings' }).fill('the speaker');
+    // A typed answer to a one-answer question replaces the pick; clearing it needs a pick again.
+    const mounting = card.getByRole('textbox', { name: 'Other answer to Mounting' });
+    await mounting.fill('Magnet');
+    await expect(card.getByRole('radio', { name: /Clamp/ })).not.toBeChecked();
+    await mounting.fill('');
+    await expect(card.getByRole('button', { name: 'Answer' })).toBeDisabled();
+    await card.getByRole('radio', { name: /Screws/ }).check({ force: true });
+    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('aside').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    await page.screenshot({ path: test.info().outputPath('round-card.png') });
+
+    await card.getByRole('button', { name: 'Answer' }).click();
+    await expect(page.getByTestId('assistant-text').last()).toHaveText('Got the card answers: Mounting: Screws | Openings: USB-C, Camera, the speaker', { timeout: 30_000 });
+    await expect(card.getByTestId('question-answered')).toHaveText('Answered in the chat');
+    await expect(card.getByRole('button', { name: 'Answer' })).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('round-answered.png') });
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('round-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('the user\'s Claude Code builds a part in SolidCraft through the gate proxy', async () => {
   // Uses the installed Claude Code with the user's own subscription; opt in separately with
   // PARTBUDDY_E2E_CLAUDE=1, because it spends subscription usage. SolidCraft runs as an own

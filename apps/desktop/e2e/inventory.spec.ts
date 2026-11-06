@@ -6,6 +6,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
 import { launchApp } from './launch';
+import { answerRound } from './practice';
 
 // UI inventory (decided 2026-11-04): pictures of every area and state, light and dark, as the
 // basis for the UI upgrade. The real part spends Claude subscription usage, so it runs only with
@@ -106,7 +107,7 @@ test('inventory: real part, every state, light and dark', async () => {
         await card.scrollIntoViewIfNeeded();
         await shot(page, kind === 'plan' ? '03-plan-card' : `03-question-${round}`);
         if (kind === 'plan') await card.getByRole('button', { name: 'Go' }).click();
-        else await card.getByRole('button').first().click();
+        else await answerRound(card, undefined);
         await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible({ timeout: 60_000 });
         await page.waitForTimeout(12_000);
         await shot(page, `04-building-${round}`);

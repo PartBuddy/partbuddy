@@ -1,9 +1,12 @@
 import { IconCheck, IconHelpCircle, IconListCheck, IconPencil, IconPlayerPlay, IconX } from '@tabler/icons-react';
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { CheckboxButton, CheckboxField, Input, RadioButton, RadioField, RadioGroup, TextField } from 'react-aria-components';
 
 import type { MessageAnswer } from '../../../shared/contract';
 import { Button } from '../ui/Button';
+import { radioClass, RadioMark } from './AgentChip';
+import { roundAnswers, roundMessage, type Round } from './round';
 import type { ConversationItem } from './store';
 
 export type QuestionItem = Extract<ConversationItem, { kind: 'question' }>;
@@ -36,40 +39,7 @@ export function QuestionCard({ item, ready, answer, change }: Props) {
   const { question } = item;
   const open = !item.answered;
 
-  if (question.kind === 'ask') {
-    const picked = item.choice !== null ? question.options[Number(item.choice)] : undefined;
-    return (
-      <section aria-labelledby={headingId} data-testid="question-card" data-kind="ask" className="flex flex-col gap-2 rounded-md border border-accent bg-accent-subtle p-3">
-        <p id={headingId} className="flex items-center gap-1 text-xs font-medium text-text-muted">
-          <IconHelpCircle className="size-icon-sm" aria-hidden />
-          {t('assistant.question.title')}
-        </p>
-        <p className="text-md text-text">{question.question}</p>
-        {open ? (
-          <>
-            <div className="flex flex-col gap-1">
-              {question.options.map((option, i) => (
-                <div key={i} className="flex flex-col gap-hairline">
-                  <Button
-                    isDisabled={!ready}
-                    onPress={() => {
-                      answer(option.label, { question: question.id, choice: String(i) });
-                    }}
-                  >
-                    {option.label}
-                  </Button>
-                  {option.detail ? <span className="px-1 text-xs text-text-muted">{option.detail}</span> : null}
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-text-muted">{t('assistant.question.typeInstead')}</p>
-          </>
-        ) : (
-          <Answered text={picked ? t('assistant.question.answeredWith', { answer: picked.label }) : t('assistant.question.answered')} />
-        )}
-      </section>
-    );
-  }
+  if (question.kind === 'ask') return <RoundCard round={question} open={open} ready={ready} answer={answer} />;
 
   const outcome = item.choice === 'go' ? 'go' : item.choice === 'cancel' ? 'cancel' : 'change';
   return (
@@ -112,6 +82,142 @@ export function QuestionCard({ item, ready, answer, change }: Props) {
         </div>
       ) : (
         <Answered text={t(`assistant.planCard.outcome.${outcome}`)} />
+      )}
+    </section>
+  );
+}
+
+type Option = Round['questions'][number]['options'][number];
+
+function OptionText({ option }: { option: Option }) {
+  const { t } = useTranslation();
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span className="flex flex-wrap items-center gap-1 text-sm text-text">
+        {option.label}
+        {option.recommended ? (
+          <span className="rounded-full bg-accent px-2 text-xs font-medium text-on-accent" data-testid="option-recommended">
+            {t('assistant.question.recommended')}
+          </span>
+        ) : null}
+      </span>
+      {option.detail ? <span className="text-xs text-text-muted">{option.detail}</span> : null}
+    </span>
+  );
+}
+
+/**
+ * A round of up to four questions (decided 2026-11-06): the recommended answers come preselected,
+ * a question with multiSelect takes several, and each has a field for a different answer. One
+ * button sends all answers as the next message.
+ */
+function RoundCard({ round, open, ready, answer }: { round: Round; open: boolean; ready: boolean; answer: Props['answer'] }) {
+  const { t } = useTranslation();
+  const baseId = useId();
+  const [picks, setPicks] = useState<number[][]>(() =>
+    round.questions.map((entry) => {
+      const recommended = entry.options.flatMap((option, n) => (option.recommended ? [n] : []));
+      return entry.multiSelect ? recommended : recommended.slice(0, 1);
+    }),
+  );
+  const [other, setOther] = useState<string[]>(() => round.questions.map(() => ''));
+  const answers = roundAnswers(round, picks, other);
+  const complete = answers.every((text) => text.length > 0);
+  const setAt = <T,>(list: T[], i: number, value: T) => list.map((entry, n) => (n === i ? value : entry));
+
+  return (
+    <section aria-labelledby={`${baseId}-title`} data-testid="question-card" data-kind="ask" className="flex flex-col gap-3 rounded-md border border-accent bg-accent-subtle p-3">
+      <p id={`${baseId}-title`} className="flex items-center gap-1 text-xs font-medium text-text-muted">
+        <IconHelpCircle className="size-icon-sm" aria-hidden />
+        {t('assistant.question.title', { count: round.questions.length })}
+      </p>
+      {round.questions.map((entry, i) => {
+        const labelId = `${baseId}-q${String(i)}`;
+        const picked = picks[i] ?? [];
+        return (
+          <div key={i} className="flex flex-col gap-1" data-testid="round-question">
+            {entry.header ? <span className="text-xs font-medium uppercase text-text-muted">{entry.header}</span> : null}
+            <p id={labelId} className="text-md text-text">
+              {entry.question}
+              {entry.multiSelect && open ? <span className="text-xs text-text-muted"> · {t('assistant.question.several')}</span> : null}
+            </p>
+            {!open ? null : entry.multiSelect ? (
+              <div role="group" aria-labelledby={labelId} className="flex flex-col gap-hairline">
+                {entry.options.map((option, n) => (
+                  <CheckboxField
+                    key={n}
+                    isSelected={picked.includes(n)}
+                    onChange={(selected) => {
+                      setPicks(setAt(picks, i, selected ? [...picked, n].sort() : picked.filter((x) => x !== n)));
+                    }}
+                  >
+                    <CheckboxButton className={radioClass}>
+                      <span
+                        aria-hidden
+                        className="mt-1 flex size-icon-sm shrink-0 items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent"
+                      >
+                        <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
+                      </span>
+                      <OptionText option={option} />
+                    </CheckboxButton>
+                  </CheckboxField>
+                ))}
+              </div>
+            ) : (
+              <RadioGroup
+                aria-labelledby={labelId}
+                value={picked[0] !== undefined ? String(picked[0]) : null}
+                onChange={(value) => {
+                  setPicks(setAt(picks, i, [Number(value)]));
+                  // One answer only: a pick replaces a typed one.
+                  setOther(setAt(other, i, ''));
+                }}
+                className="flex flex-col gap-hairline"
+              >
+                {entry.options.map((option, n) => (
+                  <RadioField key={n} value={String(n)}>
+                    <RadioButton className={radioClass}>
+                      <RadioMark />
+                      <OptionText option={option} />
+                    </RadioButton>
+                  </RadioField>
+                ))}
+              </RadioGroup>
+            )}
+            {open ? (
+              <TextField
+                aria-label={t('assistant.question.other', { question: entry.header ?? entry.question })}
+                value={other[i] ?? ''}
+                onChange={(text) => {
+                  setOther(setAt(other, i, text));
+                  if (!entry.multiSelect && text.trim()) setPicks(setAt(picks, i, []));
+                }}
+              >
+                <Input
+                  placeholder={t('assistant.question.otherPlaceholder')}
+                  className="h-control-sm w-full rounded-sm border border-border bg-surface px-2 text-sm text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus"
+                />
+              </TextField>
+            ) : null}
+          </div>
+        );
+      })}
+      {open ? (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="primary"
+            isDisabled={!ready || !complete}
+            onPress={() => {
+              answer(roundMessage(round, answers), { question: round.id, choice: 'answered' });
+            }}
+          >
+            <IconCheck className="size-icon-sm" aria-hidden />
+            {t('assistant.question.send')}
+          </Button>
+          {!complete ? <span className="text-xs text-text-muted">{t('assistant.question.incomplete')}</span> : null}
+        </div>
+      ) : (
+        <Answered text={t('assistant.question.answered')} />
       )}
     </section>
   );

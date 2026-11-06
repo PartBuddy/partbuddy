@@ -156,6 +156,30 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "phone holder" (question rounds, 2026-11-06): asks a round of two questions, then repeats
+    // PartBuddy's note and the answer lines it got.
+    if (content.includes('phone holder') || content.includes('answered your questions')) {
+      let reply;
+      if (content.includes('answered your questions')) {
+        reply = `Got ${content.includes('on the card') ? 'the card' : 'typed'} answers: ${content.slice(content.lastIndexOf(']') + 1).trim().replace(/\n/g, ' | ')}`;
+      } else {
+        const asked = await client.callTool({
+          name: 'partbuddy_ask',
+          arguments: {
+            questions: [
+              { header: 'Mounting', question: 'How is the holder fixed to the part?', options: [{ label: 'Clamp', detail: 'No drilling, holds on 3–8 mm', recommended: true }, { label: 'Screws' }] },
+              { header: 'Openings', question: 'Which openings stay free?', options: [{ label: 'USB-C', recommended: true }, { label: 'Buttons' }, { label: 'Camera' }], multiSelect: true },
+            ],
+          },
+        });
+        const early = await client.callTool({ name: 'execute', arguments: box });
+        reply = asked.isError ? 'The round was refused.' : early.isError ? 'Round shown; building waits for the answers.' : 'Built before the answers.';
+      }
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: reply }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     if (content.includes('notes')) {
       const inspect = await client.callTool({ name: 'inspect_design', arguments: { measure: false } });
       const undo = await client.callTool({ name: 'undo', arguments: {} });
