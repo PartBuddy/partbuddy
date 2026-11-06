@@ -166,7 +166,8 @@ export type ClaudeEvent =
   | { type: 'text'; text: string }
   | { type: 'done'; ok: boolean; durationMs: number | null; detail: string | null }
   | { type: 'exited'; code: number | null }
-  | { type: 'usage'; windows: NonNullable<AgentStatus['usage']> };
+  | { type: 'usage'; windows: NonNullable<AgentStatus['usage']> }
+  | { type: 'context'; used?: number; size?: number };
 
 /** Maps one stream-json line of Claude Code to the events PartBuddy shows. */
 export function parseStreamLine(line: string): ClaudeEvent[] {
@@ -217,7 +218,12 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
         .map((block) => sourceOfToolUse(block.name, block.input))
         .filter((source): source is ResearchSource => source !== null)
         .map((source) => ({ type: 'source' as const, source }));
-      return [...sources, ...(text ? [{ type: 'text' as const, text }] : [])];
+      // Each request's tokens (2.1.299: input, cache read and cache creation add up to the prompt).
+      const usage = (message.message as { usage?: Record<string, unknown> } | undefined)?.usage;
+      const tokens = ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens', 'output_tokens'].map((key) => usage?.[key]);
+      const counted = typeof tokens[0] === 'number' && tokens.every((count) => count === undefined || (Number.isInteger(count) && (count as number) >= 0));
+      const context = counted ? [{ type: 'context' as const, used: tokens.reduce<number>((sum, count) => sum + ((count as number | undefined) ?? 0), 0) }] : [];
+      return [...sources, ...(text ? [{ type: 'text' as const, text }] : []), ...context];
     }
     case 'user': {
       const content = (message.message as { content?: unknown } | undefined)?.content;
@@ -228,8 +234,13 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
         .filter((source): source is ResearchSource => source !== null)
         .map((source) => ({ type: 'source' as const, source }));
     }
-    case 'result':
+    case 'result': {
+      // The window of the turn's model, e.g. "modelUsage":{"claude-haiku-5-5":{"contextWindow":1000000,…}}; the largest if several answered.
+      const sizes = Object.values((message.modelUsage as Record<string, { contextWindow?: unknown } | null> | undefined) ?? {})
+        .map((entry) => entry?.contextWindow)
+        .filter((size): size is number => typeof size === 'number' && Number.isInteger(size) && size > 0);
       return [
+        ...(sizes.length > 0 ? [{ type: 'context' as const, size: Math.max(...sizes) }] : []),
         {
           type: 'done',
           ok: message.subtype === 'success' && message.is_error !== true,
@@ -237,6 +248,7 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
           detail: message.subtype === 'success' ? null : typeof message.subtype === 'string' ? message.subtype : 'failed',
         },
       ];
+    }
     default:
       return [];
   }

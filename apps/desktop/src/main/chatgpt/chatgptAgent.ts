@@ -5,7 +5,7 @@ import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } fro
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself } from '../agents/loop';
+import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself } from '../agents/loop';
 import { sourceOfUrl } from '../agents/research';
 import { composeMessage } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
@@ -50,6 +50,7 @@ export function modelsFromList(body: unknown): ModelOption[] {
     if (typeof raw.description === 'string') option.description = raw.description.slice(0, 200);
     const fallback = word(raw.default_reasoning_level);
     if (fallback && efforts.includes(fallback)) option.defaultEffort = fallback;
+    if (typeof raw.context_window === 'number' && Number.isInteger(raw.context_window) && raw.context_window > 0) option.context = raw.context_window;
     options.push(option);
   }
   return options.slice(0, 30);
@@ -66,6 +67,8 @@ export class ChatGptAgent implements AgentBackend {
   private sequence = 0;
   /** Set when the plan's backend refused the web search tool; requests go on without it. */
   private webSearchRefused = false;
+  /** How full the conversation is after the last turn. */
+  private context: AgentStatus['context'] | null = null;
 
   constructor(private readonly options: ChatGptAgentOptions) {}
 
@@ -80,6 +83,7 @@ export class ChatGptAgent implements AgentBackend {
     }
     if (account.email) status.account = account.email;
     if (account.detail && !status.detail) status.detail = account.detail;
+    if (this.context && account.state === 'signedIn') status.context = this.context;
     return { ...status, ...choiceStatus(this.models, this.choice, this.options.choices.get('chatgpt')) };
   }
 
@@ -102,6 +106,7 @@ export class ChatGptAgent implements AgentBackend {
   async signOut(): Promise<void> {
     await this.stop();
     this.history = [];
+    this.context = null;
     this.models = null;
     this.choice = null;
     await this.options.account.signOut();
@@ -117,6 +122,7 @@ export class ChatGptAgent implements AgentBackend {
   async newConversation(): Promise<void> {
     await this.stop();
     this.history = [];
+    this.context = null;
   }
 
   async dispose(): Promise<void> {
@@ -191,6 +197,7 @@ export class ChatGptAgent implements AgentBackend {
         if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error));
       }
       this.history.push(...(await result.responseMessages));
+      this.context = contextAfter(await result.steps, this.models?.find((model) => model.id === this.choice?.model)?.context) ?? this.context;
       if (repeatsItself({ steps: await result.steps })) {
         this.options.event({ type: 'error', message: LOOP_NOTICE });
         this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: 'failed' });

@@ -30,7 +30,7 @@ function fakeOpenAI(firstTool: string) {
       return Promise.resolve(
         Response.json({
           models: [
-            { slug: 'gpt-5-test', display_name: 'GPT Test', visibility: 'list', default_reasoning_level: 'medium', supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }] },
+            { slug: 'gpt-5-test', display_name: 'GPT Test', visibility: 'list', context_window: 272000, default_reasoning_level: 'medium', supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }] },
             { slug: 'gpt-hidden', visibility: 'hide' },
             { slug: 'gpt-mini', display_name: 'GPT Mini', visibility: 'list', supported_reasoning_levels: [] },
           ],
@@ -118,7 +118,7 @@ describe('ChatGPT agent', () => {
     const { agent, openai, events } = setup();
     const status = await agent.refresh();
     expect(status.models).toEqual([
-      { id: 'gpt-5-test', name: 'GPT Test', efforts: ['low', 'medium', 'high'], defaultEffort: 'medium' },
+      { id: 'gpt-5-test', name: 'GPT Test', efforts: ['low', 'medium', 'high'], defaultEffort: 'medium', context: 272000 },
       { id: 'gpt-mini', name: 'GPT Mini', efforts: [] },
     ]);
     expect(status.model).toBe('gpt-5-test');
@@ -152,6 +152,10 @@ describe('ChatGPT agent', () => {
     await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
 
     expect(calls).toEqual(['measure']);
+    // The last request's input and answer of the model's window; a new chat starts empty.
+    expect(agent.status().context).toEqual({ used: 15, size: 272000 });
+    await agent.newConversation();
+    expect(agent.status().context).toBeUndefined();
     expect(openai.auth.every((header) => header === 'Bearer access-token-1')).toBe(true);
     const first = openai.bodies[0] ?? {};
     expect(first).toMatchObject({ model: 'gpt-5-test', store: false, stream: true });

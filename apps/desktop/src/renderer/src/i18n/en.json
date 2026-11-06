@@ -337,6 +337,8 @@
       "ready": "{server} · {model}",
       "unavailableTitle": "No local model ready"
     },
+    "context": "Context: {used, number, percent} of {size, number} tokens",
+    "contextFull": "Context: {used, number, percent} of {size, number} tokens · start a new chat",
     "usage": {
       "title": "Plan usage",
       "window": "{window} {used, number, percent}",

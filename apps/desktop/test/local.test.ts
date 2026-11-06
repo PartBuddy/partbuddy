@@ -80,7 +80,8 @@ function fakeStrata(health: Record<string, unknown> = HEALTH) {
       bodies.push(JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>);
       const chunk = (delta: object, finish: string | null) =>
         `data: ${JSON.stringify({ id: 'c1', object: 'chat.completion.chunk', created: 1, model: 'qwen3.8-flash-next-iq3_xxs', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
-      const sse = chunk({ role: 'assistant', content: 'Hello from Strata' }, null) + chunk({}, 'stop') + 'data: [DONE]\n\n';
+      const usage = `data: ${JSON.stringify({ id: 'c1', object: 'chat.completion.chunk', created: 1, model: 'qwen3.8-flash-next-iq3_xxs', choices: [], usage: { prompt_tokens: 9800, completion_tokens: 200 } })}\n\n`;
+      const sse = chunk({ role: 'assistant', content: 'Hello from Strata' }, null) + chunk({}, 'stop') + usage + 'data: [DONE]\n\n';
       return Promise.resolve(new Response(sse, { status: 200, headers: { 'Content-Type': 'text/event-stream' } }));
     }
     return Promise.resolve(new Response('not found', { status: 404 }));
@@ -107,13 +108,15 @@ describe('local models through Strata (F8)', () => {
     const local = new LocalAgent({ tools: () => Promise.resolve(upstream), event: (event) => events.push(event), changed: () => undefined, log: () => undefined, choices: noChoices, fetch: strata.fetchFn });
     const status = await local.refresh();
     expect(status).toMatchObject({ state: 'ready', account: 'Strata', model: 'strata:qwen3.8-flash-next-iq3_xxs', effort: 'medium' });
-    expect(status.models).toEqual([{ id: 'strata:qwen3.8-flash-next-iq3_xxs', name: 'qwen3.8-flash-next-iq3_xxs · Strata', efforts: ['low', 'medium', 'high'], description: 'In memory · 128K context' }]);
+    expect(status.models).toEqual([{ id: 'strata:qwen3.8-flash-next-iq3_xxs', name: 'qwen3.8-flash-next-iq3_xxs · Strata', efforts: ['low', 'medium', 'high'], description: 'In memory · 128K context', context: 131072 }]);
     await local.chooseModel({ model: 'strata:qwen3.8-flash-next-iq3_xxs', effort: 'high' }, false);
     await local.send('Hello');
     await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
     expect(strata.bodies[0]).toMatchObject({ model: 'qwen3.8-flash-next-iq3_xxs', reasoning_effort: 'high', stream: true });
     expect((strata.bodies[0]?.tools as unknown[] | undefined)?.length).toBe(1);
     expect(events.flatMap((e) => (e.type === 'textDelta' ? [e.text] : [])).join('')).toBe('Hello from Strata');
+    // How full the 128K window is after the turn.
+    expect(local.status().context).toEqual({ used: 10000, size: 131072 });
     expect(events.find((e) => e.type === 'done')).toMatchObject({ ok: true });
   });
 

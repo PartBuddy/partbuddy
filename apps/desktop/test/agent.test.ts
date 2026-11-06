@@ -190,6 +190,10 @@ describe('Claude Code adapter', () => {
       parseStreamLine('{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","unifiedWindows":{"five_hour":{"utilization":1.2},"seven_day":{"utilization":0.69,"resetsAt":1794117600},"odd":{"utilization":"x"}}}}'),
     ).toEqual([{ type: 'usage', windows: [{ window: 'five_hour', used: 1, resetsAt: null }, { window: 'seven_day', used: 0.69, resetsAt: 1794117600 }] }]);
     expect(parseStreamLine('{"type":"rate_limit_event","rate_limit_info":{"status":"allowed"}}')).toEqual([]);
+    // Context: each request's prompt and answer, and the window with the result; odd counts are ignored.
+    expect(parseStreamLine('{"type":"assistant","message":{"content":[],"usage":{"input_tokens":2,"cache_read_input_tokens":70,"cache_creation_input_tokens":18,"output_tokens":4}}}')).toEqual([{ type: 'context', used: 94 }]);
+    expect(parseStreamLine('{"type":"assistant","message":{"content":[],"usage":{"input_tokens":2,"output_tokens":-1}}}')).toEqual([]);
+    expect(parseStreamLine('{"type":"result","subtype":"success","modelUsage":{"a":{"contextWindow":200000},"b":{"contextWindow":1000000},"c":{"contextWindow":"x"}}}')[0]).toEqual({ type: 'context', size: 1000000 });
   });
 
   it('finds the native install in the user folder', () => {
@@ -258,6 +262,8 @@ describe('agent service with a fake Claude Code', () => {
     // After an answer the status carries the plan's limits, and keeps them through a refresh.
     expect(service.status().usage).toEqual([{ window: 'five_hour', used: 0.23, resetsAt: 1794117600 }, { window: 'seven_day', used: 0.69, resetsAt: 1794117600 }]);
     expect((await service.refresh()).usage).toHaveLength(2);
+    // And how full the session is: the last request's tokens of the model's window.
+    expect(service.status().context).toEqual({ used: 43000, size: 200000 });
 
     // Changed mid-conversation: the running session switches; the kept default stays.
     await service.chooseModel({ model: 'haiku', effort: 'max' }, false);

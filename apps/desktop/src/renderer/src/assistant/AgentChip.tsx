@@ -19,8 +19,12 @@ function signedIn(status: AgentStatus): boolean {
 
 const DOT: Record<Tone, string> = { success: 'bg-success', neutral: 'bg-text-subtle', warning: 'bg-warning' };
 
+/** From this share of the context window on, a new chat is recommended. */
+const CONTEXT_FULL = 0.8;
+const contextShare = (status: AgentStatus) => (status.context ? Math.min(1, status.context.used / status.context.size) : 0);
+
 function toneOf(status: AgentStatus): Tone {
-  if (signedIn(status)) return 'success';
+  if (signedIn(status)) return contextShare(status) >= CONTEXT_FULL ? 'warning' : 'success';
   return status.state === 'checking' ? 'neutral' : 'warning';
 }
 
@@ -199,6 +203,11 @@ export function AssistantChoice() {
           <StatusDot tone={toneOf(status)} label={statusLabel(t, status)} />
         </span>
         {status.usage && status.usage.length > 0 ? <UsageLine usage={status.usage} /> : null}
+        {status.context ? (
+          <span className={`text-xs tabular-nums ${contextShare(status) >= CONTEXT_FULL ? 'text-warning' : 'text-text-muted'}`} data-testid="agent-context">
+            {t(contextShare(status) >= CONTEXT_FULL ? 'assistant.contextFull' : 'assistant.context', { used: contextShare(status), size: status.context.size })}
+          </span>
+        ) : null}
         {status.agent === 'chatgpt' && signedIn(status) ? (
           // Sign in with ChatGPT reports no usage numbers; OpenAI's UI guidelines ask for this line and link instead.
           <span className="text-xs text-text-muted" data-testid="chatgpt-usage">

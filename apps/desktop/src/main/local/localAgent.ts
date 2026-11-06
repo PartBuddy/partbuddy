@@ -5,7 +5,7 @@ import { createOllama } from 'ollama-ai-provider-v2';
 import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself } from '../agents/loop';
+import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself } from '../agents/loop';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import { composeMessage } from '../agents/viewContext';
 import { contextFor, findOllama, LOCAL_CONTEXT, MIN_CONTEXT, OLLAMA_URL, type OllamaFound } from './ollama';
@@ -62,6 +62,8 @@ function describe(parts: (string | null | false)[]): { description?: string } {
   return text ? { description: text.slice(0, 200) } : {};
 }
 
+const windowOf = (context: number | null) => (context ? { context } : {});
+
 const contextNote = (context: number | null) => (context ? `${String(Math.round(context / 1024))}K context` : null);
 
 /** The models an agent session can use: they call tools (or are still to be tested) and have room for SolidCraft's tools. */
@@ -74,6 +76,7 @@ export function usableModels(ollama: OllamaFound | null, strata: StrataFound | n
         name: `${model.id} · Ollama`.slice(0, 80),
         efforts: [],
         ...describe([model.loaded ? 'In memory' : 'Loads on first use', contextNote(contextFor(model)), !model.vision && 'Cannot see pictures']),
+        ...windowOf(contextFor(model)),
       },
       server: 'Ollama',
       vision: model.vision,
@@ -91,6 +94,7 @@ export function usableModels(ollama: OllamaFound | null, strata: StrataFound | n
         name: `${strata.model} · Strata`.slice(0, 80),
         efforts: STRATA_EFFORTS,
         ...describe([strata.busy && 'Busy with another request', strata.loaded ? 'In memory' : 'Loads on first use', contextNote(strata.context), !strata.vision && 'Cannot see pictures']),
+        ...windowOf(strata.context),
       },
       server: 'Strata',
       vision: strata.vision,
@@ -117,6 +121,8 @@ export function usableModels(ollama: OllamaFound | null, strata: StrataFound | n
             model.tools === null && 'Tool calling is tested on first use',
             !model.vision && 'Cannot see pictures',
           ]),
+          // LM Studio models PartBuddy loads itself get its context (loadInLmStudio).
+          ...windowOf(server.name === 'LM Studio' && model.loading ? LOCAL_CONTEXT : model.context),
         },
         server: server.name,
         vision: model.vision,
@@ -149,6 +155,8 @@ export class LocalAgent implements AgentBackend {
   private readonly failed = new Set<string>();
   /** LM Studio models PartBuddy loaded with enough context. */
   private readonly prepared = new Set<string>();
+  /** How full the conversation is after the last turn. */
+  private context: AgentStatus['context'] | null = null;
 
   constructor(private readonly options: LocalAgentOptions) {}
 
@@ -176,6 +184,7 @@ export class LocalAgent implements AgentBackend {
         status.state = this.busy ? 'busy' : 'ready';
         status.account = chosen.server;
         if (chosen.server === 'Ollama' && this.ollama) status.version = this.ollama.version;
+        if (this.context) status.context = this.context;
       }
     }
     return { ...status, ...choiceStatus(this.models(), this.choice, this.options.choices.get('local')) };
@@ -218,6 +227,7 @@ export class LocalAgent implements AgentBackend {
   async newConversation(): Promise<void> {
     await this.stop();
     this.history = [];
+    this.context = null;
   }
 
   async dispose(): Promise<void> {
@@ -358,6 +368,7 @@ export class LocalAgent implements AgentBackend {
         if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error));
       }
       this.history.push(...(await result.responseMessages));
+      this.context = contextAfter(await result.steps, model.option.context) ?? this.context;
       if (repeatsItself({ steps: await result.steps })) {
         this.options.event({ type: 'error', message: LOOP_NOTICE });
         this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: 'failed' });
