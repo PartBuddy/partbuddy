@@ -217,6 +217,11 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   the arm out of the face; `length` includes the catch (a 10 mm arm on a 10 mm box reaches 20 mm).
   `hook` must lie in the face ("must point across the arm" otherwise). The strain shown in the form
   uses the lever to the catch's middle.
+- `sketch.insert_svg {text, at, width, align: center}` takes the SVG as text (no file access needed)
+  and keeps it upright (SVG's y runs down, the sketch's up). `solid.emboss` without `profiles`
+  takes every region, so a ring's hole is filled; `solid.extrude` keeps a loop inside a hole as
+  material again, which is what a logo means (ring with a star: 78.76 mm³ at 0.6 mm, by hand
+  111.7 + 19.6 mm² × 0.6). An SVG of strokes only has no profile and is refused.
 - `solidcraft-cli commands` prints every command with its parameters as JSON, the quickest way to
   check a parameter before a contract test.
 

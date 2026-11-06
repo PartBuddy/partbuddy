@@ -824,6 +824,14 @@
     },
     "strain": "Etwa {strain} % Dehnung beim Einrasten",
     "strainHigh": "Etwa {strain} % Dehnung beim Einrasten – mehr, als gedrucktes PLA verträgt (etwa 2 %, PETG etwa 3 %): Arm länger oder dünner machen oder die Nase flacher",
+    "logoChoose": "SVG-Datei wählen …",
+    "logoOther": "Andere Datei …",
+    "logoWaiting": "Wähle eine SVG-Datei für das Logo",
+    "logoProblems": {
+      "tooBig": "Die Datei ist größer als 512 KB – ein Logo ist meist viel kleiner; ein eingebettetes Bild lässt sich nicht bauen.",
+      "notSvg": "Das ist keine SVG-Zeichnung.",
+      "unreadable": "Die Datei ließ sich nicht lesen."
+    },
     "ready": "In der Ansicht gezeigt – Bauen übernimmt es",
     "kinds": {
       "tappedHole": "Gewindebohrung",
@@ -833,6 +841,7 @@
       "nutTrap": "Mutternfalle",
       "slot": "Langloch",
       "text": "Text",
+      "logo": "Logo (SVG)",
       "lip": "Lippe oder Nut für Deckel",
       "snapFit": "Schnapphaken"
     },
@@ -855,7 +864,8 @@
       "slot": "Ein Langloch mit der Breite des mittleren Durchgangslochs, mittig am Punkt, zum Verstellen der Schraube.",
       "text": "Text mittig am Punkt, waagrecht lesbar. Vertieft ab 0,6 mm und erhaben ab 0,4 mm Tiefe druckt sauber; Schrift ab etwa 5 mm Höhe.",
       "lip": "Für ein ausgehöhltes Gehäuse: Fläche am Rand wählen. Die Lippe kommt aufs Unterteil, die Nut mit Spalt in den Deckel.",
-      "snapFit": "Ein federnder Arm mit Rastnase, der aus der Fläche ragt. Liegend drucken, damit die Schichten längs des Arms laufen: stehend bricht er an einer Schicht. Das Gegenstück braucht eine Öffnung so tief wie die Nase."
+      "snapFit": "Ein federnder Arm mit Rastnase, der aus der Fläche ragt. Liegend drucken, damit die Schichten längs des Arms laufen: stehend bricht er an einer Schicht. Das Gegenstück braucht eine Öffnung so tief wie die Nase.",
+      "logo": "Eine SVG-Datei mittig am Punkt, so breit wie angegeben. Gebaut werden nur gefüllte Flächen: Text und Linien vorher in Pfade umwandeln (in Inkscape: Pfad › Objekt in Pfad, Kontur in Pfad)."
     }
   }
 }

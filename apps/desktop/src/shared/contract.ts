@@ -692,6 +692,21 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
     .strict(),
   z
     .object({
+      block: z.literal('logo'),
+      body: bodyName,
+      point: point3,
+      normal: point3,
+      size: blockSize,
+      name: z.string().max(200),
+      // 512 KiB of UTF-8 at most (LOGO_MAX_BYTES); characters are counted here, bytes in the form.
+      svg: z.string().min(1).max(512 * 1024),
+      width: blockLength,
+      depth: blockLength,
+      mode: z.enum(['emboss', 'deboss']),
+    })
+    .strict(),
+  z
+    .object({
       block: z.literal('snapFit'),
       body: bodyName,
       point: point3,

@@ -2,9 +2,9 @@ import { IconChevronDown, IconPuzzle } from '@tabler/icons-react';
 import type { TFunction } from 'i18next';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, CheckboxButton, CheckboxField, Input, Label, ListBox, ListBoxItem, Popover, Select, SelectValue, TextField, ToggleButton } from 'react-aria-components';
+import { Button as AriaButton, CheckboxButton, CheckboxField, FileTrigger, Input, Label, ListBox, ListBoxItem, Popover, Select, SelectValue, TextField, ToggleButton } from 'react-aria-components';
 
-import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, needsNormal, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock, type HookDirection } from '../../../shared/blocks';
+import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoProblem, needsNormal, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock, type HookDirection } from '../../../shared/blocks';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
@@ -119,8 +119,8 @@ function hookLabel(vector: Vec, index: number, t: TFunction): string {
 
 /**
  * Function blocks at a picked flat face (plan step F1): a tapped hole, a screw hole with room for
- * the head, a seat for a heat-set insert, a nut trap, a screw boss, a slot, text, a lip or groove
- * for a lid, and a snap fit. Sizes come from standard tables and stay editable; the ghost shows
+ * the head, a seat for a heat-set insert, a nut trap, a screw boss, a slot, text, a logo from an
+ * SVG file, a lip or groove for a lid, and a snap fit. Sizes come from standard tables and stay editable; the ghost shows
  * the result before it is built.
  */
 export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel[]; picks: Pick[]; busy: boolean; onGhost: (ghost: Uint8Array | null) => void }) {
@@ -130,6 +130,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   // The block's values; body and point come from the picked face.
   const [spec, setBlock] = useState<FeatureBlock>(() => defaultBlock('tappedHole', '', [0, 0, 0], 'M3'));
   const [status, setStatus] = useState<{ ok: boolean; error?: string } | null>(null);
+  const [fileProblem, setFileProblem] = useState<'tooBig' | 'notSvg' | 'unreadable' | null>(null);
   const latest = useRef(0);
   const at = face ? `${face.body}\u0000${face.point.join(',')}\u0000${face.normal.join(',')}` : null;
   const block = useMemo<FeatureBlock | null>(() => {
@@ -139,8 +140,11 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     return { ...spec, body, point: vec(point), ...(needsNormal(spec.block) ? { normal: vec(normal) } : {}) };
   }, [spec, at]);
 
+  // A logo waits for its file.
+  const waiting = block?.block === 'logo' && !block.svg;
+
   useEffect(() => {
-    if (!open || !block || busy) return;
+    if (!open || !block || busy || waiting) return;
     const id = ++latest.current;
     const timer = setTimeout(() => {
       void platform()
@@ -157,13 +161,30 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     return () => {
       clearTimeout(timer);
     };
-  }, [open, block, busy, onGhost]);
+  }, [open, block, busy, waiting, onGhost]);
 
   if (!face || !block) return null;
   const kind = (next: BlockKind) => {
     const sizes = sizesOf(next);
     setBlock(defaultBlock(next, face.body, face.point, sizes.includes(block.size) ? block.size : (sizes[2] ?? 'M3'), face.normal));
     setStatus(null);
+    setFileProblem(null);
+    onGhost(null);
+  };
+  const chooseLogo = (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file || block.block !== 'logo') return;
+    void file.text().then(
+      (svg) => {
+        const problem = logoProblem(svg);
+        setFileProblem(problem);
+        if (problem) return;
+        setStatus(null);
+        // The fields may have changed while the file was read.
+        setBlock((current) => (current.block === 'logo' ? { ...current, svg, name: file.name.replace(/\.svg$/i, '').slice(0, 200) } : current));
+      },
+      () => setFileProblem('unreadable'),
+    );
   };
   const size = (next: BlockSize) => {
     setBlock(block.block === 'screwHole' ? { ...block, size: next } : block.block === 'slot' ? { ...defaultBlock('slot', face.body, face.point, next, face.normal), length: block.length, depth: block.depth, along: block.along } as FeatureBlock : defaultBlock(block.block, face.body, face.point, next, face.normal));
@@ -258,6 +279,27 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
                 <Check label={t('blocks.bold')} selected={block.bold} onChange={(bold) => setBlock({ ...block, bold })} testId="block-bold" />
               </div>
             </div>
+          ) : block.block === 'logo' ? (
+            <div className="grid grid-cols-2 gap-2" key={block.block} data-testid="block-logo">
+              <div className="col-span-2 flex min-w-0 items-center gap-2">
+                <FileTrigger acceptedFileTypes={['image/svg+xml', '.svg']} onSelect={chooseLogo}>
+                  <Button data-testid="block-logo-file">{t(block.svg ? 'blocks.logoOther' : 'blocks.logoChoose')}</Button>
+                </FileTrigger>
+                {block.svg ? (
+                  <span className="truncate text-sm text-text" title={block.name} data-testid="block-logo-name">
+                    {block.name}
+                  </span>
+                ) : null}
+              </div>
+              {fileProblem ? (
+                <p className="col-span-2 text-xs text-danger" role="alert" data-testid="block-logo-problem">
+                  {t(`blocks.logoProblems.${fileProblem}`)}
+                </p>
+              ) : null}
+              <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id as 'emboss' | 'deboss', depth: id === 'emboss' ? 0.4 : 0.6 })} testId="block-mode" />
+              <Length key={block.mode} label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
+              <Length label={t('blocks.width')} value={block.width} onChange={(width) => setBlock({ ...block, width })} testId="block-width" />
+            </div>
           ) : block.block === 'snapFit' ? (
             <div className="grid grid-cols-2 gap-2" key={block.block}>
               <Length label={t('blocks.length')} value={block.length} onChange={(length) => setBlock({ ...block, length })} testId="block-length" />
@@ -286,7 +328,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
           )}
           <p className="text-xs text-text-subtle">{t(`blocks.hint.${block.block}`)}</p>
           <p className="text-xs text-text-muted" role="status" data-testid="block-status" data-ok={status ? String(status.ok) : undefined}>
-            {!status ? t('hud.probing') : status.ok ? t('blocks.ready') : t('hud.actionRefused', { detail: status.error ?? '' })}
+            {waiting ? t('blocks.logoWaiting') : !status ? t('hud.probing') : status.ok ? t('blocks.ready') : t('hud.actionRefused', { detail: status.error ?? '' })}
           </p>
           <Button variant="primary" isDisabled={busy || !status?.ok} onPress={apply} data-testid="block-apply">
             {t('blocks.apply')}

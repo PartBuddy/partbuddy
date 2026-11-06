@@ -56,7 +56,7 @@ Work runs in three phases, one pull request per step, in this order.
 
 | Step | Content |
 | --- | --- |
-| F1 Function blocks (done: holes, seats, nut traps, slots, text, lips and snap fits; logos from SVG open) | Inserted at a picked face, built on SolidCraft's commands: modelled threads and tapped holes (`solid.thread`, `solid.hole`), countersunk holes, snap fits, screw bosses and lids with lip or groove (`plastic.snap_fit`, `plastic.boss`, `plastic.lip`), text and logos embossed or engraved (`sketch.text`, `sketch.insert_svg`, `solid.emboss`), plus heat-set insert seats, nut traps and slots where SolidCraft has no command. |
+| F1 Function blocks (done) | Inserted at a picked face, built on SolidCraft's commands: modelled threads and tapped holes (`solid.thread`, `solid.hole`), countersunk holes, snap fits, screw bosses and lids with lip or groove (`plastic.snap_fit`, `plastic.boss`, `plastic.lip`), text and logos embossed or engraved (`sketch.text`, `sketch.insert_svg`, `solid.emboss`), plus heat-set insert seats, nut traps and slots where SolidCraft has no command. |
 | F2 Clearance between parts | For prints of several parts, the indicator checks clearance and overlap between bodies (`inspect.clearance`, `inspect.interference`). |
 | F3 Templates | A gallery of parametric starting points: box with lid, wall holder, cable clip, housing, adapter. |
 | F4 Rough sketch | Draw a 2D sketch with the mouse; the assistant makes a part from it. |

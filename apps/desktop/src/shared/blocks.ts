@@ -1,7 +1,8 @@
 /**
- * Function blocks (plan step F1): holes and seats for screws, nut traps, slots, text, lips for
- * lids and snap fits, built at a picked flat face with SolidCraft's own commands (`solid.hole`,
- * `plastic.boss`, `solid.emboss`, `plastic.lip`, `plastic.snap_fit`, sketches cut in). Sizes and allowances come from standard tables;
+ * Function blocks (plan step F1): holes and seats for screws, nut traps, slots, text, logos, lips
+ * for lids and snap fits, built at a picked flat face with SolidCraft's own commands (`solid.hole`,
+ * `plastic.boss`, `solid.emboss`, `sketch.insert_svg`, `plastic.lip`, `plastic.snap_fit`, sketches
+ * cut in or built up). Sizes and allowances come from standard tables;
  * everything stays editable because printers, nuts and inserts differ.
  */
 
@@ -73,23 +74,28 @@ export type FeatureBlock =
    * A cantilever snap fit standing out of the face (SolidCraft's `plastic.snap_fit`); the catch
    * points along one of the face's sketch directions.
    */
-  | { block: 'snapFit'; body: string; point: Point; normal: Point; size: BlockSize; length: number; thickness: number; width: number; catchDepth: number; catchLength: number; hook: HookDirection };
+  | { block: 'snapFit'; body: string; point: Point; normal: Point; size: BlockSize; length: number; thickness: number; width: number; catchDepth: number; catchLength: number; hook: HookDirection }
+  /** A logo from an SVG file, engraved or built up, centred on the point; `name` is the file's name. */
+  | { block: 'logo'; body: string; point: Point; normal: Point; size: BlockSize; name: string; svg: string; width: number; depth: number; mode: 'emboss' | 'deboss' };
+
+/** The largest SVG file a logo takes; logos are small, a bigger file is usually an embedded picture. */
+export const LOGO_MAX_BYTES = 512 * 1024;
 
 /** The catch's direction in the face: along the sketch plane's x or y, either way. */
 export const HOOK_DIRECTIONS = ['y+', 'y-', 'x+', 'x-'] as const;
 export type HookDirection = (typeof HOOK_DIRECTIONS)[number];
 
 export type BlockKind = FeatureBlock['block'];
-export const BLOCK_KINDS: BlockKind[] = ['tappedHole', 'screwHole', 'insertSeat', 'nutTrap', 'boss', 'slot', 'text', 'lip', 'snapFit'];
+export const BLOCK_KINDS: BlockKind[] = ['tappedHole', 'screwHole', 'insertSeat', 'nutTrap', 'boss', 'slot', 'text', 'logo', 'lip', 'snapFit'];
 
 /** Blocks laid out in the face's own directions, which need the face's normal. */
 export function needsNormal(kind: BlockKind): boolean {
-  return kind === 'text' || kind === 'nutTrap' || kind === 'slot' || kind === 'snapFit';
+  return kind === 'text' || kind === 'logo' || kind === 'nutTrap' || kind === 'slot' || kind === 'snapFit';
 }
 
-/** Text, lips and snap fits have no screw size to choose. */
+/** Text, logos, lips and snap fits have no screw size to choose. */
 export function hasSize(kind: BlockKind): boolean {
-  return kind !== 'text' && kind !== 'lip' && kind !== 'snapFit';
+  return kind !== 'text' && kind !== 'logo' && kind !== 'lip' && kind !== 'snapFit';
 }
 
 const round = (value: number) => Math.round(value * 100) / 100;
@@ -126,6 +132,9 @@ export function defaultBlock(kind: BlockKind, body: string, point: [number, numb
     }
     case 'lip':
       return { block: kind, body, point, size, type: 'lip', width: 1.2, height: 2, gap: 0.2 };
+    case 'logo':
+      // No file yet: the form asks for one before anything is built.
+      return { block: kind, body, point, normal, size, name: '', svg: '', width: 20, depth: 0.6, mode: 'deboss' };
     case 'snapFit':
       // About 1.4 % strain when it snaps in: within what printed PLA takes.
       return { block: kind, body, point, normal, size, length: 12, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5, hook: 'y+' };
@@ -205,6 +214,14 @@ export function stepsOf(block: FeatureBlock): Step[] {
         { command: 'solid.extrude', params: { distance: mm(-(block.depth ?? 1000)), operation: 'cut' } },
       ];
     }
+    case 'logo':
+      return [
+        { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
+        { command: 'sketch.insert_svg', params: { text: block.svg, at: [0, 0], width: block.width, align: 'center' } },
+        // An extrusion, not solid.emboss: emboss takes every region, so a ring would become a disc;
+        // an extrusion keeps a loop inside a hole as material again, as the drawing shows it.
+        { command: 'solid.extrude', params: { distance: mm(block.mode === 'deboss' ? -block.depth : block.depth), operation: block.mode === 'deboss' ? 'cut' : 'join' } },
+      ];
     case 'snapFit':
       return [
         {
@@ -228,7 +245,7 @@ export function stepsOf(block: FeatureBlock): Step[] {
 }
 
 /** The SolidCraft command of a block that is one feature. */
-export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'nutTrap' | 'slot' | 'lip' | 'snapFit' }>): Step {
+export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | 'nutTrap' | 'slot' | 'lip' | 'snapFit' }>): Step {
   const mm = (value: number) => `${String(round(value))} mm`;
   switch (block.block) {
     case 'tappedHole':
@@ -255,4 +272,14 @@ export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'nutTrap' 
       };
     }
   }
+}
+
+/**
+ * Why an SVG file cannot be a logo, or null: too big, or not an SVG drawing at all. SolidCraft
+ * says itself what it cannot draw (strokes without area, text not turned into paths).
+ */
+export function logoProblem(svg: string): 'tooBig' | 'notSvg' | null {
+  if (new TextEncoder().encode(svg).length > LOGO_MAX_BYTES) return 'tooBig';
+  if (!/<svg[\s>]/i.test(svg)) return 'notSvg';
+  return null;
 }
