@@ -78,3 +78,12 @@ export async function launchApp(
     },
   };
 }
+
+/**
+ * Has the app look for SolidCraft now, as "Look again" does. Through the bridge, not the button:
+ * the app often finds a just-started SolidCraft on its own first, the button is then gone, and a
+ * click waited 30 s for it (flaky under load, 06.11.2026).
+ */
+export async function lookAgain(page: Page): Promise<void> {
+  await page.evaluate(() => (globalThis as unknown as { partbuddy: { solidcraft: { retry(): Promise<unknown> } } }).partbuddy.solidcraft.retry());
+}

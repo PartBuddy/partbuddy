@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
-import { launchApp } from './launch';
+import { launchApp, lookAgain } from './launch';
 import { answerRound } from './practice';
 
 // UI inventory (decided 2026-11-04): pictures of every area and state, light and dark, as the
@@ -221,7 +221,7 @@ test('inventory: states without SolidCraft or sign-in, light and dark', async ()
   const fake = new FakeSolidCraft({ controlDir: keyed.controlDir });
   try {
     await fake.start();
-    await keyed.page.getByRole('button', { name: 'Look again' }).click();
+    await lookAgain(keyed.page);
     await expect(keyed.page.getByTestId('mesh-summary')).toContainText('41 faces');
     await step(report, '22-api-key', () => shot(keyed.page, '22-api-key'));
     await fake.stop();

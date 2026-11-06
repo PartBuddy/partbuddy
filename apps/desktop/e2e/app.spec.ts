@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
 
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
 import { countViewportPixels } from './pixels';
-import { launchApp, type LaunchedApp } from './launch';
+import { launchApp, lookAgain, type LaunchedApp } from './launch';
 
 let launched: LaunchedApp | null = null;
 let fake: FakeSolidCraft | null = null;
@@ -23,7 +23,7 @@ async function connectedApp(): Promise<{ app: LaunchedApp; fake: FakeSolidCraft 
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
   await fake.start();
-  await launched.page.getByRole('button', { name: 'Look again' }).click();
+  await lookAgain(launched.page);
   return { app: launched, fake };
 }
 
@@ -56,7 +56,7 @@ test('the user undoes, redoes and exports without the assistant (ADR 0016)', asy
   fake.undoDepth = 1;
   await fake.start();
   const { page, app } = launched;
-  await page.getByRole('button', { name: 'Look again' }).click();
+  await lookAgain(page);
   await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 1');
 
   const undo = page.getByRole('button', { name: 'Undo' });
@@ -168,7 +168,7 @@ test('a sketch without a body is drawn in the view (#21)', async () => {
   fake.activeSketch = 1;
   await fake.start();
   const { page } = launched;
-  await page.getByRole('button', { name: 'Look again' }).click();
+  await lookAgain(page);
   await expect(page.getByTestId('sketch-summary')).toHaveText('1 sketch · editing Curves');
   await expect(page.getByTestId('viewer')).toHaveAttribute('data-sketches', '1');
   await expect(page.getByTestId('viewport')).toBeVisible();
@@ -200,7 +200,7 @@ test('the camera keeps a growing design in view until the user moves it', async 
   fake.sketchScale = 0.15;
   await fake.start();
   const { page } = launched;
-  await page.getByRole('button', { name: 'Look again' }).click();
+  await lookAgain(page);
   await expect(page.getByTestId('viewer')).toHaveAttribute('data-sketches', '1');
   // Curves of a new revision are drawn in the colour of changes.
   const sketchPixels = async (border?: number) =>
@@ -527,7 +527,7 @@ test('every connection state explains itself', async () => {
 
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
   await fake.start();
-  await page.getByRole('button', { name: 'Look again' }).click();
+  await lookAgain(page);
   await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · revision 1');
 
   await fake.stop();
