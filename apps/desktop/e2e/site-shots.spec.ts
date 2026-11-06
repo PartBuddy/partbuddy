@@ -129,6 +129,8 @@ test('website pictures', async () => {
   };
   // Only a project with a design can be renamed; its chat so far then shows as an earlier session.
   const rename = async (title: string) => {
+    // PartBuddy names a new project after its first body; renaming before that is overwritten.
+    await expect(name).not.toHaveText(/^New part/, { timeout: 30_000 });
     await page.getByTestId('project-menu').click();
     await page.getByTestId('project-rename').click();
     await page.getByTestId('project-name-input').fill(title);
