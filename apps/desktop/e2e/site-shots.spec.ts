@@ -8,7 +8,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { launchApp } from './launch';
 
 // The pictures of the website (partbuddy.github.io), taken from the running app: English UI,
-// 1440 × 900 at device scale 2, SolidCraft headless in its own folders, the scripted assistant of
+// 1440 × 900 at device scale 2, light and dark, SolidCraft headless in its own folders, the scripted assistant of
 // test/siteClaude.mjs and the synthetic cable clip of tools/fixtures. Run with `pnpm site:shots`
 // (tools/site-shots.mjs), which sets PARTBUDDY_SITE_SHOTS to the folder the pictures go to.
 // Each picture is tried on its own; what fails is listed at the end instead of stopping the run.
@@ -33,17 +33,28 @@ const BOARD = [
 
 type Bridge = { partbuddy: { design: { insert(path?: string): Promise<unknown>; insertPart(part: unknown): Promise<{ body: string | null }> } } };
 type Shape = { tool: 'line' | 'rect' | 'circle' | 'dimension' | 'text'; from: [number, number]; to?: [number, number]; value?: string };
-// A 40 mm plate with an Ø 8 hole and an M3 hole, and its side view bent with R 3 (F9).
-const SKETCH: Shape[] = [
-  { tool: 'rect', from: [0.12, 0.2], to: [0.6, 0.7] },
-  { tool: 'circle', from: [0.27, 0.45], to: [0.33, 0.45] },
-  { tool: 'circle', from: [0.47, 0.45], to: [0.5, 0.45] },
-  { tool: 'line', from: [0.75, 0.2], to: [0.75, 0.7] },
-  { tool: 'line', from: [0.75, 0.7], to: [0.9, 0.7] },
-  { tool: 'dimension', from: [0.12, 0.8], to: [0.6, 0.8], value: '40' },
-  { tool: 'dimension', from: [0.21, 0.3], to: [0.33, 0.3], value: 'Ø 8' },
-  { tool: 'dimension', from: [0.75, 0.62], to: [0.8, 0.7], value: 'R 3' },
-  { tool: 'text', from: [0.44, 0.56], value: 'M3 hole' },
+// Two sheets (F9, F10): the side view bent with R 3, then a 40 mm plate with an Ø 8 hole and an
+// M3 hole on the free sheet, which the picture shows.
+const SHEETS: { sheet: 'side' | 'free'; shapes: Shape[] }[] = [
+  {
+    sheet: 'side',
+    shapes: [
+      { tool: 'line', from: [0.4, 0.15], to: [0.4, 0.75] },
+      { tool: 'line', from: [0.4, 0.75], to: [0.7, 0.75] },
+      { tool: 'dimension', from: [0.4, 0.67], to: [0.45, 0.75], value: 'R 3' },
+    ],
+  },
+  {
+    sheet: 'free',
+    shapes: [
+      { tool: 'rect', from: [0.2, 0.2], to: [0.68, 0.7] },
+      { tool: 'circle', from: [0.35, 0.45], to: [0.41, 0.45] },
+      { tool: 'circle', from: [0.55, 0.45], to: [0.58, 0.45] },
+      { tool: 'dimension', from: [0.2, 0.8], to: [0.68, 0.8], value: '40' },
+      { tool: 'dimension', from: [0.29, 0.3], to: [0.41, 0.3], value: 'Ø 8' },
+      { tool: 'text', from: [0.52, 0.56], value: 'M3 hole' },
+    ],
+  },
 ];
 
 test('website pictures', async () => {
@@ -78,12 +89,15 @@ test('website pictures', async () => {
   // The window itself may be smaller than 1440 × 900 on this display; the renderer is told the size,
   // and CDP takes the picture at that scale (Playwright's screenshot uses the display's own).
   const cdp = await page.context().newCDPSession(page);
-  const shot = async (file: string, scheme: 'light' | 'dark' = 'light') => {
-    await page.emulateMedia({ colorScheme: scheme });
+  // Every picture light and dark (`<name>-dark.png`): the website follows the viewer's theme.
+  const shot = async (file: string) => {
     await page.mouse.move(0, 450);
-    await page.waitForTimeout(900);
-    const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
-    writeFileSync(join(out, `${file}.png`), Buffer.from(data, 'base64'));
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.waitForTimeout(900);
+      const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      writeFileSync(join(out, `${file}${scheme === 'dark' ? '-dark' : ''}.png`), Buffer.from(data, 'base64'));
+    }
     await page.emulateMedia({ colorScheme: 'light' });
   };
   const step = async (file: string, run: () => Promise<void>) => {
@@ -115,6 +129,8 @@ test('website pictures', async () => {
   };
   // Only a project with a design can be renamed; its chat so far then shows as an earlier session.
   const rename = async (title: string) => {
+    // PartBuddy names a new project after its first body; renaming before that is overwritten.
+    await expect(name).not.toHaveText(/^New part/, { timeout: 30_000 });
     await page.getByTestId('project-menu').click();
     await page.getByTestId('project-rename').click();
     await page.getByTestId('project-name-input').fill(title);
@@ -127,18 +143,24 @@ test('website pictures', async () => {
     const box = await pad.getByTestId('sketch-canvas').boundingBox();
     if (!box) throw new Error('sketch canvas not visible');
     const at = ([x, y]: [number, number]) => [box.x + box.width * x, box.y + box.height * y] as const;
-    for (const shape of SKETCH) {
-      await pad.getByTestId(`sketch-tool-${shape.tool}`).click();
-      await page.mouse.move(...at(shape.from));
-      await page.mouse.down();
-      await page.mouse.move(...at(shape.to ?? shape.from), { steps: 8 });
-      await page.mouse.up();
-      if (shape.value) {
-        await pad.getByTestId('sketch-value').fill(shape.value);
-        await page.keyboard.press('Enter');
+    for (const { sheet, shapes } of SHEETS) {
+      await pad.getByTestId(`sketch-sheet-${sheet}`).click();
+      for (const shape of shapes) {
+        await pad.getByTestId(`sketch-tool-${shape.tool}`).click();
+        await page.mouse.move(...at(shape.from));
+        await page.mouse.down();
+        await page.mouse.move(...at(shape.to ?? shape.from), { steps: 8 });
+        await page.mouse.up();
+        if (shape.value) {
+          await pad.getByTestId('sketch-value').fill(shape.value);
+          await page.keyboard.press('Enter');
+        }
       }
+      await expect(pad.getByTestId(`sketch-sheet-${sheet}`)).toContainText(String(shapes.length));
     }
-    await expect(pad.getByTestId('sketch-canvas')).toHaveAttribute('data-items', String(SKETCH.length));
+    // A scale makes the squares a length: one square is 5 mm.
+    await pad.getByTestId('sketch-scale').fill('5');
+    await page.mouse.move(0, 450);
   };
 
   try {
@@ -271,7 +293,6 @@ test('website pictures', async () => {
       await send('Fit this housing to the circuit board');
       await expect(page.getByTestId('question-card')).toHaveAttribute('data-kind', 'ask', { timeout: 30_000 });
       await shot('clarify');
-      await shot('clarify-dark', 'dark');
     });
     await step('research', async () => {
       await send('Research the M3 screws for the lid');
