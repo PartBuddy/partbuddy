@@ -147,6 +147,15 @@
         "busy": "Arbeitet",
         "notInstalled": "Nicht verfügbar",
         "needsSubscription": "Nicht verfügbar"
+      },
+      "local": {
+        "checking": "Suche Ollama",
+        "signedOut": "Nicht verfügbar",
+        "unavailable": "Kein nutzbares lokales Modell",
+        "ready": "Bereit",
+        "busy": "Arbeitet",
+        "notInstalled": "Nicht verfügbar",
+        "needsSubscription": "Nicht verfügbar"
       }
     },
     "notInstalledTitle": "Claude Code ist nicht installiert",
@@ -160,7 +169,8 @@
     "empty": "Beschreibe, was SolidCraft bauen oder ändern soll. Jeder Schritt erscheint in der 3D-Ansicht.",
     "working": {
       "claude-code": "Claude arbeitet",
-      "chatgpt": "ChatGPT arbeitet"
+      "chatgpt": "ChatGPT arbeitet",
+      "local": "Das lokale Modell arbeitet"
     },
     "needsSolidCraft": "Verbinde zuerst SolidCraft; der Assistent arbeitet am offenen Design.",
     "composer": "Nachricht an den Assistenten",
@@ -177,7 +187,8 @@
     "route": "Assistenten-Weg",
     "routes": {
       "claude-code": "Claude Code",
-      "chatgpt": "ChatGPT"
+      "chatgpt": "ChatGPT",
+      "local": "Lokales Modell"
     },
     "chatgpt": {
       "signedIn": "ChatGPT · {account} · {model}",
@@ -240,7 +251,8 @@
       "switchNote": "Ein Wechsel bricht eine laufende Antwort ab. Der andere Assistent kennt das bisherige Gespräch nicht.",
       "describe": {
         "claude-code": "Dein Claude-Pro- oder Max-Abo, über Claude Code",
-        "chatgpt": "Dein ChatGPT-Abo, hier angemeldet"
+        "chatgpt": "Dein ChatGPT-Abo, hier angemeldet",
+        "local": "Ein Modell auf diesem Rechner über Ollama; nichts verlässt ihn"
       },
       "state": {
         "checking": "wird geprüft",
@@ -316,6 +328,10 @@
       "drop": "Bild loslassen: es geht mit deiner Nachricht",
       "sent": "Mit Foto",
       "defaultText": "Mach mir ein passendes Teil für den Gegenstand auf dem Foto."
+    },
+    "local": {
+      "ready": "Ollama {version} · {model}",
+      "unavailableTitle": "Kein lokales Modell bereit"
     }
   },
   "live": {

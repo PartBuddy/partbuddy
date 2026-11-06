@@ -23,6 +23,7 @@ import { WorkLog } from './agents/workLog';
 import { blockPhrase, describeUserAction } from '../shared/stepPhrases';
 import { ChatGptAccount } from './chatgpt/account';
 import { ChatGptAgent } from './chatgpt/chatgptAgent';
+import { LocalAgent } from './local/localAgent';
 import { hostId } from './chatgpt/oauth';
 import { SecretStore } from './credentials/secretStore';
 import { loadNoteKey } from './notes/noteRecord';
@@ -489,7 +490,9 @@ if (!app.requestSingleInstanceLock()) {
     });
     account.load();
     const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log, choices: assistantSettings, research: () => assistantSettings.webResearch() });
-    assistant = new Assistant({ 'claude-code': claude, chatgpt }, (state) => {
+    // Local models (F8): Ollama on this machine; PARTBUDDY_OLLAMA_URL points tests elsewhere.
+    const local = new LocalAgent({ tools, event: emitEvent, changed, log, choices: assistantSettings, ...(process.env.PARTBUDDY_OLLAMA_URL ? { url: process.env.PARTBUDDY_OLLAMA_URL } : {}) });
+    assistant = new Assistant({ 'claude-code': claude, chatgpt, local }, (state) => {
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentStatus, state);
     });
     const agent = assistant;

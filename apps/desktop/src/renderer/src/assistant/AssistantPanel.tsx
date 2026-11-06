@@ -2,7 +2,7 @@ import { IconArrowUp, IconPencil, IconPhoto, IconPlayerStop, IconPointer, IconX 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button as AriaButton, Form, TextArea, TextField } from 'react-aria-components';
+import { Button as AriaButton, Form, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
 
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
@@ -46,6 +46,17 @@ function Setup() {
       {t('assistant.refresh')}
     </Button>
   );
+  if (status.agent === 'local') {
+    if (status.state === 'checking') return <Busy label={t('assistant.state.local.checking')} />;
+    if (status.state === 'unavailable') {
+      return (
+        <Notice title={t('assistant.local.unavailableTitle')} body={status.detail ?? t('assistant.state.local.unavailable')}>
+          {refresh}
+        </Notice>
+      );
+    }
+    return null;
+  }
   if (status.agent === 'chatgpt') {
     if (status.state === 'checking') return <Busy label={t('assistant.chatgpt.waiting')} />;
     if (status.state === 'signedOut' || status.state === 'unavailable') {
@@ -191,6 +202,7 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
 }
 
 const NO_STROKES: Stroke[] = [];
+const tip = 'rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2';
 
 /** The first picture among pasted or dropped files; other files are left to the window's import. */
 function pictureIn(data: DataTransfer | null): File | null {
@@ -442,6 +454,8 @@ export function AssistantPanel() {
           <span className="mr-auto flex min-w-0">
             <AgentChip />
           </span>
+          {/* Icons only, so the route chip keeps its room while Stop shows; the name comes as a tooltip. */}
+          <TooltipTrigger delay={400}>
           <Button
             onPress={() => {
               setSketching(true);
@@ -451,8 +465,12 @@ export function AssistantPanel() {
             data-testid="composer-sketch-open"
           >
             <IconPencil className="size-icon-sm" aria-hidden />
-            {t('assistant.sketch.button')}
           </Button>
+          <Tooltip placement="top" offset={6} className={tip}>
+            {t('assistant.sketch.button')}
+          </Tooltip>
+          </TooltipTrigger>
+          <TooltipTrigger delay={400}>
           <Button
             onPress={() => {
               photoInput.current?.click();
@@ -462,8 +480,11 @@ export function AssistantPanel() {
             data-testid="composer-photo-open"
           >
             <IconPhoto className="size-icon-sm" aria-hidden />
-            {t('assistant.photo.button')}
           </Button>
+          <Tooltip placement="top" offset={6} className={tip}>
+            {t('assistant.photo.button')}
+          </Tooltip>
+          </TooltipTrigger>
           {busy ? (
             <Button
               onPress={() => {
