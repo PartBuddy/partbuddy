@@ -1,0 +1,26 @@
+{
+  "default_generation_settings": {
+    "n_ctx": 16384
+  },
+  "total_slots": 4,
+  "model_alias": "unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M",
+  "modalities": {
+    "vision": false,
+    "video": false,
+    "audio": false
+  },
+  "chat_template_caps": {
+    "supports_object_arguments": true,
+    "supports_parallel_tool_calls": true,
+    "supports_preserve_reasoning": false,
+    "supports_reasoning_effort": false,
+    "supports_string_content": true,
+    "supports_system_role": true,
+    "supports_tool_calls": true,
+    "supports_tools": true,
+    "supports_typed_content": false,
+    "reasoning_effort_levels": []
+  },
+  "build_info": "b12144-69ee2ecc0",
+  "is_sleeping": false
+}

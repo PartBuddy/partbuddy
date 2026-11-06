@@ -37,15 +37,15 @@ function agent(up = true) {
 
 describe('local models through Ollama (F8)', () => {
   it('reads capabilities and context length from /api/show', () => {
-    expect(modelFromShow('qwen3.5:9b', SHOW['qwen3.5:9b'])).toEqual({ id: 'qwen3.5:9b', tools: true, vision: true, context: 262144 });
-    expect(modelFromShow('x', null)).toEqual({ id: 'x', tools: false, vision: false, context: null });
+    expect(modelFromShow('qwen3.5:9b', SHOW['qwen3.5:9b'])).toEqual({ id: 'qwen3.5:9b', tools: true, vision: true, context: 262144, loaded: false });
+    expect(modelFromShow('x', null)).toEqual({ id: 'x', tools: false, vision: false, context: null, loaded: false });
     expect(modelNames(TAGS)).toEqual(['qwen3.5:9b', 'embeddinggemma:latest', 'tiny:1b']);
   });
 
   it('runs a model with 16K context at most and refuses one too small for the tools', () => {
-    expect(contextFor({ id: 'a', tools: true, vision: false, context: 262144 })).toBe(16384);
-    expect(contextFor({ id: 'b', tools: true, vision: false, context: 4096 })).toBeNull();
-    expect(contextFor({ id: 'c', tools: true, vision: false, context: null })).toBe(16384);
+    expect(contextFor({ id: 'a', tools: true, vision: false, context: 262144, loaded: false })).toBe(16384);
+    expect(contextFor({ id: 'b', tools: true, vision: false, context: 4096, loaded: false })).toBeNull();
+    expect(contextFor({ id: 'c', tools: true, vision: false, context: null, loaded: false })).toBe(16384);
   });
 
   it('offers only models that call tools and have room for them', async () => {
@@ -90,7 +90,7 @@ function fakeStrata(health: Record<string, unknown> = HEALTH) {
 
 describe('local models through Strata (F8)', () => {
   it('tells Strata from other servers on its port by /health', () => {
-    expect(strataFromHealth(HEALTH)).toEqual({ model: 'qwen3.8-flash-next-iq3_xxs', context: 131072, vision: true, keyNeeded: false, loaded: true });
+    expect(strataFromHealth(HEALTH)).toEqual({ model: 'qwen3.8-flash-next-iq3_xxs', context: 131072, vision: true, keyNeeded: false, loaded: true, busy: false });
     // llama.cpp answers /health on 8080 too, without "service".
     expect(strataFromHealth({ status: 'ok' })).toBeNull();
     expect(strataFromHealth({ ...HEALTH, max_context: 0, loaded: false })).toMatchObject({ context: null, loaded: false });
@@ -107,7 +107,7 @@ describe('local models through Strata (F8)', () => {
     const local = new LocalAgent({ tools: () => Promise.resolve(upstream), event: (event) => events.push(event), changed: () => undefined, log: () => undefined, choices: noChoices, fetch: strata.fetchFn });
     const status = await local.refresh();
     expect(status).toMatchObject({ state: 'ready', account: 'Strata', model: 'strata:qwen3.8-flash-next-iq3_xxs', effort: 'medium' });
-    expect(status.models).toEqual([{ id: 'strata:qwen3.8-flash-next-iq3_xxs', name: 'qwen3.8-flash-next-iq3_xxs · Strata', efforts: ['low', 'medium', 'high'] }]);
+    expect(status.models).toEqual([{ id: 'strata:qwen3.8-flash-next-iq3_xxs', name: 'qwen3.8-flash-next-iq3_xxs · Strata', efforts: ['low', 'medium', 'high'], description: 'In memory · 128K context' }]);
     await local.chooseModel({ model: 'strata:qwen3.8-flash-next-iq3_xxs', effort: 'high' }, false);
     await local.send('Hello');
     await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));

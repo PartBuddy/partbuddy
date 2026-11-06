@@ -2014,9 +2014,10 @@ test('a picture pasted into the chat or dropped on it goes along like a photo', 
   }
 });
 
-// A real local model (F8): needs Ollama with a tool-capable model; set PARTBUDDY_E2E_OLLAMA=1.
-test('a local model through Ollama builds a part in SolidCraft through the policy (F8)', async () => {
-  test.skip(process.env.PARTBUDDY_E2E_OLLAMA !== '1', 'needs Ollama; set PARTBUDDY_E2E_OLLAMA=1');
+// A real local model (F8): needs a local server with a tool-capable model; set PARTBUDDY_E2E_OLLAMA=1.
+// PARTBUDDY_E2E_LOCAL_PICK picks a model by part of its name ("llama.cpp", "LM Studio", "vLLM").
+test('a local model builds a part in SolidCraft through the policy (F8)', async () => {
+  test.skip(process.env.PARTBUDDY_E2E_OLLAMA !== '1', 'needs a local model server; set PARTBUDDY_E2E_OLLAMA=1');
   test.setTimeout(900_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
@@ -2035,6 +2036,11 @@ test('a local model through Ollama builds a part in SolidCraft through the polic
     await page.getByTestId('agent-status').click();
     await page.getByTestId('agent-menu').getByText('Local model', { exact: true }).click();
     await expect(page.getByTestId('agent-status')).toContainText(/Local model · \S+/, { timeout: 30_000 });
+    const pick = process.env.PARTBUDDY_E2E_LOCAL_PICK;
+    if (pick) {
+      await page.getByTestId('agent-menu').getByTestId('model-option').filter({ hasText: pick }).first().click();
+      await expect(page.getByTestId('agent-status')).toContainText(pick);
+    }
     await page.keyboard.press('Escape');
     const composer = page.getByRole('textbox', { name: 'Message to the assistant' });
     await composer.fill('Build a solid box 20 mm long, 20 mm wide and 10 mm high right away with the solidcraft tools. Do not ask questions.');
