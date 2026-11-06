@@ -8,7 +8,7 @@ import { renderThumbnail } from '../viewer/thumbnail';
 const PREVIEW_DELAY_MS = 800;
 
 /**
- * Keeps the start page's picture of the open project current (B3): after every save of a design
+ * Keeps the start page's picture of the open project current (B3): after every revision of a design
  * with bodies, it draws the bodies from the isometric corner and hands the picture, with the
  * ready-to-print light of the same revision, to the main process, which puts it into the project.
  */
@@ -18,7 +18,9 @@ export function useProjectPreview(): void {
   const check = useStudio((s) => s.printCheck);
   const sent = useRef<string | null>(null);
   useEffect(() => {
-    if (model.status !== 'ready' || save !== 'saved' || model.bodies.length === 0) return;
+    // Also a design that was only opened or just made from a template, which is never saved: it got no
+    // picture before (polish round 3). Only a save under way or a failed one waits.
+    if (model.status !== 'ready' || save === 'saving' || save === 'failed' || model.bodies.length === 0) return;
     const light = check && check.revision === model.revision ? check.result.status : null;
     const key = `${model.documentId}:${String(model.revision)}:${light ?? ''}`;
     if (sent.current === key) return;

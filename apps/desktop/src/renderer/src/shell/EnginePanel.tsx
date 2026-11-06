@@ -7,7 +7,8 @@ import { Button } from '../ui/Button';
 
 const badgeClass: Record<EngineInfo['support'], string> = {
   recommended: 'bg-success-subtle text-success',
-  supported: 'bg-warning-subtle text-warning',
+  // Supported works: green as well, not the warning colour a newcomer reads as trouble (polish round 3).
+  supported: 'bg-success-subtle text-success',
   tooOld: 'bg-danger-subtle text-danger',
   unknown: 'bg-surface-hover text-text-muted',
 };
@@ -71,7 +72,12 @@ export function EnginePanel({ close, closable = true }: { close: () => void; clo
             </span>
           ) : null}
         </div>
-        <p className="text-text-muted">{t('engine.hint', { recommended: info.recommended, minimum: info.minimum })}</p>
+        {info.support === 'recommended' || info.support === 'supported' ? <p className="text-text-muted">{t('engine.works')}</p> : null}
+        {/* The versions in detail, for those who want to know; folded so the first start stays short. */}
+        <details className="text-text-muted" data-testid="engine-details">
+          <summary className="cursor-pointer text-xs outline-none focus-visible:outline-2 focus-visible:outline-focus">{t('engine.detailsTitle')}</summary>
+          <p className="mt-1">{t('engine.hint', { recommended: info.recommended, minimum: info.minimum })}</p>
+        </details>
         {error ? (
           <p role="alert" className="rounded-md bg-danger-subtle px-3 py-2 text-danger" data-testid="engine-error">
             {t(`engine.error.${error}`, { minimum: info.minimum })}
