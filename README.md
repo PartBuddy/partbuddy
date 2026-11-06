@@ -72,4 +72,4 @@ their licences are listed in [building blocks](docs/building-blocks.md).
 ## Support
 
 PartBuddy is free and stays free. If it helps you, you can support its development through
-[GitHub Sponsors](https://github.com/sponsors/ManuelStaggl). Donations buy no features or priority.
+[Ko-fi](https://ko-fi.com/partbuddy). Donations buy no features or priority.

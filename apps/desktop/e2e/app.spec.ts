@@ -366,7 +366,7 @@ test('the settings switch the language at once and show the project folder and t
     await expect(page.getByTestId('settings-about')).toHaveText('Über');
     await page.getByTestId('settings-about').click();
     await expect(dialog.getByTestId('settings-version')).toHaveText(/^Version \d/);
-    await expect(dialog.getByTestId('settings-sponsor')).toHaveAttribute('href', 'https://github.com/sponsors/ManuelStaggl');
+    await expect(dialog.getByTestId('settings-sponsor')).toHaveAttribute('href', 'https://ko-fi.com/partbuddy');
     // A development build does not update itself (B10).
     await expect(dialog.getByTestId('updates')).toHaveAttribute('data-state', 'unavailable');
     await page.screenshot({ path: test.info().outputPath('settings-about.png') });

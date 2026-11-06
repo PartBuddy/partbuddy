@@ -21,7 +21,7 @@ const SECTIONS: { id: SettingsSection; icon: typeof IconSettings; testId: string
   { id: 'about', icon: IconInfoCircle, testId: 'settings-about' },
 ];
 
-const SPONSORS = 'https://github.com/sponsors/ManuelStaggl';
+const DONATE = 'https://ko-fi.com/partbuddy';
 const SOURCE = 'https://github.com/ManuelStaggl/partbuddy';
 const LICENCE = 'https://www.gnu.org/licenses/gpl-3.0.html';
 
@@ -252,7 +252,7 @@ function AboutSection() {
       <p className="max-w-text-max text-text-muted">{t('settings.about.licence')}</p>
       <UpdatesBlock />
       <div className="flex flex-col gap-2">
-        <a href={SPONSORS} target="_blank" rel="noreferrer" className={link} data-testid="settings-sponsor">
+        <a href={DONATE} target="_blank" rel="noreferrer" className={link} data-testid="settings-sponsor">
           <IconHeart className="size-icon-sm" aria-hidden />
           {t('settings.about.sponsor')}
         </a>
@@ -271,7 +271,7 @@ function AboutSection() {
 /**
  * The settings (plan step B6), replacing the gear menu: General (language, theme, project folder),
  * SolidCraft (the program), Assistant (route, model and effort, designing without support),
- * Printer and material (the profiles), About (version, licence, GitHub Sponsors).
+ * Printer and material (the profiles), About (version, licence, Ko-fi).
  */
 export function SettingsDialog() {
   const { t } = useTranslation();

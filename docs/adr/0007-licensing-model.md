@@ -49,6 +49,9 @@ Licences that are incompatible with GPL-3.0 or restrict use (GPL-2.0-only, SSPL,
 Creative Commons, proprietary) are blocked by the licence gate in CI
 (`tools/licenses/check-licenses.mjs`); AGPL dependencies need an explicit exception with reason.
 
+> **Donations changed on 2026-11-06 by [ADR 0025](0025-donations-through-ko-fi.md):** they go
+> through Ko-fi; the licence decision above stands.
+
 Donations: GitHub Sponsors for the owner's account (`.github/FUNDING.yml`), linked from the README
 and from a "Support the project" item in the app's Help menu. Donations buy no features, priority or
 licence rights; the app has no paywall and no licence keys.
