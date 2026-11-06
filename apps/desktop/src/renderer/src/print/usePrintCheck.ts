@@ -1,4 +1,4 @@
-import { checkPrint } from '@partbuddy/geometry';
+import { checkPrint, withClearance } from '@partbuddy/geometry';
 import { useEffect } from 'react';
 
 import { platform } from '../platform';
@@ -24,13 +24,41 @@ export function usePrintCheck(): void {
     const timer = setTimeout(() => {
       // Standard parts (B7) are counterparts and are not printed.
       const standard = new Set(model.structure.standardParts ?? []);
-      const result = checkPrint(model.bodies.filter((body) => !standard.has(body.name)), { bed: print.printer.bed, nozzle: print.printer.nozzle, overhang: print.material.overhang }, model.structure.features);
+      const printed = model.bodies.filter((body) => !standard.has(body.name));
+      const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, overhang: print.material.overhang }, model.structure.features);
       useStudio.getState().setPrintCheck({ revision: model.revision, result });
+      const report = (final: typeof result) => {
+        void platform()
+          .print.reportCheck(reportOf(final, print.printer.nozzle))
+          .catch(() => undefined);
+      };
+      if (printed.length < 2) {
+        report(result);
+        return;
+      }
+      // Several parts (F2): SolidCraft measures overlaps and gaps under the push fit exactly. The
+      // mesh check shows at once; the light takes the measure when it comes, if nothing changed.
+      const pushFit = print.material.clearance.push;
       void platform()
-        .print.reportCheck(reportOf(result, print.printer.nozzle))
-        .catch(() => undefined);
+        .design.clearance(
+          printed.map((body) => body.name),
+          Math.max(pushFit, 0),
+        )
+        .then(
+          (measured) => {
+            if (stale) return;
+            const merged = withClearance(result, measured, pushFit);
+            useStudio.getState().setPrintCheck({ revision: model.revision, result: merged });
+            report(merged);
+          },
+          () => {
+            if (!stale) report(result);
+          },
+        );
     }, CHECK_DELAY_MS);
+    let stale = false;
     return () => {
+      stale = true;
       clearTimeout(timer);
     };
   }, [model, print]);

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import type { FaceTable } from './faceTable';
-import { checkPrint, minimumWall, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
+import { checkPrint, minimumWall, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
 import { boxesBody, lyingTube, prismBody } from './testShapes';
@@ -128,5 +128,31 @@ describe('the ready-to-print check (M7)', () => {
     expect(result.status).not.toBe('block');
     expect(result.findings.map((f) => f.kind)).not.toContain('size');
     expect(result.findings.map((f) => f.kind)).not.toContain('contact');
+  });
+});
+
+describe('clearance between parts (F2)', () => {
+  const ready = { status: 'ready' as const, findings: [] };
+  const box = { min: [9, 0, 0] as [number, number, number], max: [10, 10, 10] as [number, number, number] };
+
+  it('warns about bodies that share volume, and ignores the contact of two faces', () => {
+    const check = withClearance(ready, { overlaps: [{ a: 'Housing', b: 'Lid', volume: 100.004, box }, { a: 'A', b: 'B', volume: 0.001, box }], near: [] }, 0.15);
+    expect(check.status).toBe('warn');
+    expect(check.findings).toEqual([{ kind: 'overlap', severity: 'warn', bodies: ['Housing', 'Lid'], volume: 100, places: [], box }]);
+  });
+
+  it('warns about gaps under the push fit, but not about touching or roomy ones', () => {
+    const near = (distance: number) => ({ a: 'A', b: 'C', distance, from: [0, 10, 10] as [number, number, number], to: [0, 10 + distance, 10] as [number, number, number] });
+    const check = withClearance(ready, { overlaps: [], near: [near(0.1), near(0), near(0.2)] }, 0.15);
+    expect(check.findings).toEqual([{ kind: 'tight', severity: 'warn', bodies: ['A', 'C'], gap: 0.1, minimum: 0.15, places: [], box: { min: [-2, 8, 8], max: [2, 12.1, 12] } }]);
+    // A material without a push fit (clearance 0 or less) wants no gap.
+    expect(withClearance(ready, { overlaps: [], near: [near(0.1)] }, 0).findings).toEqual([]);
+  });
+
+  it('keeps what blocks printing first and the status of the worst finding', () => {
+    const blocked = { status: 'block' as const, findings: [{ kind: 'feature' as const, severity: 'block' as const, feature: 'Fillet1', message: 'failed' }] };
+    const check = withClearance(blocked, { overlaps: [{ a: 'A', b: 'B', volume: 5, box }], near: [] }, 0.15);
+    expect(check.status).toBe('block');
+    expect(check.findings.map((finding) => finding.kind)).toEqual(['feature', 'overlap']);
   });
 });

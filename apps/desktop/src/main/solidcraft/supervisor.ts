@@ -9,7 +9,7 @@ import type { ConnectionStatus, ExportFormat, MirrorRevision } from '../../share
 import type { UpstreamTools } from '../agents/gateProxy';
 import { ControlClient, ControlError } from './controlClient';
 import { cliBeside, endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
-import type { DesignAction, MeasureItem, MeasureResult, PartInsert, PartsLibrary, TimelineCommand, VisibilityCommand } from '../../shared/contract';
+import type { ClearanceResult, DesignAction, MeasureItem, MeasureResult, PartInsert, PartsLibrary, TimelineCommand, VisibilityCommand } from '../../shared/contract';
 import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
@@ -501,6 +501,11 @@ export class SolidCraftSupervisor {
 
   measure(items: MeasureItem[]): Promise<MeasureResult> {
     return this.trial(() => this.actions.measure(items));
+  }
+
+  /** Overlaps and gaps narrower than `gap` between the bodies (F2, `inspect.clearance`). */
+  clearance(bodies: string[], gap: number): Promise<ClearanceResult> {
+    return this.trial(() => this.actions.clearance(bodies, gap));
   }
 
   /**

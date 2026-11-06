@@ -222,6 +222,10 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   takes every region, so a ring's hole is filled; `solid.extrude` keeps a loop inside a hole as
   material again, which is what a logo means (ring with a star: 78.76 mm³ at 0.6 mm, by hand
   111.7 + 19.6 mm² × 0.6). An SVG of strokes only has no profile and is refused.
+- `inspect.clearance {bodies, clearance}` returns `overlaps` (volume, bbox, centre) and `near` pairs
+  closer than `clearance` with `distance_mm`, `from` and `to`; touching pairs come with distance 0.
+  Four 10 mm boxes take 8 ms; results are reused while neither body changes (`pairs_reused`). The
+  light runs it on trial after the mesh check whenever two or more bodies are printed (F2).
 - `solidcraft-cli commands` prints every command with its parameters as JSON, the quickest way to
   check a parameter before a contract test.
 

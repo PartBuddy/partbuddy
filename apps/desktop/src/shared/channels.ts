@@ -59,6 +59,7 @@ export const invokeChannels = {
   designPreviewAction: 'design:preview-action',
   designApplyAction: 'design:apply-action',
   designMeasure: 'design:measure',
+  designClearance: 'design:clearance',
   designPartsLibrary: 'design:parts-library',
   designPreviewBlock: 'design:preview-block',
   designApplyBlock: 'design:apply-block',

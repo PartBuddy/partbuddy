@@ -40,3 +40,23 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     expect(note).toContain('and 24 more');
   });
 });
+
+describe('clearance between parts as the assistant reads it (F2)', () => {
+  it('names the pair with the overlap or the gap, and the push fit it misses', () => {
+    const report = reportOf(
+      {
+        status: 'warn',
+        findings: [
+          { kind: 'overlap', severity: 'warn', bodies: ['Case', 'Lid'], volume: 400, places: [], box: { min: [0, 0, 9], max: [20, 20, 10] } },
+          { kind: 'tight', severity: 'warn', bodies: ['Case', 'Clip'], gap: 0.1, minimum: 0.15, places: [], box: { min: [-2, 18, -2], max: [2, 22.1, 2] } },
+        ],
+      },
+      0.4,
+    );
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    expect(JSON.stringify(report)).not.toContain('box');
+    const note = printCheckNote(report);
+    expect(note).toContain('bodies "Case" and "Lid" overlap by 400 mm³');
+    expect(note).toContain('bodies "Case" and "Clip" come within 0.1 mm of each other without touching, under the material\'s push fit of 0.15 mm per side');
+  });
+});

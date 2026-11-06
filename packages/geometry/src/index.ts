@@ -22,9 +22,11 @@ export {
 export {
   checkPrint,
   minimumWall,
+  withClearance,
   type FindingBox,
   type FindingPlace,
   type FindingSeverity,
+  type MeasuredClearance,
   type PrintCheck,
   type PrintCheckBody,
   type PrintCheckFeature,

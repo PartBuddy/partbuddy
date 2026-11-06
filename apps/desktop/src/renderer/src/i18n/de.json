@@ -597,7 +597,9 @@
       "overhang": "{area} mm² neigen sich über {limit}°: Ob sie Stütze brauchen, entscheidet der Slicer",
       "contact": "Nur {area} mm² liegen auf dem Druckbett: kann sich lösen oder kippen",
       "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",
-      "feature": "{feature}: {message}"
+      "feature": "{feature}: {message}",
+      "overlap": "{a} und {b} überschneiden sich um {volume} mm³ – als getrennte Teile passen sie so nicht zusammen; gehören sie zu einem Teil, vereinen",
+      "tight": "{a} und {b} kommen sich bis auf {gap} mm nahe, ohne sich zu berühren – unter der Steckpassung von {minimum} mm je Seite gehen sie nur mit Kraft zusammen"
     },
     "confirm": {
       "title": "Trotzdem exportieren?",

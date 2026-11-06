@@ -62,7 +62,11 @@ export type PrintFinding =
   | ({ kind: 'overhang'; severity: FindingSeverity; area: number; limit: number } & Located)
   | ({ kind: 'contact'; severity: FindingSeverity; area: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
-  | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string };
+  | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string }
+  /** Two bodies share volume: as separate parts they do not go together (F2, SolidCraft's measure). */
+  | ({ kind: 'overlap'; severity: FindingSeverity; bodies: [string, string]; volume: number } & Located)
+  /** Two bodies come closer than the material's push fit without touching (F2). */
+  | ({ kind: 'tight'; severity: FindingSeverity; bodies: [string, string]; gap: number; minimum: number } & Located);
 
 export interface PrintCheck {
   status: PrintStatus;
@@ -278,6 +282,9 @@ function sizeFinding(bodies: readonly { positions: ArrayLike<number> }[], bed: r
 
 const SEVERITY_ORDER: Record<FindingSeverity, number> = { block: 0, warn: 1 };
 
+const statusOf = (findings: readonly PrintFinding[]): PrintStatus =>
+  findings.some((f) => f.severity === 'block') ? 'block' : findings.some((f) => f.severity === 'warn') ? 'warn' : 'ready';
+
 /** Checks the mirrored bodies against the printer and material of the part. */
 export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintCheckProfile, features: readonly PrintCheckFeature[] = []): PrintCheck {
   const findings: PrintFinding[] = [];
@@ -366,6 +373,41 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
   }
 
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
-  const status: PrintStatus = findings.some((f) => f.severity === 'block') ? 'block' : findings.some((f) => f.severity === 'warn') ? 'warn' : 'ready';
-  return { status, findings };
+  return { status: statusOf(findings), findings };
+}
+
+/** What SolidCraft measured between the bodies (`inspect.clearance`), in its own words. */
+export interface MeasuredClearance {
+  overlaps: { a: string; b: string; volume: number; box: FindingBox }[];
+  near: { a: string; b: string; distance: number; from: [number, number, number]; to: [number, number, number] }[];
+}
+
+/** Below this, a shared volume is the contact of two faces, not an overlap (mm³). */
+const MIN_OVERLAP = 0.01;
+/** Below this, two bodies touch; the mesh check already reports touching bodies (mm). */
+const CONTACT = 1e-3;
+/** The box around a narrow gap, padded so the camera has something to frame (mm). */
+const GAP_PAD = 2;
+
+/**
+ * Adds the clearance between bodies (plan step F2) to the check: overlaps, and gaps narrower than
+ * the material's push fit (per side) that are no contact. Both print, so both are warnings; the
+ * pair's bodies are named, since SolidCraft measures bodies, not faces.
+ */
+export function withClearance(check: PrintCheck, measured: MeasuredClearance, pushFit: number): PrintCheck {
+  const findings: PrintFinding[] = [...check.findings];
+  for (const overlap of measured.overlaps) {
+    if (overlap.volume < MIN_OVERLAP) continue;
+    findings.push({ kind: 'overlap', severity: 'warn', bodies: [overlap.a, overlap.b], volume: round(overlap.volume), places: [], box: overlap.box });
+  }
+  if (pushFit > 0) {
+    for (const near of measured.near) {
+      if (near.distance < CONTACT || near.distance >= pushFit) continue;
+      const min = near.from.map((value, i) => round(Math.min(value, near.to[i] ?? value) - GAP_PAD, 3)) as [number, number, number];
+      const max = near.from.map((value, i) => round(Math.max(value, near.to[i] ?? value) + GAP_PAD, 3)) as [number, number, number];
+      findings.push({ kind: 'tight', severity: 'warn', bodies: [near.a, near.b], gap: round(near.distance), minimum: pushFit, places: [], box: { min, max } });
+    }
+  }
+  findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+  return { status: statusOf(findings), findings };
 }

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ActionService, commandOf } from '../src/main/solidcraft/actions';
+import { ActionService, clearanceOf, commandOf } from '../src/main/solidcraft/actions';
 import type { ControlRequester } from '../src/main/solidcraft/mirror';
 import { actionsFor } from '../src/renderer/src/viewer/actionKinds';
 import type { BodyModel, Pick } from '../src/renderer/src/state/store';
@@ -79,5 +79,26 @@ describe('actions at the selection (M1b-2)', () => {
     expect(actionsFor(bodies, [edge(), faceAt(0)])).toEqual([]);
     expect(actionsFor(bodies, [edge(0), edge(1)])).toEqual([]);
     expect(actionsFor(bodies, [{ kind: 'vertex', body: 0, vertex: 0, point: [0, 0, 0] }])).toEqual([]);
+  });
+});
+
+describe('the clearance between bodies as SolidCraft measures it (F2)', () => {
+  it('keeps overlaps and near pairs, and leaves out what does not fit the contract', () => {
+    const measured = clearanceOf({
+      overlaps: [
+        { a: 'A', b: 'B', volume_mm3: 100, area_mm2: 240, bbox: { min: [9, 0, 0], max: [10, 10, 10] }, center: [9.5, 5, 5] },
+        { a: 'A', b: 'B', volume_mm3: 'much', bbox: { min: [0, 0, 0], max: [1, 1, 1] } },
+      ],
+      near: [
+        { a: 'A', b: 'C', distance_mm: 0.1, from: [0, 10, 10], to: [0, 10.1, 10] },
+        { a: 'A', b: null, distance_mm: 0.1, from: [0, 0, 0], to: [0, 0, 0] },
+      ],
+      unchecked: [{ a: 'Mesh', b: null, reason: 'mesh body: not checked' }],
+    });
+    expect(measured).toEqual({
+      overlaps: [{ a: 'A', b: 'B', volume: 100, box: { min: [9, 0, 0], max: [10, 10, 10] } }],
+      near: [{ a: 'A', b: 'C', distance: 0.1, from: [0, 10, 10], to: [0, 10.1, 10] }],
+    });
+    expect(clearanceOf(null)).toEqual({ overlaps: [], near: [] });
   });
 });
