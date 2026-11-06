@@ -2,12 +2,13 @@ import type { AgentKind, AgentStatus, AssistantState, ModelChoice, Selection } f
 import type { SelectionSummary } from './viewContext';
 
 /** The user event of a message, with the selection that went along. */
-export function userEvent(text: string, label: string | undefined, summary?: SelectionSummary) {
+export function userEvent(text: string, label: string | undefined, summary?: SelectionSummary, sketch = false) {
   return {
     type: 'user' as const,
     text,
     ...(label ? { selection: label } : {}),
     ...(summary ? { selected: summary } : {}),
+    ...(sketch ? { sketch: true as const } : {}),
   };
 }
 
@@ -18,7 +19,7 @@ export interface AgentBackend {
   /**
    * `selections`: what the user selected in PartBuddy's view, sent along as a short note.
    * `note`: what the user changed or undid since the model's last turn (work log, M2a) and notes.
-   * `image`: a PNG that goes along as a picture (none is sent since drawing on the view went, plan
+   * `image`: a PNG that goes along as a picture (the rough sketch of F4; drawing on the view went in plan
    * step R2; kept for the photo import, F6).
    */
   send(text: string, selections?: Selection[], note?: string | null, image?: Uint8Array | null): Promise<void>;

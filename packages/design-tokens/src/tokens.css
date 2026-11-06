@@ -106,6 +106,8 @@
   --cs-brand-paper: #ffffff;
   --cs-brand-accent: #1f5fd1;
   --cs-brand-accent-on-ink: #2f6ad6;
+  /* The squares of the rough sketch's paper (F4); ink and paper are the brand's, fixed like them. */
+  --cs-sketch-grid: #dbe4f0;
 
   /* Light theme colours */
   color-scheme: light;

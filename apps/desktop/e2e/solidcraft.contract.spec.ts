@@ -1754,3 +1754,57 @@ test('a template from the start page becomes a project whose sizes are its param
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a rough sketch drawn with the mouse goes to the assistant as a picture with its note (F4)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-sketch-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7913',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByTestId('composer-sketch-open').click();
+    const pad = page.getByTestId('sketch-pad');
+    const canvas = pad.getByTestId('sketch-canvas');
+    await expect(pad.getByTestId('sketch-attach')).toBeDisabled();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('canvas not visible');
+    // An L-shaped bracket, then a stray line that is taken back.
+    const line = async (points: [number, number][]) => {
+      const [first, ...rest] = points;
+      if (!first) return;
+      await page.mouse.move(box.x + box.width * first[0], box.y + box.height * first[1]);
+      await page.mouse.down();
+      for (const [x, y] of rest) await page.mouse.move(box.x + box.width * x, box.y + box.height * y, { steps: 8 });
+      await page.mouse.up();
+    };
+    await line([[0.2, 0.2], [0.2, 0.8], [0.7, 0.8], [0.7, 0.7], [0.3, 0.7], [0.3, 0.2], [0.2, 0.2]]);
+    await line([[0.8, 0.1], [0.9, 0.3]]);
+    await expect(canvas).toHaveAttribute('data-strokes', '2');
+    await pad.getByTestId('sketch-undo').click();
+    await expect(canvas).toHaveAttribute('data-strokes', '1');
+    await page.screenshot({ path: test.info().outputPath('sketch-pad.png') });
+    await pad.getByTestId('sketch-attach').click();
+    await expect(pad).toHaveCount(0);
+    await expect(page.getByTestId('composer-sketch')).toBeVisible();
+    // A sketch alone is a message: it asks for a part from it.
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('message-sketch')).toHaveText('With a sketch', { timeout: 30_000 });
+    await expect(page.getByText('Make a part from my sketch.')).toBeVisible();
+    await expect(page.getByText(/I see a PNG picture of \d+ KB with the sketch note\./)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('composer-sketch')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('sketch-sent.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

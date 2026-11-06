@@ -93,6 +93,16 @@ if (args[0] === '--version') {
     // Text, or text and image blocks when a picture of the view goes along (M2b-2).
     const raw = message.message.content;
     const content = typeof raw === 'string' ? raw : raw.map((block) => (block.type === 'text' ? block.text : `[${block.type}]`)).join('\n');
+    // A rough sketch (F4): tells what came along, so a test sees the picture and the note arrive.
+    const picture = typeof raw === 'string' ? undefined : raw.find((block) => block.type === 'image');
+    if (picture) {
+      const bytes = Buffer.from(picture.source.data, 'base64');
+      const png = bytes.subarray(1, 4).toString() === 'PNG';
+      const note = content.includes('rough sketch the user drew');
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: `I see a ${png ? 'PNG' : 'non-PNG'} picture of ${String(Math.round(bytes.length / 1024))} KB${note ? ' with the sketch note' : ''}.` }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "Research" (B7): searches the web and reads a page when PartBuddy allowed WebSearch and WebFetch,
     // as Claude Code reports it in stream-json; otherwise says that it cannot.
     if (content.includes('Research')) {
