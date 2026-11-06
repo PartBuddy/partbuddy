@@ -12,7 +12,7 @@
 # (.git/info/gitleaks-personal.toml).
 set -euo pipefail
 
-readonly OWNER="ManuelStaggl"
+readonly OWNER="PartBuddy"
 readonly REPO="${1:?repository name required}"
 readonly SIGNING_KEY="${2:?path to the SSH signing public key required}"
 readonly PLAN="${3:-free}"

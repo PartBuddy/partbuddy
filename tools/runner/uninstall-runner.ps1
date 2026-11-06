@@ -10,7 +10,7 @@
 #>
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
 param(
-    [string]$Repository = 'ManuelStaggl/partbuddy'
+    [string]$Repository = 'PartBuddy/partbuddy'
 )
 
 Set-StrictMode -Version Latest

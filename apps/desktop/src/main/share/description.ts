@@ -38,7 +38,7 @@ const TEXT = {
     model: 'ready for the slicer',
     step: 'to change it in any CAD program',
     pictures: 'pictures',
-    made: 'Designed with [PartBuddy](https://github.com/ManuelStaggl/partbuddy) and SolidCraft.',
+    made: 'Designed with [PartBuddy](https://github.com/PartBuddy/partbuddy) and SolidCraft.',
   },
   de: {
     write: '<!-- Was ist es, wofür ist es, wie wird es zusammengesetzt? -->',
@@ -59,7 +59,7 @@ const TEXT = {
     model: 'fertig für den Slicer',
     step: 'zum Ändern in jedem CAD-Programm',
     pictures: 'Bilder',
-    made: 'Konstruiert mit [PartBuddy](https://github.com/ManuelStaggl/partbuddy) und SolidCraft.',
+    made: 'Konstruiert mit [PartBuddy](https://github.com/PartBuddy/partbuddy) und SolidCraft.',
   },
 } as const;
 

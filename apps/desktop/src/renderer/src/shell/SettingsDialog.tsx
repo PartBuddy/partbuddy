@@ -22,7 +22,7 @@ const SECTIONS: { id: SettingsSection; icon: typeof IconSettings; testId: string
 ];
 
 const DONATE = 'https://ko-fi.com/partbuddy';
-const SOURCE = 'https://github.com/ManuelStaggl/partbuddy';
+const SOURCE = 'https://github.com/PartBuddy/partbuddy';
 const LICENCE = 'https://www.gnu.org/licenses/gpl-3.0.html';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {

@@ -25,7 +25,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Repository = 'ManuelStaggl/partbuddy',
+    [string]$Repository = 'PartBuddy/partbuddy',
     [string]$RunnerName = 'partbuddy-wsl',
     [string]$RunnerLabels = 'partbuddy',
     [ValidateRange(1, 8)]

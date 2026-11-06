@@ -9,7 +9,7 @@
 # Usage: tools/runner/watch-pr-checks.sh [owner/repo]
 set -uo pipefail
 
-repo="${1:-ManuelStaggl/partbuddy}"
+repo="${1:-PartBuddy/partbuddy}"
 distro="partbuddy-runner"
 user="runner"
 events="/home/${user}/job-events.log"
