@@ -19,7 +19,7 @@ describe('a rough sketch for the assistant (F4)', () => {
   });
 
   it('marks the message in the chat, and the archive keeps the mark', () => {
-    const event = userEvent('Make a part from my sketch.', undefined, undefined, true);
+    const event = userEvent('Make a part from my sketch.', undefined, undefined, 'sketch');
     expect(event).toEqual({ type: 'user', text: 'Make a part from my sketch.', sketch: true });
     expect(agentEventSchema.safeParse(event).success).toBe(true);
     expect(userEvent('Hello', undefined)).toEqual({ type: 'user', text: 'Hello' });

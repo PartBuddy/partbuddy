@@ -1,14 +1,18 @@
 import type { AgentKind, AgentStatus, AssistantState, ModelChoice, Selection } from '../../shared/contract';
 import type { SelectionSummary } from './viewContext';
 
-/** The user event of a message, with the selection that went along. */
-export function userEvent(text: string, label: string | undefined, summary?: SelectionSummary, sketch = false) {
+/** What a picture that goes along with a message is: a rough sketch (F4) or a photo (F6). */
+export type PictureKind = 'sketch' | 'photo';
+
+/** The user event of a message, with the selection and the kind of picture that went along. */
+export function userEvent(text: string, label: string | undefined, summary?: SelectionSummary, picture?: PictureKind) {
   return {
     type: 'user' as const,
     text,
     ...(label ? { selection: label } : {}),
     ...(summary ? { selected: summary } : {}),
-    ...(sketch ? { sketch: true as const } : {}),
+    ...(picture === 'sketch' ? { sketch: true as const } : {}),
+    ...(picture === 'photo' ? { photo: true as const } : {}),
   };
 }
 
@@ -19,10 +23,9 @@ export interface AgentBackend {
   /**
    * `selections`: what the user selected in PartBuddy's view, sent along as a short note.
    * `note`: what the user changed or undid since the model's last turn (work log, M2a) and notes.
-   * `image`: a PNG that goes along as a picture (the rough sketch of F4; drawing on the view went in plan
-   * step R2; kept for the photo import, F6).
+   * `image`: a PNG that goes along as a picture, a rough sketch (F4) or a photo (F6) as `kind` says.
    */
-  send(text: string, selections?: Selection[], note?: string | null, image?: Uint8Array | null): Promise<void>;
+  send(text: string, selections?: Selection[], note?: string | null, image?: Uint8Array | null, kind?: PictureKind): Promise<void>;
   stop(): Promise<void>;
   /** Ends the conversation; the next message starts a new one (another project, B2). */
   newConversation(): Promise<void>;
@@ -68,8 +71,8 @@ export class Assistant {
     return this.state();
   }
 
-  send(text: string, selections: Selection[] = [], note: string | null = null, image: Uint8Array | null = null): Promise<void> {
-    return this.current().send(text, selections, note, image);
+  send(text: string, selections: Selection[] = [], note: string | null = null, image: Uint8Array | null = null, kind: PictureKind = 'sketch'): Promise<void> {
+    return this.current().send(text, selections, note, image, kind);
   }
 
   stop(): Promise<void> {

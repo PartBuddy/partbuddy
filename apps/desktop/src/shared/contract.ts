@@ -502,6 +502,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
       selected: selectionSummarySchema.optional(),
       /** A sketch went along (F4). */
       sketch: z.literal(true).optional(),
+      /** A photo went along (F6). */
+      photo: z.literal(true).optional(),
     })
     .strict(),
   z.object({ type: z.literal('textDelta'), text: z.string() }).strict(),
@@ -756,7 +758,7 @@ export const visibilityCommandSchema = z
   .strict()
   .refine((command) => command.bodies.length + command.sketches.length > 0, 'nothing to show or hide');
 
-/** The PNG signature, and at most 4 MB: the sketch pad writes about 50 KB. */
+/** The PNG signature, and at most 4 MB: the sketch pad writes about 50 KB, a photo scaled to 1568 px about 3 MB. */
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 export const sketchPngSchema = z
   .instanceof(Uint8Array)
@@ -768,8 +770,11 @@ export const agentMessageSchema = z
     answer: messageAnswerSchema.optional(),
     /** A rough sketch the user drew (F4), as a PNG that goes along as a picture. */
     sketch: sketchPngSchema.optional(),
+    /** A photo of a real object (F6), scaled down and turned into a PNG by the renderer. */
+    photo: sketchPngSchema.optional(),
   })
-  .strict();
+  .strict()
+  .refine((message) => !(message.sketch && message.photo), 'a sketch or a photo, not both');
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
 export const assistantStateSchema = z.object({ selected: agentKindSchema, agents: z.array(agentStatusSchema) }).strict();
@@ -820,7 +825,7 @@ const none = z.undefined();
  * untrusted input.
  */
 export const storedChatItemSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('user'), text: z.string().max(20_000), selection: z.string().max(400).optional(), selected: selectionSummarySchema.optional(), sketch: z.literal(true).optional() }).strict(),
+  z.object({ kind: z.literal('user'), text: z.string().max(20_000), selection: z.string().max(400).optional(), selected: selectionSummarySchema.optional(), sketch: z.literal(true).optional(), photo: z.literal(true).optional() }).strict(),
   z.object({ kind: z.literal('assistant'), text: z.string().max(50_000) }).strict(),
   z.object({ kind: z.literal('step'), step: workStepSchema, state: workStepStateSchema }).strict(),
   z.object({ kind: z.literal('question'), question: agentQuestionSchema, choice: z.string().max(40).nullable() }).strict(),

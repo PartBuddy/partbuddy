@@ -1856,3 +1856,45 @@ test('a sharing package holds 3MF, STEP, four pictures and a description of the 
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a photo goes to the assistant as a picture with its note and is kept in the project (F6)', async () => {
+  test.setTimeout(240_000);
+  const { existsSync, mkdtempSync, readdirSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-photo-'));
+  const projects = join(work, 'projects');
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7915',
+    PARTBUDDY_PROJECTS_DIR: projects,
+    PARTBUDDY_START_PAGE: '1',
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    // A project to keep the photo in: the housing template.
+    const home = page.getByTestId('home-page');
+    await home.locator('[data-template="housing"]').click();
+    await expect(home).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    // Any photo will do; a template picture stands in for one.
+    await page.getByTestId('composer-photo-input').setInputFiles(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'boxWithLid.png'));
+    await expect(page.getByTestId('composer-photo')).toBeVisible();
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('message-photo')).toHaveText('With a photo', { timeout: 30_000 });
+    await expect(page.getByText('Make a part that fits the object in the photo.')).toBeVisible();
+    await expect(page.getByText(/I see a PNG picture of \d+ KB with the photo note and its file\./)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('composer-photo')).toHaveCount(0);
+    const project = readdirSync(projects).find((name) => existsSync(join(projects, name, 'photos')));
+    expect(project).toBeDefined();
+    expect(readdirSync(join(projects, project ?? '', 'photos'))).toEqual([expect.stringMatching(/^photo-\d{8}-\d{6}\.png$/)]);
+    await page.screenshot({ path: test.info().outputPath('photo-sent.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

@@ -1,4 +1,4 @@
-import { IconArrowUp, IconPencil, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
+import { IconArrowUp, IconPencil, IconPhoto, IconPlayerStop, IconPointer, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -19,6 +19,7 @@ import { StepCard } from './StepCard';
 import { Queries, WorkGroup } from './WorkGroup';
 import { selectedStatus, useAssistant, type ConversationItem } from './store';
 import { SketchPad, type SketchPicture, type Stroke } from './SketchPad';
+import { photoPicture } from './photo';
 import { SourceCard } from './SourceCard';
 import { ToolCall } from './ToolCall';
 
@@ -150,6 +151,12 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
               {t('assistant.sketch.sent')}
             </span>
           ) : null}
+          {item.photo ? (
+            <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-photo">
+              <IconPhoto className="size-icon-sm shrink-0" aria-hidden />
+              {t('assistant.photo.sent')}
+            </span>
+          ) : null}
           <p className="rounded-lg bg-accent-subtle px-3 py-2 text-md whitespace-pre-wrap text-text">{item.text}</p>
         </div>
       );
@@ -204,18 +211,23 @@ export function AssistantPanel() {
   // A rough sketch for the next message (F4); its strokes stay while it is not sent, to draw on.
   const [sketching, setSketching] = useState(false);
   const [sketch, setSketch] = useState<{ strokes: Stroke[]; picture: SketchPicture } | null>(null);
+  // A photo of a real object for the next message (F6); one picture goes along, a sketch or a photo.
+  const [photo, setPhoto] = useState<SketchPicture | null>(null);
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight });
   }, [items]);
 
   const send = () => {
-    // A sketch alone is a message too: build a part from it.
-    const text = draft.trim() || (sketch ? t('assistant.sketch.defaultText') : '');
+    // A sketch or a photo alone is a message too: build a part from it.
+    const text = draft.trim() || (photo ? t('assistant.photo.defaultText') : sketch ? t('assistant.sketch.defaultText') : '');
     if (!text || !ready) return;
     setDraft('');
     setSketch(null);
-    void sendToAssistant(text, selections, undefined, sketch?.picture.png);
+    setPhoto(null);
+    void sendToAssistant(text, selections, undefined, photo ? undefined : sketch?.picture.png, photo?.png);
   };
 
   return (
@@ -328,6 +340,52 @@ export function AssistantPanel() {
             </AriaButton>
           </div>
         ) : null}
+        {photo ? (
+          <div className="flex items-center gap-2" data-testid="composer-photo">
+            <img src={photo.thumbnail} alt="" className="block h-control-lg w-auto rounded-md border border-border" draggable={false} />
+            <span className="mr-auto text-xs text-text-muted">{t('assistant.photo.goesWith')}</span>
+            <AriaButton
+              aria-label={t('assistant.photo.remove')}
+              onPress={() => {
+                setPhoto(null);
+              }}
+              className="inline-flex size-control-sm items-center justify-center rounded-sm text-text-subtle outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+              data-testid="composer-photo-remove"
+            >
+              <IconX className="size-icon-sm" aria-hidden />
+            </AriaButton>
+          </div>
+        ) : null}
+        {photoFailed ? (
+          <p role="alert" className="text-xs text-danger">
+            {t('assistant.photo.failed')}
+          </p>
+        ) : null}
+        <input
+          ref={photoInput}
+          type="file"
+          accept="image/png,image/jpeg"
+          className="hidden"
+          tabIndex={-1}
+          aria-hidden
+          data-testid="composer-photo-input"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (!file) return;
+            setPhotoFailed(false);
+            photoPicture(file).then(
+              (picture) => {
+                setPhoto(picture);
+                setSketch(null);
+                composer.current?.focus();
+              },
+              () => {
+                setPhotoFailed(true);
+              },
+            );
+          }}
+        />
         <div className="flex items-center justify-end gap-2">
           <span className="mr-auto flex min-w-0">
             <AgentChip />
@@ -343,6 +401,17 @@ export function AssistantPanel() {
             <IconPencil className="size-icon-sm" aria-hidden />
             {t('assistant.sketch.button')}
           </Button>
+          <Button
+            onPress={() => {
+              photoInput.current?.click();
+            }}
+            isDisabled={!ready}
+            aria-label={t('assistant.photo.open')}
+            data-testid="composer-photo-open"
+          >
+            <IconPhoto className="size-icon-sm" aria-hidden />
+            {t('assistant.photo.button')}
+          </Button>
           {busy ? (
             <Button
               onPress={() => {
@@ -353,7 +422,7 @@ export function AssistantPanel() {
               {t('assistant.stop')}
             </Button>
           ) : null}
-          <Button type="submit" variant="primary" isDisabled={!ready || (draft.trim() === '' && !sketch)}>
+          <Button type="submit" variant="primary" isDisabled={!ready || (draft.trim() === '' && !sketch && !photo)}>
             <IconArrowUp className="size-icon-sm" aria-hidden />
             {t('assistant.send')}
           </Button>
@@ -367,6 +436,7 @@ export function AssistantPanel() {
         }}
         onAttach={(strokes, picture) => {
           setSketch({ strokes, picture });
+          setPhoto(null);
           setSketching(false);
           composer.current?.focus();
         }}

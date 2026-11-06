@@ -5,6 +5,7 @@
  */
 
 import { METADATA_PREFIX } from '../notes/noteRecord';
+import { PHOTO_FILE } from './photoNote';
 
 export type ToolDecision = { allow: true } | { allow: false; reason: string };
 
@@ -117,6 +118,10 @@ function decideCommand(command: string, params: Record<string, unknown>): ToolDe
       `${command} is not available in PartBuddy: PartBuddy keeps the history as steps the user can go back to. Use undo ` +
         'and redo instead.',
     );
+  }
+  // A photo the user sent (F6) may be laid out as a canvas; it is read, never written.
+  if (command === 'canvas.insert' && typeof params.path === 'string' && PHOTO_FILE.test(params.path) && !params.path.includes('..')) {
+    return { allow: true };
   }
   if (typeof params.path === 'string' && !CURVE_ID.test(params.path)) {
     return refuse(

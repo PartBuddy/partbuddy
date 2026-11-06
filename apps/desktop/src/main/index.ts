@@ -42,6 +42,7 @@ import { ChatArchive } from './chat/chatArchive';
 import { printCheckNote } from './print/printCheckNote';
 import { templateSteps } from '../shared/templates';
 import { SKETCH_NOTE } from './agents/sketchNote';
+import { photoFile, photoNote } from './agents/photoNote';
 import { shareDescription } from './share/description';
 import { freeFolder } from './share/freeFolder';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
@@ -512,7 +513,21 @@ if (!app.requestSingleInstanceLock()) {
       if (!file || !projectStore.holds(file) || !existsSync(file)) return null;
       return versions.save(file, reason, label, skipUnchanged);
     };
-    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, sketch }) => {
+    // A photo (F6) is kept in the project's "photos" folder, so SolidCraft can use it by path.
+    const keepPhoto = (png: Uint8Array): string | null => {
+      const project = supervisor.projectFile();
+      if (!project || !projectStore.holds(project)) return null;
+      try {
+        const file = photoFile(dirname(project), new Date());
+        mkdirSync(dirname(file), { recursive: true });
+        writeFileSync(file, png);
+        return file;
+      } catch (error) {
+        log(`photo not kept: ${(error as Error).message}`);
+        return null;
+      }
+    };
+    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, sketch, photo }) => {
       // The design as it was before the assistant changes it; a failure never stops the request.
       await keepVersion('assistant', text.replace(/\s+/g, ' ').slice(0, 120), true).catch((error: unknown) => {
         log(`no version before the request: ${(error as Error).message}`);
@@ -528,9 +543,10 @@ if (!app.requestSingleInstanceLock()) {
         steps.takeNote(),
         notesService.selectionNote(selections ?? []),
         sketch ? SKETCH_NOTE : null,
+        photo ? photoNote(keepPhoto(photo)) : null,
       ].filter((line): line is string => line !== null);
       try {
-        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, sketch ?? null);
+        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, photo ?? sketch ?? null, photo ? 'photo' : 'sketch');
       } catch (error) {
         profileNote.forget();
         checkNote.forget();

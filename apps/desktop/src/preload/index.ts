@@ -126,12 +126,13 @@ const api: PartBuddyApi = {
   agent: {
     status: () => ipcRenderer.invoke(invokeChannels.agentStatus),
     refresh: () => ipcRenderer.invoke(invokeChannels.agentRefresh),
-    send: (text, selections, answer, sketch) =>
+    send: (text, selections, answer, sketch, photo) =>
       ipcRenderer.invoke(invokeChannels.agentSend, {
         text,
         ...(selections && selections.length > 0 ? { selections } : {}),
         ...(answer ? { answer } : {}),
         ...(sketch ? { sketch } : {}),
+        ...(photo ? { photo } : {}),
       }),
     stop: () => ipcRenderer.invoke(invokeChannels.agentStop),
     select: (agent) => ipcRenderer.invoke(invokeChannels.agentSelect, { agent }),
