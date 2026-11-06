@@ -69,12 +69,30 @@ instead of a clean Linux environment.
   squash merge, because the pull request already checked the merge result. The weekly privacy and
   security scans stay on GitHub-hosted runners so they run while the PC is off.
 
+### Update 2026-11-06: the runner moved to the home server
+
+Development, the runner and the Claude Code sessions moved from the gaming PC to the home server
+(Windows Server 2025, i7-14700T with 28 logical processors, 32 GB, also hosting other services), so
+the PC stays free and work can go on at night.
+
+* `setup-runner.ps1 -RunnerName partbuddy-srv -NoAutostart` registered `partbuddy-srv-1` to `-4`;
+  the PC's `partbuddy-wsl-*` were removed with `uninstall-runner.ps1`.
+* `.wslconfig` on the server is written by hand (the script then leaves it alone) and caps the VM at
+  12 GB and 14 processors, leaving room for the server's other services.
+* Start at boot without sign-in instead of the Startup folder: a scheduled task `PartBuddy-Runner`
+  (trigger at startup with one minute delay, the developer's account with logon type S4U, no stored
+  password) runs `runner-control.ps1 -Action Start -Quiet`. Checked by stopping the runners and
+  starting the task: `wsl.exe` runs in session 0 and all four runners came back online.
+* The test version for the product owner is built on the server and copied to the PC by
+  `tools/test-app/deliver-test-app.ps1` (electron-builder `--dir`, no link into a repository); it
+  skips the delivery while the PC is off or the test version runs.
+
 ### Consequences
 
 * Good: no Actions minutes for pull requests; runs are faster on a 20-core machine.
 * Good: jobs cannot reach Windows files or programs from inside the distribution.
-* Bad: the PC must be on for checks to run.
-* Bad: dependency updates (Renovate) execute on the PC. Install scripts run only for allowed
+* Bad: the home server must be on for checks to run (it runs around the clock).
+* Bad: dependency updates (Renovate) execute on the server. Install scripts run only for allowed
   packages (`allowBuilds`) and versions must be seven days old (`minimumReleaseAge`); the
   distribution has no access to Windows.
 * Bad: Ubuntu packages and the runner need updates. `provision.sh` runs `full-upgrade` and may be run
