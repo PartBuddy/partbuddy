@@ -11,7 +11,7 @@ import { answerRound, converse, waitForTurn } from './practice';
 // through PartBuddy, to see what gets in the way. It spends Claude subscription usage, so it runs
 // only with PARTBUDDY_PRACTICE=1. The window stays off screen; SolidCraft runs headless in its own
 // folders. Each part writes report.json and pictures to its test output folder.
-test.skip(process.env.PARTBUDDY_PRACTICE !== '1' && !process.env.PARTBUDDY_PRACTICE_PHOTO, 'spends Claude usage; set PARTBUDDY_PRACTICE=1');
+test.skip(process.env.PARTBUDDY_PRACTICE !== '1' && !process.env.PARTBUDDY_PRACTICE_PHOTO && process.env.PARTBUDDY_PRACTICE_RESEARCH !== '1', 'spends Claude usage; set PARTBUDDY_PRACTICE=1');
 test.describe.configure({ mode: 'serial' });
 
 interface Part {
@@ -96,29 +96,29 @@ for (const part of process.env.PARTBUDDY_PRACTICE === '1' ? PARTS : []) {
   });
 }
 
-// From a photo to a part in question rounds (decided 2026-11-06): the user's example, a holder for
-// a Samsung Galaxy S25 Ultra on the part in the photo. Runs with PARTBUDDY_PRACTICE_PHOTO set to the
-// photo; every round is answered with the assistant's recommendations, the plan with Go.
-test('practice: phone holder from a photo, in question rounds', async () => {
-  const photo = process.env.PARTBUDDY_PRACTICE_PHOTO;
-  test.skip(!photo, 'set PARTBUDDY_PRACTICE_PHOTO to a photo');
+/**
+ * One part designed in question rounds with the real assistant: every round is answered with its
+ * recommendations, the plan with Go. Keeps a picture of every card, the sources the assistant
+ * looked at, its answers and the parameters with their values in report.json.
+ */
+async function designInRounds(id: string, port: number, request: string, photo?: string): Promise<void> {
   test.setTimeout(60 * 60 * 1000);
-  const work = mkdtempSync(join(tmpdir(), 'partbuddy-practice-holder-'));
+  const work = mkdtempSync(join(tmpdir(), `partbuddy-practice-${id}-`));
   const launched = await launchApp({
     isolated: false,
     work,
-    env: { SOLIDCRAFT_CONTROL_DIR: join(work, 'control'), PARTBUDDY_SOLIDCRAFT_PORT: '7930', PARTBUDDY_PROJECTS_DIR: join(work, 'projects') },
+    env: { SOLIDCRAFT_CONTROL_DIR: join(work, 'control'), PARTBUDDY_SOLIDCRAFT_PORT: String(port), PARTBUDDY_PROJECTS_DIR: join(work, 'projects') },
   });
   const { page } = launched;
-  const report: Record<string, unknown> = { rounds: [] as unknown[] };
-  const rounds = report.rounds as unknown[];
+  const rounds: unknown[] = [];
+  const report: Record<string, unknown> = { request, rounds };
   try {
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 90_000 });
     await expect(page.getByTestId('agent-status')).toContainText('Claude Code', { timeout: 30_000 });
-    await page.getByTestId('composer-photo-input').setInputFiles(photo ?? '');
-    await expect(page.getByTestId('composer-photo')).toBeVisible();
-    const request = 'Ich benötige eine Halterung für mein Samsung Galaxy S25 Ultra, die an diesem Teil festgemacht wird.';
-    report.request = request;
+    if (photo) {
+      await page.getByTestId('composer-photo-input').setInputFiles(photo);
+      await expect(page.getByTestId('composer-photo')).toBeVisible();
+    }
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill(request);
     await page.getByRole('button', { name: 'Send' }).click();
     await waitForTurn(page);
@@ -129,19 +129,15 @@ test('practice: phone holder from a photo, in question rounds', async () => {
       const kind = (await card.getAttribute('data-kind')) ?? '?';
       await card.scrollIntoViewIfNeeded();
       await card.screenshot({ path: test.info().outputPath(`round-${String(round)}-${kind}.png`) });
-      const said = await page.getByTestId('assistant-text').allTextContents();
-      if (kind === 'plan') {
-        rounds.push({ round, kind, card: await card.innerText(), before: said.at(-1) ?? '' });
-        await card.getByRole('button', { name: 'Go' }).click();
-      } else {
-        const text = await card.innerText();
-        await answerRound(card, undefined);
-        rounds.push({ round, kind, card: text, before: said.at(-1) ?? '' });
-      }
+      rounds.push({ round, kind, card: await card.innerText() });
+      if (kind === 'plan') await card.getByRole('button', { name: 'Go' }).click();
+      else await answerRound(card, undefined);
       await waitForTurn(page);
     }
     // innerText keeps the paragraphs apart; textContent runs them together.
+    report.sources = await page.getByTestId('source-card').allInnerTexts();
     report.answers = await page.getByTestId('assistant-text').allInnerTexts();
+    report.parameters = await page.getByTestId('parameter').allInnerTexts();
     report.steps = await page.getByTestId('step-text').allTextContents();
     report.mesh = await page.getByTestId('mesh-summary').textContent().catch(() => null);
     await page.screenshot({ path: test.info().outputPath('built.png') });
@@ -156,4 +152,26 @@ test('practice: phone holder from a photo, in question rounds', async () => {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
+}
+
+// From a photo to a part in question rounds (decided 2026-11-06): the user's example, a holder for
+// a Samsung Galaxy S25 Ultra on the part in the photo. Runs with PARTBUDDY_PRACTICE_PHOTO set to the photo.
+test('practice: phone holder from a photo, in question rounds', async () => {
+  const photo = process.env.PARTBUDDY_PRACTICE_PHOTO;
+  test.skip(!photo, 'set PARTBUDDY_PRACTICE_PHOTO to a photo');
+  await designInRounds('holder', 7930, 'Ich benötige eine Halterung für mein Samsung Galaxy S25 Ultra, die an diesem Teil festgemacht wird.', photo);
 });
+
+// Research check (decided 2026-11-06): values the assistant can only get right from sources.
+// Known answers: Raspberry Pi 5 holes 58 × 49 mm for M2.5; ruthex M3 insert hole 4.0 mm, 5.7 mm long.
+const RESEARCH: { id: string; request: string }[] = [
+  { id: 'research-pi5', request: 'Baue eine Grundplatte mit vier Abstandshaltern, auf die ich meinen Raspberry Pi 5 schrauben kann.' },
+  { id: 'research-insert', request: 'Baue einen Würfel mit 20 mm Kantenlänge mit einer Bohrung oben für einen ruthex-Gewindeeinsatz M3 (die Standardlänge).' },
+  { id: 'research-concept', request: 'Ich brauche einen Wandhalter für meinen Akkuschrauber Bosch GSR 12V-15.' },
+];
+for (const [i, task] of RESEARCH.entries()) {
+  test(`practice: ${task.id}`, async () => {
+    test.skip(process.env.PARTBUDDY_PRACTICE_RESEARCH !== '1', 'spends Claude usage; set PARTBUDDY_PRACTICE_RESEARCH=1');
+    await designInRounds(task.id, 7940 + i, task.request);
+  });
+}
