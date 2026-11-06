@@ -33,17 +33,28 @@ const BOARD = [
 
 type Bridge = { partbuddy: { design: { insert(path?: string): Promise<unknown>; insertPart(part: unknown): Promise<{ body: string | null }> } } };
 type Shape = { tool: 'line' | 'rect' | 'circle' | 'dimension' | 'text'; from: [number, number]; to?: [number, number]; value?: string };
-// A 40 mm plate with an Ø 8 hole and an M3 hole, and its side view bent with R 3 (F9).
-const SKETCH: Shape[] = [
-  { tool: 'rect', from: [0.12, 0.2], to: [0.6, 0.7] },
-  { tool: 'circle', from: [0.27, 0.45], to: [0.33, 0.45] },
-  { tool: 'circle', from: [0.47, 0.45], to: [0.5, 0.45] },
-  { tool: 'line', from: [0.75, 0.2], to: [0.75, 0.7] },
-  { tool: 'line', from: [0.75, 0.7], to: [0.9, 0.7] },
-  { tool: 'dimension', from: [0.12, 0.8], to: [0.6, 0.8], value: '40' },
-  { tool: 'dimension', from: [0.21, 0.3], to: [0.33, 0.3], value: 'Ø 8' },
-  { tool: 'dimension', from: [0.75, 0.62], to: [0.8, 0.7], value: 'R 3' },
-  { tool: 'text', from: [0.44, 0.56], value: 'M3 hole' },
+// Two sheets (F9, F10): the side view bent with R 3, then a 40 mm plate with an Ø 8 hole and an
+// M3 hole on the free sheet, which the picture shows.
+const SHEETS: { sheet: 'side' | 'free'; shapes: Shape[] }[] = [
+  {
+    sheet: 'side',
+    shapes: [
+      { tool: 'line', from: [0.4, 0.15], to: [0.4, 0.75] },
+      { tool: 'line', from: [0.4, 0.75], to: [0.7, 0.75] },
+      { tool: 'dimension', from: [0.4, 0.67], to: [0.45, 0.75], value: 'R 3' },
+    ],
+  },
+  {
+    sheet: 'free',
+    shapes: [
+      { tool: 'rect', from: [0.2, 0.2], to: [0.68, 0.7] },
+      { tool: 'circle', from: [0.35, 0.45], to: [0.41, 0.45] },
+      { tool: 'circle', from: [0.55, 0.45], to: [0.58, 0.45] },
+      { tool: 'dimension', from: [0.2, 0.8], to: [0.68, 0.8], value: '40' },
+      { tool: 'dimension', from: [0.29, 0.3], to: [0.41, 0.3], value: 'Ø 8' },
+      { tool: 'text', from: [0.52, 0.56], value: 'M3 hole' },
+    ],
+  },
 ];
 
 test('website pictures', async () => {
@@ -127,18 +138,24 @@ test('website pictures', async () => {
     const box = await pad.getByTestId('sketch-canvas').boundingBox();
     if (!box) throw new Error('sketch canvas not visible');
     const at = ([x, y]: [number, number]) => [box.x + box.width * x, box.y + box.height * y] as const;
-    for (const shape of SKETCH) {
-      await pad.getByTestId(`sketch-tool-${shape.tool}`).click();
-      await page.mouse.move(...at(shape.from));
-      await page.mouse.down();
-      await page.mouse.move(...at(shape.to ?? shape.from), { steps: 8 });
-      await page.mouse.up();
-      if (shape.value) {
-        await pad.getByTestId('sketch-value').fill(shape.value);
-        await page.keyboard.press('Enter');
+    for (const { sheet, shapes } of SHEETS) {
+      await pad.getByTestId(`sketch-sheet-${sheet}`).click();
+      for (const shape of shapes) {
+        await pad.getByTestId(`sketch-tool-${shape.tool}`).click();
+        await page.mouse.move(...at(shape.from));
+        await page.mouse.down();
+        await page.mouse.move(...at(shape.to ?? shape.from), { steps: 8 });
+        await page.mouse.up();
+        if (shape.value) {
+          await pad.getByTestId('sketch-value').fill(shape.value);
+          await page.keyboard.press('Enter');
+        }
       }
+      await expect(pad.getByTestId(`sketch-sheet-${sheet}`)).toContainText(String(shapes.length));
     }
-    await expect(pad.getByTestId('sketch-canvas')).toHaveAttribute('data-items', String(SKETCH.length));
+    // A scale makes the squares a length: one square is 5 mm.
+    await pad.getByTestId('sketch-scale').fill('5');
+    await page.mouse.move(0, 450);
   };
 
   try {
