@@ -243,15 +243,20 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 
 ## Repository and machine
 
+- Since 2026-11-06 development runs on the home server; the gaming PC only runs the test version,
+  which `tools/test-app/deliver-test-app.ps1` builds and copies there over SSH (target `user@host`
+  in `%USERPROFILE%\.partbuddy\test-pc.txt`). The server reaches the PC, not the other way round.
 - The self-hosted CI runner (ADR 0022) dies with the Claude session that started it; restart with
-  `runner-control.ps1 -Action Start -Quiet`. PowerShell appends CRLF when piping into `wsl.exe`.
+  `runner-control.ps1 -Action Start -Quiet`. At boot the scheduled task `PartBuddy-Runner` starts it.
+  PowerShell appends CRLF when piping into `wsl.exe`.
 - pnpm 12 writes a two-part lockfile that Dependabot cannot read, hence Renovate. Private
   repositories of a personal account have no CodeQL, secret scanning or dependency review; gitleaks,
   zizmor, `pnpm audit` and the licence gate stand in. gitleaks' Windows-path rule also hits test
   inputs that are absolute Windows paths.
 - Squash-merging with `--delete-branch` closes a stacked follow-up PR: retarget it to main first.
-- The local global `pnpm.cmd` is broken on the development machine; nested pnpm calls from scripts
-  fail there only. Start Vite through node directly.
+- Node 26 ships without corepack: pnpm comes from `npm install -g pnpm@<packageManager version>`.
+  On the old development PC the global `pnpm.cmd` was broken, which is why Vite is started through
+  node directly.
 - The Claude desktop app is an MSIX package and redirects AppData writes of its child processes into
   its package folder: files meant for the user go under `%USERPROFILE%\.partbuddy`. The brand icon
   `assets/brand/icon/partbuddy.ico` holds only PNG entries, so Explorer shows no icon on a shortcut;
