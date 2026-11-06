@@ -423,6 +423,11 @@ export const agentStatusSchema = z
     /** The choice kept for new chats, when the user set one. */
     defaultChoice: modelChoiceSchema.optional(),
     detail: z.string().max(500).optional(),
+    /** Plan limits as the assistant last reported them: the share used (0 to 1) of each window and when it resets (Unix seconds). */
+    usage: z
+      .array(z.object({ window: z.string().max(40), used: z.number().min(0).max(1), resetsAt: z.number().int().nonnegative().nullable() }).strict())
+      .max(4)
+      .optional(),
   })
   .strict();
 /** `asDefault`: keep the choice for new chats too. */

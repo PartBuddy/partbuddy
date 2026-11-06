@@ -86,6 +86,8 @@ if (args[0] === '--version') {
       out({ type: 'control_response', response: { subtype: 'success', request_id: message.request_id, response } });
       continue;
     }
+    // The plan's limits after each request, as Claude Code 2.1.302 reports them.
+    out({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', unifiedWindows: { five_hour: { utilization: 0.23, resetsAt: 1794117600 }, seven_day: { utilization: 0.69, resetsAt: 1794117600 } } } });
     // "Which model" (B1): tells which model and effort the session runs with now.
     if (JSON.stringify(message).includes('Which model')) {
       out({ type: 'assistant', message: { content: [{ type: 'text', text: `model ${model} effort ${effort}` }] } });

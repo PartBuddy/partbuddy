@@ -334,6 +334,17 @@
     "local": {
       "ready": "{server} · {model}",
       "unavailableTitle": "Kein lokales Modell bereit"
+    },
+    "usage": {
+      "title": "Verbrauch",
+      "window": "{window} {used, number, percent}",
+      "windowReset": "{window} {used, number, percent} (bis {reset})",
+      "windows": {
+        "five_hour": "5 Std.",
+        "seven_day": "Woche",
+        "seven_day_opus": "Woche Opus",
+        "seven_day_sonnet": "Woche Sonnet"
+      }
     }
   },
   "live": {
