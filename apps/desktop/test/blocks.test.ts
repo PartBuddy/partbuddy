@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_KINDS, defaultBlock, needsNormal, planeAt, sizesOf, stepsOf, type FeatureBlock } from '../src/shared/blocks';
+import { BLOCK_KINDS, defaultBlock, hasSize, hookVector, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, type FeatureBlock } from '../src/shared/blocks';
 import { featureBlockSchema } from '../src/shared/contract';
 import { blockPhrase, describeCommands } from '../src/shared/stepPhrases';
 
@@ -73,6 +73,34 @@ describe('function blocks (F1)', () => {
     const lip = defaultBlock('lip', 'Body1', at, 'M3');
     expect(stepsOf(lip)).toEqual([{ command: 'plastic.lip', params: { face: at, type: 'lip', width: '1.2 mm', height: '2 mm' } }]);
     expect(stepsOf({ ...lip, type: 'groove' } as FeatureBlock)[0]?.params).toMatchObject({ type: 'groove', gap: '0.2 mm' });
+  });
+
+  it('stands a snap fit out of the face with its catch across the arm', () => {
+    const block = defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1]);
+    expect(stepsOf(block)).toEqual([
+      {
+        command: 'plastic.snap_fit',
+        params: { position: at, hook: [0, 1, 0], length: '12 mm', thickness: '1.5 mm', width: '5 mm', catch_depth: '0.8 mm', catch_length: '1.5 mm' },
+      },
+    ]);
+    // On a side face the catch can point up or down, or level along the face.
+    expect(hookVector(at, [1, 0, 0], 'y+')).toEqual([0, 0, 1]);
+    expect(hookVector(at, [1, 0, 0], 'y-')).toEqual([0, 0, -1]);
+    expect(hookVector(at, [1, 0, 0], 'x-')).toEqual([0, -1, 0]);
+    for (const normal of [[0, 0, 1], [0, -1, 0], [1, 0, 0], [0, 0, -1]] as [number, number, number][]) {
+      for (const hook of ['x+', 'x-', 'y+', 'y-'] as const) {
+        const vector = hookVector(at, normal, hook);
+        expect(vector[0] * normal[0] + vector[1] * normal[1] + vector[2] * normal[2]).toBe(0);
+      }
+    }
+  });
+
+  it('works out the snap fit\'s strain at the root of the arm', () => {
+    expect(snapStrain(defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1]) as { length: number; thickness: number; catchDepth: number; catchLength: number })).toBeCloseTo(1.42);
+    // The lever runs to the middle of the catch: half the lever, four times the strain.
+    expect(snapStrain({ length: 10.75, thickness: 1.5, catchDepth: 0.8, catchLength: 1.5 })).toBeCloseTo(1.8);
+    expect(snapStrain({ length: 5.75, thickness: 1.5, catchDepth: 0.8, catchLength: 1.5 })).toBeCloseTo(7.2);
+    expect(hasSize('snapFit')).toBe(false);
   });
 
   it('keeps every default block valid for the contract and named in the work log', () => {

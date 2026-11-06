@@ -690,6 +690,21 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
   z
     .object({ block: z.literal('lip'), body: bodyName, point: point3, size: blockSize, type: z.enum(['lip', 'groove']), width: blockLength, height: blockLength, gap: finite.min(0).max(5) })
     .strict(),
+  z
+    .object({
+      block: z.literal('snapFit'),
+      body: bodyName,
+      point: point3,
+      normal: point3,
+      size: blockSize,
+      length: blockLength,
+      thickness: blockLength,
+      width: blockLength,
+      catchDepth: blockLength,
+      catchLength: blockLength,
+      hook: z.enum(['y+', 'y-', 'x+', 'x-']),
+    })
+    .strict(),
 ]);
 export const actionPreviewSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable() }).strict(),

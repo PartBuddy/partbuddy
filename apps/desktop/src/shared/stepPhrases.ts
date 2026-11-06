@@ -63,6 +63,7 @@ export const STEP_PHRASE_KEYS = [
   'slot',
   'lip',
   'groove',
+  'snapFit',
   'command',
 ] as const;
 
@@ -218,6 +219,8 @@ function phraseOf(command: string, params: Params): StepPhrase | 'curve' | 'dime
       return { key: 'textBlock', values: { text: '…' } };
     case 'plastic.lip':
       return { key: params.type === 'groove' ? 'groove' : 'lip', values: { width: size(params.width) ?? '?' } };
+    case 'plastic.snap_fit':
+      return { key: 'snapFit', values: { length: size(params.length) ?? '?' } };
     case 'plastic.boss':
       return { key: 'boss', values: { diameter: size(params.diameter) ?? '?' } };
     case 'parts.insert':
@@ -335,6 +338,8 @@ export function blockPhrase(block: FeatureBlock): StepPhrase {
       return { key: 'slot', values: { length: round(block.length) } };
     case 'lip':
       return { key: block.type, values: { width: round(block.width) } };
+    case 'snapFit':
+      return { key: 'snapFit', values: { length: round(block.length) } };
     default:
       return describeCommands([stepOf(block)])[0] ?? { key: 'command', values: { command: block.block } };
   }
@@ -395,6 +400,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     slot: 'Slot {length} mm',
     lip: 'Lip {width} mm',
     groove: 'Groove {width} mm',
+    snapFit: 'Snap fit {length} mm',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -447,6 +453,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     slot: 'Langloch {length} mm',
     lip: 'Deckelrand {width} mm',
     groove: 'Nut {width} mm',
+    snapFit: 'Schnapphaken {length} mm',
     command: 'SolidCraft: {command}',
   },
 };

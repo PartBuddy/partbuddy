@@ -1503,3 +1503,72 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a snap fit stands out of a face, its catch across the arm, with its strain in the form (F1)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-blocks3-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7909',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  type Bridge = { partbuddy: { design: { previewBlock(block: unknown): Promise<{ ok: boolean; preview?: unknown; error?: string }>; applyBlock(block: unknown): Promise<void> } } };
+  const preview = (block: unknown) => page.evaluate((b) => (globalThis as unknown as Bridge).partbuddy.design.previewBlock(b).then((r) => ({ ok: r.ok, error: r.error ?? null })), block);
+  const apply = (block: unknown) => page.evaluate((b) => (globalThis as unknown as Bridge).partbuddy.design.applyBlock(b), block);
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    const snap = { block: 'snapFit', body: 'Body1', size: 'M3', length: 10, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5 };
+    // Up from the top face, and level out of a side face with the catch pointing up.
+    for (const block of [
+      { ...snap, point: [10, 10, 10], normal: [0, 0, 1], hook: 'y+' },
+      { ...snap, point: [20, 10, 5], normal: [1, 0, 0], hook: 'y+', length: 8 },
+    ]) {
+      expect(await preview(block)).toEqual({ ok: true, error: null });
+      await apply(block);
+    }
+    for (const line of ['Snap fit 10 mm', 'Snap fit 8 mm']) await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('timeline-feature')).toHaveCount(3, { timeout: 30_000 });
+    await page.screenshot({ path: test.info().outputPath('blocks-snap-fit.png') });
+
+    // Through the form: the strain warns on a short arm and is fine again on a longer one.
+    const box = await page.getByTestId('viewport').boundingBox();
+    if (!box) throw new Error('viewport not visible');
+    await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'saved', { timeout: 30_000 });
+    await page.waitForTimeout(1000);
+    const spots = [[0.5, 0.75], [0.35, 0.6], [0.7, 0.65], [0.5, 0.5], [0.6, 0.8]] as const;
+    let spot = 0;
+    await expect(async () => {
+      const [x, y] = spots[spot++ % spots.length] ?? [0.5, 0.5];
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+      await page.getByTestId('action-block').click({ timeout: 1500 });
+      await expect(page.getByTestId('block-form')).toBeVisible({ timeout: 1000 });
+    }, 'a flat face of the box and its form').toPass({ timeout: 45_000, intervals: [500] });
+    await page.getByTestId('block-kind').getByRole('button').click();
+    await page.getByRole('option', { name: 'Snap fit' }).click();
+    await expect(page.getByTestId('block-size')).toHaveCount(0);
+    await expect(page.getByTestId('block-strain')).toHaveText('About 1.4 % strain when it snaps in');
+    await page.getByTestId('block-length').getByRole('textbox').fill('6');
+    await expect(page.getByTestId('block-strain')).toContainText('About 6.5 % strain when it snaps in – more than printed PLA takes');
+    await page.getByTestId('block-catch-depth').getByRole('textbox').fill('0.3');
+    await expect(page.getByTestId('block-strain')).toContainText('About 2.4 % strain');
+    await page.getByTestId('block-length').getByRole('textbox').fill('8');
+    await expect(page.getByTestId('block-strain')).toHaveText('About 1.3 % strain when it snaps in');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    await page.screenshot({ path: test.info().outputPath('block-form-snap-fit.png') });
+    await page.getByTestId('block-apply').click();
+    await expect(page.getByText('Snap fit 8 mm')).toHaveCount(2, { timeout: 30_000 });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

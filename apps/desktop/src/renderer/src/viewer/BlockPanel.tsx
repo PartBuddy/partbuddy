@@ -1,9 +1,10 @@
 import { IconChevronDown, IconPuzzle } from '@tabler/icons-react';
+import type { TFunction } from 'i18next';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, CheckboxButton, CheckboxField, Input, Label, ListBox, ListBoxItem, Popover, Select, SelectValue, TextField, ToggleButton } from 'react-aria-components';
 
-import { BLOCK_KINDS, defaultBlock, needsNormal, sizesOf, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, needsNormal, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock, type HookDirection } from '../../../shared/blocks';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
@@ -104,17 +105,26 @@ function flatFace(bodies: BodyModel[], picks: Pick[]): { body: string; point: Ve
   return { body: body.name, point: pick.point, normal };
 }
 
-/** Text and lips have no screw size to choose. */
-const hasSize = (kind: BlockKind) => kind !== 'text' && kind !== 'lip';
+/** Above this strain at the arm's root, printed PLA tends to crack (PETG takes about 3 %). */
+const SNAP_STRAIN_LIMIT = 2;
+
+/** The catch's direction named by its world axis, so it matches the axes in the view. */
+function hookLabel(vector: Vec, index: number, t: TFunction): string {
+  const axis = vector.findIndex((value) => Math.abs(Math.abs(value) - 1) < 1e-6);
+  if (axis < 0) return t('blocks.hooks.other', { n: index + 1 });
+  const positive = (vector[axis] ?? 0) > 0;
+  if (axis === 2) return t(positive ? 'blocks.hooks.up' : 'blocks.hooks.down');
+  return t('blocks.hooks.axis', { axis: `${positive ? '+' : '−'}${'XY'[axis] ?? ''}` });
+}
 
 /**
  * Function blocks at a picked flat face (plan step F1): a tapped hole, a screw hole with room for
- * the head, a seat for a heat-set insert, a nut trap, a screw boss, a slot, text, and a lip or
- * groove for a lid. Sizes come from standard tables and stay
- * editable; the ghost shows the result before it is built.
+ * the head, a seat for a heat-set insert, a nut trap, a screw boss, a slot, text, a lip or groove
+ * for a lid, and a snap fit. Sizes come from standard tables and stay editable; the ghost shows
+ * the result before it is built.
  */
 export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel[]; picks: Pick[]; busy: boolean; onGhost: (ghost: Uint8Array | null) => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const face = flatFace(bodies, picks);
   const [open, setOpen] = useState(false);
   // The block's values; body and point come from the picked face.
@@ -247,6 +257,24 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               <div className="flex items-end pb-1">
                 <Check label={t('blocks.bold')} selected={block.bold} onChange={(bold) => setBlock({ ...block, bold })} testId="block-bold" />
               </div>
+            </div>
+          ) : block.block === 'snapFit' ? (
+            <div className="grid grid-cols-2 gap-2" key={block.block}>
+              <Length label={t('blocks.length')} value={block.length} onChange={(length) => setBlock({ ...block, length })} testId="block-length" />
+              <Length label={t('blocks.thickness')} value={block.thickness} onChange={(thickness) => setBlock({ ...block, thickness })} testId="block-thickness" />
+              <Length label={t('blocks.width')} value={block.width} onChange={(width) => setBlock({ ...block, width })} testId="block-width" />
+              <Choice
+                label={t('blocks.hook')}
+                value={block.hook}
+                items={HOOK_DIRECTIONS.map((id, index) => ({ id, label: hookLabel(hookVector(block.point, block.normal, id), index, t) }))}
+                onChange={(id) => setBlock({ ...block, hook: id as HookDirection })}
+                testId="block-hook"
+              />
+              <Length label={t('blocks.catchDepth')} value={block.catchDepth} onChange={(catchDepth) => setBlock({ ...block, catchDepth })} testId="block-catch-depth" />
+              <Length label={t('blocks.catchLength')} value={block.catchLength} onChange={(catchLength) => setBlock({ ...block, catchLength })} testId="block-catch-length" />
+              <p className={`col-span-2 text-xs ${snapStrain(block) > SNAP_STRAIN_LIMIT ? 'text-warning' : 'text-text-subtle'}`} data-testid="block-strain">
+                {t(snapStrain(block) > SNAP_STRAIN_LIMIT ? 'blocks.strainHigh' : 'blocks.strain', { strain: snapStrain(block).toLocaleString(i18n.language, { maximumFractionDigits: 1 }) })}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2" key={block.block}>
