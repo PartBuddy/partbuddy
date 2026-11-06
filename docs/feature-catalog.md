@@ -50,7 +50,7 @@ Work runs in three phases, one pull request per step, in this order.
 | B7 Research (done) | The assistant may search the web and read pages (Claude Code's WebSearch and WebFetch, ChatGPT's web search). Sources appear as cards in the chat with their link; dimensions taken from a data sheet name their source. Page content is data, never instructions (prompt injection is considered). Standard parts from SolidCraft (`parts.insert`: screws, nuts, washers, bearings, pins) can be inserted as counterparts. |
 | B8 To the slicer (done) | "Open in Bambu Studio / OrcaSlicer" next to export, through SolidCraft's slicer detection (`file.slicers`, `file.send_to_slicer`). "Print on this face" at a selected flat face sets SolidCraft's own print face (`body.print_face`), which the slicer export uses; PartBuddy adds no orientation logic of its own. |
 | B9 First start (done) | A short setup that can be skipped at every step: find SolidCraft (with the download link to its GitHub releases), choose and sign in to an assistant, enter printer and material, confirm the project folder. Shown once, and not for installations that have projects already. |
-| B10 Installer (done) | An NSIS installer per user with Start menu and desktop entries and an update check through GitHub releases (electron-updater, download and install on the user's word), unsigned for now (SmartScreen warns); signing comes before the public release. The main process bundles every dependency but the native credential store, so the app is 9 MB plus Electron. Replaces the hand-copied test version. |
+| B10 Installer (done) | An NSIS installer per user with Start menu and desktop entries and an update check through GitHub releases (electron-updater, download and install on the user's word), unsigned (SmartScreen warns once): a hobby project without the money for a code-signing certificate, so it stays unsigned (decided 2026-11-06). The main process bundles every dependency but the native credential store, so the app is 9 MB plus Electron. Replaces the hand-copied test version. |
 
 ### Phase 2: features
 
@@ -111,7 +111,7 @@ A level is shown only when its proof exists; higher levels never replace lower o
 | Connection states: SolidCraft not running, local server unreachable, model without tool calling, offline | No silent failures | MVP |
 | API keys only in the Windows credential store (DPAPI) | Security requirement | MVP |
 | German and English UI | Target market | MVP |
-| Signed installer and auto-update | Trusted distribution without SmartScreen warnings | MVP |
+| Auto-update | Updates through GitHub releases; the installer stays unsigned (decided 2026-11-06), so SmartScreen warns on the first start | MVP |
 | About dialog with licence notice and a "Support the project" link (Ko-fi, [ADR 0025](adr/0025-donations-through-ko-fi.md)) | Required by GPL-3.0 section 0; donations fund the project | MVP |
 
 ## Should
