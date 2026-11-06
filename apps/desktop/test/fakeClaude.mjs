@@ -114,7 +114,8 @@ if (args[0] === '--version') {
       const listed = content.includes('- dimension "40" between') && content.includes('- label "Lid" at') ? ', its dimension and its label' : '';
       // F10: a second sheet and the scale per square.
       const sheets = content.includes('Sheet "front view":') && content.includes('1 square = 5 mm') ? ' on two sheets with a scale' : '';
-      const note = content.includes('sketch the user drew') ? ` with the sketch note${listed}${sheets}` : content.includes('photo of a real object') ? ` with the photo note${content.includes('/photos/photo-') ? ' and its file' : ''}` : '';
+      const over = content.includes('drawn over a photo of the real object') ? ' over a photo' : '';
+      const note = content.includes('sketch the user drew') ? ` with the sketch note${listed}${sheets}${over}` : content.includes('photo of a real object') ? ` with the photo note${content.includes('/photos/photo-') ? ' and its file' : ''}` : '';
       out({ type: 'assistant', message: { content: [{ type: 'text', text: `I see a ${png ? 'PNG' : 'non-PNG'} picture of ${String(Math.round(bytes.length / 1024))} KB${note}.` }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;

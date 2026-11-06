@@ -1952,6 +1952,80 @@ test('a sharing package holds 3MF, STEP, four pictures and a description of the 
   }
 });
 
+test('a sent sketch is kept in the project, opens again, and a photo goes under a sheet (F10)', async () => {
+  test.setTimeout(240_000);
+  const { existsSync, mkdtempSync, readdirSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-kept-'));
+  const projects = join(work, 'projects');
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7916',
+    PARTBUDDY_PROJECTS_DIR: projects,
+    PARTBUDDY_START_PAGE: '1',
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    const home = page.getByTestId('home-page');
+    await home.locator('[data-template="housing"]').click();
+    await expect(home).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    await page.getByTestId('composer-sketch-open').click();
+    const pad = page.getByTestId('sketch-pad');
+    const canvas = pad.getByTestId('sketch-canvas');
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('canvas not visible');
+    const drag = async (from: [number, number], to: [number, number]) => {
+      await page.mouse.move(box.x + box.width * from[0], box.y + box.height * from[1]);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * to[0], box.y + box.height * to[1], { steps: 8 });
+      await page.mouse.up();
+    };
+    // Nothing kept yet; then a rectangle with a scale, sent.
+    await pad.getByTestId('sketch-kept').click();
+    await expect(page.getByText('No sketch sent from this project yet.')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await pad.getByTestId('sketch-tool-rect').click();
+    await drag([0.2, 0.2], [0.6, 0.6]);
+    await pad.getByTestId('sketch-scale').fill('5');
+    await pad.getByTestId('sketch-attach').click();
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText(/I see a PNG picture of \d+ KB with the sketch note\./)).toBeVisible({ timeout: 30_000 });
+    const project = readdirSync(projects).find((name) => existsSync(join(projects, name, 'sketches')));
+    expect(project).toBeDefined();
+    expect(readdirSync(join(projects, project ?? '', 'sketches')).sort()).toEqual([expect.stringMatching(/^sketch-\d{8}-\d{6}\.json$/), expect.stringMatching(/^sketch-\d{8}-\d{6}\.png$/)]);
+
+    // Opened again from the list: the rectangle and the scale are back.
+    await page.getByTestId('composer-sketch-open').click();
+    await expect(canvas).toHaveAttribute('data-items', '0');
+    await pad.getByTestId('sketch-kept').click();
+    const kept = page.getByTestId('sketch-kept-entry');
+    await expect(kept).toHaveCount(1);
+    await expect(kept).toContainText('1 element');
+    await kept.click();
+    await expect(canvas).toHaveAttribute('data-items', '1');
+    await expect(pad.getByTestId('sketch-scale')).toHaveValue('5');
+    // A photo under the top sheet, marked with a circle; the picture and the list say so.
+    await pad.getByTestId('sketch-sheet-top').click();
+    await pad.getByTestId('sketch-photo-file').setInputFiles(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'boxWithLid.png'));
+    await expect(pad.getByTestId('sketch-photo-remove')).toBeVisible();
+    await pad.getByTestId('sketch-tool-circle').click();
+    await drag([0.5, 0.5], [0.56, 0.5]);
+    await page.screenshot({ path: test.info().outputPath('sketch-photo.png') });
+    await pad.getByTestId('sketch-attach').click();
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText(/I see a PNG picture of \d+ KB with the sketch note over a photo\./)).toBeVisible({ timeout: 30_000 });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('a photo goes to the assistant as a picture with its note and is kept in the project (F6)', async () => {
   test.setTimeout(240_000);
   const { existsSync, mkdtempSync, readdirSync, rmSync } = await import('node:fs');

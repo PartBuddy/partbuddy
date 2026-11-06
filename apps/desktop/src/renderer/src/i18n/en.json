@@ -359,7 +359,14 @@
         "side": "Side"
       },
       "scale": "1 square =",
-      "scaleHint": "Optional: the length of one square in mm. Shapes on the grid then have sizes; typed dimensions win."
+      "scaleHint": "Optional: the length of one square in mm. Shapes on the grid then have sizes; typed dimensions win.",
+      "photo": "Photo under this sheet",
+      "photoRemove": "Remove the photo under this sheet",
+      "photoProblem": "This picture could not be read. Use a PNG or JPEG photo.",
+      "kept": "Earlier sketches of this project",
+      "keptNone": "No sketch sent from this project yet.",
+      "keptLoading": "Reading the sketches …",
+      "keptElements": "{count, plural, one {# element} other {# elements}}"
     },
     "photo": {
       "button": "Photo",

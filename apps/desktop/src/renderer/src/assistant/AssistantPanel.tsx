@@ -263,7 +263,7 @@ export function AssistantPanel() {
     setDraft('');
     setSketch(null);
     setPhoto(null);
-    void sendToAssistant(text, selections, undefined, photo ? undefined : sketch?.picture, photo?.png);
+    void sendToAssistant(text, selections, undefined, photo ? undefined : (sketch ?? undefined), photo?.png);
   };
 
   return (

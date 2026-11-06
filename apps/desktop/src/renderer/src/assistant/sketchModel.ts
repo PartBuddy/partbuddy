@@ -16,29 +16,19 @@ export const HIT_RADIUS = 6;
 
 export type Point = [number, number];
 
-export type SketchItem =
-  | { kind: 'pen'; points: Point[] }
-  | { kind: 'line'; from: Point; to: Point }
-  | { kind: 'rect'; from: Point; to: Point }
-  | { kind: 'circle'; center: Point; radius: number }
-  | { kind: 'arc'; from: Point; through: Point; to: Point }
-  | { kind: 'dimension'; from: Point; to: Point; value: string }
-  | { kind: 'text'; at: Point; text: string };
+// The elements and the whole sketch are checked at the bridge and when a kept sketch is read (shared/sketch.ts).
+export type { SketchItem, SketchState } from '../../../shared/sketch';
+import type { SketchItem, SketchState } from '../../../shared/sketch';
 
 /** The sheets of one sketch (F10): a free one, and the views of a technical hand sketch. */
 export const SHEET_VIEWS = ['free', 'front', 'top', 'side'] as const;
 export type SheetView = (typeof SHEET_VIEWS)[number];
 
-/** A whole sketch: its sheets and the length of one square in mm, when the user set one. */
-export interface SketchState {
-  sheets: Record<SheetView, SketchItem[]>;
-  scale: number | null;
-}
 
 export const emptySketch = (): SketchState => ({ sheets: { free: [], front: [], top: [], side: [] }, scale: null });
 
 /** The sheets that hold something, in their order. */
-export const drawnSheets = (state: SketchState): SheetView[] => SHEET_VIEWS.filter((view) => state.sheets[view].length > 0);
+export const drawnSheets = (state: SketchState): SheetView[] => SHEET_VIEWS.filter((view) => state.sheets[view].length > 0 || Boolean(state.backgrounds?.[view]));
 
 export type Tool = 'select' | 'pen' | 'line' | 'rect' | 'circle' | 'arc' | 'dimension' | 'text' | 'eraser';
 
@@ -256,6 +246,21 @@ const SHEET_NAMES: Record<SheetView, string> = { free: 'sketch', front: 'front v
 export function describeSheets(state: SketchState): string {
   const views = drawnSheets(state);
   const scale = state.scale ? [`- scale set by the user: 1 square = ${millimetres(state.scale)} mm (typed dimensions win)`] : [];
-  if (views.length === 1 && views[0] === 'free') return [...scale, describeSketch(state.sheets.free, state.scale)].join('\n');
-  return [...scale, ...views.map((view) => `Sheet "${SHEET_NAMES[view]}":\n${describeSketch(state.sheets[view], state.scale)}`)].join('\n');
+  // A sheet over a photo (F10): the marks belong to the real object; the photo has perspective and no scale.
+  const sheet = (view: SheetView) =>
+    [state.backgrounds?.[view] ? '- drawn over a photo of the real object (perspective, no scale; the marks show where things are)' : '', describeSketch(state.sheets[view], state.scale)]
+      .filter((line) => line !== '')
+      .join('\n');
+  if (views.length === 1 && views[0] === 'free') return [...scale, sheet('free')].join('\n');
+  return [...scale, ...views.map((view) => `Sheet "${SHEET_NAMES[view]}":\n${sheet(view)}`)].join('\n');
+}
+
+/** The long edges of a photo under a sheet: the paper at twice its size, as the picture is drawn. */
+export const BACKGROUND_SIZE = { width: SKETCH_SIZE.width * 2, height: SKETCH_SIZE.height * 2 } as const;
+
+/** Where a photo of `width` × `height` sits on the sheet: whole, centred, as large as fits. */
+export function fitBackground(width: number, height: number): { x: number; y: number; width: number; height: number } {
+  const scale = Math.min(BACKGROUND_SIZE.width / width, BACKGROUND_SIZE.height / height);
+  const [w, h] = [Math.round(width * scale), Math.round(height * scale)];
+  return { x: Math.round((BACKGROUND_SIZE.width - w) / 2), y: Math.round((BACKGROUND_SIZE.height - h) / 2), width: w, height: h };
 }

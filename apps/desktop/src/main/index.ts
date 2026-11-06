@@ -34,6 +34,7 @@ import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
 import { checkImportFile, IMPORT_EXTENSIONS, importName, type ImportKind } from './projects/importFile';
 import { migrateDesigns, ProjectStore, whenFree } from './projects/projectStore';
+import { keepSketch, listSketches, loadSketch } from './projects/sketches';
 import { summarizeComparison } from './projects/versionCompare';
 import { VersionStore, type VersionReason } from './projects/versionStore';
 import { readVersion } from './solidcraft/engineVersion';
@@ -538,7 +539,28 @@ if (!app.requestSingleInstanceLock()) {
         return null;
       }
     };
-    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, sketch, sketchElements, photo }) => {
+    // Sketches (F10) live in the open project's folder; without a project there is nowhere to keep them.
+    const projectFolder = (): string | null => {
+      const project = supervisor.projectFile();
+      return project && projectStore.holds(project) ? dirname(project) : null;
+    };
+    bridge.handle(invokeChannels.sketchList, () => {
+      const folder = projectFolder();
+      return folder ? listSketches(folder, log) : [];
+    });
+    bridge.handle(invokeChannels.sketchLoad, ({ id }) => {
+      const folder = projectFolder();
+      return folder ? loadSketch(folder, id, log) : null;
+    });
+    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, sketch, sketchElements, sketchState, photo }) => {
+      const folder = projectFolder();
+      if (sketch && sketchState && folder) {
+        try {
+          keepSketch(folder, sketchState, sketch);
+        } catch (error) {
+          log(`sketch not kept: ${(error as Error).message}`);
+        }
+      }
       // The design as it was before the assistant changes it; a failure never stops the request.
       await keepVersion('assistant', text.replace(/\s+/g, ' ').slice(0, 120), true).catch((error: unknown) => {
         log(`no version before the request: ${(error as Error).message}`);
