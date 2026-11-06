@@ -11,6 +11,7 @@ type T = ReturnType<typeof useTranslation>['t'];
 type Tone = 'success' | 'neutral' | 'warning';
 
 const ROUTES: AgentKind[] = ['claude-code', 'chatgpt', 'local'];
+const CHATGPT_USAGE = 'https://chatgpt.com/settings/usage';
 
 function signedIn(status: AgentStatus): boolean {
   return status.state === 'ready' || status.state === 'busy';
@@ -198,6 +199,15 @@ export function AssistantChoice() {
           <StatusDot tone={toneOf(status)} label={statusLabel(t, status)} />
         </span>
         {status.usage && status.usage.length > 0 ? <UsageLine usage={status.usage} /> : null}
+        {status.agent === 'chatgpt' && signedIn(status) ? (
+          // Sign in with ChatGPT reports no usage numbers; OpenAI's UI guidelines ask for this line and link instead.
+          <span className="text-xs text-text-muted" data-testid="chatgpt-usage">
+            {t('assistant.chatgpt.planInUse')} ·{' '}
+            <a href={CHATGPT_USAGE} target="_blank" rel="noreferrer" className="underline hover:text-text">
+              {t('assistant.chatgpt.manageUsage')}
+            </a>
+          </span>
+        ) : null}
         {status.state === 'unavailable' && status.detail ? (
           // There is no log file to look in, so the reason shows here.
           <span className="break-words text-xs text-text-muted" data-testid="agent-reason">
