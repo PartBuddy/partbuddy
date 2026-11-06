@@ -70,7 +70,8 @@ describe('templates (F3)', () => {
   it('names the bodies in German on request, and every step that refers to a body follows (polish round 3)', () => {
     const housing = templateSteps('housing', true);
     expect(housing.flatMap((step) => (typeof step.params.body_name === 'string' ? [step.params.body_name] : []))).toEqual(['Gehäuse', 'Deckel']);
-    const named = housing.flatMap((step) => [step.params.body, ...(Array.isArray(step.params.targets) ? step.params.targets : [])]).filter((name) => typeof name === 'string');
+    const targets = (step: (typeof housing)[number]): unknown[] => (Array.isArray(step.params.targets) ? (step.params.targets as unknown[]) : []);
+    const named = housing.flatMap((step) => [step.params.body, ...targets(step)]).filter((name) => typeof name === 'string');
     expect(new Set(named)).toEqual(new Set(['Gehäuse', 'Deckel']));
     expect(templateSteps('housing').some((step) => step.params.body_name === 'Housing')).toBe(true);
   });
