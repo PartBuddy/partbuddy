@@ -690,6 +690,31 @@
       "ready": "Druckbereit",
       "warn": "Hinweise",
       "block": "Nicht druckbereit"
+    },
+    "templates": {
+      "title": "Mit einer Vorlage beginnen",
+      "items": {
+        "boxWithLid": {
+          "name": "Box mit Deckel",
+          "body": "Box und Deckel mit eingreifender Lippe, 0,2 mm Spiel."
+        },
+        "housing": {
+          "name": "Gehäuse",
+          "body": "Für Elektronik: Schraubdome für M3-Einschmelzmuttern und ein Deckel mit Schraublöchern."
+        },
+        "wallHolder": {
+          "name": "Wandhalter",
+          "body": "Ein Haken für die Wand mit zwei Senkbohrungen."
+        },
+        "cableClip": {
+          "name": "Kabelclip",
+          "body": "Rastet um ein Kabel und wird mit einer M3-Schraube festgeschraubt."
+        },
+        "adapter": {
+          "name": "Rohradapter",
+          "body": "Verbindet zwei Rohre oder Schläuche mit verschiedenem Durchmesser."
+        }
+      }
     }
   },
   "versions": {

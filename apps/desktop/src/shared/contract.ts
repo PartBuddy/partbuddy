@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { eventChannels, invokeChannels, type EventChannel, type InvokeChannel } from './channels';
 import { MAX_PHRASES_PER_STEP, STEP_PHRASE_KEYS } from './stepPhrases';
+import { TEMPLATE_IDS } from './templates';
 
 /**
  * The one contract of the typed IPC bridge (ADR 0013). Every channel has a request and a
@@ -199,6 +200,8 @@ export const projectOpenResultSchema = z.object({ opened: z.boolean(), imported:
  * main process checks the path (absolute, an existing file of a known kind, not too large).
  */
 export const importRequestSchema = z.object({ path: z.string().min(1).max(1000).optional() }).strict();
+/** A new project from a template (F3), named in the user's language. */
+export const templateRequestSchema = z.object({ template: z.enum(TEMPLATE_IDS), name: z.string().trim().min(1).max(80) }).strict();
 /** A file inserted into the open design: its name and the bodies it brought; nothing when cancelled. */
 export const insertResultSchema = z
   .object({ inserted: z.boolean(), name: z.string().max(255).nullable(), bodies: z.array(z.string().max(200)).max(500) })
@@ -936,6 +939,7 @@ export const invokeContract = {
   [invokeChannels.projectList]: { request: none, response: projectListSchema },
   [invokeChannels.projectOpenFolder]: { request: projectOpenFolderSchema, response: projectOpenResultSchema },
   [invokeChannels.projectImport]: { request: importRequestSchema, response: projectOpenResultSchema },
+  [invokeChannels.projectFromTemplate]: { request: templateRequestSchema, response: projectOpenResultSchema },
   [invokeChannels.projectSavePreview]: { request: projectPreviewSchema, response: none },
   [invokeChannels.projectVersions]: { request: none, response: versionListSchema },
   [invokeChannels.projectSaveVersion]: { request: versionSaveSchema, response: none },

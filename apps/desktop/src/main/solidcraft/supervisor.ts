@@ -249,11 +249,16 @@ export class SolidCraftSupervisor {
    * `solidcraft-cli run`, without touching the open design; the project opens it afterwards.
    */
   async designFromFile(source: string, kind: Exclude<ImportKind, 'design'>, target: string): Promise<void> {
+    await this.designFromSteps([insertCommand(kind, source)], target);
+  }
+
+  /** Makes a new design file from engine steps with `solidcraft-cli run` (B4 import, F3 templates). */
+  async designFromSteps(steps: { command: string; params: Record<string, unknown> }[], target: string): Promise<void> {
     const cli = this.cli();
     await mkdir(this.options.cacheDir, { recursive: true });
     await mkdir(dirname(target), { recursive: true });
-    const script = join(this.options.cacheDir, `import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.json`);
-    await writeFile(script, JSON.stringify([insertCommand(kind, source)]));
+    const script = join(this.options.cacheDir, `script-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.json`);
+    await writeFile(script, JSON.stringify(steps));
     try {
       await this.runCli(cli, ['run', script, '--save', target, '--quiet']);
       if (!existsSync(target)) throw new Error('SolidCraft wrote no design');

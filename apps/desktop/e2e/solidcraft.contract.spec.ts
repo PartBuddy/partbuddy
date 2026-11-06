@@ -1693,3 +1693,64 @@ test('the light measures parts against each other: an overlap and a gap under th
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a template from the start page becomes a project whose sizes are its parameters (F3)', async () => {
+  test.setTimeout(240_000);
+  const { existsSync, mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-templates-'));
+  const projects = join(work, 'projects');
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7912',
+    PARTBUDDY_PROJECTS_DIR: projects,
+    PARTBUDDY_START_PAGE: '1',
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  const home = page.getByTestId('home-page');
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await expect(home.getByTestId('home-template')).toHaveCount(5);
+    await page.screenshot({ path: test.info().outputPath('home-templates.png') });
+    await home.locator('[data-template="housing"]').click();
+    await expect(home).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByTestId('design-name')).toHaveText('Housing', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    expect(existsSync(join(projects, 'Housing', 'Housing.sc'))).toBe(true);
+    // Its sizes are parameters, each with what it means, and the light finds nothing to block.
+    const parameters = page.getByTestId('parameter');
+    await expect(parameters).toHaveCount(8, { timeout: 30_000 });
+    await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });
+    // A size changes through its parameter, without the assistant.
+    const length = page.locator('[data-testid="parameter"][data-name="length"]').getByTestId('parameter-field').getByRole('textbox');
+    await length.fill('100');
+    await length.press('Enter');
+    await expect(length).toHaveValue('100', { timeout: 30_000 });
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="ok"]').first()).toBeVisible();
+    await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });
+    await page.screenshot({ path: test.info().outputPath('template-housing.png') });
+
+    // Every other template builds as well.
+    for (const [id, name, bodies] of [
+      ['boxWithLid', 'Box with lid', '2 bodies'],
+      ['wallHolder', 'Wall holder', '1 body'],
+      ['cableClip', 'Cable clip', '1 body'],
+      ['adapter', 'Tube adapter', '1 body'],
+    ] as const) {
+      await page.getByTestId('home-button').click();
+      await home.locator(`[data-template="${id}"]`).click();
+      await expect(page.getByTestId('design-name')).toHaveText(name, { timeout: 30_000 });
+      await expect(page.getByTestId('mesh-summary')).toContainText(bodies, { timeout: 30_000 });
+      await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });
+      await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    }
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

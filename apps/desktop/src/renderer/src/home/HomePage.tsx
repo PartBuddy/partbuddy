@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Heading, Input, SearchField } from 'react-aria-components';
 
 import type { ProjectCheck, ProjectEntry, ProjectInfo } from '../../../shared/contract';
+import { TEMPLATE_IDS, type TemplateId } from '../../../shared/templates';
 import { platform } from '../platform';
 import { useFileImport } from '../shell/fileImport';
 import { useProjectSwitch } from '../shell/projectSwitch';
@@ -11,12 +12,21 @@ import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
 import { StatusDot, type Tone } from '../ui/Feedback';
 import { matching, relativeTime } from './projectTiles';
+import adapter from './templates/adapter.png';
+import boxWithLid from './templates/boxWithLid.png';
+import cableClip from './templates/cableClip.png';
+import housing from './templates/housing.png';
+import wallHolder from './templates/wallHolder.png';
+
+/** Pictures of the templates, rendered by SolidCraft (tools/templates/render-previews.mjs). */
+const TEMPLATE_PICTURES: Record<TemplateId, string> = { boxWithLid, housing, wallHolder, cableClip, adapter };
 
 const CHECK_TONE: Record<ProjectCheck, Tone> = { ready: 'success', warn: 'warning', block: 'danger' };
 
 /**
  * The start page (B3, decided 2026-11-05): the projects in the project folder as tiles with
- * preview, name, last change and ready-to-print light, a search, and new, open and import. The
+ * preview, name, last change and ready-to-print light, a search, and new, open and import, and
+ * templates to start from (F3). The
  * logo in the title bar opens it over the work area, which stays as it is underneath; Escape or
  * the open project's tile goes back.
  */
@@ -105,6 +115,31 @@ export function HomePage() {
             {t('home.import')}
           </Button>
         </div>
+
+        <section aria-labelledby="home-templates-title" className="flex flex-col gap-2" data-testid="home-templates">
+          <Heading id="home-templates-title" level={2} className="text-sm font-semibold text-text-muted">
+            {t('home.templates.title')}
+          </Heading>
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(var(--cs-size-tile),1fr))] gap-4">
+            {TEMPLATE_IDS.map((id) => (
+              <li key={id}>
+                <AriaButton
+                  isDisabled={!ready}
+                  onPress={() => run(() => api.fromTemplate(id, t(`home.templates.items.${id}.name`)))}
+                  className="group flex w-full items-center gap-3 overflow-hidden rounded-lg border border-border bg-surface p-2 text-left outline-none transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-default disabled:opacity-50"
+                  data-testid="home-template"
+                  data-template={id}
+                >
+                  <img src={TEMPLATE_PICTURES[id]} alt="" className="aspect-[4/3] w-1/3 shrink-0 rounded-md object-cover" draggable={false} />
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="truncate text-sm font-medium text-text">{t(`home.templates.items.${id}.name`)}</span>
+                    <span className="line-clamp-2 text-xs text-text-subtle">{t(`home.templates.items.${id}.body`)}</span>
+                  </span>
+                </AriaButton>
+              </li>
+            ))}
+          </ul>
+        </section>
 
         {projects === null ? null : projects.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-7 text-center" data-testid="home-empty">
