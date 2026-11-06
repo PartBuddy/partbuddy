@@ -815,7 +815,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <StudioLight />
       <SkyLight sky={colors.sky} ground={colors.ground} />
       <KeyLight bodies={bodies} direction={scene.keyLight} intensity={1.1} />
-      <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.75 : 0.4} />
+      <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.45 : 0.18} />
       <directionalLight position={scene.fillLight} intensity={0.3} />
       {bodies.map((body, i) => (
         <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} offset={offsets[i] ?? NO_OFFSET} />
