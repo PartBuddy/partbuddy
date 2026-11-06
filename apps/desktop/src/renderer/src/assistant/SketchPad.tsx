@@ -3,8 +3,11 @@ import {
   IconArrowForwardUp,
   IconCircle,
   IconEraser,
+  IconHistory,
   IconLine,
   IconPencil,
+  IconPhoto,
+  IconPhotoOff,
   IconPointer,
   IconRulerMeasure,
   IconSquare,
@@ -14,11 +17,33 @@ import {
 } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Heading, Modal, ModalOverlay, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
+import { Button as AriaButton, Dialog, Heading, Menu, MenuItem, MenuTrigger, Modal, ModalOverlay, Popover, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
 
+import type { KeptSketch } from '../../../shared/sketch';
+import { platform } from '../platform';
 import { Button } from '../ui/Button';
 import { parseLength } from '../viewer/lengthInput';
-import { arcCircle, constrain, describeSheets, drawnSheets, GRID, hasSize, moved, pick, SHEET_VIEWS, SKETCH_SIZE, snap, square, type Point, type SheetView, type SketchItem, type SketchState, type Tool } from './sketchModel';
+import {
+  arcCircle,
+  BACKGROUND_SIZE,
+  constrain,
+  describeSheets,
+  drawnSheets,
+  fitBackground,
+  GRID,
+  hasSize,
+  moved,
+  pick,
+  SHEET_VIEWS,
+  SKETCH_SIZE,
+  snap,
+  square,
+  type Point,
+  type SheetView,
+  type SketchItem,
+  type SketchState,
+  type Tool,
+} from './sketchModel';
 
 export { emptySketch, SKETCH_SIZE, type SketchItem, type SketchState } from './sketchModel';
 
@@ -110,12 +135,20 @@ function label(context: CanvasRenderingContext2D, text: string, at: Point, color
 }
 
 /** Draws the paper and the elements; also used for the picture that goes to the assistant. */
-export function paint(context: CanvasRenderingContext2D, items: readonly SketchItem[], scale: number, extra: { draft?: SketchItem | null; selected?: number | null } = {}): void {
+export function paint(
+  context: CanvasRenderingContext2D,
+  items: readonly SketchItem[],
+  scale: number,
+  extra: { draft?: SketchItem | null; selected?: number | null; background?: CanvasImageSource | null } = {},
+): void {
   const { width, height } = SKETCH_SIZE;
   const colors = sketchColors();
   context.setTransform(scale, 0, 0, scale, 0, 0);
   context.fillStyle = colors.paper;
   context.fillRect(0, 0, width, height);
+  // A photo under the sheet (F10), already fitted to the paper; the squares stay faint above it.
+  if (extra.background) context.drawImage(extra.background, 0, 0, width, height);
+  context.globalAlpha = extra.background ? 0.35 : 1;
   context.strokeStyle = colors.grid;
   context.lineWidth = 1;
   context.beginPath();
@@ -128,6 +161,7 @@ export function paint(context: CanvasRenderingContext2D, items: readonly SketchI
     context.lineTo(width, y + 0.5);
   }
   context.stroke();
+  context.globalAlpha = 1;
   context.lineWidth = PEN;
   context.lineCap = 'round';
   context.lineJoin = 'round';
@@ -155,10 +189,31 @@ const CAPTION = 28;
  * One picture of all drawn sheets (F10): a lone free sheet as it is, otherwise each sheet under
  * its view's name, two to a row.
  */
+/** A PNG data URL as an image that is ready to draw. */
+async function imageOf(url: string): Promise<HTMLImageElement> {
+  const image = new Image();
+  image.src = url;
+  await image.decode();
+  return image;
+}
+
+/** The bridge takes pictures up to 4 MB (contract.ts); photos under the sheets can get close. */
+const MAX_PICTURE_BYTES = 4 * 1024 * 1024 - 64 * 1024;
+
 async function pictureOf(state: SketchState, names: Record<SheetView, string>): Promise<SketchPicture> {
   const views = drawnSheets(state);
+  const backgrounds = new Map(await Promise.all(views.map(async (view) => [view, state.backgrounds?.[view] ? await imageOf(state.backgrounds[view]) : null] as const)));
+  let picture = await render(state, names, views, backgrounds, views.length > 1 ? 1.5 : 2);
+  // Smaller until it fits; a sketch of strokes alone stays far below.
+  for (const scale of [1.25, 1]) {
+    if (picture.png.length <= MAX_PICTURE_BYTES) break;
+    picture = await render(state, names, views, backgrounds, scale);
+  }
+  return picture;
+}
+
+async function render(state: SketchState, names: Record<SheetView, string>, views: SheetView[], backgrounds: Map<SheetView, HTMLImageElement | null>, scale: number): Promise<SketchPicture> {
   const captioned = !(views.length === 1 && views[0] === 'free');
-  const scale = views.length > 1 ? 1.5 : 2;
   const columns = views.length > 1 ? 2 : 1;
   const cell = { width: SKETCH_SIZE.width, height: SKETCH_SIZE.height + (captioned ? CAPTION : 0) };
   const canvas = document.createElement('canvas');
@@ -175,7 +230,7 @@ async function pictureOf(state: SketchState, names: Record<SheetView, string>): 
     sheet.height = SKETCH_SIZE.height * scale;
     const sheetContext = sheet.getContext('2d');
     if (!sheetContext) return;
-    paint(sheetContext, state.sheets[view], scale);
+    paint(sheetContext, state.sheets[view], scale, { background: backgrounds.get(view) ?? null });
     const [left, top] = [(index % columns) * cell.width * scale, Math.floor(index / columns) * cell.height * scale];
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.drawImage(sheet, left, top + (captioned ? CAPTION * scale : 0));
@@ -251,12 +306,76 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
   // Enter and the blur that follows must not take the same value twice.
   const finished = useRef<Editor | null>(null);
 
+  // The photo under the open sheet, decoded once per picture.
+  const backgroundUrl = sketch.backgrounds?.[view] ?? null;
+  const [background, setBackground] = useState<{ url: string; image: HTMLImageElement } | null>(null);
+  useEffect(() => {
+    if (!backgroundUrl) return;
+    let current = true;
+    void imageOf(backgroundUrl).then((image) => {
+      if (current) setBackground({ url: backgroundUrl, image });
+    });
+    return () => {
+      current = false;
+    };
+  }, [backgroundUrl]);
+  const shownBackground = background && background.url === backgroundUrl ? background.image : null;
+
   useEffect(() => {
     const element = canvas.current;
     const context = element?.getContext('2d');
     if (!element || !context) return;
-    paint(context, items, element.width / SKETCH_SIZE.width, { draft, selected });
-  }, [items, draft, selected]);
+    paint(context, items, element.width / SKETCH_SIZE.width, { draft, selected, background: shownBackground });
+  }, [items, draft, selected, shownBackground]);
+
+  /** Puts a photo under the open sheet, fitted whole onto the paper; undo takes it away again. */
+  const placeBackground = async (file: Blob) => {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const sheet = document.createElement('canvas');
+      sheet.width = BACKGROUND_SIZE.width;
+      sheet.height = BACKGROUND_SIZE.height;
+      const context = sheet.getContext('2d');
+      if (!context) return;
+      context.fillStyle = sketchColors().paper;
+      context.fillRect(0, 0, sheet.width, sheet.height);
+      const place = fitBackground(bitmap.width, bitmap.height);
+      context.drawImage(bitmap, place.x, place.y, place.width, place.height);
+      bitmap.close();
+      const url = sheet.toDataURL('image/png');
+      setPast((list) => [...list, sketch]);
+      setFuture([]);
+      setSketch((state) => ({ ...state, backgrounds: { ...state.backgrounds, [view]: url } }));
+      setPhotoProblem(false);
+    } catch {
+      setPhotoProblem(true);
+    }
+  };
+  const removeBackground = () => {
+    setPast((list) => [...list, sketch]);
+    setFuture([]);
+    setSketch((state) => {
+      const rest = Object.fromEntries(Object.entries(state.backgrounds ?? {}).filter(([sheet]) => sheet !== view));
+      return { ...state, backgrounds: rest };
+    });
+  };
+  const [photoProblem, setPhotoProblem] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
+  /** A picture pasted or dropped onto the sketch goes under the open sheet (house rule: paste and drop everywhere). */
+  const imageIn = (files: FileList | null | undefined): File | null => [...(files ?? [])].find((file) => file.type === 'image/png' || file.type === 'image/jpeg') ?? null;
+
+  // Sketches kept in the project (F10), read when the menu opens.
+  const [kept, setKept] = useState<KeptSketch[] | null>(null);
+  const openKept = async (id: string) => {
+    const state = await platform().sketches.load(id);
+    if (!state) return;
+    setPast((list) => [...list, sketch]);
+    setFuture([]);
+    setSketch(state);
+    setScaleText(state.scale ? String(state.scale) : '');
+    setSelected(null);
+    setView(drawnSheets(state)[0] ?? 'free');
+  };
 
   const commit = (next: SketchItem[], before: SketchItem[] = items) => {
     setPast((list) => [...list, withItems(sketch, before)]);
@@ -467,7 +586,27 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
       <Modal className="w-dialog-xl max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
         <Dialog className="outline-none" data-testid="sketch-pad">
           {/* Tool keys, undo and redo work wherever the focus is in the sketch. */}
-          <div className="flex flex-col gap-3 p-5" onKeyDown={onKey}>
+          <div
+            className="flex flex-col gap-3 p-5"
+            onKeyDown={onKey}
+            onPaste={(event) => {
+              const file = imageIn(event.clipboardData.files);
+              if (!file || event.target instanceof HTMLInputElement) return;
+              event.preventDefault();
+              void placeBackground(file);
+            }}
+            onDragOver={(event) => {
+              if (event.dataTransfer.types.includes('Files')) event.preventDefault();
+            }}
+            onDrop={(event) => {
+              const file = imageIn(event.dataTransfer.files);
+              if (!file) return;
+              event.preventDefault();
+              event.stopPropagation();
+              void placeBackground(file);
+            }}
+            data-testid="sketch-drop"
+          >
           <Heading slot="title" className="text-lg font-semibold text-text">
             {t('assistant.sketch.title')}
           </Heading>
@@ -543,6 +682,69 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
               ))}
             </ToggleButtonGroup>
             <span className="mr-auto" />
+            {backgroundUrl ? (
+              <Button onPress={removeBackground} aria-label={t('assistant.sketch.photoRemove')} data-testid="sketch-photo-remove">
+                <IconPhotoOff className="size-icon" aria-hidden />
+              </Button>
+            ) : (
+              <Button
+                onPress={() => {
+                  photoInput.current?.click();
+                }}
+                aria-label={t('assistant.sketch.photo')}
+                data-testid="sketch-photo"
+              >
+                <IconPhoto className="size-icon" aria-hidden />
+              </Button>
+            )}
+            <input
+              ref={photoInput}
+              type="file"
+              accept="image/png,image/jpeg"
+              hidden
+              onChange={(event) => {
+                const file = imageIn(event.target.files);
+                event.target.value = '';
+                if (file) void placeBackground(file);
+              }}
+              data-testid="sketch-photo-file"
+            />
+            <MenuTrigger
+              onOpenChange={(open) => {
+                if (open) void platform().sketches.list().then(setKept);
+              }}
+            >
+              <AriaButton
+                aria-label={t('assistant.sketch.kept')}
+                className="inline-flex h-control-md items-center justify-center gap-1 rounded-md border border-border-strong bg-surface px-3 text-md text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+                data-testid="sketch-kept"
+              >
+                <IconHistory className="size-icon" aria-hidden />
+              </AriaButton>
+              <Popover placement="bottom end" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+                <Menu
+                  aria-label={t('assistant.sketch.kept')}
+                  className="max-h-menu-max overflow-auto outline-none"
+                  items={kept ?? []}
+                  renderEmptyState={() => <p className="px-2 py-1 text-sm text-text-muted">{t(kept ? 'assistant.sketch.keptNone' : 'assistant.sketch.keptLoading')}</p>}
+                  onAction={(key) => {
+                    void openKept(String(key));
+                  }}
+                >
+                  {(entry) => (
+                    <MenuItem
+                      id={entry.id}
+                      textValue={new Date(entry.savedAt).toLocaleString()}
+                      className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                      data-testid="sketch-kept-entry"
+                    >
+                      <span className="text-sm text-text tabular-nums">{new Date(entry.savedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                      <span className="text-xs text-text-muted">{t('assistant.sketch.keptElements', { count: entry.elements })}</span>
+                    </MenuItem>
+                  )}
+                </Menu>
+              </Popover>
+            </MenuTrigger>
             <Button onPress={undo} isDisabled={past.length === 0} aria-label={t('assistant.sketch.undo')} data-testid="sketch-undo">
               <IconArrowBackUp className="size-icon" aria-hidden />
             </Button>
@@ -564,6 +766,11 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
           <p className="text-xs text-text-muted" data-testid="sketch-hint">
             {t(arcEnds ? 'assistant.sketch.hint.arcBulge' : `assistant.sketch.hint.${tool}`)}
           </p>
+          {photoProblem ? (
+            <p role="alert" className="text-xs text-danger" data-testid="sketch-photo-problem">
+              {t('assistant.sketch.photoProblem')}
+            </p>
+          ) : null}
           <div className="relative">
             <canvas
               ref={canvas}

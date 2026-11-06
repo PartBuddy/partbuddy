@@ -123,17 +123,22 @@ const api: PartBuddyApi = {
     load: () => ipcRenderer.invoke(invokeChannels.chatLoad),
     save: (items) => ipcRenderer.invoke(invokeChannels.chatSave, { items }),
   },
+  sketches: {
+    list: () => ipcRenderer.invoke(invokeChannels.sketchList),
+    load: (id) => ipcRenderer.invoke(invokeChannels.sketchLoad, { id }),
+  },
   agent: {
     status: () => ipcRenderer.invoke(invokeChannels.agentStatus),
     refresh: () => ipcRenderer.invoke(invokeChannels.agentRefresh),
-    send: (text, selections, answer, sketch, photo, sketchElements) =>
+    send: (text, selections, answer, sketch, photo) =>
       ipcRenderer.invoke(invokeChannels.agentSend, {
         text,
         ...(selections && selections.length > 0 ? { selections } : {}),
         ...(answer ? { answer } : {}),
-        ...(sketch ? { sketch } : {}),
+        ...(sketch ? { sketch: sketch.png } : {}),
+        ...(sketch?.elements ? { sketchElements: sketch.elements } : {}),
+        ...(sketch?.state ? { sketchState: sketch.state } : {}),
         ...(photo ? { photo } : {}),
-        ...(sketch && sketchElements ? { sketchElements } : {}),
       }),
     stop: () => ipcRenderer.invoke(invokeChannels.agentStop),
     select: (agent) => ipcRenderer.invoke(invokeChannels.agentSelect, { agent }),

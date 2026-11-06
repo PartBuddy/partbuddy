@@ -359,7 +359,14 @@
         "side": "Seite"
       },
       "scale": "1 Kästchen =",
-      "scaleHint": "Optional: die Länge eines Kästchens in mm. Formen am Raster haben dann Größen; eingetippte Maße haben Vorrang."
+      "scaleHint": "Optional: die Länge eines Kästchens in mm. Formen am Raster haben dann Größen; eingetippte Maße haben Vorrang.",
+      "photo": "Foto unter dieses Blatt",
+      "photoRemove": "Foto unter diesem Blatt entfernen",
+      "photoProblem": "Dieses Bild ließ sich nicht lesen. Nimm ein PNG- oder JPEG-Foto.",
+      "kept": "Frühere Skizzen dieses Projekts",
+      "keptNone": "Aus diesem Projekt wurde noch keine Skizze geschickt.",
+      "keptLoading": "Lese die Skizzen …",
+      "keptElements": "{count, plural, one {# Element} other {# Elemente}}"
     },
     "photo": {
       "button": "Foto",

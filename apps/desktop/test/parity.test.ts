@@ -98,6 +98,8 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.designParameters]: { tool: 'check_parameters' },
   [invokeChannels.chatLoad]: { reason: ASSISTANT },
   [invokeChannels.chatSave]: { reason: ASSISTANT },
+  [invokeChannels.sketchList]: { reason: ASSISTANT },
+  [invokeChannels.sketchLoad]: { reason: ASSISTANT },
   [invokeChannels.notesCurrent]: { tool: 'partbuddy_view' },
   [invokeChannels.notesAdd]: { reason: NOTES },
   [invokeChannels.notesEdit]: { reason: NOTES },

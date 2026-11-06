@@ -52,7 +52,15 @@ import type {
 } from './contract';
 
 import type { FeatureBlock } from './blocks';
+import type { KeptSketch, SketchState } from './sketch';
 import type { TemplateId } from './templates';
+
+/** A sketch going with a message: its picture, its elements as text (F9) and the whole sketch to keep (F10). */
+export interface OutgoingSketch {
+  png: Uint8Array;
+  elements?: string;
+  state?: SketchState;
+}
 
 /**
  * What the preload exposes as `window.partbuddy`. Each member is bound to one channel of the
@@ -194,6 +202,11 @@ export interface PartBuddyApi {
     load(): Promise<StoredChat | null>;
     save(items: StoredChatItem[]): Promise<void>;
   };
+  /** Sketches kept in the open project (F10), newest first, and one of them to draw on again. */
+  sketches: {
+    list(): Promise<KeptSketch[]>;
+    load(id: string): Promise<SketchState | null>;
+  };
   /** Notes on the model (M2b, ADR 0020), stored in the design file. */
   notes: {
     current(): Promise<NotesState>;
@@ -249,7 +262,7 @@ export interface PartBuddyApi {
     research(): Promise<boolean>;
     setResearch(allow: boolean): Promise<boolean>;
     /** Sends a message; what is selected in the view goes with it as a short note. */
-    send(text: string, selections?: Selection[], answer?: MessageAnswer, sketch?: Uint8Array, photo?: Uint8Array, sketchElements?: string): Promise<void>;
+    send(text: string, selections?: Selection[], answer?: MessageAnswer, sketch?: OutgoingSketch, photo?: Uint8Array): Promise<void>;
     stop(): Promise<void>;
     /** Start the selected route's sign-in flow; it opens the browser. */
     signIn(): Promise<void>;

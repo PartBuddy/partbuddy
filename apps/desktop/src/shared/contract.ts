@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { eventChannels, invokeChannels, type EventChannel, type InvokeChannel } from './channels';
+import { keptSketchSchema, sketchStateSchema } from './sketch';
 import { MAX_PHRASES_PER_STEP, STEP_PHRASE_KEYS } from './stepPhrases';
 import { TEMPLATE_IDS } from './templates';
 
@@ -792,6 +793,8 @@ export const agentMessageSchema = z
     sketch: sketchPngSchema.optional(),
     /** The sketch's shapes, dimensions and labels as a list (F9), next to its picture. */
     sketchElements: z.string().min(1).max(8000).optional(),
+    /** The whole sketch, kept in the project with its picture (F10). */
+    sketchState: sketchStateSchema.optional(),
     /** A photo of a real object (F6), scaled down and turned into a PNG by the renderer. */
     photo: sketchPngSchema.optional(),
   })
@@ -1032,6 +1035,8 @@ export const invokeContract = {
   [invokeChannels.designProbeParameter]: { request: parameterProbeSchema, response: actionPreviewSchema },
   [invokeChannels.designParameters]: { request: none, response: designParametersSchema },
   [invokeChannels.chatLoad]: { request: none, response: storedChatSchema.nullable() },
+  [invokeChannels.sketchList]: { request: none, response: z.array(keptSketchSchema).max(50) },
+  [invokeChannels.sketchLoad]: { request: z.object({ id: keptSketchSchema.shape.id }).strict(), response: sketchStateSchema.nullable() },
   [invokeChannels.chatSave]: { request: chatSaveSchema, response: none },
   [invokeChannels.designVisibility]: { request: visibilityCommandSchema, response: none },
   [invokeChannels.designInsert]: { request: importRequestSchema, response: insertResultSchema },

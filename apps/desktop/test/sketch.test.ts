@@ -1,7 +1,13 @@
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { sketchNote } from '../src/main/agents/sketchNote';
-import { arcCircle, constrain, describeSheets, describeSketch, emptySketch, hasSize, moved, pick, snap, square, type SketchItem } from '../src/renderer/src/assistant/sketchModel';
+import { keepSketch, listSketches, loadSketch, SKETCHES_FOLDER } from '../src/main/projects/sketches';
+import { sketchStateSchema } from '../src/shared/sketch';
+import { arcCircle, constrain, describeSheets, describeSketch, emptySketch, fitBackground, hasSize, moved, pick, snap, square, type SketchItem } from '../src/renderer/src/assistant/sketchModel';
 import { userEvent } from '../src/main/agents/assistant';
 import { agentEventSchema, agentMessageSchema, storedChatItemSchema } from '../src/shared/contract';
 
@@ -116,5 +122,44 @@ describe('sketch sheets and scale (F10)', () => {
       'Sheet "top view":',
       '- circle centred (5, 5), 2 squares (10 mm) across',
     ]);
+  });
+});
+
+describe('sketches kept in the project and photos under a sheet (F10)', () => {
+  it('keeps a sent sketch with its picture, lists it, reads it back and refuses foreign names and broken files', () => {
+    const project = mkdtempSync(join(tmpdir(), 'partbuddy-sketches-'));
+    try {
+      const state = emptySketch();
+      state.sheets.front = [{ kind: 'rect', from: [40, 40], to: [240, 160] }];
+      state.scale = 5;
+      const id = keepSketch(project, state, png(100), new Date(2026, 10, 6, 15, 20, 0));
+      expect(id).toBe('sketch-20261106-152000');
+      expect(existsSync(join(project, SKETCHES_FOLDER, `${id}.png`))).toBe(true);
+      keepSketch(project, emptySketch(), png(100), new Date(2026, 10, 6, 16, 0, 0));
+      expect(listSketches(project).map((entry) => [entry.id, entry.elements])).toEqual([
+        ['sketch-20261106-160000', 0],
+        ['sketch-20261106-152000', 1],
+      ]);
+      expect(loadSketch(project, id)).toEqual(state);
+      expect(loadSketch(project, '../../secret')).toBeNull();
+      writeFileSync(join(project, SKETCHES_FOLDER, 'sketch-20261106-170000.json'), '{"sheets":{}}');
+      const log: string[] = [];
+      expect(loadSketch(project, 'sketch-20261106-170000', (line) => log.push(line))).toBeNull();
+      expect(log[0]).toContain('not readable');
+      expect(listSketches(project)).toHaveLength(2);
+      expect(listSketches(join(project, 'missing'))).toEqual([]);
+    } finally {
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+
+  it('takes only PNG data URLs as photos and says in the list that a sheet lies over one', () => {
+    const state = emptySketch();
+    state.backgrounds = { top: 'data:image/png;base64,iVBORw0KGgo=' };
+    expect(sketchStateSchema.safeParse(state).success).toBe(true);
+    expect(sketchStateSchema.safeParse({ ...state, backgrounds: { top: 'javascript:alert(1)' } }).success).toBe(false);
+    expect(sketchStateSchema.safeParse({ ...state, backgrounds: { back: 'data:image/png;base64,AA==' } }).success).toBe(false);
+    expect(describeSheets(state)).toBe('Sheet "top view":\n- drawn over a photo of the real object (perspective, no scale; the marks show where things are)');
+    expect(fitBackground(4000, 3000)).toEqual({ x: 80, y: 0, width: 1120, height: 840 });
   });
 });
