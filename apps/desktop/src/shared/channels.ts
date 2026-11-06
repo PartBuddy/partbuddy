@@ -43,6 +43,7 @@ export const invokeChannels = {
   windowTheme: 'window:theme',
   windowSetTheme: 'window:set-theme',
   settingsGeneral: 'settings:general',
+  settingsRevealLog: 'settings:reveal-log',
   settingsSetLanguage: 'settings:set-language',
   settingsChooseProjectsFolder: 'settings:choose-projects-folder',
   settingsResetProjectsFolder: 'settings:reset-projects-folder',

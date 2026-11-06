@@ -2020,6 +2020,12 @@ test('a sent sketch is kept in the project, opens again, and a photo goes under 
     await pad.getByTestId('sketch-attach').click();
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText(/I see a PNG picture of \d+ KB with the sketch note over a photo\./)).toBeVisible({ timeout: 30_000 });
+    // The log file holds what happened, with times, and nothing of the messages.
+    const { readFileSync } = await import('node:fs');
+    const logged = readFileSync(join(work, 'partbuddy.log'), 'utf8');
+    expect(logged).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \S/m);
+    expect(logged).toContain('Claude Code session started');
+    expect(logged).not.toContain('Make a part from my sketch');
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });

@@ -34,6 +34,7 @@ import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
 import { checkImportFile, IMPORT_EXTENSIONS, importName, type ImportKind } from './projects/importFile';
 import { migrateDesigns, ProjectStore, whenFree } from './projects/projectStore';
+import { LogFile } from './logFile';
 import { keepSketch, listSketches, loadSketch } from './projects/sketches';
 import { summarizeComparison } from './projects/versionCompare';
 import { VersionStore, type VersionReason } from './projects/versionStore';
@@ -86,10 +87,22 @@ const rendererOrigin = devServerUrl ? new URL(devServerUrl).origin : `${APP_SCHE
 
 let mainWindow: BrowserWindow | null = null;
 
+// In the profile's logs folder (a test profile keeps its own); PARTBUDDY_LOG_FILE points it elsewhere for tests.
+const logFile = new LogFile(process.env.PARTBUDDY_LOG_FILE ?? join(app.getPath('userData'), 'logs', 'partbuddy.log'));
+
 function log(message: string): void {
   // Logs carry no prompts, tokens or personal data (architecture: user data at runtime).
   console.log(`[partbuddy] ${message}`);
+  logFile.write(message);
 }
+
+// Crashes and forgotten promise errors land in the log too; the monitor leaves Electron's own handling as it is.
+process.on('uncaughtExceptionMonitor', (error) => {
+  log(`uncaught: ${error.stack ?? error.message}`);
+});
+process.on('unhandledRejection', (reason) => {
+  log(`unhandled rejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`);
+});
 
 function cacheDirectory(): string {
   if (process.env.PARTBUDDY_CACHE_DIR) return process.env.PARTBUDDY_CACHE_DIR;
@@ -386,6 +399,11 @@ if (!app.requestSingleInstanceLock()) {
       };
     };
     bridge.handle(invokeChannels.settingsGeneral, generalInfo);
+    bridge.handle(invokeChannels.settingsRevealLog, () => {
+      log('log file shown in Explorer');
+      shell.showItemInFolder(logFile.file);
+      return undefined;
+    });
     bridge.handle(invokeChannels.settingsSetLanguage, ({ language }) => {
       general.setLanguage(language);
       german = (language === 'system' ? app.getSystemLocale() : language).toLowerCase().startsWith('de');

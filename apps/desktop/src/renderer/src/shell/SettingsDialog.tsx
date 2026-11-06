@@ -1,4 +1,4 @@
-import { IconBrandGithub, IconCube, IconFolder, IconHeart, IconInfoCircle, IconPrinter, IconSettings, IconSparkles } from '@tabler/icons-react';
+import { IconBrandGithub, IconCube, IconFileText, IconFolder, IconHeart, IconInfoCircle, IconPrinter, IconSettings, IconSparkles } from '@tabler/icons-react';
 import i18next from 'i18next';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -251,6 +251,18 @@ function AboutSection() {
       </div>
       <p className="max-w-text-max text-text-muted">{t('settings.about.licence')}</p>
       <UpdatesBlock />
+      <div className="flex flex-col items-start gap-1">
+        <Button
+          onPress={() => {
+            void platform().settings.revealLog();
+          }}
+          data-testid="settings-reveal-log"
+        >
+          <IconFileText className="size-icon" aria-hidden />
+          {t('settings.about.revealLog')}
+        </Button>
+        <span className="max-w-text-max text-xs text-text-muted">{t('settings.about.revealLogHint')}</span>
+      </div>
       <div className="flex flex-col gap-2">
         <a href={DONATE} target="_blank" rel="noreferrer" className={link} data-testid="settings-sponsor">
           <IconHeart className="size-icon-sm" aria-hidden />

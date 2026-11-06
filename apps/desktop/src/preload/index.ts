@@ -25,6 +25,7 @@ const api: PartBuddyApi = {
     chooseProjectsFolder: () => ipcRenderer.invoke(invokeChannels.settingsChooseProjectsFolder),
     resetProjectsFolder: () => ipcRenderer.invoke(invokeChannels.settingsResetProjectsFolder),
     finishSetup: () => ipcRenderer.invoke(invokeChannels.settingsFinishSetup),
+    revealLog: () => ipcRenderer.invoke(invokeChannels.settingsRevealLog),
   },
   updates: {
     state: () => ipcRenderer.invoke(invokeChannels.updatesState),

@@ -62,6 +62,7 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.windowTheme]: { reason: APP },
   [invokeChannels.windowSetTheme]: { reason: APP },
   [invokeChannels.settingsGeneral]: { reason: APP },
+  [invokeChannels.settingsRevealLog]: { reason: APP },
   [invokeChannels.settingsSetLanguage]: { reason: APP },
   [invokeChannels.settingsChooseProjectsFolder]: { reason: APP },
   [invokeChannels.settingsResetProjectsFolder]: { reason: APP },

@@ -36,6 +36,8 @@ export async function launchApp(
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     PARTBUDDY_CACHE_DIR: join(work, 'cache'),
+    // The log goes to the test's folder, never into a real profile.
+    PARTBUDDY_LOG_FILE: join(work, 'partbuddy.log'),
     // Projects (B2) always go to the test's own folder, never into the user's documents.
     PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
     // Most tests start in the work area with the last project; the start page tests turn it on (B3).

@@ -643,7 +643,9 @@
       "licence": "PartBuddy ist freie Software unter der GNU General Public License, Version 3 oder neuer, und kommt ohne jede Gewährleistung. SolidCraft und die Assistenten sind eigene Programme mit eigenen Lizenzen.",
       "sponsor": "PartBuddy auf Ko-fi unterstützen",
       "source": "Quellcode auf GitHub",
-      "licenceLink": "GNU General Public License 3.0"
+      "licenceLink": "GNU General Public License 3.0",
+      "revealLog": "Logdatei zeigen",
+      "revealLogHint": "Für eine Fehlermeldung: PartBuddy notiert dort, was es tut, ohne deine Nachrichten oder Anmeldungen."
     },
     "research": {
       "label": "Im Web recherchieren",

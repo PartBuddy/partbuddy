@@ -218,7 +218,7 @@ export function AssistantChoice() {
           </span>
         ) : null}
         {status.state === 'unavailable' && status.detail ? (
-          // There is no log file to look in, so the reason shows here.
+          // The reason shows here at once; the log file (Settings › About) has the history.
           <span className="break-words text-xs text-text-muted" data-testid="agent-reason">
             {status.detail}
           </span>
