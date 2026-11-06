@@ -447,7 +447,8 @@ test('the settings show which SolidCraft runs and its version (R0)', async () =>
 
 test('the chat is as wide as the user drags it, by mouse or keyboard, and stays so', async () => {
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-chat-width-'));
-  const width = async (page: LaunchedApp['page']) => (await page.getByTestId('assistant-panel').boundingBox())?.width ?? 0;
+  // Rounded: with display scaling the box measures a fraction of a pixel off (580.00006).
+  const width = async (page: LaunchedApp['page']) => Math.round((await page.getByTestId('assistant-panel').boundingBox())?.width ?? 0);
   try {
     launched = await launchApp({ work });
     let { page } = launched;

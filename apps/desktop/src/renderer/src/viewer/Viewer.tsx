@@ -36,6 +36,7 @@ import { platform } from '../platform';
 import { selectedStatus, useAssistant } from '../assistant/store';
 import { NotePins } from '../notes/NotePins';
 import { DimensionMarks, useDimensionMarks } from './Dimensions';
+import { explodeOffsets, type Vec3 as ExplodeVec } from './explode';
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 Mesh.prototype.raycast = acceleratedRaycast;
@@ -96,6 +97,8 @@ function ParameterGhost({ color }: { color: ViewerColors['selection'] }) {
   return ghost ? <Ghost preview={ghost} color={color} /> : null;
 }
 
+const NO_OFFSET: ExplodeVec = [0, 0, 0];
+
 function Body({
   index,
   body,
@@ -103,6 +106,7 @@ function Body({
   register,
   mode,
   plane,
+  offset,
 }: {
   index: number;
   body: BodyModel;
@@ -110,6 +114,8 @@ function Body({
   register: (index: number, mesh: Mesh | null) => void;
   mode: DisplayMode;
   plane: Plane | null;
+  /** Where the exploded view (F7) moves the body; none while assembled. */
+  offset: ExplodeVec;
 }) {
   const hover = useStudio((s) => s.hover);
   const selections = useStudio((s) => s.selections);
@@ -150,7 +156,7 @@ function Body({
 
   const clipping = useMemo(() => (plane ? [plane] : []), [plane]);
   return (
-    <group name={body.name}>
+    <group name={body.name} position={offset}>
       <mesh
         ref={(mesh) => {
           register(index, mesh);
@@ -192,6 +198,41 @@ function Body({
         </lineSegments>
       )}
     </group>
+  );
+}
+
+/** The bodies' boxes and how far the exploded view (F7) moves each; all zero while it is closed. */
+function useExplodeOffsets(bodies: BodyModel[]): ExplodeVec[] {
+  const amount = useStudio((s) => s.explode) ?? 0;
+  const boxes = useMemo(
+    () =>
+      bodies.map((body) => {
+        const box = new Box3().setFromBufferAttribute(body.model.geometry.getAttribute('position') as BufferAttribute);
+        return { min: box.min.toArray(), max: box.max.toArray() };
+      }),
+    [bodies],
+  );
+  return useMemo(() => explodeOffsets(boxes, amount), [boxes, amount]);
+}
+
+/** Explosion lines: dashed, from where each part sits assembled to where it stands now. */
+function ExplosionLines({ bodies, offsets, color }: { bodies: BodyModel[]; offsets: ExplodeVec[]; color: ViewerColors['edge'] }) {
+  const lines = useMemo(
+    () =>
+      bodies.flatMap((body, i) => {
+        const offset = offsets[i];
+        if (!offset || Math.hypot(...offset) < 0.01) return [];
+        const centre = new Box3().setFromBufferAttribute(body.model.geometry.getAttribute('position') as BufferAttribute).getCenter(new Vector3());
+        return [{ key: `${body.name}-${String(i)}`, points: [centre.toArray(), centre.clone().add(new Vector3(...offset)).toArray()] as [ExplodeVec, ExplodeVec] }];
+      }),
+    [bodies, offsets],
+  );
+  return (
+    <>
+      {lines.map((line) => (
+        <Line key={line.key} points={line.points} color={color} lineWidth={1} dashed dashSize={2} gapSize={1.5} raycast={noRaycast} />
+      ))}
+    </>
   );
 }
 
@@ -743,6 +784,9 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
   const displayMode = useStudio((s) => s.displayMode);
   const plane = useSectionPlane(bodies);
   const colors = useTokenColors();
+  // The exploded view is for looking: picks, notes and dimensions sit on the assembled part.
+  const exploded = useStudio((s) => s.explode !== null);
+  const offsets = useExplodeOffsets(bodies);
   const meshes = useRef<(Mesh | null)[]>([]);
   const register = useCallback((index: number, mesh: Mesh | null) => {
     meshes.current[index] = mesh;
@@ -774,14 +818,20 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.75 : 0.4} />
       <directionalLight position={scene.fillLight} intensity={0.3} />
       {bodies.map((body, i) => (
-        <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} />
+        <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} offset={offsets[i] ?? NO_OFFSET} />
       ))}
-      <Highlights bodies={bodies} colors={colors} />
-      <SelectionGhost color={colors.selection} />
-      <ScenePins bodies={bodies} />
-      <DimensionMarks color={colors.dimension} ghostColor={colors.selection} meshes={meshes} plane={plane} />
-      <ParameterGhost color={colors.selection} />
-      <Picker bodies={bodies} meshes={meshes} />
+      {exploded ? (
+        <ExplosionLines bodies={bodies} offsets={offsets} color={colors.edge} />
+      ) : (
+        <>
+          <Highlights bodies={bodies} colors={colors} />
+          <SelectionGhost color={colors.selection} />
+          <ScenePins bodies={bodies} />
+          <DimensionMarks color={colors.dimension} ghostColor={colors.selection} meshes={meshes} plane={plane} />
+          <ParameterGhost color={colors.selection} />
+          <Picker bodies={bodies} meshes={meshes} />
+        </>
+      )}
       {sketches.map((sketch) => (
         <Sketch key={sketch.id} sketch={sketch} colors={colors} />
       ))}

@@ -101,6 +101,9 @@ interface StudioState {
   setDisplayMode: (mode: DisplayMode) => void;
   section: Section | null;
   setSection: (section: Section | null) => void;
+  /** Exploded view (F7): 0 assembled to 1 fully apart, null while closed; it and a section exclude each other. */
+  explode: number | null;
+  setExplode: (explode: number | null) => void;
   requestView: (view: StandardView) => void;
   connection: ConnectionStatus;
   history: History;
@@ -193,7 +196,11 @@ export const useStudio = create<StudioState>()((set) => ({
   },
   section: null,
   setSection: (section) => {
-    set({ section });
+    set(section ? { section, explode: null } : { section });
+  },
+  explode: null,
+  setExplode: (explode) => {
+    set(explode === null ? { explode } : { explode, section: null });
   },
   requestView: (view) => {
     set((state) => ({ viewRequest: { view, serial: (state.viewRequest?.serial ?? 0) + 1 } }));

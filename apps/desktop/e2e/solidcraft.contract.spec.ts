@@ -1898,3 +1898,48 @@ test('a photo goes to the assistant as a picture with its note and is kept in th
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('the exploded view pulls the parts of a print apart for looking (F7)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-explode-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7916',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_START_PAGE: '1',
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByTestId('home-page').locator('[data-template="housing"]').click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    const viewport = page.getByTestId('viewport');
+    await page.waitForTimeout(1_000);
+    const assembled = await viewport.screenshot();
+    // A section and the exploded view exclude each other.
+    await page.getByTestId('section').click();
+    await expect(page.getByTestId('section-panel')).toBeVisible();
+    await page.getByTestId('explode').click();
+    await expect(page.getByTestId('section-panel')).toHaveCount(0);
+    const panel = page.getByTestId('explode-panel');
+    await expect(panel).toBeVisible();
+    await panel.getByRole('slider').focus();
+    await page.keyboard.press('End');
+    await expect(panel.getByRole('slider')).toHaveValue('100');
+    await page.waitForTimeout(1_000);
+    const apart = await viewport.screenshot();
+    expect(apart.equals(assembled)).toBe(false);
+    await page.screenshot({ path: test.info().outputPath('exploded.png') });
+    // Closing puts the parts back together.
+    await page.getByTestId('explode').click();
+    await expect(panel).toHaveCount(0);
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
