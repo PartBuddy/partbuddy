@@ -312,7 +312,8 @@
       "open": "Attach a photo of the object for the assistant",
       "goesWith": "The photo goes with your message",
       "remove": "Remove the photo",
-      "failed": "The photo could not be read. PNG and JPEG work.",
+      "failed": "The picture could not be read. PNG, JPEG and WebP work.",
+      "drop": "Drop the picture: it goes with your message",
       "sent": "With a photo",
       "defaultText": "Make a part that fits the object in the photo."
     }

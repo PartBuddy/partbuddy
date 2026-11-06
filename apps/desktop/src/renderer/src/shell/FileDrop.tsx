@@ -20,6 +20,8 @@ export function FileDrop() {
   const homeOpen = useStudio((s) => s.homeOpen);
   const { asProject, intoDesign } = useFileImport();
   const [dragging, setDragging] = useState(false);
+  // Over the chat a picture is taken by the chat itself, which shows its own note.
+  const [overChat, setOverChat] = useState(false);
   const depth = useRef(0);
 
   useEffect(() => {
@@ -31,6 +33,7 @@ export function FileDrop() {
     };
     const over = (event: DragEvent) => {
       if (!carriesFiles(event)) return;
+      setOverChat(event.defaultPrevented);
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
     };
@@ -41,10 +44,14 @@ export function FileDrop() {
     };
     const drop = (event: DragEvent) => {
       if (!carriesFiles(event)) return;
+      // The chat took a picture (it prevented the default); then there is nothing to import.
+      const taken = event.defaultPrevented;
       // Never let the window navigate to the dropped file.
       event.preventDefault();
       depth.current = 0;
       setDragging(false);
+      setOverChat(false);
+      if (taken) return;
       const file = event.dataTransfer?.files[0];
       if (!file) return;
       const path = platform().project.pathOfFile(file);
@@ -67,7 +74,7 @@ export function FileDrop() {
     };
   }, [t, asProject, intoDesign]);
 
-  if (!dragging) return null;
+  if (!dragging || overChat) return null;
   return (
     <div className="pointer-events-none fixed inset-0 z-20 flex items-center justify-center bg-overlay p-4" data-testid="file-drop">
       <div className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-accent bg-surface-raised px-6 py-5 text-center shadow-3">
