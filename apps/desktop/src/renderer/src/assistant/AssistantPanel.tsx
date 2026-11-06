@@ -484,6 +484,7 @@ export function AssistantPanel() {
             {t('assistant.photo.button')}
           </Tooltip>
           </TooltipTrigger>
+          {/* Stop takes Send's place while the assistant works (Send cannot send then), so the chip keeps its room (Manuel, 2026-11-06). */}
           {busy ? (
             <Button
               onPress={() => {
@@ -493,11 +494,12 @@ export function AssistantPanel() {
               <IconPlayerStop className="size-icon-sm" aria-hidden />
               {t('assistant.stop')}
             </Button>
-          ) : null}
-          <Button type="submit" variant="primary" isDisabled={!ready || (draft.trim() === '' && !sketch && !photo)}>
-            <IconArrowUp className="size-icon-sm" aria-hidden />
-            {t('assistant.send')}
-          </Button>
+          ) : (
+            <Button type="submit" variant="primary" isDisabled={!ready || (draft.trim() === '' && !sketch && !photo)}>
+              <IconArrowUp className="size-icon-sm" aria-hidden />
+              {t('assistant.send')}
+            </Button>
+          )}
         </div>
       </Form>
       {sketching ? (
