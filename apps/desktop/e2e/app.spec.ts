@@ -604,7 +604,7 @@ test('model and effort are chosen at the chip and kept for new chats (B1)', asyn
     // Another model keeps the effort where it takes it; Haiku takes no "max". That a running
     // session switches mid-conversation is covered by the agent tests with the stream-json protocol.
     await menu.getByTestId('model-option').filter({ hasText: 'Haiku 9' }).click();
-    await expect(menu.getByTestId('effort-option')).toHaveText(['Default', 'Low', 'Medium', 'High']);
+    await expect(menu.getByTestId('effort-option')).toHaveText(['Low', 'Medium', 'High']);
     await expect(menu.getByTestId('model-keep')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(chip).toHaveText('Claude Code · Haiku 9 · Low');

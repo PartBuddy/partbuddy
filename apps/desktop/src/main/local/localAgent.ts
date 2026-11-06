@@ -76,7 +76,7 @@ export class LocalAgent implements AgentBackend {
     }
     this.probed = true;
     const models = this.models();
-    this.choice = allowedChoice(models, this.choice ?? this.options.choices.get('local')) ?? (models[0] ? { model: models[0].id, effort: null } : null);
+    this.choice = allowedChoice(models, this.choice ?? this.options.choices.get('local')) ?? allowedChoice(models, models[0] ? { model: models[0].id, effort: null } : null);
     this.options.changed();
     return this.status();
   }

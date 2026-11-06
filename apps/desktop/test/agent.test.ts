@@ -226,10 +226,11 @@ describe('agent service with a fake Claude Code', () => {
     // Changed mid-conversation: the running session switches; the kept default stays.
     await service.chooseModel({ model: 'haiku', effort: 'max' }, false);
     expect(service.status()).toMatchObject({ model: 'haiku', defaultChoice: { model: 'sonnet' } });
-    expect(service.status().effort).toBeUndefined();
+    // A level the model does not take becomes a named one ("medium"), never an unnamed default.
+    expect(service.status().effort).toBe('medium');
     await service.send('Which model now?');
     await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 15_000 });
-    expect(events.filter((e) => e.type === 'text').at(-1)).toEqual({ type: 'text', text: 'model haiku effort none' });
+    expect(events.filter((e) => e.type === 'text').at(-1)).toEqual({ type: 'text', text: 'model haiku effort medium' });
 
     await expect(service.chooseModel({ model: 'gpt-9', effort: null }, false)).rejects.toThrow(/not offered/);
   });

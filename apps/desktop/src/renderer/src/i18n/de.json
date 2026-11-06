@@ -287,8 +287,6 @@
     },
     "effort": {
       "title": "Effort",
-      "standard": "Standard",
-      "standardIs": "Standard ({level})",
       "level": {
         "none": "Aus",
         "minimal": "Minimal",

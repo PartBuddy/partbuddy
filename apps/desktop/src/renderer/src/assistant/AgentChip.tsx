@@ -109,26 +109,22 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
       {current.efforts.length > 0 ? (
         <RadioGroup
           aria-label={t('assistant.effort.title')}
-          value={effort ?? 'standard'}
+          value={effort}
           onChange={(value) => {
-            choose({ model: current.id, effort: value === 'standard' ? null : value });
+            choose({ model: current.id, effort: value });
           }}
           orientation="horizontal"
           className="flex flex-col gap-1"
         >
           <span className="px-2 text-xs font-semibold text-text-muted">{t('assistant.effort.title')}</span>
           <div className="flex flex-wrap gap-1 px-1">
-            {['standard', ...current.efforts].map((value) => (
+            {current.efforts.map((value) => (
               <RadioField key={value} value={value}>
                 <RadioButton
                   className="inline-flex cursor-default items-center rounded-full border border-border px-2 py-0 text-xs text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:border-accent selected:bg-accent-subtle"
                   data-testid="effort-option"
                 >
-                  {value === 'standard'
-                    ? current.defaultEffort
-                      ? t('assistant.effort.standardIs', { level: effortLabel(t, current.defaultEffort) })
-                      : t('assistant.effort.standard')
-                    : effortLabel(t, value)}
+                  {effortLabel(t, value)}
                 </RadioButton>
               </RadioField>
             ))}
