@@ -249,7 +249,7 @@ export interface PartBuddyApi {
     research(): Promise<boolean>;
     setResearch(allow: boolean): Promise<boolean>;
     /** Sends a message; what is selected in the view goes with it as a short note. */
-    send(text: string, selections?: Selection[], answer?: MessageAnswer, sketch?: Uint8Array, photo?: Uint8Array): Promise<void>;
+    send(text: string, selections?: Selection[], answer?: MessageAnswer, sketch?: Uint8Array, photo?: Uint8Array, sketchElements?: string): Promise<void>;
     stop(): Promise<void>;
     /** Start the selected route's sign-in flow; it opens the browser. */
     signIn(): Promise<void>;

@@ -311,8 +311,8 @@
       "button": "Skizze",
       "open": "Eine grobe Skizze für den Assistenten zeichnen",
       "title": "Grobe Skizze",
-      "body": "Zeichne das Teil grob, wie auf Karopapier. Wichtige Maße schreibst du in die Nachricht; fehlende fragt der Assistent nach.",
-      "canvas": "Skizze mit {count, plural, one {# Strich} other {# Strichen}}",
+      "body": "Zeichne das Teil mit Formen auf Karopapier. Punkte rasten an halben Kästchen und an deinen Ecken ein; Alt hält sie frei, Umschalt richtet Linien gerade aus. Maße und Beschriftungen gehen als Zahlen und Text an den Assistenten.",
+      "canvas": "Skizze mit {count, plural, one {# Element} other {# Elementen}}",
       "undo": "Rückgängig",
       "clear": "Leeren",
       "cancel": "Abbrechen",
@@ -321,7 +321,36 @@
       "edit": "Skizze bearbeiten",
       "remove": "Skizze entfernen",
       "sent": "Mit Skizze",
-      "defaultText": "Mach aus meiner Skizze ein Teil."
+      "defaultText": "Mach aus meiner Skizze ein Teil.",
+      "redo": "Wiederholen",
+      "tools": "Zeichenwerkzeuge",
+      "tool": {
+        "select": "Auswählen und verschieben",
+        "pen": "Freihand",
+        "line": "Linie",
+        "rect": "Rechteck",
+        "circle": "Kreis",
+        "arc": "Bogen",
+        "dimension": "Maß",
+        "text": "Beschriftung",
+        "eraser": "Radierer"
+      },
+      "hint": {
+        "select": "Klick wählt ein Element, Ziehen verschiebt es, Entf löscht es. Doppelklick auf ein Maß oder eine Beschriftung ändert sie.",
+        "pen": "Frei zeichnen mit Maus oder Stift.",
+        "line": "Vom Anfang zum Ende ziehen. Umschalt: in 45°-Schritten.",
+        "rect": "Von Ecke zu Ecke ziehen. Umschalt: ein Quadrat.",
+        "circle": "Von der Mitte nach außen ziehen.",
+        "arc": "Von einem Ende zum anderen ziehen, dann klicken, wohin der Bogen sich wölbt.",
+        "arcBulge": "Klicken, wohin der Bogen sich wölbt. Esc verwirft ihn.",
+        "dimension": "Zwischen zwei Punkten ziehen, dann das Maß eintippen, z. B. 40, Ø 8 oder R 3 (mm).",
+        "text": "Klicken, wo die Beschriftung hin soll, und eintippen, z. B. M3-Loch.",
+        "eraser": "Elemente anklicken oder überstreichen, um sie zu entfernen."
+      },
+      "dimensionValue": "Wert des Maßes",
+      "dimensionPlaceholder": "z. B. 40 oder Ø 8",
+      "labelText": "Text der Beschriftung",
+      "labelPlaceholder": "z. B. M3-Loch"
     },
     "photo": {
       "button": "Foto",

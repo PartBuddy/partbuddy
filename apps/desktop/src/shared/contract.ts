@@ -790,6 +790,8 @@ export const agentMessageSchema = z
     answer: messageAnswerSchema.optional(),
     /** A rough sketch the user drew (F4), as a PNG that goes along as a picture. */
     sketch: sketchPngSchema.optional(),
+    /** The sketch's shapes, dimensions and labels as a list (F9), next to its picture. */
+    sketchElements: z.string().min(1).max(8000).optional(),
     /** A photo of a real object (F6), scaled down and turned into a PNG by the renderer. */
     photo: sketchPngSchema.optional(),
   })

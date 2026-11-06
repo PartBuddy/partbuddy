@@ -18,7 +18,7 @@ import { rowsOf } from './rows';
 import { StepCard } from './StepCard';
 import { Queries, WorkGroup } from './WorkGroup';
 import { selectedStatus, useAssistant, type ConversationItem } from './store';
-import { SketchPad, type SketchPicture, type Stroke } from './SketchPad';
+import { SketchPad, type SketchItem, type SketchPicture } from './SketchPad';
 import { photoPicture } from './photo';
 import { SourceCard } from './SourceCard';
 import { ToolCall } from './ToolCall';
@@ -201,7 +201,7 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
   }
 }
 
-const NO_STROKES: Stroke[] = [];
+const NO_ITEMS: SketchItem[] = [];
 const tip = 'rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2';
 
 /** The first picture among pasted or dropped files; other files are left to the window's import. */
@@ -230,9 +230,9 @@ export function AssistantPanel() {
   const busy = status.state === 'busy';
   const ready = status.state === 'ready' && connected;
   const [width, setWidth, maxWidth] = useChatWidth();
-  // A rough sketch for the next message (F4); its strokes stay while it is not sent, to draw on.
+  // A sketch for the next message (F4, F9); its elements stay while it is not sent, to draw on.
   const [sketching, setSketching] = useState(false);
-  const [sketch, setSketch] = useState<{ strokes: Stroke[]; picture: SketchPicture } | null>(null);
+  const [sketch, setSketch] = useState<{ items: SketchItem[]; picture: SketchPicture } | null>(null);
   // A photo of a real object for the next message (F6); one picture goes along, a sketch or a photo.
   const [photo, setPhoto] = useState<SketchPicture | null>(null);
   const [photoFailed, setPhotoFailed] = useState(false);
@@ -264,7 +264,7 @@ export function AssistantPanel() {
     setDraft('');
     setSketch(null);
     setPhoto(null);
-    void sendToAssistant(text, selections, undefined, photo ? undefined : sketch?.picture.png, photo?.png);
+    void sendToAssistant(text, selections, undefined, photo ? undefined : sketch?.picture, photo?.png);
   };
 
   return (
@@ -503,12 +503,12 @@ export function AssistantPanel() {
       </Form>
       {sketching ? (
         <SketchPad
-        initial={sketch?.strokes ?? NO_STROKES}
+        initial={sketch?.items ?? NO_ITEMS}
         onClose={() => {
           setSketching(false);
         }}
-        onAttach={(strokes, picture) => {
-          setSketch({ strokes, picture });
+        onAttach={(items, picture) => {
+          setSketch({ items, picture });
           setPhoto(null);
           setSketching(false);
           composer.current?.focus();
