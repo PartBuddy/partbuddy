@@ -1,0 +1,85 @@
+import { jsonSchema, tool, type ToolSet } from 'ai';
+
+import type { AgentEvent } from '../../shared/contract';
+import type { ToolResult, UpstreamTools } from './gateProxy';
+import { decide } from './policy';
+import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
+import { RESEARCH_GUIDANCE } from './research';
+import { withToolNotes } from './toolNotes';
+import { VIEW_GUIDANCE } from './viewContext';
+
+/**
+ * What PartBuddy's own agent loop shares between its routes (ChatGPT plan, local models): the
+ * instructions and SolidCraft's tools behind the same policy as the gate proxy (ADR 0010).
+ */
+
+const INSTRUCTIONS = [
+  'You are the design assistant inside PartBuddy, a desktop app for 3D-printable parts.',
+  'SolidCraft is open and the user watches every step live, mirrored in PartBuddy.',
+  'Use the solidcraft tools to inspect and change the design. Work in small visible steps:',
+  'one sketch or one feature group per call. Units are millimetres.',
+  'If PartBuddy refuses a tool, tell the user why and continue without it.',
+  'Answer in the language the user writes in.',
+  VIEW_GUIDANCE,
+  QUESTION_GUIDANCE,
+  ANSWER_GUIDANCE,
+].join(' ');
+
+/** Tool rounds per turn before the loop stops. */
+export const MAX_STEPS = 25;
+
+/**
+ * PartBuddy's role, then SolidCraft's server instructions with PartBuddy's tool notes: the gate
+ * proxy hands those to Claude Code as MCP instructions, this loop has to pass them itself.
+ */
+export function instructionsFor(upstream: UpstreamTools, research: boolean): string {
+  return `${INSTRUCTIONS}${research ? ` ${RESEARCH_GUIDANCE}` : ''}\n\n${withToolNotes(upstream.instructions())}`;
+}
+
+/** Text of an MCP tool result for the model; images are summarised, not forwarded. */
+function resultText(result: ToolResult): string {
+  return result.content
+    .map((part) => (part.type === 'text' && typeof part.text === 'string' ? part.text : `[${part.type} omitted]`))
+    .join('\n');
+}
+
+export interface PolicyToolOptions {
+  /** A new id for each call, shown with its tool card. */
+  nextId(): string;
+  event(event: AgentEvent): void;
+  /** Provider options for every tool, such as the OpenAI namespace. */
+  providerOptions?: Parameters<typeof tool>[0]['providerOptions'];
+}
+
+/** SolidCraft's tools for the AI SDK; every call passes PartBuddy's policy first. */
+export async function policyToolSet(upstream: UpstreamTools, options: PolicyToolOptions): Promise<ToolSet> {
+  const tools: ToolSet = {};
+  for (const definition of await upstream.listTools()) {
+    tools[definition.name] = tool({
+      description: definition.description ?? definition.name,
+      inputSchema: jsonSchema(definition.inputSchema as Parameters<typeof jsonSchema>[0]),
+      ...(options.providerOptions ? { providerOptions: options.providerOptions } : {}),
+      execute: async (input: unknown) => callTool(upstream, definition.name, (input ?? {}) as Record<string, unknown>, options),
+    });
+  }
+  return tools;
+}
+
+async function callTool(upstream: UpstreamTools, name: string, args: Record<string, unknown>, options: PolicyToolOptions): Promise<string> {
+  const id = options.nextId();
+  const summary = JSON.stringify(args).slice(0, 2000);
+  const decision = decide(name, args);
+  if (!decision.allow) {
+    options.event({ type: 'tool', id, name, summary, decision: 'denied', reason: decision.reason.slice(0, 500) });
+    return decision.reason;
+  }
+  options.event({ type: 'tool', id, name, summary, decision: 'allowed' });
+  try {
+    const result = await upstream.callTool(name, args, id);
+    options.event({ type: 'tool', id, name, summary, decision: 'allowed', ok: result.isError !== true });
+    return resultText(result);
+  } catch (error) {
+    options.event({ type: 'tool', id, name, summary, decision: 'allowed', ok: false });
+    return `SolidCraft tool failed: ${(error as Error).message}`;
+  }
+}

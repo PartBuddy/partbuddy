@@ -138,6 +138,11 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 
 ## Assistants
 
+- Ollama (checked 2026-11-06, 0.34.0): its OpenAI endpoint (`/v1/chat/completions`) ignores any
+  context size and runs with 4096 tokens on GPUs under 24 GiB; too small for SolidCraft's tools. The
+  local route therefore uses Ollama's own API through `ollama-ai-provider-v2` with
+  `providerOptions.ollama.options.num_ctx`. `/api/show` gives `capabilities` (tools, vision, thinking)
+  and `<family>.context_length`.
 - Claude Code `stream-json` reports `system/init` for every message of the same session; the
   context stays. Images go in as content blocks `{type: image, source: {type: base64, …}}`.
   `--bare` reads only API keys; `--setting-sources ""` turns hooks and plugins off;

@@ -2013,3 +2013,36 @@ test('a picture pasted into the chat or dropped on it goes along like a photo', 
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+// A real local model (F8): needs Ollama with a tool-capable model; set PARTBUDDY_E2E_OLLAMA=1.
+test('a local model through Ollama builds a part in SolidCraft through the policy (F8)', async () => {
+  test.skip(process.env.PARTBUDDY_E2E_OLLAMA !== '1', 'needs Ollama; set PARTBUDDY_E2E_OLLAMA=1');
+  test.setTimeout(900_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-local-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7918',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByTestId('agent-status').click();
+    await page.getByTestId('agent-menu').getByText('Local model', { exact: true }).click();
+    await expect(page.getByTestId('agent-status')).toContainText(/Local model · \S+/, { timeout: 30_000 });
+    await page.keyboard.press('Escape');
+    const composer = page.getByRole('textbox', { name: 'Message to the assistant' });
+    await composer.fill('Build a solid box 20 mm long, 20 mm wide and 10 mm high right away with the solidcraft tools. Do not ask questions.');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 840_000 });
+    await page.screenshot({ path: test.info().outputPath('local-model.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

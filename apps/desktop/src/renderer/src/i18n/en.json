@@ -147,6 +147,15 @@
         "busy": "Working",
         "notInstalled": "Not available",
         "needsSubscription": "Not available"
+      },
+      "local": {
+        "checking": "Looking for Ollama",
+        "signedOut": "Not available",
+        "unavailable": "No usable local model",
+        "ready": "Ready",
+        "busy": "Working",
+        "notInstalled": "Not available",
+        "needsSubscription": "Not available"
       }
     },
     "notInstalledTitle": "Claude Code is not installed",
@@ -160,7 +169,8 @@
     "empty": "Describe what SolidCraft should build or change. Every step appears in the 3D view.",
     "working": {
       "claude-code": "Claude is working",
-      "chatgpt": "ChatGPT is working"
+      "chatgpt": "ChatGPT is working",
+      "local": "The local model is working"
     },
     "needsSolidCraft": "Connect SolidCraft first; the assistant works on the open design.",
     "composer": "Message to the assistant",
@@ -177,7 +187,8 @@
     "route": "Assistant route",
     "routes": {
       "claude-code": "Claude Code",
-      "chatgpt": "ChatGPT"
+      "chatgpt": "ChatGPT",
+      "local": "Local model"
     },
     "chatgpt": {
       "signedIn": "ChatGPT · {account} · {model}",
@@ -240,7 +251,8 @@
       "switchNote": "Switching stops a running answer. The other assistant does not know the conversation so far.",
       "describe": {
         "claude-code": "Your Claude Pro or Max plan, through Claude Code",
-        "chatgpt": "Your ChatGPT plan, signed in here"
+        "chatgpt": "Your ChatGPT plan, signed in here",
+        "local": "A model on this computer through Ollama; nothing leaves it"
       },
       "state": {
         "checking": "checking",
@@ -316,6 +328,10 @@
       "drop": "Drop the picture: it goes with your message",
       "sent": "With a photo",
       "defaultText": "Make a part that fits the object in the photo."
+    },
+    "local": {
+      "ready": "Ollama {version} · {model}",
+      "unavailableTitle": "No local model ready"
     }
   },
   "live": {

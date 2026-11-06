@@ -296,7 +296,7 @@ export const generalSettingsSchema = z
   })
   .strict();
 
-export const agentKindSchema = z.enum(['claude-code', 'chatgpt']);
+export const agentKindSchema = z.enum(['claude-code', 'chatgpt', 'local']);
 
 // Zod 4 numbers are finite by default.
 const finite = z.number();

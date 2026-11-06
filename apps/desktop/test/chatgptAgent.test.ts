@@ -4,7 +4,7 @@ import { Assistant, type AgentBackend } from '../src/main/agents/assistant';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import type { ChatGptAccount } from '../src/main/chatgpt/account';
 import { ChatGptAgent } from '../src/main/chatgpt/chatgptAgent';
-import type { AgentEvent, AgentStatus } from '../src/shared/contract';
+import type { AgentEvent, AgentKind, AgentStatus } from '../src/shared/contract';
 
 const sse = (events: Record<string, unknown>[]) =>
   new Response(events.map((event) => `event: ${String(event.type)}\ndata: ${JSON.stringify(event)}\n\n`).join(''), {
@@ -179,7 +179,7 @@ describe('ChatGPT agent', () => {
 });
 
 describe('assistant routes', () => {
-  function backend(agent: 'claude-code' | 'chatgpt') {
+  function backend(agent: AgentKind) {
     const calls: string[] = [];
     const status: AgentStatus = { agent, state: 'ready' };
     const route: AgentBackend = {
@@ -209,8 +209,9 @@ describe('assistant routes', () => {
   it('sends to the picked route and stops the old one when switching', async () => {
     const claude = backend('claude-code');
     const chatgpt = backend('chatgpt');
+    const local = backend('local');
     const states: unknown[] = [];
-    const assistant = new Assistant({ 'claude-code': claude.route, chatgpt: chatgpt.route }, (state) => states.push(state));
+    const assistant = new Assistant({ 'claude-code': claude.route, chatgpt: chatgpt.route, local: local.route }, (state) => states.push(state));
     await assistant.send('a');
     const state = await assistant.select('chatgpt');
     await assistant.send('b');
@@ -218,7 +219,7 @@ describe('assistant routes', () => {
     expect(claude.calls).toEqual(['send:a', 'stop']);
     expect(chatgpt.calls).toEqual(['send:b', 'signIn']);
     expect(state.selected).toBe('chatgpt');
-    expect(state.agents.map((a) => a.agent)).toEqual(['claude-code', 'chatgpt']);
+    expect(state.agents.map((a) => a.agent)).toEqual(['claude-code', 'chatgpt', 'local']);
     expect(states.length).toBeGreaterThan(0);
   });
 });

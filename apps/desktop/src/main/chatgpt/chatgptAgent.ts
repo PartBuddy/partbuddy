@@ -1,15 +1,13 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { jsonSchema, stepCountIs, streamText, tool, type ModelMessage, type ToolSet } from 'ai';
+import { stepCountIs, streamText, type ModelMessage } from 'ai';
 
 import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
-import type { ToolResult, UpstreamTools } from '../agents/gateProxy';
-import { decide } from '../agents/policy';
-import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from '../agents/questions';
-import { RESEARCH_GUIDANCE, sourceOfUrl } from '../agents/research';
-import { withToolNotes } from '../agents/toolNotes';
-import { composeMessage, VIEW_GUIDANCE } from '../agents/viewContext';
+import type { UpstreamTools } from '../agents/gateProxy';
+import { instructionsFor, MAX_STEPS, policyToolSet } from '../agents/loop';
+import { sourceOfUrl } from '../agents/research';
+import { composeMessage } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
 import { RESOURCE } from './oauth';
 
@@ -20,27 +18,6 @@ import { RESOURCE } from './oauth';
  * Sign in with ChatGPT: `store: false`, streaming, instructions instead of system messages, full
  * history in every request, no temperature or output-token limit.
  */
-
-const INSTRUCTIONS = [
-  'You are the design assistant inside PartBuddy, a desktop app for 3D-printable parts.',
-  'SolidCraft is open and the user watches every step live, mirrored in PartBuddy.',
-  'Use the solidcraft tools to inspect and change the design. Work in small visible steps:',
-  'one sketch or one feature group per call. Units are millimetres.',
-  'If PartBuddy refuses a tool, tell the user why and continue without it.',
-  'Answer in the language the user writes in.',
-  VIEW_GUIDANCE,
-  QUESTION_GUIDANCE,
-  ANSWER_GUIDANCE,
-].join(' ');
-const MAX_STEPS = 25;
-
-/**
- * PartBuddy's role, then SolidCraft's server instructions with PartBuddy's tool notes: the gate
- * proxy hands those to Claude Code as MCP instructions, this loop has to pass them itself.
- */
-function instructionsFor(upstream: UpstreamTools, research: boolean): string {
-  return `${INSTRUCTIONS}${research ? ` ${RESEARCH_GUIDANCE}` : ''}\n\n${withToolNotes(upstream.instructions())}`;
-}
 
 export interface ChatGptAgentOptions {
   account: ChatGptAccount;
@@ -76,13 +53,6 @@ export function modelsFromList(body: unknown): ModelOption[] {
     options.push(option);
   }
   return options.slice(0, 30);
-}
-
-/** Text of an MCP tool result for the model; images are summarised, not forwarded. */
-function resultText(result: ToolResult): string {
-  return result.content
-    .map((part) => (part.type === 'text' && typeof part.text === 'string' ? part.text : `[${part.type} omitted]`))
-    .join('\n');
 }
 
 export class ChatGptAgent implements AgentBackend {
@@ -192,7 +162,15 @@ export class ChatGptAgent implements AgentBackend {
       const result = streamText({
         model: provider.responses(this.choice?.model ?? ''),
         messages: this.history,
-        tools: { ...(await this.toolSet(upstream)), ...(research ? { web_search: provider.tools.webSearch({}) } : {}) },
+        tools: {
+          ...(await policyToolSet(upstream, {
+            nextId: () => `chatgpt-${String((this.sequence += 1))}`,
+            event: (event) => {
+              this.options.event(event);
+            },
+            providerOptions: { openai: { namespace: { name: 'solidcraft', description: 'SolidCraft CAD: inspect and change the open design.' } } },
+          })),
+          ...(research ? { web_search: provider.tools.webSearch({}) } : {}) },
         stopWhen: stepCountIs(MAX_STEPS),
         abortSignal: signal,
         providerOptions: {
@@ -234,40 +212,6 @@ export class ChatGptAgent implements AgentBackend {
       headers.set('Authorization', `Bearer ${await this.options.account.accessToken()}`);
       return base(input, { ...init, headers });
     };
-  }
-
-  private async toolSet(upstream: UpstreamTools): Promise<ToolSet> {
-    const namespace = { name: 'solidcraft', description: 'SolidCraft CAD: inspect and change the open design.' };
-    const tools: ToolSet = {};
-    for (const definition of await upstream.listTools()) {
-      tools[definition.name] = tool({
-        description: definition.description ?? definition.name,
-        inputSchema: jsonSchema(definition.inputSchema as Parameters<typeof jsonSchema>[0]),
-        providerOptions: { openai: { namespace } },
-        execute: async (input: unknown) => this.callTool(upstream, definition.name, (input ?? {}) as Record<string, unknown>),
-      });
-    }
-    return tools;
-  }
-
-  private async callTool(upstream: UpstreamTools, name: string, args: Record<string, unknown>): Promise<string> {
-    this.sequence += 1;
-    const id = `chatgpt-${this.sequence}`;
-    const summary = JSON.stringify(args).slice(0, 2000);
-    const decision = decide(name, args);
-    if (!decision.allow) {
-      this.options.event({ type: 'tool', id, name, summary, decision: 'denied', reason: decision.reason.slice(0, 500) });
-      return decision.reason;
-    }
-    this.options.event({ type: 'tool', id, name, summary, decision: 'allowed' });
-    try {
-      const result = await upstream.callTool(name, args, id);
-      this.options.event({ type: 'tool', id, name, summary, decision: 'allowed', ok: result.isError !== true });
-      return resultText(result);
-    } catch (error) {
-      this.options.event({ type: 'tool', id, name, summary, decision: 'allowed', ok: false });
-      return `SolidCraft tool failed: ${(error as Error).message}`;
-    }
   }
 
   /** Model and effort from the next turn on (B1); the conversation keeps its history. */

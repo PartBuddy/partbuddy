@@ -10,7 +10,7 @@ import { selectedStatus, useAssistant } from './store';
 type T = ReturnType<typeof useTranslation>['t'];
 type Tone = 'success' | 'neutral' | 'warning';
 
-const ROUTES: AgentKind[] = ['claude-code', 'chatgpt'];
+const ROUTES: AgentKind[] = ['claude-code', 'chatgpt', 'local'];
 
 function signedIn(status: AgentStatus): boolean {
   return status.state === 'ready' || status.state === 'busy';
@@ -25,6 +25,7 @@ function toneOf(status: AgentStatus): Tone {
 export function statusLabel(t: T, status: AgentStatus): string {
   if (!signedIn(status)) return t(`assistant.state.${status.agent}.${status.state}`);
   if (status.agent === 'chatgpt') return t('assistant.chatgpt.signedIn', { account: status.account ?? '', model: status.model ?? '' });
+  if (status.agent === 'local') return t('assistant.local.ready', { version: status.version ?? '', model: status.model ?? '' });
   const plan = status.method === 'claude.ai' && status.plan ? t('assistant.plan', { plan: status.plan }) : t('assistant.apiKey');
   return t('assistant.signedIn', { plan, version: status.version ?? '' });
 }
@@ -46,7 +47,7 @@ function chipLabel(t: T, status: AgentStatus): string {
   const route = t(`assistant.routes.${status.agent}`);
   let detail: string;
   if (!signedIn(status)) detail = t(`assistant.chip.state.${status.state}`);
-  else detail = modelLabel(t, status) ?? (status.method === 'claude.ai' && status.plan ? status.plan.charAt(0).toUpperCase() + status.plan.slice(1) : status.agent === 'chatgpt' ? '' : t('assistant.chip.apiKey'));
+  else detail = modelLabel(t, status) ?? (status.method === 'claude.ai' && status.plan ? status.plan.charAt(0).toUpperCase() + status.plan.slice(1) : status.agent === 'claude-code' ? t('assistant.chip.apiKey') : '');
   return detail ? `${route} · ${detail}` : route;
 }
 
@@ -170,7 +171,7 @@ export function AssistantChoice() {
         aria-label={t('assistant.route')}
         value={state.selected}
         onChange={(key) => {
-          if (key === 'claude-code' || key === 'chatgpt') void api.select(key);
+          if (key === 'claude-code' || key === 'chatgpt' || key === 'local') void api.select(key);
         }}
         className="flex flex-col gap-1"
       >
