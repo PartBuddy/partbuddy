@@ -111,6 +111,30 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 4000 });
       continue;
     }
+    // "Long answer" and "Make it fail": a long Markdown answer and a failed turn, for the chat inventory (polish round 1).
+    if (content.includes('Long answer')) {
+      const text = [
+        'Hier ist ein ausführlicher Vorschlag für die **Wandhalterung**:',
+        '',
+        '## Aufbau',
+        '1. Grundplatte 80 × 40 × 4 mm mit zwei Senkbohrungen für M4',
+        '2. Haken mit 35 mm lichter Weite, 3 mm Wandstärke',
+        '3. Verrundung R2 an der Hakenwurzel gegen Bruch',
+        '',
+        '## Druck',
+        '- Liegend drucken, Haken nach oben: keine Stützen nötig',
+        '- PLA reicht, PETG hält Wärme besser',
+        '',
+        'Die Senkung folgt ISO 10642. Wenn du willst, lege ich `Plattenhöhe` und `Hakenweite` als Parameter an, damit du sie im Panel ändern kannst. '.repeat(3),
+      ].join('\n');
+      out({ type: 'assistant', message: { content: [{ type: 'text', text }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
+    if (content.includes('Make it fail')) {
+      out({ type: 'result', subtype: 'error_during_execution', is_error: true, duration_ms: 12 });
+      continue;
+    }
     // A rough sketch (F4): tells what came along, so a test sees the picture and the note arrive.
     const picture = typeof raw === 'string' ? undefined : raw.find((block) => block.type === 'image');
     if (picture) {

@@ -1840,6 +1840,10 @@ test('a rough sketch drawn with the mouse goes to the assistant as a picture wit
   };
   const launched = await launchApp({ isolated: false, work, env });
   const { page } = launched;
+  // A low window, as on a laptop: the sketch must still show its buttons (polish round 1).
+  await launched.app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setSize(1100, 800);
+  });
   try {
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByTestId('composer-sketch-open').click();
