@@ -1,7 +1,7 @@
 import { CameraControls, GizmoHelper, GizmoViewcube, Grid, Html } from '@react-three/drei';
 import { Canvas, type ThreeEvent } from '@react-three/fiber';
 import { IconMapPin, IconNotes } from '@tabler/icons-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton } from 'react-aria-components';
 import { BufferAttribute, Mesh, Object3D } from 'three';
@@ -171,6 +171,20 @@ function SelectionBar({ model }: { model: ViewerModel }) {
   );
 }
 
+/**
+ * Points the camera at the part. It lives inside the Canvas after CameraControls: the Canvas has its
+ * own renderer, so an effect outside it can run before the controls' ref is set, and the camera then
+ * stays aimed at the origin, where a click in the middle of the view misses the part (flaky e2e).
+ */
+function FrameModel({ controls, target }: { controls: RefObject<CameraControls | null>; target: number[] }) {
+  useEffect(() => {
+    const [x, y, z] = scene.cameraPosition;
+    const [tx = 0, ty = 0, tz = 0] = target;
+    void controls.current?.setLookAt(x, y, z, tx, ty, tz, false);
+  }, [controls, target]);
+  return null;
+}
+
 function Scene({ model }: { model: ViewerModel }) {
   const { t } = useTranslation();
   const colors = useTokenColors();
@@ -182,12 +196,6 @@ function Scene({ model }: { model: ViewerModel }) {
   const cubeFaces = ['right', 'left', 'back', 'front', 'top', 'bottom'].map((face) => t(`viewer.cube.${face}`));
 
   const target = useMemo(() => model.geometry.boundingSphere?.center.toArray() ?? [0, 0, 0], [model]);
-
-  useEffect(() => {
-    const [x, y, z] = scene.cameraPosition;
-    const [tx = 0, ty = 0, tz = 0] = target;
-    void controls.current?.setLookAt(x, y, z, tx, ty, tz, false);
-  }, [target]);
 
   useEffect(() => {
     const note = notes.find((n) => n.id === focusNoteId);
@@ -223,6 +231,7 @@ function Scene({ model }: { model: ViewerModel }) {
         position={[0, 0, -0.01]}
       />
       <CameraControls ref={controls} makeDefault />
+      <FrameModel controls={controls} target={target} />
       <GizmoHelper alignment="top-right" margin={scene.gizmoMargin}>
         <GizmoViewcube
           faces={cubeFaces}
