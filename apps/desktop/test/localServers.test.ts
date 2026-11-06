@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
+import { LOOP_NOTICE } from '../src/main/agents/loop';
 import { LocalAgent, serverReason } from '../src/main/local/localAgent';
 import { findOpenAiServers, llamaProps, modelsFromList, modelsFromLmStudio } from '../src/main/local/openaiServers';
 import type { AgentEvent } from '../src/shared/contract';
@@ -66,8 +67,11 @@ function agent(fetchFn: typeof fetch) {
   return { local, events };
 }
 
-/** An OpenAI server on LM Studio's port with one model that does or does not call the test tool. */
-function lmStudio(callsTool: boolean) {
+/**
+ * An OpenAI server on LM Studio's port with one model that does or does not call the test tool;
+ * `circles` makes the real turn call that tool every round, as Qwen3-1.7B did on vLLM.
+ */
+function lmStudio(callsTool: boolean, circles?: string) {
   return machine({
     '1234': (path, body) => {
       if (path === '/api/v0/models') return Response.json({ object: 'list', data: [{ id: 'qwen3-4b', type: 'llm', state: 'not-loaded', max_context_length: 32768 }, { id: 'nomic-embed', type: 'embeddings', state: 'not-loaded' }] });
@@ -76,7 +80,7 @@ function lmStudio(callsTool: boolean) {
         const tools = (body?.tools as { function: { name: string } }[] | undefined) ?? [];
         // The connection test offers only the dummy tool; the real turn offers SolidCraft's.
         if (tools.some((entry) => entry.function.name === 'partbuddy_ping')) return completion(body, callsTool ? { toolCall: 'partbuddy_ping' } : { content: 'ok' });
-        return completion(body, { content: 'Built it.' });
+        return completion(body, circles ? { toolCall: circles } : { content: 'Built it.' });
       }
       return null;
     },
@@ -126,6 +130,20 @@ describe('LM Studio, llama.cpp and vLLM (F8)', () => {
     await local.send('Again');
     await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2));
     expect(server.bodies.length - before).toBe(1);
+  });
+
+  it('stops a model that repeats the same tool call, known or unknown, after three rounds', async () => {
+    for (const name of ['measure', 'sketch.rect']) {
+      const server = lmStudio(true, name);
+      const { local, events } = agent(server.fetchFn);
+      await local.refresh();
+      await local.send('Make a box');
+      await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
+      // Load, connection test, then three rounds of the turn.
+      expect(server.bodies).toHaveLength(5);
+      expect(events.find((e) => e.type === 'error')).toEqual({ type: 'error', message: LOOP_NOTICE });
+      expect(events.find((e) => e.type === 'done')).toMatchObject({ ok: false });
+    }
   });
 
   it('drops a model that does not call the test tool and says why', async () => {

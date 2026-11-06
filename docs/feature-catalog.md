@@ -67,7 +67,7 @@ Work runs in three phases, one pull request per step, in this order.
 
 When convenient, between steps: small follow-ups of the view (hide dimension labels behind the
 model, the HUD moves out of the way, ground shadow, silhouettes), a parity test (every action in the
-interface is an assistant tool or has a written reason), a loop guard in the gate proxy, the
+interface is an assistant tool or has a written reason), the
 signing key on GitHub, Renovate.
 
 **Dropped on 2026-11-05:** the command palette (Ctrl+K), and everything listed under R1 and R2.

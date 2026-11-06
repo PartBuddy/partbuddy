@@ -108,6 +108,7 @@ export class AgentService implements AgentBackend {
     const message = composeMessage(text, selections, note);
     this.listeners.event(userEvent(text, message.label, message.summary, image ? kind : undefined));
     this.setStatus({ ...this.current, state: 'busy' });
+    this.proxy?.newTurn();
     this.session?.send(message.prompt, image);
   }
 
