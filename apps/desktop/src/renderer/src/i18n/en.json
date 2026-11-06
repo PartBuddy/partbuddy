@@ -252,7 +252,7 @@
       "describe": {
         "claude-code": "Your Claude Pro or Max plan, through Claude Code",
         "chatgpt": "Your ChatGPT plan, signed in here",
-        "local": "A model on this computer through Ollama; nothing leaves it"
+        "local": "A model on this computer through Ollama or Strata; nothing leaves it"
       },
       "state": {
         "checking": "checking",
@@ -328,7 +328,7 @@
       "defaultText": "Make a part that fits the object in the photo."
     },
     "local": {
-      "ready": "Ollama {version} · {model}",
+      "ready": "{server} · {model}",
       "unavailableTitle": "No local model ready"
     }
   },

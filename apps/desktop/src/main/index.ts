@@ -490,8 +490,16 @@ if (!app.requestSingleInstanceLock()) {
     });
     account.load();
     const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log, choices: assistantSettings, research: () => assistantSettings.webResearch() });
-    // Local models (F8): Ollama on this machine; PARTBUDDY_OLLAMA_URL points tests elsewhere.
-    const local = new LocalAgent({ tools, event: emitEvent, changed, log, choices: assistantSettings, ...(process.env.PARTBUDDY_OLLAMA_URL ? { url: process.env.PARTBUDDY_OLLAMA_URL } : {}) });
+    // Local models (F8): Ollama and Strata on this machine; PARTBUDDY_OLLAMA_URL and PARTBUDDY_STRATA_URL point tests elsewhere.
+    const local = new LocalAgent({
+      tools,
+      event: emitEvent,
+      changed,
+      log,
+      choices: assistantSettings,
+      ...(process.env.PARTBUDDY_OLLAMA_URL ? { url: process.env.PARTBUDDY_OLLAMA_URL } : {}),
+      ...(process.env.PARTBUDDY_STRATA_URL ? { strataUrl: process.env.PARTBUDDY_STRATA_URL } : {}),
+    });
     assistant = new Assistant({ 'claude-code': claude, chatgpt, local }, (state) => {
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentStatus, state);
     });

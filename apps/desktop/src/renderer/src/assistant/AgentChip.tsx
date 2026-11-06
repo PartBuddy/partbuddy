@@ -27,7 +27,7 @@ function toneOf(status: AgentStatus): Tone {
 export function statusLabel(t: T, status: AgentStatus): string {
   if (!signedIn(status)) return t(`assistant.state.${status.agent}.${status.state}`);
   if (status.agent === 'chatgpt') return t('assistant.chatgpt.signedIn', { account: status.account ?? '', model: status.model ?? '' });
-  if (status.agent === 'local') return t('assistant.local.ready', { version: status.version ?? '', model: status.model ?? '' });
+  if (status.agent === 'local') return t('assistant.local.ready', { server: `${status.account ?? ''} ${status.version ?? ''}`.trim(), model: status.models?.find((model) => model.id === status.model)?.name ?? status.model ?? '' });
   const plan = status.method === 'claude.ai' && status.plan ? t('assistant.plan', { plan: status.plan }) : t('assistant.apiKey');
   return t('assistant.signedIn', { plan, version: status.version ?? '' });
 }
