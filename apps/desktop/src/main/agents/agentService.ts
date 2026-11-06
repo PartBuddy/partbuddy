@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
 import { ClaudeSession, findClaudeCode, listModels, readAuth, readVersion, startSignIn, type ClaudeAuth, type ClaudeCommand } from './claudeCode';
-import { userEvent, type AgentBackend } from './assistant';
+import { userEvent, type AgentBackend, type PictureKind } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
 import { allowedChoice, choiceStatus, withoutChoice, type ChoiceStore } from './modelChoice';
 import { composeMessage } from './viewContext';
@@ -97,7 +97,7 @@ export class AgentService implements AgentBackend {
     });
   }
 
-  async send(text: string, selections: Selection[] = [], note: string | null = null, image: Uint8Array | null = null): Promise<void> {
+  async send(text: string, selections: Selection[] = [], note: string | null = null, image: Uint8Array | null = null, kind: PictureKind = 'sketch'): Promise<void> {
     if (this.current.state !== 'ready') throw new Error(`assistant is ${this.current.state}`);
     const tools = await this.options.tools();
     if (!tools) {
@@ -106,7 +106,7 @@ export class AgentService implements AgentBackend {
     }
     await this.ensureSession(tools);
     const message = composeMessage(text, selections, note);
-    this.listeners.event(userEvent(text, message.label, message.summary, image !== null));
+    this.listeners.event(userEvent(text, message.label, message.summary, image ? kind : undefined));
     this.setStatus({ ...this.current, state: 'busy' });
     this.session?.send(message.prompt, image);
   }

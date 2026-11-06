@@ -299,6 +299,15 @@
       "remove": "Remove the sketch",
       "sent": "With a sketch",
       "defaultText": "Make a part from my sketch."
+    },
+    "photo": {
+      "button": "Photo",
+      "open": "Attach a photo of the object for the assistant",
+      "goesWith": "The photo goes with your message",
+      "remove": "Remove the photo",
+      "failed": "The photo could not be read. PNG and JPEG work.",
+      "sent": "With a photo",
+      "defaultText": "Make a part that fits the object in the photo."
     }
   },
   "live": {

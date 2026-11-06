@@ -299,6 +299,15 @@
       "remove": "Skizze entfernen",
       "sent": "Mit Skizze",
       "defaultText": "Mach aus meiner Skizze ein Teil."
+    },
+    "photo": {
+      "button": "Foto",
+      "open": "Ein Foto des Gegenstands an den Assistenten hängen",
+      "goesWith": "Das Foto geht mit deiner Nachricht",
+      "remove": "Foto entfernen",
+      "failed": "Das Foto ließ sich nicht lesen. PNG und JPEG gehen.",
+      "sent": "Mit Foto",
+      "defaultText": "Mach mir ein passendes Teil für den Gegenstand auf dem Foto."
     }
   },
   "live": {

@@ -98,8 +98,9 @@ if (args[0] === '--version') {
     if (picture) {
       const bytes = Buffer.from(picture.source.data, 'base64');
       const png = bytes.subarray(1, 4).toString() === 'PNG';
-      const note = content.includes('rough sketch the user drew');
-      out({ type: 'assistant', message: { content: [{ type: 'text', text: `I see a ${png ? 'PNG' : 'non-PNG'} picture of ${String(Math.round(bytes.length / 1024))} KB${note ? ' with the sketch note' : ''}.` }] } });
+      // A photo (F6) has its own note, and the path of the kept file when a project is open.
+      const note = content.includes('rough sketch the user drew') ? ' with the sketch note' : content.includes('photo of a real object') ? ` with the photo note${content.includes('/photos/photo-') ? ' and its file' : ''}` : '';
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: `I see a ${png ? 'PNG' : 'non-PNG'} picture of ${String(Math.round(bytes.length / 1024))} KB${note}.` }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
