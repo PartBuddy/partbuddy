@@ -126,7 +126,7 @@
   "assistant": {
     "title": "Assistent",
     "preview": "Vorschau",
-    "plan": "{plan}-Abo",
+    "plan": "Claude-Abo",
     "apiKey": "API-Key, getrennt abgerechnet",
     "signedIn": "Claude Code {version} · {plan}",
     "state": {
@@ -200,7 +200,7 @@
       "continue": "Weiter mit ChatGPT"
     },
     "needsSubscriptionTitle": "Claude Code mit deinem Claude-Abo anmelden",
-    "needsSubscriptionBody": "Claude Code ist mit einem API-Key angemeldet, den Anthropic getrennt von deinem Abo abrechnet. Standardmäßig verwendet PartBuddy nur dein Claude-Pro- oder Max-Abo: Melde dich mit deinem Claude-Konto an und prüfe erneut. Du kannst den API-Key auch bewusst freigeben.",
+    "needsSubscriptionBody": "Claude Code ist mit einem API-Key angemeldet, den Anthropic getrennt von deinem Abo abrechnet. Standardmäßig verwendet PartBuddy nur dein Claude-Abo: Melde dich mit deinem Claude-Konto an und prüfe erneut. Du kannst den API-Key auch bewusst freigeben.",
     "allowApiBilling": "Trotzdem mit API-Key nutzen (getrennt abgerechnet)",
     "subscriptionOnly": "Nur Abo verwenden",
     "withSelection": "Mit Auswahl {face}",
@@ -254,9 +254,9 @@
       "apiKey": "API-Key",
       "switchNote": "Ein Wechsel bricht eine laufende Antwort ab. Der andere Assistent kennt das bisherige Gespräch nicht.",
       "describe": {
-        "claude-code": "Dein Claude-Pro- oder Max-Abo, über Claude Code",
+        "claude-code": "Dein Claude-Abo, über Claude Code",
         "chatgpt": "Dein ChatGPT-Abo, hier angemeldet",
-        "local": "Ein Modell auf diesem Rechner über Ollama oder Strata; nichts verlässt ihn"
+        "local": "Ein Modell auf diesem Rechner (Ollama, LM Studio, llama.cpp, vLLM, Strata); nichts verlässt ihn"
       },
       "state": {
         "checking": "wird geprüft",

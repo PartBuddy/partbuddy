@@ -28,7 +28,8 @@ export function statusLabel(t: T, status: AgentStatus): string {
   if (!signedIn(status)) return t(`assistant.state.${status.agent}.${status.state}`);
   if (status.agent === 'chatgpt') return t('assistant.chatgpt.signedIn', { account: status.account ?? '', model: status.model ?? '' });
   if (status.agent === 'local') return t('assistant.local.ready', { server: `${status.account ?? ''} ${status.version ?? ''}`.trim(), model: status.models?.find((model) => model.id === status.model)?.name ?? status.model ?? '' });
-  const plan = status.method === 'claude.ai' && status.plan ? t('assistant.plan', { plan: status.plan }) : t('assistant.apiKey');
+  // Not the plan's name: Claude Code reports an Ultra plan as "max" (seen 2026-11-06).
+  const plan = status.method === 'claude.ai' ? t('assistant.plan') : t('assistant.apiKey');
   return t('assistant.signedIn', { plan, version: status.version ?? '' });
 }
 
@@ -50,7 +51,12 @@ function chipLabel(t: T, status: AgentStatus): string {
   let detail: string;
   if (!signedIn(status)) detail = t(`assistant.chip.state.${status.state}`);
   // On the chip without the plan's remarks in brackets ("Default (recommended)"); the menu shows them.
-  else detail = modelLabel(t, status)?.replace(/\s*\([^)]*\)/g, '') ?? (status.method === 'claude.ai' && status.plan ? status.plan.charAt(0).toUpperCase() + status.plan.slice(1) : status.agent === 'claude-code' ? t('assistant.chip.apiKey') : '');
+  else {
+    const model = modelLabel(t, status)?.replace(/\s*\([^)]*\)/g, '');
+    // Billed apart from the subscription: the chip always says so, beside the model.
+    const apiKey = status.agent === 'claude-code' && status.method !== 'claude.ai' ? t('assistant.chip.apiKey') : null;
+    detail = [apiKey, model].filter(Boolean).join(' · ');
+  }
   return detail ? `${route} · ${detail}` : route;
 }
 

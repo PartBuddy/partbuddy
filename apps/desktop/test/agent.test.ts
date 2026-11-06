@@ -240,7 +240,8 @@ describe('agent service with a fake Claude Code', () => {
     // The aliases with their effort levels; pinned older versions are left out.
     expect(status.models?.map((model) => model.id)).toEqual(['default', 'opus', 'sonnet', 'haiku']);
     expect(status.models?.find((model) => model.id === 'haiku')?.efforts).toEqual(['low', 'medium', 'high']);
-    expect(status.model).toBeUndefined();
+    // Nothing kept yet: the plan's default model with a named effort, as on the other routes.
+    expect(status).toMatchObject({ model: 'default', effort: 'medium' });
 
     // Chosen before the first message: the session starts with it, and it is kept for new chats.
     await service.chooseModel({ model: 'sonnet', effort: 'low' }, true);
