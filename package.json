@@ -20,7 +20,8 @@
     "test": "pnpm -r --if-present run test",
     "build": "pnpm -r --if-present run build",
     "privacy:scan": "gitleaks git --no-banner --redact --config .gitleaks.toml .",
-    "licenses:check": "node tools/licenses/check-licenses.mjs"
+    "licenses:check": "node tools/licenses/check-licenses.mjs",
+    "site:shots": "node tools/site-shots.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.4",
