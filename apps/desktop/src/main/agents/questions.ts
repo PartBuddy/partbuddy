@@ -15,15 +15,16 @@ import { CHANGING_TOOLS } from './workLog';
 export const ASK_TOOL = 'partbuddy_ask';
 export const PLAN_TOOL = 'partbuddy_plan';
 
-const askInput = z
+const optionInput = z.object({ label: z.string().trim().min(1).max(60), detail: z.string().trim().max(200).optional(), recommended: z.boolean().optional() }).strict();
+const questionInput = z
   .object({
+    header: z.string().trim().max(24).optional(),
     question: z.string().trim().min(1).max(500),
-    options: z
-      .array(z.object({ label: z.string().trim().min(1).max(60), detail: z.string().trim().max(200).optional() }).strict())
-      .min(2)
-      .max(5),
+    options: z.array(optionInput).min(2).max(5),
+    multiSelect: z.boolean().optional(),
   })
   .strict();
+const askInput = z.object({ questions: z.array(questionInput).min(1).max(4) }).strict();
 
 const planInput = z
   .object({
@@ -35,29 +36,47 @@ const planInput = z
 const askTool: UpstreamTool = {
   name: ASK_TOOL,
   description:
-    'Ask the user one question with 2 to 5 answers to pick from, shown as buttons in PartBuddy\'s chat. Use it when a ' +
-    'dimension or choice that matters is unclear (fit, wall thickness, which side) instead of guessing. The user may also ' +
-    'type a different answer. After calling it, end your turn without changing the design: the answer is the next message.',
+    'Ask the user a round of 1 to 4 questions at once, shown as one card in PartBuddy\'s chat; each question has 2 to 5 ' +
+    'answers to pick from and a field for a different answer. Mark the answer you recommend with recommended (it is ' +
+    'preselected) and say why in its detail. Use multiSelect when several answers can apply. Ask what matters for the part ' +
+    'and cannot be settled from the request, the picture or research (what it attaches to and how, sizes of the objects ' +
+    'involved, loads, cables and access, print limits); never ask what you can look up. After calling it, end your turn ' +
+    'without changing the design: the answers are the next message, one line per question.',
   inputSchema: {
     type: 'object',
     properties: {
-      question: { type: 'string', maxLength: 500, description: 'The question, short, in the language the user writes in.' },
-      options: {
+      questions: {
         type: 'array',
-        minItems: 2,
-        maxItems: 5,
+        minItems: 1,
+        maxItems: 4,
         items: {
           type: 'object',
           properties: {
-            label: { type: 'string', maxLength: 60, description: 'The answer as the button shows it, e.g. "3 mm".' },
-            detail: { type: 'string', maxLength: 200, description: 'Optional: what this answer means for the part.' },
+            header: { type: 'string', maxLength: 24, description: 'A very short title for the question, e.g. "Mounting".' },
+            question: { type: 'string', maxLength: 500, description: 'The question, in the language the user writes in.' },
+            options: {
+              type: 'array',
+              minItems: 2,
+              maxItems: 5,
+              items: {
+                type: 'object',
+                properties: {
+                  label: { type: 'string', maxLength: 60, description: 'The answer as shown, e.g. "3 mm".' },
+                  detail: { type: 'string', maxLength: 200, description: 'What this answer means for the part.' },
+                  recommended: { type: 'boolean', description: 'True for the answer you recommend; at most one unless multiSelect.' },
+                },
+                required: ['label'],
+                additionalProperties: false,
+              },
+            },
+            multiSelect: { type: 'boolean', description: 'True when the user may pick several answers.' },
           },
-          required: ['label'],
+          required: ['question', 'options'],
           additionalProperties: false,
         },
       },
     },
-    required: ['question', 'options'],
+    required: ['questions'],
     additionalProperties: false,
   },
   annotations: { readOnlyHint: true },
@@ -99,9 +118,10 @@ export const ANSWER_GUIDANCE =
 
 /** Added to the role prompt of every route. */
 export const QUESTION_GUIDANCE =
-  `For a larger job (a new part, or several features at once) first call ${PLAN_TOOL} and end your turn; build only after ` +
-  `the user said Go. When a dimension or choice that matters is unclear, ask with ${ASK_TOOL} instead of guessing, and end ` +
-  'your turn. Small, clear changes need neither.';
+  `For a new part, first settle what matters in rounds with ${ASK_TOOL} (up to four questions per round, your recommendation ` +
+  'marked), one round per turn, until nothing that matters is open; then call ' +
+  `${PLAN_TOOL} and build only after the user said Go. For several features at once, the plan alone is enough. When a ` +
+  `dimension or choice that matters is unclear later, ask with ${ASK_TOOL} instead of guessing. Small, clear changes need neither.`;
 
 const text = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }] });
 const refusal = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }], isError: true });
@@ -151,9 +171,9 @@ export class Questions {
       if (choice === 'cancel') return '[PartBuddy: the user cancelled your plan. Do not change the design; ask what they want instead.]';
       return '[PartBuddy: the user wants the plan changed, as this message says. Show the changed plan with partbuddy_plan before you build.]';
     }
-    const option = choice !== null ? question.options[Number(choice)] : undefined;
-    if (option) return `[PartBuddy: the user answered your question "${question.question}" with the button "${option.label}".]`;
-    return `[PartBuddy: this message answers your question "${question.question}".]`;
+    const asked = question.questions.map((entry) => `"${entry.question}"`).join(', ');
+    if (choice === 'answered') return `[PartBuddy: the user answered your questions ${asked} on the card; the message has one line per question.]`;
+    return `[PartBuddy: this message answers your questions ${asked}.]`;
   }
 
   /** Drops an open question, for example when the conversation starts anew. */
@@ -166,10 +186,20 @@ export class Questions {
     this.sequence += 1;
     const id = `question-${this.sequence}`;
     if (name === ASK_TOOL) {
-      const parsed = askInput.safeParse(args);
+      // A model that still sends one question without the round around it gets a round of one.
+      const parsed = askInput.safeParse(typeof args.question === 'string' && !('questions' in args) ? { questions: [args] } : args);
       if (!parsed.success) return refusal(`Invalid ${ASK_TOOL} input: ${parsed.error.issues.map((issue) => issue.message).join('; ')}`.slice(0, 500));
-      const options = parsed.data.options.map((option) => (option.detail ? { label: option.label, detail: option.detail } : { label: option.label }));
-      this.pending = { id, kind: 'ask', question: parsed.data.question, options };
+      const questions = parsed.data.questions.map((entry) => ({
+        ...(entry.header ? { header: entry.header } : {}),
+        question: entry.question,
+        options: entry.options.map((option) => ({
+          label: option.label,
+          ...(option.detail ? { detail: option.detail } : {}),
+          ...(option.recommended ? { recommended: true as const } : {}),
+        })),
+        ...(entry.multiSelect ? { multiSelect: true as const } : {}),
+      }));
+      this.pending = { id, kind: 'ask', questions };
     } else {
       const parsed = planInput.safeParse(args);
       if (!parsed.success) return refusal(`Invalid ${PLAN_TOOL} input: ${parsed.error.issues.map((issue) => issue.message).join('; ')}`.slice(0, 500));

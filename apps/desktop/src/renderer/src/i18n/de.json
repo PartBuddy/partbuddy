@@ -226,10 +226,14 @@
       }
     },
     "question": {
-      "title": "Rückfrage des Assistenten",
-      "typeInstead": "Oder schreib unten eine andere Antwort.",
-      "answered": "Im Chat beantwortet",
-      "answeredWith": "Beantwortet: {answer}"
+      "title": "{count, plural, one {Rückfrage des Assistenten} other {Rückfragen des Assistenten}}",
+      "recommended": "Empfehlung",
+      "several": "eine oder mehrere wählen",
+      "other": "Andere Antwort auf {question}",
+      "otherPlaceholder": "Andere Antwort …",
+      "send": "Antworten",
+      "incomplete": "Jede Frage braucht eine Antwort.",
+      "answered": "Im Chat beantwortet"
     },
     "planCard": {
       "title": "Plan",

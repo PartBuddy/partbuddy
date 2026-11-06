@@ -29,6 +29,14 @@ press is sent by the renderer as `answer {question, choice}` straight to the mai
 the note "the user pressed Go" can only come from PartBuddy's interface, never from the model.
 Typed text counts as the answer too.
 
+**Rounds (2026-11-06, product owner).** `partbuddy_ask` asks a round of 1 to 4 questions on one
+card, each with 2 to 5 answers, the model's recommendation marked (`recommended`, preselected and
+shown as "Recommended"), `multiSelect` where several answers apply and a field for a different
+answer. One "Answer" button sends all answers as the next message, one line per question, with
+`choice: "answered"`. For a new part the model settles what matters in such rounds, one round per
+turn, then shows its plan. A call with a single question outside a round is taken as a round of
+one; chats saved before keep loading.
+
 ### Consequences
 
 * Good: no MCP time-out to tune, Stop keeps working, Claude Code and ChatGPT behave the same.
