@@ -173,6 +173,14 @@ describe('Claude Code adapter', () => {
     expect(parseStreamLine('{"type":"assistant","message":{"content":[{"type":"text","text":"A"},{"type":"tool_use"}]}}')).toEqual([
       { type: 'text', text: 'A' },
     ]);
+    // Text blocks around a tool call stay paragraphs, while streaming and in the final text.
+    expect(parseStreamLine('{"type":"assistant","message":{"content":[{"type":"text","text":"A."},{"type":"tool_use"},{"type":"text","text":"B"}]}}')).toEqual([
+      { type: 'text', text: 'A.\n\nB' },
+    ]);
+    expect(parseStreamLine('{"type":"stream_event","event":{"type":"content_block_start","index":2,"content_block":{"type":"text","text":""}}}')).toEqual([
+      { type: 'textDelta', text: '\n\n' },
+    ]);
+    expect(parseStreamLine('{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}}')).toEqual([]);
     expect(parseStreamLine('{"type":"result","subtype":"error_max_turns","is_error":true}')).toEqual([
       { type: 'done', ok: false, durationMs: null, detail: 'error_max_turns' },
     ]);
