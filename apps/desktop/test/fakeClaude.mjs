@@ -52,6 +52,8 @@ if (args[0] === '--version') {
       subscriptionType: signedIn && !apiKey ? 'max' : null,
     }),
   );
+  // Like Claude Code 2.1.302: signed out, the status ends with exit code 1.
+  if (!signedIn) process.exitCode = 1;
 } else if (args.includes('-p')) {
   // The model listing (B1) starts without an MCP configuration and only asks `initialize`.
   const config = args.includes('--mcp-config') ? JSON.parse(readFileSync(args[args.indexOf('--mcp-config') + 1], 'utf8')) : null;
