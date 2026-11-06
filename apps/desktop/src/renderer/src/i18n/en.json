@@ -289,7 +289,8 @@
       "title": "Model",
       "applies": "Applies from the next answer, also mid-conversation.",
       "keep": "Keep for new chats",
-      "isDefault": "Default for new chats"
+      "isDefault": "Default for new chats",
+      "defaultName": "Default (recommended)"
     },
     "effort": {
       "title": "Effort",
@@ -366,7 +367,8 @@
       "kept": "Earlier sketches of this project",
       "keptNone": "No sketch sent from this project yet.",
       "keptLoading": "Reading the sketches …",
-      "keptElements": "{count, plural, one {# element} other {# elements}}"
+      "keptElements": "{count, plural, one {# element} other {# elements}}",
+      "reopen": "Open this sketch again"
     },
     "photo": {
       "button": "Photo",
@@ -376,7 +378,8 @@
       "failed": "The picture could not be read. PNG, JPEG and WebP work.",
       "drop": "Drop the picture: it goes with your message",
       "sent": "With a photo",
-      "defaultText": "Make a part that fits the object in the photo."
+      "defaultText": "Make a part that fits the object in the photo.",
+      "show": "Show the photo large"
     },
     "local": {
       "ready": "{server} · {model}",
@@ -394,6 +397,23 @@
         "seven_day_opus": "week Opus",
         "seven_day_sonnet": "week Sonnet"
       }
+    },
+    "failed": {
+      "title": "The answer failed.",
+      "reason": {
+        "failed": "The assistant stopped with an error.",
+        "error_during_execution": "An error stopped the assistant while it worked.",
+        "error_max_turns": "The assistant took too many steps and stopped.",
+        "other": "The assistant stopped before it finished."
+      },
+      "log": "The log file has the details (Settings › About).",
+      "retry": "Send again"
+    },
+    "examples": {
+      "holder": "A wall holder for a cordless drill: a plate with two countersunk screws and a hook for a 35 mm wide grip",
+      "housing": "A housing 80 × 50 × 30 mm for a circuit board, with a screwed-on lid and a hole for a USB-C cable",
+      "photo": "A replacement knob that fits the shaft on my photo",
+      "hint": "An example fills the input, so you can change it first. A sketch or a photo can go along too."
     }
   },
   "live": {

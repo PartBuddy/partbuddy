@@ -486,6 +486,10 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
   const { page } = launched;
   try {
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    // An empty chat offers examples; one fills the input and sends nothing.
+    await page.getByTestId('chat-example').first().click();
+    await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toHaveValue(/^A wall holder for a cordless drill/);
+    await expect(page.getByTestId('chat-start')).toBeVisible();
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make a plan first');
     await page.getByRole('button', { name: 'Send' }).click();
     const card = page.getByTestId('question-card');
@@ -521,6 +525,16 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     await page.screenshot({ path: test.info().outputPath('composer-busy.png') });
     await expect(page.getByText('Done, slowly.')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('button', { name: 'Send' })).toBeVisible();
+    // A failed turn says so, with its reason and the way to the log, and sends the message again on request.
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make it fail');
+    await page.getByRole('button', { name: 'Send' }).click();
+    const failed = page.getByTestId('turn-failed');
+    await expect(failed).toContainText('An error stopped the assistant while it worked.', { timeout: 30_000 });
+    await expect(failed).toContainText('Settings › About');
+    await failed.getByTestId('turn-retry').click();
+    await expect(page.getByTestId('turn-failed')).toHaveCount(2, { timeout: 30_000 });
+    // Only the newest failure offers to send again.
+    await expect(page.getByTestId('turn-retry')).toHaveCount(1);
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('plan-failed.png') }).catch(() => undefined);
     throw error;
@@ -1912,6 +1926,12 @@ test('a rough sketch drawn with the mouse goes to the assistant as a picture wit
     await expect(page.getByText(/I see a PNG picture of \d+ KB with the sketch note, its dimension and its label on two sheets with a scale\./)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('composer-sketch')).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('sketch-sent.png') });
+    // The message shows the sketch it took along; a click opens it again to change it (polish round 1).
+    await page.getByTestId('message-attachment').click();
+    await expect(pad).toBeVisible();
+    await expect(canvas).toHaveAttribute('data-items', '4');
+    await pad.getByRole('button', { name: 'Cancel' }).click();
+    await expect(pad).toHaveCount(0);
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
@@ -2078,6 +2098,11 @@ test('a photo goes to the assistant as a picture with its note and is kept in th
     await expect(page.getByText('Make a part that fits the object in the photo.')).toBeVisible();
     await expect(page.getByText(/I see a PNG picture of \d+ KB with the photo note and its file\./)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('composer-photo')).toHaveCount(0);
+    // The message shows the photo; a click shows it large (polish round 1).
+    await page.getByTestId('message-attachment').click();
+    await expect(page.getByTestId('photo-large')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('photo-large')).toHaveCount(0);
     const project = readdirSync(projects).find((name) => existsSync(join(projects, name, 'photos')));
     expect(project).toBeDefined();
     expect(readdirSync(join(projects, project ?? '', 'photos'))).toEqual([expect.stringMatching(/^photo-\d{8}-\d{6}\.png$/)]);

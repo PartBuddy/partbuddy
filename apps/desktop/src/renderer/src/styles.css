@@ -45,4 +45,19 @@ body,
 .cs-markdown :not(pre) > code {
   font-family: var(--cs-font-sans);
   font-variant-numeric: tabular-nums;
+  font-size: inherit;
+}
+
+/*
+ * Answers read like a chat, not a document (polish round 1): Streamdown spaces headings like a page
+ * (32 px above) and list items generously; the answer's own gap between blocks is enough.
+ */
+.cs-markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: var(--cs-space-1) 0;
+}
+.cs-markdown li {
+  padding-block: 0;
+}
+.cs-markdown li + li {
+  margin-top: var(--cs-space-1);
 }

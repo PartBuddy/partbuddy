@@ -58,9 +58,9 @@ for (const size of WIDTHS) {
       const composer = page.getByRole('textbox', { name: 'Nachricht an den Assistenten' });
       const send = async (text: string) => {
         await composer.fill(text);
-        await page.getByRole('button', { name: 'Senden' }).click();
+        await page.getByRole('button', { name: 'Senden', exact: true }).click();
       };
-      const settled = () => expect(page.getByRole('button', { name: 'Senden' })).toBeVisible({ timeout: 30_000 });
+      const settled = () => expect(page.getByRole('button', { name: 'Senden', exact: true })).toBeVisible({ timeout: 30_000 });
 
       await shot('01-empty');
       await page.getByTestId('agent-status').click();
@@ -90,7 +90,7 @@ for (const size of WIDTHS) {
       await shot('07-failed');
 
       await composer.fill('Take your time');
-      await page.getByRole('button', { name: 'Senden' }).click();
+      await page.getByRole('button', { name: 'Senden', exact: true }).click();
       await expect(page.getByRole('button', { name: 'Stopp' })).toBeVisible();
       await shot('08-busy');
       await settled();
@@ -113,7 +113,7 @@ for (const size of WIDTHS) {
         .catch(() => false);
       if (attached) {
         await shot('09-sketch-attached');
-        await page.getByRole('button', { name: 'Senden' }).click();
+        await page.getByRole('button', { name: 'Senden', exact: true }).click();
         await settled();
         await shot('10-sketch-sent');
       } else {

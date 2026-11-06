@@ -43,10 +43,16 @@ export function effortLabel(t: T, effort: string): string {
   return t(`assistant.effort.level.${effort}`, { defaultValue: effort });
 }
 
+/** A model's name; Claude Code's own "Default (recommended)" in the interface language (polish round 1). */
+function modelName(t: T, model: { id: string; name: string }): string {
+  return model.id === 'default' ? t('assistant.model.defaultName') : model.name;
+}
+
 /** The model in use by its display name, and the effort when one is set (B1). */
 function modelLabel(t: T, status: AgentStatus): string | null {
   if (!status.model) return null;
-  const name = status.models?.find((model) => model.id === status.model)?.name ?? status.model;
+  const found = status.models?.find((model) => model.id === status.model);
+  const name = found ? modelName(t, found) : status.model;
   return status.effort ? `${name} · ${effortLabel(t, status.effort)}` : name;
 }
 
@@ -110,7 +116,7 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
             <RadioButton className={radioClass} data-testid="model-option">
               <RadioMark />
               <span className="flex flex-col">
-                <span className="text-sm text-text">{model.name}</span>
+                <span className="text-sm text-text">{modelName(t, model)}</span>
                 {model.description ? <span className="text-xs text-text-muted">{model.description}</span> : null}
               </span>
             </RadioButton>

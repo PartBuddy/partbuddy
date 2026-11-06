@@ -454,6 +454,9 @@ if (!app.requestSingleInstanceLock()) {
       return undefined;
     });
     const emitEvent = (event: AgentEvent) => {
+      // A failed turn and its reason go to the log file too, where the chat points for details.
+      if (event.type === 'done' && !event.ok) log(`assistant turn ended: ${event.detail ?? 'failed'}`);
+      if (event.type === 'error') log(`assistant error: ${event.message.slice(0, 300)}`);
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentEvent, event);
     };
     const steps = new WorkLog({
