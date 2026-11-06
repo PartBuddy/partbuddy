@@ -213,6 +213,10 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   of a shell; a sketch plane with that normal and a negative extrusion therefore always cuts in.
 - Face names from history can run to hundreds of characters after cuts and embossing
   (`F1:-y#[F1:+x,…,F4:face:55]`); every place that shows one must cut it short.
+- `plastic.snap_fit {position, hook, length, thickness, width, catch_depth, catch_length}` stands
+  the arm out of the face; `length` includes the catch (a 10 mm arm on a 10 mm box reaches 20 mm).
+  `hook` must lie in the face ("must point across the arm" otherwise). The strain shown in the form
+  uses the lever to the catch's middle.
 - `solidcraft-cli commands` prints every command with its parameters as JSON, the quickest way to
   check a parameter before a contract test.
 

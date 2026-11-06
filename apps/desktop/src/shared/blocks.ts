@@ -1,7 +1,7 @@
 /**
- * Function blocks (plan step F1): holes and seats for screws, nut traps, slots, text and lips for
- * lids, built at a picked flat face with SolidCraft's own commands (`solid.hole`, `plastic.boss`,
- * `solid.emboss`, `plastic.lip`, sketches cut in). Sizes and allowances come from standard tables;
+ * Function blocks (plan step F1): holes and seats for screws, nut traps, slots, text, lips for
+ * lids and snap fits, built at a picked flat face with SolidCraft's own commands (`solid.hole`,
+ * `plastic.boss`, `solid.emboss`, `plastic.lip`, `plastic.snap_fit`, sketches cut in). Sizes and allowances come from standard tables;
  * everything stays editable because printers, nuts and inserts differ.
  */
 
@@ -68,14 +68,28 @@ export type FeatureBlock =
   /** A slot for a screw, across or along the face, through or to a depth. */
   | { block: 'slot'; body: string; point: Point; normal: Point; size: BlockSize; length: number; width: number; depth: number | null; along: 'x' | 'y' }
   /** A lip or a groove on the rim of a shelled body, for a lid (SolidCraft's `plastic.lip`). */
-  | { block: 'lip'; body: string; point: Point; size: BlockSize; type: 'lip' | 'groove'; width: number; height: number; gap: number };
+  | { block: 'lip'; body: string; point: Point; size: BlockSize; type: 'lip' | 'groove'; width: number; height: number; gap: number }
+  /**
+   * A cantilever snap fit standing out of the face (SolidCraft's `plastic.snap_fit`); the catch
+   * points along one of the face's sketch directions.
+   */
+  | { block: 'snapFit'; body: string; point: Point; normal: Point; size: BlockSize; length: number; thickness: number; width: number; catchDepth: number; catchLength: number; hook: HookDirection };
+
+/** The catch's direction in the face: along the sketch plane's x or y, either way. */
+export const HOOK_DIRECTIONS = ['y+', 'y-', 'x+', 'x-'] as const;
+export type HookDirection = (typeof HOOK_DIRECTIONS)[number];
 
 export type BlockKind = FeatureBlock['block'];
-export const BLOCK_KINDS: BlockKind[] = ['tappedHole', 'screwHole', 'insertSeat', 'nutTrap', 'boss', 'slot', 'text', 'lip'];
+export const BLOCK_KINDS: BlockKind[] = ['tappedHole', 'screwHole', 'insertSeat', 'nutTrap', 'boss', 'slot', 'text', 'lip', 'snapFit'];
 
-/** Blocks drawn in a sketch on the face, which need the face's direction. */
+/** Blocks laid out in the face's own directions, which need the face's normal. */
 export function needsNormal(kind: BlockKind): boolean {
-  return kind === 'text' || kind === 'nutTrap' || kind === 'slot';
+  return kind === 'text' || kind === 'nutTrap' || kind === 'slot' || kind === 'snapFit';
+}
+
+/** Text, lips and snap fits have no screw size to choose. */
+export function hasSize(kind: BlockKind): boolean {
+  return kind !== 'text' && kind !== 'lip' && kind !== 'snapFit';
 }
 
 const round = (value: number) => Math.round(value * 100) / 100;
@@ -112,7 +126,27 @@ export function defaultBlock(kind: BlockKind, body: string, point: [number, numb
     }
     case 'lip':
       return { block: kind, body, point, size, type: 'lip', width: 1.2, height: 2, gap: 0.2 };
+    case 'snapFit':
+      // About 1.4 % strain when it snaps in: within what printed PLA takes.
+      return { block: kind, body, point, normal, size, length: 12, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5, hook: 'y+' };
   }
+}
+
+/**
+ * The bending strain at the arm's root when the catch is pushed aside by its depth, for a
+ * cantilever of constant section: 1.5 · thickness · deflection / lever², in per cent. SolidCraft's
+ * length includes the catch, so the lever runs to the catch's middle.
+ */
+export function snapStrain(block: { length: number; thickness: number; catchDepth: number; catchLength: number }): number {
+  const lever = Math.max(block.length - block.catchLength / 2, block.length / 4);
+  return (150 * block.thickness * block.catchDepth) / lever ** 2;
+}
+
+/** The catch's direction in world coordinates. */
+export function hookVector(point: Point, normal: Point, hook: HookDirection): Point {
+  const plane = planeAt(point, normal);
+  const axis = hook.startsWith('x') ? plane.x_dir : plane.y_dir;
+  return (hook.endsWith('-') ? axis.map((value) => (value === 0 ? 0 : -value)) : axis) as Point;
 }
 
 /** Normal clearance holes, ISO 273 medium series, in mm. */
@@ -171,6 +205,21 @@ export function stepsOf(block: FeatureBlock): Step[] {
         { command: 'solid.extrude', params: { distance: mm(-(block.depth ?? 1000)), operation: 'cut' } },
       ];
     }
+    case 'snapFit':
+      return [
+        {
+          command: 'plastic.snap_fit',
+          params: {
+            position: block.point,
+            hook: hookVector(block.point, block.normal, block.hook),
+            length: mm(block.length),
+            thickness: mm(block.thickness),
+            width: mm(block.width),
+            catch_depth: mm(block.catchDepth),
+            catch_length: mm(block.catchLength),
+          },
+        },
+      ];
     case 'lip':
       return [{ command: 'plastic.lip', params: { face: block.point, type: block.type, width: mm(block.width), height: mm(block.height), ...(block.type === 'groove' ? { gap: mm(block.gap) } : {}) } }];
     default:
@@ -179,7 +228,7 @@ export function stepsOf(block: FeatureBlock): Step[] {
 }
 
 /** The SolidCraft command of a block that is one feature. */
-export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'nutTrap' | 'slot' | 'lip' }>): Step {
+export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'nutTrap' | 'slot' | 'lip' | 'snapFit' }>): Step {
   const mm = (value: number) => `${String(round(value))} mm`;
   switch (block.block) {
     case 'tappedHole':
