@@ -51,6 +51,7 @@ import type {
 } from './contract';
 
 import type { FeatureBlock } from './blocks';
+import type { TemplateId } from './templates';
 
 /**
  * What the preload exposes as `window.partbuddy`. Each member is bound to one channel of the
@@ -103,6 +104,8 @@ export interface PartBuddyApi {
      * or OBJ file is inserted into a new design. Asks with the open dialog when no path is given.
      */
     import(path?: string): Promise<ProjectOpenResult>;
+    /** A new project from a template (F3), opened; `name` is the template's name in the user's language. */
+    fromTemplate(template: TemplateId, name: string): Promise<ProjectOpenResult>;
     /** The path of a file dropped onto the window, for import (B4); empty for a file without one. */
     pathOfFile(file: File): string;
     /** The saved versions of the open project, newest first (B5). */

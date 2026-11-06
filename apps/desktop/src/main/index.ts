@@ -40,6 +40,7 @@ import { safeDesignFileName } from './solidcraft/headless';
 import { SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
 import { printCheckNote } from './print/printCheckNote';
+import { templateSteps } from '../shared/templates';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
 
 app.setName('PartBuddy');
@@ -758,6 +759,19 @@ if (!app.requestSingleInstanceLock()) {
       await switchProject(() => Promise.resolve(target));
       log(kind === 'design' ? 'imported a design into a new project' : `made a new project from a ${kind} file`);
       return { opened: true, imported: true };
+    });
+    // Templates (F3): the template's script becomes the design of a new project, then it opens.
+    bridge.handle(invokeChannels.projectFromTemplate, async ({ template, name }) => {
+      const target = projectStore.newDesignFile(name);
+      try {
+        await supervisor.designFromSteps(templateSteps(template), target);
+      } catch (error) {
+        rmSync(dirname(target), { recursive: true, force: true });
+        throw error;
+      }
+      await switchProject(() => Promise.resolve(target));
+      log(`made a new project from the template ${template}`);
+      return { opened: true, imported: false };
     });
     bridge.handle(invokeChannels.designInsert, async ({ path }) => {
       assistantIdle();

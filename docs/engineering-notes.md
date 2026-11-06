@@ -226,6 +226,15 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   closer than `clearance` with `distance_mm`, `from` and `to`; touching pairs come with distance 0.
   Four 10 mm boxes take 8 ms; results are reused while neither body changes (`pairs_reused`). The
   light runs it on trial after the mesh check whenever two or more bodies are printed (F2).
+- Templates (F3, 0.40.0-rc.2): `solid.box` and `solid.cylinder` follow expressions in their sizes and
+  corners, `sketch.line` and `sketch.point` in their points, and a revolve of such a profile too.
+  `solid.hole` keeps a `position` given as expressions in its definition (`at`) but does not move:
+  after a change it warns "no longer on face … it stays where it was placed". Plain holes are
+  therefore cut cylinders; countersunk ones are drilled at sketch points (`solid.hole {sketch}`).
+  A sketch plane's `origin` takes numbers only; a sketch on `{face: point}` follows the face (on a
+  face with normal +Y its x runs along −X). Fillets by edge points followed a size change.
+- `solidcraft-cli snapshot script.json --out x.png --view iso --no-grid --no-axes` renders a script
+  without a window; `--section x=35` cuts it, handy to check a hole.
 - `solidcraft-cli commands` prints every command with its parameters as JSON, the quickest way to
   check a parameter before a contract test.
 

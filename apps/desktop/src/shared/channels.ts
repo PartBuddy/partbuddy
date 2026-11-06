@@ -20,6 +20,7 @@ export const invokeChannels = {
   projectList: 'project:list',
   projectOpenFolder: 'project:open-folder',
   projectImport: 'project:import',
+  projectFromTemplate: 'project:from-template',
   projectSavePreview: 'project:save-preview',
   projectVersions: 'project:versions',
   projectSaveVersion: 'project:save-version',

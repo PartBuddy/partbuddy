@@ -44,6 +44,7 @@ const api: PartBuddyApi = {
     list: () => ipcRenderer.invoke(invokeChannels.projectList),
     openFolder: (folder) => ipcRenderer.invoke(invokeChannels.projectOpenFolder, { folder }),
     import: (path) => ipcRenderer.invoke(invokeChannels.projectImport, path === undefined ? {} : { path }),
+    fromTemplate: (template, name) => ipcRenderer.invoke(invokeChannels.projectFromTemplate, { template, name }),
     pathOfFile: (file) => webUtils.getPathForFile(file),
     savePreview: (preview) => ipcRenderer.invoke(invokeChannels.projectSavePreview, preview),
     versions: () => ipcRenderer.invoke(invokeChannels.projectVersions),

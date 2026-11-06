@@ -690,6 +690,31 @@
       "ready": "Ready to print",
       "warn": "Hints",
       "block": "Not ready to print"
+    },
+    "templates": {
+      "title": "Start from a template",
+      "items": {
+        "boxWithLid": {
+          "name": "Box with lid",
+          "body": "A box and a lid with a lip that sits in it, with 0.2 mm of play."
+        },
+        "housing": {
+          "name": "Housing",
+          "body": "For electronics: screw bosses for M3 heat-set inserts and a lid with screw holes."
+        },
+        "wallHolder": {
+          "name": "Wall holder",
+          "body": "A hook for the wall with two countersunk screw holes."
+        },
+        "cableClip": {
+          "name": "Cable clip",
+          "body": "Snaps around a cable and is screwed down with an M3 screw."
+        },
+        "adapter": {
+          "name": "Tube adapter",
+          "body": "Joins two tubes or hoses of different diameters."
+        }
+      }
     }
   },
   "versions": {
