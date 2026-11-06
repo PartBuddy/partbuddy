@@ -728,6 +728,15 @@ export const actionPreviewSchema = z.discriminatedUnion('ok', [
 export const measureItemSchema = z.object({ type: z.enum(['face', 'edge', 'vertex']), body: bodyName, point: point3 }).strict();
 export const measureRequestSchema = z.object({ items: z.array(measureItemSchema).min(1).max(2) }).strict();
 export const measureResultSchema = z.object({ distance: finite.nullable(), angle: finite.nullable() }).strict();
+/** The printed bodies whose clearance SolidCraft measures (F2); standard parts stay out. */
+export const clearanceRequestSchema = z.object({ bodies: z.array(bodyName).min(2).max(200), gap: finite.min(0).max(5) }).strict();
+const boxSchema = z.object({ min: point3, max: point3 }).strict();
+export const clearanceResultSchema = z
+  .object({
+    overlaps: z.array(z.object({ a: bodyName, b: bodyName, volume: finite.nonnegative(), box: boxSchema }).strict()).max(100),
+    near: z.array(z.object({ a: bodyName, b: bodyName, distance: finite.nonnegative(), from: point3, to: point3 }).strict()).max(100),
+  })
+  .strict();
 
 /** Timeline commands of the user (M1c): roll back to a position or to the end, suppress a feature. */
 export const timelineCommandSchema = z.discriminatedUnion('action', [
@@ -897,6 +906,8 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
+  z.object({ kind: z.literal('overlap'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), volume: finite.nonnegative(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('tight'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), gap: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
 ]);
 export const printCheckReportSchema = z
   .object({
@@ -964,6 +975,7 @@ export const invokeContract = {
   [invokeChannels.designPreviewAction]: { request: designActionSchema, response: actionPreviewSchema },
   [invokeChannels.designApplyAction]: { request: designActionSchema, response: none },
   [invokeChannels.designMeasure]: { request: measureRequestSchema, response: measureResultSchema },
+  [invokeChannels.designClearance]: { request: clearanceRequestSchema, response: clearanceResultSchema },
   [invokeChannels.designPartsLibrary]: { request: none, response: partsLibrarySchema },
   [invokeChannels.designPreviewBlock]: { request: featureBlockSchema, response: actionPreviewSchema },
   [invokeChannels.designApplyBlock]: { request: featureBlockSchema, response: none },
@@ -1069,6 +1081,7 @@ export type DesignAction = z.infer<typeof designActionSchema>;
 export type ActionPreviewResult = z.infer<typeof actionPreviewSchema>;
 export type MeasureItem = z.infer<typeof measureItemSchema>;
 export type MeasureResult = z.infer<typeof measureResultSchema>;
+export type ClearanceResult = z.infer<typeof clearanceResultSchema>;
 export type TimelineFeature = z.infer<typeof timelineFeatureSchema>;
 export type Structure = z.infer<typeof structureSchema>;
 export type TimelineCommand = z.infer<typeof timelineCommandSchema>;

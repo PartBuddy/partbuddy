@@ -1,7 +1,7 @@
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { DesignAction, MeasureItem, MeasureResult } from '../../shared/contract';
+import type { ClearanceResult, DesignAction, MeasureItem, MeasureResult } from '../../shared/contract';
 import type { ControlRequester } from './mirror';
 
 /**
@@ -93,4 +93,41 @@ export class ActionService {
       angle: typeof result.angle_deg === 'number' ? result.angle_deg : null,
     };
   }
+
+  /**
+   * Overlaps and gaps narrower than `gap` between bodies (`inspect.clearance`, plan step F2). Mesh
+   * bodies are not measured; SolidCraft lists them as unchecked, which the light leaves out.
+   */
+  async clearance(bodies: string[], gap: number): Promise<ClearanceResult> {
+    const reply = await this.batch([{ command: 'inspect.clearance', params: { bodies, clearance: gap } }], false);
+    if (reply.failed) throw new Error(reply.failed.error);
+    return clearanceOf(reply.results?.[0]);
+  }
+}
+
+type Vec3 = [number, number, number];
+const isVec = (value: unknown): value is Vec3 => Array.isArray(value) && value.length === 3 && value.every((item) => typeof item === 'number' && Number.isFinite(item));
+const name = (value: unknown): string | null => (typeof value === 'string' && value.length > 0 && value.length <= 200 ? value : null);
+
+/** SolidCraft's answer of `inspect.clearance`, checked field by field; anything odd is left out. */
+export function clearanceOf(result: unknown): ClearanceResult {
+  const { overlaps, near } = (result ?? {}) as { overlaps?: unknown; near?: unknown };
+  const list = (value: unknown) => (Array.isArray(value) ? (value as Record<string, unknown>[]).slice(0, 100) : []);
+  return {
+    overlaps: list(overlaps).flatMap((item) => {
+      const a = name(item.a);
+      const b = name(item.b);
+      const box = item.bbox as { min?: unknown; max?: unknown } | undefined;
+      const volume = item.volume_mm3;
+      if (!a || !b || typeof volume !== 'number' || !(volume >= 0) || !isVec(box?.min) || !isVec(box.max)) return [];
+      return [{ a, b, volume, box: { min: box.min, max: box.max } }];
+    }),
+    near: list(near).flatMap((item) => {
+      const a = name(item.a);
+      const b = name(item.b);
+      const distance = item.distance_mm;
+      if (!a || !b || typeof distance !== 'number' || !(distance >= 0) || !isVec(item.from) || !isVec(item.to)) return [];
+      return [{ a, b, distance, from: item.from, to: item.to }];
+    }),
+  };
 }

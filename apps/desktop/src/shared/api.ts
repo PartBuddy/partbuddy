@@ -32,6 +32,7 @@ import type {
   ExportResult,
   MeasureItem,
   MeasureResult,
+  ClearanceResult,
   MessageAnswer,
   TimelineCommand,
   VisibilityCommand,
@@ -162,6 +163,8 @@ export interface PartBuddyApi {
     insertPart(part: PartInsert): Promise<{ body: string | null }>;
     /** Distance and angle between two selections. */
     measure(items: MeasureItem[]): Promise<MeasureResult>;
+    /** Overlaps and narrow gaps between printed bodies (F2), measured by SolidCraft. */
+    clearance(bodies: string[], gap: number): Promise<ClearanceResult>;
     /** Rolls the timeline back or forward, or suppresses a feature (M1c). */
     timeline(command: TimelineCommand): Promise<void>;
     /** Shows or hides bodies and sketches. */

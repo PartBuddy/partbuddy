@@ -613,6 +613,7 @@ if (!app.requestSingleInstanceLock()) {
       return undefined;
     });
     bridge.handle(invokeChannels.designMeasure, ({ items }) => supervisor.measure(items));
+    bridge.handle(invokeChannels.designClearance, ({ bodies, gap }) => supervisor.clearance(bodies, gap));
     bridge.handle(invokeChannels.designTimeline, async (command) => {
       assistantIdle();
       const phrase =

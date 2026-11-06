@@ -80,6 +80,7 @@ const api: PartBuddyApi = {
     setPrintFace: (body, point) => ipcRenderer.invoke(invokeChannels.designPrintFace, { body, point }),
     insertPart: (part) => ipcRenderer.invoke(invokeChannels.designInsertPart, part),
     measure: (items) => ipcRenderer.invoke(invokeChannels.designMeasure, { items }),
+    clearance: (bodies, gap) => ipcRenderer.invoke(invokeChannels.designClearance, { bodies, gap }),
     timeline: (command) => ipcRenderer.invoke(invokeChannels.designTimeline, command),
     visibility: (command) => ipcRenderer.invoke(invokeChannels.designVisibility, command),
     insert: (path) => ipcRenderer.invoke(invokeChannels.designInsert, path === undefined ? {} : { path }),

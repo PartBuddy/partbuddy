@@ -37,6 +37,10 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.separate', { bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
       case 'feature':
         return t('check.finding.feature', { feature: finding.feature, message: finding.message });
+      case 'overlap':
+        return t('check.finding.overlap', { a: finding.bodies[0], b: finding.bodies[1], volume: number.format(finding.volume) });
+      case 'tight':
+        return t('check.finding.tight', { a: finding.bodies[0], b: finding.bodies[1], gap: number.format(finding.gap), minimum: number.format(finding.minimum) });
     }
   };
 }
@@ -53,7 +57,7 @@ function FindingRow({ finding }: { finding: PrintFinding }) {
       <span aria-hidden className={`mt-1 size-dot shrink-0 rounded-full ${severityDot(finding)}`} />
       <span className="flex min-w-0 flex-1 flex-col gap-0 text-left">
         <span className="text-sm text-text">{text(finding)}</span>
-        {located ? <span className="text-xs text-text-muted">{t('check.faces', { count: faces })}</span> : null}
+        {faces > 0 ? <span className="text-xs text-text-muted">{t('check.faces', { count: faces })}</span> : null}
       </span>
     </>
   );

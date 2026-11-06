@@ -1649,3 +1649,47 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('the light measures parts against each other: an overlap and a gap under the push fit (F2)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-clearance-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7911',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    // One part alone: nothing to measure against.
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'ready', { timeout: 30_000 });
+
+    // A case, a lid sunk 1 mm into it and a clip 0.1 mm beside it (PLA's push fit is 0.15 mm).
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build parts that clash');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('4 bodies', { timeout: 30_000 });
+    await page.getByTestId('print-check').click();
+    const panel = page.getByTestId('print-check-panel');
+    // The first box stands inside the case as well, so it overlaps the case and the lid too.
+    await expect(panel.locator('[data-kind="overlap"]')).toHaveCount(3, { timeout: 30_000 });
+    await expect(panel.locator('[data-kind="overlap"]', { hasText: 'Case and Lid overlap by 400 mm³' })).toHaveCount(1);
+    await expect(panel.locator('[data-kind="tight"]')).toHaveCount(2);
+    await expect(panel.locator('[data-kind="tight"]', { hasText: 'Case and Clip come within 0.1 mm without touching – under the push fit of 0.15 mm per side' })).toHaveCount(1);
+    await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'warn');
+    await page.screenshot({ path: test.info().outputPath('clearance.png') });
+    // The finding points at the place: the camera goes to the gap.
+    await panel.locator('[data-kind="tight"]', { hasText: 'Case and Clip' }).getByRole('button').click();
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

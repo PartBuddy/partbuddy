@@ -12,6 +12,11 @@ const sunk = (name, z) => ({
   command: 'solid.hole',
   params: { position: [25, 0, z], direction: [0, 1, 0], diameter: '4.5 mm', type: 'countersink', cs_diameter: '9 mm', cs_angle: '90 deg', name },
 });
+const CLASHING_PARTS = [
+  { command: 'solid.box', params: { length: 20, width: 20, height: 10, operation: 'new', body_name: 'Case' } },
+  { command: 'solid.box', params: { length: 20, width: 20, height: 3, corner: [0, 0, 9], operation: 'new', body_name: 'Lid' } },
+  { command: 'solid.box', params: { length: 5, width: 5, height: 5, corner: [0, 20.1, 0], operation: 'new', body_name: 'Clip' } },
+];
 const WALL_HOLDER = [
   ...[
     ['plate_height', '100 mm'],
@@ -125,6 +130,14 @@ if (args[0] === '--version') {
     // tells whether PartBuddy's note came with the message.
     // "wall holder" (UI upgrade step 10): the part of the UI inventory, boxes on formula corners
     // and countersunk holes, built step by step.
+    // "parts that clash" (F2): a case, a lid that sinks 1 mm into it and a clip 0.1 mm beside it.
+    if (content.includes('parts that clash')) {
+      for (const step of CLASHING_PARTS) await client.callTool({ name: 'execute', arguments: step });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'Three parts are built.' }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     if (content.includes('wall holder')) {
       for (const step of WALL_HOLDER) await client.callTool({ name: 'execute', arguments: step });
       await client.close();
