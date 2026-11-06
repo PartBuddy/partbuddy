@@ -192,6 +192,16 @@ function Item({ item, quiet }: { item: ConversationItem; quiet: boolean }) {
 
 const NO_STROKES: Stroke[] = [];
 
+/** The first picture among pasted or dropped files; other files are left to the window's import. */
+function pictureIn(data: DataTransfer | null): File | null {
+  return [...(data?.files ?? [])].find((file) => file.type.startsWith('image/')) ?? null;
+}
+
+/** Whether a drag carries a picture; while dragging, only the items' types can be read. */
+function dragsPicture(data: DataTransfer | null): boolean {
+  return [...(data?.items ?? [])].some((item) => item.kind === 'file' && item.type.startsWith('image/'));
+}
+
 export function AssistantPanel() {
   const { t } = useTranslation();
   const status = selectedStatus(useAssistant((s) => s.state));
@@ -215,6 +225,21 @@ export function AssistantPanel() {
   const [photo, setPhoto] = useState<SketchPicture | null>(null);
   const [photoFailed, setPhotoFailed] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
+  // A picture dragged over the chat; pasted and dropped pictures go along like a chosen photo.
+  const [dropping, setDropping] = useState(false);
+  const attachPhoto = (file: Blob) => {
+    setPhotoFailed(false);
+    photoPicture(file).then(
+      (picture) => {
+        setPhoto(picture);
+        setSketch(null);
+        composer.current?.focus();
+      },
+      () => {
+        setPhotoFailed(true);
+      },
+    );
+  };
 
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight });
@@ -231,7 +256,38 @@ export function AssistantPanel() {
   };
 
   return (
-    <aside aria-labelledby="assistant-title" className="relative flex shrink-0 flex-col border-l border-border bg-surface" style={{ width }} data-testid="assistant-panel">
+    <aside
+      aria-labelledby="assistant-title"
+      className="relative flex shrink-0 flex-col border-l border-border bg-surface"
+      style={{ width }}
+      data-testid="assistant-panel"
+      // A picture dropped anywhere on the chat goes with the next message; the window's own drop
+      // (FileDrop) sees the handled event and leaves it, other files still import there.
+      onDragOver={(event) => {
+        if (!ready || !dragsPicture(event.dataTransfer)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        setDropping(true);
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropping(false);
+      }}
+      onDrop={(event) => {
+        setDropping(false);
+        const file = ready ? pictureIn(event.dataTransfer) : null;
+        if (!file) return;
+        event.preventDefault();
+        attachPhoto(file);
+      }}
+    >
+      {dropping ? (
+        <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-lg border-2 border-dashed border-accent bg-surface-raised p-4 text-center" data-testid="chat-drop">
+          <p className="flex items-center gap-2 text-md font-semibold text-text">
+            <IconPhoto className="size-icon shrink-0 text-accent" aria-hidden />
+            {t('assistant.photo.drop')}
+          </p>
+        </div>
+      ) : null}
       <ChatResizer width={width} max={maxWidth} onChange={setWidth} />
       {/* The route and its status live in the chip beside the composer; the heading stays for screen readers. */}
       <h2 id="assistant-title" className="sr-only">
@@ -280,6 +336,13 @@ export function AssistantPanel() {
             rows={3}
             placeholder={t('assistant.placeholder')}
             className="w-full resize-none rounded-md border border-border-strong bg-surface p-2 text-md text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+            onPaste={(event) => {
+              // A picture from the clipboard (a screenshot, a copied photo) goes along; text pastes as usual.
+              const file = pictureIn(event.clipboardData);
+              if (!file) return;
+              event.preventDefault();
+              attachPhoto(file);
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -364,7 +427,7 @@ export function AssistantPanel() {
         <input
           ref={photoInput}
           type="file"
-          accept="image/png,image/jpeg"
+          accept="image/png,image/jpeg,image/webp"
           className="hidden"
           tabIndex={-1}
           aria-hidden
@@ -372,18 +435,7 @@ export function AssistantPanel() {
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = '';
-            if (!file) return;
-            setPhotoFailed(false);
-            photoPicture(file).then(
-              (picture) => {
-                setPhoto(picture);
-                setSketch(null);
-                composer.current?.focus();
-              },
-              () => {
-                setPhotoFailed(true);
-              },
-            );
+            if (file) attachPhoto(file);
           }}
         />
         <div className="flex items-center justify-end gap-2">

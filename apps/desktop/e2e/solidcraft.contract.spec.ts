@@ -1943,3 +1943,73 @@ test('the exploded view pulls the parts of a print apart for looking (F7)', asyn
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+/** The browser's picture events, typed here because the E2E files compile without the DOM library. */
+interface PictureEvents {
+  DataTransfer: new () => { items: { add(file: unknown): void } };
+  File: new (parts: Uint8Array[], name: string, options: { type: string }) => unknown;
+  ClipboardEvent: new (type: string, init: object) => Event;
+  DragEvent: new (type: string, init: object) => Event;
+}
+
+test('a picture pasted into the chat or dropped on it goes along like a photo', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-paste-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7917',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  // A template picture stands in for a screenshot or a photo.
+  const bytes = [...readFileSync(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'boxWithLid.png'))];
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    const composer = page.getByRole('textbox', { name: 'Message to the assistant' });
+    await expect(composer).toBeEnabled({ timeout: 30_000 });
+    // Pasted from the clipboard into the input.
+    await composer.evaluate((field, data) => {
+      const view = globalThis as unknown as PictureEvents;
+      const transfer = new view.DataTransfer();
+      transfer.items.add(new view.File([new Uint8Array(data)], 'screenshot.png', { type: 'image/png' }));
+      (field as unknown as EventTarget).dispatchEvent(new view.ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }));
+    }, bytes);
+    await expect(page.getByTestId('composer-photo')).toBeVisible();
+    await page.getByTestId('composer-photo-remove').click();
+    await expect(page.getByTestId('composer-photo')).toHaveCount(0);
+    // Dragged onto the input and dropped: the chat shows its own note, not the window's import.
+    const drag = (types: string[]) =>
+      composer.evaluate(
+        (field, { data, types: kinds }) => {
+          const view = globalThis as unknown as PictureEvents;
+          const transfer = new view.DataTransfer();
+          transfer.items.add(new view.File([new Uint8Array(data)], 'photo.png', { type: 'image/png' }));
+          return kinds.map((type) => {
+            const event = new view.DragEvent(type, { dataTransfer: transfer, bubbles: true, cancelable: true });
+            (field as unknown as EventTarget).dispatchEvent(event);
+            return event.defaultPrevented;
+          });
+        },
+        { data: bytes, types },
+      );
+    await drag(['dragenter', 'dragover']);
+    await expect(page.getByTestId('chat-drop')).toBeVisible();
+    await expect(page.getByTestId('file-drop')).toHaveCount(0);
+    expect(await drag(['dragover', 'drop'])).toEqual([true, true]);
+    await expect(page.getByTestId('composer-photo')).toBeVisible();
+    await expect(page.getByTestId('chat-drop')).toHaveCount(0);
+    await expect(page.getByTestId('file-drop')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('message-photo')).toHaveText('With a photo', { timeout: 30_000 });
+    await expect(page.getByText(/I see a PNG picture of \d+ KB with the photo note\./)).toBeVisible({ timeout: 30_000 });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
