@@ -267,9 +267,10 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   The same run unpacks it on the server too: shortcut »PartBuddy (Test)« on the server desktop,
   own profile via `--user-data-dir=…\.partbuddy\test-app\profile`, SolidCraft 0.40.0-rc.2 set once
   in that profile's `solidcraft-settings.json`.
-- On the server the Claude app hands out TEMP as the 8.3 short path (`C:UsersADMINI~1…`); the
-  SolidCraft contract E2E tests that build a template then open no project. Run them with TEMP and TMP
-  set to the long path (`C:UsersAdministratorAppDataLocalTemp`).
+- On the server the Claude app hands out TEMP as the 8.3 short path (`ADMINI~1` in place of the user
+  folder); the SolidCraft contract E2E tests that build a template then open no project. Run them with
+  TEMP and TMP set to the long path (`%USERPROFILE%\AppData\Local\Temp` spelled out). The same holds
+  for `look.spec`.
 - The self-hosted CI runner (ADR 0022) dies with the Claude session that started it; restart with
   `runner-control.ps1 -Action Start -Quiet`. At boot the scheduled task `PartBuddy-Runner` starts it.
   PowerShell appends CRLF when piping into `wsl.exe`.
