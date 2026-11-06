@@ -246,6 +246,9 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 - Since 2026-11-06 development runs on the home server; the gaming PC only runs the test version,
   which `tools/test-app/deliver-test-app.ps1` builds and copies there over SSH (target `user@host`
   in `%USERPROFILE%\.partbuddy\test-pc.txt`). The server reaches the PC, not the other way round.
+  The same run unpacks it on the server too: shortcut »PartBuddy (Test)« on the server desktop,
+  own profile via `--user-data-dir=…\.partbuddy\test-app\profile`, SolidCraft 0.40.0-rc.2 set once
+  in that profile's `solidcraft-settings.json`.
 - The self-hosted CI runner (ADR 0022) dies with the Claude session that started it; restart with
   `runner-control.ps1 -Action Start -Quiet`. At boot the scheduled task `PartBuddy-Runner` starts it.
   PowerShell appends CRLF when piping into `wsl.exe`.
