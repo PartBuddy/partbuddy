@@ -521,7 +521,8 @@
     "actionReady": "Vorschau in der Ansicht – Enter übernimmt, Esc bricht ab",
     "actionRefused": "SolidCraft kann das so nicht bauen: {detail}",
     "distance": "Abstand {value} mm",
-    "angle": "Winkel {value}°"
+    "angle": "Winkel {value}°",
+    "approximate": "Aus der Ansicht gelesen; das genaue Maß von SolidCraft folgt"
   },
   "structure": {
     "title": "Struktur",

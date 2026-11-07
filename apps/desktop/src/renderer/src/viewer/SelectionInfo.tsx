@@ -2,6 +2,7 @@ import { featureOf, surfaceKind } from '@partbuddy/geometry';
 import { useTranslation } from 'react-i18next';
 
 import type { BodyModel, Pick } from '../state/store';
+import { circleOf, edgePoints } from './measure';
 import { edgeLabel } from './viewState';
 
 function Fact({ label, value }: { label: string; value: string }) {
@@ -38,7 +39,12 @@ export function SelectionInfo({ bodies, selection }: { bodies: BodyModel[]; sele
     const edge = edgeLabel(model, selection.edge);
     label = `${t('viewer.kind.edge')} ${mm(model.edgeLengths[selection.edge] ?? 0)}`;
     name = edge.name;
-    facts = [{ label: t('viewer.length'), value: mm(model.edgeLengths[selection.edge] ?? 0) }];
+    // A round edge (arc or circle) tells its radius and diameter too (viewport CAD round).
+    const circle = circleOf(edgePoints(model.edgeSegments, model.edgeRanges, selection.edge));
+    facts = [
+      { label: t('viewer.length'), value: mm(model.edgeLengths[selection.edge] ?? 0) },
+      ...(circle ? [{ label: t('viewer.radius'), value: mm(Math.round(circle.radius * 100) / 100) }, { label: 'Ø', value: mm(Math.round(circle.radius * 200) / 100) }] : []),
+    ];
   } else {
     label = t('viewer.kind.vertex');
     name = point(model.vertices.subarray(selection.vertex * 3, selection.vertex * 3 + 3));

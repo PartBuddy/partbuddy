@@ -521,7 +521,8 @@
     "actionReady": "Preview in the view – Enter builds it, Escape cancels",
     "actionRefused": "SolidCraft cannot build it like this: {detail}",
     "distance": "Distance {value} mm",
-    "angle": "Angle {value}°"
+    "angle": "Angle {value}°",
+    "approximate": "Read from the view; SolidCraft's exact measure follows"
   },
   "structure": {
     "title": "Structure",

@@ -110,7 +110,8 @@ test('edges and vertices can be picked, and the view switches projection and sta
   };
   await page.waitForTimeout(500);
   const row = Array.from({ length: 200 }, (_, i) => ({ x: box.x + box.width * 0.2 + i * 3, y: box.y + box.height / 2 }));
-  expect(await findKind('edge', row), 'an edge on the middle row').not.toBeNull();
+  const edgeAt = await findKind('edge', row);
+  expect(edgeAt, 'an edge on the middle row').not.toBeNull();
   await expect(page.getByTestId('selected-face')).toHaveAttribute('data-name', /^F\d+:[^|]+\|F\d+:/);
   await expect(page.getByTestId('selected-face')).toHaveText(/^Edge [\d.]+ mm$/);
   await expect(bar).toContainText(/Length/);
@@ -121,6 +122,19 @@ test('edges and vertices can be picked, and the view switches projection and sta
   for (let y = 0.3; y <= 0.7; y += 0.025) for (let x = 0.25; x <= 0.75; x += 0.0125) grid.push({ x: box.x + box.width * x, y: box.y + box.height * y });
   expect(await findKind('vertex', grid), 'a visible vertex').not.toBeNull();
   await expect(page.getByTestId('composer-selection')).toHaveText(/Selected vertex goes with the message: Vertex · CableClip/);
+
+  // Ctrl adds the edge: their distance shows at once from the view, SolidCraft's exact value when it answers.
+  if (edgeAt) {
+    await page.keyboard.down('Control');
+    await page.mouse.click(edgeAt.x, edgeAt.y);
+    await page.keyboard.up('Control');
+    await expect(page.getByTestId('hud-measure')).toContainText(/Distance [\d.,]+ mm/);
+    // Ctrl again takes it away; the vertex stays.
+    await page.keyboard.down('Control');
+    await page.mouse.click(edgeAt.x, edgeAt.y);
+    await page.keyboard.up('Control');
+    await expect(page.getByTestId('hud-measure')).toHaveCount(0);
+  }
 
   // Shift+F fits the selection: the camera moves in on the vertex (viewport CAD round).
   const before = await cameraOf(page);
