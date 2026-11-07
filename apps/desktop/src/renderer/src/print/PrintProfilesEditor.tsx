@@ -22,7 +22,7 @@ import { useStudio, type ProfilesTab } from '../state/store';
 import { Button } from '../ui/Button';
 
 const inputClass =
-  'h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus invalid:border-danger';
+  'h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm tabular-nums text-text outline-none focus-visible:focus-ring invalid:border-danger';
 const labelClass = 'text-xs text-text-muted';
 
 let serial = 0;
@@ -131,7 +131,7 @@ function ProfileColumns<T extends { id: string; name: string }>({
             <ListBoxItem
               id={item.id}
               textValue={item.name}
-              className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:bg-surface-selected"
+              className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none hover:bg-surface-hover focus-visible:focus-ring selected:bg-surface-selected"
             >
               <span className="min-w-0 flex-1 truncate">{item.name}</span>
               {badge(item) ? <span className="shrink-0 text-xs text-text-muted">{badge(item)}</span> : null}
@@ -232,7 +232,7 @@ function MaterialForm({
         <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none disabled:opacity-100">
           <span
             aria-hidden
-            className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
+            className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:focus-ring"
           >
             <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
           </span>
@@ -307,7 +307,7 @@ export function PrintProfilesEditor({ close }: { close: () => void }) {
             <Tab
               key={id}
               id={id}
-              className="-mb-px cursor-default border-b-2 border-transparent px-3 py-1 text-sm text-text-muted outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus selected:border-accent selected:text-text"
+              className="-mb-px cursor-default border-b-2 border-transparent px-3 py-1 text-sm text-text-muted outline-none hover:text-text focus-visible:focus-ring selected:border-accent selected:text-text"
               data-testid={`print-tab-${id}`}
             >
               {t(`print.tab.${id}`)}
@@ -412,7 +412,7 @@ function DesignRuleSwitches({ settings, save }: { settings: PrintSettings; save:
             <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
               <span
                 aria-hidden
-                className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
+                className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:focus-ring"
               >
                 <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
               </span>
@@ -458,7 +458,7 @@ export function SupportFreeSwitch() {
           <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
             <span
               aria-hidden
-              className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
+              className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:focus-ring"
             >
               <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
             </span>

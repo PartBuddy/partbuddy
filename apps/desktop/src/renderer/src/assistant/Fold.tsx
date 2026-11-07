@@ -43,7 +43,7 @@ export function Fold({
         onPress={() => {
           setOpen(!open);
         }}
-        className="flex min-h-control-sm min-w-0 items-center gap-2 rounded-md px-1 text-left text-sm text-text-muted outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+        className="flex min-h-control-sm min-w-0 items-center gap-2 rounded-md px-1 text-left text-sm text-text-muted outline-none transition-colors hover:bg-surface-hover hover:text-text pressed:bg-surface-pressed focus-visible:focus-ring"
         data-testid={summaryTestId}
       >
         <IconChevronRight className={`size-icon-sm shrink-0 text-text-subtle transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />

@@ -59,7 +59,7 @@ export function NoteForm({
         <TextArea
           autoFocus
           rows={3}
-          className="w-full resize-none rounded-md border border-border-strong bg-surface px-2 py-1 text-sm text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+          className="w-full resize-none rounded-md border border-border-strong bg-surface px-2 py-1 text-sm text-text outline-none focus-visible:focus-ring disabled:opacity-disabled"
           onKeyDown={(event) => {
             if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
               event.preventDefault();

@@ -184,7 +184,7 @@ brought it to the level of Onshape and Fusion:
 
 | Need | React Aria component | Notes |
 | --- | --- | --- |
-| Buttons, icon buttons | `Button`, `TooltipTrigger` | Variants: primary, secondary, quiet, danger; sizes sm/md |
+| Buttons, icon buttons | `ui/Button`: `Button`, `IconButton`, `ToggleButton`, `IconToggle`; `ui/Tooltip`: `Tip` | Variants primary, secondary, quiet, danger; sizes sm 24 / md 28; `isPending` shows a spinner over the kept label; icon-only buttons take `label` (name and tooltip) and `shortcut`; selected toggles use `accent-subtle`; `pressable` and `linkClass` for custom pressables; every state in `?gallery` |
 | Menus (model menu, settings) | `MenuTrigger`, `Menu`, `MenuSection` with single selection per section | Menus close on selection |
 | Command palette | `Autocomplete`, `SearchField`, `Menu` in a `Modal` | Ctrl+K (react-hotkeys-hook) |
 | Lists (projects, timeline, notes) | `ListBox`, `GridList` | Rows with actions use `GridList` |

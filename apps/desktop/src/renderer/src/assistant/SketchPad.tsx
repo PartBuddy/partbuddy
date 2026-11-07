@@ -17,11 +17,11 @@ import {
 } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Dialog, Heading, Menu, MenuItem, MenuTrigger, Modal, ModalOverlay, Popover, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
+import { Dialog, Heading, Menu, MenuItem, MenuTrigger, Modal, ModalOverlay, Popover, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
 
 import type { KeptSketch } from '../../../shared/sketch';
 import { platform } from '../platform';
-import { Button } from '../ui/Button';
+import { Button, IconButton, IconToggle } from '../ui/Button';
 import { parseLength } from '../viewer/lengthInput';
 import {
   arcCircle,
@@ -632,7 +632,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 <ToggleButton
                   key={sheet}
                   id={sheet}
-                  className="inline-flex h-control-md items-center gap-1 rounded-md border border-border px-2 text-sm text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+                  className="inline-flex h-control-md items-center gap-1 rounded-md border border-border px-2 text-sm text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:focus-ring"
                   data-testid={`sketch-sheet-${sheet}`}
                 >
                   {sheetName(sheet)}
@@ -652,7 +652,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 placeholder="–"
                 aria-invalid={scaleInvalid}
                 aria-describedby="sketch-scale-hint"
-                className={`h-control-sm w-field-value rounded-sm border bg-surface px-1 text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus ${scaleInvalid ? 'border-danger' : 'border-border-strong'}`}
+                className={`h-control-sm w-field-value rounded-sm border bg-surface px-1 text-sm tabular-nums text-text outline-none focus-visible:focus-ring ${scaleInvalid ? 'border-danger' : 'border-border-strong'}`}
                 data-testid="sketch-scale"
               />
               {t('units.mmShort')}
@@ -674,33 +674,36 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
               className="flex flex-wrap gap-1"
             >
               {TOOLS.map((entry) => (
-                <ToggleButton
+                <IconToggle
                   key={entry.tool}
                   id={entry.tool}
-                  aria-label={t(`assistant.sketch.tool.${entry.tool}`)}
-                  aria-keyshortcuts={entry.key.toUpperCase()}
-                  className="inline-flex size-control-md items-center justify-center rounded-md border border-border text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+                  size="md"
+                  label={t(`assistant.sketch.tool.${entry.tool}`)}
+                  shortcut={entry.key.toUpperCase()}
+                  className="border border-border selected:border-accent"
                   data-testid={`sketch-tool-${entry.tool}`}
                 >
-                  <span title={`${t(`assistant.sketch.tool.${entry.tool}`)} (${entry.key.toUpperCase()})`}>{entry.icon}</span>
-                </ToggleButton>
+                  {entry.icon}
+                </IconToggle>
               ))}
             </ToggleButtonGroup>
             <span className="mr-auto" />
             {backgroundUrl ? (
-              <Button onPress={removeBackground} aria-label={t('assistant.sketch.photoRemove')} data-testid="sketch-photo-remove">
+              <IconButton size="md" tone="secondary" onPress={removeBackground} label={t('assistant.sketch.photoRemove')} data-testid="sketch-photo-remove">
                 <IconPhotoOff className="size-icon" aria-hidden />
-              </Button>
+              </IconButton>
             ) : (
-              <Button
+              <IconButton
+                size="md"
+                tone="secondary"
                 onPress={() => {
                   photoInput.current?.click();
                 }}
-                aria-label={t('assistant.sketch.photo')}
+                label={t('assistant.sketch.photo')}
                 data-testid="sketch-photo"
               >
                 <IconPhoto className="size-icon" aria-hidden />
-              </Button>
+              </IconButton>
             )}
             <input
               ref={photoInput}
@@ -719,13 +722,9 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 if (open) void platform().sketches.list().then(setKept);
               }}
             >
-              <AriaButton
-                aria-label={t('assistant.sketch.kept')}
-                className="inline-flex h-control-md items-center justify-center gap-1 rounded-md border border-border-strong bg-surface px-3 text-md text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
-                data-testid="sketch-kept"
-              >
+              <IconButton size="md" tone="secondary" label={t('assistant.sketch.kept')} data-testid="sketch-kept">
                 <IconHistory className="size-icon" aria-hidden />
-              </AriaButton>
+              </IconButton>
               <Popover placement="bottom end" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
                 <Menu
                   aria-label={t('assistant.sketch.kept')}
@@ -750,12 +749,12 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 </Menu>
               </Popover>
             </MenuTrigger>
-            <Button onPress={undo} isDisabled={past.length === 0} aria-label={t('assistant.sketch.undo')} data-testid="sketch-undo">
+            <IconButton size="md" tone="secondary" onPress={undo} isDisabled={past.length === 0} label={t('assistant.sketch.undo')} shortcut="Ctrl+Z" data-testid="sketch-undo">
               <IconArrowBackUp className="size-icon" aria-hidden />
-            </Button>
-            <Button onPress={redo} isDisabled={future.length === 0} aria-label={t('assistant.sketch.redo')} data-testid="sketch-redo">
+            </IconButton>
+            <IconButton size="md" tone="secondary" onPress={redo} isDisabled={future.length === 0} label={t('assistant.sketch.redo')} shortcut="Ctrl+Y" data-testid="sketch-redo">
               <IconArrowForwardUp className="size-icon" aria-hidden />
-            </Button>
+            </IconButton>
             <Button
               onPress={() => {
                 commit([]);

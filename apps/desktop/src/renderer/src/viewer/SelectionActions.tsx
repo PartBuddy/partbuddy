@@ -111,7 +111,7 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
           <ToggleButton
             key={kind}
             id={kind}
-            className="inline-flex h-control-sm items-center gap-1 rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+            className="inline-flex h-control-sm items-center gap-1 rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:focus-ring disabled:opacity-disabled"
             data-testid={`action-${kind}`}
           >
             {ICONS[kind]}
@@ -126,7 +126,7 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
           </Label>
           <Input
             autoFocus
-            className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 text-md tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+            className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 text-md tabular-nums text-text outline-none focus-visible:focus-ring disabled:opacity-disabled"
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();

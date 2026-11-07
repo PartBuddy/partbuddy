@@ -196,7 +196,7 @@ function RoundCard({ round, open, ready, answer }: { round: Round; open: boolean
               >
                 <Input
                   placeholder={t('assistant.question.otherPlaceholder')}
-                  className="h-control-sm w-full rounded-sm border border-border bg-surface px-2 text-sm text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus"
+                  className="h-control-sm w-full rounded-sm border border-border bg-surface px-2 text-sm text-text outline-none placeholder:text-text-subtle focus-visible:focus-ring"
                 />
               </TextField>
             ) : null}

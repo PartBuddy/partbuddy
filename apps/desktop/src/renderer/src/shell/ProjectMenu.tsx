@@ -102,7 +102,7 @@ export function ProjectMenu({ designName }: { designName: string }) {
     <>
       <MenuTrigger>
         <AriaButton
-          className="inline-flex min-w-0 items-center gap-1 rounded-sm px-1 font-medium text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus pressed:bg-surface-selected"
+          className="inline-flex min-w-0 items-center gap-1 rounded-sm px-1 font-medium text-text outline-none hover:bg-surface-hover focus-visible:focus-ring pressed:bg-surface-pressed"
           aria-label={t('project.menu', { name: designName })}
           data-testid="project-menu"
         >
@@ -216,7 +216,7 @@ export function RenameDialog({ open, name, folder, onClose, onDone }: { open: bo
               className="flex flex-col gap-1"
             >
               <Label className="text-xs text-text-muted">{t('project.name')}</Label>
-              <Input className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none focus-visible:outline-2 focus-visible:outline-focus invalid:border-danger" data-testid="project-name-input" />
+              <Input className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none focus-visible:focus-ring invalid:border-danger" data-testid="project-name-input" />
               {error ? (
                 <span role="alert" className="text-xs text-danger" data-testid="project-rename-error">
                   {error}

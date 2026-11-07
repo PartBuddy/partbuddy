@@ -40,7 +40,7 @@ export function TrashSection({ entries, now, onChange }: { entries: TrashEntry[]
         <AriaButton
           aria-expanded={open}
           onPress={() => setOpen(!open)}
-          className="inline-flex items-center gap-1 rounded-sm outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+          className="-ml-1 inline-flex h-control-sm items-center gap-1 rounded-md px-1 outline-none transition-colors hover:bg-surface-hover hover:text-text pressed:bg-surface-pressed focus-visible:focus-ring"
           data-testid="home-trash-toggle"
         >
           <IconChevronRight className={`size-icon-sm transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />
@@ -56,7 +56,7 @@ export function TrashSection({ entries, now, onChange }: { entries: TrashEntry[]
               <div role="group" aria-label={t('home.trash.emptyQuestion', { count: entries.length })} className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-text">{t('home.trash.emptyQuestion', { count: entries.length })}</span>
                 <Button onPress={() => setConfirming(false)}>{t('project.cancel')}</Button>
-                <Button variant="primary" isDisabled={busy} onPress={() => work(() => platform().project.emptyTrash())} data-testid="home-trash-empty-confirm">
+                <Button variant="danger" isDisabled={busy} onPress={() => work(() => platform().project.emptyTrash())} data-testid="home-trash-empty-confirm">
                   {t('home.trash.emptyConfirm')}
                 </Button>
               </div>

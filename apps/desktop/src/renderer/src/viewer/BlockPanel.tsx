@@ -16,7 +16,7 @@ function Choice({ label, value, items, onChange, testId }: { label: string; valu
   return (
     <Select value={value} onChange={(key) => onChange(String(key))} className="flex min-w-0 flex-col gap-1" data-testid={testId}>
       <Label className="text-xs text-text-subtle">{label}</Label>
-      <AriaButton className="inline-flex h-control-sm items-center justify-between gap-1 rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus">
+      <AriaButton className="inline-flex h-control-sm items-center justify-between gap-1 rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:focus-ring">
         <SelectValue className="truncate" />
         <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
       </AriaButton>
@@ -51,7 +51,7 @@ function Length({ label, value, onChange, testId }: { label: string; value: numb
       <Label className="text-xs text-text-subtle">
         {label} · {t('units.mmShort')}
       </Label>
-      <Input className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus" />
+      <Input className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm tabular-nums text-text outline-none focus-visible:focus-ring" />
     </TextField>
   );
 }
@@ -70,7 +70,7 @@ function Words({ label, value, onChange, testId }: { label: string; value: strin
       data-testid={testId}
     >
       <Label className="text-xs text-text-subtle">{label}</Label>
-      <Input className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none focus-visible:outline-2 focus-visible:outline-focus" />
+      <Input className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none focus-visible:focus-ring" />
     </TextField>
   );
 }
@@ -81,7 +81,7 @@ function Check({ label, selected, onChange, testId }: { label: string; selected:
       <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
         <span
           aria-hidden
-          className="flex size-icon-sm shrink-0 items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
+          className="flex size-icon-sm shrink-0 items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:focus-ring"
         >
           <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
         </span>
@@ -211,7 +211,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
           if (!next) onGhost(null);
         }}
         isDisabled={busy}
-        className="inline-flex h-control-sm items-center gap-1 self-start rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+        className="inline-flex h-control-sm items-center gap-1 self-start rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:focus-ring disabled:opacity-disabled"
         data-testid="action-block"
       >
         <IconPuzzle className="size-icon-sm" aria-hidden />

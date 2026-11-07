@@ -21,7 +21,7 @@ function Choice({ label, value, items, onChange, testId }: { label: string; valu
   return (
     <Select value={value} onChange={(key) => onChange(String(key))} className="flex min-w-0 flex-col gap-1" data-testid={testId}>
       <Label className="text-xs text-text-subtle">{label}</Label>
-      <AriaButton className="inline-flex h-control-sm items-center justify-between gap-1 rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus">
+      <AriaButton className="inline-flex h-control-sm items-center justify-between gap-1 rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:focus-ring">
         <SelectValue className="truncate" />
         <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
       </AriaButton>
@@ -103,7 +103,7 @@ export function PartPanel({ bodies, picks, busy }: { bodies: BodyModel[]; picks:
         isSelected={open}
         onChange={setOpen}
         isDisabled={busy}
-        className="inline-flex h-control-sm items-center gap-1 self-start rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+        className="inline-flex h-control-sm items-center gap-1 self-start rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:focus-ring disabled:opacity-disabled"
         data-testid="action-part"
       >
         <IconNut className="size-icon-sm" aria-hidden />

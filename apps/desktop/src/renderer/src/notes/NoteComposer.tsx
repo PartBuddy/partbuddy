@@ -18,7 +18,7 @@ export function NoteComposer({ selection, busy }: { selection: Selection; busy: 
         isSelected={open}
         onChange={setOpen}
         isDisabled={busy}
-        className="inline-flex h-control-sm w-fit items-center gap-1 rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+        className="inline-flex h-control-sm w-fit items-center gap-1 rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:focus-ring disabled:opacity-disabled"
         data-testid="hud-note"
       >
         <IconNote className="size-icon-sm" aria-hidden />
