@@ -140,12 +140,13 @@ export function ProjectMenu({ designName }: { designName: string }) {
         </Popover>
       </MenuTrigger>
       {project ? <RenameDialog open={dialog === 'rename'} name={project.name} onClose={() => setDialog(null)} /> : null}
-      {project ? <TrashDialog open={dialog === 'trash'} name={project.name} onClose={() => setDialog(null)} run={run} /> : null}
+      {project ? <TrashDialog open={dialog === 'trash'} name={project.name} opensNew onClose={() => setDialog(null)} onConfirm={() => run(() => api.trash())} /> : null}
     </>
   );
 }
 
-function RenameDialog({ open, name, onClose }: { open: boolean; name: string; onClose: () => void }) {
+/** Renames the open project, or with `folder` a project of the start page; `onDone` instead of closing the start page. */
+export function RenameDialog({ open, name, folder, onClose, onDone }: { open: boolean; name: string; folder?: string; onClose: () => void; onDone?: () => void }) {
   const { t } = useTranslation();
   const [value, setValue] = useState(name);
   const [error, setError] = useState<string | null>(null);
@@ -153,11 +154,12 @@ function RenameDialog({ open, name, onClose }: { open: boolean; name: string; on
   const submit = () => {
     setBusy(true);
     void beforeProjectSwitch()
-      .then(() => platform().project.rename(value))
+      .then(() => platform().project.rename(value, folder))
       .then((result) => {
         if (result.ok) {
           onClose();
-          useStudio.getState().setHomeOpen(false);
+          if (onDone) onDone();
+          else useStudio.getState().setHomeOpen(false);
         }
         else setError(t(`project.renameError.${result.reason}`));
       })
@@ -222,7 +224,8 @@ function RenameDialog({ open, name, onClose }: { open: boolean; name: string; on
   );
 }
 
-function TrashDialog({ open, name, onClose, run }: { open: boolean; name: string; onClose: () => void; run: (work: () => Promise<unknown>) => void }) {
+/** Asks before a project goes to the recycle bin; `opensNew` when it is the open one and a new design follows. */
+export function TrashDialog({ open, name, opensNew, onClose, onConfirm }: { open: boolean; name: string; opensNew?: boolean; onClose: () => void; onConfirm: () => void }) {
   const { t } = useTranslation();
   return (
     <ModalOverlay
@@ -238,7 +241,7 @@ function TrashDialog({ open, name, onClose, run }: { open: boolean; name: string
           <Heading slot="title" className="text-lg font-semibold text-text">
             {t('project.trashTitle', { name })}
           </Heading>
-          <p className="text-sm text-text-muted">{t('project.trashBody')}</p>
+          <p className="text-sm text-text-muted">{t(opensNew ? 'project.trashBody' : 'project.trashBodyKeep')}</p>
           <div className="flex justify-end gap-2">
             <Button onPress={onClose} autoFocus>
               {t('project.cancel')}
@@ -247,7 +250,7 @@ function TrashDialog({ open, name, onClose, run }: { open: boolean; name: string
               variant="primary"
               onPress={() => {
                 onClose();
-                run(() => platform().project.trash());
+                onConfirm();
               }}
               data-testid="project-trash-confirm"
             >

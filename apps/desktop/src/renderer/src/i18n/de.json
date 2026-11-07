@@ -840,7 +840,8 @@
     "dropIntoDesign": "Loslassen zum Einfügen in dieses Projekt",
     "dropKinds": "STEP, IGES, STL, 3MF, OBJ oder ein SolidCraft-Design",
     "dropUnknown": "PartBuddy importiert STEP, IGES, STL, 3MF, OBJ und SolidCraft-Designs.",
-    "dropNoPath": "Diese Datei liegt noch nicht auf dem Datenträger. Erst speichern, dann aus dem Explorer ziehen."
+    "dropNoPath": "Diese Datei liegt noch nicht auf dem Datenträger. Erst speichern, dann aus dem Explorer ziehen.",
+    "trashBodyKeep": "Der Projektordner mit Design, Chat und Exporten kommt in den Windows-Papierkorb und lässt sich dort wiederherstellen."
   },
   "home": {
     "title": "Projekte",
@@ -883,7 +884,13 @@
           "body": "Verbindet zwei Rohre oder Schläuche mit verschiedenem Durchmesser."
         }
       }
-    }
+    },
+    "sort": "Sortieren",
+    "modified": "Zuletzt geändert",
+    "name": "Name",
+    "created": "Zuletzt angelegt",
+    "actions": "Aktionen für {name}",
+    "openProject": "Öffnen"
   },
   "versions": {
     "title": "Versionen",

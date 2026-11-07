@@ -190,7 +190,10 @@ export const projectInfoSchema = z
   .object({ name: z.string().min(1).max(120), folder: z.string().max(1000) })
   .strict()
   .nullable();
-export const projectRenameSchema = z.object({ name: z.string().min(1).max(120) }).strict();
+/** A project of the start page by its folder; without one, the open project (P1). */
+const projectFolder = z.string().min(1).max(1000);
+export const projectRenameSchema = z.object({ name: z.string().min(1).max(120), folder: projectFolder.optional() }).strict();
+export const projectTargetSchema = z.object({ folder: projectFolder.optional() }).strict();
 export const projectRenameResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true) }).strict(),
   z.object({ ok: z.literal(false), reason: z.enum(['empty', 'exists', 'noProject', 'busy']) }).strict(),
@@ -227,6 +230,8 @@ export const projectEntrySchema = z
     name: z.string().min(1).max(255),
     folder: z.string().min(1).max(1000),
     modified: z.number().nonnegative(),
+    /** When the project folder was made; the last change where the file system does not know. */
+    created: z.number().nonnegative(),
     preview: z.string().max(1_500_000).startsWith('data:image/png;base64,').nullable(),
     check: projectCheckSchema.nullable(),
   })
@@ -980,9 +985,9 @@ export const invokeContract = {
   [invokeChannels.projectNew]: { request: none, response: none },
   [invokeChannels.projectOpen]: { request: none, response: projectOpenResultSchema },
   [invokeChannels.projectRename]: { request: projectRenameSchema, response: projectRenameResultSchema },
-  [invokeChannels.projectDuplicate]: { request: none, response: none },
-  [invokeChannels.projectReveal]: { request: none, response: none },
-  [invokeChannels.projectTrash]: { request: none, response: none },
+  [invokeChannels.projectDuplicate]: { request: projectTargetSchema, response: none },
+  [invokeChannels.projectReveal]: { request: projectTargetSchema, response: none },
+  [invokeChannels.projectTrash]: { request: projectTargetSchema, response: none },
   [invokeChannels.projectList]: { request: none, response: projectListSchema },
   [invokeChannels.projectOpenFolder]: { request: projectOpenFolderSchema, response: projectOpenResultSchema },
   [invokeChannels.projectImport]: { request: importRequestSchema, response: projectOpenResultSchema },

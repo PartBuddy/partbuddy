@@ -840,7 +840,8 @@
     "dropIntoDesign": "Drop to insert into this project",
     "dropKinds": "STEP, IGES, STL, 3MF, OBJ or a SolidCraft design",
     "dropUnknown": "PartBuddy imports STEP, IGES, STL, 3MF, OBJ and SolidCraft designs.",
-    "dropNoPath": "This file has no place on the disk yet. Save it first, then drop it from Explorer."
+    "dropNoPath": "This file has no place on the disk yet. Save it first, then drop it from Explorer.",
+    "trashBodyKeep": "The project folder with design, conversation and exports goes to the Windows recycle bin and can be restored from there."
   },
   "home": {
     "title": "Projects",
@@ -883,7 +884,13 @@
           "body": "Joins two tubes or hoses of different diameters."
         }
       }
-    }
+    },
+    "sort": "Sort",
+    "modified": "Last changed",
+    "name": "Name",
+    "created": "Last created",
+    "actions": "Actions for {name}",
+    "openProject": "Open"
   },
   "versions": {
     "title": "Versions",

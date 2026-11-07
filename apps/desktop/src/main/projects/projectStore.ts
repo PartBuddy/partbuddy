@@ -27,6 +27,8 @@ export interface ProjectEntry {
   folder: string;
   /** When the design file was last written, in milliseconds since 1970. */
   modified: number;
+  /** When the project folder was made, in milliseconds since 1970. */
+  created: number;
   /** The preview picture as a data URL, or null when there is none yet. */
   preview: string | null;
   /** The ready-to-print light at the last preview, or null when it is not known. */
@@ -114,9 +116,11 @@ export class ProjectStore {
       const folder = join(this.root, entry);
       const design = ProjectStore.designIn(folder);
       try {
-        if (!statSync(folder).isDirectory()) continue;
+        const folderStats = statSync(folder);
+        if (!folderStats.isDirectory()) continue;
         const stats = statSync(design);
-        if (stats.isFile()) projects.push({ name: entry, folder, modified: stats.mtimeMs });
+        // Some file systems do not keep a birth time; the last change stands in for it.
+        if (stats.isFile()) projects.push({ name: entry, folder, modified: stats.mtimeMs, created: folderStats.birthtimeMs || stats.mtimeMs });
       } catch {
         // No design in it: not a project.
       }
