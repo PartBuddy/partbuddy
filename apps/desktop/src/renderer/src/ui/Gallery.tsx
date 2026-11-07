@@ -2,6 +2,11 @@ import { IconArrowBackUp, IconDownload, IconEye, IconPencil, IconSettings, IconT
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import {
   CheckboxButton,
+  Header,
+  Menu,
+  MenuItem,
+  MenuSection,
+  Separator,
   CheckboxField,
   Input,
   Label,
@@ -21,6 +26,7 @@ import {
 import { Button, IconButton, IconToggle, ToggleButton, linkClass, type ButtonVariant } from './Button';
 import { TipText, tooltipClass } from './Tooltip';
 import { CheckMark, chipToggleClass, choiceInlineClass, choiceRowClass, RadioMark, segmentClass, segmentGroupClass, SelectField, SliderBar, SwitchMark } from './Choice';
+import { menuClass, menuHeaderClass, menuItemClass, menuItemTwoLineClass, menuSeparatorClass, popoverClass } from './Overlay';
 import { FieldMessage, fieldLabelClass, inputClass, textAreaClass, UnitInput } from './Field';
 
 /**
@@ -34,11 +40,19 @@ type Forced = 'hover' | 'pressed' | 'focus' | 'focused' | 'focus-within';
 function Force({ state, target = '[data-rac]', children }: { state: Forced; target?: string; children: ReactNode }) {
   const box = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
-    const control = box.current?.querySelector(target);
-    if (!control) return;
-    const attribute = { hover: 'data-hovered', pressed: 'data-pressed', focus: 'data-focus-visible', focused: 'data-focused', 'focus-within': 'data-focus-within' }[state];
-    control.setAttribute(attribute, 'true');
-    if (state === 'pressed') control.setAttribute('data-hovered', 'true');
+    const apply = () => {
+      const control = box.current?.querySelector(target);
+      if (!control) return;
+      const attribute = { hover: 'data-hovered', pressed: 'data-pressed', focus: 'data-focus-visible', focused: 'data-focused', 'focus-within': 'data-focus-within' }[state];
+      control.setAttribute(attribute, 'true');
+      if (state === 'pressed') control.setAttribute('data-hovered', 'true');
+    };
+    apply();
+    // Collections (menus, lists) render their items in a second pass.
+    const later = setTimeout(apply, 200);
+    return () => {
+      clearTimeout(later);
+    };
   });
   return (
     <span ref={box} className="contents">
@@ -423,6 +437,39 @@ function Selection() {
   );
 }
 
+function Menus() {
+  const menu = (focused?: string) => (
+    <Force state="focused" target={focused === 'rename' ? '[role=menuitem]' : focused ? '[role=menuitem] ~ [role=menuitem]' : 'none'}>
+      <div className={`${popoverClass} w-menu`}>
+        <Menu aria-label="Projekt" className={menuClass} disabledKeys={['delete']} onAction={noop}>
+          <MenuSection>
+            <Header className={menuHeaderClass}>Projekt</Header>
+            <MenuItem id="rename" className={menuItemClass}>
+              <IconPencil className="size-icon-sm text-text-muted" aria-hidden />
+              <span className="flex-1">Umbenennen …</span>
+              <kbd className="font-sans text-xs text-text-subtle tabular-nums">F2</kbd>
+            </MenuItem>
+            <MenuItem id="export" className={menuItemTwoLineClass}>
+              <span className="text-sm font-medium text-text">3MF für den Slicer</span>
+              <span className="text-xs text-text-muted">Mit Farben, Material und Platte</span>
+            </MenuItem>
+          </MenuSection>
+          <Separator className={menuSeparatorClass} />
+          <MenuItem id="delete" className={menuItemClass}>
+            <IconTrash className="size-icon-sm text-text-muted" aria-hidden />
+            In den Papierkorb
+          </MenuItem>
+        </Menu>
+      </div>
+    </Force>
+  );
+  return (
+    <Section title="Menus and popovers">
+      <Row name="menu" cells={{ Default: menu(), Hover: menu('rename'), Focus: menu('export') }} />
+    </Section>
+  );
+}
+
 /** The gallery page; later families add their sections here. */
 export function Gallery() {
   return (
@@ -431,6 +478,7 @@ export function Gallery() {
         <Actions />
         <Inputs />
         <Selection />
+        <Menus />
       </div>
     </main>
   );

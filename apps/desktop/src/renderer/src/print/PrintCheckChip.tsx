@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover } from 'react-aria-components';
 
 import { useStudio } from '../state/store';
+import { popoverPanelClass } from '../ui/Overlay';
 
 const DOT: Record<PrintStatus, string> = {
   ready: 'bg-success',
@@ -123,7 +124,7 @@ export function PrintCheckChip() {
         <span aria-hidden className={`size-dot rounded-full ${DOT[status]}`} />
         <span>{label}</span>
       </AriaButton>
-      <Popover placement="top start" offset={4} className="w-dialog-sm max-w-full rounded-md border border-border bg-surface-raised p-2 shadow-2">
+      <Popover placement="top start" offset={4} className={`${popoverPanelClass} p-2`}>
         <Dialog className="flex flex-col gap-2 outline-none" data-testid="print-check-panel">
           <Heading slot="title" className="px-2 text-sm font-semibold text-text">
             {t('check.title')}

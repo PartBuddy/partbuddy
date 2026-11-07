@@ -36,6 +36,8 @@ test('control gallery and screens, light and dark', async () => {
 
     // Print profiles (fields with units, list, tabs) and the settings (radios, checkbox, tabs).
     await page.getByTestId('material-chip').click();
+    await page.waitForTimeout(400);
+    await shoot(page, 'menu');
     await page.getByTestId('print-profiles-open').click();
     await page.waitForTimeout(500);
     await shoot(page, 'profiles');

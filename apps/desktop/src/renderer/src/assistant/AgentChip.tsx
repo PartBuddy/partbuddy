@@ -8,6 +8,7 @@ import { StatusDot } from '../ui/Feedback';
 import { selectedStatus, useAssistant } from './store';
 import { linkClass, pressable } from '../ui/Button';
 import { choiceRowClass, RadioMark, segmentClass, segmentGroupClass } from '../ui/Choice';
+import { popoverPanelClass } from '../ui/Overlay';
 
 type T = ReturnType<typeof useTranslation>['t'];
 type Tone = 'success' | 'neutral' | 'warning';
@@ -276,7 +277,7 @@ export function AgentChip() {
         </span>
         <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
       </AriaButton>
-      <Popover placement="top start" offset={6} className="w-dialog-sm max-w-full rounded-md border border-border bg-surface-raised shadow-2">
+      <Popover placement="top start" offset={6} className={popoverPanelClass}>
         <Dialog aria-label={t('assistant.title')} className="flex flex-col gap-3 p-3 outline-none" data-testid="agent-menu">
           <div className="flex items-center justify-between gap-2">
             <Heading slot="title" className="text-sm font-semibold text-text">
