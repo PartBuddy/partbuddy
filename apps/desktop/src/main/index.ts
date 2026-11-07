@@ -49,7 +49,7 @@ import { summarizeComparison } from './projects/versionCompare';
 import { VersionStore, type VersionReason } from './projects/versionStore';
 import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
-import { SolidCraftSupervisor } from './solidcraft/supervisor';
+import { longPath, SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
 import { printCheckNote } from './print/printCheckNote';
 import { templateSteps } from '../shared/templates';
@@ -224,8 +224,7 @@ if (!app.requestSingleInstanceLock()) {
     // The user's project folder: the only place the assistant's SolidCraft may read and write.
     // PARTBUDDY_PROJECTS_DIR: tests keep the user's documents untouched.
     const defaultProjects = join(app.getPath('documents'), 'PartBuddy');
-    const projects = process.env.PARTBUDDY_PROJECTS_DIR ?? general.projectsFolder() ?? defaultProjects;
-    mkdirSync(projects, { recursive: true });
+    const projects = longPath(process.env.PARTBUDDY_PROJECTS_DIR ?? general.projectsFolder() ?? defaultProjects);
     // Projects (B2): one folder per part; designs kept in PartBuddy's own folder before become projects once.
     const designsDir = join(app.getPath('userData'), 'designs');
     let german = app.getLocale().toLowerCase().startsWith('de');
