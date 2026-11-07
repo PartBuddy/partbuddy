@@ -21,6 +21,7 @@ import { platform } from '../platform';
 import { useStudio, type ProfilesTab } from '../state/store';
 import { Button } from '../ui/Button';
 import { FieldMessage, fieldLabelClass, inputClass, UnitInput } from '../ui/Field';
+import { CheckMark, choiceInlineClass } from '../ui/Choice';
 
 
 let serial = 0;
@@ -226,13 +227,8 @@ function MaterialForm({
         </div>
       </fieldset>
       <CheckboxField isSelected={isDefault} isDisabled={isDefault} onChange={onDefault} data-testid="material-default">
-        <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none disabled:opacity-100">
-          <span
-            aria-hidden
-            className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:focus-ring"
-          >
-            <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
-          </span>
+        <CheckboxButton className={`${choiceInlineClass} disabled:opacity-100`}>
+          <CheckMark />
           {t('print.defaultMaterial')}
         </CheckboxButton>
       </CheckboxField>
@@ -406,13 +402,8 @@ function DesignRuleSwitches({ settings, save }: { settings: PrintSettings; save:
             }}
             data-testid={`design-${rule}`}
           >
-            <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
-              <span
-                aria-hidden
-                className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:focus-ring"
-              >
-                <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
-              </span>
+            <CheckboxButton className={choiceInlineClass}>
+              <CheckMark />
               {t(`print.design.${rule}.label`)}
             </CheckboxButton>
           </CheckboxField>
@@ -452,13 +443,8 @@ export function SupportFreeSwitch() {
           }}
           data-testid="support-free"
         >
-          <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
-            <span
-              aria-hidden
-              className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:focus-ring"
-            >
-              <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
-            </span>
+          <CheckboxButton className={choiceInlineClass}>
+            <CheckMark />
             {t('print.supportFree')}
           </CheckboxButton>
         </CheckboxField>

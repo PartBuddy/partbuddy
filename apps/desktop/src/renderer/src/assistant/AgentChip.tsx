@@ -7,6 +7,7 @@ import { platform } from '../platform';
 import { StatusDot } from '../ui/Feedback';
 import { selectedStatus, useAssistant } from './store';
 import { linkClass, pressable } from '../ui/Button';
+import { choiceRowClass, RadioMark, segmentClass, segmentGroupClass } from '../ui/Choice';
 
 type T = ReturnType<typeof useTranslation>['t'];
 type Tone = 'success' | 'neutral' | 'warning';
@@ -72,17 +73,6 @@ function chipLabel(t: T, status: AgentStatus): string {
   return detail ? `${route} · ${detail}` : route;
 }
 
-export const radioClass =
-  'group flex cursor-default items-start gap-2 rounded-sm px-2 py-1 outline-none hover:bg-surface-hover focus-visible:focus-ring selected:bg-surface-selected';
-
-export function RadioMark() {
-  return (
-    <span aria-hidden className="mt-1 inline-flex size-icon-sm shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface group-selected:border-accent">
-      <span className="size-dot rounded-full bg-accent opacity-0 group-selected:opacity-100" />
-    </span>
-  );
-}
-
 /**
  * Model and effort of the selected route (B1, decided 2026-11-05): only what the plan offers, in
  * effect from the next answer, also in a running conversation; "Keep for new chats" stores it.
@@ -114,7 +104,7 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
         <span className="px-2 text-xs font-semibold text-text-muted">{t('assistant.model.title')}</span>
         {models.map((model) => (
           <RadioField key={model.id} value={model.id}>
-            <RadioButton className={radioClass} data-testid="model-option">
+            <RadioButton className={choiceRowClass} data-testid="model-option">
               <RadioMark />
               <span className="flex flex-col">
                 <span className="text-sm text-text">{modelName(t, model)}</span>
@@ -135,13 +125,10 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
           className="flex flex-col gap-1"
         >
           <span className="px-2 text-xs font-semibold text-text-muted">{t('assistant.effort.title')}</span>
-          <div className="flex flex-wrap gap-1 px-1">
+          <div className={`mx-2 self-start ${segmentGroupClass}`}>
             {current.efforts.map((value) => (
               <RadioField key={value} value={value}>
-                <RadioButton
-                  className="inline-flex cursor-default items-center rounded-full border border-border px-2 py-0 text-xs text-text outline-none hover:bg-surface-hover focus-visible:focus-ring selected:border-accent selected:bg-accent-subtle"
-                  data-testid="effort-option"
-                >
+                <RadioButton className={segmentClass('sm')} data-testid="effort-option">
                   {effortLabel(t, value)}
                 </RadioButton>
               </RadioField>
@@ -193,7 +180,7 @@ export function AssistantChoice() {
       >
         {ROUTES.map((kind) => (
           <RadioField key={kind} value={kind}>
-            <RadioButton className={radioClass}>
+            <RadioButton className={choiceRowClass}>
               <RadioMark />
               <span className="flex flex-col">
                 <span className="text-sm font-medium text-text">{t(`assistant.routes.${kind}`)}</span>

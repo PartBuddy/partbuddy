@@ -10,6 +10,7 @@ import { actionsFor, type ActionKind } from './actionKinds';
 import { parseLength } from './lengthInput';
 import { edgePoints, lineDirection, localMeasure, type MeasurePick } from './measure';
 import { inputClass, fieldLabelClass } from '../ui/Field';
+import { chipToggleClass } from '../ui/Choice';
 
 /** Starting sizes in mm, typical for FDM parts. */
 const DEFAULT_SIZE: Record<ActionKind, number> = { fillet: 1, chamfer: 0.5, extrude: 5, hole: 3, shell: 1.6 };
@@ -112,7 +113,7 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
           <ToggleButton
             key={kind}
             id={kind}
-            className="inline-flex h-control-sm items-center gap-1 rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:focus-ring disabled:opacity-disabled"
+            className={chipToggleClass}
             data-testid={`action-${kind}`}
           >
             {ICONS[kind]}

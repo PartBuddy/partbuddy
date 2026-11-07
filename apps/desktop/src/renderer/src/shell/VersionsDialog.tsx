@@ -10,6 +10,7 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button, IconButton } from '../ui/Button';
 import { inputClass, fieldLabelClass } from '../ui/Field';
+import { chipToggleClass } from '../ui/Choice';
 
 const volume = (mm3: number, language: string) => new Intl.NumberFormat(language, { maximumFractionDigits: mm3 < 10 ? 1 : 0 }).format(mm3);
 
@@ -303,7 +304,7 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
             <ToggleButton
               isSelected={milestones}
               onChange={setMilestones}
-              className="inline-flex h-control-sm items-center rounded-md border border-border-strong px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:focus-ring selected:border-accent selected:bg-surface-selected"
+              className={chipToggleClass}
               data-testid="versions-milestones"
             >
               {t('versions.milestonesOnly')}

@@ -5,11 +5,11 @@ import { CheckboxButton, CheckboxField, Input, RadioButton, RadioField, RadioGro
 
 import type { MessageAnswer } from '../../../shared/contract';
 import { Button } from '../ui/Button';
-import { radioClass, RadioMark } from './AgentChip';
 import { card } from './Fold';
 import { roundAnswers, roundMessage, type Round } from './round';
 import type { ConversationItem } from './store';
 import { inputClass } from '../ui/Field';
+import { CheckMark, RadioMark, choiceRowClass } from '../ui/Choice';
 
 export type QuestionItem = Extract<ConversationItem, { kind: 'question' }>;
 
@@ -153,13 +153,8 @@ function RoundCard({ round, open, ready, answer }: { round: Round; open: boolean
                       setPicks(setAt(picks, i, selected ? [...picked, n].sort() : picked.filter((x) => x !== n)));
                     }}
                   >
-                    <CheckboxButton className={radioClass}>
-                      <span
-                        aria-hidden
-                        className="mt-1 flex size-icon-sm shrink-0 items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent"
-                      >
-                        <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
-                      </span>
+                    <CheckboxButton className={choiceRowClass}>
+                      <CheckMark />
                       <OptionText option={option} />
                     </CheckboxButton>
                   </CheckboxField>
@@ -178,7 +173,7 @@ function RoundCard({ round, open, ready, answer }: { round: Round; open: boolean
               >
                 {entry.options.map((option, n) => (
                   <RadioField key={n} value={String(n)}>
-                    <RadioButton className={radioClass}>
+                    <RadioButton className={choiceRowClass}>
                       <RadioMark />
                       <OptionText option={option} />
                     </RadioButton>

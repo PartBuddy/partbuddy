@@ -6,6 +6,7 @@ import { SwitchButton, SwitchField } from 'react-aria-components';
 import { useStudio } from '../state/store';
 import { BuildLine } from './BuildStatus';
 import { IconButton } from '../ui/Button';
+import { choiceInlineClass, SwitchMark } from '../ui/Choice';
 
 /** How many faces and sketch curves the latest step changed, with the camera follow switch. */
 /** Glow after a change: held, then faded out in small steps (none under reduced motion). */
@@ -78,13 +79,8 @@ function Changes() {
         </span>
       ) : null}
       <SwitchField isSelected={follow} onChange={setFollow}>
-        <SwitchButton className="group flex items-center gap-1 outline-none">
-        <span
-          aria-hidden
-          className="flex h-icon w-control-sm items-center rounded-full border border-border-strong bg-surface p-hairline group-selected:bg-accent group-focus-visible:focus-ring"
-        >
-          <span className="size-dot rounded-full bg-text-subtle transition-transform group-selected:translate-x-full group-selected:bg-on-accent" />
-        </span>
+        <SwitchButton className={choiceInlineClass}>
+        <SwitchMark />
         <IconFocus2 className="size-icon-sm text-text-subtle" aria-hidden />
         {t('live.follow')}
         </SwitchButton>

@@ -1,11 +1,12 @@
 import { IconPlayerPause, IconPlayerPlay, IconPlayerTrackNext, IconPlayerTrackPrev } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { Slider, SliderThumb, SliderTrack } from 'react-aria-components';
+import { Slider } from 'react-aria-components';
 
 import type { PlayStep } from '../../../shared/assembly';
 import { useStudio } from '../state/store';
 import { activeStep } from './explode';
 import { IconButton } from '../ui/Button';
+import { SliderBar } from '../ui/Choice';
 
 
 /**
@@ -66,15 +67,7 @@ export function AssemblyPlayer({ steps, source }: { steps: PlayStep[]; source: '
           className="mx-2 flex-1"
           data-testid="assembly-timeline"
         >
-          <SliderTrack className="relative h-4 w-full">
-            {({ state }) => (
-              <>
-                <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
-                <span aria-hidden className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ width: `${String(state.getThumbPercent(0) * 100)}%` }} />
-                <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:focus-ring" />
-              </>
-            )}
-          </SliderTrack>
+          <SliderBar />
         </Slider>
         <span className="shrink-0 text-xs tabular-nums text-text-muted" data-testid="assembly-count">
           {t('assembly.stepOf', { step: Math.max(1, current + 1), steps: count })}
