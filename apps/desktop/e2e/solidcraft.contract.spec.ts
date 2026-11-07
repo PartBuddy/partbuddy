@@ -1221,7 +1221,7 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
 
 test('versions are saved by name, before requests and at exports, compared with now and restored (B5)', async () => {
   test.setTimeout(240_000);
-  const { existsSync, mkdtempSync, rmSync } = await import('node:fs');
+  const { existsSync, mkdtempSync, readFileSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-versions-'));
@@ -1312,6 +1312,23 @@ test('versions are saved by name, before requests and at exports, compared with 
     await expect(page.getByTestId('design-name')).toHaveText('Part First box', { timeout: 30_000 });
     await expect(summary).toContainText('1 body · 6 faces', { timeout: 30_000 });
     expect(existsSync(join(work, 'projects', 'Part', 'Part.sc'))).toBe(true);
+
+    // The parts list in the structure tree (P6): two copies, one printed, kept in parts.json and counted on the start page.
+    const body = page.getByTestId('structure-body').first();
+    await body.getByTestId('part-expand').click();
+    const details = page.getByTestId('part-details');
+    await details.getByTestId('part-quantity').getByRole('textbox').fill('2');
+    await details.getByTestId('part-quantity').getByRole('textbox').press('Tab');
+    await details.getByTestId('part-filament').fill('PETG black');
+    await details.getByTestId('part-filament').press('Tab');
+    await details.getByTestId('part-printed-count').getByRole('textbox').fill('1');
+    await details.getByTestId('part-printed-count').getByRole('textbox').press('Tab');
+    await expect(page.getByTestId('parts-progress')).toContainText('1 of 2 printed');
+    await expect.poll(() => readFileSync(join(work, 'projects', 'Part First box', 'parts.json'), 'utf8')).toContain('PETG black');
+    await body.getByTestId('part-printed').click();
+    await expect(page.getByTestId('parts-progress')).toContainText('2 of 2 printed');
+    await page.getByTestId('home-button').click();
+    await expect(page.locator('[data-testid="home-tile"][data-name="Part First box"]').getByTestId('home-tile-progress')).toHaveText('2/2 printed');
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('versions-failed.png') }).catch(() => undefined);
     test.info().annotations.push({ type: 'main log', description: logs.join('').slice(-4000) });

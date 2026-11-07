@@ -47,6 +47,8 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.projectNameVersion]: { reason: PROJECT },
   [invokeChannels.projectVersionAsProject]: { reason: PROJECT },
   [invokeChannels.projectTrashList]: { reason: PROJECT },
+  [invokeChannels.projectParts]: { reason: PROJECT },
+  [invokeChannels.projectSetPart]: { reason: 'the parts list is the user’s own record of what was printed; the assistant designs, it does not print' },
   [invokeChannels.projectSetMeta]: { reason: PROJECT },
   [invokeChannels.projectExportPackage]: { reason: FILES },
   [invokeChannels.projectTrashRestore]: { reason: PROJECT },

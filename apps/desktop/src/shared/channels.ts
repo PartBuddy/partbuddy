@@ -29,6 +29,8 @@ export const invokeChannels = {
   projectNameVersion: 'project:name-version',
   projectVersionAsProject: 'project:version-as-project',
   projectTrashList: 'project:trash-list',
+  projectParts: 'project:parts',
+  projectSetPart: 'project:set-part',
   projectSetMeta: 'project:set-meta',
   projectExportPackage: 'project:export-package',
   projectTrashRestore: 'project:trash-restore',

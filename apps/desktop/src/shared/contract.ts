@@ -238,6 +238,8 @@ export const projectEntrySchema = z
     check: projectCheckSchema.nullable(),
     favorite: z.boolean(),
     tags: z.array(z.string().min(1).max(40)).max(20),
+    /** Printed copies of the parts list (P6), or null without one. */
+    progress: z.object({ printed: z.number().int().nonnegative(), total: z.number().int().nonnegative() }).strict().nullable(),
   })
   .strict();
 export const projectListSchema = z.array(projectEntrySchema).max(500);
@@ -271,6 +273,19 @@ export const versionSaveSchema = z.object({ label: z.string().trim().min(1).max(
 export const versionIdSchema = z.object({ id: z.string().regex(/^v-[a-z0-9]{1,20}$/) }).strict();
 /** Names a version (P4); an automatic one becomes a milestone that is kept. */
 export const versionNameSchema = z.object({ id: z.string().regex(/^v-[a-z0-9]{1,20}$/), label: z.string().trim().min(1).max(200) }).strict();
+
+/** One body of the parts list (P6): copies needed and printed, filament and a note. */
+export const partNoteSchema = z
+  .object({
+    quantity: z.number().int().min(1).max(999),
+    printed: z.number().int().min(0).max(999),
+    filament: z.string().max(80),
+    note: z.string().max(500),
+  })
+  .strict();
+export const partsStateSchema = z.object({ parts: z.record(z.string().max(200), partNoteSchema), bodies: z.array(z.string().max(200)).max(500) }).strict();
+/** Keeps one body's note; `bodies` are the printed bodies of the design as the structure tree shows them. */
+export const partSetSchema = z.object({ body: z.string().min(1).max(200), note: partNoteSchema, bodies: z.array(z.string().max(200)).max(500) }).strict();
 
 /** A deleted project in PartBuddy's recycle bin (P2), newest first in the list. */
 export const trashEntrySchema = z
@@ -1020,6 +1035,8 @@ export const invokeContract = {
   [invokeChannels.projectNameVersion]: { request: versionNameSchema, response: none },
   [invokeChannels.projectVersionAsProject]: { request: versionIdSchema, response: none },
   [invokeChannels.projectTrashList]: { request: none, response: trashListSchema },
+  [invokeChannels.projectParts]: { request: none, response: partsStateSchema },
+  [invokeChannels.projectSetPart]: { request: partSetSchema, response: partsStateSchema },
   [invokeChannels.projectSetMeta]: { request: projectMetaSchema, response: none },
   [invokeChannels.projectExportPackage]: { request: projectTargetSchema, response: packageExportResultSchema },
   [invokeChannels.projectTrashRestore]: { request: trashIdSchema, response: none },
@@ -1134,6 +1151,8 @@ export type RepairResult = z.infer<typeof repairResultSchema>;
 export type ProjectCheck = z.infer<typeof projectCheckSchema>;
 export type ProjectEntry = z.infer<typeof projectEntrySchema>;
 export type TrashEntry = z.infer<typeof trashEntrySchema>;
+export type PartNote = z.infer<typeof partNoteSchema>;
+export type PartsState = z.infer<typeof partsStateSchema>;
 export type ProjectPreview = z.infer<typeof projectPreviewSchema>;
 export type EngineChoiceError = z.infer<typeof engineChoiceErrorSchema>;
 export type EngineChoiceResult = z.infer<typeof engineChoiceResultSchema>;

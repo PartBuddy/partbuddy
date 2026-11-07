@@ -362,6 +362,11 @@ function ProjectTile({ project, open, disabled, when, onOpen }: { project: Proje
         ) : null}
         <span className="flex items-center justify-between gap-2 text-xs text-text-subtle">
           <span className="truncate tabular-nums">{open ? t('home.openNow') : when}</span>
+          {project.progress && project.progress.total > 0 ? (
+            <span className="shrink-0 tabular-nums" data-testid="home-tile-progress">
+              {t('parts.tile', project.progress)}
+            </span>
+          ) : null}
           {project.check && light ? <StatusDot tone={CHECK_TONE[project.check]} label={light} /> : null}
         </span>
       </div>

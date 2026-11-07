@@ -1,5 +1,5 @@
 import { IconBox, IconEye, IconEyeOff, IconTool, IconTransform } from '@tabler/icons-react';
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, ToggleButton, Tooltip, TooltipTrigger } from 'react-aria-components';
 
@@ -7,6 +7,7 @@ import { NotesSection } from '../notes/NotesSection';
 import { LooseDimensions } from '../viewer/Dimensions';
 import { bodyKindOf, type BodyKind } from './bodyKinds';
 import { ParametersSection } from './ParametersSection';
+import { ExpandToggle, NEW_PART, PartDetails, PrintedToggle, useParts } from './PartDetails';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
@@ -84,6 +85,11 @@ export function StructurePanel() {
   const { t } = useTranslation();
   const model = useStudio((s) => s.model);
   const setNotice = useStudio((s) => s.setNotice);
+  const ready = model.status === 'ready' ? model : null;
+  // The parts list (P6): printed bodies get a printed switch, every body its copies and a note.
+  const printable = ready ? ready.structure.bodies.map((body) => body.name).filter((name) => ready.structure.standardParts?.includes(name) !== true) : [];
+  const { parts, save } = useParts(ready?.documentId ?? null, printable);
+  const [expanded, setExpanded] = useState<string | null>(null);
   if (model.status !== 'ready') return null;
   const { bodies, sketches } = model.structure;
   const editing = new Set(model.sketches.filter((sketch) => sketch.active).map((sketch) => sketch.id));
@@ -103,25 +109,48 @@ export function StructurePanel() {
       <section aria-labelledby="structure-bodies">
         <h2 id="structure-bodies" className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-text-subtle">
           {t('structure.bodies', { count: bodies.length })}
+          {printable.length > 0 ? (
+            <span className="ml-1 font-normal normal-case tracking-normal tabular-nums" data-testid="parts-progress">
+              {' · '}
+              {t('parts.progress', {
+                printed: printable.reduce((sum, name) => sum + (parts[name]?.printed ?? 0), 0),
+                total: printable.reduce((sum, name) => sum + (parts[name]?.quantity ?? 1), 0),
+              })}
+            </span>
+          ) : null}
         </h2>
         {bodies.length === 0 ? <p className="px-2 text-xs text-text-subtle">{t('structure.noBodies')}</p> : null}
         <ul>
           {bodies.map((body) => {
             const kind = bodyKindOf(body, model.structure.features);
             const standard = model.structure.standardParts?.includes(body.name) === true;
+            const note = parts[body.name] ?? NEW_PART;
+            const keep = (next: typeof note) => {
+              save(body.name, next);
+            };
+            const open = expanded === body.name;
+            const repair = kind === 'model' || standard ? null : <RepairButton body={body.name} kind={kind} />;
             return (
-              <Row
-                key={body.name}
-                icon={<IconBox className="size-icon-sm shrink-0" aria-hidden />}
-                name={body.name}
-                {...(standard ? { note: t('structure.standardPart') } : kind === 'mesh' ? { note: t('structure.mesh') } : {})}
-                {...(kind === 'model' || standard ? {} : { action: <RepairButton body={body.name} kind={kind} /> })}
-                visible={body.visible}
-                onToggle={(visible) => {
-                  toggle({ bodies: [body.name], sketches: [], visible });
-                }}
-                testId="structure-body"
-              />
+              <Fragment key={body.name}>
+                <Row
+                  icon={<IconBox className="size-icon-sm shrink-0" aria-hidden />}
+                  name={body.name}
+                  {...(standard ? { note: t('structure.standardPart') } : kind === 'mesh' ? { note: t('structure.mesh') } : {})}
+                  action={
+                    <>
+                      {repair}
+                      {standard ? null : <PrintedToggle body={body.name} note={note} onChange={keep} />}
+                      <ExpandToggle body={body.name} open={open} onToggle={() => setExpanded(open ? null : body.name)} />
+                    </>
+                  }
+                  visible={body.visible}
+                  onToggle={(visible) => {
+                    toggle({ bodies: [body.name], sketches: [], visible });
+                  }}
+                  testId="structure-body"
+                />
+                {open ? <PartDetails key={`${body.name}:${ready?.documentId ?? ''}`} body={body.name} note={note} standard={standard} onChange={keep} /> : null}
+              </Fragment>
             );
           })}
         </ul>
