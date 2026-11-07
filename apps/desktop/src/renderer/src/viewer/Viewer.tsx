@@ -658,16 +658,23 @@ function FrameDesign({ documentId, bodies, sketches }: { documentId: string; bod
     // Following changes moves the camera on its own; a user who moved it keeps their view.
     if (state.userMoved || follow || !(newCamera || needsReframe(state.framed, bounds))) return;
     state.framed = bounds.clone();
+    centrePivot(controls, !newCamera);
     void controls.fitToSphere(bounds, !newCamera);
     keepView(controls);
   }, [controls, documentId, bounds, follow]);
   return null;
 }
 
+/** Drops the pivot a drag under the cursor set (a focal offset in camera-controls), so a fit or view centres again. */
+function centrePivot(controls: CameraControls, animate: boolean): void {
+  void controls.setFocalOffset(0, 0, 0, animate);
+}
+
 /** Looks at the design from `direction` and fits it into the view, in either projection. */
 function lookFrom(controls: CameraControls, direction: [number, number, number], bounds: Sphere, animate: boolean): void {
   const d = new Vector3(...direction).normalize().multiplyScalar(bounds.radius * 4.2);
   const { x, y, z } = bounds.center;
+  centrePivot(controls, animate);
   void controls.setLookAt(x + d.x, y + d.y, z + d.z, x, y, z, animate);
   void controls.fitToSphere(bounds, animate);
   keepView(controls);
@@ -707,6 +714,7 @@ function StandardViews({ bodies, sketches }: { bodies: BodyModel[]; sketches: Mi
     if (!controls || !request || request.serial === done.current || bounds.radius <= 0) return;
     done.current = request.serial;
     if (request.view === 'fit') {
+      centrePivot(controls, true);
       void controls.fitToSphere(bounds, true);
     } else if (request.view === 'selection') {
       const picks = useStudio.getState().selections;
@@ -718,6 +726,7 @@ function StandardViews({ bodies, sketches }: { bodies: BodyModel[]; sketches: Mi
         SELECTION_CONTEXT,
       );
       // Nothing selected: fit everything, as Fit does.
+      centrePivot(controls, true);
       if (box) void controls.fitToBox(new Box3(new Vector3(...box.min), new Vector3(...box.max)), true, { paddingTop: 8, paddingBottom: 8, paddingLeft: 8, paddingRight: 8 });
       else void controls.fitToSphere(bounds, true);
     } else {
@@ -743,7 +752,8 @@ function CursorNavigation({ meshes }: { meshes: MeshList }) {
     (raycaster as Raycaster & { firstHitOnly?: boolean }).firstHitOnly = true;
     const ndc = new Vector2();
     const onDown = (event: PointerEvent) => {
-      if (event.button !== 0) return;
+      // Only at rest: camera-controls moves the camera when the pivot changes during a transition.
+      if (event.button !== 0 || controls.active) return;
       const rect = dom.getBoundingClientRect();
       ndc.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
       raycaster.setFromCamera(ndc, camera);
@@ -818,6 +828,7 @@ function FollowChanges() {
     // Small changes (one fillet) stay in context: frame at least a 40 mm neighbourhood.
     const size = target.getSize(new Vector3());
     target.expandByVector(new Vector3(Math.max(0, 40 - size.x) / 2, Math.max(0, 40 - size.y) / 2, Math.max(0, 40 - size.z) / 2));
+    centrePivot(controls, true);
     void controls.fitToBox(target, true, { paddingTop: 12, paddingBottom: 12, paddingLeft: 12, paddingRight: 12 });
   }, [follow, controls, serial, box]);
   return null;
@@ -835,6 +846,7 @@ function FocusRequest() {
     // A small spot stays in context: frame at least a 30 mm neighbourhood.
     const size = target.getSize(new Vector3());
     target.expandByVector(new Vector3(Math.max(0, 30 - size.x) / 2, Math.max(0, 30 - size.y) / 2, Math.max(0, 30 - size.z) / 2));
+    centrePivot(controls, true);
     void controls.fitToBox(target, true, { paddingTop: 12, paddingBottom: 12, paddingLeft: 12, paddingRight: 12 });
   }, [controls, request]);
   return null;
