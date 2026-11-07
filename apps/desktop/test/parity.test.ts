@@ -45,6 +45,7 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.projectRestoreVersion]: { reason: PROJECT },
   [invokeChannels.projectCompareVersion]: { reason: PROJECT },
   [invokeChannels.projectTrashList]: { reason: PROJECT },
+  [invokeChannels.projectExportPackage]: { reason: FILES },
   [invokeChannels.projectTrashRestore]: { reason: PROJECT },
   [invokeChannels.projectTrashEmpty]: { reason: PROJECT },
   [invokeChannels.mirrorCurrent]: { reason: READ },

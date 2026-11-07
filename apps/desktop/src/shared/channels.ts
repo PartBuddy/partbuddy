@@ -27,6 +27,7 @@ export const invokeChannels = {
   projectRestoreVersion: 'project:restore-version',
   projectCompareVersion: 'project:compare-version',
   projectTrashList: 'project:trash-list',
+  projectExportPackage: 'project:export-package',
   projectTrashRestore: 'project:trash-restore',
   projectTrashEmpty: 'project:trash-empty',
   mirrorCurrent: 'mirror:current',

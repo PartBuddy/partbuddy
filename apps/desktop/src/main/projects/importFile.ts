@@ -3,9 +3,10 @@ import { basename, extname, isAbsolute } from 'node:path';
 
 /**
  * Files PartBuddy imports (plan step B4): SolidCraft designs as they are, STEP and IGES as bodies
- * with faces (`file.insert_step`), STL, 3MF and OBJ as mesh bodies (`file.insert_mesh`).
+ * with faces (`file.insert_step`), STL, 3MF and OBJ as mesh bodies (`file.insert_mesh`), and
+ * PartBuddy's own project packages (P3).
  */
-export type ImportKind = 'design' | 'step' | 'mesh';
+export type ImportKind = 'design' | 'step' | 'mesh' | 'package';
 
 const KINDS: Record<string, ImportKind> = {
   '.sc': 'design',
@@ -16,6 +17,7 @@ const KINDS: Record<string, ImportKind> = {
   '.stl': 'mesh',
   '.3mf': 'mesh',
   '.obj': 'mesh',
+  '.partbuddy': 'package',
 };
 
 /** The extensions of the open dialog, without the dot. */
@@ -23,6 +25,7 @@ export const IMPORT_EXTENSIONS = {
   design: ['sc'],
   step: ['step', 'stp', 'iges', 'igs'],
   mesh: ['stl', '3mf', 'obj'],
+  package: ['partbuddy'],
 } as const;
 
 /** Larger files are not parts for a 3D printer; SolidCraft would take minutes to read them. */
@@ -51,6 +54,6 @@ export function checkImportFile(file: string): ImportKind {
 }
 
 /** The SolidCraft command that inserts a file of this kind into the open design. */
-export function insertCommand(kind: Exclude<ImportKind, 'design'>, path: string): { command: string; params: Record<string, unknown> } {
+export function insertCommand(kind: Exclude<ImportKind, 'design' | 'package'>, path: string): { command: string; params: Record<string, unknown> } {
   return { command: kind === 'step' ? 'file.insert_step' : 'file.insert_mesh', params: { path } };
 }

@@ -37,6 +37,7 @@ import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
 import { checkImportFile, IMPORT_EXTENSIONS, importName, type ImportKind } from './projects/importFile';
 import { migrateDesigns, ProjectStore, whenFree } from './projects/projectStore';
+import { exportPackage, importPackage, PACKAGE_EXTENSION } from './projects/projectPackage';
 import { ProjectTrash } from './projects/trash';
 import { LogFile } from './logFile';
 import { keepSketch, listSketches, loadSketch } from './projects/sketches';
@@ -901,6 +902,27 @@ if (!app.requestSingleInstanceLock()) {
       log('moved the project to the recycle bin');
       return undefined;
     });
+    // The project as one file (P3); the open project is saved first, so the package holds its newest state.
+    bridge.handle(invokeChannels.projectExportPackage, async ({ folder }) => {
+      const target = targetOf(folder);
+      if (!target.design) throw new Error('the design has no project yet');
+      if (target.open) {
+        chatArchive.flush();
+        printProfiles.flush();
+        await supervisor.saveNow();
+      }
+      const name = basename(target.design, '.sc');
+      const options: Electron.SaveDialogOptions = {
+        title: german ? 'Projekt exportieren' : 'Export project',
+        defaultPath: join(app.getPath('documents'), `${name}.${PACKAGE_EXTENSION}`),
+        filters: [{ name: german ? 'PartBuddy-Projekt' : 'PartBuddy project', extensions: [PACKAGE_EXTENSION] }],
+      };
+      const picked = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
+      if (picked.canceled || !picked.filePath) return { saved: false };
+      exportPackage(target.design, picked.filePath, app.getVersion());
+      log('exported a project package');
+      return { saved: true };
+    });
     bridge.handle(invokeChannels.projectTrashList, () => projectTrash.list());
     bridge.handle(invokeChannels.projectTrashRestore, async ({ id }) => {
       await projectTrash.restore(id);
@@ -923,8 +945,8 @@ if (!app.requestSingleInstanceLock()) {
     });
     // Import (B4): the open dialog offers every kind PartBuddy reads, or only files to insert.
     const pickImport = async (insert: boolean): Promise<string | null> => {
-      const kinds: ImportKind[] = insert ? ['step', 'mesh'] : ['design', 'step', 'mesh'];
-      const names: Record<ImportKind, string> = { design: 'SolidCraft', step: 'STEP, IGES', mesh: 'STL, 3MF, OBJ' };
+      const kinds: ImportKind[] = insert ? ['step', 'mesh'] : ['package', 'design', 'step', 'mesh'];
+      const names: Record<ImportKind, string> = { package: german ? 'PartBuddy-Projekt' : 'PartBuddy project', design: 'SolidCraft', step: 'STEP, IGES', mesh: 'STL, 3MF, OBJ' };
       const options: Electron.OpenDialogOptions = {
         title: insert ? (german ? 'Datei einfügen' : 'Insert file') : german ? 'Importieren' : 'Import',
         defaultPath: app.getPath('documents'),
@@ -945,6 +967,7 @@ if (!app.requestSingleInstanceLock()) {
       // Always a copy, also of a design inside the project folder: importing never moves the original.
       let target: string;
       if (kind === 'design') target = projectStore.importDesign(file);
+      else if (kind === 'package') target = await importPackage(file, projectStore);
       else {
         // The new design is made before the switch, so a file SolidCraft cannot read leaves the open project as it is.
         target = projectStore.newDesignFile(importName(file));
@@ -977,7 +1000,7 @@ if (!app.requestSingleInstanceLock()) {
       const file = path ?? (await pickImport(true));
       if (!file) return { inserted: false, name: null, bodies: [] };
       const kind = checkImportFile(file);
-      if (kind === 'design') throw new Error('a SolidCraft design opens as a project of its own');
+      if (kind === 'design' || kind === 'package') throw new Error('a SolidCraft design or project package opens as a project of its own');
       const name = basename(file).slice(0, 255);
       let bodies: string[] = [];
       await steps.recordUser(describeUserAction({ kind: 'insertFile', name }), async () => {

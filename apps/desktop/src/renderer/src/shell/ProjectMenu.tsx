@@ -1,4 +1,5 @@
-import { IconChevronDown, IconCopy, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPackageImport, IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconChevronDown, IconCopy, IconFileExport, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPackageImport, IconPencil, IconTrash } from '@tabler/icons-react';
+import type { TFunction } from 'i18next';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -114,7 +115,7 @@ export function ProjectMenu({ designName }: { designName: string }) {
           <Menu
             aria-label={t('project.title')}
             className="outline-none"
-            disabledKeys={[...(ready ? [] : ['new', 'open', 'import']), ...(connection.state === 'connected' ? [] : ['insert']), ...(ready && project ? [] : ['rename', 'duplicate', 'trash'])]}
+            disabledKeys={[...(ready ? [] : ['new', 'open', 'import']), ...(connection.state === 'connected' ? [] : ['insert']), ...(ready && project ? [] : ['rename', 'duplicate', 'trash']), ...(project ? [] : ['export'])]}
             onAction={(key) => {
               if (key === 'new') create();
               else if (key === 'open') open();
@@ -124,6 +125,7 @@ export function ProjectMenu({ designName }: { designName: string }) {
               else if (key === 'trash') setDialog('trash');
               else if (key === 'duplicate') run(() => api.duplicate());
               else if (key === 'reveal') void api.reveal();
+              else if (key === 'export') exportProject(api.exportPackage(), t);
             }}
           >
             <Item id="new" icon={<IconFilePlus className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.new')} shortcut="Ctrl+N" testId="project-new" />
@@ -134,6 +136,7 @@ export function ProjectMenu({ designName }: { designName: string }) {
             <Item id="rename" icon={<IconPencil className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.rename')} testId="project-rename" />
             <Item id="duplicate" icon={<IconCopy className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.duplicate')} testId="project-duplicate" />
             <Item id="reveal" icon={<IconFolderSearch className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.reveal')} testId="project-reveal" />
+            <Item id="export" icon={<IconFileExport className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.exportPackage')} testId="project-export-package" />
             <Separator className="my-1 border-t border-border" />
             <Item id="trash" icon={<IconTrash className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.trash')} testId="project-trash" />
           </Menu>
@@ -143,6 +146,17 @@ export function ProjectMenu({ designName }: { designName: string }) {
       {project ? <TrashDialog open={dialog === 'trash'} name={project.name} opensNew onClose={() => setDialog(null)} onConfirm={() => run(() => api.trash())} /> : null}
     </>
   );
+}
+
+/** Reports how writing a project package (P3) went; a cancelled save dialog says nothing. */
+export function exportProject(work: Promise<{ saved: boolean }>, t: TFunction): void {
+  void work
+    .then((result) => {
+      if (result.saved) useStudio.getState().setNotice({ tone: 'success', text: t('project.exportedPackage') });
+    })
+    .catch((error: unknown) => {
+      useStudio.getState().setNotice({ tone: 'danger', text: t('project.failed', { detail: (error as Error).message.slice(0, 200) }) });
+    });
 }
 
 /** Renames the open project, or with `folder` a project of the start page; `onDone` instead of closing the start page. */

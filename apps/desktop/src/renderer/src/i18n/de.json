@@ -838,10 +838,12 @@
     "inserted": "{name} eingefügt ({count, plural, one {# Körper} other {# Körper}}).",
     "dropAsProject": "Loslassen für ein neues Projekt",
     "dropIntoDesign": "Loslassen zum Einfügen in dieses Projekt",
-    "dropKinds": "STEP, IGES, STL, 3MF, OBJ oder ein SolidCraft-Design",
-    "dropUnknown": "PartBuddy importiert STEP, IGES, STL, 3MF, OBJ und SolidCraft-Designs.",
+    "dropKinds": "STEP, IGES, STL, 3MF, OBJ, ein SolidCraft-Design oder ein PartBuddy-Projekt",
+    "dropUnknown": "PartBuddy importiert STEP, IGES, STL, 3MF, OBJ, SolidCraft-Designs und PartBuddy-Projekte (.partbuddy).",
     "dropNoPath": "Diese Datei liegt noch nicht auf dem Datenträger. Erst speichern, dann aus dem Explorer ziehen.",
-    "trashBodyKeep": "Der Projektordner mit Design, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen."
+    "trashBodyKeep": "Der Projektordner mit Design, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen.",
+    "exportPackage": "Als Datei exportieren …",
+    "exportedPackage": "Das Projekt ist als .partbuddy-Datei gespeichert, mit Chat, Versionen und Skizzen."
   },
   "home": {
     "title": "Projekte",

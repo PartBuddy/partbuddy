@@ -230,7 +230,7 @@ export class SolidCraftSupervisor {
    * copied into the cache first; the design keeps the geometry, not the path, so the copy goes
    * again afterwards. Returns the bodies the file brought.
    */
-  async insertFile(source: string, kind: Exclude<ImportKind, 'design'>): Promise<string[]> {
+  async insertFile(source: string, kind: Exclude<ImportKind, 'design' | 'package'>): Promise<string[]> {
     await this.probing;
     const folder = join(this.options.cacheDir, `import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
     await mkdir(folder, { recursive: true });
@@ -255,7 +255,7 @@ export class SolidCraftSupervisor {
    * Makes a new design file from a STEP, IGES or mesh file (B4: import as a new project) with
    * `solidcraft-cli run`, without touching the open design; the project opens it afterwards.
    */
-  async designFromFile(source: string, kind: Exclude<ImportKind, 'design'>, target: string): Promise<void> {
+  async designFromFile(source: string, kind: Exclude<ImportKind, 'design' | 'package'>, target: string): Promise<void> {
     await this.designFromSteps([insertCommand(kind, source)], target);
   }
 
