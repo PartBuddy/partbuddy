@@ -47,3 +47,13 @@ describe('gridStep', () => {
     expect(gridStep(6)).toBe(1);
   });
 });
+
+describe('lineScaleFor', () => {
+  it('keeps full lines for a part that fills the view and halves them for a tiny one, in steps', async () => {
+    const { lineScaleFor } = await import('../src/renderer/src/viewer/framing');
+    expect(lineScaleFor(400)).toBe(1);
+    expect(lineScaleFor(110)).toBe(0.5);
+    expect(lineScaleFor(20)).toBe(0.5);
+    expect(lineScaleFor(165)).toBe(0.75);
+  });
+});

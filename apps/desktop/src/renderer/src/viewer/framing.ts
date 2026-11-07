@@ -27,3 +27,12 @@ export function gridStep(radius: number): number {
   const factor = [1, 2, 5, 10].find((step) => step * power >= raw - 1e-9) ?? 10;
   return factor * power;
 }
+
+/**
+ * How wide lines may be for the part's size on screen: full width from about 220 px of radius,
+ * down to half for a part zoomed far out, where fixed-width lines ran together into a black mass.
+ * Reported in steps of 0.05, so zooming re-renders only now and then.
+ */
+export function lineScaleFor(radiusPixels: number): number {
+  return Math.round(Math.min(1, Math.max(0.5, radiusPixels / 220)) * 20) / 20;
+}

@@ -136,8 +136,16 @@ brought it to the level of Onshape and Fusion:
   (play, step, timeline, named steps, where the order came from). The part of the playing step is
   tinted like a selection. Changes of view glide (about a third of a second), none under
   `prefers-reduced-motion`.
-* A new body is not tinted; changed faces get a tint of the change colour. Hover and selection tint
-  the face, the outline carries the strong colour.
+* A new body is not tinted. Faces a step changed glow briefly in the change colour (a calm blue,
+  `viewer-changed`) and fade out within about 1.5 s; pointing at the "faces changed" chip shows
+  them again. Hover and selection tint the face, the outline carries the strong colour.
+* Line widths shrink with the part on screen down to half, so a part zoomed far out keeps clean
+  lines. Nothing in the view selects text when dragged.
+* View cube: the CubeNavigationAid of Bentley's iTwin.js AppUI (MIT, `viewer/navCube.ts`,
+  notice in `navCube.LICENSE`), chosen by Manuel on 2026-11-07 over drei's cube, three-viewport-gizmo
+  and a Codex design. Flat faces with a soft gradient from `surface-raised` to `surface-sunken`, a
+  hairline border, labels in the system font (HTML over the canvas, so always crisp); each face has
+  3 × 3 cells for corners, edges and centre that light up in `accent-subtle` and turn the view.
 * World axes: red X and green Y through the origin, an axis triad in the lower left, the view cube
   in the upper right. View tools as one horizontal bar at the top left, above the live chips, so
   nothing overlaps at narrow widths; menus open below it.
