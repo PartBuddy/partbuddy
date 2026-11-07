@@ -547,7 +547,16 @@
     "repairDone": "{name} was repaired.",
     "nothingToRepair": "Nothing to repair: {name} is fine as it is.",
     "openMesh": "{name} is not closed, so SolidCraft cannot turn it into faces. It can still be exported; the slicer repairs small holes itself.",
-    "standardPart": "standard part"
+    "standardPart": "standard part",
+    "bodiesTitle": "Bodies",
+    "sketchesTitle": "Sketches",
+    "insertFile": "Insert file",
+    "drawSketch": "Draw a sketch",
+    "rename": "Rename",
+    "renameLabel": "New name for {name}",
+    "hideShort": "Hide",
+    "showShort": "Show",
+    "focus": "Zoom to"
   },
   "parameters": {
     "title": "Parameters ({count})",
@@ -558,7 +567,14 @@
     "enter": "Preview in the view – Enter changes it, Escape cancels",
     "formulaHint": "A formula stays as it is; ask the assistant to change it",
     "slider": "{name}, slider",
-    "range": "Range {min} to {max} {unit}"
+    "range": "Range {min} to {max} {unit}",
+    "titleShort": "Parameters",
+    "noneShort": "No parameters yet",
+    "ask": "Ask the assistant",
+    "askDraft": "Make parameters for the important sizes of this part.",
+    "name": "Name",
+    "value": "Value",
+    "invalid": "Type a length greater than 0"
   },
   "timeline": {
     "handle": "Rollback bar",
@@ -625,7 +641,9 @@
     "dismissShort": "Discard",
     "dismiss": "Discard removed note: {text}",
     "unreadable": "{count, plural, one {# note} other {# notes}} in the file could not be read",
-    "failed": "The note could not be saved: {detail}"
+    "failed": "The note could not be saved: {detail}",
+    "titleShort": "Notes",
+    "noneShort": "Select a face, then “Note”"
   },
   "dimensions": {
     "tool": "Dimensions",

@@ -1,4 +1,5 @@
 import { IconArrowBackUp, IconNote, IconPin } from '@tabler/icons-react';
+import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton } from 'react-aria-components';
 
@@ -7,6 +8,7 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { surfaceKind } from '@partbuddy/geometry';
 
+import { TreeEmpty, TreeExtra, TreeItem, TreeSection } from '../shell/Tree';
 import { selectionOf } from '../viewer/viewState';
 import { NoteStatus, useNoteCommand } from './NoteParts';
 
@@ -36,12 +38,9 @@ export function NotesSection() {
   };
 
   return (
-    <section aria-labelledby="structure-notes" data-testid="notes">
-      <h2 id="structure-notes" className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-text-subtle">
-        {t('notes.title', { count: state.notes.length })}
-      </h2>
+    <TreeSection id="section:notes" icon={<IconNote className="size-icon-sm" aria-hidden />} title={t('notes.titleShort')} label={t('notes.title', { count: state.notes.length })} count={state.notes.length} testId="notes">
       {state.restorable.length > 0 ? (
-        <div className="mx-1 mb-2 flex flex-col gap-1 rounded-md bg-info-subtle p-2" role="status" data-testid="notes-restorable">
+        <TreeExtra className="mr-2 mb-2 ml-5 flex flex-col gap-1 rounded-md bg-info-subtle p-2" testId="notes-restorable">
           <p className="text-xs text-text">{t('notes.removed', { count: state.restorable.length })}</p>
           <ul className="flex flex-col gap-1">
             {state.restorable.map((entry) => (
@@ -59,31 +58,34 @@ export function NotesSection() {
               </li>
             ))}
           </ul>
-        </div>
+        </TreeExtra>
       ) : null}
-      {state.notes.length === 0 ? <p className="px-2 text-xs text-text-subtle">{t('notes.none')}</p> : null}
-      <ul className="flex flex-col gap-1">
-        {state.notes.map((note, i) => (
-          <li key={note.id} className="flex flex-col gap-1 rounded-md px-2 py-1 hover:bg-surface-hover" data-testid="note-row" data-note={note.id}>
-            <AriaButton
-              className="flex items-start gap-2 text-left text-sm text-text outline-none focus-visible:outline-2 focus-visible:outline-focus"
-              onPress={() => {
-                setOpenNote(note.status === 'orphaned' ? null : note.id);
-              }}
-            >
-              <span className={`mt-hairline inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${note.own ? 'bg-note text-on-accent' : 'border border-warning text-warning'}`} aria-hidden>
+      {state.notes.length === 0 ? <TreeEmpty icon={<IconNote className="size-icon" aria-hidden />} text={t('notes.noneShort')} /> : null}
+      {state.notes.map((note, i) => {
+        const open = () => {
+          setOpenNote(note.status === 'orphaned' ? null : note.id);
+        };
+        // A note that sits where it was pinned and is the user's own needs one line; the rest says what is up.
+        const plain = note.own && note.status === 'attached';
+        return (
+          <Fragment key={note.id}>
+            <TreeItem id={`note:${note.id}`} label={note.text} onSelect={open} onOpen={open} testId="note-row" data={{ note: note.id }}>
+              <span
+                className={`inline-flex size-icon shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums ${note.own ? 'bg-note text-on-accent' : 'border border-warning text-warning'}`}
+                aria-hidden
+              >
                 {i + 1}
               </span>
-              <span className="line-clamp-2 min-w-0 break-words">{note.text}</span>
-            </AriaButton>
-            <div className="flex flex-wrap items-center gap-1 pl-7">
-              <NoteStatus note={note} />
-              <span className="truncate text-xs text-text-subtle" title={note.target ?? undefined}>
-                {where(note)}
+              <span className="min-w-0 flex-1 truncate" title={`${note.text}\n${where(note)}`}>
+                {note.text}
               </span>
-            </div>
+              <span className={plain ? 'sr-only' : 'shrink-0'}>
+                <NoteStatus note={note} />
+                <span className="sr-only">{where(note)}</span>
+              </span>
+            </TreeItem>
             {!note.own || note.status === 'orphaned' || note.status === 'ambiguous' ? (
-              <div className="flex flex-wrap gap-1 pl-6">
+              <TreeExtra className="flex flex-wrap gap-1 pb-1 pl-6">
                 {note.own ? null : (
                   <AriaButton className={small} isDisabled={busy} onPress={() => void run(() => platform().notes.accept(note.id))} data-testid="note-row-accept">
                     {t('notes.accept')}
@@ -102,17 +104,17 @@ export function NotesSection() {
                     {t('notes.reattach')}
                   </AriaButton>
                 ) : null}
-              </div>
+              </TreeExtra>
             ) : null}
-          </li>
-        ))}
-      </ul>
+          </Fragment>
+        );
+      })}
       {state.unreadable > 0 ? (
-        <p className="flex items-center gap-1 px-2 pt-1 text-xs text-text-subtle">
+        <TreeExtra className="flex items-center gap-1 pt-1 pl-5 text-xs text-text-subtle">
           <IconNote className="size-icon-sm" aria-hidden />
           {t('notes.unreadable', { count: state.unreadable })}
-        </p>
+        </TreeExtra>
       ) : null}
-    </section>
+    </TreeSection>
   );
 }

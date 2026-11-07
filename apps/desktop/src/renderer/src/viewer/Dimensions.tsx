@@ -17,6 +17,7 @@ import { layoutLabels, type LabelBox } from './labelLayout';
 import { parseLength } from './lengthInput';
 import { keeps } from './section';
 import { edgeLabel } from './viewState';
+import { TreeExtra } from '../shell/Tree';
 
 type MeshList = RefObject<(Mesh | null)[]>;
 const PROBE_DELAY_MS = 250;
@@ -426,10 +427,10 @@ export function LooseDimensions() {
   const text = useMarkText();
   if (marks.length === 0) return null;
   return (
-    <section aria-labelledby="structure-loose" className="flex flex-col gap-1" data-testid="loose-dimensions">
-      <h2 id="structure-loose" className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-text-subtle">
+    <TreeExtra className="flex flex-col gap-1 pl-5" testId="loose-dimensions">
+      <p className="px-2 pt-1 text-xs font-medium text-text-subtle">
         {t('dimensions.loose')}
-      </h2>
+      </p>
       {marks.map((mark) => {
         const shown = text(mark);
         const open = openMark === mark.id;
@@ -458,6 +459,6 @@ export function LooseDimensions() {
           </div>
         );
       })}
-    </section>
+    </TreeExtra>
   );
 }

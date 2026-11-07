@@ -96,6 +96,7 @@ const api: PartBuddyApi = {
     clearance: (bodies, gap) => ipcRenderer.invoke(invokeChannels.designClearance, { bodies, gap }),
     timeline: (command) => ipcRenderer.invoke(invokeChannels.designTimeline, command),
     visibility: (command) => ipcRenderer.invoke(invokeChannels.designVisibility, command),
+    renameBody: (body, name) => ipcRenderer.invoke(invokeChannels.designRenameBody, { body, name }),
     insert: (path) => ipcRenderer.invoke(invokeChannels.designInsert, path === undefined ? {} : { path }),
     repair: (body, how) => ipcRenderer.invoke(invokeChannels.designRepair, { body, how }),
     goToStep: (step) => ipcRenderer.invoke(invokeChannels.designGoToStep, { step }),

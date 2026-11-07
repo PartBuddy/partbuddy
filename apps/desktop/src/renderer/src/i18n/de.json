@@ -547,7 +547,16 @@
     "repairDone": "{name} wurde repariert.",
     "nothingToRepair": "Nichts zu reparieren: {name} ist in Ordnung.",
     "openMesh": "{name} ist nicht geschlossen, deshalb kann SolidCraft es nicht in Flächen umwandeln. Exportieren geht trotzdem; kleine Löcher repariert der Slicer selbst.",
-    "standardPart": "Normteil"
+    "standardPart": "Normteil",
+    "bodiesTitle": "Körper",
+    "sketchesTitle": "Skizzen",
+    "insertFile": "Datei einfügen",
+    "drawSketch": "Skizze zeichnen",
+    "rename": "Umbenennen",
+    "renameLabel": "Neuer Name für {name}",
+    "hideShort": "Ausblenden",
+    "showShort": "Einblenden",
+    "focus": "Heranzoomen"
   },
   "parameters": {
     "title": "Parameter ({count})",
@@ -558,7 +567,14 @@
     "enter": "Vorschau in der Ansicht – Enter ändert, Escape verwirft",
     "formulaHint": "Eine Formel bleibt erhalten; den Assistenten bitten, sie zu ändern",
     "slider": "{name}, Schieberegler",
-    "range": "Bereich {min} bis {max} {unit}"
+    "range": "Bereich {min} bis {max} {unit}",
+    "titleShort": "Parameter",
+    "noneShort": "Noch keine Parameter",
+    "ask": "Assistent fragen",
+    "askDraft": "Lege Parameter für die wichtigen Maße dieses Teils an.",
+    "name": "Name",
+    "value": "Wert",
+    "invalid": "Eine Länge größer als 0 eingeben"
   },
   "timeline": {
     "handle": "Rückroll-Balken",
@@ -625,7 +641,9 @@
     "dismissShort": "Verwerfen",
     "dismiss": "Entfernte Notiz verwerfen: {text}",
     "unreadable": "{count, plural, one {# Notiz} other {# Notizen}} in der Datei nicht lesbar",
-    "failed": "Die Notiz ließ sich nicht speichern: {detail}"
+    "failed": "Die Notiz ließ sich nicht speichern: {detail}",
+    "titleShort": "Notizen",
+    "noneShort": "Fläche wählen, dann „Notiz“"
   },
   "dimensions": {
     "tool": "Bemaßungen",

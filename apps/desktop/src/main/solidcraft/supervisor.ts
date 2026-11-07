@@ -827,6 +827,11 @@ export class SolidCraftSupervisor {
     return this.run({ command: 'timeline.suppress', params: { feature: command.feature, suppressed: command.suppressed } });
   }
 
+  /** Renames a body (the user's structure tree). */
+  renameBody(body: string, name: string): Promise<void> {
+    return this.run({ command: 'body.rename', params: { body, name } });
+  }
+
   /** Shows or hides bodies and sketches; the mirror shows only visible ones. */
   visibility(command: VisibilityCommand): Promise<void> {
     return this.run({ command: 'browser.visibility', params: { visible: command.visible, items: [...command.bodies, ...command.sketches] } });

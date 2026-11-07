@@ -73,6 +73,8 @@ export class FakeSolidCraft {
   readonly exports: { path: string; format: string; bodies: unknown }[] = [];
   revision = 1;
   bodies = ['CableClip'];
+  /** Bodies and sketch ids `browser.visibility` hid. */
+  hidden = new Set<string | number>();
   /** Sketches as `document.inspect` lists them; each inspects as the fixture sketch. */
   sketches: { id: number; name: string; visible: boolean }[] = [];
   activeSketch: number | null = null;
@@ -176,8 +178,8 @@ export class FakeSolidCraft {
       case 'document.inspect':
         return {
           name: 'Cable clip',
-          bodies: this.bodies.map((name) => ({ name, visible: true })),
-          sketches: this.sketches,
+          bodies: this.bodies.map((name) => ({ name, visible: !this.hidden.has(name) })),
+          sketches: this.sketches.map((sketch) => ({ ...sketch, visible: sketch.visible && !this.hidden.has(sketch.id) })),
           active_sketch: this.activeSketch,
           undo: this.undoDepth,
           redo: this.redoDepth,
@@ -199,7 +201,7 @@ export class FakeSolidCraft {
             return { completed: index, results, failed: { index, command: step.command, error: (error as Error).message } };
           }
         }
-        if (commands.some((step) => step.command === 'parameters.change')) {
+        if (commands.some((step) => ['parameters.change', 'body.rename', 'browser.visibility'].includes(step.command))) {
           setTimeout(() => {
             this.change();
           }, 0);
@@ -249,6 +251,19 @@ export class FakeSolidCraft {
         parameter.value = value;
         return { name: parameter.name, value, recomputed: parameter.used_by.length };
       }
+      case 'body.rename': {
+        const at = this.bodies.indexOf(String(params.body));
+        if (at < 0) throw new Error(`no body ${String(params.body)}`);
+        if (this.bodies.includes(String(params.name))) throw new Error(`a body named ${String(params.name)} exists already`);
+        this.bodies[at] = String(params.name);
+        return { name: params.name };
+      }
+      case 'browser.visibility':
+        for (const item of params.items as (string | number)[]) {
+          if (params.visible === true) this.hidden.delete(item);
+          else this.hidden.add(item);
+        }
+        return { changed: (params.items as unknown[]).length };
       case 'edit.undo':
       case 'edit.redo': {
         const undo = command === 'edit.undo';

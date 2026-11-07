@@ -453,11 +453,18 @@ test('the structure tree hides a body, and the timeline suppresses, rolls back a
     // Hide the body in the structure tree, then show it again.
     const body = page.getByTestId('structure-body');
     await expect(body).toHaveAttribute('data-visible', 'true');
+    await body.hover();
     await page.getByRole('button', { name: 'Hide Body1' }).click();
     await expect(body).toHaveAttribute('data-visible', 'false', { timeout: 15_000 });
     await expect(summary).toBeHidden();
     await page.getByRole('button', { name: 'Show Body1' }).click();
     await expect(summary).toContainText('1 body · 7 faces', { timeout: 15_000 });
+    // F2 renames the body in SolidCraft (body.rename).
+    await body.focus();
+    await page.keyboard.press('F2');
+    await page.getByTestId('tree-rename').fill('Housing');
+    await page.keyboard.press('Enter');
+    await expect(body).toHaveAttribute('aria-label', 'Housing', { timeout: 15_000 });
     await page.screenshot({ path: test.info().outputPath('structure-timeline.png') });
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('timeline-failed.png') }).catch(() => undefined);
@@ -1323,10 +1330,10 @@ test('versions are saved by name, before requests and at exports, compared with 
     await details.getByTestId('part-filament').press('Tab');
     await details.getByTestId('part-printed-count').getByRole('textbox').fill('1');
     await details.getByTestId('part-printed-count').getByRole('textbox').press('Tab');
-    await expect(page.getByTestId('parts-progress')).toContainText('1 of 2 printed');
+    await expect(page.getByTestId('parts-progress')).toContainText('1/2 printed');
     await expect.poll(() => readFileSync(join(work, 'projects', 'Part First box', 'parts.json'), 'utf8')).toContain('PETG black');
     await body.getByTestId('part-printed').click();
-    await expect(page.getByTestId('parts-progress')).toContainText('2 of 2 printed');
+    await expect(page.getByTestId('parts-progress')).toContainText('2/2 printed');
     await page.getByTestId('home-button').click();
     await expect(page.locator('[data-testid="home-tile"][data-name="Part First box"]').getByTestId('home-tile-progress')).toHaveText('2/2 printed');
   } catch (error) {
@@ -1838,10 +1845,12 @@ test('a template from the start page becomes a project whose sizes are its param
     await expect(parameters).toHaveCount(8, { timeout: 30_000 });
     await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });
     // A size changes through its parameter, without the assistant.
-    const length = page.locator('[data-testid="parameter"][data-name="length"]').getByTestId('parameter-field').getByRole('textbox');
+    const lengthRow = page.locator('[data-testid="parameter"][data-name="length"]');
+    await lengthRow.dblclick();
+    const length = lengthRow.getByTestId('parameter-field').getByRole('textbox');
     await length.fill('100');
     await length.press('Enter');
-    await expect(length).toHaveValue('100', { timeout: 30_000 });
+    await expect(lengthRow).toHaveAttribute('aria-label', 'length, 100 mm', { timeout: 30_000 });
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="ok"]').first()).toBeVisible();
     await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });

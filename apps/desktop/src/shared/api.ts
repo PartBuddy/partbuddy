@@ -210,6 +210,8 @@ export interface PartBuddyApi {
     timeline(command: TimelineCommand): Promise<void>;
     /** Shows or hides bodies and sketches. */
     visibility(command: VisibilityCommand): Promise<void>;
+    /** Renames a body (structure tree); SolidCraft refuses a name another body has. */
+    renameBody(body: string, name: string): Promise<void>;
     /** Inserts a STEP, IGES, STL, 3MF or OBJ file into the open design (B4); asks when no path is given. */
     insert(path?: string): Promise<InsertResult>;
     /** Repairs an imported part or converts a mesh body to faces (B4). */

@@ -196,6 +196,8 @@ test('website pictures', async () => {
     await page.keyboard.press('0');
 
     await step('params', async () => {
+      // A favourite opened for editing shows its slider, as the website's picture of the parameters.
+      await page.getByTestId('parameters').getByTestId('parameter').first().dblclick();
       await expect(page.getByTestId('parameters').getByTestId('parameter-slider')).not.toHaveCount(0);
       await shot('params');
     });
@@ -241,10 +243,12 @@ test('website pictures', async () => {
       await dialog.getByTestId('version-name').fill('First print');
       await dialog.getByTestId('version-save').click();
       await page.keyboard.press('Escape');
-      const length = page.locator('[data-testid="parameter"][data-name="base_length"]').getByTestId('parameter-field').getByRole('textbox');
+      const lengthRow = page.locator('[data-testid="parameter"][data-name="base_length"]');
+      await lengthRow.dblclick();
+      const length = lengthRow.getByTestId('parameter-field').getByRole('textbox');
       await length.fill('80');
       await length.press('Enter');
-      await expect(length).toHaveValue('80', { timeout: 30_000 });
+      await expect(lengthRow).toHaveAttribute('aria-label', 'base_length, 80 mm', { timeout: 30_000 });
       await page.waitForTimeout(1500);
       await page.getByTestId('versions-button').click();
       const first = dialog.getByTestId('version').filter({ hasText: 'First print' });
