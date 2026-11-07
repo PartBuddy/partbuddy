@@ -9,7 +9,8 @@ import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen
 
 import { invokeChannels, eventChannels } from '../shared/channels';
 import type { AssemblyPlan } from '../shared/assembly';
-import type { AgentEvent, ExportFormat, PrintCheckReport, ViewState } from '../shared/contract';
+import type { AgentEvent, ExportFormat, PartPrint, PrintCheckReport, ViewState } from '../shared/contract';
+import { refit, withoutFitMark } from '../shared/designFit';
 import { AgentService } from './agents/agentService';
 import { AppearanceSettings } from './appearance';
 import { GeneralSettings } from './generalSettings';
@@ -20,6 +21,7 @@ import type { UpstreamTools } from './agents/gateProxy';
 import { guardNotes } from './agents/noteGuard';
 import { withViewTool } from './agents/viewContext';
 import { withAssemblyTool } from './agents/assemblyTool';
+import { withDesignTool } from './agents/designTool';
 import { keepPrintFace, readAssembly, readPrintFaces, writeAssembly } from './projects/assembly';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
@@ -355,9 +357,28 @@ if (!app.requestSingleInstanceLock()) {
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.printChanged, printProfiles.part());
     };
     bridge.handle(invokeChannels.printSettings, () => printProfiles.settings());
+    // Another printer or nozzle: the sizes the assistant snapped ("[auto 3×line]") follow, the user's stay (decided 2026-11-07).
+    const refitSizes = async (before: PartPrint) => {
+      const { printer, design } = printProfiles.part();
+      if (!design.snap || (printer.nozzle === before.printer.nozzle && printer.layer === before.printer.layer)) return;
+      if (!supervisor.currentRevision()) return;
+      if (agent.state().agents.some((status) => status.state === 'busy')) {
+        steps.mention('changed the printer while you worked; fit the sizes marked [auto …] to the new nozzle and layer height');
+        log('printer changed while the assistant works; it fits the snapped sizes itself');
+        return;
+      }
+      const changes = refit((await supervisor.parameters()).filter((parameter) => parameter.editable), printer);
+      for (const change of changes)
+        await steps.recordUser(describeUserAction({ kind: 'dimension', parameter: change.name, value: change.value }), () => supervisor.applyDimension(change.name, change.value, 1, true));
+      if (changes.length > 0) log(`fitted ${String(changes.length)} snapped sizes to the printer`);
+    };
     bridge.handle(invokeChannels.printSaveSettings, (settings) => {
+      const before = printProfiles.part();
       const saved = printProfiles.save(settings);
       printChanged();
+      void refitSizes(before).catch((error: unknown) => {
+        log(`the snapped sizes were not fitted to the printer: ${(error as Error).message}`);
+      });
       return saved;
     });
     bridge.handle(invokeChannels.printPart, () => printProfiles.part());
@@ -511,10 +532,18 @@ if (!app.requestSingleInstanceLock()) {
     const track = (upstream: UpstreamTools) =>
       questions.tools(
         steps.tools(
-          withAssemblyTool(
-            withViewTool(guardNotes(upstream, (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
-            () => viewState?.bodies.map((body) => body.name) ?? [],
-            saveAssembly,
+          withDesignTool(
+            withAssemblyTool(
+              withViewTool(guardNotes(upstream, (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
+              () => viewState?.bodies.map((body) => body.name) ?? [],
+              saveAssembly,
+            ),
+            (change) => {
+              const part = printProfiles.setDesign(change);
+              log(`design rules of the project: ${JSON.stringify(change)}`);
+              printChanged();
+              return part.design;
+            },
           ),
         ),
       );
@@ -744,7 +773,7 @@ if (!app.requestSingleInstanceLock()) {
             log(`no parts list in the sharing package: ${(error as Error).message}`);
             return [];
           }),
-          parameters: parameters.map((parameter) => ({ name: parameter.name, value: parameter.value, unit: parameter.unit, comment: parameter.comment.replace(/\s*\[[^\]]*\.\.[^\]]*\]\s*/, ' ').trim() || null })),
+          parameters: parameters.map((parameter) => ({ name: parameter.name, value: parameter.value, unit: parameter.unit, comment: withoutFitMark(parameter.comment.replace(/\s*\[[^\]]*\.\.[^\]]*\]\s*/, ' ')) || null })),
           material: print.material.name,
           layer: print.printer.layer,
           nozzle: print.printer.nozzle,

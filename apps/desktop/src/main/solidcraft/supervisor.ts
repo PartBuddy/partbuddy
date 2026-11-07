@@ -512,9 +512,9 @@ export class SolidCraftSupervisor {
   }
 
   /** Sets the parameter the probe found (the user pressed Enter); the change is mirrored as usual. */
-  async applyDimension(parameter: string, value: number, factor: 1 | 2): Promise<void> {
+  async applyDimension(parameter: string, value: number, factor: 1 | 2, keepFitMark = false): Promise<void> {
     await this.probing;
-    await this.dimensions.apply(parameter, value, factor);
+    await this.dimensions.apply(parameter, value, factor, keepFitMark);
     await this.engine?.checkForChange();
   }
 

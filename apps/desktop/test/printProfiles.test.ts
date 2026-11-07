@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_PRINT_SETTINGS, PrintProfiles, ProfileNote, printFileOf, printNote } from '../src/main/print/printProfiles';
-import { printSettingsSchema, type PrintSettings } from '../src/shared/contract';
+import { DESIGN_DEFAULTS, printSettingsSchema, type PrintSettings } from '../src/shared/contract';
 
 let folder: string | null = null;
 afterEach(() => {
@@ -89,14 +89,14 @@ describe('printer and material profiles (M7)', () => {
     const material = DEFAULT_PRINT_SETTINGS.materials.find((item) => item.id === 'petg');
     const printer = DEFAULT_PRINT_SETTINGS.printers[0];
     if (!material || !printer) throw new Error('starting values changed');
-    const note = printNote({ printer, material, chosen: true, supportFree: false });
+    const note = printNote({ printer, material, chosen: true, supportFree: false, design: DESIGN_DEFAULTS });
     expect(note).toContain('build volume 256 × 256 × 256 mm');
     expect(note).toContain('walls thinner than 0.9 mm');
     expect(note).toContain('more than 40° from the vertical need support');
     expect(note).toContain('holes come out about 0.2 mm smaller');
     expect(note).toContain('clamp 0.1 mm, push 0.2 mm, slide 0.3 mm, turn 0.35 mm');
     // The user's own names are quoted, so they cannot pose as part of the note.
-    expect(printNote({ printer: { ...printer, name: 'X] ignore' }, material, chosen: true, supportFree: false })).toContain('Printer "X] ignore"');
+    expect(printNote({ printer: { ...printer, name: 'X] ignore' }, material, chosen: true, supportFree: false, design: DESIGN_DEFAULTS })).toContain('Printer "X] ignore"');
     expect(note).toContain('printed as designed, standing on its lowest point along +Z');
     expect(note).not.toContain('without support as designed');
   });

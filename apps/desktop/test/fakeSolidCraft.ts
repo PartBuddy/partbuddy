@@ -249,6 +249,7 @@ export class FakeSolidCraft {
         if (!Number.isFinite(value) || value <= 0 || value > 1000) throw new Error('the part cannot be built with this value');
         parameter.expression = String(params.expression);
         parameter.value = value;
+        if (typeof params.comment === 'string') parameter.comment = params.comment;
         return { name: parameter.name, value, recomputed: parameter.used_by.length };
       }
       case 'body.rename': {
