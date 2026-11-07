@@ -2,3 +2,5 @@ self-hosted-runner:
   # The self-hosted runner in WSL2 (ADR 0022, tools/runner).
   labels:
     - partbuddy
+    # Windows runner with SolidCraft for the website screenshots (site-sync.yml, docs/website.md)
+    - partbuddy-shots
