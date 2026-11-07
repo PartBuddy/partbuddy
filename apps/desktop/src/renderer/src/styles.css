@@ -5,6 +5,21 @@
 /* Streamdown ships Tailwind classes in its bundle. */
 @source "../../../node_modules/streamdown/dist/*.js";
 
+/*
+ * `dark:` follows the app's theme like the tokens do (system preference unless the settings pin
+ * one); Streamdown colours code with it (Shiki's dark theme).
+ */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+  &:where([data-theme="dark"] *) {
+    @slot;
+  }
+}
+
 html,
 body,
 #root {
@@ -39,13 +54,52 @@ body,
 
 
 /*
- * Names and values the assistant writes as inline code (`plate_height`) read in the normal face:
- * Manuel does not want terminal fonts in the app. Only real code blocks keep the monospace face.
+ * Code reads in the normal face, inline and in blocks (Manuel 2026-11-07: no terminal fonts in the
+ * app, also not for code); Shiki's colours and the block's own surface mark it as code.
  */
-.cs-markdown :not(pre) > code {
+.cs-markdown :is(code, pre, pre *, [data-streamdown="code-block-header"] *) {
   font-family: var(--cs-font-sans);
   font-variant-numeric: tabular-nums;
+}
+.cs-markdown :not(pre) > code {
   font-size: inherit;
+  padding: 0 var(--cs-space-1);
+  border-radius: var(--cs-radius-sm);
+  background: var(--cs-color-surface-hover);
+}
+.cs-markdown [data-streamdown="code-block"] {
+  margin: 0;
+  border: 1px solid var(--cs-color-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-color-surface-sunken);
+  overflow: hidden;
+}
+.cs-markdown [data-streamdown="code-block-header"] {
+  font-size: var(--cs-text-xs);
+  color: var(--cs-color-text-subtle);
+}
+.cs-markdown [data-streamdown="code-block-body"] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--cs-text-sm);
+}
+/* A proportional face cannot line columns up anyway, so long lines wrap instead of scrolling. */
+.cs-markdown [data-streamdown="code-block-body"] pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Tables scroll on their own instead of widening the chat; numbers line up. */
+.cs-markdown [data-streamdown="table-wrapper"] {
+  max-width: 100%;
+  margin: 0;
+}
+.cs-markdown [data-streamdown="table"] {
+  font-variant-numeric: tabular-nums;
+}
+.cs-markdown a {
+  overflow-wrap: anywhere;
 }
 
 /*

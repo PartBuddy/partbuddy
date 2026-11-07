@@ -22,6 +22,7 @@ import { emptySketch, SketchPad, type SketchPicture, type SketchState } from './
 import { photoPicture } from './photo';
 import { SourceCard } from './SourceCard';
 import { ToolCall } from './ToolCall';
+import { MessageActions, tip } from './MessageActions';
 
 function Notice({ title, body, children }: { title: string; body: string; children?: React.ReactNode }) {
   return (
@@ -149,12 +150,25 @@ const FAILURE_REASONS = new Set(['failed', 'error_during_execution', 'error_max_
 /** Requests an empty chat offers as a start: a holder, a housing, a part after a photo. */
 const EXAMPLES = ['holder', 'housing', 'photo'] as const;
 
-function Item({ item, quiet, retry = null, open }: { item: ConversationItem; quiet: boolean; retry?: (() => void) | null; open?: (attachment: Attachment) => void }) {
+function Item({
+  item,
+  quiet,
+  retry = null,
+  open,
+  resend = null,
+}: {
+  item: ConversationItem;
+  quiet: boolean;
+  retry?: (() => void) | null;
+  open?: (attachment: Attachment) => void;
+  /** Sends a message of the user once more; null while the assistant cannot take one. */
+  resend?: ((text: string) => void) | null;
+}) {
   const { t } = useTranslation();
   switch (item.kind) {
     case 'user':
       return (
-        <div className="ml-6 flex flex-col items-end gap-1 self-end">
+        <div className="group/message ml-6 flex max-w-[85%] min-w-0 flex-col items-end gap-1 self-end">
           {item.selection ? (
             // The count and the body; the exact names, which mean little to most people, on hover.
             <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-selection" title={item.selection}>
@@ -187,7 +201,20 @@ function Item({ item, quiet, retry = null, open }: { item: ConversationItem; qui
               <img src={item.attachment.thumbnail} alt="" className="block h-[5rem] w-auto" draggable={false} />
             </AriaButton>
           ) : null}
-          <p className="rounded-lg bg-accent-subtle px-3 py-2 text-md whitespace-pre-wrap text-text">{item.text}</p>
+          {/* The actions sit beside the bubble, so a calm chat keeps no empty row under each message. */}
+          <div className="flex min-w-0 items-center gap-1">
+            <MessageActions
+              text={item.text}
+              resend={
+                resend
+                  ? () => {
+                      resend(item.text);
+                    }
+                  : null
+              }
+            />
+            <p className="min-w-0 rounded-lg bg-accent-subtle px-3 py-2 text-md break-words whitespace-pre-wrap text-text">{item.text}</p>
+          </div>
         </div>
       );
     case 'assistant':
@@ -235,7 +262,6 @@ function Item({ item, quiet, retry = null, open }: { item: ConversationItem; qui
   }
 }
 
-const tip = 'rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2';
 
 /** The first picture among pasted or dropped files; other files are left to the window's import. */
 function pictureIn(data: DataTransfer | null): File | null {
@@ -314,6 +340,7 @@ export function AssistantPanel() {
   // After a failed turn: the last message once more, as text (shortcut: a sketch or photo that went with it does not go again).
   const lastUser = items.findLast((item) => item.kind === 'user');
   const retryLast = ready && lastUser?.kind === 'user' ? () => void sendToAssistant(lastUser.text) : null;
+  const resend = ready ? (text: string) => void sendToAssistant(text) : null;
 
   return (
     <aside
@@ -353,7 +380,7 @@ export function AssistantPanel() {
       <h2 id="assistant-title" className="sr-only">
         {t('assistant.title')}
       </h2>
-      <div ref={list} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
+      <div ref={list} className="flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto p-3" aria-live="polite">
         <Setup />
         {items.length === 0 && (status.state === 'ready' || busy) ? (
           // A way in for an empty chat (polish round 1): examples fill the input, they do not send.
@@ -396,7 +423,7 @@ export function AssistantPanel() {
           ) : row.kind === 'work' ? (
             <WorkGroup key={row.key} entries={row.entries} live={row.live} disabled={busy || !connected} />
           ) : (
-            <Item key={row.item.key} item={row.item} quiet={row.quiet} retry={row.item === items.at(-1) ? retryLast : null} open={openAttachment} />
+            <Item key={row.item.key} item={row.item} quiet={row.quiet} retry={row.item === items.at(-1) ? retryLast : null} open={openAttachment} resend={resend} />
           ),
         )}
         {busy ? <Busy label={t(`assistant.working.${status.agent}`)} /> : null}

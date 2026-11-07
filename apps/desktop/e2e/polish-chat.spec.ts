@@ -14,7 +14,7 @@ test.skip(process.env.PARTBUDDY_POLISH !== '1' || process.env.PARTBUDDY_E2E_SOLI
 
 const WIDTHS = [
   { name: 'wide', width: 1440, height: 900 },
-  { name: 'narrow', width: 1100, height: 800 },
+  { name: 'narrow', width: 960, height: 600 },
 ] as const;
 
 for (const size of WIDTHS) {
@@ -92,6 +92,8 @@ for (const size of WIDTHS) {
       await composer.fill('Take your time');
       await page.getByRole('button', { name: 'Senden', exact: true }).click();
       await expect(page.getByRole('button', { name: 'Stopp' })).toBeVisible();
+      // Mid-answer: the words of the slow turn arrive over four seconds.
+      await page.waitForTimeout(1500);
       await shot('08-busy');
       await settled();
 

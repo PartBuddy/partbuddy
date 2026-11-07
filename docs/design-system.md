@@ -56,7 +56,7 @@ forced two fixes during Phase 1: white text on the dark accent (4.0:1) and contr
 | --- | --- |
 | Space (4 px grid; layout steps in 8 px) | `space-1` 4 · `space-2` 8 · `space-3` 12 · `space-4` 16 · `space-5` 24 · `space-6` 32 · `space-7` 48 |
 | Controls | `control-sm` 24 · `control-md` 28 · `control-lg` 32 · `row-height` 28 · `titlebar` 40 · `statusbar` 24 |
-| Type | Segoe UI Variable everywhere, also for names and numbers (no monospace in the app, Manuel 2026-11-05; Cascadia Mono only for real code blocks); sizes 11 / 12 / 13 / 15 / 18 px; weights 400 / 500 / 600; numbers use tabular figures |
+| Type | Segoe UI Variable everywhere, also for names, numbers and code blocks (no monospace in the app, Manuel 2026-11-05 and 2026-11-07; Shiki colours and a sunken surface mark code); sizes 11 / 12 / 13 / 15 / 18 px; weights 400 / 500 / 600; numbers use tabular figures |
 | Radii | `sm` 3 · `md` 5 · `lg` 8 · `full` |
 | Elevation | `shadow-1` (raised controls), `shadow-2` (popovers, overlays in the view), `shadow-3` (dialogs) |
 | Motion | 90 ms and 160 ms with a standard easing; all motion off under `prefers-reduced-motion` |

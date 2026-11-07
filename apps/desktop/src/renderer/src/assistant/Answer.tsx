@@ -3,13 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { Button as AriaButton } from 'react-aria-components';
 
 import { Markdown } from './Markdown';
+import { MessageActions } from './MessageActions';
 
 /** Height of a quiet answer: about four lines of chat text. */
 const QUIET_HEIGHT = '6.5rem';
 
 /**
  * An answer of the assistant (UI upgrade, chat). The newest shows in full; an earlier one is
- * quiet: cut to a few lines with "Show more" when it is longer, so the chat stays readable.
+ * quiet: cut to a few lines with "Show more" when it is longer, so the chat stays readable. It
+ * takes the chat's full width (no bubble), so tables and code blocks fit or scroll on their own.
  */
 export function Answer({ text, streaming, quiet }: { text: string; streaming: boolean; quiet: boolean }) {
   const { t } = useTranslation();
@@ -24,27 +26,30 @@ export function Answer({ text, streaming, quiet }: { text: string; streaming: bo
   }, [text, shortened]);
 
   return (
-    <div className="mr-6 flex flex-col items-start gap-1">
+    <div className="group/message flex min-w-0 flex-col gap-1">
       <div
         ref={box}
         data-testid="assistant-text"
         data-quiet={shortened}
-        className={shortened ? 'relative overflow-hidden text-text-muted' : ''}
+        className={shortened ? 'relative min-w-0 overflow-hidden text-text-muted' : 'min-w-0'}
         style={shortened ? { maxHeight: QUIET_HEIGHT, maskImage: overflows ? 'linear-gradient(to bottom, black 60%, transparent)' : undefined } : undefined}
       >
         <Markdown text={text} streaming={streaming} />
       </div>
-      {quiet && (overflows || expanded) ? (
-        <AriaButton
-          onPress={() => {
-            setExpanded(!expanded);
-          }}
-          className="rounded-sm text-xs text-accent outline-none hover:underline focus-visible:outline-2 focus-visible:outline-focus"
-          data-testid="answer-more"
-        >
-          {expanded ? t('assistant.showLess') : t('assistant.showMore')}
-        </AriaButton>
-      ) : null}
+      <div className="flex min-h-control-sm items-center gap-2">
+        {quiet && (overflows || expanded) ? (
+          <AriaButton
+            onPress={() => {
+              setExpanded(!expanded);
+            }}
+            className="rounded-sm text-xs text-accent-text outline-none hover:underline focus-visible:outline-2 focus-visible:outline-focus"
+            data-testid="answer-more"
+          >
+            {expanded ? t('assistant.showLess') : t('assistant.showMore')}
+          </AriaButton>
+        ) : null}
+        {streaming ? null : <MessageActions text={text} />}
+      </div>
     </div>
   );
 }
