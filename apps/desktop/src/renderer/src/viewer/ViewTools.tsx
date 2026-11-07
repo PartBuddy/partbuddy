@@ -18,7 +18,7 @@ import {
 
 import { useStudio, type DisplayMode, type Section, type StandardView } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
-import { bodiesBox } from './section';
+import { bodiesBox, faceSection, sectionSpan } from './section';
 import { ViewIcon } from '../ui/ViewIcon';
 
 const tool =
@@ -105,9 +105,15 @@ function SectionPanel({ section }: { section: Section }) {
   const setSection = useStudio((s) => s.setSection);
   const model = useStudio((s) => s.model);
   // Where the cut lies in the part, in mm along its axis (polish round 2: the slider alone said nothing).
-  const box = bodiesBox(model.status === 'ready' ? model.bodies : []);
-  const [low, high] = [box.min[section.axis], box.max[section.axis]];
-  const at = Number.isFinite(low) && Number.isFinite(high) ? low + Math.min(1, Math.max(0, section.position)) * (high - low) : null;
+  const bodies = model.status === 'ready' ? model.bodies : [];
+  const box = bodiesBox(bodies);
+  const span = box.isEmpty() ? null : sectionSpan(section, box);
+  const at = span ? span.min + Math.min(1, Math.max(0, section.position)) * (span.max - span.min) : null;
+  // From the face it is aligned to, the offset counts from that face.
+  const fromFace = section.face && at !== null ? at - section.face.normal.reduce((sum, v, i) => sum + (v * (section.face?.origin[i] ?? 0)), 0) / Math.hypot(...section.face.normal) : null;
+  // A picked flat face can carry the section (viewport CAD round).
+  const pick = useStudio((s) => (s.selection?.kind === 'face' ? s.selection : null));
+  const pickedNormal = pick ? bodies[pick.body]?.model.table.faces[pick.face]?.planeNormal : undefined;
   return (
     <div
       role="group"
@@ -121,10 +127,10 @@ function SectionPanel({ section }: { section: Section }) {
           aria-label={t('viewer.section.axis')}
           selectionMode="single"
           disallowEmptySelection
-          selectedKeys={[section.axis]}
+          selectedKeys={section.face ? [] : [section.axis]}
           onSelectionChange={(keys) => {
             const [axis] = [...keys];
-            if (axis === 'x' || axis === 'y' || axis === 'z') setSection({ ...section, axis });
+            if (axis === 'x' || axis === 'y' || axis === 'z') setSection({ ...section, axis, face: undefined });
           }}
           className="flex gap-1"
         >
@@ -134,6 +140,20 @@ function SectionPanel({ section }: { section: Section }) {
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
+        <Tip label={t('viewer.section.alignFace')}>
+          <ToggleButton
+            aria-label={t('viewer.section.alignFace')}
+            isSelected={section.face !== undefined}
+            isDisabled={!pick || !pickedNormal}
+            onChange={() => {
+              if (pick && pickedNormal) setSection({ ...faceSection(pick.point, pickedNormal, box), flip: section.flip });
+            }}
+            className={`${tool} disabled:opacity-40`}
+            data-testid="section-face"
+          >
+            <CadIcon name="plane" className="size-icon-sm" />
+          </ToggleButton>
+        </Tip>
         <span className="flex-1" />
         <Tip label={t('viewer.section.flip')}>
           <AriaButton
@@ -169,11 +189,16 @@ function SectionPanel({ section }: { section: Section }) {
           )}
         </SliderTrack>
       </Slider>
-      {at !== null ? (
+      {fromFace !== null ? (
+        <span className="px-1 text-xs tabular-nums text-text-muted" data-testid="section-at">
+          {t('viewer.section.fromFace', { value: Math.round(fromFace * 10) / 10 })}
+        </span>
+      ) : at !== null ? (
         <span className="px-1 text-xs tabular-nums text-text-muted" data-testid="section-at">
           {t('viewer.section.at', { axis: section.axis.toUpperCase(), value: Math.round(at * 10) / 10 })}
         </span>
       ) : null}
+      {!section.face && !pickedNormal ? <span className="px-1 text-xs text-text-subtle">{t('viewer.section.faceHint')}</span> : null}
     </div>
   );
 }

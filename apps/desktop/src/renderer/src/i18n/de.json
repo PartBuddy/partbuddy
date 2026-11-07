@@ -108,7 +108,10 @@
       "along": "Quer zu {axis} schneiden",
       "position": "Wo der Schnitt liegt",
       "flip": "Andere Seite zeigen",
-      "at": "Schnitt bei {axis} = {value, number, ::.# unit/millimeter}"
+      "at": "Schnitt bei {axis} = {value, number, ::.# unit/millimeter}",
+      "alignFace": "An der gewählten Fläche ausrichten",
+      "fromFace": "{value, number, ::.# unit/millimeter} von der Fläche",
+      "faceHint": "Wähle eine ebene Fläche, um an ihr entlang zu schneiden."
     },
     "explode": {
       "title": "Explosionsansicht",

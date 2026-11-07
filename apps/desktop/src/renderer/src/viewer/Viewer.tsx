@@ -13,7 +13,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { SKETCH_STYLE } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BackSide, Box3, BufferAttribute, GreaterDepth, Group, LineSegments, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, ShaderMaterial, Sphere, Vector2, Vector3 } from 'three';
+import { BackSide, Box3, BufferAttribute, DoubleSide, GreaterDepth, Group, Quaternion, LineSegments, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, ShaderMaterial, Sphere, Vector2, Vector3 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { acceleratedRaycast } from 'three-mesh-bvh';
 
@@ -25,7 +25,7 @@ import { ConnectionNotice } from './ConnectionNotice';
 import { Ghost, SelectionDock, SelectionGhost } from './DimensionHud';
 import { ContactLight, GroundShadow, SkyLight } from './SceneLook';
 import { silhouetteMaterial } from './silhouette';
-import { keeps, useSectionPlane } from './section';
+import { bodiesBox, keeps, useSectionPlane } from './section';
 import { LiveBar } from './LiveBar';
 import { blendWeights, PREVIEW_BLEND } from './blend';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
@@ -217,6 +217,29 @@ function Body({
           <lineBasicMaterial key={plane ? 'cut' : 'whole'} color={colors.edge} clippingPlanes={clipping} />
         </lineSegments>
       )}
+    </group>
+  );
+}
+
+/**
+ * The section plane itself, faint and outlined, so the user sees where it cuts and how it lies
+ * when it follows a slanted face (viewport CAD round). Never picked.
+ */
+function SectionPlaneMark({ plane, bodies, color }: { plane: Plane; bodies: BodyModel[]; color: ViewerColors['section'] }) {
+  const { position, quaternion, size } = useMemo(() => {
+    const box = bodiesBox(bodies);
+    const centre = box.getCenter(new Vector3());
+    const size = box.getSize(new Vector3()).length() * 0.75;
+    return { position: plane.projectPoint(centre, new Vector3()), quaternion: new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), plane.normal), size };
+  }, [plane, bodies]);
+  const h = size / 2;
+  return (
+    <group position={position} quaternion={quaternion} name="section plane">
+      <mesh raycast={noRaycast} renderOrder={3}>
+        <planeGeometry args={[size, size]} />
+        <meshBasicMaterial color={color} transparent opacity={0.1} side={DoubleSide} depthWrite={false} />
+      </mesh>
+      <Line points={[[-h, -h, 0], [h, -h, 0], [h, h, 0], [-h, h, 0], [-h, -h, 0]]} color={color} lineWidth={1} transparent opacity={0.6} raycast={noRaycast} />
     </group>
   );
 }
@@ -976,6 +999,7 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
         </>
       ) : null}
       {plateOpen && bed ? <PlateBed bed={bed} colors={colors} /> : null}
+      {plane ? <SectionPlaneMark plane={plane} bodies={bodies} color={colors.section} /> : null}
       {exploded ? <ExplosionLines bodies={bodies} targets={targets} color={colors.edge} /> : null}
       {moved ? null : (
         <>

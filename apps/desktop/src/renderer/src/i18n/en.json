@@ -108,7 +108,10 @@
       "along": "Cut across {axis}",
       "position": "Where the section cuts",
       "flip": "Show the other side",
-      "at": "Cut at {axis} = {value, number, ::.# unit/millimeter}"
+      "at": "Cut at {axis} = {value, number, ::.# unit/millimeter}",
+      "alignFace": "Align to the selected face",
+      "fromFace": "{value, number, ::.# unit/millimeter} from the face",
+      "faceHint": "Select a flat face to cut along it."
     },
     "explode": {
       "title": "Exploded view",

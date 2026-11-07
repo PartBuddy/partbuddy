@@ -354,6 +354,21 @@ test('the view switches display modes and opens a section with its own controls'
   await expect(panel.getByRole('slider', { name: 'Where the section cuts' })).toHaveValue('50');
   await shot('section-x-flipped');
 
+  // Aligned to a picked flat face: the cut starts at the face and moves along its normal.
+  await page.getByTestId('section').click();
+  const view = await page.getByTestId('viewport').boundingBox();
+  if (!view) throw new Error('viewport not visible');
+  for (const [x, y] of [[0.5, 0.6], [0.45, 0.65], [0.6, 0.6], [0.55, 0.7], [0.4, 0.6]] as const) {
+    await page.mouse.click(view.x + view.width * x, view.y + view.height * y);
+    await page.waitForTimeout(300);
+    if ((await page.getByTestId('selected-face').count()) > 0 && /^Plane/.test((await page.getByTestId('selected-face').textContent()) ?? '')) break;
+  }
+  await page.getByTestId('section').click();
+  await panel.getByTestId('section-face').click();
+  await expect(panel.getByTestId('section-face')).toHaveAttribute('data-selected', 'true');
+  await expect(panel.getByTestId('section-at')).toHaveText(/0 mm from the face/);
+  await shot('section-face');
+
   // Off again: the panel goes.
   await page.getByTestId('section').click();
   await expect(panel).toHaveCount(0);
