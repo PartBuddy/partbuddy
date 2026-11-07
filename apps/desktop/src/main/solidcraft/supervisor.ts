@@ -486,12 +486,9 @@ export class SolidCraftSupervisor {
     return body;
   }
 
-  /**
-   * Repairs an imported part SolidCraft's kernel refuses or that is open (`body.repair`), or turns
-   * a mesh body into faces (`mesh.convert`), each one undoable feature (B4).
-   */
-  repairBody(body: string, how: 'repair' | 'convert'): Promise<void> {
-    return this.run(how === 'repair' ? { command: 'body.repair', params: { body, patch_holes: true } } : { command: 'mesh.convert', params: { body } });
+  /** Turns a mesh body into faces (`mesh.convert`), one undoable feature (B4). */
+  convertMesh(body: string): Promise<void> {
+    return this.run({ command: 'mesh.convert', params: { body } });
   }
 
   /**

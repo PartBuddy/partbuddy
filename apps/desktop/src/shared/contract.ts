@@ -213,15 +213,12 @@ export const templateRequestSchema = z.object({ template: z.enum(TEMPLATE_IDS), 
 export const insertResultSchema = z
   .object({ inserted: z.boolean(), name: z.string().max(255).nullable(), bodies: z.array(z.string().max(200)).max(500) })
   .strict();
-/** Repair an imported part (`body.repair`) or convert a mesh body to faces (`mesh.convert`). */
-export const repairRequestSchema = z.object({ body: z.string().min(1).max(200), how: z.enum(['repair', 'convert']) }).strict();
-/**
- * How a repair went: done, nothing to repair, a mesh that is not closed (SolidCraft converts only
- * closed meshes), or SolidCraft's own reason.
- */
+/** Convert a mesh body to faces (`mesh.convert`); SolidCraft has no repair command for imported parts. */
+export const repairRequestSchema = z.object({ body: z.string().min(1).max(200) }).strict();
+/** How a conversion went: done, a mesh that is not closed (SolidCraft converts only closed meshes), or SolidCraft's own reason. */
 export const repairResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true) }).strict(),
-  z.object({ ok: z.literal(false), reason: z.enum(['nothing', 'openMesh', 'other']), detail: z.string().max(500) }).strict(),
+  z.object({ ok: z.literal(false), reason: z.enum(['openMesh', 'other']), detail: z.string().max(500) }).strict(),
 ]);
 
 /** The ready-to-print light of a project on the start page (B3), as at its last preview. */

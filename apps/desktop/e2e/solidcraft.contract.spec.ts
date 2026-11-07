@@ -727,7 +727,6 @@ test('a note on a face stays with the design, out of the assistant\'s reach, and
       if (picked) break;
     }
     expect(picked, 'a face of the box').toBe(true);
-    const face = await page.getByTestId('selected-face').getAttribute('data-name');
 
     await page.getByTestId('hud-note').click();
     await page.getByTestId('note-new-text').fill('Wall 2 mm here');
@@ -738,7 +737,8 @@ test('a note on a face stays with the design, out of the assistant\'s reach, and
     await expect(row).toContainText('Wall 2 mm here');
     await expect(row.getByTestId('note-status')).toHaveAttribute('data-status', 'attached');
     await expect(row.getByTestId('note-status')).toHaveAttribute('data-own', 'true');
-    await expect(row).toContainText(face ?? '');
+    // The row names the place readably (surface kind and body), not SolidCraft's face name.
+    await expect(row).toContainText('Plane · Body1');
     await pin.click();
     await expect(page.getByTestId('note-card').getByTestId('note-text')).toHaveText('Wall 2 mm here');
     await page.screenshot({ path: test.info().outputPath('note-card.png') });
@@ -1187,9 +1187,8 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
     // The export names the part after the file the user chose, so the import does as well.
     await expect(bodies).toHaveCount(1);
     await expect(bodies.first()).toContainText('Platine');
-    // The imported part can be repaired; this one is fine as it is.
-    await bodies.first().getByTestId('structure-repair').click();
-    await expect(notice).toContainText('Nothing to repair', { timeout: 15_000 });
+    // SolidCraft has no repair for parts from STEP, so the imported part offers none.
+    await expect(bodies.first().getByTestId('structure-convert')).toHaveCount(0);
 
     // Insert a closed mesh into the open project and convert it to faces.
     await pick(join(outside, 'Deckel.stl'));
@@ -1429,8 +1428,9 @@ test('a standard screw is seated in a hole as a counterpart that is neither expo
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
     // A 3.4 mm hole through the 20 × 20 × 10 mm box, then an M3 × 12 screw in it.
+    // SolidCraft splits the bore into two half-cylinder faces (F2:bore:side:0 and :1).
     await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.applyAction({ action: 'hole', body: 'Body1', points: [[10, 10, 10]], size: 3.4 }));
-    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 7 faces', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 8 faces', { timeout: 30_000 });
     const families = await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.partsLibrary());
     expect(families.map((family) => family.family)).toContain('bearing');
     const inserted = await page.evaluate(() =>

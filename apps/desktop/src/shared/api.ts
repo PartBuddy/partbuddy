@@ -214,8 +214,8 @@ export interface PartBuddyApi {
     renameBody(body: string, name: string): Promise<void>;
     /** Inserts a STEP, IGES, STL, 3MF or OBJ file into the open design (B4); asks when no path is given. */
     insert(path?: string): Promise<InsertResult>;
-    /** Repairs an imported part or converts a mesh body to faces (B4). */
-    repair(body: string, how: 'repair' | 'convert'): Promise<RepairResult>;
+    /** Converts a mesh body to faces (B4). */
+    convertMesh(body: string): Promise<RepairResult>;
     /** "Go back to this state": undoes or redoes to a step of the work log (M2a). */
     goToStep(step: string): Promise<void>;
     /** The dimensions of these features, or of all, placed in the view (M2b-3). */

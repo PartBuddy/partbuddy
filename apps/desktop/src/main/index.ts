@@ -1081,15 +1081,14 @@ if (!app.requestSingleInstanceLock()) {
       log('seated a standard part');
       return { body };
     });
-    bridge.handle(invokeChannels.designRepair, async ({ body, how }) => {
+    bridge.handle(invokeChannels.designRepair, async ({ body }) => {
       assistantIdle();
       try {
-        await steps.recordUser(describeUserAction(how === 'repair' ? { kind: 'repairBody', body } : { kind: 'convertMesh', body }), () => supervisor.repairBody(body, how));
-        log(how === 'repair' ? 'repaired a part' : 'converted a mesh body to faces');
+        await steps.recordUser(describeUserAction({ kind: 'convertMesh', body }), () => supervisor.convertMesh(body));
+        log('converted a mesh body to faces');
         return { ok: true };
       } catch (error) {
         const detail = (error as Error).message.replace(/^\S+ failed: /, '').slice(0, 500);
-        if (/nothing to repair/i.test(detail)) return { ok: false, reason: 'nothing', detail };
         if (/must be closed/i.test(detail)) return { ok: false, reason: 'openMesh', detail };
         return { ok: false, reason: 'other', detail };
       }

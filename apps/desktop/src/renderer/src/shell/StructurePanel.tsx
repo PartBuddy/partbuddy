@@ -1,11 +1,11 @@
-import { IconBox, IconEye, IconEyeOff, IconFileImport, IconFocusCentered, IconPencil, IconPencilPlus, IconNut, IconTool, IconTransform } from '@tabler/icons-react';
+import { IconBox, IconEye, IconEyeOff, IconFileImport, IconFocusCentered, IconPencil, IconPencilPlus, IconNut, IconTransform } from '@tabler/icons-react';
 import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, ToggleButton, Tooltip, TooltipTrigger } from 'react-aria-components';
 import { Box3, Vector3 } from 'three';
 
 import { NotesSection } from '../notes/NotesSection';
-import { bodyKindOf, type BodyKind } from './bodyKinds';
+import { bodyKindOf } from './bodyKinds';
 import { useFileImport } from './fileImport';
 import { ParametersSection } from './ParametersSection';
 import { ExpandToggle, NEW_PART, PartDetails, PrintedToggle, useParts } from './PartDetails';
@@ -33,22 +33,20 @@ function EyeToggle({ name, visible, onToggle }: { name: string; visible: boolean
 }
 
 /**
- * Repair at an imported body (B4): a mesh body is converted to faces (`mesh.convert`, closed
- * meshes only), a part from STEP or IGES is repaired (`body.repair`). Modelled parts get nothing.
+ * "Convert to faces" at a mesh body (B4, `mesh.convert`, closed meshes only). SolidCraft has no
+ * repair for parts from STEP or IGES, so they and modelled parts get nothing.
  */
-function RepairButton({ body, kind }: { body: string; kind: Exclude<BodyKind, 'model'> }) {
+function ConvertButton({ body }: { body: string }) {
   const { t } = useTranslation();
   const setNotice = useStudio((s) => s.setNotice);
   const [busy, setBusy] = useState(false);
-  const how = kind === 'mesh' ? 'convert' : 'repair';
-  const label = t(`structure.${how}`, { name: body });
+  const label = t('structure.convert', { name: body });
   const run = () => {
     setBusy(true);
     void platform()
-      .design.repair(body, how)
+      .design.convertMesh(body)
       .then((result) => {
-        if (result.ok) setNotice({ tone: 'success', text: t(`structure.${how}Done`, { name: body }) });
-        else if (result.reason === 'nothing') setNotice({ tone: 'success', text: t('structure.nothingToRepair', { name: body }) });
+        if (result.ok) setNotice({ tone: 'success', text: t('structure.convertDone', { name: body }) });
         else if (result.reason === 'openMesh') setNotice({ tone: 'danger', text: t('structure.openMesh', { name: body }) });
         else setNotice({ tone: 'danger', text: t('actions.failed', { detail: result.detail.slice(0, 200) }) });
       })
@@ -61,11 +59,11 @@ function RepairButton({ body, kind }: { body: string; kind: Exclude<BodyKind, 'm
   };
   return (
     <TooltipTrigger delay={300}>
-      <AriaButton aria-label={label} isDisabled={busy} onPress={run} excludeFromTabOrder className={tool} data-testid={`structure-${how}`}>
-        {kind === 'mesh' ? <IconTransform className="size-icon-sm" aria-hidden /> : <IconTool className="size-icon-sm" aria-hidden />}
+      <AriaButton aria-label={label} isDisabled={busy} onPress={run} excludeFromTabOrder className={tool} data-testid="structure-convert">
+        <IconTransform className="size-icon-sm" aria-hidden />
       </AriaButton>
       <Tooltip placement="top" offset={6} className="max-w-text-max rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
-        {t(`structure.${how}Hint`)}
+        {t('structure.convertHint')}
       </Tooltip>
     </TooltipTrigger>
   );
@@ -212,7 +210,7 @@ export function StructurePanel() {
                 {standard ? <IconNut className="size-icon-sm shrink-0 text-text-muted" aria-hidden /> : <IconBox className="size-icon-sm shrink-0 text-text-muted" aria-hidden />}
                 <span className="min-w-0 flex-1 truncate">{body.name}</span>
                 {standard ? <span className="shrink-0 text-xs text-accent-text">{t('structure.standardPart')}</span> : kind === 'mesh' ? <span className="shrink-0 text-xs text-accent-text">{t('structure.mesh')}</span> : null}
-                {kind === 'model' || standard ? null : <RepairButton body={body.name} kind={kind} />}
+                {kind === 'mesh' && !standard ? <ConvertButton body={body.name} /> : null}
                 {standard ? null : <PrintedToggle body={body.name} note={note} onChange={keep} />}
                 <ExpandToggle body={body.name} open={open} onToggle={() => setExpanded(open ? null : body.name)} />
                 <EyeToggle name={body.name} visible={body.visible} onToggle={(visible) => toggle({ bodies: [body.name], sketches: [], visible })} />

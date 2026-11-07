@@ -98,7 +98,7 @@ const api: PartBuddyApi = {
     visibility: (command) => ipcRenderer.invoke(invokeChannels.designVisibility, command),
     renameBody: (body, name) => ipcRenderer.invoke(invokeChannels.designRenameBody, { body, name }),
     insert: (path) => ipcRenderer.invoke(invokeChannels.designInsert, path === undefined ? {} : { path }),
-    repair: (body, how) => ipcRenderer.invoke(invokeChannels.designRepair, { body, how }),
+    convertMesh: (body) => ipcRenderer.invoke(invokeChannels.designRepair, { body }),
     goToStep: (step) => ipcRenderer.invoke(invokeChannels.designGoToStep, { step }),
     dimensions: (features) => ipcRenderer.invoke(invokeChannels.designDimensions, { features }),
     probeParameter: (parameter, value, body) => ipcRenderer.invoke(invokeChannels.designProbeParameter, { parameter, value, body }),
