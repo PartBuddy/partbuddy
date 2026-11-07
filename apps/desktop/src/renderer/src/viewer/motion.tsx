@@ -136,8 +136,13 @@ const COMPUTING: PlateLayout = { status: 'computing', result: null, poses: new M
 /** The layout on the bed, worked out in a worker while the plate view is open. */
 export function usePlateLayout(bodies: BodyModel[], open: boolean, bed: [number, number, number] | null): PlateLayout {
   const faces = useStudio((s) => s.printFaces);
+  const standard = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.standardParts : undefined));
   const [layout, setLayout] = useState<PlateLayout>({ status: 'computing', result: null, poses: new Map() });
-  const inputs = useMemo(() => (open ? bodies.map((body) => ({ name: body.name, ...plateInput(body, faces[body.name]) })) : []), [bodies, faces, open]);
+  // Standard parts (screws, nuts) are bought, not printed: they stay off the plate.
+  const inputs = useMemo(
+    () => (open ? bodies.filter((body) => !standard?.includes(body.name)).map((body) => ({ name: body.name, ...plateInput(body, faces[body.name]) })) : []),
+    [bodies, faces, open, standard],
+  );
   useEffect(() => {
     if (!open || !bed || inputs.length === 0) return;
     const worker = new Worker(new URL('../workers/nest.worker.ts', import.meta.url), { type: 'module' });
@@ -182,7 +187,8 @@ export function useTargetPoses(bodies: BodyModel[], steps: PlayStep[], layout: P
     if (viewMode === 'plate' && layout.status === 'ready') {
       for (const body of bodies) {
         const pose = layout.poses.get(body.name);
-        if (pose) poses.set(body.name, { position: pose.position, quaternion: pose.quaternion.toArray(), visible: pose.plate === plate });
+        // A body without a place (a standard part) does not show on the plate.
+        poses.set(body.name, pose ? { position: pose.position, quaternion: pose.quaternion.toArray(), visible: pose.plate === plate } : { ...REST, visible: false });
       }
     } else if (position !== null) {
       for (const [name, pose] of playbackPoses(steps, boxes, position)) poses.set(name, { ...REST, position: pose.offset, visible: pose.visible });
@@ -322,12 +328,12 @@ export function PlateBed({ bed, colors }: { bed: [number, number, number]; color
         <meshStandardMaterial color={colors.bed} roughness={0.9} metalness={0} />
       </mesh>
       <Line points={outline} color={colors.bedEdge} lineWidth={1.2} raycast={noRaycast} />
-      <Html position={[width / 2, -6, 0]} center zIndexRange={[12, 11]}>
+      <Html position={[width / 2, -10, 0]} center zIndexRange={[12, 11]}>
         <span className={label} data-testid="bed-width">
           {t('units.mm', { value: width })}
         </span>
       </Html>
-      <Html position={[-6, depth / 2, 0]} center zIndexRange={[12, 11]}>
+      <Html position={[-14, depth / 2, 0]} center zIndexRange={[12, 11]}>
         <span className={label} data-testid="bed-depth">
           {t('units.mm', { value: depth })}
         </span>
