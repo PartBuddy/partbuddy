@@ -54,8 +54,9 @@ async function pullRequest() {
   if (dry) return console.log(`[site-sync] DRY_RUN: would push ${branch} and open "${title}"\n${files}`);
   git('switch', '-C', branch);
   git('-c', 'user.name=partbuddy-site-sync', '-c', 'user.email=site-sync@users.noreply.github.com', 'commit', '-q', '-m', title);
-  git('push', '-f', 'origin', `HEAD:refs/heads/${branch}`);
   const token = process.env.SITE_REPO_TOKEN;
+  // The checkout keeps no credentials (persist-credentials: false); the token goes only into this push.
+  git('push', '-f', `https://x-access-token:${token}@github.com/${SITE}.git`, `HEAD:refs/heads/${branch}`);
   const [owner] = SITE.split('/');
   const open = await api(`/repos/${SITE}/pulls?state=open&head=${owner}:${branch}`, token);
   if (open.length) return console.log(`[site-sync] updated ${open[0].html_url}`);

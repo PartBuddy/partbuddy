@@ -38,7 +38,8 @@ jobs:
     if: needs.release-please.outputs.release_created == 'true'
     permissions:
       contents: read
-    uses: ./.github/workflows/site-sync.yml
+    # actionlint 1.7.12 rejects the self-repository form $/…; switch once it supports it.
+    uses: ./.github/workflows/site-sync.yml # zizmor: ignore[self-repository]
     with:
       release: true
       tag: ${{ needs.release-please.outputs.tag_name }}
