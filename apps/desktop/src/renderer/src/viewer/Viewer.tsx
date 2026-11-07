@@ -1139,7 +1139,8 @@ export function Viewer() {
         </>
       ) : null}
       {/* One column at the top left: view tools first, then what the view reports; nothing overlaps at any width. */}
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-start gap-2 p-3">
+      {/* Room on the right for the view cube (120 px), so the tools never run under it. */}
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-start gap-2 p-3" style={{ paddingRight: 120 }}>
         {model.status === 'ready' && (model.bodies.length > 0 || model.sketches.length > 0) ? <ViewTools /> : null}
         {connection.state === 'connected' && connection.mirror === 'rebuilding' ? (
           <div className="rounded-md bg-surface-raised px-2 py-1 shadow-2">
