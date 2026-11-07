@@ -425,7 +425,12 @@
       "toLatest": "Jump to the latest message"
     },
     "sendHint": "Send (Enter)",
-    "stopHint": "Stop (Esc)"
+    "stopHint": "Stop (Esc)",
+    "start": {
+      "title": "What shall we make?"
+    },
+    "offline": "No internet connection. The assistant answers again once you are online.",
+    "announce": "The assistant has answered."
   },
   "live": {
     "thinking": "The assistant is planning the next step",

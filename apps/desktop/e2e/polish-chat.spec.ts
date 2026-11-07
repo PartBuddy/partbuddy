@@ -136,3 +136,47 @@ async function scrollChatTop(page: Page): Promise<void> {
   await page.mouse.wheel(0, -100_000);
   await page.waitForTimeout(300);
 }
+
+// States without a working assistant (chat polish): signed out, offline, and a program that does
+// not start; in the narrow window, German, light and dark.
+test('chat states without a working assistant', async () => {
+  test.setTimeout(120_000);
+  for (const state of ['signed-out', 'unavailable'] as const) {
+    const launched = await launchApp({
+      env:
+        state === 'signed-out'
+          ? { FAKE_CLAUDE_SIGNED_OUT: '1' }
+          : { PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, 'no-such-claude.mjs')]) },
+    });
+    try {
+      const { app, page } = launched;
+      await app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.setSize(960, 600);
+      });
+      await page.getByTestId('settings').click();
+      const dialog = page.getByTestId('settings-dialog');
+      await dialog.getByTestId('settings-language').getByText('Deutsch').click();
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+      await expect(page.getByTestId('assistant-notice')).toBeVisible({ timeout: 30_000 });
+      const shot = async (name: string) => {
+        for (const scheme of ['light', 'dark'] as const) {
+          await page.emulateMedia({ colorScheme: scheme });
+          await page.waitForTimeout(400);
+          await page.screenshot({ path: test.info().outputPath(`${name}-narrow-${scheme}.png`) });
+        }
+        await page.emulateMedia({ colorScheme: 'light' });
+      };
+      await shot(`12-${state}`);
+      if (state === 'signed-out') {
+        // Offline as Chromium sees it: navigator.onLine turns false and the window hears it.
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+        await expect(page.getByTestId('composer-offline')).toBeVisible();
+        await shot('13-offline');
+      }
+    } finally {
+      await launched.close();
+    }
+  }
+});

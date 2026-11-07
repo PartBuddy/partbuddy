@@ -425,7 +425,12 @@
       "toLatest": "Zur neuesten Nachricht"
     },
     "sendHint": "Senden (Eingabe)",
-    "stopHint": "Stoppen (Esc)"
+    "stopHint": "Stoppen (Esc)",
+    "start": {
+      "title": "Was soll entstehen?"
+    },
+    "offline": "Keine Internetverbindung. Der Assistent antwortet erst wieder, wenn du online bist.",
+    "announce": "Der Assistent hat geantwortet."
   },
   "live": {
     "thinking": "Der Assistent plant den nächsten Schritt",

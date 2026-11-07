@@ -1,5 +1,23 @@
-import { IconArrowDown, IconArrowUp, IconPencil, IconPhoto, IconPlayerStopFilled, IconPlugConnectedX, IconPointer, IconRefresh, IconSparkles, IconX } from '@tabler/icons-react';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import {
+  IconAlertTriangle,
+  IconArrowDown,
+  IconArrowUp,
+  IconArrowUpRight,
+  IconDownload,
+  IconLock,
+  IconLogin,
+  IconPencil,
+  IconPhoto,
+  IconPlayerStopFilled,
+  IconPlugConnectedX,
+  IconPointer,
+  IconRefresh,
+  IconServerOff,
+  IconSparkles,
+  IconWifiOff,
+  IconX,
+} from '@tabler/icons-react';
+import { memo, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button as AriaButton, Dialog, Form, ProgressBar, Modal, ModalOverlay, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
@@ -22,15 +40,28 @@ import { selectedStatus, useAssistant, type Attachment, type ConversationItem } 
 import { emptySketch, SketchPad, type SketchPicture, type SketchState } from './SketchPad';
 import { photoPicture } from './photo';
 import { useChatScroll } from './useChatScroll';
+import { card } from './Fold';
 import { SourceCard } from './SourceCard';
 import { ToolCall } from './ToolCall';
 import { MessageActions, tip } from './MessageActions';
 
-function Notice({ title, body, children }: { title: string; body: string; children?: React.ReactNode }) {
+type IconType = React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
+
+/** Why the assistant cannot work yet and what helps (chat polish: a card with its sign). */
+function Notice({ title, body, icon: Icon, children }: { title: string; body: string; icon: IconType; children?: React.ReactNode }) {
+  // eslint-disable-next-line no-control-regex -- terminal colour codes in a program's output
+  const plain = body.replace(/\u001b\[[0-9;]*m/g, '');
   return (
-    <div role="status" className="flex flex-col gap-2 text-sm text-text-muted">
-      <p className="font-semibold text-text">{title}</p>
-      <p>{body}</p>
+    <div role="status" className={`${card} gap-2 border-border p-3 text-sm text-text-muted`} data-testid="assistant-notice">
+      <p className="flex items-center gap-2 font-semibold text-text">
+        <Icon className="size-icon shrink-0 text-accent" aria-hidden />
+        {title}
+      </p>
+      {/* Details from a program can be a long path or a stack: they wrap anywhere, lose terminal colour
+          codes and stop after four lines; the whole text is in the tooltip and the log file. */}
+      <p className="line-clamp-4 [overflow-wrap:anywhere]" title={plain}>
+        {plain}
+      </p>
       {children ? <div className="flex flex-wrap gap-2">{children}</div> : null}
     </div>
   );
@@ -63,7 +94,7 @@ function Setup() {
     if (status.state === 'checking') return <Busy label={t('assistant.state.local.checking')} />;
     if (status.state === 'unavailable') {
       return (
-        <Notice title={t('assistant.local.unavailableTitle')} body={status.detail ?? t('assistant.state.local.unavailable')}>
+        <Notice icon={IconServerOff} title={t('assistant.local.unavailableTitle')} body={status.detail ?? t('assistant.state.local.unavailable')}>
           {refresh}
         </Notice>
       );
@@ -75,6 +106,7 @@ function Setup() {
     if (status.state === 'signedOut' || status.state === 'unavailable') {
       return (
         <Notice
+          icon={status.state === 'signedOut' ? IconLogin : IconLock}
           title={t(status.state === 'signedOut' ? 'assistant.chatgpt.signedOutTitle' : 'assistant.chatgpt.planDisabledTitle')}
           body={status.detail ?? t('assistant.chatgpt.signedOutBody')}
         >
@@ -94,14 +126,14 @@ function Setup() {
   if (status.state === 'checking') return <Busy label={t('assistant.state.claude-code.checking')} />;
   if (status.state === 'notInstalled') {
     return (
-      <Notice title={t('assistant.notInstalledTitle')} body={t('assistant.notInstalledBody')}>
+      <Notice icon={IconDownload} title={t('assistant.notInstalledTitle')} body={t('assistant.notInstalledBody')}>
         {refresh}
       </Notice>
     );
   }
   if (status.state === 'signedOut') {
     return (
-      <Notice title={t('assistant.signedOutTitle')} body={t('assistant.signedOutBody')}>
+      <Notice icon={IconLogin} title={t('assistant.signedOutTitle')} body={t('assistant.signedOutBody')}>
         <Button
           variant="primary"
           onPress={() => {
@@ -116,7 +148,7 @@ function Setup() {
   }
   if (status.state === 'needsSubscription') {
     return (
-      <Notice title={t('assistant.needsSubscriptionTitle')} body={t('assistant.needsSubscriptionBody')}>
+      <Notice icon={IconLock} title={t('assistant.needsSubscriptionTitle')} body={t('assistant.needsSubscriptionBody')}>
         <Button
           variant="primary"
           onPress={() => {
@@ -138,7 +170,7 @@ function Setup() {
   }
   if (status.state === 'unavailable') {
     return (
-      <Notice title={t('assistant.unavailableTitle')} body={t('assistant.unavailableBody', { detail: status.detail ?? '–' })}>
+      <Notice icon={IconAlertTriangle} title={t('assistant.unavailableTitle')} body={t('assistant.unavailableBody', { detail: status.detail ?? '–' })}>
         {refresh}
       </Notice>
     );
@@ -240,10 +272,20 @@ function Item({
       return null;
     case 'stopped':
       // Stopped by the user stays quiet; anything else failed and says why (polish round 1).
-      if (item.detail === 'stopped' || item.detail === null) return <p className="text-sm text-text-muted">{t('assistant.stopped')}</p>;
+      if (item.detail === 'stopped' || item.detail === null) {
+        return (
+          <p className="flex items-center gap-1 px-1 text-sm text-text-muted">
+            <IconPlayerStopFilled className="size-icon-sm shrink-0" aria-hidden />
+            {t('assistant.stopped')}
+          </p>
+        );
+      }
       return (
-        <div role="alert" className="flex flex-col items-start gap-1 rounded-md border border-danger px-3 py-2" data-testid="turn-failed">
-          <p className="text-sm font-medium text-danger">{t('assistant.failed.title')}</p>
+        <div role="alert" className={`${card} items-start gap-1 border-danger px-3 py-2`} data-testid="turn-failed">
+          <p className="flex items-center gap-2 text-sm font-medium text-danger">
+            <IconAlertTriangle className="size-icon-sm shrink-0" aria-hidden />
+            {t('assistant.failed.title')}
+          </p>
           <p className="text-sm text-text-muted">
             {t(`assistant.failed.reason.${FAILURE_REASONS.has(item.detail) ? item.detail : 'other'}`)} {t('assistant.failed.log')}
           </p>
@@ -265,7 +307,8 @@ function Item({
       );
     case 'error':
       return (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className="flex items-start gap-2 rounded-md bg-danger-subtle px-3 py-2 text-sm text-text [overflow-wrap:anywhere]">
+          <IconAlertTriangle className="mt-hairline size-icon-sm shrink-0 text-danger" aria-hidden />
           {item.message}
         </p>
       );
@@ -274,6 +317,21 @@ function Item({
   }
 }
 
+
+/** Whether the computer has a network; the assistants need one (local models aside). */
+function useOnline(): boolean {
+  return useSyncExternalStore(
+    (changed) => {
+      window.addEventListener('online', changed);
+      window.addEventListener('offline', changed);
+      return () => {
+        window.removeEventListener('online', changed);
+        window.removeEventListener('offline', changed);
+      };
+    },
+    () => navigator.onLine,
+  );
+}
 
 /*
  * Every token of a streaming answer rebuilds the rows; these keep every row whose items did not
@@ -372,6 +430,10 @@ export function AssistantPanel() {
   // After a failed turn: the last message once more, as text (shortcut: a sketch or photo that went with it does not go again).
   const lastUser = items.findLast((item) => item.kind === 'user');
   const retryLast = ready && lastUser?.kind === 'user' ? () => void sendToAssistant(lastUser.text) : null;
+  // The newest finished answer of this session (not of a restored chat), for screen readers.
+  const sessionStart = items.findLastIndex((item) => item.kind === 'session');
+  const lastAnswer = items.findLast((item, i) => i > sessionStart && item.kind === 'assistant' && !item.open);
+  const online = useOnline();
   const newest = items.at(-1);
   const streamingNow = newest?.kind === 'assistant' && newest.open;
   const resend = useMemo(() => (ready ? (text: string) => void sendToAssistant(text) : null), [ready]);
@@ -421,17 +483,26 @@ export function AssistantPanel() {
         </div>
       ) : null}
       <ChatResizer width={width} max={maxWidth} onChange={setWidth} />
+      {/* Screen readers hear that an answer is there, once, not every streamed word; the answer
+          itself stays the one place its text is (a copy here would read twice). */}
+      <p className="sr-only" aria-live="polite" data-testid="chat-announcer">
+        {lastAnswer ? <span key={lastAnswer.key}>{t('assistant.announce')}</span> : null}
+      </p>
       {/* The route and its status live in the chip beside the composer; the heading stays for screen readers. */}
       <h2 id="assistant-title" className="sr-only">
         {t('assistant.title')}
       </h2>
       <div className="relative flex min-h-0 flex-1 flex-col">
-      <div ref={list} {...handlers} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" aria-live="polite" data-testid="chat-list">
+      <div ref={list} {...handlers} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="chat-list">
       <div ref={content} className="cs-chat-list flex flex-col gap-2 p-3">
         <Setup />
         {items.length === 0 && (status.state === 'ready' || busy) ? (
           // A way in for an empty chat (polish round 1): examples fill the input, they do not send.
-          <div className="flex flex-col items-start gap-2" data-testid="chat-start">
+          <div className="flex flex-col gap-2 pt-4" data-testid="chat-start">
+            <p className="flex items-center gap-2 text-lg font-semibold text-text">
+              <IconSparkles className="size-icon shrink-0 text-accent" aria-hidden />
+              {t('assistant.start.title')}
+            </p>
             <p className="text-sm text-text-muted">{t('assistant.empty')}</p>
             {EXAMPLES.map((example) => (
               <AriaButton
@@ -440,9 +511,10 @@ export function AssistantPanel() {
                   setDraft(t(`assistant.examples.${example}`));
                   composer.current?.focus();
                 }}
-                className="rounded-md border border-border px-3 py-2 text-left text-sm text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+                className={`${card} flex-row items-start gap-2 border-border px-3 py-2 text-left text-sm text-text outline-none hover:border-border-strong hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus`}
                 data-testid="chat-example"
               >
+                <IconArrowUpRight className="mt-hairline size-icon-sm shrink-0 text-text-subtle" aria-hidden />
                 {t(`assistant.examples.${example}`)}
               </AriaButton>
             ))}
@@ -488,6 +560,12 @@ export function AssistantPanel() {
           send();
         }}
       >
+        {!online ? (
+          <p className="flex items-center gap-1 px-1 text-xs text-warning" role="status" data-testid="composer-offline">
+            <IconWifiOff className="size-icon-sm shrink-0" aria-hidden />
+            {t('assistant.offline')}
+          </p>
+        ) : null}
         {!connected && (status.state === 'ready' || busy) ? (
           <p className="flex items-center gap-1 px-1 text-xs text-text-muted" data-testid="composer-locked">
             <IconPlugConnectedX className="size-icon-sm shrink-0" aria-hidden />
