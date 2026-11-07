@@ -164,7 +164,7 @@ export type ClaudeEvent =
   | { type: 'textDelta'; text: string }
   | { type: 'source'; source: ResearchSource }
   | { type: 'text'; text: string }
-  | { type: 'done'; ok: boolean; durationMs: number | null; detail: string | null }
+  | { type: 'done'; ok: boolean; durationMs: number | null; detail: string | null; reason?: string }
   | { type: 'exited'; code: number | null }
   | { type: 'usage'; windows: NonNullable<AgentStatus['usage']> }
   | { type: 'context'; used?: number; size?: number };
@@ -239,13 +239,17 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
       const sizes = Object.values((message.modelUsage as Record<string, { contextWindow?: unknown } | null> | undefined) ?? {})
         .map((entry) => entry?.contextWindow)
         .filter((size): size is number => typeof size === 'number' && Number.isInteger(size) && size > 0);
+      const reason = message.is_error === true && typeof message.result === 'string' ? message.result.slice(0, 300) : null;
+      // An expired sign-in ends the turn as "success" with is_error and "Failed to authenticate: OAuth session expired…" (2.1.302).
+      const signedOut = reason !== null && /authenticat|oauth|\/login|not logged in/i.test(reason);
       return [
         ...(sizes.length > 0 ? [{ type: 'context' as const, size: Math.max(...sizes) }] : []),
         {
           type: 'done',
           ok: message.subtype === 'success' && message.is_error !== true,
           durationMs: typeof message.duration_ms === 'number' ? message.duration_ms : null,
-          detail: message.subtype === 'success' ? null : typeof message.subtype === 'string' ? message.subtype : 'failed',
+          detail: signedOut ? 'signedOut' : message.subtype === 'success' ? (message.is_error === true ? 'failed' : null) : typeof message.subtype === 'string' ? message.subtype : 'failed',
+          ...(reason ? { reason } : {}),
         },
       ];
     }

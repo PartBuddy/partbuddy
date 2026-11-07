@@ -884,7 +884,8 @@ export function Viewer() {
 
   return (
     <main
-      className="relative min-h-0 flex-1 bg-surface-sunken"
+      // isolate: pins and dimension labels (drei Html, z 11–32) stay under dialogs, menus and the start page.
+      className="relative isolate min-h-0 flex-1 bg-surface-sunken"
       aria-label={t('viewer.canvasLabel')}
       data-testid="viewer"
       data-revision={model.status === 'ready' ? model.revision : undefined}

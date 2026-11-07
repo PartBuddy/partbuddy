@@ -59,9 +59,6 @@
     "body": "Körper",
     "radius": "Radius",
     "area": "Fläche",
-    "anchor": "Name",
-    "anchorExact": "aus der Historie",
-    "anchorGeometric": "geometrisch",
     "loading": "Modell wird geladen",
     "rebuilding": "SolidCraft baut neu auf",
     "errorTitle": "Das Modell konnte nicht gelesen werden",
@@ -405,6 +402,7 @@
         "failed": "Der Assistent hat mit einem Fehler aufgehört.",
         "error_during_execution": "Ein Fehler hat den Assistenten mitten in der Arbeit gestoppt.",
         "error_max_turns": "Der Assistent hat zu viele Schritte gebraucht und aufgehört.",
+        "signedOut": "Die Anmeldung bei Claude Code ist abgelaufen. Melde dich neu an, dann sende die Nachricht erneut.",
         "other": "Der Assistent hat aufgehört, bevor er fertig war."
       },
       "log": "Details stehen in der Logdatei (Einstellungen › Über).",

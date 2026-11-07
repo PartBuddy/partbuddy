@@ -59,9 +59,6 @@
     "body": "Body",
     "radius": "Radius",
     "area": "Area",
-    "anchor": "Name",
-    "anchorExact": "from history",
-    "anchorGeometric": "geometric",
     "loading": "Loading model",
     "rebuilding": "Rebuilding in SolidCraft",
     "errorTitle": "The model could not be read",
@@ -405,6 +402,7 @@
         "failed": "The assistant stopped with an error.",
         "error_during_execution": "An error stopped the assistant while it worked.",
         "error_max_turns": "The assistant took too many steps and stopped.",
+        "signedOut": "Your Claude Code sign-in has expired. Sign in again, then send the message again.",
         "other": "The assistant stopped before it finished."
       },
       "log": "The log file has the details (Settings › About).",
