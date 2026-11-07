@@ -194,7 +194,7 @@
     },
     {
       "title": "Versions you can compare",
-      "text": "Saved before every request. Compare any of them with now.",
+      "text": "Saved before every request. Keep any of them as a milestone, compare it with now or open it as a project of its own.",
       "shot": "versions",
       "alt": "The versions dialog comparing a named version with the current design"
     },
@@ -225,7 +225,7 @@
     },
     {
       "title": "Projects and templates",
-      "text": "Every design is a folder you can see. Start from a box, clip or holder.",
+      "text": "Every design is a folder you can see: sort, pin and tag it, restore it from the bin, take it along as one file, and tick off its parts as they come off the printer. Start from a box, clip or holder.",
       "shot": "start",
       "alt": "The start page with templates and project tiles"
     }
