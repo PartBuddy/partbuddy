@@ -137,11 +137,13 @@ describe('sizes fitted to nozzle and layer', () => {
       { name: 'UserWall', value: 1, comment: '' },
     ];
     expect(refit(parameters, small)).toEqual([]);
+    // Walls and heights keep their size on the new grid; only the gap grows with the nozzle.
     expect(refit(parameters, large)).toEqual([
-      { name: 'Wall', value: 2.025 },
-      { name: 'Floor', value: 1.5 },
+      { name: 'Floor', value: 1.2 },
       { name: 'Gap', value: 0.6 },
     ]);
+    expect(refit([{ name: 'Rim', value: 6, comment: 'Rim [auto 30×layer]' }], large)).toEqual([]);
+    expect(refit([{ name: 'Wall', value: 1.8, comment: 'Wall [auto 4×line]' }], large)).toEqual([{ name: 'Wall', value: 2.025 }]);
     expect(fitMarkOf('Inner width')).toBeNull();
     expect(withoutFitMark('Wall [auto 3×line]')).toBe('Wall');
   });

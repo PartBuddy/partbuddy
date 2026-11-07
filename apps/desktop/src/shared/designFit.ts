@@ -94,9 +94,15 @@ export function withoutFitMark(comment: string): string {
   return comment.replace(MARK, ' ').replace(/\s+/g, ' ').trim();
 }
 
-/** The value a marked size has on this printer. */
-export function fittedValue(mark: FitMark, printer: FitPrinter): number {
-  return round(mark.count * unitSize(mark.unit, printer));
+/**
+ * The value a marked size has on this printer. Walls and heights keep their size, rounded up to the
+ * new grid of lines or layers (counting layers made a 6 mm rim 9 mm on a 0.3 mm layer, live run
+ * 2026-11-07); gaps and other nozzle sizes grow with the nozzle.
+ */
+export function fittedValue(mark: FitMark, value: number, printer: FitPrinter): number {
+  if (mark.unit === 'line') return snapSize('wall', value, printer);
+  if (mark.unit === 'layer') return snapSize('height', value, printer);
+  return round(mark.count * unitSize('nozzle', printer));
 }
 
 /** The assistant's marked sizes whose value changes on this printer; the user's sizes are never in it. */
@@ -104,7 +110,7 @@ export function refit(parameters: readonly { name: string; value: number; commen
   return parameters.flatMap((parameter) => {
     const mark = fitMarkOf(parameter.comment);
     if (!mark) return [];
-    const value = fittedValue(mark, printer);
+    const value = fittedValue(mark, parameter.value, printer);
     return Math.abs(value - parameter.value) > EPSILON ? [{ name: parameter.name, value }] : [];
   });
 }
