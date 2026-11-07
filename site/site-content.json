@@ -204,7 +204,7 @@
   "privacy": [
     {
       "title": "Your files stay yours",
-      "text": "Projects are plain folders on your computer, sign-ins stay in the Windows credential store, and the app sends no telemetry. No account, no cloud of its own."
+      "text": "Projects are plain folders on your computer, sign-ins stay in the Windows credential store, and the app sends no telemetry. Its only call of its own is the update check, and you can turn that off. No account, no cloud of its own."
     },
     {
       "title": "Your model, your choice",

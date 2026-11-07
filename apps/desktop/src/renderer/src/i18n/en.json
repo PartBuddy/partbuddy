@@ -687,7 +687,8 @@
       "solidcraft": "SolidCraft",
       "assistant": "Assistant",
       "print": "Printer and material",
-      "about": "About"
+      "about": "About",
+      "shortcuts": "Shortcuts"
     },
     "language": {
       "title": "Language",
@@ -742,14 +743,22 @@
       "profiles": "Profiles",
       "app": "PartBuddy",
       "help": "Help with problems",
-      "rules": "Design rules"
+      "rules": "Design rules",
+      "startup": "Start",
+      "keys": {
+        "app": "General",
+        "design": "Design",
+        "view": "3D view",
+        "sketch": "Sketch"
+      }
     },
     "intro": {
       "general": "How PartBuddy looks and where it keeps your projects.",
       "solidcraft": "The CAD program PartBuddy designs with.",
       "assistant": "Who designs with you and how it goes about it.",
       "print": "Printers and materials the assistant designs for and the print check measures against.",
-      "about": "Version, updates and licence."
+      "about": "Version, updates and licence.",
+      "shortcuts": "What goes faster with keyboard and mouse."
     },
     "engine": {
       "hint": "PartBuddy finds SolidCraft itself; choose another program here."
@@ -766,14 +775,47 @@
       "section": "Reset section",
       "all": "Reset everything",
       "allTitle": "Reset all settings",
-      "allHint": "Language, appearance, project folder, SolidCraft program and assistant go back to the defaults. Printer and material profiles stay.",
+      "allHint": "Every setting except the printer profiles goes back to the defaults: general, SolidCraft program, assistant and the update check.",
       "cancel": "Cancel",
       "go": "Reset",
       "what": {
-        "general": "Language, appearance and project folder go back to the defaults. Another project folder applies after a restart.",
+        "general": "Language, appearance, interface size, start behaviour, the update check and the project folder go back to the defaults. Another project folder applies after a restart.",
         "solidcraft": "PartBuddy finds SolidCraft itself again. This applies after a restart.",
         "assistant": "Web research, designing without support, the design rules and model and effort per assistant go back to the defaults. Sign-ins stay.",
         "all": "All settings go back to the defaults. Printer and material profiles, projects and sign-ins stay."
+      }
+    },
+    "zoom": {
+      "title": "Interface size",
+      "hint": "Makes text and controls larger or smaller. Applies at once."
+    },
+    "startPage": {
+      "title": "Show at start",
+      "hint": "The start page with all projects, or the last project right away. Applies at the next start.",
+      "home": "Start page",
+      "last": "Last project"
+    },
+    "checkUpdates": {
+      "title": "Check for updates automatically",
+      "hint": "The installed app asks GitHub once after the start whether there is a new version. Otherwise it only asks when you choose “Check for updates”. Applies at the next start."
+    },
+    "keys": {
+      "or": "or",
+      "openProject": "Open a project",
+      "close": "Close a dialog or menu",
+      "rotate": "Rotate the view",
+      "pan": "Pan the view",
+      "zoom": "Zoom",
+      "deselect": "Clear the selection",
+      "deleteItem": "Delete the chosen item",
+      "token": {
+        "ctrl": "Ctrl",
+        "shift": "Shift",
+        "esc": "Esc",
+        "del": "Del",
+        "drag": "Drag",
+        "rightDrag": "Right-drag",
+        "wheel": "Mouse wheel"
       }
     }
   },

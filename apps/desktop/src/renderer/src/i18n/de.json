@@ -687,7 +687,8 @@
       "solidcraft": "SolidCraft",
       "assistant": "Assistent",
       "print": "Drucker und Material",
-      "about": "Über"
+      "about": "Über",
+      "shortcuts": "Tastenkürzel"
     },
     "language": {
       "title": "Sprache",
@@ -742,14 +743,22 @@
       "profiles": "Profile",
       "app": "PartBuddy",
       "help": "Hilfe bei Fehlern",
-      "rules": "Konstruktionsregeln"
+      "rules": "Konstruktionsregeln",
+      "startup": "Start",
+      "keys": {
+        "app": "Allgemein",
+        "design": "Konstruktion",
+        "view": "3D-Ansicht",
+        "sketch": "Skizze"
+      }
     },
     "intro": {
       "general": "Wie PartBuddy aussieht und wo es deine Projekte ablegt.",
       "solidcraft": "Das CAD-Programm, mit dem PartBuddy konstruiert.",
       "assistant": "Wer mit dir konstruiert und wie er dabei vorgeht.",
       "print": "Drucker und Materialien, nach denen der Assistent konstruiert und die Druckprüfung misst.",
-      "about": "Version, Updates und Lizenz."
+      "about": "Version, Updates und Lizenz.",
+      "shortcuts": "Was mit Tastatur und Maus schneller geht."
     },
     "engine": {
       "hint": "PartBuddy sucht SolidCraft selbst; hier wählst du ein anderes Programm."
@@ -766,14 +775,47 @@
       "section": "Bereich zurücksetzen",
       "all": "Alles zurücksetzen",
       "allTitle": "Alle Einstellungen zurücksetzen",
-      "allHint": "Sprache, Darstellung, Projektordner, SolidCraft-Programm und Assistent kommen auf die Standardwerte. Drucker- und Materialprofile bleiben.",
+      "allHint": "Alle Einstellungen außer Druckerprofilen kommen auf die Standardwerte: Allgemein, SolidCraft-Programm, Assistent und Update-Suche.",
       "cancel": "Abbrechen",
       "go": "Zurücksetzen",
       "what": {
-        "general": "Sprache, Darstellung und Projektordner kommen auf die Standardwerte zurück. Ein anderer Projektordner gilt nach einem Neustart.",
+        "general": "Sprache, Darstellung, Oberflächengröße, Startverhalten, Update-Suche und Projektordner kommen auf die Standardwerte zurück. Ein anderer Projektordner gilt nach einem Neustart.",
         "solidcraft": "PartBuddy sucht SolidCraft wieder selbst. Das gilt nach einem Neustart.",
         "assistant": "Web-Recherche, stützfreies Konstruieren, die Konstruktionsregeln sowie Modell und Aufwand je Assistent kommen auf die Standardwerte zurück. Anmeldungen bleiben.",
         "all": "Alle Einstellungen kommen auf die Standardwerte zurück. Drucker- und Materialprofile, Projekte und Anmeldungen bleiben."
+      }
+    },
+    "zoom": {
+      "title": "Oberflächengröße",
+      "hint": "Macht Schrift und Bedienelemente größer oder kleiner. Wirkt sofort."
+    },
+    "startPage": {
+      "title": "Beim Start zeigen",
+      "hint": "Die Startseite mit allen Projekten oder gleich das zuletzt geöffnete Projekt. Gilt beim nächsten Start.",
+      "home": "Startseite",
+      "last": "Letztes Projekt"
+    },
+    "checkUpdates": {
+      "title": "Automatisch nach Updates suchen",
+      "hint": "Die installierte App fragt nach dem Start einmal bei GitHub nach einer neuen Version. Sonst fragt sie nur, wenn du „Nach Updates suchen“ wählst. Gilt beim nächsten Start."
+    },
+    "keys": {
+      "or": "oder",
+      "openProject": "Projekt öffnen",
+      "close": "Dialog oder Menü schließen",
+      "rotate": "Ansicht drehen",
+      "pan": "Ansicht verschieben",
+      "zoom": "Zoomen",
+      "deselect": "Auswahl aufheben",
+      "deleteItem": "Gewähltes Element löschen",
+      "token": {
+        "ctrl": "Strg",
+        "shift": "Umschalt",
+        "esc": "Esc",
+        "del": "Entf",
+        "drag": "Linke Maustaste ziehen",
+        "rightDrag": "Rechte Maustaste ziehen",
+        "wheel": "Mausrad"
       }
     }
   },

@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'ele
 
 import type { PartBuddyApi } from '../shared/api';
 import { eventChannels, invokeChannels, type EventChannel } from '../shared/channels';
-import type { EventPayload, SettingsReset } from '../shared/contract';
+import type { AppSettingRequest, EventPayload, SettingsReset } from '../shared/contract';
 
 // Sandboxed preload (ADR 0013): only named channels are exposed, never ipcRenderer itself.
 
@@ -26,6 +26,8 @@ const api: PartBuddyApi = {
     resetProjectsFolder: () => ipcRenderer.invoke(invokeChannels.settingsResetProjectsFolder),
     finishSetup: () => ipcRenderer.invoke(invokeChannels.settingsFinishSetup),
     reset: (section: SettingsReset) => ipcRenderer.invoke(invokeChannels.settingsReset, { section }),
+    app: () => ipcRenderer.invoke(invokeChannels.settingsApp),
+    setApp: (request: AppSettingRequest) => ipcRenderer.invoke(invokeChannels.settingsSetApp, request),
     revealLog: () => ipcRenderer.invoke(invokeChannels.settingsRevealLog),
   },
   updates: {

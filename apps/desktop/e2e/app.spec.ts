@@ -725,6 +725,52 @@ test('an old profile opens with its settings, and reset puts a section back to t
   }
 });
 
+test('interface size, start behaviour and update check are kept, and the shortcuts are listed', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-settings-basics-'));
+  const zoom = (app: LaunchedApp['app']) => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.getZoomFactor());
+  try {
+    launched = await launchApp({ work });
+    let { app, page } = launched;
+    await expect(page.getByTestId('settings')).toBeVisible();
+    await page.keyboard.press('Control+Comma');
+    let dialog = page.getByTestId('settings-dialog');
+    await dialog.getByTestId('settings-zoom').getByText('125 %').click();
+    await expect.poll(() => zoom(app)).toBe(1.25);
+    await dialog.getByTestId('settings-start-page').getByText('Last project').click();
+    await page.getByTestId('settings-about').click();
+    const check = dialog.getByTestId('settings-check-updates').getByRole('switch', { name: 'Check for updates automatically' });
+    await expect(check).toBeChecked();
+    await check.press('Space');
+    await expect(check).not.toBeChecked();
+
+    // The shortcuts, found by what they do.
+    await dialog.getByTestId('settings-search').fill('undo');
+    await dialog.getByTestId('settings-search-results').getByRole('option', { name: /Undo/ }).click();
+    await expect(page.getByTestId('settings-shortcuts')).toHaveAttribute('aria-selected', 'true');
+    await expect(dialog.getByTestId('shortcut-redo')).toContainText('Ctrl');
+    await page.screenshot({ path: test.info().outputPath('settings-shortcuts.png') });
+
+    await launched.close();
+    launched = await launchApp({ work });
+    ({ app, page } = launched);
+    await expect.poll(() => zoom(app)).toBe(1.25);
+    await page.getByTestId('settings').click();
+    dialog = page.getByTestId('settings-dialog');
+    await expect(dialog.getByTestId('settings-start-page').getByRole('radio', { name: 'Last project' })).toBeChecked();
+    await page.getByTestId('settings-about').click();
+    await expect(dialog.getByTestId('settings-check-updates').getByRole('switch')).not.toBeChecked();
+    // Reset of the general section brings the size back at once.
+    await page.getByTestId('settings-general').click();
+    await dialog.getByTestId('settings-reset-general').click();
+    await page.getByTestId('settings-reset-go').click();
+    await expect.poll(() => zoom(app)).toBe(1);
+  } finally {
+    await launched?.close();
+    launched = null;
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('the settings show which SolidCraft runs and its version (R0)', async () => {
   launched = await launchApp();
   const { page } = launched;

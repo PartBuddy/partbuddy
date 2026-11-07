@@ -128,6 +128,8 @@ function launchPort(): number {
 
 /** Height of the integrated title bar; the renderer's token `--cs-titlebar-height` confirms it. */
 const TITLE_BAR_HEIGHT = 40;
+/** The system window buttons grow with the interface size, so they stay as high as the title bar. */
+const titleBarHeight = (zoom: number) => Math.round(TITLE_BAR_HEIGHT * zoom);
 
 const WINDOW_WIDTH = 1440;
 const WINDOW_HEIGHT = 900;
@@ -167,7 +169,7 @@ function createWindow(): BrowserWindow {
     // own window buttons (Snap layouts on Windows 11, traffic lights on macOS). The renderer
     // colours the buttons from the design tokens (window:title-bar).
     titleBarStyle: 'hidden',
-    titleBarOverlay: process.platform === 'darwin' ? true : { height: TITLE_BAR_HEIGHT },
+    titleBarOverlay: process.platform === 'darwin' ? true : { height: titleBarHeight(settingsStore.get('zoom')) },
     ...(process.platform === 'darwin' ? { trafficLightPosition: { x: 12, y: 12 } } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -176,6 +178,8 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       webSecurity: true,
       spellcheck: false,
+      // The interface size the user chose (2026-11-07); changed later with setZoomFactor.
+      zoomFactor: settingsStore.get('zoom'),
       // Off screen the window must keep rendering, or the 3D view of a test stays empty.
       ...(placement?.hidden ? { backgroundThrottling: false } : {}),
     },
@@ -264,8 +268,9 @@ if (!app.requestSingleInstanceLock()) {
     void engineChoice.info().then((engine) => {
       log(`SolidCraft ${engine.version ?? 'version unknown'} (${engine.source}, ${engine.support})`);
     });
-    // Tests that start in the work area set PARTBUDDY_START_PAGE=0; the app always starts on the start page.
-    const startOnHome = process.env.PARTBUDDY_START_PAGE !== '0';
+    // The start page or the last project, as the user chose (2026-11-07); tests set PARTBUDDY_START_PAGE.
+    const startEnv = process.env.PARTBUDDY_START_PAGE;
+    const startOnHome = startEnv === undefined ? settingsStore.get('startPage') === 'home' : startEnv !== '0';
     const supervisor = new SolidCraftSupervisor(
       {
         environment: engineEnvironment,
@@ -421,7 +426,7 @@ if (!app.requestSingleInstanceLock()) {
     // What the 3D view shows, as the renderer last reported it (for `partbuddy_view`).
     let viewState: ViewState | null = null;
     bridge.handle(invokeChannels.windowTitleBar, (colors) => {
-      if (process.platform !== 'darwin') mainWindow?.setTitleBarOverlay(colors);
+      if (process.platform !== 'darwin') mainWindow?.setTitleBarOverlay({ ...colors, height: titleBarHeight(settingsStore.get('zoom')) });
       return undefined;
     });
     // The chosen theme drives Chromium's colour scheme, so the tokens and the window buttons follow.
@@ -487,7 +492,21 @@ if (!app.requestSingleInstanceLock()) {
       updates.install();
       return undefined;
     });
-    if (updates.enabled) setTimeout(() => void updates.check(), 10_000);
+    if (updates.enabled && settingsStore.get('checkUpdates')) setTimeout(() => void updates.check(), 10_000);
+    // Interface size, start behaviour and update check (2026-11-07): the size applies at once, the rest at the next start.
+    const appSettings = () => ({ zoom: settingsStore.get('zoom'), startPage: settingsStore.get('startPage'), checkUpdates: settingsStore.get('checkUpdates') });
+    const applyZoom = () => {
+      const zoom = settingsStore.get('zoom');
+      mainWindow?.webContents.setZoomFactor(zoom);
+      if (process.platform !== 'darwin') mainWindow?.setTitleBarOverlay({ height: titleBarHeight(zoom) });
+    };
+    bridge.handle(invokeChannels.settingsApp, appSettings);
+    bridge.handle(invokeChannels.settingsSetApp, ({ key, value }) => {
+      settingsStore.set(key, value);
+      if (key === 'zoom') applyZoom();
+      log(`setting ${key} is now ${String(value)}`);
+      return appSettings();
+    });
     bridge.handle(invokeChannels.settingsFinishSetup, () => {
       general.finishSetup();
       log('the first-start setup is done');
@@ -704,6 +723,7 @@ if (!app.requestSingleInstanceLock()) {
       if (section === 'general' || section === 'all') {
         settingsStore.reset(RESET_KEYS.general);
         nativeTheme.themeSource = appearance.theme();
+        applyZoom();
         german = app.getSystemLocale().toLowerCase().startsWith('de');
       }
       if (section === 'assistant' || section === 'all') {
