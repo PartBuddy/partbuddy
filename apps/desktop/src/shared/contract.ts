@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { eventChannels, invokeChannels, type EventChannel, type InvokeChannel } from './channels';
 import { keptSketchSchema, sketchStateSchema } from './sketch';
+import { assemblyPlanSchema } from './assembly';
 import { MAX_PHRASES_PER_STEP, STEP_PHRASE_KEYS } from './stepPhrases';
 import { TEMPLATE_IDS } from './templates';
 
@@ -1038,6 +1039,8 @@ export const invokeContract = {
   [invokeChannels.designProbeParameter]: { request: parameterProbeSchema, response: actionPreviewSchema },
   [invokeChannels.designParameters]: { request: none, response: designParametersSchema },
   [invokeChannels.chatLoad]: { request: none, response: storedChatSchema.nullable() },
+  // The project's assembly order (ADR 0026); null when the assistant has not set one.
+  [invokeChannels.assemblyGet]: { request: none, response: assemblyPlanSchema.nullable() },
   [invokeChannels.sketchList]: { request: none, response: z.array(keptSketchSchema).max(50) },
   [invokeChannels.sketchLoad]: { request: z.object({ id: keptSketchSchema.shape.id }).strict(), response: sketchStateSchema.nullable() },
   [invokeChannels.chatSave]: { request: chatSaveSchema, response: none },
@@ -1067,6 +1070,7 @@ export const eventContract = {
   [eventChannels.agentEvent]: agentEventSchema,
   [eventChannels.notesChanged]: notesStateSchema,
   [eventChannels.printChanged]: partPrintSchema,
+  [eventChannels.assemblyChanged]: assemblyPlanSchema.nullable(),
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type FaceTableMessage = z.infer<typeof faceTableSchema>;

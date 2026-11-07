@@ -1,3 +1,4 @@
+import type { AssemblyPlan } from './assembly';
 import type {
   AgentEvent,
   AgentKind,
@@ -237,6 +238,11 @@ export interface PartBuddyApi {
     onChange(listener: (part: PartPrint) => void): () => void;
     /** The latest ready-to-print check, for the assistant's next message. */
     reportCheck(report: PrintCheckReport): Promise<void>;
+  };
+  /** The assembly order of the open project (ADR 0026): set by the assistant, null without one. */
+  assembly: {
+    get(): Promise<AssemblyPlan | null>;
+    onChange(listener: (plan: AssemblyPlan | null) => void): () => void;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

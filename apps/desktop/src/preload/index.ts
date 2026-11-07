@@ -124,6 +124,10 @@ const api: PartBuddyApi = {
     load: () => ipcRenderer.invoke(invokeChannels.chatLoad),
     save: (items) => ipcRenderer.invoke(invokeChannels.chatSave, { items }),
   },
+  assembly: {
+    get: () => ipcRenderer.invoke(invokeChannels.assemblyGet),
+    onChange: (listener) => subscribe(eventChannels.assemblyChanged, listener),
+  },
   sketches: {
     list: () => ipcRenderer.invoke(invokeChannels.sketchList),
     load: (id) => ipcRenderer.invoke(invokeChannels.sketchLoad, { id }),
