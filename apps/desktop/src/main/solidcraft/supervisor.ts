@@ -1,5 +1,5 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 
@@ -59,6 +59,15 @@ export interface SupervisorOptions {
   log(message: string): void;
 }
 
+/**
+ * The folder in its long form, created when missing. SolidCraft refuses 8.3 short names such as
+ * `ADMINI~1`, which `tmpdir()` returns for user names longer than eight characters.
+ */
+export function longPath(folder: string): string {
+  mkdirSync(folder, { recursive: true });
+  return realpathSync.native(folder);
+}
+
 export interface SupervisorListeners {
   status(status: ConnectionStatus): void;
   revision(revision: MirrorRevision): void;
@@ -105,19 +114,24 @@ export class SolidCraftSupervisor {
   /** Probes run one after another; SolidCraft runs one batch at a time anyway. */
   private probing: Promise<unknown> = Promise.resolve();
 
+  private readonly options: SupervisorOptions;
+
   constructor(
-    private readonly options: SupervisorOptions,
+    options: SupervisorOptions,
     private readonly listeners: SupervisorListeners,
   ) {
-    this.dimensions = new DimensionService(() => this.requester(), options.cacheDir);
-    this.actions = new ActionService(() => this.requester(), options.cacheDir);
+    // Every path PartBuddy hands SolidCraft is made from the cache folder (exports, scripts, allow_paths).
+    this.options = { ...options, cacheDir: longPath(options.cacheDir) };
+    const { cacheDir } = this.options;
+    this.dimensions = new DimensionService(() => this.requester(), cacheDir);
+    this.actions = new ActionService(() => this.requester(), cacheDir);
     this.designs = options.designsDir && options.projectsDir ? new ProjectStore(options.projectsDir, options.designsDir, options.newPartName) : null;
     this.scheduler = new MirrorScheduler(
       () => {
-        if (this.engine?.isOpen) return mirrorActiveDesign(this.engine.requester, options.cacheDir);
+        if (this.engine?.isOpen) return mirrorActiveDesign(this.engine.requester, cacheDir);
         const client = this.client;
         if (!client?.isOpen) return Promise.reject(new Error('not connected'));
-        return mirrorActiveDesign(client, options.cacheDir);
+        return mirrorActiveDesign(client, cacheDir);
       },
       {
         started: () => {
