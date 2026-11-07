@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://partbuddy.github.io/site-content.schema.json",
+  "title": "PartBuddy website content",
+  "description": "Product facts for partbuddy.github.io. Only what the app does today. Synced to the website repository by .github/workflows/site-sync.yml.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proof", "worksWith", "steps", "tour", "standards", "bento", "privacy", "models", "roadmap"],
+  "$defs": {
+    "text": { "type": "string", "minLength": 1 },
+    "list": { "type": "array", "items": { "$ref": "#/$defs/text" } },
+    "pair": { "type": "array", "prefixItems": [{ "$ref": "#/$defs/text" }, { "$ref": "#/$defs/text" }], "items": false, "minItems": 2 },
+    "shot": { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "File name in src/assets/shots of the website, without extension" },
+    "titled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "text"],
+      "properties": { "title": { "$ref": "#/$defs/text" }, "text": { "$ref": "#/$defs/text" } }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "proof": { "$ref": "#/$defs/list", "description": "Short proof points next to the hero button" },
+    "worksWith": { "$ref": "#/$defs/list", "description": "Names only, no third-party logos" },
+    "steps": { "type": "array", "items": { "$ref": "#/$defs/titled" }, "minItems": 3, "maxItems": 3, "description": "How it works, in three steps" },
+    "tour": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tab", "title", "text", "shot", "alt"],
+        "properties": {
+          "tab": { "$ref": "#/$defs/text" },
+          "title": { "$ref": "#/$defs/text" },
+          "text": { "$ref": "#/$defs/text" },
+          "shot": { "$ref": "#/$defs/shot" },
+          "alt": { "$ref": "#/$defs/text" }
+        }
+      }
+    },
+    "standards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fasteners", "inserts", "insertNote", "fits", "supportFree", "checks"],
+      "properties": {
+        "fasteners": { "type": "array", "items": { "$ref": "#/$defs/pair" } },
+        "inserts": { "type": "array", "items": { "$ref": "#/$defs/pair" } },
+        "insertNote": { "$ref": "#/$defs/text" },
+        "fits": {
+          "type": "array",
+          "description": "Clearance per side in mm: clamp, push, slide, turn",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["material", "overhang", "fits"],
+            "properties": {
+              "material": { "$ref": "#/$defs/text" },
+              "overhang": { "$ref": "#/$defs/text" },
+              "fits": { "type": "array", "items": { "$ref": "#/$defs/text" }, "minItems": 4, "maxItems": 4 }
+            }
+          }
+        },
+        "supportFree": { "$ref": "#/$defs/list" },
+        "checks": { "$ref": "#/$defs/list" }
+      }
+    },
+    "bento": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "text", "shot", "alt"],
+        "properties": {
+          "title": { "$ref": "#/$defs/text" },
+          "text": { "$ref": "#/$defs/text" },
+          "shot": { "$ref": "#/$defs/shot" },
+          "alt": { "$ref": "#/$defs/text" },
+          "size": { "enum": ["wide"] }
+        }
+      }
+    },
+    "privacy": { "type": "array", "items": { "$ref": "#/$defs/titled" } },
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["local", "localNote"],
+      "properties": { "local": { "$ref": "#/$defs/list", "minItems": 2 }, "localNote": { "$ref": "#/$defs/text" } }
+    },
+    "roadmap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["today", "next", "later"],
+      "properties": { "today": { "$ref": "#/$defs/list" }, "next": { "$ref": "#/$defs/list" }, "later": { "$ref": "#/$defs/list" } }
+    }
+  }
+}

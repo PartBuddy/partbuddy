@@ -19,9 +19,29 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - name: Run release-please
+        id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # A release made here with GITHUB_TOKEN triggers no "release" workflows, so the website
+  # sync is called directly.
+  website:
+    name: Update the website
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: read
+    # actionlint 1.7.12 rejects the self-repository form $/…; switch once it supports it.
+    uses: ./.github/workflows/site-sync.yml # zizmor: ignore[self-repository]
+    with:
+      release: true
+      tag: ${{ needs.release-please.outputs.tag_name }}
+    secrets:
+      SITE_REPO_TOKEN: ${{ secrets.SITE_REPO_TOKEN }}

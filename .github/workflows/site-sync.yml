@@ -1,0 +1,150 @@
+name: Website sync
+
+# Keeps partbuddy.github.io in step with the app (tools/site-sync.mjs):
+# - content: site/site-content.json and the release snapshot go to the website as a pull request
+#   (on every change of site/ and after every release); after a release the website also
+#   redeploys at once through repository_dispatch, reading the release from the GitHub API.
+# - media: after a release, fresh screenshots (pnpm site:shots) and, if the script exists, the
+#   hero film (pnpm site:film) go to the website as a second pull request.
+# Needs the secret SITE_REPO_TOKEN (fine-grained, PartBuddy/partbuddy.github.io: contents and
+# pull requests read/write) and, for media, a Windows runner with SolidCraft and the labels
+# self-hosted, windows, partbuddy-shots. See docs/website.md.
+
+on:
+  workflow_call:
+    inputs:
+      release:
+        description: Called after a release
+        type: boolean
+        default: false
+      tag:
+        description: Tag of the release
+        type: string
+        default: ""
+    secrets:
+      SITE_REPO_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Treat as a release (redeploy, screenshots and film)
+        type: boolean
+        default: false
+      tag:
+        description: Tag of the release
+        type: string
+        default: ""
+  push:
+    branches: [main]
+    paths: ["site/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-sync
+  cancel-in-progress: false
+
+jobs:
+  content:
+    name: Content and releases
+    runs-on: [self-hosted, partbuddy]
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The self-hosted runner shares one workspace between workflows (ADR 0022).
+          lfs: true
+          persist-credentials: false
+
+      - name: Check out the website
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: PartBuddy/partbuddy.github.io
+          token: ${{ secrets.SITE_REPO_TOKEN }}
+          path: website
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Copy content and release snapshot
+        run: node tools/site-sync.mjs content website
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Open or update the pull request
+        run: 'node tools/site-sync.mjs pr website site-sync/content "chore: sync product content and releases from the app"'
+        env:
+          SITE_REPO_TOKEN: ${{ secrets.SITE_REPO_TOKEN }}
+
+      - name: Redeploy the website
+        if: inputs.release
+        run: |
+          curl -fsS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${SITE_REPO_TOKEN}" \
+            https://api.github.com/repos/PartBuddy/partbuddy.github.io/dispatches \
+            -d '{"event_type":"partbuddy-release"}'
+        env:
+          SITE_REPO_TOKEN: ${{ secrets.SITE_REPO_TOKEN }}
+
+  media:
+    name: Screenshots and hero film
+    if: inputs.release
+    runs-on: [self-hosted, windows, partbuddy-shots]
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+
+      - name: Check out the website
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: PartBuddy/partbuddy.github.io
+          token: ${{ secrets.SITE_REPO_TOKEN }}
+          path: website
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          dest: ${{ runner.tool_cache }}/setup-pnpm
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Electron downloads its binary on first use (as in ci.yml).
+      - name: Download Electron
+        run: node apps/desktop/node_modules/electron/install.js
+
+      - name: Render the screenshots
+        run: pnpm site:shots website/src/assets/shots
+
+      # The hero film is still produced by hand; this step starts rendering it once a
+      # site:film script exists (it gets the output folder like site:shots).
+      - name: Render the hero film
+        run: |
+          $scripts = (Get-Content package.json -Raw | ConvertFrom-Json).scripts
+          if ($scripts.PSObject.Properties.Name -contains 'site:film') { pnpm site:film website/src/assets/shots }
+          else { Write-Output 'No site:film script; the hero film stays as it is.' }
+
+      - name: Open or update the pull request
+        run: 'node tools/site-sync.mjs pr website site-sync/media "feat: screenshots of release $env:RELEASE_TAG"'
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          SITE_REPO_TOKEN: ${{ secrets.SITE_REPO_TOKEN }}
