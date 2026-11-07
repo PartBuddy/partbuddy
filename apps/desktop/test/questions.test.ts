@@ -48,6 +48,13 @@ describe('questions and plans (M2a)', () => {
     expect(questions.answer()).toBeNull();
   });
 
+  it('passes the name a plan gives a new part on, for its project', async () => {
+    const named = vi.fn();
+    const tools = new Questions(() => undefined, named).tools({ instructions: () => undefined, listTools: () => Promise.resolve([]), callTool: vi.fn() });
+    await tools.callTool(PLAN_TOOL, { summary: 'A case for a Pi 4', name: ' Pi 4 case ', steps: ['Base 91 × 62 mm'] });
+    expect(named).toHaveBeenCalledWith('Pi 4 case');
+  });
+
   it('shows a round of questions with the recommendation, and tells the model how it was answered', async () => {
     const { events, questions, tools } = setup();
     await tools.callTool(ASK_TOOL, {

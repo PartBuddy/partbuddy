@@ -14,7 +14,9 @@ export const TOOL_NOTES = [
     '`timeline.export_script`) work without `path`.',
   '- Parameters: `set_parameter` and `parameters.change` create a new parameter when no parameter has that name, without ' +
     'an error, so a misspelt name changes nothing in the design. Take the exact name from `inspect_design` or ' +
-    '`parameters.list`, and check `recomputed` in the reply: 0 means no feature follows the change.',
+    '`parameters.list`, and check `recomputed` in the reply: 0 means no feature follows the change. A comment that says ' +
+    'where a value comes from must be true: "measured" only for a value the user measured and gave you; a value from a ' +
+    'drawing, a datasheet or your own estimate says so.',
   '- Arcs: sketches keep every arc counter-clockwise. An arc drawn with `clockwise: true` or a negative `sweep` is stored ' +
     'with start and end swapped, point ids included (`a1.start` then lies where you drew the end). Take arc points from ' +
     '`sketch.inspect` before you dimension or constrain them.',

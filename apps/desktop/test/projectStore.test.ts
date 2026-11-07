@@ -36,6 +36,8 @@ describe('projects (B2)', () => {
     expect(store.autosaveTarget(null, 'Untitled', ['Body1', 'Körper 2'], true)).toBe(join(root, 'Teil', 'Teil.sc'));
     expect(store.autosaveTarget(null, 'Untitled', ['Body1', 'Wandhalter'], true)).toBe(join(root, 'Wandhalter', 'Wandhalter.sc'));
     expect(store.autosaveTarget(null, 'Kabelclip', ['Body1'], true)).toBe(join(root, 'Kabelclip', 'Kabelclip.sc'));
+    // The plan's name beats a body name like "Base", which names a case badly.
+    expect(store.autosaveTarget(null, 'Untitled', ['Base', 'Lid'], true, 'Pi 4 case')).toBe(join(root, 'Pi 4 case', 'Pi 4 case.sc'));
     // A project of that name exists: the next free folder.
     project(root, 'Wandhalter');
     expect(store.autosaveTarget(null, 'Untitled', ['Wandhalter'], true)).toBe(join(root, 'Wandhalter 2', 'Wandhalter 2.sc'));

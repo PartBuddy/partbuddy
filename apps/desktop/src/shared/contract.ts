@@ -959,6 +959,8 @@ export const printCheckReportSchema = z
     findings: z.array(printFindingSchema).max(40),
     /** The printer's nozzle the check used, for the wording of walls under it. */
     nozzle: range(0.1, 2),
+    /** The mirrored revision the check belongs to, so a check of an older revision reads as pending. */
+    revision: z.number().int().nonnegative(),
   })
   .strict();
 

@@ -3,10 +3,11 @@ import type { PrintCheck } from '@partbuddy/geometry';
 import type { PrintCheckReport } from '../../../shared/contract';
 
 /** The check without the camera boxes, as the main process words it for the assistant. */
-export function reportOf(result: PrintCheck, nozzle: number): PrintCheckReport {
+export function reportOf(result: PrintCheck, nozzle: number, revision: number): PrintCheckReport {
   return {
     status: result.status,
     nozzle,
+    revision,
     findings: result.findings.slice(0, 40).map((finding) => {
       if (finding.kind === 'size' || finding.kind === 'feature') return finding;
       // SolidCraft measures pairs of bodies, not faces: the pair is where it is.

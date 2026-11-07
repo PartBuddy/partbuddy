@@ -29,7 +29,7 @@ export function usePrintCheck(): void {
       useStudio.getState().setPrintCheck({ revision: model.revision, result });
       const report = (final: typeof result) => {
         void platform()
-          .print.reportCheck(reportOf(final, print.printer.nozzle))
+          .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision))
           .catch(() => undefined);
       };
       if (printed.length < 2) {

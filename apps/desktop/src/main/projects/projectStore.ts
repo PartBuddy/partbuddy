@@ -86,13 +86,14 @@ export class ProjectStore {
 
   /**
    * Where the autosave of the open design goes: its own file once it has one. A new design is not
-   * saved while it is empty; then it gets a project named after the design, its first body with a
-   * real name, or the fallback name.
+   * saved while it is empty; then it gets a project named after the design, the name the
+   * assistant's plan gave the part, its first body with a real name, or the fallback name.
    */
-  autosaveTarget(designFile: string | null, designName: string, bodyNames: string[], hasContent: boolean): string | null {
+  autosaveTarget(designFile: string | null, designName: string, bodyNames: string[], hasContent: boolean, planned: string | null = null): string | null {
     if (designFile) return designFile;
     if (!hasContent) return null;
     if (safeDesignFileName(designName) !== UNTITLED) return this.newDesignFile(designName);
+    if (planned && safeDesignFileName(planned) !== UNTITLED) return this.newDesignFile(planned);
     const named = bodyNames.find((body) => !GENERIC_BODY.test(body.trim()) && safeDesignFileName(body) !== UNTITLED);
     return this.newDesignFile(named ?? this.fallbackName);
   }

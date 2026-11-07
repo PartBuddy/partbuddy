@@ -323,6 +323,13 @@ if (!app.requestSingleInstanceLock()) {
     // The ready-to-print check (M7), as the renderer last reported it.
     const checkNote = new ProfileNote();
     let printCheck: PrintCheckReport | null = null;
+    // The check as partbuddy_view shows it: a check of an older revision is still catching up.
+    const checkForView = () => {
+      if (!printCheck) return null;
+      if (printCheck.revision !== supervisor.currentRevision()?.revision)
+        return '[PartBuddy: the ready-to-print check of the latest change is still running; call partbuddy_view again in a moment.]';
+      return printCheckNote(printCheck);
+    };
     bridge.handle(invokeChannels.printReportCheck, (report) => {
       printCheck = report;
       return undefined;
@@ -466,10 +473,10 @@ if (!app.requestSingleInstanceLock()) {
     });
     workLog = steps;
     // Questions and plans as cards (M2a); changes wait until the user answered.
-    const questions = new Questions(emitEvent);
+    const questions = new Questions(emitEvent, (name) => supervisor.nameNewDesign(name));
     // The model reads notes only through PartBuddy; results lose the note data, undo may not take a note (ADR 0020).
     const track = (upstream: UpstreamTools) =>
-      questions.tools(steps.tools(withViewTool(guardNotes(upstream, (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView())));
+      questions.tools(steps.tools(withViewTool(guardNotes(upstream, (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView)));
     let toolsCache: { port: number; tools: UpstreamTools; close(): Promise<void> } | null = null;
     const tools = async () => {
       const headless = supervisor.headlessTools();

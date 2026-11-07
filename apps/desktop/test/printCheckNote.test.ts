@@ -6,7 +6,7 @@ import { printCheckReportSchema } from '../src/shared/contract';
 
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
   it('says plainly when nothing was found', () => {
-    expect(printCheckNote({ status: 'ready', findings: [], nozzle: 0.4 })).toContain('ready to print, nothing found');
+    expect(printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 1 })).toContain('ready to print, nothing found');
   });
 
   it('words every finding with its numbers and quoted face names, blocking ones first', () => {
@@ -21,6 +21,7 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
         ],
       },
       0.4,
+      7,
     );
     // The report carries no camera boxes and fits the contract.
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
@@ -36,7 +37,7 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
 
   it('cuts long face lists short', () => {
     const faces = Array.from({ length: 30 }, (_, i) => `F${String(i)}:+z`);
-    const note = printCheckNote({ status: 'warn', nozzle: 0.4, findings: [{ kind: 'contact', severity: 'warn', area: 3, places: [{ body: 'B', faces }] }] });
+    const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'contact', severity: 'warn', area: 3, places: [{ body: 'B', faces }] }] });
     expect(note).toContain('and 24 more');
   });
 });
@@ -52,6 +53,7 @@ describe('clearance between parts as the assistant reads it (F2)', () => {
         ],
       },
       0.4,
+      7,
     );
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
     expect(JSON.stringify(report)).not.toContain('box');

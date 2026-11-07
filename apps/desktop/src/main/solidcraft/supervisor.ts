@@ -97,6 +97,8 @@ export class SolidCraftSupervisor {
   private saveState: SaveState | null = null;
   /** The file a new design was named into on its first autosave, until its name is mirrored. */
   private savedAs: { documentId: string; file: string } | null = null;
+  /** The name the assistant's plan gave a new design (a body like "Base" names a case badly), until it has a project. */
+  private plannedName: string | null = null;
   private readonly scheduler: MirrorScheduler;
   private readonly dimensions: DimensionService;
   private readonly actions: ActionService;
@@ -176,6 +178,11 @@ export class SolidCraftSupervisor {
 
   currentRevision(): MirrorRevision | null {
     return this.latest;
+  }
+
+  /** Names the open design after the assistant's plan, if it has no project yet. */
+  nameNewDesign(name: string): void {
+    if (!this.designFile) this.plannedName = name;
   }
 
   /** Undoes SolidCraft's last change (the user's Undo, not the assistant's). */
@@ -916,10 +923,13 @@ export class SolidCraftSupervisor {
     const latest = this.latest;
     const named = this.savedAs && this.savedAs.documentId === latest?.documentId ? this.savedAs.file : null;
     const hasContent = (latest?.bodies.length ?? 0) > 0 || (latest?.sketches.length ?? 0) > 0;
-    const file = designs.autosaveTarget(this.designFile ?? named, latest?.designName ?? '', latest?.bodies.map((body) => body.name) ?? [], hasContent);
+    const file = designs.autosaveTarget(this.designFile ?? named, latest?.designName ?? '', latest?.bodies.map((body) => body.name) ?? [], hasContent, this.plannedName);
     if (!file) return this.autosaving;
     // The project is chosen once: saves that follow quickly must not each make a new one.
-    if (!this.designFile && designs.holds(file)) this.designFile = file;
+    if (!this.designFile && designs.holds(file)) {
+      this.designFile = file;
+      this.plannedName = null;
+    }
     // A new design saved under a name of its own: SolidCraft now calls it by the file name.
     const renamed = latest !== null && basename(file, '.sc') !== safeDesignFileName(latest.designName);
     if (renamed) this.savedAs = { documentId: latest.documentId, file };
@@ -962,6 +972,7 @@ export class SolidCraftSupervisor {
       this.scheduler.reset();
       this.latest = null;
       this.savedAs = null;
+      this.plannedName = null;
       await engine?.close();
       const previous = this.designFile;
       let next: string | null;
