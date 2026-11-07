@@ -1,9 +1,10 @@
-import { createCodePlugin } from '@streamdown/code';
 import { IconCheck, IconCopy } from '@tabler/icons-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { harden } from 'rehype-harden';
 import { defaultRehypePlugins, Streamdown, type StreamdownProps } from 'streamdown';
+
+import { codeHighlighter } from './codeHighlight';
 
 /**
  * Assistant answers as Markdown with Streamdown (building blocks, issue #18). Model output is
@@ -24,8 +25,8 @@ const rehypePlugins: NonNullable<StreamdownProps['rehypePlugins']> = [
   ],
 ];
 
-// Code blocks coloured by Shiki (chat polish); its grammars load on first use of a language.
-const plugins: NonNullable<StreamdownProps['plugins']> = { code: createCodePlugin({ themes: ['github-light', 'github-dark'] }) };
+// Code blocks coloured by Shiki (chat polish); a grammar loads on first use of its language.
+const plugins: NonNullable<StreamdownProps['plugins']> = { code: codeHighlighter };
 const controls: NonNullable<StreamdownProps['controls']> = { code: { copy: true, download: false }, table: false, mermaid: false };
 // Tabler, like every icon in the app; Streamdown passes only a size.
 // Words of a streaming answer fade in instead of popping up; none under reduced motion (styles.css).
