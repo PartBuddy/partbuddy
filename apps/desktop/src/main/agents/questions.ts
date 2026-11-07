@@ -29,6 +29,7 @@ const askInput = z.object({ questions: z.array(questionInput).min(1).max(4) }).s
 const planInput = z
   .object({
     summary: z.string().trim().min(1).max(300),
+    name: z.string().trim().min(1).max(60).optional(),
     steps: z.array(z.string().trim().min(1).max(200)).min(1).max(12),
   })
   .strict();
@@ -94,6 +95,11 @@ const planTool: UpstreamTool = {
     type: 'object',
     properties: {
       summary: { type: 'string', maxLength: 300, description: 'One sentence: what you will build.' },
+      name: {
+        type: 'string',
+        maxLength: 60,
+        description: 'For a new part: a short name for it in the language the user writes in, e.g. "Pi 4 case"; PartBuddy names the project after it.',
+      },
       steps: {
         type: 'array',
         minItems: 1,
@@ -143,7 +149,11 @@ export class Questions {
   private pending: AgentQuestion | null = null;
   private sequence = 0;
 
-  constructor(private readonly emit: (event: AgentEvent) => void) {}
+  constructor(
+    private readonly emit: (event: AgentEvent) => void,
+    /** A plan named the part (a new design takes the name for its project). */
+    private readonly named: (name: string) => void = () => undefined,
+  ) {}
 
   /** The open question or plan, if any. */
   get open(): AgentQuestion | null {
@@ -217,6 +227,7 @@ export class Questions {
       const parsed = planInput.safeParse(args);
       if (!parsed.success) return refusal(`Invalid ${PLAN_TOOL} input: ${parsed.error.issues.map((issue) => issue.message).join('; ')}`.slice(0, 500));
       this.pending = { id, kind: 'plan', summary: parsed.data.summary, steps: parsed.data.steps };
+      if (parsed.data.name) this.named(parsed.data.name);
     }
     this.emit({ type: 'question', question: this.pending });
     return text('PartBuddy shows this to the user with buttons. End your turn now without changing the design; the answer is the next message.');

@@ -96,6 +96,15 @@ describe('view context for the assistant', () => {
     expect(describeView(null)).toContain('no design');
   });
 
+  it('adds the ready-to-print check to partbuddy_view when there is one', async () => {
+    const upstream: UpstreamTools = { instructions: () => '', listTools: () => Promise.resolve([]), callTool: vi.fn() };
+    let check: string | null = null;
+    const tools = withViewTool(upstream, () => state, () => null, () => check);
+    expect((await tools.callTool(VIEW_TOOL, {})).content).toHaveLength(1);
+    check = '[PartBuddy: ready-to-print check … prints, with warnings.]';
+    expect((await tools.callTool(VIEW_TOOL, {})).content[1]?.text).toBe(check);
+  });
+
   it('is allowed by the tool policy', () => {
     expect(decide(VIEW_TOOL, {})).toEqual({ allow: true });
   });

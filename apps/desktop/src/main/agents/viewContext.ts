@@ -163,20 +163,28 @@ const viewTool: UpstreamTool = {
   name: VIEW_TOOL,
   description:
     "What the user sees in PartBuddy's 3D view right now: the selected face, edge or vertex, the direction the camera looks from, " +
-    'the bodies and sketches shown, what the last step changed and the user\'s notes on the model. Text only, about 100 tokens ' +
-    'plus the notes. Use it instead of ' +
+    'the bodies and sketches shown, what the last step changed, the user\'s notes on the model and PartBuddy\'s latest ' +
+    'ready-to-print check. Text only, about 100 tokens plus the notes and the findings. Use it instead of ' +
     "a screenshot to know what the user selected or looks at; SolidCraft's own window selection is not PartBuddy's.",
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { readOnlyHint: true },
 };
 
-/** SolidCraft's tools plus `partbuddy_view`, answered by PartBuddy itself. */
-export function withViewTool(upstream: UpstreamTools, state: () => ViewState | null, notes: () => ViewNotes | null = () => null): UpstreamTools {
+/** SolidCraft's tools plus `partbuddy_view`, answered by PartBuddy itself; `check` is the worded ready-to-print check. */
+export function withViewTool(
+  upstream: UpstreamTools,
+  state: () => ViewState | null,
+  notes: () => ViewNotes | null = () => null,
+  check: () => string | null = () => null,
+): UpstreamTools {
   return {
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), viewTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
-      if (name === VIEW_TOOL) return { content: [{ type: 'text', text: describeView(state(), notes()) }] };
+      if (name === VIEW_TOOL) {
+        const findings = check();
+        return { content: [{ type: 'text', text: describeView(state(), notes()) }, ...(findings ? [{ type: 'text', text: findings }] : [])] };
+      }
       return upstream.callTool(name, args, callId);
     },
   };
@@ -186,4 +194,6 @@ export function withViewTool(upstream: UpstreamTools, state: () => ViewState | n
 export const VIEW_GUIDANCE =
   'A message may start with a [PartBuddy: …] note naming the face, edge or vertex the user selected in PartBuddy’s view; ' +
   `that is what "this face", "this edge" or "the marked one" means. Call ${VIEW_TOOL} to see what the user looks at. ` +
+  `PartBuddy checks the part for printing after every change and shows the result to the user as a light; ${VIEW_TOOL} ` +
+  'gives you the same findings. Read them after your last change, before you call the part done. ' +
   'Take a screenshot only when the look of the part matters: it costs many tokens.';
