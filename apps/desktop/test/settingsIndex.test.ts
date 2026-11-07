@@ -16,7 +16,7 @@ const german = (key: string) => {
 describe('settings index', () => {
   it('names every option, its section and group in German and English', () => {
     for (const entry of SETTINGS) {
-      for (const key of [entry.label, entry.hint, `settings.section.${entry.section}`, `settings.group.${entry.group}`]) {
+      for (const key of [entry.label, entry.hint ?? entry.label, `settings.section.${entry.section}`, `settings.group.${entry.group}`]) {
         expect(typeof lookup(de, key), `de ${key}`).toBe('string');
         expect(typeof lookup(en, key), `en ${key}`).toBe('string');
       }
@@ -36,5 +36,12 @@ describe('settings index', () => {
   it('puts options whose name matches before those that only mention the word', () => {
     const ids = searchSettings('material', german).map((entry) => entry.id);
     expect(ids[0]).toBe('materials');
+  });
+});
+
+describe('shortcut overview', () => {
+  it('finds a shortcut by what it does', () => {
+    expect(searchSettings('rückgängig', german).map((entry) => entry.id)).toContain('key.undo');
+    expect(searchSettings('linie', german)[0]?.id).toBe('key.sketch.line');
   });
 });

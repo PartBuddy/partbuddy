@@ -8,7 +8,7 @@ import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, Not
 export type ExportTarget = ExportFormat | `slicer:${string}` | 'share';
 
 /** A section of the settings (B6). */
-export type SettingsSection = 'general' | 'solidcraft' | 'assistant' | 'print' | 'about';
+export type SettingsSection = 'general' | 'solidcraft' | 'assistant' | 'print' | 'shortcuts' | 'about';
 
 export interface BodyModel {
   name: string;

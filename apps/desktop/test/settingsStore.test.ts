@@ -20,7 +20,7 @@ afterEach(() => {
 describe('settings store', () => {
   it('starts with the defaults', () => {
     const store = new SettingsStore(join(folder(), 'settings.json'));
-    expect(store.all()).toEqual({ language: 'system', theme: 'system', projectsFolder: null, setupDone: false, webResearch: true, claudeApiBilling: false, models: {} });
+    expect(store.all()).toEqual({ language: 'system', theme: 'system', projectsFolder: null, zoom: 1, startPage: 'home', checkUpdates: true, setupDone: false, webResearch: true, claudeApiBilling: false, models: {} });
   });
 
   it('takes over the files of earlier versions and leaves them in place', () => {
@@ -34,6 +34,9 @@ describe('settings store', () => {
       language: 'de',
       theme: 'dark',
       projectsFolder: join(dir, 'Teile'),
+      zoom: 1,
+      startPage: 'home',
+      checkUpdates: true,
       setupDone: true,
       webResearch: false,
       claudeApiBilling: true,

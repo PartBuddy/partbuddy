@@ -4,6 +4,8 @@ import type {
   AgentKind,
   AppInfo,
   SettingsReset,
+  AppSettings,
+  AppSettingRequest,
   EngineChoiceResult,
   EngineInfo,
   ProjectInfo,
@@ -87,6 +89,9 @@ export interface PartBuddyApi {
     finishSetup(): Promise<GeneralSettingsInfo>;
     /** Puts a section of the settings, or all of them, back to the defaults; the print profiles stay. */
     reset(section: SettingsReset): Promise<GeneralSettingsInfo>;
+    /** Interface size, start behaviour and the update check. */
+    app(): Promise<AppSettings>;
+    setApp(request: AppSettingRequest): Promise<AppSettings>;
     /** Shows PartBuddy's log file in Explorer, for a problem report. */
     revealLog(): Promise<void>;
   };

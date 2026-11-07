@@ -318,6 +318,18 @@ export const updateStateSchema = z.discriminatedUnion('state', [
 
 /** The language of the interface (B6): follow Windows, German or English. */
 export const languageSchema = z.enum(['system', 'de', 'en']);
+/** The size of the whole interface (2026-11-07): 90 % to 150 %, as Electron's zoom factor. */
+export const ZOOM_STEPS = [0.9, 1, 1.1, 1.25, 1.5] as const;
+export const zoomSchema = z.number().min(0.8).max(1.5);
+/** What PartBuddy shows when it starts: the start page or the last project. */
+export const startPageSchema = z.enum(['home', 'last']);
+/** The app-wide settings without a channel of their own, read and changed together. */
+export const appSettingsSchema = z.object({ zoom: zoomSchema, startPage: startPageSchema, checkUpdates: z.boolean() }).strict();
+export const appSettingRequestSchema = z.discriminatedUnion('key', [
+  z.object({ key: z.literal('zoom'), value: zoomSchema }).strict(),
+  z.object({ key: z.literal('startPage'), value: startPageSchema }).strict(),
+  z.object({ key: z.literal('checkUpdates'), value: z.boolean() }).strict(),
+]);
 /** A section of the settings to put back to its defaults, or all of them. */
 export const settingsResetSchema = z.enum(['general', 'solidcraft', 'assistant', 'all']);
 export const languageRequestSchema = z.object({ language: languageSchema }).strict();
@@ -1079,6 +1091,8 @@ export const invokeContract = {
   [invokeChannels.settingsChooseProjectsFolder]: { request: none, response: generalSettingsSchema },
   [invokeChannels.settingsResetProjectsFolder]: { request: none, response: generalSettingsSchema },
   [invokeChannels.settingsFinishSetup]: { request: none, response: generalSettingsSchema },
+  [invokeChannels.settingsApp]: { request: none, response: appSettingsSchema },
+  [invokeChannels.settingsSetApp]: { request: appSettingRequestSchema, response: appSettingsSchema },
   [invokeChannels.settingsReset]: { request: z.object({ section: settingsResetSchema }).strict(), response: generalSettingsSchema },
   [invokeChannels.updatesState]: { request: none, response: updateStateSchema },
   [invokeChannels.updatesCheck]: { request: none, response: updateStateSchema },
@@ -1162,6 +1176,8 @@ export type PartsLibrary = z.infer<typeof partsLibrarySchema>;
 export type PartInsert = z.infer<typeof partInsertSchema>;
 export type Language = z.infer<typeof languageSchema>;
 export type SettingsReset = z.infer<typeof settingsResetSchema>;
+export type AppSettings = z.infer<typeof appSettingsSchema>;
+export type AppSettingRequest = z.infer<typeof appSettingRequestSchema>;
 export type UpdateState = z.infer<typeof updateStateSchema>;
 export type GeneralSettingsInfo = z.infer<typeof generalSettingsSchema>;
 export type VersionEntry = z.infer<typeof versionEntrySchema>;

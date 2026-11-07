@@ -6,6 +6,7 @@ import {
   IconFolder,
   IconHeart,
   IconInfoCircle,
+  IconKeyboard,
   IconMoon,
   IconPrinter,
   IconRefresh,
@@ -42,7 +43,7 @@ import {
   Tabs,
 } from 'react-aria-components';
 
-import { DESIGN_RULES, type AppInfo, type GeneralSettingsInfo, type Language, type PrintSettings, type SettingsReset, type Theme, type UpdateState } from '../../../shared/contract';
+import { DESIGN_RULES, ZOOM_STEPS, type AppSettings, type AppInfo, type GeneralSettingsInfo, type Language, type PrintSettings, type SettingsReset, type Theme, type UpdateState } from '../../../shared/contract';
 import { AssistantChoice } from '../assistant/AgentChip';
 import { localeFrom } from '../i18n';
 import { PrintProfilesEditor } from '../print/PrintProfilesEditor';
@@ -56,6 +57,7 @@ import { tabClass, tabListClass } from '../ui/Navigation';
 import { POPOVER_OFFSET, popoverPanelClass } from '../ui/Overlay';
 import { EnginePanel } from './EnginePanel';
 import { searchSettings, settingById, type SettingEntry } from './settingsIndex';
+import { SHORTCUTS, type Shortcut } from './shortcuts';
 
 const SECTIONS: {
   id: SettingsSection;
@@ -66,6 +68,7 @@ const SECTIONS: {
   { id: 'solidcraft', icon: IconCube, testId: 'settings-solidcraft' },
   { id: 'assistant', icon: IconSparkles, testId: 'settings-assistant' },
   { id: 'print', icon: IconPrinter, testId: 'settings-print' },
+  { id: 'shortcuts', icon: IconKeyboard, testId: 'settings-shortcuts' },
   { id: 'about', icon: IconInfoCircle, testId: 'settings-about' },
 ];
 
@@ -138,7 +141,7 @@ function Setting({ id, layout = 'row', children }: { id: string; layout?: 'row' 
             </span>
           ) : null}
         </span>
-        <p className="max-w-chat-max text-sm text-text-muted">{t(entry.hint)}</p>
+        {entry.hint ? <p className="max-w-chat-max text-sm text-text-muted">{t(entry.hint)}</p> : null}
       </div>
       {layout === 'row' ? <div className="flex shrink-0 items-center">{children}</div> : children}
     </div>
@@ -213,7 +216,7 @@ function SectionHead({ id, done }: { id: SettingsSection; done?: () => void }) {
         <h2 className="font-display text-xl font-semibold text-text">{t(`settings.section.${id}`)}</h2>
         <p className="text-md text-text-muted">{t(`settings.intro.${id}`)}</p>
       </div>
-      {done && id !== 'print' && id !== 'about' ? <ResetButton section={id} done={done} label={t('settings.reset.section')} /> : null}
+      {done && id !== 'print' && id !== 'about' && id !== 'shortcuts' ? <ResetButton section={id} done={done} label={t('settings.reset.section')} /> : null}
     </div>
   );
 }
@@ -306,18 +309,20 @@ function GeneralSection() {
   const { t } = useTranslation();
   const [info, setInfo] = useState<GeneralSettingsInfo | null>(null);
   const [theme, setTheme] = useState<Theme | null>(null);
+  const [app, setApp] = useState<AppSettings | null>(null);
   useEffect(() => {
     let live = true;
-    void Promise.all([platform().settings.general(), platform().window.theme()]).then(([general, stored]) => {
+    void Promise.all([platform().settings.general(), platform().window.theme(), platform().settings.app()]).then(([general, stored, appSettings]) => {
       if (!live) return;
       setInfo(general);
       setTheme(stored);
+      setApp(appSettings);
     });
     return () => {
       live = false;
     };
   }, []);
-  if (!info || !theme) return null;
+  if (!info || !theme || !app) return null;
   const setLanguage = (language: Language) => {
     void platform()
       .settings.setLanguage(language)
@@ -359,6 +364,30 @@ function GeneralSection() {
               void platform().window.setTheme(next);
             }}
             testId="settings-theme"
+          />
+        </Setting>
+        <Setting id="zoom">
+          <Segmented
+            id="zoom"
+            value={String(app.zoom)}
+            options={ZOOM_STEPS.map((step) => ({ id: String(step), label: `${Math.round(step * 100)} %` }))}
+            onChange={(next) => {
+              void platform().settings.setApp({ key: 'zoom', value: Number(next) }).then(setApp);
+            }}
+            testId="settings-zoom"
+          />
+        </Setting>
+      </Group>
+      <Group id="startup">
+        <Setting id="startPage">
+          <Segmented
+            id="startPage"
+            value={app.startPage}
+            options={(['home', 'last'] as const).map((id) => ({ id, label: t(`settings.startPage.${id}`) }))}
+            onChange={(next) => {
+              void platform().settings.setApp({ key: 'startPage', value: next }).then(setApp);
+            }}
+            testId="settings-start-page"
           />
         </Setting>
       </Group>
@@ -449,6 +478,78 @@ function PrintRuleSettings() {
   );
 }
 
+/** Whether the installed app looks for a new version after the start; applies at the next start. */
+function CheckUpdatesToggle() {
+  const [on, setOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    void platform()
+      .settings.app()
+      .then((app) => {
+        if (live) setOn(app.checkUpdates);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (on === null) return null;
+  return (
+    <Toggle
+      id="checkUpdates"
+      isSelected={on}
+      onChange={(next) => {
+        setOn(next);
+        void platform()
+          .settings.setApp({ key: 'checkUpdates', value: next })
+          .then((app) => {
+            setOn(app.checkUpdates);
+          });
+      }}
+      testId="settings-check-updates"
+    />
+  );
+}
+
+/** One way to press a shortcut: its keys as caps, in the interface font with even digits. */
+function KeyCombo({ keys }: { keys: string[] }) {
+  const { t } = useTranslation();
+  return (
+    <span className="inline-flex items-center gap-1">
+      {keys.map((key) => (
+        <kbd key={key} className="inline-flex h-control-sm min-w-control-sm items-center justify-center rounded-sm border border-border-strong bg-surface-sunken px-1 font-sans text-sm text-text tabular-nums shadow-1">
+          {t(`settings.keys.token.${key}`, { defaultValue: key })}
+        </kbd>
+      ))}
+    </span>
+  );
+}
+
+/** The overview of the shortcuts (2026-11-07), read-only, grouped like the app. */
+function ShortcutsSection() {
+  const { t } = useTranslation();
+  const groups: Shortcut['group'][] = ['app', 'design', 'view', 'sketch'];
+  return (
+    <>
+      {groups.map((group) => (
+        <Group key={group} id={`keys.${group}`}>
+          {SHORTCUTS.filter((shortcut) => shortcut.group === group).map((shortcut) => (
+            <Setting key={shortcut.id} id={`key.${shortcut.id}`}>
+              <span className="flex items-center gap-2 text-sm text-text-muted" data-testid={`shortcut-${shortcut.id}`}>
+                {shortcut.keys.map((combo, index) => (
+                  <span key={combo.join('+')} className="inline-flex items-center gap-2">
+                    {index > 0 ? t('settings.keys.or') : null}
+                    <KeyCombo keys={combo} />
+                  </span>
+                ))}
+              </span>
+            </Setting>
+          ))}
+        </Group>
+      ))}
+    </>
+  );
+}
+
 /** Updates through GitHub releases (B10): look now, download, restart and install. */
 function UpdatesBlock() {
   const { t } = useTranslation();
@@ -519,6 +620,9 @@ function AboutSection({ done }: { done: () => void }) {
       <Group id="app">
         <Setting id="updates" layout="block">
           <UpdatesBlock />
+        </Setting>
+        <Setting id="checkUpdates">
+          <CheckUpdatesToggle />
         </Setting>
         <Setting id="licence" layout="block">
           <div className="flex flex-wrap gap-x-5 gap-y-2">
@@ -603,7 +707,7 @@ function SearchResults({ results, query, open, listRef }: { results: SettingEntr
             <span className="text-xs text-text-subtle">
               {t(`settings.section.${entry.section}`)} › {t(`settings.group.${entry.group}`)}
             </span>
-            <span className="line-clamp-2 text-sm text-text-muted">{t(entry.hint)}</span>
+            {entry.hint ? <span className="line-clamp-2 text-sm text-text-muted">{t(entry.hint)}</span> : null}
           </ListBoxItem>
         )}
       </ListBox>
@@ -763,6 +867,10 @@ export function SettingsDialog() {
                 <TabPanel id="print" className={panelClass} data-testid="print-profiles">
                   <SectionHead id="print" />
                   <PrintSection close={close} />
+                </TabPanel>
+                <TabPanel id="shortcuts" className={panelClass} data-testid="settings-shortcuts-panel">
+                  <SectionHead id="shortcuts" />
+                  <ShortcutsSection />
                 </TabPanel>
                 <TabPanel id="about" className={panelClass}>
                   <AboutSection done={reload} />

@@ -1,5 +1,6 @@
 import { DESIGN_RULES } from '../../../shared/contract';
 import type { SettingsSection } from '../state/store';
+import { SHORTCUTS } from './shortcuts';
 
 /**
  * Every option of the settings with its section, group and the translation keys of its name and
@@ -11,7 +12,8 @@ export interface SettingEntry {
   section: SettingsSection;
   group: string;
   label: string;
-  hint: string;
+  /** Shortcuts have none. */
+  hint?: string;
   /** Takes effect after a restart of PartBuddy. */
   restart?: boolean;
 }
@@ -19,6 +21,8 @@ export interface SettingEntry {
 export const SETTINGS: readonly SettingEntry[] = [
   { id: 'language', section: 'general', group: 'appearance', label: 'settings.language.title', hint: 'settings.language.hint' },
   { id: 'theme', section: 'general', group: 'appearance', label: 'settings.theme.title', hint: 'settings.theme.hint' },
+  { id: 'zoom', section: 'general', group: 'appearance', label: 'settings.zoom.title', hint: 'settings.zoom.hint' },
+  { id: 'startPage', section: 'general', group: 'startup', label: 'settings.startPage.title', hint: 'settings.startPage.hint' },
   { id: 'projectsFolder', section: 'general', group: 'files', label: 'settings.projects.title', hint: 'settings.projects.hint', restart: true },
   { id: 'engine', section: 'solidcraft', group: 'program', label: 'engine.program', hint: 'settings.engine.hint', restart: true },
   { id: 'assistant', section: 'assistant', group: 'route', label: 'settings.route.title', hint: 'settings.route.hint' },
@@ -28,9 +32,11 @@ export const SETTINGS: readonly SettingEntry[] = [
   { id: 'printers', section: 'print', group: 'profiles', label: 'print.printers', hint: 'settings.profiles.printers' },
   { id: 'materials', section: 'print', group: 'profiles', label: 'print.materials', hint: 'settings.profiles.materials' },
   { id: 'updates', section: 'about', group: 'app', label: 'updates.title', hint: 'settings.about.updatesHint' },
+  { id: 'checkUpdates', section: 'about', group: 'app', label: 'settings.checkUpdates.title', hint: 'settings.checkUpdates.hint' },
   { id: 'log', section: 'about', group: 'help', label: 'settings.about.revealLog', hint: 'settings.about.revealLogHint' },
   { id: 'resetAll', section: 'about', group: 'help', label: 'settings.reset.allTitle', hint: 'settings.reset.allHint' },
   { id: 'licence', section: 'about', group: 'app', label: 'settings.about.licenceTitle', hint: 'settings.about.licence' },
+  ...SHORTCUTS.map(({ id, group, label }) => ({ id: `key.${id}`, section: 'shortcuts' as const, group: `keys.${group}`, label })),
 ];
 
 export function settingById(id: string): SettingEntry | undefined {
@@ -52,7 +58,7 @@ export function searchSettings(query: string, text: (key: string) => string): Se
   const scored: { entry: SettingEntry; score: number }[] = [];
   for (const entry of SETTINGS) {
     const label = fold(text(entry.label));
-    const all = `${label} ${fold(text(entry.hint))} ${fold(text(`settings.section.${entry.section}`))} ${fold(text(`settings.group.${entry.group}`))}`;
+    const all = `${label} ${entry.hint ? fold(text(entry.hint)) : ''} ${fold(text(`settings.section.${entry.section}`))} ${fold(text(`settings.group.${entry.group}`))}`;
     if (!words.every((word) => all.includes(word))) continue;
     scored.push({ entry, score: words.filter((word) => label.includes(word)).length });
   }

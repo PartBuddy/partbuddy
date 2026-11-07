@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { agentKindSchema, languageSchema, modelChoiceSchema, themeSchema, type SettingsReset } from './contract';
+import { agentKindSchema, languageSchema, modelChoiceSchema, startPageSchema, themeSchema, zoomSchema, type SettingsReset } from './contract';
 
 /**
  * Every stored setting of the installation with its type, default and validation, in one place.
@@ -12,6 +12,12 @@ export const settingsSchema = z.object({
   theme: themeSchema.catch('system'),
   /** An absolute folder the user chose; null is Documents\PartBuddy. */
   projectsFolder: z.string().max(1000).nullable().catch(null),
+  /** The size of the whole interface (Electron zoom factor). */
+  zoom: zoomSchema.catch(1),
+  /** The start page or the last project when PartBuddy starts. */
+  startPage: startPageSchema.catch('home'),
+  /** The installed app looks for a new version once after the start. */
+  checkUpdates: z.boolean().catch(true),
   /** The first-start setup (B9) was finished or skipped. */
   setupDone: z.boolean().catch(false),
   /** The assistant may search the web and read pages (B7). */
@@ -38,7 +44,7 @@ export type SettingKey = keyof Settings;
 
 /** What "reset" puts back per section of the settings dialog; the first-start flag is never reset. */
 export const RESET_KEYS: Record<Exclude<SettingsReset, 'solidcraft' | 'all'>, readonly SettingKey[]> = {
-  general: ['language', 'theme', 'projectsFolder'],
+  general: ['language', 'theme', 'projectsFolder', 'zoom', 'startPage', 'checkUpdates'],
   assistant: ['webResearch', 'claudeApiBilling', 'models'],
 };
 

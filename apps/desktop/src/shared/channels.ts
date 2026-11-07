@@ -58,6 +58,8 @@ export const invokeChannels = {
   settingsResetProjectsFolder: 'settings:reset-projects-folder',
   settingsFinishSetup: 'settings:finish-setup',
   settingsReset: 'settings:reset',
+  settingsApp: 'settings:app',
+  settingsSetApp: 'settings:set-app',
   updatesState: 'updates:state',
   updatesCheck: 'updates:check',
   updatesDownload: 'updates:download',
