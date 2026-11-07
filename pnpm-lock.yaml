@@ -262,9 +262,6 @@ importers:
       three-mesh-bvh:
         specifier: 0.9.16
         version: 0.9.16(three@0.186.1)
-      three-viewport-gizmo:
-        specifier: 2.2.0
-        version: 2.2.0(three@0.186.1)
       xstate:
         specifier: 5.33.3
         version: 5.33.3
@@ -3441,11 +3438,6 @@ packages:
     resolution: {integrity: sha512-XyGQrFmNQ5O/IoKm556ftwKsBg11TIb301MB5dWNicziQBEs2g3gtOYIf7pFiLa0zI2gUwhtCjv9fmjnxKZ1Cg==}
     peerDependencies:
       three: '>=0.128.0'
-
-  three-viewport-gizmo@2.2.0:
-    resolution: {integrity: sha512-Jo9Liur1rUmdKk75FZumLU/+hbF+RtJHi1qsKZpntjKlCYScK6tjbYoqvJ9M+IJphrlQJF5oReFW7Sambh0N4Q==}
-    peerDependencies:
-      three: '>=0.162.0 <1.0.0'
 
   three@0.186.1:
     resolution: {integrity: sha512-blFeqb49wRCSGUGj7gtpfnSGHy2lwDk94RhUmS1c/hTby70kvChbWpkJ4Pm1390LqzzvTmzgXKHPEafJwCb8jA==}
@@ -7175,10 +7167,6 @@ snapshots:
       draco3d: 1.5.9
       fflate: 0.6.11
       potpack: 1.0.2
-      three: 0.186.1
-
-  three-viewport-gizmo@2.2.0(three@0.186.1):
-    dependencies:
       three: 0.186.1
 
   three@0.186.1: {}
