@@ -82,6 +82,8 @@
   --spacing-dialog-lg: var(--cs-size-dialog-lg);
   --spacing-dialog-xl: var(--cs-size-dialog-xl);
   --spacing-settings-nav: var(--cs-size-settings-nav);
+  --spacing-dialog-settings: var(--cs-size-dialog-settings);
+  --spacing-dialog-settings-height: var(--cs-size-dialog-settings-height);
   --spacing-dialog-offset: var(--cs-size-dialog-offset);
   --spacing-tile: var(--cs-size-tile);
   --spacing-page-max: var(--cs-size-page-max);

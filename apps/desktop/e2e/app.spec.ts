@@ -598,6 +598,68 @@ test('the first start walks through SolidCraft, assistant, printer and project f
   }
 });
 
+test('the settings open with Ctrl+comma, find every option by search and open one directly', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-settings-search-'));
+  try {
+    launched = await launchApp({ work });
+    const { page } = launched;
+    const dialog = page.getByTestId('settings-dialog');
+    await expect(page.getByTestId('settings')).toBeVisible();
+    await page.keyboard.press('Control+Comma');
+    await expect(dialog).toBeVisible();
+    await expect(page.getByTestId('settings-general')).toHaveAttribute('aria-selected', 'true');
+    // The arrow keys move through the sections.
+    await page.getByTestId('settings-general').focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByTestId('settings-solidcraft')).toHaveAttribute('aria-selected', 'true');
+
+    // Search across sections; Enter opens the first hit and highlights it.
+    const search = dialog.getByTestId('settings-search');
+    await search.fill('dark');
+    const results = dialog.getByTestId('settings-search-results');
+    await expect(results.getByRole('option')).toHaveCount(1);
+    await expect(results.getByRole('option')).toContainText('Appearance');
+    await search.press('Enter');
+    await expect(page.getByTestId('settings-general')).toHaveAttribute('aria-selected', 'true');
+    await expect(dialog.locator('[data-setting="theme"]')).toHaveAttribute('data-highlighted', 'true');
+    await expect(dialog.locator('[data-setting="theme"]')).not.toHaveAttribute('data-highlighted', 'true', { timeout: 5000 });
+
+    // Down from the field into the results, Enter on one opens its section.
+    await search.fill('web');
+    await search.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('settings-assistant')).toHaveAttribute('aria-selected', 'true');
+    await expect(dialog.locator('[data-setting="research"]')).toBeInViewport();
+    await search.fill('nothing like this');
+    await expect(dialog.getByTestId('settings-search-empty')).toBeVisible();
+    // Esc clears the search first, then closes the settings.
+    await search.press('Escape');
+    await expect(search).toHaveValue('');
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+
+    // Every option opens directly from anywhere in the app (deep link).
+    await page.keyboard.press('Control+Comma');
+    await search.fill('materials');
+    await results.getByRole('option').first().click();
+    await expect(page.getByTestId('settings-print')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('print-tab-material')).toHaveAttribute('aria-selected', 'true');
+    await page.getByTestId('settings-close').click();
+    await expect(dialog).toHaveCount(0);
+    // The assistant chip links to its options in the settings.
+    await page.getByTestId('agent-status').click();
+    await page.getByTestId('agent-settings').click();
+    await expect(page.getByTestId('settings-assistant')).toHaveAttribute('aria-selected', 'true');
+    await expect(dialog.locator('[data-setting="research"]')).toHaveAttribute('data-highlighted', 'true');
+    await expect(dialog.getByTestId('research').getByRole('switch')).toBeFocused();
+  } finally {
+    await launched?.close();
+    launched = null;
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('the settings show which SolidCraft runs and its version (R0)', async () => {
   launched = await launchApp();
   const { page } = launched;
@@ -882,9 +944,9 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await page.getByTestId('settings').click();
   await page.getByTestId('settings-assistant').click();
   const assistant = page.getByTestId('settings-assistant-panel');
-  const supportFree = assistant.getByTestId('support-free').getByRole('checkbox');
+  const supportFree = assistant.getByTestId('support-free').getByRole('switch', { name: 'Design without support' });
   await expect(supportFree).toBeChecked();
-  await assistant.getByTestId('support-free').getByText('Design without support').click();
+  await supportFree.press('Space');
   await expect(supportFree).not.toBeChecked();
 
   // Cancel keeps what was saved, the switch included.
@@ -895,7 +957,7 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await expect(chip).toContainText('Werkstatt');
   await page.getByTestId('settings').click();
   await page.getByTestId('settings-assistant').click();
-  await expect(page.getByTestId('settings-assistant-panel').getByTestId('support-free').getByRole('checkbox')).not.toBeChecked();
+  await expect(page.getByTestId('settings-assistant-panel').getByTestId('support-free').getByRole('switch')).not.toBeChecked();
   await page.keyboard.press('Escape');
 });
 

@@ -4,6 +4,7 @@ import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover, RadioBut
 
 import type { AgentKind, AgentStatus, ModelChoice } from '../../../shared/contract';
 import { platform } from '../platform';
+import { useStudio } from '../state/store';
 import { StatusDot } from '../ui/Feedback';
 import { selectedStatus, useAssistant } from './store';
 
@@ -291,14 +292,28 @@ export function AgentChip() {
       </AriaButton>
       <Popover placement="top start" offset={6} className="w-dialog-sm max-w-full rounded-md border border-border bg-surface-raised shadow-2">
         <Dialog aria-label={t('assistant.title')} className="flex flex-col gap-3 p-3 outline-none" data-testid="agent-menu">
-          <div className="flex items-center justify-between gap-2">
-            <Heading slot="title" className="text-sm font-semibold text-text">
-              {t('assistant.title')}
-            </Heading>
-            <span className="rounded-sm border border-border px-1 text-xs text-text-muted">{t('assistant.preview')}</span>
-          </div>
-          <AssistantChoice />
-          <p className="text-xs text-text-subtle">{t('assistant.chip.switchNote')}</p>
+          {({ close }) => (
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <Heading slot="title" className="text-sm font-semibold text-text">
+                  {t('assistant.title')}
+                </Heading>
+                <span className="rounded-sm border border-border px-1 text-xs text-text-muted">{t('assistant.preview')}</span>
+              </div>
+              <AssistantChoice />
+              <p className="text-xs text-text-subtle">{t('assistant.chip.switchNote')}</p>
+              <AriaButton
+                className="self-start text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+                onPress={() => {
+                  close();
+                  useStudio.getState().setSettingsSection('assistant', 'research');
+                }}
+                data-testid="agent-settings"
+              >
+                {t('assistant.chip.moreSettings')}
+              </AriaButton>
+            </>
+          )}
         </Dialog>
       </Popover>
     </DialogTrigger>

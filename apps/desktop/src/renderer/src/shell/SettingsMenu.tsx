@@ -11,6 +11,7 @@ export function SettingsMenu() {
   return (
     <AriaButton
       aria-label={t('settings.title')}
+      aria-keyshortcuts="Control+Comma"
       onPress={() => {
         setSection('general');
       }}

@@ -275,7 +275,8 @@
         "unavailable": "not available",
         "ready": "ready",
         "busy": "working"
-      }
+      },
+      "moreSettings": "More assistant settings …"
     },
     "resize": "Chat width",
     "resizeHint": "Drag to change the width · double-click for the standard width",
@@ -674,7 +675,8 @@
       "title": "Appearance",
       "system": "Like Windows",
       "light": "Light",
-      "dark": "Dark"
+      "dark": "Dark",
+      "hint": "Light, dark or as set in Windows. Applies at once, the 3D view included."
     },
     "section": {
       "general": "General",
@@ -687,7 +689,8 @@
       "title": "Language",
       "system": "Like Windows",
       "de": "Deutsch",
-      "en": "English"
+      "en": "English",
+      "hint": "The language of the interface and the assistant. Applies at once."
     },
     "projects": {
       "title": "Project folder",
@@ -698,7 +701,8 @@
         "setting": "Chosen by you.",
         "override": "Set by the environment (PARTBUDDY_PROJECTS_DIR)."
       },
-      "restartHint": "The new project folder applies after a restart."
+      "restartHint": "The new project folder applies after a restart.",
+      "hint": "PartBuddy keeps every project in a folder of its own here."
     },
     "about": {
       "version": "Version {version}",
@@ -706,12 +710,52 @@
       "sponsor": "Support PartBuddy on Ko-fi",
       "source": "Source code on GitHub",
       "licenceLink": "GNU General Public License 3.0",
-      "revealLog": "Show the log file",
-      "revealLogHint": "For a problem report: PartBuddy notes what it does there, without your messages or sign-ins."
+      "revealLog": "Log file",
+      "revealLogHint": "For a problem report: PartBuddy notes what it does there, without your messages or sign-ins.",
+      "updatesHint": "New versions come from GitHub. PartBuddy looks after the start and downloads only when you say so.",
+      "licenceTitle": "Licence and source code",
+      "revealLogButton": "Show in Explorer"
     },
     "research": {
       "label": "Research on the web",
       "hint": "The assistant may search the web and read pages, for example data sheets; every source shows as a card with its link. What a page says is never an instruction to it. Applies from the next conversation."
+    },
+    "close": "Close",
+    "restartNote": "Applies after a restart",
+    "search": {
+      "label": "Search settings",
+      "placeholder": "Search settings",
+      "empty": "No setting matches “{query}”.",
+      "count": "{count, plural, one {# setting} other {# settings}}",
+      "results": "Matching settings"
+    },
+    "group": {
+      "appearance": "Language and appearance",
+      "files": "Files",
+      "program": "Program",
+      "route": "Who designs with you",
+      "work": "How it works",
+      "profiles": "Profiles",
+      "app": "PartBuddy",
+      "help": "Help with problems"
+    },
+    "intro": {
+      "general": "How PartBuddy looks and where it keeps your projects.",
+      "solidcraft": "The CAD program PartBuddy designs with.",
+      "assistant": "Who designs with you and how it goes about it.",
+      "print": "Printers and materials the assistant designs for and the print check measures against.",
+      "about": "Version, updates and licence."
+    },
+    "engine": {
+      "hint": "PartBuddy finds SolidCraft itself; choose another program here."
+    },
+    "route": {
+      "title": "Assistant and model",
+      "hint": "Claude Code, ChatGPT or a local model, with the model and thinking effort for new chats."
+    },
+    "profiles": {
+      "printers": "Build volume, nozzle and layer height of your printers.",
+      "materials": "Overhang, hole compensation and fit clearances per material."
     }
   },
   "print": {
