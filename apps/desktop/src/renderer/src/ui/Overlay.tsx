@@ -1,15 +1,16 @@
 /**
  * The surface of every popover, menu and list that opens from a trigger (Linear, Figma): raised,
- * framed, it rises in from its trigger and fades out.
+ * framed, it rises in from its trigger and closes at once (an exit fade let the next click land on
+ * the closing overlay; Raycast and Linear close menus instantly too).
  */
 export const popoverClass =
   'min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2 outline-none ' +
-  'entering:animate-pop-in exiting:animate-pop-out placement-top:[--cs-pop-y:var(--cs-motion-offset)]';
+  'entering:animate-pop-in placement-top:[--cs-pop-y:var(--cs-motion-offset)]';
 
 /** A popover that holds a small dialog (status, model choice) rather than a list. */
 export const popoverPanelClass =
   'w-dialog-sm max-w-full rounded-lg border border-border bg-surface-raised shadow-2 outline-none ' +
-  'entering:animate-pop-in exiting:animate-pop-out placement-top:[--cs-pop-y:var(--cs-motion-offset)]';
+  'entering:animate-pop-in placement-top:[--cs-pop-y:var(--cs-motion-offset)]';
 
 /** The same distance between every trigger and what it opens. */
 export const POPOVER_OFFSET = 4;
