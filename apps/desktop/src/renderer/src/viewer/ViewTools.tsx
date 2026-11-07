@@ -1,4 +1,4 @@
-import { IconArrowsExchange, IconArrowsSplit2, IconBox, IconBoxMultiple, IconCheck, IconCube, IconMaximize, IconPerspective, IconRulerMeasure, IconSlice } from '@tabler/icons-react';
+import { IconArrowsExchange, IconArrowsSplit2, IconBox, IconBoxMultiple, IconCheck, IconCube, IconFocusCentered, IconMaximize, IconPerspective, IconRulerMeasure, IconSlice } from '@tabler/icons-react';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -27,6 +27,8 @@ const tool =
 
 /** Keys as in Blender's number pad, which many makers know: 1 front, 3 right, 7 top, 0 iso, 5 projection. */
 const VIEW_KEYS: Record<string, StandardView> = { '1': 'front', '3': 'right', '7': 'top', '0': 'iso', f: 'fit' };
+/** Ctrl with the same keys (by physical key, so it works on every layout). */
+const OPPOSITE_KEYS: Record<string, StandardView> = { Digit1: 'back', Numpad1: 'back', Digit3: 'left', Numpad3: 'left', Digit7: 'bottom', Numpad7: 'bottom' };
 
 function inTextField(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select') !== null);
@@ -224,9 +226,21 @@ export function ViewTools() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey || inTextField(event.target)) return;
+      if (event.metaKey || event.altKey || inTextField(event.target)) return;
       const key = event.key.toLowerCase();
-      if (key === 'm') {
+      // Ctrl with a view key looks from the opposite side, as in Blender: back, left, bottom.
+      if (event.ctrlKey) {
+        const opposite = OPPOSITE_KEYS[event.code];
+        if (!opposite) return;
+        requestView(opposite);
+        event.preventDefault();
+        return;
+      }
+      if (event.shiftKey && key === 'f') {
+        requestView('selection');
+      } else if (event.shiftKey) {
+        return;
+      } else if (key === 'm') {
         setDimensions(useStudio.getState().dimensions === 'off' ? 'feature' : 'off');
       } else if (key === '5') {
         setProjection(useStudio.getState().projection === 'orthographic' ? 'perspective' : 'orthographic');
@@ -245,6 +259,7 @@ export function ViewTools() {
 
   const views: { view: StandardView; key: string; icon: ReactNode }[] = [
     { view: 'fit', key: 'F', icon: <IconMaximize className="size-icon-sm" aria-hidden /> },
+    { view: 'selection', key: 'Shift+F', icon: <IconFocusCentered className="size-icon-sm" aria-hidden /> },
     { view: 'iso', key: '0', icon: <IconCube className="size-icon-sm" aria-hidden /> },
     { view: 'front', key: '1', icon: <ViewIcon face="front" className="size-icon-sm" /> },
     { view: 'right', key: '3', icon: <ViewIcon face="right" className="size-icon-sm" /> },

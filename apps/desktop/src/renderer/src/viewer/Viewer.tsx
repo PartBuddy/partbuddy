@@ -18,7 +18,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { acceleratedRaycast } from 'three-mesh-bvh';
 
 import type { MirroredSketch } from '../../../shared/contract';
-import { samePick, useStudio, type BodyModel, type DisplayMode, type Pick, type StandardView } from '../state/store';
+import { samePick, useStudio, type BodyModel, type DisplayMode, type Pick } from '../state/store';
 import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
 import { Ghost, SelectionDock, SelectionGhost } from './DimensionHud';
@@ -31,6 +31,7 @@ import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from '
 import { useTokenColors, type ViewerColors } from './useTokenColors';
 import { StepPreviews } from './StepPreviews';
 import { gridStep, needsReframe } from './framing';
+import { pickBox, selectionBox, VIEW_DIRECTIONS, type PickArrays } from './camera';
 import { ViewTools } from './ViewTools';
 import { viewStateOf, type CameraView } from './viewState';
 import { platform } from '../platform';
@@ -659,13 +660,20 @@ function keepView(controls: CameraControls): void {
   controls.getTarget(lastView.target, true);
 }
 
-/** Directions of the standard views (Z up, front is -Y); top leans a hair to the front to keep "up" defined. */
-const VIEW_DIRECTIONS: Record<Exclude<StandardView, 'fit'>, [number, number, number]> = {
-  iso: scene.viewDirection,
-  front: [0, -1, 0],
-  right: [1, 0, 0],
-  top: [0, -1e-4, 1],
-};
+/** The arrays of a body a pick refers to, for the selection box. */
+function pickArrays(model: BodyModel['model']): PickArrays {
+  return {
+    positions: (model.geometry.getAttribute('position') as BufferAttribute).array,
+    index: model.geometry.getIndex()?.array ?? [],
+    triangleFaces: model.triangleFaces,
+    edgeSegments: model.edgeSegments,
+    edgeRanges: model.edgeRanges,
+    vertices: model.vertices,
+  };
+}
+
+/** A selection smaller than this (mm) is framed with its neighbourhood. */
+const SELECTION_CONTEXT = 12;
 
 /** Runs the standard view the user asked for (buttons or keys in ViewTools). */
 function StandardViews({ bodies, sketches }: { bodies: BodyModel[]; sketches: MirroredSketch[] }) {
@@ -676,9 +684,56 @@ function StandardViews({ bodies, sketches }: { bodies: BodyModel[]; sketches: Mi
   useEffect(() => {
     if (!controls || !request || request.serial === done.current || bounds.radius <= 0) return;
     done.current = request.serial;
-    if (request.view === 'fit') void controls.fitToSphere(bounds, true);
-    else lookFrom(controls, VIEW_DIRECTIONS[request.view], bounds, true);
-  }, [controls, request, bounds]);
+    if (request.view === 'fit') {
+      void controls.fitToSphere(bounds, true);
+    } else if (request.view === 'selection') {
+      const picks = useStudio.getState().selections;
+      const box = selectionBox(
+        picks.map((pick) => {
+          const model = bodies[pick.body]?.model;
+          return model ? pickBox(pickArrays(model), pick) : null;
+        }),
+        SELECTION_CONTEXT,
+      );
+      // Nothing selected: fit everything, as Fit does.
+      if (box) void controls.fitToBox(new Box3(new Vector3(...box.min), new Vector3(...box.max)), true, { paddingTop: 8, paddingBottom: 8, paddingLeft: 8, paddingRight: 8 });
+      else void controls.fitToSphere(bounds, true);
+    } else {
+      lookFrom(controls, request.view === 'iso' ? scene.viewDirection : VIEW_DIRECTIONS[request.view], bounds, true);
+    }
+  }, [controls, request, bounds, bodies]);
+  return null;
+}
+
+/**
+ * CAD navigation on top of the camera controls: zoom goes toward the cursor, and a drag turns
+ * around the point of the part under the cursor where the press began (empty space keeps the
+ * last pivot), as in Onshape and Fusion.
+ */
+function CursorNavigation({ meshes }: { meshes: MeshList }) {
+  const controls = useThree((state) => state.controls) as CameraControls | null;
+  const camera = useThree((state) => state.camera);
+  const gl = useThree((state) => state.gl);
+  useEffect(() => {
+    if (!controls) return;
+    const dom = gl.domElement;
+    const raycaster = new Raycaster();
+    (raycaster as Raycaster & { firstHitOnly?: boolean }).firstHitOnly = true;
+    const ndc = new Vector2();
+    const onDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      const rect = dom.getBoundingClientRect();
+      ndc.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+      raycaster.setFromCamera(ndc, camera);
+      const hit = raycaster.intersectObjects(meshes.current.filter((mesh): mesh is Mesh => mesh !== null), false)[0];
+      if (hit) controls.setOrbitPoint(hit.point.x, hit.point.y, hit.point.z);
+    };
+    // Capture: before the controls start turning around the old pivot.
+    dom.addEventListener('pointerdown', onDown, { capture: true });
+    return () => {
+      dom.removeEventListener('pointerdown', onDown, { capture: true });
+    };
+  }, [controls, camera, gl, meshes]);
   return null;
 }
 
@@ -887,9 +942,10 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
         position={[0, 0, -0.01]}
       />
       <OriginAxes colors={colors} reach={fadeDistance} />
-      <CameraControls makeDefault />
+      <CameraControls makeDefault dollyToCursor />
       <FrameDesign documentId={documentId} bodies={bodies} sketches={sketches} />
       <StandardViews bodies={bodies} sketches={sketches} />
+      <CursorNavigation meshes={meshes} />
       <FollowChanges />
       <FocusRequest />
       <ViewReporter />

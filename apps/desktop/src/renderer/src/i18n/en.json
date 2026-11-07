@@ -88,7 +88,11 @@
       "right": "Right",
       "top": "Top",
       "ortho": "Orthographic",
-      "perspective": "Perspective"
+      "perspective": "Perspective",
+      "selection": "Fit selection",
+      "back": "Back",
+      "left": "Left",
+      "bottom": "Bottom"
     },
     "display": {
       "title": "Display",

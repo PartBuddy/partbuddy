@@ -76,7 +76,8 @@ export interface Notice {
 }
 
 export type Projection = 'perspective' | 'orthographic';
-export type StandardView = 'fit' | 'iso' | 'front' | 'right' | 'top';
+/** Fit everything, fit the selection, or look from one of the standard directions (viewer/camera.ts). */
+export type StandardView = 'fit' | 'selection' | 'iso' | 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom';
 /** How bodies are drawn (UI upgrade step 9): faces and edges, faces only, see-through, edges only. */
 /** The tabs of the printer and material dialog (M7). */
 export type ProfilesTab = 'printer' | 'material';

@@ -7,6 +7,7 @@ import { expect, test } from '@playwright/test';
 
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
 import { countViewportPixels } from './pixels';
+import { cameraOf } from './view';
 import { launchApp, lookAgain, type LaunchedApp } from './launch';
 
 let launched: LaunchedApp | null = null;
@@ -121,6 +122,17 @@ test('edges and vertices can be picked, and the view switches projection and sta
   expect(await findKind('vertex', grid), 'a visible vertex').not.toBeNull();
   await expect(page.getByTestId('composer-selection')).toHaveText(/Selected vertex goes with the message: Vertex · CableClip/);
 
+  // Shift+F fits the selection: the camera moves in on the vertex (viewport CAD round).
+  const before = await cameraOf(page);
+  await page.keyboard.press('Shift+F');
+  await page.waitForTimeout(1200);
+  const fitted = await cameraOf(page);
+  expect(before && fitted).toBeTruthy();
+  if (before && fitted) {
+    const distance = (c: { position: number[]; target: number[] }) => Math.hypot(...c.position.map((v, i) => v - (c.target[i] ?? 0)));
+    expect(distance(fitted)).toBeLessThan(distance(before));
+  }
+
   // Escape clears the selection; a click into empty space too.
   await page.keyboard.press('Escape');
   await expect(bar).toBeHidden();
@@ -135,6 +147,11 @@ test('edges and vertices can be picked, and the view switches projection and sta
   await page.getByRole('button', { name: 'Isometric' }).click();
   await page.waitForTimeout(800);
   await page.screenshot({ path: test.info().outputPath('ortho-iso.png') });
+  // Ctrl+1 looks from the back: the camera stands on the +Y side of what it looks at.
+  await page.keyboard.press('Control+1');
+  await page.waitForTimeout(1200);
+  const back = await cameraOf(page);
+  expect(back && back.position[1] > back.target[1]).toBe(true);
 });
 
 test('the view highlights the faces a step changed and can follow them', async () => {
