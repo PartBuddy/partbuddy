@@ -34,3 +34,12 @@ export function relativeTime(modified: number, now: number, language: string): s
   }
   return new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(modified);
 }
+
+export const PROJECT_SORTS = ['modified', 'name', 'created'] as const;
+export type ProjectSort = (typeof PROJECT_SORTS)[number];
+
+/** The projects in the chosen order: newest change or creation first, names in the language's order. */
+export function sortProjects(projects: ProjectEntry[], sort: ProjectSort, language: string): ProjectEntry[] {
+  const names = new Intl.Collator(language, { numeric: true, sensitivity: 'base' });
+  return [...projects].sort((a, b) => (sort === 'name' ? names.compare(a.name, b.name) : b[sort] - a[sort]));
+}

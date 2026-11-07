@@ -1,17 +1,18 @@
-import { IconCube, IconFileImport, IconFilePlus, IconFolderOpen, IconSearch, IconX } from '@tabler/icons-react';
-import { useEffect, useMemo, useState } from 'react';
+import { IconChevronDown, IconCopy, IconCube, IconDots, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPencil, IconSearch, IconTrash, IconX } from '@tabler/icons-react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Heading, Input, SearchField } from 'react-aria-components';
+import { Button as AriaButton, Heading, Input, ListBox, ListBoxItem, Menu, MenuItem, MenuTrigger, Popover, SearchField, Select, SelectValue, Separator } from 'react-aria-components';
 
 import type { ProjectCheck, ProjectEntry, ProjectInfo } from '../../../shared/contract';
 import { TEMPLATE_IDS, type TemplateId } from '../../../shared/templates';
 import { platform } from '../platform';
 import { useFileImport } from '../shell/fileImport';
+import { RenameDialog, TrashDialog } from '../shell/ProjectMenu';
 import { useProjectSwitch } from '../shell/projectSwitch';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
 import { StatusDot, type Tone } from '../ui/Feedback';
-import { matching, relativeTime } from './projectTiles';
+import { matching, PROJECT_SORTS, relativeTime, sortProjects, type ProjectSort } from './projectTiles';
 import adapter from './templates/adapter.png';
 import boxWithLid from './templates/boxWithLid.png';
 import cableClip from './templates/cableClip.png';
@@ -22,6 +23,26 @@ import wallHolder from './templates/wallHolder.png';
 const TEMPLATE_PICTURES: Record<TemplateId, string> = { boxWithLid, housing, wallHolder, cableClip, adapter };
 
 const CHECK_TONE: Record<ProjectCheck, Tone> = { ready: 'success', warn: 'warning', block: 'danger' };
+
+/** The chosen order of the start page, kept in the renderer's localStorage (P1). */
+const SORT_KEY = 'partbuddy.home.sort';
+function storedSort(): ProjectSort {
+  try {
+    const stored = window.localStorage.getItem(SORT_KEY);
+    return PROJECT_SORTS.find((sort) => sort === stored) ?? 'modified';
+  } catch {
+    return 'modified';
+  }
+}
+function keepSort(sort: ProjectSort): void {
+  try {
+    window.localStorage.setItem(SORT_KEY, sort);
+  } catch {
+    // Without storage the order is only kept until the window closes.
+  }
+}
+
+const itemClass = 'flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover disabled:text-text-subtle';
 
 /**
  * The start page (B3, decided 2026-11-05): the projects in the project folder as tiles with
@@ -39,10 +60,16 @@ export function HomePage() {
   const [projects, setProjects] = useState<ProjectEntry[] | null>(null);
   const [current, setCurrent] = useState<ProjectInfo>(null);
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<ProjectSort>(storedSort);
+  const [dialog, setDialog] = useState<{ kind: 'rename' | 'trash'; project: ProjectEntry } | null>(null);
   const [now] = useState(() => Date.now());
   const ready = connection.state === 'connected' && connection.engine === 'headless';
   const api = platform().project;
 
+  const [loads, setLoads] = useState(0);
+  const reload = useCallback(() => {
+    setLoads((count) => count + 1);
+  }, []);
   useEffect(() => {
     let live = true;
     void Promise.all([api.list(), api.info()])
@@ -57,7 +84,16 @@ export function HomePage() {
     return () => {
       live = false;
     };
-  }, [api]);
+  }, [api, loads]);
+  const failed = (error: unknown) => {
+    useStudio.getState().setNotice({ tone: 'danger', text: t('project.failed', { detail: (error as Error).message.slice(0, 200) }) });
+  };
+  const act = (project: ProjectEntry, action: string) => {
+    if (action === 'open') openProject(project);
+    else if (action === 'rename' || action === 'trash') setDialog({ kind: action, project });
+    else if (action === 'duplicate') void api.duplicate(project.folder).then(reload, failed);
+    else if (action === 'reveal') void api.reveal(project.folder).catch(failed);
+  };
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -71,7 +107,7 @@ export function HomePage() {
     };
   }, [setHomeOpen]);
 
-  const shown = useMemo(() => matching(projects ?? [], query), [projects, query]);
+  const shown = useMemo(() => sortProjects(matching(projects ?? [], query), sort, i18n.language), [projects, query, sort, i18n.language]);
   const openProject = (project: ProjectEntry) => {
     if (current && current.folder === project.folder) {
       setHomeOpen(false);
@@ -102,6 +138,30 @@ export function HomePage() {
               <IconX className="size-icon-sm" aria-hidden />
             </AriaButton>
           </SearchField>
+          <Select
+            aria-label={t('home.sort')}
+            value={sort}
+            onChange={(key) => {
+              const next = PROJECT_SORTS.find((item) => item === key) ?? 'modified';
+              setSort(next);
+              keepSort(next);
+            }}
+            data-testid="home-sort"
+          >
+            <AriaButton className="inline-flex h-control-md items-center gap-1 rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus">
+              <SelectValue className="truncate" />
+              <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
+            </AriaButton>
+            <Popover className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+              <ListBox className="outline-none">
+                {PROJECT_SORTS.map((item) => (
+                  <ListBoxItem key={item} id={item} textValue={t(`home.${item}`)} className="cursor-default rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover selected:font-medium" data-testid="home-sort-option" data-sort={item}>
+                    {t(`home.${item}`)}
+                  </ListBoxItem>
+                ))}
+              </ListBox>
+            </Popover>
+          </Select>
           <Button variant="primary" isDisabled={!ready} onPress={() => run(() => api.create())} data-testid="home-new">
             <IconFilePlus className="size-icon" aria-hidden />
             {t('project.new')}
@@ -153,7 +213,7 @@ export function HomePage() {
         ) : (
           <ul aria-label={t('home.list', { count: shown.length })} className="grid grid-cols-[repeat(auto-fill,minmax(var(--cs-size-tile),1fr))] gap-4" data-testid="home-projects">
             {shown.map((project) => (
-              <li key={project.folder}>
+              <li key={project.folder} className="group/tile relative">
                 <ProjectTile
                   project={project}
                   open={current?.folder === project.folder}
@@ -163,12 +223,67 @@ export function HomePage() {
                     openProject(project);
                   }}
                 />
+                <TileMenu
+                  project={project}
+                  ready={ready}
+                  open={current?.folder === project.folder}
+                  onAction={(action) => {
+                    act(project, action);
+                  }}
+                />
               </li>
             ))}
           </ul>
         )}
       </div>
+      {dialog?.kind === 'rename' ? <RenameDialog key={dialog.project.folder} open name={dialog.project.name} folder={dialog.project.folder} onClose={() => setDialog(null)} onDone={reload} /> : null}
+      {dialog?.kind === 'trash' ? (
+        <TrashDialog
+          open
+          name={dialog.project.name}
+          opensNew={current?.folder === dialog.project.folder}
+          onClose={() => setDialog(null)}
+          onConfirm={() => {
+            void api.trash(dialog.project.folder).then(reload, failed);
+          }}
+        />
+      ) : null}
     </section>
+  );
+}
+
+/**
+ * The "…" menu of a tile (P1): every project action without opening the project first. Only
+ * opening and the open project's rename and delete switch the design and wait for SolidCraft.
+ */
+function TileMenu({ project, ready, open, onAction }: { project: ProjectEntry; ready: boolean; open: boolean; onAction: (action: string) => void }) {
+  const { t } = useTranslation();
+  const item = (id: string, icon: ReactNode, label: string) => (
+    <MenuItem id={id} textValue={label} className={itemClass} data-testid={`home-tile-${id}`}>
+      {icon}
+      <span className="flex-1">{label}</span>
+    </MenuItem>
+  );
+  return (
+    <MenuTrigger>
+      <AriaButton
+        aria-label={t('home.actions', { name: project.name })}
+        className="absolute top-2 right-2 inline-flex size-control-sm items-center justify-center rounded-md border border-border bg-surface-raised text-text-muted opacity-0 shadow-1 outline-none transition-opacity group-hover/tile:opacity-100 hover:text-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-focus pressed:opacity-100"
+        data-testid="home-tile-menu"
+      >
+        <IconDots className="size-icon-sm" aria-hidden />
+      </AriaButton>
+      <Popover placement="bottom end" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+        <Menu aria-label={t('home.actions', { name: project.name })} className="outline-none" disabledKeys={ready ? [] : open ? ['rename', 'trash'] : ['open']} onAction={(key) => onAction(String(key))}>
+          {item('open', <IconFolderOpen className="size-icon-sm text-text-muted" aria-hidden />, t('home.openProject'))}
+          {item('rename', <IconPencil className="size-icon-sm text-text-muted" aria-hidden />, t('project.rename'))}
+          {item('duplicate', <IconCopy className="size-icon-sm text-text-muted" aria-hidden />, t('project.duplicate'))}
+          {item('reveal', <IconFolderSearch className="size-icon-sm text-text-muted" aria-hidden />, t('project.reveal'))}
+          <Separator className="my-1 border-t border-border" />
+          {item('trash', <IconTrash className="size-icon-sm text-text-muted" aria-hidden />, t('project.trash'))}
+        </Menu>
+      </Popover>
+    </MenuTrigger>
   );
 }
 

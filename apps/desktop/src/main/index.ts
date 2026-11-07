@@ -805,6 +805,14 @@ if (!app.requestSingleInstanceLock()) {
       const file = supervisor.projectFile();
       return file && projectStore.holds(file) ? file : null;
     };
+    /** A start page project by its folder (P1), or the open one; `open` tells whether it is open now. */
+    const targetOf = (folder: string | undefined): { design: string | null; open: boolean } => {
+      const current = openProject();
+      if (folder === undefined) return { design: current, open: true };
+      const design = projectStore.designOfFolder(folder);
+      if (!design) throw new Error('not a project in the project folder');
+      return { design, open: current !== null && resolve(current) === resolve(design) };
+    };
     bridge.handle(invokeChannels.projectInfo, () => {
       const file = openProject();
       return file ? { name: basename(file, '.sc'), folder: dirname(file) } : null;
@@ -831,30 +839,50 @@ if (!app.requestSingleInstanceLock()) {
       log(imported ? 'copied a design into a new project and opened it' : 'opened a project');
       return { opened: true, imported };
     });
-    bridge.handle(invokeChannels.projectRename, async ({ name }) => {
-      const file = openProject();
+    bridge.handle(invokeChannels.projectRename, async ({ name, folder }) => {
+      const target = targetOf(folder);
+      const file = target.design;
       if (!file) return { ok: false, reason: 'noProject' };
       const usable = projectStore.usableName(name, file);
       if (!usable.ok) return { ok: false, reason: usable.reason };
       if (usable.name === basename(file, '.sc')) return { ok: true };
+      if (!target.open) {
+        await projectStore.rename(file, usable.name);
+        log('renamed a project of the start page');
+        return { ok: true };
+      }
       await switchProject((current) => (current ? projectStore.rename(current, usable.name) : Promise.resolve(null)));
       log('renamed the project');
       return { ok: true };
     });
-    bridge.handle(invokeChannels.projectDuplicate, async () => {
-      if (!openProject()) throw new Error('the design has no project yet');
+    bridge.handle(invokeChannels.projectDuplicate, async ({ folder }) => {
+      const target = targetOf(folder);
+      if (!target.design) throw new Error('the design has no project yet');
+      if (folder !== undefined) {
+        // From the start page a project is only copied; the open one stays open.
+        projectStore.duplicate(target.design, german ? 'Kopie' : 'copy');
+        log('duplicated a project of the start page');
+        return undefined;
+      }
       await switchProject((current) => Promise.resolve(current ? projectStore.duplicate(current, german ? 'Kopie' : 'copy') : null));
       log('duplicated the project');
       return undefined;
     });
-    bridge.handle(invokeChannels.projectReveal, () => {
-      const file = openProject();
+    bridge.handle(invokeChannels.projectReveal, ({ folder }) => {
+      const file = targetOf(folder).design;
       if (file) shell.showItemInFolder(file);
       else void shell.openPath(projects);
       return undefined;
     });
-    bridge.handle(invokeChannels.projectTrash, async () => {
-      if (!openProject()) throw new Error('the design has no project yet');
+    bridge.handle(invokeChannels.projectTrash, async ({ folder }) => {
+      const target = targetOf(folder);
+      if (!target.design) throw new Error('the design has no project yet');
+      if (!target.open) {
+        const design = target.design;
+        await whenFree(() => shell.trashItem(dirname(design)));
+        log('moved a project of the start page to the recycle bin');
+        return undefined;
+      }
       await switchProject(async (current) => {
         // Only a project folder inside the project folder goes to the recycle bin.
         if (current && projectStore.holds(current)) {

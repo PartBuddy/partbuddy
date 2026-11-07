@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -952,6 +952,28 @@ test('PartBuddy starts on the start page with the projects, which searches and c
     await expect(page.getByTestId('home-no-match')).toHaveText('No project matches “lamp”.');
     await page.getByTestId('home-search').fill('');
     await expect(tiles).toHaveCount(3);
+
+    // Sorting by name (P1), and a tile renamed and duplicated without opening it.
+    await page.getByTestId('home-sort').getByRole('button').click();
+    await page.locator('[data-testid="home-sort-option"][data-sort="name"]').click();
+    await expect(tiles.nth(0)).toHaveAttribute('data-name', 'Cable clip');
+    await expect(tiles.nth(2)).toHaveAttribute('data-name', 'Wall holder');
+    const menuOf = async (name: string) => {
+      const tile = home.locator('li', { has: page.locator(`[data-testid="home-tile"][data-name="${name}"]`) });
+      await tile.hover();
+      await tile.getByTestId('home-tile-menu').click();
+    };
+    await menuOf('Cable clip');
+    await page.getByTestId('home-tile-rename').click();
+    await page.getByTestId('project-name-input').fill('Cable holder');
+    await page.getByTestId('project-rename-save').click();
+    await expect(home.locator('[data-testid="home-tile"][data-name="Cable holder"]')).toBeVisible();
+    expect(existsSync(join(projects, 'Cable holder', 'Cable holder.sc'))).toBe(true);
+    await menuOf('Cable holder');
+    await page.getByTestId('home-tile-duplicate').click();
+    await expect(tiles).toHaveCount(4);
+    await expect(home.locator('[data-testid="home-tile"][data-name="Cable holder copy"]')).toBeVisible();
+    await expect(home).toBeVisible();
 
     const results = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="home-page"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
     expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);

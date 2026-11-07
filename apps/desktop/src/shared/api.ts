@@ -100,13 +100,14 @@ export interface PartBuddyApi {
     create(): Promise<void>;
     /** Asks for a project folder or a design file; a design from elsewhere is copied into a new project. */
     open(): Promise<ProjectOpenResult>;
-    rename(name: string): Promise<ProjectRenameResult>;
-    /** Copies the open project and opens the copy. */
-    duplicate(): Promise<void>;
+    /** Renames the open project, or the start page's project in `folder` (P1). */
+    rename(name: string, folder?: string): Promise<ProjectRenameResult>;
+    /** Copies the open project and opens the copy; a project of the start page is only copied. */
+    duplicate(folder?: string): Promise<void>;
     /** Shows the project folder in Explorer. */
-    reveal(): Promise<void>;
-    /** Moves the open project to the recycle bin and starts a new, empty design. */
-    trash(): Promise<void>;
+    reveal(folder?: string): Promise<void>;
+    /** Moves a project to the recycle bin; for the open one a new, empty design starts. */
+    trash(folder?: string): Promise<void>;
     /** The projects in the project folder, newest first, for the start page (B3). */
     list(): Promise<ProjectEntry[]>;
     /** Opens a project of the start page by its folder. */
