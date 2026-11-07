@@ -761,6 +761,20 @@
     "profiles": {
       "printers": "Build volume, nozzle and layer height of your printers.",
       "materials": "Overhang, hole compensation and fit clearances per material."
+    },
+    "reset": {
+      "section": "Reset section",
+      "all": "Reset everything",
+      "allTitle": "Reset all settings",
+      "allHint": "Language, appearance, project folder, SolidCraft program and assistant go back to the defaults. Printer and material profiles stay.",
+      "cancel": "Cancel",
+      "go": "Reset",
+      "what": {
+        "general": "Language, appearance and project folder go back to the defaults. Another project folder applies after a restart.",
+        "solidcraft": "PartBuddy finds SolidCraft itself again. This applies after a restart.",
+        "assistant": "Web research, designing without support, the design rules and model and effort per assistant go back to the defaults. Sign-ins stay.",
+        "all": "All settings go back to the defaults. Printer and material profiles, projects and sign-ins stay."
+      }
     }
   },
   "print": {

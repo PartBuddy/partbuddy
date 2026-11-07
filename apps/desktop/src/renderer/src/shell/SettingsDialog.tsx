@@ -9,6 +9,7 @@ import {
   IconMoon,
   IconPrinter,
   IconRefresh,
+  IconRestore,
   IconSearch,
   IconSettings,
   IconSparkles,
@@ -21,6 +22,8 @@ import { useTranslation } from 'react-i18next';
 import {
   Button as AriaButton,
   Dialog,
+  DialogTrigger,
+  Popover,
   Heading,
   Input,
   ListBox,
@@ -39,7 +42,7 @@ import {
   Tabs,
 } from 'react-aria-components';
 
-import { DESIGN_RULES, type AppInfo, type GeneralSettingsInfo, type Language, type PrintSettings, type Theme, type UpdateState } from '../../../shared/contract';
+import { DESIGN_RULES, type AppInfo, type GeneralSettingsInfo, type Language, type PrintSettings, type SettingsReset, type Theme, type UpdateState } from '../../../shared/contract';
 import { AssistantChoice } from '../assistant/AgentChip';
 import { localeFrom } from '../i18n';
 import { PrintProfilesEditor } from '../print/PrintProfilesEditor';
@@ -50,6 +53,7 @@ import { SwitchMark, segmentClass, segmentGroupClass } from '../ui/Choice';
 import { DialogClose, dialogTitleClass, modalClass, overlayClass } from '../ui/Dialog';
 import { inputClass } from '../ui/Field';
 import { tabClass, tabListClass } from '../ui/Navigation';
+import { POPOVER_OFFSET, popoverPanelClass } from '../ui/Overlay';
 import { EnginePanel } from './EnginePanel';
 import { searchSettings, settingById, type SettingEntry } from './settingsIndex';
 
@@ -154,12 +158,62 @@ function Group({ id, children }: { id: string; children: ReactNode }) {
   );
 }
 
-function SectionHead({ id }: { id: SettingsSection }) {
+/** The language of the window after a change or a reset. */
+function applyLanguage(info: GeneralSettingsInfo) {
+  const locale = localeFrom(info.language === 'system' ? info.systemLocale : info.language);
+  void i18next.changeLanguage(locale);
+  document.documentElement.lang = locale;
+}
+
+/** Puts a section (or all) back to the defaults after asking once; `done` reloads the shown values. */
+function ResetButton({ section, done, label }: { section: SettingsReset; done: () => void; label: string }) {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col gap-1">
-      <h2 className="font-display text-xl font-semibold text-text">{t(`settings.section.${id}`)}</h2>
-      <p className="text-md text-text-muted">{t(`settings.intro.${id}`)}</p>
+    <DialogTrigger>
+      <Button data-testid={`settings-reset-${section}`}>
+        <IconRestore className="size-icon" aria-hidden />
+        {label}
+      </Button>
+      <Popover placement="bottom end" offset={POPOVER_OFFSET} className={popoverPanelClass}>
+        <Dialog aria-label={label} className="flex flex-col gap-3 p-4 outline-none" data-testid="settings-reset-confirm">
+          {({ close }) => (
+            <>
+              <p className="text-md text-text">{t(`settings.reset.what.${section}`)}</p>
+              <div className="flex justify-end gap-2">
+                <Button onPress={close}>{t('settings.reset.cancel')}</Button>
+                <Button
+                  variant="primary"
+                  onPress={() => {
+                    void platform()
+                      .settings.reset(section)
+                      .then((info) => {
+                        applyLanguage(info);
+                        close();
+                        done();
+                      });
+                  }}
+                  data-testid="settings-reset-go"
+                >
+                  {t('settings.reset.go')}
+                </Button>
+              </div>
+            </>
+          )}
+        </Dialog>
+      </Popover>
+    </DialogTrigger>
+  );
+}
+
+function SectionHead({ id, done }: { id: SettingsSection; done?: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col gap-1">
+        <h2 className="font-display text-xl font-semibold text-text">{t(`settings.section.${id}`)}</h2>
+        <p className="text-md text-text-muted">{t(`settings.intro.${id}`)}</p>
+      </div>
+      {done && id !== 'print' && id !== 'about' ? <ResetButton section={id} done={done} label={t('settings.reset.section')} /> : null}
     </div>
   );
 }
@@ -269,9 +323,7 @@ function GeneralSection() {
       .settings.setLanguage(language)
       .then((next) => {
         setInfo(next);
-        const locale = localeFrom(language === 'system' ? next.systemLocale : language);
-        void i18next.changeLanguage(locale);
-        document.documentElement.lang = locale;
+        applyLanguage(next);
       });
   };
   return (
@@ -441,7 +493,7 @@ function UpdatesBlock() {
   );
 }
 
-function AboutSection() {
+function AboutSection({ done }: { done: () => void }) {
   const { t } = useTranslation();
   const [app, setApp] = useState<AppInfo | null>(null);
   useEffect(() => {
@@ -495,6 +547,9 @@ function AboutSection() {
             <IconFileText className="size-icon" aria-hidden />
             {t('settings.about.revealLogButton')}
           </Button>
+        </Setting>
+        <Setting id="resetAll">
+          <ResetButton section="all" done={done} label={t('settings.reset.all')} />
         </Setting>
       </Group>
     </div>
@@ -571,6 +626,11 @@ export function SettingsDialog() {
   const setSection = useStudio((s) => s.setSettingsSection);
   const setProfilesTab = useStudio((s) => s.setProfilesTab);
   const [query, setQuery] = useState('');
+  // Raised by a reset: the sections mount again and read the values afresh.
+  const [revision, setRevision] = useState(0);
+  const reload = () => {
+    setRevision((value) => value + 1);
+  };
   const listRef = useRef<HTMLDivElement>(null);
   const results = useMemo(() => searchSettings(query, (key) => t(key)), [query, t]);
   const close = () => {
@@ -669,13 +729,13 @@ export function SettingsDialog() {
                   </Tab>
                 ))}
               </TabList>
-              <div className={searching ? 'hidden' : 'flex min-w-0 flex-1'}>
+              <div key={revision} className={searching ? 'hidden' : 'flex min-w-0 flex-1'}>
                 <TabPanel id="general" className={panelClass} data-testid="settings-general-panel">
-                  <SectionHead id="general" />
+                  <SectionHead id="general" done={reload} />
                   <GeneralSection />
                 </TabPanel>
                 <TabPanel id="solidcraft" className={panelClass} data-testid="solidcraft-engine">
-                  <SectionHead id="solidcraft" />
+                  <SectionHead id="solidcraft" done={reload} />
                   <Group id="program">
                     <Setting id="engine" layout="block">
                       <EnginePanel close={close} />
@@ -683,7 +743,7 @@ export function SettingsDialog() {
                   </Group>
                 </TabPanel>
                 <TabPanel id="assistant" className={panelClass} data-testid="settings-assistant-panel">
-                  <SectionHead id="assistant" />
+                  <SectionHead id="assistant" done={reload} />
                   <Group id="route">
                     <Setting id="assistant" layout="block">
                       <div className="flex flex-col gap-3">
@@ -705,7 +765,7 @@ export function SettingsDialog() {
                   <PrintSection close={close} />
                 </TabPanel>
                 <TabPanel id="about" className={panelClass}>
-                  <AboutSection />
+                  <AboutSection done={reload} />
                 </TabPanel>
               </div>
             </Tabs>

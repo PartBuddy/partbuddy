@@ -76,6 +76,7 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.settingsChooseProjectsFolder]: { reason: APP },
   [invokeChannels.settingsResetProjectsFolder]: { reason: APP },
   [invokeChannels.settingsFinishSetup]: { reason: APP },
+  [invokeChannels.settingsReset]: { reason: APP },
   [invokeChannels.updatesState]: { reason: APP },
   [invokeChannels.updatesCheck]: { reason: APP },
   [invokeChannels.updatesDownload]: { reason: APP },

@@ -318,6 +318,8 @@ export const updateStateSchema = z.discriminatedUnion('state', [
 
 /** The language of the interface (B6): follow Windows, German or English. */
 export const languageSchema = z.enum(['system', 'de', 'en']);
+/** A section of the settings to put back to its defaults, or all of them. */
+export const settingsResetSchema = z.enum(['general', 'solidcraft', 'assistant', 'all']);
 export const languageRequestSchema = z.object({ language: languageSchema }).strict();
 /**
  * General settings (B6): the language, Windows' own language (for "follow Windows") and the project
@@ -1077,6 +1079,7 @@ export const invokeContract = {
   [invokeChannels.settingsChooseProjectsFolder]: { request: none, response: generalSettingsSchema },
   [invokeChannels.settingsResetProjectsFolder]: { request: none, response: generalSettingsSchema },
   [invokeChannels.settingsFinishSetup]: { request: none, response: generalSettingsSchema },
+  [invokeChannels.settingsReset]: { request: z.object({ section: settingsResetSchema }).strict(), response: generalSettingsSchema },
   [invokeChannels.updatesState]: { request: none, response: updateStateSchema },
   [invokeChannels.updatesCheck]: { request: none, response: updateStateSchema },
   [invokeChannels.updatesDownload]: { request: none, response: none },
@@ -1158,6 +1161,7 @@ export type Slicer = z.infer<typeof slicersSchema>[number];
 export type PartsLibrary = z.infer<typeof partsLibrarySchema>;
 export type PartInsert = z.infer<typeof partInsertSchema>;
 export type Language = z.infer<typeof languageSchema>;
+export type SettingsReset = z.infer<typeof settingsResetSchema>;
 export type UpdateState = z.infer<typeof updateStateSchema>;
 export type GeneralSettingsInfo = z.infer<typeof generalSettingsSchema>;
 export type VersionEntry = z.infer<typeof versionEntrySchema>;

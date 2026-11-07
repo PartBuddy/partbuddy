@@ -761,6 +761,20 @@
     "profiles": {
       "printers": "Bauraum, Düse und Schichthöhe deiner Drucker.",
       "materials": "Überhang, Lochausgleich und Passungsspiele je Material."
+    },
+    "reset": {
+      "section": "Bereich zurücksetzen",
+      "all": "Alles zurücksetzen",
+      "allTitle": "Alle Einstellungen zurücksetzen",
+      "allHint": "Sprache, Darstellung, Projektordner, SolidCraft-Programm und Assistent kommen auf die Standardwerte. Drucker- und Materialprofile bleiben.",
+      "cancel": "Abbrechen",
+      "go": "Zurücksetzen",
+      "what": {
+        "general": "Sprache, Darstellung und Projektordner kommen auf die Standardwerte zurück. Ein anderer Projektordner gilt nach einem Neustart.",
+        "solidcraft": "PartBuddy sucht SolidCraft wieder selbst. Das gilt nach einem Neustart.",
+        "assistant": "Web-Recherche, stützfreies Konstruieren, die Konstruktionsregeln sowie Modell und Aufwand je Assistent kommen auf die Standardwerte zurück. Anmeldungen bleiben.",
+        "all": "Alle Einstellungen kommen auf die Standardwerte zurück. Drucker- und Materialprofile, Projekte und Anmeldungen bleiben."
+      }
     }
   },
   "print": {

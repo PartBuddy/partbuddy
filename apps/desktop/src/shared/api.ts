@@ -3,6 +3,7 @@ import type {
   AgentEvent,
   AgentKind,
   AppInfo,
+  SettingsReset,
   EngineChoiceResult,
   EngineInfo,
   ProjectInfo,
@@ -84,6 +85,8 @@ export interface PartBuddyApi {
     resetProjectsFolder(): Promise<GeneralSettingsInfo>;
     /** Marks the first-start setup (B9) as finished or skipped. */
     finishSetup(): Promise<GeneralSettingsInfo>;
+    /** Puts a section of the settings, or all of them, back to the defaults; the print profiles stay. */
+    reset(section: SettingsReset): Promise<GeneralSettingsInfo>;
     /** Shows PartBuddy's log file in Explorer, for a problem report. */
     revealLog(): Promise<void>;
   };

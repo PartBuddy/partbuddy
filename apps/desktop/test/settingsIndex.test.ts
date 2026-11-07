@@ -29,7 +29,7 @@ describe('settings index', () => {
     expect(searchSettings('dunkel', german).map((entry) => entry.id)).toEqual(['theme']);
     expect(searchSettings('SPRACHE', german)[0]?.id).toBe('language');
     expect(searchSettings('uber', german).map((entry) => entry.section)).toContain('about');
-    expect(searchSettings('ordner projekt', german).map((entry) => entry.id)).toEqual(['projectsFolder']);
+    expect(searchSettings('ordner projekt', german)[0]?.id).toBe('projectsFolder');
     expect(searchSettings('gibtsnicht', german)).toEqual([]);
   });
 

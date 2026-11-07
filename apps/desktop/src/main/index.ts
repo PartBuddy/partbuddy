@@ -9,11 +9,13 @@ import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen
 
 import { invokeChannels, eventChannels } from '../shared/channels';
 import type { AssemblyPlan } from '../shared/assembly';
-import type { AgentEvent, ExportFormat, PartPrint, PrintCheckReport, ViewState } from '../shared/contract';
+import { DESIGN_DEFAULTS, type AgentEvent, type ExportFormat, type PartPrint, type PrintCheckReport, type ViewState } from '../shared/contract';
 import { refit, withoutFitMark } from '../shared/designFit';
 import { AgentService } from './agents/agentService';
 import { AppearanceSettings } from './appearance';
 import { GeneralSettings } from './generalSettings';
+import { SettingsStore } from './settingsStore';
+import { RESET_KEYS } from '../shared/settings';
 import { Updates } from './updates';
 import { Assistant } from './agents/assistant';
 import { SolidCraftTools } from './agents/solidcraftTools';
@@ -197,7 +199,9 @@ function createWindow(): BrowserWindow {
 
 // The language the user chose (B6) is Chromium's locale, set before the app is ready; a `--lang`
 // on the command line (tests) wins.
-const general = new GeneralSettings(join(app.getPath('userData'), 'general.json'));
+// All settings in one file, read through the shared schema; the files of earlier versions are taken over once.
+const settingsStore = new SettingsStore(join(app.getPath('userData'), 'settings.json'), log);
+const general = new GeneralSettings(settingsStore);
 const chosenLanguage = general.language();
 if (chosenLanguage !== 'system' && !process.argv.some((arg) => arg.startsWith('--lang'))) {
   app.commandLine.appendSwitch('lang', chosenLanguage === 'de' ? 'de-DE' : 'en-US');
@@ -217,7 +221,7 @@ if (!app.requestSingleInstanceLock()) {
       callback(false);
     });
 
-    const appearance = new AppearanceSettings(join(app.getPath('userData'), 'appearance.json'));
+    const appearance = new AppearanceSettings(settingsStore);
     nativeTheme.themeSource = appearance.theme();
 
     const bridge = new Bridge(ipcMain, trustedSender(() => mainWindow?.webContents.id, rendererOrigin), !app.isPackaged);
@@ -565,7 +569,7 @@ if (!app.requestSingleInstanceLock()) {
     const changed = () => assistant?.changed();
     // The user's choice to allow API billing for Claude Code (off by default), kept per installation.
     // API billing for Claude Code and the model and effort per route for new chats (B1).
-    const assistantSettings = new AssistantSettings(join(app.getPath('userData'), 'assistant-settings.json'));
+    const assistantSettings = new AssistantSettings(settingsStore);
     const apiBilling = {
       get: () => assistantSettings.apiBilling(),
       set: (allow: boolean) => {
@@ -694,6 +698,22 @@ if (!app.requestSingleInstanceLock()) {
       assistantSettings.setWebResearch(allow);
       log(`web research ${allow ? 'allowed' : 'turned off'}`);
       return assistantSettings.webResearch();
+    });
+    // Reset per section of the settings, or all of them; the print profiles are the user's data and stay.
+    bridge.handle(invokeChannels.settingsReset, async ({ section }) => {
+      if (section === 'general' || section === 'all') {
+        settingsStore.reset(RESET_KEYS.general);
+        nativeTheme.themeSource = appearance.theme();
+        german = app.getSystemLocale().toLowerCase().startsWith('de');
+      }
+      if (section === 'assistant' || section === 'all') {
+        settingsStore.reset(RESET_KEYS.assistant);
+        printProfiles.save({ ...printProfiles.settings(), supportFree: true, design: DESIGN_DEFAULTS });
+        changed();
+      }
+      if (section === 'solidcraft' || section === 'all') await engineChoice.choose(null);
+      log(`settings reset: ${section}`);
+      return generalInfo();
     });
     bridge.handle(invokeChannels.agentSignIn, () => {
       agent.signIn();

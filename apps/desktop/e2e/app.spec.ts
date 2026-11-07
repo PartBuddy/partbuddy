@@ -673,6 +673,55 @@ test('the settings open with Ctrl+comma, find every option by search and open on
   }
 });
 
+test('an old profile opens with its settings, and reset puts a section back to the defaults', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-settings-old-'));
+  const profile = join(work, 'profile');
+  mkdirSync(profile, { recursive: true });
+  // The three files of PartBuddy before one settings file, with a value from a newer version.
+  writeFileSync(join(profile, 'general.json'), JSON.stringify({ language: 'de', setupDone: true }));
+  writeFileSync(join(profile, 'appearance.json'), JSON.stringify({ theme: 'dark' }));
+  writeFileSync(join(profile, 'assistant-settings.json'), JSON.stringify({ webResearch: false, models: { chatgpt: { model: 'from-the-future', effort: null } } }));
+  try {
+    launched = await launchApp({ work });
+    let { page } = launched;
+    const dialog = page.getByTestId('settings-dialog');
+    await page.getByTestId('settings').click();
+    await expect(dialog.getByRole('heading', { name: 'Einstellungen' })).toBeVisible();
+    await expect(dialog.getByTestId('settings-theme').getByRole('radio', { name: 'Dunkel' })).toBeChecked();
+    await page.getByTestId('settings-assistant').click();
+    await expect(dialog.getByTestId('research').getByRole('switch')).not.toBeChecked();
+    const stored = JSON.parse(readFileSync(join(profile, 'settings.json'), 'utf8')) as Record<string, unknown>;
+    expect(stored).toMatchObject({ language: 'de', theme: 'dark', webResearch: false, models: { chatgpt: { model: 'from-the-future', effort: null } } });
+    expect(existsSync(join(profile, 'general.json'))).toBe(true);
+
+    // Reset of the general section: language and theme back, the assistant untouched; asked first.
+    await page.getByTestId('settings-general').click();
+    await dialog.getByTestId('settings-reset-general').click();
+    await expect(page.getByTestId('settings-reset-confirm')).toContainText('Projektordner');
+    await page.getByTestId('settings-reset-go').click();
+    await expect(dialog.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await expect(dialog.getByTestId('settings-theme').getByRole('radio', { name: 'Like Windows' })).toBeChecked();
+
+    // Survives a restart.
+    await launched.close();
+    launched = await launchApp({ work });
+    ({ page } = launched);
+    await page.getByTestId('settings').click();
+    await expect(dialog.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await page.getByTestId('settings-assistant').click();
+    await expect(dialog.getByTestId('research').getByRole('switch')).not.toBeChecked();
+    await dialog.getByTestId('settings-reset-assistant').click();
+    await page.getByTestId('settings-reset-go').click();
+    await expect(dialog.getByTestId('research').getByRole('switch')).toBeChecked();
+    await expect(dialog.getByTestId('support-free').getByRole('switch')).toBeChecked();
+    await expect(dialog.getByTestId('design-rounding').getByRole('switch')).toBeChecked();
+  } finally {
+    await launched?.close();
+    launched = null;
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('the settings show which SolidCraft runs and its version (R0)', async () => {
   launched = await launchApp();
   const { page } = launched;
