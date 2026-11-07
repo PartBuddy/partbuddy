@@ -156,7 +156,9 @@ interface StudioState {
   setHomeOpen: (open: boolean) => void;
   /** The settings (B6) at this section, or null while they are closed. */
   settingsSection: SettingsSection | null;
-  setSettingsSection: (section: SettingsSection | null) => void;
+  /** The option the settings were opened at (a `SETTINGS` id); it is scrolled to and highlighted once. */
+  settingsOption: string | null;
+  setSettingsSection: (section: SettingsSection | null, option?: string | null) => void;
   /** Which tab of the printer and material profiles shows. */
   profilesTab: ProfilesTab;
   setProfilesTab: (tab: ProfilesTab) => void;
@@ -290,8 +292,9 @@ export const useStudio = create<StudioState>()((set) => ({
     set({ homeOpen });
   },
   settingsSection: null,
-  setSettingsSection: (settingsSection) => {
-    set({ settingsSection });
+  settingsOption: null,
+  setSettingsSection: (settingsSection, settingsOption = null) => {
+    set({ settingsSection, settingsOption });
   },
   profilesTab: 'printer',
   setProfilesTab: (profilesTab) => {

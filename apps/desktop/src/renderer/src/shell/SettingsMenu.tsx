@@ -11,6 +11,7 @@ export function SettingsMenu() {
   return (
     <IconButton
       label={t('settings.title')}
+      shortcut="Ctrl+,"
       onPress={() => {
         setSection('general');
       }}

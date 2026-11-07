@@ -1,22 +1,63 @@
-import { IconBrandGithub, IconCube, IconFileText, IconFolder, IconHeart, IconInfoCircle, IconPrinter, IconSettings, IconSparkles } from '@tabler/icons-react';
+import {
+  IconBrandGithub,
+  IconCube,
+  IconDeviceDesktop,
+  IconFileText,
+  IconFolder,
+  IconHeart,
+  IconInfoCircle,
+  IconMoon,
+  IconPrinter,
+  IconRefresh,
+  IconSearch,
+  IconSettings,
+  IconSparkles,
+  IconSun,
+  IconX,
+} from '@tabler/icons-react';
 import i18next from 'i18next';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CheckboxButton, CheckboxField, Dialog, Heading, Modal, ModalOverlay, RadioButton, RadioField, RadioGroup, Tab, TabList, TabPanel, Tabs } from 'react-aria-components';
+import {
+  Button as AriaButton,
+  Dialog,
+  Heading,
+  Input,
+  ListBox,
+  ListBoxItem,
+  Modal,
+  ModalOverlay,
+  RadioButton,
+  RadioField,
+  RadioGroup,
+  SearchField,
+  SwitchButton,
+  SwitchField,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
+} from 'react-aria-components';
 
-import type { AppInfo, GeneralSettingsInfo, Language, Theme, UpdateState } from '../../../shared/contract';
+import { DESIGN_RULES, type AppInfo, type GeneralSettingsInfo, type Language, type PrintSettings, type Theme, type UpdateState } from '../../../shared/contract';
 import { AssistantChoice } from '../assistant/AgentChip';
 import { localeFrom } from '../i18n';
-import { PrintProfilesEditor, SupportFreeSwitch } from '../print/PrintProfilesEditor';
+import { PrintProfilesEditor } from '../print/PrintProfilesEditor';
 import { platform } from '../platform';
 import { useStudio, type SettingsSection } from '../state/store';
-import { Button, linkClass } from '../ui/Button';
-import { EnginePanel } from './EnginePanel';
-import { CheckMark, RadioMark, choiceInlineClass, choiceRowClass } from '../ui/Choice';
+import { Button, iconButtonClass, linkClass } from '../ui/Button';
+import { SwitchMark, segmentClass, segmentGroupClass } from '../ui/Choice';
 import { DialogClose, dialogTitleClass, modalClass, overlayClass } from '../ui/Dialog';
+import { inputClass } from '../ui/Field';
 import { tabClass, tabListClass } from '../ui/Navigation';
+import { EnginePanel } from './EnginePanel';
+import { searchSettings, settingById, type SettingEntry } from './settingsIndex';
 
-const SECTIONS: { id: SettingsSection; icon: typeof IconSettings; testId: string }[] = [
+const SECTIONS: {
+  id: SettingsSection;
+  icon: typeof IconSettings;
+  testId: string;
+}[] = [
   { id: 'general', icon: IconSettings, testId: 'settings-general' },
   { id: 'solidcraft', icon: IconCube, testId: 'settings-solidcraft' },
   { id: 'assistant', icon: IconSparkles, testId: 'settings-assistant' },
@@ -28,23 +69,131 @@ const DONATE = 'https://ko-fi.com/partbuddy';
 const SOURCE = 'https://github.com/PartBuddy/partbuddy';
 const LICENCE = 'https://www.gnu.org/licenses/gpl-3.0.html';
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+const labelId = (id: string) => `setting-${id}-label`;
+
+/** Scrolls to, focuses and briefly highlights the option the settings were opened at. */
+function useHighlight(ids: readonly string[]) {
+  const target = useStudio((s) => s.settingsOption);
+  const ref = useRef<HTMLDivElement>(null);
+  const hit = target !== null && ids.includes(target);
+  useEffect(() => {
+    if (!hit) return;
+    const node = ref.current;
+    // The control may still be loading, and the dialog moves focus to itself when it opens: try each frame for a moment.
+    let tries = 0;
+    let frame = 0;
+    const reach = () => {
+      const control = node?.querySelector<HTMLElement>('input:not([disabled]), button:not([disabled]), a[href]');
+      node?.scrollIntoView({ block: 'center' });
+      if (control) control.focus({ preventScroll: true });
+      if ((!control || document.activeElement !== control) && tries++ < 30) frame = requestAnimationFrame(reach);
+    };
+    frame = requestAnimationFrame(reach);
+    const timer = window.setTimeout(() => {
+      useStudio.setState({ settingsOption: null });
+    }, 2000);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [hit]);
+  return { ref, hit };
+}
+
+function entryOf(id: string): SettingEntry {
+  const entry = settingById(id);
+  if (!entry) throw new Error(`unknown setting ${id}`);
+  return entry;
+}
+
+/**
+ * One option: its name and help text from the settings index, a note if it needs a restart, and
+ * its control beside them (`row`) or below them (`block`).
+ */
+function Setting({ id, layout = 'row', children }: { id: string; layout?: 'row' | 'block'; children: ReactNode }) {
+  const { t } = useTranslation();
+  const entry = entryOf(id);
+  const { ref, hit } = useHighlight([id]);
   return (
-    <div className="flex flex-col gap-2">
-      <h3 className="text-sm font-semibold text-text">{label}</h3>
-      {children}
+    <div
+      ref={ref}
+      id={`setting-${id}`}
+      data-setting={id}
+      data-highlighted={hit || undefined}
+      className={`scroll-m-4 px-4 py-3 transition-colors data-[highlighted]:bg-accent-subtle ${layout === 'row' ? 'flex flex-wrap items-center justify-between gap-x-6 gap-y-2' : 'flex flex-col gap-3'}`}
+    >
+      <div className={`flex min-w-0 flex-col gap-1 ${layout === 'row' ? 'flex-1 basis-text-max' : ''}`}>
+        <span className="flex flex-wrap items-center gap-2">
+          <span id={labelId(id)} className="text-md font-medium text-text">
+            {t(entry.label)}
+          </span>
+          {entry.restart ? (
+            <span className="inline-flex items-center gap-1 rounded-sm bg-surface-sunken px-1 text-xs text-text-muted" data-testid={`setting-${id}-restart`}>
+              <IconRefresh className="size-icon-sm" aria-hidden />
+              {t('settings.restartNote')}
+            </span>
+          ) : null}
+        </span>
+        <p className="max-w-chat-max text-sm text-text-muted">{t(entry.hint)}</p>
+      </div>
+      {layout === 'row' ? <div className="flex shrink-0 items-center">{children}</div> : children}
     </div>
   );
 }
 
-function Choice<T extends string>({ label, value, options, onChange, testId }: { label: string; value: T; options: { id: T; label: string }[]; onChange: (value: T) => void; testId: string }) {
+/** A titled group of options inside a section, as one card. */
+function Group({ id, children }: { id: string; children: ReactNode }) {
+  const { t } = useTranslation();
   return (
-    <RadioGroup aria-label={label} value={value} onChange={(next) => onChange(next as T)} className="flex min-w-menu flex-col gap-1 self-start" data-testid={testId}>
-      {options.map((option) => (
-        <RadioField key={option.id} value={option.id}>
-          <RadioButton className={choiceRowClass}>
-            <RadioMark />
-            <span className="text-sm text-text">{option.label}</span>
+    <section aria-labelledby={`settings-group-${id}`} className="flex flex-col gap-2">
+      <h3 id={`settings-group-${id}`} className="px-1 text-sm font-semibold text-text-muted">
+        {t(`settings.group.${id}`)}
+      </h3>
+      <div className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">{children}</div>
+    </section>
+  );
+}
+
+function SectionHead({ id }: { id: SettingsSection }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col gap-1">
+      <h2 className="font-display text-xl font-semibold text-text">{t(`settings.section.${id}`)}</h2>
+      <p className="text-md text-text-muted">{t(`settings.intro.${id}`)}</p>
+    </div>
+  );
+}
+
+/** A choice of two to four values as a segmented control (radio buttons). */
+function Segmented<T extends string>({
+  id,
+  value,
+  options,
+  onChange,
+  testId,
+}: {
+  id: string;
+  value: T;
+  options: { id: T; label: string; icon?: typeof IconSun }[];
+  onChange: (value: T) => void;
+  testId: string;
+}) {
+  return (
+    <RadioGroup
+      aria-labelledby={labelId(id)}
+      orientation="horizontal"
+      value={value}
+      onChange={(next) => {
+        onChange(next as T);
+      }}
+      className={segmentGroupClass}
+      data-testid={testId}
+    >
+      {options.map(({ id: option, label, icon: Icon }) => (
+        <RadioField key={option} value={option}>
+          <RadioButton className={`${segmentClass('sm')} px-3`}>
+            {Icon ? <Icon className="size-icon-sm" aria-hidden /> : null}
+            {label}
           </RadioButton>
         </RadioField>
       ))}
@@ -52,11 +201,23 @@ function Choice<T extends string>({ label, value, options, onChange, testId }: {
   );
 }
 
+/** An on/off option as a switch, named by its row. */
+function Toggle({ id, isSelected, onChange, testId }: { id: string; isSelected: boolean; onChange: (on: boolean) => void; testId: string }) {
+  return (
+    <SwitchField aria-labelledby={labelId(id)} isSelected={isSelected} onChange={onChange} data-testid={testId}>
+      <SwitchButton className="group inline-flex min-h-control-sm cursor-default items-center outline-none">
+        <SwitchMark />
+      </SwitchButton>
+    </SwitchField>
+  );
+}
+
 /** The project folder with "choose another" and "back to Documents" (B6); also in the first-start setup (B9). */
-export function ProjectsFolderField({ info, onChange }: { info: GeneralSettingsInfo; onChange: (info: GeneralSettingsInfo) => void }) {
+export function ProjectsFolderField({ info, onChange, titled = true }: { info: GeneralSettingsInfo; onChange: (info: GeneralSettingsInfo) => void; titled?: boolean }) {
   const { t } = useTranslation();
   return (
-    <Field label={t('settings.projects.title')}>
+    <div className="flex flex-col gap-2">
+      {titled ? <h3 className="text-sm font-semibold text-text">{t('settings.projects.title')}</h3> : null}
       <div className="flex items-start gap-2 text-sm text-text">
         <IconFolder className="mt-1 size-icon-sm shrink-0 text-text-muted" aria-hidden />
         <span className="break-all" data-testid="settings-projects-folder">
@@ -82,7 +243,7 @@ export function ProjectsFolderField({ info, onChange }: { info: GeneralSettingsI
           </Button>
         </div>
       ) : null}
-    </Field>
+    </div>
   );
 }
 
@@ -114,36 +275,52 @@ function GeneralSection() {
       });
   };
   return (
-    <div className="flex flex-col gap-5">
-      <Field label={t('settings.language.title')}>
-        <Choice
-          label={t('settings.language.title')}
-          value={info.language}
-          options={(['system', 'de', 'en'] as const).map((id) => ({ id, label: t(`settings.language.${id}`) }))}
-          onChange={setLanguage}
-          testId="settings-language"
-        />
-      </Field>
-      <Field label={t('settings.theme.title')}>
-        <Choice
-          label={t('settings.theme.title')}
-          value={theme}
-          options={(['system', 'light', 'dark'] as const).map((id) => ({ id, label: t(`settings.theme.${id}`) }))}
-          onChange={(next) => {
-            setTheme(next);
-            void platform().window.setTheme(next);
-          }}
-          testId="settings-theme"
-        />
-      </Field>
-      <ProjectsFolderField info={info} onChange={setInfo} />
-    </div>
+    <>
+      <Group id="appearance">
+        <Setting id="language">
+          <Segmented
+            id="language"
+            value={info.language}
+            options={(['system', 'de', 'en'] as const).map((id) => ({
+              id,
+              label: t(`settings.language.${id}`),
+            }))}
+            onChange={setLanguage}
+            testId="settings-language"
+          />
+        </Setting>
+        <Setting id="theme">
+          <Segmented
+            id="theme"
+            value={theme}
+            options={[
+              {
+                id: 'system',
+                label: t('settings.theme.system'),
+                icon: IconDeviceDesktop,
+              },
+              { id: 'light', label: t('settings.theme.light'), icon: IconSun },
+              { id: 'dark', label: t('settings.theme.dark'), icon: IconMoon },
+            ]}
+            onChange={(next: Theme) => {
+              setTheme(next);
+              void platform().window.setTheme(next);
+            }}
+            testId="settings-theme"
+          />
+        </Setting>
+      </Group>
+      <Group id="files">
+        <Setting id="projectsFolder" layout="block">
+          <ProjectsFolderField info={info} onChange={setInfo} titled={false} />
+        </Setting>
+      </Group>
+    </>
   );
 }
 
 /** Research on the web (B7): Claude Code's WebSearch and WebFetch, ChatGPT's web search. */
-function ResearchSwitch() {
-  const { t } = useTranslation();
+function ResearchToggle() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   useEffect(() => {
     let live = true;
@@ -158,22 +335,65 @@ function ResearchSwitch() {
   }, []);
   if (allowed === null) return null;
   return (
-    <div className="flex flex-col gap-1">
-      <CheckboxField
-        isSelected={allowed}
-        onChange={(allow) => {
-          setAllowed(allow);
-          void platform().agent.setResearch(allow).then(setAllowed);
-        }}
-        data-testid="research"
-      >
-        <CheckboxButton className={choiceInlineClass}>
-          <CheckMark />
-          {t('settings.research.label')}
-        </CheckboxButton>
-      </CheckboxField>
-      <p className="text-xs text-text-subtle">{t('settings.research.hint')}</p>
-    </div>
+    <Toggle
+      id="research"
+      isSelected={allowed}
+      onChange={(allow) => {
+        setAllowed(allow);
+        void platform().agent.setResearch(allow).then(setAllowed);
+      }}
+      testId="research"
+    />
+  );
+}
+
+/**
+ * Designing without support and the design rule groups (2026-11-07): kept with the print settings,
+ * which the assistant reads. One copy for all rows, so no switch saves over another with a stale one.
+ */
+function PrintRuleSettings() {
+  const [settings, setSettings] = useState<PrintSettings | null>(null);
+  useEffect(() => {
+    let live = true;
+    void platform()
+      .print.settings()
+      .then((loaded) => {
+        if (live) setSettings(loaded);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!settings) return null;
+  const save = (next: PrintSettings) => {
+    setSettings(next);
+    void platform().print.saveSettings(next).then(setSettings);
+  };
+  return (
+    <>
+      <Setting id="supportFree">
+        <Toggle
+          id="supportFree"
+          isSelected={settings.supportFree}
+          onChange={(supportFree) => {
+            save({ ...settings, supportFree });
+          }}
+          testId="support-free"
+        />
+      </Setting>
+      {DESIGN_RULES.map((rule) => (
+        <Setting key={rule} id={`design.${rule}`}>
+          <Toggle
+            id={`design.${rule}`}
+            isSelected={settings.design[rule]}
+            onChange={(on) => {
+              save({ ...settings, design: { ...settings.design, [rule]: on } });
+            }}
+            testId={`design-${rule}`}
+          />
+        </Setting>
+      ))}
+    </>
   );
 }
 
@@ -196,30 +416,27 @@ function UpdatesBlock() {
   if (!state) return null;
   const api = platform().updates;
   return (
-    <div className="flex flex-col gap-2" data-testid="updates" data-state={state.state}>
-      <h3 className="text-sm font-semibold text-text">{t('updates.title')}</h3>
-      <p className="text-sm text-text-muted" role="status">
+    <div className="flex flex-wrap items-center gap-3" data-testid="updates" data-state={state.state}>
+      <p className="flex-1 text-sm text-text tabular-nums" role="status">
         {state.state === 'available' || state.state === 'ready' || state.state === 'current'
           ? t(`updates.state.${state.state}`, { version: state.version })
           : state.state === 'downloading'
             ? t('updates.state.downloading', { percent: state.percent })
             : t(`updates.state.${state.state}`)}
       </p>
-      <div className="flex flex-wrap gap-2">
-        {state.state === 'available' ? (
-          <Button variant="primary" onPress={() => void api.download()} data-testid="updates-download">
-            {t('updates.download')}
-          </Button>
-        ) : state.state === 'ready' ? (
-          <Button variant="primary" onPress={() => void api.install()} data-testid="updates-install">
-            {t('updates.install')}
-          </Button>
-        ) : state.state !== 'unavailable' ? (
-          <Button isDisabled={state.state === 'checking' || state.state === 'downloading'} onPress={() => void api.check().then(setState)} data-testid="updates-check">
-            {t('updates.check')}
-          </Button>
-        ) : null}
-      </div>
+      {state.state === 'available' ? (
+        <Button variant="primary" onPress={() => void api.download()} data-testid="updates-download">
+          {t('updates.download')}
+        </Button>
+      ) : state.state === 'ready' ? (
+        <Button variant="primary" onPress={() => void api.install()} data-testid="updates-install">
+          {t('updates.install')}
+        </Button>
+      ) : state.state !== 'unavailable' ? (
+        <Button isDisabled={state.state === 'checking' || state.state === 'downloading'} onPress={() => void api.check().then(setState)} data-testid="updates-check">
+          {t('updates.check')}
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -238,118 +455,262 @@ function AboutSection() {
       live = false;
     };
   }, []);
-  const link = `inline-flex items-center gap-2 self-start text-sm ${linkClass}`;
+  const link = `inline-flex items-center gap-2 text-sm ${linkClass}`;
   return (
-    <div className="flex flex-col gap-4 text-sm text-text" data-testid="settings-about-panel">
-      <div className="flex flex-col gap-1">
-        <span className="text-lg font-semibold">{app?.name ?? 'PartBuddy'}</span>
-        <span className="text-text-muted tabular-nums" data-testid="settings-version">
+    <div className="flex flex-col gap-5" data-testid="settings-about-panel">
+      <div className="flex flex-col gap-1 text-text">
+        <span className="font-display text-xl font-semibold">{app?.name ?? 'PartBuddy'}</span>
+        <span className="text-md text-text-muted tabular-nums" data-testid="settings-version">
           {t('settings.about.version', { version: app?.version ?? '…' })}
         </span>
       </div>
-      <p className="max-w-text-max text-text-muted">{t('settings.about.licence')}</p>
-      <UpdatesBlock />
-      <div className="flex flex-col items-start gap-1">
-        <Button
-          onPress={() => {
-            void platform().settings.revealLog();
-          }}
-          data-testid="settings-reveal-log"
-        >
-          <IconFileText className="size-icon" aria-hidden />
-          {t('settings.about.revealLog')}
-        </Button>
-        <span className="max-w-text-max text-xs text-text-muted">{t('settings.about.revealLogHint')}</span>
-      </div>
-      <div className="flex flex-col gap-2">
-        <a href={DONATE} target="_blank" rel="noreferrer" className={link} data-testid="settings-sponsor">
-          <IconHeart className="size-icon-sm" aria-hidden />
-          {t('settings.about.sponsor')}
-        </a>
-        <a href={SOURCE} target="_blank" rel="noreferrer" className={link}>
-          <IconBrandGithub className="size-icon-sm" aria-hidden />
-          {t('settings.about.source')}
-        </a>
-        <a href={LICENCE} target="_blank" rel="noreferrer" className={link}>
-          {t('settings.about.licenceLink')}
-        </a>
-      </div>
+      <Group id="app">
+        <Setting id="updates" layout="block">
+          <UpdatesBlock />
+        </Setting>
+        <Setting id="licence" layout="block">
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            <a href={DONATE} target="_blank" rel="noreferrer" className={link} data-testid="settings-sponsor">
+              <IconHeart className="size-icon-sm" aria-hidden />
+              {t('settings.about.sponsor')}
+            </a>
+            <a href={SOURCE} target="_blank" rel="noreferrer" className={link}>
+              <IconBrandGithub className="size-icon-sm" aria-hidden />
+              {t('settings.about.source')}
+            </a>
+            <a href={LICENCE} target="_blank" rel="noreferrer" className={link}>
+              {t('settings.about.licenceLink')}
+            </a>
+          </div>
+        </Setting>
+      </Group>
+      <Group id="help">
+        <Setting id="log">
+          <Button
+            onPress={() => {
+              void platform().settings.revealLog();
+            }}
+            data-testid="settings-reveal-log"
+          >
+            <IconFileText className="size-icon" aria-hidden />
+            {t('settings.about.revealLogButton')}
+          </Button>
+        </Setting>
+      </Group>
     </div>
   );
 }
 
+/** The print profiles keep their own tabs; a link to printers or materials opens the right one. */
+function PrintSection({ close }: { close: () => void }) {
+  const { ref, hit } = useHighlight(['printers', 'materials']);
+  return (
+    <div ref={ref} data-highlighted={hit || undefined} className="flex flex-col gap-4 rounded-lg transition-colors data-[highlighted]:bg-accent-subtle">
+      <PrintProfilesEditor close={close} />
+    </div>
+  );
+}
+
+/** Search results across every section; choosing one opens its section at the option. */
+function SearchResults({ results, query, open, listRef }: { results: SettingEntry[]; query: string; open: (entry: SettingEntry) => void; listRef: RefObject<HTMLDivElement | null> }) {
+  const { t } = useTranslation();
+  if (results.length === 0) {
+    return (
+      <p className="p-6 text-md text-text-muted" role="status" data-testid="settings-search-empty">
+        {t('settings.search.empty', { query })}
+      </p>
+    );
+  }
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-6 py-5">
+      <p className="text-sm text-text-muted" role="status">
+        {t('settings.search.count', { count: results.length })}
+      </p>
+      <ListBox
+        ref={listRef}
+        aria-label={t('settings.search.results')}
+        items={results}
+        onAction={(key) => {
+          const entry = results.find((candidate) => candidate.id === key);
+          if (entry) open(entry);
+        }}
+        className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface outline-none"
+        data-testid="settings-search-results"
+      >
+        {(entry) => (
+          <ListBoxItem
+            id={entry.id}
+            textValue={t(entry.label)}
+            className="flex cursor-default flex-col gap-1 px-4 py-3 outline-none transition-colors hover:bg-surface-hover pressed:bg-surface-pressed focused:bg-surface-hover focus-visible:focus-ring-inset"
+            data-setting={entry.id}
+          >
+            <span className="text-md font-medium text-text">{t(entry.label)}</span>
+            <span className="text-xs text-text-subtle">
+              {t(`settings.section.${entry.section}`)} › {t(`settings.group.${entry.group}`)}
+            </span>
+            <span className="line-clamp-2 text-sm text-text-muted">{t(entry.hint)}</span>
+          </ListBoxItem>
+        )}
+      </ListBox>
+    </div>
+  );
+}
+
+const panelClass = 'flex min-w-0 flex-1 flex-col gap-5 overflow-y-auto px-6 py-5 outline-none';
+
 /**
- * The settings (plan step B6), replacing the gear menu: General (language, theme, project folder),
- * SolidCraft (the program), Assistant (route, model and effort, designing without support),
- * Printer and material (the profiles), About (version, licence, Ko-fi).
+ * The settings (plan step B6; reworked 2026-11-07): a search over every option, sections on the
+ * left with grouped options, each with a help text. Ctrl+, opens them, Esc closes them, the arrow
+ * keys move through the sections. Any place of the app opens an option directly with
+ * `setSettingsSection(section, optionId)`.
  */
 export function SettingsDialog() {
   const { t } = useTranslation();
   const section = useStudio((s) => s.settingsSection);
+  const option = useStudio((s) => s.settingsOption);
   const setSection = useStudio((s) => s.setSettingsSection);
+  const setProfilesTab = useStudio((s) => s.setProfilesTab);
+  const [query, setQuery] = useState('');
+  const listRef = useRef<HTMLDivElement>(null);
+  const results = useMemo(() => searchSettings(query, (key) => t(key)), [query, t]);
   const close = () => {
+    setQuery('');
     setSection(null);
   };
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key !== ',') return;
+      event.preventDefault();
+      if (useStudio.getState().settingsSection === null) setSection('general');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [setSection]);
+
+  useEffect(() => {
+    if (option === 'printers') setProfilesTab('printer');
+    if (option === 'materials') setProfilesTab('material');
+  }, [option, setProfilesTab]);
+
+  const open = (entry: SettingEntry) => {
+    setQuery('');
+    setSection(entry.section, entry.id);
+  };
+  const searching = query.trim() !== '';
+
   return (
     <ModalOverlay
       isOpen={section !== null}
-      onOpenChange={(open) => {
-        if (!open) close();
+      onOpenChange={(isOpen) => {
+        if (!isOpen) close();
       }}
       isDismissable
       className={overlayClass}
     >
-      <Modal className={modalClass('xl')}>
-        <Dialog className="flex max-h-dialog-max flex-col outline-none" data-testid="settings-dialog">
-          <div className="flex items-center gap-2 border-b border-border py-3 pr-3 pl-5">
-            <Heading slot="title" className={`flex-1 ${dialogTitleClass}`}>
+      <Modal className={modalClass('settings')}>
+        <Dialog className="flex h-dialog-settings-height max-h-dialog-max flex-col outline-none" data-testid="settings-dialog">
+          <div className="flex items-center gap-3 border-b border-border py-2 pr-2 pl-5">
+            <Heading slot="title" className={`mr-auto ${dialogTitleClass}`}>
               {t('settings.title')}
             </Heading>
+            <SearchField
+              aria-label={t('settings.search.label')}
+              value={query}
+              onChange={setQuery}
+              onSubmit={() => {
+                const first = results[0];
+                if (first) open(first);
+              }}
+              onKeyDown={(event) => {
+                // Down moves into the results; Esc stays with the field (it clears it first).
+                if (event.key === 'ArrowDown' && searching) listRef.current?.querySelector<HTMLElement>('[role="option"]')?.focus();
+                else if (event.key !== 'Escape' || query === '') event.continuePropagation();
+              }}
+              className="group relative flex w-search items-center"
+            >
+              <IconSearch className="pointer-events-none absolute left-2 size-icon-sm text-text-subtle" aria-hidden />
+              <Input
+                placeholder={t('settings.search.placeholder')}
+                className={`${inputClass('md')} pr-6 pl-6 [&::-webkit-search-cancel-button]:hidden`}
+                data-testid="settings-search"
+              />
+              <AriaButton aria-label={t('settings.search.clear')} className={`absolute right-1 group-empty:hidden ${iconButtonClass('sm')}`}>
+                <IconX className="size-icon-sm" aria-hidden />
+              </AriaButton>
+            </SearchField>
             <DialogClose onPress={close} />
           </div>
-          <Tabs
-            orientation="vertical"
-            selectedKey={section ?? 'general'}
-            onSelectionChange={(key) => {
-              // The profiles open at the printer, as from the material menu.
-              if (key === 'print') useStudio.getState().setProfilesTab('printer');
-              setSection(key as SettingsSection);
-            }}
-            className="flex min-h-0 flex-1"
-          >
-            <TabList aria-label={t('settings.title')} className={`w-settings-nav shrink-0 border-r border-border p-2 ${tabListClass('vertical')}`}>
-              {SECTIONS.map(({ id, icon: Icon, testId }) => (
-                <Tab
-                  key={id}
-                  id={id}
-                  className={tabClass('vertical')}
-                  data-testid={testId}
-                >
-                  <Icon className="size-icon-sm shrink-0" aria-hidden />
-                  {t(`settings.section.${id}`)}
-                </Tab>
-              ))}
-            </TabList>
-            <TabPanel id="general" className="min-w-0 flex-1 overflow-y-auto p-5 outline-none">
-              <GeneralSection />
-            </TabPanel>
-            <TabPanel id="solidcraft" className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-5 outline-none" data-testid="solidcraft-engine">
-              <EnginePanel close={close} />
-            </TabPanel>
-            <TabPanel id="assistant" className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-5 outline-none" data-testid="settings-assistant-panel">
-              <AssistantChoice />
-              <div className="flex flex-col gap-4 border-t border-border pt-3">
-                <ResearchSwitch />
-                <SupportFreeSwitch />
+          <div className="flex min-h-0 flex-1">
+            <Tabs
+              orientation="vertical"
+              selectedKey={section ?? 'general'}
+              onSelectionChange={(key) => {
+                // The profiles open at the printer, as from the material menu.
+                if (key === 'print') setProfilesTab('printer');
+                setQuery('');
+                setSection(key as SettingsSection);
+              }}
+              // The results sit beside the tabs: React Aria renders the children of Tabs once more to collect the tabs.
+              className={searching ? 'flex min-h-0 shrink-0' : 'flex min-h-0 flex-1'}
+            >
+              <TabList aria-label={t('settings.title')} className={`w-settings-nav shrink-0 border-r border-border bg-surface-sunken p-2 ${tabListClass('vertical')}`}>
+                {SECTIONS.map(({ id, icon: Icon, testId }) => (
+                  <Tab
+                    key={id}
+                    id={id}
+                    className={tabClass('vertical')}
+                    data-testid={testId}
+                  >
+                    <Icon className="size-icon shrink-0" aria-hidden />
+                    {t(`settings.section.${id}`)}
+                  </Tab>
+                ))}
+              </TabList>
+              <div className={searching ? 'hidden' : 'flex min-w-0 flex-1'}>
+                <TabPanel id="general" className={panelClass} data-testid="settings-general-panel">
+                  <SectionHead id="general" />
+                  <GeneralSection />
+                </TabPanel>
+                <TabPanel id="solidcraft" className={panelClass} data-testid="solidcraft-engine">
+                  <SectionHead id="solidcraft" />
+                  <Group id="program">
+                    <Setting id="engine" layout="block">
+                      <EnginePanel close={close} />
+                    </Setting>
+                  </Group>
+                </TabPanel>
+                <TabPanel id="assistant" className={panelClass} data-testid="settings-assistant-panel">
+                  <SectionHead id="assistant" />
+                  <Group id="route">
+                    <Setting id="assistant" layout="block">
+                      <div className="flex flex-col gap-3">
+                        <AssistantChoice />
+                      </div>
+                    </Setting>
+                  </Group>
+                  <Group id="work">
+                    <Setting id="research">
+                      <ResearchToggle />
+                    </Setting>
+                  </Group>
+                  <Group id="rules">
+                    <PrintRuleSettings />
+                  </Group>
+                </TabPanel>
+                <TabPanel id="print" className={panelClass} data-testid="print-profiles">
+                  <SectionHead id="print" />
+                  <PrintSection close={close} />
+                </TabPanel>
+                <TabPanel id="about" className={panelClass}>
+                  <AboutSection />
+                </TabPanel>
               </div>
-            </TabPanel>
-            <TabPanel id="print" className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-5 outline-none" data-testid="print-profiles">
-              <PrintProfilesEditor close={close} />
-            </TabPanel>
-            <TabPanel id="about" className="min-w-0 flex-1 overflow-y-auto p-5 outline-none">
-              <AboutSection />
-            </TabPanel>
-          </Tabs>
+            </Tabs>
+            {searching ? <SearchResults results={results} query={query.trim()} open={open} listRef={listRef} /> : null}
+          </div>
         </Dialog>
       </Modal>
     </ModalOverlay>

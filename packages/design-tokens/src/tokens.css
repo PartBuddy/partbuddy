@@ -50,7 +50,10 @@
   --cs-size-dialog-lg: 640px;
   /* Settings (B6): sections on the left, the chosen one beside them. */
   --cs-size-dialog-xl: 880px;
-  --cs-size-settings-nav: 180px;
+  --cs-size-settings-nav: 200px;
+  /* Settings with search and groups (2026-11-07): wide enough for a label column beside its control. */
+  --cs-size-dialog-settings: 1040px;
+  --cs-size-dialog-settings-height: 720px;
   --cs-size-dialog-offset: 12vh;
   /* The tallest a dialog grows before its body scrolls. */
   --cs-size-dialog-max-height: 76vh;

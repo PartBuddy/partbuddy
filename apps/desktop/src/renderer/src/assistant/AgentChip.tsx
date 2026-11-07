@@ -4,6 +4,7 @@ import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover, RadioBut
 
 import type { AgentKind, AgentStatus, ModelChoice } from '../../../shared/contract';
 import { platform } from '../platform';
+import { useStudio } from '../state/store';
 import { StatusDot, badgeClass, dotTone } from '../ui/Feedback';
 import { selectedStatus, useAssistant } from './store';
 import { linkClass, pressable } from '../ui/Button';
@@ -278,14 +279,28 @@ export function AgentChip() {
       </AriaButton>
       <Popover placement="top start" offset={6} className={popoverPanelClass}>
         <Dialog aria-label={t('assistant.title')} className="flex flex-col gap-3 p-3 outline-none" data-testid="agent-menu">
-          <div className="flex items-center justify-between gap-2">
-            <Heading slot="title" className="text-sm font-semibold text-text">
-              {t('assistant.title')}
-            </Heading>
-            <span className={badgeClass()}>{t('assistant.preview')}</span>
-          </div>
-          <AssistantChoice />
-          <p className="text-xs text-text-subtle">{t('assistant.chip.switchNote')}</p>
+          {({ close }) => (
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <Heading slot="title" className="text-sm font-semibold text-text">
+                  {t('assistant.title')}
+                </Heading>
+                <span className={badgeClass()}>{t('assistant.preview')}</span>
+              </div>
+              <AssistantChoice />
+              <p className="text-xs text-text-subtle">{t('assistant.chip.switchNote')}</p>
+              <AriaButton
+                className={`self-start text-xs ${linkClass}`}
+                onPress={() => {
+                  close();
+                  useStudio.getState().setSettingsSection('assistant', 'research');
+                }}
+                data-testid="agent-settings"
+              >
+                {t('assistant.chip.moreSettings')}
+              </AriaButton>
+            </>
+          )}
         </Dialog>
       </Popover>
     </DialogTrigger>

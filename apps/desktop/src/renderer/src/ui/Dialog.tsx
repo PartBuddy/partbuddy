@@ -5,13 +5,13 @@ import { OverlayTriggerStateContext } from 'react-aria-components';
 
 import { IconButton } from './Button';
 
-export type DialogSize = 'sm' | 'lg' | 'xl';
+export type DialogSize = 'sm' | 'lg' | 'xl' | 'settings';
 
 /** The dimmed backdrop: fades in, closes at once (like menus, so a click after Esc never meets a closing layer); the dialog sits a little above the middle (macOS, Fluent 2). */
 export const overlayClass =
   'fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset entering:animate-fade-in';
 
-const widths: Record<DialogSize, string> = { sm: 'w-dialog-sm', lg: 'w-dialog-lg', xl: 'w-dialog-xl' };
+const widths: Record<DialogSize, string> = { sm: 'w-dialog-sm', lg: 'w-dialog-lg', xl: 'w-dialog-xl', settings: 'w-dialog-settings' };
 
 /** The dialog surface: grows in slightly from 97 %. */
 export function modalClass(size: DialogSize = 'sm'): string {

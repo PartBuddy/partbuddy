@@ -19,7 +19,6 @@ export function MaterialMenu() {
   const { t } = useTranslation();
   const print = useStudio((s) => s.print);
   const setSettingsSection = useStudio((s) => s.setSettingsSection);
-  const setProfilesTab = useStudio((s) => s.setProfilesTab);
   const setNotice = useStudio((s) => s.setNotice);
   const [materials, setMaterials] = useState<MaterialProfile[]>([]);
   const [open, setOpen] = useState(false);
@@ -61,8 +60,7 @@ export function MaterialMenu() {
           className={menuClass}
           onAction={(key) => {
             if (key !== 'edit') return;
-            setProfilesTab('printer');
-            setSettingsSection('print');
+            setSettingsSection('print', 'printers');
           }}
         >
           <MenuSection
