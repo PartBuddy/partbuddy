@@ -1057,5 +1057,34 @@
       "snapFit": "A flexible arm with a catch, standing out of the face. Print it lying down so the layers run along the arm: standing upright it breaks along a layer. The other part needs an opening as deep as the catch.",
       "logo": "An SVG file centred on the point, as wide as given. Only filled areas are built: turn text and lines into paths first (in Inkscape: Path › Object to Path, Stroke to Path)."
     }
+  },
+  "assembly": {
+    "title": "Assembly",
+    "play": "Play the assembly",
+    "pause": "Pause",
+    "previous": "Step back",
+    "next": "Step forward",
+    "timeline": "Assembly timeline",
+    "steps": "Assembly steps",
+    "stepOf": "Step {step} of {steps}",
+    "join": "{part} onto {target}",
+    "base": "{part} as the base",
+    "fromAssistant": "Order set by the assistant",
+    "suggested": "Order proposed from the geometry: contact, bottom up, fasteners last"
+  },
+  "plate": {
+    "title": "Print plate",
+    "switch": "Show assembled or on the print plate",
+    "assembled": "Assembled",
+    "plate": "Plate",
+    "of": "Plate {plate} of {plates}",
+    "previous": "Previous plate",
+    "next": "Next plate",
+    "computing": "Laying out the plate",
+    "failed": "Layout failed",
+    "volume": "{x} × {y} × {z} mm",
+    "noPrinter": "No printer chosen",
+    "tooLarge": "{part} is larger than the bed",
+    "tooTall": "{part} is taller than the build height"
   }
 }

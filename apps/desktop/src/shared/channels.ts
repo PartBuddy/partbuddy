@@ -82,6 +82,7 @@ export const invokeChannels = {
   sketchList: 'sketch:list',
   sketchLoad: 'sketch:load',
   assemblyGet: 'assembly:get',
+  designPrintFaces: 'design:print-faces',
   chatSave: 'chat:save',
   notesCurrent: 'notes:current',
   notesAdd: 'notes:add',

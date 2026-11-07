@@ -142,13 +142,22 @@ test('viewport before/after pictures and measures', async () => {
       await shoot(page, `${template.id}-2-pick`);
       await page.keyboard.press('Escape');
       // Extra views a later round adds (plate, assembly); missing ones are skipped.
-      for (const [testId, name] of [['view-plate', '3-plate'], ['assembly', '4-assembly']] as const) {
-        const button = page.getByTestId(testId);
-        if ((await button.count()) === 0) continue;
-        await button.click();
-        await page.waitForTimeout(2500);
-        await shoot(page, `${template.id}-${name}`);
-        await button.click();
+      if ((await page.getByTestId('view-plate').count()) > 0) {
+        await page.getByTestId('view-plate').click();
+        await expect(page.getByTestId('plate-label')).toContainText(/Plate 1 of/, { timeout: 30_000 });
+        await page.waitForTimeout(1500);
+        await shoot(page, `${template.id}-3-plate`);
+        await page.getByTestId('view-assembled').click();
+        await page.waitForTimeout(1000);
+        await page.getByTestId('explode').click();
+        await page.waitForTimeout(1500);
+        await shoot(page, `${template.id}-4-exploded`);
+        await page.getByTestId('explode').click();
+        await page.getByTestId('assembly').click();
+        await page.waitForTimeout(1200);
+        await page.getByTestId('assembly-play').click();
+        await shoot(page, `${template.id}-5-assembly`);
+        await page.getByTestId('assembly').click();
         await page.waitForTimeout(800);
       }
     } finally {

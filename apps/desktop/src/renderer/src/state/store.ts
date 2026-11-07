@@ -1,6 +1,7 @@
 import type { FindingBox, PrintCheck, ViewerModel } from '@partbuddy/geometry';
 import { create } from 'zustand';
 
+import type { AssemblyPlan } from '../../../shared/assembly';
 import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, NotesState, PartPrint, Structure } from '../../../shared/contract';
 
 /** What goes out: a file format, or a slicer by its id (B8). */
@@ -92,6 +93,20 @@ export interface Section {
   axis: 'x' | 'y' | 'z';
   position: number;
   flip: boolean;
+  /**
+   * A section aligned to a picked flat face (viewport CAD round): the plane through `origin` with
+   * `normal`, moved `position` mm along the normal; the axis is then not used.
+   */
+  face?: { origin: Vec3; normal: Vec3 } | undefined;
+}
+
+/** How several printed parts are shown: assembled as designed, or laid out on the printer's bed. */
+export type ViewMode = 'assembled' | 'plate';
+
+/** The assembly playback: `position` runs from 0 (nothing placed) to the number of steps. */
+export interface Playback {
+  position: number;
+  playing: boolean;
 }
 
 interface StudioState {
@@ -107,6 +122,21 @@ interface StudioState {
   explode: number | null;
   setExplode: (explode: number | null) => void;
   requestView: (view: StandardView) => void;
+  /** Assembled or on the plate; the plate, the exploded view, the playback and a section exclude each other. */
+  viewMode: ViewMode;
+  setViewMode: (mode: ViewMode) => void;
+  /** The plate shown in the plate view (0 first). */
+  plate: number;
+  setPlate: (plate: number) => void;
+  /** The assembly playback, null while closed. */
+  playback: Playback | null;
+  setPlayback: (playback: Playback | null) => void;
+  /** The assembly order the assistant set for the open project (ADR 0026); null: proposed from the geometry. */
+  assembly: AssemblyPlan | null;
+  setAssembly: (plan: AssemblyPlan | null) => void;
+  /** The print face of each body, by face name, as PartBuddy set it (B8); bodies without one lie as designed. */
+  printFaces: Record<string, string>;
+  setPrintFaces: (faces: Record<string, string>) => void;
   connection: ConnectionStatus;
   history: History;
   notice: Notice | null;
@@ -198,11 +228,31 @@ export const useStudio = create<StudioState>()((set) => ({
   },
   section: null,
   setSection: (section) => {
-    set(section ? { section, explode: null } : { section });
+    set(section ? { section, explode: null, viewMode: 'assembled', playback: null } : { section });
   },
   explode: null,
   setExplode: (explode) => {
-    set(explode === null ? { explode } : { explode, section: null });
+    set(explode === null ? { explode } : { explode, section: null, viewMode: 'assembled', playback: null });
+  },
+  viewMode: 'assembled',
+  setViewMode: (viewMode) => {
+    set(viewMode === 'plate' ? { viewMode, plate: 0, section: null, explode: null, playback: null } : { viewMode });
+  },
+  plate: 0,
+  setPlate: (plate) => {
+    set({ plate });
+  },
+  playback: null,
+  setPlayback: (playback) => {
+    set(playback ? { playback, section: null, explode: null, viewMode: 'assembled' } : { playback });
+  },
+  assembly: null,
+  setAssembly: (assembly) => {
+    set({ assembly });
+  },
+  printFaces: {},
+  setPrintFaces: (printFaces) => {
+    set({ printFaces });
   },
   requestView: (view) => {
     set((state) => ({ viewRequest: { view, serial: (state.viewRequest?.serial ?? 0) + 1 } }));

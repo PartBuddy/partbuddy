@@ -13,10 +13,11 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { SKETCH_STYLE } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BackSide, Box3, BufferAttribute, GreaterDepth, LineSegments, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, ShaderMaterial, Sphere, Vector2, Vector3 } from 'three';
+import { BackSide, Box3, BufferAttribute, GreaterDepth, Group, LineSegments, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, ShaderMaterial, Sphere, Vector2, Vector3 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { acceleratedRaycast } from 'three-mesh-bvh';
 
+import type { PlayStep } from '../../../shared/assembly';
 import type { MirroredSketch } from '../../../shared/contract';
 import { samePick, useStudio, type BodyModel, type DisplayMode, type Pick } from '../state/store';
 import { Busy } from '../ui/Feedback';
@@ -38,7 +39,10 @@ import { platform } from '../platform';
 import { selectedStatus, useAssistant } from '../assistant/store';
 import { NotePins } from '../notes/NotePins';
 import { DimensionMarks, useDimensionMarks } from './Dimensions';
-import { explodeOffsets, type Vec3 as ExplodeVec } from './explode';
+import { activeStep, type Vec3 as ExplodeVec } from './explode';
+import { Animator, PlateBed, PlaybackCamera, PlaybackClock, usePlateLayout, usePlaySteps, useProjectViewData, useTargetPoses, type PlateLayout, type Pose } from './motion';
+import { PlateBar } from './PlateBar';
+import { AssemblyPlayer } from './AssemblyPlayer';
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 Mesh.prototype.raycast = acceleratedRaycast;
@@ -103,25 +107,26 @@ function ParameterGhost({ color }: { color: ViewerColors['selection'] }) {
   return ghost ? <Ghost preview={ghost} color={color} /> : null;
 }
 
-const NO_OFFSET: ExplodeVec = [0, 0, 0];
-
 function Body({
   index,
   body,
   colors,
   register,
+  registerGroup,
   mode,
   plane,
-  offset,
+  emphasis,
 }: {
   index: number;
   body: BodyModel;
   colors: ViewerColors;
   register: (index: number, mesh: Mesh | null) => void;
+  /** The group the animator moves between assembled, exploded, played and on the plate. */
+  registerGroup: (index: number, group: Group | null) => void;
   mode: DisplayMode;
   plane: Plane | null;
-  /** Where the exploded view (F7) moves the body; none while assembled. */
-  offset: ExplodeVec;
+  /** The part of the assembly step that plays, or a part that does not fit the bed. */
+  emphasis: 'active' | 'misfit' | null;
 }) {
   const hover = useStudio((s) => s.hover);
   const selections = useStudio((s) => s.selections);
@@ -149,20 +154,27 @@ function Body({
     }
     const hovered = hover?.kind === 'face' && hover.body === index ? hover.face : -1;
     const selected = new Set(selections.filter((pick) => pick.kind === 'face' && pick.body === index).map((pick) => (pick.kind === 'face' ? pick.face : -1)));
+    // A whole part stands out in the playback (the step that plays) and on the plate (does not fit).
+    const whole = emphasis === 'active' ? colors.body.clone().lerp(colors.selection, scene.selectionTint) : emphasis === 'misfit' ? colors.body.clone().lerp(colors.misfit, 0.6) : null;
     for (let v = 0; v < model.vertexFaces.length; v += 1) {
       const face = model.vertexFaces[v] ?? -1;
-      let color = colors.body;
+      let color = whole ?? colors.body;
       if (changed.has(face)) color = stepHighlight ? colors.changed : tint;
       if (face === hovered) color = hoverTint;
       if (selected.has(face)) color = selectedTint;
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
-  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name]);
+  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name, emphasis]);
 
   const clipping = useMemo(() => (plane ? [plane] : []), [plane]);
   return (
-    <group name={body.name} position={offset}>
+    <group
+      name={body.name}
+      ref={(group) => {
+        registerGroup(index, group);
+      }}
+    >
       <mesh
         ref={(mesh) => {
           register(index, mesh);
@@ -209,31 +221,17 @@ function Body({
   );
 }
 
-/** The bodies' boxes and how far the exploded view (F7) moves each; all zero while it is closed. */
-function useExplodeOffsets(bodies: BodyModel[]): ExplodeVec[] {
-  const amount = useStudio((s) => s.explode) ?? 0;
-  const boxes = useMemo(
-    () =>
-      bodies.map((body) => {
-        const box = new Box3().setFromBufferAttribute(body.model.geometry.getAttribute('position') as BufferAttribute);
-        return { min: box.min.toArray(), max: box.max.toArray() };
-      }),
-    [bodies],
-  );
-  return useMemo(() => explodeOffsets(boxes, amount), [boxes, amount]);
-}
-
 /** Explosion lines: dashed, from where each part sits assembled to where it stands now. */
-function ExplosionLines({ bodies, offsets, color }: { bodies: BodyModel[]; offsets: ExplodeVec[]; color: ViewerColors['edge'] }) {
+function ExplosionLines({ bodies, targets, color }: { bodies: BodyModel[]; targets: Map<string, Pose>; color: ViewerColors['edge'] }) {
   const lines = useMemo(
     () =>
       bodies.flatMap((body, i) => {
-        const offset = offsets[i];
+        const offset = targets.get(body.name)?.position;
         if (!offset || Math.hypot(...offset) < 0.01) return [];
         const centre = new Box3().setFromBufferAttribute(body.model.geometry.getAttribute('position') as BufferAttribute).getCenter(new Vector3());
         return [{ key: `${body.name}-${String(i)}`, points: [centre.toArray(), centre.clone().add(new Vector3(...offset)).toArray()] as [ExplodeVec, ExplodeVec] }];
       }),
-    [bodies, offsets],
+    [bodies, targets],
   );
   return (
     <>
@@ -727,7 +725,8 @@ function StandardViews({ bodies, sketches }: { bodies: BodyModel[]; sketches: Mi
       );
       // Nothing selected: fit everything, as Fit does.
       centrePivot(controls, true);
-      if (box) void controls.fitToBox(new Box3(new Vector3(...box.min), new Vector3(...box.max)), true, { paddingTop: 8, paddingBottom: 8, paddingLeft: 8, paddingRight: 8 });
+      // A sphere keeps the direction the user looks from (a box fit turns to the nearest axis).
+      if (box) void controls.fitToSphere(new Box3(new Vector3(...box.min), new Vector3(...box.max)).getBoundingSphere(new Sphere()), true);
       else void controls.fitToSphere(bounds, true);
     } else {
       lookFrom(controls, request.view === 'iso' ? scene.viewDirection : VIEW_DIRECTIONS[request.view], bounds, true);
@@ -900,17 +899,29 @@ function ScenePins({ bodies }: { bodies: BodyModel[] }) {
   return <NotePins bodies={bodies} busy={busy} />;
 }
 
-function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[] }) {
+function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[]; steps: PlayStep[]; layout: PlateLayout }) {
   const { t } = useTranslation();
   const displayMode = useStudio((s) => s.displayMode);
   const plane = useSectionPlane(bodies);
   const colors = useTokenColors();
-  // The exploded view is for looking: picks, notes and dimensions sit on the assembled part.
+  // The exploded view, the playback and the plate are for looking: picks, notes and dimensions sit on the assembled part.
   const exploded = useStudio((s) => s.explode !== null);
-  const offsets = useExplodeOffsets(bodies);
+  const plateOpen = useStudio((s) => s.viewMode === 'plate');
+  const playback = useStudio((s) => s.playback !== null);
+  const moved = exploded || plateOpen || playback;
+  const targets = useTargetPoses(bodies, steps, layout);
+  const bed = useStudio((s) => s.print?.printer.bed ?? null);
+  // Select the step number, not a list: a new list on every read would loop (React #185).
+  const playing = useStudio((s) => (s.playback ? activeStep(s.playback.position, steps.length) : -1));
+  const active = steps[playing]?.bodies ?? [];
+  const misfits = plateOpen ? (layout.result?.misfits.map((entry) => entry.id) ?? []) : [];
   const meshes = useRef<(Mesh | null)[]>([]);
   const register = useCallback((index: number, mesh: Mesh | null) => {
     meshes.current[index] = mesh;
+  }, []);
+  const groups = useRef<(Group | null)[]>([]);
+  const registerGroup = useCallback((index: number, group: Group | null) => {
+    groups.current[index] = group;
   }, []);
   const radius = useMemo(() => Math.max(1, boundsOf(bodies, sketches).radius), [bodies, sketches]);
   const cell = gridStep(radius);
@@ -921,7 +932,7 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
   return (
     <Canvas
       dpr={[1, 2]}
-      shadows="soft"
+      shadows
       // The canvas starts with a camera of its own before ours takes over; with the same field of
       // view, a framing done in between keeps fitting.
       camera={{ fov: scene.fieldOfView, near: 0.5, far: 5000, position: lastView.position.toArray() }}
@@ -942,14 +953,31 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       <SkyLight sky={colors.sky} ground={colors.ground} />
       <directionalLight position={scene.keyLight} intensity={0.85} />
       <ContactLight bodies={bodies} intensity={0.35} />
-      <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.35 : 0.12} />
+      {moved ? null : <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.35 : 0.12} />}
       <directionalLight position={scene.fillLight} intensity={0.3} />
       {bodies.map((body, i) => (
-        <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} offset={offsets[i] ?? NO_OFFSET} />
+        <Body
+          key={`${body.name}-${i}`}
+          index={i}
+          body={body}
+          colors={colors}
+          register={register}
+          registerGroup={registerGroup}
+          mode={displayMode}
+          plane={plane}
+          emphasis={active.includes(body.name) ? 'active' : misfits.includes(body.name) ? 'misfit' : null}
+        />
       ))}
-      {exploded ? (
-        <ExplosionLines bodies={bodies} offsets={offsets} color={colors.edge} />
-      ) : (
+      <Animator bodies={bodies} groups={groups} targets={targets} />
+      {playback ? (
+        <>
+          <PlaybackClock count={steps.length} />
+          <PlaybackCamera steps={steps} bodies={bodies} />
+        </>
+      ) : null}
+      {plateOpen && bed ? <PlateBed bed={bed} colors={colors} /> : null}
+      {exploded ? <ExplosionLines bodies={bodies} targets={targets} color={colors.edge} /> : null}
+      {moved ? null : (
         <>
           <Highlights bodies={bodies} colors={colors} />
           <SelectionGhost color={colors.selection} />
@@ -1004,12 +1032,28 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
   );
 }
 
+const NO_BODIES: BodyModel[] = [];
+
 export function Viewer() {
   const { t } = useTranslation();
   const model = useStudio((s) => s.model);
   const connection = useStudio((s) => s.connection);
   const offline = connection.state !== 'connected';
   useDimensionMarks();
+  useProjectViewData();
+  const bodies = model.status === 'ready' ? model.bodies : NO_BODIES;
+  const { steps, source } = usePlaySteps(bodies);
+  const plateOpen = useStudio((s) => s.viewMode === 'plate' && bodies.length > 1);
+  const bed = useStudio((s) => s.print?.printer.bed ?? null);
+  const layout = usePlateLayout(bodies, plateOpen, bed);
+  const playback = useStudio((s) => s.playback !== null);
+  // Leaving a design of several parts for one of a single part closes what only the first had.
+  useEffect(() => {
+    if (bodies.length > 1) return;
+    const state = useStudio.getState();
+    if (state.viewMode !== 'assembled') state.setViewMode('assembled');
+    if (state.playback) state.setPlayback(null);
+  }, [bodies.length]);
 
   return (
     <main
@@ -1023,9 +1067,9 @@ export function Viewer() {
       {model.status === 'ready' && (model.bodies.length > 0 || model.sketches.length > 0) ? (
         <>
           <div className={`h-full w-full ${offline ? 'opacity-50 grayscale' : ''}`} data-testid="viewport">
-            <Scene documentId={model.documentId} bodies={model.bodies} sketches={model.sketches} />
+            <Scene documentId={model.documentId} bodies={model.bodies} sketches={model.sketches} steps={steps} layout={layout} />
           </div>
-          <SelectionDock bodies={model.bodies} />
+          {plateOpen ? <PlateBar layout={layout} bed={bed} /> : playback ? <AssemblyPlayer steps={steps} source={source} /> : <SelectionDock bodies={model.bodies} />}
         </>
       ) : null}
       {/* One column at the top left: view tools first, then what the view reports; nothing overlaps at any width. */}

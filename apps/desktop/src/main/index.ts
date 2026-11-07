@@ -20,7 +20,7 @@ import type { UpstreamTools } from './agents/gateProxy';
 import { guardNotes } from './agents/noteGuard';
 import { withViewTool } from './agents/viewContext';
 import { withAssemblyTool } from './agents/assemblyTool';
-import { readAssembly, writeAssembly } from './projects/assembly';
+import { keepPrintFace, readAssembly, readPrintFaces, writeAssembly } from './projects/assembly';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
 import { blockPhrase, describeUserAction } from '../shared/stepPhrases';
@@ -959,9 +959,21 @@ if (!app.requestSingleInstanceLock()) {
       log(`opened the design in ${name}`);
       return { name };
     });
-    bridge.handle(invokeChannels.designPrintFace, async ({ body, point }) => {
+    bridge.handle(invokeChannels.designPrintFaces, () => {
+      const folder = assemblyFolder();
+      return folder ? readPrintFaces(folder) : {};
+    });
+    bridge.handle(invokeChannels.designPrintFace, async ({ body, point, face }) => {
       assistantIdle();
       await steps.recordUser(describeUserAction({ kind: 'printFace', cleared: point === null }), () => supervisor.setPrintFace(body, point));
+      const folder = assemblyFolder();
+      if (folder) {
+        try {
+          keepPrintFace(folder, body, point === null ? null : (face ?? null));
+        } catch (error) {
+          log(`print face not kept for the plate view: ${(error as Error).message}`);
+        }
+      }
       log(point ? 'set a print face' : 'cleared a print face');
       return undefined;
     });

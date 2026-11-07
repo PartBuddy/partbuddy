@@ -119,3 +119,10 @@ describe('partbuddy_assembly', () => {
     expect(saved).toHaveLength(1);
   });
 });
+
+describe('the base of the proposal', () => {
+  it('is the largest of the parts standing lowest, not a thin lid laid beside it', () => {
+    const lidBeside: PartBox = { name: 'Lid', min: [100, 0, 0], max: [182, 52, 3] };
+    expect(suggestAssembly([lidBeside, housing], label)?.steps[0]?.part).toBe('Housing');
+  });
+});

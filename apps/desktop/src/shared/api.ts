@@ -169,7 +169,9 @@ export interface PartBuddyApi {
     /** Opens the printable bodies in a slicer, laid on their print face; returns the slicer's name. */
     sendToSlicer(slicer: string): Promise<{ name: string }>;
     /** Marks the flat face at a point as the body's print face, or clears it (null). */
-    setPrintFace(body: string, point: [number, number, number] | null): Promise<void>;
+    setPrintFace(body: string, point: [number, number, number] | null, face?: string): Promise<void>;
+    /** The print faces PartBuddy set in the open project, by body (for the plate view). */
+    printFaces(): Promise<Record<string, string>>;
     /** Builds a function block (F1) on trial for the ghost preview. */
     previewBlock(block: FeatureBlock): Promise<ActionPreviewResult>;
     /** Builds a function block for real; one step of the work log. */

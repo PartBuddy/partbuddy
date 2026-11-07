@@ -359,6 +359,53 @@ test('the view switches display modes and opens a section with its own controls'
   await expect(panel).toHaveCount(0);
 });
 
+test('a print of two parts switches to the plate, explodes along its assembly and plays the assembly', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.bodies = ['CableClip', 'Second clip'];
+  await fake.start();
+  const { page } = launched;
+  await lookAgain(page);
+  await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
+  const shot = (name: string) => page.getByTestId('viewer').screenshot({ path: test.info().outputPath(`${name}.png`) });
+
+  // The plate: both clips laid out on the printer's bed in a worker, with the bed's size.
+  await page.getByTestId('view-plate').click();
+  await expect(page.getByTestId('plate-label')).toHaveText('Plate 1 of 1', { timeout: 20_000 });
+  await expect(page.getByTestId('plate-bed')).toContainText(/\d+ × \d+ × \d+ mm/);
+  await expect(page.getByTestId('bed-width')).toBeVisible();
+  await expect(page.getByTestId('plate-misfits')).toHaveCount(0);
+  await page.waitForTimeout(800);
+  await shot('plate');
+  // Back to assembled: the bar goes, the selection works again.
+  await page.getByTestId('view-assembled').click();
+  await expect(page.getByTestId('plate-bar')).toHaveCount(0);
+
+  // Exploded along the joining directions; closing it glides the parts back.
+  await page.getByTestId('explode').click();
+  await expect(page.getByTestId('explode-panel')).toBeVisible();
+  await page.waitForTimeout(800);
+  await shot('exploded');
+  await page.getByTestId('explode').click();
+
+  // The assembly plays at once, step by step, with the steps named; back and forward land on steps.
+  await page.getByTestId('assembly').click();
+  const panel = page.getByTestId('assembly-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId('assembly-step')).toHaveCount(2);
+  await expect(panel.getByTestId('assembly-source')).toHaveAttribute('data-source', 'suggested');
+  await expect(panel.getByTestId('assembly-play')).toHaveAttribute('data-playing', 'false', { timeout: 15_000 });
+  await expect(panel).toHaveAttribute('data-position', '2.00');
+  await panel.getByTestId('assembly-prev').click();
+  await expect(panel).toHaveAttribute('data-position', '1.00');
+  await expect(panel.getByTestId('assembly-step').first()).toHaveAttribute('data-active', 'true');
+  await shot('assembly');
+  await panel.getByTestId('assembly-next').click();
+  await expect(panel).toHaveAttribute('data-position', '2.00');
+  await page.getByTestId('assembly').click();
+  await expect(panel).toHaveCount(0);
+});
+
 test('the colour theme can be chosen in the settings and is kept', async () => {
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-theme-'));
   const dark = (page: LaunchedApp['page']) =>

@@ -1057,5 +1057,34 @@
       "snapFit": "Ein federnder Arm mit Rastnase, der aus der Fläche ragt. Liegend drucken, damit die Schichten längs des Arms laufen: stehend bricht er an einer Schicht. Das Gegenstück braucht eine Öffnung so tief wie die Nase.",
       "logo": "Eine SVG-Datei mittig am Punkt, so breit wie angegeben. Gebaut werden nur gefüllte Flächen: Text und Linien vorher in Pfade umwandeln (in Inkscape: Pfad › Objekt in Pfad, Kontur in Pfad)."
     }
+  },
+  "assembly": {
+    "title": "Zusammenbau",
+    "play": "Zusammenbau abspielen",
+    "pause": "Pause",
+    "previous": "Schritt zurück",
+    "next": "Schritt vor",
+    "timeline": "Zeitleiste des Zusammenbaus",
+    "steps": "Montageschritte",
+    "stepOf": "Schritt {step} von {steps}",
+    "join": "{part} an {target}",
+    "base": "{part} als Basis",
+    "fromAssistant": "Reihenfolge vom Assistenten festgelegt",
+    "suggested": "Reihenfolge aus der Geometrie vorgeschlagen: Kontakt, von unten nach oben, Verbindungselemente zuletzt"
+  },
+  "plate": {
+    "title": "Druckplatte",
+    "switch": "Zusammengebaut oder auf der Druckplatte zeigen",
+    "assembled": "Zusammengebaut",
+    "plate": "Platte",
+    "of": "Platte {plate} von {plates}",
+    "previous": "Vorige Platte",
+    "next": "Nächste Platte",
+    "computing": "Platte wird belegt",
+    "failed": "Belegung fehlgeschlagen",
+    "volume": "{x} × {y} × {z} mm",
+    "noPrinter": "Kein Drucker gewählt",
+    "tooLarge": "{part} ist größer als das Bett",
+    "tooTall": "{part} ist höher als der Bauraum"
   }
 }

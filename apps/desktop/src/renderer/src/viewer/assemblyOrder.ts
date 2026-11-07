@@ -73,8 +73,9 @@ export function suggestAssembly(parts: readonly PartBox[], label: (part: string,
   const pool = main.length > 0 ? [...main] : [...last];
   const tail = main.length > 0 ? last : [];
 
-  // The base: lowest, then widest.
-  pool.sort((a, b) => a.min[2] - b.min[2] || footprint(b) - footprint(a));
+  // The base: the largest of the parts that stand lowest (a lid laid beside its housing stands as low).
+  const lowest = Math.min(...pool.map((box) => box.min[2]));
+  pool.sort((a, b) => Number(b.min[2] <= lowest + CONTACT) - Number(a.min[2] <= lowest + CONTACT) || volume(b) - volume(a) || footprint(b) - footprint(a));
   const placed: PartBox[] = [];
   const steps: AssemblyStep[] = [];
   const place = (box: PartBox) => {

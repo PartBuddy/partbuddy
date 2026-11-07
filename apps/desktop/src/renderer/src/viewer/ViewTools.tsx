@@ -1,4 +1,4 @@
-import { IconArrowsExchange, IconArrowsSplit2, IconBox, IconBoxMultiple, IconCheck, IconCube, IconFocusCentered, IconMaximize, IconPerspective, IconRulerMeasure, IconSlice } from '@tabler/icons-react';
+import { IconArrowsExchange, IconArrowsSplit2, IconBox, IconBoxMultiple, IconCheck, IconCube, IconFocusCentered, IconLayoutGrid, IconMaximize, IconPerspective, IconRulerMeasure, IconSlice, IconStack2 } from '@tabler/icons-react';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -24,6 +24,9 @@ import { ViewIcon } from '../ui/ViewIcon';
 const tool =
   'inline-flex size-control-md items-center justify-center rounded-md text-xs font-semibold text-text outline-none transition-colors ' +
   'hover:bg-surface-hover pressed:bg-surface-selected selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus';
+
+/** A labelled button of the assembled/plate switch: the tool look, as wide as its label. */
+const segment = tool.replace('size-control-md', 'h-control-md gap-1 px-2');
 
 /** Keys as in Blender's number pad, which many makers know: 1 front, 3 right, 7 top, 0 iso, 5 projection. */
 const VIEW_KEYS: Record<string, StandardView> = { '1': 'front', '3': 'right', '7': 'top', '0': 'iso', f: 'fit' };
@@ -231,6 +234,10 @@ export function ViewTools() {
   const setExplode = useStudio((s) => s.setExplode);
   // The exploded view only means something for a print of several parts.
   const parts = useStudio((s) => (s.model.status === 'ready' ? s.model.bodies.length : 0));
+  const viewMode = useStudio((s) => s.viewMode);
+  const setViewMode = useStudio((s) => s.setViewMode);
+  const playback = useStudio((s) => s.playback !== null);
+  const setPlayback = useStudio((s) => s.setPlayback);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -374,7 +381,48 @@ export function ViewTools() {
           </ToggleButton>
         </Tip>
       ) : null}
+      {parts > 1 ? (
+        <Tip label={t('assembly.title')}>
+          <ToggleButton
+            aria-label={t('assembly.title')}
+            isSelected={playback}
+            onChange={(on) => {
+              // Opens at the start and plays at once; closing glides the parts back together.
+              setPlayback(on ? { position: 0, playing: true } : null);
+            }}
+            className={tool}
+            data-testid="assembly"
+          >
+            <IconStack2 className="size-icon-sm" aria-hidden />
+          </ToggleButton>
+        </Tip>
+      ) : null}
       {explode !== null && parts > 1 ? <ExplodePanel amount={explode} /> : null}
+      {parts > 1 ? (
+        <>
+          <span aria-hidden className="my-1 w-hairline self-stretch bg-border" />
+          <ToggleButtonGroup
+            aria-label={t('plate.switch')}
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={[viewMode]}
+            onSelectionChange={(keys) => {
+              const [key] = [...keys];
+              if (key === 'assembled' || key === 'plate') setViewMode(key);
+            }}
+            className="flex gap-1"
+          >
+            <ToggleButton id="assembled" className={segment} data-testid="view-assembled">
+              <IconBox className="size-icon-sm" aria-hidden />
+              {t('plate.assembled')}
+            </ToggleButton>
+            <ToggleButton id="plate" className={segment} data-testid="view-plate">
+              <IconLayoutGrid className="size-icon-sm" aria-hidden />
+              {t('plate.plate')}
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </>
+      ) : null}
     </div>
   );
 }
