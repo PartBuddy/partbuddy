@@ -164,7 +164,7 @@ files open as before, nothing existing is rewritten, new files are written throu
 ### P3 Project package (G4)
 
 - **Goal.** "Export project …" in the project and tile menus writes `<name>.partbuddy` (a zip of
-  the folder without `exports/`, optionally without `versions/`); import takes it through the open
+  the folder without `exports/`; versions always travel with it, they are the project's history); import takes it through the open
   dialog, drop and the start page, into a new project folder.
 - **Files.** New `main/projects/projectPackage.ts` with `fflate` (MIT, already in the dependency
   tree through three; added at an exact version with a `docs/building-blocks.md` entry), contract,
@@ -182,8 +182,8 @@ files open as before, nothing existing is rewritten, new files are written throu
 
 - **Goal.** On every version: "Keep as milestone" (an automatic one becomes a named one, no longer
   pruned), rename, "Open as new project" (that version's design with the print settings and
-  the parts list, without chat and versions, in a new project `<name> <label>`). The list gets a filter "Milestones only", day headings, and the compare
-  shows the version's picture beside the current one.
+  the parts list, without chat and versions, in a new project `<name> <label>`). The list gets a filter "Milestones only" and day headings. (Done without the two
+  pictures side by side: the open design is in the viewport behind the dialog.)
 - **Files.** `versionStore.ts` (`relabel`, `promote`), `projectStore.ts` (`fromVersion`), contract,
   channels, api, preload, `main/index.ts`, `VersionsDialog.tsx`, i18n.
 - **Data model.** `version.json` is rewritten in place (atomic) with reason `manual` and the new
