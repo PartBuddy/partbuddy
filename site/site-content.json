@@ -1,79 +1,62 @@
 {
   "$schema": "./site-content.schema.json",
-  "proof": [
-    "Concepts, questions and a plan before it builds",
-    "ISO screws, nuts, inserts and material fits built in",
-    "Checked for your printer after every change",
-    "Your Claude or ChatGPT plan, or a local model"
-  ],
   "worksWith": [
     "Claude Code",
     "ChatGPT",
     "Ollama",
     "LM Studio",
-    "llama.cpp",
+    "vLLM",
     "Bambu Studio",
-    "OrcaSlicer",
-    "STEP",
-    "3MF",
-    "STL"
+    "OrcaSlicer"
   ],
-  "steps": [
+  "chapters": [
     {
-      "title": "Describe it",
-      "text": "Say what the part is for, in words, with a sketch or a photo. Add the real sizes of the things it has to fit."
-    },
-    {
-      "title": "Decide together",
-      "text": "The assistant offers concepts, asks what it cannot know and shows a plan. Nothing is built until you press Go."
-    },
-    {
-      "title": "Check and print",
-      "text": "It builds editable CAD while you watch, checks the part against your printer and material, and opens it in your slicer."
-    }
-  ],
-  "tour": [
-    {
-      "tab": "Talk",
-      "title": "Work it out in conversation",
-      "text": "Say what the part is for. The assistant offers two or three concepts based on proven designs, asks about loads, cables and the real sizes of your things, and looks up data sheets with sources.",
-      "shot": "conversation",
-      "alt": "A conversation: fit this housing to the circuit board, answered questions, research on M3 screws per ISO 4762 and ISO 273, and the screw seated as a standard part"
-    },
-    {
-      "tab": "Decide",
-      "title": "It asks before it guesses",
-      "text": "Questions come as cards with the recommended answer preselected and its reason. Before it builds, it checks the function and shows a plan. Nothing changes until you press Go.",
+      "kicker": "Ask",
+      "title": "It asks before it guesses.",
+      "text": "Say what the part is for, in words, with a sketch or a photo. PartBuddy offers concepts based on proven designs, asks about loads, cables and the real sizes of your things, and shows a plan. Nothing is built until you press Go.",
+      "points": [
+        "Questions as cards, with the recommended answer preselected and its reason",
+        "Research with sources: data sheets, screw tables, standards",
+        "Draw the sizes on squared paper or start from a photo"
+      ],
       "shot": "clarify",
       "alt": "A housing in the 3D view next to questions from the assistant with recommended options"
     },
     {
-      "tab": "Build",
-      "title": "Watch every step in real CAD",
-      "text": "SolidCraft builds editable geometry while you watch. Click a face, pin a note to it and ask for the change in words, or change a size right in the parameter table of the structure tree. Every step, yours or the assistant’s, can be taken back.",
+      "kicker": "Build",
+      "title": "Real CAD, built while you watch.",
+      "text": "SolidCraft builds editable solid geometry step by step in the 3D view. Click a face, pin a note to it and ask for the change in words, or change a size right in the parameter table. Every step, yours or the assistant’s, can be taken back.",
+      "points": [
+        "Threads, countersinks, snap fits, inserts and nut traps on the face you pick",
+        "Visible edges rounded, bed edges chamfered and sizes snapped to your nozzle, without being asked",
+        "The sizes you name stay exact, and every refinement can be turned off"
+      ],
       "shot": "view",
       "alt": "A cable clip with a selected face and its name, area and actions"
     },
     {
-      "tab": "Details",
-      "title": "Add the details that make it print",
-      "text": "Threads, countersinks, snap fits, screw bosses, lids with a lip, seats for heat-set inserts and nut traps, sized to the standards below and placed on the face you pick. Without being asked, the assistant rounds visible edges, chamfers the ones on the bed, tries print-in-place hinges first and snaps the sizes it picks to your nozzle and layer height. The sizes you name stay exact, and every refinement can be turned off.",
-      "shot": "blocks",
-      "alt": "The function block panel adding a heat-set insert seat for M3"
-    },
-    {
-      "tab": "Check",
-      "title": "Know it will print before you slice",
-      "text": "After every change, PartBuddy checks the part against your printer and material and points at each finding. The assistant sees the result too.",
+      "kicker": "Check",
+      "title": "Checked against your printer. After every change.",
+      "text": "After every change, PartBuddy checks the part against your printer and material and points at each finding. The assistant sees the result too, and the standards behind the numbers are built in.",
+      "points": [
+        "Build volume, wall thickness, overhangs and bed contact",
+        "Fits per material, so a lid slides and a pin holds",
+        "ISO screws, nuts and heat-set inserts, sized for printing"
+      ],
       "shot": "printready",
       "alt": "The ready-to-print check reporting that lid and case are too tight"
     },
     {
-      "tab": "Print",
-      "title": "Straight to your slicer",
-      "text": "Open the part in Bambu Studio or OrcaSlicer with one click, or export 3MF, STEP and STL. Supports and orientation stay with your slicer.",
-      "shot": "export",
-      "alt": "The export menu with 3MF, STL, STEP, Sharing package and Open in Bambu Studio"
+      "kicker": "Print",
+      "title": "Straight to the plate.",
+      "text": "Every part on its print face, nested on the bed of your printer. Open it in Bambu Studio or OrcaSlicer with one click, or export 3MF, STEP and STL. Supports and orientation stay with your slicer.",
+      "points": [
+        "One click to Bambu Studio or OrcaSlicer",
+        "3MF and STL for printing, STEP for other CAD programs",
+        "Parts that do not fit the bed are marked"
+      ],
+      "shot": "plate",
+      "alt": "An enclosure, its lid and a board laid out on a print bed with its size"
     }
   ],
   "standards": {
@@ -181,22 +164,10 @@
       "size": "wide"
     },
     {
-      "title": "Laid out on the plate",
-      "text": "Every part on its print face, nested on the bed of your printer, with parts that do not fit marked.",
-      "shot": "plate",
-      "alt": "An enclosure, its lid and a board laid out on a print bed with its size"
-    },
-    {
       "title": "Watch it go together",
       "text": "The assembly plays step by step in the right order, sub-assemblies first, set by the assistant or proposed from the geometry.",
       "shot": "assembly",
       "alt": "The assembly of an enclosure halfway, with the named steps beside it"
-    },
-    {
-      "title": "Versions you can compare",
-      "text": "Saved before every request. Keep any of them as a milestone, compare it with now or open it as a project of its own.",
-      "shot": "versions",
-      "alt": "The versions dialog comparing a named version with the current design"
     },
     {
       "title": "Sketch the sizes",
@@ -211,8 +182,14 @@
       "alt": "The assistant asking for the length of a box shown in a photo"
     },
     {
+      "title": "Versions you can compare",
+      "text": "Saved before every request. Keep any of them as a milestone, compare it with now or open it as a project of its own.",
+      "shot": "versions",
+      "alt": "The versions dialog comparing a named version with the current design"
+    },
+    {
       "title": "Pick model and effort",
-      "text": "Per chat. With a Claude plan you see how much you have used.",
+      "text": "Per chat. With a Claude plan you see how much of it you have used.",
       "shot": "model",
       "alt": "The assistant menu with Claude Code, ChatGPT, local models, model and effort"
     },
@@ -222,12 +199,6 @@
       "shot": "import",
       "alt": "A housing built around an imported circuit board",
       "size": "wide"
-    },
-    {
-      "title": "Projects and templates",
-      "text": "Every design is a folder you can see: sort, pin and tag it, restore it from the bin, take it along as one file, and tick off its parts as they come off the printer. Start from a box, clip or holder.",
-      "shot": "start",
-      "alt": "The start page with templates and project tiles"
     }
   ],
   "privacy": [

@@ -5,7 +5,7 @@ facts, releases and pictures come from this repository; nothing is kept twice.
 
 | What | Source here | Arrives there |
 |---|---|---|
-| Features, tour, standards, models, roadmap | `site/site-content.json` (schema: `site/site-content.schema.json`) | `src/data/site-content.json`, via pull request |
+| Works-with list, homepage chapters, workspace tiles, standards, models, roadmap | `site/site-content.json` (schema: `site/site-content.schema.json`) | `src/data/site-content.json`, via pull request |
 | Version, date, changelog, download link | GitHub releases (release-please) | read at build time; snapshot `src/data/releases.json` via pull request |
 | Screenshots | `pnpm site:shots` (`apps/desktop/e2e/site-shots.spec.ts`) | `src/assets/shots/`, via pull request after a release |
 | Hero film | produced by hand; `pnpm site:film` is called once it exists | `src/assets/shots/hero.mp4` |

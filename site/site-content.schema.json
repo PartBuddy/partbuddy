@@ -5,7 +5,7 @@
   "description": "Product facts for partbuddy.github.io. Only what the app does today. Synced to the website repository by .github/workflows/site-sync.yml.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["proof", "worksWith", "steps", "tour", "standards", "bento", "privacy", "models", "roadmap"],
+  "required": ["worksWith", "chapters", "standards", "bento", "privacy", "models", "roadmap"],
   "$defs": {
     "text": { "type": "string", "minLength": 1 },
     "list": { "type": "array", "items": { "$ref": "#/$defs/text" } },
@@ -20,20 +20,21 @@
   },
   "properties": {
     "$schema": { "type": "string" },
-    "proof": { "$ref": "#/$defs/list", "description": "Short proof points next to the hero button" },
-    "worksWith": { "$ref": "#/$defs/list", "description": "Names only, no third-party logos" },
-    "steps": { "type": "array", "items": { "$ref": "#/$defs/titled" }, "minItems": 3, "maxItems": 3, "description": "How it works, in three steps" },
-    "tour": {
+    "worksWith": { "$ref": "#/$defs/list", "description": "Tools PartBuddy works with. The website shows a logo for the names it knows (src/components/Brand.astro), others as text" },
+    "chapters": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 4,
+      "maxItems": 4,
+      "description": "The four chapters of the homepage, in order: ask, build, check, print. The check chapter gets the standards below",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["tab", "title", "text", "shot", "alt"],
+        "required": ["kicker", "title", "text", "points", "shot", "alt"],
         "properties": {
-          "tab": { "$ref": "#/$defs/text" },
+          "kicker": { "$ref": "#/$defs/text" },
           "title": { "$ref": "#/$defs/text" },
           "text": { "$ref": "#/$defs/text" },
+          "points": { "$ref": "#/$defs/list", "minItems": 2, "maxItems": 4 },
           "shot": { "$ref": "#/$defs/shot" },
           "alt": { "$ref": "#/$defs/text" }
         }
