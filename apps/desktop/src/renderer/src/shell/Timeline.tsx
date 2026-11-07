@@ -108,7 +108,7 @@ function RollbackBar({
       aria-valuetext={shown === count ? t('timeline.handleEnd') : t('timeline.handleAfter', { name: names[shown - 1] ?? '' })}
       aria-disabled={busy}
       title={t('timeline.handleHint')}
-      className={`group absolute top-1/2 flex h-control-sm w-3 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-sm outline-none focus-visible:focus-ring ${busy ? 'opacity-50' : ''}`}
+      className={`group absolute top-1/2 flex h-control-sm w-3 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-sm outline-none focus-visible:focus-ring ${busy ? 'opacity-disabled' : ''}`}
       data-testid="timeline-handle"
       data-position={shown}
       onPointerDown={(event) => {

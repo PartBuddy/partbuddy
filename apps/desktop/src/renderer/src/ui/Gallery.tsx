@@ -10,11 +10,16 @@ import {
   CheckboxField,
   Input,
   Label,
+  ListBox,
+  ListBoxItem,
   NumberField,
   RadioButton,
   RadioField,
   RadioGroup,
   Slider,
+  Tab,
+  TabList,
+  Tabs,
   SwitchButton,
   SwitchField,
   TextArea,
@@ -29,6 +34,7 @@ import { CheckMark, chipToggleClass, choiceInlineClass, choiceRowClass, RadioMar
 import { menuClass, menuHeaderClass, menuItemClass, menuItemTwoLineClass, menuSeparatorClass, popoverClass } from './Overlay';
 import { dialogTitleClass, modalClass } from './Dialog';
 import { badgeClass, Busy, EmptyState, StatusDot, type Tone } from './Feedback';
+import { listRowClass, tabClass, tabListClass } from './Navigation';
 import { FieldMessage, fieldLabelClass, inputClass, textAreaClass, UnitInput } from './Field';
 
 /**
@@ -531,6 +537,45 @@ function DialogsAndFeedback() {
   );
 }
 
+function Navigation() {
+  const tabs = (orientation: 'horizontal' | 'vertical', forced?: 'hover' | 'focus') => (
+    <Force state={forced ?? 'hover'} target={forced ? '[role=tab] ~ [role=tab]' : 'none'}>
+      <Tabs orientation={orientation} defaultSelectedKey="printer" className={orientation === 'vertical' ? 'w-settings-nav' : ''}>
+        <TabList aria-label="Profile" className={tabListClass(orientation)}>
+          <Tab id="printer" className={tabClass(orientation)}>
+            Drucker
+          </Tab>
+          <Tab id="material" className={tabClass(orientation)}>
+            Material
+          </Tab>
+          <Tab id="off" isDisabled className={tabClass(orientation)}>
+            Slicer
+          </Tab>
+        </TabList>
+      </Tabs>
+    </Force>
+  );
+  const rows = (forced?: 'hover' | 'focus') => (
+    <Force state={forced ?? 'hover'} target={forced ? '[role=option] ~ [role=option]' : 'none'}>
+      <ListBox aria-label="Drucker" selectionMode="single" defaultSelectedKeys={['a']} className="flex w-field-dock flex-col rounded-md border border-border bg-surface p-1">
+        <ListBoxItem id="a" className={listRowClass}>
+          Mein Drucker
+        </ListBoxItem>
+        <ListBoxItem id="b" className={listRowClass}>
+          Werkstatt
+        </ListBoxItem>
+      </ListBox>
+    </Force>
+  );
+  return (
+    <Section title="Navigation">
+      <Row name="tabs" cells={{ Default: tabs('horizontal'), Hover: tabs('horizontal', 'hover'), Focus: tabs('horizontal', 'focus') }} />
+      <Row name="side tabs" cells={{ Default: tabs('vertical'), Hover: tabs('vertical', 'hover'), Focus: tabs('vertical', 'focus') }} />
+      <Row name="list rows" cells={{ Default: rows(), Hover: rows('hover'), Focus: rows('focus') }} />
+    </Section>
+  );
+}
+
 /** The gallery page; later families add their sections here. */
 export function Gallery() {
   return (
@@ -541,6 +586,7 @@ export function Gallery() {
         <Selection />
         <Menus />
         <DialogsAndFeedback />
+        <Navigation />
       </div>
     </main>
   );

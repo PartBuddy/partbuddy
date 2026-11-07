@@ -32,7 +32,7 @@ export function PlateBar({ layout, bed }: { layout: PlateLayout; bed: [number, n
         <IconButton size="md" label={t('plate.previous')} isDisabled={plate <= 0} onPress={() => { setPlate(plate - 1); }} data-testid="plate-prev">
           <IconChevronLeft className="size-icon-sm" aria-hidden />
         </IconButton>
-        <span className="min-w-28 whitespace-nowrap text-center text-sm font-medium tabular-nums text-text" aria-live="polite" data-testid="plate-label">
+        <span className="min-w-field-number whitespace-nowrap text-center text-sm font-medium tabular-nums text-text" aria-live="polite" data-testid="plate-label">
           {layout.status === 'computing' ? <Busy label={t('plate.computing')} /> : layout.status === 'error' ? t('plate.failed') : t('plate.of', { plate: plate + 1, plates })}
         </span>
         <IconButton size="md" label={t('plate.next')} isDisabled={plate >= plates - 1} onPress={() => { setPlate(plate + 1); }} data-testid="plate-next">
@@ -50,7 +50,7 @@ export function PlateBar({ layout, bed }: { layout: PlateLayout; bed: [number, n
       {misfits.length > 0 ? (
         <ul className="flex flex-col gap-1" data-testid="plate-misfits">
           {misfits.map((misfit) => (
-            <li key={`${misfit.id}-${misfit.reason}`} className="flex items-center gap-1.5 text-xs text-text">
+            <li key={`${misfit.id}-${misfit.reason}`} className="flex items-center gap-2 text-xs text-text">
               <IconAlertTriangle className="size-icon-sm shrink-0 text-warning" aria-hidden />
               {t(misfit.reason === 'size' ? 'plate.tooLarge' : 'plate.tooTall', { part: misfit.id })}
             </li>

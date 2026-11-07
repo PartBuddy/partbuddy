@@ -205,7 +205,7 @@ export function AssistantChoice() {
           // Sign in with ChatGPT reports no usage numbers; OpenAI's UI guidelines ask for this line and link instead.
           <span className="text-xs text-text-muted" data-testid="chatgpt-usage">
             {t('assistant.chatgpt.planInUse')} ·{' '}
-            <a href={CHATGPT_USAGE} target="_blank" rel="noreferrer" className="underline hover:text-text">
+            <a href={CHATGPT_USAGE} target="_blank" rel="noreferrer" className={linkClass}>
               {t('assistant.chatgpt.manageUsage')}
             </a>
           </span>

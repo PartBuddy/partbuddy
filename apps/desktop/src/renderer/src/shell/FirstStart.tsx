@@ -7,7 +7,7 @@ import type { GeneralSettingsInfo } from '../../../shared/contract';
 import { AssistantChoice } from '../assistant/AgentChip';
 import { PrintProfilesEditor } from '../print/PrintProfilesEditor';
 import { platform } from '../platform';
-import { Button } from '../ui/Button';
+import { Button, linkClass } from '../ui/Button';
 import { EnginePanel } from './EnginePanel';
 import { ProjectsFolderField } from './SettingsDialog';
 import { modalClass, overlayClass } from '../ui/Dialog';
@@ -76,7 +76,7 @@ export function FirstStart() {
                 href={SOLIDCRAFT_DOWNLOAD}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 self-start text-sm text-accent-text underline outline-none hover:text-text focus-visible:focus-ring"
+                className={`inline-flex items-center gap-2 self-start text-sm ${linkClass}`}
                 data-testid="first-start-download"
               >
                 <IconDownload className="size-icon-sm" aria-hidden />
