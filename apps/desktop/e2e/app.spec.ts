@@ -686,8 +686,9 @@ test('an old profile opens with its settings, and reset puts a section back to t
     let { page } = launched;
     const dialog = page.getByTestId('settings-dialog');
     await page.getByTestId('settings').click();
-    await expect(dialog.getByRole('heading', { name: 'Einstellungen' })).toBeVisible();
-    await expect(dialog.getByTestId('settings-theme').getByRole('radio', { name: 'Dunkel' })).toBeChecked();
+    // The test launcher fixes the window language with --lang; the choice itself is what was stored.
+    await expect(dialog.getByTestId('settings-language').getByRole('radio', { name: 'Deutsch' })).toBeChecked();
+    await expect(dialog.getByTestId('settings-theme').getByRole('radio', { name: 'Dark' })).toBeChecked();
     await page.getByTestId('settings-assistant').click();
     await expect(dialog.getByTestId('research').getByRole('switch')).not.toBeChecked();
     const stored = JSON.parse(readFileSync(join(profile, 'settings.json'), 'utf8')) as Record<string, unknown>;
@@ -697,24 +698,26 @@ test('an old profile opens with its settings, and reset puts a section back to t
     // Reset of the general section: language and theme back, the assistant untouched; asked first.
     await page.getByTestId('settings-general').click();
     await dialog.getByTestId('settings-reset-general').click();
-    await expect(page.getByTestId('settings-reset-confirm')).toContainText('Projektordner');
+    await expect(page.getByTestId('settings-reset-confirm')).toContainText('project folder');
     await page.getByTestId('settings-reset-go').click();
-    await expect(dialog.getByRole('heading', { name: 'Settings' })).toBeVisible();
-    await expect(dialog.getByTestId('settings-theme').getByRole('radio', { name: 'Like Windows' })).toBeChecked();
+    // "Like Windows" may now show in German, as Windows' own language.
+    await expect(dialog.getByTestId('settings-language').getByRole('radio').first()).toBeChecked();
+    await expect(dialog.getByTestId('settings-theme').getByRole('radio').first()).toBeChecked();
 
     // Survives a restart.
     await launched.close();
     launched = await launchApp({ work });
     ({ page } = launched);
+    const again = page.getByTestId('settings-dialog');
     await page.getByTestId('settings').click();
-    await expect(dialog.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await expect(again.getByTestId('settings-theme').getByRole('radio').first()).toBeChecked();
     await page.getByTestId('settings-assistant').click();
-    await expect(dialog.getByTestId('research').getByRole('switch')).not.toBeChecked();
-    await dialog.getByTestId('settings-reset-assistant').click();
+    await expect(again.getByTestId('research').getByRole('switch')).not.toBeChecked();
+    await again.getByTestId('settings-reset-assistant').click();
     await page.getByTestId('settings-reset-go').click();
-    await expect(dialog.getByTestId('research').getByRole('switch')).toBeChecked();
-    await expect(dialog.getByTestId('support-free').getByRole('switch')).toBeChecked();
-    await expect(dialog.getByTestId('design-rounding').getByRole('switch')).toBeChecked();
+    await expect(again.getByTestId('research').getByRole('switch')).toBeChecked();
+    await expect(again.getByTestId('support-free').getByRole('switch')).toBeChecked();
+    await expect(again.getByTestId('design-rounding').getByRole('switch')).toBeChecked();
   } finally {
     await launched?.close();
     launched = null;
