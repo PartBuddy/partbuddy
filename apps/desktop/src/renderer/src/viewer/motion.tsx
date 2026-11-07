@@ -308,6 +308,9 @@ export function PlaybackCamera({ steps, bodies }: { steps: PlayStep[]; bodies: B
 export function PlateBed({ bed, colors }: { bed: [number, number, number]; colors: ViewerColors }) {
   const { t } = useTranslation();
   const controls = useThree((state) => state.controls) as CameraControls | null;
+  // drei's Html rebuilds its React root when the canvas connects its events after the first commit, and
+  // that rebuild can leave the label empty: the labels wait for the connection (plate opened while the canvas mounts).
+  const connected = useThree((state) => state.events.connected != null);
   const [width, depth] = bed;
   useEffect(() => {
     if (!controls) return;
@@ -328,16 +331,20 @@ export function PlateBed({ bed, colors }: { bed: [number, number, number]; color
         <meshStandardMaterial color={colors.bed} roughness={0.9} metalness={0} />
       </mesh>
       <Line points={outline} color={colors.bedEdge} lineWidth={1.2} raycast={noRaycast} />
-      <Html position={[width / 2, -10, 0]} center zIndexRange={[12, 11]}>
-        <span className={label} data-testid="bed-width">
-          {t('units.mm', { value: width })}
-        </span>
-      </Html>
-      <Html position={[-14, depth / 2, 0]} center zIndexRange={[12, 11]}>
-        <span className={label} data-testid="bed-depth">
-          {t('units.mm', { value: depth })}
-        </span>
-      </Html>
+      {connected ? (
+        <>
+          <Html position={[width / 2, -10, 0]} center zIndexRange={[12, 11]}>
+            <span className={label} data-testid="bed-width">
+              {t('units.mm', { value: width })}
+            </span>
+          </Html>
+          <Html position={[-14, depth / 2, 0]} center zIndexRange={[12, 11]}>
+            <span className={label} data-testid="bed-depth">
+              {t('units.mm', { value: depth })}
+            </span>
+          </Html>
+        </>
+      ) : null}
     </group>
   );
 }
