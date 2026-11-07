@@ -673,6 +673,58 @@ test('the settings open with Ctrl+comma, find every option by search and open on
   }
 });
 
+test('an old profile opens with its settings, and reset puts a section back to the defaults', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-settings-old-'));
+  const profile = join(work, 'profile');
+  mkdirSync(profile, { recursive: true });
+  // The three files of PartBuddy before one settings file, with a value from a newer version.
+  writeFileSync(join(profile, 'general.json'), JSON.stringify({ language: 'de', setupDone: true }));
+  writeFileSync(join(profile, 'appearance.json'), JSON.stringify({ theme: 'dark' }));
+  writeFileSync(join(profile, 'assistant-settings.json'), JSON.stringify({ webResearch: false, models: { chatgpt: { model: 'from-the-future', effort: null } } }));
+  try {
+    launched = await launchApp({ work });
+    let { page } = launched;
+    const dialog = page.getByTestId('settings-dialog');
+    await page.getByTestId('settings').click();
+    // The test launcher fixes the window language with --lang; the choice itself is what was stored.
+    await expect(dialog.getByTestId('settings-language').getByRole('radio', { name: 'Deutsch' })).toBeChecked();
+    await expect(dialog.getByTestId('settings-theme').getByRole('radio', { name: 'Dark' })).toBeChecked();
+    await page.getByTestId('settings-assistant').click();
+    await expect(dialog.getByTestId('research').getByRole('switch')).not.toBeChecked();
+    const stored = JSON.parse(readFileSync(join(profile, 'settings.json'), 'utf8')) as Record<string, unknown>;
+    expect(stored).toMatchObject({ language: 'de', theme: 'dark', webResearch: false, models: { chatgpt: { model: 'from-the-future', effort: null } } });
+    expect(existsSync(join(profile, 'general.json'))).toBe(true);
+
+    // Reset of the general section: language and theme back, the assistant untouched; asked first.
+    await page.getByTestId('settings-general').click();
+    await dialog.getByTestId('settings-reset-general').click();
+    await expect(page.getByTestId('settings-reset-confirm')).toContainText('project folder');
+    await page.getByTestId('settings-reset-go').click();
+    // "Like Windows" may now show in German, as Windows' own language.
+    await expect(dialog.getByTestId('settings-language').getByRole('radio').first()).toBeChecked();
+    await expect(dialog.getByTestId('settings-theme').getByRole('radio').first()).toBeChecked();
+
+    // Survives a restart.
+    await launched.close();
+    launched = await launchApp({ work });
+    ({ page } = launched);
+    const again = page.getByTestId('settings-dialog');
+    await page.getByTestId('settings').click();
+    await expect(again.getByTestId('settings-theme').getByRole('radio').first()).toBeChecked();
+    await page.getByTestId('settings-assistant').click();
+    await expect(again.getByTestId('research').getByRole('switch')).not.toBeChecked();
+    await again.getByTestId('settings-reset-assistant').click();
+    await page.getByTestId('settings-reset-go').click();
+    await expect(again.getByTestId('research').getByRole('switch')).toBeChecked();
+    await expect(again.getByTestId('support-free').getByRole('switch')).toBeChecked();
+    await expect(again.getByTestId('design-rounding').getByRole('switch')).toBeChecked();
+  } finally {
+    await launched?.close();
+    launched = null;
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('the settings show which SolidCraft runs and its version (R0)', async () => {
   launched = await launchApp();
   const { page } = launched;

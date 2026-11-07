@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { AssistantSettings } from '../src/main/agents/assistantSettings';
+import { SettingsStore } from '../src/main/settingsStore';
 import { parseStreamLine } from '../src/main/agents/claudeCode';
 import { sourceOfSearchResult, sourceOfToolUse, sourceOfUrl } from '../src/main/agents/research';
 
@@ -44,7 +45,7 @@ describe('research sources (B7)', () => {
   it('keeps research on unless the user turned it off', () => {
     const dir = mkdtempSync(join(tmpdir(), 'partbuddy-research-'));
     dirs.push(dir);
-    const settings = new AssistantSettings(join(dir, 'assistant-settings.json'));
+    const settings = new AssistantSettings(new SettingsStore(join(dir, 'settings.json')));
     expect(settings.webResearch()).toBe(true);
     settings.setApiBilling(true);
     settings.setWebResearch(false);

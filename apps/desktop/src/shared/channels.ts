@@ -57,6 +57,7 @@ export const invokeChannels = {
   settingsChooseProjectsFolder: 'settings:choose-projects-folder',
   settingsResetProjectsFolder: 'settings:reset-projects-folder',
   settingsFinishSetup: 'settings:finish-setup',
+  settingsReset: 'settings:reset',
   updatesState: 'updates:state',
   updatesCheck: 'updates:check',
   updatesDownload: 'updates:download',

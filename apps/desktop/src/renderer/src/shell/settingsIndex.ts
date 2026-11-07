@@ -29,6 +29,7 @@ export const SETTINGS: readonly SettingEntry[] = [
   { id: 'materials', section: 'print', group: 'profiles', label: 'print.materials', hint: 'settings.profiles.materials' },
   { id: 'updates', section: 'about', group: 'app', label: 'updates.title', hint: 'settings.about.updatesHint' },
   { id: 'log', section: 'about', group: 'help', label: 'settings.about.revealLog', hint: 'settings.about.revealLogHint' },
+  { id: 'resetAll', section: 'about', group: 'help', label: 'settings.reset.allTitle', hint: 'settings.reset.allHint' },
   { id: 'licence', section: 'about', group: 'app', label: 'settings.about.licenceTitle', hint: 'settings.about.licence' },
 ];
 
