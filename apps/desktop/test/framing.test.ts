@@ -1,7 +1,7 @@
 import { Sphere, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 
-import { needsReframe } from '../src/renderer/src/viewer/framing';
+import { gridStep, needsReframe } from '../src/renderer/src/viewer/framing';
 
 const sphere = (x: number, y: number, z: number, radius: number) => new Sphere(new Vector3(x, y, z), radius);
 
@@ -31,5 +31,19 @@ describe('needsReframe', () => {
 
   it('ignores an empty design', () => {
     expect(needsReframe(sphere(0, 0, 0, 30), new Sphere())).toBe(false);
+  });
+});
+
+describe('gridStep', () => {
+  it('rounds a sixth of the radius up to 1, 2 or 5 times a power of ten', () => {
+    expect(gridStep(20)).toBe(5);
+    expect(gridStep(40)).toBe(10);
+    expect(gridStep(150)).toBe(50);
+    expect(gridStep(700)).toBe(200);
+  });
+
+  it('never goes below 1 mm', () => {
+    expect(gridStep(0.5)).toBe(1);
+    expect(gridStep(6)).toBe(1);
   });
 });

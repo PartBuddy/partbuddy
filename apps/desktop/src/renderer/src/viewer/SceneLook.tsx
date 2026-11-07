@@ -1,44 +1,15 @@
 import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import { Box3, CanvasTexture, Color, DirectionalLight, SRGBColorSpace, Vector3 } from 'three';
+import { Box3, Color, DirectionalLight, Vector3 } from 'three';
 
 import type { BodyModel } from '../state/store';
 
 /**
- * The look of the view with depth (UI upgrade step 8): a background with a soft vertical gradient,
- * a sky light from above (Z up) that sets top and bottom faces apart, and a key light that throws a
- * soft shadow of the part onto the floor under it. Everything follows the design tokens and the
- * theme; nothing takes clicks.
+ * The look of the view (viewport CAD round, 2026-11-07, after Onshape and Fusion): a flat neutral
+ * background, a sky light from above (Z up) that sets top and bottom faces apart, and a faint
+ * contact shadow straight under the part from a light overhead. No floor shadow thrown to the side:
+ * it read as a game, not as a CAD view. Everything follows the design tokens; nothing takes clicks.
  */
-
-/** The background as a vertical gradient from `top` to `bottom` (a small texture the GPU stretches). */
-export function GradientBackground({ top, bottom }: { top: Color; bottom: Color }) {
-  const get = useThree((state) => state.get);
-  useEffect(() => {
-    // Read from the store inside the effect: the scene is three.js state, not React state.
-    const { scene, invalidate } = get();
-    const canvas = document.createElement('canvas');
-    canvas.width = 2;
-    canvas.height = 256;
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, `#${top.getHexString()}`);
-    gradient.addColorStop(1, `#${bottom.getHexString()}`);
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    const texture = new CanvasTexture(canvas);
-    texture.colorSpace = SRGBColorSpace;
-    const previous = scene.background;
-    scene.background = texture;
-    invalidate();
-    return () => {
-      scene.background = previous;
-      texture.dispose();
-    };
-  }, [get, top, bottom]);
-  return null;
-}
 
 /** Sky light from above and a darker bounce from below, in model space (Z up). */
 export function SkyLight({ sky, ground }: { sky: Color; ground: Color }) {
@@ -56,29 +27,30 @@ function boxOf(bodies: BodyModel[]): Box3 | null {
   return box.isEmpty() ? null : box;
 }
 
-/** Where the part stands: its box centre, radius, footprint and lowest point. */
+/** Where the part stands: its box centre, radius and lowest point. */
 function usePlacement(bodies: BodyModel[]) {
   return useMemo(() => {
     const box = boxOf(bodies);
     if (!box) return null;
     const center = box.getCenter(new Vector3());
     const size = box.getSize(new Vector3());
-    return { center, size, radius: Math.max(size.length() / 2, 1), floor: box.min.z };
+    return { center, radius: Math.max(size.length() / 2, 1), floor: box.min.z };
   }, [bodies]);
 }
 
+/** Nearly straight down, a hair to the side so vertical faces do not shade alike. */
+const OVERHEAD = new Vector3(0.12, -0.08, 1).normalize();
+
 /**
- * The key light, placed along `direction` around the part, with a shadow camera that just fits it:
- * the part shades itself (a clip on its plate, the inside of a hole), which gives corners depth.
+ * A light from overhead whose shadow camera just fits the part: it lays the part's contact
+ * shadow on the floor right under it and shades deep pockets a little. 1024 texels are plenty for
+ * a soft shadow (the earlier side shadow needed 2048 and cost most of a frame in software WebGL).
  */
-export function KeyLight({ bodies, direction, intensity }: { bodies: BodyModel[]; direction: [number, number, number]; intensity: number }) {
+export function ContactLight({ bodies, intensity }: { bodies: BodyModel[]; intensity: number }) {
   const light = useRef<DirectionalLight>(null);
   const invalidate = useThree((state) => state.invalidate);
   const placement = usePlacement(bodies);
-  const position = useMemo(
-    () => (placement ? placement.center.clone().add(new Vector3(...direction).normalize().multiplyScalar(placement.radius * 4)) : new Vector3(...direction)),
-    [placement, direction],
-  );
+  const position = useMemo(() => (placement ? placement.center.clone().addScaledVector(OVERHEAD, placement.radius * 4) : OVERHEAD.clone()), [placement]);
 
   useEffect(() => {
     const current = light.current;
@@ -86,8 +58,7 @@ export function KeyLight({ bodies, direction, intensity }: { bodies: BodyModel[]
     current.target.position.copy(placement.center);
     current.target.updateMatrixWorld();
     const camera = current.shadow.camera;
-    // Wide enough for the shadow the part throws onto the floor, not only onto itself.
-    const extent = placement.radius * 2.5;
+    const extent = placement.radius * 1.4;
     camera.left = -extent;
     camera.right = extent;
     camera.top = extent;
@@ -105,25 +76,24 @@ export function KeyLight({ bodies, direction, intensity }: { bodies: BodyModel[]
       position={position}
       intensity={intensity}
       castShadow={placement !== null}
-      shadow-mapSize-width={2048}
-      shadow-mapSize-height={2048}
+      shadow-mapSize-width={1024}
+      shadow-mapSize-height={1024}
       shadow-bias={-0.0004}
-      // Soft edges for the floor shadow; PCF in three r186 blurs over this many texels.
-      shadow-radius={6}
+      shadow-radius={8}
       shadow-normalBias={placement ? placement.radius * 0.003 : 0}
     />
   );
 }
 
 /**
- * The part's shadow on the floor: a plane that shows nothing but the key light's shadow. drei's
- * ContactShadows cannot do this with Z up: its blur pass draws a plane fixed in Y-up world space,
- * which the turned shadow camera sees edge-on, so its texture stayed empty (found 2026-11-06).
+ * The contact shadow on the floor: a plane that shows nothing but the overhead light's shadow.
+ * drei's ContactShadows cannot do this with Z up: its blur pass draws a plane fixed in Y-up world
+ * space, which the turned shadow camera sees edge-on, so its texture stayed empty (found 2026-11-06).
  */
 export function GroundShadow({ bodies, opacity, color }: { bodies: BodyModel[]; opacity: number; color: Color }) {
   const placement = usePlacement(bodies);
   if (!placement) return null;
-  const span = placement.radius * 5;
+  const span = placement.radius * 2.8;
   return (
     // Just under the grid, so the grid lines stay on top; never picked.
     <mesh position={[placement.center.x, placement.center.y, placement.floor - 0.02]} receiveShadow raycast={() => undefined}>

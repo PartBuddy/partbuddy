@@ -13,7 +13,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { SKETCH_STYLE } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BackSide, Box3, BufferAttribute, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, Sphere, Vector2, Vector3 } from 'three';
+import { BackSide, Box3, BufferAttribute, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, ShaderMaterial, Sphere, Vector2, Vector3 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { acceleratedRaycast } from 'three-mesh-bvh';
 
@@ -22,14 +22,15 @@ import { samePick, useStudio, type BodyModel, type DisplayMode, type Pick, type 
 import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
 import { Ghost, SelectionDock, SelectionGhost } from './DimensionHud';
-import { GradientBackground, GroundShadow, KeyLight, SkyLight } from './SceneLook';
+import { ContactLight, GroundShadow, SkyLight } from './SceneLook';
+import { silhouetteMaterial } from './silhouette';
 import { keeps, useSectionPlane } from './section';
 import { LiveBar } from './LiveBar';
 import { blendWeights, PREVIEW_BLEND } from './blend';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
 import { StepPreviews } from './StepPreviews';
-import { needsReframe } from './framing';
+import { gridStep, needsReframe } from './framing';
 import { ViewTools } from './ViewTools';
 import { viewStateOf, type CameraView } from './viewState';
 import { platform } from '../platform';
@@ -45,11 +46,13 @@ Mesh.prototype.raycast = acceleratedRaycast;
 const scene = {
   viewDirection: [0.55, -0.68, 0.48] as [number, number, number],
   fieldOfView: 32,
-  gridCell: 4,
-  gridSection: 20,
-  gridFade: 260,
-  // Key light from front left and above, the camera from front right: shadows fall where the
-  // camera sees them, which gives depth. The fill light from the right softens them.
+  // Grid cells follow the part's size (framing.gridStep); a section line every five cells.
+  gridSections: 5,
+  // The grid fades out at this many part radii, never closer than gridFadeMin mm.
+  gridFadeRadii: 6,
+  gridFadeMin: 120,
+  // Key light from front left and above, the camera from front right: faces turned to the camera
+  // differ in brightness, which gives depth. The fill light from the right softens it.
   keyLight: [-70, -90, 130] as [number, number, number],
   fillLight: [100, 30, 50] as [number, number, number],
   gizmoMargin: [64, 64] as [number, number],
@@ -58,7 +61,9 @@ const scene = {
   triadScale: 28,
   // Matte faces and strong model edges (UI upgrade, view look "calm").
   roughness: 0.8,
-  edgeWidth: 1.7,
+  edgeWidth: 1.6,
+  // Silhouettes of curved faces, a little thinner than the model edges (CSS pixels).
+  silhouetteWidth: 1.4,
   // How far a changed face moves from the body colour toward the change colour.
   changeTint: 0.45,
   hoverTint: 0.35,
@@ -75,7 +80,7 @@ const scene = {
   // A press that moves less than this is a click, not an orbit.
   clickSlop: 4,
   // Canvas texture font of the view cube labels (drawn into a WebGL texture, not CSS).
-  cubeFont: '600 18px Segoe UI, sans-serif',
+  cubeFont: '500 17px Segoe UI Variable, Segoe UI, sans-serif',
   // Sketch line widths in CSS pixels; the sketch being edited is drawn stronger.
   sketchWidth: 1.5,
   activeSketchWidth: 2.25,
@@ -190,6 +195,7 @@ function Body({
           <meshBasicMaterial color={colors.section} side={BackSide} clippingPlanes={clipping} />
         </mesh>
       ) : null}
+      {plane === null && mode === 'shadedEdges' && fade > 0 ? <Silhouette geometry={model.geometry} color={colors.edge} opacity={fade} /> : null}
       {mode === 'shaded' || fade === 0 ? null : plane === null && mode !== 'xray' ? (
         <FatEdges geometry={model.edges} color={colors.edge} width={scene.edgeWidth} opacity={fade} />
       ) : (
@@ -236,6 +242,33 @@ function ExplosionLines({ bodies, offsets, color }: { bodies: BodyModel[]; offse
   );
 }
 
+/** The outline of curved faces where they turn away (see silhouette.ts); one draw call per body. */
+function Silhouette({ geometry, color, opacity }: { geometry: BodyModel['model']['geometry']; color: ViewerColors['edge']; opacity: number }) {
+  const size = useThree((state) => state.size);
+  const dpr = useThree((state) => state.viewport.dpr);
+  const invalidate = useThree((state) => state.invalidate);
+  const material = useMemo(() => silhouetteMaterial(color, scene.silhouetteWidth), [color]);
+  useEffect(
+    () => () => {
+      material.dispose();
+    },
+    [material],
+  );
+  const mesh = useRef<Mesh>(null);
+  useEffect(() => {
+    // Through the mesh: the compiler keeps memoised values immutable.
+    const current = mesh.current?.material as ShaderMaterial | undefined;
+    if (!current) return;
+    const uniforms = current.uniforms as { resolution: { value: Vector2 }; width: { value: number }; opacity: { value: number } };
+    uniforms.resolution.value.set(size.width * dpr, size.height * dpr);
+    uniforms.width.value = scene.silhouetteWidth * dpr;
+    uniforms.opacity.value = opacity;
+    current.transparent = opacity < 1;
+    invalidate();
+  }, [material, size, dpr, opacity, invalidate]);
+  return <mesh ref={mesh} geometry={geometry} material={material} raycast={noRaycast} />;
+}
+
 /** Model edges as fat lines, for a look with stronger edges (lines of WebGL are always 1 px). */
 function FatEdges({ geometry, color, width, opacity }: { geometry: BodyModel['model']['edges']; color: ViewerColors['edge']; width: number; opacity: number }) {
   const points = useMemo(() => Array.from((geometry.getAttribute('position') as BufferAttribute).array as Float32Array), [geometry]);
@@ -244,12 +277,11 @@ function FatEdges({ geometry, color, width, opacity }: { geometry: BodyModel['mo
 }
 
 /** The world axes through the origin on the ground, X red and Y green, as CAD programs draw them. */
-function OriginAxes({ colors }: { colors: ViewerColors }) {
-  const reach = scene.gridFade;
+function OriginAxes({ colors, reach }: { colors: ViewerColors; reach: number }) {
   return (
     <group name="origin axes" position={[0, 0, 0.02]}>
-      <Line points={[[-reach, 0, 0], [reach, 0, 0]]} color={colors.axisX} lineWidth={1} transparent opacity={0.55} raycast={noRaycast} />
-      <Line points={[[0, -reach, 0], [0, reach, 0]]} color={colors.axisY} lineWidth={1} transparent opacity={0.55} raycast={noRaycast} />
+      <Line points={[[-reach, 0, 0], [reach, 0, 0]]} color={colors.axisX} lineWidth={1} transparent opacity={0.45} raycast={noRaycast} />
+      <Line points={[[0, -reach, 0], [0, reach, 0]]} color={colors.axisY} lineWidth={1} transparent opacity={0.45} raycast={noRaycast} />
     </group>
   );
 }
@@ -791,6 +823,9 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
   const register = useCallback((index: number, mesh: Mesh | null) => {
     meshes.current[index] = mesh;
   }, []);
+  const radius = useMemo(() => Math.max(1, boundsOf(bodies, sketches).radius), [bodies, sketches]);
+  const cell = gridStep(radius);
+  const fadeDistance = Math.max(scene.gridFadeMin, radius * scene.gridFadeRadii);
   // drei orders cube faces +X, -X, +Y, -Y, +Z, -Z; with Z up, -Y is the front view.
   const cubeFaces = ['right', 'left', 'back', 'front', 'top', 'bottom'].map((face) => t(`viewer.cube.${face}`));
 
@@ -801,21 +836,24 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       // The canvas starts with a camera of its own before ours takes over; with the same field of
       // view, a framing done in between keeps fitting.
       camera={{ fov: scene.fieldOfView, near: 0.5, far: 5000, position: lastView.position.toArray() }}
-      onCreated={({ gl }) => {
+      onCreated={({ gl, get }) => {
         // Sections clip the bodies only, not the grid, the highlights or the pins.
         gl.localClippingEnabled = true;
         // The picture itself is the image; labels, pins and the HUD are HTML beside the canvas and
         // stay reachable for keyboards and screen readers (a role="img" wrapper would hide them).
         gl.domElement.setAttribute('role', 'img');
         gl.domElement.setAttribute('aria-label', t('viewer.canvasLabel'));
+        // Frame and draw-call counters for the viewport measures (e2e/viewport-shots.spec.ts).
+        (gl.domElement as HTMLCanvasElement & { __r3f?: unknown }).__r3f = get;
       }}
     >
       <Cameras />
-      <GradientBackground top={colors.backgroundTop} bottom={colors.background} />
+      <color attach="background" args={[colors.background]} />
       <StudioLight />
       <SkyLight sky={colors.sky} ground={colors.ground} />
-      <KeyLight bodies={bodies} direction={scene.keyLight} intensity={1.1} />
-      <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.45 : 0.18} />
+      <directionalLight position={scene.keyLight} intensity={0.85} />
+      <ContactLight bodies={bodies} intensity={0.35} />
+      <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.35 : 0.12} />
       <directionalLight position={scene.fillLight} intensity={0.3} />
       {bodies.map((body, i) => (
         <Body key={`${body.name}-${i}`} index={i} body={body} colors={colors} register={register} mode={displayMode} plane={plane} offset={offsets[i] ?? NO_OFFSET} />
@@ -837,17 +875,18 @@ function Scene({ documentId, bodies, sketches }: { documentId: string; bodies: B
       ))}
       <Grid
         rotation={[Math.PI / 2, 0, 0]}
-        cellSize={scene.gridCell}
-        sectionSize={scene.gridSection}
+        cellSize={cell}
+        sectionSize={cell * scene.gridSections}
         cellColor={colors.grid}
         sectionColor={colors.gridSection}
-        cellThickness={0.6}
-        sectionThickness={1}
-        fadeDistance={scene.gridFade}
+        cellThickness={0.5}
+        sectionThickness={0.9}
+        fadeDistance={fadeDistance}
+        fadeStrength={1.5}
         infiniteGrid
         position={[0, 0, -0.01]}
       />
-      <OriginAxes colors={colors} />
+      <OriginAxes colors={colors} reach={fadeDistance} />
       <CameraControls makeDefault />
       <FrameDesign documentId={documentId} bodies={bodies} sketches={sketches} />
       <StandardViews bodies={bodies} sketches={sketches} />
