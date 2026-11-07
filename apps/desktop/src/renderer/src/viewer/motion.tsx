@@ -13,6 +13,7 @@ import { suggestAssembly, type PartBox } from './assemblyOrder';
 import { activeStep, explodeAlong, playbackPoses, type Box } from './explode';
 import type { NestResult, Vec2 } from './nesting';
 import type { ViewerColors } from './useTokenColors';
+import { requestShadow } from './SceneLook';
 
 /**
  * How the bodies move between the views of a print of several parts (viewport CAD round,
@@ -222,8 +223,12 @@ export function Animator({ bodies, groups, targets }: { bodies: BodyModel[]; gro
     target.current = targets;
     invalidate();
   }, [targets, invalidate]);
+  const gl = useThree((state) => state.gl);
   useFrame((_, delta) => {
-    if (glide(bodies, groups.current, target.current, delta)) invalidate();
+    if (!glide(bodies, groups.current, target.current, delta)) return;
+    // Moving parts throw their shadows anew (the shadow map does not update on its own).
+    requestShadow(gl);
+    invalidate();
   });
   return null;
 }

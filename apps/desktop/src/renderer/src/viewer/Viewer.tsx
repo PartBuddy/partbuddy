@@ -1,4 +1,5 @@
 import {
+  AdaptiveDpr,
   CameraControls,
   GizmoHelper,
   GizmoViewcube,
@@ -23,7 +24,7 @@ import { samePick, useStudio, type BodyModel, type DisplayMode, type Pick } from
 import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
 import { Ghost, SelectionDock, SelectionGhost } from './DimensionHud';
-import { ContactLight, GroundShadow, SkyLight } from './SceneLook';
+import { ContactLight, GroundShadow, requestShadow, SkyLight } from './SceneLook';
 import { silhouetteMaterial } from './silhouette';
 import { bodiesBox, keeps, useSectionPlane } from './section';
 import { LiveBar } from './LiveBar';
@@ -765,6 +766,7 @@ function StandardViews({ bodies, sketches }: { bodies: BodyModel[]; sketches: Mi
  */
 function CursorNavigation({ meshes }: { meshes: MeshList }) {
   const controls = useThree((state) => state.controls) as CameraControls | null;
+  const regress = useThree((state) => state.performance.regress);
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
   useEffect(() => {
@@ -784,10 +786,16 @@ function CursorNavigation({ meshes }: { meshes: MeshList }) {
     };
     // Capture: before the controls start turning around the old pivot.
     dom.addEventListener('pointerdown', onDown, { capture: true });
+    // A camera move counts as busy: AdaptiveDpr may lower the resolution until it rests.
+    const busy = () => {
+      regress();
+    };
+    controls.addEventListener('control', busy);
     return () => {
       dom.removeEventListener('pointerdown', onDown, { capture: true });
+      controls.removeEventListener('control', busy);
     };
-  }, [controls, camera, gl, meshes]);
+  }, [controls, camera, gl, meshes, regress]);
   return null;
 }
 
@@ -916,6 +924,18 @@ function ViewReporter() {
   return null;
 }
 
+/** Draws the shadow map again when what throws shadows changes: other bodies, a section, a fade. */
+function ShadowRefresh({ keys }: { keys: unknown[] }) {
+  const gl = useThree((state) => state.gl);
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    requestShadow(gl);
+    invalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the keys are the dependencies
+  }, [gl, invalidate, ...keys]);
+  return null;
+}
+
 /** The note pins; changes to notes wait while the assistant works, like every change of the design. */
 function ScenePins({ bodies }: { bodies: BodyModel[] }) {
   const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy';
@@ -955,6 +975,8 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
   return (
     <Canvas
       dpr={[1, 2]}
+      // While the camera moves, a large part may draw at a lower resolution for a moment (AdaptiveDpr).
+      performance={{ min: 0.5 }}
       shadows
       // The canvas starts with a camera of its own before ours takes over; with the same field of
       // view, a framing done in between keeps fitting.
@@ -962,6 +984,10 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
       onCreated={({ gl, get }) => {
         // Sections clip the bodies only, not the grid, the highlights or the pins.
         gl.localClippingEnabled = true;
+        // The shadow map renders only when the part or the light changes (ContactLight, Animator),
+        // not on every frame of an orbit: the light stands still in the world.
+        gl.shadowMap.autoUpdate = false;
+        gl.shadowMap.needsUpdate = true;
         // The picture itself is the image; labels, pins and the HUD are HTML beside the canvas and
         // stay reachable for keyboards and screen readers (a role="img" wrapper would hide them).
         gl.domElement.setAttribute('role', 'img');
@@ -992,6 +1018,7 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
         />
       ))}
       <Animator bodies={bodies} groups={groups} targets={targets} />
+      <ShadowRefresh keys={[bodies, plane, displayMode]} />
       {playback ? (
         <>
           <PlaybackClock count={steps.length} />
@@ -1029,6 +1056,7 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
       />
       <OriginAxes colors={colors} reach={fadeDistance} />
       <CameraControls makeDefault dollyToCursor />
+      <AdaptiveDpr />
       <FrameDesign documentId={documentId} bodies={bodies} sketches={sketches} />
       <StandardViews bodies={bodies} sketches={sketches} />
       <CursorNavigation meshes={meshes} />

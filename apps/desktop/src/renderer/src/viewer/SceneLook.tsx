@@ -38,6 +38,14 @@ function usePlacement(bodies: BodyModel[]) {
   }, [bodies]);
 }
 
+/**
+ * Asks for the shadow map once (it does not update on its own, see Viewer). A function outside the
+ * components, because the compiler keeps hook values immutable.
+ */
+export function requestShadow(gl: { shadowMap: { needsUpdate: boolean } }): void {
+  gl.shadowMap.needsUpdate = true;
+}
+
 /** Nearly straight down, a hair to the side so vertical faces do not shade alike. */
 const OVERHEAD = new Vector3(0.12, -0.08, 1).normalize();
 
@@ -49,6 +57,7 @@ const OVERHEAD = new Vector3(0.12, -0.08, 1).normalize();
 export function ContactLight({ bodies, intensity }: { bodies: BodyModel[]; intensity: number }) {
   const light = useRef<DirectionalLight>(null);
   const invalidate = useThree((state) => state.invalidate);
+  const gl = useThree((state) => state.gl);
   const placement = usePlacement(bodies);
   const position = useMemo(() => (placement ? placement.center.clone().addScaledVector(OVERHEAD, placement.radius * 4) : OVERHEAD.clone()), [placement]);
 
@@ -67,8 +76,9 @@ export function ContactLight({ bodies, intensity }: { bodies: BodyModel[]; inten
     camera.far = placement.radius * 7;
     camera.updateProjectionMatrix();
     current.shadow.needsUpdate = true;
+    requestShadow(gl);
     invalidate();
-  }, [placement, invalidate]);
+  }, [placement, invalidate, gl]);
 
   return (
     <directionalLight
