@@ -16,6 +16,7 @@ const facts: ShareFacts = {
     { name: 'length', value: 80, unit: 'mm', comment: 'Outer length of housing and lid' },
     { name: 'count', value: 4, unit: '', comment: null },
   ],
+  hardware: [],
   material: 'PLA',
   layer: 0.2,
   nozzle: 0.4,
@@ -37,6 +38,10 @@ describe('the sharing package (F5)', () => {
   it('says where supports may be needed, or that the check has not run, and speaks German', () => {
     expect(shareDescription({ ...facts, check: { status: 'warn', overhang: true } })).toContain('check them in the slicer');
     expect(shareDescription({ ...facts, check: null })).toContain('Supports: not checked');
+    expect(shareDescription(facts)).not.toContain('Hardware');
+    expect(shareDescription({ ...facts, hardware: [{ count: 2, name: 'Socket head cap screw M3x12', standard: 'ISO 4762 M3x12' }] })).toContain(
+      '## Hardware\n\n- 2 × Socket head cap screw M3x12 (ISO 4762 M3x12)',
+    );
     const german = shareDescription({ ...facts, language: 'de', bodies: [{ name: 'Gehäuse', size: [80.5, 60, 30] }], parameters: [] });
     expect(german).toContain('- Schichthöhe: 0,2 mm');
     expect(german).toContain('- Gehäuse: 80,5 × 60 × 30 mm');

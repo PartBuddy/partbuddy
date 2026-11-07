@@ -302,6 +302,25 @@ export class SolidCraftSupervisor {
     });
   }
 
+  /**
+   * The standard parts to buy, counted (`assembly.bom`), for the sharing package. Only rows with a
+   * part number: the library's screws and nuts have one ("ISO 4762 M3x12"), imported counterparts not.
+   */
+  async hardware(): Promise<{ count: number; name: string; standard: string }[]> {
+    const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'assembly.bom', params: {} }], rollback: false }, 60_000);
+    if (reply.failed) throw new Error(reply.failed.error);
+    const rows = (reply.results[0] as { rows?: unknown } | undefined)?.rows;
+    if (!Array.isArray(rows)) return [];
+    return (rows as Record<string, unknown>[])
+      .filter((row) => typeof row.part_number === 'string' && row.part_number.trim() !== '' && typeof row.count === 'number' && row.count > 0)
+      .slice(0, 100)
+      .map((row) => ({
+        count: row.count as number,
+        name: (typeof row.description === 'string' && row.description.trim() ? row.description : String(row.definition ?? row.part_number)).slice(0, 200),
+        standard: (row.part_number as string).slice(0, 200),
+      }));
+  }
+
   /** `solidcraft-cli` beside the SolidCraft PartBuddy uses. */
   private cli(): string {
     const executable = findExecutable(this.options.environment);

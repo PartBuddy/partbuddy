@@ -10,6 +10,8 @@ export interface ShareFacts {
   language: 'en' | 'de';
   bodies: { name: string; size: [number, number, number] | null }[];
   parameters: { name: string; value: number; unit: string; comment: string | null }[];
+  /** Standard parts to buy, from SolidCraft's bill of materials. */
+  hardware: { count: number; name: string; standard: string }[];
   material: string;
   layer: number;
   nozzle: number;
@@ -32,6 +34,7 @@ const TEXT = {
     parts: 'Parts',
     part: (count: number) => (count === 1 ? '1 part' : `${String(count)} parts`),
     sizes: 'Size',
+    hardware: 'Hardware',
     parameters: 'Parameters',
     parametersHint: 'The design is parametric: change these in PartBuddy or SolidCraft.',
     files: 'Files',
@@ -53,6 +56,7 @@ const TEXT = {
     parts: 'Teile',
     part: (count: number) => (count === 1 ? '1 Teil' : `${String(count)} Teile`),
     sizes: 'Größe',
+    hardware: 'Normteile',
     parameters: 'Parameter',
     parametersHint: 'Das Design ist parametrisch: diese Werte lassen sich in PartBuddy oder SolidCraft ändern.',
     files: 'Dateien',
@@ -94,6 +98,10 @@ export function shareDescription(facts: ShareFacts): string {
     '',
     ...facts.bodies.map((body) => `- ${plain(body.name)}${body.size ? `: ${body.size.map((value) => format(value, facts.language)).join(' × ')} mm` : ''}`),
   ];
+  if (facts.hardware.length > 0) {
+    lines.push('', `## ${text.hardware}`, '');
+    for (const part of facts.hardware) lines.push(`- ${String(part.count)} × ${plain(part.name)} (${plain(part.standard)})`);
+  }
   if (facts.parameters.length > 0) {
     lines.push('', `## ${text.parameters}`, '', text.parametersHint, '');
     for (const parameter of facts.parameters) {

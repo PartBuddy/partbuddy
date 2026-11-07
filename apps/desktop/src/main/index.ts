@@ -692,6 +692,10 @@ if (!app.requestSingleInstanceLock()) {
           name: supervisor.currentRevision()?.designName ?? name,
           language: german ? 'de' : 'en',
           bodies: await supervisor.bodySizes().catch(() => []),
+          hardware: await supervisor.hardware().catch((error: unknown) => {
+            log(`no parts list in the sharing package: ${(error as Error).message}`);
+            return [];
+          }),
           parameters: parameters.map((parameter) => ({ name: parameter.name, value: parameter.value, unit: parameter.unit, comment: parameter.comment.replace(/\s*\[[^\]]*\.\.[^\]]*\]\s*/, ' ').trim() || null })),
           material: print.material.name,
           layer: print.printer.layer,
