@@ -716,6 +716,7 @@
     }
   },
   "print": {
+    "nameRequired": "Bitte einen Namen eingeben.",
     "title": "Drucker und Material",
     "edit": "Drucker und Material …",
     "chipHint": "Material dieses Teils und Drucker ändern",

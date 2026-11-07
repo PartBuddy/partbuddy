@@ -9,13 +9,14 @@ import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
 import { parseLength } from './lengthInput';
+import { inputClass, fieldLabelClass } from '../ui/Field';
 
 const PREVIEW_DELAY_MS = 300;
 
 function Choice({ label, value, items, onChange, testId }: { label: string; value: string; items: { id: string; label: string }[]; onChange: (id: string) => void; testId: string }) {
   return (
     <Select value={value} onChange={(key) => onChange(String(key))} className="flex min-w-0 flex-col gap-1" data-testid={testId}>
-      <Label className="text-xs text-text-subtle">{label}</Label>
+      <Label className={fieldLabelClass}>{label}</Label>
       <AriaButton className="inline-flex h-control-sm items-center justify-between gap-1 rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:focus-ring">
         <SelectValue className="truncate" />
         <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
@@ -48,10 +49,10 @@ function Length({ label, value, onChange, testId }: { label: string; value: numb
       className="flex min-w-0 flex-col gap-1"
       data-testid={testId}
     >
-      <Label className="text-xs text-text-subtle">
+      <Label className={fieldLabelClass}>
         {label} · {t('units.mmShort')}
       </Label>
-      <Input className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm tabular-nums text-text outline-none focus-visible:focus-ring" />
+      <Input className={`${inputClass('sm')} tabular-nums`} />
     </TextField>
   );
 }
@@ -69,8 +70,8 @@ function Words({ label, value, onChange, testId }: { label: string; value: strin
       className="col-span-2 flex min-w-0 flex-col gap-1"
       data-testid={testId}
     >
-      <Label className="text-xs text-text-subtle">{label}</Label>
-      <Input className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none focus-visible:focus-ring" />
+      <Label className={fieldLabelClass}>{label}</Label>
+      <Input className={inputClass('sm')} />
     </TextField>
   );
 }

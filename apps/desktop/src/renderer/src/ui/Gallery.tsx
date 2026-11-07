@@ -1,22 +1,25 @@
 import { IconArrowBackUp, IconDownload, IconEye, IconPencil, IconSettings, IconTrash, IconX } from '@tabler/icons-react';
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { Input, Label, NumberField, TextArea, TextField } from 'react-aria-components';
 
 import { Button, IconButton, IconToggle, ToggleButton, linkClass, type ButtonVariant } from './Button';
 import { TipText, tooltipClass } from './Tooltip';
+import { FieldMessage, fieldLabelClass, inputClass, textAreaClass, UnitInput } from './Field';
 
 /**
  * Every control in every state, for the UI upgrade's screenshots (`?gallery`, e2e/ui-gallery.spec.ts).
  * Hover, pressed and focus cannot be held by a test at once, so `Force` sets React Aria's state
  * attributes on the control; the styles key on exactly these attributes.
  */
-type Forced = 'hover' | 'pressed' | 'focus';
+type Forced = 'hover' | 'pressed' | 'focus' | 'focused' | 'focus-within';
 
-function Force({ state, children }: { state: Forced; children: ReactNode }) {
+/** `target` picks the element inside that carries the state (the input of a field, the group of a unit field). */
+function Force({ state, target = '[data-rac]', children }: { state: Forced; target?: string; children: ReactNode }) {
   const box = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
-    const control = box.current?.querySelector('[data-rac]');
+    const control = box.current?.querySelector(target);
     if (!control) return;
-    const attribute = { hover: 'data-hovered', pressed: 'data-pressed', focus: 'data-focus-visible' }[state];
+    const attribute = { hover: 'data-hovered', pressed: 'data-pressed', focus: 'data-focus-visible', focused: 'data-focused', 'focus-within': 'data-focus-within' }[state];
     control.setAttribute(attribute, 'true');
     if (state === 'pressed') control.setAttribute('data-hovered', 'true');
   });
@@ -27,7 +30,7 @@ function Force({ state, children }: { state: Forced; children: ReactNode }) {
   );
 }
 
-const STATES = ['Default', 'Hover', 'Focus', 'Pressed', 'Selected', 'Disabled', 'Busy'] as const;
+const STATES = ['Default', 'Hover', 'Focus', 'Pressed', 'Selected', 'Disabled', 'Busy', 'Read-only', 'Invalid'] as const;
 
 function Row({ name, cells }: { name: string; cells: Partial<Record<(typeof STATES)[number], ReactNode>> }) {
   return (
@@ -203,12 +206,72 @@ function Actions() {
   );
 }
 
+function Inputs() {
+  const text = (extra: object = {}, error?: string) => (
+    <TextField defaultValue="Wandhalter" className="flex w-field-dock flex-col gap-1" {...extra}>
+      <Label className={fieldLabelClass}>Projektname</Label>
+      <Input className={inputClass('md')} />
+      <FieldMessage error={error} hint="Name des Projektordners" />
+    </TextField>
+  );
+  const unit = (extra: object = {}) => (
+    <NumberField defaultValue={0.2} step={0.05} formatOptions={{ maximumFractionDigits: 2 }} className="flex w-field-number flex-col gap-1" {...extra}>
+      <Label className={fieldLabelClass}>Schichthöhe</Label>
+      <UnitInput unit="mm" />
+    </NumberField>
+  );
+  return (
+    <Section title="Inputs">
+      <Row
+        name="text field"
+        cells={{
+          Default: text(),
+          Hover: <Force state="hover" target="input">{text()}</Force>,
+          Focus: <Force state="focused" target="input">{text()}</Force>,
+          Disabled: text({ isDisabled: true }),
+          'Read-only': text({ isReadOnly: true }),
+          Invalid: text({ isInvalid: true }, 'Ein Projekt dieses Namens gibt es schon.'),
+        }}
+      />
+      <Row
+        name="number with unit"
+        cells={{
+          Default: unit(),
+          Hover: <Force state="hover" target="[role=group]">{unit()}</Force>,
+          Focus: <Force state="focus-within" target="[role=group]">{unit()}</Force>,
+          Disabled: unit({ isDisabled: true }),
+          Invalid: unit({ isInvalid: true }),
+        }}
+      />
+      <Row
+        name="text area"
+        cells={{
+          Default: (
+            <TextField defaultValue="Nur die Bohrung prüfen" className="flex w-field-dock flex-col gap-1">
+              <Label className={fieldLabelClass}>Notiz</Label>
+              <TextArea rows={2} className={textAreaClass} />
+            </TextField>
+          ),
+          Focus: (
+            <Force state="focused" target="textarea">
+              <TextField aria-label="Notiz" className="flex w-field-dock flex-col">
+                <TextArea rows={2} placeholder="Was ist hier zu beachten?" className={textAreaClass} />
+              </TextField>
+            </Force>
+          ),
+        }}
+      />
+    </Section>
+  );
+}
+
 /** The gallery page; later families add their sections here. */
 export function Gallery() {
   return (
     <main className="flex min-h-full flex-col gap-6 bg-canvas p-6" data-testid="ui-gallery">
       <div className="flex flex-col gap-6 rounded-lg border border-border bg-surface p-5">
         <Actions />
+        <Inputs />
       </div>
     </main>
   );

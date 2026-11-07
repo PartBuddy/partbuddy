@@ -18,6 +18,7 @@ import { parseLength } from './lengthInput';
 import { keeps } from './section';
 import { edgeLabel } from './viewState';
 import { TreeExtra } from '../shell/Tree';
+import { inputClass, fieldLabelClass } from '../ui/Field';
 
 type MeshList = RefObject<(Mesh | null)[]>;
 const PROBE_DELAY_MS = 250;
@@ -167,12 +168,12 @@ export function MarkField({ mark, onGhost, onClose }: { mark: DimensionMark; onG
       }}
     >
       <TextField value={draft} onChange={setDraft} inputMode="decimal" isDisabled={busy} className="flex flex-col gap-1">
-        <Label className="text-xs text-text-subtle">
+        <Label className={fieldLabelClass}>
           {text.name} · {mark.unit === 'deg' ? '°' : t('units.mmShort')}
         </Label>
         <Input
           autoFocus
-          className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 text-md tabular-nums text-text outline-none focus-visible:focus-ring disabled:opacity-disabled"
+          className={`${inputClass('md')} tabular-nums`}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault();

@@ -716,6 +716,7 @@
     }
   },
   "print": {
+    "nameRequired": "Give it a name.",
     "title": "Printer and material",
     "edit": "Printer and material …",
     "chipHint": "Change the material of this part and the printer",

@@ -8,6 +8,7 @@ import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
 import { hasLength, suggestLength, suggestSize } from './partChoice';
+import { fieldLabelClass } from '../ui/Field';
 
 /** The diameter of the hole whose wall is picked, or null when the pick is no cylinder. */
 function holeDiameter(bodies: BodyModel[], picks: Pick[]): number | null {
@@ -20,7 +21,7 @@ function holeDiameter(bodies: BodyModel[], picks: Pick[]): number | null {
 function Choice({ label, value, items, onChange, testId }: { label: string; value: string; items: { id: string; label: string }[]; onChange: (id: string) => void; testId: string }) {
   return (
     <Select value={value} onChange={(key) => onChange(String(key))} className="flex min-w-0 flex-col gap-1" data-testid={testId}>
-      <Label className="text-xs text-text-subtle">{label}</Label>
+      <Label className={fieldLabelClass}>{label}</Label>
       <AriaButton className="inline-flex h-control-sm items-center justify-between gap-1 rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:focus-ring">
         <SelectValue className="truncate" />
         <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />

@@ -21,6 +21,7 @@ import cableClip from './templates/cableClip.png';
 import housing from './templates/housing.png';
 import wallHolder from './templates/wallHolder.png';
 import { iconButtonClass, pressable } from '../ui/Button';
+import { inputClass } from '../ui/Field';
 
 /** Pictures of the templates, rendered by SolidCraft (tools/templates/render-previews.mjs). */
 const TEMPLATE_PICTURES: Record<TemplateId, string> = { boxWithLid, housing, wallHolder, cableClip, adapter };
@@ -146,7 +147,7 @@ export function HomePage() {
             <IconSearch className="pointer-events-none absolute left-2 size-icon-sm text-text-subtle" aria-hidden />
             <Input
               placeholder={t('home.search')}
-              className="h-control-md w-full rounded-md border border-border-strong bg-surface pr-6 pl-6 text-md text-text outline-none placeholder:text-text-subtle focus-visible:focus-ring [&::-webkit-search-cancel-button]:hidden"
+              className={`${inputClass('md')} pr-6 pl-6 [&::-webkit-search-cancel-button]:hidden`}
               data-testid="home-search"
             />
             <AriaButton aria-label={t('home.searchClear')} className={`absolute right-1 group-empty:hidden ${iconButtonClass('sm')}`}>

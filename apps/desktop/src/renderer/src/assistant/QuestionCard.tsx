@@ -9,6 +9,7 @@ import { radioClass, RadioMark } from './AgentChip';
 import { card } from './Fold';
 import { roundAnswers, roundMessage, type Round } from './round';
 import type { ConversationItem } from './store';
+import { inputClass } from '../ui/Field';
 
 export type QuestionItem = Extract<ConversationItem, { kind: 'question' }>;
 
@@ -196,7 +197,7 @@ function RoundCard({ round, open, ready, answer }: { round: Round; open: boolean
               >
                 <Input
                   placeholder={t('assistant.question.otherPlaceholder')}
-                  className="h-control-sm w-full rounded-sm border border-border bg-surface px-2 text-sm text-text outline-none placeholder:text-text-subtle focus-visible:focus-ring"
+                  className={inputClass('sm')}
                 />
               </TextField>
             ) : null}

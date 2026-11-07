@@ -12,6 +12,7 @@ import { LooseDimensions } from '../viewer/Dimensions';
 import { fitMarkOf } from '../../../shared/designFit';
 import { commentText, rangeOf } from './parameterRange';
 import { TreeEmpty, TreeExtra, TreeItem, TreeSection } from './Tree';
+import { fieldBox } from '../ui/Field';
 
 const PREVIEW_DELAY_MS = 250;
 
@@ -128,7 +129,7 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
               onFocus={(event) => {
                 event.currentTarget.select();
               }}
-              className="h-control-sm w-full rounded-sm border border-accent bg-surface px-1 text-right text-sm tabular-nums text-text outline-none invalid:border-danger disabled:opacity-disabled"
+              className={`h-control-sm w-full min-w-0 px-1 text-right text-sm tabular-nums ${fieldBox}`}
               onKeyDown={(event) => {
                 event.stopPropagation();
                 if (event.key === 'Enter') {

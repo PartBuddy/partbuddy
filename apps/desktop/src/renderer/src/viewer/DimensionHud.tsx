@@ -21,6 +21,7 @@ import { SelectionInfo } from './SelectionInfo';
 import { edgeLabel, selectionName, selectionOf, selectionsOf } from './viewState';
 import { buttonVariants, pressable } from '../ui/Button';
 import { Tip } from '../ui/Tooltip';
+import { inputClass, fieldLabelClass } from '../ui/Field';
 
 /** Quiet time after typing before PartBuddy tries the value in SolidCraft. */
 const PROBE_DELAY_MS = 250;
@@ -239,11 +240,11 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       <div className="flex flex-wrap items-start gap-3">
         {dimension ? (
           <TextField value={text} onChange={setText} inputMode="decimal" isDisabled={busy} className="flex w-field-dock flex-col gap-1" data-testid="dimension-field">
-            <Label className="text-xs text-text-subtle">
+            <Label className={fieldLabelClass}>
               {t(`hud.${dimension.shown}`)} · {t('units.mmShort')}
             </Label>
             <Input
-              className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm tabular-nums text-text outline-none focus-visible:focus-ring disabled:opacity-disabled"
+              className={`${inputClass('sm')} tabular-nums`}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
@@ -275,7 +276,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       <TextField value={wish} onChange={setWish} aria-label={t('hud.ask')} isDisabled={!assistantReady} className="flex items-center gap-1">
         <Input
           placeholder={t('hud.ask')}
-          className="h-control-sm min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm text-text outline-none placeholder:text-text-subtle focus-visible:focus-ring disabled:opacity-disabled"
+          className={`${inputClass('sm')} flex-1`}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault();

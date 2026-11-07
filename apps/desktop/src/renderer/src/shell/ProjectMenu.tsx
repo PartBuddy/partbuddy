@@ -26,6 +26,7 @@ import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
 import { useFileImport } from './fileImport';
 import { useProjectSwitch } from './projectSwitch';
+import { FieldMessage, fieldLabelClass, inputClass } from '../ui/Field';
 
 const itemClass =
   'flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover disabled:text-text-subtle';
@@ -215,15 +216,9 @@ export function RenameDialog({ open, name, folder, onClose, onDone }: { open: bo
               isInvalid={error !== null}
               className="flex flex-col gap-1"
             >
-              <Label className="text-xs text-text-muted">{t('project.name')}</Label>
-              <Input className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none focus-visible:focus-ring invalid:border-danger" data-testid="project-name-input" />
-              {error ? (
-                <span role="alert" className="text-xs text-danger" data-testid="project-rename-error">
-                  {error}
-                </span>
-              ) : (
-                <span className="text-xs text-text-subtle">{t('project.renameHint')}</span>
-              )}
+              <Label className={fieldLabelClass}>{t('project.name')}</Label>
+              <Input className={inputClass('md')} data-testid="project-name-input" />
+              <FieldMessage error={error} hint={t('project.renameHint')} testId="project-rename-error" />
             </TextField>
             <div className="flex justify-end gap-2">
               <Button onPress={onClose}>{t('project.cancel')}</Button>
