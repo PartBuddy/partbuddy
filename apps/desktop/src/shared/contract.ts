@@ -265,6 +265,8 @@ export const versionEntrySchema = z
 export const versionListSchema = z.array(versionEntrySchema).max(300);
 export const versionSaveSchema = z.object({ label: z.string().trim().min(1).max(200) }).strict();
 export const versionIdSchema = z.object({ id: z.string().regex(/^v-[a-z0-9]{1,20}$/) }).strict();
+/** Names a version (P4); an automatic one becomes a milestone that is kept. */
+export const versionNameSchema = z.object({ id: z.string().regex(/^v-[a-z0-9]{1,20}$/), label: z.string().trim().min(1).max(200) }).strict();
 
 /** A deleted project in PartBuddy's recycle bin (P2), newest first in the list. */
 export const trashEntrySchema = z
@@ -1011,6 +1013,8 @@ export const invokeContract = {
   [invokeChannels.projectSaveVersion]: { request: versionSaveSchema, response: none },
   [invokeChannels.projectRestoreVersion]: { request: versionIdSchema, response: none },
   [invokeChannels.projectCompareVersion]: { request: versionIdSchema, response: versionComparisonSchema },
+  [invokeChannels.projectNameVersion]: { request: versionNameSchema, response: none },
+  [invokeChannels.projectVersionAsProject]: { request: versionIdSchema, response: none },
   [invokeChannels.projectTrashList]: { request: none, response: trashListSchema },
   [invokeChannels.projectExportPackage]: { request: projectTargetSchema, response: packageExportResultSchema },
   [invokeChannels.projectTrashRestore]: { request: trashIdSchema, response: none },

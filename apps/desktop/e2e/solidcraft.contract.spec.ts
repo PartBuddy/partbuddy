@@ -1221,7 +1221,7 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
 
 test('versions are saved by name, before requests and at exports, compared with now and restored (B5)', async () => {
   test.setTimeout(240_000);
-  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { existsSync, mkdtempSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-versions-'));
@@ -1295,6 +1295,23 @@ test('versions are saved by name, before requests and at exports, compared with 
     await expect(versions).toHaveCount(4);
     await expect(versions.first()).toHaveAttribute('data-reason', 'export');
     await expect(versions.first().getByTestId('version-label')).toHaveText('Box.3mf');
+
+    // An automatic version kept as a milestone (P4); the filter shows only the named ones.
+    await versions.first().getByTestId('version-rename').click();
+    await dialog.getByTestId('version-rename-input').fill('Printed box');
+    await dialog.getByTestId('version-rename-save').click();
+    await expect(versions.first().getByTestId('version-label')).toHaveText('Printed box');
+    await expect(versions.first()).toHaveAttribute('data-reason', 'manual');
+    await dialog.getByTestId('versions-milestones').click();
+    await expect(versions).toHaveCount(2);
+    await expect(dialog.getByTestId('versions-day')).toHaveCount(1);
+
+    // A version opens as a project of its own; the original stays.
+    await versions.filter({ hasText: 'First box' }).getByTestId('version-as-project').click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByTestId('design-name')).toHaveText('Part First box', { timeout: 30_000 });
+    await expect(summary).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    expect(existsSync(join(work, 'projects', 'Part', 'Part.sc'))).toBe(true);
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('versions-failed.png') }).catch(() => undefined);
     test.info().annotations.push({ type: 'main log', description: logs.join('').slice(-4000) });

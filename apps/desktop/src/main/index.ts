@@ -1094,6 +1094,23 @@ if (!app.requestSingleInstanceLock()) {
       log('restored a version');
       return undefined;
     });
+    bridge.handle(invokeChannels.projectNameVersion, ({ id, label }) => {
+      const design = openProject();
+      if (!design) throw new Error('not a version of the open project');
+      versions.name(design, id, label);
+      log('named a version');
+      return undefined;
+    });
+    bridge.handle(invokeChannels.projectVersionAsProject, async ({ id }) => {
+      const design = openProject();
+      const file = design ? versions.fileOf(design, id) : null;
+      if (!design || !file) throw new Error('not a version of the open project');
+      const label = versions.list(design).find((version) => version.id === id)?.label || (german ? 'Version' : 'version');
+      const target = projectStore.fromVersion(design, file, label);
+      await switchProject(() => Promise.resolve(target));
+      log('opened a version as a new project');
+      return undefined;
+    });
     bridge.handle(invokeChannels.projectCompareVersion, async ({ id }) => {
       const design = openProject();
       const file = design ? versions.fileOf(design, id) : null;

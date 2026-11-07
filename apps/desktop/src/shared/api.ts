@@ -130,6 +130,10 @@ export interface PartBuddyApi {
     restoreVersion(id: string): Promise<void>;
     /** What changed between a version and the open design. */
     compareVersion(id: string): Promise<VersionComparison>;
+    /** Names a version; an automatic one becomes a milestone that is no longer pruned (P4). */
+    nameVersion(id: string, label: string): Promise<void>;
+    /** Opens a version as a new project of its own, with the print settings (P4). */
+    versionAsProject(id: string): Promise<void>;
     /** Writes a project as one `.partbuddy` file where the user chooses (P3); the open one without `folder`. */
     exportPackage(folder?: string): Promise<{ saved: boolean }>;
     /** The deleted projects in PartBuddy's recycle bin, newest first (P2). */

@@ -52,6 +52,8 @@ const api: PartBuddyApi = {
     saveVersion: (label) => ipcRenderer.invoke(invokeChannels.projectSaveVersion, { label }),
     restoreVersion: (id) => ipcRenderer.invoke(invokeChannels.projectRestoreVersion, { id }),
     compareVersion: (id) => ipcRenderer.invoke(invokeChannels.projectCompareVersion, { id }),
+    nameVersion: (id, label) => ipcRenderer.invoke(invokeChannels.projectNameVersion, { id, label }),
+    versionAsProject: (id) => ipcRenderer.invoke(invokeChannels.projectVersionAsProject, { id }),
     trashList: () => ipcRenderer.invoke(invokeChannels.projectTrashList),
     exportPackage: (folder) => ipcRenderer.invoke(invokeChannels.projectExportPackage, folder === undefined ? {} : { folder }),
     restoreTrashed: (id) => ipcRenderer.invoke(invokeChannels.projectTrashRestore, { id }),

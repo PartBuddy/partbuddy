@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -107,5 +107,42 @@ describe('version comparison (B5)', () => {
     ]);
     expect(result.bodies[0]).toMatchObject({ removedMm3: 196.35, addedMm3: 0, regions: [{ side: 'removed', volume: 196.35, center: [15, 10, 5] }] });
     expect(result.bodies[1]?.movedMm).toBe(3);
+  });
+});
+
+describe('milestones (P4)', () => {
+  it('names an automatic version so it outlives pruning, keeping its hash, time and first reason', () => {
+    let clock = 1_000;
+    const store = new VersionStore(() => clock);
+    const design = project();
+    const kept = store.save(design, 'assistant', 'Mach den Deckel dicker', false);
+    if (!kept) throw new Error('no version');
+    const note = join(VersionStore.folderOf(design), kept, 'version.json');
+    const before = JSON.parse(readFileSync(note, 'utf8')) as Record<string, unknown>;
+    store.name(design, kept, '  Deckel 3 mm ');
+    const after = JSON.parse(readFileSync(note, 'utf8')) as Record<string, unknown>;
+    expect(after).toEqual({ ...before, reason: 'manual', label: 'Deckel 3 mm', promoted: 'assistant' });
+    // Renaming a milestone keeps where it came from.
+    store.name(design, kept, 'Deckel final');
+    expect(JSON.parse(readFileSync(note, 'utf8'))).toMatchObject({ reason: 'manual', label: 'Deckel final', promoted: 'assistant' });
+    for (let n = 0; n < MAX_AUTOMATIC + 1; n += 1) {
+      clock += 1_000;
+      writeFileSync(design, `design ${String(n)}`);
+      store.save(design, 'export', 'x.3mf', true);
+    }
+    expect(store.list(design).filter((version) => version.reason === 'manual').map((version) => version.label)).toEqual(['Deckel final']);
+  });
+
+  it('reads a note from before milestones and refuses names for versions that are not there', () => {
+    const store = new VersionStore(() => 5_000);
+    const design = project();
+    const folder = join(VersionStore.folderOf(design), 'v-old');
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, 'design.sc'), 'old');
+    writeFileSync(join(folder, 'version.json'), JSON.stringify({ created: 1, reason: 'export', label: 'a.3mf', hash: 'h' }));
+    expect(store.list(design).map((version) => version.reason)).toEqual(['export']);
+    expect(() => store.name(design, 'v-none', 'x')).toThrow();
+    expect(() => store.name(design, '../v-old', 'x')).toThrow();
+    expect(() => store.name(design, 'v-old', '   ')).toThrow();
   });
 });
