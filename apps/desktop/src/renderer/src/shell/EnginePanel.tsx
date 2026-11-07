@@ -75,7 +75,7 @@ export function EnginePanel({ close, closable = true }: { close: () => void; clo
         {info.support === 'recommended' || info.support === 'supported' ? <p className="text-text-muted">{t('engine.works')}</p> : null}
         {/* The versions in detail, for those who want to know; folded so the first start stays short. */}
         <details className="text-text-muted" data-testid="engine-details">
-          <summary className="cursor-pointer text-xs outline-none focus-visible:outline-2 focus-visible:outline-focus">{t('engine.detailsTitle')}</summary>
+          <summary className="cursor-pointer text-xs outline-none focus-visible:focus-ring">{t('engine.detailsTitle')}</summary>
           <p className="mt-1">{t('engine.hint', { recommended: info.recommended, minimum: info.minimum })}</p>
         </details>
         {error ? (

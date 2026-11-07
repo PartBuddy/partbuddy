@@ -66,7 +66,7 @@ export function ChatResizer({ width, max, onChange }: { width: number; max: numb
       tabIndex={0}
       data-testid="chat-resizer"
       title={t('assistant.resizeHint')}
-      className={`group absolute inset-y-0 -left-1 z-10 flex w-2 cursor-col-resize touch-none justify-center outline-none focus-visible:outline-2 focus-visible:outline-focus ${dragging ? 'bg-accent-subtle' : ''}`}
+      className={`group absolute inset-y-0 -left-1 z-10 flex w-2 cursor-col-resize touch-none justify-center outline-none focus-visible:focus-ring ${dragging ? 'bg-accent-subtle' : ''}`}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         event.currentTarget.setPointerCapture(event.pointerId);

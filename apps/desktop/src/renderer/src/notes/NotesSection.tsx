@@ -3,6 +3,8 @@ import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton } from 'react-aria-components';
 
+import { buttonClass } from '../ui/Button';
+
 import { selectedStatus, useAssistant } from '../assistant/store';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
@@ -12,8 +14,7 @@ import { TreeEmpty, TreeExtra, TreeItem, TreeSection } from '../shell/Tree';
 import { selectionOf } from '../viewer/viewState';
 import { NoteStatus, useNoteCommand } from './NoteParts';
 
-const small =
-  'inline-flex h-control-sm items-center gap-1 rounded-md px-2 text-xs text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50';
+const small = buttonClass('quiet', 'sm');
 
 /**
  * Notes in the structure tree (M2b, ADR 0020): every note of the design with where it stands,

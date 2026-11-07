@@ -1,6 +1,7 @@
 import { IconChevronRight } from '@tabler/icons-react';
 import { createContext, useContext, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Button as AriaButton, Menu, MenuItem, Popover } from 'react-aria-components';
+import { pressable } from '../ui/Button';
 
 /**
  * The structure tree's frame (CAD-style browser): one ARIA tree with a roving tab stop, sections
@@ -93,7 +94,7 @@ export function TreeSection({
             (event.currentTarget.nextElementSibling?.querySelector('[role="treeitem"]:not([data-extra])') as HTMLElement | null)?.focus();
           }
         }}
-        className="flex h-row cursor-default items-center gap-2 pr-2 pl-1 text-sm font-semibold text-text outline-none select-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+        className="flex h-row cursor-default items-center gap-2 pr-2 pl-1 text-sm font-semibold text-text outline-none select-none hover:bg-surface-hover focus-visible:focus-ring-inset"
       >
         <IconChevronRight className={`size-icon-sm shrink-0 text-text-subtle transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />
         <span className="inline-flex shrink-0 text-text-muted">{icon}</span>
@@ -124,7 +125,7 @@ export function TreeEmpty({ icon, text, action }: { icon: ReactNode; text: strin
       {action ? (
         <AriaButton
           onPress={action.onPress}
-          className="col-start-2 -ml-1 inline-flex h-control-sm items-center gap-1 justify-self-start rounded-sm px-1 font-medium text-accent-text outline-none hover:bg-accent-subtle focus-visible:outline-2 focus-visible:outline-focus"
+          className={`col-start-2 -ml-1 inline-flex h-control-sm items-center gap-1 justify-self-start rounded-sm px-1 font-medium text-accent-text hover:bg-accent-subtle pressed:bg-surface-pressed ${pressable}`}
           data-testid={action.testId}
         >
           {action.icon}
@@ -239,7 +240,7 @@ export function TreeItem({
           onSelect?.();
           setMenu(true);
         }}
-        className={`relative mr-1 flex h-control-sm cursor-default items-center gap-2 rounded-r-sm pr-1 pl-5 text-sm outline-none select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+        className={`relative mr-1 flex h-control-sm cursor-default items-center gap-2 rounded-r-sm pr-1 pl-5 text-sm outline-none select-none focus-visible:focus-ring-inset ${
           selected ? 'bg-surface-selected before:absolute before:top-0 before:bottom-0 before:left-3 before:border-l-2 before:border-accent' : 'hover:bg-surface-hover'
         } ${dimmed ? 'text-text-subtle' : 'text-text'} ${className}`}
         data-testid={testId}

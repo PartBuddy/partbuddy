@@ -7,7 +7,7 @@ import { Button as AriaButton } from 'react-aria-components';
 import type { NoteView } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio, type BodyModel } from '../state/store';
-import { Button } from '../ui/Button';
+import { Button, IconButton } from '../ui/Button';
 import { NoteForm, NoteStatus, useNoteCommand } from './NoteParts';
 
 /** Pins sit a little in front of the face, so they do not sink into it. */
@@ -54,15 +54,15 @@ function NoteCard({ note, number, busy }: { note: NoteView; number: number; busy
     >
       <div className="flex items-start justify-between gap-2">
         <NoteStatus note={note} />
-        <AriaButton
-          aria-label={t('notes.close')}
+        <IconButton
+          label={t('notes.close')}
+          shortcut="Esc"
           onPress={() => {
             setOpenNote(null);
           }}
-          className="inline-flex size-control-sm shrink-0 items-center justify-center rounded-md text-text-subtle outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
         >
           <IconX className="size-icon-sm" aria-hidden />
-        </AriaButton>
+        </IconButton>
       </div>
       {editing ? (
         <NoteForm
@@ -148,7 +148,7 @@ export function NotePins({ bodies, busy }: { bodies: BodyModel[]; busy: boolean 
                 onPress={() => {
                   setOpenNote(open ? null : note.id);
                 }}
-                className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 inline-flex size-control-sm items-center justify-center rounded-full border-2 text-xs font-semibold shadow-2 outline-none focus-visible:outline-2 focus-visible:outline-focus ${
+                className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 inline-flex size-control-sm items-center justify-center rounded-full border-2 text-xs font-semibold shadow-2 outline-none focus-visible:focus-ring ${
                   note.own ? 'border-surface bg-note text-on-accent' : 'border-warning bg-surface-raised text-warning'
                 } ${note.status === 'attached' ? '' : 'ring-2 ring-warning'}`}
                 data-testid="note-pin"

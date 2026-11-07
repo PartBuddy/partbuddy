@@ -1,10 +1,11 @@
 import { IconFocus2, IconX } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, SwitchButton, SwitchField } from 'react-aria-components';
+import { SwitchButton, SwitchField } from 'react-aria-components';
 
 import { useStudio } from '../state/store';
 import { BuildLine } from './BuildStatus';
+import { IconButton } from '../ui/Button';
 
 /** How many faces and sketch curves the latest step changed, with the camera follow switch. */
 /** Glow after a change: held, then faded out in small steps (none under reduced motion). */
@@ -71,20 +72,16 @@ function Changes() {
           ]
             .filter(Boolean)
             .join(' · ')}
-          <AriaButton
-            aria-label={t('live.clear')}
-            onPress={clear}
-            className="rounded-sm text-text-subtle outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
-          >
+          <IconButton label={t('live.clear')} onPress={clear} className="-my-1">
             <IconX className="size-icon-sm" aria-hidden />
-          </AriaButton>
+          </IconButton>
         </span>
       ) : null}
       <SwitchField isSelected={follow} onChange={setFollow}>
         <SwitchButton className="group flex items-center gap-1 outline-none">
         <span
           aria-hidden
-          className="flex h-icon w-control-sm items-center rounded-full border border-border-strong bg-surface p-hairline group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
+          className="flex h-icon w-control-sm items-center rounded-full border border-border-strong bg-surface p-hairline group-selected:bg-accent group-focus-visible:focus-ring"
         >
           <span className="size-dot rounded-full bg-text-subtle transition-transform group-selected:translate-x-full group-selected:bg-on-accent" />
         </span>

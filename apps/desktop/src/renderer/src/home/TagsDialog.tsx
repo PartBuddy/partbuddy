@@ -43,7 +43,7 @@ export function TagsDialog({ project, onClose, onDone }: { project: ProjectEntry
           >
             <TextField value={value} onChange={setValue} autoFocus className="flex flex-col gap-1">
               <Label className="text-xs text-text-muted">{t('home.tags.label')}</Label>
-              <Input placeholder={t('home.tags.placeholder')} className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus" data-testid="project-tags-input" />
+              <Input placeholder={t('home.tags.placeholder')} className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none placeholder:text-text-subtle focus-visible:focus-ring" data-testid="project-tags-input" />
               {error ? (
                 <span role="alert" className="text-xs text-danger">
                   {error}

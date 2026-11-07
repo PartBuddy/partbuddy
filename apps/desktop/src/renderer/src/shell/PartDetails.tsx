@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Group, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
 
+import { iconButtonClass, pressable } from '../ui/Button';
+
 import type { PartNote, PartsState } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
@@ -46,7 +48,7 @@ export function useParts(documentId: string | null, printable: string[]): { part
   return { parts, save };
 }
 
-const fieldClass = 'h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none focus-visible:outline-2 focus-visible:outline-focus';
+const fieldClass = 'h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none focus-visible:focus-ring';
 
 /** The printed switch beside a body: every copy printed, or none. */
 export function PrintedToggle({ body, note, onChange }: { body: string; note: PartNote; onChange: (note: PartNote) => void }) {
@@ -58,7 +60,7 @@ export function PrintedToggle({ body, note, onChange }: { body: string; note: Pa
       onChange={(next) => onChange({ ...note, printed: next ? note.quantity : 0 })}
       aria-label={t(done ? 'parts.markOpen' : 'parts.markPrinted', { name: body })}
       excludeFromTabOrder
-      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-sm outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus ${done ? 'text-success' : 'text-text-subtle hover:text-text'}`}
+      className={`inline-flex size-control-sm shrink-0 items-center justify-center rounded-md hover:bg-surface-hover pressed:bg-surface-pressed ${pressable} ${done ? 'text-success' : 'text-text-subtle hover:text-text'}`}
       data-testid="part-printed"
     >
       {done ? <IconCircleCheckFilled className="size-icon-sm" aria-hidden /> : <IconCircleDashed className="size-icon-sm" aria-hidden />}
@@ -74,7 +76,7 @@ export function ExpandToggle({ body, open, onToggle }: { body: string; open: boo
       aria-expanded={open}
       onPress={onToggle}
       excludeFromTabOrder
-      className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-text-subtle outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+      className={iconButtonClass('sm')}
       data-testid="part-expand"
     >
       <IconChevronRight className={`size-icon-sm transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />

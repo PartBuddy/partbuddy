@@ -12,6 +12,7 @@ import { hexColor } from './hexColor';
 import { DesignActions } from './DesignActions';
 import { ProjectMenu } from './ProjectMenu';
 import { SettingsMenu } from './SettingsMenu';
+import { pressable } from '../ui/Button';
 
 function connectionTone(status: ConnectionStatus): Tone {
   if (status.state === 'connected') return status.mirror === 'failed' ? 'warning' : status.mirror === 'rebuilding' ? 'info' : 'success';
@@ -75,7 +76,7 @@ export function TitleBar() {
         // The visible name starts the accessible one (WCAG 2.5.3).
         aria-label={`${t('app.name')}, ${homeOpen ? t('home.close') : t('home.open')}`}
         aria-pressed={homeOpen}
-        className="flex items-center gap-2 rounded-sm px-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus pressed:bg-surface-selected"
+        className={`flex items-center gap-2 rounded-md px-1 hover:bg-surface-hover pressed:bg-surface-pressed aria-pressed:bg-surface-pressed ${pressable}`}
         data-testid="home-button"
       >
         <BrandMark />

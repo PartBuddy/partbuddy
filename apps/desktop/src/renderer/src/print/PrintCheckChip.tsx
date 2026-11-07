@@ -87,7 +87,7 @@ function FindingRow({ finding }: { finding: PrintFinding }) {
           setStepHighlight(located.places);
           requestFocus(box);
         }}
-        className="group flex w-full items-start gap-2 rounded-sm px-2 py-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus pressed:bg-surface-selected"
+        className="group flex w-full items-start gap-2 rounded-sm px-2 py-1 outline-none hover:bg-surface-hover focus-visible:focus-ring pressed:bg-surface-pressed"
       >
         {body}
         <IconCrosshair className="mt-0 size-icon-sm shrink-0 text-text-muted group-hover:text-text" aria-hidden />
@@ -115,7 +115,7 @@ export function PrintCheckChip() {
       }}
     >
       <AriaButton
-        className="inline-flex h-full items-center gap-1 rounded-sm px-1 text-xs text-text-muted outline-none hover:bg-surface-hover hover:text-text pressed:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+        className="inline-flex h-full items-center gap-1 rounded-sm px-1 text-xs text-text-muted outline-none hover:bg-surface-hover hover:text-text pressed:bg-surface-pressed focus-visible:focus-ring"
         data-testid="print-check"
         data-status={status}
         data-revision={check.revision}

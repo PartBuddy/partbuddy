@@ -128,7 +128,7 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
               onFocus={(event) => {
                 event.currentTarget.select();
               }}
-              className="h-control-sm w-full rounded-sm border border-accent bg-surface px-1 text-right text-sm tabular-nums text-text outline-none invalid:border-danger disabled:opacity-50"
+              className="h-control-sm w-full rounded-sm border border-accent bg-surface px-1 text-right text-sm tabular-nums text-text outline-none invalid:border-danger disabled:opacity-disabled"
               onKeyDown={(event) => {
                 event.stopPropagation();
                 if (event.key === 'Enter') {
@@ -179,7 +179,7 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
               <>
                 <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
                 <span aria-hidden className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ width: `${String(state.getThumbPercent(0) * 100)}%` }} />
-                <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:outline-2 focus-visible:outline-focus" />
+                <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:focus-ring" />
               </>
             )}
           </SliderTrack>

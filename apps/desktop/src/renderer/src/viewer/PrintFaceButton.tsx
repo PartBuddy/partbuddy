@@ -4,6 +4,8 @@ import { Button as AriaButton, Tooltip, TooltipTrigger } from 'react-aria-compon
 
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
+import { buttonClass } from '../ui/Button';
+import { tooltipClass } from '../ui/Tooltip';
 
 /**
  * "Print on this face" at one picked flat face (plan step B8): SolidCraft's own print face
@@ -30,17 +32,17 @@ export function PrintFaceButton({ bodies, picks, busy }: { bodies: BodyModel[]; 
       });
   };
   return (
-    <TooltipTrigger delay={300}>
+    <TooltipTrigger delay={500} closeDelay={0}>
       <AriaButton
         isDisabled={busy}
         onPress={set}
-        className="inline-flex h-control-sm items-center gap-1 self-start rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+        className={`self-start ${buttonClass('secondary', 'sm')}`}
         data-testid="action-print-face"
       >
         <IconArrowBarToDown className="size-icon-sm" aria-hidden />
         {t('printFace.action')}
       </AriaButton>
-      <Tooltip placement="top" offset={6} className="max-w-text-max rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
+      <Tooltip placement="top" offset={6} className={tooltipClass}>
         {t('printFace.hint')}
       </Tooltip>
     </TooltipTrigger>

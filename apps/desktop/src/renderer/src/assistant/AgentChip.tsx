@@ -6,6 +6,7 @@ import type { AgentKind, AgentStatus, ModelChoice } from '../../../shared/contra
 import { platform } from '../platform';
 import { StatusDot } from '../ui/Feedback';
 import { selectedStatus, useAssistant } from './store';
+import { linkClass, pressable } from '../ui/Button';
 
 type T = ReturnType<typeof useTranslation>['t'];
 type Tone = 'success' | 'neutral' | 'warning';
@@ -72,7 +73,7 @@ function chipLabel(t: T, status: AgentStatus): string {
 }
 
 export const radioClass =
-  'group flex cursor-default items-start gap-2 rounded-sm px-2 py-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:bg-surface-selected';
+  'group flex cursor-default items-start gap-2 rounded-sm px-2 py-1 outline-none hover:bg-surface-hover focus-visible:focus-ring selected:bg-surface-selected';
 
 export function RadioMark() {
   return (
@@ -138,7 +139,7 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
             {current.efforts.map((value) => (
               <RadioField key={value} value={value}>
                 <RadioButton
-                  className="inline-flex cursor-default items-center rounded-full border border-border px-2 py-0 text-xs text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:border-accent selected:bg-accent-subtle"
+                  className="inline-flex cursor-default items-center rounded-full border border-border px-2 py-0 text-xs text-text outline-none hover:bg-surface-hover focus-visible:focus-ring selected:border-accent selected:bg-accent-subtle"
                   data-testid="effort-option"
                 >
                   {effortLabel(t, value)}
@@ -156,7 +157,7 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
           </span>
         ) : (
           <AriaButton
-            className="text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+            className={`text-xs ${linkClass}`}
             onPress={() => {
               choose({ model: current.id, effort }, true);
             }}
@@ -179,8 +180,7 @@ export function AssistantChoice() {
   const state = useAssistant((s) => s.state);
   const status = selectedStatus(state);
   const api = platform().agent;
-  const linkButton =
-    'text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus';
+  const linkButton = `text-xs ${linkClass}`;
   return (
     <>
       <RadioGroup
@@ -279,7 +279,7 @@ export function AgentChip() {
     <DialogTrigger>
       <AriaButton
         aria-label={t('assistant.chip.label', { status: label })}
-        className="inline-flex h-control-md min-w-0 max-w-full items-center gap-2 rounded-full border border-border bg-surface-sunken pl-3 pr-2 text-sm text-text-muted outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus pressed:bg-surface-hover"
+        className={`inline-flex h-control-md min-w-0 max-w-full items-center gap-2 rounded-full border border-border bg-surface-sunken pl-3 pr-2 text-sm text-text-muted hover:bg-surface-hover hover:text-text pressed:bg-surface-pressed ${pressable}`}
         data-testid="agent-status"
       >
         {/* One line, cut with an ellipsis when the chat is narrow; the full text is the tooltip and the label. */}

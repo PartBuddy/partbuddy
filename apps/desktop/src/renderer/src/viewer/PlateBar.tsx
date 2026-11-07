@@ -1,14 +1,11 @@
 import { IconAlertTriangle, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton } from 'react-aria-components';
 
 import { useStudio } from '../state/store';
 import { Busy } from '../ui/Feedback';
 import type { PlateLayout } from './motion';
+import { IconButton } from '../ui/Button';
 
-const tool =
-  'inline-flex size-control-md items-center justify-center rounded-md text-text outline-none transition-colors hover:bg-surface-hover pressed:bg-surface-selected ' +
-  'disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus';
 
 /**
  * The plate view's bar (viewport CAD round): which plate of how many, the printer's build volume,
@@ -32,15 +29,15 @@ export function PlateBar({ layout, bed }: { layout: PlateLayout; bed: [number, n
       data-plates={plates}
     >
       <div className="flex items-center gap-2">
-        <AriaButton aria-label={t('plate.previous')} className={tool} isDisabled={plate <= 0} onPress={() => { setPlate(plate - 1); }} data-testid="plate-prev">
+        <IconButton size="md" label={t('plate.previous')} isDisabled={plate <= 0} onPress={() => { setPlate(plate - 1); }} data-testid="plate-prev">
           <IconChevronLeft className="size-icon-sm" aria-hidden />
-        </AriaButton>
+        </IconButton>
         <span className="min-w-28 whitespace-nowrap text-center text-sm font-medium tabular-nums text-text" aria-live="polite" data-testid="plate-label">
           {layout.status === 'computing' ? <Busy label={t('plate.computing')} /> : layout.status === 'error' ? t('plate.failed') : t('plate.of', { plate: plate + 1, plates })}
         </span>
-        <AriaButton aria-label={t('plate.next')} className={tool} isDisabled={plate >= plates - 1} onPress={() => { setPlate(plate + 1); }} data-testid="plate-next">
+        <IconButton size="md" label={t('plate.next')} isDisabled={plate >= plates - 1} onPress={() => { setPlate(plate + 1); }} data-testid="plate-next">
           <IconChevronRight className="size-icon-sm" aria-hidden />
-        </AriaButton>
+        </IconButton>
         {bed ? (
           <span className="whitespace-nowrap border-l border-border pl-3 text-xs tabular-nums text-text-muted" data-testid="plate-bed">
             {printer ? `${printer} · ` : ''}

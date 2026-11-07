@@ -20,10 +20,11 @@ import { useStudio, type DisplayMode, type Section, type StandardView } from '..
 import { CadIcon } from '../ui/CadIcon';
 import { bodiesBox, faceSection, sectionSpan } from './section';
 import { ViewIcon } from '../ui/ViewIcon';
+import { iconButtonClass, toggleSelected } from '../ui/Button';
+import { tooltipClass } from '../ui/Tooltip';
 
-const tool =
-  'inline-flex size-control-md items-center justify-center rounded-md text-xs font-semibold text-text outline-none transition-colors ' +
-  'hover:bg-surface-hover pressed:bg-surface-selected selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus';
+/** View tools: the shared icon button look; a tool that stays on shows the accent's quiet fill. */
+const tool = `${iconButtonClass('md')} text-xs font-semibold ${toggleSelected}`;
 
 /** A labelled button of the assembled/plate switch: the tool look, as wide as its label. */
 const segment = tool.replace('size-control-md', 'h-control-md gap-1 px-2');
@@ -39,9 +40,9 @@ function inTextField(target: EventTarget | null): boolean {
 
 function Tip({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <TooltipTrigger delay={400}>
+    <TooltipTrigger delay={500} closeDelay={0}>
       {children}
-      <Tooltip placement="bottom" offset={6} className="rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
+      <Tooltip placement="bottom" offset={6} className={tooltipClass}>
         {label}
       </Tooltip>
     </TooltipTrigger>
@@ -148,7 +149,7 @@ function SectionPanel({ section }: { section: Section }) {
             onChange={() => {
               if (pick && pickedNormal) setSection({ ...faceSection(pick.point, pickedNormal, box), flip: section.flip });
             }}
-            className={`${tool} disabled:opacity-40`}
+            className={tool}
             data-testid="section-face"
           >
             <CadIcon name="plane" className="size-icon-sm" />
@@ -184,7 +185,7 @@ function SectionPanel({ section }: { section: Section }) {
             <>
               <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
               <span aria-hidden className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ width: `${String(state.getThumbPercent(0) * 100)}%` }} />
-              <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:outline-2 focus-visible:outline-focus" />
+              <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:focus-ring" />
             </>
           )}
         </SliderTrack>
@@ -234,7 +235,7 @@ function ExplodePanel({ amount }: { amount: number }) {
             <>
               <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
               <span aria-hidden className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ width: `${String(state.getThumbPercent(0) * 100)}%` }} />
-              <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:outline-2 focus-visible:outline-focus" />
+              <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:focus-ring" />
             </>
           )}
         </SliderTrack>

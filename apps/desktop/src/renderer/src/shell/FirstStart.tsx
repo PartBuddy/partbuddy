@@ -75,7 +75,7 @@ export function FirstStart() {
                 href={SOLIDCRAFT_DOWNLOAD}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 self-start text-sm text-accent-text underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+                className="inline-flex items-center gap-2 self-start text-sm text-accent-text underline outline-none hover:text-text focus-visible:focus-ring"
                 data-testid="first-start-download"
               >
                 <IconDownload className="size-icon-sm" aria-hidden />

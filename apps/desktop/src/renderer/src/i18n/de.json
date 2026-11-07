@@ -885,6 +885,7 @@
     "open": "Startseite mit den Projekten",
     "close": "Zurück zum Projekt",
     "search": "Projekte suchen",
+    "searchClear": "Suche leeren",
     "import": "Importieren …",
     "list": "{count, plural, one {# Projekt} other {# Projekte}}",
     "emptyTitle": "Noch keine Projekte",
