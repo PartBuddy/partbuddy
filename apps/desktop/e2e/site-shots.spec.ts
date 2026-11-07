@@ -200,7 +200,8 @@ test('website pictures', async () => {
       await shot('params');
     });
     await step('blocks', async () => {
-      await pickFace(page);
+      // The top of the base plate, as in the view picture: a seat for an insert belongs there.
+      await pickFace(page, PLATE_TOP);
       await page.getByTestId('action-block').click();
       await page.getByTestId('block-kind').click();
       await page.getByRole('option', { name: 'Heat-set insert seat' }).click();
@@ -276,7 +277,7 @@ test('website pictures', async () => {
       await page.getByTestId('note-new-save').click();
       await expect(page.getByTestId('note-pin')).toHaveCount(1, { timeout: 15_000 });
       // The face picked again beside the pin: its name shows with the selection.
-      await pickFace(page, [[0.62, 0.72], [0.7, 0.74], [0.45, 0.74]]);
+      await pickFace(page, PLATE_TOP);
       await shot('view');
       await page.keyboard.press('Escape');
     });
@@ -376,6 +377,7 @@ test('website pictures', async () => {
   }
 });
 
+const PLATE_TOP = [[0.62, 0.72], [0.7, 0.74], [0.45, 0.74]] as const;
 const SPOTS = [[0.5, 0.62], [0.42, 0.6], [0.6, 0.62], [0.5, 0.55], [0.35, 0.55], [0.65, 0.55]] as const;
 
 /** Clicks across the view until a face is selected. */
