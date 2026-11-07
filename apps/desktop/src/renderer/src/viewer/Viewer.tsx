@@ -644,6 +644,9 @@ function FrameDesign({ documentId, bodies, sketches }: { documentId: string; bod
   const controls = useThree((state) => state.controls) as CameraControls | null;
   const canvas = useThree((state) => state.gl.domElement);
   const follow = useStudio((s) => s.followChanges);
+  // The plate and the playback frame the camera themselves (PlateBed, PlaybackCamera). Their effects run
+  // before this one, so a framing here would undo theirs when the controls arrive or change meanwhile.
+  const framedElsewhere = useStudio((s) => s.viewMode === 'plate' || s.playback !== null);
   const bounds = useMemo(() => boundsOf(bodies, sketches), [bodies, sketches]);
   const framing = useRef<{ documentId: string | null; framed: Sphere | null; userMoved: boolean; controls: CameraControls | null }>({
     documentId: null,
@@ -673,7 +676,7 @@ function FrameDesign({ documentId, bodies, sketches }: { documentId: string; bod
     const state = framing.current;
     if (state.documentId !== documentId) {
       framing.current = { documentId, framed: bounds.clone(), userMoved: false, controls };
-      lookFrom(controls, scene.viewDirection, bounds, false);
+      if (!framedElsewhere) lookFrom(controls, scene.viewDirection, bounds, false);
       return;
     }
     // A new camera (the canvas swaps its default one for ours right after mounting) has another
@@ -681,12 +684,12 @@ function FrameDesign({ documentId, bodies, sketches }: { documentId: string; bod
     const newCamera = state.controls !== controls;
     state.controls = controls;
     // Following changes moves the camera on its own; a user who moved it keeps their view.
-    if (state.userMoved || follow || !(newCamera || needsReframe(state.framed, bounds))) return;
+    if (framedElsewhere || state.userMoved || follow || !(newCamera || needsReframe(state.framed, bounds))) return;
     state.framed = bounds.clone();
     centrePivot(controls, !newCamera);
     void controls.fitToSphere(bounds, !newCamera);
     keepView(controls);
-  }, [controls, documentId, bounds, follow]);
+  }, [controls, documentId, bounds, follow, framedElsewhere]);
   return null;
 }
 
