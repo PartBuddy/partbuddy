@@ -10,6 +10,7 @@ import { roundAnswers, roundMessage, type Round } from './round';
 import type { ConversationItem } from './store';
 import { inputClass } from '../ui/Field';
 import { CheckMark, RadioMark, choiceRowClass } from '../ui/Choice';
+import { badgeClass } from '../ui/Feedback';
 
 export type QuestionItem = Extract<ConversationItem, { kind: 'question' }>;
 
@@ -98,7 +99,7 @@ function OptionText({ option }: { option: Option }) {
       <span className="flex flex-wrap items-center gap-1 text-sm text-text">
         {option.label}
         {option.recommended ? (
-          <span className="rounded-full bg-accent px-2 text-xs font-medium text-on-accent" data-testid="option-recommended">
+          <span className={badgeClass('accent', true)} data-testid="option-recommended">
             {t('assistant.question.recommended')}
           </span>
         ) : null}

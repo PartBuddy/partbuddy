@@ -11,6 +11,7 @@ import { useStudio } from '../state/store';
 import { Button, IconButton } from '../ui/Button';
 import { inputClass, fieldLabelClass } from '../ui/Field';
 import { chipToggleClass } from '../ui/Choice';
+import { modalClass, overlayClass } from '../ui/Dialog';
 
 const volume = (mm3: number, language: string) => new Intl.NumberFormat(language, { maximumFractionDigits: mm3 < 10 ? 1 : 0 }).format(mm3);
 
@@ -261,10 +262,10 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
         if (!next) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass}
     >
-      <Modal className="w-dialog-lg max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
-        <Dialog className="flex max-h-[76vh] flex-col gap-4 p-5 outline-none" data-testid="versions-dialog">
+      <Modal className={modalClass('lg')}>
+        <Dialog className="flex max-h-dialog-max flex-col gap-4 p-5 outline-none" data-testid="versions-dialog">
           <div className="flex items-center gap-2">
             <IconHistory className="size-icon text-text-muted" aria-hidden />
             <Heading slot="title" className="flex-1 text-lg font-semibold text-text">

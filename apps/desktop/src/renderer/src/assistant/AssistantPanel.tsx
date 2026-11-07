@@ -815,9 +815,9 @@ export function AssistantPanel() {
             URL.revokeObjectURL(shownPhoto);
             setShownPhoto(null);
           }}
-          className="fixed inset-0 z-10 flex items-center justify-center bg-overlay p-6"
+          className="fixed inset-0 z-10 flex items-center justify-center bg-overlay p-6 entering:animate-fade-in"
         >
-          <Modal className="max-h-full max-w-full overflow-hidden rounded-lg border border-border bg-surface-raised shadow-3">
+          <Modal className="max-h-full max-w-full overflow-hidden rounded-lg border border-border bg-surface-raised shadow-3 entering:animate-dialog-in">
             <Dialog aria-label={t('assistant.photo.show')} className="outline-none" data-testid="photo-large">
               <img src={shownPhoto} alt="" className="block max-h-[calc(100dvh_-_3rem)] max-w-full object-contain" />
             </Dialog>

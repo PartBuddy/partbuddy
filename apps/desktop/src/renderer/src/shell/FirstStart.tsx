@@ -10,6 +10,7 @@ import { platform } from '../platform';
 import { Button } from '../ui/Button';
 import { EnginePanel } from './EnginePanel';
 import { ProjectsFolderField } from './SettingsDialog';
+import { modalClass, overlayClass } from '../ui/Dialog';
 
 const STEPS = ['solidcraft', 'assistant', 'print', 'projects'] as const;
 type Step = (typeof STEPS)[number];
@@ -58,10 +59,10 @@ export function FirstStart() {
       onOpenChange={(stillOpen) => {
         if (!stillOpen) finish();
       }}
-      className="fixed inset-0 z-20 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass.replace('z-10', 'z-20')}
     >
-      <Modal className="w-dialog-lg max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
-        <Dialog className="flex max-h-[76vh] flex-col gap-4 overflow-y-auto p-5 outline-none" data-testid="first-start" data-step={step}>
+      <Modal className={modalClass('lg')}>
+        <Dialog className="flex max-h-dialog-max flex-col gap-4 overflow-y-auto p-5 outline-none" data-testid="first-start" data-step={step}>
           <div className="flex flex-col gap-1">
             <Heading slot="title" className="text-lg font-semibold text-text">
               {t('firstStart.title')}

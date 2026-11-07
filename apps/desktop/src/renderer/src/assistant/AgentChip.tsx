@@ -4,7 +4,7 @@ import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover, RadioBut
 
 import type { AgentKind, AgentStatus, ModelChoice } from '../../../shared/contract';
 import { platform } from '../platform';
-import { StatusDot } from '../ui/Feedback';
+import { StatusDot, badgeClass, dotTone } from '../ui/Feedback';
 import { selectedStatus, useAssistant } from './store';
 import { linkClass, pressable } from '../ui/Button';
 import { choiceRowClass, RadioMark, segmentClass, segmentGroupClass } from '../ui/Choice';
@@ -20,7 +20,6 @@ function signedIn(status: AgentStatus): boolean {
   return status.state === 'ready' || status.state === 'busy';
 }
 
-const DOT: Record<Tone, string> = { success: 'bg-success', neutral: 'bg-text-subtle', warning: 'bg-warning' };
 
 /** From this share of the context window on, a new chat is recommended. */
 const CONTEXT_FULL = 0.8;
@@ -271,7 +270,7 @@ export function AgentChip() {
         data-testid="agent-status"
       >
         {/* One line, cut with an ellipsis when the chat is narrow; the full text is the tooltip and the label. */}
-        <span aria-hidden className={`size-dot shrink-0 rounded-full ${DOT[toneOf(status)]}`} />
+        <span aria-hidden className={`size-dot shrink-0 rounded-full ${dotTone[toneOf(status)]}`} />
         <span className="min-w-0 truncate whitespace-nowrap" title={label}>
           {label}
         </span>
@@ -283,7 +282,7 @@ export function AgentChip() {
             <Heading slot="title" className="text-sm font-semibold text-text">
               {t('assistant.title')}
             </Heading>
-            <span className="rounded-sm border border-border px-1 text-xs text-text-muted">{t('assistant.preview')}</span>
+            <span className={badgeClass()}>{t('assistant.preview')}</span>
           </div>
           <AssistantChoice />
           <p className="text-xs text-text-subtle">{t('assistant.chip.switchNote')}</p>

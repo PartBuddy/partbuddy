@@ -26,6 +26,7 @@ import { parseLength } from '../viewer/lengthInput';
 import { fieldBox } from '../ui/Field';
 import { segmentClass, segmentGroupClass } from '../ui/Choice';
 import { POPOVER_OFFSET, menuClass, menuItemTwoLineClass, popoverClass } from '../ui/Overlay';
+import { modalClass, overlayClass } from '../ui/Dialog';
 import {
   arcCircle,
   BACKGROUND_SIZE,
@@ -589,9 +590,9 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
         if (!next) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center overflow-y-auto bg-overlay px-4 pb-4 pt-dialog-offset [@media(max-height:720px)]:pt-4"
+      className={`${overlayClass} overflow-y-auto pb-4 [@media(max-height:720px)]:pt-4`}
     >
-      <Modal className="w-dialog-xl max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
+      <Modal className={modalClass('xl')}>
         <Dialog className="outline-none" data-testid="sketch-pad">
           {/* Tool keys, undo and redo work wherever the focus is in the sketch. */}
           <div

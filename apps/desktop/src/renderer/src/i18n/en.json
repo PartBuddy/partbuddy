@@ -1,4 +1,7 @@
 {
+  "dialog": {
+    "close": "Close"
+  },
   "app": {
     "name": "PartBuddy",
     "design": "Design",

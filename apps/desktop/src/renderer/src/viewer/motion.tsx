@@ -323,7 +323,7 @@ export function PlateBed({ bed, colors }: { bed: [number, number, number]; color
     [0, depth, 0.05],
     [0, 0, 0.05],
   ];
-  const label = 'pointer-events-none whitespace-nowrap rounded-sm bg-surface-raised px-1.5 text-xs tabular-nums text-text-muted shadow-1';
+  const label = 'pointer-events-none whitespace-nowrap rounded-sm bg-surface-raised px-1 text-xs tabular-nums text-text-muted shadow-1';
   return (
     <group name="print bed">
       <mesh position={[width / 2, depth / 2, -0.06]} raycast={noRaycast} receiveShadow>

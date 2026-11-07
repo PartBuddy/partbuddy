@@ -7,6 +7,7 @@ import { useStudio } from '../state/store';
 import { activeStep } from './explode';
 import { IconButton } from '../ui/Button';
 import { SliderBar } from '../ui/Choice';
+import { badgeClass } from '../ui/Feedback';
 
 
 /**
@@ -88,7 +89,7 @@ export function AssemblyPlayer({ steps, source }: { steps: PlayStep[]; source: '
             >
               <span className="w-5 shrink-0 text-right text-xs tabular-nums text-text-subtle">{k + 1}</span>
               <span className="min-w-0 flex-1 truncate">{step.name}</span>
-              {step.group ? <span className="shrink-0 rounded-full bg-surface-sunken px-1.5 text-xs text-text-muted">{step.group}</span> : null}
+              {step.group ? <span className={badgeClass()}>{step.group}</span> : null}
             </button>
           </li>
         ))}

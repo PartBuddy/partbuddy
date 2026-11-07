@@ -4,13 +4,14 @@ import { useTranslation } from 'react-i18next';
 import type { EngineChoiceError, EngineInfo } from '../../../shared/contract';
 import { platform } from '../platform';
 import { Button } from '../ui/Button';
+import { badgeClass, type Tone } from '../ui/Feedback';
 
-const badgeClass: Record<EngineInfo['support'], string> = {
-  recommended: 'bg-success-subtle text-success',
+const supportTone: Record<EngineInfo['support'], Tone> = {
+  recommended: 'success',
   // Supported works: green as well, not the warning colour a newcomer reads as trouble (polish round 3).
-  supported: 'bg-success-subtle text-success',
-  tooOld: 'bg-danger-subtle text-danger',
-  unknown: 'bg-surface-hover text-text-muted',
+  supported: 'success',
+  tooOld: 'danger',
+  unknown: 'neutral',
 };
 
 /**
@@ -67,7 +68,7 @@ export function EnginePanel({ close, closable = true }: { close: () => void; clo
             {info.version ?? t('engine.unknownVersion')}
           </span>
           {info.path ? (
-            <span className={`rounded-sm px-2 py-1 text-xs font-medium ${badgeClass[info.support]}`} data-testid="engine-support">
+            <span className={badgeClass(supportTone[info.support])} data-testid="engine-support">
               {t(`engine.support.${info.support}`)}
             </span>
           ) : null}

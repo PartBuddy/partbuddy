@@ -7,6 +7,7 @@ import { platform } from '../platform';
 import { Button } from '../ui/Button';
 import { parseTags } from './projectTiles';
 import { FieldMessage, fieldLabelClass, inputClass } from '../ui/Field';
+import { DialogClose, dialogTitleClass, modalClass, overlayClass } from '../ui/Dialog';
 
 /** The tags of a start page project (P5), typed in one field and separated by commas. */
 export function TagsDialog({ project, onClose, onDone }: { project: ProjectEntry; onClose: () => void; onDone: () => void }) {
@@ -20,13 +21,16 @@ export function TagsDialog({ project, onClose, onDone }: { project: ProjectEntry
         if (!next) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass}
     >
-      <Modal className="w-dialog-sm max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
+      <Modal className={modalClass('sm')}>
         <Dialog className="flex flex-col gap-4 p-5 outline-none" data-testid="project-tags-dialog">
-          <Heading slot="title" className="text-lg font-semibold text-text">
-            {t('home.tags.title', { name: project.name })}
-          </Heading>
+          <div className="flex items-start gap-2">
+            <Heading slot="title" className={`flex-1 ${dialogTitleClass}`}>
+              {t('home.tags.title', { name: project.name })}
+            </Heading>
+            <DialogClose onPress={onClose} />
+          </div>
           <form
             className="flex flex-col gap-4"
             onSubmit={(event) => {

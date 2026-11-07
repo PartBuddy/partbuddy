@@ -26,19 +26,36 @@ export function Busy({ label }: { label: string }) {
   );
 }
 
+/** The colour of a status dot by tone; used wherever a dot stands beside its text. */
+export const dotTone: Record<Tone, string> = {
+  neutral: 'bg-text-subtle',
+  accent: 'bg-accent',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger: 'bg-danger',
+  info: 'bg-info',
+};
+
+const badgeTone: Record<Tone, string> = {
+  neutral: 'bg-surface-hover text-text-muted',
+  accent: 'bg-accent-subtle text-accent-text',
+  success: 'bg-success-subtle text-success',
+  warning: 'bg-warning-subtle text-warning',
+  danger: 'bg-danger-subtle text-danger',
+  info: 'bg-info-subtle text-info',
+};
+
+/** A small label for a state or a count (Linear, GitHub): quiet fill, text in the tone, 4.5:1 checked. */
+export function badgeClass(tone: Tone = 'neutral', strong = false): string {
+  const look = strong ? (tone === 'accent' ? 'bg-accent text-on-accent' : badgeTone[tone]) : badgeTone[tone];
+  return `inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-xs font-medium tabular-nums ${look}`;
+}
+
 /** Status dot with a text label; colour is never the only signal. */
 export function StatusDot({ tone, label }: { tone: Tone; label: string }) {
-  const dot: Record<Tone, string> = {
-    neutral: 'bg-text-subtle',
-    accent: 'bg-accent',
-    success: 'bg-success',
-    warning: 'bg-warning',
-    danger: 'bg-danger',
-    info: 'bg-info',
-  };
   return (
     <span className="inline-flex items-center gap-1 text-sm text-text-muted">
-      <span aria-hidden className={`size-dot rounded-full ${dot[tone]}`} />
+      <span aria-hidden className={`size-dot rounded-full ${dotTone[tone]}`} />
       {label}
     </span>
   );
