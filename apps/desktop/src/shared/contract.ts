@@ -194,6 +194,8 @@ export const projectInfoSchema = z
 const projectFolder = z.string().min(1).max(1000);
 export const projectRenameSchema = z.object({ name: z.string().min(1).max(120), folder: projectFolder.optional() }).strict();
 export const projectTargetSchema = z.object({ folder: projectFolder.optional() }).strict();
+/** The favourite and the tags of a start page project (P5); what is left out stays. */
+export const projectMetaSchema = z.object({ folder: projectFolder, favorite: z.boolean().optional(), tags: z.array(z.string().max(200)).max(100).optional() }).strict();
 export const projectRenameResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true) }).strict(),
   z.object({ ok: z.literal(false), reason: z.enum(['empty', 'exists', 'noProject', 'busy']) }).strict(),
@@ -234,6 +236,8 @@ export const projectEntrySchema = z
     created: z.number().nonnegative(),
     preview: z.string().max(1_500_000).startsWith('data:image/png;base64,').nullable(),
     check: projectCheckSchema.nullable(),
+    favorite: z.boolean(),
+    tags: z.array(z.string().min(1).max(40)).max(20),
   })
   .strict();
 export const projectListSchema = z.array(projectEntrySchema).max(500);
@@ -1016,6 +1020,7 @@ export const invokeContract = {
   [invokeChannels.projectNameVersion]: { request: versionNameSchema, response: none },
   [invokeChannels.projectVersionAsProject]: { request: versionIdSchema, response: none },
   [invokeChannels.projectTrashList]: { request: none, response: trashListSchema },
+  [invokeChannels.projectSetMeta]: { request: projectMetaSchema, response: none },
   [invokeChannels.projectExportPackage]: { request: projectTargetSchema, response: packageExportResultSchema },
   [invokeChannels.projectTrashRestore]: { request: trashIdSchema, response: none },
   [invokeChannels.projectTrashEmpty]: { request: none, response: none },

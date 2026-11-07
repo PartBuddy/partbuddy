@@ -2,6 +2,7 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync,
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { isInside, safeDesignFileName } from '../solidcraft/headless';
+import { readMeta } from './projectMeta';
 
 /** Body names SolidCraft gives on its own; they say nothing about the part. */
 const GENERIC_BODY = /^(body|körper|solid)\s*\d*$/i;
@@ -33,6 +34,9 @@ export interface ProjectEntry {
   preview: string | null;
   /** The ready-to-print light at the last preview, or null when it is not known. */
   check: ProjectCheck | null;
+  /** Pinned to the top of the start page (P5). */
+  favorite: boolean;
+  tags: string[];
 }
 
 /** `Grundplatte.sc` → `Grundplatte.chat.json` (as `chatFileOf` and `printFileOf` name them). */
@@ -111,7 +115,7 @@ export class ProjectStore {
     } catch {
       return [];
     }
-    const projects: Omit<ProjectEntry, 'preview' | 'check'>[] = [];
+    const projects: Omit<ProjectEntry, 'preview' | 'check' | 'favorite' | 'tags'>[] = [];
     for (const entry of entries) {
       const folder = join(this.root, entry);
       const design = ProjectStore.designIn(folder);
@@ -126,7 +130,7 @@ export class ProjectStore {
       }
     }
     projects.sort((a, b) => b.modified - a.modified);
-    return projects.slice(0, MAX_PROJECTS).map((project) => ({ ...project, ...readPreview(project.folder) }));
+    return projects.slice(0, MAX_PROJECTS).map((project) => ({ ...project, ...readPreview(project.folder), ...readMeta(project.folder) }));
   }
 
   /** The design of a project folder from the start page, if it is a project of this store. */

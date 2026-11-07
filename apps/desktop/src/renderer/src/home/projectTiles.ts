@@ -5,14 +5,26 @@ export function searchable(text: string): string {
   return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase();
 }
 
-/** The projects whose name holds every word of the query, in the list's order. */
+/** The projects whose name or tags hold every word of the query, in the list's order. */
 export function matching(projects: ProjectEntry[], query: string): ProjectEntry[] {
   const words = searchable(query).split(/\s+/).filter(Boolean);
   if (words.length === 0) return projects;
   return projects.filter((project) => {
-    const name = searchable(project.name);
-    return words.every((word) => name.includes(word));
+    const text = searchable([project.name, ...project.tags].join(' '));
+    return words.every((word) => text.includes(word));
   });
+}
+
+/** Every tag of the projects once, in the language's order, for the filter (P5). */
+export function tagsOf(projects: ProjectEntry[], language: string): string[] {
+  const seen = new Map<string, string>();
+  for (const tag of projects.flatMap((project) => project.tags)) if (!seen.has(tag.toLocaleLowerCase())) seen.set(tag.toLocaleLowerCase(), tag);
+  return [...seen.values()].sort(new Intl.Collator(language, { sensitivity: 'base' }).compare);
+}
+
+/** Tags typed into one field, separated by commas. */
+export function parseTags(text: string): string[] {
+  return text.split(',').map((tag) => tag.trim()).filter(Boolean);
 }
 
 /** "vor 5 Minuten", "gestern", "vor 3 Wochen"; older than a year as a date; null for under a minute. */
@@ -41,5 +53,6 @@ export type ProjectSort = (typeof PROJECT_SORTS)[number];
 /** The projects in the chosen order: newest change or creation first, names in the language's order. */
 export function sortProjects(projects: ProjectEntry[], sort: ProjectSort, language: string): ProjectEntry[] {
   const names = new Intl.Collator(language, { numeric: true, sensitivity: 'base' });
-  return [...projects].sort((a, b) => (sort === 'name' ? names.compare(a.name, b.name) : b[sort] - a[sort]));
+  // Favourites stay on top in every order (P5).
+  return [...projects].sort((a, b) => Number(b.favorite) - Number(a.favorite) || (sort === 'name' ? names.compare(a.name, b.name) : b[sort] - a[sort]));
 }

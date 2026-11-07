@@ -991,6 +991,25 @@ test('PartBuddy starts on the start page with the projects, which searches and c
     await expect(page.getByTestId('home-trash')).toHaveCount(0);
     expect(readFileSync(join(projects, 'Cable holder copy', 'Cable holder copy.chat.json'), 'utf8')).toBe('[]');
 
+    // A favourite stays on top in every order; tags are kept in project.json and filter (P5).
+    const tileOf = (name: string) => home.locator('li', { has: page.locator(`[data-testid="home-tile"][data-name="${name}"]`) });
+    await tileOf('Wall holder').hover();
+    await tileOf('Wall holder').getByTestId('home-tile-favorite').click();
+    await expect(tiles.nth(0)).toHaveAttribute('data-name', 'Wall holder');
+    await menuOf('Übersicht');
+    await page.getByTestId('home-tile-tags').click();
+    await page.getByTestId('project-tags-input').fill('Garage, Küche');
+    await page.getByTestId('project-tags-save').click();
+    await expect(tileOf('Übersicht').getByTestId('home-tile-tags')).toHaveText('Garage · Küche');
+    expect(JSON.parse(readFileSync(join(projects, 'Übersicht', 'project.json'), 'utf8'))).toMatchObject({ tags: ['Garage', 'Küche'] });
+    await page.locator('[data-testid="home-tag"][data-tag="Küche"]').click();
+    await expect(tiles).toHaveCount(1);
+    await page.locator('[data-testid="home-tag"][data-tag="Küche"]').click();
+    await expect(tiles).toHaveCount(4);
+    await page.getByTestId('home-search').fill('garage');
+    await expect(tiles).toHaveCount(1);
+    await page.getByTestId('home-search').fill('');
+
     const results = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="home-page"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
     expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
 

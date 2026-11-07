@@ -37,6 +37,7 @@ import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
 import { checkImportFile, IMPORT_EXTENSIONS, importName, type ImportKind } from './projects/importFile';
 import { migrateDesigns, ProjectStore, whenFree } from './projects/projectStore';
+import { writeMeta } from './projects/projectMeta';
 import { exportPackage, importPackage, PACKAGE_EXTENSION } from './projects/projectPackage';
 import { ProjectTrash } from './projects/trash';
 import { LogFile } from './logFile';
@@ -922,6 +923,12 @@ if (!app.requestSingleInstanceLock()) {
       exportPackage(target.design, picked.filePath, app.getVersion());
       log('exported a project package');
       return { saved: true };
+    });
+    bridge.handle(invokeChannels.projectSetMeta, ({ folder, favorite, tags }) => {
+      const design = projectStore.designOfFolder(folder);
+      if (!design) throw new Error('not a project in the project folder');
+      writeMeta(dirname(design), { ...(favorite === undefined ? {} : { favorite }), ...(tags === undefined ? {} : { tags }) });
+      return undefined;
     });
     bridge.handle(invokeChannels.projectTrashList, () => projectTrash.list());
     bridge.handle(invokeChannels.projectTrashRestore, async ({ id }) => {

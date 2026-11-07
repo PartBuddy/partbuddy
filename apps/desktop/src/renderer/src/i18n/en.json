@@ -902,6 +902,17 @@
       "empty": "Empty recycle bin …",
       "emptyQuestion": "Hand {count, plural, one {the project} other {all # projects}} to the Windows recycle bin?",
       "emptyConfirm": "Empty"
+    },
+    "favorite": "Pin “{name}”",
+    "unfavorite": "Unpin “{name}”",
+    "tags": {
+      "title": "Tags for “{name}”",
+      "label": "Tags",
+      "placeholder": "For example: garage, printer",
+      "hint": "Separate several tags with commas. The start page filters by them.",
+      "save": "Save",
+      "edit": "Tags …",
+      "filter": "Filter by tag"
     }
   },
   "versions": {
