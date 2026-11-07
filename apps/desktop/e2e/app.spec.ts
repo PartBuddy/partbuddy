@@ -657,6 +657,8 @@ test('the ChatGPT route offers the sign-in when no account is stored', async () 
 test('the main view has no WCAG 2.2 AA violations that axe can detect', async () => {
   const { app } = await connectedApp();
   await expect(app.page.getByTestId('mesh-summary')).toBeVisible();
+  // Entries of the chat fade in; axe would measure the contrast of text still half transparent.
+  await app.page.emulateMedia({ reducedMotion: 'reduce' });
   // Legacy mode runs axe in the page itself; the default opens a helper page, which Electron lacks.
   const results = await new AxeBuilder({ page: app.page })
     .setLegacyMode(true)
