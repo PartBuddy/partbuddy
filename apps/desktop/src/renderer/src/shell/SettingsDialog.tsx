@@ -10,10 +10,11 @@ import { localeFrom } from '../i18n';
 import { PrintProfilesEditor, SupportFreeSwitch } from '../print/PrintProfilesEditor';
 import { platform } from '../platform';
 import { useStudio, type SettingsSection } from '../state/store';
-import { Button } from '../ui/Button';
+import { Button, linkClass } from '../ui/Button';
 import { EnginePanel } from './EnginePanel';
 import { CheckMark, RadioMark, choiceInlineClass, choiceRowClass } from '../ui/Choice';
 import { DialogClose, dialogTitleClass, modalClass, overlayClass } from '../ui/Dialog';
+import { tabClass, tabListClass } from '../ui/Navigation';
 
 const SECTIONS: { id: SettingsSection; icon: typeof IconSettings; testId: string }[] = [
   { id: 'general', icon: IconSettings, testId: 'settings-general' },
@@ -237,7 +238,7 @@ function AboutSection() {
       live = false;
     };
   }, []);
-  const link = 'inline-flex items-center gap-2 text-sm text-accent-text underline outline-none hover:text-text focus-visible:focus-ring';
+  const link = `inline-flex items-center gap-2 self-start text-sm ${linkClass}`;
   return (
     <div className="flex flex-col gap-4 text-sm text-text" data-testid="settings-about-panel">
       <div className="flex flex-col gap-1">
@@ -316,12 +317,12 @@ export function SettingsDialog() {
             }}
             className="flex min-h-0 flex-1"
           >
-            <TabList aria-label={t('settings.title')} className="flex w-settings-nav shrink-0 flex-col gap-1 border-r border-border p-2">
+            <TabList aria-label={t('settings.title')} className={`w-settings-nav shrink-0 border-r border-border p-2 ${tabListClass('vertical')}`}>
               {SECTIONS.map(({ id, icon: Icon, testId }) => (
                 <Tab
                   key={id}
                   id={id}
-                  className="flex cursor-default items-center gap-2 rounded-md px-2 py-1 text-sm text-text-muted outline-none hover:bg-surface-hover hover:text-text focus-visible:focus-ring selected:bg-surface-selected selected:text-text"
+                  className={tabClass('vertical')}
                   data-testid={testId}
                 >
                   <Icon className="size-icon-sm shrink-0" aria-hidden />

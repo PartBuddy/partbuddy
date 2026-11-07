@@ -96,7 +96,7 @@ export function TreeSection({
             (event.currentTarget.nextElementSibling?.querySelector('[role="treeitem"]:not([data-extra])') as HTMLElement | null)?.focus();
           }
         }}
-        className="flex h-row cursor-default items-center gap-2 pr-2 pl-1 text-sm font-semibold text-text outline-none select-none hover:bg-surface-hover focus-visible:focus-ring-inset"
+        className="flex h-row cursor-default items-center gap-2 pr-2 pl-1 text-sm font-semibold text-text outline-none transition-colors select-none hover:bg-surface-hover active:bg-surface-pressed focus-visible:focus-ring-inset"
       >
         <IconChevronRight className={`size-icon-sm shrink-0 text-text-subtle transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />
         <span className="inline-flex shrink-0 text-text-muted">{icon}</span>

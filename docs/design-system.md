@@ -185,12 +185,16 @@ brought it to the level of Onshape and Fusion:
 | Need | React Aria component | Notes |
 | --- | --- | --- |
 | Buttons, icon buttons | `ui/Button`: `Button`, `IconButton`, `ToggleButton`, `IconToggle`; `ui/Tooltip`: `Tip` | Variants primary, secondary, quiet, danger; sizes sm 24 / md 28; `isPending` shows a spinner over the kept label; icon-only buttons take `label` (name and tooltip) and `shortcut`; selected toggles use `accent-subtle`; `pressable` and `linkClass` for custom pressables; every state in `?gallery` |
-| Menus (model menu, settings) | `MenuTrigger`, `Menu`, `MenuSection` with single selection per section | Menus close on selection |
+| Menus (model menu, settings) | `MenuTrigger`, `Menu`, `MenuSection` with single selection per section; classes from `ui/Overlay` (`popoverClass`, `menuItemClass`, `menuItemTwoLineClass`, `menuHeaderClass`, `menuSeparatorClass`, `POPOVER_OFFSET`) | Menus close on selection; they rise in from the trigger and close at once |
+| Text fields | `TextField`/`NumberField` with `ui/Field` (`inputClass`, `textAreaClass`, `fieldLabelClass`, `UnitInput`, `FieldMessage`) | Focus ring over the border, invalid with linked error text, read-only sunken; units inside the frame |
+| Choices | `ui/Choice`: `CheckMark`, `RadioMark`, `SwitchMark`, `choiceRowClass`, `chipToggleClass`, `segmentClass`, `SelectField`, `SliderBar` | Rows ≥ 24 px; the chosen list entry carries a check |
+| Tabs and list rows | `ui/Navigation`: `tabListClass`, `tabClass` (horizontal underline, vertical fill), `listRowClass` | Labels keep their weight when chosen |
+| Badges and status | `ui/Feedback`: `badgeClass(tone)`, `dotTone`, `StatusDot`, `Busy`, `EmptyState` | Busy bar stands still under reduced motion |
 | Command palette | `Autocomplete`, `SearchField`, `Menu` in a `Modal` | Ctrl+K (react-hotkeys-hook) |
 | Lists (projects, timeline, notes) | `ListBox`, `GridList` | Rows with actions use `GridList` |
 | Parameters | `NumberField` (locale-aware unit formatting), `Slider` for favourites | Range shown below each value |
 | Clarification card | `RadioGroup`, `RadioField`, `RadioButton`, `Text slot="description"` | Recommended option first and marked |
-| Dialogs | `ModalOverlay`, `Modal`, `Dialog`, `Heading` | Focus trapped, Esc closes |
+| Dialogs | `ModalOverlay`, `Modal`, `Dialog`, `Heading` with `ui/Dialog` (`overlayClass`, `modalClass`, `dialogTitleClass`, `DialogClose`) | Focus trapped, Esc closes; dismissable dialogs show a close button; every state of every control is pictured in the gallery (`?gallery`, `e2e/ui-gallery.spec.ts`) |
 | Disclosure (tool calls) | `Disclosure`, `DisclosurePanel` | Collapsed by default |
 | Progress | `ProgressBar` (determinate for prompt progress, indeterminate for loading) | Always labelled |
 | Toasts | Own `notify()` API over React Aria Toast | Toast is alpha in React Aria; wrapped so it can be swapped |

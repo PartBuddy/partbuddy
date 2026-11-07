@@ -74,7 +74,7 @@ export function AssemblyPlayer({ steps, source }: { steps: PlayStep[]; source: '
           {t('assembly.stepOf', { step: Math.max(1, current + 1), steps: count })}
         </span>
       </div>
-      <ol className="flex max-h-40 flex-col overflow-y-auto" aria-label={t('assembly.steps')}>
+      <ol className="flex max-h-field-dock flex-col overflow-y-auto" aria-label={t('assembly.steps')}>
         {steps.map((step, k) => (
           <li key={`${step.name}-${String(k)}`}>
             <button
@@ -83,7 +83,7 @@ export function AssemblyPlayer({ steps, source }: { steps: PlayStep[]; source: '
                 go(k + 1);
               }}
               aria-current={k === current ? 'step' : undefined}
-              className={`flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left text-sm outline-none hover:bg-surface-hover focus-visible:focus-ring ${k === current ? 'bg-accent-subtle text-accent-text' : k < done ? 'text-text' : 'text-text-muted'}`}
+              className={`flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left text-sm outline-none transition-colors hover:bg-surface-hover active:bg-surface-pressed focus-visible:focus-ring-inset ${k === current ? 'bg-accent-subtle text-accent-text' : k < done ? 'text-text' : 'text-text-muted'}`}
               data-testid="assembly-step"
               data-active={String(k === current)}
             >

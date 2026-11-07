@@ -22,6 +22,7 @@ import { useStudio, type ProfilesTab } from '../state/store';
 import { Button } from '../ui/Button';
 import { FieldMessage, fieldLabelClass, inputClass, UnitInput } from '../ui/Field';
 import { CheckMark, choiceInlineClass } from '../ui/Choice';
+import { listRowClass, tabClass, tabListClass } from '../ui/Navigation';
 
 
 let serial = 0;
@@ -129,7 +130,7 @@ function ProfileColumns<T extends { id: string; name: string }>({
             <ListBoxItem
               id={item.id}
               textValue={item.name}
-              className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none hover:bg-surface-hover focus-visible:focus-ring selected:bg-surface-selected"
+              className={listRowClass}
             >
               <span className="min-w-0 flex-1 truncate">{item.name}</span>
               {badge(item) ? <span className="shrink-0 text-xs text-text-muted">{badge(item)}</span> : null}
@@ -295,12 +296,12 @@ export function PrintProfilesEditor({ close }: { close: () => void }) {
   return (
     <>
       <Tabs className="flex flex-col gap-3" selectedKey={tab} onSelectionChange={(key) => setTab(key as ProfilesTab)}>
-        <TabList aria-label={t('print.title')} className="flex gap-1 border-b border-border">
+        <TabList aria-label={t('print.title')} className={tabListClass()}>
           {(['printer', 'material'] as const).map((id) => (
             <Tab
               key={id}
               id={id}
-              className="-mb-px cursor-default border-b-2 border-transparent px-3 py-1 text-sm text-text-muted outline-none hover:text-text focus-visible:focus-ring selected:border-accent selected:text-text"
+              className={tabClass()}
               data-testid={`print-tab-${id}`}
             >
               {t(`print.tab.${id}`)}
