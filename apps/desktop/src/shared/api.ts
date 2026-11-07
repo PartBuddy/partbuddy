@@ -136,6 +136,8 @@ export interface PartBuddyApi {
     versionAsProject(id: string): Promise<void>;
     /** Writes a project as one `.partbuddy` file where the user chooses (P3); the open one without `folder`. */
     exportPackage(folder?: string): Promise<{ saved: boolean }>;
+    /** Pins a start page project to the top or changes its tags (P5). */
+    setMeta(folder: string, change: { favorite?: boolean; tags?: string[] }): Promise<void>;
     /** The deleted projects in PartBuddy's recycle bin, newest first (P2). */
     trashList(): Promise<TrashEntry[]>;
     /** Puts a deleted project back into the project folder, under the next free name if needed. */

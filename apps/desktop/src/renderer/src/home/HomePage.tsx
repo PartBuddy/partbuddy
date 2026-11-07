@@ -1,7 +1,7 @@
-import { IconChevronDown, IconCopy, IconCube, IconDots, IconFileExport, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPencil, IconSearch, IconTrash, IconX } from '@tabler/icons-react';
+import { IconChevronDown, IconCopy, IconCube, IconDots, IconFileExport, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPencil, IconSearch, IconStar, IconStarFilled, IconTags, IconTrash, IconX } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Heading, Input, ListBox, ListBoxItem, Menu, MenuItem, MenuTrigger, Popover, SearchField, Select, SelectValue, Separator } from 'react-aria-components';
+import { Button as AriaButton, Heading, Input, ListBox, ListBoxItem, Menu, MenuItem, MenuTrigger, Popover, SearchField, Select, SelectValue, Separator, ToggleButton } from 'react-aria-components';
 
 import type { ProjectCheck, ProjectEntry, ProjectInfo, TrashEntry } from '../../../shared/contract';
 import { TEMPLATE_IDS, type TemplateId } from '../../../shared/templates';
@@ -12,8 +12,9 @@ import { useProjectSwitch } from '../shell/projectSwitch';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
 import { StatusDot, type Tone } from '../ui/Feedback';
+import { TagsDialog } from './TagsDialog';
 import { TrashSection } from './TrashSection';
-import { matching, PROJECT_SORTS, relativeTime, sortProjects, type ProjectSort } from './projectTiles';
+import { matching, PROJECT_SORTS, relativeTime, sortProjects, tagsOf, type ProjectSort } from './projectTiles';
 import adapter from './templates/adapter.png';
 import boxWithLid from './templates/boxWithLid.png';
 import cableClip from './templates/cableClip.png';
@@ -62,7 +63,8 @@ export function HomePage() {
   const [current, setCurrent] = useState<ProjectInfo>(null);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<ProjectSort>(storedSort);
-  const [dialog, setDialog] = useState<{ kind: 'rename' | 'trash'; project: ProjectEntry } | null>(null);
+  const [dialog, setDialog] = useState<{ kind: 'rename' | 'trash' | 'tags'; project: ProjectEntry } | null>(null);
+  const [tag, setTag] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [trash, setTrash] = useState<TrashEntry[]>([]);
   const ready = connection.state === 'connected' && connection.engine === 'headless';
@@ -94,7 +96,7 @@ export function HomePage() {
   };
   const act = (project: ProjectEntry, action: string) => {
     if (action === 'open') openProject(project);
-    else if (action === 'rename' || action === 'trash') setDialog({ kind: action, project });
+    else if (action === 'rename' || action === 'trash' || action === 'tags') setDialog({ kind: action, project });
     else if (action === 'duplicate') void api.duplicate(project.folder).then(reload, failed);
     else if (action === 'reveal') void api.reveal(project.folder).catch(failed);
     else if (action === 'export') exportProject(api.exportPackage(project.folder), t);
@@ -112,7 +114,14 @@ export function HomePage() {
     };
   }, [setHomeOpen]);
 
-  const shown = useMemo(() => sortProjects(matching(projects ?? [], query), sort, i18n.language), [projects, query, sort, i18n.language]);
+  const tags = useMemo(() => tagsOf(projects ?? [], i18n.language), [projects, i18n.language]);
+  const shown = useMemo(() => {
+    const tagged = tag === null ? (projects ?? []) : (projects ?? []).filter((project) => project.tags.some((own) => own.toLocaleLowerCase() === tag.toLocaleLowerCase()));
+    return sortProjects(matching(tagged, query), sort, i18n.language);
+  }, [projects, query, sort, tag, i18n.language]);
+  const favorite = (project: ProjectEntry, next: boolean) => {
+    void api.setMeta(project.folder, { favorite: next }).then(reload, failed);
+  };
   const openProject = (project: ProjectEntry) => {
     if (current && current.folder === project.folder) {
       setHomeOpen(false);
@@ -206,6 +215,24 @@ export function HomePage() {
           </ul>
         </section>
 
+        {tags.length > 0 ? (
+          <div role="group" aria-label={t('home.tags.filter')} className="flex flex-wrap items-center gap-2" data-testid="home-tags">
+            <IconTags className="size-icon-sm text-text-subtle" aria-hidden />
+            {tags.map((name) => (
+              <ToggleButton
+                key={name}
+                isSelected={tag !== null && tag.toLocaleLowerCase() === name.toLocaleLowerCase()}
+                onChange={(on) => setTag(on ? name : null)}
+                className="inline-flex h-control-sm items-center rounded-full border border-border px-2 text-xs text-text-muted outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:border-accent selected:bg-surface-selected selected:text-text"
+                data-testid="home-tag"
+                data-tag={name}
+              >
+                {name}
+              </ToggleButton>
+            ))}
+          </div>
+        ) : null}
+
         {projects === null ? null : projects.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-7 text-center" data-testid="home-empty">
             <p className="text-md font-semibold text-text">{t('home.emptyTitle')}</p>
@@ -228,6 +255,15 @@ export function HomePage() {
                     openProject(project);
                   }}
                 />
+                <ToggleButton
+                  isSelected={project.favorite}
+                  onChange={(next) => favorite(project, next)}
+                  aria-label={t(project.favorite ? 'home.unfavorite' : 'home.favorite', { name: project.name })}
+                  className={`absolute top-2 left-2 inline-flex size-control-sm items-center justify-center rounded-md border border-border bg-surface-raised text-text-muted shadow-1 outline-none transition-opacity hover:text-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-focus selected:text-accent ${project.favorite ? '' : 'opacity-0 group-hover/tile:opacity-100'}`}
+                  data-testid="home-tile-favorite"
+                >
+                  {project.favorite ? <IconStarFilled className="size-icon-sm" aria-hidden /> : <IconStar className="size-icon-sm" aria-hidden />}
+                </ToggleButton>
                 <TileMenu
                   project={project}
                   ready={ready}
@@ -243,6 +279,7 @@ export function HomePage() {
         <TrashSection entries={trash} now={now} onChange={reload} />
       </div>
       {dialog?.kind === 'rename' ? <RenameDialog key={dialog.project.folder} open name={dialog.project.name} folder={dialog.project.folder} onClose={() => setDialog(null)} onDone={reload} /> : null}
+      {dialog?.kind === 'tags' ? <TagsDialog project={dialog.project} onClose={() => setDialog(null)} onDone={reload} /> : null}
       {dialog?.kind === 'trash' ? (
         <TrashDialog
           open
@@ -285,6 +322,7 @@ function TileMenu({ project, ready, open, onAction }: { project: ProjectEntry; r
           {item('rename', <IconPencil className="size-icon-sm text-text-muted" aria-hidden />, t('project.rename'))}
           {item('duplicate', <IconCopy className="size-icon-sm text-text-muted" aria-hidden />, t('project.duplicate'))}
           {item('reveal', <IconFolderSearch className="size-icon-sm text-text-muted" aria-hidden />, t('project.reveal'))}
+          {item('tags', <IconTags className="size-icon-sm text-text-muted" aria-hidden />, t('home.tags.edit'))}
           {item('export', <IconFileExport className="size-icon-sm text-text-muted" aria-hidden />, t('project.exportPackage'))}
           <Separator className="my-1 border-t border-border" />
           {item('trash', <IconTrash className="size-icon-sm text-text-muted" aria-hidden />, t('project.trash'))}
@@ -317,6 +355,11 @@ function ProjectTile({ project, open, disabled, when, onOpen }: { project: Proje
         <span className="truncate text-md font-medium text-text" title={project.name}>
           {project.name}
         </span>
+        {project.tags.length > 0 ? (
+          <span className="truncate text-xs text-text-muted" data-testid="home-tile-tags">
+            {project.tags.join(' · ')}
+          </span>
+        ) : null}
         <span className="flex items-center justify-between gap-2 text-xs text-text-subtle">
           <span className="truncate tabular-nums">{open ? t('home.openNow') : when}</span>
           {project.check && light ? <StatusDot tone={CHECK_TONE[project.check]} label={light} /> : null}

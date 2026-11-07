@@ -902,6 +902,17 @@
       "empty": "Papierkorb leeren …",
       "emptyQuestion": "{count, plural, one {Das Projekt} other {Alle # Projekte}} in den Windows-Papierkorb geben?",
       "emptyConfirm": "Leeren"
+    },
+    "favorite": "„{name}“ anheften",
+    "unfavorite": "„{name}“ nicht mehr anheften",
+    "tags": {
+      "title": "Tags für „{name}“",
+      "label": "Tags",
+      "placeholder": "Zum Beispiel: Garage, Drucker",
+      "hint": "Mehrere Tags mit Komma trennen. Die Startseite filtert danach.",
+      "save": "Speichern",
+      "edit": "Tags …",
+      "filter": "Nach Tag filtern"
     }
   },
   "versions": {
