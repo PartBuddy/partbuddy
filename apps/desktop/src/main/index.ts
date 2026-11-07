@@ -37,6 +37,7 @@ import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
 import { checkImportFile, IMPORT_EXTENSIONS, importName, type ImportKind } from './projects/importFile';
 import { migrateDesigns, ProjectStore, whenFree } from './projects/projectStore';
+import { ProjectTrash } from './projects/trash';
 import { LogFile } from './logFile';
 import { keepSketch, listSketches, loadSketch } from './projects/sketches';
 import { summarizeComparison } from './projects/versionCompare';
@@ -226,6 +227,16 @@ if (!app.requestSingleInstanceLock()) {
     const projectStore = new ProjectStore(projects, designsDir, german ? 'Teil' : 'Part');
     const migrated = migrateDesigns(designsDir, projectStore, log);
     if (migrated > 0) log(`${String(migrated)} earlier designs became projects`);
+    // The recycle bin (P2): entries older than 30 days go on to the Windows recycle bin at start.
+    const projectTrash = new ProjectTrash(projectStore, (folder) => shell.trashItem(folder));
+    void projectTrash
+      .empty(true)
+      .then((handed) => {
+        if (handed > 0) log(`${String(handed)} deleted projects went on to the Windows recycle bin`);
+      })
+      .catch((error: unknown) => {
+        log(`the recycle bin could not be tidied: ${(error as Error).message}`);
+      });
     // The first-start setup (B9) shows once; not for installations that have projects already and
     // not in tests that start without it (PARTBUDDY_FIRST_START=0).
     const setupNeeded = process.env.PARTBUDDY_FIRST_START !== '0' && !general.setupDone() && projectStore.list().length === 0;
@@ -878,20 +889,26 @@ if (!app.requestSingleInstanceLock()) {
       const target = targetOf(folder);
       if (!target.design) throw new Error('the design has no project yet');
       if (!target.open) {
-        const design = target.design;
-        await whenFree(() => shell.trashItem(dirname(design)));
+        await projectTrash.put(target.design);
         log('moved a project of the start page to the recycle bin');
         return undefined;
       }
       await switchProject(async (current) => {
         // Only a project folder inside the project folder goes to the recycle bin.
-        if (current && projectStore.holds(current)) {
-          const folder = dirname(current);
-          await whenFree(() => shell.trashItem(folder));
-        }
+        if (current && projectStore.holds(current)) await projectTrash.put(current);
         return null;
       });
       log('moved the project to the recycle bin');
+      return undefined;
+    });
+    bridge.handle(invokeChannels.projectTrashList, () => projectTrash.list());
+    bridge.handle(invokeChannels.projectTrashRestore, async ({ id }) => {
+      await projectTrash.restore(id);
+      log('restored a project from the recycle bin');
+      return undefined;
+    });
+    bridge.handle(invokeChannels.projectTrashEmpty, async () => {
+      log(`handed ${String(await projectTrash.empty())} deleted projects to the Windows recycle bin`);
       return undefined;
     });
     // The start page (B3): the projects with preview and light, opening one, importing a design.

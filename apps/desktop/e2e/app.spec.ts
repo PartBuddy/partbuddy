@@ -975,6 +975,22 @@ test('PartBuddy starts on the start page with the projects, which searches and c
     await expect(home.locator('[data-testid="home-tile"][data-name="Cable holder copy"]')).toBeVisible();
     await expect(home).toBeVisible();
 
+    // Deleted into PartBuddy's recycle bin (P2) and restored with everything in it.
+    writeFileSync(join(projects, 'Cable holder copy', 'Cable holder copy.chat.json'), '[]');
+    await menuOf('Cable holder copy');
+    await page.getByTestId('home-tile-trash').click();
+    await page.getByTestId('project-trash-confirm').click();
+    await expect(tiles).toHaveCount(3);
+    expect(existsSync(join(projects, 'Cable holder copy'))).toBe(false);
+    await page.getByTestId('home-trash-toggle').click();
+    const deleted = page.getByTestId('home-trash-entry');
+    await expect(deleted).toHaveCount(1);
+    await expect(deleted).toHaveAttribute('data-name', 'Cable holder copy');
+    await deleted.getByTestId('home-trash-restore').click();
+    await expect(tiles).toHaveCount(4);
+    await expect(page.getByTestId('home-trash')).toHaveCount(0);
+    expect(readFileSync(join(projects, 'Cable holder copy', 'Cable holder copy.chat.json'), 'utf8')).toBe('[]');
+
     const results = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="home-page"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
     expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
 

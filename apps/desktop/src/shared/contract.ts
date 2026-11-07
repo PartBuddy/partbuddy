@@ -266,6 +266,18 @@ export const versionListSchema = z.array(versionEntrySchema).max(300);
 export const versionSaveSchema = z.object({ label: z.string().trim().min(1).max(200) }).strict();
 export const versionIdSchema = z.object({ id: z.string().regex(/^v-[a-z0-9]{1,20}$/) }).strict();
 
+/** A deleted project in PartBuddy's recycle bin (P2), newest first in the list. */
+export const trashEntrySchema = z
+  .object({
+    id: z.string().regex(/^t-[a-z0-9]{1,20}$/),
+    name: z.string().min(1).max(255),
+    trashed: z.number().nonnegative(),
+    preview: z.string().max(1_500_000).startsWith('data:image/png;base64,').nullable(),
+  })
+  .strict();
+export const trashListSchema = z.array(trashEntrySchema).max(200);
+export const trashIdSchema = z.object({ id: z.string().regex(/^t-[a-z0-9]{1,20}$/) }).strict();
+
 /** The colour theme: follow the system (Windows), or always light or dark. */
 export const themeSchema = z.enum(['system', 'light', 'dark']);
 export const themeRequestSchema = z.object({ theme: themeSchema }).strict();
@@ -997,6 +1009,9 @@ export const invokeContract = {
   [invokeChannels.projectSaveVersion]: { request: versionSaveSchema, response: none },
   [invokeChannels.projectRestoreVersion]: { request: versionIdSchema, response: none },
   [invokeChannels.projectCompareVersion]: { request: versionIdSchema, response: versionComparisonSchema },
+  [invokeChannels.projectTrashList]: { request: none, response: trashListSchema },
+  [invokeChannels.projectTrashRestore]: { request: trashIdSchema, response: none },
+  [invokeChannels.projectTrashEmpty]: { request: none, response: none },
   [invokeChannels.mirrorCurrent]: { request: none, response: mirrorRevisionSchema.nullable() },
   [invokeChannels.agentStatus]: { request: none, response: assistantStateSchema },
   [invokeChannels.agentRefresh]: { request: none, response: assistantStateSchema },
@@ -1106,6 +1121,7 @@ export type VersionComparison = z.infer<typeof versionComparisonSchema>;
 export type RepairResult = z.infer<typeof repairResultSchema>;
 export type ProjectCheck = z.infer<typeof projectCheckSchema>;
 export type ProjectEntry = z.infer<typeof projectEntrySchema>;
+export type TrashEntry = z.infer<typeof trashEntrySchema>;
 export type ProjectPreview = z.infer<typeof projectPreviewSchema>;
 export type EngineChoiceError = z.infer<typeof engineChoiceErrorSchema>;
 export type EngineChoiceResult = z.infer<typeof engineChoiceResultSchema>;

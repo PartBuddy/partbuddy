@@ -15,6 +15,7 @@ import type {
   GeneralSettingsInfo,
   UpdateState,
   Language,
+  TrashEntry,
   VersionComparison,
   VersionEntry,
   RepairResult,
@@ -106,7 +107,7 @@ export interface PartBuddyApi {
     duplicate(folder?: string): Promise<void>;
     /** Shows the project folder in Explorer. */
     reveal(folder?: string): Promise<void>;
-    /** Moves a project to the recycle bin; for the open one a new, empty design starts. */
+    /** Moves a project to PartBuddy's recycle bin (P2); for the open one a new, empty design starts. */
     trash(folder?: string): Promise<void>;
     /** The projects in the project folder, newest first, for the start page (B3). */
     list(): Promise<ProjectEntry[]>;
@@ -129,6 +130,12 @@ export interface PartBuddyApi {
     restoreVersion(id: string): Promise<void>;
     /** What changed between a version and the open design. */
     compareVersion(id: string): Promise<VersionComparison>;
+    /** The deleted projects in PartBuddy's recycle bin, newest first (P2). */
+    trashList(): Promise<TrashEntry[]>;
+    /** Puts a deleted project back into the project folder, under the next free name if needed. */
+    restoreTrashed(id: string): Promise<void>;
+    /** Hands every deleted project on to the Windows recycle bin. */
+    emptyTrash(): Promise<void>;
     /** Keeps the preview picture of the open project (base64 PNG) and its ready-to-print light. */
     savePreview(preview: ProjectPreview): Promise<void>;
   };
