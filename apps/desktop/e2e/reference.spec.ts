@@ -44,9 +44,14 @@ for (const [index, { id, request }] of REQUESTS.entries()) {
     try {
       await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 90_000 });
       await expect(page.getByTestId('agent-status')).toContainText('Claude Code', { timeout: 30_000 });
-      await page.getByRole('textbox', { name: 'Message to the assistant' }).fill(request);
-      await page.getByRole('button', { name: 'Send' }).click();
-      await waitForTurn(page);
+      // Two runs side by side can meet while Claude Code refreshes its sign-in; that passes within a minute.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await page.getByRole('textbox', { name: 'Message to the assistant' }).fill(request);
+        await page.getByRole('button', { name: 'Send' }).click();
+        await waitForTurn(page);
+        if (!/Failed to refresh OAuth token/.test((await page.getByTestId('assistant-text').last().textContent().catch(() => '')) ?? '')) break;
+        await page.waitForTimeout(60_000);
+      }
       // Every round is answered with its recommendations, a plan with Go, as a user in a hurry would.
       for (let round = 1; round <= 10; round += 1) {
         const open = page.getByTestId('question-card').filter({ hasNot: page.getByTestId('question-answered') });
