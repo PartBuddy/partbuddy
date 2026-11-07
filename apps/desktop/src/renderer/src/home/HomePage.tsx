@@ -23,7 +23,7 @@ import wallHolder from './templates/wallHolder.png';
 import { iconButtonClass, pressable } from '../ui/Button';
 import { inputClass } from '../ui/Field';
 import { chipToggleClass, ListCheck, listItemClass, selectTriggerClass } from '../ui/Choice';
-import { popoverClass } from '../ui/Overlay';
+import { POPOVER_OFFSET, menuClass, menuItemClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
 
 /** Pictures of the templates, rendered by SolidCraft (tools/templates/render-previews.mjs). */
 const TEMPLATE_PICTURES: Record<TemplateId, string> = { boxWithLid, housing, wallHolder, cableClip, adapter };
@@ -48,7 +48,7 @@ function keepSort(sort: ProjectSort): void {
   }
 }
 
-const itemClass = 'flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover disabled:text-text-subtle';
+const itemClass = menuItemClass;
 
 /**
  * The start page (B3, decided 2026-11-05): the projects in the project folder as tiles with
@@ -321,15 +321,15 @@ function TileMenu({ project, ready, open, onAction }: { project: ProjectEntry; r
       >
         <IconDots className="size-icon-sm" aria-hidden />
       </AriaButton>
-      <Popover placement="bottom end" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
-        <Menu aria-label={t('home.actions', { name: project.name })} className="outline-none" disabledKeys={ready ? [] : open ? ['rename', 'trash'] : ['open']} onAction={(key) => onAction(String(key))}>
+      <Popover placement="bottom end" offset={POPOVER_OFFSET} className={popoverClass}>
+        <Menu aria-label={t('home.actions', { name: project.name })} className={menuClass} disabledKeys={ready ? [] : open ? ['rename', 'trash'] : ['open']} onAction={(key) => onAction(String(key))}>
           {item('open', <IconFolderOpen className="size-icon-sm text-text-muted" aria-hidden />, t('home.openProject'))}
           {item('rename', <IconPencil className="size-icon-sm text-text-muted" aria-hidden />, t('project.rename'))}
           {item('duplicate', <IconCopy className="size-icon-sm text-text-muted" aria-hidden />, t('project.duplicate'))}
           {item('reveal', <IconFolderSearch className="size-icon-sm text-text-muted" aria-hidden />, t('project.reveal'))}
           {item('tags', <IconTags className="size-icon-sm text-text-muted" aria-hidden />, t('home.tags.edit'))}
           {item('export', <IconFileExport className="size-icon-sm text-text-muted" aria-hidden />, t('project.exportPackage'))}
-          <Separator className="my-1 border-t border-border" />
+          <Separator className={menuSeparatorClass} />
           {item('trash', <IconTrash className="size-icon-sm text-text-muted" aria-hidden />, t('project.trash'))}
         </Menu>
       </Popover>

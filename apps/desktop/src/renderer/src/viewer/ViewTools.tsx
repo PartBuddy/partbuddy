@@ -21,6 +21,7 @@ import { ViewIcon } from '../ui/ViewIcon';
 import { iconButtonClass, toggleSelected } from '../ui/Button';
 import { tooltipClass } from '../ui/Tooltip';
 import { segmentClass, segmentGroupClass, SliderBar } from '../ui/Choice';
+import { POPOVER_OFFSET, menuClass, menuItemClass, popoverClass } from '../ui/Overlay';
 
 /** View tools: the shared icon button look; a tool that stays on shows the accent's quiet fill. */
 const tool = `${iconButtonClass('md')} text-xs font-semibold ${toggleSelected}`;
@@ -64,7 +65,7 @@ function DisplayModeMenu() {
           <IconBoxMultiple className="size-icon-sm" aria-hidden />
         </AriaButton>
       </Tip>
-      <Popover placement="bottom" offset={8} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+      <Popover placement="bottom" offset={POPOVER_OFFSET} className={popoverClass}>
         <Menu
           aria-label={t('viewer.display.title')}
           selectionMode="single"
@@ -75,14 +76,14 @@ function DisplayModeMenu() {
             const [key] = [...keys];
             if (DISPLAY_MODES.includes(key as DisplayMode)) setMode(key as DisplayMode);
           }}
-          className="outline-none"
+          className={menuClass}
         >
           {DISPLAY_MODES.map((id, i) => (
             <MenuItem
               key={id}
               id={id}
               aria-keyshortcuts={`Shift+${String(i + 1)}`}
-              className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover"
+              className={menuItemClass}
             >
               {({ isSelected }) => (
                 <>

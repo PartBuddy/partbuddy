@@ -10,6 +10,7 @@ import { useStudio } from '../state/store';
 import { CadIcon, type CadIconName } from '../ui/CadIcon';
 import { buttonClass, pressable } from '../ui/Button';
 import { tooltipClass } from '../ui/Tooltip';
+import { POPOVER_OFFSET, menuClass, menuHeaderClass, menuItemClass, popoverClass } from '../ui/Overlay';
 
 /** "ExtrudeFeature" → "Extrude": the kind of step, as the timeline names it. */
 export function featureKind(type: string): string {
@@ -206,10 +207,10 @@ export function Timeline() {
                   <span className="text-text-subtle"> · {t(`timeline.kind.${kind}`, { defaultValue: kind })}</span>
                 </Tooltip>
                 </TooltipTrigger>
-                <Popover placement="top start" offset={6} className="min-w-menu max-w-text-max rounded-md border border-border bg-surface-raised p-1 shadow-2">
+                <Popover placement="top start" offset={POPOVER_OFFSET} className={`${popoverClass} max-w-text-max`}>
                   <Menu
                     aria-label={feature.name}
-                    className="outline-none"
+                    className={menuClass}
                     onAction={(key) => {
                       if (key === 'roll') run({ action: 'rollTo', position: index + 1 });
                       if (key === 'suppress') run({ action: 'suppress', feature: feature.id, suppressed: !feature.suppressed });
@@ -217,7 +218,7 @@ export function Timeline() {
                     disabledKeys={busy ? ['roll', 'suppress'] : []}
                   >
                     <MenuSection>
-                      <Header className="px-2 py-1 text-xs text-text-subtle">
+                      <Header className={menuHeaderClass}>
                         {t(`timeline.kind.${kind}`, { defaultValue: kind })} · {t('timeline.rebuild', { ms: Math.round(feature.ms) })}
                       </Header>
                       {feature.error || feature.warning ? (
@@ -227,10 +228,10 @@ export function Timeline() {
                       ) : null}
                     </MenuSection>
                     <MenuSection>
-                      <MenuItem id="roll" className="cursor-default rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover disabled:opacity-disabled">
+                      <MenuItem id="roll" className={menuItemClass}>
                         {t('timeline.rollTo')}
                       </MenuItem>
-                      <MenuItem id="suppress" className="cursor-default rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover disabled:opacity-disabled">
+                      <MenuItem id="suppress" className={menuItemClass}>
                         {feature.suppressed ? t('timeline.unsuppress') : t('timeline.suppress')}
                       </MenuItem>
                     </MenuSection>

@@ -3,6 +3,7 @@ import { createContext, useContext, useRef, useState, type KeyboardEvent, type R
 import { Button as AriaButton, Menu, MenuItem, Popover } from 'react-aria-components';
 import { pressable } from '../ui/Button';
 import { fieldBox } from '../ui/Field';
+import { POPOVER_OFFSET, menuClass, menuItemClass, popoverClass } from '../ui/Overlay';
 
 /**
  * The structure tree's frame (CAD-style browser): one ARIA tree with a roving tab stop, sections
@@ -249,7 +250,7 @@ export function TreeItem({
         {rename ?? children}
       </div>
       {actions?.length ? (
-        <Popover triggerRef={ref} isOpen={menu} onOpenChange={setMenu} placement="bottom start" offset={2} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+        <Popover triggerRef={ref} isOpen={menu} onOpenChange={setMenu} placement="bottom start" offset={POPOVER_OFFSET} className={popoverClass}>
           <Menu
             aria-label={label}
             autoFocus="first"
@@ -260,11 +261,11 @@ export function TreeItem({
               setMenu(false);
               ref.current?.focus();
             }}
-            className="outline-none"
+            className={menuClass}
             data-testid="tree-menu"
           >
             {actions.map((action) => (
-              <MenuItem key={action.id} id={action.id} textValue={action.label} className="flex h-control-sm cursor-default items-center gap-2 rounded-sm px-2 text-sm text-text outline-none focus:bg-surface-hover">
+              <MenuItem key={action.id} id={action.id} textValue={action.label} className={menuItemClass}>
                 <span className="inline-flex text-text-muted">{action.icon}</span>
                 <span className="flex-1">{action.label}</span>
                 {action.shortcut ? <span className="text-xs text-text-subtle">{action.shortcut}</span> : null}

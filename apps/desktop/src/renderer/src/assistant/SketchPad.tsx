@@ -25,6 +25,7 @@ import { Button, IconButton, IconToggle } from '../ui/Button';
 import { parseLength } from '../viewer/lengthInput';
 import { fieldBox } from '../ui/Field';
 import { segmentClass, segmentGroupClass } from '../ui/Choice';
+import { POPOVER_OFFSET, menuClass, menuItemTwoLineClass, popoverClass } from '../ui/Overlay';
 import {
   arcCircle,
   BACKGROUND_SIZE,
@@ -727,10 +728,10 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
               <IconButton size="md" tone="secondary" label={t('assistant.sketch.kept')} data-testid="sketch-kept">
                 <IconHistory className="size-icon" aria-hidden />
               </IconButton>
-              <Popover placement="bottom end" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+              <Popover placement="bottom end" offset={POPOVER_OFFSET} className={popoverClass}>
                 <Menu
                   aria-label={t('assistant.sketch.kept')}
-                  className="max-h-menu-max overflow-auto outline-none"
+                  className={menuClass}
                   items={kept ?? []}
                   renderEmptyState={() => <p className="px-2 py-1 text-sm text-text-muted">{t(kept ? 'assistant.sketch.keptNone' : 'assistant.sketch.keptLoading')}</p>}
                   onAction={(key) => {
@@ -741,7 +742,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                     <MenuItem
                       id={entry.id}
                       textValue={new Date(entry.savedAt).toLocaleString()}
-                      className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                      className={menuItemTwoLineClass}
                       data-testid="sketch-kept-entry"
                     >
                       <span className="text-sm text-text tabular-nums">{new Date(entry.savedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>

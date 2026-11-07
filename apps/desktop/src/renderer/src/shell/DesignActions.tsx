@@ -10,6 +10,7 @@ import { platform } from '../platform';
 import { useStudio, type ExportTarget } from '../state/store';
 import { buttonClass, IconButton } from '../ui/Button';
 import { VersionsDialog } from './VersionsDialog';
+import { POPOVER_OFFSET, menuClass, menuHeaderClass, menuItemTwoLineClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
 
 const FORMATS: ExportFormat[] = ['3mf', 'stl', 'step'];
 
@@ -159,10 +160,10 @@ export function DesignActions() {
           {t('actions.export')}
           <IconChevronDown className="size-icon-sm text-text-subtle" aria-hidden />
         </AriaButton>
-        <Popover placement="bottom start" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+        <Popover placement="bottom start" offset={POPOVER_OFFSET} className={popoverClass}>
           <Menu
             aria-label={t('actions.export')}
-            className="outline-none"
+            className={menuClass}
             onAction={(key) => {
               exportAs(key as ExportTarget);
             }}
@@ -173,7 +174,7 @@ export function DesignActions() {
                   key={format}
                   id={format}
                   textValue={t(`actions.format.${format}.name`)}
-                  className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                  className={menuItemTwoLineClass}
                   data-testid={`export-${format}`}
                 >
                   <span className="text-sm font-medium text-text">{t(`actions.format.${format}.name`)}</span>
@@ -181,12 +182,12 @@ export function DesignActions() {
                 </MenuItem>
               ))}
             </MenuSection>
-            <Separator className="my-1 border-t border-border" />
+            <Separator className={menuSeparatorClass} />
             <MenuSection>
               <MenuItem
                 id="share"
                 textValue={t('actions.share.name')}
-                className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                className={menuItemTwoLineClass}
                 data-testid="export-share"
               >
                 <span className="text-sm font-medium text-text">{t('actions.share.name')}</span>
@@ -195,15 +196,15 @@ export function DesignActions() {
             </MenuSection>
             {slicers.length > 0 ? (
               <>
-                <Separator className="my-1 border-t border-border" />
+                <Separator className={menuSeparatorClass} />
                 <MenuSection>
-                  <Header className="px-2 py-1 text-xs font-semibold text-text-muted">{t('actions.slicer.title')}</Header>
+                  <Header className={menuHeaderClass}>{t('actions.slicer.title')}</Header>
                   {slicers.map((slicer) => (
                     <MenuItem
                       key={slicer.id}
                       id={`slicer:${slicer.id}`}
                       textValue={t('actions.slicer.open', { name: slicer.name })}
-                      className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                      className={menuItemTwoLineClass}
                       data-testid="export-slicer"
                       data-slicer={slicer.id}
                     >

@@ -6,8 +6,10 @@ import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger,
 import type { MaterialProfile } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
+import { POPOVER_OFFSET, menuClass, menuHeaderClass, menuItemClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
+import { tooltipClass } from '../ui/Tooltip';
 
-const itemClass = 'flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover';
+const itemClass = menuItemClass;
 
 /**
  * The part's material in the status bar (M7): what the part is printed with, always in sight, and
@@ -39,7 +41,7 @@ export function MaterialMenu() {
   return (
     <MenuTrigger isOpen={open} onOpenChange={setOpen}>
       {/* The visible text is the name (WCAG 2.5.3); what the button does is its tooltip. */}
-      <TooltipTrigger delay={400}>
+      <TooltipTrigger delay={500} closeDelay={0}>
         <AriaButton
           className="inline-flex h-full items-center gap-1 rounded-sm px-1 text-xs text-text-muted outline-none hover:bg-surface-hover hover:text-text pressed:bg-surface-pressed focus-visible:focus-ring"
           data-testid="material-chip"
@@ -49,14 +51,14 @@ export function MaterialMenu() {
           <span>{print.material.name}</span>
           <span>· {print.printer.name}</span>
         </AriaButton>
-        <Tooltip placement="top" offset={6} className="rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
+        <Tooltip placement="top" offset={6} className={tooltipClass}>
           {t('print.chipHint')}
         </Tooltip>
       </TooltipTrigger>
-      <Popover placement="top start" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+      <Popover placement="top start" offset={POPOVER_OFFSET} className={popoverClass}>
         <Menu
           aria-label={t('print.menuLabel')}
-          className="max-h-menu-max overflow-auto outline-none"
+          className={menuClass}
           onAction={(key) => {
             if (key !== 'edit') return;
             setProfilesTab('printer');
@@ -81,7 +83,7 @@ export function MaterialMenu() {
                 });
             }}
           >
-            <Header className="px-2 py-1 text-xs font-semibold text-text-muted">{t('print.partMaterial')}</Header>
+            <Header className={menuHeaderClass}>{t('print.partMaterial')}</Header>
             {materials.map((material) => (
               <MenuItem key={material.id} id={material.id} textValue={material.name} className={itemClass} data-testid="material-option">
                 {({ isSelected }) => (
@@ -94,7 +96,7 @@ export function MaterialMenu() {
               </MenuItem>
             ))}
           </MenuSection>
-          <Separator className="my-1 border-t border-border" />
+          <Separator className={menuSeparatorClass} />
           <MenuSection>
             <MenuItem id="edit" textValue={t('print.edit')} className={itemClass} data-testid="print-profiles-open">
               <IconAdjustmentsHorizontal className="size-icon-sm text-text-muted" aria-hidden />
