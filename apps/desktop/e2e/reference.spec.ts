@@ -1,6 +1,6 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
@@ -24,6 +24,8 @@ const REQUESTS = [
   { id: 'f-wall-1mm', request: 'Baue eine Box mit aufsteckbarem Deckel, innen 80 × 60 × 40 mm, Wand genau 1,0 mm.' },
 ];
 
+// SolidCraft refuses 8.3 short paths such as ADMINI~1, which TEMP often holds; the long form goes everywhere.
+const temp = realpathSync.native(tmpdir());
 const only = (process.env.PARTBUDDY_REFERENCE_ONLY ?? '').split(',').filter(Boolean);
 const firstPort = Number(process.env.PARTBUDDY_REFERENCE_PORT ?? '7960');
 
@@ -31,11 +33,11 @@ for (const [index, { id, request }] of REQUESTS.entries()) {
   if (only.length > 0 && !only.includes(id)) continue;
   test(`reference: ${id}`, async () => {
     test.setTimeout(60 * 60 * 1000);
-    const work = mkdtempSync(join(tmpdir(), `partbuddy-reference-${id}-`));
+    const work = mkdtempSync(join(temp, `partbuddy-reference-${id}-`));
     const launched = await launchApp({
       isolated: false,
       work,
-      env: { SOLIDCRAFT_CONTROL_DIR: join(work, 'control'), PARTBUDDY_SOLIDCRAFT_PORT: String(firstPort + index), PARTBUDDY_PROJECTS_DIR: join(work, 'projects') },
+      env: { TEMP: temp, TMP: temp, SOLIDCRAFT_CONTROL_DIR: join(work, 'control'), PARTBUDDY_SOLIDCRAFT_PORT: String(firstPort + index), PARTBUDDY_PROJECTS_DIR: join(work, 'projects') },
     });
     const { page } = launched;
     const rounds: unknown[] = [];
@@ -66,7 +68,7 @@ for (const [index, { id, request }] of REQUESTS.entries()) {
       report.seconds = Math.round((Date.now() - started) / 1000);
       report.answers = await page.getByTestId('assistant-text').allInnerTexts();
       report.steps = await page.getByTestId('step-text').allTextContents();
-      report.mesh = await page.getByTestId('mesh-summary').textContent();
+      report.mesh = await page.getByTestId('mesh-summary').textContent({ timeout: 10_000 }).catch(() => null);
       report.parameters = await page.evaluate(() =>
         (globalThis as unknown as { partbuddy: { design: { parameters(): Promise<{ name: string; value: number; unit: string; comment: string }[]> } } }).partbuddy.design.parameters(),
       );
@@ -79,6 +81,9 @@ for (const [index, { id, request }] of REQUESTS.entries()) {
     } finally {
       writeFileSync(test.info().outputPath('report.json'), JSON.stringify(report, null, 2));
       await launched.close();
+      // The design itself, so SolidCraft can render it afterwards even when the view lagged behind.
+      for (const file of readdirSync(join(work, 'projects'), { recursive: true, encoding: 'utf8' }).filter((name) => name.endsWith('.sc')))
+        copyFileSync(join(work, 'projects', file), test.info().outputPath(basename(file)));
       rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
     }
   });

@@ -248,7 +248,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
   const lines = [
     'Design it well without being asked: apply the rules below on your own, in every design, unless the user says otherwise.',
     `- Sizes the user names are fixed: build them exactly, never round or snap them to the nozzle or layer height. If one is under what prints (a wall under ${mm(minWall)}, a gap under 0.2 mm, a detail under ${mm(printer.nozzle)}) or a wall is not a whole number of ${mm(line)} lines, build it as given anyway and say in one sentence which value prints better.`,
-    `- Fits follow the purpose, not the raw size: nominal size plus clearance per side, press fit ${clearance(material.clearance.clamp)}, sliding fit ${clearance(material.clearance.slide)}, loose fit ${clearance(material.clearance.turn)} (the material's values, scaled for this nozzle). Ask only when the purpose is unclear.`,
+    `- Fits follow the purpose, not the raw size: nominal size plus clearance per side, press fit ${clearance(material.clearance.clamp)}, sliding fit ${clearance(material.clearance.slide)}, loose fit ${clearance(material.clearance.turn)} (the material's values, scaled for this nozzle). A part that holds something (a clip on a cable, tube or pen) grips it: wrap round items more than halfway, with the press fit and an opening narrower than the item. Ask only when the purpose is unclear.`,
     `- Printing comes first: nothing leans more than ${String(material.overhang)}° without support, no support that a better shape or orientation avoids, and stand the part so loads and snap arms run along the layers, not across them. A refinement never makes function or printing worse; leave it out where it would.`,
   ];
   if (design.rounding)
