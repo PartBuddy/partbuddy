@@ -32,6 +32,8 @@ const ALLOWED = new Set([
   // Cards in PartBuddy's chat (questions.ts), never forwarded.
   'partbuddy_ask',
   'partbuddy_plan',
+  // The assembly order (assemblyTool.ts), kept by PartBuddy, never forwarded.
+  'partbuddy_assembly',
 ]);
 
 /**

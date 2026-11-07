@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { eventChannels, invokeChannels, type EventChannel, type InvokeChannel } from './channels';
 import { keptSketchSchema, sketchStateSchema } from './sketch';
+import { assemblyPlanSchema } from './assembly';
 import { MAX_PHRASES_PER_STEP, STEP_PHRASE_KEYS } from './stepPhrases';
 import { TEMPLATE_IDS } from './templates';
 
@@ -688,7 +689,10 @@ export const partInsertResultSchema = z.object({ body: z.string().max(200).nulla
 export const slicersSchema = z.array(z.object({ id: z.string().min(1).max(80), name: z.string().max(120) }).strict()).max(20);
 export const sendToSlicerSchema = z.object({ slicer: z.string().min(1).max(80) }).strict();
 /** The flat face at `point` of `body` becomes the face it lies on in the slicer (B8); null clears it. */
-export const printFaceSchema = z.object({ body: bodyName, point: point3.nullable() }).strict();
+/** `face`: the face's name, which PartBuddy keeps for the plate view (the engine does not report print faces back). */
+export const printFaceSchema = z.object({ body: bodyName, point: point3.nullable(), face: z.string().max(300).optional() }).strict();
+/** The print face of each body as PartBuddy set it, by face name. */
+export const printFacesSchema = z.record(bodyName, z.string().max(300));
 /** A function block at a picked flat face (F1); `shared/blocks.ts` turns it into SolidCraft's command. */
 const blockSize = z.enum(['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10']);
 const blockLength = finite.positive().max(500);
@@ -1031,6 +1035,7 @@ export const invokeContract = {
   [invokeChannels.designSlicers]: { request: none, response: slicersSchema },
   [invokeChannels.designSendToSlicer]: { request: sendToSlicerSchema, response: z.object({ name: z.string().max(120) }).strict() },
   [invokeChannels.designPrintFace]: { request: printFaceSchema, response: none },
+  [invokeChannels.designPrintFaces]: { request: none, response: printFacesSchema },
   [invokeChannels.designInsertPart]: { request: partInsertSchema, response: partInsertResultSchema },
   [invokeChannels.designTimeline]: { request: timelineCommandSchema, response: none },
   [invokeChannels.designGoToStep]: { request: goToStepSchema, response: none },
@@ -1038,6 +1043,8 @@ export const invokeContract = {
   [invokeChannels.designProbeParameter]: { request: parameterProbeSchema, response: actionPreviewSchema },
   [invokeChannels.designParameters]: { request: none, response: designParametersSchema },
   [invokeChannels.chatLoad]: { request: none, response: storedChatSchema.nullable() },
+  // The project's assembly order (ADR 0026); null when the assistant has not set one.
+  [invokeChannels.assemblyGet]: { request: none, response: assemblyPlanSchema.nullable() },
   [invokeChannels.sketchList]: { request: none, response: z.array(keptSketchSchema).max(50) },
   [invokeChannels.sketchLoad]: { request: z.object({ id: keptSketchSchema.shape.id }).strict(), response: sketchStateSchema.nullable() },
   [invokeChannels.chatSave]: { request: chatSaveSchema, response: none },
@@ -1067,6 +1074,7 @@ export const eventContract = {
   [eventChannels.agentEvent]: agentEventSchema,
   [eventChannels.notesChanged]: notesStateSchema,
   [eventChannels.printChanged]: partPrintSchema,
+  [eventChannels.assemblyChanged]: assemblyPlanSchema.nullable(),
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type FaceTableMessage = z.infer<typeof faceTableSchema>;

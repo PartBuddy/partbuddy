@@ -318,6 +318,32 @@ test('website pictures', async () => {
       await shot('explode');
       await page.getByTestId('explode').click();
     });
+    // Viewport CAD round (2026-11-07): the parts nested on the printer's bed, and the assembly halfway.
+    await step('plate', async () => {
+      await page.getByTestId('view-plate').click();
+      await expect(page.getByTestId('plate-label')).toContainText(/Plate 1 of/, { timeout: 30_000 });
+      await page.waitForTimeout(1500);
+      await shot('plate');
+      await page.getByTestId('view-assembled').click();
+      await page.waitForTimeout(800);
+    });
+    await step('assembly', async () => {
+      await page.getByTestId('assembly').click();
+      const panel = page.getByTestId('assembly-panel');
+      await expect(panel).toBeVisible();
+      await panel.getByTestId('assembly-play').click();
+      const steps = await panel.getByTestId('assembly-step').count();
+      // Paused in the middle of the last step but one: earlier parts placed, one coming in.
+      await panel.getByTestId('assembly-timeline').getByRole('slider').focus();
+      await page.keyboard.press('Home');
+      // The timeline counts hundredths of a step.
+      await page.keyboard.press('ArrowRight', { delay: 0 });
+      for (let i = 1; i < Math.max(1, (steps - 1.5) * 100); i += 1) await page.keyboard.press('ArrowRight');
+      await page.waitForTimeout(1500);
+      await shot('assembly');
+      await page.getByTestId('assembly').click();
+      await page.waitForTimeout(800);
+    });
 
     await step('printready', async () => {
       await fresh();

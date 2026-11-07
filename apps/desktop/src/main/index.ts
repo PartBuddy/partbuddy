@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen, session, shell } from 'electron';
 
 import { invokeChannels, eventChannels } from '../shared/channels';
+import type { AssemblyPlan } from '../shared/assembly';
 import type { AgentEvent, ExportFormat, PrintCheckReport, ViewState } from '../shared/contract';
 import { AgentService } from './agents/agentService';
 import { AppearanceSettings } from './appearance';
@@ -18,6 +19,8 @@ import { SolidCraftTools } from './agents/solidcraftTools';
 import type { UpstreamTools } from './agents/gateProxy';
 import { guardNotes } from './agents/noteGuard';
 import { withViewTool } from './agents/viewContext';
+import { withAssemblyTool } from './agents/assemblyTool';
+import { keepPrintFace, readAssembly, readPrintFaces, writeAssembly } from './projects/assembly';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
 import { blockPhrase, describeUserAction } from '../shared/stepPhrases';
@@ -474,9 +477,33 @@ if (!app.requestSingleInstanceLock()) {
     workLog = steps;
     // Questions and plans as cards (M2a); changes wait until the user answered.
     const questions = new Questions(emitEvent, (name) => supervisor.nameNewDesign(name));
+    // The assembly order (ADR 0026) lives in the open project's folder, next to the design.
+    const assemblyFolder = (): string | null => {
+      const project = supervisor.projectFile();
+      return project && projectStore.holds(project) ? dirname(project) : null;
+    };
+    bridge.handle(invokeChannels.assemblyGet, () => {
+      const folder = assemblyFolder();
+      return folder ? readAssembly(folder, log) : null;
+    });
+    const saveAssembly = (plan: AssemblyPlan) => {
+      const folder = assemblyFolder();
+      if (!folder) throw new Error('no project is open, so there is nowhere to keep it');
+      writeAssembly(folder, plan);
+      log(`kept the assembly order: ${String(plan.steps.length)} steps`);
+      bridge.emit(mainWindow?.webContents ?? null, eventChannels.assemblyChanged, plan);
+    };
     // The model reads notes only through PartBuddy; results lose the note data, undo may not take a note (ADR 0020).
     const track = (upstream: UpstreamTools) =>
-      questions.tools(steps.tools(withViewTool(guardNotes(upstream, (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView)));
+      questions.tools(
+        steps.tools(
+          withAssemblyTool(
+            withViewTool(guardNotes(upstream, (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
+            () => viewState?.bodies.map((body) => body.name) ?? [],
+            saveAssembly,
+          ),
+        ),
+      );
     let toolsCache: { port: number; tools: UpstreamTools; close(): Promise<void> } | null = null;
     const tools = async () => {
       const headless = supervisor.headlessTools();
@@ -932,9 +959,21 @@ if (!app.requestSingleInstanceLock()) {
       log(`opened the design in ${name}`);
       return { name };
     });
-    bridge.handle(invokeChannels.designPrintFace, async ({ body, point }) => {
+    bridge.handle(invokeChannels.designPrintFaces, () => {
+      const folder = assemblyFolder();
+      return folder ? readPrintFaces(folder) : {};
+    });
+    bridge.handle(invokeChannels.designPrintFace, async ({ body, point, face }) => {
       assistantIdle();
       await steps.recordUser(describeUserAction({ kind: 'printFace', cleared: point === null }), () => supervisor.setPrintFace(body, point));
+      const folder = assemblyFolder();
+      if (folder) {
+        try {
+          keepPrintFace(folder, body, point === null ? null : (face ?? null));
+        } catch (error) {
+          log(`print face not kept for the plate view: ${(error as Error).message}`);
+        }
+      }
       log(point ? 'set a print face' : 'cleared a print face');
       return undefined;
     });

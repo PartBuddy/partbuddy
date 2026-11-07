@@ -175,10 +175,22 @@
   "bento": [
     {
       "title": "Pull it apart",
-      "text": "Exploded and section views for parts that belong together.",
+      "text": "Exploded views along the directions the parts go together, and sections along any axis or flat face.",
       "shot": "explode",
       "alt": "An enclosure, its lid and a screw pulled apart",
       "size": "wide"
+    },
+    {
+      "title": "Laid out on the plate",
+      "text": "Every part on its print face, nested on the bed of your printer, with parts that do not fit marked.",
+      "shot": "plate",
+      "alt": "An enclosure, its lid and a board laid out on a print bed with its size"
+    },
+    {
+      "title": "Watch it go together",
+      "text": "The assembly plays step by step in the right order, sub-assemblies first, set by the assistant or proposed from the geometry.",
+      "shot": "assembly",
+      "alt": "The assembly of an enclosure halfway, with the named steps beside it"
     },
     {
       "title": "Versions you can compare",

@@ -7,6 +7,7 @@ import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
 import { RESEARCH_GUIDANCE } from './research';
 import { withToolNotes } from './toolNotes';
 import { VIEW_GUIDANCE } from './viewContext';
+import { ASSEMBLY_GUIDANCE } from './assemblyTool';
 
 /**
  * What PartBuddy's own agent loop shares between its routes (ChatGPT plan, local models): the
@@ -21,6 +22,7 @@ const INSTRUCTIONS = [
   'If PartBuddy refuses a tool, tell the user why and continue without it.',
   'Answer in the language the user writes in.',
   VIEW_GUIDANCE,
+  ASSEMBLY_GUIDANCE,
   QUESTION_GUIDANCE,
   ANSWER_GUIDANCE,
 ].join(' ');

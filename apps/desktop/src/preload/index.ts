@@ -80,7 +80,8 @@ const api: PartBuddyApi = {
     applyBlock: (block) => ipcRenderer.invoke(invokeChannels.designApplyBlock, block),
     slicers: () => ipcRenderer.invoke(invokeChannels.designSlicers),
     sendToSlicer: (slicer) => ipcRenderer.invoke(invokeChannels.designSendToSlicer, { slicer }),
-    setPrintFace: (body, point) => ipcRenderer.invoke(invokeChannels.designPrintFace, { body, point }),
+    setPrintFace: (body, point, face) => ipcRenderer.invoke(invokeChannels.designPrintFace, { body, point, ...(face ? { face } : {}) }),
+    printFaces: () => ipcRenderer.invoke(invokeChannels.designPrintFaces),
     insertPart: (part) => ipcRenderer.invoke(invokeChannels.designInsertPart, part),
     measure: (items) => ipcRenderer.invoke(invokeChannels.designMeasure, { items }),
     clearance: (bodies, gap) => ipcRenderer.invoke(invokeChannels.designClearance, { bodies, gap }),
@@ -123,6 +124,10 @@ const api: PartBuddyApi = {
   chat: {
     load: () => ipcRenderer.invoke(invokeChannels.chatLoad),
     save: (items) => ipcRenderer.invoke(invokeChannels.chatSave, { items }),
+  },
+  assembly: {
+    get: () => ipcRenderer.invoke(invokeChannels.assemblyGet),
+    onChange: (listener) => subscribe(eventChannels.assemblyChanged, listener),
   },
   sketches: {
     list: () => ipcRenderer.invoke(invokeChannels.sketchList),

@@ -88,14 +88,19 @@
       "right": "Right",
       "top": "Top",
       "ortho": "Orthographic",
-      "perspective": "Perspective"
+      "perspective": "Perspective",
+      "selection": "Fit selection",
+      "back": "Back",
+      "left": "Left",
+      "bottom": "Bottom"
     },
     "display": {
       "title": "Display",
       "shadedEdges": "Shaded with edges",
       "shaded": "Shaded",
       "xray": "X-ray",
-      "wireframe": "Edges only"
+      "wireframe": "Wireframe",
+      "hiddenEdges": "Hidden edges"
     },
     "section": {
       "title": "Section",
@@ -103,7 +108,10 @@
       "along": "Cut across {axis}",
       "position": "Where the section cuts",
       "flip": "Show the other side",
-      "at": "Cut at {axis} = {value, number, ::.# unit/millimeter}"
+      "at": "Cut at {axis} = {value, number, ::.# unit/millimeter}",
+      "alignFace": "Align to the selected face",
+      "fromFace": "{value, number, ::.# unit/millimeter} from the face",
+      "faceHint": "Select a flat face to cut along it."
     },
     "explode": {
       "title": "Exploded view",
@@ -516,7 +524,8 @@
     "actionReady": "Preview in the view – Enter builds it, Escape cancels",
     "actionRefused": "SolidCraft cannot build it like this: {detail}",
     "distance": "Distance {value} mm",
-    "angle": "Angle {value}°"
+    "angle": "Angle {value}°",
+    "approximate": "Read from the view; SolidCraft's exact measure follows"
   },
   "structure": {
     "title": "Structure",
@@ -1051,5 +1060,34 @@
       "snapFit": "A flexible arm with a catch, standing out of the face. Print it lying down so the layers run along the arm: standing upright it breaks along a layer. The other part needs an opening as deep as the catch.",
       "logo": "An SVG file centred on the point, as wide as given. Only filled areas are built: turn text and lines into paths first (in Inkscape: Path › Object to Path, Stroke to Path)."
     }
+  },
+  "assembly": {
+    "title": "Assembly",
+    "play": "Play the assembly",
+    "pause": "Pause",
+    "previous": "Step back",
+    "next": "Step forward",
+    "timeline": "Assembly timeline",
+    "steps": "Assembly steps",
+    "stepOf": "Step {step} of {steps}",
+    "join": "{part} onto {target}",
+    "base": "{part} as the base",
+    "fromAssistant": "Order set by the assistant",
+    "suggested": "Order proposed from the geometry: contact, bottom up, fasteners last"
+  },
+  "plate": {
+    "title": "Print plate",
+    "switch": "Show assembled or on the print plate",
+    "assembled": "Assembled",
+    "plate": "Plate",
+    "of": "Plate {plate} of {plates}",
+    "previous": "Previous plate",
+    "next": "Next plate",
+    "computing": "Laying out the plate",
+    "failed": "Layout failed",
+    "volume": "{x} × {y} × {z} mm",
+    "noPrinter": "No printer chosen",
+    "tooLarge": "{part} is larger than the bed",
+    "tooTall": "{part} is taller than the build height"
   }
 }

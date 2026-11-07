@@ -16,3 +16,14 @@ export function needsReframe(framed: Sphere | null, bounds: Sphere): boolean {
   if (reach > framed.radius * GROWTH_ALLOWANCE) return true;
   return bounds.radius < framed.radius * SHRINK_LIMIT;
 }
+
+/**
+ * The grid cell for a part of this radius in mm: about a sixth of it, rounded up to 1, 2 or 5 times
+ * a power of ten, never below 1 mm. A 40 mm clip gets 5 mm cells, a 300 mm housing 50 mm cells.
+ */
+export function gridStep(radius: number): number {
+  const raw = Math.max(1, radius / 6);
+  const power = 10 ** Math.floor(Math.log10(raw));
+  const factor = [1, 2, 5, 10].find((step) => step * power >= raw - 1e-9) ?? 10;
+  return factor * power;
+}

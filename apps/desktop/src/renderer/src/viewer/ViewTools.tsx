@@ -1,4 +1,4 @@
-import { IconArrowsExchange, IconArrowsSplit2, IconBox, IconBoxMultiple, IconCheck, IconCube, IconMaximize, IconPerspective, IconRulerMeasure, IconSlice } from '@tabler/icons-react';
+import { IconArrowsExchange, IconArrowsSplit2, IconBox, IconBoxMultiple, IconCheck, IconCube, IconFocusCentered, IconLayoutGrid, IconMaximize, IconPerspective, IconRulerMeasure, IconSlice, IconStack2 } from '@tabler/icons-react';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -18,15 +18,20 @@ import {
 
 import { useStudio, type DisplayMode, type Section, type StandardView } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
-import { bodiesBox } from './section';
+import { bodiesBox, faceSection, sectionSpan } from './section';
 import { ViewIcon } from '../ui/ViewIcon';
 
 const tool =
   'inline-flex size-control-md items-center justify-center rounded-md text-xs font-semibold text-text outline-none transition-colors ' +
   'hover:bg-surface-hover pressed:bg-surface-selected selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus';
 
+/** A labelled button of the assembled/plate switch: the tool look, as wide as its label. */
+const segment = tool.replace('size-control-md', 'h-control-md gap-1 px-2');
+
 /** Keys as in Blender's number pad, which many makers know: 1 front, 3 right, 7 top, 0 iso, 5 projection. */
 const VIEW_KEYS: Record<string, StandardView> = { '1': 'front', '3': 'right', '7': 'top', '0': 'iso', f: 'fit' };
+/** Ctrl with the same keys (by physical key, so it works on every layout). */
+const OPPOSITE_KEYS: Record<string, StandardView> = { Digit1: 'back', Numpad1: 'back', Digit3: 'left', Numpad3: 'left', Digit7: 'bottom', Numpad7: 'bottom' };
 
 function inTextField(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select') !== null);
@@ -43,7 +48,9 @@ function Tip({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-const DISPLAY_MODES: DisplayMode[] = ['shadedEdges', 'shaded', 'xray', 'wireframe'];
+const DISPLAY_MODES: DisplayMode[] = ['shadedEdges', 'shaded', 'hiddenEdges', 'xray', 'wireframe'];
+/** Shift with 1 to 5 picks a display mode, by physical key so it works on every keyboard layout. */
+const MODE_KEYS: Record<string, DisplayMode> = Object.fromEntries(DISPLAY_MODES.map((mode, i) => [`Digit${String(i + 1)}`, mode]));
 
 /** How the bodies are drawn (UI upgrade step 9): a menu with one choice. */
 function DisplayModeMenu() {
@@ -70,12 +77,18 @@ function DisplayModeMenu() {
           }}
           className="outline-none"
         >
-          {DISPLAY_MODES.map((id) => (
-            <MenuItem key={id} id={id} className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover">
+          {DISPLAY_MODES.map((id, i) => (
+            <MenuItem
+              key={id}
+              id={id}
+              aria-keyshortcuts={`Shift+${String(i + 1)}`}
+              className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover"
+            >
               {({ isSelected }) => (
                 <>
+                  <span className="flex size-icon-sm items-center justify-center">{isSelected ? <IconCheck className="size-icon-sm text-accent-text" aria-hidden /> : null}</span>
                   <span className="flex-1">{t(`viewer.display.${id}`)}</span>
-                  {isSelected ? <IconCheck className="size-icon-sm text-accent-text" aria-hidden /> : null}
+                  <kbd aria-hidden className="font-sans text-xs tabular-nums text-text-subtle">⇧{i + 1}</kbd>
                 </>
               )}
             </MenuItem>
@@ -92,9 +105,15 @@ function SectionPanel({ section }: { section: Section }) {
   const setSection = useStudio((s) => s.setSection);
   const model = useStudio((s) => s.model);
   // Where the cut lies in the part, in mm along its axis (polish round 2: the slider alone said nothing).
-  const box = bodiesBox(model.status === 'ready' ? model.bodies : []);
-  const [low, high] = [box.min[section.axis], box.max[section.axis]];
-  const at = Number.isFinite(low) && Number.isFinite(high) ? low + Math.min(1, Math.max(0, section.position)) * (high - low) : null;
+  const bodies = model.status === 'ready' ? model.bodies : [];
+  const box = bodiesBox(bodies);
+  const span = box.isEmpty() ? null : sectionSpan(section, box);
+  const at = span ? span.min + Math.min(1, Math.max(0, section.position)) * (span.max - span.min) : null;
+  // From the face it is aligned to, the offset counts from that face.
+  const fromFace = section.face && at !== null ? at - section.face.normal.reduce((sum, v, i) => sum + (v * (section.face?.origin[i] ?? 0)), 0) / Math.hypot(...section.face.normal) : null;
+  // A picked flat face can carry the section (viewport CAD round).
+  const pick = useStudio((s) => (s.selection?.kind === 'face' ? s.selection : null));
+  const pickedNormal = pick ? bodies[pick.body]?.model.table.faces[pick.face]?.planeNormal : undefined;
   return (
     <div
       role="group"
@@ -108,10 +127,10 @@ function SectionPanel({ section }: { section: Section }) {
           aria-label={t('viewer.section.axis')}
           selectionMode="single"
           disallowEmptySelection
-          selectedKeys={[section.axis]}
+          selectedKeys={section.face ? [] : [section.axis]}
           onSelectionChange={(keys) => {
             const [axis] = [...keys];
-            if (axis === 'x' || axis === 'y' || axis === 'z') setSection({ ...section, axis });
+            if (axis === 'x' || axis === 'y' || axis === 'z') setSection({ ...section, axis, face: undefined });
           }}
           className="flex gap-1"
         >
@@ -121,6 +140,20 @@ function SectionPanel({ section }: { section: Section }) {
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
+        <Tip label={t('viewer.section.alignFace')}>
+          <ToggleButton
+            aria-label={t('viewer.section.alignFace')}
+            isSelected={section.face !== undefined}
+            isDisabled={!pick || !pickedNormal}
+            onChange={() => {
+              if (pick && pickedNormal) setSection({ ...faceSection(pick.point, pickedNormal, box), flip: section.flip });
+            }}
+            className={`${tool} disabled:opacity-40`}
+            data-testid="section-face"
+          >
+            <CadIcon name="plane" className="size-icon-sm" />
+          </ToggleButton>
+        </Tip>
         <span className="flex-1" />
         <Tip label={t('viewer.section.flip')}>
           <AriaButton
@@ -156,11 +189,16 @@ function SectionPanel({ section }: { section: Section }) {
           )}
         </SliderTrack>
       </Slider>
-      {at !== null ? (
+      {fromFace !== null ? (
+        <span className="px-1 text-xs tabular-nums text-text-muted" data-testid="section-at">
+          {t('viewer.section.fromFace', { value: Math.round(fromFace * 10) / 10 })}
+        </span>
+      ) : at !== null ? (
         <span className="px-1 text-xs tabular-nums text-text-muted" data-testid="section-at">
           {t('viewer.section.at', { axis: section.axis.toUpperCase(), value: Math.round(at * 10) / 10 })}
         </span>
       ) : null}
+      {!section.face && !pickedNormal ? <span className="px-1 text-xs text-text-subtle">{t('viewer.section.faceHint')}</span> : null}
     </div>
   );
 }
@@ -221,12 +259,30 @@ export function ViewTools() {
   const setExplode = useStudio((s) => s.setExplode);
   // The exploded view only means something for a print of several parts.
   const parts = useStudio((s) => (s.model.status === 'ready' ? s.model.bodies.length : 0));
+  const viewMode = useStudio((s) => s.viewMode);
+  const setViewMode = useStudio((s) => s.setViewMode);
+  const playback = useStudio((s) => s.playback !== null);
+  const setPlayback = useStudio((s) => s.setPlayback);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey || inTextField(event.target)) return;
+      if (event.metaKey || event.altKey || inTextField(event.target)) return;
       const key = event.key.toLowerCase();
-      if (key === 'm') {
+      // Ctrl with a view key looks from the opposite side, as in Blender: back, left, bottom.
+      if (event.ctrlKey) {
+        const opposite = OPPOSITE_KEYS[event.code];
+        if (!opposite) return;
+        requestView(opposite);
+        event.preventDefault();
+        return;
+      }
+      if (event.shiftKey && key === 'f') {
+        requestView('selection');
+      } else if (event.shiftKey && MODE_KEYS[event.code]) {
+        useStudio.getState().setDisplayMode(MODE_KEYS[event.code] ?? 'shadedEdges');
+      } else if (event.shiftKey) {
+        return;
+      } else if (key === 'm') {
         setDimensions(useStudio.getState().dimensions === 'off' ? 'feature' : 'off');
       } else if (key === '5') {
         setProjection(useStudio.getState().projection === 'orthographic' ? 'perspective' : 'orthographic');
@@ -245,6 +301,7 @@ export function ViewTools() {
 
   const views: { view: StandardView; key: string; icon: ReactNode }[] = [
     { view: 'fit', key: 'F', icon: <IconMaximize className="size-icon-sm" aria-hidden /> },
+    { view: 'selection', key: 'Shift+F', icon: <IconFocusCentered className="size-icon-sm" aria-hidden /> },
     { view: 'iso', key: '0', icon: <IconCube className="size-icon-sm" aria-hidden /> },
     { view: 'front', key: '1', icon: <ViewIcon face="front" className="size-icon-sm" /> },
     { view: 'right', key: '3', icon: <ViewIcon face="right" className="size-icon-sm" /> },
@@ -349,7 +406,48 @@ export function ViewTools() {
           </ToggleButton>
         </Tip>
       ) : null}
+      {parts > 1 ? (
+        <Tip label={t('assembly.title')}>
+          <ToggleButton
+            aria-label={t('assembly.title')}
+            isSelected={playback}
+            onChange={(on) => {
+              // Opens at the start and plays at once; closing glides the parts back together.
+              setPlayback(on ? { position: 0, playing: true } : null);
+            }}
+            className={tool}
+            data-testid="assembly"
+          >
+            <IconStack2 className="size-icon-sm" aria-hidden />
+          </ToggleButton>
+        </Tip>
+      ) : null}
       {explode !== null && parts > 1 ? <ExplodePanel amount={explode} /> : null}
+      {parts > 1 ? (
+        <>
+          <span aria-hidden className="my-1 w-hairline self-stretch bg-border" />
+          <ToggleButtonGroup
+            aria-label={t('plate.switch')}
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={[viewMode]}
+            onSelectionChange={(keys) => {
+              const [key] = [...keys];
+              if (key === 'assembled' || key === 'plate') setViewMode(key);
+            }}
+            className="flex gap-1"
+          >
+            <ToggleButton id="assembled" className={segment} data-testid="view-assembled">
+              <IconBox className="size-icon-sm" aria-hidden />
+              {t('plate.assembled')}
+            </ToggleButton>
+            <ToggleButton id="plate" className={segment} data-testid="view-plate">
+              <IconLayoutGrid className="size-icon-sm" aria-hidden />
+              {t('plate.plate')}
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </>
+      ) : null}
     </div>
   );
 }

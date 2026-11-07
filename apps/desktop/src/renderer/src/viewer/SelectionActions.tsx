@@ -8,6 +8,7 @@ import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
 import { actionsFor, type ActionKind } from './actionKinds';
 import { parseLength } from './lengthInput';
+import { edgePoints, lineDirection, localMeasure, type MeasurePick } from './measure';
 
 /** Starting sizes in mm, typical for FDM parts. */
 const DEFAULT_SIZE: Record<ActionKind, number> = { fillet: 1, chamfer: 0.5, extrude: 5, hole: 3, shell: 1.6 };
@@ -146,10 +147,28 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
   );
 }
 
-/** Distance and angle between two selections, from SolidCraft's measure. */
+/** A pick as the local measure sees it: plane normal of a flat face, axis of a cylinder, direction of a straight edge. */
+function measurePick(bodies: BodyModel[], pick: Pick): MeasurePick {
+  const model = bodies[pick.body]?.model;
+  if (!model) return { point: pick.point };
+  if (pick.kind === 'face') {
+    const face = model.table.faces[pick.face];
+    return { point: pick.point, normal: face?.planeNormal, direction: face?.cylinder?.axis };
+  }
+  if (pick.kind === 'edge') return { point: pick.point, direction: lineDirection(edgePoints(model.edgeSegments, model.edgeRanges, pick.edge)) };
+  return { point: pick.point };
+}
+
+/**
+ * Distance and angle between two selections: read from the mirrored geometry at once (marked ≈),
+ * then SolidCraft's exact measure in its place when it answers.
+ */
 export function MeasureLine({ bodies, picks }: { bodies: BodyModel[]; picks: Pick[] }) {
   const { t, i18n } = useTranslation();
-  const [result, setResult] = useState<MeasureResult | null>(null);
+  const [exact, setResult] = useState<{ picks: Pick[]; result: MeasureResult } | null>(null);
+  const [a, b] = picks;
+  const local = picks.length === 2 && a && b ? localMeasure(measurePick(bodies, a), measurePick(bodies, b)) : null;
+  const result = exact?.picks === picks && exact.result.distance !== null ? exact.result : local;
   useEffect(() => {
     const items: MeasureItem[] = [];
     for (const pick of picks) {
@@ -161,7 +180,7 @@ export function MeasureLine({ bodies, picks }: { bodies: BodyModel[]; picks: Pic
     platform()
       .design.measure(items)
       .then((measured) => {
-        if (live) setResult(measured);
+        if (live) setResult({ picks, result: measured });
       })
       .catch(() => undefined);
     return () => {
@@ -170,8 +189,10 @@ export function MeasureLine({ bodies, picks }: { bodies: BodyModel[]; picks: Pic
   }, [bodies, picks]);
   if (!result || result.distance === null) return null;
   const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 });
+  const approximate = result === local;
   return (
-    <p className="text-sm tabular-nums text-text" data-testid="hud-measure">
+    <p className="text-sm tabular-nums text-text" data-testid="hud-measure" data-exact={String(!approximate)} title={approximate ? t('hud.approximate') : undefined}>
+      {approximate ? '≈ ' : ''}
       {t('hud.distance', { value: number.format(result.distance) })}
       {result.angle !== null ? ` · ${t('hud.angle', { value: number.format(result.angle) })}` : ''}
     </p>

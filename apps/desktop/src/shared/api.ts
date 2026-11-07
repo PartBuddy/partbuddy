@@ -1,3 +1,4 @@
+import type { AssemblyPlan } from './assembly';
 import type {
   AgentEvent,
   AgentKind,
@@ -168,7 +169,9 @@ export interface PartBuddyApi {
     /** Opens the printable bodies in a slicer, laid on their print face; returns the slicer's name. */
     sendToSlicer(slicer: string): Promise<{ name: string }>;
     /** Marks the flat face at a point as the body's print face, or clears it (null). */
-    setPrintFace(body: string, point: [number, number, number] | null): Promise<void>;
+    setPrintFace(body: string, point: [number, number, number] | null, face?: string): Promise<void>;
+    /** The print faces PartBuddy set in the open project, by body (for the plate view). */
+    printFaces(): Promise<Record<string, string>>;
     /** Builds a function block (F1) on trial for the ghost preview. */
     previewBlock(block: FeatureBlock): Promise<ActionPreviewResult>;
     /** Builds a function block for real; one step of the work log. */
@@ -237,6 +240,11 @@ export interface PartBuddyApi {
     onChange(listener: (part: PartPrint) => void): () => void;
     /** The latest ready-to-print check, for the assistant's next message. */
     reportCheck(report: PrintCheckReport): Promise<void>;
+  };
+  /** The assembly order of the open project (ADR 0026): set by the assistant, null without one. */
+  assembly: {
+    get(): Promise<AssemblyPlan | null>;
+    onChange(listener: (plan: AssemblyPlan | null) => void): () => void;
   };
   viewer: {
     /** Reports what the 3D view shows, for the assistant's `partbuddy_view` tool. */

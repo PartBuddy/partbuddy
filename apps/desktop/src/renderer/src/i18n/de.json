@@ -88,14 +88,19 @@
       "right": "Rechts",
       "top": "Oben",
       "ortho": "Orthografisch",
-      "perspective": "Perspektivisch"
+      "perspective": "Perspektivisch",
+      "selection": "Auswahl einpassen",
+      "back": "Hinten",
+      "left": "Links",
+      "bottom": "Unten"
     },
     "display": {
       "title": "Darstellung",
       "shadedEdges": "Schattiert mit Kanten",
       "shaded": "Schattiert",
       "xray": "Röntgen",
-      "wireframe": "Nur Kanten"
+      "wireframe": "Drahtgitter",
+      "hiddenEdges": "Verdeckte Kanten"
     },
     "section": {
       "title": "Schnitt",
@@ -103,7 +108,10 @@
       "along": "Quer zu {axis} schneiden",
       "position": "Wo der Schnitt liegt",
       "flip": "Andere Seite zeigen",
-      "at": "Schnitt bei {axis} = {value, number, ::.# unit/millimeter}"
+      "at": "Schnitt bei {axis} = {value, number, ::.# unit/millimeter}",
+      "alignFace": "An der gewählten Fläche ausrichten",
+      "fromFace": "{value, number, ::.# unit/millimeter} von der Fläche",
+      "faceHint": "Wähle eine ebene Fläche, um an ihr entlang zu schneiden."
     },
     "explode": {
       "title": "Explosionsansicht",
@@ -516,7 +524,8 @@
     "actionReady": "Vorschau in der Ansicht – Enter übernimmt, Esc bricht ab",
     "actionRefused": "SolidCraft kann das so nicht bauen: {detail}",
     "distance": "Abstand {value} mm",
-    "angle": "Winkel {value}°"
+    "angle": "Winkel {value}°",
+    "approximate": "Aus der Ansicht gelesen; das genaue Maß von SolidCraft folgt"
   },
   "structure": {
     "title": "Struktur",
@@ -1051,5 +1060,34 @@
       "snapFit": "Ein federnder Arm mit Rastnase, der aus der Fläche ragt. Liegend drucken, damit die Schichten längs des Arms laufen: stehend bricht er an einer Schicht. Das Gegenstück braucht eine Öffnung so tief wie die Nase.",
       "logo": "Eine SVG-Datei mittig am Punkt, so breit wie angegeben. Gebaut werden nur gefüllte Flächen: Text und Linien vorher in Pfade umwandeln (in Inkscape: Pfad › Objekt in Pfad, Kontur in Pfad)."
     }
+  },
+  "assembly": {
+    "title": "Zusammenbau",
+    "play": "Zusammenbau abspielen",
+    "pause": "Pause",
+    "previous": "Schritt zurück",
+    "next": "Schritt vor",
+    "timeline": "Zeitleiste des Zusammenbaus",
+    "steps": "Montageschritte",
+    "stepOf": "Schritt {step} von {steps}",
+    "join": "{part} an {target}",
+    "base": "{part} als Basis",
+    "fromAssistant": "Reihenfolge vom Assistenten festgelegt",
+    "suggested": "Reihenfolge aus der Geometrie vorgeschlagen: Kontakt, von unten nach oben, Verbindungselemente zuletzt"
+  },
+  "plate": {
+    "title": "Druckplatte",
+    "switch": "Zusammengebaut oder auf der Druckplatte zeigen",
+    "assembled": "Zusammengebaut",
+    "plate": "Platte",
+    "of": "Platte {plate} von {plates}",
+    "previous": "Vorige Platte",
+    "next": "Nächste Platte",
+    "computing": "Platte wird belegt",
+    "failed": "Belegung fehlgeschlagen",
+    "volume": "{x} × {y} × {z} mm",
+    "noPrinter": "Kein Drucker gewählt",
+    "tooLarge": "{part} ist größer als das Bett",
+    "tooTall": "{part} ist höher als der Bauraum"
   }
 }

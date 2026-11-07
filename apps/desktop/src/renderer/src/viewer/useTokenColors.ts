@@ -4,7 +4,6 @@ import { Color } from 'three';
 
 const names = {
   background: '--cs-viewer-background',
-  backgroundTop: '--cs-viewer-background-top',
   sky: '--cs-viewer-sky',
   ground: '--cs-viewer-ground',
   shadow: '--cs-viewer-shadow',
@@ -13,6 +12,10 @@ const names = {
   gridSection: '--cs-viewer-grid-section',
   body: '--cs-viewer-body',
   edge: '--cs-viewer-edge',
+  hiddenEdge: '--cs-viewer-hidden-edge',
+  bed: '--cs-viewer-bed',
+  bedEdge: '--cs-viewer-bed-edge',
+  misfit: '--cs-viewer-misfit',
   hover: '--cs-viewer-hover',
   selection: '--cs-viewer-selection',
   note: '--cs-viewer-note',
@@ -43,7 +46,6 @@ function read(): ViewerColors {
   return Object.fromEntries(entries) as ViewerColors;
 }
 
-/** Viewer colours come from the design tokens and follow theme changes. */
 /** Viewer colours come from the design tokens and follow the system theme. */
 export function useTokenColors(): ViewerColors {
   const [colors, setColors] = useState<ViewerColors>(read);

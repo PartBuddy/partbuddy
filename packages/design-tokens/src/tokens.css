@@ -138,21 +138,27 @@
   --cs-color-info-subtle: #e7eef6;
 
   /* Viewer colours */
-  /* The view's background runs from -top down to -background (UI upgrade step 8). */
-  --cs-viewer-background: #eef0f2;
-  --cs-viewer-background-top: #eef0f2;
+  /* One flat, neutral background (viewport CAD round 2026-11-07: no gradient, no floor shadow). */
+  --cs-viewer-background: #f2f3f5;
   /* Sky light from above and its bounce from below: tops read lighter than undersides. */
   --cs-viewer-sky: #ffffff;
   --cs-viewer-ground: #959aa1;
-  /* The soft contact shadow under the part. */
+  /* The faint contact shadow straight under the part. */
   --cs-viewer-shadow: #1b2430;
   /* Cut faces of a section (drawn flat, so they read as filled). */
   --cs-viewer-section: #e0915f;
   /* The CAD grid on the ground: fine cells and stronger lines every few cells, kept quiet. */
-  --cs-viewer-grid: #d3d7dc;
-  --cs-viewer-grid-section: #b9bfc7;
-  --cs-viewer-body: #d6d9dd;
-  --cs-viewer-edge: #2a2e34;
+  --cs-viewer-grid: #e0e3e7;
+  --cs-viewer-grid-section: #c9ced5;
+  /* Neutral cool grey part, set apart from the background; silhouette and feature edges in near black. */
+  --cs-viewer-body: #c3c8cf;
+  --cs-viewer-edge: #1f2328;
+  /* Hidden edges in the "hidden edges" display mode, dashed behind the faces. */
+  --cs-viewer-hidden-edge: #7d858f;
+  /* The print bed of the plate view, its outline and a part that does not fit. */
+  --cs-viewer-bed: #e6e9ed;
+  --cs-viewer-bed-edge: #8a929c;
+  --cs-viewer-misfit: #c93b3b;
   --cs-viewer-hover: #6f9ce8;
   --cs-viewer-selection: #1f5fd1;
   --cs-viewer-note: #c2410c;
@@ -205,16 +211,19 @@
     --cs-color-danger-subtle: #3a1a17;
     --cs-color-info: #8fb4dd;
     --cs-color-info-subtle: #1a2633;
-    --cs-viewer-background: #202327;
-    --cs-viewer-background-top: #202327;
+    --cs-viewer-background: #1e2125;
     --cs-viewer-sky: #d6dde6;
     --cs-viewer-ground: #202327;
     --cs-viewer-shadow: #000000;
     --cs-viewer-section: #c97a4a;
-    --cs-viewer-grid: #353a41;
-    --cs-viewer-grid-section: #4b525c;
-    --cs-viewer-body: #a3a8af;
-    --cs-viewer-edge: #121417;
+    --cs-viewer-grid: #2c3036;
+    --cs-viewer-grid-section: #3d434b;
+    --cs-viewer-body: #8d939b;
+    --cs-viewer-edge: #0c0e10;
+    --cs-viewer-hidden-edge: #6b737d;
+    --cs-viewer-bed: #262a2f;
+    --cs-viewer-bed-edge: #6a727c;
+    --cs-viewer-misfit: #e05555;
     --cs-viewer-hover: #6f9ce8;
     --cs-viewer-selection: #4d86ec;
     --cs-viewer-note: #f28b4b;
@@ -257,16 +266,19 @@
   --cs-color-danger-subtle: #3a1a17;
   --cs-color-info: #8fb4dd;
   --cs-color-info-subtle: #1a2633;
-  --cs-viewer-background: #202327;
-  --cs-viewer-background-top: #202327;
+  --cs-viewer-background: #1e2125;
   --cs-viewer-sky: #d6dde6;
   --cs-viewer-ground: #202327;
   --cs-viewer-shadow: #000000;
   --cs-viewer-section: #c97a4a;
-  --cs-viewer-grid: #353a41;
-  --cs-viewer-grid-section: #4b525c;
-  --cs-viewer-body: #a3a8af;
-  --cs-viewer-edge: #121417;
+  --cs-viewer-grid: #2c3036;
+  --cs-viewer-grid-section: #3d434b;
+  --cs-viewer-body: #8d939b;
+  --cs-viewer-edge: #0c0e10;
+  --cs-viewer-hidden-edge: #6b737d;
+  --cs-viewer-bed: #262a2f;
+  --cs-viewer-bed-edge: #6a727c;
+  --cs-viewer-misfit: #e05555;
   --cs-viewer-hover: #6f9ce8;
   --cs-viewer-selection: #4d86ec;
   --cs-viewer-note: #f28b4b;

@@ -7,6 +7,7 @@ import { expect, test } from '@playwright/test';
 
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
 import { countViewportPixels } from './pixels';
+import { cameraOf } from './view';
 import { launchApp, lookAgain, type LaunchedApp } from './launch';
 
 let launched: LaunchedApp | null = null;
@@ -109,7 +110,8 @@ test('edges and vertices can be picked, and the view switches projection and sta
   };
   await page.waitForTimeout(500);
   const row = Array.from({ length: 200 }, (_, i) => ({ x: box.x + box.width * 0.2 + i * 3, y: box.y + box.height / 2 }));
-  expect(await findKind('edge', row), 'an edge on the middle row').not.toBeNull();
+  const edgeAt = await findKind('edge', row);
+  expect(edgeAt, 'an edge on the middle row').not.toBeNull();
   await expect(page.getByTestId('selected-face')).toHaveAttribute('data-name', /^F\d+:[^|]+\|F\d+:/);
   await expect(page.getByTestId('selected-face')).toHaveText(/^Edge [\d.]+ mm$/);
   await expect(bar).toContainText(/Length/);
@@ -120,6 +122,30 @@ test('edges and vertices can be picked, and the view switches projection and sta
   for (let y = 0.3; y <= 0.7; y += 0.025) for (let x = 0.25; x <= 0.75; x += 0.0125) grid.push({ x: box.x + box.width * x, y: box.y + box.height * y });
   expect(await findKind('vertex', grid), 'a visible vertex').not.toBeNull();
   await expect(page.getByTestId('composer-selection')).toHaveText(/Selected vertex goes with the message: Vertex · CableClip/);
+
+  // Ctrl adds the edge: their distance shows at once from the view, SolidCraft's exact value when it answers.
+  if (edgeAt) {
+    await page.keyboard.down('Control');
+    await page.mouse.click(edgeAt.x, edgeAt.y);
+    await page.keyboard.up('Control');
+    await expect(page.getByTestId('hud-measure')).toContainText(/Distance [\d.,]+ mm/);
+    // Ctrl again takes it away; the vertex stays.
+    await page.keyboard.down('Control');
+    await page.mouse.click(edgeAt.x, edgeAt.y);
+    await page.keyboard.up('Control');
+    await expect(page.getByTestId('hud-measure')).toHaveCount(0);
+  }
+
+  // Shift+F fits the selection: the camera moves in on the vertex (viewport CAD round).
+  const before = await cameraOf(page);
+  await page.keyboard.press('Shift+F');
+  await page.waitForTimeout(1200);
+  const fitted = await cameraOf(page);
+  expect(before && fitted).toBeTruthy();
+  if (before && fitted) {
+    const distance = (c: { position: number[]; target: number[] }) => Math.hypot(...c.position.map((v, i) => v - (c.target[i] ?? 0)));
+    expect(distance(fitted)).toBeLessThan(distance(before));
+  }
 
   // Escape clears the selection; a click into empty space too.
   await page.keyboard.press('Escape');
@@ -135,6 +161,11 @@ test('edges and vertices can be picked, and the view switches projection and sta
   await page.getByRole('button', { name: 'Isometric' }).click();
   await page.waitForTimeout(800);
   await page.screenshot({ path: test.info().outputPath('ortho-iso.png') });
+  // Ctrl+1 looks from the back: the camera stands on the +Y side of what it looks at.
+  await page.keyboard.press('Control+1');
+  await page.waitForTimeout(1200);
+  const back = await cameraOf(page);
+  expect(back && back.position[1] > back.target[1]).toBe(true);
 });
 
 test('the view highlights the faces a step changed and can follow them', async () => {
@@ -300,6 +331,15 @@ test('the view switches display modes and opens a section with its own controls'
   await expect(page.getByRole('menuitemradio', { name: 'X-ray' })).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('Escape');
   await shot('xray');
+  // Every mode has a key: Shift+3 shows the hidden edges, Shift+5 the wireframe (viewport CAD round).
+  for (const [key, name] of [['Shift+3', 'Hidden edges'], ['Shift+5', 'Wireframe'], ['Shift+2', 'Shaded']] as const) {
+    await page.keyboard.press(key);
+    await page.getByTestId('display-mode').click();
+    await expect(page.getByRole('menuitemradio', { name, exact: true })).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('Escape');
+    await shot(name.toLowerCase().replace(' ', '-'));
+  }
+  expect(await countViewportPixels(page, '--cs-viewer-body', 30)).toBeGreaterThan(500);
   await page.getByTestId('display-mode').click();
   await page.getByRole('menuitemradio', { name: 'Shaded with edges' }).click();
 
@@ -314,8 +354,70 @@ test('the view switches display modes and opens a section with its own controls'
   await expect(panel.getByRole('slider', { name: 'Where the section cuts' })).toHaveValue('50');
   await shot('section-x-flipped');
 
+  // Aligned to a picked flat face: the cut starts at the face and moves along its normal.
+  await page.getByTestId('section').click();
+  const view = await page.getByTestId('viewport').boundingBox();
+  if (!view) throw new Error('viewport not visible');
+  for (const [x, y] of [[0.5, 0.6], [0.45, 0.65], [0.6, 0.6], [0.55, 0.7], [0.4, 0.6]] as const) {
+    await page.mouse.click(view.x + view.width * x, view.y + view.height * y);
+    await page.waitForTimeout(300);
+    if ((await page.getByTestId('selected-face').count()) > 0 && /^Plane/.test((await page.getByTestId('selected-face').textContent()) ?? '')) break;
+  }
+  await page.getByTestId('section').click();
+  await panel.getByTestId('section-face').click();
+  await expect(panel.getByTestId('section-face')).toHaveAttribute('data-selected', 'true');
+  await expect(panel.getByTestId('section-at')).toHaveText(/0 mm from the face/);
+  await shot('section-face');
+
   // Off again: the panel goes.
   await page.getByTestId('section').click();
+  await expect(panel).toHaveCount(0);
+});
+
+test('a print of two parts switches to the plate, explodes along its assembly and plays the assembly', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.bodies = ['CableClip', 'Second clip'];
+  await fake.start();
+  const { page } = launched;
+  await lookAgain(page);
+  await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
+  const shot = (name: string) => page.getByTestId('viewer').screenshot({ path: test.info().outputPath(`${name}.png`) });
+
+  // The plate: both clips laid out on the printer's bed in a worker, with the bed's size.
+  await page.getByTestId('view-plate').click();
+  await expect(page.getByTestId('plate-label')).toHaveText('Plate 1 of 1', { timeout: 20_000 });
+  await expect(page.getByTestId('plate-bed')).toContainText(/\d+ × \d+ × \d+ mm/);
+  await expect(page.getByTestId('bed-width')).toBeVisible();
+  await expect(page.getByTestId('plate-misfits')).toHaveCount(0);
+  await page.waitForTimeout(800);
+  await shot('plate');
+  // Back to assembled: the bar goes, the selection works again.
+  await page.getByTestId('view-assembled').click();
+  await expect(page.getByTestId('plate-bar')).toHaveCount(0);
+
+  // Exploded along the joining directions; closing it glides the parts back.
+  await page.getByTestId('explode').click();
+  await expect(page.getByTestId('explode-panel')).toBeVisible();
+  await page.waitForTimeout(800);
+  await shot('exploded');
+  await page.getByTestId('explode').click();
+
+  // The assembly plays at once, step by step, with the steps named; back and forward land on steps.
+  await page.getByTestId('assembly').click();
+  const panel = page.getByTestId('assembly-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId('assembly-step')).toHaveCount(2);
+  await expect(panel.getByTestId('assembly-source')).toHaveAttribute('data-source', 'suggested');
+  await expect(panel.getByTestId('assembly-play')).toHaveAttribute('data-playing', 'false', { timeout: 15_000 });
+  await expect(panel).toHaveAttribute('data-position', '2.00');
+  await panel.getByTestId('assembly-prev').click();
+  await expect(panel).toHaveAttribute('data-position', '1.00');
+  await expect(panel.getByTestId('assembly-step').first()).toHaveAttribute('data-active', 'true');
+  await shot('assembly');
+  await panel.getByTestId('assembly-next').click();
+  await expect(panel).toHaveAttribute('data-position', '2.00');
+  await page.getByTestId('assembly').click();
   await expect(panel).toHaveCount(0);
 });
 
@@ -551,7 +653,7 @@ test('the renderer sees only the typed bridge', async () => {
     };
   });
   expect(globals).toEqual({
-    bridge: ['agent', 'appInfo', 'chat', 'design', 'mirror', 'notes', 'print', 'project', 'relaunch', 'settings', 'sketches', 'solidcraft', 'updates', 'viewer', 'window'],
+    bridge: ['agent', 'appInfo', 'assembly', 'chat', 'design', 'mirror', 'notes', 'print', 'project', 'relaunch', 'settings', 'sketches', 'solidcraft', 'updates', 'viewer', 'window'],
     solidcraft: ['chooseEngine', 'engine', 'onStatus', 'retry', 'start', 'status'],
     require: 'undefined',
     process: 'undefined',

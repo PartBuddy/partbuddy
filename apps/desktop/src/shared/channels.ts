@@ -81,6 +81,8 @@ export const invokeChannels = {
   chatLoad: 'chat:load',
   sketchList: 'sketch:list',
   sketchLoad: 'sketch:load',
+  assemblyGet: 'assembly:get',
+  designPrintFaces: 'design:print-faces',
   chatSave: 'chat:save',
   notesCurrent: 'notes:current',
   notesAdd: 'notes:add',
@@ -105,6 +107,7 @@ export const eventChannels = {
   agentEvent: 'agent:event',
   notesChanged: 'notes:changed',
   printChanged: 'print:changed',
+  assemblyChanged: 'assembly:changed',
 } as const;
 
 export type InvokeChannel = (typeof invokeChannels)[keyof typeof invokeChannels];

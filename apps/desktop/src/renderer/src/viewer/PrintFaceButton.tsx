@@ -20,8 +20,9 @@ export function PrintFaceButton({ bodies, picks, busy }: { bodies: BodyModel[]; 
   if (standard.status === 'ready' && standard.structure.standardParts?.includes(body.name)) return null;
   const set = () => {
     void platform()
-      .design.setPrintFace(body.name, pick.point)
+      .design.setPrintFace(body.name, pick.point, body.model.table.faces[pick.face]?.name)
       .then(() => {
+        useStudio.getState().setPrintFaces({ ...useStudio.getState().printFaces, [body.name]: body.model.table.faces[pick.face]?.name ?? '' });
         useStudio.getState().setNotice({ tone: 'success', text: t('printFace.done', { name: body.name }) });
       })
       .catch((error: unknown) => {
