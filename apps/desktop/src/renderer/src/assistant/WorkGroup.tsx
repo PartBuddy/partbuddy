@@ -5,6 +5,7 @@ import { Fold, LiveIcon } from './Fold';
 import type { WorkEntry } from './rows';
 import { StepCard, useStepLines, type StepItem } from './StepCard';
 import { ToolCall, type ToolItem } from './ToolCall';
+import { badgeClass } from '../ui/Feedback';
 
 /** Tool calls that only read, folded into one line with their details on demand. */
 export function Queries({ tools }: { tools: ToolItem[] }) {
@@ -55,7 +56,7 @@ export function WorkGroup({ entries, live, disabled }: { entries: WorkEntry[]; l
             {queries > 0 ? <span className="font-normal text-text-subtle"> · {t('assistant.work.queries', { count: queries })}</span> : null}
           </span>
           {live && newest ? <Latest item={newest} /> : <span className="flex-1" />}
-          {current && !live ? <span className="shrink-0 rounded-full bg-accent-subtle px-2 text-xs text-accent-text">{t('assistant.step.current')}</span> : null}
+          {current && !live ? <span className={badgeClass('accent')}>{t('assistant.step.current')}</span> : null}
         </>
       }
     >

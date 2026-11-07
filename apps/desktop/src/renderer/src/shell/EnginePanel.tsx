@@ -4,13 +4,14 @@ import { useTranslation } from 'react-i18next';
 import type { EngineChoiceError, EngineInfo } from '../../../shared/contract';
 import { platform } from '../platform';
 import { Button } from '../ui/Button';
+import { badgeClass, type Tone } from '../ui/Feedback';
 
-const badgeClass: Record<EngineInfo['support'], string> = {
-  recommended: 'bg-success-subtle text-success',
+const supportTone: Record<EngineInfo['support'], Tone> = {
+  recommended: 'success',
   // Supported works: green as well, not the warning colour a newcomer reads as trouble (polish round 3).
-  supported: 'bg-success-subtle text-success',
-  tooOld: 'bg-danger-subtle text-danger',
-  unknown: 'bg-surface-hover text-text-muted',
+  supported: 'success',
+  tooOld: 'danger',
+  unknown: 'neutral',
 };
 
 /**
@@ -67,7 +68,7 @@ export function EnginePanel({ close, closable = true }: { close: () => void; clo
             {info.version ?? t('engine.unknownVersion')}
           </span>
           {info.path ? (
-            <span className={`rounded-sm px-2 py-1 text-xs font-medium ${badgeClass[info.support]}`} data-testid="engine-support">
+            <span className={badgeClass(supportTone[info.support])} data-testid="engine-support">
               {t(`engine.support.${info.support}`)}
             </span>
           ) : null}
@@ -75,7 +76,7 @@ export function EnginePanel({ close, closable = true }: { close: () => void; clo
         {info.support === 'recommended' || info.support === 'supported' ? <p className="text-text-muted">{t('engine.works')}</p> : null}
         {/* The versions in detail, for those who want to know; folded so the first start stays short. */}
         <details className="text-text-muted" data-testid="engine-details">
-          <summary className="cursor-pointer text-xs outline-none focus-visible:outline-2 focus-visible:outline-focus">{t('engine.detailsTitle')}</summary>
+          <summary className="cursor-pointer text-xs outline-none focus-visible:focus-ring">{t('engine.detailsTitle')}</summary>
           <p className="mt-1">{t('engine.hint', { recommended: info.recommended, minimum: info.minimum })}</p>
         </details>
         {error ? (

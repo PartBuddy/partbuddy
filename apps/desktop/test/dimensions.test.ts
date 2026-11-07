@@ -114,6 +114,17 @@ describe('dimension field: direct where unambiguous (M1b)', () => {
     await expect(service.apply('d1', -1, 1)).rejects.toThrow(/positive/);
   });
 
+  it('makes a snapped size the user\'s when the user sets it; a refit keeps the mark (2026-11-07)', async () => {
+    const { service, calls } = boxEngine({ d1: 40, d2: 20, d3: 10 }, [{ ...param('wall', 1.35), comment: 'Wall [auto 3×line]' }]);
+    await service.apply('wall', 2, 1);
+    expect(calls.at(-1)?.commands).toEqual([{ command: 'parameters.change', params: { name: 'wall', expression: '2 mm', comment: 'Wall' } }]);
+    await service.apply('wall', 2.025, 1, true);
+    expect(calls.at(-1)?.commands).toEqual([{ command: 'parameters.change', params: { name: 'wall', expression: '2.025 mm' } }]);
+    // A size without the mark keeps its comment untouched.
+    await service.apply('d1', 41, 1);
+    expect(calls.at(-1)?.commands[0]?.params).not.toHaveProperty('comment');
+  });
+
   it('measures the edge nearest the pick when two faces meet more than once', () => {
     const result = {
       edges: [

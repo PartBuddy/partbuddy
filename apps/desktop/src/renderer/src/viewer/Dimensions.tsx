@@ -18,6 +18,7 @@ import { parseLength } from './lengthInput';
 import { keeps } from './section';
 import { edgeLabel } from './viewState';
 import { TreeExtra } from '../shell/Tree';
+import { inputClass, fieldLabelClass } from '../ui/Field';
 
 type MeshList = RefObject<(Mesh | null)[]>;
 const PROBE_DELAY_MS = 250;
@@ -167,12 +168,12 @@ export function MarkField({ mark, onGhost, onClose }: { mark: DimensionMark; onG
       }}
     >
       <TextField value={draft} onChange={setDraft} inputMode="decimal" isDisabled={busy} className="flex flex-col gap-1">
-        <Label className="text-xs text-text-subtle">
+        <Label className={fieldLabelClass}>
           {text.name} · {mark.unit === 'deg' ? '°' : t('units.mmShort')}
         </Label>
         <Input
           autoFocus
-          className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 text-md tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+          className={`${inputClass('md')} tabular-nums`}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault();
@@ -204,7 +205,7 @@ function MarkLabel({ mark, open, onToggle }: { mark: DimensionMark; open: boolea
       aria-label={t('dimensions.edit', { name: text.name, value: text.value })}
       aria-expanded={open}
       onPress={onToggle}
-      className={`pointer-events-auto flex -translate-x-1/2 -translate-y-1/2 items-baseline gap-1 whitespace-nowrap rounded-full border px-2 text-xs font-semibold tabular-nums text-text shadow-1 outline-none focus-visible:outline-2 focus-visible:outline-focus ${
+      className={`pointer-events-auto flex -translate-x-1/2 -translate-y-1/2 items-baseline gap-1 whitespace-nowrap rounded-full border px-2 text-xs font-semibold tabular-nums text-text shadow-1 outline-none focus-visible:focus-ring ${
         open ? 'border-dimension bg-surface-selected' : 'border-dimension/35 bg-surface-raised/95 hover:border-dimension'
       }`}
       data-testid="mark-label"
@@ -441,7 +442,7 @@ export function LooseDimensions() {
               onPress={() => {
                 setOpenMark(open ? null : mark.id);
               }}
-              className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-sm text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+              className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-sm text-text outline-none transition-colors hover:bg-surface-hover pressed:bg-surface-pressed focus-visible:focus-ring"
               data-testid="loose-mark"
             >
               <span className="truncate">{shown.name}</span>

@@ -26,9 +26,11 @@ import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
 import { useFileImport } from './fileImport';
 import { useProjectSwitch } from './projectSwitch';
+import { FieldMessage, fieldLabelClass, inputClass } from '../ui/Field';
+import { POPOVER_OFFSET, menuClass, menuItemClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
+import { modalClass, overlayClass } from '../ui/Dialog';
 
-const itemClass =
-  'flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover disabled:text-text-subtle';
+const itemClass = menuItemClass;
 
 function inTextField(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -102,7 +104,7 @@ export function ProjectMenu({ designName }: { designName: string }) {
     <>
       <MenuTrigger>
         <AriaButton
-          className="inline-flex min-w-0 items-center gap-1 rounded-sm px-1 font-medium text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus pressed:bg-surface-selected"
+          className="inline-flex min-w-0 items-center gap-1 rounded-sm px-1 font-medium text-text outline-none hover:bg-surface-hover focus-visible:focus-ring pressed:bg-surface-pressed"
           aria-label={t('project.menu', { name: designName })}
           data-testid="project-menu"
         >
@@ -111,10 +113,10 @@ export function ProjectMenu({ designName }: { designName: string }) {
           </span>
           <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
         </AriaButton>
-        <Popover placement="bottom start" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+        <Popover placement="bottom start" offset={POPOVER_OFFSET} className={popoverClass}>
           <Menu
             aria-label={t('project.title')}
-            className="outline-none"
+            className={menuClass}
             disabledKeys={[...(ready ? [] : ['new', 'open', 'import']), ...(connection.state === 'connected' ? [] : ['insert']), ...(ready && project ? [] : ['rename', 'duplicate', 'trash']), ...(project ? [] : ['export'])]}
             onAction={(key) => {
               if (key === 'new') create();
@@ -132,12 +134,12 @@ export function ProjectMenu({ designName }: { designName: string }) {
             <Item id="open" icon={<IconFolderOpen className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.open')} shortcut="Ctrl+O" testId="project-open" />
             <Item id="import" icon={<IconFileImport className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.import')} testId="project-import" />
             <Item id="insert" icon={<IconPackageImport className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.insert')} testId="project-insert" />
-            <Separator className="my-1 border-t border-border" />
+            <Separator className={menuSeparatorClass} />
             <Item id="rename" icon={<IconPencil className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.rename')} testId="project-rename" />
             <Item id="duplicate" icon={<IconCopy className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.duplicate')} testId="project-duplicate" />
             <Item id="reveal" icon={<IconFolderSearch className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.reveal')} testId="project-reveal" />
             <Item id="export" icon={<IconFileExport className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.exportPackage')} testId="project-export-package" />
-            <Separator className="my-1 border-t border-border" />
+            <Separator className={menuSeparatorClass} />
             <Item id="trash" icon={<IconTrash className="size-icon-sm text-text-muted" aria-hidden />} label={t('project.trash')} testId="project-trash" />
           </Menu>
         </Popover>
@@ -191,9 +193,9 @@ export function RenameDialog({ open, name, folder, onClose, onDone }: { open: bo
         if (!next) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass}
     >
-      <Modal className="w-dialog-sm max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
+      <Modal className={modalClass('sm')}>
         <Dialog className="flex flex-col gap-4 p-5 outline-none" data-testid="project-rename-dialog">
           <Heading slot="title" className="text-lg font-semibold text-text">
             {t('project.renameTitle')}
@@ -215,15 +217,9 @@ export function RenameDialog({ open, name, folder, onClose, onDone }: { open: bo
               isInvalid={error !== null}
               className="flex flex-col gap-1"
             >
-              <Label className="text-xs text-text-muted">{t('project.name')}</Label>
-              <Input className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none focus-visible:outline-2 focus-visible:outline-focus invalid:border-danger" data-testid="project-name-input" />
-              {error ? (
-                <span role="alert" className="text-xs text-danger" data-testid="project-rename-error">
-                  {error}
-                </span>
-              ) : (
-                <span className="text-xs text-text-subtle">{t('project.renameHint')}</span>
-              )}
+              <Label className={fieldLabelClass}>{t('project.name')}</Label>
+              <Input className={inputClass('md')} data-testid="project-name-input" />
+              <FieldMessage error={error} hint={t('project.renameHint')} testId="project-rename-error" />
             </TextField>
             <div className="flex justify-end gap-2">
               <Button onPress={onClose}>{t('project.cancel')}</Button>
@@ -248,9 +244,9 @@ export function TrashDialog({ open, name, opensNew, onClose, onConfirm }: { open
         if (!next) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass}
     >
-      <Modal className="w-dialog-sm max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
+      <Modal className={modalClass('sm')}>
         <Dialog role="alertdialog" className="flex flex-col gap-4 p-5 outline-none" data-testid="project-trash-dialog">
           <Heading slot="title" className="text-lg font-semibold text-text">
             {t('project.trashTitle', { name })}

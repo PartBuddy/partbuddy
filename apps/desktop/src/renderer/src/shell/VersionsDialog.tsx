@@ -1,14 +1,17 @@
 import { IconCube, IconHistory, IconX } from '@tabler/icons-react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Dialog, Heading, Input, Label, Modal, ModalOverlay, TextField, ToggleButton } from 'react-aria-components';
+import { Dialog, Heading, Input, Label, Modal, ModalOverlay, TextField, ToggleButton } from 'react-aria-components';
 
 import type { VersionComparison, VersionEntry } from '../../../shared/contract';
 import { beforeProjectSwitch } from '../assistant/useAssistantBridge';
 import { relativeTime } from '../home/projectTiles';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
-import { Button } from '../ui/Button';
+import { Button, IconButton } from '../ui/Button';
+import { inputClass, fieldLabelClass } from '../ui/Field';
+import { chipToggleClass } from '../ui/Choice';
+import { modalClass, overlayClass } from '../ui/Dialog';
 
 const volume = (mm3: number, language: string) => new Intl.NumberFormat(language, { maximumFractionDigits: mm3 < 10 ? 1 : 0 }).format(mm3);
 
@@ -57,8 +60,8 @@ function NameForm({ version, onDone, onCancel }: { version: VersionEntry; onDone
       }}
     >
       <TextField value={value} onChange={setValue} autoFocus className="flex min-w-0 flex-1 flex-col gap-1">
-        <Label className="text-xs text-text-muted">{t('versions.name')}</Label>
-        <Input className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none focus-visible:outline-2 focus-visible:outline-focus" data-testid="version-rename-input" />
+        <Label className={fieldLabelClass}>{t('versions.name')}</Label>
+        <Input className={inputClass('md')} data-testid="version-rename-input" />
       </TextField>
       <Button onPress={onCancel}>{t('project.cancel')}</Button>
       <Button type="submit" variant="primary" isDisabled={value.trim() === ''} data-testid="version-rename-save">
@@ -259,22 +262,18 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
         if (!next) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass}
     >
-      <Modal className="w-dialog-lg max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
-        <Dialog className="flex max-h-[76vh] flex-col gap-4 p-5 outline-none" data-testid="versions-dialog">
+      <Modal className={modalClass('lg')}>
+        <Dialog className="flex max-h-dialog-max flex-col gap-4 p-5 outline-none" data-testid="versions-dialog">
           <div className="flex items-center gap-2">
             <IconHistory className="size-icon text-text-muted" aria-hidden />
             <Heading slot="title" className="flex-1 text-lg font-semibold text-text">
               {t('versions.title')}
             </Heading>
-            <AriaButton
-              aria-label={t('versions.close')}
-              onPress={onClose}
-              className="inline-flex size-control-sm items-center justify-center rounded-md text-text-subtle outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
-            >
+            <IconButton label={t('versions.close')} shortcut="Esc" onPress={onClose}>
               <IconX className="size-icon-sm" aria-hidden />
-            </AriaButton>
+            </IconButton>
           </div>
           <form
             className="flex items-end gap-2"
@@ -284,11 +283,11 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
             }}
           >
             <TextField value={label} onChange={setLabel} className="flex flex-1 flex-col gap-1">
-              <Label className="text-xs text-text-muted">{t('versions.name')}</Label>
+              <Label className={fieldLabelClass}>{t('versions.name')}</Label>
               <Input
                 ref={nameField}
                 placeholder={t('versions.namePlaceholder')}
-                className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus"
+                className={inputClass('md')}
                 data-testid="version-name"
               />
             </TextField>
@@ -306,7 +305,7 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
             <ToggleButton
               isSelected={milestones}
               onChange={setMilestones}
-              className="inline-flex h-control-sm items-center rounded-md border border-border-strong px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:border-accent selected:bg-surface-selected"
+              className={chipToggleClass}
               data-testid="versions-milestones"
             >
               {t('versions.milestonesOnly')}

@@ -26,7 +26,8 @@ import type { MessageAnswer } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { selectionLabel, selectionName, selectionsOf } from '../viewer/viewState';
-import { Button } from '../ui/Button';
+import { Button, IconButton, pressable } from '../ui/Button';
+import { tooltipClass } from '../ui/Tooltip';
 import { Busy } from '../ui/Feedback';
 import { ChatResizer, useChatWidth } from '../shell/ChatResizer';
 import { AgentChip } from './AgentChip';
@@ -43,7 +44,7 @@ import { useChatScroll } from './useChatScroll';
 import { card } from './Fold';
 import { SourceCard } from './SourceCard';
 import { ToolCall } from './ToolCall';
-import { MessageActions, tip } from './MessageActions';
+import { MessageActions } from './MessageActions';
 
 type IconType = React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
 
@@ -239,7 +240,7 @@ function Item({
                 if (item.attachment) open(item.attachment);
               }}
               aria-label={t(item.attachment.sketch ? 'assistant.sketch.reopen' : 'assistant.photo.show')}
-              className="overflow-hidden rounded-md border border-border outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-focus"
+              className={`overflow-hidden rounded-md border border-border hover:border-border-strong pressed:border-accent ${pressable}`}
               data-testid="message-attachment"
             >
               <img src={item.attachment.thumbnail} alt="" className="block h-[5rem] w-auto" draggable={false} />
@@ -358,12 +359,9 @@ const ItemRow = memo(Item);
 
 /** What goes along with the next message, as chips in the composer. */
 const chip = 'inline-flex max-w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface text-xs text-text tabular-nums';
-const chipPicture = 'shrink-0 overflow-hidden rounded-sm border border-border outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-focus';
-const chipRemove = 'inline-flex size-control-sm shrink-0 items-center justify-center rounded-sm text-text-subtle outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus';
-/** A quiet icon button of the composer (sketch, photo). */
-const tool = 'inline-flex size-control-md shrink-0 items-center justify-center rounded-md text-text-muted outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50';
+const chipPicture = `shrink-0 overflow-hidden rounded-sm border border-border hover:border-border-strong pressed:border-accent ${pressable}`;
 /** Send and Stop: a round button at the composer's end. */
-const round = 'inline-flex size-control-md shrink-0 items-center justify-center rounded-full outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed';
+const round = `inline-flex size-control-md shrink-0 items-center justify-center rounded-full ${pressable}`;
 
 /** The first picture among pasted or dropped files; other files are left to the window's import. */
 function pictureIn(data: DataTransfer | null): File | null {
@@ -535,7 +533,7 @@ export function AssistantPanel() {
                   setDraft(t(`assistant.examples.${example}`));
                   composer.current?.focus();
                 }}
-                className={`${card} flex-row items-start gap-2 border-border px-3 py-2 text-left text-sm text-text outline-none hover:border-border-strong hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus`}
+                className={`${card} flex-row items-start gap-2 border-border px-3 py-2 text-left text-sm text-text hover:border-border-strong hover:bg-surface-hover pressed:bg-surface-pressed ${pressable}`}
                 data-testid="chat-example"
               >
                 <IconArrowUpRight className="mt-hairline size-icon-sm shrink-0 text-text-subtle" aria-hidden />
@@ -569,7 +567,7 @@ export function AssistantPanel() {
           onPress={() => {
             toEnd(true);
           }}
-          className="absolute bottom-2 left-1/2 inline-flex h-control-md whitespace-nowrap -translate-x-1/2 animate-[cs-enter_var(--cs-duration-normal)_var(--cs-easing-standard)] items-center gap-1 rounded-full border border-border bg-surface-raised px-3 text-sm text-text shadow-2 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+          className={`absolute bottom-2 left-1/2 inline-flex h-control-md whitespace-nowrap -translate-x-1/2 animate-fade-in items-center gap-1 rounded-full border border-border bg-surface-raised px-3 text-sm text-text shadow-2 hover:bg-surface-hover pressed:bg-surface-pressed ${pressable}`}
           data-testid="chat-to-latest"
         >
           <IconArrowDown className="size-icon-sm" aria-hidden />
@@ -610,16 +608,15 @@ export function AssistantPanel() {
                   <span className="truncate" title={selectionName(entry)}>
                     {selectionLabel(t, entry)}
                   </span>
-                  <AriaButton
-                    aria-label={t('assistant.removeSelection', { name: selectionLabel(t, entry) })}
-                    className={chipRemove}
+                  <IconButton
+                    label={t('assistant.removeSelection', { name: selectionLabel(t, entry) })}
                     onPress={() => {
                       const pick = picks[i];
                       if (pick) deselect(pick);
                     }}
                   >
                     <IconX className="size-icon-sm" aria-hidden />
-                  </AriaButton>
+                  </IconButton>
                 </span>
               ))}
             </div>
@@ -648,16 +645,15 @@ export function AssistantPanel() {
                   <span className="truncate" title={t('assistant.sketch.goesWith')}>
                     {t('assistant.sketch.button')}
                   </span>
-                  <AriaButton
-                    aria-label={t('assistant.sketch.remove')}
+                  <IconButton
+                    label={t('assistant.sketch.remove')}
                     onPress={() => {
                       setSketch(null);
                     }}
-                    className={chipRemove}
                     data-testid="composer-sketch-remove"
                   >
                     <IconX className="size-icon-sm" aria-hidden />
-                  </AriaButton>
+                  </IconButton>
                 </span>
               ) : null}
               {photo ? (
@@ -674,16 +670,15 @@ export function AssistantPanel() {
                   <span className="truncate" title={t('assistant.photo.goesWith')}>
                     {t('assistant.photo.button')}
                   </span>
-                  <AriaButton
-                    aria-label={t('assistant.photo.remove')}
+                  <IconButton
+                    label={t('assistant.photo.remove')}
                     onPress={() => {
                       setPhoto(null);
                     }}
-                    className={chipRemove}
                     data-testid="composer-photo-remove"
                   >
                     <IconX className="size-icon-sm" aria-hidden />
-                  </AriaButton>
+                  </IconButton>
                 </span>
               ) : null}
             </div>
@@ -694,7 +689,7 @@ export function AssistantPanel() {
               ref={composer}
               rows={2}
               placeholder={t('assistant.placeholder')}
-              className="max-h-[40vh] w-full resize-none bg-transparent px-1 py-1 text-md text-text outline-none [field-sizing:content] placeholder:text-text-subtle disabled:cursor-not-allowed disabled:opacity-50"
+              className="max-h-[40vh] w-full resize-none bg-transparent px-1 py-1 text-md text-text outline-none [field-sizing:content] placeholder:text-text-subtle disabled:cursor-not-allowed disabled:opacity-disabled"
               onPaste={(event) => {
                 // A picture from the clipboard (a screenshot, a copied photo) goes along; text pastes as usual.
                 const file = pictureIn(event.clipboardData);
@@ -735,50 +730,44 @@ export function AssistantPanel() {
           />
           <div className="flex min-w-0 items-center gap-1">
             {/* Icons only, so the route chip keeps its room; the name comes as a tooltip. */}
-            <TooltipTrigger delay={400}>
-              <AriaButton
-                onPress={() => {
-                  setSketching(true);
-                }}
-                isDisabled={!ready}
-                aria-label={t('assistant.sketch.open')}
-                className={tool}
-                data-testid="composer-sketch-open"
-              >
-                <IconPencil className="size-icon-sm" aria-hidden />
-              </AriaButton>
-              <Tooltip placement="top" offset={6} className={tip}>
-                {t('assistant.sketch.button')}
-              </Tooltip>
-            </TooltipTrigger>
-            <TooltipTrigger delay={400}>
-              <AriaButton
-                onPress={() => {
-                  photoInput.current?.click();
-                }}
-                isDisabled={!ready}
-                aria-label={t('assistant.photo.open')}
-                className={tool}
-                data-testid="composer-photo-open"
-              >
-                <IconPhoto className="size-icon-sm" aria-hidden />
-              </AriaButton>
-              <Tooltip placement="top" offset={6} className={tip}>
-                {t('assistant.photo.button')}
-              </Tooltip>
-            </TooltipTrigger>
+            <IconButton
+              size="md"
+              onPress={() => {
+                setSketching(true);
+              }}
+              isDisabled={!ready}
+              label={t('assistant.sketch.open')}
+              tooltip={t('assistant.sketch.button')}
+              tooltipPlacement="top"
+              data-testid="composer-sketch-open"
+            >
+              <IconPencil className="size-icon-sm" aria-hidden />
+            </IconButton>
+            <IconButton
+              size="md"
+              onPress={() => {
+                photoInput.current?.click();
+              }}
+              isDisabled={!ready}
+              label={t('assistant.photo.open')}
+              tooltip={t('assistant.photo.button')}
+              tooltipPlacement="top"
+              data-testid="composer-photo-open"
+            >
+              <IconPhoto className="size-icon-sm" aria-hidden />
+            </IconButton>
             <span className="flex min-w-0 flex-1">
               <AgentChip />
             </span>
             {/* Stop takes Send's place while the assistant works, so the chip keeps its room (Manuel, 2026-11-06). */}
-            <TooltipTrigger delay={400}>
+            <TooltipTrigger delay={500} closeDelay={0}>
               {busy ? (
                 <AriaButton
                   onPress={() => {
                     void platform().agent.stop();
                   }}
                   aria-label={t('assistant.stop')}
-                  className={`${round} border border-border-strong bg-surface text-text hover:bg-surface-hover`}
+                  className={`${round} border border-border-strong bg-surface text-text hover:bg-surface-hover pressed:bg-surface-pressed`}
                   data-testid="composer-stop"
                 >
                   <IconPlayerStopFilled className="size-icon-sm" aria-hidden />
@@ -788,13 +777,13 @@ export function AssistantPanel() {
                   type="submit"
                   isDisabled={!ready || (draft.trim() === '' && !sketch && !photo)}
                   aria-label={t('assistant.send')}
-                  className={`${round} bg-accent text-on-accent hover:bg-accent-hover disabled:bg-surface-sunken disabled:text-text-subtle`}
+                  className={`${round} bg-accent text-on-accent hover:bg-accent-hover pressed:bg-accent-pressed`}
                   data-testid="composer-send"
                 >
                   <IconArrowUp className="size-icon-sm" aria-hidden />
                 </AriaButton>
               )}
-              <Tooltip placement="top" offset={6} className={tip}>
+              <Tooltip placement="top" offset={6} className={tooltipClass}>
                 {busy ? t('assistant.stopHint') : t('assistant.sendHint')}
               </Tooltip>
             </TooltipTrigger>
@@ -826,9 +815,9 @@ export function AssistantPanel() {
             URL.revokeObjectURL(shownPhoto);
             setShownPhoto(null);
           }}
-          className="fixed inset-0 z-10 flex items-center justify-center bg-overlay p-6"
+          className="fixed inset-0 z-10 flex items-center justify-center bg-overlay p-6 entering:animate-fade-in"
         >
-          <Modal className="max-h-full max-w-full overflow-hidden rounded-lg border border-border bg-surface-raised shadow-3">
+          <Modal className="max-h-full max-w-full overflow-hidden rounded-lg border border-border bg-surface-raised shadow-3 entering:animate-dialog-in">
             <Dialog aria-label={t('assistant.photo.show')} className="outline-none" data-testid="photo-large">
               <img src={shownPhoto} alt="" className="block max-h-[calc(100dvh_-_3rem)] max-w-full object-contain" />
             </Dialog>

@@ -8,8 +8,6 @@ import {
   MenuTrigger,
   Popover,
   Slider,
-  SliderThumb,
-  SliderTrack,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
@@ -20,13 +18,16 @@ import { useStudio, type DisplayMode, type Section, type StandardView } from '..
 import { CadIcon } from '../ui/CadIcon';
 import { bodiesBox, faceSection, sectionSpan } from './section';
 import { ViewIcon } from '../ui/ViewIcon';
+import { iconButtonClass, toggleSelected } from '../ui/Button';
+import { tooltipClass } from '../ui/Tooltip';
+import { segmentClass, segmentGroupClass, SliderBar } from '../ui/Choice';
+import { POPOVER_OFFSET, menuClass, menuItemClass, popoverClass } from '../ui/Overlay';
 
-const tool =
-  'inline-flex size-control-md items-center justify-center rounded-md text-xs font-semibold text-text outline-none transition-colors ' +
-  'hover:bg-surface-hover pressed:bg-surface-selected selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus';
+/** View tools: the shared icon button look; a tool that stays on shows the accent's quiet fill. */
+const tool = `${iconButtonClass('md')} text-xs font-semibold ${toggleSelected}`;
 
-/** A labelled button of the assembled/plate switch: the tool look, as wide as its label. */
-const segment = tool.replace('size-control-md', 'h-control-md gap-1 px-2');
+/** The assembled/plate switch: a segmented control. */
+const segment = segmentClass('md');
 
 /** Keys as in Blender's number pad, which many makers know: 1 front, 3 right, 7 top, 0 iso, 5 projection. */
 const VIEW_KEYS: Record<string, StandardView> = { '1': 'front', '3': 'right', '7': 'top', '0': 'iso', f: 'fit' };
@@ -39,9 +40,9 @@ function inTextField(target: EventTarget | null): boolean {
 
 function Tip({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <TooltipTrigger delay={400}>
+    <TooltipTrigger delay={500} closeDelay={0}>
       {children}
-      <Tooltip placement="bottom" offset={6} className="rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
+      <Tooltip placement="bottom" offset={6} className={tooltipClass}>
         {label}
       </Tooltip>
     </TooltipTrigger>
@@ -64,7 +65,7 @@ function DisplayModeMenu() {
           <IconBoxMultiple className="size-icon-sm" aria-hidden />
         </AriaButton>
       </Tip>
-      <Popover placement="bottom" offset={8} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+      <Popover placement="bottom" offset={POPOVER_OFFSET} className={popoverClass}>
         <Menu
           aria-label={t('viewer.display.title')}
           selectionMode="single"
@@ -75,14 +76,14 @@ function DisplayModeMenu() {
             const [key] = [...keys];
             if (DISPLAY_MODES.includes(key as DisplayMode)) setMode(key as DisplayMode);
           }}
-          className="outline-none"
+          className={menuClass}
         >
           {DISPLAY_MODES.map((id, i) => (
             <MenuItem
               key={id}
               id={id}
               aria-keyshortcuts={`Shift+${String(i + 1)}`}
-              className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover"
+              className={menuItemClass}
             >
               {({ isSelected }) => (
                 <>
@@ -148,7 +149,7 @@ function SectionPanel({ section }: { section: Section }) {
             onChange={() => {
               if (pick && pickedNormal) setSection({ ...faceSection(pick.point, pickedNormal, box), flip: section.flip });
             }}
-            className={`${tool} disabled:opacity-40`}
+            className={tool}
             data-testid="section-face"
           >
             <CadIcon name="plane" className="size-icon-sm" />
@@ -179,15 +180,7 @@ function SectionPanel({ section }: { section: Section }) {
         className="w-full"
         data-testid="section-position"
       >
-        <SliderTrack className="relative h-4 w-full">
-          {({ state }) => (
-            <>
-              <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
-              <span aria-hidden className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ width: `${String(state.getThumbPercent(0) * 100)}%` }} />
-              <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:outline-2 focus-visible:outline-focus" />
-            </>
-          )}
-        </SliderTrack>
+        <SliderBar />
       </Slider>
       {fromFace !== null ? (
         <span className="px-1 text-xs tabular-nums text-text-muted" data-testid="section-at">
@@ -229,15 +222,7 @@ function ExplodePanel({ amount }: { amount: number }) {
           <span>{t('viewer.explode.assembled')}</span>
           <span>{t('viewer.explode.apart')}</span>
         </div>
-        <SliderTrack className="relative h-4 w-full">
-          {({ state }) => (
-            <>
-              <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
-              <span aria-hidden className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ width: `${String(state.getThumbPercent(0) * 100)}%` }} />
-              <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:outline-2 focus-visible:outline-focus" />
-            </>
-          )}
-        </SliderTrack>
+        <SliderBar />
       </Slider>
       <p className="text-xs text-text-muted">{t('viewer.explode.hint')}</p>
     </div>
@@ -435,7 +420,7 @@ export function ViewTools() {
               const [key] = [...keys];
               if (key === 'assembled' || key === 'plate') setViewMode(key);
             }}
-            className="flex gap-1"
+            className={segmentGroupClass}
           >
             <ToggleButton id="assembled" className={segment} data-testid="view-assembled">
               <IconBox className="size-icon-sm" aria-hidden />

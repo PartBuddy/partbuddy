@@ -1,7 +1,7 @@
 import { IconBox, IconEye, IconEyeOff, IconFileImport, IconFocusCentered, IconPencil, IconPencilPlus, IconNut, IconTransform } from '@tabler/icons-react';
 import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, ToggleButton, Tooltip, TooltipTrigger } from 'react-aria-components';
+import { ToggleButton } from 'react-aria-components';
 import { Box3, Vector3 } from 'three';
 
 import { NotesSection } from '../notes/NotesSection';
@@ -12,9 +12,11 @@ import { ExpandToggle, NEW_PART, PartDetails, PrintedToggle, useParts } from './
 import { RenameField, Tree, TreeEmpty, TreeExtra, TreeItem, TreeSection, type TreeAction } from './Tree';
 import { platform } from '../platform';
 import { useStudio, type ModelState } from '../state/store';
+import { IconButton, iconButtonClass } from '../ui/Button';
 import { CadIcon } from '../ui/CadIcon';
 
-const tool = 'inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-text-subtle outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-40';
+/** Row tools in the tree: as tall as the row, reached by the tree's own keys, not by Tab. */
+const tool = iconButtonClass('sm');
 
 function EyeToggle({ name, visible, onToggle }: { name: string; visible: boolean; onToggle: (visible: boolean) => void }) {
   const { t } = useTranslation();
@@ -58,14 +60,9 @@ function ConvertButton({ body }: { body: string }) {
       });
   };
   return (
-    <TooltipTrigger delay={300}>
-      <AriaButton aria-label={label} isDisabled={busy} onPress={run} excludeFromTabOrder className={tool} data-testid="structure-convert">
-        <IconTransform className="size-icon-sm" aria-hidden />
-      </AriaButton>
-      <Tooltip placement="top" offset={6} className="max-w-text-max rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
-        {t('structure.convertHint')}
-      </Tooltip>
-    </TooltipTrigger>
+    <IconButton label={label} tooltip={t('structure.convertHint')} isDisabled={busy} onPress={run} excludeFromTabOrder data-testid="structure-convert">
+      <IconTransform className="size-icon-sm" aria-hidden />
+    </IconButton>
   );
 }
 

@@ -1,26 +1,14 @@
 import { IconCheck, IconCopy, IconRefresh } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Tooltip, TooltipTrigger } from 'react-aria-components';
 
-export const tip = 'rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2';
+import { IconButton } from '../ui/Button';
 
 function Action({ label, onPress, isDisabled, children, testId }: { label: string; onPress: () => void; isDisabled?: boolean; children: React.ReactNode; testId: string }) {
   return (
-    <TooltipTrigger delay={400}>
-      <AriaButton
-        aria-label={label}
-        onPress={onPress}
-        isDisabled={isDisabled ?? false}
-        className="inline-flex size-control-sm items-center justify-center rounded-sm text-text-subtle outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
-        data-testid={testId}
-      >
-        {children}
-      </AriaButton>
-      <Tooltip placement="bottom" offset={4} className={tip}>
-        {label}
-      </Tooltip>
-    </TooltipTrigger>
+    <IconButton label={label} onPress={onPress} isDisabled={isDisabled ?? false} tooltipPlacement="bottom" data-testid={testId}>
+      {children}
+    </IconButton>
   );
 }
 

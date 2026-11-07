@@ -1,4 +1,7 @@
 {
+  "dialog": {
+    "close": "Schließen"
+  },
   "app": {
     "name": "PartBuddy",
     "design": "Design",
@@ -571,7 +574,8 @@
     "askDraft": "Lege Parameter für die wichtigen Maße dieses Teils an.",
     "name": "Name",
     "value": "Wert",
-    "invalid": "Eine Länge größer als 0 eingeben"
+    "invalid": "Eine Länge größer als 0 eingeben",
+    "fitted": "Vom Assistenten gewählt, folgt Düse und Schichthöhe des Druckers"
   },
   "timeline": {
     "handle": "Rückroll-Balken",
@@ -720,14 +724,14 @@
       "label": "Im Web recherchieren",
       "hint": "Der Assistent darf im Web suchen und Seiten lesen, etwa Datenblätter; jede Quelle erscheint als Karte mit Link. Was auf einer Seite steht, ist nie eine Anweisung an ihn. Gilt ab dem nächsten Gespräch."
     },
-    "close": "Schließen",
     "restartNote": "Gilt nach Neustart",
     "search": {
       "label": "Einstellungen durchsuchen",
       "placeholder": "Einstellungen durchsuchen",
       "empty": "Keine Einstellung passt zu „{query}“.",
       "count": "{count, plural, one {# Einstellung} other {# Einstellungen}}",
-      "results": "Gefundene Einstellungen"
+      "results": "Gefundene Einstellungen",
+      "clear": "Suche leeren"
     },
     "group": {
       "appearance": "Sprache und Darstellung",
@@ -737,7 +741,8 @@
       "work": "Arbeitsweise",
       "profiles": "Profile",
       "app": "PartBuddy",
-      "help": "Hilfe bei Fehlern"
+      "help": "Hilfe bei Fehlern",
+      "rules": "Konstruktionsregeln"
     },
     "intro": {
       "general": "Wie PartBuddy aussieht und wo es deine Projekte ablegt.",
@@ -759,6 +764,7 @@
     }
   },
   "print": {
+    "nameRequired": "Bitte einen Namen eingeben.",
     "title": "Drucker und Material",
     "edit": "Drucker und Material …",
     "chipHint": "Material dieses Teils und Drucker ändern",
@@ -800,7 +806,27 @@
     "supportFreeHint": "Der Assistent gibt Kanten zum Druckbett eine Fase statt einer Rundung, gibt breiten liegenden Bohrungen ein Tropfendach und überbrückt Senkungen, die nach unten zeigen. So braucht der Slicer keine Stützen.",
     "saveFailed": "Die Profile konnten nicht gespeichert werden.",
     "cancel": "Abbrechen",
-    "save": "Speichern"
+    "save": "Speichern",
+    "design": {
+      "title": "Von sich aus gut konstruieren",
+      "hint": "Was der Assistent ungefragt einbaut. Er nennt es nach jedem Schritt in einer Zeile; im Chat kannst du es für ein Projekt abwählen („keine Rundungen“), das geht diesen Schaltern vor. Maße, die du nennst, setzt er immer exakt um.",
+      "rounding": {
+        "label": "Rundungen und Fasen",
+        "hint": "Sichtbare Außenkanten 1–3 mm gerundet, Kanten zum Bett gefast, belastete Innenecken ausgerundet."
+      },
+      "printInPlace": {
+        "label": "Print-in-Place",
+        "hint": "Scharniere, Gelenke und Clips zuerst als druckfertige Einheit ohne Montage und ohne Stützen."
+      },
+      "details": {
+        "label": "Details",
+        "hint": "Gleichmäßige Wände, Fasen an Bohrungen und Fügekanten, versenkte Schraubenköpfe, weiche Übergänge."
+      },
+      "snap": {
+        "label": "Maße einrasten",
+        "hint": "Selbst gewählte Wände auf ganze Linienbreiten, Böden und Höhen auf ganze Schichten. Bei einem Druckerwechsel passt PartBuddy nur diese Maße an."
+      }
+    }
   },
   "check": {
     "title": "Druckbereit?",
@@ -908,6 +934,7 @@
     "open": "Startseite mit den Projekten",
     "close": "Zurück zum Projekt",
     "search": "Projekte suchen",
+    "searchClear": "Suche leeren",
     "import": "Importieren …",
     "list": "{count, plural, one {# Projekt} other {# Projekte}}",
     "emptyTitle": "Noch keine Projekte",

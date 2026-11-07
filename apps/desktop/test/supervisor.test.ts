@@ -1,4 +1,5 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -15,9 +16,9 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-function setup(options: { installed?: boolean; autoStart?: boolean } = {}) {
+function setup(options: { installed?: boolean; autoStart?: boolean; cacheDir?: string } = {}) {
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-control-'));
-  const cacheDir = mkdtempSync(join(tmpdir(), 'partbuddy-cache-'));
+  const cacheDir = options.cacheDir ?? realpathSync.native(mkdtempSync(join(tmpdir(), 'partbuddy-cache-')));
   cleanups.push(() => {
     rmSync(controlDir, { recursive: true, force: true });
     rmSync(cacheDir, { recursive: true, force: true });
@@ -71,6 +72,26 @@ describe('SolidCraft supervisor', () => {
     expect(statuses.at(-1)).toMatchObject({ state: 'connected', mirror: 'idle', owned: false, port: fake.port });
     // Exports are removed from the cache after reading.
     expect(readdirSync(cacheDir)).toEqual([]);
+  });
+
+  // Windows' 8.3 name of a folder, or the folder itself where the volume keeps none.
+  function shortName(folder: string): string {
+    return spawnSync('cmd', ['/d', '/c', `for %I in ("${folder}") do @echo %~sI`], { encoding: 'utf8', windowsVerbatimArguments: true }).stdout.trim();
+  }
+
+  it.skipIf(process.platform !== 'win32')('hands SolidCraft the cache folder in its long form, not as an 8.3 short name', async () => {
+    const long = realpathSync.native(mkdtempSync(join(tmpdir(), 'partbuddy-long-folder-name-')));
+    cleanups.push(() => {
+      rmSync(long, { recursive: true, force: true });
+    });
+    const short = shortName(long);
+    expect(short).toContain('~'); // the test is only meaningful with a real short name
+    const { supervisor, revisions, controlDir } = setup({ cacheDir: short });
+    const fake = await startFake(controlDir);
+    supervisor.start();
+    await vi.waitFor(() => expect(revisions).toHaveLength(1), { timeout: 5000 });
+    expect(fake.exports.length).toBeGreaterThan(0);
+    for (const entry of fake.exports) expect(entry.path.startsWith(long)).toBe(true);
   });
 
   it('mirrors the active sketch and visible sketches as world-space segments, not consumed ones (#21)', async () => {

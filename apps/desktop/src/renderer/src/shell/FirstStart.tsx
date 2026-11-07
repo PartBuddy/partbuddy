@@ -7,9 +7,10 @@ import type { GeneralSettingsInfo } from '../../../shared/contract';
 import { AssistantChoice } from '../assistant/AgentChip';
 import { PrintProfilesEditor } from '../print/PrintProfilesEditor';
 import { platform } from '../platform';
-import { Button } from '../ui/Button';
+import { Button, linkClass } from '../ui/Button';
 import { EnginePanel } from './EnginePanel';
 import { ProjectsFolderField } from './SettingsDialog';
+import { modalClass, overlayClass } from '../ui/Dialog';
 
 const STEPS = ['solidcraft', 'assistant', 'print', 'projects'] as const;
 type Step = (typeof STEPS)[number];
@@ -58,10 +59,10 @@ export function FirstStart() {
       onOpenChange={(stillOpen) => {
         if (!stillOpen) finish();
       }}
-      className="fixed inset-0 z-20 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass.replace('z-10', 'z-20')}
     >
-      <Modal className="w-dialog-lg max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
-        <Dialog className="flex max-h-[76vh] flex-col gap-4 overflow-y-auto p-5 outline-none" data-testid="first-start" data-step={step}>
+      <Modal className={modalClass('lg')}>
+        <Dialog className="flex max-h-dialog-max flex-col gap-4 overflow-y-auto p-5 outline-none" data-testid="first-start" data-step={step}>
           <div className="flex flex-col gap-1">
             <Heading slot="title" className="text-lg font-semibold text-text">
               {t('firstStart.title')}
@@ -75,7 +76,7 @@ export function FirstStart() {
                 href={SOLIDCRAFT_DOWNLOAD}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 self-start text-sm text-accent-text underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+                className={`inline-flex items-center gap-2 self-start text-sm ${linkClass}`}
                 data-testid="first-start-download"
               >
                 <IconDownload className="size-icon-sm" aria-hidden />

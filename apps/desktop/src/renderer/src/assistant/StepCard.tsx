@@ -9,6 +9,8 @@ import { useStudio } from '../state/store';
 import type { ConversationItem } from './store';
 import { Fold } from './Fold';
 import { ToolCall, type ToolItem } from './ToolCall';
+import { IconButton } from '../ui/Button';
+import { badgeClass } from '../ui/Feedback';
 
 export type StepItem = Extract<ConversationItem, { kind: 'step' }>;
 
@@ -72,7 +74,7 @@ export function StepCard({ item, tools, disabled }: { item: StepItem; tools: Too
           onPress={() => {
             setOpen(!open);
           }}
-          className="flex min-h-control-sm min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-sm outline-none focus-visible:outline-2 focus-visible:outline-focus"
+          className="flex min-h-control-sm min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-sm outline-none pressed:text-text focus-visible:focus-ring"
         >
           <IconChevronRight className={`size-icon-sm shrink-0 text-text-subtle transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />
           {step.source === 'user' ? (
@@ -84,7 +86,7 @@ export function StepCard({ item, tools, disabled }: { item: StepItem; tools: Too
             {summary}
           </span>
           {current ? (
-            <span className="shrink-0 rounded-full bg-accent-subtle px-2 text-xs text-accent-text" data-testid="step-current">
+            <span className={badgeClass('accent')} data-testid="step-current">
               {t('assistant.step.current')}
             </span>
           ) : null}
@@ -95,14 +97,16 @@ export function StepCard({ item, tools, disabled }: { item: StepItem; tools: Too
           ) : null}
         </AriaButton>
         {!current && state !== 'discarded' && !item.archived ? (
-          <AriaButton
-            aria-label={state === 'undone' ? t('assistant.step.restore') : t('assistant.step.goTo')}
-            onPress={goTo}
-            isDisabled={disabled || going}
-            className="inline-flex size-control-sm shrink-0 items-center justify-center rounded-sm text-text-muted opacity-0 outline-none hover:bg-surface-hover hover:text-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-focus group-hover/step:opacity-100 disabled:opacity-0"
-          >
-            <IconArrowBackUp className="size-icon-sm" aria-hidden />
-          </AriaButton>
+          // Shown while the pointer or the focus is on the step; a disabled one shows faded on hover.
+          <span className="inline-flex opacity-0 transition-opacity focus-within:opacity-100 group-hover/step:opacity-100">
+            <IconButton
+              label={state === 'undone' ? t('assistant.step.restore') : t('assistant.step.goTo')}
+              onPress={goTo}
+              isDisabled={disabled || going}
+            >
+              <IconArrowBackUp className="size-icon-sm" aria-hidden />
+            </IconButton>
+          </span>
         ) : null}
       </div>
       <div id={body} hidden={!open} className="flex flex-col gap-2 px-2 pb-2 pt-1">

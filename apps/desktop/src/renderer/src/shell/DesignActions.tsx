@@ -1,19 +1,16 @@
 import { IconArrowBackUp, IconArrowForwardUp, IconChevronDown, IconDownload, IconExternalLink, IconHistory } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator, Tooltip, TooltipTrigger } from 'react-aria-components';
+import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator } from 'react-aria-components';
 
 import type { ExportFormat, Slicer } from '../../../shared/contract';
 import { useAssistant, selectedStatus } from '../assistant/store';
 import { ExportConfirm } from '../print/ExportConfirm';
 import { platform } from '../platform';
 import { useStudio, type ExportTarget } from '../state/store';
+import { buttonClass, IconButton } from '../ui/Button';
 import { VersionsDialog } from './VersionsDialog';
-
-const iconButton =
-  'inline-flex h-control-sm items-center justify-center gap-1 rounded-md px-2 text-sm text-text outline-none transition-colors ' +
-  'hover:bg-surface-hover pressed:bg-surface-selected focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus ' +
-  'disabled:cursor-not-allowed disabled:text-text-subtle disabled:hover:bg-transparent';
+import { POPOVER_OFFSET, menuClass, menuHeaderClass, menuItemTwoLineClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
 
 const FORMATS: ExportFormat[] = ['3mf', 'stl', 'step'];
 
@@ -23,30 +20,11 @@ function inTextField(target: EventTarget | null): boolean {
   return target.isContentEditable || target.closest('input, textarea, select, [contenteditable="true"]') !== null;
 }
 
-function ToolButton({
-  label,
-  shortcut,
-  isDisabled,
-  onPress,
-  children,
-  testId,
-}: {
-  label: string;
-  shortcut?: string;
-  isDisabled: boolean;
-  onPress: () => void;
-  children: React.ReactNode;
-  testId: string;
-}) {
+function ToolButton({ label, shortcut, isDisabled, onPress, children, testId }: { label: string; shortcut?: string; isDisabled: boolean; onPress: () => void; children: React.ReactNode; testId: string }) {
   return (
-    <TooltipTrigger delay={500}>
-      <AriaButton aria-label={label} aria-keyshortcuts={shortcut} isDisabled={isDisabled} onPress={onPress} className={iconButton} data-testid={testId}>
-        {children}
-      </AriaButton>
-      <Tooltip offset={6} className="rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
-        {shortcut ? `${label} (${shortcut})` : label}
-      </Tooltip>
-    </TooltipTrigger>
+    <IconButton label={label} {...(shortcut ? { shortcut } : {})} isDisabled={isDisabled} onPress={onPress} data-testid={testId}>
+      {children}
+    </IconButton>
   );
 }
 
@@ -177,15 +155,15 @@ export function DesignActions() {
       </ToolButton>
       <span aria-hidden className="mx-1 h-icon w-hairline bg-border" />
       <MenuTrigger onOpenChange={loadSlicers}>
-        <AriaButton isDisabled={!connected || !hasBodies} className={iconButton} data-testid="export">
+        <AriaButton isDisabled={!connected || !hasBodies} className={buttonClass('quiet', 'sm')} data-testid="export">
           <IconDownload className="size-icon-sm" aria-hidden />
           {t('actions.export')}
           <IconChevronDown className="size-icon-sm text-text-subtle" aria-hidden />
         </AriaButton>
-        <Popover placement="bottom start" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+        <Popover placement="bottom start" offset={POPOVER_OFFSET} className={popoverClass}>
           <Menu
             aria-label={t('actions.export')}
-            className="outline-none"
+            className={menuClass}
             onAction={(key) => {
               exportAs(key as ExportTarget);
             }}
@@ -196,7 +174,7 @@ export function DesignActions() {
                   key={format}
                   id={format}
                   textValue={t(`actions.format.${format}.name`)}
-                  className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                  className={menuItemTwoLineClass}
                   data-testid={`export-${format}`}
                 >
                   <span className="text-sm font-medium text-text">{t(`actions.format.${format}.name`)}</span>
@@ -204,12 +182,12 @@ export function DesignActions() {
                 </MenuItem>
               ))}
             </MenuSection>
-            <Separator className="my-1 border-t border-border" />
+            <Separator className={menuSeparatorClass} />
             <MenuSection>
               <MenuItem
                 id="share"
                 textValue={t('actions.share.name')}
-                className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                className={menuItemTwoLineClass}
                 data-testid="export-share"
               >
                 <span className="text-sm font-medium text-text">{t('actions.share.name')}</span>
@@ -218,15 +196,15 @@ export function DesignActions() {
             </MenuSection>
             {slicers.length > 0 ? (
               <>
-                <Separator className="my-1 border-t border-border" />
+                <Separator className={menuSeparatorClass} />
                 <MenuSection>
-                  <Header className="px-2 py-1 text-xs font-semibold text-text-muted">{t('actions.slicer.title')}</Header>
+                  <Header className={menuHeaderClass}>{t('actions.slicer.title')}</Header>
                   {slicers.map((slicer) => (
                     <MenuItem
                       key={slicer.id}
                       id={`slicer:${slicer.id}`}
                       textValue={t('actions.slicer.open', { name: slicer.name })}
-                      className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                      className={menuItemTwoLineClass}
                       data-testid="export-slicer"
                       data-slicer={slicer.id}
                     >

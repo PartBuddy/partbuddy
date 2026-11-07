@@ -4,6 +4,7 @@ import { Dialog, Heading, Modal, ModalOverlay } from 'react-aria-components';
 import { useStudio, type ExportTarget } from '../state/store';
 import { Button } from '../ui/Button';
 import { useFindingText } from './PrintCheckChip';
+import { modalClass, overlayClass } from '../ui/Dialog';
 
 /**
  * Asks once before an export while the ready-to-print check is red (decided 2026-11-05): the user
@@ -25,9 +26,9 @@ export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget)
         if (!open) setFormat(null);
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass}
     >
-      <Modal className="w-dialog-sm max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
+      <Modal className={modalClass('sm')}>
         <Dialog role="alertdialog" className="flex flex-col gap-3 p-5 outline-none" data-testid="export-confirm">
           {({ close }) => (
             <>

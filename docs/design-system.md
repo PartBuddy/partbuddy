@@ -37,7 +37,7 @@ produces nothing. ESLint rejects hex colour literals in UI code.
 | `surface-sunken` | `#eceef1` | `#121417` | Tab strips, wells, 3D view frame |
 | `surface-raised` | `#ffffff` | `#242930` | Menus, dialogs, popovers |
 | `surface-hover` / `surface-selected` | `#e8ebef` / `#dde8fb` | `#2a3037` / `#1d3354` | List rows |
-| `border` / `border-strong` | `#d5d9df` / `#878f99` | `#2f353d` / `#6a727d` | Dividers / control outlines (3:1) |
+| `border` / `border-strong` | `#d5d9df` / `#828a94` | `#2f353d` / `#6a727d` | Dividers / control outlines (3:1) |
 | `text` / `text-muted` / `text-subtle` | `#1b1f24` / `#545c66` / `#6a727c` | `#e7eaee` / `#a9b0b9` / `#939ba5` | Text hierarchy (all ≥ 4.5:1) |
 | `accent` / `accent-hover` | `#1f5fd1` / `#1a52b6` | `#2f6ad6` / `#265cbf` | Primary buttons, selection fill |
 | `accent-text` / `accent-subtle` | `#1f5fd1` / `#e6efff` | `#7aa7f6` / `#1b2c47` | Accent text, selected backgrounds |
@@ -59,7 +59,9 @@ forced two fixes during Phase 1: white text on the dark accent (4.0:1) and contr
 | Type | Segoe UI Variable everywhere, also for names, numbers and code blocks (no monospace in the app, Manuel 2026-11-05 and 2026-11-07; Shiki colours and a sunken surface mark code); sizes 11 / 12 / 13 / 15 / 18 px; weights 400 / 500 / 600; numbers use tabular figures |
 | Radii | `sm` 3 · `md` 5 · `lg` 8 · `full` |
 | Elevation | `shadow-1` (raised controls), `shadow-2` (popovers, overlays in the view), `shadow-3` (dialogs) |
-| Motion | 90 ms and 160 ms with a standard easing; all motion off under `prefers-reduced-motion` |
+| Motion | 90 ms and 160 ms with a standard easing; overlays enter with `easing-enter` (decelerate, rising `motion-offset` 4 px) and leave with `easing-exit` (`animate-pop-in/out`, `animate-fade-in/out`, `animate-dialog-in`); all motion off under `prefers-reduced-motion` |
+| States | `surface-pressed`, `accent-pressed`, `danger-solid` (+ `-hover`, `-pressed`, white text ≥ 4.5:1); disabled controls fade to `opacity-disabled` (0.45) |
+| Focus | One ring for every control: `focus-visible:focus-ring` (2 px `focus`, 1 px off), `focus-ring-inset` inside lists and menus |
 
 The UI uses the native Windows fonts; no webfonts are bundled (no licence or download needed).
 
@@ -182,13 +184,17 @@ brought it to the level of Onshape and Fusion:
 
 | Need | React Aria component | Notes |
 | --- | --- | --- |
-| Buttons, icon buttons | `Button`, `TooltipTrigger` | Variants: primary, secondary, quiet, danger; sizes sm/md |
-| Menus (model menu, settings) | `MenuTrigger`, `Menu`, `MenuSection` with single selection per section | Menus close on selection |
+| Buttons, icon buttons | `ui/Button`: `Button`, `IconButton`, `ToggleButton`, `IconToggle`; `ui/Tooltip`: `Tip` | Variants primary, secondary, quiet, danger; sizes sm 24 / md 28; `isPending` shows a spinner over the kept label; icon-only buttons take `label` (name and tooltip) and `shortcut`; selected toggles use `accent-subtle`; `pressable` and `linkClass` for custom pressables; every state in `?gallery` |
+| Menus (model menu, settings) | `MenuTrigger`, `Menu`, `MenuSection` with single selection per section; classes from `ui/Overlay` (`popoverClass`, `menuItemClass`, `menuItemTwoLineClass`, `menuHeaderClass`, `menuSeparatorClass`, `POPOVER_OFFSET`) | Menus close on selection; they rise in from the trigger and close at once |
+| Text fields | `TextField`/`NumberField` with `ui/Field` (`inputClass`, `textAreaClass`, `fieldLabelClass`, `UnitInput`, `FieldMessage`) | Focus ring over the border, invalid with linked error text, read-only sunken; units inside the frame |
+| Choices | `ui/Choice`: `CheckMark`, `RadioMark`, `SwitchMark`, `choiceRowClass`, `chipToggleClass`, `segmentClass`, `SelectField`, `SliderBar` | Rows ≥ 24 px; the chosen list entry carries a check |
+| Tabs and list rows | `ui/Navigation`: `tabListClass`, `tabClass` (horizontal underline, vertical fill), `listRowClass` | Labels keep their weight when chosen |
+| Badges and status | `ui/Feedback`: `badgeClass(tone)`, `dotTone`, `StatusDot`, `Busy`, `EmptyState` | Busy bar stands still under reduced motion |
 | Command palette | `Autocomplete`, `SearchField`, `Menu` in a `Modal` | Ctrl+K (react-hotkeys-hook) |
 | Lists (projects, timeline, notes) | `ListBox`, `GridList` | Rows with actions use `GridList` |
 | Parameters | `NumberField` (locale-aware unit formatting), `Slider` for favourites | Range shown below each value |
 | Clarification card | `RadioGroup`, `RadioField`, `RadioButton`, `Text slot="description"` | Recommended option first and marked |
-| Dialogs | `ModalOverlay`, `Modal`, `Dialog`, `Heading` | Focus trapped, Esc closes |
+| Dialogs | `ModalOverlay`, `Modal`, `Dialog`, `Heading` with `ui/Dialog` (`overlayClass`, `modalClass`, `dialogTitleClass`, `DialogClose`) | Focus trapped, Esc closes; dismissable dialogs show a close button; every state of every control is pictured in the gallery (`?gallery`, `e2e/ui-gallery.spec.ts`) |
 | Disclosure (tool calls) | `Disclosure`, `DisclosurePanel` | Collapsed by default |
 | Progress | `ProgressBar` (determinate for prompt progress, indeterminate for loading) | Always labelled |
 | Toasts | Own `notify()` API over React Aria Toast | Toast is alpha in React Aria; wrapped so it can be swapped |

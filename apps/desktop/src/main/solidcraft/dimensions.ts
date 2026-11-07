@@ -2,6 +2,7 @@ import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { DesignParameter } from '../../shared/contract';
+import { fitMarkOf, withoutFitMark } from '../../shared/designFit';
 import type { ControlRequester } from './mirror';
 
 /**
@@ -33,6 +34,8 @@ export interface Parameter {
   value: number;
   feature?: string;
   input?: string;
+  /** As SolidCraft reports it; not checked, so read it as unknown. */
+  comment?: unknown;
 }
 
 interface BatchReply {
@@ -209,11 +212,13 @@ export class DimensionService {
    * Sets the parameter for real (the user pressed Enter). The name must be a parameter whose
    * value is a plain number, so a formula is never overwritten and nothing else can be set.
    */
-  async apply(parameter: string, value: number, factor: 1 | 2): Promise<void> {
+  async apply(parameter: string, value: number, factor: 1 | 2, keepFitMark = false): Promise<void> {
     if (!(value > 0) || !Number.isFinite(value)) throw new Error('the value must be a positive length');
     const known = (await this.parameters()).find((entry) => entry.name === parameter);
     if (!known || known.unit !== 'mm' || !PLAIN_NUMBER.test(known.expression)) throw new Error(`${parameter} is not a plain length parameter`);
-    const reply = await this.batch([{ command: 'parameters.change', params: { name: parameter, expression: mm(value * factor) } }], true);
+    // A size the user sets is theirs from now on: it loses the assistant's mark, and a printer change no longer moves it.
+    const comment = !keepFitMark && typeof known.comment === 'string' && fitMarkOf(known.comment) ? { comment: withoutFitMark(known.comment) } : {};
+    const reply = await this.batch([{ command: 'parameters.change', params: { name: parameter, expression: mm(value * factor), ...comment } }], true);
     if (reply.failed) throw new Error(`SolidCraft refused the value: ${reply.failed.error}`);
   }
 }

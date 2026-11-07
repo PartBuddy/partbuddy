@@ -17,12 +17,16 @@ import {
 } from '@tabler/icons-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Dialog, Heading, Menu, MenuItem, MenuTrigger, Modal, ModalOverlay, Popover, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
+import { Dialog, Heading, Menu, MenuItem, MenuTrigger, Modal, ModalOverlay, Popover, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
 
 import type { KeptSketch } from '../../../shared/sketch';
 import { platform } from '../platform';
-import { Button } from '../ui/Button';
+import { Button, IconButton, IconToggle } from '../ui/Button';
 import { parseLength } from '../viewer/lengthInput';
+import { fieldBox } from '../ui/Field';
+import { segmentClass, segmentGroupClass } from '../ui/Choice';
+import { POPOVER_OFFSET, menuClass, menuItemTwoLineClass, popoverClass } from '../ui/Overlay';
+import { modalClass, overlayClass } from '../ui/Dialog';
 import {
   arcCircle,
   BACKGROUND_SIZE,
@@ -586,9 +590,9 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
         if (!next) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center overflow-y-auto bg-overlay px-4 pb-4 pt-dialog-offset [@media(max-height:720px)]:pt-4"
+      className={`${overlayClass} overflow-y-auto pb-4 [@media(max-height:720px)]:pt-4`}
     >
-      <Modal className="w-dialog-xl max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
+      <Modal className={modalClass('xl')}>
         <Dialog className="outline-none" data-testid="sketch-pad">
           {/* Tool keys, undo and redo work wherever the focus is in the sketch. */}
           <div
@@ -626,13 +630,13 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 const next = [...keys][0] as SheetView | undefined;
                 if (next) showSheet(next);
               }}
-              className="flex flex-wrap gap-1"
+              className={segmentGroupClass}
             >
               {SHEET_VIEWS.map((sheet) => (
                 <ToggleButton
                   key={sheet}
                   id={sheet}
-                  className="inline-flex h-control-md items-center gap-1 rounded-md border border-border px-2 text-sm text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+                  className={segmentClass('md')}
                   data-testid={`sketch-sheet-${sheet}`}
                 >
                   {sheetName(sheet)}
@@ -652,7 +656,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 placeholder="–"
                 aria-invalid={scaleInvalid}
                 aria-describedby="sketch-scale-hint"
-                className={`h-control-sm w-field-value rounded-sm border bg-surface px-1 text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus ${scaleInvalid ? 'border-danger' : 'border-border-strong'}`}
+                className={`h-control-sm w-field-value px-1 text-sm tabular-nums aria-invalid:border-danger ${fieldBox}`}
                 data-testid="sketch-scale"
               />
               {t('units.mmShort')}
@@ -674,33 +678,36 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
               className="flex flex-wrap gap-1"
             >
               {TOOLS.map((entry) => (
-                <ToggleButton
+                <IconToggle
                   key={entry.tool}
                   id={entry.tool}
-                  aria-label={t(`assistant.sketch.tool.${entry.tool}`)}
-                  aria-keyshortcuts={entry.key.toUpperCase()}
-                  className="inline-flex size-control-md items-center justify-center rounded-md border border-border text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+                  size="md"
+                  label={t(`assistant.sketch.tool.${entry.tool}`)}
+                  shortcut={entry.key.toUpperCase()}
+                  className="border border-border selected:border-accent"
                   data-testid={`sketch-tool-${entry.tool}`}
                 >
-                  <span title={`${t(`assistant.sketch.tool.${entry.tool}`)} (${entry.key.toUpperCase()})`}>{entry.icon}</span>
-                </ToggleButton>
+                  {entry.icon}
+                </IconToggle>
               ))}
             </ToggleButtonGroup>
             <span className="mr-auto" />
             {backgroundUrl ? (
-              <Button onPress={removeBackground} aria-label={t('assistant.sketch.photoRemove')} data-testid="sketch-photo-remove">
+              <IconButton size="md" tone="secondary" onPress={removeBackground} label={t('assistant.sketch.photoRemove')} data-testid="sketch-photo-remove">
                 <IconPhotoOff className="size-icon" aria-hidden />
-              </Button>
+              </IconButton>
             ) : (
-              <Button
+              <IconButton
+                size="md"
+                tone="secondary"
                 onPress={() => {
                   photoInput.current?.click();
                 }}
-                aria-label={t('assistant.sketch.photo')}
+                label={t('assistant.sketch.photo')}
                 data-testid="sketch-photo"
               >
                 <IconPhoto className="size-icon" aria-hidden />
-              </Button>
+              </IconButton>
             )}
             <input
               ref={photoInput}
@@ -719,17 +726,13 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 if (open) void platform().sketches.list().then(setKept);
               }}
             >
-              <AriaButton
-                aria-label={t('assistant.sketch.kept')}
-                className="inline-flex h-control-md items-center justify-center gap-1 rounded-md border border-border-strong bg-surface px-3 text-md text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
-                data-testid="sketch-kept"
-              >
+              <IconButton size="md" tone="secondary" label={t('assistant.sketch.kept')} data-testid="sketch-kept">
                 <IconHistory className="size-icon" aria-hidden />
-              </AriaButton>
-              <Popover placement="bottom end" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
+              </IconButton>
+              <Popover placement="bottom end" offset={POPOVER_OFFSET} className={popoverClass}>
                 <Menu
                   aria-label={t('assistant.sketch.kept')}
-                  className="max-h-menu-max overflow-auto outline-none"
+                  className={menuClass}
                   items={kept ?? []}
                   renderEmptyState={() => <p className="px-2 py-1 text-sm text-text-muted">{t(kept ? 'assistant.sketch.keptNone' : 'assistant.sketch.keptLoading')}</p>}
                   onAction={(key) => {
@@ -740,7 +743,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                     <MenuItem
                       id={entry.id}
                       textValue={new Date(entry.savedAt).toLocaleString()}
-                      className="flex cursor-default flex-col rounded-sm px-2 py-1 outline-none focus:bg-surface-hover"
+                      className={menuItemTwoLineClass}
                       data-testid="sketch-kept-entry"
                     >
                       <span className="text-sm text-text tabular-nums">{new Date(entry.savedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
@@ -750,12 +753,12 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 </Menu>
               </Popover>
             </MenuTrigger>
-            <Button onPress={undo} isDisabled={past.length === 0} aria-label={t('assistant.sketch.undo')} data-testid="sketch-undo">
+            <IconButton size="md" tone="secondary" onPress={undo} isDisabled={past.length === 0} label={t('assistant.sketch.undo')} shortcut="Ctrl+Z" data-testid="sketch-undo">
               <IconArrowBackUp className="size-icon" aria-hidden />
-            </Button>
-            <Button onPress={redo} isDisabled={future.length === 0} aria-label={t('assistant.sketch.redo')} data-testid="sketch-redo">
+            </IconButton>
+            <IconButton size="md" tone="secondary" onPress={redo} isDisabled={future.length === 0} label={t('assistant.sketch.redo')} shortcut="Ctrl+Y" data-testid="sketch-redo">
               <IconArrowForwardUp className="size-icon" aria-hidden />
-            </Button>
+            </IconButton>
             <Button
               onPress={() => {
                 commit([]);
@@ -830,7 +833,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 }}
                 onBlur={finishEditor}
                 maxLength={80}
-                className="absolute h-control-sm w-field-dock -translate-x-1/2 -translate-y-1/2 rounded-sm border border-accent bg-surface px-1 text-sm text-text outline-none"
+                className={`absolute h-control-sm w-field-dock -translate-x-1/2 -translate-y-1/2 px-1 text-sm ${fieldBox}`}
                 style={{ left: `${String((editor.at[0] / SKETCH_SIZE.width) * 100)}%`, top: `${String((editor.at[1] / SKETCH_SIZE.height) * 100)}%` }}
                 data-testid="sketch-value"
               />

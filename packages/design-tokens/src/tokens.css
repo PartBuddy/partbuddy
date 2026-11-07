@@ -55,6 +55,8 @@
   --cs-size-dialog-settings: 1040px;
   --cs-size-dialog-settings-height: 720px;
   --cs-size-dialog-offset: 12vh;
+  /* The tallest a dialog grows before its body scrolls. */
+  --cs-size-dialog-max-height: 76vh;
   /* Start page (B3): the narrowest project tile, the page's width and the search field. */
   --cs-size-tile: 220px;
   --cs-size-page-max: 1200px;
@@ -100,6 +102,13 @@
   --cs-duration-normal: 160ms;
   --cs-duration-slow: 1200ms;
   --cs-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  /* Overlays enter decelerating and leave accelerating (Fluent 2, Material 3): quick to see, quick to go. */
+  --cs-easing-enter: cubic-bezier(0, 0, 0, 1);
+  --cs-easing-exit: cubic-bezier(0.3, 0, 1, 1);
+  /* How far a popover or menu travels while it fades in. */
+  --cs-motion-offset: 4px;
+  /* Disabled controls fade; WCAG exempts them from contrast, the shape stays readable. */
+  --cs-opacity-disabled: 0.45;
 
   /*
    * Brand colours (docs/brand.md). Fixed in both themes: the theme picks the logo variant, not
@@ -120,14 +129,16 @@
   --cs-color-surface-raised: #ffffff;
   --cs-color-surface-hover: #e8ebef;
   --cs-color-surface-selected: #dde8fb;
+  --cs-color-surface-pressed: #dce0e6;
   --cs-color-border: #d5d9df;
-  --cs-color-border-strong: #878f99;
+  --cs-color-border-strong: #828a94;
   --cs-color-text: #1b1f24;
   --cs-color-text-muted: #545c66;
   --cs-color-text-subtle: #6a727c;
   --cs-color-text-on-accent: #ffffff;
   --cs-color-accent: #1f5fd1;
   --cs-color-accent-hover: #1a52b6;
+  --cs-color-accent-pressed: #16469c;
   --cs-color-accent-text: #1f5fd1;
   --cs-color-accent-subtle: #e6efff;
   --cs-color-focus: #1f5fd1;
@@ -137,6 +148,10 @@
   --cs-color-warning-subtle: #fbf0d9;
   --cs-color-danger: #b42318;
   --cs-color-danger-subtle: #fbe7e5;
+  /* Filled destructive buttons carry white text. */
+  --cs-color-danger-solid: #b42318;
+  --cs-color-danger-solid-hover: #9c1e14;
+  --cs-color-danger-solid-pressed: #841910;
   --cs-color-info: #355f8c;
   --cs-color-info-subtle: #e7eef6;
 
@@ -195,6 +210,7 @@
     --cs-color-surface-raised: #242930;
     --cs-color-surface-hover: #2a3037;
     --cs-color-surface-selected: #1d3354;
+    --cs-color-surface-pressed: #333a43;
     --cs-color-border: #2f353d;
     --cs-color-border-strong: #6a727d;
     --cs-color-text: #e7eaee;
@@ -203,6 +219,7 @@
     --cs-color-text-on-accent: #ffffff;
     --cs-color-accent: #2f6ad6;
     --cs-color-accent-hover: #265cbf;
+    --cs-color-accent-pressed: #2050a8;
     --cs-color-accent-text: #7aa7f6;
     --cs-color-accent-subtle: #1b2c47;
     --cs-color-focus: #6e9ff5;
@@ -212,6 +229,9 @@
     --cs-color-warning-subtle: #33270f;
     --cs-color-danger: #f0776c;
     --cs-color-danger-subtle: #3a1a17;
+    --cs-color-danger-solid: #b8352b;
+    --cs-color-danger-solid-hover: #a02d24;
+    --cs-color-danger-solid-pressed: #88261e;
     --cs-color-info: #8fb4dd;
     --cs-color-info-subtle: #1a2633;
     --cs-viewer-background: #1e2125;
@@ -250,6 +270,7 @@
   --cs-color-surface-raised: #242930;
   --cs-color-surface-hover: #2a3037;
   --cs-color-surface-selected: #1d3354;
+  --cs-color-surface-pressed: #333a43;
   --cs-color-border: #2f353d;
   --cs-color-border-strong: #6a727d;
   --cs-color-text: #e7eaee;
@@ -258,6 +279,7 @@
   --cs-color-text-on-accent: #ffffff;
   --cs-color-accent: #2f6ad6;
   --cs-color-accent-hover: #265cbf;
+  --cs-color-accent-pressed: #2050a8;
   --cs-color-accent-text: #7aa7f6;
   --cs-color-accent-subtle: #1b2c47;
   --cs-color-focus: #6e9ff5;
@@ -267,6 +289,9 @@
   --cs-color-warning-subtle: #33270f;
   --cs-color-danger: #f0776c;
   --cs-color-danger-subtle: #3a1a17;
+  --cs-color-danger-solid: #b8352b;
+  --cs-color-danger-solid-hover: #a02d24;
+  --cs-color-danger-solid-pressed: #88261e;
   --cs-color-info: #8fb4dd;
   --cs-color-info-subtle: #1a2633;
   --cs-viewer-background: #1e2125;

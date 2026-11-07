@@ -291,17 +291,21 @@ test('the parameter panel lists the design parameters and changes a length with 
   solidcraft.parameters = [
     { ...user, name: 'wand', expression: 'breite / 10', value: 4, used_by: ['d3'] },
     { ...user, name: 'breite', expression: '40 mm', value: 40, favorite: true, comment: 'Plate width [30..60]', used_by: ['d1', 'wand'] },
+    // A size the assistant snapped to the printer (2026-11-07): the table names it instead of showing the mark.
+    { ...user, name: 'boden', expression: '1 mm', value: 1, comment: 'Floor [auto 5×layer]', used_by: ['d3'] },
   ];
   solidcraft.change();
 
   const panel = page.getByTestId('parameters');
-  await expect(panel.getByRole('treeitem', { name: 'Parameters (2)' })).toBeVisible();
+  await expect(panel.getByRole('treeitem', { name: 'Parameters (3)' })).toBeVisible();
   // Favourites first, one row each (name, value, unit); comment, range and formula show on hover.
   const rows = panel.getByTestId('parameter');
   await expect(rows.first()).toHaveAttribute('data-name', 'breite');
   await expect(rows.first()).toHaveAttribute('aria-label', 'breite, 40 mm');
   await expect(rows.first().locator('[title]').first()).toHaveAttribute('title', 'Plate width\nRange 30 to 60 mm');
   await expect(rows.nth(1).locator('[title]').first()).toHaveAttribute('title', /^= breite \/ 10\n/);
+  const floorRow = panel.locator('[data-testid="parameter"][data-name="boden"]');
+  await expect(floorRow.locator('[title]').first()).toHaveAttribute('title', "Floor\nChosen by the assistant, follows the printer's nozzle and layer height");
   await expect(panel.getByRole('textbox')).toHaveCount(0);
   // A formula stays as it is: a double click opens no field.
   await rows.nth(1).dblclick();
@@ -336,6 +340,15 @@ test('the parameter panel lists the design parameters and changes a length with 
   await field.press('Escape');
   await expect(field).toHaveCount(0);
   await expect(rows.first()).toHaveAttribute('aria-label', 'breite, 50 mm');
+
+  // The user setting a snapped size makes it theirs: the mark goes, so a printer change leaves it alone.
+  await floorRow.dblclick();
+  const floor = panel.getByRole('textbox', { name: 'Change boden' });
+  await floor.fill('2');
+  await expect(panel.getByText('Preview in the view – Enter changes it, Escape cancels')).toBeVisible();
+  await floor.press('Enter');
+  await expect.poll(() => solidcraft.parameters.find((entry) => entry.name === 'boden')?.comment).toBe('Floor');
+  await expect(floorRow.locator('[title]').first()).toHaveAttribute('title', 'Floor');
 });
 
 test('the structure tree folds, selects, frames, renames and hides by mouse and keyboard', async () => {
@@ -645,7 +658,7 @@ test('the settings open with Ctrl+comma, find every option by search and open on
     await results.getByRole('option').first().click();
     await expect(page.getByTestId('settings-print')).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByTestId('print-tab-material')).toHaveAttribute('aria-selected', 'true');
-    await page.getByTestId('settings-close').click();
+    await dialog.getByTestId('dialog-close').click();
     await expect(dialog).toHaveCount(0);
     // The assistant chip links to its options in the settings.
     await page.getByTestId('agent-status').click();
@@ -948,6 +961,12 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await expect(supportFree).toBeChecked();
   await supportFree.press('Space');
   await expect(supportFree).not.toBeChecked();
+  // The design rule groups (2026-11-07) are on from the start; each turns off on its own.
+  for (const rule of ['rounding', 'printInPlace', 'details', 'snap']) await expect(assistant.getByTestId(`design-${rule}`).getByRole('switch')).toBeChecked();
+  const rounding = assistant.getByTestId('design-rounding').getByRole('switch', { name: 'Fillets and chamfers' });
+  await rounding.press('Space');
+  await expect(rounding).not.toBeChecked();
+  await expect(assistant.getByTestId('design-snap').getByRole('switch')).toBeChecked();
 
   // Cancel keeps what was saved, the switch included.
   await page.getByTestId('settings-print').click();
@@ -958,6 +977,8 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await page.getByTestId('settings').click();
   await page.getByTestId('settings-assistant').click();
   await expect(page.getByTestId('settings-assistant-panel').getByTestId('support-free').getByRole('switch')).not.toBeChecked();
+  await expect(page.getByTestId('settings-assistant-panel').getByTestId('design-rounding').getByRole('switch')).not.toBeChecked();
+  await expect(page.getByTestId('settings-assistant-panel').getByTestId('design-details').getByRole('switch')).toBeChecked();
   await page.keyboard.press('Escape');
 });
 

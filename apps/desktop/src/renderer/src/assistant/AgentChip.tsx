@@ -5,8 +5,11 @@ import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover, RadioBut
 import type { AgentKind, AgentStatus, ModelChoice } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
-import { StatusDot } from '../ui/Feedback';
+import { StatusDot, badgeClass, dotTone } from '../ui/Feedback';
 import { selectedStatus, useAssistant } from './store';
+import { linkClass, pressable } from '../ui/Button';
+import { choiceRowClass, RadioMark, segmentClass, segmentGroupClass } from '../ui/Choice';
+import { popoverPanelClass } from '../ui/Overlay';
 
 type T = ReturnType<typeof useTranslation>['t'];
 type Tone = 'success' | 'neutral' | 'warning';
@@ -18,7 +21,6 @@ function signedIn(status: AgentStatus): boolean {
   return status.state === 'ready' || status.state === 'busy';
 }
 
-const DOT: Record<Tone, string> = { success: 'bg-success', neutral: 'bg-text-subtle', warning: 'bg-warning' };
 
 /** From this share of the context window on, a new chat is recommended. */
 const CONTEXT_FULL = 0.8;
@@ -72,17 +74,6 @@ function chipLabel(t: T, status: AgentStatus): string {
   return detail ? `${route} · ${detail}` : route;
 }
 
-export const radioClass =
-  'group flex cursor-default items-start gap-2 rounded-sm px-2 py-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:bg-surface-selected';
-
-export function RadioMark() {
-  return (
-    <span aria-hidden className="mt-1 inline-flex size-icon-sm shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface group-selected:border-accent">
-      <span className="size-dot rounded-full bg-accent opacity-0 group-selected:opacity-100" />
-    </span>
-  );
-}
-
 /**
  * Model and effort of the selected route (B1, decided 2026-11-05): only what the plan offers, in
  * effect from the next answer, also in a running conversation; "Keep for new chats" stores it.
@@ -114,7 +105,7 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
         <span className="px-2 text-xs font-semibold text-text-muted">{t('assistant.model.title')}</span>
         {models.map((model) => (
           <RadioField key={model.id} value={model.id}>
-            <RadioButton className={radioClass} data-testid="model-option">
+            <RadioButton className={choiceRowClass} data-testid="model-option">
               <RadioMark />
               <span className="flex flex-col">
                 <span className="text-sm text-text">{modelName(t, model)}</span>
@@ -135,13 +126,10 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
           className="flex flex-col gap-1"
         >
           <span className="px-2 text-xs font-semibold text-text-muted">{t('assistant.effort.title')}</span>
-          <div className="flex flex-wrap gap-1 px-1">
+          <div className={`mx-2 self-start ${segmentGroupClass}`}>
             {current.efforts.map((value) => (
               <RadioField key={value} value={value}>
-                <RadioButton
-                  className="inline-flex cursor-default items-center rounded-full border border-border px-2 py-0 text-xs text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:border-accent selected:bg-accent-subtle"
-                  data-testid="effort-option"
-                >
+                <RadioButton className={segmentClass('sm')} data-testid="effort-option">
                   {effortLabel(t, value)}
                 </RadioButton>
               </RadioField>
@@ -157,7 +145,7 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
           </span>
         ) : (
           <AriaButton
-            className="text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+            className={`text-xs ${linkClass}`}
             onPress={() => {
               choose({ model: current.id, effort }, true);
             }}
@@ -180,8 +168,7 @@ export function AssistantChoice() {
   const state = useAssistant((s) => s.state);
   const status = selectedStatus(state);
   const api = platform().agent;
-  const linkButton =
-    'text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus';
+  const linkButton = `text-xs ${linkClass}`;
   return (
     <>
       <RadioGroup
@@ -194,7 +181,7 @@ export function AssistantChoice() {
       >
         {ROUTES.map((kind) => (
           <RadioField key={kind} value={kind}>
-            <RadioButton className={radioClass}>
+            <RadioButton className={choiceRowClass}>
               <RadioMark />
               <span className="flex flex-col">
                 <span className="text-sm font-medium text-text">{t(`assistant.routes.${kind}`)}</span>
@@ -219,7 +206,7 @@ export function AssistantChoice() {
           // Sign in with ChatGPT reports no usage numbers; OpenAI's UI guidelines ask for this line and link instead.
           <span className="text-xs text-text-muted" data-testid="chatgpt-usage">
             {t('assistant.chatgpt.planInUse')} ·{' '}
-            <a href={CHATGPT_USAGE} target="_blank" rel="noreferrer" className="underline hover:text-text">
+            <a href={CHATGPT_USAGE} target="_blank" rel="noreferrer" className={linkClass}>
               {t('assistant.chatgpt.manageUsage')}
             </a>
           </span>
@@ -280,17 +267,17 @@ export function AgentChip() {
     <DialogTrigger>
       <AriaButton
         aria-label={t('assistant.chip.label', { status: label })}
-        className="inline-flex h-control-md min-w-0 max-w-full items-center gap-2 rounded-full border border-border bg-surface-sunken pl-3 pr-2 text-sm text-text-muted outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus pressed:bg-surface-hover"
+        className={`inline-flex h-control-md min-w-0 max-w-full items-center gap-2 rounded-full border border-border bg-surface-sunken pl-3 pr-2 text-sm text-text-muted hover:bg-surface-hover hover:text-text pressed:bg-surface-pressed ${pressable}`}
         data-testid="agent-status"
       >
         {/* One line, cut with an ellipsis when the chat is narrow; the full text is the tooltip and the label. */}
-        <span aria-hidden className={`size-dot shrink-0 rounded-full ${DOT[toneOf(status)]}`} />
+        <span aria-hidden className={`size-dot shrink-0 rounded-full ${dotTone[toneOf(status)]}`} />
         <span className="min-w-0 truncate whitespace-nowrap" title={label}>
           {label}
         </span>
         <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
       </AriaButton>
-      <Popover placement="top start" offset={6} className="w-dialog-sm max-w-full rounded-md border border-border bg-surface-raised shadow-2">
+      <Popover placement="top start" offset={6} className={popoverPanelClass}>
         <Dialog aria-label={t('assistant.title')} className="flex flex-col gap-3 p-3 outline-none" data-testid="agent-menu">
           {({ close }) => (
             <>
@@ -298,12 +285,12 @@ export function AgentChip() {
                 <Heading slot="title" className="text-sm font-semibold text-text">
                   {t('assistant.title')}
                 </Heading>
-                <span className="rounded-sm border border-border px-1 text-xs text-text-muted">{t('assistant.preview')}</span>
+                <span className={badgeClass()}>{t('assistant.preview')}</span>
               </div>
               <AssistantChoice />
               <p className="text-xs text-text-subtle">{t('assistant.chip.switchNote')}</p>
               <AriaButton
-                className="self-start text-xs text-text-muted underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+                className={`self-start text-xs ${linkClass}`}
                 onPress={() => {
                   close();
                   useStudio.getState().setSettingsSection('assistant', 'research');

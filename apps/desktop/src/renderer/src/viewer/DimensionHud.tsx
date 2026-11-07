@@ -19,6 +19,10 @@ import { parseLength } from './lengthInput';
 import { blendWeights, GHOST_OPACITY, PREVIEW_BLEND } from './blend';
 import { SelectionInfo } from './SelectionInfo';
 import { edgeLabel, selectionName, selectionOf, selectionsOf } from './viewState';
+import { buttonVariants, pressable } from '../ui/Button';
+import { Tip } from '../ui/Tooltip';
+import { inputClass, fieldLabelClass } from '../ui/Field';
+import { badgeClass } from '../ui/Feedback';
 
 /** Quiet time after typing before PartBuddy tries the value in SolidCraft. */
 const PROBE_DELAY_MS = 250;
@@ -228,7 +232,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       <div className="flex items-start justify-between gap-3">
         <SelectionInfo bodies={bodies} selection={selection} />
         {picks.length > 1 ? (
-          <span className="shrink-0 rounded-full bg-accent-subtle px-2 text-xs text-accent" data-testid="hud-count">
+          <span className={badgeClass('accent')} data-testid="hud-count">
             {t('hud.selected', { count: picks.length })}
           </span>
         ) : null}
@@ -237,11 +241,11 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       <div className="flex flex-wrap items-start gap-3">
         {dimension ? (
           <TextField value={text} onChange={setText} inputMode="decimal" isDisabled={busy} className="flex w-field-dock flex-col gap-1" data-testid="dimension-field">
-            <Label className="text-xs text-text-subtle">
+            <Label className={fieldLabelClass}>
               {t(`hud.${dimension.shown}`)} · {t('units.mmShort')}
             </Label>
             <Input
-              className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+              className={`${inputClass('sm')} tabular-nums`}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
@@ -273,7 +277,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       <TextField value={wish} onChange={setWish} aria-label={t('hud.ask')} isDisabled={!assistantReady} className="flex items-center gap-1">
         <Input
           placeholder={t('hud.ask')}
-          className="h-control-sm min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+          className={`${inputClass('sm')} flex-1`}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault();
@@ -282,14 +286,16 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
           }}
           data-testid="hud-ask"
         />
-        <AriaButton
-          aria-label={t('assistant.send')}
-          isDisabled={!assistantReady || wish.trim() === ''}
-          onPress={ask}
-          className="inline-flex size-control-sm items-center justify-center rounded-md bg-accent text-on-accent outline-none hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
-        >
-          <IconArrowUp className="size-icon-sm" aria-hidden />
-        </AriaButton>
+        <Tip label={t('assistant.send')}>
+          <AriaButton
+            aria-label={t('assistant.send')}
+            isDisabled={!assistantReady || wish.trim() === ''}
+            onPress={ask}
+            className={`inline-flex size-control-sm shrink-0 items-center justify-center rounded-md ${buttonVariants.primary} ${pressable}`}
+          >
+            <IconArrowUp className="size-icon-sm" aria-hidden />
+          </AriaButton>
+        </Tip>
       </TextField>
     </div>
   );

@@ -4,6 +4,7 @@ import { Button as AriaButton } from 'react-aria-components';
 
 import { Markdown } from './Markdown';
 import { MessageActions } from './MessageActions';
+import { linkClass } from '../ui/Button';
 
 /** Height of a quiet answer: about four lines of chat text. */
 const QUIET_HEIGHT = '6.5rem';
@@ -42,7 +43,7 @@ export function Answer({ text, streaming, quiet }: { text: string; streaming: bo
             onPress={() => {
               setExpanded(!expanded);
             }}
-            className="rounded-sm text-xs text-accent-text outline-none hover:underline focus-visible:outline-2 focus-visible:outline-focus"
+            className={`text-xs ${linkClass}`}
             data-testid="answer-more"
           >
             {expanded ? t('assistant.showLess') : t('assistant.showMore')}

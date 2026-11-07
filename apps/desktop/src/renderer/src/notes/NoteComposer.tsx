@@ -6,6 +6,7 @@ import { ToggleButton } from 'react-aria-components';
 import type { Selection } from '../../../shared/contract';
 import { platform } from '../platform';
 import { NoteForm, useNoteCommand } from './NoteParts';
+import { chipToggleClass } from '../ui/Choice';
 
 /** "Note" in the selection HUD: pins a note to the selected face, edge or vertex (M2b). */
 export function NoteComposer({ selection, busy }: { selection: Selection; busy: boolean }) {
@@ -18,7 +19,7 @@ export function NoteComposer({ selection, busy }: { selection: Selection; busy: 
         isSelected={open}
         onChange={setOpen}
         isDisabled={busy}
-        className="inline-flex h-control-sm w-fit items-center gap-1 rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+        className={`${chipToggleClass} w-fit`}
         data-testid="hud-note"
       >
         <IconNote className="size-icon-sm" aria-hidden />

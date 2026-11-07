@@ -23,6 +23,7 @@
   --color-surface-raised: var(--cs-color-surface-raised);
   --color-surface-hover: var(--cs-color-surface-hover);
   --color-surface-selected: var(--cs-color-surface-selected);
+  --color-surface-pressed: var(--cs-color-surface-pressed);
   --color-border: var(--cs-color-border);
   --color-border-strong: var(--cs-color-border-strong);
   --color-text: var(--cs-color-text);
@@ -31,6 +32,7 @@
   --color-on-accent: var(--cs-color-text-on-accent);
   --color-accent: var(--cs-color-accent);
   --color-accent-hover: var(--cs-color-accent-hover);
+  --color-accent-pressed: var(--cs-color-accent-pressed);
   --color-accent-text: var(--cs-color-accent-text);
   --color-accent-subtle: var(--cs-color-accent-subtle);
   --color-focus: var(--cs-color-focus);
@@ -40,6 +42,9 @@
   --color-warning-subtle: var(--cs-color-warning-subtle);
   --color-danger: var(--cs-color-danger);
   --color-danger-subtle: var(--cs-color-danger-subtle);
+  --color-danger-solid: var(--cs-color-danger-solid);
+  --color-danger-solid-hover: var(--cs-color-danger-solid-hover);
+  --color-danger-solid-pressed: var(--cs-color-danger-solid-pressed);
   --color-info: var(--cs-color-info);
   --color-info-subtle: var(--cs-color-info-subtle);
   --color-note: var(--cs-viewer-note);
@@ -85,11 +90,18 @@
   --spacing-dialog-settings: var(--cs-size-dialog-settings);
   --spacing-dialog-settings-height: var(--cs-size-dialog-settings-height);
   --spacing-dialog-offset: var(--cs-size-dialog-offset);
+  --spacing-dialog-max: var(--cs-size-dialog-max-height);
   --spacing-tile: var(--cs-size-tile);
   --spacing-page-max: var(--cs-size-page-max);
   --spacing-search: var(--cs-size-search);
 
   --animate-progress: cs-progress var(--cs-duration-slow) var(--cs-easing-standard) infinite;
+  /* Overlays: popovers, menus and tooltips rise in from their trigger; dialogs scale in slightly. */
+  --animate-pop-in: cs-pop-in var(--cs-duration-fast) var(--cs-easing-enter);
+  --animate-pop-out: cs-fade-out var(--cs-duration-fast) var(--cs-easing-exit);
+  --animate-fade-in: cs-fade-in var(--cs-duration-normal) var(--cs-easing-enter);
+  --animate-fade-out: cs-fade-out var(--cs-duration-fast) var(--cs-easing-exit);
+  --animate-dialog-in: cs-dialog-in var(--cs-duration-normal) var(--cs-easing-enter);
 
   --radius-sm: var(--cs-radius-sm);
   --radius-md: var(--cs-radius-md);
@@ -105,6 +117,9 @@
   --font-weight-semibold: var(--cs-weight-semibold);
   --tracking-wide: var(--cs-tracking-label);
   --ease-standard: var(--cs-easing-standard);
+  --ease-enter: var(--cs-easing-enter);
+  --ease-exit: var(--cs-easing-exit);
+  --opacity-disabled: var(--cs-opacity-disabled);
 
   --text-xs: var(--cs-text-xs);
   --text-xs--line-height: var(--cs-leading-tight);
@@ -129,4 +144,41 @@
   100% {
     transform: translateX(300%);
   }
+}
+
+@keyframes cs-pop-in {
+  from {
+    opacity: 0;
+    translate: var(--cs-pop-x, 0) var(--cs-pop-y, calc(var(--cs-motion-offset) * -1));
+  }
+}
+@keyframes cs-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes cs-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes cs-dialog-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+
+/*
+ * The one focus ring of the app (WCAG 2.4.7/2.4.13): 2 px in the focus colour, 1 px off the
+ * control. Use it as `focus-visible:focus-ring` or `data-focus-visible:focus-ring`.
+ */
+@utility focus-ring {
+  outline: var(--cs-focus-width) solid var(--cs-color-focus);
+  outline-offset: var(--cs-focus-offset);
+}
+/* Inside a list or menu the ring sits on the row's edge, so neighbours do not hide it. */
+@utility focus-ring-inset {
+  outline: var(--cs-focus-width) solid var(--cs-color-focus);
+  outline-offset: calc(var(--cs-focus-width) * -1);
 }

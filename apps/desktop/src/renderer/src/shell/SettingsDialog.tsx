@@ -39,13 +39,17 @@ import {
   Tabs,
 } from 'react-aria-components';
 
-import type { AppInfo, GeneralSettingsInfo, Language, PrintSettings, Theme, UpdateState } from '../../../shared/contract';
+import { DESIGN_RULES, type AppInfo, type GeneralSettingsInfo, type Language, type PrintSettings, type Theme, type UpdateState } from '../../../shared/contract';
 import { AssistantChoice } from '../assistant/AgentChip';
 import { localeFrom } from '../i18n';
 import { PrintProfilesEditor } from '../print/PrintProfilesEditor';
 import { platform } from '../platform';
 import { useStudio, type SettingsSection } from '../state/store';
-import { Button } from '../ui/Button';
+import { Button, iconButtonClass, linkClass } from '../ui/Button';
+import { SwitchMark, segmentClass, segmentGroupClass } from '../ui/Choice';
+import { DialogClose, dialogTitleClass, modalClass, overlayClass } from '../ui/Dialog';
+import { inputClass } from '../ui/Field';
+import { tabClass, tabListClass } from '../ui/Navigation';
 import { EnginePanel } from './EnginePanel';
 import { searchSettings, settingById, type SettingEntry } from './settingsIndex';
 
@@ -182,12 +186,12 @@ function Segmented<T extends string>({
       onChange={(next) => {
         onChange(next as T);
       }}
-      className="inline-flex gap-hairline rounded-md border border-border bg-surface-sunken p-hairline"
+      className={segmentGroupClass}
       data-testid={testId}
     >
       {options.map(({ id: option, label, icon: Icon }) => (
         <RadioField key={option} value={option}>
-          <RadioButton className="inline-flex h-control-sm cursor-default items-center gap-1 rounded-sm px-3 text-sm text-text-muted outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus selected:bg-surface-raised selected:font-medium selected:text-text selected:shadow-1">
+          <RadioButton className={`${segmentClass('sm')} px-3`}>
             {Icon ? <Icon className="size-icon-sm" aria-hidden /> : null}
             {label}
           </RadioButton>
@@ -201,10 +205,8 @@ function Segmented<T extends string>({
 function Toggle({ id, isSelected, onChange, testId }: { id: string; isSelected: boolean; onChange: (on: boolean) => void; testId: string }) {
   return (
     <SwitchField aria-labelledby={labelId(id)} isSelected={isSelected} onChange={onChange} data-testid={testId}>
-      <SwitchButton className="group inline-flex items-center outline-none">
-        <span className="inline-flex h-4 w-6 items-center rounded-full bg-border-strong p-hairline transition-colors group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-focus">
-          <span className="size-icon-sm rounded-full bg-surface shadow-1 transition-transform group-selected:translate-x-4" />
-        </span>
+      <SwitchButton className="group inline-flex min-h-control-sm cursor-default items-center outline-none">
+        <SwitchMark />
       </SwitchButton>
     </SwitchField>
   );
@@ -345,8 +347,11 @@ function ResearchToggle() {
   );
 }
 
-/** Designing without support: kept with the print settings, which the assistant reads. */
-function SupportFreeToggle() {
+/**
+ * Designing without support and the design rule groups (2026-11-07): kept with the print settings,
+ * which the assistant reads. One copy for all rows, so no switch saves over another with a stale one.
+ */
+function PrintRuleSettings() {
   const [settings, setSettings] = useState<PrintSettings | null>(null);
   useEffect(() => {
     let live = true;
@@ -360,17 +365,35 @@ function SupportFreeToggle() {
     };
   }, []);
   if (!settings) return null;
+  const save = (next: PrintSettings) => {
+    setSettings(next);
+    void platform().print.saveSettings(next).then(setSettings);
+  };
   return (
-    <Toggle
-      id="supportFree"
-      isSelected={settings.supportFree}
-      onChange={(supportFree) => {
-        const next = { ...settings, supportFree };
-        setSettings(next);
-        void platform().print.saveSettings(next).then(setSettings);
-      }}
-      testId="support-free"
-    />
+    <>
+      <Setting id="supportFree">
+        <Toggle
+          id="supportFree"
+          isSelected={settings.supportFree}
+          onChange={(supportFree) => {
+            save({ ...settings, supportFree });
+          }}
+          testId="support-free"
+        />
+      </Setting>
+      {DESIGN_RULES.map((rule) => (
+        <Setting key={rule} id={`design.${rule}`}>
+          <Toggle
+            id={`design.${rule}`}
+            isSelected={settings.design[rule]}
+            onChange={(on) => {
+              save({ ...settings, design: { ...settings.design, [rule]: on } });
+            }}
+            testId={`design-${rule}`}
+          />
+        </Setting>
+      ))}
+    </>
   );
 }
 
@@ -432,7 +455,7 @@ function AboutSection() {
       live = false;
     };
   }, []);
-  const link = 'inline-flex items-center gap-2 text-sm text-accent-text underline outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus';
+  const link = `inline-flex items-center gap-2 text-sm ${linkClass}`;
   return (
     <div className="flex flex-col gap-5" data-testid="settings-about-panel">
       <div className="flex flex-col gap-1 text-text">
@@ -518,7 +541,7 @@ function SearchResults({ results, query, open, listRef }: { results: SettingEntr
           <ListBoxItem
             id={entry.id}
             textValue={t(entry.label)}
-            className="flex cursor-default flex-col gap-1 px-4 py-3 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus focused:bg-surface-hover"
+            className="flex cursor-default flex-col gap-1 px-4 py-3 outline-none transition-colors hover:bg-surface-hover pressed:bg-surface-pressed focused:bg-surface-hover focus-visible:focus-ring-inset"
             data-setting={entry.id}
           >
             <span className="text-md font-medium text-text">{t(entry.label)}</span>
@@ -585,12 +608,12 @@ export function SettingsDialog() {
         if (!isOpen) close();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass}
     >
-      <Modal className="w-dialog-settings max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
-        <Dialog className="flex h-dialog-settings-height max-h-[80vh] flex-col outline-none" data-testid="settings-dialog">
+      <Modal className={modalClass('settings')}>
+        <Dialog className="flex h-dialog-settings-height max-h-dialog-max flex-col outline-none" data-testid="settings-dialog">
           <div className="flex items-center gap-3 border-b border-border py-2 pr-2 pl-5">
-            <Heading slot="title" className="mr-auto text-lg font-semibold text-text">
+            <Heading slot="title" className={`mr-auto ${dialogTitleClass}`}>
               {t('settings.title')}
             </Heading>
             <SearchField
@@ -611,21 +634,14 @@ export function SettingsDialog() {
               <IconSearch className="pointer-events-none absolute left-2 size-icon-sm text-text-subtle" aria-hidden />
               <Input
                 placeholder={t('settings.search.placeholder')}
-                className="h-control-md w-full rounded-md border border-border-strong bg-surface pr-6 pl-6 text-md text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus [&::-webkit-search-cancel-button]:hidden"
+                className={`${inputClass('md')} pr-6 pl-6 [&::-webkit-search-cancel-button]:hidden`}
                 data-testid="settings-search"
               />
-              <AriaButton className="absolute right-1 flex size-control-sm items-center justify-center rounded-sm text-text-subtle outline-none group-empty:hidden hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus">
+              <AriaButton aria-label={t('settings.search.clear')} className={`absolute right-1 group-empty:hidden ${iconButtonClass('sm')}`}>
                 <IconX className="size-icon-sm" aria-hidden />
               </AriaButton>
             </SearchField>
-            <AriaButton
-              aria-label={t('settings.close')}
-              onPress={close}
-              className="inline-flex size-control-md items-center justify-center rounded-md text-text-muted outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
-              data-testid="settings-close"
-            >
-              <IconX className="size-icon" aria-hidden />
-            </AriaButton>
+            <DialogClose onPress={close} />
           </div>
           <div className="flex min-h-0 flex-1">
             <Tabs
@@ -640,12 +656,12 @@ export function SettingsDialog() {
               // The results sit beside the tabs: React Aria renders the children of Tabs once more to collect the tabs.
               className={searching ? 'flex min-h-0 shrink-0' : 'flex min-h-0 flex-1'}
             >
-              <TabList aria-label={t('settings.title')} className="flex w-settings-nav shrink-0 flex-col gap-1 border-r border-border bg-surface-sunken p-2">
+              <TabList aria-label={t('settings.title')} className={`w-settings-nav shrink-0 border-r border-border bg-surface-sunken p-2 ${tabListClass('vertical')}`}>
                 {SECTIONS.map(({ id, icon: Icon, testId }) => (
                   <Tab
                     key={id}
                     id={id}
-                    className="flex h-control-lg cursor-default items-center gap-2 rounded-md px-2 text-md text-text-muted outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus selected:bg-surface-selected selected:font-medium selected:text-text"
+                    className={tabClass('vertical')}
                     data-testid={testId}
                   >
                     <Icon className="size-icon shrink-0" aria-hidden />
@@ -679,9 +695,9 @@ export function SettingsDialog() {
                     <Setting id="research">
                       <ResearchToggle />
                     </Setting>
-                    <Setting id="supportFree">
-                      <SupportFreeToggle />
-                    </Setting>
+                  </Group>
+                  <Group id="rules">
+                    <PrintRuleSettings />
                   </Group>
                 </TabPanel>
                 <TabPanel id="print" className={panelClass} data-testid="print-profiles">

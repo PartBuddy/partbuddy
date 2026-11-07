@@ -57,7 +57,7 @@
     {
       "tab": "Details",
       "title": "Add the details that make it print",
-      "text": "Threads, countersinks, snap fits, screw bosses, lids with a lip, seats for heat-set inserts and nut traps, sized to the standards below and placed on the face you pick.",
+      "text": "Threads, countersinks, snap fits, screw bosses, lids with a lip, seats for heat-set inserts and nut traps, sized to the standards below and placed on the face you pick. Without being asked, the assistant rounds visible edges, chamfers the ones on the bed, tries print-in-place hinges first and snaps the sizes it picks to your nozzle and layer height. The sizes you name stay exact, and every refinement can be turned off.",
       "shot": "blocks",
       "alt": "The function block panel adding a heat-set insert seat for M3"
     },

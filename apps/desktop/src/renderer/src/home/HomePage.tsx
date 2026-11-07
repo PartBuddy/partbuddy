@@ -20,6 +20,10 @@ import boxWithLid from './templates/boxWithLid.png';
 import cableClip from './templates/cableClip.png';
 import housing from './templates/housing.png';
 import wallHolder from './templates/wallHolder.png';
+import { iconButtonClass, pressable } from '../ui/Button';
+import { inputClass } from '../ui/Field';
+import { chipToggleClass, ListCheck, listItemClass, selectTriggerClass } from '../ui/Choice';
+import { POPOVER_OFFSET, menuClass, menuItemClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
 
 /** Pictures of the templates, rendered by SolidCraft (tools/templates/render-previews.mjs). */
 const TEMPLATE_PICTURES: Record<TemplateId, string> = { boxWithLid, housing, wallHolder, cableClip, adapter };
@@ -44,7 +48,7 @@ function keepSort(sort: ProjectSort): void {
   }
 }
 
-const itemClass = 'flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover disabled:text-text-subtle';
+const itemClass = menuItemClass;
 
 /**
  * The start page (B3, decided 2026-11-05): the projects in the project folder as tiles with
@@ -145,10 +149,10 @@ export function HomePage() {
             <IconSearch className="pointer-events-none absolute left-2 size-icon-sm text-text-subtle" aria-hidden />
             <Input
               placeholder={t('home.search')}
-              className="h-control-md w-full rounded-md border border-border-strong bg-surface pr-6 pl-6 text-md text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus [&::-webkit-search-cancel-button]:hidden"
+              className={`${inputClass('md')} pr-6 pl-6 [&::-webkit-search-cancel-button]:hidden`}
               data-testid="home-search"
             />
-            <AriaButton className="absolute right-1 flex size-control-sm items-center justify-center rounded-sm text-text-subtle outline-none group-empty:hidden hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus">
+            <AriaButton aria-label={t('home.searchClear')} className={`absolute right-1 group-empty:hidden ${iconButtonClass('sm')}`}>
               <IconX className="size-icon-sm" aria-hidden />
             </AriaButton>
           </SearchField>
@@ -162,14 +166,15 @@ export function HomePage() {
             }}
             data-testid="home-sort"
           >
-            <AriaButton className="inline-flex h-control-md items-center gap-1 rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus">
-              <SelectValue className="truncate" />
+            <AriaButton className={selectTriggerClass('md')}>
+              <SelectValue className="truncate">{({ selectedText }) => selectedText}</SelectValue>
               <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
             </AriaButton>
-            <Popover className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
-              <ListBox className="outline-none">
+            <Popover offset={4} className={popoverClass}>
+              <ListBox className="max-h-menu-max overflow-auto outline-none">
                 {PROJECT_SORTS.map((item) => (
-                  <ListBoxItem key={item} id={item} textValue={t(`home.${item}`)} className="cursor-default rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover selected:font-medium" data-testid="home-sort-option" data-sort={item}>
+                  <ListBoxItem key={item} id={item} textValue={t(`home.${item}`)} className={listItemClass} data-testid="home-sort-option" data-sort={item}>
+                    <ListCheck />
                     {t(`home.${item}`)}
                   </ListBoxItem>
                 ))}
@@ -200,7 +205,7 @@ export function HomePage() {
                 <AriaButton
                   isDisabled={!ready}
                   onPress={() => run(() => api.fromTemplate(id, t(`home.templates.items.${id}.name`)))}
-                  className="group flex w-full items-center gap-3 overflow-hidden rounded-lg border border-border bg-surface p-2 text-left outline-none transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-default disabled:opacity-50"
+                  className="group flex w-full items-center gap-3 overflow-hidden rounded-lg border border-border bg-surface p-2 text-left outline-none transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:focus-ring disabled:cursor-default disabled:opacity-disabled"
                   data-testid="home-template"
                   data-template={id}
                 >
@@ -223,7 +228,7 @@ export function HomePage() {
                 key={name}
                 isSelected={tag !== null && tag.toLocaleLowerCase() === name.toLocaleLowerCase()}
                 onChange={(on) => setTag(on ? name : null)}
-                className="inline-flex h-control-sm items-center rounded-full border border-border px-2 text-xs text-text-muted outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:border-accent selected:bg-surface-selected selected:text-text"
+                className={chipToggleClass}
                 data-testid="home-tag"
                 data-tag={name}
               >
@@ -259,7 +264,7 @@ export function HomePage() {
                   isSelected={project.favorite}
                   onChange={(next) => favorite(project, next)}
                   aria-label={t(project.favorite ? 'home.unfavorite' : 'home.favorite', { name: project.name })}
-                  className={`absolute top-2 left-2 inline-flex size-control-sm items-center justify-center rounded-md border border-border bg-surface-raised text-text-muted shadow-1 outline-none transition-opacity hover:text-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-focus selected:text-accent ${project.favorite ? '' : 'opacity-0 group-hover/tile:opacity-100'}`}
+                  className={`absolute top-2 left-2 inline-flex size-control-sm items-center justify-center rounded-md border border-border bg-surface-raised text-text-muted shadow-1 transition-[opacity,background-color,color] hover:bg-surface-hover hover:text-text pressed:bg-surface-pressed focus-visible:opacity-100 selected:text-accent-text ${pressable} ${project.favorite ? '' : 'opacity-0 group-hover/tile:opacity-100'}`}
                   data-testid="home-tile-favorite"
                 >
                   {project.favorite ? <IconStarFilled className="size-icon-sm" aria-hidden /> : <IconStar className="size-icon-sm" aria-hidden />}
@@ -311,20 +316,20 @@ function TileMenu({ project, ready, open, onAction }: { project: ProjectEntry; r
     <MenuTrigger>
       <AriaButton
         aria-label={t('home.actions', { name: project.name })}
-        className="absolute top-2 right-2 inline-flex size-control-sm items-center justify-center rounded-md border border-border bg-surface-raised text-text-muted opacity-0 shadow-1 outline-none transition-opacity group-hover/tile:opacity-100 hover:text-text focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-focus pressed:opacity-100"
+        className={`absolute top-2 right-2 inline-flex size-control-sm items-center justify-center rounded-md border border-border bg-surface-raised text-text-muted opacity-0 shadow-1 transition-[opacity,background-color,color] group-hover/tile:opacity-100 hover:bg-surface-hover hover:text-text pressed:bg-surface-pressed pressed:opacity-100 focus-visible:opacity-100 ${pressable}`}
         data-testid="home-tile-menu"
       >
         <IconDots className="size-icon-sm" aria-hidden />
       </AriaButton>
-      <Popover placement="bottom end" offset={4} className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
-        <Menu aria-label={t('home.actions', { name: project.name })} className="outline-none" disabledKeys={ready ? [] : open ? ['rename', 'trash'] : ['open']} onAction={(key) => onAction(String(key))}>
+      <Popover placement="bottom end" offset={POPOVER_OFFSET} className={popoverClass}>
+        <Menu aria-label={t('home.actions', { name: project.name })} className={menuClass} disabledKeys={ready ? [] : open ? ['rename', 'trash'] : ['open']} onAction={(key) => onAction(String(key))}>
           {item('open', <IconFolderOpen className="size-icon-sm text-text-muted" aria-hidden />, t('home.openProject'))}
           {item('rename', <IconPencil className="size-icon-sm text-text-muted" aria-hidden />, t('project.rename'))}
           {item('duplicate', <IconCopy className="size-icon-sm text-text-muted" aria-hidden />, t('project.duplicate'))}
           {item('reveal', <IconFolderSearch className="size-icon-sm text-text-muted" aria-hidden />, t('project.reveal'))}
           {item('tags', <IconTags className="size-icon-sm text-text-muted" aria-hidden />, t('home.tags.edit'))}
           {item('export', <IconFileExport className="size-icon-sm text-text-muted" aria-hidden />, t('project.exportPackage'))}
-          <Separator className="my-1 border-t border-border" />
+          <Separator className={menuSeparatorClass} />
           {item('trash', <IconTrash className="size-icon-sm text-text-muted" aria-hidden />, t('project.trash'))}
         </Menu>
       </Popover>
@@ -339,7 +344,7 @@ function ProjectTile({ project, open, disabled, when, onOpen }: { project: Proje
     <AriaButton
       onPress={onOpen}
       isDisabled={disabled && !open}
-      className={`group flex w-full flex-col overflow-hidden rounded-lg border bg-surface text-left outline-none transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-default ${open ? 'border-accent' : 'border-border'}`}
+      className={`group flex w-full flex-col overflow-hidden rounded-lg border bg-surface text-left outline-none transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:focus-ring disabled:cursor-default ${open ? 'border-accent' : 'border-border'}`}
       data-testid="home-tile"
       data-name={project.name}
       data-open={open}

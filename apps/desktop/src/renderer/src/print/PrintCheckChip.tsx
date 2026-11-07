@@ -4,12 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover } from 'react-aria-components';
 
 import { useStudio } from '../state/store';
+import { popoverPanelClass } from '../ui/Overlay';
+import { dotTone } from '../ui/Feedback';
 
-const DOT: Record<PrintStatus, string> = {
-  ready: 'bg-success',
-  warn: 'bg-warning',
-  block: 'bg-danger',
-};
+const DOT: Record<PrintStatus, string> = { ready: dotTone.success, warn: dotTone.warning, block: dotTone.danger };
 
 const severityDot = (finding: PrintFinding) => DOT[finding.severity];
 
@@ -87,7 +85,7 @@ function FindingRow({ finding }: { finding: PrintFinding }) {
           setStepHighlight(located.places);
           requestFocus(box);
         }}
-        className="group flex w-full items-start gap-2 rounded-sm px-2 py-1 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus pressed:bg-surface-selected"
+        className="group flex w-full items-start gap-2 rounded-sm px-2 py-1 outline-none hover:bg-surface-hover focus-visible:focus-ring pressed:bg-surface-pressed"
       >
         {body}
         <IconCrosshair className="mt-0 size-icon-sm shrink-0 text-text-muted group-hover:text-text" aria-hidden />
@@ -115,7 +113,7 @@ export function PrintCheckChip() {
       }}
     >
       <AriaButton
-        className="inline-flex h-full items-center gap-1 rounded-sm px-1 text-xs text-text-muted outline-none hover:bg-surface-hover hover:text-text pressed:bg-surface-selected focus-visible:outline-2 focus-visible:outline-focus"
+        className="inline-flex h-full items-center gap-1 rounded-sm px-1 text-xs text-text-muted outline-none hover:bg-surface-hover hover:text-text pressed:bg-surface-pressed focus-visible:focus-ring"
         data-testid="print-check"
         data-status={status}
         data-revision={check.revision}
@@ -123,7 +121,7 @@ export function PrintCheckChip() {
         <span aria-hidden className={`size-dot rounded-full ${DOT[status]}`} />
         <span>{label}</span>
       </AriaButton>
-      <Popover placement="top start" offset={4} className="w-dialog-sm max-w-full rounded-md border border-border bg-surface-raised p-2 shadow-2">
+      <Popover placement="top start" offset={4} className={`${popoverPanelClass} p-2`}>
         <Dialog className="flex flex-col gap-2 outline-none" data-testid="print-check-panel">
           <Heading slot="title" className="px-2 text-sm font-semibold text-text">
             {t('check.title')}

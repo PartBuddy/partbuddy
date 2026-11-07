@@ -1,4 +1,7 @@
 {
+  "dialog": {
+    "close": "Close"
+  },
   "app": {
     "name": "PartBuddy",
     "design": "Design",
@@ -571,7 +574,8 @@
     "askDraft": "Make parameters for the important sizes of this part.",
     "name": "Name",
     "value": "Value",
-    "invalid": "Type a length greater than 0"
+    "invalid": "Type a length greater than 0",
+    "fitted": "Chosen by the assistant, follows the printer's nozzle and layer height"
   },
   "timeline": {
     "handle": "Rollback bar",
@@ -720,14 +724,14 @@
       "label": "Research on the web",
       "hint": "The assistant may search the web and read pages, for example data sheets; every source shows as a card with its link. What a page says is never an instruction to it. Applies from the next conversation."
     },
-    "close": "Close",
     "restartNote": "Applies after a restart",
     "search": {
       "label": "Search settings",
       "placeholder": "Search settings",
       "empty": "No setting matches “{query}”.",
       "count": "{count, plural, one {# setting} other {# settings}}",
-      "results": "Matching settings"
+      "results": "Matching settings",
+      "clear": "Clear search"
     },
     "group": {
       "appearance": "Language and appearance",
@@ -737,7 +741,8 @@
       "work": "How it works",
       "profiles": "Profiles",
       "app": "PartBuddy",
-      "help": "Help with problems"
+      "help": "Help with problems",
+      "rules": "Design rules"
     },
     "intro": {
       "general": "How PartBuddy looks and where it keeps your projects.",
@@ -759,6 +764,7 @@
     }
   },
   "print": {
+    "nameRequired": "Give it a name.",
     "title": "Printer and material",
     "edit": "Printer and material …",
     "chipHint": "Change the material of this part and the printer",
@@ -800,7 +806,27 @@
     "supportFree": "Design without support",
     "supportFreeHint": "The assistant chamfers edges facing the bed instead of rounding them, gives wide lying holes a teardrop roof and bridges countersinks that open downwards, so the slicer needs no support.",
     "cancel": "Cancel",
-    "save": "Save"
+    "save": "Save",
+    "design": {
+      "title": "Design well on its own",
+      "hint": "What the assistant adds without being asked. It names it in one line after every step; in the chat you can turn it off for one project (\"no fillets\"), which goes before these switches. Sizes you name are always built exactly.",
+      "rounding": {
+        "label": "Fillets and chamfers",
+        "hint": "Visible outer edges rounded 1–3 mm, edges on the bed chamfered, inner corners under load rounded."
+      },
+      "printInPlace": {
+        "label": "Print-in-place",
+        "hint": "Hinges, joints and clips first as one piece that prints ready to use, without assembly or support."
+      },
+      "details": {
+        "label": "Details",
+        "hint": "Even walls, chamfered holes and mating edges, sunk screw heads, smooth transitions."
+      },
+      "snap": {
+        "label": "Snap sizes",
+        "hint": "Walls it chooses become whole line widths, floors and heights whole layers. When you change printer, PartBuddy adjusts only these sizes."
+      }
+    }
   },
   "check": {
     "title": "Ready to print?",
@@ -908,6 +934,7 @@
     "open": "Start page with the projects",
     "close": "Back to the project",
     "search": "Search projects",
+    "searchClear": "Clear search",
     "import": "Import …",
     "list": "{count, plural, one {# project} other {# projects}}",
     "emptyTitle": "No projects yet",

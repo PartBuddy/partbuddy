@@ -8,6 +8,9 @@ import { selectedStatus, useAssistant } from '../assistant/store';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { CadIcon, type CadIconName } from '../ui/CadIcon';
+import { buttonClass, pressable } from '../ui/Button';
+import { tooltipClass } from '../ui/Tooltip';
+import { POPOVER_OFFSET, menuClass, menuHeaderClass, menuItemClass, popoverClass } from '../ui/Overlay';
 
 /** "ExtrudeFeature" → "Extrude": the kind of step, as the timeline names it. */
 export function featureKind(type: string): string {
@@ -105,7 +108,7 @@ function RollbackBar({
       aria-valuetext={shown === count ? t('timeline.handleEnd') : t('timeline.handleAfter', { name: names[shown - 1] ?? '' })}
       aria-disabled={busy}
       title={t('timeline.handleHint')}
-      className={`group absolute top-1/2 flex h-control-sm w-3 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-sm outline-none focus-visible:outline-2 focus-visible:outline-focus ${busy ? 'opacity-50' : ''}`}
+      className={`group absolute top-1/2 flex h-control-sm w-3 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-sm outline-none focus-visible:focus-ring ${busy ? 'opacity-disabled' : ''}`}
       data-testid="timeline-handle"
       data-position={shown}
       onPointerDown={(event) => {
@@ -185,9 +188,9 @@ export function Timeline() {
           return (
             <li key={feature.id} className="flex shrink-0 items-center gap-1">
               <MenuTrigger>
-                <TooltipTrigger delay={300}>
+                <TooltipTrigger delay={500} closeDelay={0}>
                 <AriaButton
-                  className={`relative inline-flex size-control-sm items-center justify-center rounded-md border outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus ${
+                  className={`relative inline-flex size-control-sm items-center justify-center rounded-md border hover:bg-surface-hover pressed:bg-surface-pressed ${pressable} ${
                     feature.error ? 'border-danger text-danger' : feature.warning ? 'border-warning text-text' : 'border-transparent text-text'
                   } ${faded ? 'opacity-40' : ''}`}
                   aria-label={t('timeline.step', { name: feature.name, kind: t(`timeline.kind.${kind}`, { defaultValue: kind }) })}
@@ -199,15 +202,15 @@ export function Timeline() {
                   <span className="sr-only">{feature.name}</span>
                   {feature.suppressed ? <span aria-hidden className="pointer-events-none absolute h-hairline w-4 rotate-45 bg-text-subtle" /> : null}
                 </AriaButton>
-                <Tooltip placement="top" offset={6} className="rounded-sm bg-surface-raised px-2 py-1 text-xs text-text shadow-2">
+                <Tooltip placement="top" offset={6} className={tooltipClass}>
                   {feature.name}
                   <span className="text-text-subtle"> · {t(`timeline.kind.${kind}`, { defaultValue: kind })}</span>
                 </Tooltip>
                 </TooltipTrigger>
-                <Popover placement="top start" offset={6} className="min-w-menu max-w-text-max rounded-md border border-border bg-surface-raised p-1 shadow-2">
+                <Popover placement="top start" offset={POPOVER_OFFSET} className={`${popoverClass} max-w-text-max`}>
                   <Menu
                     aria-label={feature.name}
-                    className="outline-none"
+                    className={menuClass}
                     onAction={(key) => {
                       if (key === 'roll') run({ action: 'rollTo', position: index + 1 });
                       if (key === 'suppress') run({ action: 'suppress', feature: feature.id, suppressed: !feature.suppressed });
@@ -215,7 +218,7 @@ export function Timeline() {
                     disabledKeys={busy ? ['roll', 'suppress'] : []}
                   >
                     <MenuSection>
-                      <Header className="px-2 py-1 text-xs text-text-subtle">
+                      <Header className={menuHeaderClass}>
                         {t(`timeline.kind.${kind}`, { defaultValue: kind })} · {t('timeline.rebuild', { ms: Math.round(feature.ms) })}
                       </Header>
                       {feature.error || feature.warning ? (
@@ -225,10 +228,10 @@ export function Timeline() {
                       ) : null}
                     </MenuSection>
                     <MenuSection>
-                      <MenuItem id="roll" className="cursor-default rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover disabled:opacity-50">
+                      <MenuItem id="roll" className={menuItemClass}>
                         {t('timeline.rollTo')}
                       </MenuItem>
-                      <MenuItem id="suppress" className="cursor-default rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover disabled:opacity-50">
+                      <MenuItem id="suppress" className={menuItemClass}>
                         {feature.suppressed ? t('timeline.unsuppress') : t('timeline.suppress')}
                       </MenuItem>
                     </MenuSection>
@@ -257,7 +260,7 @@ export function Timeline() {
           onPress={() => {
             run({ action: 'rollTo', position: 'end' });
           }}
-          className="inline-flex h-control-sm shrink-0 items-center gap-1 rounded-md border border-accent px-2 text-xs text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+          className={`${buttonClass('quiet', 'sm')} border border-accent`}
           data-testid="timeline-end"
         >
           <IconPlayerTrackNext className="size-icon-sm" aria-hidden />

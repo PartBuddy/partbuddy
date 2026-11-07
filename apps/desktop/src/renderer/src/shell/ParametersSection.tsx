@@ -1,7 +1,7 @@
 import { IconAlertCircle, IconSparkles, IconStarFilled, IconVariable } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Input, Slider, SliderThumb, SliderTrack, TextField } from 'react-aria-components';
+import { Input, Slider, TextField } from 'react-aria-components';
 
 import type { DesignParameter } from '../../../shared/contract';
 import { selectedStatus, useAssistant } from '../assistant/store';
@@ -9,8 +9,11 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { parseLength } from '../viewer/lengthInput';
 import { LooseDimensions } from '../viewer/Dimensions';
+import { fitMarkOf } from '../../../shared/designFit';
 import { commentText, rangeOf } from './parameterRange';
 import { TreeEmpty, TreeExtra, TreeItem, TreeSection } from './Tree';
+import { fieldBox } from '../ui/Field';
+import { SliderBar } from '../ui/Choice';
 
 const PREVIEW_DELAY_MS = 250;
 
@@ -89,7 +92,7 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
     box.current?.querySelector<HTMLElement>('[role="treeitem"]')?.focus();
   };
   // Comment, range and formula show on hover; the row stays one line (Name · Value · Unit).
-  const title = [note, range ? t('parameters.range', { min: format(range.min), max: format(range.max), unit: parameter.unit }) : null, parameter.editable ? null : `= ${parameter.expression}`, parameter.editable ? null : t('parameters.formulaHint')]
+  const title = [note, fitMarkOf(parameter.comment) ? t('parameters.fitted') : null, range ? t('parameters.range', { min: format(range.min), max: format(range.max), unit: parameter.unit }) : null, parameter.editable ? null : `= ${parameter.expression}`, parameter.editable ? null : t('parameters.formulaHint')]
     .filter(Boolean)
     .join('\n');
 
@@ -127,7 +130,7 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
               onFocus={(event) => {
                 event.currentTarget.select();
               }}
-              className="h-control-sm w-full rounded-sm border border-accent bg-surface px-1 text-right text-sm tabular-nums text-text outline-none invalid:border-danger disabled:opacity-50"
+              className={`h-control-sm w-full min-w-0 px-1 text-right text-sm tabular-nums ${fieldBox}`}
               onKeyDown={(event) => {
                 event.stopPropagation();
                 if (event.key === 'Enter') {
@@ -173,15 +176,7 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
           className="mr-2 ml-5 w-auto"
           data-testid="parameter-slider"
         >
-          <SliderTrack className="relative h-icon w-full">
-            {({ state }) => (
-              <>
-                <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
-                <span aria-hidden className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ width: `${String(state.getThumbPercent(0) * 100)}%` }} />
-                <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:outline-2 focus-visible:outline-focus" />
-              </>
-            )}
-          </SliderTrack>
+          <SliderBar />
         </Slider>
         </TreeExtra>
       ) : null}

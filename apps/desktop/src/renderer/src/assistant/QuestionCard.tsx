@@ -5,10 +5,12 @@ import { CheckboxButton, CheckboxField, Input, RadioButton, RadioField, RadioGro
 
 import type { MessageAnswer } from '../../../shared/contract';
 import { Button } from '../ui/Button';
-import { radioClass, RadioMark } from './AgentChip';
 import { card } from './Fold';
 import { roundAnswers, roundMessage, type Round } from './round';
 import type { ConversationItem } from './store';
+import { inputClass } from '../ui/Field';
+import { CheckMark, RadioMark, choiceRowClass } from '../ui/Choice';
+import { badgeClass } from '../ui/Feedback';
 
 export type QuestionItem = Extract<ConversationItem, { kind: 'question' }>;
 
@@ -97,7 +99,7 @@ function OptionText({ option }: { option: Option }) {
       <span className="flex flex-wrap items-center gap-1 text-sm text-text">
         {option.label}
         {option.recommended ? (
-          <span className="rounded-full bg-accent px-2 text-xs font-medium text-on-accent" data-testid="option-recommended">
+          <span className={badgeClass('accent', true)} data-testid="option-recommended">
             {t('assistant.question.recommended')}
           </span>
         ) : null}
@@ -152,13 +154,8 @@ function RoundCard({ round, open, ready, answer }: { round: Round; open: boolean
                       setPicks(setAt(picks, i, selected ? [...picked, n].sort() : picked.filter((x) => x !== n)));
                     }}
                   >
-                    <CheckboxButton className={radioClass}>
-                      <span
-                        aria-hidden
-                        className="mt-1 flex size-icon-sm shrink-0 items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent"
-                      >
-                        <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
-                      </span>
+                    <CheckboxButton className={choiceRowClass}>
+                      <CheckMark />
                       <OptionText option={option} />
                     </CheckboxButton>
                   </CheckboxField>
@@ -177,7 +174,7 @@ function RoundCard({ round, open, ready, answer }: { round: Round; open: boolean
               >
                 {entry.options.map((option, n) => (
                   <RadioField key={n} value={String(n)}>
-                    <RadioButton className={radioClass}>
+                    <RadioButton className={choiceRowClass}>
                       <RadioMark />
                       <OptionText option={option} />
                     </RadioButton>
@@ -196,7 +193,7 @@ function RoundCard({ round, open, ready, answer }: { round: Round; open: boolean
               >
                 <Input
                   placeholder={t('assistant.question.otherPlaceholder')}
-                  className="h-control-sm w-full rounded-sm border border-border bg-surface px-2 text-sm text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus"
+                  className={inputClass('sm')}
                 />
               </TextField>
             ) : null}
