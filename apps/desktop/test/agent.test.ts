@@ -184,6 +184,13 @@ describe('Claude Code adapter', () => {
     expect(parseStreamLine('{"type":"result","subtype":"error_max_turns","is_error":true}')).toEqual([
       { type: 'done', ok: false, durationMs: null, detail: 'error_max_turns' },
     ]);
+    // An expired sign-in comes as a "success" with is_error; a plain error with is_error is a failure, not a stop.
+    expect(parseStreamLine('{"type":"result","subtype":"success","is_error":true,"result":"Failed to authenticate: OAuth session expired and could not be refreshed"}')).toEqual([
+      { type: 'done', ok: false, durationMs: null, detail: 'signedOut', reason: 'Failed to authenticate: OAuth session expired and could not be refreshed' },
+    ]);
+    expect(parseStreamLine('{"type":"result","subtype":"success","is_error":true,"result":"API Error: 500"}')).toEqual([
+      { type: 'done', ok: false, durationMs: null, detail: 'failed', reason: 'API Error: 500' },
+    ]);
     expect(parseStreamLine('not json')).toEqual([]);
     // The plan's limits after a request (Claude Code 2.1.302); odd values are left out or clamped.
     expect(

@@ -5,6 +5,8 @@ import { Button as AriaButton } from 'react-aria-components';
 import { selectedStatus, useAssistant } from '../assistant/store';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
+import { surfaceKind } from '@partbuddy/geometry';
+
 import { selectionOf } from '../viewer/viewState';
 import { NoteStatus, useNoteCommand } from './NoteParts';
 
@@ -26,6 +28,12 @@ export function NotesSection() {
   const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy';
   const run = useNoteCommand();
   const target = selections.length === 1 ? selectionOf(model, selection) : null;
+  // Where a note sits, readable like the status bar ("Ebene · Gehäuse"); SolidCraft's name on hover.
+  const where = (note: (typeof state.notes)[number]): string => {
+    const face = model.status === 'ready' ? model.bodies.find((body) => body.name === note.body)?.model.table.faces.find((entry) => entry.name === note.target) : undefined;
+    const kind = face ? t(`viewer.surface.${surfaceKind(face)}`) : t(`viewer.kind.${note.kind === 'point' ? 'vertex' : note.kind}`);
+    return `${kind} · ${note.body}`;
+  };
 
   return (
     <section aria-labelledby="structure-notes" data-testid="notes">
@@ -70,7 +78,9 @@ export function NotesSection() {
             </AriaButton>
             <div className="flex flex-wrap items-center gap-1 pl-7">
               <NoteStatus note={note} />
-              {note.target ? <span className="truncate tabular-nums text-xs text-text-subtle">{note.target}</span> : null}
+              <span className="truncate text-xs text-text-subtle" title={note.target ?? undefined}>
+                {where(note)}
+              </span>
             </div>
             {!note.own || note.status === 'orphaned' || note.status === 'ambiguous' ? (
               <div className="flex flex-wrap gap-1 pl-6">

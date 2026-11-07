@@ -202,10 +202,14 @@ export class AgentService implements AgentBackend {
         case 'source':
           this.listeners.event(event);
           break;
-        case 'done':
-          this.listeners.event(event);
-          this.setStatus({ ...this.current, state: 'ready' });
+        case 'done': {
+          const { reason, ...done } = event;
+          if (reason) this.options.log(`Claude Code ended the turn with: ${reason}`);
+          this.listeners.event(done);
+          // The chat says to sign in again; the chip and the panel show it as well.
+          this.setStatus({ ...this.current, state: done.detail === 'signedOut' ? 'signedOut' : 'ready' });
           break;
+        }
         case 'exited':
           if (this.current.state === 'busy') {
             this.listeners.event({ type: 'done', ok: false, durationMs: null, detail: 'stopped' });

@@ -144,7 +144,7 @@ function selectionSummary(t: TFunction, selected: { faces: number; edges: number
 }
 
 /** How a turn can end without an answer, as Claude Code and PartBuddy's own loop report it. */
-const FAILURE_REASONS = new Set(['failed', 'error_during_execution', 'error_max_turns']);
+const FAILURE_REASONS = new Set(['failed', 'error_during_execution', 'error_max_turns', 'signedOut']);
 
 /** Requests an empty chat offers as a start: a holder, a housing, a part after a photo. */
 const EXAMPLES = ['holder', 'housing', 'photo'] as const;

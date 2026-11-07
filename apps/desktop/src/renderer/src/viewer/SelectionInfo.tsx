@@ -33,7 +33,6 @@ export function SelectionInfo({ bodies, selection }: { bodies: BodyModel[]; sele
     facts = [
       ...(face.cylinder ? [{ label: t('viewer.radius'), value: mm(face.cylinder.radius) }] : []),
       { label: t('viewer.area'), value: t('units.mm2', { value: face.area }) },
-      { label: t('viewer.anchor'), value: face.exact ? t('viewer.anchorExact') : t('viewer.anchorGeometric') },
     ];
   } else if (selection.kind === 'edge') {
     const edge = edgeLabel(model, selection.edge);

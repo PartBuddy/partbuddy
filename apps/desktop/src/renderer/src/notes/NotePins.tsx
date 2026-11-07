@@ -25,6 +25,17 @@ function NoteCard({ note, number, busy }: { note: NoteView; number: number; busy
   const setOpenNote = useStudio((s) => s.setOpenNote);
   const run = useNoteCommand();
   const [editing, setEditing] = useState(false);
+  // Escape closes the card also when the focus is still on the pin that opened it.
+  useEffect(() => {
+    if (editing) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenNote(null);
+    };
+    window.addEventListener('keydown', close);
+    return () => {
+      window.removeEventListener('keydown', close);
+    };
+  }, [editing, setOpenNote]);
   return (
     <div
       role="dialog"

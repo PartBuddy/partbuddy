@@ -586,7 +586,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
         if (!next) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center overflow-y-auto bg-overlay px-4 pb-4 pt-dialog-offset"
+      className="fixed inset-0 z-10 flex items-start justify-center overflow-y-auto bg-overlay px-4 pb-4 pt-dialog-offset [@media(max-height:720px)]:pt-4"
     >
       <Modal className="w-dialog-xl max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
         <Dialog className="outline-none" data-testid="sketch-pad">
@@ -615,7 +615,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
           <Heading slot="title" className="text-lg font-semibold text-text">
             {t('assistant.sketch.title')}
           </Heading>
-          <p className="text-sm text-text-muted">{t('assistant.sketch.body')}</p>
+          <p className="text-sm text-text-muted [@media(max-height:720px)]:hidden">{t('assistant.sketch.body')}</p>
           <div className="flex flex-wrap items-center gap-2">
             <ToggleButtonGroup
               aria-label={t('assistant.sketch.sheets')}
@@ -777,7 +777,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
             </p>
           ) : null}
           {/* The paper shrinks with a low window so the buttons below stay in reach (polish round 1: 800 px high hid them). */}
-          <div className="relative mx-auto w-full max-w-[calc((100dvh_-_25rem)_*_1.524)]">
+          <div className="relative mx-auto w-full max-w-[calc((100dvh_-_25rem)_*_1.524)] [@media(max-height:720px)]:max-w-[calc((100dvh_-_18rem)_*_1.524)]">
             <canvas
               ref={canvas}
               width={SKETCH_SIZE.width * 2}
