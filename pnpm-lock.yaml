@@ -220,6 +220,9 @@ importers:
       electron-updater:
         specifier: 6.8.11
         version: 6.8.11(supports-color@7.2.0)
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       i18next:
         specifier: 26.5.11
         version: 26.5.11(@typescript/typescript6@6.0.2)

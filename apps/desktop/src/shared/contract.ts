@@ -276,6 +276,8 @@ export const trashEntrySchema = z
   })
   .strict();
 export const trashListSchema = z.array(trashEntrySchema).max(200);
+/** Whether the project package (P3) was written; false when the save dialog was cancelled. */
+export const packageExportResultSchema = z.object({ saved: z.boolean() }).strict();
 export const trashIdSchema = z.object({ id: z.string().regex(/^t-[a-z0-9]{1,20}$/) }).strict();
 
 /** The colour theme: follow the system (Windows), or always light or dark. */
@@ -1010,6 +1012,7 @@ export const invokeContract = {
   [invokeChannels.projectRestoreVersion]: { request: versionIdSchema, response: none },
   [invokeChannels.projectCompareVersion]: { request: versionIdSchema, response: versionComparisonSchema },
   [invokeChannels.projectTrashList]: { request: none, response: trashListSchema },
+  [invokeChannels.projectExportPackage]: { request: projectTargetSchema, response: packageExportResultSchema },
   [invokeChannels.projectTrashRestore]: { request: trashIdSchema, response: none },
   [invokeChannels.projectTrashEmpty]: { request: none, response: none },
   [invokeChannels.mirrorCurrent]: { request: none, response: mirrorRevisionSchema.nullable() },

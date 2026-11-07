@@ -6,7 +6,7 @@ import { useStudio } from '../state/store';
 import { useProjectSwitch } from './projectSwitch';
 
 /** The kinds of file PartBuddy imports (B4); the main process checks them again. */
-const PROJECT_FILES = /\.(sc|step|stp|iges|igs|stl|3mf|obj)$/i;
+const PROJECT_FILES = /\.(partbuddy|sc|step|stp|iges|igs|stl|3mf|obj)$/i;
 const INSERT_FILES = /\.(step|stp|iges|igs|stl|3mf|obj)$/i;
 
 export function importable(name: string): boolean {

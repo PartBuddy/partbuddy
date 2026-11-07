@@ -1,4 +1,4 @@
-import { IconChevronDown, IconCopy, IconCube, IconDots, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPencil, IconSearch, IconTrash, IconX } from '@tabler/icons-react';
+import { IconChevronDown, IconCopy, IconCube, IconDots, IconFileExport, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPencil, IconSearch, IconTrash, IconX } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Heading, Input, ListBox, ListBoxItem, Menu, MenuItem, MenuTrigger, Popover, SearchField, Select, SelectValue, Separator } from 'react-aria-components';
@@ -7,7 +7,7 @@ import type { ProjectCheck, ProjectEntry, ProjectInfo, TrashEntry } from '../../
 import { TEMPLATE_IDS, type TemplateId } from '../../../shared/templates';
 import { platform } from '../platform';
 import { useFileImport } from '../shell/fileImport';
-import { RenameDialog, TrashDialog } from '../shell/ProjectMenu';
+import { exportProject, RenameDialog, TrashDialog } from '../shell/ProjectMenu';
 import { useProjectSwitch } from '../shell/projectSwitch';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
@@ -97,6 +97,7 @@ export function HomePage() {
     else if (action === 'rename' || action === 'trash') setDialog({ kind: action, project });
     else if (action === 'duplicate') void api.duplicate(project.folder).then(reload, failed);
     else if (action === 'reveal') void api.reveal(project.folder).catch(failed);
+    else if (action === 'export') exportProject(api.exportPackage(project.folder), t);
   };
 
   useEffect(() => {
@@ -284,6 +285,7 @@ function TileMenu({ project, ready, open, onAction }: { project: ProjectEntry; r
           {item('rename', <IconPencil className="size-icon-sm text-text-muted" aria-hidden />, t('project.rename'))}
           {item('duplicate', <IconCopy className="size-icon-sm text-text-muted" aria-hidden />, t('project.duplicate'))}
           {item('reveal', <IconFolderSearch className="size-icon-sm text-text-muted" aria-hidden />, t('project.reveal'))}
+          {item('export', <IconFileExport className="size-icon-sm text-text-muted" aria-hidden />, t('project.exportPackage'))}
           <Separator className="my-1 border-t border-border" />
           {item('trash', <IconTrash className="size-icon-sm text-text-muted" aria-hidden />, t('project.trash'))}
         </Menu>

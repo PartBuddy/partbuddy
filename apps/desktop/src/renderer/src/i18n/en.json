@@ -838,10 +838,12 @@
     "inserted": "Inserted {name} ({count, plural, one {# body} other {# bodies}}).",
     "dropAsProject": "Drop to make a new project",
     "dropIntoDesign": "Drop to insert into this project",
-    "dropKinds": "STEP, IGES, STL, 3MF, OBJ or a SolidCraft design",
-    "dropUnknown": "PartBuddy imports STEP, IGES, STL, 3MF, OBJ and SolidCraft designs.",
+    "dropKinds": "STEP, IGES, STL, 3MF, OBJ, a SolidCraft design or a PartBuddy project",
+    "dropUnknown": "PartBuddy imports STEP, IGES, STL, 3MF, OBJ, SolidCraft designs and PartBuddy projects (.partbuddy).",
     "dropNoPath": "This file has no place on the disk yet. Save it first, then drop it from Explorer.",
-    "trashBodyKeep": "The project folder with design, conversation, versions and exports goes to the recycle bin at the bottom of the start page and can be restored there for 30 days."
+    "trashBodyKeep": "The project folder with design, conversation, versions and exports goes to the recycle bin at the bottom of the start page and can be restored there for 30 days.",
+    "exportPackage": "Export as a file …",
+    "exportedPackage": "The project is saved as a .partbuddy file, with conversation, versions and sketches."
   },
   "home": {
     "title": "Projects",

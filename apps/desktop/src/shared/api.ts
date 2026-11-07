@@ -130,6 +130,8 @@ export interface PartBuddyApi {
     restoreVersion(id: string): Promise<void>;
     /** What changed between a version and the open design. */
     compareVersion(id: string): Promise<VersionComparison>;
+    /** Writes a project as one `.partbuddy` file where the user chooses (P3); the open one without `folder`. */
+    exportPackage(folder?: string): Promise<{ saved: boolean }>;
     /** The deleted projects in PartBuddy's recycle bin, newest first (P2). */
     trashList(): Promise<TrashEntry[]>;
     /** Puts a deleted project back into the project folder, under the next free name if needed. */
