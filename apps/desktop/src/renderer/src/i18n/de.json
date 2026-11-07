@@ -831,7 +831,7 @@
       "busy": "Gerade nicht möglich."
     },
     "trashTitle": "„{name}“ in den Papierkorb?",
-    "trashBody": "Der Projektordner mit Design, Chat und Exporten kommt in den Windows-Papierkorb und lässt sich dort wiederherstellen. Danach beginnt ein neues, leeres Projekt.",
+    "trashBody": "Der Projektordner mit Design, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen. Danach beginnt ein neues, leeres Projekt.",
     "trashConfirm": "In den Papierkorb",
     "import": "Als neues Projekt importieren …",
     "insert": "Datei einfügen …",
@@ -841,7 +841,7 @@
     "dropKinds": "STEP, IGES, STL, 3MF, OBJ oder ein SolidCraft-Design",
     "dropUnknown": "PartBuddy importiert STEP, IGES, STL, 3MF, OBJ und SolidCraft-Designs.",
     "dropNoPath": "Diese Datei liegt noch nicht auf dem Datenträger. Erst speichern, dann aus dem Explorer ziehen.",
-    "trashBodyKeep": "Der Projektordner mit Design, Chat und Exporten kommt in den Windows-Papierkorb und lässt sich dort wiederherstellen."
+    "trashBodyKeep": "Der Projektordner mit Design, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen."
   },
   "home": {
     "title": "Projekte",
@@ -890,7 +890,17 @@
     "name": "Name",
     "created": "Zuletzt angelegt",
     "actions": "Aktionen für {name}",
-    "openProject": "Öffnen"
+    "openProject": "Öffnen",
+    "trash": {
+      "title": "Papierkorb ({count, plural, one {# Projekt} other {# Projekte}})",
+      "hint": "Gelöschte Projekte bleiben 30 Tage hier und gehen danach in den Windows-Papierkorb.",
+      "deleted": "Gelöscht {when}",
+      "restore": "Wiederherstellen",
+      "restored": "„{name}“ ist wieder da.",
+      "empty": "Papierkorb leeren …",
+      "emptyQuestion": "{count, plural, one {Das Projekt} other {Alle # Projekte}} in den Windows-Papierkorb geben?",
+      "emptyConfirm": "Leeren"
+    }
   },
   "versions": {
     "title": "Versionen",

@@ -52,6 +52,9 @@ const api: PartBuddyApi = {
     saveVersion: (label) => ipcRenderer.invoke(invokeChannels.projectSaveVersion, { label }),
     restoreVersion: (id) => ipcRenderer.invoke(invokeChannels.projectRestoreVersion, { id }),
     compareVersion: (id) => ipcRenderer.invoke(invokeChannels.projectCompareVersion, { id }),
+    trashList: () => ipcRenderer.invoke(invokeChannels.projectTrashList),
+    restoreTrashed: (id) => ipcRenderer.invoke(invokeChannels.projectTrashRestore, { id }),
+    emptyTrash: () => ipcRenderer.invoke(invokeChannels.projectTrashEmpty),
   },
   solidcraft: {
     engine: () => ipcRenderer.invoke(invokeChannels.solidcraftEngine),

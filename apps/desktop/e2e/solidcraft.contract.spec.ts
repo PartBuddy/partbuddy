@@ -935,7 +935,7 @@ test('the dimensions of the wall holder neither cover each other nor show throug
 
 test('a part becomes a project folder that is renamed, duplicated, opened, started anew and trashed (B2)', async () => {
   test.setTimeout(240_000);
-  const { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, copyFileSync } = await import('node:fs');
+  const { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, copyFileSync, readdirSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-projects-'));
@@ -1007,21 +1007,15 @@ test('a part becomes a project folder that is renamed, duplicated, opened, start
     expect(existsSync(join(projects, 'Bracket', 'Bracket.sc'))).toBe(true);
     expect(existsSync(join(outside, 'Bracket.sc'))).toBe(true);
 
-    // Trash: after a confirmation the folder goes to the recycle bin (recorded here, not done).
-    await app.evaluate(({ shell }) => {
-      (globalThis as unknown as { trashed: string[] }).trashed = [];
-      shell.trashItem = (path: string) => {
-        (globalThis as unknown as { trashed: string[] }).trashed.push(path);
-        return Promise.resolve();
-      };
-    });
+    // Trash: after a confirmation the folder goes whole into PartBuddy's recycle bin (P2).
     await menu.click();
     await page.getByTestId('project-trash').click();
     await expect(page.getByTestId('project-trash-dialog')).toContainText('Move "Bracket" to the recycle bin?');
     await page.getByTestId('project-trash-confirm').click();
     await expect(name).toHaveText('New part', { timeout: 30_000 });
-    const trashed = await app.evaluate(() => (globalThis as unknown as { trashed: string[] }).trashed);
-    expect(trashed).toEqual([join(projects, 'Bracket')]);
+    expect(existsSync(join(projects, 'Bracket'))).toBe(false);
+    const slots = readdirSync(join(projects, '.trash'));
+    expect(slots.some((slot) => existsSync(join(projects, '.trash', slot, 'Bracket', 'Bracket.sc')))).toBe(true);
     expect(readFileSync(join(projects, 'Wall holder', 'Wall holder.sc')).length).toBeGreaterThan(0);
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('projects-failed.png') }).catch(() => undefined);

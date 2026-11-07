@@ -233,7 +233,7 @@ function replaceFile(file: string, content: Buffer | string): void {
 }
 
 /** The preview of a project folder and its light; nothing when the files are missing or wrong. */
-function readPreview(folder: string): Pick<ProjectEntry, 'preview' | 'check'> {
+export function readPreview(folder: string): Pick<ProjectEntry, 'preview' | 'check'> {
   let preview: string | null = null;
   let check: ProjectCheck | null = null;
   try {

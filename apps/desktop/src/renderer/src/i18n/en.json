@@ -831,7 +831,7 @@
       "busy": "Not possible right now."
     },
     "trashTitle": "Move \"{name}\" to the recycle bin?",
-    "trashBody": "The project folder with design, conversation and exports goes to the Windows recycle bin and can be restored from there. A new, empty project starts afterwards.",
+    "trashBody": "The project folder with design, conversation, versions and exports goes to the recycle bin at the bottom of the start page and can be restored there for 30 days. A new, empty project starts afterwards.",
     "trashConfirm": "Move to recycle bin",
     "import": "Import as new project …",
     "insert": "Insert file …",
@@ -841,7 +841,7 @@
     "dropKinds": "STEP, IGES, STL, 3MF, OBJ or a SolidCraft design",
     "dropUnknown": "PartBuddy imports STEP, IGES, STL, 3MF, OBJ and SolidCraft designs.",
     "dropNoPath": "This file has no place on the disk yet. Save it first, then drop it from Explorer.",
-    "trashBodyKeep": "The project folder with design, conversation and exports goes to the Windows recycle bin and can be restored from there."
+    "trashBodyKeep": "The project folder with design, conversation, versions and exports goes to the recycle bin at the bottom of the start page and can be restored there for 30 days."
   },
   "home": {
     "title": "Projects",
@@ -890,7 +890,17 @@
     "name": "Name",
     "created": "Last created",
     "actions": "Actions for {name}",
-    "openProject": "Open"
+    "openProject": "Open",
+    "trash": {
+      "title": "Recycle bin ({count, plural, one {# project} other {# projects}})",
+      "hint": "Deleted projects stay here for 30 days and then go to the Windows recycle bin.",
+      "deleted": "Deleted {when}",
+      "restore": "Restore",
+      "restored": "“{name}” is back.",
+      "empty": "Empty recycle bin …",
+      "emptyQuestion": "Hand {count, plural, one {the project} other {all # projects}} to the Windows recycle bin?",
+      "emptyConfirm": "Empty"
+    }
   },
   "versions": {
     "title": "Versions",

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Heading, Input, ListBox, ListBoxItem, Menu, MenuItem, MenuTrigger, Popover, SearchField, Select, SelectValue, Separator } from 'react-aria-components';
 
-import type { ProjectCheck, ProjectEntry, ProjectInfo } from '../../../shared/contract';
+import type { ProjectCheck, ProjectEntry, ProjectInfo, TrashEntry } from '../../../shared/contract';
 import { TEMPLATE_IDS, type TemplateId } from '../../../shared/templates';
 import { platform } from '../platform';
 import { useFileImport } from '../shell/fileImport';
@@ -12,6 +12,7 @@ import { useProjectSwitch } from '../shell/projectSwitch';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
 import { StatusDot, type Tone } from '../ui/Feedback';
+import { TrashSection } from './TrashSection';
 import { matching, PROJECT_SORTS, relativeTime, sortProjects, type ProjectSort } from './projectTiles';
 import adapter from './templates/adapter.png';
 import boxWithLid from './templates/boxWithLid.png';
@@ -62,7 +63,8 @@ export function HomePage() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<ProjectSort>(storedSort);
   const [dialog, setDialog] = useState<{ kind: 'rename' | 'trash'; project: ProjectEntry } | null>(null);
-  const [now] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  const [trash, setTrash] = useState<TrashEntry[]>([]);
   const ready = connection.state === 'connected' && connection.engine === 'headless';
   const api = platform().project;
 
@@ -72,11 +74,13 @@ export function HomePage() {
   }, []);
   useEffect(() => {
     let live = true;
-    void Promise.all([api.list(), api.info()])
-      .then(([list, info]) => {
+    void Promise.all([api.list(), api.info(), api.trashList().catch(() => [])])
+      .then(([list, info, deleted]) => {
         if (!live) return;
+        setNow(Date.now());
         setProjects(list);
         setCurrent(info);
+        setTrash(deleted);
       })
       .catch(() => {
         if (live) setProjects([]);
@@ -235,6 +239,7 @@ export function HomePage() {
             ))}
           </ul>
         )}
+        <TrashSection entries={trash} now={now} onChange={reload} />
       </div>
       {dialog?.kind === 'rename' ? <RenameDialog key={dialog.project.folder} open name={dialog.project.name} folder={dialog.project.folder} onClose={() => setDialog(null)} onDone={reload} /> : null}
       {dialog?.kind === 'trash' ? (
