@@ -205,6 +205,10 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
       return usage.length > 0 ? [{ type: 'usage', windows: usage }] : [];
     }
     case 'assistant': {
+      // An API error comes as a made-up answer, e.g. "Failed to authenticate: OAuth session expired…"
+      // with "error":"authentication_failed","isApiErrorMessage":true (transcripts of 2.1.247 to 2.1.302);
+      // the result after it carries the same text into the log and the chat's own card.
+      if (message.isApiErrorMessage === true) return [];
       const content = (message.message as { content?: unknown } | undefined)?.content;
       if (!Array.isArray(content)) return [];
       const text = content

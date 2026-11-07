@@ -12,10 +12,16 @@ directories:
 files:
   - out/**
   - "!out/**/*.map"
+  - "!out/THIRD-PARTY-NOTICES.txt"
   - package.json
   - "!node_modules/**"
   - node_modules/@napi-rs/keyring/**
   - node_modules/@napi-rs/keyring-win32-x64-msvc/**
+# Licence texts of every bundled library (ADR 0007), written before packing, next to the asar.
+beforePack: ../../tools/licenses/notices.mjs
+extraResources:
+  - from: out/THIRD-PARTY-NOTICES.txt
+    to: THIRD-PARTY-NOTICES.txt
 asar: true
 asarUnpack:
   - "**/*.node"

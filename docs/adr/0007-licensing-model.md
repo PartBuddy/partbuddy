@@ -43,7 +43,7 @@ works with (OrcaSlicer AGPL-3.0, Blender GPL-3.0-or-later, PyMeshLab GPL-3.0).
 | Blender | GPL-3.0-or-later | separate process | The render script is part of this repository under the same licence |
 | PyMeshLab | GPL-3.0 | sidecar library | Allowed; ADR 0012 keeps it where it checks better than trimesh |
 | Open CASCADE builds (occt-import-js) | LGPL-2.1 | fallback only | Compatible with GPL-3.0; shipped with licence text and source reference |
-| Libraries in the app | MIT, Apache-2.0, BSD, ISC, MPL-2.0, Zlib | bundled | Compatible with GPL-3.0; listed with licence texts in the third-party notices |
+| Libraries in the app | MIT, Apache-2.0, BSD, ISC, MPL-2.0, Zlib | bundled | Compatible with GPL-3.0; listed with licence texts in the third-party notices (`resources/THIRD-PARTY-NOTICES.txt` of the installed app, written by `tools/licenses/notices.mjs` before electron-builder packs; since 2026-11-07) |
 
 Licences that are incompatible with GPL-3.0 or restrict use (GPL-2.0-only, SSPL, BUSL, non-commercial
 Creative Commons, proprietary) are blocked by the licence gate in CI

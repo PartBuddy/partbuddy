@@ -419,7 +419,8 @@
       "copied": "Copied",
       "copyCode": "Copy code",
       "resend": "Ask again",
-      "actions": "Message actions"
+      "actions": "Message actions",
+      "table": "Table"
     },
     "scroll": {
       "toLatest": "Jump to the latest message"

@@ -289,6 +289,19 @@ function Item({
           <p className="text-sm text-text-muted">
             {t(`assistant.failed.reason.${FAILURE_REASONS.has(item.detail) ? item.detail : 'other'}`)} {t('assistant.failed.log')}
           </p>
+          {/* Signed out mid-chat: the way back sits in the card; the sign-in notice is far up the chat. */}
+          {item.detail === 'signedOut' ? (
+            <Button
+              variant="primary"
+              onPress={() => {
+                void platform().agent.signIn();
+              }}
+              data-testid="turn-sign-in"
+            >
+              <IconLogin className="size-icon-sm" aria-hidden />
+              {t('assistant.signIn')}
+            </Button>
+          ) : null}
           {retry ? (
             <Button onPress={retry} data-testid="turn-retry">
               <IconRefresh className="size-icon-sm" aria-hidden />

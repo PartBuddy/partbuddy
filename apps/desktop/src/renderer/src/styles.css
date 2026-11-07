@@ -117,16 +117,17 @@ body,
   border-radius: var(--cs-radius-sm);
   background: var(--cs-color-surface-hover);
 }
+/* The plain surface, not the sunken one: Shiki's comment colour keeps 4.5:1 there (axe); the border marks the block. */
 .cs-markdown [data-streamdown="code-block"] {
   margin: 0;
   border: 1px solid var(--cs-color-border);
   border-radius: var(--cs-radius-md);
-  background: var(--cs-color-surface-sunken);
+  background: var(--cs-color-surface);
   overflow: hidden;
 }
 .cs-markdown [data-streamdown="code-block-header"] {
   font-size: var(--cs-text-xs);
-  color: var(--cs-color-text-subtle);
+  color: var(--cs-color-text-muted);
 }
 .cs-markdown [data-streamdown="code-block-body"] {
   border: 0;
@@ -141,11 +142,19 @@ body,
 }
 
 /* Tables scroll on their own instead of widening the chat; numbers line up. */
-.cs-markdown [data-streamdown="table-wrapper"] {
+.cs-markdown .cs-table {
   max-width: 100%;
-  margin: 0;
+  overflow-x: auto;
+  border: 1px solid var(--cs-color-border);
+  border-radius: var(--cs-radius-md);
+}
+.cs-markdown .cs-table:focus-visible {
+  outline: 2px solid var(--cs-color-focus);
+  outline-offset: 1px;
 }
 .cs-markdown [data-streamdown="table"] {
+  width: 100%;
+  border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
 .cs-markdown a {

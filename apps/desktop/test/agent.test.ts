@@ -188,6 +188,12 @@ describe('Claude Code adapter', () => {
     expect(parseStreamLine('{"type":"result","subtype":"success","is_error":true,"result":"Failed to authenticate: OAuth session expired and could not be refreshed"}')).toEqual([
       { type: 'done', ok: false, durationMs: null, detail: 'signedOut', reason: 'Failed to authenticate: OAuth session expired and could not be refreshed' },
     ]);
+    // The made-up answer before it stays out of the chat: the German card says it (chat polish).
+    expect(
+      parseStreamLine(
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"Failed to authenticate: OAuth session expired and could not be refreshed"}]},"error":"authentication_failed","isApiErrorMessage":true}',
+      ),
+    ).toEqual([]);
     expect(parseStreamLine('{"type":"result","subtype":"success","is_error":true,"result":"API Error: 500"}')).toEqual([
       { type: 'done', ok: false, durationMs: null, detail: 'failed', reason: 'API Error: 500' },
     ]);
