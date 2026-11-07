@@ -70,7 +70,8 @@
       "back": "Back",
       "front": "Front",
       "top": "Top",
-      "bottom": "Bottom"
+      "bottom": "Bottom",
+      "title": "View cube"
     },
     "kind": {
       "edge": "Edge",

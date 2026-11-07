@@ -31,7 +31,7 @@ import { blendWeights, PREVIEW_BLEND } from './blend';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
 import { StepPreviews } from './StepPreviews';
-import { ViewCube } from './ViewCube';
+import { ViewCube, ViewCubeSync } from './ViewCube';
 import { gridStep, lineScaleFor, needsReframe } from './framing';
 import { pickBox, selectionBox, VIEW_DIRECTIONS, type PickArrays } from './camera';
 import { ViewTools } from './ViewTools';
@@ -1085,8 +1085,8 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
       <FocusRequest />
       <ViewReporter />
       <StepPreviews />
-      <ViewCube colors={colors} />
-      {/* The axis triad's helper draws the scene and the triad; the view cube draws after it (ViewCube). */}
+      <ViewCubeSync />
+      {/* The axis triad's helper draws the scene and the triad. */}
       <GizmoHelper alignment="bottom-left" margin={scene.triadMargin} renderPriority={1}>
         <GizmoViewport
           axisColors={[`#${colors.axisX.getHexString()}`, `#${colors.axisY.getHexString()}`, `#${colors.axisZ.getHexString()}`]}
@@ -1134,6 +1134,7 @@ export function Viewer() {
           <div className={`h-full w-full ${offline ? 'opacity-50 grayscale' : ''}`} data-testid="viewport">
             <Scene documentId={model.documentId} bodies={model.bodies} sketches={model.sketches} steps={steps} layout={layout} />
           </div>
+          <ViewCube />
           {plateOpen ? <PlateBar layout={layout} bed={bed} /> : playback ? <AssemblyPlayer steps={steps} source={source} /> : <SelectionDock bodies={model.bodies} />}
         </>
       ) : null}

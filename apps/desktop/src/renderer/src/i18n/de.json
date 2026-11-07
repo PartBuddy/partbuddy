@@ -70,7 +70,8 @@
       "back": "Hinten",
       "front": "Vorne",
       "top": "Oben",
-      "bottom": "Unten"
+      "bottom": "Unten",
+      "title": "Ansichtswürfel"
     },
     "kind": {
       "edge": "Kante",

@@ -167,7 +167,7 @@ test('edges and vertices can be picked, and the view switches projection and sta
   if (cube) {
     await page.getByRole('button', { name: 'Isometric' }).click();
     await page.waitForTimeout(1200);
-    await page.mouse.click(cube.x + cube.width * 0.36, cube.y + cube.height * 0.6);
+    await page.locator('#view-cube [data-face="front"] button').nth(4).click();
     await page.waitForTimeout(1500);
     const front = await cameraOf(page);
     expect(front && front.position[1] < front.target[1] && Math.abs(front.position[0] - front.target[0]) < 1 && Math.abs(front.position[2] - front.target[2]) < 1).toBe(true);

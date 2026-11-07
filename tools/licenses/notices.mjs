@@ -61,7 +61,11 @@ export function noticesText(report, extra = []) {
 export function writeNotices() {
   const report = JSON.parse(pnpm(['licenses', 'list', '--prod', '--json'], desktop).trim() || '{}');
   const zoo = join(desktop, 'src', 'renderer', 'src', 'ui', 'zooIcons.LICENSE');
-  const extra = [{ title: 'CAD operation icons from Zoo Design Studio (path data in the app)', text: readFileSync(zoo, 'utf8') }];
+  const cube = join(desktop, 'src', 'renderer', 'src', 'viewer', 'navCube.LICENSE');
+  const extra = [
+    { title: 'CAD operation icons from Zoo Design Studio (path data in the app)', text: readFileSync(zoo, 'utf8') },
+    { title: 'View cube after the CubeNavigationAid of Bentley iTwin.js AppUI (geometry and look in the app)', text: readFileSync(cube, 'utf8') },
+  ];
   const target = join(desktop, 'out', 'THIRD-PARTY-NOTICES.txt');
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, noticesText(report, extra));

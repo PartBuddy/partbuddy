@@ -141,10 +141,11 @@ brought it to the level of Onshape and Fusion:
   them again. Hover and selection tint the face, the outline carries the strong colour.
 * Line widths shrink with the part on screen down to half, so a part zoomed far out keeps clean
   lines. Nothing in the view selects text when dragged.
-* View cube (designed by Codex, gpt-6-astra, 2026-11-07, `viewer/ViewCube.tsx`): a bevelled cube
-  in tones of the part colour, lighter on top, with crisp labels in the user's language; 6 faces,
-  12 edges and 8 corners each turn the view (animated, instant under reduced motion) and light up in
-  the accent colour under the pointer.
+* View cube: the CubeNavigationAid of Bentley's iTwin.js AppUI (MIT, `viewer/navCube.ts`,
+  notice in `navCube.LICENSE`), chosen by Manuel on 2026-11-07 over drei's cube, three-viewport-gizmo
+  and a Codex design. Flat faces with a soft gradient from `surface-raised` to `surface-sunken`, a
+  hairline border, labels in the system font (HTML over the canvas, so always crisp); each face has
+  3 × 3 cells for corners, edges and centre that light up in `accent-subtle` and turn the view.
 * World axes: red X and green Y through the origin, an axis triad in the lower left, the view cube
   in the upper right. View tools as one horizontal bar at the top left, above the live chips, so
   nothing overlaps at narrow widths; menus open below it.
