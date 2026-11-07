@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { MAX_PREVIEW_BYTES, PREVIEW_FILE } from './projectStore';
@@ -28,6 +28,8 @@ interface VersionNote {
   label: string;
   /** SHA-256 of the design file: an automatic version of an unchanged design is not saved twice. */
   hash: string;
+  /** Why an automatic version was saved before the user named it (P4); older notes have none. */
+  promoted?: VersionReason;
 }
 
 /** The folder of the versions in a project, next to the design. */
@@ -47,7 +49,8 @@ function readNote(folder: string): VersionNote | null {
     const note = JSON.parse(readFileSync(join(folder, NOTE), 'utf8')) as Partial<VersionNote>;
     if (typeof note.created !== 'number' || typeof note.label !== 'string' || typeof note.hash !== 'string') return null;
     if (!REASONS.includes(note.reason as VersionReason)) return null;
-    return { created: note.created, reason: note.reason as VersionReason, label: note.label.slice(0, 200), hash: note.hash };
+    const promoted = REASONS.includes(note.promoted as VersionReason) ? { promoted: note.promoted as VersionReason } : {};
+    return { created: note.created, reason: note.reason as VersionReason, label: note.label.slice(0, 200), hash: note.hash, ...promoted };
   } catch {
     return null;
   }
@@ -107,6 +110,21 @@ export class VersionStore {
     writeFileSync(join(folder, NOTE), JSON.stringify(note));
     this.prune(design);
     return id;
+  }
+
+  /**
+   * Gives a version the user's name (P4). An automatic one becomes a milestone like a version saved
+   * by name: it is no longer pruned, and its note keeps why it was saved first.
+   */
+  name(design: string, id: string, label: string): void {
+    const found = ID.test(id) ? this.notes(design).find((entry) => entry.id === id) : undefined;
+    const text = label.trim().slice(0, 200);
+    if (!found || !text) throw new Error('not a version of this project');
+    const { note } = found;
+    const named: VersionNote = { ...note, reason: 'manual', label: text, ...(note.reason === 'manual' ? {} : { promoted: note.reason }) };
+    const file = join(VersionStore.folderOf(design), id, NOTE);
+    writeFileSync(`${file}.tmp`, JSON.stringify(named));
+    renameSync(`${file}.tmp`, file);
   }
 
   /** The design file of a version of this project, or null for an id that is not one. */

@@ -930,7 +930,12 @@
       "export": "Beim Export",
       "assistant": "Vor dem Assistenten",
       "restore": "Vor dem Wiederherstellen"
-    }
+    },
+    "keep": "Als Meilenstein behalten",
+    "rename": "Umbenennen",
+    "asProject": "Als neues Projekt öffnen",
+    "openedAsProject": "Die Version ist jetzt ein eigenes Projekt; das ursprüngliche bleibt unverändert.",
+    "milestonesOnly": "Nur Meilensteine"
   },
   "parts": {
     "action": "Normteil",

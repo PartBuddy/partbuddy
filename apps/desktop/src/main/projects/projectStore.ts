@@ -209,6 +209,19 @@ export class ProjectStore {
   }
 
   /**
+   * A version of a project as a project of its own (P4), the local stand-in for a branch: the
+   * version's design with the project's print settings, without conversation and versions.
+   */
+  fromVersion(design: string, version: string, label: string): string {
+    const target = this.newDesignFile(`${basename(design, '.sc')} ${label}`.slice(0, 120));
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(version, target);
+    const print = companionOf(design, '.print.json');
+    if (existsSync(print) && statSync(print).isFile()) copyFileSync(print, companionOf(target, '.print.json'));
+    return target;
+  }
+
+  /**
    * Copies a design file from anywhere into a new project, with its conversation and print
    * settings when they lie next to it. The original stays untouched (a design saved by SolidCraft
    * 0.40 cannot go back to 0.30, ADR 0024). Returns the new design file.

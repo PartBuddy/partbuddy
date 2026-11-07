@@ -1,7 +1,7 @@
 import { IconCube, IconHistory, IconX } from '@tabler/icons-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Dialog, Heading, Input, Label, Modal, ModalOverlay, TextField } from 'react-aria-components';
+import { Button as AriaButton, Dialog, Heading, Input, Label, Modal, ModalOverlay, TextField, ToggleButton } from 'react-aria-components';
 
 import type { VersionComparison, VersionEntry } from '../../../shared/contract';
 import { beforeProjectSwitch } from '../assistant/useAssistantBridge';
@@ -37,9 +37,46 @@ function ChangeList({ comparison }: { comparison: VersionComparison }) {
   );
 }
 
-function VersionRow({ version, now, busy, onRestore }: { version: VersionEntry; now: number; busy: boolean; onRestore: () => void }) {
+/** Names a version in place (P4): an automatic one becomes a milestone that is kept. */
+function NameForm({ version, onDone, onCancel }: { version: VersionEntry; onDone: () => void; onCancel: () => void }) {
+  const { t } = useTranslation();
+  const [value, setValue] = useState(version.reason === 'manual' ? version.label : '');
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form
+      className="flex flex-wrap items-end gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!value.trim()) return;
+        void platform()
+          .project.nameVersion(version.id, value)
+          .then(onDone)
+          .catch((failure: unknown) => {
+            setError(t('project.failed', { detail: (failure as Error).message.slice(0, 200) }));
+          });
+      }}
+    >
+      <TextField value={value} onChange={setValue} autoFocus className="flex min-w-0 flex-1 flex-col gap-1">
+        <Label className="text-xs text-text-muted">{t('versions.name')}</Label>
+        <Input className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none focus-visible:outline-2 focus-visible:outline-focus" data-testid="version-rename-input" />
+      </TextField>
+      <Button onPress={onCancel}>{t('project.cancel')}</Button>
+      <Button type="submit" variant="primary" isDisabled={value.trim() === ''} data-testid="version-rename-save">
+        {version.reason === 'manual' ? t('versions.rename') : t('versions.keep')}
+      </Button>
+      {error ? (
+        <p role="alert" className="w-full text-sm text-danger">
+          {error}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function VersionRow({ version, now, busy, onRestore, onAsProject, onChanged }: { version: VersionEntry; now: number; busy: boolean; onRestore: () => void; onAsProject: () => void; onChanged: () => void }) {
   const { t, i18n } = useTranslation();
   const [confirming, setConfirming] = useState(false);
+  const [naming, setNaming] = useState(false);
   const [comparison, setComparison] = useState<VersionComparison | 'loading' | { error: string } | null>(null);
   const when = relativeTime(version.created, now, i18n.language) ?? t('home.justNow');
   const compare = () => {
@@ -65,7 +102,16 @@ function VersionRow({ version, now, busy, onRestore }: { version: VersionEntry; 
             {t(`versions.reason.${version.reason}`)} · {when}
           </span>
         </div>
-        {confirming ? (
+        {naming ? (
+          <NameForm
+            version={version}
+            onCancel={() => setNaming(false)}
+            onDone={() => {
+              setNaming(false);
+              onChanged();
+            }}
+          />
+        ) : confirming ? (
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('versions.restoreQuestion')}>
             <span className="text-sm text-text">{t('versions.restoreQuestion')}</span>
             <Button onPress={() => setConfirming(false)}>{t('project.cancel')}</Button>
@@ -88,6 +134,12 @@ function VersionRow({ version, now, busy, onRestore }: { version: VersionEntry; 
             </Button>
             <Button isDisabled={busy} onPress={() => setConfirming(true)} data-testid="version-restore">
               {t('versions.restore')} …
+            </Button>
+            <Button isDisabled={busy} onPress={() => setNaming(true)} data-testid="version-rename">
+              {version.reason === 'manual' ? t('versions.rename') : t('versions.keep')} …
+            </Button>
+            <Button isDisabled={busy} onPress={onAsProject} data-testid="version-as-project">
+              {t('versions.asProject')}
             </Button>
           </div>
         )}
@@ -120,6 +172,20 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
   const [error, setError] = useState<string | null>(null);
   const nameField = useRef<HTMLInputElement>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [milestones, setMilestones] = useState(false);
+  const { i18n } = useTranslation();
+  /** The shown versions under a heading per day, newest first (P4). */
+  const days = useMemo(() => {
+    const format = new Intl.DateTimeFormat(i18n.language, { dateStyle: 'full' });
+    const groups: { day: string; versions: VersionEntry[] }[] = [];
+    for (const version of (versions ?? []).filter((entry) => !milestones || entry.reason === 'manual')) {
+      const day = format.format(version.created);
+      const last = groups.at(-1);
+      if (last?.day === day) last.versions.push(version);
+      else groups.push({ day, versions: [version] });
+    }
+    return groups;
+  }, [versions, milestones, i18n.language]);
 
   const load = useCallback(() => {
     void platform()
@@ -152,6 +218,22 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
         setBusy(false);
         // The save button is disabled while it works; keep the focus in the dialog (Escape closes it).
         nameField.current?.focus();
+      });
+  };
+  const asProject = (id: string) => {
+    setBusy(true);
+    void beforeProjectSwitch()
+      .then(() => platform().project.versionAsProject(id))
+      .then(() => {
+        onClose();
+        useStudio.getState().setHomeOpen(false);
+        useStudio.getState().setNotice({ tone: 'success', text: t('versions.openedAsProject') });
+      })
+      .catch((failure: unknown) => {
+        setError(t('project.failed', { detail: (failure as Error).message.slice(0, 200) }));
+      })
+      .finally(() => {
+        setBusy(false);
       });
   };
   const restore = (id: string) => {
@@ -219,7 +301,17 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
               {error}
             </p>
           ) : null}
-          <p className="text-xs text-text-subtle">{t('versions.hint')}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-text-subtle">{t('versions.hint')}</p>
+            <ToggleButton
+              isSelected={milestones}
+              onChange={setMilestones}
+              className="inline-flex h-control-sm items-center rounded-md border border-border-strong px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus selected:border-accent selected:bg-surface-selected"
+              data-testid="versions-milestones"
+            >
+              {t('versions.milestonesOnly')}
+            </ToggleButton>
+          </div>
           <div className="min-h-0 overflow-y-auto">
             {versions === null ? null : versions.length === 0 ? (
               <p className="py-5 text-center text-sm text-text-muted" data-testid="versions-empty">
@@ -227,8 +319,15 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
               </p>
             ) : (
               <ul aria-label={t('versions.list', { count: versions.length })} data-testid="versions">
-                {versions.map((version) => (
-                  <VersionRow key={version.id} version={version} now={now} busy={busy} onRestore={() => restore(version.id)} />
+                {days.map((group) => (
+                  <Fragment key={group.day}>
+                    <li className="sticky top-0 bg-surface-raised pt-2 text-xs font-semibold text-text-muted" data-testid="versions-day">
+                      {group.day}
+                    </li>
+                    {group.versions.map((version) => (
+                      <VersionRow key={version.id} version={version} now={now} busy={busy} onRestore={() => restore(version.id)} onAsProject={() => asProject(version.id)} onChanged={load} />
+                    ))}
+                  </Fragment>
                 ))}
               </ul>
             )}
