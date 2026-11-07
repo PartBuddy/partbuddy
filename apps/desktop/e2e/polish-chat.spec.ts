@@ -132,7 +132,7 @@ for (const size of WIDTHS) {
 
 /** The conversation from its start, to see the first messages after a long chat. */
 async function scrollChatTop(page: Page): Promise<void> {
-  await page.locator('[aria-live="polite"].overflow-y-auto').first().evaluate((element) => {
-    (element as unknown as { scrollTop: number }).scrollTop = 0;
-  });
+  await page.getByTestId('chat-list').hover();
+  await page.mouse.wheel(0, -100_000);
+  await page.waitForTimeout(300);
 }

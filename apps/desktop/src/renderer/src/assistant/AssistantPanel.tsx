@@ -1,5 +1,5 @@
-import { IconArrowUp, IconSparkles, IconPencil, IconPhoto, IconPlayerStop, IconPointer, IconRefresh, IconX } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { IconArrowDown, IconArrowUp, IconSparkles, IconPencil, IconPhoto, IconPlayerStop, IconPointer, IconRefresh, IconX } from '@tabler/icons-react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button as AriaButton, Dialog, Form, ProgressBar, Modal, ModalOverlay, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
@@ -20,6 +20,7 @@ import { Queries, WorkGroup } from './WorkGroup';
 import { selectedStatus, useAssistant, type Attachment, type ConversationItem } from './store';
 import { emptySketch, SketchPad, type SketchPicture, type SketchState } from './SketchPad';
 import { photoPicture } from './photo';
+import { useChatScroll } from './useChatScroll';
 import { SourceCard } from './SourceCard';
 import { ToolCall } from './ToolCall';
 import { MessageActions, tip } from './MessageActions';
@@ -294,11 +295,12 @@ export function AssistantPanel() {
   const selections = selectionsOf(model, picks);
   const [selection] = selections;
   const [draft, setDraft] = useState('');
-  const list = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const busy = status.state === 'busy';
   const ready = status.state === 'ready' && connected;
   const [width, setWidth, maxWidth] = useChatWidth();
+  const documentId = useStudio((s) => (s.model.status === 'ready' ? s.model.documentId : null));
+  const { list, content, atEnd, toEnd, handlers } = useChatScroll(documentId);
   // A sketch for the next message (F4, F9); its elements stay while it is not sent, to draw on.
   const [sketching, setSketching] = useState(false);
   const [sketch, setSketch] = useState<{ state: SketchState; picture: SketchPicture } | null>(null);
@@ -322,10 +324,6 @@ export function AssistantPanel() {
     );
   };
 
-  useEffect(() => {
-    list.current?.scrollTo({ top: list.current.scrollHeight });
-  }, [items]);
-
   const send = () => {
     // A sketch or a photo alone is a message too: build a part from it.
     const text = draft.trim() || (photo ? t('assistant.photo.defaultText') : sketch ? t('assistant.sketch.defaultText') : '');
@@ -333,6 +331,8 @@ export function AssistantPanel() {
     setDraft('');
     setSketch(null);
     setPhoto(null);
+    // The user's own message always brings the chat back to its end.
+    toEnd();
     useAssistant.getState().attachNext(photo ? { thumbnail: photo.thumbnail, photo: photo.png } : sketch ? { thumbnail: sketch.picture.thumbnail, sketch: sketch.state } : null);
     void sendToAssistant(text, selections, undefined, photo ? undefined : (sketch ?? undefined), photo?.png);
   };
@@ -392,7 +392,9 @@ export function AssistantPanel() {
       <h2 id="assistant-title" className="sr-only">
         {t('assistant.title')}
       </h2>
-      <div ref={list} className="cs-chat-list flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto p-3" aria-live="polite">
+      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div ref={list} {...handlers} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" aria-live="polite" data-testid="chat-list">
+      <div ref={content} className="cs-chat-list flex flex-col gap-2 p-3">
         <Setup />
         {items.length === 0 && (status.state === 'ready' || busy) ? (
           // A way in for an empty chat (polish round 1): examples fill the input, they do not send.
@@ -421,6 +423,7 @@ export function AssistantPanel() {
               item={row.item}
               ready={ready}
               answer={(text, answer) => {
+                toEnd();
                 void platform().agent.send(text, [], answer);
               }}
               change={() => {
@@ -442,6 +445,20 @@ export function AssistantPanel() {
         {busy && !streamingNow ? (
           <Working label={t(`assistant.working.${status.agent}`)} />
         ) : null}
+      </div>
+      </div>
+      {!atEnd && items.length > 0 ? (
+        <AriaButton
+          onPress={() => {
+            toEnd(true);
+          }}
+          className="absolute bottom-2 left-1/2 inline-flex h-control-md whitespace-nowrap -translate-x-1/2 animate-[cs-enter_var(--cs-duration-normal)_var(--cs-easing-standard)] items-center gap-1 rounded-full border border-border bg-surface-raised px-3 text-sm text-text shadow-2 outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+          data-testid="chat-to-latest"
+        >
+          <IconArrowDown className="size-icon-sm" aria-hidden />
+          {t('assistant.scroll.toLatest')}
+        </AriaButton>
+      ) : null}
       </div>
       <Form
         className="flex flex-col gap-2 border-t border-border p-3"

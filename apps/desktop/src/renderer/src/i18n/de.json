@@ -420,6 +420,9 @@
       "copyCode": "Code kopieren",
       "resend": "Erneut senden",
       "actions": "Aktionen zur Nachricht"
+    },
+    "scroll": {
+      "toLatest": "Zur neuesten Nachricht"
     }
   },
   "live": {
