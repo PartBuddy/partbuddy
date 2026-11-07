@@ -45,7 +45,9 @@ function Tip({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-const DISPLAY_MODES: DisplayMode[] = ['shadedEdges', 'shaded', 'xray', 'wireframe'];
+const DISPLAY_MODES: DisplayMode[] = ['shadedEdges', 'shaded', 'hiddenEdges', 'xray', 'wireframe'];
+/** Shift with 1 to 5 picks a display mode, by physical key so it works on every keyboard layout. */
+const MODE_KEYS: Record<string, DisplayMode> = Object.fromEntries(DISPLAY_MODES.map((mode, i) => [`Digit${String(i + 1)}`, mode]));
 
 /** How the bodies are drawn (UI upgrade step 9): a menu with one choice. */
 function DisplayModeMenu() {
@@ -72,12 +74,18 @@ function DisplayModeMenu() {
           }}
           className="outline-none"
         >
-          {DISPLAY_MODES.map((id) => (
-            <MenuItem key={id} id={id} className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover">
+          {DISPLAY_MODES.map((id, i) => (
+            <MenuItem
+              key={id}
+              id={id}
+              aria-keyshortcuts={`Shift+${String(i + 1)}`}
+              className="flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover"
+            >
               {({ isSelected }) => (
                 <>
+                  <span className="flex size-icon-sm items-center justify-center">{isSelected ? <IconCheck className="size-icon-sm text-accent-text" aria-hidden /> : null}</span>
                   <span className="flex-1">{t(`viewer.display.${id}`)}</span>
-                  {isSelected ? <IconCheck className="size-icon-sm text-accent-text" aria-hidden /> : null}
+                  <kbd aria-hidden className="font-sans text-xs tabular-nums text-text-subtle">⇧{i + 1}</kbd>
                 </>
               )}
             </MenuItem>
@@ -238,6 +246,8 @@ export function ViewTools() {
       }
       if (event.shiftKey && key === 'f') {
         requestView('selection');
+      } else if (event.shiftKey && MODE_KEYS[event.code]) {
+        useStudio.getState().setDisplayMode(MODE_KEYS[event.code] ?? 'shadedEdges');
       } else if (event.shiftKey) {
         return;
       } else if (key === 'm') {

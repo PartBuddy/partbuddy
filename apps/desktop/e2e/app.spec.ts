@@ -317,6 +317,15 @@ test('the view switches display modes and opens a section with its own controls'
   await expect(page.getByRole('menuitemradio', { name: 'X-ray' })).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('Escape');
   await shot('xray');
+  // Every mode has a key: Shift+3 shows the hidden edges, Shift+5 the wireframe (viewport CAD round).
+  for (const [key, name] of [['Shift+3', 'Hidden edges'], ['Shift+5', 'Wireframe'], ['Shift+2', 'Shaded']] as const) {
+    await page.keyboard.press(key);
+    await page.getByTestId('display-mode').click();
+    await expect(page.getByRole('menuitemradio', { name, exact: true })).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('Escape');
+    await shot(name.toLowerCase().replace(' ', '-'));
+  }
+  expect(await countViewportPixels(page, '--cs-viewer-body', 30)).toBeGreaterThan(500);
   await page.getByTestId('display-mode').click();
   await page.getByRole('menuitemradio', { name: 'Shaded with edges' }).click();
 

@@ -82,7 +82,8 @@ export type StandardView = 'fit' | 'selection' | 'iso' | 'front' | 'back' | 'rig
 /** The tabs of the printer and material dialog (M7). */
 export type ProfilesTab = 'printer' | 'material';
 
-export type DisplayMode = 'shadedEdges' | 'shaded' | 'xray' | 'wireframe';
+/** Plus "hidden edges": shaded with edges, and the edges behind the faces dashed (viewport CAD round). */
+export type DisplayMode = 'shadedEdges' | 'shaded' | 'hiddenEdges' | 'xray' | 'wireframe';
 /**
  * A section through the design along one axis: `position` from 0 to 1 across the bodies' box,
  * `flip` keeps the other side. Picks never reach the part that is cut away.

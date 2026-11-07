@@ -13,7 +13,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { SKETCH_STYLE } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BackSide, Box3, BufferAttribute, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, ShaderMaterial, Sphere, Vector2, Vector3 } from 'three';
+import { BackSide, Box3, BufferAttribute, GreaterDepth, LineSegments, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, ShaderMaterial, Sphere, Vector2, Vector3 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { acceleratedRaycast } from 'three-mesh-bvh';
 
@@ -189,14 +189,15 @@ function Body({
           clippingPlanes={clipping}
         />
       </mesh>
-      {plane && (mode === 'shadedEdges' || mode === 'shaded') ? (
+      {plane && (mode === 'shadedEdges' || mode === 'shaded' || mode === 'hiddenEdges') ? (
         // The inside of the cut, seen through the open section: drawn flat in the section colour,
         // it reads as a filled cut face. Not in X-ray, where every inside shows through.
         <mesh geometry={model.geometry} raycast={noRaycast}>
           <meshBasicMaterial color={colors.section} side={BackSide} clippingPlanes={clipping} />
         </mesh>
       ) : null}
-      {plane === null && mode === 'shadedEdges' && fade > 0 ? <Silhouette geometry={model.geometry} color={colors.edge} opacity={fade} /> : null}
+      {plane === null && (mode === 'shadedEdges' || mode === 'hiddenEdges') && fade > 0 ? <Silhouette geometry={model.geometry} color={colors.edge} opacity={fade} /> : null}
+      {mode === 'hiddenEdges' && fade > 0 ? <HiddenEdges geometry={model.edges} color={colors.hiddenEdge} plane={clipping} /> : null}
       {mode === 'shaded' || fade === 0 ? null : plane === null && mode !== 'xray' ? (
         <FatEdges geometry={model.edges} color={colors.edge} width={scene.edgeWidth} opacity={fade} />
       ) : (
@@ -240,6 +241,27 @@ function ExplosionLines({ bodies, offsets, color }: { bodies: BodyModel[]; offse
         <Line key={line.key} points={line.points} color={color} lineWidth={1} dashed dashSize={2} gapSize={1.5} raycast={noRaycast} />
       ))}
     </>
+  );
+}
+
+/**
+ * Edges behind the faces, dashed and faint (display mode "hidden edges"): drawn only where the
+ * depth test fails, so they never cover the visible edges.
+ */
+function HiddenEdges({ geometry, color, plane }: { geometry: BodyModel['model']['edges']; color: ViewerColors['edge']; plane: Plane[] }) {
+  const lines = useRef<LineSegments>(null);
+  const diagonal = useMemo(() => {
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    return geometry.boundingBox?.getSize(new Vector3()).length() ?? 100;
+  }, [geometry]);
+  useEffect(() => {
+    lines.current?.computeLineDistances();
+  }, [geometry]);
+  const dash = Math.min(scene.dashMax, Math.max(scene.dashMin, diagonal * scene.dashPerDiagonal));
+  return (
+    <lineSegments ref={lines} geometry={geometry} raycast={noRaycast} renderOrder={1}>
+      <lineDashedMaterial color={color} dashSize={dash} gapSize={dash * 0.7} depthFunc={GreaterDepth} depthWrite={false} transparent opacity={0.7} clippingPlanes={plane} />
+    </lineSegments>
   );
 }
 

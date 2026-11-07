@@ -99,7 +99,8 @@
       "shadedEdges": "Schattiert mit Kanten",
       "shaded": "Schattiert",
       "xray": "Röntgen",
-      "wireframe": "Nur Kanten"
+      "wireframe": "Drahtgitter",
+      "hiddenEdges": "Verdeckte Kanten"
     },
     "section": {
       "title": "Schnitt",

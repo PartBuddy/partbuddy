@@ -99,7 +99,8 @@
       "shadedEdges": "Shaded with edges",
       "shaded": "Shaded",
       "xray": "X-ray",
-      "wireframe": "Edges only"
+      "wireframe": "Wireframe",
+      "hiddenEdges": "Hidden edges"
     },
     "section": {
       "title": "Section",
