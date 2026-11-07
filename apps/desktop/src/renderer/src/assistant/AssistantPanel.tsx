@@ -222,7 +222,7 @@ function Item({
         <Answer text={item.text} streaming={item.open} quiet={quiet} />
       );
     case 'tool':
-      return <ToolCall item={item} />;
+      return <ToolCall item={item} framed />;
     case 'step':
     case 'question':
       return null;

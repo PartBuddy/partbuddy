@@ -1,22 +1,26 @@
-import { IconCheck, IconShieldX, IconTool, IconX } from '@tabler/icons-react';
+import { IconCheck, IconLoader2, IconShieldX, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 
+import { card } from './Fold';
 import type { ConversationItem } from './store';
 
 export type ToolItem = Extract<ConversationItem, { kind: 'tool' }>;
 
-/** One tool call with its decision and result; inside a step card or a group of queries. */
-export function ToolCall({ item }: { item: ToolItem }) {
+/**
+ * One tool call with its decision and result (chat polish: a quiet line, no box of its own),
+ * inside a step or a group of queries; `framed` when it stands alone in the chat (a refused call).
+ */
+export function ToolCall({ item, framed = false }: { item: ToolItem; framed?: boolean }) {
   const { t } = useTranslation();
   const icon =
     item.decision === 'denied' ? (
-      <IconShieldX className="size-icon-sm text-warning" aria-hidden />
+      <IconShieldX className="size-icon-sm shrink-0 text-warning" aria-hidden />
     ) : item.ok === undefined ? (
-      <IconTool className="size-icon-sm text-text-subtle" aria-hidden />
+      <IconLoader2 className="size-icon-sm shrink-0 animate-spin text-accent" aria-hidden />
     ) : item.ok ? (
-      <IconCheck className="size-icon-sm text-success" aria-hidden />
+      <IconCheck className="size-icon-sm shrink-0 text-success" aria-hidden />
     ) : (
-      <IconX className="size-icon-sm text-danger" aria-hidden />
+      <IconX className="size-icon-sm shrink-0 text-danger" aria-hidden />
     );
   const state =
     item.decision === 'denied'
@@ -27,16 +31,18 @@ export function ToolCall({ item }: { item: ToolItem }) {
           ? t('assistant.tool.done')
           : t('assistant.tool.failed');
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-border bg-surface-sunken px-2 py-1 text-sm" data-testid="tool-call">
-      <span className="flex items-center gap-1 text-text">
+    <div className={`flex min-w-0 flex-col text-sm ${framed ? `${card} border-border px-3 py-2` : 'py-hairline'}`} data-testid="tool-call">
+      <span className="flex min-w-0 items-center gap-2 text-text">
         {icon}
-        <span className="font-medium">{item.name}</span>
-        <span className="text-text-subtle">· {state}</span>
+        <span className="truncate font-medium">{item.name}</span>
+        <span className="shrink-0 text-xs text-text-subtle">{state}</span>
       </span>
-      {item.reason ? <span className="text-text-muted">{item.reason}</span> : null}
-      <span className="truncate text-xs text-text-subtle" title={item.summary}>
-        {item.summary}
-      </span>
+      {item.reason ? <span className="pl-5 text-text-muted">{item.reason}</span> : null}
+      {item.summary ? (
+        <span className="truncate pl-5 text-xs text-text-subtle" title={item.summary}>
+          {item.summary}
+        </span>
+      ) : null}
     </div>
   );
 }
