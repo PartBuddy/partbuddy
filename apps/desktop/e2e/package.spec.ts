@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -36,6 +36,10 @@ test('the packaged app starts with its bundled main process and the native crede
     page.on('pageerror', (error) => errors.push(error.message));
     await expect(page.getByTestId('title-bar')).toBeVisible({ timeout: 30_000 });
     expect(await app.evaluate(({ app: electronApp }) => electronApp.isPackaged)).toBe(true);
+    // The licence texts of the bundled libraries lie next to the asar (ADR 0007).
+    const notices = readFileSync(join(appDir, 'dist', 'win-unpacked', 'resources', 'THIRD-PARTY-NOTICES.txt'), 'utf8');
+    expect(notices).toContain('react-aria-components');
+    expect(notices).toContain('Zoo Design Studio');
     // The assistant chip reads the ChatGPT sign-in through the credential store: the native module loaded.
     await page.getByTestId('agent-status').click();
     await page.getByTestId('agent-menu').getByText('ChatGPT', { exact: true }).click();
