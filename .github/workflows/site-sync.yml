@@ -128,6 +128,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Electron downloads its binary on first use (as in ci.yml).
+      - name: Download Electron
+        run: node apps/desktop/node_modules/electron/install.js
+
       - name: Render the screenshots
         run: pnpm site:shots website/src/assets/shots
 

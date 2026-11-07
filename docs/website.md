@@ -33,3 +33,8 @@ Only what the app does today goes into `site/site-content.json`. Check a change 
 - **Windows runner for `media`:** a self-hosted runner on Windows with SolidCraft installed, labels
   `self-hosted`, `windows`, `partbuddy-shots`. Without it the `media` job waits in the queue; the
   content sync and the redeploy work regardless.
+  On this server it is `partbuddy-srv-shots` in `C:Runnerpartbuddy-shots`, a Windows service running as
+  NetworkService (an exception to ADR 0022, since SolidCraft runs only on Windows). On a German Windows,
+  `config.cmd --runasservice` writes the account as `NT-AUTORITÄTNetzwerkdienst` and the service then fails
+  with error 1068; fix: `sc.exe config <service> obj= "NT AUTHORITYNetworkService" password= ""`.
+  Remove it with `config.cmd remove --token <removal token>`.
