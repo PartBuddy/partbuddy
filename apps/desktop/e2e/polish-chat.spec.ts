@@ -123,6 +123,13 @@ for (const size of WIDTHS) {
       }
       await scrollChatTop(page);
       await shot('11-chat-top');
+
+      // Last, since it signs the assistant out: an expired sign-in shows only the German card.
+      await send('Expire my sign-in');
+      await expect(page.getByTestId('turn-failed')).toHaveCount(2, { timeout: 30_000 });
+      await expect(page.getByText('Failed to authenticate')).toHaveCount(0);
+      await expect(page.getByTestId('turn-sign-in')).toBeVisible();
+      await shot('14-sign-in-expired');
     } finally {
       await launched?.close();
       rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
