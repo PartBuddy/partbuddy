@@ -9,6 +9,7 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { parseLength } from '../viewer/lengthInput';
 import { LooseDimensions } from '../viewer/Dimensions';
+import { fitMarkOf } from '../../../shared/designFit';
 import { commentText, rangeOf } from './parameterRange';
 import { TreeEmpty, TreeExtra, TreeItem, TreeSection } from './Tree';
 
@@ -89,7 +90,7 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
     box.current?.querySelector<HTMLElement>('[role="treeitem"]')?.focus();
   };
   // Comment, range and formula show on hover; the row stays one line (Name · Value · Unit).
-  const title = [note, range ? t('parameters.range', { min: format(range.min), max: format(range.max), unit: parameter.unit }) : null, parameter.editable ? null : `= ${parameter.expression}`, parameter.editable ? null : t('parameters.formulaHint')]
+  const title = [note, fitMarkOf(parameter.comment) ? t('parameters.fitted') : null, range ? t('parameters.range', { min: format(range.min), max: format(range.max), unit: parameter.unit }) : null, parameter.editable ? null : `= ${parameter.expression}`, parameter.editable ? null : t('parameters.formulaHint')]
     .filter(Boolean)
     .join('\n');
 

@@ -34,6 +34,8 @@ const ALLOWED = new Set([
   'partbuddy_plan',
   // The assembly order (assemblyTool.ts), kept by PartBuddy, never forwarded.
   'partbuddy_assembly',
+  // The design rule groups of the project (designTool.ts), kept by PartBuddy, never forwarded.
+  'partbuddy_design_rules',
 ]);
 
 /**

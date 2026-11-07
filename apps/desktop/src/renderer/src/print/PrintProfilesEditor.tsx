@@ -16,7 +16,7 @@ import {
   TextField,
 } from 'react-aria-components';
 
-import { FIT_KINDS, type MaterialProfile, type PrinterProfile, type PrintSettings } from '../../../shared/contract';
+import { DESIGN_RULES, FIT_KINDS, type MaterialProfile, type PrinterProfile, type PrintSettings } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio, type ProfilesTab } from '../state/store';
 import { Button } from '../ui/Button';
@@ -389,6 +389,43 @@ export function PrintProfilesEditor({ close }: { close: () => void }) {
  * Design to print without support (M7f): the assistant gets the rules for it with the print
  * profile. In the settings' assistant section (B6); saved at once.
  */
+/**
+ * The design rule groups (decided 2026-11-07), on by default: what the assistant adds on its own.
+ * A project's choice in the chat goes before these. They share the settings the support switch
+ * holds, so neither saves over the other with a stale copy.
+ */
+function DesignRuleSwitches({ settings, save }: { settings: PrintSettings; save: (next: PrintSettings) => void }) {
+  const { t } = useTranslation();
+  return (
+    <fieldset className="flex flex-col gap-3" data-testid="design-rules">
+      <legend className="mb-1 text-sm font-medium text-text">{t('print.design.title')}</legend>
+      <p className="-mt-2 text-xs text-text-subtle">{t('print.design.hint')}</p>
+      {DESIGN_RULES.map((rule) => (
+        <div key={rule} className="flex flex-col gap-1">
+          <CheckboxField
+            isSelected={settings.design[rule]}
+            onChange={(on) => {
+              save({ ...settings, design: { ...settings.design, [rule]: on } });
+            }}
+            data-testid={`design-${rule}`}
+          >
+            <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
+              <span
+                aria-hidden
+                className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
+              >
+                <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
+              </span>
+              {t(`print.design.${rule}.label`)}
+            </CheckboxButton>
+          </CheckboxField>
+          <p className="text-xs text-text-subtle">{t(`print.design.${rule}.hint`)}</p>
+        </div>
+      ))}
+    </fieldset>
+  );
+}
+
 export function SupportFreeSwitch() {
   const { t } = useTranslation();
   const [settings, setSettings] = useState<PrintSettings | null>(null);
@@ -404,28 +441,35 @@ export function SupportFreeSwitch() {
     };
   }, []);
   if (!settings) return null;
+  const save = (next: PrintSettings) => {
+    setSettings(next);
+    void platform().print.saveSettings(next).then(setSettings);
+  };
   return (
-    <div className="flex flex-col gap-1">
-      <CheckboxField
-        isSelected={settings.supportFree}
-        onChange={(supportFree) => {
-          const next = { ...settings, supportFree };
-          setSettings(next);
-          void platform().print.saveSettings(next).then(setSettings);
-        }}
-        data-testid="support-free"
-      >
-        <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
-          <span
-            aria-hidden
-            className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
-          >
-            <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
-          </span>
-          {t('print.supportFree')}
-        </CheckboxButton>
-      </CheckboxField>
-      <p className="text-xs text-text-subtle">{t('print.supportFreeHint')}</p>
-    </div>
+    <>
+      <div className="flex flex-col gap-1">
+        <CheckboxField
+          isSelected={settings.supportFree}
+          onChange={(supportFree) => {
+            save({ ...settings, supportFree });
+          }}
+          data-testid="support-free"
+        >
+          <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
+            <span
+              aria-hidden
+              className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:outline-2 group-focus-visible:outline-focus"
+            >
+              <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
+            </span>
+            {t('print.supportFree')}
+          </CheckboxButton>
+        </CheckboxField>
+        <p className="text-xs text-text-subtle">{t('print.supportFreeHint')}</p>
+      </div>
+      <div className="border-t border-border pt-3">
+        <DesignRuleSwitches settings={settings} save={save} />
+      </div>
+    </>
   );
 }

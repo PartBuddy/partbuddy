@@ -942,6 +942,19 @@ export const materialProfileSchema = z
 
 const uniqueIds = (items: readonly { id: string }[]) => new Set(items.map((item) => item.id)).size === items.length;
 
+/**
+ * The groups of design rules the assistant applies without being asked (decided 2026-11-07):
+ * rounded and chamfered edges, print-in-place joints, clean details and sizes snapped to nozzle and
+ * layer. The user turns a group off in the settings, or for one project in the chat.
+ */
+export const DESIGN_RULES = ['rounding', 'printInPlace', 'details', 'snap'] as const;
+export type DesignRule = (typeof DESIGN_RULES)[number];
+export const designRulesSchema = z
+  .object({ rounding: z.boolean().default(true), printInPlace: z.boolean().default(true), details: z.boolean().default(true), snap: z.boolean().default(true) })
+  .strict();
+export type DesignRules = z.infer<typeof designRulesSchema>;
+export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true, details: true, snap: true };
+
 export const printSettingsSchema = z
   .object({
     version: z.literal(1),
@@ -956,6 +969,8 @@ export const printSettingsSchema = z
      * with the profile. On unless the user turns it off; files from before it have it on.
      */
     supportFree: z.boolean().default(true),
+    /** The design rules the assistant applies on its own (decided 2026-11-07); every group on unless turned off. */
+    design: designRulesSchema.default(DESIGN_DEFAULTS),
   })
   .strict()
   .refine((settings) => settings.printers.some((printer) => printer.id === settings.printer), 'the printer in use must exist')
@@ -970,6 +985,8 @@ export const partPrintSchema = z
     chosen: z.boolean(),
     /** Whether the assistant designs to print without support. */
     supportFree: z.boolean(),
+    /** The design rule groups in force for this part: the project's choice over the setting. */
+    design: designRulesSchema,
   })
   .strict();
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();

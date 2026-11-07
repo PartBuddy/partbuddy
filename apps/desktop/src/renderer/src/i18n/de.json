@@ -570,7 +570,8 @@
     "askDraft": "Lege Parameter für die wichtigen Maße dieses Teils an.",
     "name": "Name",
     "value": "Wert",
-    "invalid": "Eine Länge größer als 0 eingeben"
+    "invalid": "Eine Länge größer als 0 eingeben",
+    "fitted": "Vom Assistenten gewählt, folgt Düse und Schichthöhe des Druckers"
   },
   "timeline": {
     "handle": "Rückroll-Balken",
@@ -756,7 +757,27 @@
     "supportFreeHint": "Der Assistent gibt Kanten zum Druckbett eine Fase statt einer Rundung, gibt breiten liegenden Bohrungen ein Tropfendach und überbrückt Senkungen, die nach unten zeigen. So braucht der Slicer keine Stützen.",
     "saveFailed": "Die Profile konnten nicht gespeichert werden.",
     "cancel": "Abbrechen",
-    "save": "Speichern"
+    "save": "Speichern",
+    "design": {
+      "title": "Von sich aus gut konstruieren",
+      "hint": "Was der Assistent ungefragt einbaut. Er nennt es nach jedem Schritt in einer Zeile; im Chat kannst du es für ein Projekt abwählen („keine Rundungen“), das geht diesen Schaltern vor. Maße, die du nennst, setzt er immer exakt um.",
+      "rounding": {
+        "label": "Rundungen und Fasen",
+        "hint": "Sichtbare Außenkanten 1–3 mm gerundet, Kanten zum Bett gefast, belastete Innenecken ausgerundet."
+      },
+      "printInPlace": {
+        "label": "Print-in-Place",
+        "hint": "Scharniere, Gelenke und Clips zuerst als druckfertige Einheit ohne Montage und ohne Stützen."
+      },
+      "details": {
+        "label": "Details",
+        "hint": "Gleichmäßige Wände, Fasen an Bohrungen und Fügekanten, versenkte Schraubenköpfe, weiche Übergänge."
+      },
+      "snap": {
+        "label": "Maße einrasten",
+        "hint": "Selbst gewählte Wände auf ganze Linienbreiten, Böden und Höhen auf ganze Schichten. Bei einem Druckerwechsel passt PartBuddy nur diese Maße an."
+      }
+    }
   },
   "check": {
     "title": "Druckbereit?",
