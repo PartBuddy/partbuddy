@@ -2,7 +2,6 @@ import {
   AdaptiveDpr,
   CameraControls,
   GizmoHelper,
-  GizmoViewcube,
   GizmoViewport,
   Grid,
   Line,
@@ -10,7 +9,7 @@ import {
   PerspectiveCamera,
   PointMaterial,
 } from '@react-three/drei';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { SKETCH_STYLE } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -32,7 +31,8 @@ import { blendWeights, PREVIEW_BLEND } from './blend';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
 import { StepPreviews } from './StepPreviews';
-import { gridStep, needsReframe } from './framing';
+import { ViewCube } from './ViewCube';
+import { gridStep, lineScaleFor, needsReframe } from './framing';
 import { pickBox, selectionBox, VIEW_DIRECTIONS, type PickArrays } from './camera';
 import { ViewTools } from './ViewTools';
 import { viewStateOf, type CameraView } from './viewState';
@@ -61,7 +61,6 @@ const scene = {
   // differ in brightness, which gives depth. The fill light from the right softens it.
   keyLight: [-70, -90, 130] as [number, number, number],
   fillLight: [100, 30, 50] as [number, number, number],
-  gizmoMargin: [64, 64] as [number, number],
   // The axis triad in the lower left corner.
   triadMargin: [48, 48] as [number, number],
   triadScale: 28,
@@ -71,7 +70,8 @@ const scene = {
   // Silhouettes of curved faces, a little thinner than the model edges (CSS pixels).
   silhouetteWidth: 1.4,
   // How far a changed face moves from the body colour toward the change colour.
-  changeTint: 0.45,
+  // At full glow; the glow fades out after a change (LiveBar), so no face stays tinted.
+  changeTint: 0.35,
   hoverTint: 0.35,
   selectionTint: 0.55,
   // See-through faces in the X-ray display mode.
@@ -85,8 +85,6 @@ const scene = {
   vertexPixels: 11,
   // A press that moves less than this is a click, not an orbit.
   clickSlop: 4,
-  // Canvas texture font of the view cube labels (drawn into a WebGL texture, not CSS).
-  cubeFont: '500 17px Segoe UI Variable, Segoe UI, sans-serif',
   // Sketch line widths in CSS pixels; the sketch being edited is drawn stronger.
   sketchWidth: 1.5,
   activeSketchWidth: 2.25,
@@ -117,6 +115,7 @@ function Body({
   mode,
   plane,
   emphasis,
+  lineScale,
 }: {
   index: number;
   body: BodyModel;
@@ -128,11 +127,14 @@ function Body({
   plane: Plane | null;
   /** The part of the assembly step that plays, or a part that does not fit the bed. */
   emphasis: 'active' | 'misfit' | null;
+  /** Line widths shrink with the part on screen (lineScale), so a small part keeps clean lines. */
+  lineScale: number;
 }) {
   const hover = useStudio((s) => s.hover);
   const selections = useStudio((s) => s.selections);
   const changes = useStudio((s) => s.changes);
   const stepHighlight = useStudio((s) => s.stepHighlight);
+  const glow = useStudio((s) => s.changeGlow);
   // With a ghost on screen, how much of the part as it is now shows.
   const fade = useStudio((s) => (s.selectionGhost || s.parameterGhost || s.markGhost ? blendWeights(PREVIEW_BLEND).before : 1));
   const { model } = body;
@@ -143,7 +145,8 @@ function Body({
     // A body that is new as a whole is not tinted: the whole part in the change colour reads as a
     // toy, not as a change. Changed faces of an existing body get a tint of the body colour.
     if (changed.size >= model.table.faces.length) changed.clear();
-    const tint = colors.body.clone().lerp(colors.changed, scene.changeTint);
+    const tint = colors.body.clone().lerp(colors.changed, scene.changeTint * glow);
+    if (glow === 0 && !stepHighlight) changed.clear();
     // Hover and selection tint the face; the outline drawn around it carries the strong colour.
     const hoverTint = colors.body.clone().lerp(colors.hover, scene.hoverTint);
     const selectedTint = colors.body.clone().lerp(colors.selection, scene.selectionTint);
@@ -166,7 +169,7 @@ function Body({
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
-  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name, emphasis]);
+  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name, emphasis, glow]);
 
   const clipping = useMemo(() => (plane ? [plane] : []), [plane]);
   return (
@@ -209,10 +212,10 @@ function Body({
           <meshBasicMaterial color={colors.section} side={BackSide} clippingPlanes={clipping} />
         </mesh>
       ) : null}
-      {plane === null && (mode === 'shadedEdges' || mode === 'hiddenEdges') && fade > 0 ? <Silhouette geometry={model.geometry} color={colors.edge} opacity={fade} /> : null}
+      {plane === null && (mode === 'shadedEdges' || mode === 'hiddenEdges') && fade > 0 ? <Silhouette geometry={model.geometry} color={colors.edge} opacity={fade} scale={lineScale} /> : null}
       {mode === 'hiddenEdges' && fade > 0 ? <HiddenEdges geometry={model.edges} color={colors.hiddenEdge} plane={clipping} /> : null}
       {mode === 'shaded' || fade === 0 ? null : plane === null && mode !== 'xray' ? (
-        <FatEdges geometry={model.edges} color={colors.edge} width={scene.edgeWidth} opacity={fade} />
+        <FatEdges geometry={model.edges} color={colors.edge} width={scene.edgeWidth * lineScale} opacity={fade} />
       ) : (
         <lineSegments geometry={model.edges} raycast={noRaycast}>
           <lineBasicMaterial key={plane ? 'cut' : 'whole'} color={colors.edge} clippingPlanes={clipping} />
@@ -288,7 +291,7 @@ function HiddenEdges({ geometry, color, plane }: { geometry: BodyModel['model'][
 }
 
 /** The outline of curved faces where they turn away (see silhouette.ts); one draw call per body. */
-function Silhouette({ geometry, color, opacity }: { geometry: BodyModel['model']['geometry']; color: ViewerColors['edge']; opacity: number }) {
+function Silhouette({ geometry, color, opacity, scale }: { geometry: BodyModel['model']['geometry']; color: ViewerColors['edge']; opacity: number; scale: number }) {
   const size = useThree((state) => state.size);
   const dpr = useThree((state) => state.viewport.dpr);
   const invalidate = useThree((state) => state.invalidate);
@@ -306,11 +309,11 @@ function Silhouette({ geometry, color, opacity }: { geometry: BodyModel['model']
     if (!current) return;
     const uniforms = current.uniforms as { resolution: { value: Vector2 }; width: { value: number }; opacity: { value: number } };
     uniforms.resolution.value.set(size.width * dpr, size.height * dpr);
-    uniforms.width.value = scene.silhouetteWidth * dpr;
+    uniforms.width.value = scene.silhouetteWidth * dpr * scale;
     uniforms.opacity.value = opacity;
     current.transparent = opacity < 1;
     invalidate();
-  }, [material, size, dpr, opacity, invalidate]);
+  }, [material, size, dpr, opacity, scale, invalidate]);
   return <mesh ref={mesh} geometry={geometry} material={material} raycast={noRaycast} />;
 }
 
@@ -936,6 +939,22 @@ function ShadowRefresh({ keys }: { keys: unknown[] }) {
   return null;
 }
 
+function LineScale({ bounds, onChange }: { bounds: Sphere; onChange: (scale: number) => void }) {
+  const last = useRef(1);
+  useFrame(({ camera, size }) => {
+    if (bounds.radius <= 0) return;
+    const pixels =
+      camera instanceof ThreeOrthographicCamera
+        ? bounds.radius * camera.zoom
+        : (bounds.radius / (Math.max(1e-3, camera.position.distanceTo(bounds.center)) * Math.tan((scene.fieldOfView * Math.PI) / 360))) * (size.height / 2);
+    const next = lineScaleFor(pixels);
+    if (next === last.current) return;
+    last.current = next;
+    onChange(next);
+  });
+  return null;
+}
+
 /** The note pins; changes to notes wait while the assistant works, like every change of the design. */
 function ScenePins({ bodies }: { bodies: BodyModel[] }) {
   const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy';
@@ -962,6 +981,8 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
   const register = useCallback((index: number, mesh: Mesh | null) => {
     meshes.current[index] = mesh;
   }, []);
+  const [lineScale, setLineScale] = useState(1);
+  const bounds = useMemo(() => boundsOf(bodies, sketches), [bodies, sketches]);
   const groups = useRef<(Group | null)[]>([]);
   const registerGroup = useCallback((index: number, group: Group | null) => {
     groups.current[index] = group;
@@ -969,8 +990,6 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
   const radius = useMemo(() => Math.max(1, boundsOf(bodies, sketches).radius), [bodies, sketches]);
   const cell = gridStep(radius);
   const fadeDistance = Math.max(scene.gridFadeMin, radius * scene.gridFadeRadii);
-  // drei orders cube faces +X, -X, +Y, -Y, +Z, -Z; with Z up, -Y is the front view.
-  const cubeFaces = ['right', 'left', 'back', 'front', 'top', 'bottom'].map((face) => t(`viewer.cube.${face}`));
 
   return (
     <Canvas
@@ -1015,9 +1034,11 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
           mode={displayMode}
           plane={plane}
           emphasis={active.includes(body.name) ? 'active' : misfits.includes(body.name) ? 'misfit' : null}
+          lineScale={lineScale}
         />
       ))}
       <Animator bodies={bodies} groups={groups} targets={targets} />
+      <LineScale bounds={bounds} onChange={setLineScale} />
       <ShadowRefresh keys={[bodies, plane, displayMode]} />
       {playback ? (
         <>
@@ -1064,18 +1085,9 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
       <FocusRequest />
       <ViewReporter />
       <StepPreviews />
-      <GizmoHelper alignment="top-right" margin={scene.gizmoMargin}>
-        <GizmoViewcube
-          faces={cubeFaces}
-          font={scene.cubeFont}
-          color={`#${colors.cube.getHexString()}`}
-          hoverColor={`#${colors.hover.getHexString()}`}
-          textColor={`#${colors.cubeText.getHexString()}`}
-          strokeColor={`#${colors.cubeStroke.getHexString()}`}
-        />
-      </GizmoHelper>
-      {/* Drawn after the cube's helper, which renders the scene: priority 1 would draw the scene again over the cube. */}
-      <GizmoHelper alignment="bottom-left" margin={scene.triadMargin} renderPriority={2}>
+      <ViewCube colors={colors} />
+      {/* The axis triad's helper draws the scene and the triad; the view cube draws after it (ViewCube). */}
+      <GizmoHelper alignment="bottom-left" margin={scene.triadMargin} renderPriority={1}>
         <GizmoViewport
           axisColors={[`#${colors.axisX.getHexString()}`, `#${colors.axisY.getHexString()}`, `#${colors.axisZ.getHexString()}`]}
           labelColor={`#${colors.axisLabel.getHexString()}`} hideNegativeAxes axisHeadScale={0.8} scale={scene.triadScale} disabled />
@@ -1110,7 +1122,8 @@ export function Viewer() {
   return (
     <main
       // isolate: pins and dimension labels (drei Html, z 11–32) stay under dialogs, menus and the start page.
-      className="relative isolate min-h-0 flex-1 bg-surface-sunken"
+      // select-none: a drag in the view must not select the labels of the tools around it.
+      className="relative isolate min-h-0 flex-1 select-none bg-surface-sunken"
       aria-label={t('viewer.canvasLabel')}
       data-testid="viewer"
       data-revision={model.status === 'ready' ? model.revision : undefined}

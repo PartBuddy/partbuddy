@@ -446,7 +446,8 @@
     "changed": "{count, plural, one {# face changed} other {# faces changed}}",
     "clear": "Hide the change highlight",
     "follow": "Camera follows changes",
-    "sketchChanged": "{count, plural, one {# sketch curve changed} other {# sketch curves changed}}"
+    "sketchChanged": "{count, plural, one {# sketch curve changed} other {# sketch curves changed}}",
+    "showChanged": "Point here to see the faces the latest step changed"
   },
   "build": {
     "title": "The assistant is building",

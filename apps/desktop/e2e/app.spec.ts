@@ -161,6 +161,17 @@ test('edges and vertices can be picked, and the view switches projection and sta
   await page.getByRole('button', { name: 'Isometric' }).click();
   await page.waitForTimeout(800);
   await page.screenshot({ path: test.info().outputPath('ortho-iso.png') });
+  // The view cube: a click on its front face turns the camera to look from -Y, straight on.
+  const cube = await page.locator('#view-cube').boundingBox();
+  expect(cube).not.toBeNull();
+  if (cube) {
+    await page.getByRole('button', { name: 'Isometric' }).click();
+    await page.waitForTimeout(1200);
+    await page.mouse.click(cube.x + cube.width * 0.36, cube.y + cube.height * 0.6);
+    await page.waitForTimeout(1500);
+    const front = await cameraOf(page);
+    expect(front && front.position[1] < front.target[1] && Math.abs(front.position[0] - front.target[0]) < 1 && Math.abs(front.position[2] - front.target[2]) < 1).toBe(true);
+  }
   // Ctrl+1 looks from the back: the camera stands on the +Y side of what it looks at.
   await page.keyboard.press('Control+1');
   await page.waitForTimeout(1200);

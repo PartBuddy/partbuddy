@@ -45,6 +45,7 @@
     "streamdown": "2.7.1",
     "three": "0.186.1",
     "three-mesh-bvh": "0.9.16",
+    "three-viewport-gizmo": "2.2.0",
     "xstate": "5.33.3",
     "zod": "4.6.7",
     "zustand": "5.0.16"

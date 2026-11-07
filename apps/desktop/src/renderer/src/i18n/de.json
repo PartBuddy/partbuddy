@@ -446,7 +446,8 @@
     "changed": "{count, plural, one {# Fläche geändert} other {# Flächen geändert}}",
     "clear": "Markierung der Änderung ausblenden",
     "follow": "Kamera folgt Änderungen",
-    "sketchChanged": "{count, plural, one {# Skizzenkurve geändert} other {# Skizzenkurven geändert}}"
+    "sketchChanged": "{count, plural, one {# Skizzenkurve geändert} other {# Skizzenkurven geändert}}",
+    "showChanged": "Zeige hierauf, um die vom letzten Schritt geänderten Flächen zu sehen"
   },
   "build": {
     "title": "Der Assistent baut",

@@ -176,6 +176,12 @@ interface StudioState {
   /** Everything selected, in picking order (Ctrl- or Shift-click adds and removes, M1b-2). */
   selections: Pick[];
   changes: LiveChanges | null;
+  /**
+   * How strongly the faces the latest step changed are tinted, 0 to 1: a short glow after each
+   * change that fades out, and again while the pointer is on the change chip that names them.
+   */
+  changeGlow: number;
+  setChangeGlow: (glow: number) => void;
   /** Faces of the work-log step under the pointer (M2a), by body and face name. */
   stepHighlight: { body: string; faces: string[] }[] | null;
   setStepHighlight: (highlight: { body: string; faces: string[] }[] | null) => void;
@@ -306,6 +312,10 @@ export const useStudio = create<StudioState>()((set) => ({
   selection: null,
   selections: [],
   changes: null,
+  changeGlow: 0,
+  setChangeGlow: (changeGlow) => {
+    set({ changeGlow });
+  },
   stepHighlight: null,
   setStepHighlight: (stepHighlight) => {
     set({ stepHighlight });
