@@ -423,7 +423,9 @@
     },
     "scroll": {
       "toLatest": "Zur neuesten Nachricht"
-    }
+    },
+    "sendHint": "Senden (Eingabe)",
+    "stopHint": "Stoppen (Esc)"
   },
   "live": {
     "thinking": "Der Assistent plant den nächsten Schritt",

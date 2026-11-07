@@ -418,12 +418,14 @@
       "copy": "Copy",
       "copied": "Copied",
       "copyCode": "Copy code",
-      "resend": "Send again",
+      "resend": "Ask again",
       "actions": "Message actions"
     },
     "scroll": {
       "toLatest": "Jump to the latest message"
-    }
+    },
+    "sendHint": "Send (Enter)",
+    "stopHint": "Stop (Esc)"
   },
   "live": {
     "thinking": "The assistant is planning the next step",

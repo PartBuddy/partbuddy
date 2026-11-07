@@ -1,4 +1,4 @@
-import { IconArrowDown, IconArrowUp, IconSparkles, IconPencil, IconPhoto, IconPlayerStop, IconPointer, IconRefresh, IconX } from '@tabler/icons-react';
+import { IconArrowDown, IconArrowUp, IconPencil, IconPhoto, IconPlayerStopFilled, IconPlugConnectedX, IconPointer, IconRefresh, IconSparkles, IconX } from '@tabler/icons-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -274,6 +274,15 @@ function Item({
 }
 
 
+/** What goes along with the next message, as chips in the composer. */
+const chip = 'inline-flex max-w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface text-xs text-text tabular-nums';
+const chipPicture = 'shrink-0 overflow-hidden rounded-sm border border-border outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-focus';
+const chipRemove = 'inline-flex size-control-sm shrink-0 items-center justify-center rounded-sm text-text-subtle outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus';
+/** A quiet icon button of the composer (sketch, photo). */
+const tool = 'inline-flex size-control-md shrink-0 items-center justify-center rounded-md text-text-muted outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50';
+/** Send and Stop: a round button at the composer's end. */
+const round = 'inline-flex size-control-md shrink-0 items-center justify-center rounded-full outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed';
+
 /** The first picture among pasted or dropped files; other files are left to the window's import. */
 function pictureIn(data: DataTransfer | null): File | null {
   return [...(data?.files ?? [])].find((file) => file.type.startsWith('image/')) ?? null;
@@ -298,6 +307,8 @@ export function AssistantPanel() {
   const composer = useRef<HTMLTextAreaElement>(null);
   const busy = status.state === 'busy';
   const ready = status.state === 'ready' && connected;
+  // The composer takes text while it can send or while the assistant works on the last message.
+  const writable = ready || (busy && connected);
   const [width, setWidth, maxWidth] = useChatWidth();
   const documentId = useStudio((s) => (s.model.status === 'ready' ? s.model.documentId : null));
   const { list, content, atEnd, toEnd, handlers } = useChatScroll(documentId);
@@ -461,172 +472,221 @@ export function AssistantPanel() {
       ) : null}
       </div>
       <Form
-        className="flex flex-col gap-2 border-t border-border p-3"
+        className="flex flex-col gap-1 px-3 pt-1 pb-3"
         onSubmit={(event) => {
           event.preventDefault();
           send();
         }}
       >
-        {!connected && (status.state === 'ready' || busy) ? <p className="text-sm text-text-muted">{t('assistant.needsSolidCraft')}</p> : null}
-        <TextField value={draft} onChange={setDraft} aria-label={t('assistant.composer')} isDisabled={!ready}>
-          <TextArea
-            ref={composer}
-            rows={3}
-            placeholder={t('assistant.placeholder')}
-            className="w-full resize-none rounded-md border border-border-strong bg-surface p-2 text-md text-text outline-none placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
-            onPaste={(event) => {
-              // A picture from the clipboard (a screenshot, a copied photo) goes along; text pastes as usual.
-              const file = pictureIn(event.clipboardData);
-              if (!file) return;
-              event.preventDefault();
-              attachPhoto(file);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                send();
-              }
-            }}
-          />
-        </TextField>
-        {selections.length > 1 ? (
-          <div className="flex flex-wrap items-center gap-1" data-testid="composer-selections" aria-label={t('assistant.selectionsGoWith', { count: selections.length })}>
-            <span className="text-xs text-text-muted">{t('assistant.selectionsGoWith', { count: selections.length })}</span>
-            {selections.map((entry, i) => (
-              <span key={`${entry.kind}-${i}`} className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-sunken py-0 pl-2 pr-1 tabular-nums text-xs text-text">
-                <span className="truncate" title={selectionName(entry)}>{selectionLabel(t, entry)}</span>
-                <AriaButton
-                  aria-label={t('assistant.removeSelection', { name: selectionLabel(t, entry) })}
-                  className="inline-flex size-icon items-center justify-center rounded-full text-text-subtle outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
-                  onPress={() => {
-                    const pick = picks[i];
-                    if (pick) deselect(pick);
-                  }}
-                >
-                  <IconX className="size-icon-sm" aria-hidden />
-                </AriaButton>
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {selection && selections.length === 1 ? (
-          <span className="flex min-w-0 items-center gap-1 text-xs text-text-muted" data-testid="composer-selection">
-            <IconPointer className="size-icon-sm shrink-0" aria-hidden />
-            <span className="truncate" title={`${selectionName(selection)} · ${selection.body}`}>
-              {t('assistant.selectionGoesWith', { kind: selection.kind, name: `${selectionLabel(t, selection)} · ${selection.body}` })}
-            </span>
-          </span>
-        ) : null}
-        {sketch ? (
-          <div className="flex items-center gap-2" data-testid="composer-sketch">
-            <AriaButton
-              aria-label={t('assistant.sketch.edit')}
-              onPress={() => {
-                setSketching(true);
-              }}
-              className="overflow-hidden rounded-md border border-border outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-focus"
-            >
-              <img src={sketch.picture.thumbnail} alt="" className="block h-control-lg w-auto" draggable={false} />
-            </AriaButton>
-            <span className="mr-auto text-xs text-text-muted">{t('assistant.sketch.goesWith')}</span>
-            <AriaButton
-              aria-label={t('assistant.sketch.remove')}
-              onPress={() => {
-                setSketch(null);
-              }}
-              className="inline-flex size-control-sm items-center justify-center rounded-sm text-text-subtle outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
-              data-testid="composer-sketch-remove"
-            >
-              <IconX className="size-icon-sm" aria-hidden />
-            </AriaButton>
-          </div>
-        ) : null}
-        {photo ? (
-          <div className="flex items-center gap-2" data-testid="composer-photo">
-            <img src={photo.thumbnail} alt="" className="block h-control-lg w-auto rounded-md border border-border" draggable={false} />
-            <span className="mr-auto text-xs text-text-muted">{t('assistant.photo.goesWith')}</span>
-            <AriaButton
-              aria-label={t('assistant.photo.remove')}
-              onPress={() => {
-                setPhoto(null);
-              }}
-              className="inline-flex size-control-sm items-center justify-center rounded-sm text-text-subtle outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
-              data-testid="composer-photo-remove"
-            >
-              <IconX className="size-icon-sm" aria-hidden />
-            </AriaButton>
-          </div>
-        ) : null}
-        {photoFailed ? (
-          <p role="alert" className="text-xs text-danger">
-            {t('assistant.photo.failed')}
+        {!connected && (status.state === 'ready' || busy) ? (
+          <p className="flex items-center gap-1 px-1 text-xs text-text-muted" data-testid="composer-locked">
+            <IconPlugConnectedX className="size-icon-sm shrink-0" aria-hidden />
+            {t('assistant.needsSolidCraft')}
           </p>
         ) : null}
-        <input
-          ref={photoInput}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          className="hidden"
-          tabIndex={-1}
-          aria-hidden
-          data-testid="composer-photo-input"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = '';
-            if (file) attachPhoto(file);
-          }}
-        />
-        <div className="flex items-center justify-end gap-2">
-          <span className="mr-auto flex min-w-0">
-            <AgentChip />
-          </span>
-          {/* Icons only, so the route chip keeps its room while Stop shows; the name comes as a tooltip. */}
-          <TooltipTrigger delay={400}>
-          <Button
-            onPress={() => {
-              setSketching(true);
-            }}
-            isDisabled={!ready}
-            aria-label={t('assistant.sketch.open')}
-            data-testid="composer-sketch-open"
-          >
-            <IconPencil className="size-icon-sm" aria-hidden />
-          </Button>
-          <Tooltip placement="top" offset={6} className={tip}>
-            {t('assistant.sketch.button')}
-          </Tooltip>
-          </TooltipTrigger>
-          <TooltipTrigger delay={400}>
-          <Button
-            onPress={() => {
-              photoInput.current?.click();
-            }}
-            isDisabled={!ready}
-            aria-label={t('assistant.photo.open')}
-            data-testid="composer-photo-open"
-          >
-            <IconPhoto className="size-icon-sm" aria-hidden />
-          </Button>
-          <Tooltip placement="top" offset={6} className={tip}>
-            {t('assistant.photo.button')}
-          </Tooltip>
-          </TooltipTrigger>
-          {/* Stop takes Send's place while the assistant works (Send cannot send then), so the chip keeps its room (Manuel, 2026-11-06). */}
-          {busy ? (
-            <Button
-              onPress={() => {
-                void platform().agent.stop();
+        {/* One floating card (chat polish): what goes along, the text, then tools, route and Send. */}
+        <div
+          className={`flex min-w-0 flex-col gap-1 rounded-lg border bg-surface-raised p-2 shadow-2 transition-colors has-[textarea:focus-visible]:border-accent ${writable ? 'border-border-strong' : 'border-border'}`}
+          data-testid="composer"
+          data-state={busy ? 'working' : ready ? 'ready' : 'locked'}
+        >
+          {selections.length > 1 ? (
+            <div className="flex flex-wrap items-center gap-1" data-testid="composer-selections" aria-label={t('assistant.selectionsGoWith', { count: selections.length })}>
+              <span className="text-xs text-text-muted">{t('assistant.selectionsGoWith', { count: selections.length })}</span>
+              {selections.map((entry, i) => (
+                <span key={`${entry.kind}-${i}`} className={`${chip} pr-1 pl-2`}>
+                  <span className="truncate" title={selectionName(entry)}>
+                    {selectionLabel(t, entry)}
+                  </span>
+                  <AriaButton
+                    aria-label={t('assistant.removeSelection', { name: selectionLabel(t, entry) })}
+                    className={chipRemove}
+                    onPress={() => {
+                      const pick = picks[i];
+                      if (pick) deselect(pick);
+                    }}
+                  >
+                    <IconX className="size-icon-sm" aria-hidden />
+                  </AriaButton>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {selection && selections.length === 1 ? (
+            <span className={`${chip} self-start px-2`} data-testid="composer-selection">
+              <IconPointer className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
+              <span className="truncate" title={`${selectionName(selection)} · ${selection.body}`}>
+                {t('assistant.selectionGoesWith', { kind: selection.kind, name: `${selectionLabel(t, selection)} · ${selection.body}` })}
+              </span>
+            </span>
+          ) : null}
+          {sketch || photo ? (
+            <div className="flex flex-wrap gap-1">
+              {sketch ? (
+                <span className={`${chip} p-1 pr-1`} data-testid="composer-sketch">
+                  <AriaButton
+                    aria-label={t('assistant.sketch.edit')}
+                    onPress={() => {
+                      setSketching(true);
+                    }}
+                    className={chipPicture}
+                  >
+                    <img src={sketch.picture.thumbnail} alt="" className="block h-control-lg w-auto" draggable={false} />
+                  </AriaButton>
+                  <span className="truncate" title={t('assistant.sketch.goesWith')}>
+                    {t('assistant.sketch.button')}
+                  </span>
+                  <AriaButton
+                    aria-label={t('assistant.sketch.remove')}
+                    onPress={() => {
+                      setSketch(null);
+                    }}
+                    className={chipRemove}
+                    data-testid="composer-sketch-remove"
+                  >
+                    <IconX className="size-icon-sm" aria-hidden />
+                  </AriaButton>
+                </span>
+              ) : null}
+              {photo ? (
+                <span className={`${chip} p-1 pr-1`} data-testid="composer-photo">
+                  <AriaButton
+                    aria-label={t('assistant.photo.show')}
+                    onPress={() => {
+                      openAttachment({ thumbnail: photo.thumbnail, photo: photo.png });
+                    }}
+                    className={chipPicture}
+                  >
+                    <img src={photo.thumbnail} alt="" className="block h-control-lg w-auto" draggable={false} />
+                  </AriaButton>
+                  <span className="truncate" title={t('assistant.photo.goesWith')}>
+                    {t('assistant.photo.button')}
+                  </span>
+                  <AriaButton
+                    aria-label={t('assistant.photo.remove')}
+                    onPress={() => {
+                      setPhoto(null);
+                    }}
+                    className={chipRemove}
+                    data-testid="composer-photo-remove"
+                  >
+                    <IconX className="size-icon-sm" aria-hidden />
+                  </AriaButton>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {/* Typing goes on while the assistant works; only sending waits (chat polish). */}
+          <TextField value={draft} onChange={setDraft} aria-label={t('assistant.composer')} isDisabled={!writable}>
+            <TextArea
+              ref={composer}
+              rows={2}
+              placeholder={t('assistant.placeholder')}
+              className="max-h-[40vh] w-full resize-none bg-transparent px-1 py-1 text-md text-text outline-none [field-sizing:content] placeholder:text-text-subtle disabled:cursor-not-allowed disabled:opacity-50"
+              onPaste={(event) => {
+                // A picture from the clipboard (a screenshot, a copied photo) goes along; text pastes as usual.
+                const file = pictureIn(event.clipboardData);
+                if (!file) return;
+                event.preventDefault();
+                attachPhoto(file);
               }}
-            >
-              <IconPlayerStop className="size-icon-sm" aria-hidden />
-              {t('assistant.stop')}
-            </Button>
-          ) : (
-            <Button type="submit" variant="primary" isDisabled={!ready || (draft.trim() === '' && !sketch && !photo)}>
-              <IconArrowUp className="size-icon-sm" aria-hidden />
-              {t('assistant.send')}
-            </Button>
-          )}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  send();
+                } else if (event.key === 'Escape' && busy) {
+                  // Like Send's place: Esc stops the assistant while it works.
+                  event.preventDefault();
+                  void platform().agent.stop();
+                }
+              }}
+            />
+          </TextField>
+          {photoFailed ? (
+            <p role="alert" className="px-1 text-xs text-danger">
+              {t('assistant.photo.failed')}
+            </p>
+          ) : null}
+          <input
+            ref={photoInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            tabIndex={-1}
+            aria-hidden
+            data-testid="composer-photo-input"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) attachPhoto(file);
+            }}
+          />
+          <div className="flex min-w-0 items-center gap-1">
+            {/* Icons only, so the route chip keeps its room; the name comes as a tooltip. */}
+            <TooltipTrigger delay={400}>
+              <AriaButton
+                onPress={() => {
+                  setSketching(true);
+                }}
+                isDisabled={!ready}
+                aria-label={t('assistant.sketch.open')}
+                className={tool}
+                data-testid="composer-sketch-open"
+              >
+                <IconPencil className="size-icon-sm" aria-hidden />
+              </AriaButton>
+              <Tooltip placement="top" offset={6} className={tip}>
+                {t('assistant.sketch.button')}
+              </Tooltip>
+            </TooltipTrigger>
+            <TooltipTrigger delay={400}>
+              <AriaButton
+                onPress={() => {
+                  photoInput.current?.click();
+                }}
+                isDisabled={!ready}
+                aria-label={t('assistant.photo.open')}
+                className={tool}
+                data-testid="composer-photo-open"
+              >
+                <IconPhoto className="size-icon-sm" aria-hidden />
+              </AriaButton>
+              <Tooltip placement="top" offset={6} className={tip}>
+                {t('assistant.photo.button')}
+              </Tooltip>
+            </TooltipTrigger>
+            <span className="flex min-w-0 flex-1">
+              <AgentChip />
+            </span>
+            {/* Stop takes Send's place while the assistant works, so the chip keeps its room (Manuel, 2026-11-06). */}
+            <TooltipTrigger delay={400}>
+              {busy ? (
+                <AriaButton
+                  onPress={() => {
+                    void platform().agent.stop();
+                  }}
+                  aria-label={t('assistant.stop')}
+                  className={`${round} border border-border-strong bg-surface text-text hover:bg-surface-hover`}
+                  data-testid="composer-stop"
+                >
+                  <IconPlayerStopFilled className="size-icon-sm" aria-hidden />
+                </AriaButton>
+              ) : (
+                <AriaButton
+                  type="submit"
+                  isDisabled={!ready || (draft.trim() === '' && !sketch && !photo)}
+                  aria-label={t('assistant.send')}
+                  className={`${round} bg-accent text-on-accent hover:bg-accent-hover disabled:bg-surface-sunken disabled:text-text-subtle`}
+                  data-testid="composer-send"
+                >
+                  <IconArrowUp className="size-icon-sm" aria-hidden />
+                </AriaButton>
+              )}
+              <Tooltip placement="top" offset={6} className={tip}>
+                {busy ? t('assistant.stopHint') : t('assistant.sendHint')}
+              </Tooltip>
+            </TooltipTrigger>
+          </div>
         </div>
       </Form>
       {sketching ? (
