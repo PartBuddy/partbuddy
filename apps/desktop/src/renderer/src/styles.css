@@ -2,6 +2,8 @@
 @import "@partbuddy/design-tokens/tokens.css";
 @import "@partbuddy/design-tokens/tailwind-theme.css";
 @plugin "tailwindcss-react-aria-components";
+/* Keyframes for the words of a streaming answer. */
+@import "streamdown/styles.css";
 /* Streamdown ships Tailwind classes in its bundle. */
 @source "../../../node_modules/streamdown/dist/*.js";
 
@@ -50,6 +52,43 @@ body,
     animation-duration: 0s !important;
     transition-duration: 0s !important;
   }
+  /* Streamed words would still wait for their stagger delay; they simply appear. */
+  [data-sd-animate],
+  [data-sd-animate-marker]::marker {
+    animation: none !important;
+  }
+  .cs-shimmer {
+    animation: none !important;
+    background: none;
+    color: var(--cs-color-text-muted);
+  }
+}
+
+/* A new entry of the chat rises into place (chat polish). */
+@keyframes cs-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--cs-space-1));
+  }
+}
+.cs-chat-list > * {
+  animation: cs-enter var(--cs-duration-normal) var(--cs-easing-standard);
+}
+
+/* "Claude is working": a light passes over the words while the assistant thinks. */
+@keyframes cs-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+.cs-shimmer {
+  background: linear-gradient(90deg, var(--cs-color-text-subtle) 35%, var(--cs-color-text) 50%, var(--cs-color-text-subtle) 65%) 0 0 / 200% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: cs-shimmer var(--cs-duration-slow) linear infinite;
 }
 
 

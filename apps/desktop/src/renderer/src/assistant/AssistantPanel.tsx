@@ -1,8 +1,8 @@
-import { IconArrowUp, IconPencil, IconPhoto, IconPlayerStop, IconPointer, IconRefresh, IconX } from '@tabler/icons-react';
+import { IconArrowUp, IconSparkles, IconPencil, IconPhoto, IconPlayerStop, IconPointer, IconRefresh, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button as AriaButton, Dialog, Form, Modal, ModalOverlay, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
+import { Button as AriaButton, Dialog, Form, ProgressBar, Modal, ModalOverlay, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
 
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
@@ -31,6 +31,16 @@ function Notice({ title, body, children }: { title: string; body: string; childr
       <p>{body}</p>
       {children ? <div className="flex flex-wrap gap-2">{children}</div> : null}
     </div>
+  );
+}
+
+/** The assistant thinks or works between visible output (chat polish): its name with a passing light. */
+function Working({ label }: { label: string }) {
+  return (
+    <ProgressBar isIndeterminate aria-label={label} className="flex items-center gap-2 px-1 text-sm" data-testid="assistant-working">
+      <IconSparkles className="size-icon-sm shrink-0 text-accent" aria-hidden />
+      <span className="cs-shimmer">{label}</span>
+    </ProgressBar>
   );
 }
 
@@ -340,6 +350,8 @@ export function AssistantPanel() {
   // After a failed turn: the last message once more, as text (shortcut: a sketch or photo that went with it does not go again).
   const lastUser = items.findLast((item) => item.kind === 'user');
   const retryLast = ready && lastUser?.kind === 'user' ? () => void sendToAssistant(lastUser.text) : null;
+  const newest = items.at(-1);
+  const streamingNow = newest?.kind === 'assistant' && newest.open;
   const resend = ready ? (text: string) => void sendToAssistant(text) : null;
 
   return (
@@ -380,7 +392,7 @@ export function AssistantPanel() {
       <h2 id="assistant-title" className="sr-only">
         {t('assistant.title')}
       </h2>
-      <div ref={list} className="flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto p-3" aria-live="polite">
+      <div ref={list} className="cs-chat-list flex min-h-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto p-3" aria-live="polite">
         <Setup />
         {items.length === 0 && (status.state === 'ready' || busy) ? (
           // A way in for an empty chat (polish round 1): examples fill the input, they do not send.
@@ -426,7 +438,10 @@ export function AssistantPanel() {
             <Item key={row.item.key} item={row.item} quiet={row.quiet} retry={row.item === items.at(-1) ? retryLast : null} open={openAttachment} resend={resend} />
           ),
         )}
-        {busy ? <Busy label={t(`assistant.working.${status.agent}`)} /> : null}
+        {/* While words stream in, the answer itself shows the work; otherwise a quiet "working" line. */}
+        {busy && !streamingNow ? (
+          <Working label={t(`assistant.working.${status.agent}`)} />
+        ) : null}
       </div>
       <Form
         className="flex flex-col gap-2 border-t border-border p-3"

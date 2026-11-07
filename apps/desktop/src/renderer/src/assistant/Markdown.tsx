@@ -28,6 +28,8 @@ const rehypePlugins: NonNullable<StreamdownProps['rehypePlugins']> = [
 const plugins: NonNullable<StreamdownProps['plugins']> = { code: createCodePlugin({ themes: ['github-light', 'github-dark'] }) };
 const controls: NonNullable<StreamdownProps['controls']> = { code: { copy: true, download: false }, table: false, mermaid: false };
 // Tabler, like every icon in the app; Streamdown passes only a size.
+// Words of a streaming answer fade in instead of popping up; none under reduced motion (styles.css).
+const animated: NonNullable<StreamdownProps['animated']> = { animation: 'fadeIn', duration: 160, sep: 'word' };
 const icons: NonNullable<StreamdownProps['icons']> = {
   CopyIcon: ({ size }) => <IconCopy size={size ?? 14} aria-hidden />,
   CheckIcon: ({ size }) => <IconCheck size={size ?? 14} aria-hidden />,
@@ -49,6 +51,8 @@ export const Markdown = memo(function Markdown({ text, streaming }: { text: stri
       translations={{ copyCode: t('assistant.message.copyCode'), copied: t('assistant.message.copied') }}
       lineNumbers={false}
       linkSafety={{ enabled: false }}
+      animated={animated}
+      {...(streaming ? { caret: 'circle' as const } : {})}
       isAnimating={streaming}
       parseIncompleteMarkdown
     >
