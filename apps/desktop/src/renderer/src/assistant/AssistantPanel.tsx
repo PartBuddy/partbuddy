@@ -1,9 +1,10 @@
 import { IconArrowDown, IconArrowUp, IconPencil, IconPhoto, IconPlayerStopFilled, IconPlugConnectedX, IconPointer, IconRefresh, IconSparkles, IconX } from '@tabler/icons-react';
-import { useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button as AriaButton, Dialog, Form, ProgressBar, Modal, ModalOverlay, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
 
+import type { MessageAnswer } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { selectionLabel, selectionName, selectionsOf } from '../viewer/viewState';
@@ -14,7 +15,7 @@ import { AgentChip } from './AgentChip';
 import { sendToAssistant } from './send';
 import { QuestionCard } from './QuestionCard';
 import { Answer } from './Answer';
-import { rowsOf } from './rows';
+import { rowsOf, sameEntries, sameList } from './rows';
 import { StepCard } from './StepCard';
 import { Queries, WorkGroup } from './WorkGroup';
 import { selectedStatus, useAssistant, type Attachment, type ConversationItem } from './store';
@@ -274,6 +275,16 @@ function Item({
 }
 
 
+/*
+ * Every token of a streaming answer rebuilds the rows; these keep every row whose items did not
+ * change from rendering again, so only the open answer does (chat polish).
+ */
+const StepRow = memo(StepCard, (a, b) => a.item === b.item && a.disabled === b.disabled && sameList(a.tools, b.tools));
+const QueriesRow = memo(Queries, (a, b) => sameList(a.tools, b.tools));
+const WorkRow = memo(WorkGroup, (a, b) => a.live === b.live && a.disabled === b.disabled && sameEntries(a.entries, b.entries));
+const QuestionRow = memo(QuestionCard);
+const ItemRow = memo(Item);
+
 /** What goes along with the next message, as chips in the composer. */
 const chip = 'inline-flex max-w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface text-xs text-text tabular-nums';
 const chipPicture = 'shrink-0 overflow-hidden rounded-sm border border-border outline-none hover:border-border-strong focus-visible:outline-2 focus-visible:outline-focus';
@@ -350,20 +361,31 @@ export function AssistantPanel() {
   // A sent sketch opens again as the start of a new one; a sent photo shows large.
   const [padStart, setPadStart] = useState<SketchState | null>(null);
   const [shownPhoto, setShownPhoto] = useState<string | null>(null);
-  const openAttachment = (attachment: Attachment) => {
+  const openAttachment = useCallback((attachment: Attachment) => {
     if (attachment.sketch) {
       setPadStart(attachment.sketch);
       setSketching(true);
     } else if (attachment.photo) {
       setShownPhoto(URL.createObjectURL(new Blob([new Uint8Array(attachment.photo)], { type: 'image/png' })));
     }
-  };
+  }, [setPadStart, setSketching, setShownPhoto]);
   // After a failed turn: the last message once more, as text (shortcut: a sketch or photo that went with it does not go again).
   const lastUser = items.findLast((item) => item.kind === 'user');
   const retryLast = ready && lastUser?.kind === 'user' ? () => void sendToAssistant(lastUser.text) : null;
   const newest = items.at(-1);
   const streamingNow = newest?.kind === 'assistant' && newest.open;
-  const resend = ready ? (text: string) => void sendToAssistant(text) : null;
+  const resend = useMemo(() => (ready ? (text: string) => void sendToAssistant(text) : null), [ready]);
+  const answer = useCallback(
+    (text: string, choice: MessageAnswer) => {
+      toEnd();
+      void platform().agent.send(text, [], choice);
+    },
+    [toEnd],
+  );
+  const change = useCallback(() => {
+    setDraft(t('assistant.planCard.changeDraft'));
+    composer.current?.focus();
+  }, [t, setDraft]);
 
   return (
     <aside
@@ -429,27 +451,15 @@ export function AssistantPanel() {
         ) : null}
         {rowsOf(items, busy).map((row) =>
           row.kind === 'item' && row.item.kind === 'question' ? (
-            <QuestionCard
-              key={row.item.key}
-              item={row.item}
-              ready={ready}
-              answer={(text, answer) => {
-                toEnd();
-                void platform().agent.send(text, [], answer);
-              }}
-              change={() => {
-                setDraft(t('assistant.planCard.changeDraft'));
-                composer.current?.focus();
-              }}
-            />
+            <QuestionRow key={row.item.key} item={row.item} ready={ready} answer={answer} change={change} />
           ) : row.kind === 'step' ? (
-            <StepCard key={row.item.key} item={row.item} tools={row.tools} disabled={busy || !connected} />
+            <StepRow key={row.item.key} item={row.item} tools={row.tools} disabled={busy || !connected} />
           ) : row.kind === 'queries' ? (
-            <Queries key={row.tools[0]?.key} tools={row.tools} />
+            <QueriesRow key={row.tools[0]?.key} tools={row.tools} />
           ) : row.kind === 'work' ? (
-            <WorkGroup key={row.key} entries={row.entries} live={row.live} disabled={busy || !connected} />
+            <WorkRow key={row.key} entries={row.entries} live={row.live} disabled={busy || !connected} />
           ) : (
-            <Item key={row.item.key} item={row.item} quiet={row.quiet} retry={row.item === items.at(-1) ? retryLast : null} open={openAttachment} resend={resend} />
+            <ItemRow key={row.item.key} item={row.item} quiet={row.quiet} retry={row.item === items.at(-1) ? retryLast : null} open={openAttachment} resend={resend} />
           ),
         )}
         {/* While words stream in, the answer itself shows the work; otherwise a quiet "working" line. */}

@@ -64,6 +64,17 @@ body,
   }
 }
 
+/*
+ * Long chats (chat polish): entries far from the end skip layout and paint until they scroll into
+ * view, and keep the size they last had, so the scrollbar does not jump. The clip margin keeps
+ * focus outlines at their edges visible.
+ */
+.cs-chat-list > :nth-last-child(n + 21) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 4rem;
+  overflow-clip-margin: var(--cs-space-1);
+}
+
 /* A new entry of the chat rises into place (chat polish). */
 @keyframes cs-enter {
   from {
