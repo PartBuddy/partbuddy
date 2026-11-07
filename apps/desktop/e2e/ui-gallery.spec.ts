@@ -34,6 +34,17 @@ test('control gallery and screens, light and dark', async () => {
     await expect(page.getByTestId('composer')).toBeVisible();
     await shoot(page, 'work');
 
+    // Print profiles (fields with units, list, tabs) and the settings (radios, checkbox, tabs).
+    await page.getByTestId('material-chip').click();
+    await page.getByTestId('print-profiles-open').click();
+    await page.waitForTimeout(500);
+    await shoot(page, 'profiles');
+    await page.keyboard.press('Escape');
+    await page.getByTestId('settings').click();
+    await page.waitForTimeout(500);
+    await shoot(page, 'settings');
+    await page.keyboard.press('Escape');
+
     const base = page.url().split('?')[0] ?? '';
     await page.goto(`${base}?gallery`);
     if (await page.getByTestId('ui-gallery').waitFor({ timeout: 5000 }).then(() => true, () => false)) {

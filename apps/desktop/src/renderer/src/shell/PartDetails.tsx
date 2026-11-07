@@ -8,6 +8,7 @@ import { iconButtonClass, pressable } from '../ui/Button';
 import type { PartNote, PartsState } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
+import { fieldLabelClass, inputClass } from '../ui/Field';
 
 /** A body without an entry: one copy, none printed. */
 export const NEW_PART: PartNote = { quantity: 1, printed: 0, filament: '', note: '' };
@@ -48,7 +49,6 @@ export function useParts(documentId: string | null, printable: string[]): { part
   return { parts, save };
 }
 
-const fieldClass = 'h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none focus-visible:focus-ring';
 
 /** The printed switch beside a body: every copy printed, or none. */
 export function PrintedToggle({ body, note, onChange }: { body: string; note: PartNote; onChange: (note: PartNote) => void }) {
@@ -93,29 +93,29 @@ export function PartDetails({ body, note, standard, onChange }: { body: string; 
     <li className="flex flex-col gap-2 rounded-md bg-surface-sunken px-2 py-2" data-testid="part-details" data-body={body}>
       <div className="grid grid-cols-2 gap-2">
         <NumberField value={note.quantity} minValue={1} maxValue={999} onChange={(value) => Number.isFinite(value) && onChange({ ...note, quantity: value, printed: Math.min(note.printed, value) })} className="flex flex-col gap-1" data-testid="part-quantity">
-          <Label className="text-xs text-text-muted">{t('parts.quantity')}</Label>
+          <Label className={fieldLabelClass}>{t('parts.quantity')}</Label>
           <Group>
-            <Input className={`${fieldClass} tabular-nums`} />
+            <Input className={`${inputClass('sm')} tabular-nums`} />
           </Group>
         </NumberField>
         {standard ? null : (
           <NumberField value={note.printed} minValue={0} maxValue={note.quantity} onChange={(value) => Number.isFinite(value) && onChange({ ...note, printed: value })} className="flex flex-col gap-1" data-testid="part-printed-count">
-            <Label className="text-xs text-text-muted">{t('parts.printed')}</Label>
+            <Label className={fieldLabelClass}>{t('parts.printed')}</Label>
             <Group>
-              <Input className={`${fieldClass} tabular-nums`} />
+              <Input className={`${inputClass('sm')} tabular-nums`} />
             </Group>
           </NumberField>
         )}
       </div>
       {standard ? null : (
         <TextField value={filament} onChange={setFilament} onBlur={() => filament !== note.filament && onChange({ ...note, filament })} maxLength={80} className="flex flex-col gap-1">
-          <Label className="text-xs text-text-muted">{t('parts.filament')}</Label>
-          <Input placeholder={t('parts.filamentPlaceholder')} className={fieldClass} data-testid="part-filament" />
+          <Label className={fieldLabelClass}>{t('parts.filament')}</Label>
+          <Input placeholder={t('parts.filamentPlaceholder')} className={inputClass('sm')} data-testid="part-filament" />
         </TextField>
       )}
       <TextField value={text} onChange={setText} onBlur={() => text !== note.note && onChange({ ...note, note: text })} maxLength={500} className="flex flex-col gap-1">
-        <Label className="text-xs text-text-muted">{t('parts.note')}</Label>
-        <Input className={fieldClass} data-testid="part-note" />
+        <Label className={fieldLabelClass}>{t('parts.note')}</Label>
+        <Input className={inputClass('sm')} data-testid="part-note" />
       </TextField>
     </li>
   );

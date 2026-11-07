@@ -2,6 +2,7 @@ import { IconChevronRight } from '@tabler/icons-react';
 import { createContext, useContext, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Button as AriaButton, Menu, MenuItem, Popover } from 'react-aria-components';
 import { pressable } from '../ui/Button';
+import { fieldBox } from '../ui/Field';
 
 /**
  * The structure tree's frame (CAD-style browser): one ARIA tree with a roving tab stop, sections
@@ -304,7 +305,7 @@ export function RenameField({ name, label, onDone }: { name: string; label: stri
       onClick={(event) => {
         event.stopPropagation();
       }}
-      className="h-control-sm min-w-0 flex-1 rounded-sm border border-accent bg-surface px-1 text-sm text-text outline-none"
+      className={`h-control-sm min-w-0 flex-1 px-1 text-sm ${fieldBox}`}
       data-testid="tree-rename"
     />
   );

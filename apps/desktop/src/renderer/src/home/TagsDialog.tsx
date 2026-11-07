@@ -6,6 +6,7 @@ import type { ProjectEntry } from '../../../shared/contract';
 import { platform } from '../platform';
 import { Button } from '../ui/Button';
 import { parseTags } from './projectTiles';
+import { FieldMessage, fieldLabelClass, inputClass } from '../ui/Field';
 
 /** The tags of a start page project (P5), typed in one field and separated by commas. */
 export function TagsDialog({ project, onClose, onDone }: { project: ProjectEntry; onClose: () => void; onDone: () => void }) {
@@ -41,16 +42,10 @@ export function TagsDialog({ project, onClose, onDone }: { project: ProjectEntry
                 });
             }}
           >
-            <TextField value={value} onChange={setValue} autoFocus className="flex flex-col gap-1">
-              <Label className="text-xs text-text-muted">{t('home.tags.label')}</Label>
-              <Input placeholder={t('home.tags.placeholder')} className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none placeholder:text-text-subtle focus-visible:focus-ring" data-testid="project-tags-input" />
-              {error ? (
-                <span role="alert" className="text-xs text-danger">
-                  {error}
-                </span>
-              ) : (
-                <span className="text-xs text-text-subtle">{t('home.tags.hint')}</span>
-              )}
+            <TextField value={value} onChange={setValue} autoFocus isInvalid={error !== null} className="flex flex-col gap-1">
+              <Label className={fieldLabelClass}>{t('home.tags.label')}</Label>
+              <Input placeholder={t('home.tags.placeholder')} className={inputClass('md')} data-testid="project-tags-input" />
+              <FieldMessage error={error} hint={t('home.tags.hint')} />
             </TextField>
             <div className="flex justify-end gap-2">
               <Button onPress={onClose}>{t('project.cancel')}</Button>

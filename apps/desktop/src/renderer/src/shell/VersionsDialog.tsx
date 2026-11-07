@@ -9,6 +9,7 @@ import { relativeTime } from '../home/projectTiles';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button, IconButton } from '../ui/Button';
+import { inputClass, fieldLabelClass } from '../ui/Field';
 
 const volume = (mm3: number, language: string) => new Intl.NumberFormat(language, { maximumFractionDigits: mm3 < 10 ? 1 : 0 }).format(mm3);
 
@@ -57,8 +58,8 @@ function NameForm({ version, onDone, onCancel }: { version: VersionEntry; onDone
       }}
     >
       <TextField value={value} onChange={setValue} autoFocus className="flex min-w-0 flex-1 flex-col gap-1">
-        <Label className="text-xs text-text-muted">{t('versions.name')}</Label>
-        <Input className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none focus-visible:focus-ring" data-testid="version-rename-input" />
+        <Label className={fieldLabelClass}>{t('versions.name')}</Label>
+        <Input className={inputClass('md')} data-testid="version-rename-input" />
       </TextField>
       <Button onPress={onCancel}>{t('project.cancel')}</Button>
       <Button type="submit" variant="primary" isDisabled={value.trim() === ''} data-testid="version-rename-save">
@@ -280,11 +281,11 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
             }}
           >
             <TextField value={label} onChange={setLabel} className="flex flex-1 flex-col gap-1">
-              <Label className="text-xs text-text-muted">{t('versions.name')}</Label>
+              <Label className={fieldLabelClass}>{t('versions.name')}</Label>
               <Input
                 ref={nameField}
                 placeholder={t('versions.namePlaceholder')}
-                className="h-control-md rounded-md border border-border-strong bg-surface px-2 text-md text-text outline-none placeholder:text-text-subtle focus-visible:focus-ring"
+                className={inputClass('md')}
                 data-testid="version-name"
               />
             </TextField>

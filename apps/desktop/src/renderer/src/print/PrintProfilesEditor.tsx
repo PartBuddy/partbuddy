@@ -20,10 +20,8 @@ import { DESIGN_RULES, FIT_KINDS, type MaterialProfile, type PrinterProfile, typ
 import { platform } from '../platform';
 import { useStudio, type ProfilesTab } from '../state/store';
 import { Button } from '../ui/Button';
+import { FieldMessage, fieldLabelClass, inputClass, UnitInput } from '../ui/Field';
 
-const inputClass =
-  'h-control-sm w-full rounded-md border border-border-strong bg-surface px-2 text-sm tabular-nums text-text outline-none focus-visible:focus-ring invalid:border-danger';
-const labelClass = 'text-xs text-text-muted';
 
 let serial = 0;
 /** A new profile id; the contract allows lower-case letters, digits and dashes. */
@@ -69,20 +67,19 @@ function Measure({
       className="flex flex-col gap-1"
       data-testid={testId}
     >
-      <Label className={labelClass}>{label}</Label>
-      <div className="flex items-center gap-1">
-        <Input className={`${inputClass} text-right`} />
-        <span className="w-5 shrink-0 text-xs text-text-subtle">{unit}</span>
-      </div>
+      <Label className={fieldLabelClass}>{label}</Label>
+      <UnitInput unit={unit} />
     </NumberField>
   );
 }
 
 function Name({ value, onChange, label, testId }: { value: string; onChange: (value: string) => void; label: string; testId: string }) {
+  const { t } = useTranslation();
   return (
     <TextField value={value} onChange={onChange} maxLength={60} isRequired isInvalid={value.trim() === ''} className="flex flex-col gap-1" data-testid={testId}>
-      <Label className={labelClass}>{label}</Label>
-      <Input className={inputClass} />
+      <Label className={fieldLabelClass}>{label}</Label>
+      <Input className={inputClass('sm')} />
+      <FieldMessage error={value.trim() === '' ? t('print.nameRequired') : null} />
     </TextField>
   );
 }
@@ -161,7 +158,7 @@ function PrinterForm({ printer, onChange }: { printer: PrinterProfile; onChange:
     <>
       <Name label={t('print.name')} value={printer.name} onChange={(name) => onChange({ ...printer, name })} testId="printer-name" />
       <fieldset className="flex flex-col gap-1">
-        <legend className={labelClass}>{t('print.bed')}</legend>
+        <legend className={fieldLabelClass}>{t('print.bed')}</legend>
         <div className="grid grid-cols-3 gap-2">
           {axes.map((axis, i) => (
             <Measure
@@ -211,7 +208,7 @@ function MaterialForm({
         <Measure label={t('print.holeShrink')} value={material.holeShrink} min={0} max={1} step={0.05} unit="mm" testId="material-hole" onChange={(holeShrink) => onChange({ ...material, holeShrink })} />
       </div>
       <fieldset className="flex flex-col gap-1">
-        <legend className={labelClass}>{t('print.clearance')}</legend>
+        <legend className={fieldLabelClass}>{t('print.clearance')}</legend>
         <div className="grid grid-cols-4 gap-2">
           {FIT_KINDS.map((fit) => (
             <Measure

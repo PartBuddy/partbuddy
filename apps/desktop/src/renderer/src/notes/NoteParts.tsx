@@ -6,6 +6,7 @@ import { Label, TextArea, TextField } from 'react-aria-components';
 import type { NoteView } from '../../../shared/contract';
 import { Button } from '../ui/Button';
 import { useStudio } from '../state/store';
+import { textAreaClass, fieldLabelClass } from '../ui/Field';
 
 /** Same limit as the main process (ADR 0020). */
 export const MAX_NOTE_TEXT = 1000;
@@ -55,11 +56,11 @@ export function NoteForm({
   return (
     <div className="flex flex-col gap-1" data-testid={testId}>
       <TextField value={text} onChange={setText} maxLength={MAX_NOTE_TEXT} isDisabled={disabled || saving} className="flex flex-col gap-1">
-        <Label className="text-xs text-text-subtle">{label}</Label>
+        <Label className={fieldLabelClass}>{label}</Label>
         <TextArea
           autoFocus
           rows={3}
-          className="w-full resize-none rounded-md border border-border-strong bg-surface px-2 py-1 text-sm text-text outline-none focus-visible:focus-ring disabled:opacity-disabled"
+          className={textAreaClass}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
               event.preventDefault();

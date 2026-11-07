@@ -9,6 +9,7 @@ import { CadIcon } from '../ui/CadIcon';
 import { actionsFor, type ActionKind } from './actionKinds';
 import { parseLength } from './lengthInput';
 import { edgePoints, lineDirection, localMeasure, type MeasurePick } from './measure';
+import { inputClass, fieldLabelClass } from '../ui/Field';
 
 /** Starting sizes in mm, typical for FDM parts. */
 const DEFAULT_SIZE: Record<ActionKind, number> = { fillet: 1, chamfer: 0.5, extrude: 5, hole: 3, shell: 1.6 };
@@ -121,12 +122,12 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
       </ToggleButtonGroup>
       {open ? (
         <TextField value={text} onChange={setText} inputMode="decimal" isDisabled={busy} className="flex flex-col gap-1" data-testid="action-field">
-          <Label className="text-xs text-text-subtle">
+          <Label className={fieldLabelClass}>
             {t(`hud.size.${open}`)} · {t('units.mmShort')}
           </Label>
           <Input
             autoFocus
-            className="h-control-md w-full rounded-md border border-border-strong bg-surface px-2 text-md tabular-nums text-text outline-none focus-visible:focus-ring disabled:opacity-disabled"
+            className={`${inputClass('md')} tabular-nums`}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();

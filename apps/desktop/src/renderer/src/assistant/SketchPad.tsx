@@ -23,6 +23,7 @@ import type { KeptSketch } from '../../../shared/sketch';
 import { platform } from '../platform';
 import { Button, IconButton, IconToggle } from '../ui/Button';
 import { parseLength } from '../viewer/lengthInput';
+import { fieldBox } from '../ui/Field';
 import {
   arcCircle,
   BACKGROUND_SIZE,
@@ -652,7 +653,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 placeholder="–"
                 aria-invalid={scaleInvalid}
                 aria-describedby="sketch-scale-hint"
-                className={`h-control-sm w-field-value rounded-sm border bg-surface px-1 text-sm tabular-nums text-text outline-none focus-visible:focus-ring ${scaleInvalid ? 'border-danger' : 'border-border-strong'}`}
+                className={`h-control-sm w-field-value px-1 text-sm tabular-nums aria-invalid:border-danger ${fieldBox}`}
                 data-testid="sketch-scale"
               />
               {t('units.mmShort')}
@@ -829,7 +830,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 }}
                 onBlur={finishEditor}
                 maxLength={80}
-                className="absolute h-control-sm w-field-dock -translate-x-1/2 -translate-y-1/2 rounded-sm border border-accent bg-surface px-1 text-sm text-text outline-none"
+                className={`absolute h-control-sm w-field-dock -translate-x-1/2 -translate-y-1/2 px-1 text-sm ${fieldBox}`}
                 style={{ left: `${String((editor.at[0] / SKETCH_SIZE.width) * 100)}%`, top: `${String((editor.at[1] / SKETCH_SIZE.height) * 100)}%` }}
                 data-testid="sketch-value"
               />
