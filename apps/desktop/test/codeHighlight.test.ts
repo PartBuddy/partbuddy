@@ -11,7 +11,7 @@ describe('code highlighting with few languages (chat polish)', () => {
   });
 
   it('colours a finished block once and keeps it for the next render', async () => {
-    const options = { code: 'height = 30  # mm', language: 'python', themes: ['github-light', 'github-dark'] } as const;
+    const options: Parameters<typeof codeHighlighter.highlight>[0] = { code: 'height = 30  # mm', language: 'python', themes: ['github-light', 'github-dark'] };
     expect(codeHighlighter.highlight(options)).toBeNull();
     const result = await new Promise<NonNullable<ReturnType<typeof codeHighlighter.highlight>>>((done) => {
       codeHighlighter.highlight({ ...options, code: `${options.code} ` }, done);
