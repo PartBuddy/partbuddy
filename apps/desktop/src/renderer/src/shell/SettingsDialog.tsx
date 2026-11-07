@@ -5,13 +5,14 @@ import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, Dialog, Heading, Modal, ModalOverlay, RadioButton, RadioField, RadioGroup, Tab, TabList, TabPanel, Tabs } from 'react-aria-components';
 
 import type { AppInfo, GeneralSettingsInfo, Language, Theme, UpdateState } from '../../../shared/contract';
-import { AssistantChoice, RadioMark, radioClass } from '../assistant/AgentChip';
+import { AssistantChoice } from '../assistant/AgentChip';
 import { localeFrom } from '../i18n';
 import { PrintProfilesEditor, SupportFreeSwitch } from '../print/PrintProfilesEditor';
 import { platform } from '../platform';
 import { useStudio, type SettingsSection } from '../state/store';
 import { Button } from '../ui/Button';
 import { EnginePanel } from './EnginePanel';
+import { CheckMark, RadioMark, choiceInlineClass, choiceRowClass } from '../ui/Choice';
 
 const SECTIONS: { id: SettingsSection; icon: typeof IconSettings; testId: string }[] = [
   { id: 'general', icon: IconSettings, testId: 'settings-general' },
@@ -39,7 +40,7 @@ function Choice<T extends string>({ label, value, options, onChange, testId }: {
     <RadioGroup aria-label={label} value={value} onChange={(next) => onChange(next as T)} className="flex min-w-menu flex-col gap-1 self-start" data-testid={testId}>
       {options.map((option) => (
         <RadioField key={option.id} value={option.id}>
-          <RadioButton className={radioClass}>
+          <RadioButton className={choiceRowClass}>
             <RadioMark />
             <span className="text-sm text-text">{option.label}</span>
           </RadioButton>
@@ -164,13 +165,8 @@ function ResearchSwitch() {
         }}
         data-testid="research"
       >
-        <CheckboxButton className="group inline-flex items-center gap-2 text-sm text-text outline-none">
-          <span
-            aria-hidden
-            className="flex size-icon-sm items-center justify-center rounded-sm border border-border-strong bg-surface group-selected:border-accent group-selected:bg-accent group-focus-visible:focus-ring"
-          >
-            <span className="hidden size-dot rounded-sm bg-surface group-selected:block" />
-          </span>
+        <CheckboxButton className={choiceInlineClass}>
+          <CheckMark />
           {t('settings.research.label')}
         </CheckboxButton>
       </CheckboxField>

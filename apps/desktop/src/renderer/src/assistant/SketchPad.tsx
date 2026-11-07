@@ -24,6 +24,7 @@ import { platform } from '../platform';
 import { Button, IconButton, IconToggle } from '../ui/Button';
 import { parseLength } from '../viewer/lengthInput';
 import { fieldBox } from '../ui/Field';
+import { segmentClass, segmentGroupClass } from '../ui/Choice';
 import {
   arcCircle,
   BACKGROUND_SIZE,
@@ -627,13 +628,13 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 const next = [...keys][0] as SheetView | undefined;
                 if (next) showSheet(next);
               }}
-              className="flex flex-wrap gap-1"
+              className={segmentGroupClass}
             >
               {SHEET_VIEWS.map((sheet) => (
                 <ToggleButton
                   key={sheet}
                   id={sheet}
-                  className="inline-flex h-control-md items-center gap-1 rounded-md border border-border px-2 text-sm text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:focus-ring"
+                  className={segmentClass('md')}
                   data-testid={`sketch-sheet-${sheet}`}
                 >
                   {sheetName(sheet)}

@@ -1,14 +1,14 @@
-import { IconChevronDown, IconNut } from '@tabler/icons-react';
+import { IconNut } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Label, ListBox, ListBoxItem, Popover, Select, SelectValue, ToggleButton } from 'react-aria-components';
+import { ToggleButton } from 'react-aria-components';
 
 import type { PartFamily, PartsLibrary } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
 import { hasLength, suggestLength, suggestSize } from './partChoice';
-import { fieldLabelClass } from '../ui/Field';
+import { chipToggleClass, SelectField as Choice } from '../ui/Choice';
 
 /** The diameter of the hole whose wall is picked, or null when the pick is no cylinder. */
 function holeDiameter(bodies: BodyModel[], picks: Pick[]): number | null {
@@ -16,27 +16,6 @@ function holeDiameter(bodies: BodyModel[], picks: Pick[]): number | null {
   if (picks.length !== 1 || pick?.kind !== 'face') return null;
   const radius = bodies[pick.body]?.model.table.faces[pick.face]?.cylinder?.radius;
   return radius ? radius * 2 : null;
-}
-
-function Choice({ label, value, items, onChange, testId }: { label: string; value: string; items: { id: string; label: string }[]; onChange: (id: string) => void; testId: string }) {
-  return (
-    <Select value={value} onChange={(key) => onChange(String(key))} className="flex min-w-0 flex-col gap-1" data-testid={testId}>
-      <Label className={fieldLabelClass}>{label}</Label>
-      <AriaButton className="inline-flex h-control-sm items-center justify-between gap-1 rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:focus-ring">
-        <SelectValue className="truncate" />
-        <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
-      </AriaButton>
-      <Popover className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
-        <ListBox className="max-h-menu-max overflow-auto outline-none">
-          {items.map((item) => (
-            <ListBoxItem key={item.id} id={item.id} textValue={item.label} className="cursor-default rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover selected:font-medium">
-              {item.label}
-            </ListBoxItem>
-          ))}
-        </ListBox>
-      </Popover>
-    </Select>
-  );
 }
 
 /**
@@ -104,7 +83,7 @@ export function PartPanel({ bodies, picks, busy }: { bodies: BodyModel[]; picks:
         isSelected={open}
         onChange={setOpen}
         isDisabled={busy}
-        className="inline-flex h-control-sm items-center gap-1 self-start rounded-md border border-border px-2 text-xs text-text outline-none hover:bg-surface-hover selected:border-accent selected:bg-surface-selected focus-visible:focus-ring disabled:opacity-disabled"
+        className={`${chipToggleClass} self-start`}
         data-testid="action-part"
       >
         <IconNut className="size-icon-sm" aria-hidden />
@@ -118,7 +97,7 @@ export function PartPanel({ bodies, picks, busy }: { bodies: BodyModel[]; picks:
               label={t('parts.family')}
               value={family}
               items={library.map((item) => ({ id: item.family, label: t(`parts.families.${item.family}`) }))}
-              onChange={(id) => choose(id as PartFamily)}
+              onChange={(id) => choose(id)}
               testId="part-family"
             />
             <Choice

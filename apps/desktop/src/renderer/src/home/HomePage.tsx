@@ -22,6 +22,8 @@ import housing from './templates/housing.png';
 import wallHolder from './templates/wallHolder.png';
 import { iconButtonClass, pressable } from '../ui/Button';
 import { inputClass } from '../ui/Field';
+import { chipToggleClass, ListCheck, listItemClass, selectTriggerClass } from '../ui/Choice';
+import { popoverClass } from '../ui/Overlay';
 
 /** Pictures of the templates, rendered by SolidCraft (tools/templates/render-previews.mjs). */
 const TEMPLATE_PICTURES: Record<TemplateId, string> = { boxWithLid, housing, wallHolder, cableClip, adapter };
@@ -164,14 +166,15 @@ export function HomePage() {
             }}
             data-testid="home-sort"
           >
-            <AriaButton className="inline-flex h-control-md items-center gap-1 rounded-md border border-border-strong bg-surface px-2 text-sm text-text outline-none hover:bg-surface-hover focus-visible:focus-ring">
-              <SelectValue className="truncate" />
+            <AriaButton className={selectTriggerClass('md')}>
+              <SelectValue className="truncate">{({ selectedText }) => selectedText}</SelectValue>
               <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
             </AriaButton>
-            <Popover className="min-w-menu rounded-md border border-border bg-surface-raised p-1 shadow-2">
-              <ListBox className="outline-none">
+            <Popover offset={4} className={popoverClass}>
+              <ListBox className="max-h-menu-max overflow-auto outline-none">
                 {PROJECT_SORTS.map((item) => (
-                  <ListBoxItem key={item} id={item} textValue={t(`home.${item}`)} className="cursor-default rounded-sm px-2 py-1 text-sm text-text outline-none focus:bg-surface-hover selected:font-medium" data-testid="home-sort-option" data-sort={item}>
+                  <ListBoxItem key={item} id={item} textValue={t(`home.${item}`)} className={listItemClass} data-testid="home-sort-option" data-sort={item}>
+                    <ListCheck />
                     {t(`home.${item}`)}
                   </ListBoxItem>
                 ))}
@@ -225,7 +228,7 @@ export function HomePage() {
                 key={name}
                 isSelected={tag !== null && tag.toLocaleLowerCase() === name.toLocaleLowerCase()}
                 onChange={(on) => setTag(on ? name : null)}
-                className="inline-flex h-control-sm items-center rounded-full border border-border px-2 text-xs text-text-muted outline-none hover:bg-surface-hover focus-visible:focus-ring selected:border-accent selected:bg-surface-selected selected:text-text"
+                className={chipToggleClass}
                 data-testid="home-tag"
                 data-tag={name}
               >

@@ -8,8 +8,6 @@ import {
   MenuTrigger,
   Popover,
   Slider,
-  SliderThumb,
-  SliderTrack,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
@@ -22,12 +20,13 @@ import { bodiesBox, faceSection, sectionSpan } from './section';
 import { ViewIcon } from '../ui/ViewIcon';
 import { iconButtonClass, toggleSelected } from '../ui/Button';
 import { tooltipClass } from '../ui/Tooltip';
+import { segmentClass, segmentGroupClass, SliderBar } from '../ui/Choice';
 
 /** View tools: the shared icon button look; a tool that stays on shows the accent's quiet fill. */
 const tool = `${iconButtonClass('md')} text-xs font-semibold ${toggleSelected}`;
 
-/** A labelled button of the assembled/plate switch: the tool look, as wide as its label. */
-const segment = tool.replace('size-control-md', 'h-control-md gap-1 px-2');
+/** The assembled/plate switch: a segmented control. */
+const segment = segmentClass('md');
 
 /** Keys as in Blender's number pad, which many makers know: 1 front, 3 right, 7 top, 0 iso, 5 projection. */
 const VIEW_KEYS: Record<string, StandardView> = { '1': 'front', '3': 'right', '7': 'top', '0': 'iso', f: 'fit' };
@@ -180,15 +179,7 @@ function SectionPanel({ section }: { section: Section }) {
         className="w-full"
         data-testid="section-position"
       >
-        <SliderTrack className="relative h-4 w-full">
-          {({ state }) => (
-            <>
-              <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
-              <span aria-hidden className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ width: `${String(state.getThumbPercent(0) * 100)}%` }} />
-              <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:focus-ring" />
-            </>
-          )}
-        </SliderTrack>
+        <SliderBar />
       </Slider>
       {fromFace !== null ? (
         <span className="px-1 text-xs tabular-nums text-text-muted" data-testid="section-at">
@@ -230,15 +221,7 @@ function ExplodePanel({ amount }: { amount: number }) {
           <span>{t('viewer.explode.assembled')}</span>
           <span>{t('viewer.explode.apart')}</span>
         </div>
-        <SliderTrack className="relative h-4 w-full">
-          {({ state }) => (
-            <>
-              <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
-              <span aria-hidden className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent" style={{ width: `${String(state.getThumbPercent(0) * 100)}%` }} />
-              <SliderThumb className="top-1/2 size-3 rounded-full border-2 border-accent bg-surface shadow-1 outline-none dragging:bg-accent-subtle focus-visible:focus-ring" />
-            </>
-          )}
-        </SliderTrack>
+        <SliderBar />
       </Slider>
       <p className="text-xs text-text-muted">{t('viewer.explode.hint')}</p>
     </div>
@@ -436,7 +419,7 @@ export function ViewTools() {
               const [key] = [...keys];
               if (key === 'assembled' || key === 'plate') setViewMode(key);
             }}
-            className="flex gap-1"
+            className={segmentGroupClass}
           >
             <ToggleButton id="assembled" className={segment} data-testid="view-assembled">
               <IconBox className="size-icon-sm" aria-hidden />

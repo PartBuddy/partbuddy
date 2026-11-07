@@ -1,9 +1,26 @@
 import { IconArrowBackUp, IconDownload, IconEye, IconPencil, IconSettings, IconTrash, IconX } from '@tabler/icons-react';
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
-import { Input, Label, NumberField, TextArea, TextField } from 'react-aria-components';
+import {
+  CheckboxButton,
+  CheckboxField,
+  Input,
+  Label,
+  NumberField,
+  RadioButton,
+  RadioField,
+  RadioGroup,
+  Slider,
+  SwitchButton,
+  SwitchField,
+  TextArea,
+  TextField,
+  ToggleButton as AriaToggleButton,
+  ToggleButtonGroup,
+} from 'react-aria-components';
 
 import { Button, IconButton, IconToggle, ToggleButton, linkClass, type ButtonVariant } from './Button';
 import { TipText, tooltipClass } from './Tooltip';
+import { CheckMark, chipToggleClass, choiceInlineClass, choiceRowClass, RadioMark, segmentClass, segmentGroupClass, SelectField, SliderBar, SwitchMark } from './Choice';
 import { FieldMessage, fieldLabelClass, inputClass, textAreaClass, UnitInput } from './Field';
 
 /**
@@ -265,6 +282,147 @@ function Inputs() {
   );
 }
 
+function Selection() {
+  const check = (extra: object = {}) => (
+    <CheckboxField {...extra}>
+      <CheckboxButton className={choiceInlineClass}>
+        <CheckMark />
+        Websuche erlauben
+      </CheckboxButton>
+    </CheckboxField>
+  );
+  const radio = (extra: object = {}) => (
+    <RadioGroup aria-label="Design" defaultValue="system" className="w-field-dock" {...extra}>
+      <RadioField value="system">
+        <RadioButton className={choiceRowClass}>
+          <RadioMark />
+          <span className="text-sm text-text">Wie das System</span>
+        </RadioButton>
+      </RadioField>
+    </RadioGroup>
+  );
+  const sw = (extra: object = {}) => (
+    <SwitchField {...extra}>
+      <SwitchButton className={choiceInlineClass}>
+        <SwitchMark />
+        Mitführen
+      </SwitchButton>
+    </SwitchField>
+  );
+  const chip = (extra: object = {}) => (
+    <AriaToggleButton className={chipToggleClass} {...extra}>
+      Gewinde
+    </AriaToggleButton>
+  );
+  const force = (state: 'hover' | 'pressed' | 'focus', node: ReactNode, target = '[data-rac] [data-rac], [data-rac]') => (
+    <Force state={state} target={target}>
+      {node}
+    </Force>
+  );
+  return (
+    <Section title="Selection">
+      <Row
+        name="checkbox"
+        cells={{
+          Default: check(),
+          Hover: force('hover', check(), 'label'),
+          Focus: force('focus', check(), 'label'),
+          Pressed: force('pressed', check(), 'label'),
+          Selected: check({ defaultSelected: true }),
+          Disabled: check({ isDisabled: true, defaultSelected: true }),
+          'Read-only': check({ isIndeterminate: true }),
+          Invalid: check({ isInvalid: true }),
+        }}
+      />
+      <Row
+        name="radio"
+        cells={{
+          Default: radio({ defaultValue: null }),
+          Hover: force('hover', radio({ defaultValue: null }), 'label'),
+          Focus: force('focus', radio(), 'label'),
+          Pressed: force('pressed', radio({ defaultValue: null }), 'label'),
+          Selected: radio(),
+          Disabled: radio({ isDisabled: true }),
+        }}
+      />
+      <Row
+        name="switch"
+        cells={{
+          Default: sw(),
+          Hover: force('hover', sw(), 'label'),
+          Focus: force('focus', sw({ defaultSelected: true }), 'label'),
+          Selected: sw({ defaultSelected: true }),
+          Disabled: sw({ isDisabled: true }),
+        }}
+      />
+      <Row
+        name="chip toggle"
+        cells={{
+          Default: chip(),
+          Hover: force('hover', chip(), 'button'),
+          Focus: force('focus', chip(), 'button'),
+          Pressed: force('pressed', chip(), 'button'),
+          Selected: chip({ defaultSelected: true }),
+          Disabled: chip({ isDisabled: true }),
+        }}
+      />
+      <Row
+        name="segmented"
+        cells={{
+          Default: (
+            <ToggleButtonGroup aria-label="Ansicht" selectionMode="single" disallowEmptySelection defaultSelectedKeys={['assembled']} className={segmentGroupClass}>
+              <AriaToggleButton id="assembled" className={segmentClass()}>
+                Zusammengebaut
+              </AriaToggleButton>
+              <AriaToggleButton id="plate" className={segmentClass()}>
+                Druckplatte
+              </AriaToggleButton>
+            </ToggleButtonGroup>
+          ),
+        }}
+      />
+      <Row
+        name="select"
+        cells={{
+          Default: <SelectField label="Kopf" value="countersunk" items={[{ id: 'countersunk', label: 'Senkkopf' }, { id: 'cap', label: 'Zylinderkopf' }]} onChange={noop} />,
+          Hover: (
+            <Force state="hover" target="button">
+              <SelectField label="Passung" value="normal" items={[{ id: 'normal', label: 'Normal' }]} onChange={noop} />
+            </Force>
+          ),
+          Focus: (
+            <Force state="focus" target="button">
+              <SelectField label="Passung" value="normal" items={[{ id: 'normal', label: 'Normal' }]} onChange={noop} />
+            </Force>
+          ),
+        }}
+      />
+      <Row
+        name="slider"
+        cells={{
+          Default: (
+            <Slider aria-label="Explosion" defaultValue={40} className="w-field-dock">
+              <SliderBar />
+            </Slider>
+          ),
+          Focus: (
+            <Force state="focus" target="[role=slider], .react-aria-SliderThumb, [data-rac] [data-rac] [data-rac]">
+              <Slider aria-label="Explosion" defaultValue={60} className="w-field-dock">
+                <SliderBar />
+              </Slider>
+            </Force>
+          ),
+          Disabled: (
+            <Slider aria-label="Explosion" defaultValue={40} isDisabled className="w-field-dock">
+              <SliderBar />
+            </Slider>
+          ),
+        }}
+      />
+    </Section>
+  );
+}
+
 /** The gallery page; later families add their sections here. */
 export function Gallery() {
   return (
@@ -272,6 +430,7 @@ export function Gallery() {
       <div className="flex flex-col gap-6 rounded-lg border border-border bg-surface p-5">
         <Actions />
         <Inputs />
+        <Selection />
       </div>
     </main>
   );
