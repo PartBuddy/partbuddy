@@ -8,7 +8,8 @@
 export interface ShareFacts {
   name: string;
   language: 'en' | 'de';
-  bodies: { name: string; size: [number, number, number] | null }[];
+  /** With copies and filament from the parts list (P6) where the user noted them. */
+  bodies: { name: string; size: [number, number, number] | null; quantity?: number; filament?: string }[];
   parameters: { name: string; value: number; unit: string; comment: string | null }[];
   /** Standard parts to buy, from SolidCraft's bill of materials. */
   hardware: { count: number; name: string; standard: string }[];
@@ -96,7 +97,10 @@ export function shareDescription(facts: ShareFacts): string {
     '',
     `## ${text.sizes}`,
     '',
-    ...facts.bodies.map((body) => `- ${plain(body.name)}${body.size ? `: ${body.size.map((value) => format(value, facts.language)).join(' × ')} mm` : ''}`),
+    ...facts.bodies.map(
+      (body) =>
+        `- ${(body.quantity ?? 1) > 1 ? `${String(body.quantity)} × ` : ''}${plain(body.name)}${body.size ? `: ${body.size.map((value) => format(value, facts.language)).join(' × ')} mm` : ''}${body.filament ? ` (${plain(body.filament)})` : ''}`,
+    ),
   ];
   if (facts.hardware.length > 0) {
     lines.push('', `## ${text.hardware}`, '');

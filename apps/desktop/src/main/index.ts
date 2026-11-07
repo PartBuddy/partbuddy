@@ -37,6 +37,7 @@ import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
 import { checkImportFile, IMPORT_EXTENSIONS, importName, type ImportKind } from './projects/importFile';
 import { migrateDesigns, ProjectStore, whenFree } from './projects/projectStore';
+import { readParts, writePart } from './projects/parts';
 import { writeMeta } from './projects/projectMeta';
 import { exportPackage, importPackage, PACKAGE_EXTENSION } from './projects/projectPackage';
 import { ProjectTrash } from './projects/trash';
@@ -731,7 +732,14 @@ if (!app.requestSingleInstanceLock()) {
         const description = shareDescription({
           name: supervisor.currentRevision()?.designName ?? name,
           language: german ? 'de' : 'en',
-          bodies: await supervisor.bodySizes().catch(() => []),
+          // Copies and filament from the parts list (P6), where the user noted them.
+          bodies: await supervisor
+            .bodySizes()
+            .then((sizes) => {
+              const { parts } = readParts(dirname(design));
+              return sizes.map((body) => ({ ...body, quantity: parts[body.name]?.quantity ?? 1, filament: parts[body.name]?.filament ?? '' }));
+            })
+            .catch(() => []),
           hardware: await supervisor.hardware().catch((error: unknown) => {
             log(`no parts list in the sharing package: ${(error as Error).message}`);
             return [];
@@ -929,6 +937,15 @@ if (!app.requestSingleInstanceLock()) {
       if (!design) throw new Error('not a project in the project folder');
       writeMeta(dirname(design), { ...(favorite === undefined ? {} : { favorite }), ...(tags === undefined ? {} : { tags }) });
       return undefined;
+    });
+    bridge.handle(invokeChannels.projectParts, () => {
+      const file = openProject();
+      return file ? readParts(dirname(file)) : { parts: {}, bodies: [] };
+    });
+    bridge.handle(invokeChannels.projectSetPart, ({ body, note, bodies }) => {
+      const file = openProject();
+      if (!file) throw new Error('the design has no project yet');
+      return writePart(dirname(file), body, note, bodies);
     });
     bridge.handle(invokeChannels.projectTrashList, () => projectTrash.list());
     bridge.handle(invokeChannels.projectTrashRestore, async ({ id }) => {

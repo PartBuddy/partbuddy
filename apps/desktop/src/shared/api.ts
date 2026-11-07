@@ -15,6 +15,8 @@ import type {
   GeneralSettingsInfo,
   UpdateState,
   Language,
+  PartNote,
+  PartsState,
   TrashEntry,
   VersionComparison,
   VersionEntry,
@@ -138,6 +140,10 @@ export interface PartBuddyApi {
     exportPackage(folder?: string): Promise<{ saved: boolean }>;
     /** Pins a start page project to the top or changes its tags (P5). */
     setMeta(folder: string, change: { favorite?: boolean; tags?: string[] }): Promise<void>;
+    /** The parts list of the open project (P6); empty without one. */
+    parts(): Promise<PartsState>;
+    /** Keeps one body's note in the open project's parts list, with the printed bodies of now. */
+    setPart(body: string, note: PartNote, bodies: string[]): Promise<PartsState>;
     /** The deleted projects in PartBuddy's recycle bin, newest first (P2). */
     trashList(): Promise<TrashEntry[]>;
     /** Puts a deleted project back into the project folder, under the next free name if needed. */

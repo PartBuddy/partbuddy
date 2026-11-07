@@ -949,24 +949,16 @@
     "milestonesOnly": "Nur Meilensteine"
   },
   "parts": {
-    "action": "Normteil",
-    "hole": "Bohrung ⌀ {diameter} mm",
-    "family": "Art",
-    "size": "Größe",
-    "length": "Länge",
-    "insert": "In die Bohrung setzen",
-    "hint": "Ein Gegenstück aus der SolidCraft-Bibliothek: Es erscheint in der Ansicht, wird aber weder exportiert noch gedruckt.",
-    "inserted": "{name} als Gegenstück eingesetzt.",
-    "families": {
-      "socket_head_cap_screw": "Zylinderschraube",
-      "button_head_cap_screw": "Linsenkopfschraube",
-      "hex_bolt": "Sechskantschraube",
-      "set_screw": "Gewindestift",
-      "hex_nut": "Sechskantmutter",
-      "washer": "Unterlegscheibe",
-      "dowel_pin": "Zylinderstift",
-      "bearing": "Kugellager"
-    }
+    "progress": "{printed} von {total} gedruckt",
+    "markPrinted": "{name} als gedruckt markieren",
+    "markOpen": "{name} als offen markieren",
+    "details": "Teileliste für {name}",
+    "quantity": "Anzahl",
+    "printed": "Gedruckt",
+    "filament": "Filament",
+    "filamentPlaceholder": "Zum Beispiel: PETG schwarz",
+    "note": "Notiz",
+    "tile": "{printed}/{total} gedruckt"
   },
   "printFace": {
     "action": "Auf dieser Fläche drucken",

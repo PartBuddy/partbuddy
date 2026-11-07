@@ -203,7 +203,7 @@ describe('the start page (B3)', () => {
 describe('a version as a project (P4)', () => {
   it('copies the version and the print settings into a new project, leaving the source as it was', () => {
     const { root, store } = folders();
-    const design = project(root, 'Halter', { 'Halter.print.json': '{"layer":0.2}', 'Halter.chat.json': '[1]' });
+    const design = project(root, 'Halter', { 'Halter.print.json': '{"layer":0.2}', 'Halter.chat.json': '[1]', 'parts.json': '{}' });
     const version = join(root, 'Halter', 'versions', 'v-1', 'design.sc');
     mkdirSync(join(version, '..'), { recursive: true });
     writeFileSync(version, 'old design');
@@ -212,6 +212,7 @@ describe('a version as a project (P4)', () => {
     expect(readFileSync(copy, 'utf8')).toBe('old design');
     expect(readFileSync(join(root, 'Halter vor dem Deckel', 'Halter vor dem Deckel.print.json'), 'utf8')).toBe('{"layer":0.2}');
     expect(existsSync(join(root, 'Halter vor dem Deckel', 'Halter vor dem Deckel.chat.json'))).toBe(false);
+    expect(existsSync(join(root, 'Halter vor dem Deckel', 'parts.json'))).toBe(true);
     expect(readFileSync(design, 'utf8')).toBe('design');
   });
 });

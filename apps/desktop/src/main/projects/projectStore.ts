@@ -2,6 +2,7 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync,
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { isInside, safeDesignFileName } from '../solidcraft/headless';
+import { PARTS_FILE, partsProgress } from './parts';
 import { readMeta } from './projectMeta';
 
 /** Body names SolidCraft gives on its own; they say nothing about the part. */
@@ -37,6 +38,8 @@ export interface ProjectEntry {
   /** Pinned to the top of the start page (P5). */
   favorite: boolean;
   tags: string[];
+  /** Printed copies of the parts list (P6), or null without one. */
+  progress: { printed: number; total: number } | null;
 }
 
 /** `Grundplatte.sc` → `Grundplatte.chat.json` (as `chatFileOf` and `printFileOf` name them). */
@@ -115,7 +118,7 @@ export class ProjectStore {
     } catch {
       return [];
     }
-    const projects: Omit<ProjectEntry, 'preview' | 'check' | 'favorite' | 'tags'>[] = [];
+    const projects: Omit<ProjectEntry, 'preview' | 'check' | 'favorite' | 'tags' | 'progress'>[] = [];
     for (const entry of entries) {
       const folder = join(this.root, entry);
       const design = ProjectStore.designIn(folder);
@@ -130,7 +133,7 @@ export class ProjectStore {
       }
     }
     projects.sort((a, b) => b.modified - a.modified);
-    return projects.slice(0, MAX_PROJECTS).map((project) => ({ ...project, ...readPreview(project.folder), ...readMeta(project.folder) }));
+    return projects.slice(0, MAX_PROJECTS).map((project) => ({ ...project, ...readPreview(project.folder), ...readMeta(project.folder), progress: partsProgress(project.folder) }));
   }
 
   /** The design of a project folder from the start page, if it is a project of this store. */
@@ -214,7 +217,7 @@ export class ProjectStore {
 
   /**
    * A version of a project as a project of its own (P4), the local stand-in for a branch: the
-   * version's design with the project's print settings, without conversation and versions.
+   * version's design with the project's print settings and parts list, without conversation and versions.
    */
   fromVersion(design: string, version: string, label: string): string {
     const target = this.newDesignFile(`${basename(design, '.sc')} ${label}`.slice(0, 120));
@@ -222,6 +225,8 @@ export class ProjectStore {
     copyFileSync(version, target);
     const print = companionOf(design, '.print.json');
     if (existsSync(print) && statSync(print).isFile()) copyFileSync(print, companionOf(target, '.print.json'));
+    const parts = join(dirname(design), PARTS_FILE);
+    if (existsSync(parts) && statSync(parts).isFile()) copyFileSync(parts, join(dirname(target), PARTS_FILE));
     return target;
   }
 

@@ -47,6 +47,8 @@ describe('the sharing package (F5)', () => {
     expect(german).toContain('- Gehäuse: 80,5 × 60 × 30 mm');
     expect(german).toContain('- Teile: 1 Teil');
     expect(german).not.toContain('## Parameter');
+    // Copies and filament from the parts list (P6).
+    expect(shareDescription({ ...facts, bodies: [{ name: 'Foot', size: [10, 10, 5], quantity: 4, filament: 'TPU black' }] })).toContain('- 4 × Foot: 10 × 10 × 5 mm (TPU black)');
   });
 
   it('keeps names from the design on one line and without markup', () => {

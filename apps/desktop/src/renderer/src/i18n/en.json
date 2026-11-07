@@ -949,24 +949,16 @@
     "milestonesOnly": "Milestones only"
   },
   "parts": {
-    "action": "Standard part",
-    "hole": "Hole ⌀ {diameter} mm",
-    "family": "Kind",
-    "size": "Size",
-    "length": "Length",
-    "insert": "Seat in the hole",
-    "hint": "A counterpart from SolidCraft's library: it shows in the view, but is neither exported nor printed.",
-    "inserted": "{name} seated as a counterpart.",
-    "families": {
-      "socket_head_cap_screw": "Socket head cap screw",
-      "button_head_cap_screw": "Button head screw",
-      "hex_bolt": "Hex bolt",
-      "set_screw": "Set screw",
-      "hex_nut": "Hex nut",
-      "washer": "Washer",
-      "dowel_pin": "Dowel pin",
-      "bearing": "Ball bearing"
-    }
+    "progress": "{printed} of {total} printed",
+    "markPrinted": "Mark {name} as printed",
+    "markOpen": "Mark {name} as open",
+    "details": "Parts list for {name}",
+    "quantity": "Copies",
+    "printed": "Printed",
+    "filament": "Filament",
+    "filamentPlaceholder": "For example: black PETG",
+    "note": "Note",
+    "tile": "{printed}/{total} printed"
   },
   "printFace": {
     "action": "Print on this face",

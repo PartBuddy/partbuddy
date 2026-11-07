@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProjectEntry } from '../../../shared/contract';
 import { matching, parseTags, relativeTime, sortProjects, tagsOf } from './projectTiles';
 
-const entry = (name: string): ProjectEntry => ({ name, folder: `projects/${name}`, modified: 0, created: 0, preview: null, check: null, favorite: false, tags: [] });
+const entry = (name: string): ProjectEntry => ({ name, folder: `projects/${name}`, modified: 0, created: 0, preview: null, check: null, favorite: false, tags: [], progress: null });
 
 describe('project tiles (B3)', () => {
   const projects = ['Grundplatte', 'Übersicht Halter', 'Kabelclip groß'].map(entry);
@@ -30,7 +30,7 @@ describe('project tiles (B3)', () => {
 });
 
 describe('sorting the start page (P1)', () => {
-  const at = (name: string, modified: number, created: number): ProjectEntry => ({ name, folder: 'projects/' + name, modified, created, preview: null, check: null, favorite: false, tags: [] });
+  const at = (name: string, modified: number, created: number): ProjectEntry => ({ name, folder: 'projects/' + name, modified, created, preview: null, check: null, favorite: false, tags: [], progress: null });
   const projects = [at('Zahnrad 10', 3, 1), at('Ärmel', 1, 3), at('Zahnrad 9', 2, 2)];
   it('sorts by last change, creation or name in the language order with numbers as numbers', () => {
     expect(sortProjects(projects, 'modified', 'de').map((p) => p.name)).toEqual(['Zahnrad 10', 'Zahnrad 9', 'Ärmel']);
@@ -41,7 +41,7 @@ describe('sorting the start page (P1)', () => {
 });
 
 describe('favourites and tags on the start page (P5)', () => {
-  const at = (name: string, modified: number, favorite: boolean, tags: string[]): ProjectEntry => ({ name, folder: 'projects/' + name, modified, created: 0, preview: null, check: null, favorite, tags });
+  const at = (name: string, modified: number, favorite: boolean, tags: string[]): ProjectEntry => ({ name, folder: 'projects/' + name, modified, created: 0, preview: null, check: null, favorite, tags, progress: null });
   const projects = [at('Halter', 3, false, ['Garage']), at('Clip', 1, true, ['garage', 'Küche']), at('Box', 2, false, [])];
   it('keeps favourites on top, finds tags and lists each tag once', () => {
     expect(sortProjects(projects, 'modified', 'de').map((p) => p.name)).toEqual(['Clip', 'Halter', 'Box']);
