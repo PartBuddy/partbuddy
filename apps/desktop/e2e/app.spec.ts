@@ -653,7 +653,7 @@ test('the renderer sees only the typed bridge', async () => {
     };
   });
   expect(globals).toEqual({
-    bridge: ['agent', 'appInfo', 'chat', 'design', 'mirror', 'notes', 'print', 'project', 'relaunch', 'settings', 'sketches', 'solidcraft', 'updates', 'viewer', 'window'],
+    bridge: ['agent', 'appInfo', 'assembly', 'chat', 'design', 'mirror', 'notes', 'print', 'project', 'relaunch', 'settings', 'sketches', 'solidcraft', 'updates', 'viewer', 'window'],
     solidcraft: ['chooseEngine', 'engine', 'onStatus', 'retry', 'start', 'status'],
     require: 'undefined',
     process: 'undefined',
