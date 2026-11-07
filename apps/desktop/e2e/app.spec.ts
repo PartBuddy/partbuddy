@@ -295,18 +295,24 @@ test('the parameter panel lists the design parameters and changes a length with 
   solidcraft.change();
 
   const panel = page.getByTestId('parameters');
-  await expect(panel.getByRole('heading', { name: 'Parameters (2)' })).toBeVisible();
-  // Favourites first; a formula is shown, not editable; the range in the comment becomes a hint.
-  await expect(panel.getByTestId('parameter').first()).toHaveAttribute('data-name', 'breite');
-  await expect(panel.getByText('= breite / 10')).toBeVisible();
-  await expect(panel.getByText('Plate width', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('treeitem', { name: 'Parameters (2)' })).toBeVisible();
+  // Favourites first, one row each (name, value, unit); comment, range and formula show on hover.
+  const rows = panel.getByTestId('parameter');
+  await expect(rows.first()).toHaveAttribute('data-name', 'breite');
+  await expect(rows.first()).toHaveAttribute('aria-label', 'breite, 40 mm');
+  await expect(rows.first().locator('[title]').first()).toHaveAttribute('title', 'Plate width\nRange 30 to 60 mm');
+  await expect(rows.nth(1).locator('[title]').first()).toHaveAttribute('title', /^= breite \/ 10\n/);
+  await expect(panel.getByRole('textbox')).toHaveCount(0);
+  // A formula stays as it is: a double click opens no field.
+  await rows.nth(1).dblclick();
   await expect(panel.getByRole('textbox', { name: 'Change wand' })).toHaveCount(0);
-  // A favourite with a range in its comment gets a slider and the range as its own line.
-  await expect(panel.getByRole('slider', { name: 'breite, slider' })).toBeVisible();
-  await expect(panel.getByText('Range 30 to 60 mm')).toBeVisible();
 
+  // A double click opens the value; a favourite with a range brings its slider while it is edited.
+  await rows.first().dblclick();
   const field = panel.getByRole('textbox', { name: 'Change breite' });
   await expect(field).toHaveValue('40');
+  await expect(field).toBeFocused();
+  await expect(panel.getByRole('slider', { name: 'breite, slider' })).toBeVisible();
   await field.fill('70');
   await expect(panel.getByText('Outside the intended range 30 to 60')).toBeVisible();
 
@@ -320,13 +326,68 @@ test('the parameter panel lists the design parameters and changes a length with 
 
   await field.press('Enter');
   await expect.poll(() => solidcraft.parameters.find((entry) => entry.name === 'breite')?.value).toBe(50);
-  await expect(field).toHaveValue('50');
+  await expect(rows.first()).toHaveAttribute('aria-label', 'breite, 50 mm');
+  await expect(rows.first()).toBeFocused();
 
-  // A value SolidCraft cannot build is refused before Enter; Escape brings the current value back.
+  // F2 opens it again; a value SolidCraft cannot build is refused before Enter; Escape keeps the current value.
+  await page.keyboard.press('F2');
   await field.fill('2000');
   await expect(panel.getByText('SolidCraft cannot build the part with this value')).toBeVisible();
   await field.press('Escape');
-  await expect(field).toHaveValue('50');
+  await expect(field).toHaveCount(0);
+  await expect(rows.first()).toHaveAttribute('aria-label', 'breite, 50 mm');
+});
+
+test('the structure tree folds, selects, frames, renames and hides by mouse and keyboard', async () => {
+  const { app, fake: solidcraft } = await connectedApp();
+  const { page } = app;
+  solidcraft.sketches = [{ id: 1, name: 'Curves', visible: true }];
+  solidcraft.change();
+  const tree = page.getByRole('tree', { name: 'Structure' });
+  const body = tree.getByTestId('structure-body');
+  const sketch = tree.getByTestId('structure-sketch');
+  await expect(sketch).toHaveCount(1);
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+  // Empty sections say so in a line and offer one action.
+  await expect(tree.getByTestId('parameters-ask')).toBeVisible();
+  await expect(tree.getByRole('treeitem', { name: 'Bodies (1)' })).toHaveAttribute('aria-expanded', 'true');
+  await page.screenshot({ path: test.info().outputPath('structure-tree.png') });
+
+  // A click selects the body, a face picked in the view marks its row; a double click frames it.
+  const before = await cameraOf(page);
+  await body.click();
+  await expect(body).toHaveAttribute('aria-selected', 'true');
+  await body.dblclick();
+  await expect.poll(async () => JSON.stringify(await cameraOf(page))).not.toBe(JSON.stringify(before));
+
+  // Arrows move between rows, Left and Right fold a section, Space hides.
+  await body.focus();
+  await page.keyboard.press('ArrowDown');
+  const sketches = tree.getByRole('treeitem', { name: 'Sketches (1)' });
+  await expect(sketches).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(sketch).toHaveCount(0);
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await expect(sketch).toBeFocused();
+  await page.keyboard.press(' ');
+  await expect(sketch).toHaveAttribute('data-visible', 'false', { timeout: 15_000 });
+  await page.keyboard.press('ArrowLeft');
+  await expect(sketches).toBeFocused();
+
+  // F2 renames a body in place.
+  await body.focus();
+  await page.keyboard.press('F2');
+  await tree.getByTestId('tree-rename').fill('Clip');
+  await page.keyboard.press('Enter');
+  await expect(body).toHaveAttribute('aria-label', 'Clip', { timeout: 15_000 });
+  expect(solidcraft.bodies).toEqual(['Clip']);
+
+  // The context menu hides it.
+  await body.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Hide' }).click();
+  await expect(body).toHaveAttribute('data-visible', 'false', { timeout: 15_000 });
+  await expect(page.getByTestId('mesh-summary')).toBeHidden();
 });
 
 test('the view switches display modes and opens a section with its own controls', async () => {

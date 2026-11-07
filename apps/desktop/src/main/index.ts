@@ -1158,6 +1158,12 @@ if (!app.requestSingleInstanceLock()) {
       assistantIdle();
       return supervisor.probeParameter(parameter, value, body);
     });
+    bridge.handle(invokeChannels.designRenameBody, async ({ body, name }) => {
+      assistantIdle();
+      await supervisor.renameBody(body, name);
+      log('renamed a body');
+      return undefined;
+    });
     bridge.handle(invokeChannels.designVisibility, async (command) => {
       await supervisor.visibility(command);
       return undefined;

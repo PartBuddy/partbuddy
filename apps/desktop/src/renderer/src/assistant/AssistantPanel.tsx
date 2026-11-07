@@ -17,7 +17,7 @@ import {
   IconWifiOff,
   IconX,
 } from '@tabler/icons-react';
-import { memo, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button as AriaButton, Dialog, Form, ProgressBar, Modal, ModalOverlay, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
@@ -397,6 +397,17 @@ export function AssistantPanel() {
   // A sketch for the next message (F4, F9); its elements stay while it is not sent, to draw on.
   const [sketching, setSketching] = useState(false);
   const [sketch, setSketch] = useState<{ state: SketchState; picture: SketchPicture } | null>(null);
+  // The structure tree's empty states: "Ask the assistant" drafts a message, "Draw a sketch" opens the pad.
+  const request = useStudio((s) => s.assistantRequest);
+  const [handled, setHandled] = useState(() => request?.serial ?? 0);
+  if (request && request.serial !== handled) {
+    setHandled(request.serial);
+    if (request.what === 'sketch') setSketching(true);
+    else setDraft((current) => current || t('parameters.askDraft'));
+  }
+  useEffect(() => {
+    if (request?.what === 'parameters') composer.current?.focus();
+  }, [request]);
   // A photo of a real object for the next message (F6); one picture goes along, a sketch or a photo.
   const [photo, setPhoto] = useState<SketchPicture | null>(null);
   const [photoFailed, setPhotoFailed] = useState(false);

@@ -100,6 +100,7 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.designInsertPart]: { command: 'parts.insert' },
   [invokeChannels.designTimeline]: { command: 'timeline.roll_to' },
   [invokeChannels.designVisibility]: { command: 'browser.visibility' },
+  [invokeChannels.designRenameBody]: { command: 'body.rename' },
   [invokeChannels.designInsert]: { reason: FILES },
   [invokeChannels.designRepair]: { command: 'body.repair' },
   [invokeChannels.designGoToStep]: { reason: 'the work log is PartBuddy’s own history; the assistant steps back with undo' },

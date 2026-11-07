@@ -14,7 +14,7 @@ export const NEW_PART: PartNote = { quantity: 1, printed: 0, filament: '', note:
  * The parts list of the open project (P6), read again when another design opens. `save` keeps
  * one body's note together with the printed bodies of now, for the count on the start page.
  */
-export function useParts(documentId: string | null, printable: string[]): { parts: PartsState['parts']; save: (body: string, note: PartNote) => void } {
+export function useParts(documentId: string | null, printable: string[]): { parts: PartsState['parts']; save: (body: string, note: PartNote, bodies?: string[]) => void } {
   const { t } = useTranslation();
   const [parts, setParts] = useState<PartsState['parts']>({});
   useEffect(() => {
@@ -31,10 +31,11 @@ export function useParts(documentId: string | null, printable: string[]): { part
       live = false;
     };
   }, [documentId]);
-  const save = (body: string, note: PartNote) => {
+  // `bodies` replaces the printed bodies of now when they just changed (a rename).
+  const save = (body: string, note: PartNote, bodies = printable) => {
     setParts((current) => ({ ...current, [body]: note }));
     void platform()
-      .project.setPart(body, note, printable)
+      .project.setPart(body, note, bodies)
       .then((state) => {
         setParts(state.parts);
       })
@@ -56,7 +57,8 @@ export function PrintedToggle({ body, note, onChange }: { body: string; note: Pa
       isSelected={done}
       onChange={(next) => onChange({ ...note, printed: next ? note.quantity : 0 })}
       aria-label={t(done ? 'parts.markOpen' : 'parts.markPrinted', { name: body })}
-      className={`inline-flex size-control-sm shrink-0 items-center justify-center rounded-md outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus ${done ? 'text-success' : 'text-text-subtle hover:text-text'}`}
+      excludeFromTabOrder
+      className={`inline-flex size-5 shrink-0 items-center justify-center rounded-sm outline-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus ${done ? 'text-success' : 'text-text-subtle hover:text-text'}`}
       data-testid="part-printed"
     >
       {done ? <IconCircleCheckFilled className="size-icon-sm" aria-hidden /> : <IconCircleDashed className="size-icon-sm" aria-hidden />}
@@ -71,7 +73,8 @@ export function ExpandToggle({ body, open, onToggle }: { body: string; open: boo
       aria-label={t('parts.details', { name: body })}
       aria-expanded={open}
       onPress={onToggle}
-      className="inline-flex size-control-sm shrink-0 items-center justify-center rounded-md text-text-subtle outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
+      excludeFromTabOrder
+      className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-text-subtle outline-none hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus"
       data-testid="part-expand"
     >
       <IconChevronRight className={`size-icon-sm transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />

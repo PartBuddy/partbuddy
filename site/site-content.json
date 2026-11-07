@@ -50,7 +50,7 @@
     {
       "tab": "Build",
       "title": "Watch every step in real CAD",
-      "text": "SolidCraft builds editable geometry while you watch. Click a face, pin a note to it and ask for the change in words. Every step, yours or the assistant’s, can be taken back.",
+      "text": "SolidCraft builds editable geometry while you watch. Click a face, pin a note to it and ask for the change in words, or change a size right in the parameter table of the structure tree. Every step, yours or the assistant’s, can be taken back.",
       "shot": "view",
       "alt": "A cable clip with a selected face and its name, area and actions"
     },

@@ -81,6 +81,7 @@ export const invokeChannels = {
   designInsertPart: 'design:insert-part',
   designTimeline: 'design:timeline',
   designVisibility: 'design:visibility',
+  designRenameBody: 'design:rename-body',
   designInsert: 'design:insert',
   designRepair: 'design:repair',
   designGoToStep: 'design:go-to-step',

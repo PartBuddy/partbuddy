@@ -64,6 +64,9 @@ export function pickIndex(pick: Pick): number {
   return pick.kind === 'face' ? pick.face : pick.kind === 'edge' ? pick.edge : pick.vertex;
 }
 
+/** What the structure tree selected: a body by name (names survive a rebuild) or a sketch by id. */
+export type TreeSelection = { kind: 'body'; name: string } | { kind: 'sketch'; id: number };
+
 /** How many steps SolidCraft can undo and redo, from the newest mirrored revision. */
 export interface History {
   undo: number;
@@ -163,6 +166,9 @@ interface StudioState {
   /** A place the camera should move to (a finding of the check), with a serial to repeat it. */
   focusRequest: { box: FindingBox; serial: number } | null;
   requestFocus: (box: FindingBox) => void;
+  /** An empty state of the structure tree asks the chat for something: a draft about parameters, or the sketch pad. */
+  assistantRequest: { what: 'parameters' | 'sketch'; serial: number } | null;
+  requestAssistant: (what: 'parameters' | 'sketch') => void;
   /** An export waiting for the user to confirm it despite a red check. */
   exportConfirm: ExportTarget | null;
   setExportConfirm: (target: ExportTarget | null) => void;
@@ -175,6 +181,9 @@ interface StudioState {
   selection: Pick | null;
   /** Everything selected, in picking order (Ctrl- or Shift-click adds and removes, M1b-2). */
   selections: Pick[];
+  /** A whole body (by name) or sketch (by id) picked in the structure tree; lit in the view. */
+  treeSelection: TreeSelection | null;
+  selectInTree: (item: TreeSelection | null) => void;
   changes: LiveChanges | null;
   /**
    * How strongly the faces the latest step changed are tinted, 0 to 1: a short glow after each
@@ -296,6 +305,10 @@ export const useStudio = create<StudioState>()((set) => ({
   requestFocus: (box) => {
     set((state) => ({ focusRequest: { box, serial: (state.focusRequest?.serial ?? 0) + 1 } }));
   },
+  assistantRequest: null,
+  requestAssistant: (what) => {
+    set((state) => ({ assistantRequest: { what, serial: (state.assistantRequest?.serial ?? 0) + 1 } }));
+  },
   exportConfirm: null,
   setExportConfirm: (exportConfirm) => {
     set({ exportConfirm });
@@ -311,6 +324,11 @@ export const useStudio = create<StudioState>()((set) => ({
   hover: null,
   selection: null,
   selections: [],
+  treeSelection: null,
+  selectInTree: (treeSelection) => {
+    // The tree picks whole parts; a face selection from before would point elsewhere.
+    set({ treeSelection, selection: null, selections: [] });
+  },
   changes: null,
   changeGlow: 0,
   setChangeGlow: (changeGlow) => {
@@ -350,14 +368,14 @@ export const useStudio = create<StudioState>()((set) => ({
     if (!samePick(hover, useStudio.getState().hover)) set({ hover });
   },
   select: (selection) => {
-    set({ selection, selections: selection ? [selection] : [] });
+    set({ selection, selections: selection ? [selection] : [], treeSelection: null });
   },
   toggle: (pick) => {
     const current = useStudio.getState().selections;
     const selections = current.some((entry) => samePick(entry, pick))
       ? current.filter((entry) => !samePick(entry, pick))
       : [...current, pick].slice(-MAX_SELECTIONS);
-    set({ selections, selection: selections.at(-1) ?? null });
+    set({ selections, selection: selections.at(-1) ?? null, treeSelection: null });
   },
   deselect: (pick) => {
     const selections = useStudio.getState().selections.filter((entry) => !samePick(entry, pick));

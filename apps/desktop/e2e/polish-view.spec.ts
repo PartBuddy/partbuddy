@@ -122,6 +122,7 @@ for (const size of WIDTHS) {
       });
       await page.getByTestId('dimensions-all').click().catch(() => undefined);
       await step('08-parameter-preview', async () => {
+        await page.getByTestId('parameters').getByTestId('parameter').first().dblclick();
         const field = page.getByTestId('parameters').getByRole('textbox').first();
         await field.fill('100');
         await page.waitForTimeout(1500);

@@ -1,4 +1,4 @@
-import { IconStar } from '@tabler/icons-react';
+import { IconAlertCircle, IconSparkles, IconStarFilled, IconVariable } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Input, Slider, SliderThumb, SliderTrack, TextField } from 'react-aria-components';
@@ -8,7 +8,9 @@ import { selectedStatus, useAssistant } from '../assistant/store';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { parseLength } from '../viewer/lengthInput';
+import { LooseDimensions } from '../viewer/Dimensions';
 import { commentText, rangeOf } from './parameterRange';
+import { TreeEmpty, TreeExtra, TreeItem, TreeSection } from './Tree';
 
 const PREVIEW_DELAY_MS = 250;
 
@@ -77,54 +79,83 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
   };
 
   const note = commentText(parameter.comment);
-  const hint = problem ?? (outside ? t('parameters.outside', { min: format(outside.min), max: format(outside.max) }) : null);
+  const invalid = editing && !valid ? t('parameters.invalid') : null;
+  const hint = problem ?? invalid ?? (outside ? t('parameters.outside', { min: format(outside.min), max: format(outside.max) }) : null);
+  const box = useRef<HTMLDivElement>(null);
+  const start = () => {
+    if (parameter.editable && !busy && !editing) setDraft(format(parameter.value));
+  };
+  const back = () => {
+    box.current?.querySelector<HTMLElement>('[role="treeitem"]')?.focus();
+  };
+  // Comment, range and formula show on hover; the row stays one line (Name · Value · Unit).
+  const title = [note, range ? t('parameters.range', { min: format(range.min), max: format(range.max), unit: parameter.unit }) : null, parameter.editable ? null : `= ${parameter.expression}`, parameter.editable ? null : t('parameters.formulaHint')]
+    .filter(Boolean)
+    .join('\n');
 
   return (
-    <li className="flex flex-col gap-1 rounded-md px-2 py-1" data-testid="parameter" data-name={parameter.name}>
-      <div className="flex items-center gap-2">
-        {parameter.favorite ? <IconStar className="size-icon-sm shrink-0 text-text-subtle" aria-label={t('parameters.favorite')} /> : null}
-        <span className="min-w-0 flex-1 truncate tabular-nums text-sm text-text" title={parameter.name}>
+    <div ref={box}>
+      <TreeItem
+        id={`parameter:${parameter.name}`}
+        label={`${parameter.name}, ${format(parameter.value)} ${parameter.unit}`}
+        selected={editing}
+        onOpen={start}
+        onEnter={start}
+        onRename={start}
+        testId="parameter"
+        data={{ name: parameter.name }}
+        className="tabular-nums"
+      >
+        <span className="min-w-0 flex-1 truncate" title={title || undefined}>
+          {parameter.favorite ? <IconStarFilled className="absolute top-1 left-1 size-icon-sm text-warning" aria-label={t('parameters.favorite')} /> : null}
           {parameter.name}
         </span>
-        {parameter.editable ? (
+        {editing ? (
           <TextField
             aria-label={t('parameters.change', { name: parameter.name })}
             value={text}
             onChange={setDraft}
             inputMode="decimal"
             isDisabled={busy}
-            isInvalid={editing && (!valid || problem !== null)}
+            isInvalid={!valid || problem !== null}
             className="w-field-value shrink-0"
             data-testid="parameter-field"
           >
             <Input
-              className="h-control-sm w-full rounded-md border border-border-strong bg-surface px-1 text-right text-sm tabular-nums text-text outline-none focus-visible:outline-2 focus-visible:outline-focus invalid:border-danger disabled:opacity-50"
+              // a double click or F2 opens the value to type into, as in a CAD parameter table
+              autoFocus
+              onFocus={(event) => {
+                event.currentTarget.select();
+              }}
+              className="h-control-sm w-full rounded-sm border border-accent bg-surface px-1 text-right text-sm tabular-nums text-text outline-none invalid:border-danger disabled:opacity-50"
               onKeyDown={(event) => {
+                event.stopPropagation();
                 if (event.key === 'Enter') {
                   event.preventDefault();
                   apply();
+                  back();
                 } else if (event.key === 'Escape') {
                   event.preventDefault();
-                  event.stopPropagation();
                   reset();
+                  back();
                 }
               }}
-              onBlur={() => {
-                if (editing) reset();
+              onBlur={(event) => {
+                // The slider of a favourite belongs to the edit; leaving the row ends it.
+                if (!box.current?.contains(event.relatedTarget)) reset();
               }}
             />
           </TextField>
         ) : (
-          <span className="shrink-0 text-sm tabular-nums text-text">{format(parameter.value)}</span>
+          <span className={`w-field-value shrink-0 truncate text-right ${parameter.error ? 'text-danger' : ''}`} title={title || undefined}>
+            {parameter.editable ? null : <span className="mr-1 text-xs text-text-subtle" aria-hidden>ƒ</span>}
+            {format(parameter.value)}
+          </span>
         )}
         <span className="w-5 shrink-0 text-xs text-text-subtle">{parameter.unit}</span>
-      </div>
-      {parameter.editable ? null : (
-        <p className="truncate tabular-nums text-xs text-text-subtle" title={t('parameters.formulaHint')}>
-          = {parameter.expression}
-        </p>
-      )}
-      {parameter.editable && parameter.favorite && range ? (
+      </TreeItem>
+      {editing && parameter.favorite && range ? (
+        <TreeExtra>
         <Slider
           aria-label={t('parameters.slider', { name: parameter.name })}
           value={Math.min(range.max, Math.max(range.min, valid ? value : parameter.value))}
@@ -139,10 +170,10 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
             if (Math.abs(next - parameter.value) > 1e-9) applyValue(next);
             else reset();
           }}
-          className="w-full"
+          className="mr-2 ml-5 w-auto"
           data-testid="parameter-slider"
         >
-          <SliderTrack className="relative h-4 w-full">
+          <SliderTrack className="relative h-icon w-full">
             {({ state }) => (
               <>
                 <span aria-hidden className="absolute top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-surface-sunken" />
@@ -152,17 +183,20 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
             )}
           </SliderTrack>
         </Slider>
+        </TreeExtra>
       ) : null}
-      {note ? <p className="text-xs text-text-subtle">{note}</p> : null}
-      {range ? <p className="text-xs text-text-subtle">{t('parameters.range', { min: format(range.min), max: format(range.max), unit: parameter.unit })}</p> : null}
-      {parameter.error ? <p className="text-xs text-danger">{parameter.error}</p> : null}
-      {hint ? (
-        <p className={`text-xs ${problem ? 'text-danger' : 'text-warning'}`} role="status">
-          {hint}
-        </p>
+      {parameter.error || hint ? (
+        <TreeExtra className={`mr-1 flex items-start gap-1 px-1 py-hairline pl-5 text-xs ${parameter.error || problem || invalid ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
+          <IconAlertCircle className="mt-hairline size-icon-sm shrink-0" aria-hidden />
+          <span role="status">{hint ?? parameter.error}</span>
+        </TreeExtra>
       ) : null}
-      {changed && !hint ? <p className="text-xs text-text-subtle">{t('parameters.enter')}</p> : null}
-    </li>
+      {changed && !hint ? (
+        <TreeExtra className="pl-5 text-xs text-text-subtle">
+          {t('parameters.enter')}
+        </TreeExtra>
+      ) : null}
+    </div>
   );
 }
 
@@ -175,6 +209,7 @@ export function ParametersSection() {
   const { t } = useTranslation();
   const model = useStudio((s) => s.model);
   const setGhost = useStudio((s) => s.setParameterGhost);
+  const requestAssistant = useStudio((s) => s.requestAssistant);
   const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy';
   // The list together with the revision it was read at; another revision shows the last list until the new one arrives.
   const [loaded, setLoaded] = useState<{ documentId: string; list: DesignParameter[] } | null>(null);
@@ -209,16 +244,31 @@ export function ParametersSection() {
 
   if (revision === null) return null;
   return (
-    <section aria-labelledby="structure-parameters" data-testid="parameters">
-      <h2 id="structure-parameters" className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-text-subtle">
-        {t('parameters.title', { count: parameters.length })}
-      </h2>
-      {parameters.length === 0 ? <p className="px-2 text-xs text-text-subtle">{t('parameters.none')}</p> : null}
-      <ul className="flex flex-col">
-        {parameters.map((parameter) => (
-          <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} />
-        ))}
-      </ul>
-    </section>
+    <TreeSection
+      id="section:parameters"
+      icon={<IconVariable className="size-icon-sm" aria-hidden />}
+      title={t('parameters.titleShort')}
+      label={t('parameters.title', { count: parameters.length })}
+      count={parameters.length}
+      testId="parameters"
+    >
+      {parameters.length === 0 ? (
+        <TreeEmpty
+          icon={<IconVariable className="size-icon" aria-hidden />}
+          text={t('parameters.noneShort')}
+          action={{ label: t('parameters.ask'), icon: <IconSparkles className="size-icon-sm" aria-hidden />, onPress: () => requestAssistant('parameters'), testId: 'parameters-ask' }}
+        />
+      ) : (
+        <div className="mr-1 flex h-control-sm items-center gap-2 pr-1 pl-5 text-xs font-medium text-text-subtle" aria-hidden="true">
+          <span className="flex-1">{t('parameters.name')}</span>
+          <span className="w-field-value text-right">{t('parameters.value')}</span>
+          <span className="w-5" />
+        </div>
+      )}
+      {parameters.map((parameter) => (
+        <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} />
+      ))}
+      <LooseDimensions />
+    </TreeSection>
   );
 }

@@ -1098,6 +1098,7 @@ export const invokeContract = {
   [invokeChannels.sketchLoad]: { request: z.object({ id: keptSketchSchema.shape.id }).strict(), response: sketchStateSchema.nullable() },
   [invokeChannels.chatSave]: { request: chatSaveSchema, response: none },
   [invokeChannels.designVisibility]: { request: visibilityCommandSchema, response: none },
+  [invokeChannels.designRenameBody]: { request: z.object({ body: bodyName, name: bodyName }).strict(), response: none },
   [invokeChannels.designInsert]: { request: importRequestSchema, response: insertResultSchema },
   [invokeChannels.designRepair]: { request: repairRequestSchema, response: repairResultSchema },
   [invokeChannels.notesCurrent]: { request: none, response: notesStateSchema },

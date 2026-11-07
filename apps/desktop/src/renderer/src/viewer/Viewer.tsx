@@ -135,6 +135,8 @@ function Body({
   const changes = useStudio((s) => s.changes);
   const stepHighlight = useStudio((s) => s.stepHighlight);
   const glow = useStudio((s) => s.changeGlow);
+  // The structure tree picked this body as a whole.
+  const picked = useStudio((s) => s.treeSelection?.kind === 'body' && s.treeSelection.name === body.name);
   // With a ghost on screen, how much of the part as it is now shows.
   const fade = useStudio((s) => (s.selectionGhost || s.parameterGhost || s.markGhost ? blendWeights(PREVIEW_BLEND).before : 1));
   const { model } = body;
@@ -159,7 +161,7 @@ function Body({
     const hovered = hover?.kind === 'face' && hover.body === index ? hover.face : -1;
     const selected = new Set(selections.filter((pick) => pick.kind === 'face' && pick.body === index).map((pick) => (pick.kind === 'face' ? pick.face : -1)));
     // A whole part stands out in the playback (the step that plays) and on the plate (does not fit).
-    const whole = emphasis === 'active' ? colors.body.clone().lerp(colors.selection, scene.selectionTint) : emphasis === 'misfit' ? colors.body.clone().lerp(colors.misfit, 0.6) : null;
+    const whole = emphasis === 'active' || picked ? colors.body.clone().lerp(colors.selection, scene.selectionTint) : emphasis === 'misfit' ? colors.body.clone().lerp(colors.misfit, 0.6) : null;
     for (let v = 0; v < model.vertexFaces.length; v += 1) {
       const face = model.vertexFaces[v] ?? -1;
       let color = whole ?? colors.body;
@@ -169,7 +171,7 @@ function Body({
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
-  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name, emphasis, glow]);
+  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name, emphasis, glow, picked]);
 
   const clipping = useMemo(() => (plane ? [plane] : []), [plane]);
   return (
@@ -571,6 +573,8 @@ function sketchBox(sketch: MirroredSketch, box = new Box3()): Box3 {
  */
 function Sketch({ sketch, colors }: { sketch: MirroredSketch; colors: ViewerColors }) {
   const changes = useStudio((s) => s.changes);
+  // The structure tree picked this sketch: drawn in the selection colour, strong.
+  const picked = useStudio((s) => s.treeSelection?.kind === 'sketch' && s.treeSelection.id === sketch.id);
   const changed = useMemo(
     () => new Set(changes?.sketches.find((entry) => entry.sketch === sketch.id)?.curves ?? []),
     [changes, sketch.id],
@@ -589,14 +593,14 @@ function Sketch({ sketch, colors }: { sketch: MirroredSketch; colors: ViewerColo
           continue;
         }
         solid.push(...segment);
-        const color = moved ? colors.changed : style === SKETCH_STYLE.constrained ? colors.sketchConstrained : colors.sketch;
+        const color = picked ? colors.selection : moved ? colors.changed : style === SKETCH_STYLE.constrained ? colors.sketchConstrained : colors.sketch;
         solidColors.push([color.r, color.g, color.b], [color.r, color.g, color.b]);
       }
     }
     const diagonal = sketchBox(sketch).getSize(new Vector3()).length();
     const dash = Math.min(scene.dashMax, Math.max(scene.dashMin, diagonal * scene.dashPerDiagonal));
     return { solid, solidColors, construction, dash };
-  }, [sketch, changed, colors]);
+  }, [sketch, changed, colors, picked]);
 
   return (
     <group name={`sketch ${sketch.name}`}>
@@ -605,7 +609,7 @@ function Sketch({ sketch, colors }: { sketch: MirroredSketch; colors: ViewerColo
           points={lines.solid}
           segments
           vertexColors={lines.solidColors}
-          lineWidth={sketch.active ? scene.activeSketchWidth : scene.sketchWidth}
+          lineWidth={sketch.active || picked ? scene.activeSketchWidth : scene.sketchWidth}
           raycast={noRaycast}
         />
       ) : null}
