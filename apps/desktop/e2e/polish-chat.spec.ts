@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
 import { launchApp, type LaunchedApp } from './launch';
@@ -47,11 +48,13 @@ for (const size of WIDTHS) {
       await page.keyboard.press('Escape');
       await expect(dialog).toHaveCount(0);
 
+      const findings: string[] = [];
       const shot = async (name: string) => {
         for (const scheme of ['light', 'dark'] as const) {
           await page.emulateMedia({ colorScheme: scheme });
           await page.waitForTimeout(400);
           await page.screenshot({ path: test.info().outputPath(`${name}-${size.name}-${scheme}.png`) });
+          findings.push(...(await axeFindings(page)).map((finding) => `${name} ${scheme}: ${finding}`));
         }
         await page.emulateMedia({ colorScheme: 'light' });
       };
@@ -63,6 +66,20 @@ for (const size of WIDTHS) {
       const settled = () => expect(page.getByRole('button', { name: 'Senden', exact: true })).toBeVisible({ timeout: 30_000 });
 
       await shot('01-empty');
+      // The keyboard goes from the text to the composer's tools in reading order (chat polish).
+      await composer.focus();
+      for (const id of ['composer-sketch-open', 'composer-photo-open', 'agent-status']) {
+        await page.keyboard.press('Tab');
+        await expect(page.getByTestId(id)).toBeFocused();
+      }
+      // With text, Send is the next stop after the route chip.
+      await composer.fill('Hallo');
+      await page.keyboard.press('Tab', { delay: 20 });
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Tab');
+      await expect(page.getByTestId('composer-send')).toBeFocused();
+      await composer.fill('');
       await page.getByTestId('agent-status').click();
       await shot('02-chip-menu');
       await page.keyboard.press('Escape');
@@ -130,11 +147,25 @@ for (const size of WIDTHS) {
       await expect(page.getByText('Failed to authenticate')).toHaveCount(0);
       await expect(page.getByTestId('turn-sign-in')).toBeVisible();
       await shot('14-sign-in-expired');
+      // WCAG 2.2 AA as far as axe sees it, in every state above (chat polish).
+      expect(findings).toEqual([]);
     } finally {
       await launched?.close();
       rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
     }
   });
+}
+
+/** What axe finds against WCAG 2.2 AA in the chat; the fade-ins are off, so contrast is measured at rest. */
+async function axeFindings(page: Page): Promise<string[]> {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const results = await new AxeBuilder({ page })
+    .setLegacyMode(true)
+    .include('[data-testid="assistant-panel"]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  return results.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => `${node.target.join(' ')}${violation.id === 'color-contrast' ? ` ${JSON.stringify(node.any[0]?.data)}` : ''}`).join(', ')}`);
 }
 
 /** The conversation from its start, to see the first messages after a long chat. */

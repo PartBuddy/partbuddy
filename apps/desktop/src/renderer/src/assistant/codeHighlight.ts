@@ -32,7 +32,8 @@ const ALIASES: Record<string, string> = {
   scad: 'openscad',
   md: 'markdown',
 };
-const THEMES = ['github-light', 'github-dark'] as const;
+// The "default" GitHub themes: their comments and constants keep 4.5:1 on the code surface (axe).
+const THEMES = ['github-light-default', 'github-dark-default'] as const;
 /** Finished blocks kept highlighted; old ones go first. */
 const CACHE_SIZE = 200;
 
@@ -49,7 +50,7 @@ const cache = new Map<string, HighlightResult>();
 
 async function ready(language: string): Promise<HighlighterCore> {
   highlighter ??= createHighlighterCore({
-    themes: [import('@shikijs/themes/github-light'), import('@shikijs/themes/github-dark')],
+    themes: [import('@shikijs/themes/github-light-default'), import('@shikijs/themes/github-dark-default')],
     langs: [],
     engine: createJavaScriptRegexEngine({ forgiving: true }),
   });

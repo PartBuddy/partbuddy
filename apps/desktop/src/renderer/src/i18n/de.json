@@ -419,7 +419,8 @@
       "copied": "Kopiert",
       "copyCode": "Code kopieren",
       "resend": "Erneut senden",
-      "actions": "Aktionen zur Nachricht"
+      "actions": "Aktionen zur Nachricht",
+      "table": "Tabelle"
     },
     "scroll": {
       "toLatest": "Zur neuesten Nachricht"
