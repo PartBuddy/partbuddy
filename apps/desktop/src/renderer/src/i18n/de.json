@@ -413,7 +413,24 @@
       "housing": "Ein Gehäuse 80 × 50 × 30 mm für eine Platine, mit verschraubtem Deckel und einem Loch für ein USB-C-Kabel",
       "photo": "Ein Ersatz-Drehknopf, der auf die Achse auf meinem Foto passt",
       "hint": "Ein Beispiel landet im Eingabefeld, damit du es vorher anpassen kannst. Eine Skizze oder ein Foto kann mitgehen."
-    }
+    },
+    "message": {
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "copyCode": "Code kopieren",
+      "resend": "Erneut senden",
+      "actions": "Aktionen zur Nachricht"
+    },
+    "scroll": {
+      "toLatest": "Zur neuesten Nachricht"
+    },
+    "sendHint": "Senden (Eingabe)",
+    "stopHint": "Stoppen (Esc)",
+    "start": {
+      "title": "Was soll entstehen?"
+    },
+    "offline": "Keine Internetverbindung. Der Assistent antwortet erst wieder, wenn du online bist.",
+    "announce": "Der Assistent hat geantwortet."
   },
   "live": {
     "thinking": "Der Assistent plant den nächsten Schritt",

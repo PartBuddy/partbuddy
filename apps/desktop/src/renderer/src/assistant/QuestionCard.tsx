@@ -6,6 +6,7 @@ import { CheckboxButton, CheckboxField, Input, RadioButton, RadioField, RadioGro
 import type { MessageAnswer } from '../../../shared/contract';
 import { Button } from '../ui/Button';
 import { radioClass, RadioMark } from './AgentChip';
+import { card } from './Fold';
 import { roundAnswers, roundMessage, type Round } from './round';
 import type { ConversationItem } from './store';
 
@@ -43,9 +44,9 @@ export function QuestionCard({ item, ready, answer, change }: Props) {
 
   const outcome = item.choice === 'go' ? 'go' : item.choice === 'cancel' ? 'cancel' : 'change';
   return (
-    <section aria-labelledby={headingId} data-testid="question-card" data-kind="plan" className="flex flex-col gap-2 rounded-md border border-accent bg-accent-subtle p-3">
+    <section aria-labelledby={headingId} data-testid="question-card" data-kind="plan" className={`${card} gap-2 p-3 ${open ? 'border-accent' : 'border-border'}`}>
       <p id={headingId} className="flex items-center gap-1 text-xs font-medium text-text-muted">
-        <IconListCheck className="size-icon-sm" aria-hidden />
+        <IconListCheck className={`size-icon-sm ${open ? 'text-accent' : ''}`} aria-hidden />
         {t('assistant.planCard.title')}
       </p>
       <p className="text-md text-text">{question.summary}</p>
@@ -126,9 +127,9 @@ function RoundCard({ round, open, ready, answer }: { round: Round; open: boolean
   const setAt = <T,>(list: T[], i: number, value: T) => list.map((entry, n) => (n === i ? value : entry));
 
   return (
-    <section aria-labelledby={`${baseId}-title`} data-testid="question-card" data-kind="ask" className="flex flex-col gap-3 rounded-md border border-accent bg-accent-subtle p-3">
+    <section aria-labelledby={`${baseId}-title`} data-testid="question-card" data-kind="ask" className={`${card} gap-3 p-3 ${open ? 'border-accent' : 'border-border'}`}>
       <p id={`${baseId}-title`} className="flex items-center gap-1 text-xs font-medium text-text-muted">
-        <IconHelpCircle className="size-icon-sm" aria-hidden />
+        <IconHelpCircle className={`size-icon-sm ${open ? 'text-accent' : ''}`} aria-hidden />
         {t('assistant.question.title', { count: round.questions.length })}
       </p>
       {round.questions.map((entry, i) => {

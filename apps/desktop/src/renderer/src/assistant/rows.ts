@@ -13,6 +13,23 @@ export type Row =
   /** Every step and query of one request, as one line that opens to the steps. */
   | { kind: 'work'; key: string; entries: WorkEntry[]; live: boolean };
 
+/** The same items in the same order: rows are rebuilt for every token, their items mostly are not. */
+export function sameList<T>(a: readonly T[], b: readonly T[]): boolean {
+  return a.length === b.length && a.every((entry, i) => entry === b[i]);
+}
+
+/** The same work entries: each the same step or queries with the same tool calls. */
+export function sameEntries(a: readonly WorkEntry[], b: readonly WorkEntry[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((entry, i) => {
+      const other = b[i];
+      if (!other || other.kind !== entry.kind || !sameList(entry.tools, other.tools)) return false;
+      return entry.kind !== 'step' || (other.kind === 'step' && entry.item === other.item);
+    })
+  );
+}
+
 /** Steps a request needs before they fold into one line. */
 const GROUP_FROM = 2;
 

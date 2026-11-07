@@ -7,22 +7,10 @@ import { MAX_STEP_PHRASES } from '../../../shared/stepPhrases';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import type { ConversationItem } from './store';
+import { Fold } from './Fold';
 import { ToolCall, type ToolItem } from './ToolCall';
 
 export type StepItem = Extract<ConversationItem, { kind: 'step' }>;
-
-/** Tool details on demand, closed by default (M2a: the card speaks plainly first). */
-export function Details({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <details className="group flex flex-col gap-1 text-sm">
-      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-sm text-text-muted outline-none hover:text-text focus-visible:outline-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden">
-        <IconChevronRight className="size-icon-sm transition-transform group-open:rotate-90" aria-hidden />
-        {label}
-      </summary>
-      <div className="mt-1 flex flex-col gap-1">{children}</div>
-    </details>
-  );
-}
 
 /** The plain words of a step, as many as a card shows. */
 export function useStepLines(item: StepItem): { lines: string[]; more: number } {
@@ -75,7 +63,7 @@ export function StepCard({ item, tools, disabled }: { item: StepItem; tools: Too
       onPointerLeave={unhighlight}
       onFocus={highlight}
       onBlur={unhighlight}
-      className={`group/step flex flex-col rounded-md ${open ? 'bg-surface-sunken' : 'hover:bg-surface-hover'} ${state === 'applied' ? '' : 'text-text-muted'}`}
+      className={`group/step flex min-w-0 flex-col rounded-md ${open ? 'bg-surface-sunken' : 'hover:bg-surface-hover'} ${state === 'applied' ? '' : 'text-text-muted'}`}
     >
       <div className="flex min-w-0 items-center gap-1 px-1">
         <AriaButton
@@ -86,6 +74,7 @@ export function StepCard({ item, tools, disabled }: { item: StepItem; tools: Too
           }}
           className="flex min-h-control-sm min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-sm outline-none focus-visible:outline-2 focus-visible:outline-focus"
         >
+          <IconChevronRight className={`size-icon-sm shrink-0 text-text-subtle transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />
           {step.source === 'user' ? (
             <IconUser className="size-icon-sm shrink-0 text-text-subtle" role="img" aria-label={t('assistant.step.byYou')} />
           ) : (
@@ -95,7 +84,7 @@ export function StepCard({ item, tools, disabled }: { item: StepItem; tools: Too
             {summary}
           </span>
           {current ? (
-            <span className="shrink-0 rounded-full bg-accent-subtle px-2 text-xs text-accent" data-testid="step-current">
+            <span className="shrink-0 rounded-full bg-accent-subtle px-2 text-xs text-accent-text" data-testid="step-current">
               {t('assistant.step.current')}
             </span>
           ) : null}
@@ -133,11 +122,11 @@ export function StepCard({ item, tools, disabled }: { item: StepItem; tools: Too
           </ul>
         ) : null}
         {tools.length > 0 ? (
-          <Details label={t('assistant.step.details', { count: tools.length })}>
+          <Fold summary={t('assistant.step.details', { count: tools.length })}>
             {tools.map((tool) => (
               <ToolCall key={tool.key} item={tool} />
             ))}
-          </Details>
+          </Fold>
         ) : null}
       </div>
     </article>

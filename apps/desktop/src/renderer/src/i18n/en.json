@@ -413,7 +413,24 @@
       "housing": "A housing 80 × 50 × 30 mm for a circuit board, with a screwed-on lid and a hole for a USB-C cable",
       "photo": "A replacement knob that fits the shaft on my photo",
       "hint": "An example fills the input, so you can change it first. A sketch or a photo can go along too."
-    }
+    },
+    "message": {
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyCode": "Copy code",
+      "resend": "Ask again",
+      "actions": "Message actions"
+    },
+    "scroll": {
+      "toLatest": "Jump to the latest message"
+    },
+    "sendHint": "Send (Enter)",
+    "stopHint": "Stop (Esc)",
+    "start": {
+      "title": "What shall we make?"
+    },
+    "offline": "No internet connection. The assistant answers again once you are online.",
+    "announce": "The assistant has answered."
   },
   "live": {
     "thinking": "The assistant is planning the next step",

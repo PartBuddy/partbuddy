@@ -2,6 +2,7 @@ import { IconExternalLink, IconSearch, IconWorld } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 
 import type { ResearchSource } from '../../../shared/contract';
+import { card } from './Fold';
 
 function host(url: string): string {
   try {
@@ -21,7 +22,7 @@ export function SourceCard({ source }: { source: ResearchSource }) {
   const { t } = useTranslation();
   if (source.kind === 'search') {
     return (
-      <div className="flex flex-col gap-1 rounded-md border border-border bg-surface-sunken px-3 py-2 text-sm" data-testid="source-card" data-kind="search">
+      <div className={`${card} gap-1 border-border px-3 py-2 text-sm`} data-testid="source-card" data-kind="search">
         <span className="flex items-center gap-2 text-text-muted">
           <IconSearch className="size-icon-sm shrink-0" aria-hidden />
           <span className="min-w-0 truncate">{t('assistant.source.search', { query: source.query ?? '' })}</span>
@@ -43,7 +44,7 @@ export function SourceCard({ source }: { source: ResearchSource }) {
   }
   if (!source.url) return null;
   return (
-    <div className="flex items-center gap-2 rounded-md border border-border bg-surface-sunken px-3 py-2 text-sm" data-testid="source-card" data-kind="page">
+    <div className={`${card} flex-row items-center gap-2 border-border px-3 py-2 text-sm`} data-testid="source-card" data-kind="page">
       <IconWorld className="size-icon-sm shrink-0 text-text-muted" aria-hidden />
       <span className="shrink-0 text-text-muted">{t('assistant.source.page')}</span>
       <a href={source.url} target="_blank" rel="noreferrer" className={linkClass} title={source.url}>

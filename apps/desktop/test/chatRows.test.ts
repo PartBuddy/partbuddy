@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { rowsOf } from '../src/renderer/src/assistant/rows';
+import { rowsOf, sameEntries } from '../src/renderer/src/assistant/rows';
 import type { ConversationItem } from '../src/renderer/src/assistant/store';
 import { clampChatWidth, DEFAULT_CHAT_WIDTH, MAX_CHAT_WIDTH, maxChatWidth, MIN_CHAT_WIDTH } from '../src/renderer/src/shell/chatWidth';
 
@@ -51,5 +51,19 @@ describe('chat width', () => {
     // The separator's largest value is the real limit, not the standard width.
     expect(maxChatWidth(1280)).toBe(560);
     expect(maxChatWidth(1824)).toBe(MAX_CHAT_WIDTH);
+  });
+});
+
+describe('rows of a streaming answer (chat polish)', () => {
+  it('rebuilt for a new token, keep their work the same, and change when a step comes', () => {
+    const items = [user('Build a holder'), step('s1'), call('s1'), step('s2'), call('s2'), answer('Do')];
+    const work = (list: ConversationItem[]) => {
+      const row = rowsOf(list).find((entry) => entry.kind === 'work');
+      return row?.kind === 'work' ? row.entries : [];
+    };
+    const before = work(items);
+    const token = [...items.slice(0, -1), { ...answer('Done'), key: 99 }];
+    expect(sameEntries(before, work(token))).toBe(true);
+    expect(sameEntries(before, work([...items, step('s3')]))).toBe(false);
   });
 });

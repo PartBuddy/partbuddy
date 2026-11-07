@@ -106,8 +106,14 @@ if (args[0] === '--version') {
     const content = typeof raw === 'string' ? raw : raw.map((block) => (block.type === 'text' ? block.text : `[${block.type}]`)).join('\n');
     // "Take your time": a slow turn, so a test sees the composer while the assistant works.
     if (content.includes('Take your time')) {
-      await new Promise((done) => setTimeout(done, 4000));
-      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'Done, slowly.' }] } });
+      // Streams its words over four seconds, so the pictures show an answer as it arrives.
+      const slow = 'Ich prüfe zuerst die Wandstärken und die Bohrungen, dann schaue ich, ob der Haken ohne Stützen druckbar ist.\n\nDone, slowly.';
+      const words = slow.match(/\S+\s*/g);
+      for (const word of words) {
+        out({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: word } } });
+        await new Promise((done) => setTimeout(done, 4000 / words.length));
+      }
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: slow }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 4000 });
       continue;
     }
@@ -124,6 +130,22 @@ if (args[0] === '--version') {
         '## Druck',
         '- Liegend drucken, Haken nach oben: keine Stützen nötig',
         '- PLA reicht, PETG hält Wärme besser',
+        '',
+        '## Maße',
+        '| Teil | Breite | Höhe | Wand |',
+        '| --- | ---: | ---: | ---: |',
+        '| Grundplatte | 80 mm | 40 mm | 4 mm |',
+        '| Haken | 35 mm | 25 mm | 3 mm |',
+        '',
+        'Als Parameter in SolidCraft:',
+        '',
+        '```python',
+        'plate_height = 100  # mm',
+        'hook_width = plate_height * 0.35',
+        'body = box(80, 40, 4).fillet(edges="top", radius=2)',
+        '```',
+        '',
+        'Mehr zu Senkungen steht bei [Wikipedia](https://de.wikipedia.org/wiki/Senkung_(Bohrung)).',
         '',
         'Die Senkung folgt ISO 10642. Wenn du willst, lege ich `Plattenhöhe` und `Hakenweite` als Parameter an, damit du sie im Panel ändern kannst. '.repeat(3),
       ].join('\n');

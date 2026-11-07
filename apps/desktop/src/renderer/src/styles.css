@@ -2,8 +2,25 @@
 @import "@partbuddy/design-tokens/tokens.css";
 @import "@partbuddy/design-tokens/tailwind-theme.css";
 @plugin "tailwindcss-react-aria-components";
+/* Keyframes for the words of a streaming answer. */
+@import "streamdown/styles.css";
 /* Streamdown ships Tailwind classes in its bundle. */
 @source "../../../node_modules/streamdown/dist/*.js";
+
+/*
+ * `dark:` follows the app's theme like the tokens do (system preference unless the settings pin
+ * one); Streamdown colours code with it (Shiki's dark theme).
+ */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+  &:where([data-theme="dark"] *) {
+    @slot;
+  }
+}
 
 html,
 body,
@@ -35,17 +52,104 @@ body,
     animation-duration: 0s !important;
     transition-duration: 0s !important;
   }
+  /* Streamed words would still wait for their stagger delay; they simply appear. */
+  [data-sd-animate],
+  [data-sd-animate-marker]::marker {
+    animation: none !important;
+  }
+  .cs-shimmer {
+    animation: none !important;
+    background: none;
+    color: var(--cs-color-text-muted);
+  }
+}
+
+/*
+ * Long chats (chat polish): entries far from the end skip layout and paint until they scroll into
+ * view, and keep the size they last had, so the scrollbar does not jump. The clip margin keeps
+ * focus outlines at their edges visible.
+ */
+.cs-chat-list > :nth-last-child(n + 21) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 4rem;
+  overflow-clip-margin: var(--cs-space-1);
+}
+
+/* A new entry of the chat rises into place (chat polish). */
+@keyframes cs-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--cs-space-1));
+  }
+}
+.cs-chat-list > * {
+  animation: cs-enter var(--cs-duration-normal) var(--cs-easing-standard);
+}
+
+/* "Claude is working": a light passes over the words while the assistant thinks. */
+@keyframes cs-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+.cs-shimmer {
+  background: linear-gradient(90deg, var(--cs-color-text-subtle) 35%, var(--cs-color-text) 50%, var(--cs-color-text-subtle) 65%) 0 0 / 200% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: cs-shimmer var(--cs-duration-slow) linear infinite;
 }
 
 
 /*
- * Names and values the assistant writes as inline code (`plate_height`) read in the normal face:
- * Manuel does not want terminal fonts in the app. Only real code blocks keep the monospace face.
+ * Code reads in the normal face, inline and in blocks (Manuel 2026-11-07: no terminal fonts in the
+ * app, also not for code); Shiki's colours and the block's own surface mark it as code.
  */
-.cs-markdown :not(pre) > code {
+.cs-markdown :is(code, pre, pre *, [data-streamdown="code-block-header"] *) {
   font-family: var(--cs-font-sans);
   font-variant-numeric: tabular-nums;
+}
+.cs-markdown :not(pre) > code {
   font-size: inherit;
+  padding: 0 var(--cs-space-1);
+  border-radius: var(--cs-radius-sm);
+  background: var(--cs-color-surface-hover);
+}
+.cs-markdown [data-streamdown="code-block"] {
+  margin: 0;
+  border: 1px solid var(--cs-color-border);
+  border-radius: var(--cs-radius-md);
+  background: var(--cs-color-surface-sunken);
+  overflow: hidden;
+}
+.cs-markdown [data-streamdown="code-block-header"] {
+  font-size: var(--cs-text-xs);
+  color: var(--cs-color-text-subtle);
+}
+.cs-markdown [data-streamdown="code-block-body"] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--cs-text-sm);
+}
+/* A proportional face cannot line columns up anyway, so long lines wrap instead of scrolling. */
+.cs-markdown [data-streamdown="code-block-body"] pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Tables scroll on their own instead of widening the chat; numbers line up. */
+.cs-markdown [data-streamdown="table-wrapper"] {
+  max-width: 100%;
+  margin: 0;
+}
+.cs-markdown [data-streamdown="table"] {
+  font-variant-numeric: tabular-nums;
+}
+.cs-markdown a {
+  overflow-wrap: anywhere;
 }
 
 /*
