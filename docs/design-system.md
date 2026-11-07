@@ -112,13 +112,30 @@ mapped onto the tokens.
 * Default widths: navigation 240 px, assistant 420 px (drag its left edge between 320 and 760 px;
   the 3D view keeps at least 480 px); the 3D view takes the rest.
 
-### 3D view look ("calm", chosen 2026-11-05)
+### 3D view look ("calm", chosen 2026-11-05; CAD round 2026-11-07)
 
 Chosen by Manuel from a side-by-side of two looks (classic metal on a gradient, calm matte on a
-flat ground), with the tone kept neutral rather than warm:
+flat ground), with the tone kept neutral rather than warm. The viewport CAD round of 2026-11-07
+brought it to the level of Onshape and Fusion:
 
-* Neutral light grey matte part (roughness 0.8, no metalness) on a flat background; model edges as
-  1.7 px dark lines. Dark theme: the part a step dimmer so it does not glare.
+* One flat background (`viewer-background`), no gradient. A neutral cool grey matte part
+  (`viewer-body`, roughness 0.8, no metalness) set apart from it; dark theme a step dimmer so it
+  does not glare. Model edges as 1.6 px near-black lines (`viewer-edge`, at least 3:1 on the part),
+  silhouettes of curved faces as 1.4 px rims drawn by the back faces pushed outward in screen space
+  (one draw call per body, `viewer/silhouette.ts`); faces sit behind the lines with polygonOffset.
+* Light: sky light from above, a key light from the front left, a fill from the right, a soft room
+  environment, and a light straight overhead whose faint contact shadow lies only under the part.
+  The long side shadow on the floor is gone (it read as a game). The shadow map renders on change.
+* Grid cells follow the part's size (1, 2 or 5 times a power of ten, about a sixth of its radius),
+  a section line every five cells, fading out at six radii.
+* Display modes: shaded with edges, shaded, hidden edges (dashed in `viewer-hidden-edge` behind
+  the faces), X-ray and wireframe; Shift+1 to 5. The section plane shows faint in `viewer-section`.
+* Plate view: the bed in `viewer-bed` with a `viewer-bed-edge` outline and its size on two edges;
+  a part that does not fit tinted with `viewer-misfit`. The bar at the bottom (plate of plates,
+  build volume, misfits) replaces the selection dock while it is open, as does the assembly player
+  (play, step, timeline, named steps, where the order came from). The part of the playing step is
+  tinted like a selection. Changes of view glide (about a third of a second), none under
+  `prefers-reduced-motion`.
 * A new body is not tinted; changed faces get a tint of the change colour. Hover and selection tint
   the face, the outline carries the strong colour.
 * World axes: red X and green Y through the origin, an axis triad in the lower left, the view cube
@@ -188,8 +205,10 @@ flat ground), with the tone kept neutral rather than warm:
 * All interactive elements are reachable by Tab in reading order; React Aria provides arrow-key
   navigation inside lists, menus, radio groups and sliders.
 * Ctrl+K opens the command palette; Esc closes overlays; Enter submits dialogs.
-* The 3D view: orbit with the mouse, view cube for standard views; keyboard camera commands
-  (fit, standard views) are palette commands with shortcuts in the MVP.
+* The 3D view: orbit with the mouse around the point under the cursor, zoom toward the cursor,
+  view cube for standard views. Keys: F fit, Shift+F fit selection, 0 iso, 1 front, 3 right, 7 top,
+  Ctrl with 1, 3, 7 the opposite side, 5 orthographic or perspective, M dimensions, Shift+1 to 5
+  display modes.
 
 ## Accessibility (WCAG 2.2 AA)
 
