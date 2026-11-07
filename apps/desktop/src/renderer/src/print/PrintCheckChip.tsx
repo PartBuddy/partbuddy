@@ -5,12 +5,9 @@ import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover } from 'r
 
 import { useStudio } from '../state/store';
 import { popoverPanelClass } from '../ui/Overlay';
+import { dotTone } from '../ui/Feedback';
 
-const DOT: Record<PrintStatus, string> = {
-  ready: 'bg-success',
-  warn: 'bg-warning',
-  block: 'bg-danger',
-};
+const DOT: Record<PrintStatus, string> = { ready: dotTone.success, warn: dotTone.warning, block: dotTone.danger };
 
 const severityDot = (finding: PrintFinding) => DOT[finding.severity];
 

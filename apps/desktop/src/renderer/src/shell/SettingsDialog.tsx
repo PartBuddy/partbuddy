@@ -13,6 +13,7 @@ import { useStudio, type SettingsSection } from '../state/store';
 import { Button } from '../ui/Button';
 import { EnginePanel } from './EnginePanel';
 import { CheckMark, RadioMark, choiceInlineClass, choiceRowClass } from '../ui/Choice';
+import { DialogClose, dialogTitleClass, modalClass, overlayClass } from '../ui/Dialog';
 
 const SECTIONS: { id: SettingsSection; icon: typeof IconSettings; testId: string }[] = [
   { id: 'general', icon: IconSettings, testId: 'settings-general' },
@@ -295,13 +296,16 @@ export function SettingsDialog() {
         if (!open) close();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass}
     >
-      <Modal className="w-dialog-xl max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
-        <Dialog className="flex max-h-[76vh] flex-col outline-none" data-testid="settings-dialog">
-          <Heading slot="title" className="border-b border-border px-5 py-3 text-lg font-semibold text-text">
-            {t('settings.title')}
-          </Heading>
+      <Modal className={modalClass('xl')}>
+        <Dialog className="flex max-h-dialog-max flex-col outline-none" data-testid="settings-dialog">
+          <div className="flex items-center gap-2 border-b border-border py-3 pr-3 pl-5">
+            <Heading slot="title" className={`flex-1 ${dialogTitleClass}`}>
+              {t('settings.title')}
+            </Heading>
+            <DialogClose onPress={close} />
+          </div>
           <Tabs
             orientation="vertical"
             selectedKey={section ?? 'general'}

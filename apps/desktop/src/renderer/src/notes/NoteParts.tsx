@@ -7,6 +7,7 @@ import type { NoteView } from '../../../shared/contract';
 import { Button } from '../ui/Button';
 import { useStudio } from '../state/store';
 import { textAreaClass, fieldLabelClass } from '../ui/Field';
+import { badgeClass } from '../ui/Feedback';
 
 /** Same limit as the main process (ADR 0020). */
 export const MAX_NOTE_TEXT = 1000;
@@ -107,7 +108,7 @@ export function NoteStatus({ note }: { note: NoteView }) {
         {t(`notes.status.${note.status}`)}
       </span>
       {note.own ? null : (
-        <span className="inline-flex items-center gap-1 rounded-sm bg-warning-subtle px-1 text-warning" title={t('notes.foreignHint')}>
+        <span className={badgeClass('warning')} title={t('notes.foreignHint')}>
           <IconUserQuestion className="size-icon-sm" aria-hidden />
           {t('notes.foreign')}
         </span>

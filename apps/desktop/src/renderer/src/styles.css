@@ -57,6 +57,10 @@ body,
   [data-sd-animate-marker]::marker {
     animation: none !important;
   }
+  /* The busy bar stands still as a short bar instead of running off (a 0 s loop would leave it out of view). */
+  .animate-progress {
+    animation: none !important;
+  }
   .cs-shimmer {
     animation: none !important;
     background: none;

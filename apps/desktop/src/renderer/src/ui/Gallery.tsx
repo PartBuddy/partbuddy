@@ -27,6 +27,8 @@ import { Button, IconButton, IconToggle, ToggleButton, linkClass, type ButtonVar
 import { TipText, tooltipClass } from './Tooltip';
 import { CheckMark, chipToggleClass, choiceInlineClass, choiceRowClass, RadioMark, segmentClass, segmentGroupClass, SelectField, SliderBar, SwitchMark } from './Choice';
 import { menuClass, menuHeaderClass, menuItemClass, menuItemTwoLineClass, menuSeparatorClass, popoverClass } from './Overlay';
+import { dialogTitleClass, modalClass } from './Dialog';
+import { badgeClass, Busy, EmptyState, StatusDot, type Tone } from './Feedback';
 import { FieldMessage, fieldLabelClass, inputClass, textAreaClass, UnitInput } from './Field';
 
 /**
@@ -470,6 +472,65 @@ function Menus() {
   );
 }
 
+function DialogsAndFeedback() {
+  const tones: Tone[] = ['neutral', 'accent', 'success', 'warning', 'danger', 'info'];
+  return (
+    <Section title="Dialogs and feedback">
+      <Row
+        name="dialog"
+        cells={{
+          Default: (
+            <div className={`${modalClass('sm')} flex flex-col gap-4 p-5`}>
+              <div className="flex items-start gap-2">
+                <h3 className={`flex-1 ${dialogTitleClass}`}>Projekt in den Papierkorb?</h3>
+                <IconButton label="Schließen" shortcut="Esc" onPress={noop}>
+                  <IconX className="size-icon-sm" aria-hidden />
+                </IconButton>
+              </div>
+              <p className="text-sm text-text-muted">Der Projektordner kommt in den Papierkorb und lässt sich 30 Tage lang wiederherstellen.</p>
+              <div className="flex justify-end gap-2">
+                <Button onPress={noop}>Abbrechen</Button>
+                <Button variant="primary" onPress={noop}>
+                  In den Papierkorb
+                </Button>
+              </div>
+            </div>
+          ),
+        }}
+      />
+      <Row
+        name="badges"
+        cells={{
+          Default: (
+            <span className="flex flex-wrap gap-1">
+              {tones.map((tone) => (
+                <span key={tone} className={badgeClass(tone)}>
+                  {tone}
+                </span>
+              ))}
+              <span className={badgeClass('accent', true)}>Empfohlen</span>
+            </span>
+          ),
+        }}
+      />
+      <Row
+        name="status"
+        cells={{
+          Default: (
+            <span className="flex flex-col gap-1">
+              <StatusDot tone="success" label="SolidCraft verbunden" />
+              <StatusDot tone="warning" label="Kontext fast voll" />
+              <StatusDot tone="danger" label="Nicht druckbar" />
+            </span>
+          ),
+          Busy: <Busy label="Druckplatte wird berechnet" />,
+        }}
+      />
+      <Row name="empty" cells={{ Default: <div className="w-dialog-sm"><EmptyState title="Noch keine Notizen" body="Wähle eine Fläche und hefte eine Notiz daran." /></div> }} />
+    </Section>
+  );
+}
+
 /** The gallery page; later families add their sections here. */
 export function Gallery() {
   return (
@@ -479,6 +540,7 @@ export function Gallery() {
         <Inputs />
         <Selection />
         <Menus />
+        <DialogsAndFeedback />
       </div>
     </main>
   );

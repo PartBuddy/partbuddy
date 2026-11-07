@@ -22,6 +22,7 @@ import { edgeLabel, selectionName, selectionOf, selectionsOf } from './viewState
 import { buttonVariants, pressable } from '../ui/Button';
 import { Tip } from '../ui/Tooltip';
 import { inputClass, fieldLabelClass } from '../ui/Field';
+import { badgeClass } from '../ui/Feedback';
 
 /** Quiet time after typing before PartBuddy tries the value in SolidCraft. */
 const PROBE_DELAY_MS = 250;
@@ -231,7 +232,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       <div className="flex items-start justify-between gap-3">
         <SelectionInfo bodies={bodies} selection={selection} />
         {picks.length > 1 ? (
-          <span className="shrink-0 rounded-full bg-accent-subtle px-2 text-xs text-accent" data-testid="hud-count">
+          <span className={badgeClass('accent')} data-testid="hud-count">
             {t('hud.selected', { count: picks.length })}
           </span>
         ) : null}

@@ -28,6 +28,7 @@ import { useFileImport } from './fileImport';
 import { useProjectSwitch } from './projectSwitch';
 import { FieldMessage, fieldLabelClass, inputClass } from '../ui/Field';
 import { POPOVER_OFFSET, menuClass, menuItemClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
+import { modalClass, overlayClass } from '../ui/Dialog';
 
 const itemClass = menuItemClass;
 
@@ -192,9 +193,9 @@ export function RenameDialog({ open, name, folder, onClose, onDone }: { open: bo
         if (!next) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass}
     >
-      <Modal className="w-dialog-sm max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
+      <Modal className={modalClass('sm')}>
         <Dialog className="flex flex-col gap-4 p-5 outline-none" data-testid="project-rename-dialog">
           <Heading slot="title" className="text-lg font-semibold text-text">
             {t('project.renameTitle')}
@@ -243,9 +244,9 @@ export function TrashDialog({ open, name, opensNew, onClose, onConfirm }: { open
         if (!next) onClose();
       }}
       isDismissable
-      className="fixed inset-0 z-10 flex items-start justify-center bg-overlay px-4 pt-dialog-offset"
+      className={overlayClass}
     >
-      <Modal className="w-dialog-sm max-w-full rounded-lg border border-border bg-surface-raised shadow-3">
+      <Modal className={modalClass('sm')}>
         <Dialog role="alertdialog" className="flex flex-col gap-4 p-5 outline-none" data-testid="project-trash-dialog">
           <Heading slot="title" className="text-lg font-semibold text-text">
             {t('project.trashTitle', { name })}

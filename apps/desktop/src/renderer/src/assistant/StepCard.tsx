@@ -10,6 +10,7 @@ import type { ConversationItem } from './store';
 import { Fold } from './Fold';
 import { ToolCall, type ToolItem } from './ToolCall';
 import { IconButton } from '../ui/Button';
+import { badgeClass } from '../ui/Feedback';
 
 export type StepItem = Extract<ConversationItem, { kind: 'step' }>;
 
@@ -85,7 +86,7 @@ export function StepCard({ item, tools, disabled }: { item: StepItem; tools: Too
             {summary}
           </span>
           {current ? (
-            <span className="shrink-0 rounded-full bg-accent-subtle px-2 text-xs text-accent-text" data-testid="step-current">
+            <span className={badgeClass('accent')} data-testid="step-current">
               {t('assistant.step.current')}
             </span>
           ) : null}
