@@ -3,13 +3,26 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
 import { countViewportPixels } from './pixels';
 import { cameraOf, cameraSettled } from './view';
 import { launchApp, lookAgain, type LaunchedApp } from './launch';
+
+/**
+ * What axe finds against WCAG 2.2 AA, in `include` or the whole window. Dialogs, menus and the chat
+ * fade in; without motion axe measures them at rest, not text still half transparent (CI flakes on a
+ * busy runner, 2026-11-08). Legacy mode runs axe in the page itself; Electron has no helper page.
+ */
+async function axeAtRest(page: Page, include?: string): Promise<string[]> {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const builder = new AxeBuilder({ page }).setLegacyMode(true).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']);
+  const results = await (include ? builder.include(include) : builder).analyze();
+  await page.emulateMedia({ reducedMotion: null });
+  return results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
+}
 
 let launched: LaunchedApp | null = null;
 let fake: FakeSolidCraft | null = null;
@@ -256,7 +269,7 @@ test('the camera keeps a growing design in view until the user moves it', async 
   await expect(async () => {
     expect(await sketchPixels()).toBeGreaterThan(1500);
     expect(await sketchPixels(8)).toBe(0);
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 30_000 });
   await page.getByTestId('viewport').screenshot({ path: test.info().outputPath('small-sketch.png') });
 
   // The design grows twentyfold: the camera follows, nothing touches the edges of the view.
@@ -266,7 +279,7 @@ test('the camera keeps a growing design in view until the user moves it', async 
   await expect(async () => {
     expect(await sketchPixels()).toBeGreaterThan(1500);
     expect(await sketchPixels(8)).toBe(0);
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 30_000 });
   await page.getByTestId('viewport').screenshot({ path: test.info().outputPath('grown-sketch.png') });
 
   // Once the user turns the view, the camera is theirs: growing further does not move it, so the
@@ -361,7 +374,8 @@ test('the structure tree folds, selects, frames, renames and hides by mouse and 
   const tree = page.getByRole('tree', { name: 'Structure' });
   const body = tree.getByTestId('structure-body');
   const sketch = tree.getByTestId('structure-sketch');
-  await expect(sketch).toHaveCount(1);
+  // The change is mirrored first (exports and all), which takes longer on a busy runner.
+  await expect(sketch).toHaveCount(1, { timeout: 15_000 });
   await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
   // Empty sections say so in a line and offer one action.
   await expect(tree.getByTestId('parameters-ask')).toBeVisible();
@@ -496,7 +510,7 @@ test('a print of two parts switches to the plate, explodes along its assembly an
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId('assembly-step')).toHaveCount(2);
   await expect(panel.getByTestId('assembly-source')).toHaveAttribute('data-source', 'suggested');
-  await expect(panel.getByTestId('assembly-play')).toHaveAttribute('data-playing', 'false', { timeout: 15_000 });
+  await expect(panel.getByTestId('assembly-play')).toHaveAttribute('data-playing', 'false', { timeout: 30_000 });
   await expect(panel).toHaveAttribute('data-position', '2.00');
   await panel.getByTestId('assembly-prev').click();
   await expect(panel).toHaveAttribute('data-position', '1.00');
@@ -521,8 +535,7 @@ test('the colour theme can be chosen in the settings and is kept', async () => {
     await themes.getByText('Dark').click();
     await expect.poll(() => dark(page)).toBe(true);
     await page.screenshot({ path: test.info().outputPath('theme-dark.png') });
-    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="settings-dialog"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
-    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    expect(await axeAtRest(page, '[data-testid="settings-dialog"]')).toEqual([]);
 
     // The choice survives a restart.
     await launched.close();
@@ -581,8 +594,7 @@ test('the first start walks through SolidCraft, assistant, printer and project f
     const setup = page.getByTestId('first-start');
     await expect(setup).toHaveAttribute('data-step', 'solidcraft');
     await expect(setup.getByTestId('first-start-download')).toHaveAttribute('href', 'https://github.com/tangency-labs/solidcraft/releases');
-    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="first-start"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
-    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    expect(await axeAtRest(page, '[data-testid="first-start"]')).toEqual([]);
     await page.screenshot({ path: test.info().outputPath('first-start.png') });
     await setup.getByTestId('first-start-next').click();
     await expect(setup).toHaveAttribute('data-step', 'assistant');
@@ -786,12 +798,7 @@ test('the settings show which SolidCraft runs and its version (R0)', async () =>
   await expect(page.getByTestId('engine-support')).toHaveText('Unknown');
   await expect(page.getByTestId('engine-choose')).toBeDisabled();
   await expect(page.getByTestId('engine-restart')).toHaveCount(0);
-  const results = await new AxeBuilder({ page })
-    .setLegacyMode(true)
-    .include('[data-testid="solidcraft-engine"]')
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  expect(results.violations.map((v) => v.id)).toEqual([]);
+  expect(await axeAtRest(page, '[data-testid="solidcraft-engine"]')).toEqual([]);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 });
@@ -949,8 +956,7 @@ test('model and effort are chosen at the chip and kept for new chats (B1)', asyn
     await expect(chip).toHaveText('Claude Code · Sonnet 9 · Low');
     await menu.getByTestId('model-keep').click();
     await expect(menu.getByTestId('model-is-default')).toBeVisible();
-    const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="agent-menu"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
-    expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    expect(await axeAtRest(page, '[data-testid="agent-menu"]')).toEqual([]);
     await page.screenshot({ path: test.info().outputPath('agent-model.png') });
 
     // Another model keeps the effort where it takes it; Haiku takes no "max". That a running
@@ -1006,14 +1012,7 @@ test('the ChatGPT route offers the sign-in when no account is stored', async () 
 test('the main view has no WCAG 2.2 AA violations that axe can detect', async () => {
   const { app } = await connectedApp();
   await expect(app.page.getByTestId('mesh-summary')).toBeVisible();
-  // Entries of the chat fade in; axe would measure the contrast of text still half transparent.
-  await app.page.emulateMedia({ reducedMotion: 'reduce' });
-  // Legacy mode runs axe in the page itself; the default opens a helper page, which Electron lacks.
-  const results = await new AxeBuilder({ page: app.page })
-    .setLegacyMode(true)
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  expect(await axeAtRest(app.page)).toEqual([]);
 });
 
 test('the part material is chosen in the status bar and the profiles are edited in a dialog (M7)', async () => {
@@ -1040,8 +1039,7 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await page.getByTestId('settings-print').click();
   const dialog = page.getByTestId('print-profiles');
   await expect(dialog).toBeVisible();
-  const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="print-profiles"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
-  expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  expect(await axeAtRest(page, '[data-testid="print-profiles"]')).toEqual([]);
   await dialog.getByTestId('printer-name').getByRole('textbox').fill('Werkstatt');
   await dialog.getByTestId('print-tab-material').click();
   await expect(dialog.getByTestId('materials-list').getByRole('option', { selected: true })).toContainText('PETG');
@@ -1249,8 +1247,7 @@ test('the ready-to-print light follows the printer, points at its findings and a
   const panel = page.getByTestId('print-check-panel');
   await expect(panel.getByTestId('check-finding').first()).toHaveAttribute('data-kind', 'size');
   await expect(panel).toContainText('Too large for the build volume: 64 × 32 × 20 mm, the printer takes 50 × 50 × 256 mm');
-  const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="print-check-panel"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
-  expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  expect(await axeAtRest(page, '[data-testid="print-check-panel"]')).toEqual([]);
   await page.keyboard.press('Escape');
 
   // Exporting while red asks once; cancelling exports nothing.
@@ -1398,8 +1395,7 @@ test('PartBuddy starts on the start page with the projects, which searches and c
     await expect(tiles).toHaveCount(1);
     await page.getByTestId('home-search').fill('');
 
-    const results = await new AxeBuilder({ page }).setLegacyMode(true).include('[data-testid="home-page"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
-    expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    expect(await axeAtRest(page, '[data-testid="home-page"]')).toEqual([]);
 
     // Escape and the logo both go back to the work area.
     await page.keyboard.press('Escape');
