@@ -1,3 +1,7 @@
+import type { DimensionHandle } from '../viewer/dimensionOf';
+
+/** A drag arrow as the dock places it; `onDrag` takes each value, `done` once the arrow is let go. */
+export type DraggedDimension = DimensionHandle & { value: number; onDrag: (value: number, done: boolean) => void };
 import type { FindingBox, PrintCheck, ViewerModel } from '@partbuddy/geometry';
 import { create } from 'zustand';
 
@@ -177,6 +181,9 @@ interface StudioState {
   /** The ghost of a value or action typed into the selection dock (UI upgrade step 11). */
   selectionGhost: Uint8Array | null;
   setSelectionGhost: (ghost: Uint8Array | null) => void;
+  /** The drag arrow of the dock's dimension field: the value it starts from, and what a drag tells the dock. */
+  dimensionHandle: DraggedDimension | null;
+  setDimensionHandle: (handle: DraggedDimension | null) => void;
   model: ModelState;
   hover: Pick | null;
   /** The latest picked element; the dimension field and the HUD belong to it. */
@@ -319,6 +326,10 @@ export const useStudio = create<StudioState>()((set) => ({
   selectionGhost: null,
   setSelectionGhost: (selectionGhost) => {
     set({ selectionGhost });
+  },
+  dimensionHandle: null,
+  setDimensionHandle: (dimensionHandle) => {
+    set({ dimensionHandle });
   },
   parameterGhost: null,
   setParameterGhost: (parameterGhost) => {

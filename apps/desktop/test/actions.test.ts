@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ActionService, clearanceOf, commandOf } from '../src/main/solidcraft/actions';
 import type { ControlRequester } from '../src/main/solidcraft/mirror';
 import { actionsFor } from '../src/renderer/src/viewer/actionKinds';
-import { dimensionFor } from '../src/renderer/src/viewer/dimensionOf';
+import { dimensionFor, draggedValue, handleOf } from '../src/renderer/src/viewer/dimensionOf';
 import type { BodyModel, Pick } from '../src/renderer/src/state/store';
 import { designActionSchema } from '../src/shared/contract';
 
@@ -115,5 +115,40 @@ describe('the distance of two parallel faces in the dimension field', () => {
     expect(dimensionFor(bodies, [at(0), at(3)])).toBeNull();
     expect(dimensionFor(bodies, [at(0), at(1, 1)])).toBeNull();
     expect(dimensionFor(bodies, [at(0), at(0)])).toBeNull();
+  });
+});
+
+describe('the drag arrow of the dimension field', () => {
+  it('points along the edge, out of a cylinder and away from the first face', () => {
+    // Segments out of order: the arrow still goes to the far end.
+    const edgeModel = { edgeRanges: Uint32Array.from([0, 3]), edgeSegments: Float32Array.from([0, 0, 0, 5, 0, 0, 12, 0, 0, 20, 0, 0, 5, 0, 0, 12, 0, 0]), table: { faces: [] } };
+    const length = { shown: 'length' as const, value: 20, target: { measure: 'length' as const, body: 'B', edge: 'E', point: [10, 0, 0] as [number, number, number] }, scale: 1 };
+    const edgePick: Pick = { kind: 'edge', body: 0, edge: 0, point: [10, 0, 0] };
+    expect(handleOf([{ name: 'B', model: edgeModel }] as unknown as BodyModel[], [edgePick], length)).toEqual({ origin: [20, 0, 0], direction: [1, 0, 0], perMm: 1 });
+
+    const hole = { name: 'F2:hole', point: [0, 0, 0], cylinder: { origin: [0, 0, 0], axis: [0, 0, 1], radius: 3 } };
+    const holeBodies = [{ name: 'B', model: { table: { faces: [hole] } } }] as unknown as BodyModel[];
+    const diameter = { shown: 'diameter' as const, value: 6, target: { measure: 'radius' as const, body: 'B', face: 'F2:hole' }, scale: 0.5 };
+    const facePick: Pick = { kind: 'face', body: 0, face: 0, point: [0, 3, 7], normal: [0, -1, 0] };
+    expect(handleOf(holeBodies, [facePick], diameter)).toEqual({ origin: [0, 3, 7], direction: [0, 1, 0], perMm: 2 });
+
+    const faces = [
+      { name: 'F1:+z', point: [0, 0, 10], planeNormal: [0, 0, 1] },
+      { name: 'F1:-z', point: [0, 0, 0], planeNormal: [0, 0, -1] },
+    ];
+    const wallBodies = [{ name: 'B', model: { table: { faces } } }] as unknown as BodyModel[];
+    const at = (face: number, z: number): Pick => ({ kind: 'face', body: 0, face, point: [1, 1, z], normal: [0, 0, 1] });
+    const spacing = dimensionFor(wallBodies, [at(1, 0), at(0, 10)]);
+    expect(spacing && handleOf(wallBodies, [at(1, 0), at(0, 10)], spacing)).toEqual({ origin: [1, 1, 10], direction: [0, 0, 1], perMm: 1 });
+  });
+
+  it('turns screen movement along the arrow into whole millimetres, or tenths', () => {
+    const handle = { origin: [0, 0, 0] as [number, number, number], direction: [1, 0, 0] as [number, number, number], perMm: 1 };
+    // 1 mm along the arrow is 4 px to the right on screen.
+    expect(draggedValue(20, handle, { x: 4, y: 0 }, { x: 22, y: 30 }, false)).toBe(26);
+    expect(draggedValue(20, handle, { x: 4, y: 0 }, { x: 22, y: 0 }, true)).toBe(25.5);
+    expect(draggedValue(20, { ...handle, perMm: 2 }, { x: 4, y: 0 }, { x: -8, y: 0 }, false)).toBe(16);
+    expect(draggedValue(2, handle, { x: 4, y: 0 }, { x: -40, y: 0 }, false)).toBeNull();
+    expect(draggedValue(20, handle, { x: 0.1, y: 0.1 }, { x: 5, y: 5 }, false)).toBeNull();
   });
 });

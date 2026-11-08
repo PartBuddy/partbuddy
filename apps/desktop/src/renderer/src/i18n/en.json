@@ -505,6 +505,7 @@
     "probing": "Trying it in SolidCraft …",
     "direct": "Enter changes it directly: {label}",
     "choose": "Several dimensions drive this – pick one, then Enter",
+    "dragArrow": "Drag to change the dimension (Alt: tenths); let go to apply",
     "assistant": {
       "noDriver": "No single parameter drives this – Enter asks the assistant"
     },

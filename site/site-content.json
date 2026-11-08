@@ -238,14 +238,14 @@
       "Design with an assistant in real CAD",
       "Sketches, photos and research as input",
       "Ready-to-print check and slicer hand-off",
-      "English and German, installer with update checks"
+      "English and German, installer with update checks",
+      "Dimensions on the part: type them, step them or drag the arrow"
     ],
     "next": [
       "SolidCraft 0.40 final"
     ],
     "later": [
       "MCP server for Claude Desktop and Codex",
-      "Dimensions right at the edges",
       "Permissions per tool",
       "Cost display for your own API keys",
       "Local-only mode"
