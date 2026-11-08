@@ -29,6 +29,11 @@ export function uniqueLogoName(name: string, taken: readonly string[]): string {
   return `${first} ${String(n)}`;
 }
 
+/** A colour piece of a logo built in colours ("<file name> <fill> <n>", a split piece "… (2)"). */
+export function isLogoColourBody(name: string): boolean {
+  return /^.+ [0-9a-f]{6} \d+( \(\d+\))?$/.test(name);
+}
+
 export interface PlacedSketch {
   id: number;
   name: string;

@@ -30,7 +30,7 @@ export function LogoArrows() {
   return (
     <>
       {handles.map((handle, i) => (
-        <DragArrow key={i} handle={handle} label={t(i === 0 ? 'logoMove.dragAcross' : 'logoMove.dragUp')} testId={i === 0 ? 'logo-arrow-x' : 'logo-arrow-y'} />
+        <DragArrow key={i} handle={handle} label={t(['logoMove.dragAcross', 'logoMove.dragUp', handle.raised ? 'logoMove.dragHeight' : 'logoMove.dragDepth'][i] ?? '')} testId={['logo-arrow-x', 'logo-arrow-y', 'logo-arrow-depth'][i] ?? 'logo-arrow'} />
       ))}
     </>
   );

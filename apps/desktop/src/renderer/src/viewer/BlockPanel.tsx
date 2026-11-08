@@ -282,6 +282,9 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id, depth: id === 'emboss' ? 0.4 : 0.6 })} testId="block-mode" />
               <Length key={block.mode} label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
               <Length label={t('blocks.width')} value={block.width} onChange={(width) => setBlock({ ...block, width })} testId="block-width" />
+              <div className="col-span-2 flex">
+                <Check label={t('blocks.logoCentre')} selected={Boolean(block.centre)} onChange={(centre) => setBlock({ ...block, centre })} testId="block-centre" />
+              </div>
               {fills.length > 1 ? (
                 <div className="col-span-2 flex flex-col gap-1" data-testid="block-logo-colours">
                   <div className="flex items-center gap-2">

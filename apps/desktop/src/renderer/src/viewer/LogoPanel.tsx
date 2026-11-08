@@ -1,11 +1,11 @@
-import { IconArrowsMove, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle } from '@tabler/icons-react';
+import { IconCheck, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Label, NumberField } from 'react-aria-components';
 
 import type { LogoMoveRequest, LogoSpot } from '../../../shared/contract';
 import { platform } from '../platform';
-import { useStudio, type Pick } from '../state/store';
+import { useStudio, type DraggedDimension, type Pick } from '../state/store';
 import { buttonClass } from '../ui/Button';
 import { fieldLabelClass, UnitInput } from '../ui/Field';
 
@@ -16,7 +16,8 @@ const round = (value: number) => Math.round(value * 1000) / 1000 || 0;
 
 /**
  * Moving a placed logo exactly (decided 2026-11-08): picked on the part, the dock shows where its
- * middle sits from the face's middle, across and up as the logo reads. A changed value shows as a
+ * middle sits from the face's middle, across and up as the logo reads, and how deep or high it is
+ * (one value for every extrusion of it, a body per colour included). A changed value shows as a
  * ghost and "Move" applies it; the two arrows on the part move it by dragging and apply when let
  * go; the centre buttons put it onto the face's middle. Pocket, cut and colour bodies follow.
  */
@@ -28,6 +29,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
   const point = picks.length === 1 ? pick?.point : undefined;
   const [spot, setSpot] = useState<LogoSpot | null>(null);
   const [value, setValue] = useState<[number, number]>([0, 0]);
+  const [depth, setDepth] = useState<number | null>(null);
   const shown = useRef(false);
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
         if (!live) return;
         setSpot(found);
         if (found) setValue(found.offset ?? [0, 0]);
+        setDepth(found?.depth?.value ?? null);
       })
       .catch(() => undefined);
     return () => {
@@ -48,7 +51,10 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
 
   const base = spot?.offset ?? [0, 0];
   const by: [number, number] = [round(value[0] - base[0]), round(value[1] - base[1])];
-  const changed = by[0] !== 0 || by[1] !== 0;
+  const moved = by[0] !== 0 || by[1] !== 0;
+  const deeper = depth !== null && spot?.depth != null && depth > 0 && Math.abs(depth - spot.depth.value) > 1e-6;
+  const changed = moved || deeper;
+  const request = (): Omit<LogoMoveRequest, 'logo'> => ({ by: moved ? by : null, centre: null, depth: deeper ? depth : null });
 
   const move = (request: Omit<LogoMoveRequest, 'logo'>) => {
     if (!spot || busy) return;
@@ -70,7 +76,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
     let live = true;
     const timer = setTimeout(() => {
       platform()
-        .design.previewLogoMove({ logo: spot.logo, by, centre: null })
+        .design.previewLogoMove({ logo: spot.logo, ...request() })
         .then((result) => {
           if (!live) return;
           shown.current = true;
@@ -82,9 +88,9 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
       live = false;
       clearTimeout(timer);
     };
-    // by is derived from value and spot.
+    // The request is derived from value, depth and spot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spot, busy, value[0], value[1]]);
+  }, [spot, busy, value[0], value[1], depth]);
 
   // The arrows on the part: across and up.
   useEffect(() => {
@@ -99,16 +105,34 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
     };
     // Each just outside the drawing on its own line, so neither covers the logo or the other arrow.
     const at = (direction: [number, number, number], reach: number) => spot.origin.map((value, i) => value + (direction[i] ?? 0) * (reach + 2)) as [number, number, number];
-    setLogoHandles([
+    const handles: DraggedDimension[] = [
       { origin: at(spot.xDir, spot.box[2]), direction: spot.xDir, perMm: 1, signed: true, value: value[0], onDrag: drag(0) },
       { origin: at(spot.yDir, spot.box[3]), direction: spot.yDir, perMm: 1, signed: true, value: value[1], onDrag: drag(1) },
-    ]);
+    ];
+    if (spot.depth && depth !== null) {
+      // At the middle, along the face's normal: out of the face for a raised logo, into it for an engraved one.
+      const [x, y] = [spot.xDir, spot.yDir];
+      const normal = [x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]];
+      const way = spot.depth.raised ? 1 : -1;
+      handles.push({
+        origin: spot.origin.map((value, i) => value + (normal[i] ?? 0) * way * depth) as [number, number, number],
+        direction: normal.map((value) => value * way) as [number, number, number],
+        perMm: 1,
+        raised: spot.depth.raised,
+        value: depth,
+        onDrag: (dragged, done) => {
+          setDepth(dragged);
+          if (done) move({ by: null, centre: null, depth: dragged });
+        },
+      });
+    }
+    setLogoHandles(handles);
     return () => {
       setLogoHandles([]);
     };
     // move and base follow spot; value is what the arrows start from.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spot, busy, value[0], value[1], setLogoHandles]);
+  }, [spot, busy, value[0], value[1], depth, setLogoHandles]);
 
   if (!spot) return null;
   const field = (axis: 0 | 1) => (
@@ -142,8 +166,26 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
       <div className="flex flex-wrap items-end gap-2">
         {field(0)}
         {field(1)}
-        <AriaButton isDisabled={busy || !changed} onPress={() => move({ by, centre: null })} className={buttonClass('primary', 'sm')} data-testid="logo-move-apply">
-          <IconArrowsMove className="size-icon-sm" aria-hidden />
+        {spot.depth && depth !== null ? (
+          <NumberField
+            value={depth}
+            minValue={0.1}
+            maxValue={50}
+            step={0.1}
+            isDisabled={busy}
+            formatOptions={{ maximumFractionDigits: 2 }}
+            onChange={(next) => {
+              if (Number.isFinite(next) && next > 0) setDepth(next);
+            }}
+            className="flex w-field-dock flex-col gap-1"
+            data-testid="logo-depth"
+          >
+            <Label className={fieldLabelClass}>{t(spot.depth.raised ? 'logoMove.height' : 'logoMove.depth')}</Label>
+            <UnitInput unit={t('units.mmShort')} />
+          </NumberField>
+        ) : null}
+        <AriaButton isDisabled={busy || !changed} onPress={() => move(request())} className={buttonClass('primary', 'sm')} data-testid="logo-move-apply">
+          <IconCheck className="size-icon-sm" aria-hidden />
           {t('logoMove.apply')}
         </AriaButton>
       </div>

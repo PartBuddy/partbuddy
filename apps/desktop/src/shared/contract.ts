@@ -817,6 +817,8 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       mode: z.enum(['emboss', 'deboss']),
       // Each fill its own coloured body, for multi-colour printing.
       colours: z.boolean().optional(),
+      // Onto the middle of the face the point is on, instead of at the point.
+      centre: z.boolean().optional(),
     })
     .strict(),
   z
@@ -841,13 +843,19 @@ export const actionPreviewSchema = z.discriminatedUnion('ok', [
 ]);
 /** A placed logo at a picked point (sketches named "Logo <name>"), and where it sits from its face's middle. */
 export const logoSpotSchema = z
-  .object({ logo: z.string().min(1).max(200), offset: z.tuple([finite, finite]).nullable(), origin: point3, xDir: point3, yDir: point3, box: z.tuple([finite, finite, finite, finite]) })
+  .object({ logo: z.string().min(1).max(200), offset: z.tuple([finite, finite]).nullable(), origin: point3, xDir: point3, yDir: point3, box: z.tuple([finite, finite, finite, finite]), depth: z.object({ value: finite, raised: z.boolean() }).strict().nullable() })
   .strict();
-/** Moves a logo: onto its face's middle along `centre` first, then by `by` mm along its own x and y. */
+/** Changes a logo: onto its face's middle along `centre` first, then by `by` mm along its own x and y, and its depth. */
 export const logoMoveSchema = z
-  .object({ logo: z.string().min(1).max(200), by: z.tuple([finite, finite]).nullable(), centre: z.enum(['x', 'y', 'both']).nullable() })
+  .object({
+    logo: z.string().min(1).max(200),
+    by: z.tuple([finite, finite]).nullable(),
+    centre: z.enum(['x', 'y', 'both']).nullable(),
+    /** How deep or high, in mm; every extrusion of the logo gets it. */
+    depth: finite.positive().max(50).nullable().optional(),
+  })
   .strict()
-  .refine((move) => move.by !== null || move.centre !== null, 'nothing to move');
+  .refine((move) => move.by !== null || move.centre !== null || (move.depth ?? null) !== null, 'nothing to change');
 export const measureItemSchema = z.object({ type: z.enum(['face', 'edge', 'vertex']), body: bodyName, point: point3 }).strict();
 export const measureRequestSchema = z.object({ items: z.array(measureItemSchema).min(1).max(2) }).strict();
 export const measureResultSchema = z.object({ distance: finite.nullable(), angle: finite.nullable() }).strict();

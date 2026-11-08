@@ -13,7 +13,7 @@ export type Step = { command: string; params: Record<string, unknown> };
 export type Run = (commands: Step[]) => Promise<unknown[]>;
 
 type Body = { name?: unknown; bbox?: { min?: number[]; max?: number[] } };
-type Design = { bodies?: Body[]; sketches?: unknown };
+type Design = { bodies?: Body[]; sketches?: unknown; timeline?: unknown };
 
 /** How far from the logo's sketch plane a picked point may lie and still belong to it: deeper than any logo. */
 const REACH_MM = 20;
@@ -87,8 +87,43 @@ async function readLogos(run: Run, design: Design): Promise<{ logos: Map<string,
   };
 }
 
-/** The steps that move a logo: onto its face's middle along `centre` first, then by `by`. */
-export async function planLogoMove(run: Run, logo: string, by: [number, number] | null, centre: CentreAxis | null): Promise<LogoMove> {
+interface Depth {
+  /** The distance parameter of each extrusion built on the logo's sketches, and its sign: negative cuts in. */
+  params: { name: string; sign: 1 | -1 }[];
+  /** How deep or high it is now, in mm. */
+  depth: number;
+}
+
+/**
+ * How deep or high a logo is: the extrusions on its sketches (in colours one per piece) and their
+ * distance parameters, which SolidCraft creates for every feature input. One value sets them all.
+ */
+async function depthOf(run: Run, design: Design, sketches: readonly PlacedSketch[]): Promise<Depth | null> {
+  type Entry = { id?: unknown; type?: unknown; suppressed?: unknown; rolled_back?: unknown };
+  const timeline = (Array.isArray(design.timeline) ? (design.timeline as Entry[]) : []).filter(
+    (entry) => Number.isInteger(entry.id) && typeof entry.type === 'string' && entry.type.startsWith('Extrude') && entry.suppressed !== true && entry.rolled_back !== true,
+  );
+  if (timeline.length === 0) return null;
+  const results = await run([...timeline.map((entry) => ({ command: 'timeline.inspect', params: { feature: entry.id } })), { command: 'parameters.list', params: {} }]);
+  const listed = (results[timeline.length] as { parameters?: unknown } | undefined)?.parameters;
+  const values = new Map((Array.isArray(listed) ? (listed as { name?: unknown; value?: unknown }[]) : []).map((entry) => [entry.name, entry.value]));
+  const ids = sketches.map((sketch) => sketch.id);
+  const params: (Depth['params'][number] & { value: number })[] = [];
+  for (const result of results.slice(0, timeline.length) as { inputs?: unknown; definition?: { sketch?: unknown } }[]) {
+    if (!ids.includes(result.definition?.sketch as number)) continue;
+    for (const input of Array.isArray(result.inputs) ? (result.inputs as { label?: unknown; param?: unknown; expression?: unknown }[]) : []) {
+      if (typeof input.label !== 'string' || !input.label.toLowerCase().includes('distance') || typeof input.param !== 'string') continue;
+      const known = values.get(input.param);
+      const value = typeof known === 'number' ? known : Number.parseFloat(String(input.expression));
+      if (Number.isFinite(value) && value !== 0) params.push({ name: input.param, sign: value < 0 ? -1 : 1, value: Math.abs(value) });
+    }
+  }
+  const first = params[0];
+  return first ? { params: params.map(({ name, sign }) => ({ name, sign })), depth: first.value } : null;
+}
+
+/** The steps that move a logo: onto its face's middle along `centre` first, then by `by`; `depth` sets how deep or high. */
+export async function planLogoMove(run: Run, logo: string, by: [number, number] | null, centre: CentreAxis | null, depth: number | null = null): Promise<LogoMove> {
   const design = await inspect(run);
   const { logos } = await readLogos(run, design);
   const sketches = logos.get(logo) ?? logos.get(`${LOGO_PREFIX}${logo}`);
@@ -104,9 +139,15 @@ export async function planLogoMove(run: Run, logo: string, by: [number, number] 
   }
   du += by?.[0] ?? 0;
   dv += by?.[1] ?? 0;
+  const steps: Step[] = du !== 0 || dv !== 0 ? sketches.map((sketch) => ({ command: 'sketch.redefine', params: { sketch: sketch.id, plane: movedPlane(sketch.plane, du, dv) } })) : [];
+  if (depth !== null) {
+    const now = await depthOf(run, design, sketches);
+    if (!now) throw new Error(`${first.name} is not built by an extrusion whose depth PartBuddy can set`);
+    for (const param of now.params) steps.push({ command: 'parameters.change', params: { name: param.name, expression: `${String(Math.round(param.sign * depth * 1000) / 1000)} mm` } });
+  }
   return {
     name: first.name,
-    steps: sketches.map((sketch) => ({ command: 'sketch.redefine', params: { sketch: sketch.id, plane: movedPlane(sketch.plane, du, dv) } })),
+    steps,
     by: [du, dv],
     origin: movedPlane(first.plane, du, dv).origin,
     face,
@@ -122,6 +163,8 @@ export interface LogoSpot {
   plane: SketchPlane;
   /** The drawing's box in its plane, around the middle: [min x, min y, max x, max y] in mm. */
   box: [number, number, number, number];
+  /** How deep (cut in) or high (built up) it is, or null when no extrusion of it has a distance to set. */
+  depth: { value: number; raised: boolean } | null;
 }
 
 /** The logo a picked point belongs to: within its drawing's box seen along the sketch's normal, nearest to its plane. */
@@ -153,5 +196,12 @@ export async function logoAt(run: Run, point: Vec3): Promise<LogoSpot | null> {
   const host = await hostOf(run, design, first.plane);
   const middle = host ? centring(host.extent, 'both') : null;
   const tidy = (value: number) => Math.round(value * 1000) / 1000 || 0;
-  return { logo: first.name, offset: middle ? [tidy(-middle[0]), tidy(-middle[1])] : null, plane: first.plane, box: best.box.map(tidy) as LogoSpot['box'] };
+  const depth = await depthOf(run, design, logos.get(first.name) ?? [first]);
+  return {
+    logo: first.name,
+    offset: middle ? [tidy(-middle[0]), tidy(-middle[1])] : null,
+    plane: first.plane,
+    box: best.box.map(tidy) as LogoSpot['box'],
+    depth: depth && { value: tidy(depth.depth), raised: depth.params[0]?.sign === 1 },
+  };
 }

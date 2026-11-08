@@ -79,7 +79,7 @@ export type FeatureBlock =
    */
   | { block: 'snapFit'; body: string; point: Point; normal: Point; size: BlockSize; length: number; thickness: number; width: number; catchDepth: number; catchLength: number; hook: HookDirection }
   /** A logo from an SVG file, engraved or built up, centred on the point; `name` is the file's name. */
-  | { block: 'logo'; body: string; point: Point; normal: Point; size: BlockSize; name: string; svg: string; width: number; depth: number; mode: 'emboss' | 'deboss'; colours?: boolean | undefined };
+  | { block: 'logo'; body: string; point: Point; normal: Point; size: BlockSize; name: string; svg: string; width: number; depth: number; mode: 'emboss' | 'deboss'; colours?: boolean | undefined; centre?: boolean | undefined };
 
 
 /** The catch's direction in the face: along the sketch plane's x or y, either way. */
