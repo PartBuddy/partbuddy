@@ -379,6 +379,21 @@ test('website pictures', async () => {
       await expect(page.getByTestId('question-card')).toHaveAttribute('data-kind', 'ask', { timeout: 30_000 });
       await shot('sketch-chat');
     });
+    await step('tolerance', async () => {
+      await page.getByTestId('settings').click();
+      await page.getByTestId('settings-print').click();
+      const profiles = page.getByTestId('print-profiles');
+      await profiles.getByTestId('print-tab-material').click();
+      await profiles.getByTestId('tolerance-start').click();
+      const assistant = page.getByTestId('tolerance-assistant');
+      await assistant.getByTestId('tolerance-next').click();
+      await expect(assistant.getByTestId('tolerance-picture')).toBeVisible({ timeout: 120_000 });
+      await shot('tolerance');
+      await assistant.getByTestId('tolerance-cancel').click();
+      await expect(assistant).toHaveCount(0);
+      await page.getByTestId('dialog-close').click();
+      await expect(profiles).toHaveCount(0);
+    });
     await step('settings', async () => {
       await page.getByTestId('settings').click();
       // The assistant's page: the general page shows the projects folder with the account's name.

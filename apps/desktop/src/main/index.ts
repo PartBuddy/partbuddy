@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { copyFileSync, existsSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -55,6 +55,7 @@ import { longPath, SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
 import { printCheckNote } from './print/printCheckNote';
 import { templateSteps } from '../shared/templates';
+import { testPieceSteps } from '../shared/testPieces';
 import { sketchNote } from './agents/sketchNote';
 import { photoFile, photoNote } from './agents/photoNote';
 import { shareDescription } from './share/description';
@@ -1073,6 +1074,40 @@ if (!app.requestSingleInstanceLock()) {
       await switchProject(() => Promise.resolve(target));
       log(kind === 'design' ? 'imported a design into a new project' : `made a new project from a ${kind} file`);
       return { opened: true, imported: true };
+    });
+    // Tolerance assistant: test pieces for the printer in the settings draft, built beside the open design.
+    const testPiecesDesign = async ({ nozzle, layer }: { nozzle: number; layer: number }) => {
+      const design = join(cacheDirectory(), 'test-pieces', `test-pieces-${String(nozzle)}-${String(layer)}.sc`);
+      if (!existsSync(design)) await supervisor.designFromSteps(testPieceSteps({ nozzle, layer }), design);
+      return design;
+    };
+    bridge.handle(invokeChannels.printTestPiecesPicture, async (printer) => {
+      try {
+        const design = await testPiecesDesign(printer);
+        const picture = design.replace(/\.sc$/, '.png');
+        if (!existsSync(picture)) await supervisor.snapshot(design, 'iso', picture);
+        return { picture: `data:image/png;base64,${readFileSync(picture).toString('base64')}` };
+      } catch (error) {
+        log(`no picture of the test pieces: ${(error as Error).message}`);
+        return { picture: null };
+      }
+    });
+    bridge.handle(invokeChannels.printTestPiecesExport, async ({ nozzle, layer, slicer }) => {
+      const steps = testPieceSteps({ nozzle, layer });
+      const name = german ? 'Prüfkörper' : 'Test pieces';
+      if (slicer) {
+        const file = join(cacheDirectory(), 'test-pieces', `${name}.3mf`);
+        await supervisor.designFromSteps(steps, file);
+        const opened = await supervisor.openInSlicer(slicer, file);
+        log(`opened the test pieces in ${opened}`);
+        return { file: null, slicer: opened };
+      }
+      const options = { title: name, defaultPath: join(projects, `${name}.3mf`), filters: [EXPORT_FILTERS['3mf']] };
+      const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
+      if (choice.canceled || !choice.filePath) return null;
+      await supervisor.designFromSteps(steps, choice.filePath);
+      log('saved the test pieces as 3MF');
+      return { file: basename(choice.filePath), slicer: null };
     });
     // Templates (F3): the template's script becomes the design of a new project, then it opens.
     bridge.handle(invokeChannels.projectFromTemplate, async ({ template, name }) => {

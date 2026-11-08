@@ -40,7 +40,7 @@
       "text": "After every change, PartBuddy checks the part against your printer and material and points at each finding. The assistant sees the result too, and the standards behind the numbers are built in.",
       "points": [
         "Build volume, wall thickness, overhangs and bed contact",
-        "Fits per material, so a lid slides and a pin holds",
+        "Fits per material, measured on your printer with three test pieces",
         "ISO screws, nuts and heat-set inserts, sized for printing"
       ],
       "shot": "printready",
@@ -186,6 +186,12 @@
       "text": "Saved before every request. Keep any of them as a milestone, compare it with now or open it as a project of its own.",
       "shot": "versions",
       "alt": "The versions dialog comparing a named version with the current design"
+    },
+    {
+      "title": "Measure your printer",
+      "text": "Pick a material from the catalog, print three small test pieces and enter what fits. Clearances, holes and overhang then match your printer.",
+      "shot": "tolerance",
+      "alt": "The tolerance assistant with the fit comb, hole plate and overhang staircase rendered by SolidCraft"
     },
     {
       "title": "Pick model and effort",

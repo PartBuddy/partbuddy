@@ -273,7 +273,10 @@ export class SolidCraftSupervisor {
     await this.designFromSteps([insertCommand(kind, source)], target);
   }
 
-  /** Makes a new design file from engine steps with `solidcraft-cli run` (B4 import, F3 templates). */
+  /**
+   * Makes a new design file from engine steps with `solidcraft-cli run` (B4 import, F3 templates); a
+   * target that is no `.sc` is written as that format instead (the tolerance assistant's 3MF).
+   */
   async designFromSteps(steps: { command: string; params: Record<string, unknown> }[], target: string): Promise<void> {
     const cli = this.cli();
     await mkdir(this.options.cacheDir, { recursive: true });
@@ -281,7 +284,7 @@ export class SolidCraftSupervisor {
     const script = join(this.options.cacheDir, `script-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.json`);
     await writeFile(script, JSON.stringify(steps));
     try {
-      await this.runCli(cli, ['run', script, '--save', target, '--quiet']);
+      await this.runCli(cli, ['run', script, /\.sc$/i.test(target) ? '--save' : '--out', target, '--quiet']);
       if (!existsSync(target)) throw new Error('SolidCraft wrote no design');
     } finally {
       await rm(script, { force: true });
@@ -419,13 +422,29 @@ export class SolidCraftSupervisor {
 
   /** The slicers SolidCraft found on this computer (B8), by id and name. */
   async slicers(): Promise<{ id: string; name: string }[]> {
+    return (await this.foundSlicers()).map(({ id, name }) => ({ id, name }));
+  }
+
+  /**
+   * Opens a 3MF file that is not the open design in a slicer SolidCraft found, by starting the
+   * program SolidCraft names for it with the file; PartBuddy does not wait for it.
+   */
+  async openInSlicer(slicer: string, file: string): Promise<string> {
+    const found = (await this.foundSlicers()).find((candidate) => candidate.id === slicer);
+    if (!found?.program || !existsSync(found.program)) throw new Error('this slicer is not installed');
+    // Argument array, no shell (architecture: security boundaries).
+    spawn(found.program, [file], { detached: true, stdio: 'ignore' }).unref();
+    return found.name;
+  }
+
+  private async foundSlicers(): Promise<{ id: string; name: string; program: string | null }[]> {
     const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'file.slicers', params: {} }], rollback: false }, 30_000);
     if (reply.failed) throw new Error(reply.failed.error);
     const found = (reply.results[0] as { slicers?: unknown } | undefined)?.slicers;
     return (Array.isArray(found) ? (found as Record<string, unknown>[]) : [])
       .filter((slicer) => typeof slicer.id === 'string' && typeof slicer.name === 'string')
       .slice(0, 20)
-      .map((slicer) => ({ id: (slicer.id as string).slice(0, 80), name: (slicer.name as string).slice(0, 120) }));
+      .map((slicer) => ({ id: (slicer.id as string).slice(0, 80), name: (slicer.name as string).slice(0, 120), program: typeof slicer.program === 'string' ? slicer.program : null }));
   }
 
   /**

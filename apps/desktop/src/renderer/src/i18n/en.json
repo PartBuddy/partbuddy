@@ -856,7 +856,7 @@
       "turn": "Turn"
     },
     "defaultMaterial": "Default for new parts",
-    "materialHint": "Starting values for a common printer. Adjust them to your test prints; the assistant builds with these clearances.",
+    "materialHint": "Starting values, not measured on your printer. Measure them with »Measure tolerances …« on three small test pieces; the assistant designs with these clearances.",
     "nameMissing": "Every profile needs a name.",
     "saveFailed": "The profiles could not be saved.",
     "supportFree": "Design without support",
@@ -896,7 +896,60 @@
       "catalogEmpty": "No material matches. Copy an existing one and enter the values by hand.",
       "catalogHint": "Starting values per material type from design guides, not measured on your printer. It becomes a profile of your own; adjust it after a test print."
     },
-    "materialsFull": "At most {count} materials. Delete one to add another."
+    "materialsFull": "At most {count} materials. Delete one to add another.",
+    "tolerance": {
+      "start": "Measure tolerances …",
+      "title": "Measure tolerances",
+      "progress": "Step {step} of {count}: {name}",
+      "step": {
+        "material": "Material",
+        "pieces": "Print test pieces",
+        "results": "Results",
+        "preview": "Preview"
+      },
+      "intro": "Three small test pieces show which clearances, hole allowance and overhang your printer manages with this material. Only these design values are measured; temperature, flow and the like stay with the slicer.",
+      "material": "Material",
+      "printer": "Made for {name}: nozzle {nozzle} mm, layer {layer} mm.",
+      "pictureAlt": "The test pieces: fit comb with pin, hole plate and overhang staircase",
+      "pieces": "A fit comb with a pin, a hole plate with 3, 5, 8 and 10 mm and an overhang staircase from 20° to 70°; every step carries its value.",
+      "guide": {
+        "print": "Print with {material} and your usual profile, without supports and without scaling.",
+        "noCompensation": "Turn off hole and XY compensation in the slicer, or you measure the compensation too.",
+        "cool": "Let them cool before you measure."
+      },
+      "save3mf": "Save as 3MF …",
+      "openIn": "Open in {name}",
+      "working": "SolidCraft is building the test pieces …",
+      "saved": "Saved as {file}.",
+      "opened": "Opened in {name}.",
+      "exportFailed": "The test pieces could not be made. Is SolidCraft running?",
+      "combTitle": "Fit comb",
+      "comb": "Put the pin into the holes and pick for each fit the smallest step that fits.",
+      "fitRule": {
+        "clamp": "Clamps tight (only with force)",
+        "push": "Pushes in by hand",
+        "slide": "Slides without force",
+        "turn": "Turns freely"
+      },
+      "notRead": "not read",
+      "holesTitle": "Hole plate",
+      "holes": "Measure each hole with a caliper. Leave empty what you do not measure.",
+      "hole": "Ø {size} mm",
+      "overhangTitle": "Overhang staircase",
+      "overhang": "Steepest step with a clean underside",
+      "preview": "This is how {material} changes:",
+      "value": "Value",
+      "before": "Before",
+      "after": "New",
+      "applyHint": "Apply writes the values into the material; Save keeps them.",
+      "apply": "Apply",
+      "problem": {
+        "fit": "{fit}: not a step of the comb.",
+        "hole": "Ø {size} mm: the reading is more than 1 mm off.",
+        "overhang": "Overhang: not a step of the staircase.",
+        "order": "The clearances must grow from clamp to turn. Check the steps you picked."
+      }
+    }
   },
   "check": {
     "title": "Ready to print?",

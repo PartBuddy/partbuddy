@@ -994,6 +994,10 @@ export const printSettingsSchema = z
   .refine((settings) => settings.printers.some((printer) => printer.id === settings.printer), 'the printer in use must exist')
   .refine((settings) => settings.materials.some((material) => material.id === settings.material), 'the default material must exist');
 
+/** The tolerance assistant's test pieces for a nozzle and layer; to a 3MF file (slicer null) or into a slicer. */
+const testPiecesForSchema = z.object({ nozzle: range(0.1, 2), layer: range(0.04, 1.2) }).strict();
+export const testPiecesExportSchema = testPiecesForSchema.extend({ slicer: z.string().min(1).max(80).nullable() }).strict();
+
 /** What the open part is printed with: the printer in use and the part's material. */
 export const partPrintSchema = z
   .object({
@@ -1149,6 +1153,8 @@ export const invokeContract = {
   [invokeChannels.printPart]: { request: none, response: partPrintSchema },
   [invokeChannels.printSetMaterial]: { request: partMaterialRequestSchema, response: partPrintSchema },
   [invokeChannels.printReportCheck]: { request: printCheckReportSchema, response: none },
+  [invokeChannels.printTestPiecesPicture]: { request: testPiecesForSchema, response: z.object({ picture: z.string().startsWith('data:image/png;base64,').max(8_000_000).nullable() }).strict() },
+  [invokeChannels.printTestPiecesExport]: { request: testPiecesExportSchema, response: z.object({ file: z.string().max(260).nullable(), slicer: z.string().max(120).nullable() }).strict().nullable() },
 } as const satisfies Record<InvokeChannel, { request: z.ZodType; response: z.ZodType }>;
 
 export const eventContract = {

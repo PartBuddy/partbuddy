@@ -856,7 +856,7 @@
       "turn": "Drehen"
     },
     "defaultMaterial": "Standard für neue Teile",
-    "materialHint": "Startwerte für einen üblichen Drucker. Passe sie an deine Probedrucke an; der Assistent baut mit diesen Spielen.",
+    "materialHint": "Startwerte, nicht für deinen Drucker gemessen. Miss sie mit »Toleranzen einmessen …« an drei kleinen Prüfkörpern nach; der Assistent baut mit diesen Spielen.",
     "nameMissing": "Jedes Profil braucht einen Namen.",
     "supportFree": "Stützfrei konstruieren",
     "supportFreeHint": "Der Assistent gibt Kanten zum Druckbett eine Fase statt einer Rundung, gibt breiten liegenden Bohrungen ein Tropfendach und überbrückt Senkungen, die nach unten zeigen. So braucht der Slicer keine Stützen.",
@@ -896,7 +896,60 @@
       "catalogEmpty": "Kein Material passt. Kopiere ein vorhandenes und trage die Werte von Hand ein.",
       "catalogHint": "Startwerte je Materialtyp aus Konstruktionsleitfäden, nicht für deinen Drucker gemessen. Daraus wird ein eigenes Profil; passe es nach einem Probedruck an."
     },
-    "materialsFull": "Mehr als {count} Materialien gehen nicht. Lösche eines, um ein neues anzulegen."
+    "materialsFull": "Mehr als {count} Materialien gehen nicht. Lösche eines, um ein neues anzulegen.",
+    "tolerance": {
+      "start": "Toleranzen einmessen …",
+      "title": "Toleranzen einmessen",
+      "progress": "Schritt {step} von {count}: {name}",
+      "step": {
+        "material": "Material",
+        "pieces": "Prüfkörper drucken",
+        "results": "Ergebnisse",
+        "preview": "Vorschau"
+      },
+      "intro": "Drei kleine Prüfkörper zeigen, welche Spiele, welche Lochzugabe und welchen Überhang dein Drucker mit diesem Material schafft. Gemessen werden nur diese Konstruktionswerte; Temperatur, Fluss und Ähnliches bleiben Sache des Slicers.",
+      "material": "Material",
+      "printer": "Passend zu {name}: Düse {nozzle} mm, Schicht {layer} mm.",
+      "pictureAlt": "Die Prüfkörper: Passungskamm mit Stift, Lochplatte und Überhang-Treppe",
+      "pieces": "Passungskamm mit Stift, Lochplatte mit 3, 5, 8 und 10 mm und Überhang-Treppe von 20° bis 70°; jede Stufe trägt ihren Wert.",
+      "guide": {
+        "print": "Mit {material} und deinem üblichen Profil drucken, ohne Stützen und ohne Skalierung.",
+        "noCompensation": "Lochkompensation und XY-Ausgleich im Slicer ausschalten, sonst misst du den Ausgleich mit.",
+        "cool": "Erst abkühlen lassen, dann messen."
+      },
+      "save3mf": "Als 3MF speichern …",
+      "openIn": "In {name} öffnen",
+      "working": "SolidCraft baut die Prüfkörper …",
+      "saved": "Gespeichert als {file}.",
+      "opened": "In {name} geöffnet.",
+      "exportFailed": "Die Prüfkörper konnten nicht erzeugt werden. Läuft SolidCraft?",
+      "combTitle": "Passungskamm",
+      "comb": "Steck den Stift in die Löcher und wähle je Passung die kleinste Stufe, die passt.",
+      "fitRule": {
+        "clamp": "Klemmt fest (nur mit Druck)",
+        "push": "Lässt sich von Hand stecken",
+        "slide": "Gleitet ohne Kraft",
+        "turn": "Dreht frei"
+      },
+      "notRead": "nicht ermittelt",
+      "holesTitle": "Lochplatte",
+      "holes": "Miss jede Bohrung mit dem Messschieber. Leer lassen, was du nicht misst.",
+      "hole": "Ø {size} mm",
+      "overhangTitle": "Überhang-Treppe",
+      "overhang": "Steilste Stufe mit sauberer Unterseite",
+      "preview": "So ändert sich {material}:",
+      "value": "Wert",
+      "before": "Bisher",
+      "after": "Neu",
+      "applyHint": "Übernehmen schreibt die Werte ins Material; gespeichert wird mit »Speichern«.",
+      "apply": "Übernehmen",
+      "problem": {
+        "fit": "{fit}: keine Stufe des Kamms.",
+        "hole": "Ø {size} mm: der Messwert liegt mehr als 1 mm daneben.",
+        "overhang": "Überhang: keine Stufe der Treppe.",
+        "order": "Die Spiele müssen von Klemmen bis Drehen wachsen. Prüfe die gewählten Stufen."
+      }
+    }
   },
   "check": {
     "title": "Druckbereit?",
