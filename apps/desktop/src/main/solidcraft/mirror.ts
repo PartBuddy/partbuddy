@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { faceTableFromModelFaces, sketchFromInspect, tessellateSketch, type SketchLines } from '@partbuddy/geometry';
 
 import type { MirroredBody, MirroredSketch, MirrorRevision, Structure } from '../../shared/contract';
-import { standardPartsOf } from './standardParts';
+import { isLibraryPart, standardPartsOf } from './standardParts';
 
 /** The part of the control client the mirror needs. */
 export interface ControlRequester {
@@ -57,6 +57,43 @@ export function structureOf(inspect: InspectResult): Structure {
       .map((sketch) => ({ id: sketch.id as number, name: text(sketch.name, 200) ?? '', visible: sketch.visible !== false })),
     standardParts: standardPartsOf(inspect.metadata),
   };
+}
+
+/** The components below the design that hold bodies, from `component.list`. */
+export function componentsWithBodies(listing: unknown): { id: number; bodies: string[] }[] {
+  const components = (listing as { components?: unknown } | undefined)?.components;
+  if (!Array.isArray(components)) return [];
+  return components
+    .map((entry) => entry as { id?: unknown; parent?: unknown; bodies?: unknown })
+    .filter((entry) => Number.isInteger(entry.id) && entry.parent !== null && Array.isArray(entry.bodies) && entry.bodies.length > 0)
+    .slice(0, 500)
+    .map((entry) => ({ id: entry.id as number, bodies: (entry.bodies as unknown[]).filter((name): name is string => typeof name === 'string') }));
+}
+
+/** Bodies of the components `parts.insert` made, by their description, among `parts` and their `component.metadata`. */
+export function libraryBodies(parts: readonly { id: number; bodies: string[] }[], metadata: readonly unknown[]): string[] {
+  return parts.filter((_, i) => isLibraryPart((metadata[i] as { description?: unknown } | undefined)?.description)).flatMap((part) => part.bodies);
+}
+
+/**
+ * Adds standard parts inserted without PartBuddy to the structure. Only a design with components
+ * holding bodies costs a second request; one that cannot be read leaves the structure as it was.
+ */
+async function withLibraryParts(client: ControlRequester, structure: Structure, listing: unknown): Promise<Structure> {
+  const parts = componentsWithBodies(listing);
+  if (parts.length === 0) return structure;
+  try {
+    const reply = await client.request<BatchResult>(
+      'engine.batch',
+      { commands: parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } })), rollback: false },
+      60_000,
+    );
+    const found = libraryBodies(parts, reply.results);
+    if (found.length === 0) return structure;
+    return { ...structure, standardParts: [...new Set([...(structure.standardParts ?? []), ...found])].slice(0, 500) };
+  } catch {
+    return structure;
+  }
 }
 
 export function count(value: unknown): number {
@@ -129,6 +166,8 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
   });
   const sketches = sketchesToMirror(inspect);
   for (const sketch of sketches) commands.push({ command: 'sketch.inspect', params: { sketch: sketch.id } });
+  // Standard parts the assistant inserted with `parts.insert` carry no PartBuddy mark; their component tells.
+  commands.push({ command: 'component.list', params: {} });
 
   try {
     const batch = await client.request<BatchResult>(
@@ -156,7 +195,7 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
       designName,
       bodies: mirrored,
       sketches: mirrorSketches(batch.results.slice(1 + bodies.length * 2), sketches),
-      structure: structureOf(inspect),
+      structure: await withLibraryParts(client, structureOf(inspect), batch.results[1 + bodies.length * 2 + sketches.length]),
       history: { undo: count(inspect.undo), redo: count(inspect.redo) },
       mirrorMs: Math.round(performance.now() - started),
     };

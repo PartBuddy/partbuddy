@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { structureOf } from '../src/main/solidcraft/mirror';
+import { componentsWithBodies, libraryBodies, structureOf } from '../src/main/solidcraft/mirror';
 import { structureSchema } from '../src/shared/contract';
 
 describe('structure tree and timeline from document.inspect (M1c)', () => {
@@ -32,5 +32,25 @@ describe('structure tree and timeline from document.inspect (M1c)', () => {
     expect(structureOf({ timeline, marker: 1 }).marker).toBeNull();
     expect(structureOf({ timeline, marker: 0 }).marker).toBe(0);
     expect(structureOf({}).features).toEqual([]);
+  });
+});
+
+describe('standard parts the assistant inserted itself', () => {
+  it('takes the bodies of parts.insert components as standard parts, by their description, also when renamed', () => {
+    // component.list as SolidCraft 0.40.0-rc.2 answers: the design itself, three components holding a body, an empty one.
+    const parts = componentsWithBodies({
+      components: [
+        { id: 0, name: 'Sensor housing', parent: null, bodies: ['Base', 'Lid'] },
+        { id: 25, name: 'Screw FR', parent: 0, bodies: ['Screw FR'] },
+        { id: 31, name: 'Bearing 608', parent: 0, bodies: ['Bearing'] },
+        { id: 40, name: 'Bracket', parent: 0, bodies: ['Bracket'] },
+        { id: 41, name: 'Group', parent: 0, bodies: [] },
+      ],
+    });
+    expect(parts.map((part) => part.id)).toEqual([25, 31, 40]);
+    // Their component.metadata: two from parts.insert, one of the user's own.
+    const metadata = [{ description: 'Button head cap screw M3x8' }, { description: 'Deep groove ball bearing (envelope) 608' }, { description: 'Bracket for the shelf' }];
+    expect(libraryBodies(parts, metadata)).toEqual(['Screw FR', 'Bearing']);
+    expect(componentsWithBodies(undefined)).toEqual([]);
   });
 });
