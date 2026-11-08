@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import type { FaceTable } from './faceTable';
+import { smallOverhangReach } from './overhang';
 import { checkPrint, minimumWall, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
@@ -95,6 +96,26 @@ describe('the ready-to-print check (M7)', () => {
     expect(at45).toEqual({ status: 'ready', findings: [] });
     const flat = checkPrint([prismBody('Bar', [[5, 0], [15, 0], [20, 3], [20, 10], [0, 10], [0, 3]], 40)], PLA);
     expect(flat.findings.find((f) => f.kind === 'overhang')).toMatchObject({ places: [{ body: 'Bar', faces: ['F1:s1', 'F1:s5'] }] });
+  });
+
+  it('leaves out small overhangs that hang from the material below, as the slicers do', () => {
+    // A wall with a ledge under its top, outline in XZ from the top left corner (fan from there).
+    const ledge = (out: number, depth: number) => prismBody('Hook', [[0, 9.5], [0, 0], [3, 0], [3, 8], [3 + out, 8], [3 + out, 9.5]], depth);
+    expect(smallOverhangReach(0.4)).toBe(1.8);
+    // The nose of a snap fit: 0.8 mm out.
+    expect(checkPrint([ledge(0.8, 20)], PLA).findings.map((f) => f.kind)).not.toContain('overhang');
+    // 5 mm out it needs support, and so does a narrow arm 1 mm wide that reaches 5 mm.
+    expect(checkPrint([ledge(5, 20)], PLA).findings.find((f) => f.kind === 'overhang')).toMatchObject({ places: [{ body: 'Hook', faces: ['F1:s3'] }] });
+    expect(checkPrint([ledge(5, 1)], PLA).findings.map((f) => f.kind)).toContain('overhang');
+  });
+
+  it('takes the knife edge where a thread runs out as a wedge, not as a thin wall', () => {
+    // A 30° wedge lying on the bed, as the end of a bolt cuts a 60° thread flank.
+    const wedge = checkPrint([prismBody('Wedge', [[0, 0], [20, 0], [0, 20 * Math.tan(Math.PI / 6)]], 20)], PLA);
+    expect(wedge.findings.map((f) => f.kind)).not.toContain('thinWall');
+    // A wall with 5° draft still is one.
+    const drafted = checkPrint([prismBody('Fin', [[0, 0], [0.6, 0], [0.6 - 3 * Math.tan(Math.PI / 36), 3], [0, 3]], 20)], PLA);
+    expect(drafted.findings.map((f) => f.kind)).toContain('thinWall');
   });
 
   it('follows the overhang angle of the material', () => {

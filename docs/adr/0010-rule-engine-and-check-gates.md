@@ -176,3 +176,23 @@ are withdrawn, and with them the print orientation of the first amendment (propo
   ignored. Work-log phrases of the removed fixes stay readable.
 * Where SolidCraft itself marks the face a part prints on (`body.print_face`), PartBuddy offers it
   in plan step B8 as a plain action, without orientation logic of its own.
+
+## Amendment 2026-11-08: threads and snap fits are not findings
+
+Showcase parts for the launch, built on 2026-11-08 and checked in the app, made the light red on a
+modelled M20 thread ("walls only 0.01 mm") and yellow on every thread flank and on the nose of a
+`plastic.snap_fit`, though all of them print without support.
+
+* **Wedges are not walls.** A thread cut off by the end of the bolt leaves a 30° knife edge; the
+  thin-wall rays counted opposite faces facing back within 30°, so the tip read as a wall of
+  0.01 mm. Only faces facing back within 10° count now: walls, with draft or without. A wedge is
+  thin at its tip alone, and the slicer just leaves the tip out.
+* **Small overhangs are left out, as the slicers do by default.** An overhang patch counts as small
+  when every point of it lies within four extrusion lines (1.8 mm at a 0.4 mm nozzle) of an edge
+  where the material goes on below, or of the bed: OrcaSlicer and Bambu Studio leave such
+  overhangs without support ("Ignore small overhangs", on by default; `TreeSupport.cpp` drops a
+  cluster that is no wider than two lines once one line is eroded from each side). Thread flanks
+  up to about M20 and the nose of a snap fit are small. A ceiling, a ledge reaching further, a
+  narrow arm that reaches out from its end and a patch that starts in the air stay findings.
+* This is the slicers' own default rule, not the slicer-style reach R1 removed: no bridges, no
+  causes, no fix buttons.
