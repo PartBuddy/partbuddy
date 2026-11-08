@@ -296,7 +296,7 @@ test('website pictures', async () => {
       await note('This edge R2 instead of R1.');
       await expect(page.getByTestId('note-pin')).toHaveCount(2, { timeout: 15_000 });
       await pickFace(page, PLATE_TOP);
-      await note('Print this side face down on the bed.');
+      await note('Make this plate 1 mm thicker.');
       await expect(page.getByTestId('note-pin')).toHaveCount(3, { timeout: 15_000 });
       await page.keyboard.press('Escape');
       await page.getByTestId('notes').scrollIntoViewIfNeeded();
