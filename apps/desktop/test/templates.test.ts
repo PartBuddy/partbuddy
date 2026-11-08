@@ -4,7 +4,7 @@ import { templateRequestSchema } from '../src/shared/contract';
 import { TEMPLATE_IDS, templateSteps } from '../src/shared/templates';
 
 /** The geometry fields whose text is an expression over the design's parameters. */
-const EXPRESSION_FIELDS = new Set(['length', 'width', 'height', 'diameter', 'thickness', 'depth', 'corner', 'base', 'position', 'center', 'points', 'point', 'distance', 'cs_diameter']);
+const EXPRESSION_FIELDS = new Set(['length', 'width', 'height', 'diameter', 'thickness', 'depth', 'corner', 'base', 'position', 'center', 'points', 'point', 'distance', 'cs_diameter', 'radius']);
 
 function expressions(value: unknown): string[] {
   if (typeof value === 'string') return [value];
