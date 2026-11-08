@@ -14,6 +14,21 @@ import { launchApp } from './launch';
 // Each picture is tried on its own; what fails is listed at the end instead of stopping the run.
 const folder = process.env.PARTBUDDY_SITE_SHOTS;
 test.skip(!folder, 'needs SolidCraft; run pnpm site:shots');
+// `pnpm site:shots --only clarify,view`: just these pictures and the steps they build on.
+const ONLY = new Set((process.env.PARTBUDDY_SITE_SHOTS_ONLY ?? '').split(',').map((part) => part.trim()).filter(Boolean));
+// What a step leaves behind for later pictures: the template projects, the cable clip and its
+// version, the first note, the inserted board, the answered questions, the seated screw.
+const LATER: Record<string, string[]> = {
+  projects: ['start', 'import'],
+  clip: ['params', 'blocks', 'section', 'export', 'share', 'versions', 'model', 'start', 'view'],
+  versions: ['start', 'view'],
+  view: ['notes'],
+  import: ['clarify'],
+  clarify: ['research'],
+  research: ['explode', 'plate', 'assembly'],
+  sketch: ['sketch-chat'],
+};
+const wanted = (step: string): boolean => ONLY.size === 0 || ONLY.has(step) || (LATER[step] ?? []).some(wanted);
 
 // Its own port, beside the contract tests (7881–7930) and other sessions' SolidCraft.
 const PORT = '7951';
@@ -100,16 +115,27 @@ test('website pictures', async () => {
   const cdp = await page.context().newCDPSession(page);
   // Every picture light and dark (`<name>-dark.png`): the website follows the viewer's theme.
   const shot = async (file: string) => {
+    // A step that runs only for a later picture takes none of its own.
+    if (ONLY.size > 0 && !ONLY.has(file)) return;
     await page.mouse.move(0, 450);
     for (const scheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       await page.waitForTimeout(900);
-      const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      // A fixed wait once caught the switch halfway (light 3D view in a dark picture, 2026-11-08):
+      // take pictures until two in a row are the same, at most ten times.
+      let { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      for (let i = 0; i < 10; i += 1) {
+        await page.waitForTimeout(400);
+        const next = (await cdp.send('Page.captureScreenshot', { format: 'png' })).data;
+        if (next === data) break;
+        data = next;
+      }
       writeFileSync(join(out, `${file}${scheme === 'dark' ? '-dark' : ''}.png`), Buffer.from(data, 'base64'));
     }
     await page.emulateMedia({ colorScheme: 'light' });
   };
   const step = async (file: string, run: () => Promise<void>) => {
+    if (!wanted(file)) return;
     try {
       await run();
       report[file] = 'ok';
@@ -128,7 +154,8 @@ test('website pictures', async () => {
   const open = async (title: string) => {
     if ((await home.count()) === 0) await page.getByTestId('home-button').click();
     await home.getByTestId('home-tile').filter({ hasText: title }).click();
-    await expect(name).toHaveText(title, { timeout: 30_000 });
+    // Right after another project SolidCraft starts again with this design, which took over 30 s.
+    await expect(name).toHaveText(title, { timeout: 90_000 });
     await page.waitForTimeout(1000);
   };
   const fresh = async () => {
@@ -189,7 +216,7 @@ test('website pictures', async () => {
     });
 
     // A few projects from the templates, each with its picture for the start page.
-    for (const [id, title] of TEMPLATES) {
+    for (const [id, title] of wanted('projects') ? TEMPLATES : []) {
       if ((await home.count()) === 0) await page.getByTestId('home-button').click();
       await home.locator(`[data-template="${id}"]`).click();
       await expect(name).toHaveText(title, { timeout: 60_000 });
@@ -198,11 +225,13 @@ test('website pictures', async () => {
     }
 
     // The cable clip, built by the assistant step by step.
-    await fresh();
-    await send('Build a cable clip for a 12 mm cable that I can screw under my desk');
-    await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 60_000 });
-    await rename('Cable clip');
-    await page.keyboard.press('0');
+    if (wanted('clip')) {
+      await fresh();
+      await send('Build a cable clip for a 12 mm cable that I can screw under my desk');
+      await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 60_000 });
+      await rename('Cable clip');
+      await page.keyboard.press('0');
+    }
 
     await step('params', async () => {
       // A favourite opened for editing shows its slider, as the website's picture of the parameters.
