@@ -1,7 +1,7 @@
 import { Box3, DoubleSide, Ray, Vector3 } from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
 
-import { Overhang, overhangLimits, overhangOf } from './overhang';
+import { Overhang, overhangLimits, overhangOf, smallOverhangReach } from './overhang';
 import type { ViewerModel } from './viewerModel';
 
 /**
@@ -9,7 +9,8 @@ import type { ViewerModel } from './viewerModel';
  * TypeScript on the mirrored render meshes, no sidecar. It checks what only the design decides:
  * whether the part fits the printer, walls the nozzle cannot print, bodies that touch, how much of
  * the part lies on the bed, and features SolidCraft could not build. Overhangs are a hint by angle
- * only (yellow, never red): whether something needs support, and how, is the slicer's job.
+ * only (yellow, never red): whether something needs support, and how, is the slicer's job; small
+ * ones that hang from the material below, as the slicers ignore them, are left out.
  * The part is checked as designed, Z up. Each body stands on its own lowest point: the slicer lays
  * every object of the 3MF onto the bed by itself (seen in Bambu Studio, 2026-11-05), so bodies that
  * touch fall apart there.
@@ -85,10 +86,12 @@ const BLOCK_THIN_AREA = 5;
 /** Less than this on the bed and the part may come loose or tip over (mm²). */
 const MIN_CONTACT = 25;
 /**
- * The opposite wall counts only when it faces back within 30°: parallel walls and sharp wedges.
- * A 60° dovetail edge is thin right at the edge too, but prints.
+ * The opposite wall counts only when it faces back within 10°: walls, with or without draft. A wedge
+ * is thin only at its edge and the slicer just leaves the tip out: a 60° dovetail edge, or the 30°
+ * knife edge where a thread runs out of the end of a bolt (practice 2026-11-08: an M20 bolt read
+ * as walls of 0.01 mm and blocked).
  */
-const OPPOSITE = -Math.cos((30 * Math.PI) / 180);
+const OPPOSITE = -Math.cos((10 * Math.PI) / 180);
 /** Rays per body at most; larger meshes are sampled evenly. */
 const MAX_RAYS = 40_000;
 const EPSILON = 1e-3;
@@ -345,6 +348,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
         },
         bedOf(mesh.positions),
         limits,
+        smallOverhangReach(profile.nozzle),
       );
       onBed += map.area[Overhang.Bed];
       const faces = model.table.faces.length;
