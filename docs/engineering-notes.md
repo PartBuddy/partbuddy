@@ -245,6 +245,13 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   nonzero loop that is no edge of the fill left out (SolidCraft's nesting is even-odd). Arcs as
   cubics stay within 2.7e-4 of the radius, and `insert_svg` turns such a full circle back into a
   cylinder face: a 40 mm "O" (r 20/12) extruded 2 mm measured 1608.79 mm³ for π·256·2 = 1608.50.
+- A logo in colours: `insert_svg {align: origin, at: [−w/2, h/2]}` puts every layer in the
+  drawing's frame whatever its own extent. SolidCraft splits disjoint pieces of one extrusion into
+  bodies "<name> (2)" without the body's colour, and a later cut does the same, so each piece is
+  its own extrusion and split leftovers are coloured after the batch. `solid.combine` cut fails
+  with "no result" for bodies that do not meet, and a cut of the part by tools already cut against
+  each other failed too: the pocket goes first. `appearance.list {}` lists every body's colour
+  (`bodies: {name: {color}}`); the mirror reads it for the view.
 - The assistant gets a drawing as `drawing:svg-N` (`:#rrggbb` for one fill) in `insert_svg`'s
   `text`; `withDrawings` puts the clean SVG in after the policy, so path data never passes the model.
 - `inspect.clearance {bodies, clearance}` returns `overlaps` (volume, bbox, centre) and `near` pairs

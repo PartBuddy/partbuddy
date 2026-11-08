@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { drawingColours, drawingFacts, drawingSvg, flatten, naturalWidth, parseDrawing, parsePathData, type Drawing } from '../src/shared/svgDrawing';
+import { drawingColours, drawingFacts, drawingPieces, drawingSvg, flatten, naturalWidth, parseDrawing, parsePathData, shapesOverlap, type Drawing, type Shape } from '../src/shared/svgDrawing';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', 'svg', name), 'utf8');
 
@@ -98,5 +98,24 @@ describe('SVG drawings', () => {
     expect(d.bounds).toMatchObject({ minX: expect.closeTo(5, 6) as number, minY: expect.closeTo(-5, 6) as number });
     expect(d.unitMm).toBeCloseTo(0.254, 9);
     expect(naturalWidth(d)).toBeCloseTo(2.54, 2);
+  });
+});
+
+describe('pieces of a drawing', () => {
+  it('splits shapes into pieces that hang together and tells overlapping pieces from pieces apart', () => {
+    const d = drawing(
+      '<svg><rect width="10" height="10" fill="red"/><rect x="5" y="5" width="10" height="10" fill="blue"/><rect x="30" width="5" height="5" fill="green"/>' +
+        '<rect x="2" y="2" width="2" height="2" fill="yellow"/></svg>',
+    );
+    const [red, blue, green, yellow] = drawingPieces(d).map((piece) => [piece]) as [Shape[], Shape[], Shape[], Shape[]];
+    expect(shapesOverlap(d, red, blue)).toBe(true);
+    expect(shapesOverlap(d, red, green)).toBe(false);
+    expect(shapesOverlap(d, red, yellow)).toBe(true);
+    expect(shapesOverlap(d, blue, yellow)).toBe(false);
+    // A ring with an island in its hole: the ring with its hole, and the island on its own.
+    const ring = drawing('<svg><path fill-rule="evenodd" d="M0 0H30V30H0Z M5 5H25V25H5Z M10 10H20V20H10Z"/></svg>');
+    expect(drawingPieces(ring).map((piece) => piece.loops.length)).toEqual([2, 1]);
+    // The fox: two ears, two inner ears, the head, the muzzle, and eyes and nose in one path.
+    expect(drawingPieces(drawing(fixture('twemoji-fox.svg')))).toHaveLength(9);
   });
 });

@@ -60,11 +60,11 @@ export class ActionService {
   }
 
   /** Builds commands on trial and exports the body for the ghost (actions, function blocks F1). */
-  async previewSteps(steps: Step[], body: string): Promise<ActionPreview> {
+  async previewSteps(steps: Step[], body: string | string[]): Promise<ActionPreview> {
     const file = join(this.cacheDir, `action-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.3mf`);
     try {
       const reply = await this.batch(
-        [...steps, { command: 'file.export', params: { path: file, format: '3mf-tagged', bodies: [body], quality: 'standard' } }, UNDO_ALL],
+        [...steps, { command: 'file.export', params: { path: file, format: '3mf-tagged', bodies: typeof body === 'string' ? [body] : body, quality: 'standard' } }, UNDO_ALL],
         true,
       );
       if (reply.failed?.index !== steps.length + 1) return { ok: false, error: (reply.failed?.error ?? 'SolidCraft did not build it').slice(0, 300) };
@@ -81,6 +81,21 @@ export class ActionService {
   async applySteps(steps: Step[]): Promise<void> {
     const reply = await this.batch(steps, true);
     if (reply.failed) throw new Error(`SolidCraft refused it: ${reply.failed.error}`);
+  }
+
+  /**
+   * Gives the pieces a cut split off their colour: SolidCraft names them "<body> (2)" and so on,
+   * without the colour the body had (a logo in colours). Returns how many it coloured.
+   */
+  async colourSplitPieces(layers: { body: string; fill: string }[]): Promise<number> {
+    const reply = await this.batch([{ command: 'document.inspect', params: {} }], false);
+    const bodies = ((reply.results?.[0] ?? {}) as { bodies?: { name?: unknown }[] }).bodies ?? [];
+    const steps = layers.flatMap((layer) => {
+      const split = bodies.flatMap((body) => (typeof body.name === 'string' && body.name.startsWith(`${layer.body} (`) && /^ \(\d+\)$/.test(body.name.slice(layer.body.length)) ? [body.name] : []));
+      return split.length > 0 ? [{ command: 'appearance.assign', params: { bodies: split, color: layer.fill } }] : [];
+    });
+    if (steps.length > 0) await this.applySteps(steps);
+    return steps.length;
   }
 
   /** Distance and angle between two selections, or the size of one (`inspect.measure`). */

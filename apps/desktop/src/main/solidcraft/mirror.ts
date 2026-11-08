@@ -140,6 +140,18 @@ function mirrorSketches(results: unknown[], wanted: { id: number; active: boolea
   return sketches;
 }
 
+/** The structure with each body's own colour from `appearance.list` (`bodies: {name: {color}}`). */
+export function withColours(structure: Structure, listing: unknown): Structure {
+  const assigned = (listing as { bodies?: Record<string, { color?: unknown }> } | undefined)?.bodies ?? {};
+  return {
+    ...structure,
+    bodies: structure.bodies.map((body) => {
+      const colour = assigned[body.name]?.color;
+      return typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour) ? { ...body, colour: colour.toLowerCase() } : body;
+    }),
+  };
+}
+
 /**
  * Mirrors the active design (ADR 0004): one `engine.batch` with `document.revision`, then
  * `model.faces` and a face-tagged 3MF export per visible body, then `sketch.inspect` per visible
@@ -168,6 +180,8 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
   for (const sketch of sketches) commands.push({ command: 'sketch.inspect', params: { sketch: sketch.id } });
   // Standard parts the assistant inserted with `parts.insert` carry no PartBuddy mark; their component tells.
   commands.push({ command: 'component.list', params: {} });
+  // Colours given to bodies (a logo in colours for a multi-colour print), shown in the view.
+  commands.push({ command: 'appearance.list', params: {} });
 
   try {
     const batch = await client.request<BatchResult>(
@@ -195,7 +209,7 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
       designName,
       bodies: mirrored,
       sketches: mirrorSketches(batch.results.slice(1 + bodies.length * 2), sketches),
-      structure: await withLibraryParts(client, structureOf(inspect), batch.results[1 + bodies.length * 2 + sketches.length]),
+      structure: withColours(await withLibraryParts(client, structureOf(inspect), batch.results[1 + bodies.length * 2 + sketches.length]), batch.results[2 + bodies.length * 2 + sketches.length]),
       history: { undo: count(inspect.undo), redo: count(inspect.redo) },
       mirrorMs: Math.round(performance.now() - started),
     };

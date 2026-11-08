@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, TextField, ToggleButton } from 'react-aria-components';
 
 import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
-import type { DrawingProblem } from '../../../shared/svgDrawing';
+import { drawingColours, parseDrawing, type DrawingProblem } from '../../../shared/svgDrawing';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
@@ -117,6 +117,12 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     return { ...spec, body, point: vec(point), ...(needsNormal(spec.block) ? { normal: vec(normal) } : {}) };
   }, [spec, at]);
 
+  // The fills of a logo's drawing: with two or more it can be built a body per colour.
+  const logoSvg = spec.block === 'logo' ? spec.svg : '';
+  const fills = useMemo(() => {
+    const read = logoSvg ? parseDrawing(logoSvg) : null;
+    return read?.ok ? drawingColours(read.drawing) : [];
+  }, [logoSvg]);
   // A logo waits for its file.
   const waiting = block?.block === 'logo' && !block.svg;
 
@@ -276,6 +282,19 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id, depth: id === 'emboss' ? 0.4 : 0.6 })} testId="block-mode" />
               <Length key={block.mode} label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
               <Length label={t('blocks.width')} value={block.width} onChange={(width) => setBlock({ ...block, width })} testId="block-width" />
+              {fills.length > 1 ? (
+                <div className="col-span-2 flex flex-col gap-1" data-testid="block-logo-colours">
+                  <div className="flex items-center gap-2">
+                    <Check label={t('blocks.logoColours', { count: fills.length })} selected={Boolean(block.colours)} onChange={(colours) => setBlock({ ...block, colours })} testId="block-colours" />
+                    <span className="flex gap-1" aria-hidden>
+                      {fills.map((fill) => (
+                        <span key={fill} className="size-3 rounded-sm border border-border-strong" style={{ background: fill }} />
+                      ))}
+                    </span>
+                  </div>
+                  {block.colours ? <p className="text-xs text-text-muted">{t(`blocks.logoColoursHint.${block.mode}`)}</p> : null}
+                </div>
+              ) : null}
             </div>
           ) : block.block === 'snapFit' ? (
             <div className="grid grid-cols-2 gap-2" key={block.block}>
