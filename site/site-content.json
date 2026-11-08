@@ -182,6 +182,12 @@
       "alt": "The assistant asking for the length of a box shown in a photo"
     },
     {
+      "title": "Pin a note to the face",
+      "text": "Click a face, edge or point and pin a note to it: “this edge R2 instead of R1”. The assistant reads it, the note follows its face through rebuilds, says so if it loses its place, and travels with the design file.",
+      "shot": "notes",
+      "alt": "A cable clip with three numbered notes on its faces and edge, listed in the structure tree"
+    },
+    {
       "title": "Versions you can compare",
       "text": "Saved before every request. Keep any of them as a milestone, compare it with now or open it as a project of its own.",
       "shot": "versions",

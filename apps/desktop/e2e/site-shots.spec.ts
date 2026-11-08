@@ -285,6 +285,24 @@ test('website pictures', async () => {
       await shot('view');
       await page.keyboard.press('Escape');
     });
+    // Notes on the model (ADR 0006, 0020): one more on an edge and one on the plate's top, all three in the list.
+    await step('notes', async () => {
+      const note = async (text: string) => {
+        await page.getByTestId('hud-note').click();
+        await page.getByTestId('note-new-text').fill(text);
+        await page.getByTestId('note-new-save').click();
+      };
+      await pickFace(page, EDGE_SWEEP, 'edge');
+      await note('This edge R2 instead of R1.');
+      await expect(page.getByTestId('note-pin')).toHaveCount(2, { timeout: 15_000 });
+      await pickFace(page, PLATE_TOP);
+      await note('Print this side face down on the bed.');
+      await expect(page.getByTestId('note-pin')).toHaveCount(3, { timeout: 15_000 });
+      await page.keyboard.press('Escape');
+      await page.getByTestId('notes').scrollIntoViewIfNeeded();
+      await expect(page.getByTestId('note-row')).toHaveCount(3);
+      await shot('notes');
+    });
 
     // The housing around an imported circuit board.
     await step('import', async () => {
@@ -423,10 +441,12 @@ test('website pictures', async () => {
 });
 
 const PLATE_TOP = [[0.62, 0.72], [0.7, 0.74], [0.45, 0.74]] as const;
+// Down the middle of the view in small steps, until a click lands on an edge.
+const EDGE_SWEEP = Array.from({ length: 80 }, (_, i) => [0.5, 0.4 + i * 0.005] as const);
 const SPOTS = [[0.5, 0.62], [0.42, 0.6], [0.6, 0.62], [0.5, 0.55], [0.35, 0.55], [0.65, 0.55]] as const;
 
-/** Clicks across the view until a face is selected. */
-async function pickFace(page: Page, points: readonly (readonly [number, number])[] = SPOTS): Promise<void> {
+/** Clicks across the view until a face (or the given kind) is selected. */
+async function pickFace(page: Page, points: readonly (readonly [number, number])[] = SPOTS, kind: 'face' | 'edge' = 'face'): Promise<void> {
   const box = await page.getByTestId('viewport').boundingBox();
   if (!box) throw new Error('viewport not visible');
   const bar = page.getByTestId('selection-bar');
@@ -434,7 +454,7 @@ async function pickFace(page: Page, points: readonly (readonly [number, number])
     await page.keyboard.press('Escape');
     await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
     await page.waitForTimeout(400);
-    if ((await bar.count()) > 0 && (await bar.getAttribute('data-kind')) === 'face') return;
+    if ((await bar.count()) > 0 && (await bar.getAttribute('data-kind')) === kind) return;
   }
-  throw new Error('no face found');
+  throw new Error(`no ${kind} found`);
 }
