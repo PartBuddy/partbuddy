@@ -15,8 +15,12 @@ import { modalClass, overlayClass } from '../ui/Dialog';
 const STEPS = ['solidcraft', 'assistant', 'print', 'projects'] as const;
 type Step = (typeof STEPS)[number];
 
-/** Where SolidCraft is downloaded; PartBuddy never installs it itself (ADR 0007). */
-const SOLIDCRAFT_DOWNLOAD = 'https://github.com/tangency-labs/solidcraft/releases';
+/**
+ * Where SolidCraft is downloaded; PartBuddy never installs it itself (ADR 0007). The release
+ * PartBuddy recommends (RECOMMENDED_VERSION), not the list: while 0.40 is a pre-release, the list
+ * marks 0.30.1 as "Latest".
+ */
+const SOLIDCRAFT_DOWNLOAD = 'https://github.com/tangency-labs/solidcraft/releases/tag/v0.40.0-rc.3';
 
 /**
  * The first start (plan step B9): a short setup in four steps that can be skipped at any point,
