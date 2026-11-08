@@ -2,13 +2,6 @@
 
 ## 0.1.0 (2026-11-08)
 
-
-### ⚠ BREAKING CHANGES
-
-* **desktop:** start on the start page and open no project on its own (B3) ([#91](https://github.com/PartBuddy/partbuddy/issues/91))
-* **desktop:** remove fits, measuring, overhang view, drawing and before/after (R2) ([#87](https://github.com/PartBuddy/partbuddy/issues/87))
-* **desktop:** remove slicer work, the light checks the design only (R1) ([#86](https://github.com/PartBuddy/partbuddy/issues/86))
-
 ### Features
 
 * **brand:** add the PartBuddy brand identity ([#5](https://github.com/PartBuddy/partbuddy/issues/5)) ([cf0e425](https://github.com/PartBuddy/partbuddy/commit/cf0e42548fc7deb92489a887f8f6e849b7ec8214))
@@ -25,14 +18,13 @@
 * **desktop:** assistant chat polish – Markdown with Shiki, work folds, motion, scrolling, composer, performance, states ([#151](https://github.com/PartBuddy/partbuddy/issues/151)) ([6a07faf](https://github.com/PartBuddy/partbuddy/commit/6a07fafd1368c0f038110f69447d5508501d124d))
 * **desktop:** assistant designs refined, print-fitted models by default ([#168](https://github.com/PartBuddy/partbuddy/issues/168)) ([483b6ca](https://github.com/PartBuddy/partbuddy/commit/483b6ca35defe32e17793542dbd38c224a119b5b))
 * **desktop:** assistant route as a chip beside the composer ([#48](https://github.com/PartBuddy/partbuddy/issues/48)) ([136c664](https://github.com/PartBuddy/partbuddy/commit/136c664e713b1fe269c38c5d8570a1265504ea24))
-* **desktop:** before/after slider for previews and the latest change ([#68](https://github.com/PartBuddy/partbuddy/issues/68)) ([a5e1734](https://github.com/PartBuddy/partbuddy/commit/a5e1734085cd10d32134147a6e1046226044319c))
 * **desktop:** CAD viewport, plate view and animated assembly ([#155](https://github.com/PartBuddy/partbuddy/issues/155)) ([7cb3af9](https://github.com/PartBuddy/partbuddy/commit/7cb3af9465db9ac87987011cd4610346b31819b9))
 * **desktop:** calm 3D view look and technical dimension lines ([#63](https://github.com/PartBuddy/partbuddy/issues/63)) ([73fb917](https://github.com/PartBuddy/partbuddy/commit/73fb9178678c28467045971ea7b640774e797e89))
 * **desktop:** checkbox, radio, switch, segments, selects and sliders with every state ([#174](https://github.com/PartBuddy/partbuddy/issues/174)) ([9dc445b](https://github.com/PartBuddy/partbuddy/commit/9dc445ba6baff0f0b90dbaa09a041be58b643fea))
 * **desktop:** choose model and effort at the assistant chip (B1) ([#88](https://github.com/PartBuddy/partbuddy/issues/88)) ([8f90683](https://github.com/PartBuddy/partbuddy/commit/8f906834d887d23e5fc735f637d9621ad84dbaec))
 * **desktop:** choose the SolidCraft program and check its version (R0) ([#85](https://github.com/PartBuddy/partbuddy/issues/85)) ([de49dff](https://github.com/PartBuddy/partbuddy/commit/de49dff923cc11452933391316a9f214659dc462))
 * **desktop:** clearance between parts in the print light (F2) ([#104](https://github.com/PartBuddy/partbuddy/issues/104)) ([09e82b7](https://github.com/PartBuddy/partbuddy/commit/09e82b7b8f0f25faebec80a4e449b834fb2e3b4c))
-* **desktop:** colour theme setting in the title bar ([#52](https://github.com/PartBuddy/partbuddy/issues/52)) ([5490d43](https://github.com/PartBuddy/partbuddy/commit/5490d43128a8555fc5bf6a8d10a2d29b4c469179))
+* **desktop:** colour theme setting ([#52](https://github.com/PartBuddy/partbuddy/issues/52)) ([5490d43](https://github.com/PartBuddy/partbuddy/commit/5490d43128a8555fc5bf6a8d10a2d29b4c469179))
 * **desktop:** compact timeline with a draggable rollback bar ([#66](https://github.com/PartBuddy/partbuddy/issues/66)) ([3154732](https://github.com/PartBuddy/partbuddy/commit/3154732c2c362a90cba3ba4e2db426b98ac0deb9))
 * **desktop:** design a new part concept first, then ask about its use ([#126](https://github.com/PartBuddy/partbuddy/issues/126)) ([f750a4c](https://github.com/PartBuddy/partbuddy/commit/f750a4c525a31a9a209d5a983028b450255ad32e))
 * **desktop:** design without support from the print profile (M7f) ([#80](https://github.com/PartBuddy/partbuddy/issues/80)) ([4542e46](https://github.com/PartBuddy/partbuddy/commit/4542e4687a829c70ed8108dcf55da15c6c3b70c9))
@@ -40,18 +32,15 @@
 * **desktop:** dimensions in the view, changed through their labels (M2b-3) ([#42](https://github.com/PartBuddy/partbuddy/issues/42)) ([243d5f6](https://github.com/PartBuddy/partbuddy/commit/243d5f6a2d1e91480ba1738ffbdc4f623c265a40))
 * **desktop:** display modes and a section through the design ([#59](https://github.com/PartBuddy/partbuddy/issues/59)) ([f042022](https://github.com/PartBuddy/partbuddy/commit/f042022b6bed11c997d22c2d8370ff72c063f961))
 * **desktop:** dock the selection panel at the bottom of the view ([#65](https://github.com/PartBuddy/partbuddy/issues/65)) ([c322ab8](https://github.com/PartBuddy/partbuddy/commit/c322ab862cf4f2f19e45122da773c5f36a7afc5d))
-* **desktop:** draw on the view, sent to the assistant as words (M2b-2) ([#41](https://github.com/PartBuddy/partbuddy/issues/41)) ([2fa3a18](https://github.com/PartBuddy/partbuddy/commit/2fa3a1828ff60423ea54f71a84998f3d0f5839a4))
 * **desktop:** exploded view for prints of several parts (F7) ([#111](https://github.com/PartBuddy/partbuddy/issues/111)) ([57e2d57](https://github.com/PartBuddy/partbuddy/commit/57e2d57c6c203dc71d1b756919b1b61218a2cf42))
 * **desktop:** favourites and tags on the start page ([#162](https://github.com/PartBuddy/partbuddy/issues/162)) ([0050f0d](https://github.com/PartBuddy/partbuddy/commit/0050f0dc5a1e03f1e9eb62c51c2dfe046c11915a))
 * **desktop:** find LM Studio, llama.cpp and vLLM as local model servers (F8) ([#116](https://github.com/PartBuddy/partbuddy/issues/116)) ([7b012ef](https://github.com/PartBuddy/partbuddy/commit/7b012efc09049275a1a43b20cbbe50a0a749c544))
 * **desktop:** find Strata as a local model server (F8) ([#115](https://github.com/PartBuddy/partbuddy/issues/115)) ([817703e](https://github.com/PartBuddy/partbuddy/commit/817703e075a9080e94b0db9872f5d31fc81a88a0))
 * **desktop:** first-start setup for SolidCraft, assistant, printer and project folder (B9) ([#98](https://github.com/PartBuddy/partbuddy/issues/98)) ([a4cdbfb](https://github.com/PartBuddy/partbuddy/commit/a4cdbfb13fec4ac30540b83cdf9d3b9de7102738))
-* **desktop:** fit assistant for holes and pins (M7) ([#76](https://github.com/PartBuddy/partbuddy/issues/76)) ([4d9f535](https://github.com/PartBuddy/partbuddy/commit/4d9f53545484ebc0ef92407dd094433c01c314f5))
-* **desktop:** fixes for support at the light, with a ghost first (M7f) ([#81](https://github.com/PartBuddy/partbuddy/issues/81)) ([4037850](https://github.com/PartBuddy/partbuddy/commit/40378501495afe5edab737aaf642af8e8da7a6d5))
 * **desktop:** fold the work log into one line per request and let the chat be resized ([#61](https://github.com/PartBuddy/partbuddy/issues/61)) ([3d2fa6d](https://github.com/PartBuddy/partbuddy/commit/3d2fa6d7bf429ed5582f5e01b0b02b5f4245a681))
 * **desktop:** follow every AI step live in the 3D view ([#22](https://github.com/PartBuddy/partbuddy/issues/22)) ([2dfa70f](https://github.com/PartBuddy/partbuddy/commit/2dfa70ffe91004fbb67f4fce400239a921bf181c))
 * **desktop:** function blocks for tapped holes, screw holes, insert seats and bosses (F1) ([#100](https://github.com/PartBuddy/partbuddy/issues/100)) ([9ecbea4](https://github.com/PartBuddy/partbuddy/commit/9ecbea4df38ab6204a025fa41580c269165fe5c5))
-* **desktop:** give the 3D view depth with shadows, sky light and a gradient ([#58](https://github.com/PartBuddy/partbuddy/issues/58)) ([0afe00d](https://github.com/PartBuddy/partbuddy/commit/0afe00d40e3fd704311b4b20c337c285f1d74696))
+* **desktop:** give the 3D view depth with sky light and a shadow under the part ([#58](https://github.com/PartBuddy/partbuddy/issues/58)) ([0afe00d](https://github.com/PartBuddy/partbuddy/commit/0afe00d40e3fd704311b4b20c337c285f1d74696))
 * **desktop:** icons from Zoo Design Studio for CAD operations, common CAD terms ([#53](https://github.com/PartBuddy/partbuddy/issues/53)) ([fbe950b](https://github.com/PartBuddy/partbuddy/commit/fbe950bfed000d6211aa4827227218f3e63f94d9))
 * **desktop:** import STEP, IGES and meshes as a project or into the open one (B4) ([#92](https://github.com/PartBuddy/partbuddy/issues/92)) ([7b62441](https://github.com/PartBuddy/partbuddy/commit/7b62441d38bdedcf59e4a6956768383a8bca1695))
 * **desktop:** installer for Windows with an update check through GitHub releases (B10) ([#99](https://github.com/PartBuddy/partbuddy/issues/99)) ([b4213c9](https://github.com/PartBuddy/partbuddy/commit/b4213c96b8df120047f3316bb18fca8792fd95a2))
@@ -64,7 +53,6 @@
 * **desktop:** local models through Ollama as an assistant route (F8) ([#113](https://github.com/PartBuddy/partbuddy/issues/113)) ([bd54bc1](https://github.com/PartBuddy/partbuddy/commit/bd54bc1e752a03c90966c75fa9fc16c4e5c9769f))
 * **desktop:** logo block from an SVG file (F1) ([#103](https://github.com/PartBuddy/partbuddy/issues/103)) ([49a71f6](https://github.com/PartBuddy/partbuddy/commit/49a71f6e88ac1e546fda9513b43fa39640ec8650))
 * **desktop:** measure a material's tolerances with three test pieces ([#185](https://github.com/PartBuddy/partbuddy/issues/185)) ([c20e04c](https://github.com/PartBuddy/partbuddy/commit/c20e04cb2c003cd9129f04c54886dc0768175549))
-* **desktop:** measure prints to correct the material (M7) ([#77](https://github.com/PartBuddy/partbuddy/issues/77)) ([61f3fa3](https://github.com/PartBuddy/partbuddy/commit/61f3fa3fcaa867f83957c51182af024ca4fbd806))
 * **desktop:** name a new part after its body, show its save state, quieter status bar ([#50](https://github.com/PartBuddy/partbuddy/issues/50)) ([5d6a288](https://github.com/PartBuddy/partbuddy/commit/5d6a288974f10a1619fbb2ca41cb047957d11ba1))
 * **desktop:** notes on the model, kept in the design file (M2b-1) ([#40](https://github.com/PartBuddy/partbuddy/issues/40)) ([cca3ae7](https://github.com/PartBuddy/partbuddy/commit/cca3ae73010794a0e1bba80e1f717a8954d6ad5d))
 * **desktop:** one button family with every state, tooltips on icon buttons ([#172](https://github.com/PartBuddy/partbuddy/issues/172)) ([741e35b](https://github.com/PartBuddy/partbuddy/commit/741e35b6bf63e4cc7ace4f542600bc5c624196a4))
@@ -72,21 +60,17 @@
 * **desktop:** one menu and popover look with motion, sections and separators ([#175](https://github.com/PartBuddy/partbuddy/issues/175)) ([a334dec](https://github.com/PartBuddy/partbuddy/commit/a334dec1096f9514b4740183491901d25daefcff))
 * **desktop:** one settings schema and file, old profiles migrated, reset per section ([#180](https://github.com/PartBuddy/partbuddy/issues/180)) ([731d052](https://github.com/PartBuddy/partbuddy/commit/731d05257cda904f256b614e505154920e7cb4cb))
 * **desktop:** open the design in the slicer and print on a chosen face (B8) ([#97](https://github.com/PartBuddy/partbuddy/issues/97)) ([e211e9b](https://github.com/PartBuddy/partbuddy/commit/e211e9b726baeb84b9f8828c78299db0cb83fd40))
-* **desktop:** overhang view for FDM printing ([#67](https://github.com/PartBuddy/partbuddy/issues/67)) ([e36f089](https://github.com/PartBuddy/partbuddy/commit/e36f0893829b64f3afd4ecaea9a0f8a08cc32056))
 * **desktop:** own recycle bin with restore on the start page ([#159](https://github.com/PartBuddy/partbuddy/issues/159)) ([c3874c3](https://github.com/PartBuddy/partbuddy/commit/c3874c32e8dfd6a7d191c51a47b112e2927f626e))
 * **desktop:** parameter panel with preview, slider and range hints ([#56](https://github.com/PartBuddy/partbuddy/issues/56)) ([828c5be](https://github.com/PartBuddy/partbuddy/commit/828c5bee21c03517074ee89af1f344351ccd4538))
 * **desktop:** parts list with copies, print state and filament in the structure tree ([#163](https://github.com/PartBuddy/partbuddy/issues/163)) ([3eaf1ba](https://github.com/PartBuddy/partbuddy/commit/3eaf1bac7c5290ed60a95fe39fdcf4b5f15c9a89))
 * **desktop:** paste and drop pictures into the chat ([#112](https://github.com/PartBuddy/partbuddy/issues/112)) ([bfdb02c](https://github.com/PartBuddy/partbuddy/commit/bfdb02c4c18c5188aac0317d052ad777a5234bb1))
 * **desktop:** photo import for the assistant (F6) ([#110](https://github.com/PartBuddy/partbuddy/issues/110)) ([af5fea7](https://github.com/PartBuddy/partbuddy/commit/af5fea7de8b0170690de0222a1e9b5cfe800924d))
 * **desktop:** pick edges and vertices, studio light and standard views (M1a) ([#33](https://github.com/PartBuddy/partbuddy/issues/33)) ([ca28684](https://github.com/PartBuddy/partbuddy/commit/ca2868468cb632644362cc7dbbf437e0afadb99c))
-* **desktop:** print orientation with a proposal, loads and turned export (M7) ([#75](https://github.com/PartBuddy/partbuddy/issues/75)) ([2b3f57a](https://github.com/PartBuddy/partbuddy/commit/2b3f57abae32c1c7d23716d332cf6c998cae68e0))
 * **desktop:** printer and material profiles for ready-to-print (M7) ([#73](https://github.com/PartBuddy/partbuddy/issues/73)) ([7010629](https://github.com/PartBuddy/partbuddy/commit/7010629005ef9472e34c187674b7b6d27c2f0dde))
 * **desktop:** projects as folders with new, open, rename, duplicate and trash (B2) ([#89](https://github.com/PartBuddy/partbuddy/issues/89)) ([4366f3b](https://github.com/PartBuddy/partbuddy/commit/4366f3b2d9043980055b118750dc8a67b14dc542))
 * **desktop:** questions and plans as cards in the chat (M2a-2) ([#38](https://github.com/PartBuddy/partbuddy/issues/38)) ([ca7e4a4](https://github.com/PartBuddy/partbuddy/commit/ca7e4a422744f004c59db211d600f278af46c776))
 * **desktop:** ready-to-print light with findings on the model (M7) ([#74](https://github.com/PartBuddy/partbuddy/issues/74)) ([d6b52a0](https://github.com/PartBuddy/partbuddy/commit/d6b52a0f6a65271308762c46a9fed8acc2f0c1c9))
 * **desktop:** recommend SolidCraft 0.40.0-rc.3 ([#191](https://github.com/PartBuddy/partbuddy/issues/191)) ([f072161](https://github.com/PartBuddy/partbuddy/commit/f0721611e2487b9d763735939173caa1469d852e))
-* **desktop:** remove fits, measuring, overhang view, drawing and before/after (R2) ([#87](https://github.com/PartBuddy/partbuddy/issues/87)) ([362b45a](https://github.com/PartBuddy/partbuddy/commit/362b45a5ec40ec2538eefbd8467636ee0037c1dc))
-* **desktop:** remove slicer work, the light checks the design only (R1) ([#86](https://github.com/PartBuddy/partbuddy/issues/86)) ([2c42646](https://github.com/PartBuddy/partbuddy/commit/2c42646f72af58e458773d21538a91f2ab069ff2))
 * **desktop:** render assistant answers as Markdown ([#23](https://github.com/PartBuddy/partbuddy/issues/23)) ([fb57b48](https://github.com/PartBuddy/partbuddy/commit/fb57b487096d6e244fc9105fc304db91c06ebf78))
 * **desktop:** rough sketch for the assistant (F4) ([#106](https://github.com/PartBuddy/partbuddy/issues/106)) ([feed31c](https://github.com/PartBuddy/partbuddy/commit/feed31c5f821d262435c380cc6d16baae4f51f2d))
 * **desktop:** run SolidCraft without a window and keep the design between runs ([#30](https://github.com/PartBuddy/partbuddy/issues/30)) ([50c582e](https://github.com/PartBuddy/partbuddy/commit/50c582e4e597acbcd21e275a406ed9bef3b9c5e4))
@@ -102,14 +86,12 @@
 * **desktop:** sketch sheets for front, top and side, and a scale per square (F10) ([#134](https://github.com/PartBuddy/partbuddy/issues/134)) ([334eccb](https://github.com/PartBuddy/partbuddy/commit/334eccb42042d149cb25902b5fd19611c7fa6abc))
 * **desktop:** sketch with shapes, dimensions and labels (F9) ([#133](https://github.com/PartBuddy/partbuddy/issues/133)) ([16e410c](https://github.com/PartBuddy/partbuddy/commit/16e410c5386684d687af60391e5413101f3153b2))
 * **desktop:** snap fit block with its strain in the form (F1) ([#102](https://github.com/PartBuddy/partbuddy/issues/102)) ([cf0dd05](https://github.com/PartBuddy/partbuddy/commit/cf0dd053b502b3843c6d9f7329b423ce783c5797))
-* **desktop:** start on the start page and open no project on its own (B3) ([#91](https://github.com/PartBuddy/partbuddy/issues/91)) ([dd0ed37](https://github.com/PartBuddy/partbuddy/commit/dd0ed37d06e95644972a492c3f24edee5b3a51ea))
+* **desktop:** start on the start page by default and open no project on its own (B3) ([#91](https://github.com/PartBuddy/partbuddy/issues/91)) ([dd0ed37](https://github.com/PartBuddy/partbuddy/commit/dd0ed37d06e95644972a492c3f24edee5b3a51ea))
 * **desktop:** start page sorts projects and acts on every tile ([#158](https://github.com/PartBuddy/partbuddy/issues/158)) ([4cbe773](https://github.com/PartBuddy/partbuddy/commit/4cbe773f4c767e417620853177bf6766fe09da9e))
 * **desktop:** start page with project tiles, search, new, open and import (B3) ([#90](https://github.com/PartBuddy/partbuddy/issues/90)) ([8ca86f5](https://github.com/PartBuddy/partbuddy/commit/8ca86f5d937384ece21b7a0e950597e26cff2576))
-* **desktop:** stepped bridges over counterbores facing the bed (M7f) ([#82](https://github.com/PartBuddy/partbuddy/issues/82)) ([6d458c3](https://github.com/PartBuddy/partbuddy/commit/6d458c38f1ddfb25b256b46074adc2dd878dbd07))
 * **desktop:** stop an assistant that repeats the same tool calls ([#117](https://github.com/PartBuddy/partbuddy/issues/117)) ([e0091b9](https://github.com/PartBuddy/partbuddy/commit/e0091b93eb10496c5cfa563e47e08974c5b2d1de))
 * **desktop:** structure tree and timeline (M1c) ([#36](https://github.com/PartBuddy/partbuddy/issues/36)) ([b8b4fe4](https://github.com/PartBuddy/partbuddy/commit/b8b4fe49d06f7a6390906b9f455b9677a732c167))
 * **desktop:** structure tree as a CAD browser with parameter table ([#166](https://github.com/PartBuddy/partbuddy/issues/166)) ([c5015c7](https://github.com/PartBuddy/partbuddy/commit/c5015c740b69f217139dcca56dc081cd0941d290))
-* **desktop:** support walls printed into the model (M7f) ([#83](https://github.com/PartBuddy/partbuddy/issues/83)) ([a59f445](https://github.com/PartBuddy/partbuddy/commit/a59f445d0f3c978b5b3aed9e505b64293edbb061))
 * **desktop:** tabs and list rows with every state, links with focus rings ([#177](https://github.com/PartBuddy/partbuddy/issues/177)) ([ee1a9df](https://github.com/PartBuddy/partbuddy/commit/ee1a9df99a1b6bc30f594f056c1e2c1c69fdfbd8))
 * **desktop:** take donations through Ko-fi ([#121](https://github.com/PartBuddy/partbuddy/issues/121)) ([98103f7](https://github.com/PartBuddy/partbuddy/commit/98103f7305cba0e6f3357efce246d1f1ed97219a))
 * **desktop:** tell the assistant what the user selected and sees in the view ([#28](https://github.com/PartBuddy/partbuddy/issues/28)) ([7a213d5](https://github.com/PartBuddy/partbuddy/commit/7a213d5d4f0adc520a5426ab3c1bf1dd15e35520))
@@ -127,14 +109,9 @@
 * **desktop:** versions with names, before requests and at exports, compare and restore (B5) ([#93](https://github.com/PartBuddy/partbuddy/issues/93)) ([6eccf65](https://github.com/PartBuddy/partbuddy/commit/6eccf65ec508527dfc5e264902590996aa28a8c8))
 * **desktop:** work log with step cards and going back to a state (M2a-1) ([#37](https://github.com/PartBuddy/partbuddy/issues/37)) ([12685fc](https://github.com/PartBuddy/partbuddy/commit/12685fc456c2c6c7c7b35dcb90ce806370052b86))
 * **desktop:** write a log file and show it from the settings ([#136](https://github.com/PartBuddy/partbuddy/issues/136)) ([047cd91](https://github.com/PartBuddy/partbuddy/commit/047cd9164e1ef1e3544ef60134d7be8889672dde))
-* **prototype:** add click dummy of the main view ([fac59af](https://github.com/PartBuddy/partbuddy/commit/fac59af6daab6707f3af0a7c9c76833a0d6f3613))
-* **site:** bento tile and screenshot for notes on the model ([#190](https://github.com/PartBuddy/partbuddy/issues/190)) ([d4248ba](https://github.com/PartBuddy/partbuddy/commit/d4248ba4c81c62a4fd87a639b64de4b1d2f6e59d))
-
 
 ### Bug Fixes
 
-* **ci:** check licences of every workspace package ([c6650c4](https://github.com/PartBuddy/partbuddy/commit/c6650c42e6c2f948c85d56639d8f8b5944f259e2))
-* **clickdummy:** aim the camera from inside the canvas so a pick never misses ([#139](https://github.com/PartBuddy/partbuddy/issues/139)) ([8e2274e](https://github.com/PartBuddy/partbuddy/commit/8e2274edba87d05da6cfb549dd9000257cc1f318))
 * **desktop:** a click to select no longer takes the camera from the framing ([#49](https://github.com/PartBuddy/partbuddy/issues/49)) ([af4bfe0](https://github.com/PartBuddy/partbuddy/commit/af4bfe0f742fbfca222249dfd70cbf5aed1410e9))
 * **desktop:** a printer change keeps snapped sizes on the new grid ([#170](https://github.com/PartBuddy/partbuddy/issues/170)) ([a6cb649](https://github.com/PartBuddy/partbuddy/commit/a6cb6498e5e12b59d689046a738e43402898ff37))
 * **desktop:** a token refresh of another Claude Code process is no sign-out ([#187](https://github.com/PartBuddy/partbuddy/issues/187)) ([e446086](https://github.com/PartBuddy/partbuddy/commit/e44608643a0e508af28e25050528f2cc54141135))
@@ -142,7 +119,6 @@
 * **desktop:** chat open points – expired sign-in, accessibility, long chats, third-party notices ([#153](https://github.com/PartBuddy/partbuddy/issues/153)) ([966ebbb](https://github.com/PartBuddy/partbuddy/commit/966ebbb7ee6709c970449b3a0a31b09ce327737a))
 * **desktop:** chat polish – answers, failures, examples, attachments, German chip ([#142](https://github.com/PartBuddy/partbuddy/issues/142)) ([d8e7cec](https://github.com/PartBuddy/partbuddy/commit/d8e7cec6c364e78bcf7663b8d9804a65d774b0e7))
 * **desktop:** draw the floor shadow under the part again ([#118](https://github.com/PartBuddy/partbuddy/issues/118)) ([6adaa4d](https://github.com/PartBuddy/partbuddy/commit/6adaa4dba2b24b04c4e5ddfb9912d0ea98730e77))
-* **desktop:** drop the repair SolidCraft no longer has; fix three stale contract tests ([#167](https://github.com/PartBuddy/partbuddy/issues/167)) ([d782dcf](https://github.com/PartBuddy/partbuddy/commit/d782dcfb4a4b711f4472dad5f6518c2145752e77))
 * **desktop:** effort always shows the level that really runs ([#114](https://github.com/PartBuddy/partbuddy/issues/114)) ([a301427](https://github.com/PartBuddy/partbuddy/commit/a301427752365791ca85fb28ba64a1aa68cf4b35))
 * **desktop:** fit the sketch into a low window so its buttons stay in reach ([#141](https://github.com/PartBuddy/partbuddy/issues/141)) ([49eb1d0](https://github.com/PartBuddy/partbuddy/commit/49eb1d0fe5fcd79d4448ea3a7b4f70b5f10723ba))
 * **desktop:** hand SolidCraft long paths, never 8.3 short names ([#169](https://github.com/PartBuddy/partbuddy/issues/169)) ([19d38e0](https://github.com/PartBuddy/partbuddy/commit/19d38e0fd0656a1d3e74bba55176675cf8739c84))
@@ -154,7 +130,6 @@
 * **desktop:** name the starting printer in the interface language ([#146](https://github.com/PartBuddy/partbuddy/issues/146)) ([2601307](https://github.com/PartBuddy/partbuddy/commit/2601307808e67097fda2fac3c9a8601fcf2f2785))
 * **desktop:** place the rollback bar from the step count, not by measuring ([#71](https://github.com/PartBuddy/partbuddy/issues/71)) ([1711b3b](https://github.com/PartBuddy/partbuddy/commit/1711b3b67fee0ca6c9fe816b2d2068daea0d8a47))
 * **desktop:** plate bed labels and framing survive a plate opened while the view mounts ([#165](https://github.com/PartBuddy/partbuddy/issues/165)) ([3335456](https://github.com/PartBuddy/partbuddy/commit/3335456a67c4499847a88c453c65dfcb6b756ce9))
-* **desktop:** ready-to-print check follows what the slicer prints (M7) ([#79](https://github.com/PartBuddy/partbuddy/issues/79)) ([87ab85c](https://github.com/PartBuddy/partbuddy/commit/87ab85c5eabb31903cf9f4b19e1d975499a819ce))
 * **desktop:** short selection line in the chat and a visible CAD grid ([#69](https://github.com/PartBuddy/partbuddy/issues/69)) ([0474bd3](https://github.com/PartBuddy/partbuddy/commit/0474bd355ea985aa53b212ff8d7d6f224dab55f5))
 * **desktop:** show a signed-out Claude Code as signed out ([#129](https://github.com/PartBuddy/partbuddy/issues/129)) ([10e6c6b](https://github.com/PartBuddy/partbuddy/commit/10e6c6b65576880aa1aa40626ddcd797f3537668))
 * **desktop:** start Claude Code on its default model with medium effort ([#127](https://github.com/PartBuddy/partbuddy/issues/127)) ([a5af899](https://github.com/PartBuddy/partbuddy/commit/a5af899b231ac20d15458a07bbaa8cceacece49a))
@@ -163,55 +138,10 @@
 * **desktop:** view polish – readable names, compact selection panel, German templates, section labels ([#144](https://github.com/PartBuddy/partbuddy/issues/144)) ([4284083](https://github.com/PartBuddy/partbuddy/commit/42840830398b4a9ab756187f95ecb1b138283b0b))
 * **desktop:** viewport feedback – thinner lines zoomed out, brief change glow, iTwin view cube ([#156](https://github.com/PartBuddy/partbuddy/issues/156)) ([e1a9375](https://github.com/PartBuddy/partbuddy/commit/e1a937539eee74c55cde7ef1d03075666cce556d))
 * **geometry:** stop flagging threads and snap fits on the ready-to-print light ([#186](https://github.com/PartBuddy/partbuddy/issues/186)) ([4c3f912](https://github.com/PartBuddy/partbuddy/commit/4c3f912195da6eaaeb7e02e86d65c16afe27b516))
-* **prototype:** address findings of the independent review ([d3c5286](https://github.com/PartBuddy/partbuddy/commit/d3c5286bb18e534f339faa5789839bfe16da05d9))
-* **runner:** bring the start and stop dialog to the front ([#54](https://github.com/PartBuddy/partbuddy/issues/54)) ([a51f4e6](https://github.com/PartBuddy/partbuddy/commit/a51f4e631901d1ba0d33d1743107de92d325ee88))
-* **runner:** keep the control script outside AppData ([#55](https://github.com/PartBuddy/partbuddy/issues/55)) ([0a89e52](https://github.com/PartBuddy/partbuddy/commit/0a89e525bf34701ce7df881da23fc83f31232f29))
-* **runner:** start the listeners outside the caller's process tree ([#62](https://github.com/PartBuddy/partbuddy/issues/62)) ([4dc7b65](https://github.com/PartBuddy/partbuddy/commit/4dc7b65729339e939d274bf69bcff157294876bd))
-
 
 ### Performance
 
 * **desktop:** code highlighting brings ten grammars instead of all of Shiki ([#152](https://github.com/PartBuddy/partbuddy/issues/152)) ([11f465f](https://github.com/PartBuddy/partbuddy/commit/11f465fcdad9cfd4498c573dda3dd11760017865))
-
-
-### Documentation
-
-* add architecture, design system, feature catalogue and provenance ([9a07830](https://github.com/PartBuddy/partbuddy/commit/9a07830ee5b0a8ae6fbd172a7e6910bad0d05515))
-* add README, security policy, contributing guide and changelog ([40a1f7d](https://github.com/PartBuddy/partbuddy/commit/40a1f7d15a0cdaf206c0441c92a69b25d5d2acd6))
-* **adr:** accept the product owner's decisions ([6214095](https://github.com/PartBuddy/partbuddy/commit/62140950e1040682f7c62ac1b5ba385e3008ab9e))
-* **adr:** record architecture decisions 0001 to 0014 ([5593326](https://github.com/PartBuddy/partbuddy/commit/5593326eb79d3a61e8e33b9a554414901ca9e47e))
-* drop vague view follow-ups and note finished side items ([#120](https://github.com/PartBuddy/partbuddy/issues/120)) ([e53619c](https://github.com/PartBuddy/partbuddy/commit/e53619c5b15bac51118b601ff74114b80b74f558))
-* **github:** document repository settings and add the setup script ([7cee308](https://github.com/PartBuddy/partbuddy/commit/7cee3085ef06510dca1a2bd8678994bef139e3c4))
-* **github:** make the setup script follow the chosen GitHub plan ([16c3f38](https://github.com/PartBuddy/partbuddy/commit/16c3f38ead8c07650c6f806750d39ca123004fe0))
-* keep the installer unsigned in the feature catalogue ([#138](https://github.com/PartBuddy/partbuddy/issues/138)) ([d80b196](https://github.com/PartBuddy/partbuddy/commit/d80b1964168a08e9e58453f0b6cfb958770b695a))
-* plan project management 2027 ([#157](https://github.com/PartBuddy/partbuddy/issues/157)) ([88b8784](https://github.com/PartBuddy/partbuddy/commit/88b8784c84138522f7128a259527ec0b78903439))
-* record the product direction and roadmap from the idea round ([#32](https://github.com/PartBuddy/partbuddy/issues/32)) ([c20d1f7](https://github.com/PartBuddy/partbuddy/commit/c20d1f78b8dc57450b8ed2b6348986dfdf599a50))
-* **research:** add research results and build-versus-buy table ([a9b7238](https://github.com/PartBuddy/partbuddy/commit/a9b72383b8b6c53b42c701467c835bda097465c2))
-* reset the roadmap to basics first and keep engineering notes ([#84](https://github.com/PartBuddy/partbuddy/issues/84)) ([24b5ea2](https://github.com/PartBuddy/partbuddy/commit/24b5ea2c014c42121cf7d7d81e69a4928a18e22a))
-* resolve inconsistencies found in the review ([fff2785](https://github.com/PartBuddy/partbuddy/commit/fff2785dc5a4c04a45cd99bda346a4ac71638796))
-* **screens:** add click dummy screenshots at 1440 and 1920 px ([97beda5](https://github.com/PartBuddy/partbuddy/commit/97beda538efb82f64b25e515c7d738eedc13a218))
-* **site:** homepage chapters and logo-backed works-with list ([#179](https://github.com/PartBuddy/partbuddy/issues/179)) ([f652eab](https://github.com/PartBuddy/partbuddy/commit/f652eab3be84573cb14131691d3b0757bb7068f2))
-* trim the roadmap after the review of 2026-11-04 ([#44](https://github.com/PartBuddy/partbuddy/issues/44)) ([a767dc4](https://github.com/PartBuddy/partbuddy/commit/a767dc44fc5b9b1859b50d19872f7f7e0a503d31))
-
-
-### Build System
-
-* pin minimatch to the patched 11.0.1 release ([cfc4fcc](https://github.com/PartBuddy/partbuddy/commit/cfc4fcc4a5088a6147f763dfad17aec3eef5dcb9))
-* set up pnpm workspace with pinned toolchain ([baab479](https://github.com/PartBuddy/partbuddy/commit/baab479569068d24b5d74dd0b7b0776ab8fe8d4e))
-
-
-### Continuous Integration
-
-* add GitHub workflows ([53b04c4](https://github.com/PartBuddy/partbuddy/commit/53b04c4ff8a2455f113fbee7709a38a4de1577ff))
-* add local privacy and secret guardrails ([8a2a74f](https://github.com/PartBuddy/partbuddy/commit/8a2a74ffd6fdf9bf07d9db1823e98d71f2ef2f9b))
-* allow release-please to open its release pull request ([980c935](https://github.com/PartBuddy/partbuddy/commit/980c935c409e59002a45521465dac981b1b81e1f))
-* check dependency licences for GPL-3.0 compatibility ([58aae76](https://github.com/PartBuddy/partbuddy/commit/58aae76b85e361cad5c3caeae8169acdcc0559c3))
-* keep the website in step with the app ([#154](https://github.com/PartBuddy/partbuddy/issues/154)) ([59e0dd5](https://github.com/PartBuddy/partbuddy/commit/59e0dd521fbabe0b4718c15d383858a851010195))
-* run pull request checks on a self-hosted runner in WSL2 ([#51](https://github.com/PartBuddy/partbuddy/issues/51)) ([5db2ade](https://github.com/PartBuddy/partbuddy/commit/5db2adeca5df633a43121f819f98a3713c73458f))
-* run the click dummy flows with Playwright ([ae4309a](https://github.com/PartBuddy/partbuddy/commit/ae4309a91097a219472b88564658b7094948cb0e))
-* start release versions at 0.1.0 ([#4](https://github.com/PartBuddy/partbuddy/issues/4)) ([5ab92df](https://github.com/PartBuddy/partbuddy/commit/5ab92dfd0950852f3285c9af3534c90b4c20e63e))
-* switch from rebase to squash merges ([#3](https://github.com/PartBuddy/partbuddy/issues/3)) ([cc62e5a](https://github.com/PartBuddy/partbuddy/commit/cc62e5a33bfde9a3c993b5b0ffe7b99d3a107112))
-* use security checks available on private repositories ([d920636](https://github.com/PartBuddy/partbuddy/commit/d92063606ec29c1e0c2581a6bdee0d11c4c9b8d3))
 
 ## Changelog
 
