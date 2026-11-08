@@ -2303,3 +2303,37 @@ test('a local model builds a part in SolidCraft through the policy (F8)', async 
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('the tolerance assistant has SolidCraft build its test pieces and shows a picture of them', async () => {
+  test.setTimeout(240_000);
+  const { existsSync, mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-test-pieces-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7931',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_CACHE_DIR: join(work, 'cache'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByTestId('settings').click();
+    await page.getByTestId('settings-print').click();
+    const dialog = page.getByTestId('print-profiles');
+    await dialog.getByTestId('print-tab-material').click();
+    await dialog.getByTestId('tolerance-start').click();
+    const assistant = page.getByTestId('tolerance-assistant');
+    await assistant.getByTestId('tolerance-next').click();
+    await expect(assistant.getByTestId('tolerance-picture')).toBeVisible({ timeout: 120_000 });
+    expect(existsSync(join(work, 'cache', 'test-pieces', 'test-pieces-0.4-0.2.sc'))).toBe(true);
+    await page.screenshot({ path: test.info().outputPath('tolerance-pieces.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

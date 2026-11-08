@@ -25,6 +25,7 @@ import { CheckMark, choiceInlineClass } from '../ui/Choice';
 import { MATERIAL_CATALOG } from '../../../shared/materialCatalog';
 import { PRINTER_CATALOG } from '../../../shared/printerCatalog';
 import { CatalogPicker, type CatalogSection } from './CatalogPicker';
+import { ToleranceAssistant } from './ToleranceAssistant';
 import { listRowClass, tabClass, tabListClass } from '../ui/Navigation';
 
 
@@ -413,6 +414,15 @@ export function PrintProfilesEditor({ close }: { close: () => void }) {
                 setDraft({ ...draft, material: material.id });
               }}
               onChange={setMaterial}
+            />
+            <ToleranceAssistant
+              materials={draft.materials}
+              material={material.id}
+              printer={printer}
+              onApply={(next) => {
+                setMaterial(next);
+                setMaterialId(next.id);
+              }}
             />
           </ProfileColumns>
         </TabPanel>

@@ -1119,6 +1119,65 @@ test('a printer from the catalog becomes an ordinary profile that can be changed
   expect(saved.printers.find((item) => item.id === saved.printer)).toMatchObject({ name: 'Prusa MK4S', nozzle: 0.6 });
 });
 
+test('the tolerance assistant reads the test pieces into the material, which Save keeps', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-print').click();
+  const dialog = page.getByTestId('print-profiles');
+  await dialog.getByTestId('print-tab-material').click();
+  await dialog.getByTestId('materials-list').getByRole('option', { name: /^PLA( |$)/ }).click();
+  const assistant = page.getByTestId('tolerance-assistant');
+
+  // Cancel leaves the material as it was.
+  await dialog.getByTestId('tolerance-start').click();
+  await expect(assistant).toHaveAttribute('data-step', 'material');
+  await assistant.getByTestId('tolerance-cancel').click();
+  await expect(assistant).toHaveCount(0);
+  await expect(dialog.getByTestId('material-overhang').getByRole('textbox')).toHaveValue('45');
+
+  await dialog.getByTestId('tolerance-start').click();
+  await expect(assistant.getByTestId('tolerance-material')).toContainText('PLA');
+  await assistant.getByTestId('tolerance-next').click();
+  await expect(assistant).toHaveAttribute('data-step', 'pieces');
+  await expect(assistant.getByTestId('tolerance-save')).toBeVisible();
+  await assistant.getByTestId('tolerance-next').click();
+  await expect(assistant).toHaveAttribute('data-step', 'results');
+  const pick = async (testId: string, option: string) => {
+    await assistant.getByTestId(testId).getByRole('button').click();
+    await page.getByRole('option', { name: option, exact: true }).click();
+    await expect(page.getByRole('option', { name: option, exact: true })).toHaveCount(0);
+    await expect(assistant.getByTestId(testId)).toContainText(option);
+  };
+  await pick('tolerance-fit-clamp', '-0.05 mm');
+  await pick('tolerance-fit-push', '0.1 mm');
+  await pick('tolerance-fit-slide', '0.2 mm');
+  await pick('tolerance-fit-turn', '0.3 mm');
+  for (const [size, measured] of [['3', '2.75'], ['5', '4.75'], ['8', '7.75'], ['10', '9.75']] as const) {
+    const field = assistant.getByTestId(`tolerance-hole-${size}`).getByRole('textbox');
+    await field.fill(measured);
+    await field.press('Tab');
+  }
+  await pick('tolerance-overhang', '50°');
+  await assistant.getByTestId('tolerance-next').click();
+  await expect(assistant).toHaveAttribute('data-step', 'preview');
+  await expect(assistant.getByTestId('tolerance-row-overhang')).toContainText('45°');
+  await expect(assistant.getByTestId('tolerance-row-overhang')).toContainText('50°');
+  await expect(assistant.getByTestId('tolerance-row-hole')).toContainText('0.25 mm');
+  await expect(assistant.getByTestId('tolerance-row-turn')).toHaveAttribute('data-changed', 'false');
+  await page.screenshot({ path: test.info().outputPath('tolerance-preview.png') });
+  await assistant.getByTestId('tolerance-next').click();
+  await expect(assistant).toHaveCount(0);
+
+  await expect(dialog.getByTestId('material-overhang').getByRole('textbox')).toHaveValue('50');
+  await expect(dialog.getByTestId('material-hole').getByRole('textbox')).toHaveValue('0.25');
+  await expect(dialog.getByTestId('material-fit-clamp').getByRole('textbox')).toHaveValue('-0.05');
+  await dialog.getByTestId('print-save').click();
+  await expect(dialog).toHaveCount(0);
+  const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ materials: { id: string; overhang: number; holeShrink: number; clearance: Record<string, number> }[] }> } } }).partbuddy.print.settings());
+  expect(saved.materials.find((item) => item.id === 'pla')).toMatchObject({ overhang: 50, holeShrink: 0.25, clearance: { clamp: -0.05, push: 0.1, slide: 0.2, turn: 0.3 } });
+});
+
 test('a material from the catalog becomes an ordinary profile with its starting values', async () => {
   const entry = MATERIAL_CATALOG.find((item) => item.name === 'PETG-CF');
   if (!entry) throw new Error('PETG-CF is missing from the catalog');

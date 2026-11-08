@@ -129,6 +129,8 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.printPart]: { reason: PRINT },
   [invokeChannels.printSetMaterial]: { reason: PRINT },
   [invokeChannels.printReportCheck]: { reason: PRINT },
+  [invokeChannels.printTestPiecesPicture]: { reason: PRINT },
+  [invokeChannels.printTestPiecesExport]: { reason: FILES },
 };
 
 describe('parity between the interface and the assistant', () => {
