@@ -1753,9 +1753,9 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
       await apply(block);
     }
     for (const line of ['Logo “ring” engraved', 'Logo “ring” embossed']) await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
-    // A drawing with only a stroke has no area to build: SolidCraft says so instead of building nothing.
+    // A drawing with only a stroke has no area to build: PartBuddy turns it away before SolidCraft.
     const stroke = { ...logo, svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="black"/></svg>', point: [10, 10, 10], normal: [0, 0, 1], depth: 0.6, mode: 'deboss' };
-    expect((await preview(stroke)).ok).toBe(false);
+    expect(await preview(stroke).catch(() => ({ ok: false }))).toMatchObject({ ok: false });
     await page.screenshot({ path: test.info().outputPath('blocks-logo.png') });
 
     // Through the form: no build before a file is chosen; a page that is no SVG is turned away.
@@ -2284,6 +2284,80 @@ test('a picture pasted into the chat or dropped on it goes along like a photo', 
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('message-photo')).toHaveText('With a photo', { timeout: 30_000 });
     await expect(page.getByText(/I see a PNG picture of \d+ KB with the photo note\./)).toBeVisible({ timeout: 30_000 });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
+test('an SVG dropped on the chat goes along exactly: an "O" at 40 mm, 2 mm high, keeps its hole; a harmful file is turned away', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-svg-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7932',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  const fixture = (name: string) => [...readFileSync(join(__dirname, '..', 'test', 'fixtures', 'svg', name))];
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    const composer = page.getByRole('textbox', { name: 'Message to the assistant' });
+    await expect(composer).toBeEnabled({ timeout: 30_000 });
+    const drop = (name: string, data: number[]) =>
+      composer.evaluate(
+        (field, file) => {
+          const view = globalThis as unknown as PictureEvents;
+          const transfer = new view.DataTransfer();
+          transfer.items.add(new view.File([new Uint8Array(file.data)], file.name, { type: 'image/svg+xml' }));
+          for (const type of ['dragover', 'drop']) (field as unknown as EventTarget).dispatchEvent(new view.DragEvent(type, { dataTransfer: transfer, bubbles: true, cancelable: true }));
+        },
+        { name, data },
+      );
+    // A file with a script is turned away with a reason, and nothing goes along.
+    await drop('evil.svg', fixture('script.svg'));
+    await expect(page.getByTestId('composer-drawing-problem')).toContainText('for safety PartBuddy does not read it');
+    await expect(page.getByTestId('composer-drawing')).toHaveCount(0);
+    // SVG markup pasted from a drawing program becomes a drawing, not text in the message.
+    await composer.evaluate((field, markup) => {
+      const view = globalThis as unknown as { DataTransfer: new () => { setData(type: string, value: string): void }; ClipboardEvent: PictureEvents['ClipboardEvent'] };
+      const transfer = new view.DataTransfer();
+      transfer.setData('text/plain', markup);
+      (field as unknown as EventTarget).dispatchEvent(new view.ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }));
+    }, readFileSync(join(__dirname, '..', 'test', 'fixtures', 'svg', 'illustrator.svg'), 'utf8'));
+    await expect(page.getByTestId('composer-drawing-name')).toHaveText('Pasted drawing');
+    await expect(composer).toHaveValue('');
+    await page.getByTestId('composer-drawing-remove').click();
+    // The "O" says 20 mm in its file; the user makes it 40.
+    await drop('logo-o.svg', fixture('logo-o.svg'));
+    const chip = page.getByTestId('composer-drawing');
+    await expect(chip).toBeVisible();
+    await expect(page.getByTestId('composer-drawing-problem')).toHaveCount(0);
+    await expect(page.getByTestId('composer-drawing-name')).toHaveText('logo-o');
+    const width = page.getByTestId('composer-drawing-width').getByRole('textbox');
+    await expect(width).toHaveValue('20');
+    await width.fill('40');
+    await width.press('Tab');
+    await expect(page.getByTestId('composer-drawing-height')).toHaveText('× 40 mm');
+    await page.screenshot({ path: test.info().outputPath('svg-composer.png') });
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('message-drawing')).toHaveText('With SVG drawing', { timeout: 30_000 });
+    const answer = page.getByText(/^Drawing: /);
+    await expect(answer).toContainText('40 × 40 mm as the user sized it, 2 closed loops, 1 of them hole', { timeout: 60_000 });
+    await expect(answer).toContainText('Built: yes');
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
+    // The ring's volume π(20² − 12²)·2 = 1608.5 mm³; 0.05 mm off on both circles moves it by 20 mm³.
+    const text = (await answer.textContent()) ?? '';
+    const volume = Number(/"volume(?:_mm3)?"\s*:\s*([\d.]+)/.exec(text)?.[1] ?? /volume[^\d]*([\d.]+)/i.exec(text)?.[1]);
+    expect(volume, text).toBeGreaterThan(1608.5 - 20);
+    expect(volume, text).toBeLessThan(1608.5 + 20);
+    await page.screenshot({ path: test.info().outputPath('svg-built.png') });
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });

@@ -240,6 +240,13 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   takes every region, so a ring's hole is filled; `solid.extrude` keeps a loop inside a hole as
   material again, which is what a logo means (ring with a star: 78.76 mm³ at 0.6 mm, by hand
   111.7 + 19.6 mm² × 0.6). An SVG of strokes only has no profile and is refused.
+- SVG files are read by PartBuddy itself (`shared/svgDrawing.ts`, no DOM, also in the main process)
+  and only the clean form goes on: `<path>`s of lines and cubics in mm, transforms applied, a
+  nonzero loop that is no edge of the fill left out (SolidCraft's nesting is even-odd). Arcs as
+  cubics stay within 2.7e-4 of the radius, and `insert_svg` turns such a full circle back into a
+  cylinder face: a 40 mm "O" (r 20/12) extruded 2 mm measured 1608.79 mm³ for π·256·2 = 1608.50.
+- The assistant gets a drawing as `drawing:svg-N` (`:#rrggbb` for one fill) in `insert_svg`'s
+  `text`; `withDrawings` puts the clean SVG in after the policy, so path data never passes the model.
 - `inspect.clearance {bodies, clearance}` returns `overlaps` (volume, bbox, centre) and `near` pairs
   closer than `clearance` with `distance_mm`, `from` and `to`; touching pairs come with distance 0.
   Four 10 mm boxes take 8 ms; results are reused while neither body changes (`pairs_reused`). The

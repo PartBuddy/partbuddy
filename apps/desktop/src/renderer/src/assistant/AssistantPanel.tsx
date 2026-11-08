@@ -8,6 +8,7 @@ import {
   IconLogin,
   IconPencil,
   IconPhoto,
+  IconVectorBezier2,
   IconPlayerStopFilled,
   IconPlugConnectedX,
   IconPointer,
@@ -20,7 +21,7 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button as AriaButton, Dialog, Form, ProgressBar, Modal, ModalOverlay, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
+import { Button as AriaButton, Dialog, Form, NumberField, ProgressBar, Modal, ModalOverlay, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
 
 import type { MessageAnswer } from '../../../shared/contract';
 import { platform } from '../platform';
@@ -28,6 +29,7 @@ import { useStudio } from '../state/store';
 import { selectionLabel, selectionName, selectionsOf } from '../viewer/viewState';
 import { Button, IconButton, pressable } from '../ui/Button';
 import { tooltipClass } from '../ui/Tooltip';
+import { UnitInput } from '../ui/Field';
 import { Busy } from '../ui/Feedback';
 import { ChatResizer, useChatWidth } from '../shell/ChatResizer';
 import { AgentChip } from './AgentChip';
@@ -40,6 +42,8 @@ import { Queries, WorkGroup } from './WorkGroup';
 import { selectedStatus, useAssistant, type Attachment, type ConversationItem } from './store';
 import { emptySketch, SketchPad, type SketchPicture, type SketchState } from './SketchPad';
 import { photoPicture } from './photo';
+import { drawingFile, drawingFrom, isSvg, isSvgText, type OutgoingDrawing } from './drawing';
+import { drawingFacts, type DrawingProblem } from '../../../shared/svgDrawing';
 import { useChatScroll } from './useChatScroll';
 import { card } from './Fold';
 import { SourceCard } from './SourceCard';
@@ -227,6 +231,12 @@ function Item({
               {t('assistant.sketch.sent')}
             </span>
           ) : null}
+          {item.drawing ? (
+            <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-drawing">
+              <IconVectorBezier2 className="size-icon-sm shrink-0" aria-hidden />
+              {t('assistant.drawing.sent')}
+            </span>
+          ) : null}
           {item.photo ? (
             <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-photo">
               <IconPhoto className="size-icon-sm shrink-0" aria-hidden />
@@ -412,12 +422,31 @@ export function AssistantPanel() {
   const photoInput = useRef<HTMLInputElement>(null);
   // A picture dragged over the chat; pasted and dropped pictures go along like a chosen photo.
   const [dropping, setDropping] = useState(false);
-  const attachPhoto = (file: Blob) => {
+  // An SVG drawing (logo, outline) whose shapes go along exactly; it takes the photo's place.
+  const [drawing, setDrawing] = useState<OutgoingDrawing | null>(null);
+  const [drawingProblem, setDrawingProblem] = useState<DrawingProblem | 'unreadable' | null>(null);
+  const takeDrawing = (next: OutgoingDrawing | { problem: DrawingProblem | 'unreadable' }) => {
+    if ('problem' in next) {
+      setDrawingProblem(next.problem);
+      return;
+    }
+    setDrawing(next);
+    setPhoto(null);
+    setSketch(null);
+    composer.current?.focus();
+  };
+  const attachPhoto = (file: File) => {
     setPhotoFailed(false);
+    setDrawingProblem(null);
+    if (isSvg(file)) {
+      void drawingFile(file).then(takeDrawing);
+      return;
+    }
     photoPicture(file).then(
       (picture) => {
         setPhoto(picture);
         setSketch(null);
+        setDrawing(null);
         composer.current?.focus();
       },
       () => {
@@ -427,16 +456,19 @@ export function AssistantPanel() {
   };
 
   const send = () => {
-    // A sketch or a photo alone is a message too: build a part from it.
-    const text = draft.trim() || (photo ? t('assistant.photo.defaultText') : sketch ? t('assistant.sketch.defaultText') : '');
+    // A sketch, a photo or a drawing alone is a message too: build a part from it.
+    const text = draft.trim() || (drawing ? t('assistant.drawing.defaultText') : photo ? t('assistant.photo.defaultText') : sketch ? t('assistant.sketch.defaultText') : '');
     if (!text || !ready) return;
     setDraft('');
     setSketch(null);
     setPhoto(null);
+    setDrawing(null);
     // The user's own message always brings the chat back to its end.
     toEnd();
-    useAssistant.getState().attachNext(photo ? { thumbnail: photo.thumbnail, photo: photo.png } : sketch ? { thumbnail: sketch.picture.thumbnail, sketch: sketch.state } : null);
-    void sendToAssistant(text, selections, undefined, photo ? undefined : (sketch ?? undefined), photo?.png);
+    useAssistant
+      .getState()
+      .attachNext(drawing ? { thumbnail: drawing.thumbnail, photo: drawing.png } : photo ? { thumbnail: photo.thumbnail, photo: photo.png } : sketch ? { thumbnail: sketch.picture.thumbnail, sketch: sketch.state } : null);
+    void sendToAssistant(text, selections, undefined, photo || drawing ? undefined : (sketch ?? undefined), photo?.png, drawing ? { svg: drawing.svg, width: drawing.width, name: drawing.name, png: drawing.png } : undefined);
   };
   // A sent sketch opens again as the start of a new one; a sent photo shows large.
   const [padStart, setPadStart] = useState<SketchState | null>(null);
@@ -629,7 +661,7 @@ export function AssistantPanel() {
               </span>
             </span>
           ) : null}
-          {sketch || photo ? (
+          {sketch || photo || drawing ? (
             <div className="flex flex-wrap gap-1">
               {sketch ? (
                 <span className={`${chip} p-1 pr-1`} data-testid="composer-sketch">
@@ -681,6 +713,49 @@ export function AssistantPanel() {
                   </IconButton>
                 </span>
               ) : null}
+              {drawing ? (
+                <span className={`${chip} p-1 pr-1`} data-testid="composer-drawing">
+                  <AriaButton
+                    aria-label={t('assistant.drawing.show')}
+                    onPress={() => {
+                      openAttachment({ thumbnail: drawing.thumbnail, photo: drawing.png });
+                    }}
+                    className={chipPicture}
+                  >
+                    <img src={drawing.thumbnail} alt="" className="block h-control-lg w-auto" draggable={false} />
+                  </AriaButton>
+                  <span className="min-w-0 truncate" title={t('assistant.drawing.goesWith')} data-testid="composer-drawing-name">
+                    {drawing.name}
+                  </span>
+                  {/* The size it is built at; the height follows, aspect kept. */}
+                  <NumberField
+                    value={drawing.width}
+                    minValue={1}
+                    maxValue={1000}
+                    formatOptions={{ maximumFractionDigits: 2 }}
+                    aria-label={t('assistant.drawing.width')}
+                    onChange={(width) => {
+                      if (Number.isFinite(width) && width > 0) setDrawing({ ...drawing, width });
+                    }}
+                    className="w-[5.5rem] shrink-0"
+                    data-testid="composer-drawing-width"
+                  >
+                    <UnitInput unit={t('units.mmShort')} />
+                  </NumberField>
+                  <span className="shrink-0 text-text-muted" data-testid="composer-drawing-height">
+                    × {t('assistant.drawing.height', { height: drawingFacts(drawing.drawing, drawing.width).height })}
+                  </span>
+                  <IconButton
+                    label={t('assistant.drawing.remove')}
+                    onPress={() => {
+                      setDrawing(null);
+                    }}
+                    data-testid="composer-drawing-remove"
+                  >
+                    <IconX className="size-icon-sm" aria-hidden />
+                  </IconButton>
+                </span>
+              ) : null}
             </div>
           ) : null}
           {/* Typing goes on while the assistant works; only sending waits (chat polish). */}
@@ -691,11 +766,21 @@ export function AssistantPanel() {
               placeholder={t('assistant.placeholder')}
               className="max-h-[40vh] w-full resize-none bg-transparent px-1 py-1 text-md text-text outline-none [field-sizing:content] placeholder:text-text-subtle disabled:cursor-not-allowed disabled:opacity-disabled"
               onPaste={(event) => {
-                // A picture from the clipboard (a screenshot, a copied photo) goes along; text pastes as usual.
+                // A picture from the clipboard (a screenshot, a copied photo, an SVG file) goes along; text pastes as usual.
                 const file = pictureIn(event.clipboardData);
-                if (!file) return;
+                if (file) {
+                  event.preventDefault();
+                  attachPhoto(file);
+                  return;
+                }
+                // SVG markup copied from a drawing program is a drawing, not words for the message.
+                const text = event.clipboardData.getData('text/plain');
+                if (!isSvgText(text)) return;
                 event.preventDefault();
-                attachPhoto(file);
+                setDrawingProblem(null);
+                drawingFrom(t('assistant.drawing.pasted'), text).then(takeDrawing, () => {
+                  setDrawingProblem('unreadable');
+                });
               }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
@@ -714,10 +799,15 @@ export function AssistantPanel() {
               {t('assistant.photo.failed')}
             </p>
           ) : null}
+          {drawingProblem ? (
+            <p role="alert" className="px-1 text-xs text-danger" data-testid="composer-drawing-problem">
+              {t(`blocks.logoProblems.${drawingProblem}`)}
+            </p>
+          ) : null}
           <input
             ref={photoInput}
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg"
             className="hidden"
             tabIndex={-1}
             aria-hidden
@@ -775,7 +865,7 @@ export function AssistantPanel() {
               ) : (
                 <AriaButton
                   type="submit"
-                  isDisabled={!ready || (draft.trim() === '' && !sketch && !photo)}
+                  isDisabled={!ready || (draft.trim() === '' && !sketch && !photo && !drawing)}
                   aria-label={t('assistant.send')}
                   className={`${round} bg-accent text-on-accent hover:bg-accent-hover pressed:bg-accent-pressed`}
                   data-testid="composer-send"
@@ -800,6 +890,7 @@ export function AssistantPanel() {
         onAttach={(state, picture) => {
           setSketch({ state, picture });
           setPhoto(null);
+          setDrawing(null);
           setSketching(false);
           setPadStart(null);
           composer.current?.focus();

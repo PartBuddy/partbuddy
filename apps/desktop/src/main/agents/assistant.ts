@@ -1,8 +1,8 @@
 import type { AgentKind, AgentStatus, AssistantState, ModelChoice, Selection } from '../../shared/contract';
 import type { SelectionSummary } from './viewContext';
 
-/** What a picture that goes along with a message is: a rough sketch (F4) or a photo (F6). */
-export type PictureKind = 'sketch' | 'photo';
+/** What a picture that goes along with a message is: a rough sketch (F4), a photo (F6) or an SVG drawing. */
+export type PictureKind = 'sketch' | 'photo' | 'drawing';
 
 /** The user event of a message, with the selection and the kind of picture that went along. */
 export function userEvent(text: string, label: string | undefined, summary?: SelectionSummary, picture?: PictureKind) {
@@ -13,6 +13,7 @@ export function userEvent(text: string, label: string | undefined, summary?: Sel
     ...(summary ? { selected: summary } : {}),
     ...(picture === 'sketch' ? { sketch: true as const } : {}),
     ...(picture === 'photo' ? { photo: true as const } : {}),
+    ...(picture === 'drawing' ? { drawing: true as const } : {}),
   };
 }
 

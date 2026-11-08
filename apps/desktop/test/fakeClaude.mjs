@@ -166,7 +166,9 @@ if (args[0] === '--version') {
     }
     // A rough sketch (F4): tells what came along, so a test sees the picture and the note arrive.
     const picture = typeof raw === 'string' ? undefined : raw.find((block) => block.type === 'image');
-    if (picture) {
+    // An SVG drawing is built further down, through the tools.
+    const drawn = content.includes('SVG drawing the user added');
+    if (picture && !drawn) {
       const bytes = Buffer.from(picture.source.data, 'base64');
       const png = bytes.subarray(1, 4).toString() === 'PNG';
       // A photo (F6) has its own note, and the path of the kept file when a project is open.
@@ -217,6 +219,28 @@ if (args[0] === '--version') {
     // tells whether PartBuddy's note came with the message.
     // "wall holder" (UI upgrade step 10): the part of the UI inventory, boxes on formula corners
     // and countersunk holes, built step by step.
+    // An SVG drawing: built as PartBuddy's note says, by its reference, 2 mm high; the answer
+    // gives the note's facts and SolidCraft's measure of the body.
+    if (drawn) {
+      const reference = /\{text: "(drawing:svg-\d+)", width: ([\d.]+)/.exec(content);
+      const facts = /exactly: ([^;]+);/.exec(content)?.[1] ?? 'no facts';
+      const built = await client.callTool({
+        name: 'batch',
+        arguments: {
+          commands: [
+            { command: 'sketch.create', params: { plane: 'XY' } },
+            { command: 'sketch.insert_svg', params: { text: reference?.[1] ?? 'none', align: 'center', at: [0, 0] } },
+            { command: 'solid.extrude', params: { distance: '2 mm' } },
+          ],
+        },
+      });
+      const measured = built.isError ? null : await client.callTool({ name: 'measure', arguments: {} });
+      await client.close();
+      const text = (result) => (result?.content ?? []).map((block) => block.text ?? '').join(' ').replace(/\s+/g, ' ').slice(0, 1500);
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: `Drawing: ${facts}. Built: ${built.isError ? `failed ${text(built)}` : 'yes'}. Measure: ${text(measured)}` }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "parts that clash" (F2): a case, a lid that sinks 1 mm into it and a clip 0.1 mm beside it.
     if (content.includes('parts that clash')) {
       for (const step of CLASHING_PARTS) await client.callTool({ name: 'execute', arguments: step });

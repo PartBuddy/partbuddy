@@ -58,6 +58,8 @@ import { templateSteps } from '../shared/templates';
 import { testPieceSteps } from '../shared/testPieces';
 import { sketchNote } from './agents/sketchNote';
 import { photoFile, photoNote } from './agents/photoNote';
+import { drawingNote, Drawings, withDrawings } from './agents/drawingTool';
+import { parseDrawing } from '../shared/svgDrawing';
 import { shareDescription } from './share/description';
 import { freeFolder } from './share/freeFolder';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
@@ -551,13 +553,15 @@ if (!app.requestSingleInstanceLock()) {
       log(`kept the assembly order: ${String(plan.steps.length)} steps`);
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.assemblyChanged, plan);
     };
+    // SVG drawings sent along; the model names them and PartBuddy puts the exact contours in (drawingTool.ts).
+    const drawings = new Drawings();
     // The model reads notes only through PartBuddy; results lose the note data, undo may not take a note (ADR 0020).
     const track = (upstream: UpstreamTools) =>
       questions.tools(
         steps.tools(
           withDesignTool(
             withAssemblyTool(
-              withViewTool(guardNotes(upstream, (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
+              withViewTool(guardNotes(withDrawings(upstream, drawings), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
               () => viewState?.bodies.map((body) => body.name) ?? [],
               saveAssembly,
             ),
@@ -673,7 +677,20 @@ if (!app.requestSingleInstanceLock()) {
       const folder = projectFolder();
       return folder ? loadSketch(folder, id, log) : null;
     });
-    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, sketch, sketchElements, sketchState, photo }) => {
+    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, sketch, sketchElements, sketchState, photo, drawing }) => {
+      // The drawing's text is untrusted: read here again, and only its clean form is kept.
+      const read = drawing ? parseDrawing(drawing.svg) : null;
+      if (read && !read.ok) {
+        log(`drawing refused: ${read.detail}`);
+        throw new Error(`the drawing cannot be used: ${read.detail}`);
+      }
+      let drawingLine: string | null = null;
+      if (drawing && read?.ok) {
+        const kept = { name: drawing.name, drawing: read.drawing, width: drawing.width };
+        const id = drawings.keep(kept);
+        log(`drawing ${id} kept: ${String(read.drawing.shapes.length)} shapes, ${String(drawing.width)} mm wide`);
+        drawingLine = drawingNote(id, kept, read.drawing.skipped);
+      }
       const folder = projectFolder();
       if (sketch && sketchState && folder) {
         try {
@@ -698,9 +715,10 @@ if (!app.requestSingleInstanceLock()) {
         notesService.selectionNote(selections ?? []),
         sketch ? sketchNote(sketchElements) : null,
         photo ? photoNote(keepPhoto(photo)) : null,
+        drawingLine,
       ].filter((line): line is string => line !== null);
       try {
-        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, photo ?? sketch ?? null, photo ? 'photo' : 'sketch');
+        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, photo ?? drawing?.png ?? sketch ?? null, photo ? 'photo' : drawing ? 'drawing' : 'sketch');
       } catch (error) {
         profileNote.forget();
         checkNote.forget();

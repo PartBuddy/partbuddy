@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { eventChannels, invokeChannels, type EventChannel, type InvokeChannel } from './channels';
 import { keptSketchSchema, sketchStateSchema } from './sketch';
+import { drawingSvg, naturalWidth, parseDrawing } from './svgDrawing';
 import { assemblyPlanSchema } from './assembly';
 import { MAX_PHRASES_PER_STEP, STEP_PHRASE_KEYS } from './stepPhrases';
 import { TEMPLATE_IDS } from './templates';
@@ -577,6 +578,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
       sketch: z.literal(true).optional(),
       /** A photo went along (F6). */
       photo: z.literal(true).optional(),
+      /** An SVG drawing went along. */
+      drawing: z.literal(true).optional(),
     })
     .strict(),
   z.object({ type: z.literal('textDelta'), text: z.string() }).strict(),
@@ -786,8 +789,17 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       normal: point3,
       size: blockSize,
       name: z.string().max(200),
-      // 512 KiB of UTF-8 at most (LOGO_MAX_BYTES); characters are counted here, bytes in the form.
-      svg: z.string().min(1).max(512 * 1024),
+      // Read again here: only a drawing PartBuddy can read safely goes to SolidCraft (svgDrawing.ts).
+      svg: z
+        .string()
+        .min(1)
+        .max(512 * 1024)
+        .transform((svg, context) => {
+          const result = parseDrawing(svg);
+          if (result.ok) return drawingSvg(result.drawing, naturalWidth(result.drawing) ?? 100);
+          context.addIssue({ code: 'custom', message: `not a usable SVG drawing: ${result.detail}` });
+          return z.NEVER;
+        }),
       width: blockLength,
       depth: blockLength,
       mode: z.enum(['emboss', 'deboss']),
@@ -855,9 +867,14 @@ export const agentMessageSchema = z
     sketchState: sketchStateSchema.optional(),
     /** A photo of a real object (F6), scaled down and turned into a PNG by the renderer. */
     photo: sketchPngSchema.optional(),
+    /** An SVG drawing: the file's text, read again in the main process, the width in mm and its picture. */
+    drawing: z
+      .object({ svg: z.string().min(1).max(512 * 1024), width: z.number().positive().max(1000), name: z.string().min(1).max(200), png: sketchPngSchema })
+      .strict()
+      .optional(),
   })
   .strict()
-  .refine((message) => !(message.sketch && message.photo), 'a sketch or a photo, not both');
+  .refine((message) => [message.sketch, message.photo, message.drawing].filter(Boolean).length <= 1, 'one picture: a sketch, a photo or a drawing');
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
 export const assistantStateSchema = z.object({ selected: agentKindSchema, agents: z.array(agentStatusSchema) }).strict();
@@ -908,7 +925,7 @@ const none = z.undefined();
  * untrusted input.
  */
 export const storedChatItemSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('user'), text: z.string().max(20_000), selection: z.string().max(400).optional(), selected: selectionSummarySchema.optional(), sketch: z.literal(true).optional(), photo: z.literal(true).optional() }).strict(),
+  z.object({ kind: z.literal('user'), text: z.string().max(20_000), selection: z.string().max(400).optional(), selected: selectionSummarySchema.optional(), sketch: z.literal(true).optional(), photo: z.literal(true).optional(), drawing: z.literal(true).optional() }).strict(),
   z.object({ kind: z.literal('assistant'), text: z.string().max(50_000) }).strict(),
   z.object({ kind: z.literal('step'), step: workStepSchema, state: workStepStateSchema }).strict(),
   z.object({ kind: z.literal('question'), question: z.preprocess(roundOfOne, agentQuestionSchema), choice: z.string().max(40).nullable() }).strict(),

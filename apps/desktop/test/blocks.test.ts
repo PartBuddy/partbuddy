@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_KINDS, defaultBlock, hasSize, hookVector, LOGO_MAX_BYTES, logoProblem, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, type FeatureBlock } from '../src/shared/blocks';
+import { BLOCK_KINDS, defaultBlock, hasSize, hookVector, logoFrom, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, type FeatureBlock } from '../src/shared/blocks';
 import { featureBlockSchema } from '../src/shared/contract';
 import { blockPhrase, describeCommands } from '../src/shared/stepPhrases';
 
@@ -116,18 +116,26 @@ describe('function blocks (F1)', () => {
     expect(featureBlockSchema.safeParse(defaultBlock('logo', 'Body1', at, 'M3', [0, 0, 1])).success).toBe(false);
   });
 
-  it('turns away files that are no SVG drawing or too big for a logo', () => {
-    expect(logoProblem('<svg viewBox="0 0 1 1"/>')).toBeNull();
-    expect(logoProblem('<?xml version="1.0"?>\n<svg\n xmlns="http://www.w3.org/2000/svg"></svg>')).toBeNull();
-    expect(logoProblem('<html><body>no</body></html>')).toBe('notSvg');
-    expect(logoProblem(`<svg>${'x'.repeat(LOGO_MAX_BYTES)}</svg>`)).toBe('tooBig');
+  it('takes the clean drawing of an SVG file as a logo and turns away files that are none', () => {
+    expect(logoFrom('<svg width="30mm" height="15mm" viewBox="0 0 2 1"><script>x</script><rect width="2" height="1"/></svg>')).toEqual({ problem: 'unsafe' });
+    expect(logoFrom('<svg width="30mm" height="15mm" viewBox="0 0 2 1"><rect width="2" height="1"/></svg>')).toEqual({
+      // eslint-disable-next-line no-restricted-syntax -- the drawing's own fill
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="30mm" height="15mm" viewBox="0 0 30 15"><path fill="#000000" fill-rule="evenodd" d="M0 0L30 0L30 15L0 15Z"/></svg>',
+      width: 30,
+    });
+    expect(logoFrom('<html><body>no</body></html>')).toEqual({ problem: 'notSvg' });
+    expect(logoFrom(`<svg>${'x'.repeat(512 * 1024)}</svg>`)).toEqual({ problem: 'tooBig' });
+    // Only a drawing PartBuddy reads itself passes the bridge, and SolidCraft gets its clean form.
+    const block = { ...defaultBlock('logo', 'Body1', at, 'M3', [0, 0, 1]), name: 'x' };
+    expect(featureBlockSchema.safeParse({ ...block, svg: '<svg><rect width="1" height="1"/><foreignObject/></svg>' }).success).toBe(false);
+    expect(featureBlockSchema.parse({ ...block, svg: '<svg><rect width="1" height="1"/><text>hi</text></svg>' })).toMatchObject({ svg: expect.not.stringContaining('text') as string });
   });
 
   it('keeps every default block valid for the contract and named in the work log', () => {
     for (const kind of BLOCK_KINDS) {
       const plain = defaultBlock(kind, 'Body1', at, 'M3', [0, 0, 1]);
       // A logo needs its file before it counts as a block.
-      const block = plain.block === 'logo' ? { ...plain, svg: '<svg/>', name: 'logo' } : plain;
+      const block = plain.block === 'logo' ? { ...plain, svg: '<svg><rect width="1" height="1"/></svg>', name: 'logo' } : plain;
       expect(featureBlockSchema.safeParse(block).success).toBe(true);
       expect('normal' in block).toBe(needsNormal(kind));
       expect(blockPhrase(block).key).not.toBe('command');
