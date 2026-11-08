@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { componentsWithBodies, libraryBodies, structureOf } from '../src/main/solidcraft/mirror';
+import { componentsWithBodies, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
 import { structureSchema } from '../src/shared/contract';
 
 describe('structure tree and timeline from document.inspect (M1c)', () => {
@@ -52,5 +52,15 @@ describe('standard parts the assistant inserted itself', () => {
     const metadata = [{ description: 'Button head cap screw M3x8' }, { description: 'Deep groove ball bearing (envelope) 608' }, { description: 'Bracket for the shelf' }];
     expect(libraryBodies(parts, metadata)).toEqual(['Screw FR', 'Bearing']);
     expect(componentsWithBodies(undefined)).toEqual([]);
+  });
+
+  it('gives bodies the colour SolidCraft lists for them, as 0.40 answers appearance.list', () => {
+    const structure = structureOf({ bodies: [{ name: 'Body1', visible: true }, { name: 'Badge ffd500', visible: true }] });
+    // eslint-disable-next-line no-restricted-syntax -- SolidCraft's answer holds the body's colour
+    const coloured = withColours(structure, { bodies: { 'Badge ffd500': { color: '#FFD500', name: 'Custom', opacity: 1 } } });
+    // eslint-disable-next-line no-restricted-syntax -- the colour SolidCraft lists
+    expect(coloured.bodies.map((body) => body.colour)).toEqual([undefined, '#ffd500']);
+    expect(structureSchema.safeParse(coloured).success).toBe(true);
+    expect(withColours(structure, undefined)).toEqual(structure);
   });
 });

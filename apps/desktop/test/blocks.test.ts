@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_KINDS, defaultBlock, hasSize, hookVector, logoFrom, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, type FeatureBlock } from '../src/shared/blocks';
+import { BLOCK_KINDS, blockBodies, defaultBlock, hasSize, hookVector, logoFrom, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, type FeatureBlock } from '../src/shared/blocks';
 import { featureBlockSchema } from '../src/shared/contract';
 import { blockPhrase, describeCommands } from '../src/shared/stepPhrases';
 
@@ -129,6 +129,32 @@ describe('function blocks (F1)', () => {
     const block = { ...defaultBlock('logo', 'Body1', at, 'M3', [0, 0, 1]), name: 'x' };
     expect(featureBlockSchema.safeParse({ ...block, svg: '<svg><rect width="1" height="1"/><foreignObject/></svg>' }).success).toBe(false);
     expect(featureBlockSchema.parse({ ...block, svg: '<svg><rect width="1" height="1"/><text>hi</text></svg>' })).toMatchObject({ svg: expect.not.stringContaining('text') as string });
+  });
+
+  it('builds a logo in colours: a coloured body per piece, later pieces cut from earlier ones, inlaid in a pocket', () => {
+    // eslint-disable-next-line no-restricted-syntax -- the drawing's own fills
+    const svg = '<svg viewBox="0 0 40 20"><rect width="40" height="20" fill="#1d71b8"/><path fill="#ffd500" d="M5 5h4v4h-4zM31 5h4v4h-4z"/><circle cx="20" cy="10" r="5" fill="#ffd500"/></svg>';
+    const block = { ...defaultBlock('logo', 'Body1', at, 'M3', [0, 0, 1]), svg, name: 'Badge!', width: 40, colours: true } as FeatureBlock;
+    const steps = stepsOf(block);
+    const piece = ['sketch.create', 'sketch.insert_svg', 'solid.extrude', 'appearance.assign'];
+    // The plate, the two squares of one path and the dot: four pieces, each its own body.
+    expect(steps.map((step) => step.command)).toEqual([...piece, ...piece, ...piece, ...piece, 'solid.combine', 'solid.combine']);
+    expect(blockBodies(block)).toEqual(['Body1', 'Badge 1d71b8 1', 'Badge ffd500 1', 'Badge ffd500 2', 'Badge ffd500 3']);
+    // Every piece keeps the drawing's frame: its top left corner at (−w/2, h/2).
+    expect(steps[1]?.params).toMatchObject({ at: [-20, 10], align: 'origin', text: expect.stringContaining('viewBox="0 0 40 20"') as string });
+    expect(steps[5]?.params).toMatchObject({ at: [-20, 10], text: expect.stringContaining('d="M5 5L9 5L9 9L5 9Z"') as string });
+    expect(steps[2]?.params).toEqual({ distance: '-0.6 mm', operation: 'new', body_name: 'Badge 1d71b8 1' });
+    // eslint-disable-next-line no-restricted-syntax -- the drawing's own fill
+    expect(steps[7]?.params).toEqual({ bodies: ['Badge ffd500 1'], color: '#ffd500' });
+    // The pocket first, then the yellow pieces out of the plate.
+    expect(steps[16]?.params).toEqual({ target: 'Body1', tools: ['Badge 1d71b8 1', 'Badge ffd500 1', 'Badge ffd500 2', 'Badge ffd500 3'], operation: 'cut', keep_tools: true });
+    expect(steps[17]?.params).toEqual({ target: 'Badge 1d71b8 1', tools: ['Badge ffd500 1', 'Badge ffd500 2', 'Badge ffd500 3'], operation: 'cut', keep_tools: true });
+    // Built up, the bodies stand on the face and the part keeps its face.
+    const raised = stepsOf({ ...block, mode: 'emboss', depth: 0.4 } as FeatureBlock);
+    expect(raised[2]?.params).toMatchObject({ distance: '0.4 mm', operation: 'new' });
+    expect(raised.filter((step) => step.command === 'solid.combine')).toHaveLength(1);
+    // No colours: the plain logo.
+    expect(stepsOf({ ...block, colours: false } as FeatureBlock).map((step) => step.command)).toEqual(['sketch.create', 'sketch.insert_svg', 'solid.extrude']);
   });
 
   it('keeps every default block valid for the contract and named in the work log', () => {

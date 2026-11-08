@@ -759,13 +759,74 @@ export function loopsPathData(drawing: Drawing, loops: readonly Loop[], scale: n
  * `<path>` per shape, only the shapes of the given fills when `fills` is set.
  */
 export function drawingSvg(drawing: Drawing, width: number, fills?: readonly string[]): string {
+  return shapesSvg(drawing, width, drawing.shapes.filter((shape) => !fills || fills.includes(shape.fill)));
+}
+
+/** Some shapes of the drawing as a clean SVG in the drawing's frame, `width` mm wide. */
+export function shapesSvg(drawing: Drawing, width: number, shapes: readonly Shape[]): string {
   const size = drawingSize(drawing);
   const scale = width / (size.width || 1);
   const height = size.height * scale;
-  const paths = drawing.shapes
-    .filter((shape) => !fills || fills.includes(shape.fill))
-    .map((shape) => `<path fill="${shape.fill}" fill-rule="evenodd" d="${loopsPathData(drawing, shape.loops, scale)}"/>`);
+  const paths = shapes.map((shape) => `<path fill="${shape.fill}" fill-rule="evenodd" d="${loopsPathData(drawing, shape.loops, scale)}"/>`);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${fmt(width)}mm" height="${fmt(height)}mm" viewBox="0 0 ${fmt(width)} ${fmt(height)}">${paths.join('')}</svg>`;
+}
+
+/**
+ * The drawing in pieces that hang together: each outer loop of a shape with the holes right
+ * inside it (an island in a hole is a piece of its own). SolidCraft makes one body per piece, so
+ * PartBuddy names and colours each piece itself.
+ */
+export function drawingPieces(drawing: Drawing): Shape[] {
+  const size = drawingSize(drawing);
+  const tolerance = Math.max(size.width, size.height) * 1e-4;
+  return drawing.shapes.flatMap((shape) => {
+    const polygons = shape.loops.map((loop) => flatten(loop, tolerance));
+    // Which loops each loop lies inside: tested with a point beside its longest edge.
+    const parents = polygons.map((polygon, k) => {
+      const beside = sides(polygon, size.width * 1e-6);
+      return beside ? polygons.map((other, j) => j !== k && winding(other, beside[0]) !== 0 && winding(other, beside[1]) !== 0).flatMap((inside, j) => (inside ? [j] : [])) : [];
+    });
+    return shape.loops.flatMap((loop, k) => {
+      if ((parents[k] ?? []).length % 2 === 1) return [];
+      const depth = (parents[k] ?? []).length;
+      const holes = shape.loops.filter((_, j) => (parents[j] ?? []).length === depth + 1 && (parents[j] ?? []).includes(k));
+      return [{ fill: shape.fill, loops: [loop, ...holes] }];
+    });
+  });
+}
+
+/**
+ * Whether two sets of shapes overlap (a later piece painted over an earlier one). SolidCraft's
+ * cut fails with "no result" for bodies that do not meet, so only overlapping pieces are cut.
+ */
+export function shapesOverlap(drawing: Drawing, a: readonly Shape[], b: readonly Shape[]): boolean {
+  const size = drawingSize(drawing);
+  const tolerance = Math.max(size.width, size.height) * 1e-4;
+  const polygons = (shapes: readonly Shape[]) => shapes.map((shape) => shape.loops.map((loop) => flatten(loop, tolerance)));
+  const [first, second] = [polygons(a), polygons(b)];
+  // Inside a shape: inside an odd number of its loops (its loops are the edges of its fill).
+  const inside = (shapes: Pt[][][], p: Pt) => shapes.some((loops) => loops.filter((polygon) => winding(polygon, p) !== 0).length % 2 === 1);
+  const crosses = (p: Pt, q: Pt, r: Pt, s: Pt) => {
+    const d = (q[0] - p[0]) * (s[1] - r[1]) - (q[1] - p[1]) * (s[0] - r[0]);
+    if (d === 0) return false;
+    const t = ((r[0] - p[0]) * (s[1] - r[1]) - (r[1] - p[1]) * (s[0] - r[0])) / d;
+    const u = ((r[0] - p[0]) * (q[1] - p[1]) - (r[1] - p[1]) * (q[0] - p[0])) / d;
+    return t > 0 && t < 1 && u > 0 && u < 1;
+  };
+  const edges = (shapes: Pt[][][]) => shapes.flat().flatMap((polygon) => polygon.map((p, k): [Pt, Pt] => [p, polygon[(k + 1) % polygon.length] as Pt]));
+  const box = (list: [Pt, Pt][]) => list.reduce<[number, number, number, number]>((acc, [p, q]) => [Math.min(acc[0], p[0], q[0]), Math.min(acc[1], p[1], q[1]), Math.max(acc[2], p[0], q[0]), Math.max(acc[3], p[1], q[1])], [Infinity, Infinity, -Infinity, -Infinity]);
+  const [ea, eb] = [edges(first), edges(second)];
+  const [ba, bb] = [box(ea), box(eb)];
+  if (ba[0] >= bb[2] || bb[0] >= ba[2] || ba[1] >= bb[3] || bb[1] >= ba[3]) return false;
+  for (const [p, q] of ea) {
+    if (Math.max(p[0], q[0]) < bb[0] || Math.min(p[0], q[0]) > bb[2] || Math.max(p[1], q[1]) < bb[1] || Math.min(p[1], q[1]) > bb[3]) continue;
+    for (const [r, s] of eb) if (crosses(p, q, r, s)) return true;
+  }
+  // No edges cross: one lies wholly inside the other, or they are apart.
+  const some = (shapes: Pt[][][]) => shapes.flat()[0]?.[0];
+  const pa = some(first);
+  const pb = some(second);
+  return (pa !== undefined && inside(second, pa)) || (pb !== undefined && inside(first, pb));
 }
 
 /** What the drawing holds at `width` mm: size, loops, holes and the area of each fill in mm². */

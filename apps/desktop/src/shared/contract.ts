@@ -121,7 +121,19 @@ export const structureSchema = z
     features: z.array(timelineFeatureSchema).max(5000),
     /** Features before the rollback marker stay active; null when the marker is at the end. */
     marker: z.number().int().nonnegative().nullable(),
-    bodies: z.array(z.object({ name: z.string().max(200), visible: z.boolean(), feature: z.number().int().nullable() }).strict()).max(500),
+    bodies: z
+      .array(
+        z
+          .object({
+            name: z.string().max(200),
+            visible: z.boolean(),
+            feature: z.number().int().nullable(),
+            /** The colour given to the body in SolidCraft (appearance.assign), shown in the view. */
+            colour: z.string().regex(/^#[0-9a-f]{6}$/).optional(),
+          })
+          .strict(),
+      )
+      .max(500),
     sketches: z.array(z.object({ id: z.number().int().nonnegative(), name: z.string().max(200), visible: z.boolean() }).strict()).max(2000),
     /** Bodies that are standard parts (B7): counterparts, neither exported nor checked for printing. */
     standardParts: z.array(z.string().max(200)).max(500).optional(),
@@ -803,6 +815,8 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       width: blockLength,
       depth: blockLength,
       mode: z.enum(['emboss', 'deboss']),
+      // Each fill its own coloured body, for multi-colour printing.
+      colours: z.boolean().optional(),
     })
     .strict(),
   z

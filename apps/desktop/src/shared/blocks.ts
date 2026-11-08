@@ -6,7 +6,7 @@
  * everything stays editable because printers, nuts and inserts differ.
  */
 
-import { drawingSvg, naturalWidth, parseDrawing, type DrawingProblem } from './svgDrawing';
+import { drawingColours, drawingPieces, drawingSize, drawingSvg, naturalWidth, parseDrawing, shapesOverlap, shapesSvg, type DrawingProblem, type Shape } from './svgDrawing';
 
 export const BLOCK_SIZES = ['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10'] as const;
 export type BlockSize = (typeof BLOCK_SIZES)[number];
@@ -78,7 +78,7 @@ export type FeatureBlock =
    */
   | { block: 'snapFit'; body: string; point: Point; normal: Point; size: BlockSize; length: number; thickness: number; width: number; catchDepth: number; catchLength: number; hook: HookDirection }
   /** A logo from an SVG file, engraved or built up, centred on the point; `name` is the file's name. */
-  | { block: 'logo'; body: string; point: Point; normal: Point; size: BlockSize; name: string; svg: string; width: number; depth: number; mode: 'emboss' | 'deboss' };
+  | { block: 'logo'; body: string; point: Point; normal: Point; size: BlockSize; name: string; svg: string; width: number; depth: number; mode: 'emboss' | 'deboss'; colours?: boolean | undefined };
 
 
 /** The catch's direction in the face: along the sketch plane's x or y, either way. */
@@ -215,6 +215,7 @@ export function stepsOf(block: FeatureBlock): Step[] {
       ];
     }
     case 'logo':
+      if (colourLayers(block).length > 1) return colourSteps(block);
       return [
         { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
         { command: 'sketch.insert_svg', params: { text: block.svg, at: [0, 0], width: block.width, align: 'center' } },
@@ -272,6 +273,63 @@ export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | '
       };
     }
   }
+}
+
+type LogoBlock = Extract<FeatureBlock, { block: 'logo' }>;
+
+/** The pieces of a logo built in colours, each its own body named after the logo, its fill and its number. */
+export function colourLayers(block: LogoBlock): { fill: string; body: string; piece: Shape }[] {
+  if (!block.colours) return [];
+  const read = parseDrawing(block.svg);
+  if (!read.ok || drawingColours(read.drawing).length < 2) return [];
+  const base = (block.name.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'Logo').slice(0, 60);
+  const counts = new Map<string, number>();
+  return drawingPieces(read.drawing).map((piece) => {
+    const n = (counts.get(piece.fill) ?? 0) + 1;
+    counts.set(piece.fill, n);
+    return { fill: piece.fill, body: `${base} ${piece.fill.slice(1)} ${String(n)}`, piece };
+  });
+}
+
+/** The bodies a block changes or makes, for the ghost: the part, and a logo's colour bodies. */
+export function blockBodies(block: FeatureBlock): string[] {
+  return [block.body, ...(block.block === 'logo' ? colourLayers(block).map((layer) => layer.body) : [])];
+}
+
+/**
+ * A logo in colours for a multi-colour printer: each piece of each fill becomes its own body,
+ * coloured like the fill, so the slicer gives each its filament. SolidCraft would split a fill of
+ * several pieces into bodies named "(2)" without its colour, so every piece goes in on its own.
+ * Built up, the bodies stand on the face; inlaid, they fill a pocket of their shape flush with the
+ * face. Where a later piece of another fill covers an earlier one (painting order), it is cut out
+ * of the earlier body. Every piece goes in by the drawing's top left corner, so all keep its frame.
+ */
+function colourSteps(block: LogoBlock): Step[] {
+  const layers = colourLayers(block);
+  const read = parseDrawing(block.svg);
+  if (!read.ok) return [];
+  const size = drawingSize(read.drawing);
+  const height = (size.height / (size.width || 1)) * block.width;
+  const plane = planeAt(block.point, block.normal);
+  const inlay = block.mode === 'deboss';
+  const steps: Step[] = layers.flatMap((layer) => [
+    { command: 'sketch.create', params: { plane, project_edges: false } },
+    { command: 'sketch.insert_svg', params: { text: shapesSvg(read.drawing, block.width, [layer.piece]), at: [round(-block.width / 2), round(height / 2)], align: 'origin' } },
+    { command: 'solid.extrude', params: { distance: `${String(round(inlay ? -block.depth : block.depth))} mm`, operation: 'new', body_name: layer.body } },
+    // Coloured at once, so a piece a later cut splits keeps its colour in both parts.
+    { command: 'appearance.assign', params: { bodies: [layer.body], color: layer.fill } },
+  ]);
+  // The pocket first, while the pieces still overlap: a cut by pieces already cut against each other fails.
+  if (inlay) steps.push({ command: 'solid.combine', params: { target: block.body, tools: layers.map((layer) => layer.body), operation: 'cut', keep_tools: true } });
+  layers.forEach((layer, i) => {
+    // Only later pieces of another fill that cover part of this one: a cut by a body that does not meet it fails.
+    const above = layers
+      .slice(i + 1)
+      .filter((later) => later.fill !== layer.fill && shapesOverlap(read.drawing, [layer.piece], [later.piece]))
+      .map((later) => later.body);
+    if (above.length > 0) steps.push({ command: 'solid.combine', params: { target: layer.body, tools: above, operation: 'cut', keep_tools: true } });
+  });
+  return steps;
 }
 
 /**

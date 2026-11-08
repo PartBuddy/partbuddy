@@ -13,7 +13,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { SKETCH_STYLE } from '@partbuddy/geometry';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BackSide, Box3, BufferAttribute, DoubleSide, GreaterDepth, Group, Quaternion, LineSegments, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, ShaderMaterial, Sphere, Vector2, Vector3 } from 'three';
+import { BackSide, Box3, BufferAttribute, Color, DoubleSide, GreaterDepth, Group, Quaternion, LineSegments, Mesh, Object3D, OrthographicCamera as ThreeOrthographicCamera, Plane, PMREMGenerator, Raycaster, ShaderMaterial, Sphere, Vector2, Vector3 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { acceleratedRaycast } from 'three-mesh-bvh';
 
@@ -141,18 +141,21 @@ function Body({
   // With a ghost on screen, how much of the part as it is now shows.
   const fade = useStudio((s) => (s.selectionGhost || s.parameterGhost || s.markGhost ? blendWeights(PREVIEW_BLEND).before : 1));
   const { model } = body;
+  // A body with its own colour in SolidCraft (a colour of a logo) shows in it; the others in the theme's.
+  const own = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.bodies.find((entry) => entry.name === body.name)?.colour : undefined));
 
   useEffect(() => {
     const attribute = model.geometry.getAttribute('color') as BufferAttribute;
+    const base = own ? new Color(own) : colors.body;
     const changed = new Set(changes?.bodies.find((entry) => entry.body === index)?.faces ?? []);
     // A body that is new as a whole is not tinted: the whole part in the change colour reads as a
     // toy, not as a change. Changed faces of an existing body get a tint of the body colour.
     if (changed.size >= model.table.faces.length) changed.clear();
-    const tint = colors.body.clone().lerp(colors.changed, scene.changeTint * glow);
+    const tint = base.clone().lerp(colors.changed, scene.changeTint * glow);
     if (glow === 0 && !stepHighlight) changed.clear();
     // Hover and selection tint the face; the outline drawn around it carries the strong colour.
-    const hoverTint = colors.body.clone().lerp(colors.hover, scene.hoverTint);
-    const selectedTint = colors.body.clone().lerp(colors.selection, scene.selectionTint);
+    const hoverTint = base.clone().lerp(colors.hover, scene.hoverTint);
+    const selectedTint = base.clone().lerp(colors.selection, scene.selectionTint);
     // A work-log card under the pointer lights up the faces of its step that still exist.
     const stepFaces = new Set(stepHighlight?.find((entry) => entry.body === body.name)?.faces ?? []);
     if (stepHighlight) {
@@ -162,17 +165,17 @@ function Body({
     const hovered = hover?.kind === 'face' && hover.body === index ? hover.face : -1;
     const selected = new Set(selections.filter((pick) => pick.kind === 'face' && pick.body === index).map((pick) => (pick.kind === 'face' ? pick.face : -1)));
     // A whole part stands out in the playback (the step that plays) and on the plate (does not fit).
-    const whole = emphasis === 'active' || picked ? colors.body.clone().lerp(colors.selection, scene.selectionTint) : emphasis === 'misfit' ? colors.body.clone().lerp(colors.misfit, 0.6) : null;
+    const whole = emphasis === 'active' || picked ? base.clone().lerp(colors.selection, scene.selectionTint) : emphasis === 'misfit' ? base.clone().lerp(colors.misfit, 0.6) : null;
     for (let v = 0; v < model.vertexFaces.length; v += 1) {
       const face = model.vertexFaces[v] ?? -1;
-      let color = whole ?? colors.body;
+      let color = whole ?? base;
       if (changed.has(face)) color = stepHighlight ? colors.changed : tint;
       if (face === hovered) color = hoverTint;
       if (selected.has(face)) color = selectedTint;
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
-  }, [model, index, colors, hover, selections, changes, stepHighlight, body.name, emphasis, glow, picked]);
+  }, [model, index, colors, own, hover, selections, changes, stepHighlight, body.name, emphasis, glow, picked]);
 
   const clipping = useMemo(() => (plane ? [plane] : []), [plane]);
   return (

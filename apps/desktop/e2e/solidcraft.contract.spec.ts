@@ -1794,6 +1794,90 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
   }
 });
 
+test('a logo in colours becomes a coloured body per fill, inlaid flush in the face, for a multi-colour print', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-colours-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7933',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  type Bridge = { partbuddy: { design: { previewBlock(block: unknown): Promise<{ ok: boolean; error?: string }>; applyBlock(block: unknown): Promise<void> } } };
+  const svg = readFileSync(join(__dirname, '..', 'test', 'fixtures', 'svg', 'two-colours.svg'), 'utf8');
+  const say = async (text: string) => {
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill(text);
+    await page.getByRole('button', { name: 'Send' }).click();
+  };
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await say('Build a box');
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    // 16 mm wide on the top face of the 20 mm box, centred at (10, 10): the plate 16 × 8, the dot 4 across.
+    const block = { block: 'logo', body: 'Body1', size: 'M3', name: 'Badge', svg, width: 16, point: [10, 10, 10], normal: [0, 0, 1], depth: 0.6, mode: 'deboss', colours: true };
+    expect(await page.evaluate((b) => (globalThis as unknown as Bridge).partbuddy.design.previewBlock(b).then((r) => ({ ok: r.ok, error: r.error ?? null })), block)).toEqual({ ok: true, error: null });
+    await page.evaluate((b) => (globalThis as unknown as Bridge).partbuddy.design.applyBlock(b), block);
+    await expect(page.getByTestId('mesh-summary')).toContainText('3 bodies', { timeout: 30_000 });
+    await say('Measure the bodies');
+    const answer = page.getByText(/^Measured: /);
+    await expect(answer).toBeVisible({ timeout: 30_000 });
+    type Measured = { bodies: { name: string; volume_mm3: number; bbox: { min: number[]; max: number[] } }[] };
+    const measured = JSON.parse(/\{.*\}/.exec((await answer.textContent()) ?? '')?.[0] ?? '{}') as Measured;
+    const body = (name: string) => measured.bodies.find((entry) => entry.name === name);
+    const blue = body('Badge 1d71b8 1');
+    const yellow = body('Badge ffd500 1');
+    // The plate without the dot, the dot alone, both 0.6 mm deep and flush with the top.
+    expect(blue?.volume_mm3).toBeCloseTo((128 - Math.PI * 4) * 0.6, 1);
+    expect(yellow?.volume_mm3).toBeCloseTo(Math.PI * 4 * 0.6, 1);
+    for (const [entry, min, max] of [[blue, [2, 6, 9.4], [18, 14, 10]], [yellow, [8, 8, 9.4], [12, 12, 10]]] as const) {
+      entry?.bbox.min.forEach((value, i) => expect(value).toBeCloseTo(min[i] ?? 0, 2));
+      entry?.bbox.max.forEach((value, i) => expect(value).toBeCloseTo(max[i] ?? 0, 2));
+    }
+    // The box lost exactly the pocket the colours fill.
+    expect(body('Body1')?.volume_mm3).toBeCloseTo(4000 - 128 * 0.6, 1);
+    await page.screenshot({ path: test.info().outputPath('logo-colours.png') });
+
+    // Through the form: a free multi-colour SVG (Twemoji fox, CC-BY 4.0) on the box's front face.
+    await page.getByTestId('timeline-feature').first().waitFor();
+    const box = await page.getByTestId('viewport').boundingBox();
+    if (!box) throw new Error('viewport not visible');
+    const spots = [[0.4, 0.75], [0.35, 0.7], [0.45, 0.8], [0.3, 0.65]] as const;
+    let spot = 0;
+    await expect(async () => {
+      const [x, y] = spots[spot++ % spots.length] ?? [0.4, 0.75];
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+      await page.getByTestId('action-block').click({ timeout: 1500 });
+      await expect(page.getByTestId('block-form')).toBeVisible({ timeout: 1000 });
+    }, 'a side face of the box and its form').toPass({ timeout: 45_000, intervals: [500] });
+    await page.getByTestId('block-kind').getByRole('button').click();
+    await page.getByRole('option', { name: 'Logo (SVG)' }).click();
+    await page.getByTestId('block-logo').locator('input[type=file]').setInputFiles(join(__dirname, '..', 'test', 'fixtures', 'svg', 'twemoji-fox.svg'));
+    await expect(page.getByTestId('block-logo-name')).toHaveText('twemoji-fox');
+    await page.getByTestId('block-width').getByRole('textbox').fill('9');
+    await expect(page.getByTestId('block-logo-colours')).toContainText('5 colours');
+    await page.getByTestId('block-colours').click();
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    await page.screenshot({ path: test.info().outputPath('logo-colours-form.png') });
+    await page.getByTestId('block-apply').click();
+    await expect(page.getByTestId('mesh-summary')).not.toContainText('3 bodies', { timeout: 30_000 });
+    // Every body but the box has its colour in the tree, also a piece a cut split in two.
+    const count = await page.getByTestId('structure-body').count();
+    await expect(page.getByTestId('structure-body-colour')).toHaveCount(count - 1);
+    await page.mouse.click(box.x + box.width * 0.9, box.y + box.height * 0.1);
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: test.info().outputPath('logo-colours-fox.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('the light measures parts against each other: an overlap and a gap under the push fit (F2)', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');

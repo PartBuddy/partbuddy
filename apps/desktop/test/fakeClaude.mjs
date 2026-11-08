@@ -219,6 +219,14 @@ if (args[0] === '--version') {
     // tells whether PartBuddy's note came with the message.
     // "wall holder" (UI upgrade step 10): the part of the UI inventory, boxes on formula corners
     // and countersunk holes, built step by step.
+    // "Measure the bodies": SolidCraft's measure of every body, as it answers.
+    if (content.includes('Measure the bodies')) {
+      const measured = await client.callTool({ name: 'measure', arguments: {} });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: `Measured: ${(measured.content ?? []).map((block) => block.text ?? '').join(' ').replace(/\s+/g, ' ').slice(0, 4000)}` }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // An SVG drawing: built as PartBuddy's note says, by its reference, 2 mm high; the answer
     // gives the note's facts and SolidCraft's measure of the body.
     if (drawn) {

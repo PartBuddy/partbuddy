@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 20">
+  <!-- A blue plate with a yellow dot painted over it: the dot is cut out of the blue body. -->
+  <rect width="40" height="20" fill="#1d71b8"/>
+  <circle cx="20" cy="10" r="5" fill="#ffd500"/>
+</svg>

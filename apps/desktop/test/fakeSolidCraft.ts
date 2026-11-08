@@ -243,6 +243,9 @@ export class FakeSolidCraft {
       case 'component.list':
         // Every body in the design itself, as a part made in SolidCraft: no inserted standard parts.
         return { active: 0, components: [{ id: 0, name: 'Design', parent: null, bodies: [...this.bodies], children: [] }] };
+      case 'appearance.list':
+        // No body has a colour of its own here.
+        return { bodies: {}, components: [], faces: [], in_design: [] };
       case 'parameters.list':
         return { count: this.parameters.length, cycles: [], parameters: this.parameters };
       case 'parameters.change': {
