@@ -919,18 +919,10 @@ test('the dimensions of the wall holder neither cover each other nor show throug
 
     await page.getByTestId('dimensions').click();
 
-    // The ready-to-print check (M7, plan step R1): the upper halves of the lying countersunk holes
-    // lean past the overhang angle, a yellow hint by angle only; whether they need support is the slicer's.
-    const light = page.getByTestId('print-check');
-    await expect(light).toHaveAttribute('data-status', 'warn');
-    await light.click();
-    const overhangFinding = page.getByTestId('check-finding').and(page.locator('[data-kind="overhang"]'));
-    await expect(overhangFinding).toHaveAttribute('data-severity', 'warn');
-    await expect(overhangFinding).toContainText('the slicer decides');
-    await overhangFinding.getByRole('button', { name: /Show the place/ }).click();
-    await page.waitForTimeout(800);
-    await page.screenshot({ path: test.info().outputPath('check-overhang.png') });
-    await page.keyboard.press('Escape');
+    // The ready-to-print check (M7, R1, ADR 0010 amendment 2026-11-08): the upper halves of the
+    // lying 4.5 mm countersunk holes reach at most 1.6 mm past the bore's sides, a small overhang the
+    // slicers print without support, so the wall holder is ready to print.
+    await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'ready', { timeout: 15_000 });
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('tidy-failed.png') }).catch(() => undefined);
     throw error;
@@ -1383,9 +1375,12 @@ test('the assistant researches on the web with sources as cards, and not when it
     await page.getByTestId('settings').click();
     await page.getByTestId('settings-assistant').click();
     const research = page.getByTestId('research');
-    await expect(research.getByRole('checkbox')).toBeChecked();
-    await research.getByText('Research on the web').click();
-    await expect(research.getByRole('checkbox')).not.toBeChecked();
+    // A switch since the settings round (#178–#181).
+    await expect(research.getByRole('switch')).toBeChecked();
+    // The input itself sits under the drawn switch; the keyboard turns it like a user does.
+    await research.getByRole('switch').focus();
+    await page.keyboard.press('Space');
+    await expect(research.getByRole('switch')).not.toBeChecked();
     await launched.close();
     launched = await launchApp({ isolated: false, work, env });
     ({ page } = launched);
@@ -1428,9 +1423,9 @@ test('a standard screw is seated in a hole as a counterpart that is neither expo
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
     // A 3.4 mm hole through the 20 × 20 × 10 mm box, then an M3 × 12 screw in it.
-    // SolidCraft splits the bore into two half-cylinder faces (F2:bore:side:0 and :1).
+    // SolidCraft 0.40 (rc.2 and rc.3, 2026-11-08) keeps the bore one cylinder face.
     await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.applyAction({ action: 'hole', body: 'Body1', points: [[10, 10, 10]], size: 3.4 }));
-    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 8 faces', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 7 faces', { timeout: 30_000 });
     const families = await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.partsLibrary());
     expect(families.map((family) => family.family)).toContain('bearing');
     const inserted = await page.evaluate(() =>

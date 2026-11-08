@@ -18,7 +18,7 @@ interface Version {
 /** The oldest version PartBuddy's contract tests pass on. */
 export const MINIMUM_VERSION = '0.30.1';
 /** The version PartBuddy is developed against. */
-export const RECOMMENDED_VERSION = '0.40.0-rc.2';
+export const RECOMMENDED_VERSION = '0.40.0-rc.3';
 
 /** `solidcraft-cli 0.40.0-rc.2` or `0.40.0-rc.2` → the version text; null when there is none. */
 export function versionFromOutput(output: string): string | null {
