@@ -87,6 +87,8 @@ export interface DimensionHandle {
   direction: Vec3;
   /** A diameter grows by 2 mm for each mm the side moves out. */
   perMm: number;
+  /** The value may be zero or negative (a logo's distance from its face's middle). */
+  signed?: boolean;
 }
 
 function unit(v: Vec3): Vec3 | null {
@@ -151,5 +153,5 @@ export function draggedValue(base: number, handle: DimensionHandle, step: { x: n
   const mm = (moved.x * step.x + moved.y * step.y) / pixels;
   const grid = fine ? 0.1 : 1;
   const value = Math.round((base + mm * handle.perMm) / grid) * grid;
-  return value > 0 ? Math.round(value * 1000) / 1000 : null;
+  return value > 0 || handle.signed ? Math.round(value * 1000) / 1000 || 0 : null;
 }

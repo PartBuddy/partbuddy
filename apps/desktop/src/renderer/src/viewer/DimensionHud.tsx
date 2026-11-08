@@ -1,6 +1,7 @@
 import { parseTagged3mf } from '@partbuddy/geometry';
 import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
 import { BlockPanel } from './BlockPanel';
+import { LogoPanel } from './LogoPanel';
 import { PartPanel } from './PartPanel';
 import { PrintFaceButton } from './PrintFaceButton';
 import { ActionPanel, MeasureLine } from './SelectionActions';
@@ -111,7 +112,8 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
     [dimension, setNotice, t],
   );
 
-  const changed = dimension !== null && Number.isFinite(value) && value > 0 && Math.abs(value - dimension.value) > 1e-6;
+  // Against the value as the field shows it: an arc of 7.8539… mm reads 7.854 and is unchanged.
+  const changed = dimension !== null && Number.isFinite(value) && value > 0 && Math.abs(value - round(dimension.value)) > 1e-6;
 
   useEffect(() => {
     if (!dimension || !changed || busy) return;
@@ -283,6 +285,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
           {picks.length === 1 ? <NoteComposer selection={current} busy={busy} /> : null}
         </div>
       </div>
+      <LogoPanel picks={picks} busy={busy} onGhost={setActionGhost} />
       {status ? (
         <p className="flex items-center gap-1 text-xs text-text-muted" role="status" data-testid="dimension-status" data-mode={result?.mode ?? 'probing'}>
           {result?.mode === 'direct' ? <IconBolt className="size-icon-sm text-accent" aria-hidden /> : null}

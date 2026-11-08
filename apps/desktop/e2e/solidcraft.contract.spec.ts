@@ -2506,6 +2506,61 @@ test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved
     // The ring π(5² − 3²) = 16π mm², 0.6 mm deep, out of the 4000 mm³ box.
     expect(measured.bodies.find((entry) => entry.name === 'Body1')?.volume_mm3).toBeCloseTo(4000 - 16 * Math.PI * 0.6, 0);
     await page.screenshot({ path: test.info().outputPath('logo-placed.png') });
+
+    // Picked on the part, the dock moves it: the distance from the face's middle, exactly, then centred again.
+    await page.waitForTimeout(800);
+    const view = await page.getByTestId('viewport').boundingBox();
+    if (!view) throw new Error('viewport not visible');
+    const panel = page.getByTestId('logo-move');
+    const pickLogo = async () => {
+      for (let y = 0.3; y <= 0.7; y += 0.04) {
+        for (let x = 0.3; x <= 0.7; x += 0.04) {
+          await page.mouse.click(view.x + view.width * x, view.y + view.height * y);
+          if (await panel.waitFor({ state: 'visible', timeout: 1500 }).then(() => true).catch(() => false)) return true;
+        }
+      }
+      return false;
+    };
+    expect(await pickLogo(), 'a click on the logo').toBe(true);
+    const across = page.getByTestId('logo-x').getByRole('textbox');
+    await expect(across).toHaveValue('0');
+    await expect(page.getByTestId('logo-arrow-x')).toBeVisible();
+    await across.fill('3');
+    await across.press('Tab');
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: test.info().outputPath('logo-move-preview.png') });
+    let revision = await page.getByTestId('viewer').getAttribute('data-revision');
+    await page.getByTestId('logo-move-apply').click();
+    await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 15_000 });
+    type Logos = { partbuddy: { design: { logoAt(point: number[]): Promise<{ logo: string; offset: number[] | null } | null> } } };
+    const at = (point: number[]) => page.evaluate((p) => (globalThis as unknown as Logos).partbuddy.design.logoAt(p), point);
+    expect(await at([13, 10, 9.4])).toMatchObject({ logo: 'Logo logo-o', offset: [3, 0] });
+    await expect(page.getByTestId('step-text').last()).toHaveText('Logo “logo-o” moved');
+
+    expect(await pickLogo(), 'a click on the moved logo').toBe(true);
+    await expect(page.getByTestId('logo-x').getByRole('textbox')).toHaveValue('3');
+    revision = await page.getByTestId('viewer').getAttribute('data-revision');
+    await page.getByTestId('logo-centre').click();
+    await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 15_000 });
+    expect(await at([10, 10, 9.4])).toMatchObject({ offset: [0, 0] });
+
+    // The arrow across: dragged, the field follows, and let go, the logo moves there.
+    expect(await pickLogo(), 'a click on the centred logo').toBe(true);
+    const arrow = page.getByTestId('logo-arrow-x');
+    const grip = await arrow.boundingBox();
+    if (!grip) throw new Error('arrow not visible');
+    const turn = Number(/rotate\((-?[\d.e-]+)rad\)/.exec((await arrow.locator('div').first().getAttribute('style')) ?? '')?.[1] ?? Number.NaN);
+    const [gx, gy] = [grip.x + grip.width / 2, grip.y + grip.height / 2];
+    revision = await page.getByTestId('viewer').getAttribute('data-revision');
+    await page.mouse.move(gx, gy);
+    await page.mouse.down();
+    for (let i = 1; i <= 6; i += 1) await page.mouse.move(gx + Math.cos(turn) * 5 * i, gy + Math.sin(turn) * 5 * i);
+    const dragged = Number(await page.getByTestId('logo-x').getByRole('textbox').inputValue());
+    expect(dragged, 'the field follows the arrow').toBeGreaterThan(0);
+    await page.mouse.up();
+    await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 15_000 });
+    expect(await at([10 + dragged, 10, 9.4])).toMatchObject({ offset: [dragged, 0] });
+    await page.screenshot({ path: test.info().outputPath('logo-moved.png') });
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
