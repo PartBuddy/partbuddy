@@ -888,7 +888,15 @@
     "catalogSearch": "Search brand or model",
     "catalogEmpty": "No printer matches. Copy an existing one and enter the values by hand.",
     "catalogHint": "Values as stated by the maker. It becomes a profile of your own that you can change freely.",
-    "printersFull": "At most {count} printers. Delete one to add another."
+    "printersFull": "At most {count} printers. Delete one to add another.",
+    "materialCatalog": {
+      "add": "Add material",
+      "catalog": "Material catalog",
+      "catalogSearch": "Search material",
+      "catalogEmpty": "No material matches. Copy an existing one and enter the values by hand.",
+      "catalogHint": "Starting values per material type from design guides, not measured on your printer. It becomes a profile of your own; adjust it after a test print."
+    },
+    "materialsFull": "At most {count} materials. Delete one to add another."
   },
   "check": {
     "title": "Ready to print?",

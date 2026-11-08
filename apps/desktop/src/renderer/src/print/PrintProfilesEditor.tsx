@@ -16,15 +16,24 @@ import {
   TextField,
 } from 'react-aria-components';
 
-import { FIT_KINDS, MAX_PRINTERS, type MaterialProfile, type PrinterProfile, type PrintSettings } from '../../../shared/contract';
+import { FIT_KINDS, MAX_MATERIALS, MAX_PRINTERS, type MaterialProfile, type PrinterProfile, type PrintSettings } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio, type ProfilesTab } from '../state/store';
 import { Button } from '../ui/Button';
 import { FieldMessage, fieldLabelClass, inputClass, UnitInput } from '../ui/Field';
 import { CheckMark, choiceInlineClass } from '../ui/Choice';
-import { PrinterCatalogPicker } from './PrinterCatalogPicker';
+import { MATERIAL_CATALOG } from '../../../shared/materialCatalog';
+import { PRINTER_CATALOG } from '../../../shared/printerCatalog';
+import { CatalogPicker, type CatalogSection } from './CatalogPicker';
 import { listRowClass, tabClass, tabListClass } from '../ui/Navigation';
 
+
+const printerSections: CatalogSection[] = [...new Set(PRINTER_CATALOG.map((entry) => entry.brand))].map((brand) => ({
+  id: brand,
+  header: brand,
+  items: PRINTER_CATALOG.filter((entry) => entry.brand === brand).map((entry) => ({ id: `${entry.brand} ${entry.model}`, label: entry.model, detail: `${entry.bed.join(' × ')} mm` })),
+}));
+const materialSections: CatalogSection[] = [{ id: 'materials', items: MATERIAL_CATALOG.map((entry) => ({ id: entry.name, label: entry.name, detail: `${entry.overhang}°` })) }];
 
 let serial = 0;
 /** A new profile id; the contract allows lower-case letters, digits and dashes. */
@@ -341,9 +350,15 @@ export function PrintProfilesEditor({ close }: { close: () => void }) {
             testId="printers"
             full={draft.printers.length >= MAX_PRINTERS ? t('print.printersFull', { count: MAX_PRINTERS }) : null}
             add={
-              <PrinterCatalogPicker
+              <CatalogPicker
+                sections={printerSections}
+                texts="print"
+                addTestId="printers-add"
+                testId="printer-catalog"
                 isDisabled={draft.printers.length >= MAX_PRINTERS}
-                onPick={(entry) => {
+                onPick={(id) => {
+                  const entry = PRINTER_CATALOG.find((item) => `${item.brand} ${item.model}` === id);
+                  if (!entry) return;
                   const added: PrinterProfile = { id: newId('printer'), name: `${entry.brand} ${entry.model}`.slice(0, 60), bed: [...entry.bed], nozzle: entry.nozzle, layer: entry.layer };
                   setDraft({ ...draft, printers: [...draft.printers, added], printer: added.id });
                 }}
@@ -372,6 +387,23 @@ export function PrintProfilesEditor({ close }: { close: () => void }) {
               setMaterialId(fallback);
             }}
             testId="materials"
+            full={draft.materials.length >= MAX_MATERIALS ? t('print.materialsFull', { count: MAX_MATERIALS }) : null}
+            add={
+              <CatalogPicker
+                sections={materialSections}
+                texts="print.materialCatalog"
+                addTestId="materials-add"
+                testId="material-catalog"
+                isDisabled={draft.materials.length >= MAX_MATERIALS}
+                onPick={(id) => {
+                  const entry = MATERIAL_CATALOG.find((item) => item.name === id);
+                  if (!entry) return;
+                  const added: MaterialProfile = { id: newId('material'), name: entry.name, overhang: entry.overhang, holeShrink: entry.holeShrink, clearance: { ...entry.clearance } };
+                  setDraft({ ...draft, materials: [...draft.materials, added] });
+                  setMaterialId(added.id);
+                }}
+              />
+            }
           >
             <MaterialForm
               key={material.id}

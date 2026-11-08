@@ -888,7 +888,15 @@
     "catalogSearch": "Marke oder Modell suchen",
     "catalogEmpty": "Kein Drucker passt. Kopiere einen vorhandenen und trage die Werte von Hand ein.",
     "catalogHint": "Werte laut Hersteller. Daraus wird ein eigenes Profil, das du frei ändern kannst.",
-    "printersFull": "Mehr als {count} Drucker gehen nicht. Lösche einen, um einen neuen anzulegen."
+    "printersFull": "Mehr als {count} Drucker gehen nicht. Lösche einen, um einen neuen anzulegen.",
+    "materialCatalog": {
+      "add": "Material hinzufügen",
+      "catalog": "Materialkatalog",
+      "catalogSearch": "Material suchen",
+      "catalogEmpty": "Kein Material passt. Kopiere ein vorhandenes und trage die Werte von Hand ein.",
+      "catalogHint": "Startwerte je Materialtyp aus Konstruktionsleitfäden, nicht für deinen Drucker gemessen. Daraus wird ein eigenes Profil; passe es nach einem Probedruck an."
+    },
+    "materialsFull": "Mehr als {count} Materialien gehen nicht. Lösche eines, um ein neues anzulegen."
   },
   "check": {
     "title": "Druckbereit?",
