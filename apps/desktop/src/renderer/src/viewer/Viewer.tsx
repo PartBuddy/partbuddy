@@ -23,6 +23,7 @@ import { samePick, useStudio, type BodyModel, type DisplayMode, type Pick } from
 import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
 import { Ghost, SelectionDock, SelectionGhost } from './DimensionHud';
+import { DimensionArrow } from './DimensionArrow';
 import { ContactLight, GroundShadow, requestShadow, SkyLight } from './SceneLook';
 import { silhouetteMaterial } from './silhouette';
 import { bodiesBox, keeps, useSectionPlane } from './section';
@@ -1060,6 +1061,7 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
         <>
           <Highlights bodies={bodies} colors={colors} />
           <SelectionGhost color={colors.selection} />
+          <DimensionArrow />
           <ScenePins bodies={bodies} />
           <DimensionMarks color={colors.dimension} ghostColor={colors.selection} meshes={meshes} plane={plane} />
           <ParameterGhost color={colors.selection} />

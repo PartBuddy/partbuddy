@@ -6,7 +6,7 @@ import { PrintFaceButton } from './PrintFaceButton';
 import { ActionPanel, MeasureLine } from './SelectionActions';
 import { NoteComposer } from '../notes/NoteComposer';
 import { sendToAssistant } from '../assistant/send';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Input, Label, RadioButton, RadioField, RadioGroup, TextField } from 'react-aria-components';
 import { BufferAttribute, BufferGeometry, type Color } from 'three';
@@ -19,7 +19,7 @@ import { parseLength, stepLength } from './lengthInput';
 import { blendWeights, GHOST_OPACITY, PREVIEW_BLEND } from './blend';
 import { SelectionInfo } from './SelectionInfo';
 import { selectionName, selectionOf, selectionsOf } from './viewState';
-import { dimensionFor } from './dimensionOf';
+import { dimensionFor, handleOf } from './dimensionOf';
 import { buttonVariants, pressable } from '../ui/Button';
 import { Tip } from '../ui/Tooltip';
 import { inputClass, fieldLabelClass } from '../ui/Field';
@@ -86,7 +86,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
   const assistantReady = assistant.state === 'ready';
   const dimension = useMemo(() => dimensionFor(bodies, picks), [bodies, picks]);
   const decimal = (1.5).toLocaleString(i18n.language).charAt(1);
-  const show = (number: number) => String(round(number)).replace('.', decimal);
+  const show = useCallback((number: number) => String(round(number)).replace('.', decimal), [decimal]);
   // The field's text; every keystroke tries the new value, not only leaving the field.
   const [text, setText] = useState(() => (dimension ? show(dimension.value) : ''));
   const value = parseLength(text);
@@ -97,6 +97,19 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
   const [wish, setWish] = useState('');
   const latest = useRef(0);
   const field = useRef<HTMLInputElement>(null);
+  // The value the drag arrow was let go at, before SolidCraft had tried it.
+  const letGo = useRef<number | null>(null);
+  const applyDirect = useCallback(
+    (driver: { parameter: string; factor: 1 | 2; label: string }, shown: number) => {
+      if (!dimension) return;
+      void platform()
+        .design.applyDimension({ parameter: driver.parameter, value: shown * dimension.scale, factor: driver.factor, label: driver.label })
+        .catch((error: unknown) => {
+          setNotice({ tone: 'danger', text: t('actions.failed', { detail: (error as Error).message.slice(0, 200) }) });
+        });
+    },
+    [dimension, setNotice, t],
+  );
 
   const changed = dimension !== null && Number.isFinite(value) && value > 0 && Math.abs(value - dimension.value) > 1e-6;
 
@@ -107,7 +120,11 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       platform()
         .design.probeDimension({ target: dimension.target, current: dimension.value * dimension.scale, value: value * dimension.scale })
         .then((result) => {
-          if (latest.current === id) setProbe({ value, result });
+          if (latest.current !== id) return;
+          setProbe({ value, result });
+          // A change only the assistant can make waits for Enter, like a typed one.
+          if (letGo.current === value && result.mode === 'direct') applyDirect(result, value);
+          if (letGo.current === value) letGo.current = null;
         })
         .catch(() => {
           if (latest.current === id) setProbe({ value, result: { mode: 'assistant', reason: 'noDriver' } });
@@ -116,7 +133,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
     return () => {
       clearTimeout(timer);
     };
-  }, [dimension, value, changed, busy]);
+  }, [dimension, value, changed, busy, applyDirect]);
 
   const result = probe !== null && probe.value === value ? probe.result : null;
   // Several parameters drive it: the one the user picked, for this value only.
@@ -149,6 +166,32 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
     [setSelectionGhost],
   );
 
+  // The drag arrow on the part (step 4): placed while the field can change something, its value fills the field.
+  const setDimensionHandle = useStudio((s) => s.setDimensionHandle);
+  const handle = useMemo(() => (dimension ? handleOf(bodies, picks, dimension) : null), [bodies, picks, dimension]);
+  useEffect(() => {
+    if (!handle || !dimension || busy) {
+      setDimensionHandle(null);
+      return;
+    }
+    setDimensionHandle({
+      ...handle,
+      value: dimension.value,
+      onDrag: (dragged, done) => {
+        setText(show(dragged));
+        // Let go: apply at once when SolidCraft has tried this value already, else when its answer comes.
+        const tried = probe?.value === dragged ? probe.result : null;
+        letGo.current = null;
+        if (!done) return;
+        if (tried?.mode === 'direct') applyDirect(tried, dragged);
+        else if (!tried) letGo.current = dragged;
+      },
+    });
+    return () => {
+      setDimensionHandle(null);
+    };
+  }, [handle, dimension, busy, probe, setDimensionHandle, show, applyDirect]);
+
   const current = selectionOf(model, selection);
   const all = selectionsOf(model, picks);
   if (!current) return null;
@@ -158,11 +201,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
     if (!dimension || !changed || busy) return;
     const driver = result?.mode === 'direct' ? result : option;
     if (driver) {
-      void platform()
-        .design.applyDimension({ parameter: driver.parameter, value: value * dimension.scale, factor: driver.factor, label: driver.label })
-        .catch((error: unknown) => {
-          setNotice({ tone: 'danger', text: t('actions.failed', { detail: (error as Error).message.slice(0, 200) }) });
-        });
+      applyDirect(driver, value);
       return;
     }
     if (result?.mode === 'assistant' && assistantReady) {

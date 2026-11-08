@@ -78,3 +78,72 @@ export function dimensionOf(bodies: BodyModel[], pick: Pick): Dimension | null {
   if (!(length > 0)) return null;
   return { shown: 'length', value: length, target: { measure: 'length', body: body.name, edge: edgeLabel(model, pick.edge).name, point: pick.point }, scale: 1 };
 }
+
+type Vec3 = [number, number, number];
+
+/** Where the drag arrow of a dimension sits, the way that makes the value larger, and how much a mm of drag adds. */
+export interface DimensionHandle {
+  origin: Vec3;
+  direction: Vec3;
+  /** A diameter grows by 2 mm for each mm the side moves out. */
+  perMm: number;
+}
+
+function unit(v: Vec3): Vec3 | null {
+  const length = Math.hypot(v[0], v[1], v[2]);
+  return length > 1e-9 ? [v[0] / length, v[1] / length, v[2] / length] : null;
+}
+
+const sub = (a: readonly number[], b: readonly number[]): Vec3 => [(a[0] ?? 0) - (b[0] ?? 0), (a[1] ?? 0) - (b[1] ?? 0), (a[2] ?? 0) - (b[2] ?? 0)];
+const dot = (a: readonly number[], b: readonly number[]) => (a[0] ?? 0) * (b[0] ?? 0) + (a[1] ?? 0) * (b[1] ?? 0) + (a[2] ?? 0) * (b[2] ?? 0);
+
+/**
+ * The drag arrow for the dimension of a selection: at the far end of an edge along it, on a
+ * cylinder outwards from its axis, at the second of two faces away from the first.
+ */
+export function handleOf(bodies: BodyModel[], picks: Pick[], dimension: Dimension): DimensionHandle | null {
+  const [a, b] = picks;
+  const model = a ? bodies[a.body]?.model : undefined;
+  if (!a || !model) return null;
+  const target = dimension.target;
+  if (target.measure === 'length' && a.kind === 'edge') {
+    const first = model.edgeRanges[a.edge * 2] ?? 0;
+    const count = model.edgeRanges[a.edge * 2 + 1] ?? 0;
+    if (count < 1) return null;
+    const start = Array.from(model.edgeSegments.subarray(first * 6, first * 6 + 3));
+    const end = Array.from(model.edgeSegments.subarray((first + count) * 6 - 3, (first + count) * 6));
+    const direction = unit(sub(end, start));
+    return direction ? { origin: [end[0] ?? 0, end[1] ?? 0, end[2] ?? 0], direction, perMm: 1 } : null;
+  }
+  if (target.measure === 'radius') {
+    const cylinder = model.table.faces.find((face) => face.name === target.face)?.cylinder;
+    if (!cylinder) return null;
+    const along = dot(sub(a.point, cylinder.origin), cylinder.axis);
+    const onAxis = [0, 1, 2].map((i) => (cylinder.origin[i] ?? 0) + (cylinder.axis[i] ?? 0) * along);
+    const direction = unit(sub(a.point, onAxis));
+    return direction ? { origin: a.point, direction, perMm: dimension.shown === 'diameter' ? 2 : 1 } : null;
+  }
+  if (target.measure === 'distance' && a.kind === 'face' && b?.kind === 'face') {
+    const first = model.table.faces[a.face];
+    const second = model.table.faces[b.face];
+    const normal = second?.planeNormal;
+    if (!first || !second || !normal) return null;
+    const away = dot(sub(second.point, first.point), normal) >= 0 ? 1 : -1;
+    return { origin: b.point, direction: [normal[0] * away, normal[1] * away, normal[2] * away], perMm: 1 };
+  }
+  return null;
+}
+
+/**
+ * The value a drag gives: the pointer's movement on screen along the arrow as projected there
+ * (`step` is where 1 mm along the arrow lands, from its foot), in whole mm or tenths with `fine`.
+ */
+export function draggedValue(base: number, handle: DimensionHandle, step: { x: number; y: number }, moved: { x: number; y: number }, fine: boolean): number | null {
+  const pixels = step.x * step.x + step.y * step.y;
+  // An arrow that points at the camera has no direction on screen to drag along.
+  if (pixels < 0.25) return null;
+  const mm = (moved.x * step.x + moved.y * step.y) / pixels;
+  const grid = fine ? 0.1 : 1;
+  const value = Math.round((base + mm * handle.perMm) / grid) * grid;
+  return value > 0 ? Math.round(value * 1000) / 1000 : null;
+}

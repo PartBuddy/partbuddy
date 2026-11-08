@@ -505,6 +505,7 @@
     "probing": "Wird in SolidCraft geprüft …",
     "direct": "Enter ändert direkt: {label}",
     "choose": "Mehrere Maße treiben das – eines wählen, dann Enter",
+    "dragArrow": "Ziehen ändert das Maß (Alt: Zehntel), Loslassen übernimmt",
     "assistant": {
       "noDriver": "Kein Parameter steuert das allein – Enter fragt die KI"
     },
