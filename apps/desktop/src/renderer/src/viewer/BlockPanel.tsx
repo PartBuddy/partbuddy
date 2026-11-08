@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, TextField, ToggleButton } from 'react-aria-components';
 
-import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoProblem, needsNormal, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import type { DrawingProblem } from '../../../shared/svgDrawing';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
@@ -106,7 +107,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   // The block's values; body and point come from the picked face.
   const [spec, setBlock] = useState<FeatureBlock>(() => defaultBlock('tappedHole', '', [0, 0, 0], 'M3'));
   const [status, setStatus] = useState<{ ok: boolean; error?: string } | null>(null);
-  const [fileProblem, setFileProblem] = useState<'tooBig' | 'notSvg' | 'unreadable' | null>(null);
+  const [fileProblem, setFileProblem] = useState<DrawingProblem | 'unreadable' | null>(null);
   const latest = useRef(0);
   const at = face ? `${face.body}\u0000${face.point.join(',')}\u0000${face.normal.join(',')}` : null;
   const block = useMemo<FeatureBlock | null>(() => {
@@ -151,13 +152,13 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     const file = files?.[0];
     if (!file || block.block !== 'logo') return;
     void file.text().then(
-      (svg) => {
-        const problem = logoProblem(svg);
-        setFileProblem(problem);
-        if (problem) return;
+      (text) => {
+        const logo = logoFrom(text);
+        setFileProblem('problem' in logo ? logo.problem : null);
+        if ('problem' in logo) return;
         setStatus(null);
-        // The fields may have changed while the file was read.
-        setBlock((current) => (current.block === 'logo' ? { ...current, svg, name: file.name.replace(/\.svg$/i, '').slice(0, 200) } : current));
+        // The fields may have changed while the file was read; a file with a size in mm keeps it.
+        setBlock((current) => (current.block === 'logo' ? { ...current, svg: logo.svg, ...(logo.width ? { width: logo.width } : {}), name: file.name.replace(/\.svg$/i, '').slice(0, 200) } : current));
       },
       () => setFileProblem('unreadable'),
     );

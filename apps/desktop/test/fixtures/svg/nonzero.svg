@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Both squares run clockwise: under nonzero the inner one is filled, not a hole. -->
+  <path d="M0 0H100V100H0Z M25 25H75V75H25Z"/>
+  <!-- The same loops under evenodd: a frame. -->
+  <path fill-rule="evenodd" transform="translate(200 0)" d="M0 0H100V100H0Z M25 25H75V75H25Z"/>
+</svg>

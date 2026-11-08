@@ -6,6 +6,8 @@
  * everything stays editable because printers, nuts and inserts differ.
  */
 
+import { drawingSvg, naturalWidth, parseDrawing, type DrawingProblem } from './svgDrawing';
+
 export const BLOCK_SIZES = ['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10'] as const;
 export type BlockSize = (typeof BLOCK_SIZES)[number];
 
@@ -78,8 +80,6 @@ export type FeatureBlock =
   /** A logo from an SVG file, engraved or built up, centred on the point; `name` is the file's name. */
   | { block: 'logo'; body: string; point: Point; normal: Point; size: BlockSize; name: string; svg: string; width: number; depth: number; mode: 'emboss' | 'deboss' };
 
-/** The largest SVG file a logo takes; logos are small, a bigger file is usually an embedded picture. */
-export const LOGO_MAX_BYTES = 512 * 1024;
 
 /** The catch's direction in the face: along the sketch plane's x or y, either way. */
 export const HOOK_DIRECTIONS = ['y+', 'y-', 'x+', 'x-'] as const;
@@ -275,11 +275,12 @@ export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | '
 }
 
 /**
- * Why an SVG file cannot be a logo, or null: too big, or not an SVG drawing at all. SolidCraft
- * says itself what it cannot draw (strokes without area, text not turned into paths).
+ * An SVG file as a logo: the clean drawing SolidCraft gets (svgDrawing.ts) and its width from the
+ * file when it states one, or why the file cannot be one.
  */
-export function logoProblem(svg: string): 'tooBig' | 'notSvg' | null {
-  if (new TextEncoder().encode(svg).length > LOGO_MAX_BYTES) return 'tooBig';
-  if (!/<svg[\s>]/i.test(svg)) return 'notSvg';
-  return null;
+export function logoFrom(text: string): { svg: string; width: number | null } | { problem: DrawingProblem } {
+  const result = parseDrawing(text);
+  if (!result.ok) return { problem: result.problem };
+  const width = naturalWidth(result.drawing);
+  return { svg: drawingSvg(result.drawing, width ?? 100), width };
 }

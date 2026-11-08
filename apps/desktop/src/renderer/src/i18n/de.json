@@ -382,8 +382,8 @@
       "reopen": "Diese Skizze wieder öffnen"
     },
     "photo": {
-      "button": "Foto",
-      "open": "Ein Foto des Gegenstands an den Assistenten hängen",
+      "button": "Foto oder SVG",
+      "open": "Ein Foto des Gegenstands oder eine SVG-Zeichnung an den Assistenten hängen",
       "goesWith": "Das Foto geht mit deiner Nachricht",
       "remove": "Foto entfernen",
       "failed": "Das Bild ließ sich nicht lesen. PNG, JPEG und WebP gehen.",
@@ -444,7 +444,17 @@
       "title": "Was soll entstehen?"
     },
     "offline": "Keine Internetverbindung. Der Assistent antwortet erst wieder, wenn du online bist.",
-    "announce": "Der Assistent hat geantwortet."
+    "announce": "Der Assistent hat geantwortet.",
+    "drawing": {
+      "show": "Zeichnung groß zeigen",
+      "goesWith": "Die SVG-Zeichnung geht mit deiner Nachricht – ihre Konturen exakt, nicht nur als Bild",
+      "width": "Breite der Zeichnung",
+      "height": "{height, number} mm",
+      "remove": "Zeichnung entfernen",
+      "sent": "Mit SVG-Zeichnung",
+      "pasted": "Eingefügte Zeichnung",
+      "defaultText": "Bau mir aus dieser Zeichnung ein Teil."
+    }
   },
   "live": {
     "thinking": "Der Assistent plant den nächsten Schritt",
@@ -1262,7 +1272,10 @@
     "logoProblems": {
       "tooBig": "Die Datei ist größer als 512 KB – ein Logo ist meist viel kleiner; ein eingebettetes Bild lässt sich nicht bauen.",
       "notSvg": "Das ist keine SVG-Zeichnung.",
-      "unreadable": "Die Datei ließ sich nicht lesen."
+      "unreadable": "Die Datei ließ sich nicht lesen.",
+      "unsafe": "Die Datei enthält Skripte, eingebettete Fremdinhalte oder Verweise auf andere Dateien – aus Sicherheitsgründen liest PartBuddy sie nicht.",
+      "tooComplex": "Die Zeichnung ist zu verschachtelt oder hat zu viele Formen für eine Skizze.",
+      "empty": "Die Zeichnung hat keine gefüllten Flächen. Linien ohne Füllung und Text lassen sich nicht bauen – im Zeichenprogramm in Pfade umwandeln."
     },
     "ready": "In der Ansicht gezeigt – Bauen übernimmt es",
     "kinds": {

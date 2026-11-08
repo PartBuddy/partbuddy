@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- An "O": a ring as one path with two arcs each way; the inner loop runs the other way. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="20mm" height="20mm" viewBox="0 0 100 100">
+  <path fill="#e30613" d="M50 0a50 50 0 1 1 0 100a50 50 0 1 1 0-100zm0 20a30 30 0 1 0 0 60a30 30 0 1 0 0-60z"/>
+</svg>

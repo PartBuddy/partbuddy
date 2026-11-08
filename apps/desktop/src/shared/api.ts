@@ -62,6 +62,14 @@ import type { FeatureBlock } from './blocks';
 import type { KeptSketch, SketchState } from './sketch';
 import type { TemplateId } from './templates';
 
+/** An SVG drawing going with a message: the file's text (read again in the main process), the width in mm and its picture. */
+export interface OutgoingDrawingMessage {
+  svg: string;
+  width: number;
+  name: string;
+  png: Uint8Array;
+}
+
 /** A sketch going with a message: its picture, its elements as text (F9) and the whole sketch to keep (F10). */
 export interface OutgoingSketch {
   png: Uint8Array;
@@ -308,7 +316,7 @@ export interface PartBuddyApi {
     research(): Promise<boolean>;
     setResearch(allow: boolean): Promise<boolean>;
     /** Sends a message; what is selected in the view goes with it as a short note. */
-    send(text: string, selections?: Selection[], answer?: MessageAnswer, sketch?: OutgoingSketch, photo?: Uint8Array): Promise<void>;
+    send(text: string, selections?: Selection[], answer?: MessageAnswer, sketch?: OutgoingSketch, photo?: Uint8Array, drawing?: OutgoingDrawingMessage): Promise<void>;
     stop(): Promise<void>;
     /** Start the selected route's sign-in flow; it opens the browser. */
     signIn(): Promise<void>;

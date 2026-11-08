@@ -28,6 +28,7 @@ export type ConversationItem =
       selected?: { faces: number; edges: number; vertices: number; bodies: string[] } | undefined;
       sketch?: true | undefined;
       photo?: true | undefined;
+      drawing?: true | undefined;
       attachment?: Attachment | undefined;
     }
   | { kind: 'assistant'; key: number; text: string; open: boolean }
@@ -95,7 +96,7 @@ export function reduce(items: ConversationItem[], event: AgentEvent): Conversati
   const key = nextKey++;
   switch (event.type) {
     case 'user':
-      return [...items, { kind: 'user', key, text: event.text, selection: event.selection, selected: event.selected, sketch: event.sketch, photo: event.photo }];
+      return [...items, { kind: 'user', key, text: event.text, selection: event.selection, selected: event.selected, sketch: event.sketch, photo: event.photo, drawing: event.drawing }];
     case 'textDelta':
       if (last?.kind === 'assistant' && last.open) return [...items.slice(0, -1), { ...last, text: last.text + event.text }];
       return [...items, { kind: 'assistant', key, text: event.text, open: true }];
@@ -159,7 +160,7 @@ export function toStored(items: readonly ConversationItem[]): StoredChatItem[] {
     .flatMap((item): StoredChatItem[] => {
       switch (item.kind) {
         case 'user':
-          return [{ kind: 'user', text: item.text, ...(item.selection ? { selection: item.selection } : {}), ...(item.selected ? { selected: item.selected } : {}), ...(item.sketch ? { sketch: true as const } : {}), ...(item.photo ? { photo: true as const } : {}) }];
+          return [{ kind: 'user', text: item.text, ...(item.selection ? { selection: item.selection } : {}), ...(item.selected ? { selected: item.selected } : {}), ...(item.sketch ? { sketch: true as const } : {}), ...(item.photo ? { photo: true as const } : {}), ...(item.drawing ? { drawing: true as const } : {}) }];
         case 'assistant':
           return item.open || item.text.trim() === '' ? [] : [{ kind: 'assistant', text: item.text }];
         case 'step':
@@ -184,7 +185,7 @@ export function fromStored(chat: StoredChat): ConversationItem[] {
     const key = nextKey++;
     switch (item.kind) {
       case 'user':
-        return { kind: 'user', key, text: item.text, selection: item.selection, selected: item.selected, sketch: item.sketch, photo: item.photo };
+        return { kind: 'user', key, text: item.text, selection: item.selection, selected: item.selected, sketch: item.sketch, photo: item.photo, drawing: item.drawing };
       case 'assistant':
         return { kind: 'assistant', key, text: item.text, open: false };
       case 'step':
@@ -211,7 +212,7 @@ export const useAssistant = create<AssistantStore>()((set) => ({
       const items = reduce(state.items, event);
       // The message with a picture takes the picture this window sent with it.
       const last = items.at(-1);
-      if (event.type !== 'user' || !state.nextAttachment || last?.kind !== 'user' || !(last.sketch || last.photo)) return { items };
+      if (event.type !== 'user' || !state.nextAttachment || last?.kind !== 'user' || !(last.sketch || last.photo || last.drawing)) return { items };
       return { items: [...items.slice(0, -1), { ...last, attachment: state.nextAttachment }], nextAttachment: null };
     });
   },

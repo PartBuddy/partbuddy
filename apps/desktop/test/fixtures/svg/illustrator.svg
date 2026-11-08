@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg version="1.1" id="Ebene_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 200 100" style="enable-background:new 0 0 200 100;" xml:space="preserve">
+<style type="text/css">
+	.st0{fill:#1D71B8;}
+	.st1{fill:none;stroke:#000000;stroke-width:2;}
+</style>
+<defs><circle id="dot" cx="0" cy="0" r="10"/></defs>
+<g transform="translate(10 10)">
+	<rect class="st0" width="80" height="80" rx="10"/>
+	<polygon fill="#FFD500" points="100,0 180,0 140,80 "/>
+</g>
+<use xlink:href="#dot" x="150" y="90" style="fill:#E30613"/>
+<line class="st1" x1="0" y1="0" x2="200" y2="100"/>
+<polyline class="st1" points="0,0 10,10 20,0"/>
+<text x="10" y="95">Hallo</text>
+</svg>

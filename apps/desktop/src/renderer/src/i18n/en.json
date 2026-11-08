@@ -382,8 +382,8 @@
       "reopen": "Open this sketch again"
     },
     "photo": {
-      "button": "Photo",
-      "open": "Attach a photo of the object for the assistant",
+      "button": "Photo or SVG",
+      "open": "Attach a photo of the object or an SVG drawing for the assistant",
       "goesWith": "The photo goes with your message",
       "remove": "Remove the photo",
       "failed": "The picture could not be read. PNG, JPEG and WebP work.",
@@ -444,7 +444,17 @@
       "title": "What shall we make?"
     },
     "offline": "No internet connection. The assistant answers again once you are online.",
-    "announce": "The assistant has answered."
+    "announce": "The assistant has answered.",
+    "drawing": {
+      "show": "Show the drawing large",
+      "goesWith": "The SVG drawing goes with your message – its exact contours, not just a picture",
+      "width": "Width of the drawing",
+      "height": "{height, number} mm",
+      "remove": "Remove the drawing",
+      "sent": "With SVG drawing",
+      "pasted": "Pasted drawing",
+      "defaultText": "Build a part from this drawing."
+    }
   },
   "live": {
     "thinking": "The assistant is planning the next step",
@@ -1262,7 +1272,10 @@
     "logoProblems": {
       "tooBig": "The file is larger than 512 KB – a logo is usually much smaller; an embedded picture cannot be built.",
       "notSvg": "This is no SVG drawing.",
-      "unreadable": "The file could not be read."
+      "unreadable": "The file could not be read.",
+      "unsafe": "The file holds scripts, embedded foreign content or references to other files – for safety PartBuddy does not read it.",
+      "tooComplex": "The drawing nests too deeply or has too many shapes for a sketch.",
+      "empty": "The drawing has no filled areas. Lines without fill and text cannot be built – convert them to paths in the drawing program."
     },
     "ready": "Shown in the view – Build makes it",
     "kinds": {
