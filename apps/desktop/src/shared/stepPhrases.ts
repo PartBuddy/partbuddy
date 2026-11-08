@@ -65,6 +65,7 @@ export const STEP_PHRASE_KEYS = [
   'groove',
   'snapFit',
   'logo',
+  'logoMoved',
   'command',
 ] as const;
 
@@ -405,6 +406,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     groove: 'Groove {width} mm',
     snapFit: 'Snap fit {length} mm',
     logo: '{mode, select, emboss {Logo “{name}” embossed} other {Logo “{name}” engraved}}',
+    logoMoved: 'Logo “{name}” moved',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -459,6 +461,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     groove: 'Nut {width} mm',
     snapFit: 'Schnapphaken {length} mm',
     logo: '{mode, select, emboss {Logo „{name}“ erhaben} other {Logo „{name}“ vertieft}}',
+    logoMoved: 'Logo „{name}“ verschoben',
     command: 'SolidCraft: {command}',
   },
 };

@@ -1,6 +1,7 @@
 import { drawingColours, drawingFacts, drawingSvg, type Drawing } from '../../shared/svgDrawing';
-import { centring, hostFace, LOGO_PREFIX, movedPlane, placedLogos, uniqueLogoName, type BodyFaces } from '../../shared/drawingPlacement';
+import { uniqueLogoName } from '../../shared/drawingPlacement';
 import { colourLayers, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
+import { planLogoMove, type Run } from '../solidcraft/logoMove';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
 export const MOVE_DRAWING_TOOL = 'partbuddy_move_drawing';
@@ -141,38 +142,17 @@ async function moveDrawing(upstream: UpstreamTools, args: Record<string, unknown
   const centre = args.centre === 'x' || args.centre === 'y' || args.centre === 'both' ? (args.centre) : null;
   if (args.by !== undefined && !by) throw new Error('by must be two numbers in mm');
   if (!by && !centre) throw new Error('say how far (by) or centre');
-  const inspect = jsonOf(await upstream.callTool('inspect_design', {}, callId));
-  const logos = placedLogos(inspect);
-  const sketches = logos.get(name) ?? logos.get(`${LOGO_PREFIX}${name}`);
-  const first = sketches?.[0];
-  if (!sketches || !first) throw new Error(`there is no logo "${name}"; placed logos: ${[...logos.keys()].join(', ') || 'none'}`);
-  let [du, dv] = [0, 0];
-  let face = '';
-  if (centre) {
-    const origin = first.plane.origin;
-    type Body = { name?: unknown; bbox?: { min?: number[]; max?: number[] } };
-    const around = (body: Body) => origin.every((value, i) => value >= (body.bbox?.min?.[i] ?? Infinity) - 1e-3 && value <= (body.bbox?.max?.[i] ?? -Infinity) + 1e-3);
-    const read: BodyFaces[] = [];
-    for (const body of ((inspect as { bodies?: Body[] }).bodies ?? []).filter(around)) {
-      if (typeof body.name !== 'string') continue;
-      const commands = [
-        { command: 'model.faces', params: { body: body.name } },
-        { command: 'model.edges', params: { body: body.name } },
-      ];
-      const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[] };
-      read.push({ body: body.name, faces: reply.results?.[0], edges: reply.results?.[1] });
-    }
-    const host = hostFace(first.plane, read);
-    if (!host) throw new Error(`no flat face under the middle of ${first.name} to centre it on`);
-    [du, dv] = centring(host.extent, centre);
-    face = ` on face ${host.face} of ${host.body}`;
-  }
-  du += by?.[0] ?? 0;
-  dv += by?.[1] ?? 0;
-  const commands = sketches.map((sketch) => ({ command: 'sketch.redefine', params: { sketch: sketch.id, plane: movedPlane(sketch.plane, du, dv) } }));
-  jsonOf(await upstream.callTool('batch', { commands }, callId));
+  const run: Run = async (commands) => {
+    const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[]; failed?: { error?: unknown } };
+    if (reply.failed) throw new Error(`SolidCraft refused it: ${String(reply.failed.error)}`);
+    return reply.results ?? [];
+  };
+  const move = await planLogoMove(run, name, by, centre);
+  await run(move.steps);
+  const [du, dv] = move.by;
+  const face = move.face ? ` on face ${move.face}` : '';
   const mm = (value: number) => String(Math.round(value * 100) / 100);
-  return `Moved ${first.name} by ${mm(du)} mm along its x and ${mm(dv)} mm along its y${face}; its middle is now at [${movedPlane(first.plane, du, dv).origin.map(mm).join(', ')}] mm.`;
+  return `Moved ${move.name} by ${mm(du)} mm along its x and ${mm(dv)} mm along its y${face}; its middle is now at [${move.origin.map(mm).join(', ')}] mm.`;
 }
 
 const vec3 = (value: unknown): [number, number, number] | null =>

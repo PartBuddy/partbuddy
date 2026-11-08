@@ -13,7 +13,8 @@ import type { ClearanceResult, DesignAction, MeasureItem, MeasureResult, PartIns
 import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
-import type { DesignParameter, DimensionMark } from '../../shared/contract';
+import type { DesignParameter, DimensionMark, LogoMoveRequest, LogoSpot } from '../../shared/contract';
+import { logoAt, planLogoMove } from './logoMove';
 import { blockBodies, colourLayers, stepsOf, type FeatureBlock } from '../../shared/blocks';
 import { uniqueLogoName } from '../../shared/drawingPlacement';
 import { insertCommand, type ImportKind } from '../projects/importFile';
@@ -594,6 +595,37 @@ export class SolidCraftSupervisor {
       const coloured = await this.actions.colourSplitPieces(layers);
       if (coloured > 0) this.options.log(`coloured the pieces of ${String(coloured)} split logo bodies`);
     }
+    await this.engine?.checkForChange();
+  }
+
+  /** The placed logo at a picked point, for the logo controls of the selection dock; reading changes nothing. */
+  private logoReads = 0;
+
+  logoAt(point: [number, number, number]): Promise<LogoSpot | null> {
+    // In line with the trials: a read between a trial's steps and its undo would see the trial.
+    // Only the newest pick is read; picks clicked meanwhile are already gone from the dock.
+    const id = ++this.logoReads;
+    const read = this.probing.then(async () => {
+      if (id !== this.logoReads) return null;
+      const spot = await logoAt((commands) => this.actions.run(commands), point);
+      return spot && { logo: spot.logo, offset: spot.offset, origin: spot.plane.origin, xDir: spot.plane.x_dir, yDir: spot.plane.y_dir, box: spot.box };
+    });
+    this.probing = read.catch(() => undefined);
+    return read;
+  }
+
+  /** A logo moved on trial: its sketches redefined, the part and its colour bodies exported for the ghost. */
+  previewLogoMove(move: LogoMoveRequest): Promise<ActionPreview> {
+    return this.trial(async () => {
+      const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre);
+      return this.actions.previewSteps(planned.steps, planned.bodies);
+    });
+  }
+
+  async moveLogo(move: LogoMoveRequest): Promise<void> {
+    await this.probing;
+    const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre);
+    await this.actions.applySteps(planned.steps);
     await this.engine?.checkForChange();
   }
 

@@ -839,6 +839,15 @@ export const actionPreviewSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable() }).strict(),
   z.object({ ok: z.literal(false), error: z.string().max(300) }).strict(),
 ]);
+/** A placed logo at a picked point (sketches named "Logo <name>"), and where it sits from its face's middle. */
+export const logoSpotSchema = z
+  .object({ logo: z.string().min(1).max(200), offset: z.tuple([finite, finite]).nullable(), origin: point3, xDir: point3, yDir: point3, box: z.tuple([finite, finite, finite, finite]) })
+  .strict();
+/** Moves a logo: onto its face's middle along `centre` first, then by `by` mm along its own x and y. */
+export const logoMoveSchema = z
+  .object({ logo: z.string().min(1).max(200), by: z.tuple([finite, finite]).nullable(), centre: z.enum(['x', 'y', 'both']).nullable() })
+  .strict()
+  .refine((move) => move.by !== null || move.centre !== null, 'nothing to move');
 export const measureItemSchema = z.object({ type: z.enum(['face', 'edge', 'vertex']), body: bodyName, point: point3 }).strict();
 export const measureRequestSchema = z.object({ items: z.array(measureItemSchema).min(1).max(2) }).strict();
 export const measureResultSchema = z.object({ distance: finite.nullable(), angle: finite.nullable() }).strict();
@@ -1154,6 +1163,9 @@ export const invokeContract = {
   [invokeChannels.designPartsLibrary]: { request: none, response: partsLibrarySchema },
   [invokeChannels.designPreviewBlock]: { request: featureBlockSchema, response: actionPreviewSchema },
   [invokeChannels.designApplyBlock]: { request: featureBlockSchema, response: none },
+  [invokeChannels.designLogoAt]: { request: z.object({ point: point3 }).strict(), response: logoSpotSchema.nullable() },
+  [invokeChannels.designPreviewLogoMove]: { request: logoMoveSchema, response: actionPreviewSchema },
+  [invokeChannels.designMoveLogo]: { request: logoMoveSchema, response: none },
   [invokeChannels.designSlicers]: { request: none, response: slicersSchema },
   [invokeChannels.designSendToSlicer]: { request: sendToSlicerSchema, response: z.object({ name: z.string().max(120) }).strict() },
   [invokeChannels.designPrintFace]: { request: printFaceSchema, response: none },
@@ -1264,6 +1276,8 @@ export type DesignParameter = z.infer<typeof designParameterSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type ExportResult = z.infer<typeof exportResultSchema>;
 export type ShareResult = z.infer<typeof shareResultSchema>;
+export type LogoSpot = z.infer<typeof logoSpotSchema>;
+export type LogoMoveRequest = z.infer<typeof logoMoveSchema>;
 export type DimensionTarget = z.infer<typeof dimensionTargetSchema>;
 export type DimensionProbe = z.infer<typeof dimensionProbeSchema>;
 export type DimensionProbeResult = z.infer<typeof dimensionProbeResultSchema>;

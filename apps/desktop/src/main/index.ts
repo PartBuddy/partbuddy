@@ -1168,6 +1168,18 @@ if (!app.requestSingleInstanceLock()) {
       log(`built the function block ${block.block}`);
       return undefined;
     });
+    // Moving a placed logo from the selection dock: read, previewed, applied as one step of the work log.
+    bridge.handle(invokeChannels.designLogoAt, ({ point }) => supervisor.logoAt(point));
+    bridge.handle(invokeChannels.designPreviewLogoMove, (move) => {
+      assistantIdle();
+      return supervisor.previewLogoMove(move);
+    });
+    bridge.handle(invokeChannels.designMoveLogo, async (move) => {
+      assistantIdle();
+      await steps.recordUser({ key: 'logoMoved', values: { name: move.logo.replace(/^Logo /, '').slice(0, 40) } }, () => supervisor.moveLogo(move));
+      log('moved a logo');
+      return undefined;
+    });
     // To the slicer (B8): through SolidCraft's slicer detection; the print face is SolidCraft's own.
     bridge.handle(invokeChannels.designSlicers, () => supervisor.slicers());
     bridge.handle(invokeChannels.designSendToSlicer, async ({ slicer }) => {

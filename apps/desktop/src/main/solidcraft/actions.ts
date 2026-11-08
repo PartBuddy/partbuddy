@@ -84,6 +84,13 @@ export class ActionService {
     if (reply.failed) throw new Error(`SolidCraft refused it: ${reply.failed.error}`);
   }
 
+  /** Engine commands in one batch without rolling back; SolidCraft's refusal throws (reading, moving a logo). */
+  async run(commands: Step[]): Promise<unknown[]> {
+    const reply = await this.batch(commands, false);
+    if (reply.failed) throw new Error(`SolidCraft refused it: ${reply.failed.error}`);
+    return reply.results ?? [];
+  }
+
   /** The names of the design's sketches (`document.inspect`). */
   async sketchNames(): Promise<string[]> {
     const reply = await this.batch([{ command: 'document.inspect', params: {} }], false);

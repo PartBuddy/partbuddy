@@ -184,6 +184,9 @@ interface StudioState {
   /** The drag arrow of the dock's dimension field: the value it starts from, and what a drag tells the dock. */
   dimensionHandle: DraggedDimension | null;
   setDimensionHandle: (handle: DraggedDimension | null) => void;
+  /** The two drag arrows of a picked logo (across, up), or none. */
+  logoHandles: DraggedDimension[];
+  setLogoHandles: (handles: DraggedDimension[]) => void;
   model: ModelState;
   hover: Pick | null;
   /** The latest picked element; the dimension field and the HUD belong to it. */
@@ -326,6 +329,10 @@ export const useStudio = create<StudioState>()((set) => ({
   selectionGhost: null,
   setSelectionGhost: (selectionGhost) => {
     set({ selectionGhost });
+  },
+  logoHandles: [],
+  setLogoHandles: (logoHandles) => {
+    set({ logoHandles });
   },
   dimensionHandle: null,
   setDimensionHandle: (dimensionHandle) => {

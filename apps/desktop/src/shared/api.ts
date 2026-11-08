@@ -35,6 +35,8 @@ import type {
   DimensionMark,
   DimensionProbe,
   DimensionProbeResult,
+  LogoMoveRequest,
+  LogoSpot,
   ExportFormat,
   ExportResult,
   ShareResult,
@@ -214,6 +216,12 @@ export interface PartBuddyApi {
     previewBlock(block: FeatureBlock): Promise<ActionPreviewResult>;
     /** Builds a function block for real; one step of the work log. */
     applyBlock(block: FeatureBlock): Promise<void>;
+    /** The placed logo at a picked point, or null. */
+    logoAt(point: [number, number, number]): Promise<LogoSpot | null>;
+    /** Moves a logo on trial for the ghost preview. */
+    previewLogoMove(move: LogoMoveRequest): Promise<ActionPreviewResult>;
+    /** Moves a logo for real; one step of the work log. */
+    moveLogo(move: LogoMoveRequest): Promise<void>;
     /** SolidCraft's standard parts (B7): screws, nuts, washers, pins, bearings, with sizes. */
     partsLibrary(): Promise<PartsLibrary>;
     /** Seats a standard part in a hole as a counterpart; returns its body's name. */

@@ -506,6 +506,19 @@
       "done": "Teilen-Paket gespeichert in exports\\{folder}"
     }
   },
+  "logoMove": {
+    "title": "Logo „{name}“",
+    "hint": "Abstand der Logomitte zur Flächenmitte. Ändern zeigt eine Vorschau, Ziehpfeile am Teil verschieben direkt.",
+    "hintNoFace": "Verschiebt das Logo um die angegebenen Millimeter. Ziehpfeile am Teil verschieben direkt.",
+    "across": "Quer",
+    "up": "Hoch",
+    "apply": "Verschieben",
+    "centreAcross": "Mittig quer",
+    "centreUp": "Mittig hoch",
+    "centre": "Mittig",
+    "dragAcross": "Ziehen verschiebt das Logo quer (Alt: Zehntel), Loslassen übernimmt",
+    "dragUp": "Ziehen verschiebt das Logo hoch (Alt: Zehntel), Loslassen übernimmt"
+  },
   "hud": {
     "dock": "Auswahl",
     "length": "Länge",
