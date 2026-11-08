@@ -135,6 +135,17 @@ describe('dimension field: direct where unambiguous (M1b)', () => {
     expect(measured({ measure: 'length', body: 'B', edge: 'F2:side|F2:top', point: [9, 0, 0] }, result)).toBe(7);
     expect(measured({ measure: 'radius', body: 'B', face: 'F3:hole' }, { faces: [{ name: 'F3:hole', cylinder: { radius: 2.5 } }] })).toBe(2.5);
     expect(measured({ measure: 'radius', body: 'B', face: 'F3:hole' }, { faces: [{ name: 'F3:hole', cylinder: null }] })).toBeNull();
+    const wall = { measure: 'distance' as const, body: 'B', faces: ['F1:+x', 'F4:-x'] as [string, string] };
+    const faces = (normal: number[]) => ({
+      faces: [
+        { name: 'F1:+x', point: [20, 3, 4], plane_normal: [1, 0, 0] },
+        { name: 'F4:-x', point: [17.5, 9, 1], plane_normal: normal },
+      ],
+    });
+    expect(measured(wall, faces([-1, 0, 0]))).toBeCloseTo(2.5);
+    // Faces that tilt apart have no single distance.
+    expect(measured(wall, faces([-0.99, 0.141, 0]))).toBeNull();
+    expect(measured(wall, { faces: [{ name: 'F1:+x', point: [20, 3, 4], plane_normal: [1, 0, 0] }] })).toBeNull();
   });
 });
 

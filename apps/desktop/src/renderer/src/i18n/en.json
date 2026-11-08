@@ -501,6 +501,7 @@
     "length": "Length",
     "diameter": "Diameter",
     "radius": "Radius",
+    "spacing": "Distance",
     "probing": "Trying it in SolidCraft …",
     "direct": "Enter changes it directly: {label}",
     "assistant": {

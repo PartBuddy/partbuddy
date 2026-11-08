@@ -1,4 +1,4 @@
-import { parseTagged3mf, type ViewerModel } from '@partbuddy/geometry';
+import { parseTagged3mf } from '@partbuddy/geometry';
 import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
 import { BlockPanel } from './BlockPanel';
 import { PartPanel } from './PartPanel';
@@ -11,14 +11,15 @@ import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Input, Label, TextField } from 'react-aria-components';
 import { BufferAttribute, BufferGeometry, type Color } from 'three';
 
-import type { DimensionProbeResult, DimensionTarget } from '../../../shared/contract';
+import type { DimensionProbeResult } from '../../../shared/contract';
 import { selectedStatus, useAssistant } from '../assistant/store';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { parseLength, stepLength } from './lengthInput';
 import { blendWeights, GHOST_OPACITY, PREVIEW_BLEND } from './blend';
 import { SelectionInfo } from './SelectionInfo';
-import { edgeLabel, selectionName, selectionOf, selectionsOf } from './viewState';
+import { selectionName, selectionOf, selectionsOf } from './viewState';
+import { dimensionFor } from './dimensionOf';
 import { buttonVariants, pressable } from '../ui/Button';
 import { Tip } from '../ui/Tooltip';
 import { inputClass, fieldLabelClass } from '../ui/Field';
@@ -26,57 +27,6 @@ import { badgeClass } from '../ui/Feedback';
 
 /** Quiet time after typing before PartBuddy tries the value in SolidCraft. */
 const PROBE_DELAY_MS = 250;
-
-type Shown = 'length' | 'diameter' | 'radius';
-
-export interface Dimension {
-  shown: Shown;
-  /** The value as shown (a diameter is twice the radius SolidCraft is asked about). */
-  value: number;
-  target: DimensionTarget;
-  /** From the shown value to the value of the target's measure. */
-  scale: number;
-}
-
-/** True when the face's own edges include a closed loop: a full hole or boss, shown as a diameter. */
-function hasClosedLoop(model: ViewerModel, face: number): boolean {
-  for (let e = 0; e < model.edgeLengths.length; e += 1) {
-    if (model.edgeFaces[e * 2] !== face && model.edgeFaces[e * 2 + 1] !== face) continue;
-    const first = model.edgeRanges[e * 2] ?? 0;
-    const count = model.edgeRanges[e * 2 + 1] ?? 0;
-    const start = model.edgeSegments.subarray(first * 6, first * 6 + 3);
-    const end = model.edgeSegments.subarray((first + count) * 6 - 3, (first + count) * 6);
-    if (count > 2 && start.every((value, i) => Math.abs(value - (end[i] ?? 0)) < 1e-6)) return true;
-  }
-  return false;
-}
-
-function radiusDimension(model: ViewerModel, body: string, face: number): Dimension | null {
-  const info = model.table.faces[face];
-  if (!info?.cylinder) return null;
-  const full = hasClosedLoop(model, face);
-  return {
-    shown: full ? 'diameter' : 'radius',
-    value: full ? info.cylinder.radius * 2 : info.cylinder.radius,
-    target: { measure: 'radius', body, face: info.name },
-    scale: full ? 0.5 : 1,
-  };
-}
-
-/** What the dimension field edits for a selection: an edge length, or the radius of a cylinder. */
-export function dimensionOf(bodies: BodyModel[], pick: Pick): Dimension | null {
-  const body = bodies[pick.body];
-  if (!body) return null;
-  const model = body.model;
-  if (pick.kind === 'face') return radiusDimension(model, body.name, pick.face);
-  if (pick.kind !== 'edge') return null;
-  for (const face of [model.edgeFaces[pick.edge * 2], model.edgeFaces[pick.edge * 2 + 1]]) {
-    if (face !== undefined && model.table.faces[face]?.cylinder) return radiusDimension(model, body.name, face);
-  }
-  const length = model.edgeLengths[pick.edge] ?? 0;
-  if (!(length > 0)) return null;
-  return { shown: 'length', value: length, target: { measure: 'length', body: body.name, edge: edgeLabel(model, pick.edge).name, point: pick.point }, scale: 1 };
-}
 
 export function Ghost({ preview, color }: { preview: Uint8Array; color: Color }) {
   const opacity = blendWeights(PREVIEW_BLEND).after * GHOST_OPACITY;
@@ -133,8 +83,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
   const assistant = selectedStatus(useAssistant((s) => s.state));
   const busy = assistant.state === 'busy';
   const assistantReady = assistant.state === 'ready';
-  // The dimension field belongs to a single selection.
-  const dimension = useMemo(() => (picks.length === 1 ? dimensionOf(bodies, selection) : null), [bodies, selection, picks.length]);
+  const dimension = useMemo(() => dimensionFor(bodies, picks), [bodies, picks]);
   const decimal = (1.5).toLocaleString(i18n.language).charAt(1);
   const show = (number: number) => String(round(number)).replace('.', decimal);
   // The field's text; every keystroke tries the new value, not only leaving the field.
@@ -198,11 +147,11 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
     if (result?.mode === 'assistant' && assistantReady) {
       const request = t('hud.assistantRequest', {
         what: t(`hud.${dimension.shown}`),
-        name: selectionName(current),
+        name: all.map(selectionName).join(' – '),
         from: number.format(round(dimension.value)),
         to: number.format(value),
       });
-      void platform().agent.send(request, [current]);
+      void platform().agent.send(request, all);
     }
   };
 
