@@ -15,7 +15,7 @@ import type { DimensionProbeResult, DimensionTarget } from '../../../shared/cont
 import { selectedStatus, useAssistant } from '../assistant/store';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
-import { parseLength } from './lengthInput';
+import { parseLength, stepLength } from './lengthInput';
 import { blendWeights, GHOST_OPACITY, PREVIEW_BLEND } from './blend';
 import { SelectionInfo } from './SelectionInfo';
 import { edgeLabel, selectionName, selectionOf, selectionsOf } from './viewState';
@@ -246,8 +246,13 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
             </Label>
             <Input
               className={`${inputClass('sm')} tabular-nums`}
+              aria-keyshortcuts="ArrowUp ArrowDown"
               onKeyDown={(event) => {
-                if (event.key === 'Enter') {
+                const stepped = stepLength(text, event.key, event, decimal);
+                if (stepped !== null) {
+                  event.preventDefault();
+                  setText(stepped);
+                } else if (event.key === 'Enter') {
                   event.preventDefault();
                   apply();
                 } else if (event.key === 'Escape' && changed) {

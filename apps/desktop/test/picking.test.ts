@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseLength } from '../src/renderer/src/viewer/lengthInput';
+import { parseLength, stepLength } from '../src/renderer/src/viewer/lengthInput';
 import { segmentCandidates, vertexCandidates, type Project } from '../src/renderer/src/viewer/picking';
 
 // Looking down -Z: 1 mm is 10 px, x to the right, y down the screen.
@@ -43,5 +43,16 @@ describe('length typed into the dimension field', () => {
     expect(parseLength('1e3')).toBeNaN();
     expect(parseLength('-4')).toBeNaN();
     expect(parseLength('')).toBeNaN();
+  });
+
+  it('steps with the arrow keys: 1, 10 with Shift, 0.1 with Alt, never to zero', () => {
+    const none = { shiftKey: false, altKey: false };
+    expect(stepLength('20', 'ArrowUp', none, '.')).toBe('21');
+    expect(stepLength('20', 'ArrowDown', { shiftKey: true, altKey: false }, '.')).toBe('10');
+    expect(stepLength('12,5', 'ArrowUp', { shiftKey: false, altKey: true }, ',')).toBe('12,6');
+    expect(stepLength('0.3', 'ArrowDown', { shiftKey: false, altKey: true }, '.')).toBe('0.2');
+    expect(stepLength('1', 'ArrowDown', none, '.')).toBeNull();
+    expect(stepLength('abc', 'ArrowUp', none, '.')).toBeNull();
+    expect(stepLength('20', 'Enter', none, '.')).toBeNull();
   });
 });

@@ -651,7 +651,7 @@
     "all": "All dimensions",
     "loose": "More dimensions",
     "edit": "Change {name}: {value}",
-    "typeNew": "Type a new value – the preview shows the result",
+    "typeNew": "Type a new value or use ↑ ↓ (Shift 10, Alt 0.1) – the preview shows the result",
     "direct": "Preview in the view – Enter changes it directly",
     "followsParameter": "Follows the parameter {name}{count, plural, =0 {} one { (used by # more dimension)} other { (used by # more dimensions)}}",
     "changesParameter": "Enter changes {name}{count, plural, =0 {} one { – # more dimension follows} other { – # more dimensions follow}}",
