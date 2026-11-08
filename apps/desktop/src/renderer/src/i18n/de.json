@@ -651,7 +651,7 @@
     "all": "Alle Bemaßungen",
     "loose": "Weitere Maße",
     "edit": "{name}: {value} ändern",
-    "typeNew": "Neuen Wert eingeben – die Vorschau zeigt das Ergebnis",
+    "typeNew": "Neuen Wert eingeben oder mit ↑ ↓ ändern (Umschalt 10, Alt 0,1) – die Vorschau zeigt das Ergebnis",
     "direct": "Vorschau in der Ansicht – Enter ändert direkt",
     "followsParameter": "Folgt dem Parameter {name}{count, plural, =0 {} one { (auch in # weiteren Maß)} other { (auch in # weiteren Maßen)}}",
     "changesParameter": "Enter ändert {name}{count, plural, =0 {} one { – # weiteres Maß ändert sich mit} other { – # weitere Maße ändern sich mit}}",

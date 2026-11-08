@@ -14,7 +14,7 @@ import { useStudio, type ModelState, type Pick } from '../state/store';
 import { DimensionLines } from './DimensionLines';
 import { Ghost } from './DimensionHud';
 import { layoutLabels, type LabelBox } from './labelLayout';
-import { parseLength } from './lengthInput';
+import { parseLength, stepLength } from './lengthInput';
 import { keeps } from './section';
 import { edgeLabel } from './viewState';
 import { TreeExtra } from '../shell/Tree';
@@ -174,8 +174,13 @@ export function MarkField({ mark, onGhost, onClose }: { mark: DimensionMark; onG
         <Input
           autoFocus
           className={`${inputClass('md')} tabular-nums`}
+          aria-keyshortcuts="ArrowUp ArrowDown"
           onKeyDown={(event) => {
-            if (event.key === 'Enter') {
+            const stepped = stepLength(draft, event.key, event, decimal);
+            if (stepped !== null) {
+              event.preventDefault();
+              setDraft(stepped);
+            } else if (event.key === 'Enter') {
               event.preventDefault();
               apply();
             } else if (event.key === 'Escape') {
