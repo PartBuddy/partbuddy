@@ -18,7 +18,7 @@
     "dist:dir": "electron-vite build && electron-builder --win --dir --publish never"
   },
   "dependencies": {
-    "@ai-sdk/openai": "4.0.104",
+    "@ai-sdk/openai": "4.0.106",
     "@modelcontextprotocol/client": "2.4.0",
     "@modelcontextprotocol/server": "2.4.0",
     "@napi-rs/keyring": "2.1.2",
@@ -29,7 +29,7 @@
     "@shikijs/langs": "4.5.0",
     "@shikijs/themes": "4.5.0",
     "@tabler/icons-react": "3.50.0",
-    "ai": "7.0.155",
+    "ai": "7.0.159",
     "electron-updater": "6.8.11",
     "fflate": "0.8.3",
     "i18next": "26.6.0",
