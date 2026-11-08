@@ -15,6 +15,7 @@ import { DimensionService, type DimensionTarget, type ProbeResult } from './dime
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
 import type { DesignParameter, DimensionMark } from '../../shared/contract';
 import { blockBodies, colourLayers, stepsOf, type FeatureBlock } from '../../shared/blocks';
+import { uniqueLogoName } from '../../shared/drawingPlacement';
 import { insertCommand, type ImportKind } from '../projects/importFile';
 import { freeBodyName, libraryOf, STANDARD_PARTS_KEY, standardPartsOf } from './standardParts';
 import { ProjectStore } from '../projects/projectStore';
@@ -584,7 +585,9 @@ export class SolidCraftSupervisor {
 
   async applyBlock(block: FeatureBlock): Promise<void> {
     await this.probing;
-    await this.actions.applySteps(stepsOf(block));
+    // A logo's sketches get a name no other logo has, so it can be moved on its own later.
+    const sketch = block.block === 'logo' ? uniqueLogoName(block.name, await this.actions.sketchNames()) : undefined;
+    await this.actions.applySteps(stepsOf(block, sketch));
     // A logo in colours: pieces a cut split off get their colour too.
     const layers = block.block === 'logo' ? colourLayers(block) : [];
     if (layers.length > 0) {

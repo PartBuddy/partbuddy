@@ -36,6 +36,8 @@ const ALLOWED = new Set([
   'partbuddy_assembly',
   // The design rule groups of the project (designTool.ts), kept by PartBuddy, never forwarded.
   'partbuddy_design_rules',
+  // Moves a placed logo through sketch.redefine (drawingTool.ts), answered by PartBuddy.
+  'partbuddy_move_drawing',
 ]);
 
 /**

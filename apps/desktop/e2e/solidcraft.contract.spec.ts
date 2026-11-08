@@ -1843,6 +1843,22 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
     expect(body('Body1')?.volume_mm3).toBeCloseTo(4000 - 128 * 0.6, 1);
     await page.screenshot({ path: test.info().outputPath('logo-colours.png') });
 
+    // Moved exactly, then centred across: the pocket and both colour bodies follow in one step each.
+    await say('Move the logo {"logo": "Logo Badge", "by": [3, -2]}');
+    await expect(page.getByText(/^Logo: Moved Logo Badge .*\[13, 8, 10\] mm/)).toBeVisible({ timeout: 30_000 });
+    await say('Move the logo {"logo": "Badge", "centre": "x"}');
+    await expect(page.getByText(/^Logo: Moved Logo Badge by -3 mm along its x and 0 mm along its y on face .* of Body1; its middle is now at \[10, 8, 10\] mm/)).toBeVisible({ timeout: 30_000 });
+    await say('Measure the bodies');
+    const again = page.getByText(/^Measured: /).last();
+    await expect(page.getByText(/^Measured: /)).toHaveCount(2, { timeout: 30_000 });
+    const moved = JSON.parse(/\{.*\}/.exec((await again.textContent()) ?? '')?.[0] ?? '{}') as Measured;
+    const after = (name: string) => moved.bodies.find((entry) => entry.name === name);
+    for (const [entry, min, max] of [[after('Badge 1d71b8 1'), [2, 4, 9.4], [18, 12, 10]], [after('Badge ffd500 1'), [8, 6, 9.4], [12, 10, 10]]] as const) {
+      entry?.bbox.min.forEach((value, i) => expect(value).toBeCloseTo(min[i] ?? 0, 2));
+      entry?.bbox.max.forEach((value, i) => expect(value).toBeCloseTo(max[i] ?? 0, 2));
+    }
+    expect(after('Body1')?.volume_mm3).toBeCloseTo(4000 - 128 * 0.6, 1);
+
     // Through the form: a free multi-colour SVG (Twemoji fox, CC-BY 4.0) on the box's front face.
     await page.getByTestId('timeline-feature').first().waitFor();
     const box = await page.getByTestId('viewport').boundingBox();

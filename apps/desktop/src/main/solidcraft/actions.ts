@@ -83,6 +83,13 @@ export class ActionService {
     if (reply.failed) throw new Error(`SolidCraft refused it: ${reply.failed.error}`);
   }
 
+  /** The names of the design's sketches (`document.inspect`). */
+  async sketchNames(): Promise<string[]> {
+    const reply = await this.batch([{ command: 'document.inspect', params: {} }], false);
+    const sketches = ((reply.results?.[0] ?? {}) as { sketches?: { name?: unknown }[] }).sketches ?? [];
+    return sketches.flatMap((sketch) => (typeof sketch.name === 'string' ? [sketch.name] : []));
+  }
+
   /**
    * Gives the pieces a cut split off their colour: SolidCraft names them "<body> (2)" and so on,
    * without the colour the body had (a logo in colours). Returns how many it coloured.
