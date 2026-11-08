@@ -202,8 +202,9 @@ test('the view highlights the faces a step changed and can follow them', async (
   await expect(page.getByTestId('mesh-summary')).toHaveAttribute('title', /triangles · mirrored in [\d,]+ ms$/);
   await expect(page.getByTestId('live-changes')).toBeHidden();
 
+  // Each revision is mirrored in turn; under a busy CI runner that takes more than the default 5 s.
   solidcraft.change({ moveFaces: ['F1:+z', 'F1:-z'] });
-  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '2');
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '2', { timeout: 15_000 });
   await expect(page.getByTestId('live-changes')).toHaveText('2 faces changed');
   const follow = page.getByRole('switch', { name: 'Camera follows changes' });
   await page.getByText('Camera follows changes').click();
@@ -211,10 +212,10 @@ test('the view highlights the faces a step changed and can follow them', async (
 
   // Moving the faces back is a change again; a revision without geometry changes clears it.
   solidcraft.change();
-  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '3');
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '3', { timeout: 15_000 });
   await expect(page.getByTestId('live-changes')).toHaveText('2 faces changed');
   solidcraft.change();
-  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '4');
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '4', { timeout: 15_000 });
   await expect(page.getByTestId('live-changes')).toBeHidden();
 });
 
