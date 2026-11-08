@@ -1135,6 +1135,12 @@ test('the tolerance assistant reads the test pieces into the material, which Sav
   await assistant.getByTestId('tolerance-cancel').click();
   await expect(assistant).toHaveCount(0);
   await expect(dialog.getByTestId('material-overhang').getByRole('textbox')).toHaveValue('45');
+  // Escape then closes the settings, as anywhere else in them.
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-print').click();
+  await dialog.getByTestId('print-tab-material').click();
 
   await dialog.getByTestId('tolerance-start').click();
   await expect(assistant.getByTestId('tolerance-material')).toContainText('PLA');

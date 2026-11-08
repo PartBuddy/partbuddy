@@ -134,7 +134,7 @@ export function ToleranceAssistant({
               </div>
             ) : step === 'pieces' ? (
               <div className="flex flex-col gap-3">
-                {picture ? <img src={picture} alt={t('print.tolerance.pictureAlt')} className="max-h-64 w-full rounded-md border border-border bg-surface object-cover" data-testid="tolerance-picture" /> : null}
+                {picture ? <img src={picture} alt={t('print.tolerance.pictureAlt')} className="h-tile w-full rounded-md border border-border bg-surface object-cover" data-testid="tolerance-picture" /> : null}
                 <p className="text-sm text-text">{t('print.tolerance.pieces')}</p>
                 <ul className="list-disc pl-5 text-sm text-text">
                   {(['print', 'noCompensation', 'cool'] as const).map((key) => (

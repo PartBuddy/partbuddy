@@ -390,7 +390,9 @@ test('website pictures', async () => {
       await expect(assistant.getByTestId('tolerance-picture')).toBeVisible({ timeout: 120_000 });
       await shot('tolerance');
       await assistant.getByTestId('tolerance-cancel').click();
-      await page.keyboard.press('Escape');
+      await expect(assistant).toHaveCount(0);
+      await page.getByTestId('dialog-close').click();
+      await expect(profiles).toHaveCount(0);
     });
     await step('settings', async () => {
       await page.getByTestId('settings').click();
