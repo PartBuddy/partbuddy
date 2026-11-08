@@ -1,6 +1,7 @@
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { splitPieceSteps } from '../../shared/blocks';
 import type { ClearanceResult, DesignAction, MeasureItem, MeasureResult } from '../../shared/contract';
 import type { ControlRequester } from './mirror';
 
@@ -96,11 +97,7 @@ export class ActionService {
    */
   async colourSplitPieces(layers: { body: string; fill: string }[]): Promise<number> {
     const reply = await this.batch([{ command: 'document.inspect', params: {} }], false);
-    const bodies = ((reply.results?.[0] ?? {}) as { bodies?: { name?: unknown }[] }).bodies ?? [];
-    const steps = layers.flatMap((layer) => {
-      const split = bodies.flatMap((body) => (typeof body.name === 'string' && body.name.startsWith(`${layer.body} (`) && /^ \(\d+\)$/.test(body.name.slice(layer.body.length)) ? [body.name] : []));
-      return split.length > 0 ? [{ command: 'appearance.assign', params: { bodies: split, color: layer.fill } }] : [];
-    });
+    const steps = splitPieceSteps(layers, reply.results?.[0]);
     if (steps.length > 0) await this.applySteps(steps);
     return steps.length;
   }

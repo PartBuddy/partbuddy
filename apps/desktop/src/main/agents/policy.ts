@@ -38,6 +38,8 @@ const ALLOWED = new Set([
   'partbuddy_design_rules',
   // Moves a placed logo through sketch.redefine (drawingTool.ts), answered by PartBuddy.
   'partbuddy_move_drawing',
+  // Places an attached SVG as a logo with the logo block's steps (drawingTool.ts), answered by PartBuddy.
+  'partbuddy_place_drawing',
 ]);
 
 /**

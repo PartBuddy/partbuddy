@@ -295,6 +295,18 @@ export function colourLayers(block: LogoBlock): { fill: string; body: string; pi
   });
 }
 
+/**
+ * Colours for the pieces a cut split off a logo's colour bodies: SolidCraft names them "<body> (2)"
+ * and so on, without the colour the body had. `inspect` is a `document.inspect` result.
+ */
+export function splitPieceSteps(layers: readonly { body: string; fill: string }[], inspect: unknown): Step[] {
+  const bodies = ((inspect ?? {}) as { bodies?: { name?: unknown }[] }).bodies ?? [];
+  return layers.flatMap((layer) => {
+    const split = bodies.flatMap((body) => (typeof body.name === 'string' && body.name.startsWith(`${layer.body} (`) && /^ \(\d+\)$/.test(body.name.slice(layer.body.length)) ? [body.name] : []));
+    return split.length > 0 ? [{ command: 'appearance.assign', params: { bodies: split, color: layer.fill } }] : [];
+  });
+}
+
 /** The bodies a block changes or makes, for the ghost: the part, and a logo's colour bodies. */
 export function blockBodies(block: FeatureBlock): string[] {
   return [block.body, ...(block.block === 'logo' ? colourLayers(block).map((layer) => layer.body) : [])];
