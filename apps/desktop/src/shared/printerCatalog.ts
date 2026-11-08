@@ -25,6 +25,7 @@ export const PRINTER_CATALOG: readonly CatalogPrinter[] = [
   { brand: 'Bambu Lab', model: 'H2S', bed: [340, 320, 340], nozzle: 0.4, layer: 0.2, source: 'https://bambulab.com/en/h2s/tech-specs', checked: '2026-11-08' },
   { brand: 'Bambu Lab', model: 'H2C', bed: [325, 320, 320], nozzle: 0.4, layer: 0.2, source: 'https://bambulab.com/en/h2c/specs', checked: '2026-11-08' },
   { brand: 'Bambu Lab', model: 'X2D', bed: [256, 256, 260], nozzle: 0.4, layer: 0.2, source: 'https://bambulab.com/en/x2d/specs', checked: '2026-11-08' },
+  { brand: 'Bambu Lab', model: 'H3C', bed: [330, 320, 325], nozzle: 0.4, layer: 0.2, source: 'https://bambulab.com/en/h3c/specs', checked: '2026-11-08' },
   { brand: 'Prusa', model: 'MK4S', bed: [250, 210, 220], nozzle: 0.4, layer: 0.2, source: 'https://www.prusa3d.com/product/original-prusa-mk4s-3d-printer-5/', checked: '2026-11-08' },
   { brand: 'Prusa', model: 'CORE One', bed: [250, 220, 270], nozzle: 0.4, layer: 0.2, source: 'https://www.prusa3d.com/product/prusa-core-one/', checked: '2026-11-08' },
   { brand: 'Prusa', model: 'CORE One L', bed: [300, 300, 330], nozzle: 0.4, layer: 0.2, source: 'https://www.prusa3d.com/product/prusa-core-one-l/', checked: '2026-11-08' },
