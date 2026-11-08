@@ -27,7 +27,8 @@ export type DimensionTarget =
 
 export type ProbeResult =
   | { mode: 'direct'; parameter: string; factor: 1 | 2; label: string; preview: Uint8Array<ArrayBuffer> | null }
-  | { mode: 'assistant'; reason: 'noDriver' | 'ambiguous' };
+  | { mode: 'choice'; options: { parameter: string; factor: 1 | 2; label: string }[] }
+  | { mode: 'assistant'; reason: 'noDriver' };
 
 export interface Parameter {
   name: string;
@@ -107,6 +108,8 @@ function measureStep(target: DimensionTarget) {
 
 const mm = (value: number) => `${Number(value.toFixed(6))} mm`;
 
+const labelOf = (parameter: Parameter) => [parameter.feature, parameter.input].filter(Boolean).join(' · ') || parameter.name;
+
 export class DimensionService {
   constructor(
     private readonly engine: () => ControlRequester,
@@ -147,13 +150,14 @@ export class DimensionService {
       if (after !== null && Math.abs(after - value) <= SAME * 10) drivers.push(candidate);
     }
     if (drivers.length === 0) return { mode: 'assistant', reason: 'noDriver' };
-    if (drivers.length > 1) return { mode: 'assistant', reason: 'ambiguous' };
+    // Several drive it (a symmetric extrude, a mirrored size): the user says which; the preview follows the pick.
+    if (drivers.length > 1) return { mode: 'choice', options: drivers.map((d) => ({ parameter: d.parameter.name, factor: d.factor, label: labelOf(d.parameter) })) };
     const [driver] = drivers as [{ parameter: Parameter; factor: 1 | 2 }];
     return {
       mode: 'direct',
       parameter: driver.parameter.name,
       factor: driver.factor,
-      label: [driver.parameter.feature, driver.parameter.input].filter(Boolean).join(' · ') || driver.parameter.name,
+      label: labelOf(driver.parameter),
       preview: await this.preview(target.body, driver.parameter.name, value * driver.factor),
     };
   }

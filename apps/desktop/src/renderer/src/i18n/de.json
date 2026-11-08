@@ -504,9 +504,9 @@
     "spacing": "Abstand",
     "probing": "Wird in SolidCraft geprüft …",
     "direct": "Enter ändert direkt: {label}",
+    "choose": "Mehrere Maße treiben das – eines wählen, dann Enter",
     "assistant": {
-      "noDriver": "Kein Parameter steuert das allein – Enter fragt die KI",
-      "ambiguous": "Mehrere Maße kommen in Frage – Enter fragt die KI"
+      "noDriver": "Kein Parameter steuert das allein – Enter fragt die KI"
     },
     "noAssistant": "Kein Parameter steuert das allein; der Assistent ist nicht bereit",
     "ask": "Sag der KI, was hier passieren soll …",
