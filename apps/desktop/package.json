@@ -18,7 +18,7 @@
     "dist:dir": "electron-vite build && electron-builder --win --dir --publish never"
   },
   "dependencies": {
-    "@ai-sdk/openai": "4.0.104",
+    "@ai-sdk/openai": "4.0.106",
     "@modelcontextprotocol/client": "2.4.0",
     "@modelcontextprotocol/server": "2.4.0",
     "@napi-rs/keyring": "2.1.2",
