@@ -267,13 +267,36 @@ test('the dimension field changes the driving parameter directly, with a preview
     expect(await pickEdge('32 mm'), 'the changed 32 mm edge').toBe(true);
     await page.screenshot({ path: test.info().outputPath('dimension-applied.png') });
 
+    // The drag arrow (dimension round, step 4): pulled out along its line, the field follows in whole
+    // mm, and let go, SolidCraft gets the new value.
+    const arrow = page.getByTestId('dimension-arrow');
+    await expect(arrow).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('dimension-arrow.png') });
+    const style = (await arrow.locator('div').first().getAttribute('style')) ?? '';
+    const turn = Number(/rotate\((-?[\d.e-]+)rad\)/.exec(style)?.[1] ?? Number.NaN);
+    expect(Number.isFinite(turn), 'the arrow faces its edge on screen').toBe(true);
+    const grip = await arrow.boundingBox();
+    if (!grip) throw new Error('arrow not visible');
+    const [gx, gy] = [grip.x + grip.width / 2, grip.y + grip.height / 2];
+    const dragged = await page.getByTestId('viewer').getAttribute('data-revision');
+    await page.mouse.move(gx, gy);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i += 1) await page.mouse.move(gx + Math.cos(turn) * 6 * i, gy + Math.sin(turn) * 6 * i);
+    const longer = Number(await field.inputValue());
+    expect(longer, 'the field follows the arrow').toBeGreaterThan(32);
+    expect(Number.isInteger(longer)).toBe(true);
+    await page.mouse.up();
+    await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', dragged ?? '', { timeout: 15_000 });
+    expect(await pickEdge(`${longer} mm`), 'the dragged edge').toBe(true);
+
     // The work log (M2a): the assistant's box and the user's own change, each a card with a picture.
     const cards = page.getByTestId('step-card');
-    await expect(cards).toHaveCount(2);
+    await expect(cards).toHaveCount(3);
     await expect(cards.nth(0).getByTestId('step-text')).toHaveText('Box 20 × 20 × 10 mm');
     await expect(cards.nth(1).getByRole('img', { name: 'By you' })).toBeVisible();
     await expect(cards.nth(1).getByTestId('step-text')).toHaveText(/Dimension Box1 · (Length|Width) set to 32 mm/);
-    await expect(cards.nth(1)).toHaveAttribute('data-current', 'true');
+    await expect(cards.nth(2).getByTestId('step-text')).toHaveText(new RegExp(`Dimension Box1 · (Length|Width) set to ${longer} mm`));
+    await expect(cards.nth(2)).toHaveAttribute('data-current', 'true');
     await expect(cards.nth(0).getByTestId('step-preview')).toHaveAttribute('src', /^data:image\//, { timeout: 10_000 });
     await expect(page.getByTestId('tool-call')).toBeHidden();
     const axe = await new AxeBuilder({ page })
@@ -297,7 +320,7 @@ test('the dimension field changes the driving parameter directly, with a preview
     expect(await pickEdge('32 mm'), 'the change is back').toBe(true);
 
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Undo' }).click();
+    await page.getByTestId('undo').click();
     await page.keyboard.press('Escape');
     expect(await pickEdge('20 mm'), 'back to 20 mm').toBe(true);
   } catch (error) {

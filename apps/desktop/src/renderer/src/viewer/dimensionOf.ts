@@ -110,10 +110,16 @@ export function handleOf(bodies: BodyModel[], picks: Pick[], dimension: Dimensio
     const first = model.edgeRanges[a.edge * 2] ?? 0;
     const count = model.edgeRanges[a.edge * 2 + 1] ?? 0;
     if (count < 1) return null;
-    const start = Array.from(model.edgeSegments.subarray(first * 6, first * 6 + 3));
-    const end = Array.from(model.edgeSegments.subarray((first + count) * 6 - 3, (first + count) * 6));
-    const direction = unit(sub(end, start));
-    return direction ? { origin: [end[0] ?? 0, end[1] ?? 0, end[2] ?? 0], direction, perMm: 1 } : null;
+    const points = model.edgeSegments.subarray(first * 6, (first + count) * 6);
+    const direction = unit(sub(Array.from(points.subarray(3, 6)), Array.from(points.subarray(0, 3))));
+    if (!direction) return null;
+    // The segments of an edge need not come in order: the arrow goes to the point furthest along it.
+    let origin: Vec3 = [points[0] ?? 0, points[1] ?? 0, points[2] ?? 0];
+    for (let i = 3; i < points.length; i += 3) {
+      const point: Vec3 = [points[i] ?? 0, points[i + 1] ?? 0, points[i + 2] ?? 0];
+      if (dot(sub(point, origin), direction) > 0) origin = point;
+    }
+    return { origin, direction, perMm: 1 };
   }
   if (target.measure === 'radius') {
     const cylinder = model.table.faces.find((face) => face.name === target.face)?.cylinder;

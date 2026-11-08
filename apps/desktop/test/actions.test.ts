@@ -120,7 +120,8 @@ describe('the distance of two parallel faces in the dimension field', () => {
 
 describe('the drag arrow of the dimension field', () => {
   it('points along the edge, out of a cylinder and away from the first face', () => {
-    const edgeModel = { edgeRanges: Uint32Array.from([0, 2]), edgeSegments: Float32Array.from([0, 0, 0, 5, 0, 0, 5, 0, 0, 20, 0, 0]), table: { faces: [] } };
+    // Segments out of order: the arrow still goes to the far end.
+    const edgeModel = { edgeRanges: Uint32Array.from([0, 3]), edgeSegments: Float32Array.from([0, 0, 0, 5, 0, 0, 12, 0, 0, 20, 0, 0, 5, 0, 0, 12, 0, 0]), table: { faces: [] } };
     const length = { shown: 'length' as const, value: 20, target: { measure: 'length' as const, body: 'B', edge: 'E', point: [10, 0, 0] as [number, number, number] }, scale: 1 };
     const edgePick: Pick = { kind: 'edge', body: 0, edge: 0, point: [10, 0, 0] };
     expect(handleOf([{ name: 'B', model: edgeModel }] as unknown as BodyModel[], [edgePick], length)).toEqual({ origin: [20, 0, 0], direction: [1, 0, 0], perMm: 1 });
