@@ -208,6 +208,9 @@ export class AgentService implements AgentBackend {
           this.listeners.event(done);
           // The chat says to sign in again; the chip and the panel show it as well.
           this.setStatus({ ...this.current, state: done.detail === 'signedOut' ? 'signedOut' : 'ready' });
+          // The answer's words are not the last say: `auth status` decides, so a sign-in that still holds
+          // does not lock the chat until the next start.
+          if (done.detail === 'signedOut') void this.refresh();
           break;
         }
         case 'exited':

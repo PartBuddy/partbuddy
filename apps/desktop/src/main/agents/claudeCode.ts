@@ -246,7 +246,10 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
         .filter((size): size is number => typeof size === 'number' && Number.isInteger(size) && size > 0);
       const reason = message.is_error === true && typeof message.result === 'string' ? message.result.slice(0, 300) : null;
       // An expired sign-in ends the turn as "success" with is_error and "Failed to authenticate: OAuth session expired…" (2.1.302).
-      const signedOut = reason !== null && /authenticat|oauth|\/login|not logged in/i.test(reason);
+      // Another Claude Code process renewing the shared token at the same moment is no sign-out, though it names OAuth:
+      // "Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh" (2026-11-08).
+      const busyRefreshing = reason !== null && /another Claude Code process is refreshing|mid-refresh/i.test(reason);
+      const signedOut = reason !== null && !busyRefreshing && /authenticat|oauth|\/login|not logged in/i.test(reason);
       return [
         ...(sizes.length > 0 ? [{ type: 'context' as const, size: Math.max(...sizes) }] : []),
         {

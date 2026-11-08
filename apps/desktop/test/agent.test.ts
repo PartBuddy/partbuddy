@@ -194,6 +194,11 @@ describe('Claude Code adapter', () => {
         '{"type":"assistant","message":{"content":[{"type":"text","text":"Failed to authenticate: OAuth session expired and could not be refreshed"}]},"error":"authentication_failed","isApiErrorMessage":true}',
       ),
     ).toEqual([]);
+    // Another Claude Code process renewing the shared token is a failed turn, not a sign-out (2026-11-08).
+    const refreshing = 'Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh';
+    expect(parseStreamLine(JSON.stringify({ type: 'result', subtype: 'success', is_error: true, result: refreshing }))).toEqual([
+      { type: 'done', ok: false, durationMs: null, detail: 'failed', reason: refreshing },
+    ]);
     expect(parseStreamLine('{"type":"result","subtype":"success","is_error":true,"result":"API Error: 500"}')).toEqual([
       { type: 'done', ok: false, durationMs: null, detail: 'failed', reason: 'API Error: 500' },
     ]);
@@ -294,6 +299,18 @@ describe('agent service with a fake Claude Code', () => {
     const { service } = setup({ FAKE_CLAUDE_SIGNED_OUT: '1' });
     expect((await service.refresh()).state).toBe('signedOut');
     await expect(service.send('hello')).rejects.toThrow(/signedOut/);
+  });
+
+  it('asks Claude Code again after an answer that says the sign-in expired, and stays usable while it holds', async () => {
+    const { service, events } = setup();
+    await service.refresh();
+    await service.send('Expire my sign-in');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(1), { timeout: 15_000 });
+    expect(events.find((e) => e.type === 'done')).toMatchObject({ detail: 'signedOut' });
+    // `auth status` still says signed in: the chat is not locked until the next start.
+    await vi.waitFor(() => expect(service.status().state).toBe('ready'), { timeout: 15_000 });
+    // Let the check's model listing end before the work folder goes.
+    expect((await service.refresh()).state).toBe('ready');
   });
 
   it('uses Claude Code with a subscription unless the user allowed API billing', async () => {
