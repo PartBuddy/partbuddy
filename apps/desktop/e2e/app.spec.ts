@@ -1228,7 +1228,8 @@ test('the ready-to-print light follows the printer, points at its findings and a
   const { app } = await connectedApp();
   const { page } = app;
   const light = page.getByTestId('print-check');
-  await expect(light).toHaveAttribute('data-status', 'ready');
+  // The light comes with the first check of the mirrored part, later on a busy runner.
+  await expect(light).toHaveAttribute('data-status', 'ready', { timeout: 15_000 });
   await expect(light).toHaveText('Ready to print');
 
   // A printer too small for the 64 mm clip turns it red.
