@@ -10,6 +10,18 @@ interface CameraWindow {
   };
 }
 
+/** Waits until the camera stands still, e.g. after it framed a part that just arrived (at most `timeoutMs`). */
+export async function cameraSettled(page: Page, timeoutMs = 5000): Promise<void> {
+  const end = Date.now() + timeoutMs;
+  let last = JSON.stringify(await cameraOf(page));
+  while (Date.now() < end) {
+    await page.waitForTimeout(250);
+    const now = JSON.stringify(await cameraOf(page));
+    if (now === last && now !== 'null') return;
+    last = now;
+  }
+}
+
 /** Where the 3D view's camera stands and looks at, read from the canvas (Viewer exposes its R3F state). */
 export async function cameraOf(page: Page): Promise<{ position: Vec3; target: Vec3 } | null> {
   return page.evaluate(() => {

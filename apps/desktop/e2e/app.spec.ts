@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test';
 import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
 import { countViewportPixels } from './pixels';
-import { cameraOf } from './view';
+import { cameraOf, cameraSettled } from './view';
 import { launchApp, lookAgain, type LaunchedApp } from './launch';
 
 let launched: LaunchedApp | null = null;
@@ -98,6 +98,8 @@ test('edges and vertices can be picked, and the view switches projection and sta
   const box = await page.getByTestId('viewport').boundingBox();
   if (!box) throw new Error('viewport not visible');
   const bar = page.getByTestId('selection-bar');
+  // The camera frames the part as it arrives; points scanned before it stands still miss the part.
+  await cameraSettled(page);
 
   // Scan across the middle of the part until an edge is under the pointer.
   const findKind = async (kind: string, points: { x: number; y: number }[]) => {
