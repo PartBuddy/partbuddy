@@ -1091,7 +1091,7 @@ test('a printer from the catalog becomes an ordinary profile that can be changed
   // The search has the focus as the list comes in.
   await expect(catalog.getByTestId('printer-catalog-search')).toBeFocused();
   await page.keyboard.type('prusa');
-  await expect(catalog.getByTestId('printer-catalog-option')).toHaveCount(4);
+  await expect(catalog.getByTestId('printer-catalog-option')).toHaveCount(6);
   // React Aria hides a popover while placing it; focusing too early used to leave it hidden.
   await expect(page.locator('[data-placement]', { has: catalog })).not.toHaveAttribute('style', /opacity: 0/);
   await page.screenshot({ path: test.info().outputPath('printer-catalog.png') });
