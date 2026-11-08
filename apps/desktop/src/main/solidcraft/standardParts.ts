@@ -43,6 +43,32 @@ export function standardPartsOf(metadata: unknown): string[] {
   return Array.isArray(entry?.bodies) ? entry.bodies.filter((name): name is string => typeof name === 'string' && name.length <= 200).slice(0, 500) : [];
 }
 
+/**
+ * The names of SolidCraft's part families (`parts.library`, 0.40.0-rc.2). `parts.insert` describes
+ * every part it inserts as "<family name> <size>", e.g. "Button head cap screw M3x8" or "Deep groove
+ * ball bearing (envelope) 608", and keeps that when the part or its body is renamed.
+ * shortcut: fixed list; read it from `parts.library` if SolidCraft adds families.
+ */
+const LIBRARY_PARTS = [
+  'Socket head cap screw',
+  'Button head cap screw',
+  'Hex head bolt / screw',
+  'Hex nut',
+  'Plain washer',
+  'Hex socket set screw, flat point',
+  'Parallel pin (dowel)',
+  'Deep groove ball bearing (envelope)',
+  'Hex cap screw (inch)',
+  'Hex nut (inch)',
+  'Plain washer, SAE (narrow)',
+  'Plain washer, USS (wide)',
+];
+
+/** Whether a component's description (`component.metadata`) is one `parts.insert` gave it. */
+export function isLibraryPart(description: unknown): boolean {
+  return typeof description === 'string' && LIBRARY_PARTS.some((family) => description.startsWith(`${family} `));
+}
+
 /** A body name that is not taken yet: `SHCS M3x12`, `SHCS M3x12 (2)` … */
 export function freeBodyName(wanted: string, taken: Iterable<string>): string {
   const names = new Set(taken);
