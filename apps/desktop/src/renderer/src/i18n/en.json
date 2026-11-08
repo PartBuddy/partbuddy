@@ -882,7 +882,13 @@
         "label": "Snap sizes",
         "hint": "Walls it chooses become whole line widths, floors and heights whole layers. When you change printer, PartBuddy adjusts only these sizes."
       }
-    }
+    },
+    "add": "Add printer",
+    "catalog": "Printer catalog",
+    "catalogSearch": "Search brand or model",
+    "catalogEmpty": "No printer matches. Copy an existing one and enter the values by hand.",
+    "catalogHint": "Values as stated by the maker. It becomes a profile of your own that you can change freely.",
+    "printersFull": "At most {count} printers. Delete one to add another."
   },
   "check": {
     "title": "Ready to print?",

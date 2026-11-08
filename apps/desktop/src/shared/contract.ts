@@ -925,6 +925,8 @@ export const chatSaveSchema = z.object({ items: z.array(storedChatItemSchema).ma
 const profileId = z.string().regex(/^[a-z0-9-]{1,40}$/);
 const profileName = z.string().trim().min(1).max(60);
 const range = (min: number, max: number) => finite.min(min).max(max);
+/** How many printers the settings keep. */
+export const MAX_PRINTERS = 20;
 
 export const printerProfileSchema = z
   .object({
@@ -972,7 +974,7 @@ export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true
 export const printSettingsSchema = z
   .object({
     version: z.literal(1),
-    printers: z.array(printerProfileSchema).min(1).max(20).refine(uniqueIds, 'printer ids must be unique'),
+    printers: z.array(printerProfileSchema).min(1).max(MAX_PRINTERS).refine(uniqueIds, 'printer ids must be unique'),
     /** The printer in use. */
     printer: profileId,
     materials: z.array(materialProfileSchema).min(1).max(50).refine(uniqueIds, 'material ids must be unique'),
