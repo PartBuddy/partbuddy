@@ -73,3 +73,13 @@ describe('placing a logo', () => {
     expect(centring(extent, 'x')).toEqual([10, 0]);
   });
 });
+
+describe('logo colour bodies', () => {
+  it('tells a colour piece of a logo from other bodies', async () => {
+    const { isLogoColourBody } = await import('../src/shared/drawingPlacement');
+    expect(isLogoColourBody('Badge 1d71b8 1')).toBe(true);
+    expect(isLogoColourBody('twemoji-fox ff8b00 12 (2)')).toBe(true);
+    expect(isLogoColourBody('Body1')).toBe(false);
+    expect(isLogoColourBody('Lid 2')).toBe(false);
+  });
+});

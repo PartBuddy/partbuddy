@@ -508,11 +508,15 @@
   },
   "logoMove": {
     "title": "Logo „{name}“",
-    "hint": "Abstand der Logomitte zur Flächenmitte. Ändern zeigt eine Vorschau, Ziehpfeile am Teil verschieben direkt.",
-    "hintNoFace": "Verschiebt das Logo um die angegebenen Millimeter. Ziehpfeile am Teil verschieben direkt.",
+    "hint": "Abstand der Logomitte zur Flächenmitte und Tiefe. Ändern zeigt eine Vorschau, die Pfeile am Teil ändern direkt.",
+    "hintNoFace": "Verschiebt das Logo um die angegebenen Millimeter. Die Pfeile am Teil ändern direkt.",
     "across": "Quer",
     "up": "Hoch",
-    "apply": "Verschieben",
+    "apply": "Übernehmen",
+    "depth": "Tiefe",
+    "height": "Höhe",
+    "dragDepth": "Ziehen ändert die Tiefe (Alt: Zehntel), Loslassen übernimmt",
+    "dragHeight": "Ziehen ändert die Höhe (Alt: Zehntel), Loslassen übernimmt",
     "centreAcross": "Mittig quer",
     "centreUp": "Mittig hoch",
     "centre": "Mittig",
@@ -1325,6 +1329,7 @@
       "snapFit": "Ein federnder Arm mit Rastnase, der aus der Fläche ragt. Liegend drucken, damit die Schichten längs des Arms laufen: stehend bricht er an einer Schicht. Das Gegenstück braucht eine Öffnung so tief wie die Nase.",
       "logo": "Eine SVG-Datei mittig am Punkt, so breit wie angegeben. Gebaut werden nur gefüllte Flächen: Text und Linien vorher in Pfade umwandeln (in Inkscape: Pfad › Objekt in Pfad, Kontur in Pfad)."
     },
+    "logoCentre": "Auf die Flächenmitte",
     "logoColours": "Je Farbe ein Körper ({count} Farben, Mehrfarbdruck)",
     "logoColoursHint": {
       "deboss": "Die Farben liegen bündig in einer Tasche ihrer Form; jede Farbe ist ein eigener Körper für ihr Filament.",

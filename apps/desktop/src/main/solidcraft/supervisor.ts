@@ -15,8 +15,8 @@ import { DimensionService, type DimensionTarget, type ProbeResult } from './dime
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
 import type { DesignParameter, DimensionMark, LogoMoveRequest, LogoSpot } from '../../shared/contract';
 import { logoAt, planLogoMove } from './logoMove';
-import { blockBodies, colourLayers, stepsOf, type FeatureBlock } from '../../shared/blocks';
-import { uniqueLogoName } from '../../shared/drawingPlacement';
+import { blockBodies, colourLayers, planeAt, stepsOf, type FeatureBlock } from '../../shared/blocks';
+import { centring, hostFace, movedPlane, uniqueLogoName } from '../../shared/drawingPlacement';
 import { insertCommand, type ImportKind } from '../projects/importFile';
 import { freeBodyName, libraryOf, STANDARD_PARTS_KEY, standardPartsOf } from './standardParts';
 import { ProjectStore } from '../projects/projectStore';
@@ -411,7 +411,7 @@ export class SolidCraftSupervisor {
 
   /** Like `trialSteps`, for steps that read files from the cache folder. */
   private trialInCache(steps: { command: string; params: Record<string, unknown> }[]): Promise<unknown[] | null> {
-    return this.trial(async () => {
+    return this.trial('cached steps', async () => {
       const reply = await this.requester().request<BatchResult & { failed?: { index: number; error: string } }>(
         'engine.batch',
         { commands: [...steps, { command: 'sketch.inspect', params: { sketch: 2147483647 } }], rollback: true, allow_paths: [this.options.cacheDir] },
@@ -557,12 +557,20 @@ export class SolidCraftSupervisor {
   }
 
   /** One trial at a time, like the dimension probes; the headless engine records the moved revision quietly. */
-  private trial<T>(work: () => Promise<T>): Promise<T> {
+  private trial<T>(what: string, work: () => Promise<T>): Promise<T> {
     const run = this.probing.then(async () => {
+      // Everything after a trial waits for it: one that hangs is worth a line in the log.
+      const started = performance.now();
+      const slow = setTimeout(() => {
+        this.options.log(`a trial (${what}) is still running after 20 s`);
+      }, 20_000);
       try {
         return await work();
       } finally {
         await this.engine?.checkForChange(true).catch(() => undefined);
+        clearTimeout(slow);
+        const took = performance.now() - started;
+        if (took > 20_000) this.options.log(`a trial (${what}) took ${String(Math.round(took / 1000))} s`);
       }
     });
     this.probing = run.catch(() => undefined);
@@ -570,7 +578,7 @@ export class SolidCraftSupervisor {
   }
 
   previewAction(action: DesignAction): Promise<ActionPreview> {
-    return this.trial(() => this.actions.preview(action));
+    return this.trial('action preview', () => this.actions.preview(action));
   }
 
   async applyAction(action: DesignAction): Promise<void> {
@@ -581,13 +589,31 @@ export class SolidCraftSupervisor {
 
   /** A function block (F1) on trial for the ghost, like an action. */
   previewBlock(block: FeatureBlock): Promise<ActionPreview> {
-    return this.trial(() => this.actions.previewSteps(stepsOf(block), blockBodies(block)));
+    return this.trial('block preview', async () => {
+      const placed = await this.centredBlock(block);
+      return this.actions.previewSteps(stepsOf(placed), blockBodies(placed));
+    });
+  }
+
+  /** A logo "on the face's middle": its point moved there before it is built, so the ghost shows it there too. */
+  private async centredBlock(block: FeatureBlock): Promise<FeatureBlock> {
+    if (block.block !== 'logo' || !block.centre) return block;
+    const plane = planeAt(block.point, block.normal);
+    const [faces, edges] = await this.actions.run([
+      { command: 'model.faces', params: { body: block.body } },
+      { command: 'model.edges', params: { body: block.body } },
+    ]);
+    const host = hostFace(plane, [{ body: block.body, faces, edges }]);
+    if (!host) throw new Error('no flat face at the point to centre the logo on');
+    const [du, dv] = centring(host.extent, 'both');
+    return { ...block, point: movedPlane(plane, du, dv).origin };
   }
 
   async applyBlock(block: FeatureBlock): Promise<void> {
     await this.probing;
     // A logo's sketches get a name no other logo has, so it can be moved on its own later.
     const sketch = block.block === 'logo' ? uniqueLogoName(block.name, await this.actions.sketchNames()) : undefined;
+    block = await this.centredBlock(block);
     await this.actions.applySteps(stepsOf(block, sketch));
     // A logo in colours: pieces a cut split off get their colour too.
     const layers = block.block === 'logo' ? colourLayers(block) : [];
@@ -607,8 +633,17 @@ export class SolidCraftSupervisor {
     const id = ++this.logoReads;
     const read = this.probing.then(async () => {
       if (id !== this.logoReads) return null;
-      const spot = await logoAt((commands) => this.actions.run(commands), point);
-      return spot && { logo: spot.logo, offset: spot.offset, origin: spot.plane.origin, xDir: spot.plane.x_dir, yDir: spot.plane.y_dir, box: spot.box };
+      const started = performance.now();
+      let calls = 0;
+      const spot = await logoAt((commands) => {
+        calls += commands.length;
+        return this.actions.run(commands);
+      }, point).catch((error: unknown) => {
+        this.options.log(`logo read failed after ${String(Math.round(performance.now() - started))} ms: ${(error as Error).message}`);
+        throw error;
+      });
+      this.options.log(`logo read: ${spot ? spot.logo : 'none'}, ${String(calls)} engine commands in ${String(Math.round(performance.now() - started))} ms`);
+      return spot && { logo: spot.logo, offset: spot.offset, origin: spot.plane.origin, xDir: spot.plane.x_dir, yDir: spot.plane.y_dir, box: spot.box, depth: spot.depth };
     });
     this.probing = read.catch(() => undefined);
     return read;
@@ -616,26 +651,28 @@ export class SolidCraftSupervisor {
 
   /** A logo moved on trial: its sketches redefined, the part and its colour bodies exported for the ghost. */
   previewLogoMove(move: LogoMoveRequest): Promise<ActionPreview> {
-    return this.trial(async () => {
-      const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre);
+    return this.trial('logo preview', async () => {
+      const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre, move.depth ?? null);
       return this.actions.previewSteps(planned.steps, planned.bodies);
     });
   }
 
   async moveLogo(move: LogoMoveRequest): Promise<void> {
     await this.probing;
-    const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre);
+    const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre, move.depth ?? null);
+    // Already where it should be (centred twice): nothing to do.
+    if (planned.steps.length === 0) return;
     await this.actions.applySteps(planned.steps);
     await this.engine?.checkForChange();
   }
 
   measure(items: MeasureItem[]): Promise<MeasureResult> {
-    return this.trial(() => this.actions.measure(items));
+    return this.trial('measure', () => this.actions.measure(items));
   }
 
   /** Overlaps and gaps narrower than `gap` between the bodies (F2, `inspect.clearance`). */
   clearance(bodies: string[], gap: number): Promise<ClearanceResult> {
-    return this.trial(() => this.actions.clearance(bodies, gap));
+    return this.trial('clearance', () => this.actions.clearance(bodies, gap));
   }
 
   /**
@@ -644,7 +681,7 @@ export class SolidCraftSupervisor {
    * given steps failed.
    */
   trialSteps(steps: { command: string; params: Record<string, unknown> }[]): Promise<unknown[] | null> {
-    return this.trial(async () => {
+    return this.trial('steps', async () => {
       const reply = await this.requester().request<BatchResult & { failed?: { index: number } }>(
         'engine.batch',
         { commands: [...steps, { command: 'sketch.inspect', params: { sketch: 2147483647 } }], rollback: true },
@@ -674,7 +711,7 @@ export class SolidCraftSupervisor {
 
   /** Tries a parameter value for the ghost of a dimension label (M2b-3); the design stays as it is. */
   probeParameter(parameter: string, value: number, body: string | null): ReturnType<DimensionService['previewParameter']> {
-    return this.trial(() => this.dimensions.previewParameter(parameter, value, body));
+    return this.trial('parameter probe', () => this.dimensions.previewParameter(parameter, value, body));
   }
 
   /**

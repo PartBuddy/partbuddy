@@ -20,7 +20,14 @@ function engine(): { run: Run; seen: string[] } {
             { name: 'Other', bbox: { min: [50, 0, 0], max: [60, 10, 10] } },
           ],
           sketches: [{ id: 3, name: 'Logo Badge', plane }, { id: 4, name: 'Sketch1', plane }],
+          timeline: [{ id: 1, type: 'Box' }, { id: 5, type: 'Extrude' }, { id: 6, type: 'Extrude' }],
         };
+      case 'timeline.inspect':
+        return params.feature === 5
+          ? { inputs: [{ label: 'Distance', param: 'd5', expression: '-0.6 mm' }], definition: { sketch: 3 } }
+          : { inputs: [{ label: 'Distance', param: 'd6', expression: '2 mm' }], definition: { sketch: 4 } };
+      case 'parameters.list':
+        return { parameters: [{ name: 'd5', expression: '-0.6 mm', value: -0.6 }, { name: 'd6', expression: '2 mm', value: 2 }] };
       case 'sketch.inspect':
         return { id: params.sketch, name: 'Logo Badge', plane, curves: [{ id: 'c1', type: 'circle', center_at: [0, 0], radius: 4 }] };
       case 'model.faces':
@@ -47,7 +54,7 @@ describe('moving a placed logo', () => {
     const { run } = engine();
     // On the floor of the pocket, inside the drawing's box.
     const spot = await logoAt(run, [16, 21, 9.4]);
-    expect(spot).toMatchObject({ logo: 'Logo Badge', offset: [-6, 0], plane });
+    expect(spot).toMatchObject({ logo: 'Logo Badge', offset: [-6, 0], plane, depth: { value: 0.6, raised: false } });
     // The circle as drawn on screen, within its tessellation.
     spot?.box.forEach((value, i) => expect(value).toBeCloseTo([-4, -4, 4, 4][i] ?? NaN, 1));
     // Beside the drawing on the same face: no logo.
@@ -63,6 +70,8 @@ describe('moving a placed logo', () => {
     expect(move.face).toBe('F1:+z of Box');
     expect(move.bodies.sort()).toEqual(['Badge 1d71b8 1', 'Box']);
     await expect(planLogoMove(run, 'Nothing', [1, 0], null)).rejects.toThrow('placed logos: Logo Badge');
+    // Only the depth: the logo's own extrusion, cut in as before; the other sketch's stays.
+    expect((await planLogoMove(run, 'Logo Badge', null, null, 1.2)).steps).toEqual([{ command: 'parameters.change', params: { name: 'd5', expression: '-1.2 mm' } }]);
   });
 
   it('lets a logo arrow go below zero', () => {

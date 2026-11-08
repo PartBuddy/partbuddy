@@ -1878,6 +1878,8 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
     await page.getByTestId('block-width').getByRole('textbox').fill('9');
     await expect(page.getByTestId('block-logo-colours')).toContainText('5 colours');
     await page.getByTestId('block-colours').click();
+    // Wherever the face was clicked, the fox goes onto its middle.
+    await page.getByTestId('block-centre').click();
     await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
     await page.screenshot({ path: test.info().outputPath('logo-colours-form.png') });
     await page.getByTestId('block-apply').click();
@@ -1885,6 +1887,10 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
     // Every body but the box has its colour in the tree, also a piece a cut split in two.
     const count = await page.getByTestId('structure-body').count();
     await expect(page.getByTestId('structure-body-colour')).toHaveCount(count - 1);
+    type Logos = { partbuddy: { design: { logoAt(point: number[]): Promise<{ logo: string; offset: number[] | null } | null> } } };
+    const fox = await page.evaluate(() => (globalThis as unknown as Logos).partbuddy.design.logoAt([10, 0, 5]));
+    expect(fox?.logo).toBe('Logo twemoji-fox');
+    fox?.offset?.forEach((value) => expect(value).toBeCloseTo(0, 2));
     await page.mouse.click(box.x + box.width * 0.9, box.y + box.height * 0.1);
     await page.waitForTimeout(1000);
     await page.screenshot({ path: test.info().outputPath('logo-colours-fox.png') });
@@ -2561,6 +2567,22 @@ test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved
     await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 15_000 });
     expect(await at([10 + dragged, 10, 9.4])).toMatchObject({ offset: [dragged, 0] });
     await page.screenshot({ path: test.info().outputPath('logo-moved.png') });
+
+    // Deeper through the field: 1 mm instead of 0.6, the box loses the ring 1 mm deep.
+    expect(await pickLogo(), 'a click on the dragged logo').toBe(true);
+    const depth = page.getByTestId('logo-depth').getByRole('textbox');
+    await expect(depth).toHaveValue('0.6');
+    await expect(page.getByTestId('logo-arrow-depth')).toBeVisible();
+    await depth.fill('1');
+    await depth.press('Tab');
+    revision = await page.getByTestId('viewer').getAttribute('data-revision');
+    await page.getByTestId('logo-move-apply').click();
+    await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 15_000 });
+    await expect(page.getByTestId('step-text').last()).toHaveText('Logo “logo-o” set to 1 mm');
+    await say('Measure the bodies');
+    await expect(page.getByText(/^Measured: /)).toHaveCount(2, { timeout: 30_000 });
+    const deeper = JSON.parse(/{.*}/.exec((await page.getByText(/^Measured: /).last().textContent()) ?? '')?.[0] ?? '{}') as { bodies: { name: string; volume_mm3: number }[] };
+    expect(deeper.bodies.find((entry) => entry.name === 'Body1')?.volume_mm3).toBeCloseTo(4000 - 16 * Math.PI, 0);
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });

@@ -508,11 +508,15 @@
   },
   "logoMove": {
     "title": "Logo “{name}”",
-    "hint": "Distance of the logo's middle from the face's middle. A change shows a preview; the arrows on the part move it directly.",
-    "hintNoFace": "Moves the logo by the given millimetres. The arrows on the part move it directly.",
+    "hint": "Distance of the logo's middle from the face's middle, and its depth. A change shows a preview; the arrows on the part change it directly.",
+    "hintNoFace": "Moves the logo by the given millimetres. The arrows on the part change it directly.",
     "across": "Across",
     "up": "Up",
-    "apply": "Move",
+    "apply": "Apply",
+    "depth": "Depth",
+    "height": "Height",
+    "dragDepth": "Drag to change the depth (Alt: tenths); let go to apply",
+    "dragHeight": "Drag to change the height (Alt: tenths); let go to apply",
     "centreAcross": "Centre across",
     "centreUp": "Centre up",
     "centre": "Centre",
@@ -1325,6 +1329,7 @@
       "snapFit": "A flexible arm with a catch, standing out of the face. Print it lying down so the layers run along the arm: standing upright it breaks along a layer. The other part needs an opening as deep as the catch.",
       "logo": "An SVG file centred on the point, as wide as given. Only filled areas are built: turn text and lines into paths first (in Inkscape: Path › Object to Path, Stroke to Path)."
     },
+    "logoCentre": "On the middle of the face",
     "logoColours": "A body per colour ({count} colours, multi-colour print)",
     "logoColoursHint": {
       "deboss": "The colours lie flush in a pocket of their shape; each colour is its own body for its filament.",

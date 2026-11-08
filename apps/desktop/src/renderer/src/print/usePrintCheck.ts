@@ -1,3 +1,4 @@
+import { isLogoColourBody } from '../../../shared/drawingPlacement';
 import { checkPrint, withClearance } from '@partbuddy/geometry';
 import { useEffect } from 'react';
 
@@ -32,7 +33,10 @@ export function usePrintCheck(): void {
           .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision))
           .catch(() => undefined);
       };
-      if (printed.length < 2) {
+      // A logo's colour pieces sit in the part on purpose; measuring them, SolidCraft took minutes
+      // for a logo of many pieces and held up every trial after it.
+      const parts = printed.filter((body) => !isLogoColourBody(body.name));
+      if (parts.length < 2) {
         report(result);
         return;
       }
@@ -41,7 +45,7 @@ export function usePrintCheck(): void {
       const pushFit = print.material.clearance.push;
       void platform()
         .design.clearance(
-          printed.map((body) => body.name),
+          parts.map((body) => body.name),
           Math.max(pushFit, 0),
         )
         .then(

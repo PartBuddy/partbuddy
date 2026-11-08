@@ -66,6 +66,7 @@ export const STEP_PHRASE_KEYS = [
   'snapFit',
   'logo',
   'logoMoved',
+  'logoDepth',
   'command',
 ] as const;
 
@@ -407,6 +408,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     snapFit: 'Snap fit {length} mm',
     logo: '{mode, select, emboss {Logo “{name}” embossed} other {Logo “{name}” engraved}}',
     logoMoved: 'Logo “{name}” moved',
+    logoDepth: 'Logo “{name}” set to {depth} mm',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -462,6 +464,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     snapFit: 'Schnapphaken {length} mm',
     logo: '{mode, select, emboss {Logo „{name}“ erhaben} other {Logo „{name}“ vertieft}}',
     logoMoved: 'Logo „{name}“ verschoben',
+    logoDepth: 'Logo „{name}“ auf {depth} mm gesetzt',
     command: 'SolidCraft: {command}',
   },
 };
