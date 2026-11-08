@@ -16,12 +16,13 @@ import {
   TextField,
 } from 'react-aria-components';
 
-import { FIT_KINDS, type MaterialProfile, type PrinterProfile, type PrintSettings } from '../../../shared/contract';
+import { FIT_KINDS, MAX_PRINTERS, type MaterialProfile, type PrinterProfile, type PrintSettings } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio, type ProfilesTab } from '../state/store';
 import { Button } from '../ui/Button';
 import { FieldMessage, fieldLabelClass, inputClass, UnitInput } from '../ui/Field';
 import { CheckMark, choiceInlineClass } from '../ui/Choice';
+import { PrinterCatalogPicker } from './PrinterCatalogPicker';
 import { listRowClass, tabClass, tabListClass } from '../ui/Navigation';
 
 
@@ -97,6 +98,8 @@ function ProfileColumns<T extends { id: string; name: string }>({
   onDelete,
   children,
   testId,
+  add,
+  full = null,
 }: {
   label: string;
   items: T[];
@@ -107,6 +110,10 @@ function ProfileColumns<T extends { id: string; name: string }>({
   onDelete: () => void;
   children: ReactNode;
   testId: string;
+  /** A way to add a new profile, before Copy. */
+  add?: ReactNode;
+  /** Why no more profiles fit, or null. */
+  full?: string | null;
 }) {
   const { t } = useTranslation();
   return (
@@ -137,8 +144,9 @@ function ProfileColumns<T extends { id: string; name: string }>({
             </ListBoxItem>
           )}
         </ListBox>
-        <div className="flex gap-2">
-          <Button onPress={onCopy} data-testid={`${testId}-copy`}>
+        <div className="flex flex-wrap gap-2">
+          {add}
+          <Button onPress={onCopy} isDisabled={full !== null} data-testid={`${testId}-copy`}>
             <IconCopy className="size-icon-sm" aria-hidden />
             {t('print.copy')}
           </Button>
@@ -147,6 +155,11 @@ function ProfileColumns<T extends { id: string; name: string }>({
             {t('print.delete')}
           </Button>
         </div>
+        {full ? (
+          <p className="text-xs text-text-muted" data-testid={`${testId}-full`}>
+            {full}
+          </p>
+        ) : null}
       </div>
       <div className="flex min-w-0 flex-col gap-3">{children}</div>
     </div>
@@ -326,6 +339,16 @@ export function PrintProfilesEditor({ close }: { close: () => void }) {
               setDraft({ ...draft, printers, printer: printers[0]?.id ?? draft.printer });
             }}
             testId="printers"
+            full={draft.printers.length >= MAX_PRINTERS ? t('print.printersFull', { count: MAX_PRINTERS }) : null}
+            add={
+              <PrinterCatalogPicker
+                isDisabled={draft.printers.length >= MAX_PRINTERS}
+                onPick={(entry) => {
+                  const added: PrinterProfile = { id: newId('printer'), name: `${entry.brand} ${entry.model}`.slice(0, 60), bed: [...entry.bed], nozzle: entry.nozzle, layer: entry.layer };
+                  setDraft({ ...draft, printers: [...draft.printers, added], printer: added.id });
+                }}
+              />
+            }
           >
             <PrinterForm key={printer.id} printer={printer} onChange={setPrinter} />
           </ProfileColumns>

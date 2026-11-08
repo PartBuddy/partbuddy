@@ -882,7 +882,13 @@
         "label": "Maße einrasten",
         "hint": "Selbst gewählte Wände auf ganze Linienbreiten, Böden und Höhen auf ganze Schichten. Bei einem Druckerwechsel passt PartBuddy nur diese Maße an."
       }
-    }
+    },
+    "add": "Drucker hinzufügen",
+    "catalog": "Druckerkatalog",
+    "catalogSearch": "Marke oder Modell suchen",
+    "catalogEmpty": "Kein Drucker passt. Kopiere einen vorhandenen und trage die Werte von Hand ein.",
+    "catalogHint": "Werte laut Hersteller. Daraus wird ein eigenes Profil, das du frei ändern kannst.",
+    "printersFull": "Mehr als {count} Drucker gehen nicht. Lösche einen, um einen neuen anzulegen."
   },
   "check": {
     "title": "Druckbereit?",

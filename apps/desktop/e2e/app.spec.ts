@@ -108,7 +108,6 @@ test('edges and vertices can be picked, and the view switches projection and sta
     }
     return null;
   };
-  await page.waitForTimeout(500);
   const row = Array.from({ length: 200 }, (_, i) => ({ x: box.x + box.width * 0.2 + i * 3, y: box.y + box.height / 2 }));
   const edgeAt = await findKind('edge', row);
   expect(edgeAt, 'an edge on the middle row').not.toBeNull();
@@ -1078,6 +1077,45 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await expect(page.getByTestId('settings-assistant-panel').getByTestId('design-rounding').getByRole('switch')).not.toBeChecked();
   await expect(page.getByTestId('settings-assistant-panel').getByTestId('design-details').getByRole('switch')).toBeChecked();
   await page.keyboard.press('Escape');
+});
+
+test('a printer from the catalog becomes an ordinary profile that can be changed', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-print').click();
+  const dialog = page.getByTestId('print-profiles');
+  await dialog.getByTestId('printers-add').click();
+  const catalog = page.getByTestId('printer-catalog');
+  // The search has the focus as the list comes in.
+  await expect(catalog.getByTestId('printer-catalog-search')).toBeFocused();
+  await page.keyboard.type('prusa');
+  await expect(catalog.getByTestId('printer-catalog-option')).toHaveCount(4);
+  // React Aria hides a popover while placing it; focusing too early used to leave it hidden.
+  await expect(page.locator('[data-placement]', { has: catalog })).not.toHaveAttribute('style', /opacity: 0/);
+  await page.screenshot({ path: test.info().outputPath('printer-catalog.png') });
+  await catalog.getByTestId('printer-catalog-search').fill('prusa mk4');
+  await expect(catalog.getByTestId('printer-catalog-option')).toHaveCount(1);
+  await catalog.getByTestId('printer-catalog-search').press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(catalog).toHaveCount(0);
+
+  await expect(dialog.getByTestId('printers-list').getByRole('option', { selected: true })).toContainText('Prusa MK4S');
+  await expect(dialog.getByTestId('printer-name').getByRole('textbox')).toHaveValue('Prusa MK4S');
+  await expect(dialog.getByTestId('printer-bed-x').getByRole('textbox')).toHaveValue('250');
+  await expect(dialog.getByTestId('printer-bed-y').getByRole('textbox')).toHaveValue('210');
+  await expect(dialog.getByTestId('printer-bed-z').getByRole('textbox')).toHaveValue('220');
+  await expect(dialog.getByTestId('printer-layer').getByRole('textbox')).toHaveValue('0.2');
+  const nozzle = dialog.getByTestId('printer-nozzle').getByRole('textbox');
+  await expect(nozzle).toHaveValue('0.4');
+  await nozzle.fill('0.6');
+  await nozzle.press('Tab');
+  await dialog.getByTestId('print-save').click();
+  await expect(dialog).toHaveCount(0);
+
+  const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ printer: string; printers: { id: string; name: string; nozzle: number }[] }> } } }).partbuddy.print.settings());
+  expect(saved.printers).toHaveLength(2);
+  expect(saved.printers.find((item) => item.id === saved.printer)).toMatchObject({ name: 'Prusa MK4S', nozzle: 0.6 });
 });
 
 test('the ready-to-print light follows the printer, points at its findings and asks before a red export (M7)', async () => {
