@@ -29,7 +29,7 @@
     "react-aria-components": "1.22.1",
     "react-dom": "19.3.1",
     "react-hotkeys-hook": "5.3.3",
-    "react-i18next": "17.1.10",
+    "react-i18next": "17.1.11",
     "three": "0.187.0",
     "three-mesh-bvh": "0.9.17",
     "zustand": "5.0.16"
