@@ -21,7 +21,9 @@ export type DimensionTarget =
   /** Length of a B-rep edge, named like `model.edges` reports it; `point` tells apart edges with the same name. */
   | { measure: 'length'; body: string; edge: string; point: [number, number, number] }
   /** Radius of a cylindrical face (a hole, a boss or a rounded edge). */
-  | { measure: 'radius'; body: string; face: string };
+  | { measure: 'radius'; body: string; face: string }
+  /** Distance between two parallel flat faces of one body (a wall, an offset, a step). */
+  | { measure: 'distance'; body: string; faces: [string, string] };
 
 export type ProbeResult =
   | { mode: 'direct'; parameter: string; factor: 1 | 2; label: string; preview: Uint8Array<ArrayBuffer> | null }
@@ -83,7 +85,16 @@ export function measured(target: DimensionTarget, result: unknown): number | nul
     const best = named.sort((a, b) => distance(a.mid ?? [], target.point) - distance(b.mid ?? [], target.point))[0];
     return typeof best?.length === 'number' ? best.length : null;
   }
-  const faces = ((result as { faces?: unknown } | null)?.faces ?? []) as { name?: string; cylinder?: { radius?: number } | null }[];
+  const faces = ((result as { faces?: unknown } | null)?.faces ?? []) as { name?: string; point?: number[]; plane_normal?: number[] | null; cylinder?: { radius?: number } | null }[];
+  if (target.measure === 'distance') {
+    const [a, b] = target.faces.map((name) => faces.find((face) => face.name === name));
+    const n = a?.plane_normal;
+    if (!a?.point || !b?.point || !n || n.length !== 3 || !b.plane_normal) return null;
+    // Only while the faces stay parallel is the distance one number.
+    const dot = n.reduce((sum, value, i) => sum + value * (b.plane_normal?.[i] ?? 0), 0);
+    if (Math.abs(Math.abs(dot) - 1) > 1e-6) return null;
+    return Math.abs(n.reduce((sum, value, i) => sum + value * ((b.point?.[i] ?? 0) - (a.point?.[i] ?? 0)), 0));
+  }
   const radius = faces.find((face) => face.name === target.face)?.cylinder?.radius;
   return typeof radius === 'number' ? radius : null;
 }

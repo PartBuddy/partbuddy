@@ -622,6 +622,7 @@ export const shareResultSchema = z.object({ folder: z.string().min(1).max(260) }
 export const dimensionTargetSchema = z.discriminatedUnion('measure', [
   z.object({ measure: z.literal('length'), body: bodyName, edge: z.string().min(1).max(410), point: point3 }).strict(),
   z.object({ measure: z.literal('radius'), body: bodyName, face: z.string().min(1).max(200) }).strict(),
+  z.object({ measure: z.literal('distance'), body: bodyName, faces: z.tuple([z.string().min(1).max(200), z.string().min(1).max(200)]) }).strict(),
 ]);
 const length = finite.positive().max(100_000);
 export const dimensionProbeSchema = z.object({ target: dimensionTargetSchema, current: length, value: length }).strict();

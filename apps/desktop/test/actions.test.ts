@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ActionService, clearanceOf, commandOf } from '../src/main/solidcraft/actions';
 import type { ControlRequester } from '../src/main/solidcraft/mirror';
 import { actionsFor } from '../src/renderer/src/viewer/actionKinds';
+import { dimensionFor } from '../src/renderer/src/viewer/dimensionOf';
 import type { BodyModel, Pick } from '../src/renderer/src/state/store';
 import { designActionSchema } from '../src/shared/contract';
 
@@ -100,5 +101,19 @@ describe('the clearance between bodies as SolidCraft measures it (F2)', () => {
       near: [{ a: 'A', b: 'C', distance: 0.1, from: [0, 10, 10], to: [0, 10.1, 10] }],
     });
     expect(clearanceOf(null)).toEqual({ overlaps: [], near: [] });
+  });
+});
+
+describe('the distance of two parallel faces in the dimension field', () => {
+  it('measures along the normal and leaves out tilted faces, other bodies and the same face', () => {
+    const face = (name: string, point: number[], planeNormal?: number[]) => ({ name, point, planeNormal });
+    const faces = [face('F1:+z', [0, 0, 10], [0, 0, 1]), face('F2:-z', [5, 5, 4], [0, 0, -1]), face('F3:tilt', [0, 0, 0], [0, 0.6, 0.8]), face('F4:round', [0, 0, 0])];
+    const bodies = [{ name: 'B', model: { table: { faces } } }, { name: 'C', model: { table: { faces } } }] as unknown as BodyModel[];
+    const at = (index: number, body = 0): Pick => ({ kind: 'face', body, face: index, point: [0, 0, 0], normal: [0, 0, 1] });
+    expect(dimensionFor(bodies, [at(0), at(1)])).toEqual({ shown: 'spacing', value: 6, target: { measure: 'distance', body: 'B', faces: ['F1:+z', 'F2:-z'] }, scale: 1 });
+    expect(dimensionFor(bodies, [at(0), at(2)])).toBeNull();
+    expect(dimensionFor(bodies, [at(0), at(3)])).toBeNull();
+    expect(dimensionFor(bodies, [at(0), at(1, 1)])).toBeNull();
+    expect(dimensionFor(bodies, [at(0), at(0)])).toBeNull();
   });
 });

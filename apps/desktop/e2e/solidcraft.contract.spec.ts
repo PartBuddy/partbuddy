@@ -226,6 +226,13 @@ test('the dimension field changes the driving parameter directly, with a preview
     await expect(page.getByTestId('design-name')).toHaveText('Part', { timeout: 15_000 });
     await page.waitForTimeout(800);
 
+    // Two parallel faces: top and bottom are 10 mm apart, and only the box's height moves them.
+    type Probe = { partbuddy: { design: { probeDimension(probe: unknown): Promise<{ mode: string; label?: string }> } } };
+    const spacing = await page.evaluate(() =>
+      (globalThis as unknown as Probe).partbuddy.design.probeDimension({ target: { measure: 'distance', body: 'Body1', faces: ['F1:+z', 'F1:-z'] }, current: 10, value: 14 }),
+    );
+    expect(spacing).toMatchObject({ mode: 'direct', label: 'Box1 · Height' });
+
     const box = await page.getByTestId('viewport').boundingBox();
     if (!box) throw new Error('viewport not visible');
     const bar = page.getByTestId('selection-bar');
