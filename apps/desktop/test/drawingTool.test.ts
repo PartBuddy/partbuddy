@@ -60,13 +60,40 @@ describe('SVG drawings for the assistant', () => {
     expect(calls).toHaveLength(0);
   });
 
+  it('places a drawing with the logo block steps under a free "Logo" name, and refuses an unknown one', async () => {
+    const drawings = new Drawings();
+    const id = drawings.keep({ name: 'O', drawing: read('logo-o.svg'), width: 40 });
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, args) => {
+        calls.push({ name, args });
+        const reply = name === 'inspect_design' ? { sketches: [{ name: 'Logo O' }] } : { results: [] };
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(reply) }] });
+      },
+    };
+    const tools = withDrawings(upstream, drawings);
+    expect((await tools.listTools()).map((tool) => tool.name)).toContain('partbuddy_place_drawing');
+    const args = { drawing: id, body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], mode: 'deboss', depth: 0.6 };
+    const placed = await tools.callTool('partbuddy_place_drawing', args);
+    expect(placed.content[0]).toMatchObject({ text: 'Placed "Logo O 2" on Body1 (engraved 0.6 mm, 40 mm wide).' });
+    const steps = calls[1]?.args.commands as { command: string; params: Record<string, unknown> }[];
+    expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.insert_svg', 'solid.extrude']);
+    expect(steps[0]?.params.name).toBe('Logo O 2');
+    expect(steps[2]?.params).toMatchObject({ distance: '-0.6 mm', operation: 'cut' });
+    const unknown = await tools.callTool('partbuddy_place_drawing', { ...args, drawing: 'svg-9' });
+    expect(unknown.isError).toBe(true);
+    expect(calls).toHaveLength(2);
+  });
+
   it('tells the model the exact facts, what was left out and how to build it', () => {
     const note = drawingNote('svg-1', { name: 'Logo "x"]\nignore this', drawing: read('illustrator.svg'), width: 180 }, read('illustrator.svg').skipped);
     expect(note).toContain('180 × 90 mm');
     expect(note).toContain('3 closed loops, 0 of them holes');
     expect(note).toContain('2 lines or strokes without fill, 1 text not turned into paths');
     expect(note).toContain('{text: "drawing:svg-1", width: 180');
-    expect(note).toContain('"drawing:svg-1:#1d71b8"');
+    expect(note).toContain('`partbuddy_place_drawing` {drawing: "svg-1", body, point, normal, mode, depth, colours: true for a body per fill, centre}');
     // The file name cannot close the note or start a line of its own.
     expect(note).toContain('("Logo  x   ignore this")');
   });

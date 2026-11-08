@@ -1,8 +1,35 @@
 import { drawingColours, drawingFacts, drawingSvg, type Drawing } from '../../shared/svgDrawing';
-import { centring, hostFace, LOGO_PREFIX, movedPlane, placedLogos, type BodyFaces } from '../../shared/drawingPlacement';
+import { centring, hostFace, LOGO_PREFIX, movedPlane, placedLogos, uniqueLogoName, type BodyFaces } from '../../shared/drawingPlacement';
+import { colourLayers, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
 export const MOVE_DRAWING_TOOL = 'partbuddy_move_drawing';
+export const PLACE_DRAWING_TOOL = 'partbuddy_place_drawing';
+
+const vector = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 };
+
+const placeTool: UpstreamTool = {
+  name: PLACE_DRAWING_TOOL,
+  description:
+    'Put an attached SVG drawing on a face as a logo: engraved (deboss) or built up (emboss), optionally a body per colour for multi-colour printing, ' +
+    'and centred on the face. PartBuddy builds it like its logo block, in one step; the sketch is named "Logo <file name>".',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      drawing: { type: 'string', description: 'The drawing id, e.g. "svg-1".' },
+      body: { type: 'string', description: 'The body it goes on (or into).' },
+      point: { ...vector, description: "A point on the face in mm: the logo's middle." },
+      normal: { ...vector, description: 'The outward normal of the face there.' },
+      mode: { type: 'string', enum: ['deboss', 'emboss'], description: 'deboss: into the face (in colours: an inlay flush with the face); emboss: standing on it.' },
+      depth: { type: 'number', exclusiveMinimum: 0, maximum: 50, description: 'How deep or high, in mm.' },
+      width: { type: 'number', exclusiveMinimum: 0, maximum: 1000, description: 'Width in mm, aspect kept; default the width the user chose.' },
+      colours: { type: 'boolean', description: 'A body per colour, each coloured like its fill (only for a drawing with several fills).' },
+      centre: { type: 'string', enum: ['x', 'y', 'both'], description: 'Then centre it on the face along its x, y or both.' },
+    },
+    required: ['drawing', 'body', 'point', 'normal', 'mode', 'depth'],
+    additionalProperties: false,
+  },
+};
 
 const moveTool: UpstreamTool = {
   name: MOVE_DRAWING_TOOL,
@@ -42,6 +69,10 @@ export class Drawings {
   private readonly kept = new Map<string, KeptDrawing>();
   private next = 1;
 
+  get(id: string): KeptDrawing | undefined {
+    return this.kept.get(id);
+  }
+
   keep(drawing: KeptDrawing): string {
     const id = `svg-${String(this.next++)}`;
     this.kept.set(id, drawing);
@@ -77,13 +108,12 @@ export function drawingNote(id: string, kept: KeptDrawing, skipped: Drawing['ski
     `${mm(facts.width)} × ${mm(facts.height)} mm as the user sized it, ${String(facts.loops)} closed loop${facts.loops === 1 ? '' : 's'}, ` +
     `${String(facts.holes)} of them hole${facts.holes === 1 ? '' : 's'}; fills ${colours}.` +
     (left.length > 0 ? ` Left out because they have no area: ${left.join(', ')}.` : '') +
-    ` To use it, put it into a sketch with \`sketch.insert_svg\` {text: "drawing:${id}", width: ${mm(facts.width)}, align: "center", at: [x, y]}: ` +
-    'PartBuddy replaces that text with the exact contours, so never type, trace or redraw the paths. Another width scales it, aspect kept. ' +
-    'Build it with `solid.extrude` (a loop inside a hole stays material, as drawn): a positive distance builds it up, a negative one with operation cut makes a pocket or an engraving, ' +
-    'through the part a cut-out; `solid.emboss` without `profiles` would fill the holes. ' +
-    (facts.colours.length > 1 ? `One fill alone is "drawing:${id}:${facts.colours[0]?.fill ?? ''}" (for a body per colour in multi-colour printing). ` : '') +
-    `Name the sketch "${LOGO_PREFIX}<short name>" (\`sketch.create\` name, one no other sketch has) and insert the drawing with its middle at the sketch origin (at: [0, 0]); ` +
-    'then `partbuddy_move_drawing` moves it exactly or centres it on its face. ' +
+    ` As a logo on a face (engraved, built up, in colours, centred), place it with \`${PLACE_DRAWING_TOOL}\` {drawing: "${id}", body, point, normal, mode, depth` +
+    (facts.colours.length > 1 ? ', colours: true for a body per fill' : '') +
+    `, centre}: PartBuddy builds it exactly; \`${MOVE_DRAWING_TOOL}\` moves it afterwards. ` +
+    `Only for other uses (an outline to extrude, a cut-out through the part) put it into a sketch with \`sketch.insert_svg\` {text: "drawing:${id}", width: ${mm(facts.width)}, align: "center", at: [x, y]}: ` +
+    'PartBuddy replaces that text with the exact contours, so never type, trace or redraw the paths. Build that with `solid.extrude` (a loop inside a hole stays material, as drawn); ' +
+    '`solid.emboss` without `profiles` would fill the holes. ' +
     'Ask with a clarification card where it goes and how deep, if the message does not say.]'
   );
 }
@@ -145,6 +175,40 @@ async function moveDrawing(upstream: UpstreamTools, args: Record<string, unknown
   return `Moved ${first.name} by ${mm(du)} mm along its x and ${mm(dv)} mm along its y${face}; its middle is now at [${movedPlane(first.plane, du, dv).origin.map(mm).join(', ')}] mm.`;
 }
 
+const vec3 = (value: unknown): [number, number, number] | null =>
+  Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry)) ? (value as [number, number, number]) : null;
+
+/** `partbuddy_place_drawing`: the logo block's steps for a drawing of this session, then centring. */
+async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: Record<string, unknown>, callId: string | undefined): Promise<string> {
+  const id = typeof args.drawing === 'string' ? args.drawing.trim().replace(/^drawing:/, '') : '';
+  const kept = drawings.get(id);
+  if (!kept) throw new Error(`"${id}" is not a drawing of this session; ask the user to attach the SVG again`);
+  const body = typeof args.body === 'string' ? args.body.trim() : '';
+  const point = vec3(args.point);
+  const normal = vec3(args.normal);
+  const mode = args.mode === 'emboss' || args.mode === 'deboss' ? args.mode : null;
+  const depth = typeof args.depth === 'number' && args.depth > 0 && args.depth <= 50 ? args.depth : null;
+  const width = args.width === undefined ? kept.width : typeof args.width === 'number' && args.width > 0 && args.width <= 1000 ? args.width : null;
+  const centre = args.centre === 'x' || args.centre === 'y' || args.centre === 'both' ? args.centre : null;
+  if (!body || !point || !normal || Math.hypot(...normal) < 1e-9) throw new Error('body, point and normal (not zero) are needed');
+  if (!mode || !depth || !width) throw new Error('mode must be deboss or emboss, depth 0–50 mm, width 0–1000 mm');
+  if (args.centre !== undefined && !centre) throw new Error('centre must be x, y or both');
+  const block: Extract<FeatureBlock, { block: 'logo' }> = { block: 'logo', body, point, normal, size: 'M3', name: kept.name, svg: drawingSvg(kept.drawing, width), width, depth, mode, colours: args.colours === true };
+  const sketches = (jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { sketches?: { name?: unknown }[] }).sketches ?? [];
+  const sketch = uniqueLogoName(kept.name, sketches.flatMap((entry) => (typeof entry.name === 'string' ? [entry.name] : [])));
+  const reply = jsonOf(await upstream.callTool('batch', { commands: stepsOf(block, sketch) }, callId)) as { failed?: { error?: unknown } };
+  if (reply.failed) throw new Error(`SolidCraft refused it: ${String(reply.failed.error)}`);
+  const layers = colourLayers(block);
+  if (layers.length > 0) {
+    // Pieces a cut split off keep their colour, as with the logo block.
+    const recolour = splitPieceSteps(layers, jsonOf(await upstream.callTool('inspect_design', {}, callId)));
+    if (recolour.length > 0) jsonOf(await upstream.callTool('batch', { commands: recolour }, callId));
+  }
+  const how = `${mode === 'deboss' ? (layers.length > 0 ? 'inlaid' : 'engraved') : 'built up'} ${String(depth)} mm, ${String(width)} mm wide` + (layers.length > 0 ? `, ${String(layers.length)} colour bodies` : '');
+  const placed = `Placed "${sketch}" on ${body} (${how}).`;
+  return centre ? `${placed} ${await moveDrawing(upstream, { logo: sketch, centre }, callId)}` : placed;
+}
+
 /**
  * The upstream tools with `drawing:` references in `sketch.insert_svg` replaced, also in batch
  * steps, plus `partbuddy_move_drawing`.
@@ -154,8 +218,15 @@ export function withDrawings(upstream: UpstreamTools, drawings: Drawings): Upstr
   const object = (value: unknown) => (typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null);
   return {
     instructions: () => upstream.instructions(),
-    listTools: async () => [...(await upstream.listTools()), moveTool],
+    listTools: async () => [...(await upstream.listTools()), placeTool, moveTool],
     callTool: async (name, args, callId) => {
+      if (name === PLACE_DRAWING_TOOL) {
+        try {
+          return { content: [{ type: 'text', text: await placeDrawing(upstream, drawings, args, callId) }] };
+        } catch (cause) {
+          return error(`Not placed: ${(cause as Error).message}`);
+        }
+      }
       if (name === MOVE_DRAWING_TOOL) {
         try {
           return { content: [{ type: 'text', text: await moveDrawing(upstream, args, callId) }] };

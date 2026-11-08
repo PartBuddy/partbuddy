@@ -67,6 +67,8 @@ import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
 app.setName('PartBuddy');
 // Windows counts a window beside all displays as covered and stops painting it; test runs
 // (PARTBUDDY_WINDOW_DISPLAY=offscreen) keep it painting.
+/** Test runs and screenshot runs (any PARTBUDDY_WINDOW_DISPLAY) never open Explorer windows. */
+const testRun = process.env.PARTBUDDY_WINDOW_DISPLAY !== undefined;
 if (process.env.PARTBUDDY_WINDOW_DISPLAY === 'offscreen') app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 /**
@@ -457,7 +459,7 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.settingsGeneral, generalInfo);
     bridge.handle(invokeChannels.settingsRevealLog, () => {
       log('log file shown in Explorer');
-      shell.showItemInFolder(logFile.file);
+      if (!testRun) shell.showItemInFolder(logFile.file);
       return undefined;
     });
     bridge.handle(invokeChannels.settingsSetLanguage, ({ language }) => {
@@ -845,7 +847,7 @@ if (!app.requestSingleInstanceLock()) {
       }
       log('saved a sharing package');
       // Explorer opens on the folder, except in tests, which run without disturbing the screen.
-      if (process.env.PARTBUDDY_WINDOW_DISPLAY !== 'offscreen') void shell.openPath(folder);
+      if (!testRun) void shell.openPath(folder);
       return { folder: basename(folder) };
     });
     bridge.handle(invokeChannels.designProbeDimension, ({ target, current, value }) => {
@@ -978,6 +980,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.projectReveal, ({ folder }) => {
       const file = targetOf(folder).design;
+      if (testRun) return undefined;
       if (file) shell.showItemInFolder(file);
       else void shell.openPath(projects);
       return undefined;

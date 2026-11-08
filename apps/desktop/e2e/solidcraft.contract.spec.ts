@@ -2464,6 +2464,54 @@ test('an SVG dropped on the chat goes along exactly: an "O" at 40 mm, 2 mm high,
   }
 });
 
+test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved and centred on the face', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-place-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7934',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  const composer = page.getByRole('textbox', { name: 'Message to the assistant' });
+  const say = async (text: string) => {
+    await composer.fill(text);
+    await page.getByRole('button', { name: 'Send' }).click();
+  };
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await say('Build a box');
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    const data = [...readFileSync(join(__dirname, '..', 'test', 'fixtures', 'svg', 'logo-o.svg'))];
+    await composer.evaluate((field, bytes) => {
+      const view = globalThis as unknown as PictureEvents;
+      const transfer = new view.DataTransfer();
+      transfer.items.add(new view.File([new Uint8Array(bytes)], 'logo-o.svg', { type: 'image/svg+xml' }));
+      for (const type of ['dragover', 'drop']) (field as unknown as EventTarget).dispatchEvent(new view.DragEvent(type, { dataTransfer: transfer, bubbles: true, cancelable: true }));
+    }, data);
+    await expect(page.getByTestId('composer-drawing')).toBeVisible();
+    // Put down off the middle of the 20 mm box's top face, then centred: the "O" 10 mm wide, 0.6 mm deep.
+    await say('Place the logo {"drawing": "svg-1", "body": "Body1", "point": [4, 5, 10], "normal": [0, 0, 1], "mode": "deboss", "depth": 0.6, "width": 10, "centre": "both"}');
+    await expect(page.getByText(/^Logo: Placed "Logo logo-o" on Body1 \(engraved 0\.6 mm, 10 mm wide\)\. Moved .*its middle is now at \[10, 10, 10\] mm/)).toBeVisible({ timeout: 60_000 });
+    await say('Measure the bodies');
+    const answer = page.getByText(/^Measured: /);
+    await expect(answer).toBeVisible({ timeout: 30_000 });
+    const measured = JSON.parse(/\{.*\}/.exec((await answer.textContent()) ?? '')?.[0] ?? '{}') as { bodies: { name: string; volume_mm3: number }[] };
+    // The ring π(5² − 3²) = 16π mm², 0.6 mm deep, out of the 4000 mm³ box.
+    expect(measured.bodies.find((entry) => entry.name === 'Body1')?.volume_mm3).toBeCloseTo(4000 - 16 * Math.PI * 0.6, 0);
+    await page.screenshot({ path: test.info().outputPath('logo-placed.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 // A real local model (F8): needs a local server with a tool-capable model; set PARTBUDDY_E2E_OLLAMA=1.
 // PARTBUDDY_E2E_LOCAL_PICK picks a model by part of its name ("llama.cpp", "LM Studio", "vLLM").
 test('a local model builds a part in SolidCraft through the policy (F8)', async () => {
