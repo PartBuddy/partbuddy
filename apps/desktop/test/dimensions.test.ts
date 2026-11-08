@@ -22,7 +22,8 @@ function boxEngine(values: Record<string, number>, extra: Parameter[] = []) {
   const calls: { commands: { command: string; params: Record<string, unknown> }[]; rollback: unknown }[] = [];
   const state = { ...values };
   const edges = (v: Record<string, number>) => {
-    const [x, y, z] = [v.d1 ?? 0, v.d2 ?? 0, v.d3 ?? 0];
+    // `sym`, when there, moves the x edge as well (a second driver, as a symmetric extrude has).
+    const [x, y, z] = [(v.d1 ?? 0) + (v.sym ?? 20) - 20, v.d2 ?? 0, v.d3 ?? 0];
     return {
       body: 'Body1',
       edges: [
@@ -95,7 +96,19 @@ describe('dimension field: direct where unambiguous (M1b)', () => {
     }
   });
 
-  it('leaves it to the assistant when no parameter or several parameters drive the edge', async () => {
+  it('lets the user pick when several parameters each move the edge', async () => {
+    const { service, state } = boxEngine({ d1: 20, d2: 20, d3: 10, sym: 20 });
+    expect(await service.probe({ measure: 'length', body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 20, 0] }, 20, 30)).toEqual({
+      mode: 'choice',
+      options: [
+        { parameter: 'd1', factor: 1, label: 'Box1 · d1' },
+        { parameter: 'sym', factor: 1, label: 'Box1 · sym' },
+      ],
+    });
+    expect(state).toEqual({ d1: 20, d2: 20, d3: 10, sym: 20 });
+  });
+
+  it('leaves it to the assistant when no parameter drives the edge', async () => {
     const none = boxEngine({ d1: 40, d2: 20, d3: 10 });
     expect(await none.service.probe({ measure: 'length', body: 'Body1', edge: 'F1:+y|F1:-z', point: [0, 0, 0] }, 33, 35)).toEqual({ mode: 'assistant', reason: 'noDriver' });
     // A formula drives the height: PartBuddy does not overwrite the designer's intent.

@@ -8,7 +8,7 @@ import { NoteComposer } from '../notes/NoteComposer';
 import { sendToAssistant } from '../assistant/send';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Input, Label, TextField } from 'react-aria-components';
+import { Button as AriaButton, Input, Label, RadioButton, RadioField, RadioGroup, TextField } from 'react-aria-components';
 import { BufferAttribute, BufferGeometry, type Color } from 'three';
 
 import type { DimensionProbeResult } from '../../../shared/contract';
@@ -24,6 +24,7 @@ import { buttonVariants, pressable } from '../ui/Button';
 import { Tip } from '../ui/Tooltip';
 import { inputClass, fieldLabelClass } from '../ui/Field';
 import { badgeClass } from '../ui/Feedback';
+import { RadioMark, choiceRowClass } from '../ui/Choice';
 
 /** Quiet time after typing before PartBuddy tries the value in SolidCraft. */
 const PROBE_DELAY_MS = 250;
@@ -95,6 +96,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
   const [actionGhost, setActionGhost] = useState<Uint8Array | null>(null);
   const [wish, setWish] = useState('');
   const latest = useRef(0);
+  const field = useRef<HTMLInputElement>(null);
 
   const changed = dimension !== null && Number.isFinite(value) && value > 0 && Math.abs(value - dimension.value) > 1e-6;
 
@@ -117,7 +119,25 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
   }, [dimension, value, changed, busy]);
 
   const result = probe !== null && probe.value === value ? probe.result : null;
-  const ghost = actionGhost ?? (result?.mode === 'direct' ? result.preview : null);
+  // Several parameters drive it: the one the user picked, for this value only.
+  const [chosen, setChosen] = useState<{ value: number; parameter: string } | null>(null);
+  const option = result?.mode === 'choice' && chosen?.value === value ? (result.options.find((entry) => entry.parameter === chosen.parameter) ?? null) : null;
+  const [choiceGhost, setChoiceGhost] = useState<{ value: number; parameter: string; preview: Uint8Array | null } | null>(null);
+  useEffect(() => {
+    if (!dimension || !option || busy) return;
+    let live = true;
+    platform()
+      .design.probeParameter(option.parameter, value * dimension.scale * option.factor, dimension.target.body)
+      .then((answer) => {
+        if (live) setChoiceGhost({ value, parameter: option.parameter, preview: answer.ok ? answer.preview : null });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [dimension, option, value, busy]);
+  const optionGhost = option && choiceGhost?.value === value && choiceGhost.parameter === option.parameter ? choiceGhost.preview : null;
+  const ghost = actionGhost ?? (result?.mode === 'direct' ? result.preview : optionGhost);
   const setSelectionGhost = useStudio((s) => s.setSelectionGhost);
   useEffect(() => {
     setSelectionGhost(ghost);
@@ -136,9 +156,10 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
 
   const apply = () => {
     if (!dimension || !changed || busy) return;
-    if (result?.mode === 'direct') {
+    const driver = result?.mode === 'direct' ? result : option;
+    if (driver) {
       void platform()
-        .design.applyDimension({ parameter: result.parameter, value: value * dimension.scale, factor: result.factor, label: result.label })
+        .design.applyDimension({ parameter: driver.parameter, value: value * dimension.scale, factor: driver.factor, label: driver.label })
         .catch((error: unknown) => {
           setNotice({ tone: 'danger', text: t('actions.failed', { detail: (error as Error).message.slice(0, 200) }) });
         });
@@ -166,6 +187,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
   if (changed) {
     if (!result) status = t('hud.probing');
     else if (result.mode === 'direct') status = t('hud.direct', { label: result.label });
+    else if (result.mode === 'choice') status = option ? t('hud.direct', { label: option.label }) : t('hud.choose');
     else status = assistantReady ? t(`hud.assistant.${result.reason}`) : t('hud.noAssistant');
   }
   return (
@@ -194,6 +216,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
               {t(`hud.${dimension.shown}`)} · {t('units.mmShort')}
             </Label>
             <Input
+              ref={field}
               className={`${inputClass('sm')} tabular-nums`}
               aria-keyshortcuts="ArrowUp ArrowDown"
               onKeyDown={(event) => {
@@ -227,6 +250,29 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
           {result?.mode === 'assistant' ? <IconSparkles className="size-icon-sm text-accent" aria-hidden /> : null}
           {status}
         </p>
+      ) : null}
+      {result?.mode === 'choice' ? (
+        <RadioGroup
+          aria-label={t('hud.choose')}
+          value={option?.parameter ?? null}
+          onChange={(parameter) => {
+            setChosen({ value, parameter });
+            // Back to the field, where Enter applies the pick.
+            field.current?.focus();
+          }}
+          isDisabled={busy}
+          className="flex flex-col gap-hairline"
+          data-testid="dimension-choice"
+        >
+          {result.options.map((entry) => (
+            <RadioField key={entry.parameter} value={entry.parameter}>
+              <RadioButton className={choiceRowClass}>
+                <RadioMark />
+                <span className="text-sm text-text">{entry.label}</span>
+              </RadioButton>
+            </RadioField>
+          ))}
+        </RadioGroup>
       ) : null}
       <TextField value={wish} onChange={setWish} aria-label={t('hud.ask')} isDisabled={!assistantReady} className="flex items-center gap-1">
         <Input

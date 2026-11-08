@@ -639,7 +639,9 @@ export const dimensionProbeResultSchema = z.discriminatedUnion('mode', [
       preview: z.instanceof(Uint8Array).nullable(),
     })
     .strict(),
-  z.object({ mode: z.literal('assistant'), reason: z.enum(['noDriver', 'ambiguous']) }).strict(),
+  /** Several parameters each move the selection to the value: the user picks one. */
+  z.object({ mode: z.literal('choice'), options: z.array(z.object({ parameter: z.string().min(1).max(200), factor: factorSchema, label: z.string().max(400) }).strict()).min(2).max(8) }).strict(),
+  z.object({ mode: z.literal('assistant'), reason: z.literal('noDriver') }).strict(),
 ]);
 export const dimensionApplySchema = z
   .object({

@@ -504,9 +504,9 @@
     "spacing": "Distance",
     "probing": "Trying it in SolidCraft …",
     "direct": "Enter changes it directly: {label}",
+    "choose": "Several dimensions drive this – pick one, then Enter",
     "assistant": {
-      "noDriver": "No single parameter drives this – Enter asks the assistant",
-      "ambiguous": "Several dimensions could drive this – Enter asks the assistant"
+      "noDriver": "No single parameter drives this – Enter asks the assistant"
     },
     "noAssistant": "No single parameter drives this, and the assistant is not ready",
     "ask": "Tell the assistant what should happen here …",
