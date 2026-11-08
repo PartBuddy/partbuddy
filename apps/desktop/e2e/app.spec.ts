@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
 import { countViewportPixels } from './pixels';
 import { cameraOf } from './view';
@@ -1116,6 +1117,46 @@ test('a printer from the catalog becomes an ordinary profile that can be changed
   const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ printer: string; printers: { id: string; name: string; nozzle: number }[] }> } } }).partbuddy.print.settings());
   expect(saved.printers).toHaveLength(2);
   expect(saved.printers.find((item) => item.id === saved.printer)).toMatchObject({ name: 'Prusa MK4S', nozzle: 0.6 });
+});
+
+test('a material from the catalog becomes an ordinary profile with its starting values', async () => {
+  const entry = MATERIAL_CATALOG.find((item) => item.name === 'PETG-CF');
+  if (!entry) throw new Error('PETG-CF is missing from the catalog');
+  const { app } = await connectedApp();
+  const { page } = app;
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-print').click();
+  const dialog = page.getByTestId('print-profiles');
+  await dialog.getByTestId('print-tab-material').click();
+  await dialog.getByTestId('materials-add').click();
+  const catalog = page.getByTestId('material-catalog');
+  await expect(catalog.getByTestId('material-catalog-search')).toBeFocused();
+  await expect(page.locator('[data-placement]', { has: catalog })).not.toHaveAttribute('style', /opacity: 0/);
+  await page.keyboard.type('petg-cf');
+  await expect(catalog.getByTestId('material-catalog-option')).toHaveCount(1);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(catalog).toHaveCount(0);
+
+  // A second copy of a material the defaults already have: a new profile, the old one untouched.
+  await expect(dialog.getByTestId('materials-list').getByRole('option', { selected: true })).toContainText('PETG-CF');
+  await expect(dialog.getByTestId('material-name').getByRole('textbox')).toHaveValue('PETG-CF');
+  await expect(dialog.getByTestId('material-overhang').getByRole('textbox')).toHaveValue(String(entry.overhang));
+  await expect(dialog.getByTestId('material-hole').getByRole('textbox')).toHaveValue(String(entry.holeShrink));
+  for (const fit of ['clamp', 'push', 'slide', 'turn'] as const) {
+    await expect(dialog.getByTestId(`material-fit-${fit}`).getByRole('textbox')).toHaveValue(String(entry.clearance[fit]));
+  }
+  const slide = dialog.getByTestId('material-fit-slide').getByRole('textbox');
+  await slide.fill('0.45');
+  await slide.press('Tab');
+  await dialog.getByTestId('print-save').click();
+  await expect(dialog).toHaveCount(0);
+
+  const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ materials: { id: string; name: string; overhang: number; holeShrink: number; clearance: Record<string, number> }[] }> } } }).partbuddy.print.settings());
+  const added = saved.materials.filter((item) => item.name === 'PETG-CF');
+  expect(added).toHaveLength(2);
+  expect(added[0]?.id).toBe('petg-cf');
+  expect(added[1]).toMatchObject({ overhang: entry.overhang, holeShrink: entry.holeShrink, clearance: { ...entry.clearance, slide: 0.45 } });
 });
 
 test('the ready-to-print light follows the printer, points at its findings and asks before a red export (M7)', async () => {
