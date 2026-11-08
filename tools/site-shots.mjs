@@ -2,7 +2,8 @@
 // Takes the website pictures from the running app (apps/desktop/e2e/site-shots.spec.ts).
 // Usage: pnpm site:shots [output-folder]   (default: src/assets/shots of the website partbuddy-web
 // beside the main checkout, also when run from a worktree)
-// Needs SolidCraft installed; the app window opens on the leftmost display without focus.
+// Needs SolidCraft installed; the app window stays off screen, without focus or taskbar button,
+// and opens no Explorer window (rule of 2026-11-04: test runs never disturb the person at the server).
 import { execFileSync, execSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +13,7 @@ const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const main = dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: repo, encoding: 'utf8' }).trim());
 const out = resolve(process.argv[2] ?? join(main, '..', 'partbuddy-web', 'src', 'assets', 'shots'));
 const desktop = join(repo, 'apps', 'desktop');
-const run = (command) => execSync(command, { cwd: desktop, stdio: 'inherit', env: { ...process.env, PARTBUDDY_SITE_SHOTS: out, PARTBUDDY_WINDOW_DISPLAY: 'leftmost' } });
+const run = (command) => execSync(command, { cwd: desktop, stdio: 'inherit', env: { ...process.env, PARTBUDDY_SITE_SHOTS: out, PARTBUDDY_WINDOW_DISPLAY: 'offscreen' } });
 
 run('pnpm build');
 run('pnpm exec playwright test e2e/site-shots.spec.ts');

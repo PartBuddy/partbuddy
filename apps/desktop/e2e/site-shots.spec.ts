@@ -24,11 +24,20 @@ const TEMPLATES = [
   ['boxWithLid', 'Box with lid'],
   ['wallHolder', 'Wall holder'],
 ] as const;
-// A synthetic circuit board of 50 × 30 mm, placed to sit in the middle of the housing template.
+// A synthetic circuit board of 50 × 30 mm with mounting holes, chips, a pin header and two capacitors,
+// placed to sit in the middle of the housing template.
+const onBoard = { operation: 'join', targets: ['Circuit board'] };
 const BOARD = [
   { command: 'solid.box', params: { length: 50, width: 30, height: 1.6, corner: [15, 15, 2], operation: 'new', body_name: 'Circuit board', name: 'Board' } },
-  { command: 'solid.box', params: { length: 12, width: 12, height: 1.2, corner: [34, 24, 3.6], operation: 'join', targets: ['Circuit board'], name: 'Chip' } },
-  { command: 'solid.box', params: { length: 7.5, width: 9, height: 3.2, corner: [15, 25.5, 3.6], operation: 'join', targets: ['Circuit board'], name: 'USB-C' } },
+  { command: 'solid.fillet', params: { edges: [[15, 15, 2.8], [65, 15, 2.8], [15, 45, 2.8], [65, 45, 2.8]], radius: 2, body: 'Circuit board', name: 'Board corners' } },
+  ...[[18, 18], [62, 18], [18, 42], [62, 42]].map(([x, y], i) => ({ command: 'solid.cylinder', params: { diameter: 2.7, height: 3, base: [x, y, 1], operation: 'cut', targets: ['Circuit board'], name: `Mounting hole ${i + 1}` } })),
+  { command: 'solid.box', params: { length: 12, width: 12, height: 1.2, corner: [34, 24, 3.6], ...onBoard, name: 'Chip' } },
+  { command: 'solid.box', params: { length: 7.5, width: 9, height: 3.2, corner: [15, 25.5, 3.6], ...onBoard, name: 'USB-C' } },
+  { command: 'solid.box', params: { length: 25.4, width: 2.5, height: 2.5, corner: [27.3, 40, 3.6], ...onBoard, name: 'Header' } },
+  ...Array.from({ length: 10 }, (_, i) => ({ command: 'solid.box', params: { length: 0.64, width: 0.64, height: 6, corner: [28.25 + i * 2.54, 40.93, 3.6], ...onBoard, name: `Pin ${i + 1}` } })),
+  ...[[56, 24], [56, 33]].map(([x, y], i) => ({ command: 'solid.cylinder', params: { diameter: 5, height: 7, base: [x, y, 3.6], ...onBoard, name: `Capacitor ${i + 1}` } })),
+  ...[[26, 20], [26, 23], [26, 26], [49, 20], [49, 36]].map(([x, y], i) => ({ command: 'solid.box', params: { length: 2, width: 1.25, height: 0.6, corner: [x, y, 3.6], ...onBoard, name: `Resistor ${i + 1}` } })),
+  { command: 'solid.box', params: { length: 5, width: 5, height: 2, corner: [26, 30, 3.6], ...onBoard, name: 'Sensor' } },
 ];
 
 type Bridge = { partbuddy: { design: { insert(path?: string): Promise<unknown>; insertPart(part: unknown): Promise<{ body: string | null }> } } };
