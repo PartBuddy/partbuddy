@@ -6,6 +6,7 @@
  * everything stays editable because printers, nuts and inserts differ.
  */
 
+import { logoBase, uniqueLogoName } from './drawingPlacement';
 import { drawingColours, drawingPieces, drawingSize, drawingSvg, naturalWidth, parseDrawing, shapesOverlap, shapesSvg, type DrawingProblem, type Shape } from './svgDrawing';
 
 export const BLOCK_SIZES = ['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10'] as const;
@@ -183,8 +184,11 @@ export const BOLD_FONT = 'Arial';
 
 type Step = { command: string; params: Record<string, unknown> };
 
-/** The SolidCraft commands of a block, in one batch: one feature, or a sketch and its feature. */
-export function stepsOf(block: FeatureBlock): Step[] {
+/**
+ * The SolidCraft commands of a block, in one batch: one feature, or a sketch and its feature. A
+ * logo's sketches are named `sketch` (default `Logo <name>`), so it can be moved later (drawingPlacement.ts).
+ */
+export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
   const mm = (value: number) => `${String(round(value))} mm`;
   switch (block.block) {
     case 'text':
@@ -215,9 +219,9 @@ export function stepsOf(block: FeatureBlock): Step[] {
       ];
     }
     case 'logo':
-      if (colourLayers(block).length > 1) return colourSteps(block);
+      if (colourLayers(block).length > 1) return colourSteps(block, sketch ?? uniqueLogoName(block.name, []));
       return [
-        { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
+        { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false, name: sketch ?? uniqueLogoName(block.name, []) } },
         { command: 'sketch.insert_svg', params: { text: block.svg, at: [0, 0], width: block.width, align: 'center' } },
         // An extrusion, not solid.emboss: emboss takes every region, so a ring would become a disc;
         // an extrusion keeps a loop inside a hole as material again, as the drawing shows it.
@@ -282,7 +286,7 @@ export function colourLayers(block: LogoBlock): { fill: string; body: string; pi
   if (!block.colours) return [];
   const read = parseDrawing(block.svg);
   if (!read.ok || drawingColours(read.drawing).length < 2) return [];
-  const base = (block.name.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'Logo').slice(0, 60);
+  const base = logoBase(block.name);
   const counts = new Map<string, number>();
   return drawingPieces(read.drawing).map((piece) => {
     const n = (counts.get(piece.fill) ?? 0) + 1;
@@ -304,7 +308,7 @@ export function blockBodies(block: FeatureBlock): string[] {
  * face. Where a later piece of another fill covers an earlier one (painting order), it is cut out
  * of the earlier body. Every piece goes in by the drawing's top left corner, so all keep its frame.
  */
-function colourSteps(block: LogoBlock): Step[] {
+function colourSteps(block: LogoBlock, sketch: string): Step[] {
   const layers = colourLayers(block);
   const read = parseDrawing(block.svg);
   if (!read.ok) return [];
@@ -313,7 +317,7 @@ function colourSteps(block: LogoBlock): Step[] {
   const plane = planeAt(block.point, block.normal);
   const inlay = block.mode === 'deboss';
   const steps: Step[] = layers.flatMap((layer) => [
-    { command: 'sketch.create', params: { plane, project_edges: false } },
+    { command: 'sketch.create', params: { plane, project_edges: false, name: sketch } },
     { command: 'sketch.insert_svg', params: { text: shapesSvg(read.drawing, block.width, [layer.piece]), at: [round(-block.width / 2), round(height / 2)], align: 'origin' } },
     { command: 'solid.extrude', params: { distance: `${String(round(inlay ? -block.depth : block.depth))} mm`, operation: 'new', body_name: layer.body } },
     // Coloured at once, so a piece a later cut splits keeps its colour in both parts.

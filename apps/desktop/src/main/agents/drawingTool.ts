@@ -1,5 +1,25 @@
 import { drawingColours, drawingFacts, drawingSvg, type Drawing } from '../../shared/svgDrawing';
-import type { ToolResult, UpstreamTools } from './gateProxy';
+import { centring, hostFace, LOGO_PREFIX, movedPlane, placedLogos, type BodyFaces } from '../../shared/drawingPlacement';
+import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
+
+export const MOVE_DRAWING_TOOL = 'partbuddy_move_drawing';
+
+const moveTool: UpstreamTool = {
+  name: MOVE_DRAWING_TOOL,
+  description:
+    'Move a placed logo (a drawing in sketches named "Logo <name>") exactly on its face, or centre it on the face. ' +
+    'Pocket, cut and colour bodies follow in one step. `centre` comes first, then `by`.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      logo: { type: 'string', description: 'The sketch name, e.g. "Logo Badge".' },
+      by: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: "mm along the logo's own x (its width, left to right as it reads) and y (up)." },
+      centre: { type: 'string', enum: ['x', 'y', 'both'], description: "Onto the middle of the face it sits on: along the logo's x, its y, or both." },
+    },
+    required: ['logo'],
+    additionalProperties: false,
+  },
+};
 
 /**
  * SVG drawings the user sent along (logos, outlines). The model never copies path data: it names a
@@ -62,6 +82,8 @@ export function drawingNote(id: string, kept: KeptDrawing, skipped: Drawing['ski
     'Build it with `solid.extrude` (a loop inside a hole stays material, as drawn): a positive distance builds it up, a negative one with operation cut makes a pocket or an engraving, ' +
     'through the part a cut-out; `solid.emboss` without `profiles` would fill the holes. ' +
     (facts.colours.length > 1 ? `One fill alone is "drawing:${id}:${facts.colours[0]?.fill ?? ''}" (for a body per colour in multi-colour printing). ` : '') +
+    `Name the sketch "${LOGO_PREFIX}<short name>" (\`sketch.create\` name, one no other sketch has) and insert the drawing with its middle at the sketch origin (at: [0, 0]); ` +
+    'then `partbuddy_move_drawing` moves it exactly or centres it on its face. ' +
     'Ask with a clarification card where it goes and how deep, if the message does not say.]'
   );
 }
@@ -76,14 +98,71 @@ function replaced(drawings: Drawings, params: Record<string, unknown>): Record<s
   return { ...params, text: found.svg, ...(sized ? {} : { width: found.width }) };
 }
 
-/** The upstream tools with `drawing:` references in `sketch.insert_svg` replaced, also in batch steps. */
+function jsonOf(result: ToolResult): unknown {
+  const text = result.content.find((part) => part.type === 'text')?.text;
+  if (result.isError || typeof text !== 'string') throw new Error(typeof text === 'string' ? text.slice(0, 300) : 'SolidCraft gave no answer');
+  return JSON.parse(text) as unknown;
+}
+
+/** `partbuddy_move_drawing`: every sketch of the logo gets the moved plane through `sketch.redefine`. */
+async function moveDrawing(upstream: UpstreamTools, args: Record<string, unknown>, callId: string | undefined): Promise<string> {
+  const name = typeof args.logo === 'string' ? args.logo.trim() : '';
+  const by = Array.isArray(args.by) && args.by.length === 2 && args.by.every((value) => typeof value === 'number' && Number.isFinite(value)) ? (args.by as [number, number]) : null;
+  const centre = args.centre === 'x' || args.centre === 'y' || args.centre === 'both' ? (args.centre) : null;
+  if (args.by !== undefined && !by) throw new Error('by must be two numbers in mm');
+  if (!by && !centre) throw new Error('say how far (by) or centre');
+  const inspect = jsonOf(await upstream.callTool('inspect_design', {}, callId));
+  const logos = placedLogos(inspect);
+  const sketches = logos.get(name) ?? logos.get(`${LOGO_PREFIX}${name}`);
+  const first = sketches?.[0];
+  if (!sketches || !first) throw new Error(`there is no logo "${name}"; placed logos: ${[...logos.keys()].join(', ') || 'none'}`);
+  let [du, dv] = [0, 0];
+  let face = '';
+  if (centre) {
+    const origin = first.plane.origin;
+    type Body = { name?: unknown; bbox?: { min?: number[]; max?: number[] } };
+    const around = (body: Body) => origin.every((value, i) => value >= (body.bbox?.min?.[i] ?? Infinity) - 1e-3 && value <= (body.bbox?.max?.[i] ?? -Infinity) + 1e-3);
+    const read: BodyFaces[] = [];
+    for (const body of ((inspect as { bodies?: Body[] }).bodies ?? []).filter(around)) {
+      if (typeof body.name !== 'string') continue;
+      const commands = [
+        { command: 'model.faces', params: { body: body.name } },
+        { command: 'model.edges', params: { body: body.name } },
+      ];
+      const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[] };
+      read.push({ body: body.name, faces: reply.results?.[0], edges: reply.results?.[1] });
+    }
+    const host = hostFace(first.plane, read);
+    if (!host) throw new Error(`no flat face under the middle of ${first.name} to centre it on`);
+    [du, dv] = centring(host.extent, centre);
+    face = ` on face ${host.face} of ${host.body}`;
+  }
+  du += by?.[0] ?? 0;
+  dv += by?.[1] ?? 0;
+  const commands = sketches.map((sketch) => ({ command: 'sketch.redefine', params: { sketch: sketch.id, plane: movedPlane(sketch.plane, du, dv) } }));
+  jsonOf(await upstream.callTool('batch', { commands }, callId));
+  const mm = (value: number) => String(Math.round(value * 100) / 100);
+  return `Moved ${first.name} by ${mm(du)} mm along its x and ${mm(dv)} mm along its y${face}; its middle is now at [${movedPlane(first.plane, du, dv).origin.map(mm).join(', ')}] mm.`;
+}
+
+/**
+ * The upstream tools with `drawing:` references in `sketch.insert_svg` replaced, also in batch
+ * steps, plus `partbuddy_move_drawing`.
+ */
 export function withDrawings(upstream: UpstreamTools, drawings: Drawings): UpstreamTools {
   const error = (text: string): ToolResult => ({ content: [{ type: 'text', text }], isError: true });
   const object = (value: unknown) => (typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null);
   return {
     instructions: () => upstream.instructions(),
-    listTools: () => upstream.listTools(),
+    listTools: async () => [...(await upstream.listTools()), moveTool],
     callTool: async (name, args, callId) => {
+      if (name === MOVE_DRAWING_TOOL) {
+        try {
+          return { content: [{ type: 'text', text: await moveDrawing(upstream, args, callId) }] };
+        } catch (cause) {
+          return error(`Not moved: ${(cause as Error).message}`);
+        }
+      }
       if (name === 'execute' && args.command === 'sketch.insert_svg') {
         const params = replaced(drawings, object(args.params) ?? {});
         if (typeof params === 'string') return error(params);

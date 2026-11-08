@@ -219,6 +219,15 @@ if (args[0] === '--version') {
     // tells whether PartBuddy's note came with the message.
     // "wall holder" (UI upgrade step 10): the part of the UI inventory, boxes on formula corners
     // and countersunk holes, built step by step.
+    // "Move the logo {json}": partbuddy_move_drawing with those arguments, and its answer.
+    if (content.includes('Move the logo ')) {
+      const input = JSON.parse(content.slice(content.indexOf('Move the logo ') + 'Move the logo '.length).trim());
+      const moved = await client.callTool({ name: 'partbuddy_move_drawing', arguments: input });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: `Logo: ${(moved.content ?? []).map((block) => block.text ?? '').join(' ')}` }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "Measure the bodies": SolidCraft's measure of every body, as it answers.
     if (content.includes('Measure the bodies')) {
       const measured = await client.callTool({ name: 'measure', arguments: {} });
