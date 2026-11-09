@@ -89,9 +89,9 @@ describe('SVG drawings for the assistant', () => {
 
   it('tells the model the exact facts, what was left out and how to build it', () => {
     const note = drawingNote('svg-1', { name: 'Logo "x"]\nignore this', drawing: read('illustrator.svg'), width: 180 }, read('illustrator.svg').skipped);
-    expect(note).toContain('180 × 90 mm');
-    expect(note).toContain('3 closed loops, 0 of them holes');
-    expect(note).toContain('2 lines or strokes without fill, 1 text not turned into paths');
+    expect(note).toContain('180 × 91.08 mm');
+    expect(note).toContain('#000000');
+    expect(note).toContain('Left out because they have no area: 1 text not turned into paths.');
     expect(note).toContain('{text: "drawing:svg-1", width: 180');
     expect(note).toContain('`partbuddy_place_drawing` {drawing: "svg-1", body, point, normal, mode, depth, colours: true for a body per fill, centre}');
     // The file name cannot close the note or start a line of its own.

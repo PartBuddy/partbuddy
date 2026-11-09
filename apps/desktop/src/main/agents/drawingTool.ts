@@ -100,7 +100,7 @@ export function drawingNote(id: string, kept: KeptDrawing, skipped: Drawing['ski
   const mm = (value: number) => String(Math.round(value * 100) / 100);
   const colours = facts.colours.map((colour) => `${colour.fill} (${mm(colour.area)} mm²)`).join(', ');
   const left = [
-    skipped.strokes ? `${String(skipped.strokes)} line${skipped.strokes === 1 ? '' : 's'} or stroke${skipped.strokes === 1 ? '' : 's'} without fill` : '',
+    skipped.strokes ? `${String(skipped.strokes)} shape${skipped.strokes === 1 ? '' : 's'} without fill or stroke` : '',
     skipped.texts ? `${String(skipped.texts)} text${skipped.texts === 1 ? '' : 's'} not turned into paths` : '',
     skipped.images ? `${String(skipped.images)} embedded picture${skipped.images === 1 ? '' : 's'}` : '',
   ].filter(Boolean);

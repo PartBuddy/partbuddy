@@ -3,10 +3,13 @@
  * SVG drawings as exact sketch contours (logos, name plates, cookie cutters). An SVG file is
  * untrusted: this module reads it without a DOM, refuses scripts, foreignObject, entities and every
  * reference outside the file, and turns each filled shape into closed loops of lines and cubic
- * curves with its transforms applied. Arcs, circles and ellipses become cubics (at most 2.7e-4 of
+ * curves with its transforms applied. Strokes (line icons) become filled outlines of their width,
+ * with their caps and joins, one shape per stroke colour. Arcs, circles and ellipses become cubics (at most 2.7e-4 of
  * the radius off), lines stay lines. What leaves here is a clean SVG of `<path>`s in mm that
  * SolidCraft's `sketch.insert_svg` reads exactly; the original text never goes further.
  */
+
+import { EndType, FillRule, inflatePathsD, JoinType, simplifyPathsD, unionD, type PathD } from 'clipper2-ts';
 
 /** The largest SVG file PartBuddy reads; logos are small, a bigger file is usually an embedded picture. */
 export const SVG_MAX_BYTES = 512 * 1024;
@@ -22,6 +25,9 @@ export type Segment = { to: Pt } | { c1: Pt; c2: Pt; to: Pt };
 export interface Loop {
   start: Pt;
   segments: Segment[];
+  /** Drawn open (no Z): a stroke has ends here; `closer` when the last segment was only added to fill it. */
+  open?: boolean;
+  closer?: boolean;
 }
 /** One filled shape of the file, in the file's own units, y down. */
 export interface Shape {
@@ -34,7 +40,7 @@ export interface Drawing {
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
   /** Millimetres per unit when the file states a physical size (mm, cm, in, pt, pc), else null. */
   unitMm: number | null;
-  /** What has no area and was left out: lines and unfilled strokes, text, embedded pictures. */
+  /** What has no area and was left out: shapes with neither fill nor stroke (`strokes`), text, embedded pictures. */
   skipped: { strokes: number; texts: number; images: number };
 }
 export type DrawingProblem = 'tooBig' | 'notSvg' | 'unsafe' | 'tooComplex' | 'empty';
@@ -155,7 +161,7 @@ function styleRules(root: Element): Rule[] {
   return rules.sort((a, b) => a.specificity - b.specificity || a.order - b.order);
 }
 
-const STYLE_PROPS = ['fill', 'fill-rule', 'fill-opacity', 'opacity', 'stroke', 'display', 'visibility', 'color'] as const;
+const STYLE_PROPS = ['fill', 'fill-rule', 'fill-opacity', 'opacity', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linejoin', 'stroke-linecap', 'stroke-miterlimit', 'display', 'visibility', 'color'] as const;
 type Style = Partial<Record<(typeof STYLE_PROPS)[number], string>>;
 
 function ownStyle(element: Element, rules: Rule[]): Style {
@@ -329,10 +335,15 @@ export function parsePathData(d: string): Loop[] {
   let start: Pt = [0, 0];
   let lastControl: Pt | null = null;
   let lastQuad: Pt | null = null;
-  const close = () => {
+  const close = (explicit = false) => {
     if (current && current.segments.length > 0) {
       const last = current.segments[current.segments.length - 1] as Segment;
-      if (last.to[0] !== start[0] || last.to[1] !== start[1]) current.segments.push({ to: start });
+      const added = last.to[0] !== start[0] || last.to[1] !== start[1];
+      if (added) current.segments.push({ to: start });
+      if (!explicit) {
+        current.open = true;
+        if (added) current.closer = true;
+      }
       loops.push(current);
     }
     current = null;
@@ -355,7 +366,7 @@ export function parsePathData(d: string): Loop[] {
       throw new Refused('notSvg', 'a path has broken data');
     }
     if (command === 'z' || command === 'Z') {
-      close();
+      close(true);
       lastControl = lastQuad = null;
       skip();
       continue;
@@ -460,13 +471,14 @@ function rectangle(x: number, y: number, w: number, h: number, rxIn: number | nu
   ];
 }
 
-function points(text: string | undefined): Loop[] {
+/** A polygon's or polyline's points; a polyline is open, its closing line only there for a fill. */
+function points(text: string | undefined, open = false): Loop[] {
   const v = numbers(text ?? '');
-  if (v.length < 6) return [];
+  if (v.length < 4) return [];
   const pts: Pt[] = [];
   for (let k = 0; k + 1 < v.length; k += 2) pts.push([v[k] as number, v[k + 1] as number]);
   const first = pts[0] as Pt;
-  return [{ start: first, segments: [...pts.slice(1).map((to) => ({ to })), { to: first }] }];
+  return [{ start: first, segments: [...pts.slice(1).map((to) => ({ to })), { to: first }], ...(open ? { open: true, closer: true } : {}) }];
 }
 
 /** A length attribute in the file's units; percentages and missing values give the fallback. */
@@ -497,7 +509,7 @@ function transformLoop(m: Matrix, loop: Loop): Loop {
     else continue;
     from = to;
   }
-  return { start, segments };
+  return { start, segments, ...(loop.open ? { open: true } : {}), ...(loop.closer ? { closer: true } : {}) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -592,6 +604,63 @@ function boundaryLoops(loops: Loop[], rule: string, size: number): Loop[] {
 // ---------------------------------------------------------------------------------------------
 // Reading the drawing.
 
+/** A stroked element: its loops (open ones have ends) in the drawing's frame and how it is stroked. */
+interface Stroke {
+  colour: string;
+  width: number;
+  join: string;
+  cap: string;
+  miter: number;
+  loops: Loop[];
+}
+
+const JOINS: Record<string, JoinType> = { round: JoinType.Round, bevel: JoinType.Bevel };
+const CAPS: Record<string, EndType> = { round: EndType.Round, square: EndType.Square };
+
+/**
+ * Strokes as filled outlines (Clipper2's offsetting): each path widened by half its stroke width
+ * on both sides with its caps and joins, and all strokes of one colour joined into one shape, so
+ * crossing lines become one outline rather than loops that cancel each other when filled.
+ * shortcut: the outlines are polygons, not arcs (a round cap is about ten faces); fit arcs back if exports of line icons get too heavy.
+ */
+function strokeShapes(strokes: readonly Stroke[]): (Shape & { rule: string })[] {
+  if (strokes.length === 0) return [];
+  const corners = strokes.flatMap((stroke) => stroke.loops.flatMap((loop) => [loop.start, ...loop.segments.flatMap((s) => ('c1' in s ? [s.c1, s.c2, s.to] : [s.to]))]));
+  const reach = Math.max(...strokes.map((stroke) => stroke.width));
+  const size = Math.max(...corners.map((p) => p[0])) - Math.min(...corners.map((p) => p[0])) + Math.max(...corners.map((p) => p[1])) - Math.min(...corners.map((p) => p[1])) + reach || 1;
+  // Clipper works in whole numbers: decimals enough for a millionth of the drawing.
+  const precision = Math.max(0, Math.min(8, Math.ceil(6 - Math.log10(size))));
+  // Fine enough for a smooth print (0.02 mm on a 40 mm logo), coarse enough that a round cap is not dozens of faces.
+  const tolerance = size * 5e-4;
+  const byColour = new Map<string, PathD[]>();
+  for (const stroke of strokes) {
+    const open: PathD[] = [];
+    const closed: PathD[] = [];
+    for (const loop of stroke.loops) {
+      const polygon = flatten(loop, tolerance);
+      // The line back to the start was only there to fill it.
+      if (loop.closer) polygon.pop();
+      (loop.open ? open : closed).push(polygon.map(([x, y]) => ({ x, y })));
+    }
+    const join = JOINS[stroke.join] ?? JoinType.Miter;
+    const miter = Number.isFinite(stroke.miter) && stroke.miter >= 1 ? stroke.miter : 4;
+    const outlines = [
+      ...(open.length > 0 ? inflatePathsD(open, stroke.width / 2, join, CAPS[stroke.cap] ?? EndType.Butt, miter, precision, tolerance * 2) : []),
+      ...(closed.length > 0 ? inflatePathsD(closed, stroke.width / 2, join, EndType.Joined, miter, precision, tolerance * 2) : []),
+    ];
+    byColour.set(stroke.colour, [...(byColour.get(stroke.colour) ?? []), ...outlines]);
+  }
+  return [...byColour].flatMap(([fill, outlines]) => {
+    // Points the union leaves within the tolerance of a straight line between their neighbours go.
+    const loops = simplifyPathsD(unionD(outlines, [], FillRule.NonZero, precision), tolerance, true).flatMap((path): Loop[] => {
+      const first = path[0];
+      if (!first || path.length < 3) return [];
+      return [{ start: [first.x, first.y], segments: [...path.slice(1).map((p) => ({ to: [p.x, p.y] as Pt })), { to: [first.x, first.y] as Pt }] }];
+    });
+    return loops.length > 0 ? [{ fill, rule: 'nonzero', loops }] : [];
+  });
+}
+
 const NO_RENDER = new Set(['defs', 'symbol', 'clipPath', 'mask', 'pattern', 'marker', 'linearGradient', 'radialGradient', 'filter', 'style', 'title', 'desc', 'metadata']);
 
 /** Reads an SVG file into filled shapes, or says why it cannot be used. */
@@ -622,7 +691,8 @@ function read(text: string): Drawing {
   const shapes: (Shape & { rule: string })[] = [];
   const skipped = { strokes: 0, texts: 0, images: 0 };
   let segments = 0;
-  type Inherited = { fill: string | undefined; rule: string; color: string; hidden: boolean; fillOpacity: number };
+  type Inherited = { fill: string | undefined; rule: string; color: string; hidden: boolean; fillOpacity: number; stroke: string | undefined; strokeWidth: string; strokeOpacity: number; join: string; cap: string; miter: number };
+  const strokes: Stroke[] = [];
   const walk = (element: Element, matrix: Matrix, parent: Inherited, uses: number) => {
     if (NO_RENDER.has(element.name)) return;
     const style = ownStyle(element, rules);
@@ -635,6 +705,12 @@ function read(text: string): Drawing {
       color: style.color ?? parent.color,
       hidden: style.visibility ? /hidden|collapse/.test(style.visibility) : parent.hidden,
       fillOpacity: style['fill-opacity'] !== undefined ? parseFloat(style['fill-opacity']) : parent.fillOpacity,
+      stroke: style.stroke ?? parent.stroke,
+      strokeWidth: style['stroke-width'] ?? parent.strokeWidth,
+      strokeOpacity: style['stroke-opacity'] !== undefined ? parseFloat(style['stroke-opacity']) : parent.strokeOpacity,
+      join: (style['stroke-linejoin'] ?? parent.join).trim(),
+      cap: (style['stroke-linecap'] ?? parent.cap).trim(),
+      miter: style['stroke-miterlimit'] !== undefined ? parseFloat(style['stroke-miterlimit']) : parent.miter,
     };
     let m = multiply(matrix, parseTransform(element.attrs.get('transform')));
     const a = (name: string, fallback = 0) => length(element.attrs.get(name), fallback);
@@ -672,11 +748,13 @@ function read(text: string): Drawing {
         break;
       case 'polygon':
       case 'polyline':
-        loops = points(element.attrs.get('points'));
+        loops = points(element.attrs.get('points'), element.name === 'polyline');
         break;
-      case 'line':
-        skipped.strokes += 1;
-        return;
+      case 'line': {
+        const [from, to]: [Pt, Pt] = [[a('x1'), a('y1')], [a('x2'), a('y2')]];
+        loops = from[0] === to[0] && from[1] === to[1] ? [] : [{ start: from, segments: [{ to }], open: true }];
+        break;
+      }
       case 'text':
         skipped.texts += 1;
         return;
@@ -690,19 +768,28 @@ function read(text: string): Drawing {
       for (const child of element.children) walk(child, m, inherited, uses);
       return;
     }
-    const fill = inherited.fillOpacity === 0 ? null : colour(inherited.fill, inherited.color);
+    // A line has no inside to fill.
+    const fill = element.name === 'line' || inherited.fillOpacity === 0 ? null : colour(inherited.fill, inherited.color);
+    const strokeColour = inherited.stroke === undefined || inherited.strokeOpacity === 0 ? null : colour(inherited.stroke, inherited.color);
+    // A stroke's width scales with the element's transform (an even scale; a skewed one is taken on average).
+    const strokeWidth = length(inherited.strokeWidth, 1) * Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
+    const stroked = strokeColour !== null && strokeWidth > 0;
     if (inherited.hidden) return;
-    if (!fill) {
-      // Without a fill a shape is a stroke at most, which has no area.
+    if (!fill && !stroked) {
+      // Neither filled nor stroked: nothing with an area.
       skipped.strokes += 1;
       return;
     }
     if (loops.length === 0) return;
-    segments += loops.reduce((sum, loop) => sum + loop.segments.length, 0);
-    if (shapes.length >= MAX_SHAPES || segments > MAX_SEGMENTS) throw new Refused('tooComplex', 'the drawing has too many shapes for a sketch');
-    shapes.push({ fill, rule: inherited.rule, loops: loops.map((loop) => transformLoop(m, loop)) });
+    segments += loops.reduce((sum, loop) => sum + loop.segments.length, 0) * (fill && stroked ? 2 : 1);
+    if (shapes.length + strokes.length >= MAX_SHAPES || segments > MAX_SEGMENTS) throw new Refused('tooComplex', 'the drawing has too many shapes for a sketch');
+    const placed = loops.map((loop) => transformLoop(m, loop));
+    if (fill) shapes.push({ fill, rule: inherited.rule, loops: placed });
+    if (stroked) strokes.push({ colour: strokeColour, width: strokeWidth, join: inherited.join, cap: inherited.cap, miter: inherited.miter, loops: placed });
   };
-  walk(svg, IDENTITY, { fill: undefined, rule: 'nonzero', color: '#000000', hidden: false, fillOpacity: 1 }, 0);
+  walk(svg, IDENTITY, { fill: undefined, rule: 'nonzero', color: '#000000', hidden: false, fillOpacity: 1, stroke: undefined, strokeWidth: '1', strokeOpacity: 1, join: 'miter', cap: 'butt', miter: 4 }, 0);
+  // Strokes paint over fills: their outlines come last.
+  shapes.push(...strokeShapes(strokes));
 
   const all = shapes.flatMap((shape) => shape.loops.flatMap((loop) => flatten(loop, 1e9)));
   if (all.length === 0) throw new Refused('empty', 'the drawing has no filled shapes');

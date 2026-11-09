@@ -30,6 +30,7 @@
     "@shikijs/themes": "4.5.0",
     "@tabler/icons-react": "3.50.0",
     "ai": "7.0.159",
+    "clipper2-ts": "2.0.1-18",
     "electron-updater": "6.8.11",
     "fflate": "0.8.3",
     "i18next": "26.7.1",

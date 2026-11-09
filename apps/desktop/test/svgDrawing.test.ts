@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { drawingColours, drawingFacts, drawingPieces, drawingSvg, flatten, naturalWidth, parseDrawing, parsePathData, shapesOverlap, type Drawing, type Shape } from '../src/shared/svgDrawing';
+import { drawingColours, drawingFacts, drawingSize, drawingPieces, drawingSvg, flatten, naturalWidth, parseDrawing, parsePathData, shapesOverlap, type Drawing, type Shape } from '../src/shared/svgDrawing';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', 'svg', name), 'utf8');
 
@@ -36,22 +36,27 @@ describe('SVG drawings', () => {
     expect(worst).toBeLessThan(0.01);
   });
 
-  it('follows classes, style attributes, transforms, <use> and rounded corners, and leaves out strokes and text', () => {
+  it('follows classes, style attributes, transforms, <use> and rounded corners, turns strokes into outlines and leaves out text', () => {
     const d = drawing(fixture('illustrator.svg'));
-    expect(drawingColours(d)).toEqual(['#1d71b8', '#ffd500', '#e30613']);
-    expect(d.skipped).toEqual({ strokes: 2, texts: 1, images: 0 });
+    // The black line and polyline (stroke 2, butt ends) come last, painted over the fills.
+    expect(drawingColours(d)).toEqual(['#1d71b8', '#ffd500', '#e30613', '#000000']);
+    expect(d.skipped).toEqual({ strokes: 0, texts: 1, images: 0 });
     // px without a unit: no physical size.
     expect(naturalWidth(d)).toBeNull();
-    // From the rect at x 10 to the dot's right edge at 160.
-    expect(d.bounds.minX).toBeCloseTo(10, 6);
-    expect(d.bounds.maxX).toBeCloseTo(190, 6);
-    expect(d.bounds.maxY).toBeCloseTo(100, 6);
-    const facts = drawingFacts(d, 180);
+    // Butt ends reach past their end points by half the width across the line: the polyline's at (0, 0), the line's at (200, 100).
+    expect(d.bounds.minX).toBeCloseTo(-Math.SQRT1_2, 3);
+    expect(d.bounds.maxX).toBeCloseTo(200 + 1 / Math.sqrt(5), 3);
+    expect(d.bounds.maxY).toBeCloseTo(100 + 2 / Math.sqrt(5), 3);
+    // At its own width one unit is one mm.
+    const facts = drawingFacts(d, drawingSize(d).width);
     const area = (fill: string) => facts.colours.find((c) => c.fill === fill)?.area ?? 0;
     // A 80 × 80 square with 10 mm corners: 6400 − (4 − π)·100.
     expect(area('#1d71b8')).toBeCloseTo(6400 - (4 - Math.PI) * 100, 0);
     expect(area('#ffd500')).toBeCloseTo(3200, 0);
     expect(area('#e30613')).toBeCloseTo(Math.PI * 100, 0);
+    // The line alone is 2 × 223.6 wide; the polyline adds a little where it leaves the line.
+    expect(area('#000000')).toBeGreaterThan(2 * Math.hypot(200, 100));
+    expect(area('#000000')).toBeLessThan(2 * Math.hypot(200, 100) + 2 * 2 * Math.hypot(10, 10));
     expect(drawingSvg(d, 180, ['#ffd500'])).toMatch(/^<svg [^>]*><path fill="#ffd500" fill-rule="evenodd" d="[^"]+"\/><\/svg>$/);
   });
 
@@ -83,7 +88,7 @@ describe('SVG drawings', () => {
     expect(parseDrawing(`<svg>${' '.repeat(600 * 1024)}</svg>`)).toMatchObject({ ok: false, problem: 'tooBig' });
     expect(parseDrawing('<html><body/></html>')).toMatchObject({ ok: false, problem: 'notSvg' });
     expect(parseDrawing('<svg><rect></svg>')).toMatchObject({ ok: false, problem: 'notSvg' });
-    expect(parseDrawing('<svg><line x2="10" y2="10" stroke="black"/></svg>')).toMatchObject({ ok: false, problem: 'empty' });
+    expect(parseDrawing('<svg><line x2="10" y2="10"/></svg>')).toMatchObject({ ok: false, problem: 'empty' });
     // A <use> that draws itself ends at the depth limit instead of looping.
     expect(parseDrawing('<svg><g id="a"><rect width="1" height="1"/><use href="#a" x="2"/></g></svg>')).toMatchObject({ ok: true });
     expect(parseDrawing(`<svg>${'<g>'.repeat(100)}${'</g>'.repeat(100)}</svg>`)).toMatchObject({ ok: false, problem: 'tooComplex' });
@@ -117,5 +122,29 @@ describe('pieces of a drawing', () => {
     expect(drawingPieces(ring).map((piece) => piece.loops.length)).toEqual([2, 1]);
     // The fox: two ears, two inner ears, the head, the muzzle, and eyes and nose in one path.
     expect(drawingPieces(drawing(fixture('twemoji-fox.svg')))).toHaveLength(9);
+  });
+});
+
+describe('line icons', () => {
+  it('builds a stroke-only icon at its stroke width, round caps and joins, as one outline per colour', () => {
+    // Tabler "rocket": three stroked paths (width 2 on a 24 grid) and an invisible frame without fill or stroke.
+    const d = drawing(fixture('tabler-rocket.svg'));
+    expect(drawingColours(d)).toEqual(['#000000']);
+    expect(d.shapes).toHaveLength(1);
+    expect(d.skipped).toEqual({ strokes: 1, texts: 0, images: 0 });
+    // The drawn lines run from about 4 to 20; a stroke 2 wide reaches one further each way.
+    expect(Math.abs(d.bounds.minX - 3)).toBeLessThan(0.1);
+    expect(Math.abs(d.bounds.maxX - 21)).toBeLessThan(0.1);
+    // The window of the rocket (a ring with a hole) and the space inside the body are holes.
+    expect(drawingFacts(d, 24).holes).toBeGreaterThanOrEqual(2);
+  });
+
+  it('keeps open and closed strokes apart: a closed square gets mitred corners, an open one butt ends', () => {
+    const closed = drawing('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10" fill="none" stroke="#000" stroke-width="2"/></svg>');
+    // A ring: 12 × 12 outside, 8 × 8 inside.
+    expect(drawingFacts(closed, 12).colours[0]?.area).toBeCloseTo(144 - 64, 0);
+    const open = drawing('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><polyline points="5,5 15,5" fill="none" stroke="#000" stroke-width="2"/></svg>');
+    expect(drawingSize(open).width).toBeCloseTo(10, 6);
+    expect(drawingSize(open).height).toBeCloseTo(2, 6);
   });
 });
