@@ -82,7 +82,7 @@ export function StepCard({ item, tools, disabled }: { item: StepItem; tools: Too
           ) : (
             <IconSparkles className="size-icon-sm shrink-0 text-text-subtle" role="img" aria-label={t('assistant.step.byAssistant')} />
           )}
-          <span className={`min-w-0 flex-1 truncate ${state === 'discarded' ? 'line-through' : ''}`} data-testid="step-text" title={summary}>
+          <span className={`line-clamp-2 min-w-0 flex-1 break-words ${state === 'discarded' ? 'line-through' : ''}`} data-testid="step-text" title={summary}>
             {summary}
           </span>
           {current ? (

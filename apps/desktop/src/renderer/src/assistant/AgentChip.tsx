@@ -60,6 +60,15 @@ function modelLabel(t: T, status: AgentStatus): string | null {
 }
 
 /** The short status on the chip: the route and the model with its effort, or the plan or what is missing. */
+/**
+ * A model's short description in the interface language for the known Claude families; other
+ * models keep the text their provider sends (audit C-09).
+ */
+function modelDescription(t: T, id: string, original: string): string {
+  const family = ['opus', 'sonnet', 'haiku'].find((name) => id.toLowerCase().includes(name));
+  return family ? t(`assistant.model.describe.${family}`) : original;
+}
+
 function chipLabel(t: T, status: AgentStatus): string {
   const route = t(`assistant.routes.${status.agent}`);
   let detail: string;
@@ -109,7 +118,7 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
               <RadioMark />
               <span className="flex flex-col">
                 <span className="text-sm text-text">{modelName(t, model)}</span>
-                {model.description ? <span className="text-xs text-text-muted">{model.description}</span> : null}
+                {model.description ? <span className="text-xs text-text-muted">{modelDescription(t, model.id, model.description)}</span> : null}
               </span>
             </RadioButton>
           </RadioField>
@@ -272,13 +281,23 @@ export function AgentChip() {
       >
         {/* One line, cut with an ellipsis when the chat is narrow; the full text is the tooltip and the label. */}
         <span aria-hidden className={`size-dot shrink-0 rounded-full ${dotTone[toneOf(status)]}`} />
-        <span className="min-w-0 truncate whitespace-nowrap" title={label}>
-          {label}
+        {/* When the chat is narrow the route gives way first, the model last (audit C-07). */}
+        <span className="flex min-w-0 whitespace-nowrap" title={label}>
+          {label.includes(' · ') ? (
+            <>
+              <span className="min-w-6 shrink-[8] truncate">{label.slice(0, label.indexOf(' · '))}</span>
+              <span className="shrink-0">{' · '}</span>
+              <span className="min-w-0 truncate">{label.slice(label.indexOf(' · ') + 3)}</span>
+            </>
+          ) : (
+            <span className="min-w-0 truncate">{label}</span>
+          )}
         </span>
         <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
       </AriaButton>
       <Popover placement="top start" offset={6} className={popoverPanelClass}>
-        <Dialog aria-label={t('assistant.title')} className="flex flex-col gap-3 p-3 outline-none" data-testid="agent-menu">
+        {/* The popover gets the room the window has; the menu scrolls inside it instead of running out (audit C-08). */}
+        <Dialog aria-label={t('assistant.title')} className="flex max-h-[inherit] flex-col gap-3 overflow-y-auto p-3 outline-none" data-testid="agent-menu">
           {({ close }) => (
             <>
               <div className="flex items-center justify-between gap-2">

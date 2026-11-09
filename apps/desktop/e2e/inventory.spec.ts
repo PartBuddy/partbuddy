@@ -106,7 +106,7 @@ test('inventory: real part, every state, light and dark', async () => {
         const kind = await card.getAttribute('data-kind');
         await card.scrollIntoViewIfNeeded();
         await shot(page, kind === 'plan' ? '03-plan-card' : `03-question-${round}`);
-        if (kind === 'plan') await card.getByRole('button', { name: 'Go' }).click();
+        if (kind === 'plan') await card.getByRole('button', { name: 'Build' }).click();
         else await answerRound(card, undefined);
         await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible({ timeout: 60_000 });
         await page.waitForTimeout(12_000);

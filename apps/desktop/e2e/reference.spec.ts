@@ -61,7 +61,7 @@ for (const [index, { id, request }] of REQUESTS.entries()) {
         const card = open.first();
         const kind = (await card.getAttribute('data-kind')) ?? '?';
         rounds.push({ round, kind, card: await card.innerText() });
-        if (kind === 'plan') await card.getByRole('button', { name: 'Go' }).click();
+        if (kind === 'plan') await card.getByRole('button', { name: 'Build' }).click();
         else await answerRound(card, undefined);
         await waitForTurn(page);
       }

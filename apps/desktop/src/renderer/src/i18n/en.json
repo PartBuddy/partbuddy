@@ -198,7 +198,8 @@
       "running": "running",
       "done": "done",
       "failed": "failed",
-      "denied": "refused by PartBuddy"
+      "denied": "refused by PartBuddy",
+      "details": "Details"
     },
     "route": "Assistant route",
     "routes": {
@@ -255,7 +256,7 @@
     },
     "planCard": {
       "title": "Plan",
-      "go": "Go",
+      "go": "Build",
       "change": "Change",
       "cancel": "Cancel",
       "goMessage": "Go ahead, build it like this.",
@@ -264,7 +265,8 @@
       "outcome": {
         "go": "Approved, the assistant builds it",
         "cancel": "Cancelled",
-        "change": "Change requested"
+        "change": "Change requested",
+        "built": "Built"
       }
     },
     "chip": {
@@ -307,7 +309,12 @@
       "applies": "Applies from the next answer, also mid-conversation.",
       "keep": "Keep for new chats",
       "isDefault": "Default for new chats",
-      "defaultName": "Default (recommended)"
+      "defaultName": "Default (recommended)",
+      "describe": {
+        "opus": "For demanding tasks",
+        "sonnet": "For everyday work, fast and thorough",
+        "haiku": "Fastest, for simple steps"
+      }
     },
     "effort": {
       "title": "Effort",
@@ -396,7 +403,8 @@
       "drop": "Drop the picture: it goes with your message",
       "sent": "With a photo",
       "defaultText": "Make a part that fits the object in the photo.",
-      "show": "Show the photo large"
+      "show": "Show the photo large",
+      "pasted": "Pasted picture"
     },
     "local": {
       "ready": "{server} · {model}",
@@ -424,8 +432,8 @@
         "signedOut": "Your Claude Code sign-in has expired. Sign in again, then send the message again.",
         "other": "The assistant stopped before it finished."
       },
-      "log": "The log file has the details (Settings › About).",
-      "retry": "Send again"
+      "retry": "Send again",
+      "openLog": "Show log file"
     },
     "examples": {
       "holder": "A wall holder for a cordless drill: a plate with two countersunk screws and a hook for a 35 mm wide grip",
@@ -460,7 +468,8 @@
       "sent": "With SVG drawing",
       "pasted": "Pasted drawing",
       "defaultText": "Build a part from this drawing."
-    }
+    },
+    "queriesFailed": "{count, plural, one {# failed} other {# failed}}"
   },
   "live": {
     "thinking": "The assistant is planning the next step",

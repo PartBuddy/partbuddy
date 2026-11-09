@@ -198,7 +198,8 @@
       "running": "läuft",
       "done": "fertig",
       "failed": "fehlgeschlagen",
-      "denied": "von PartBuddy abgelehnt"
+      "denied": "von PartBuddy abgelehnt",
+      "details": "Details"
     },
     "route": "Assistenten-Weg",
     "routes": {
@@ -255,7 +256,7 @@
     },
     "planCard": {
       "title": "Plan",
-      "go": "Los",
+      "go": "Bauen",
       "change": "Ändern",
       "cancel": "Abbrechen",
       "goMessage": "Los, bau es so.",
@@ -264,7 +265,8 @@
       "outcome": {
         "go": "Freigegeben, der Assistent baut",
         "cancel": "Abgebrochen",
-        "change": "Änderung gewünscht"
+        "change": "Änderung gewünscht",
+        "built": "Gebaut"
       }
     },
     "chip": {
@@ -307,7 +309,12 @@
       "applies": "Gilt ab der nächsten Antwort, auch mitten im Gespräch.",
       "keep": "Für neue Chats merken",
       "isDefault": "Standard für neue Chats",
-      "defaultName": "Standard (empfohlen)"
+      "defaultName": "Standard (empfohlen)",
+      "describe": {
+        "opus": "Für anspruchsvolle Aufgaben",
+        "sonnet": "Für den Alltag, schnell und gründlich",
+        "haiku": "Am schnellsten, für einfache Schritte"
+      }
     },
     "effort": {
       "title": "Aufwand",
@@ -396,7 +403,8 @@
       "drop": "Bild loslassen: es geht mit deiner Nachricht",
       "sent": "Mit Foto",
       "defaultText": "Mach mir ein passendes Teil für den Gegenstand auf dem Foto.",
-      "show": "Foto groß zeigen"
+      "show": "Foto groß zeigen",
+      "pasted": "Eingefügtes Bild"
     },
     "local": {
       "ready": "{server} · {model}",
@@ -424,8 +432,8 @@
         "signedOut": "Die Anmeldung bei Claude Code ist abgelaufen. Melde dich neu an, dann sende die Nachricht erneut.",
         "other": "Der Assistent hat aufgehört, bevor er fertig war."
       },
-      "log": "Details stehen in der Logdatei (Einstellungen › Über).",
-      "retry": "Erneut senden"
+      "retry": "Erneut senden",
+      "openLog": "Logdatei zeigen"
     },
     "examples": {
       "holder": "Ein Wandhalter für einen Akkuschrauber: eine Platte mit zwei Senkkopfschrauben und ein Haken für einen 35 mm breiten Griff",
@@ -460,7 +468,8 @@
       "sent": "Mit SVG-Zeichnung",
       "pasted": "Eingefügte Zeichnung",
       "defaultText": "Bau mir aus dieser Zeichnung ein Teil."
-    }
+    },
+    "queriesFailed": "{count, plural, one {# fehlgeschlagen} other {# fehlgeschlagen}}"
   },
   "live": {
     "thinking": "Der Assistent plant den nächsten Schritt",
