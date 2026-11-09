@@ -23,14 +23,14 @@ export function DimensionArrow() {
   return handle ? <DragArrow handle={handle} label={t('hud.dragArrow')} testId="dimension-arrow" /> : null;
 }
 
-/** The two arrows of a picked logo, across and up its face; each moves it along its own line. */
+/** The arrows of a picked logo (across, up, depth) or of an open block (across, up); each moves it along its own line. */
 export function LogoArrows() {
   const { t } = useTranslation();
   const handles = useStudio((s) => s.logoHandles);
   return (
     <>
       {handles.map((handle, i) => (
-        <DragArrow key={i} handle={handle} label={t(['logoMove.dragAcross', 'logoMove.dragUp', handle.raised ? 'logoMove.dragHeight' : 'logoMove.dragDepth'][i] ?? '')} testId={['logo-arrow-x', 'logo-arrow-y', 'logo-arrow-depth'][i] ?? 'logo-arrow'} />
+        <DragArrow key={i} handle={handle} label={handle.label ?? t(['logoMove.dragAcross', 'logoMove.dragUp', handle.raised ? 'logoMove.dragHeight' : 'logoMove.dragDepth'][i] ?? '')} testId={handle.testId ?? ['logo-arrow-x', 'logo-arrow-y', 'logo-arrow-depth'][i] ?? 'logo-arrow'} />
       ))}
     </>
   );

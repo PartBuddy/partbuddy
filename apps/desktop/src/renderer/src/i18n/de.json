@@ -1257,6 +1257,9 @@
   },
   "blocks": {
     "more": "Mehr …",
+    "position": "Position ab Flächenmitte",
+    "dragAcross": "Ziehen verschiebt den Baustein quer (Alt: Zehntel)",
+    "dragUp": "Ziehen verschiebt den Baustein hoch (Alt: Zehntel)",
     "tiles": {
       "logo": "Logo / SVG",
       "text": "Text",
