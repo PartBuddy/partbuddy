@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
@@ -91,6 +91,13 @@ test('website pictures', async () => {
   const board = join(work, 'Circuit board.step');
   writeFileSync(join(work, 'board.json'), JSON.stringify({ commands: [...BOARD, { command: 'file.export', params: { path: board, format: 'step' } }] }));
   execFileSync(CLI, ['run', join(work, 'board.json'), '--quiet'], { stdio: ['ignore', 'ignore', 'inherit'] });
+  // The SolidCraft the app is tested on (0.40.0-rc.3, see the release notes), not the installed 0.30.1:
+  // the templates need it. SOLIDCRAFT_EXE names it, else the portable copy in ~/.partbuddy.
+  const solidcraft = process.env.SOLIDCRAFT_EXE ?? join(homedir(), '.partbuddy', 'solidcraft-0.40.0-rc.3', 'app', 'solidcraft-0.40.0-rc.3-windows-x64-portable', 'solidcraft.exe');
+  if (existsSync(solidcraft)) {
+    mkdirSync(join(work, 'profile'), { recursive: true });
+    writeFileSync(join(work, 'profile', 'solidcraft-settings.json'), JSON.stringify({ path: solidcraft }));
+  }
   const launched = await launchApp({
     isolated: false,
     work,
@@ -548,6 +555,8 @@ test('website pictures', async () => {
     await page.screenshot({ path: test.info().outputPath('last.png') }).catch(() => undefined);
     console.log(`site shots in ${out}:\n${Object.entries(report).map(([file, result]) => `  ${file}: ${result}`).join('\n')}`);
     await launched.close();
+    // The app's own log, to tell why a picture failed (also on the CI runner).
+    if (existsSync(join(work, 'partbuddy.log'))) copyFileSync(join(work, 'partbuddy.log'), test.info().outputPath('app.log'));
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
     expect(missing, 'pictures that failed').toEqual([]);
   }
