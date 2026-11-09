@@ -652,14 +652,14 @@ export class SolidCraftSupervisor {
   /** A logo moved on trial: its sketches redefined, the part and its colour bodies exported for the ghost. */
   previewLogoMove(move: LogoMoveRequest): Promise<ActionPreview> {
     return this.trial('logo preview', async () => {
-      const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre, move.depth ?? null, move.rotate ?? null);
+      const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move);
       return this.actions.previewSteps(planned.steps, planned.bodies);
     });
   }
 
   async moveLogo(move: LogoMoveRequest): Promise<void> {
     await this.probing;
-    const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre, move.depth ?? null, move.rotate ?? null);
+    const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move);
     // Already where it should be (centred twice): nothing to do.
     if (planned.steps.length === 0) return;
     await this.actions.applySteps(planned.steps);

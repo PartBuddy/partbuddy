@@ -845,7 +845,7 @@ export const actionPreviewSchema = z.discriminatedUnion('ok', [
 export const logoSpotSchema = z
   .object({ logo: z.string().min(1).max(200), offset: z.tuple([finite, finite]).nullable(), origin: point3, xDir: point3, yDir: point3, box: z.tuple([finite, finite, finite, finite]), depth: z.object({ value: finite, raised: z.boolean() }).strict().nullable(), angle: finite })
   .strict();
-/** Changes a logo: onto its face's middle along `centre` first, then by `by` mm along its own x and y, turned by `rotate`, and its depth. */
+/** Changes a logo: onto its face's middle along `centre` first, then by `by` mm along its own x and y, turned by `rotate`, its width and its depth. */
 export const logoMoveSchema = z
   .object({
     logo: z.string().min(1).max(200),
@@ -855,9 +855,11 @@ export const logoMoveSchema = z
     depth: finite.positive().max(50).nullable().optional(),
     /** Degrees to turn it counter-clockwise (looking at the face) about its middle. */
     rotate: finite.min(-360).max(360).nullable().optional(),
+    /** How wide in mm, aspect kept, about its middle. */
+    width: finite.positive().max(1000).nullable().optional(),
   })
   .strict()
-  .refine((move) => move.by !== null || move.centre !== null || (move.depth ?? null) !== null || (move.rotate ?? null) !== null, 'nothing to change');
+  .refine((move) => move.by !== null || move.centre !== null || (move.depth ?? null) !== null || (move.rotate ?? null) !== null || (move.width ?? null) !== null, 'nothing to change');
 export const measureItemSchema = z.object({ type: z.enum(['face', 'edge', 'vertex']), body: bodyName, point: point3 }).strict();
 export const measureRequestSchema = z.object({ items: z.array(measureItemSchema).min(1).max(2) }).strict();
 export const measureResultSchema = z.object({ distance: finite.nullable(), angle: finite.nullable() }).strict();

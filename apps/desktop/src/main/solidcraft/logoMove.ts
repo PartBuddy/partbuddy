@@ -124,13 +124,66 @@ async function depthOf(run: Run, design: Design, sketches: readonly PlacedSketch
   return first ? { params: params.map(({ name, sign }) => ({ name, sign })), depth: first.value } : null;
 }
 
+/** The drawing's box over every sketch of a logo, in the first one's plane around the middle: [min x, min y, max x, max y] in mm. */
+function boxOf(sketches: readonly PlacedSketch[], read: Map<number, unknown>): [number, number, number, number] | null {
+  let [minU, minV, maxU, maxV] = [Infinity, Infinity, -Infinity, -Infinity];
+  const plane = sketches[0]?.plane;
+  for (const sketch of sketches) {
+    let positions: Float32Array;
+    try {
+      positions = tessellateSketch(sketchFromInspect(read.get(sketch.id))).positions;
+    } catch {
+      continue;
+    }
+    for (let p = 0; plane && p + 2 < positions.length; p += 3) {
+      const [a, b] = inPlane(plane, [positions[p] ?? 0, positions[p + 1] ?? 0, positions[p + 2] ?? 0]);
+      [minU, minV, maxU, maxV] = [Math.min(minU, a), Math.min(minV, b), Math.max(maxU, a), Math.max(maxV, b)];
+    }
+  }
+  return Number.isFinite(minU) ? [minU, minV, maxU, maxV] : null;
+}
+
 /**
- * The steps that move a logo: onto its face's middle along `centre` first, then by `by`, then turned
- * by `rotate` degrees counter-clockwise about its middle; `depth` sets how deep or high.
+ * A sketch scaled about its origin: opened, its curves and free points transformed, closed again;
+ * the pocket, cut or colour body built on it follows (probed with SolidCraft, 2026-11-09). The
+ * sketch's own origin is fixed and cannot move, nor can projected geometry.
  */
-export async function planLogoMove(run: Run, logo: string, by: [number, number] | null, centre: CentreAxis | null, depth: number | null = null, rotate: number | null = null): Promise<LogoMove> {
+function scaleSteps(sketch: number, inspected: unknown, factor: number): Step[] {
+  const read = (inspected ?? {}) as { curves?: { id?: unknown }[]; points?: { id?: unknown; fixed?: unknown; projected?: unknown }[] };
+  const entities = [
+    ...(read.curves ?? []).flatMap((curve) => (typeof curve.id === 'string' ? [curve.id] : [])),
+    ...(read.points ?? []).flatMap((point) => (typeof point.id === 'string' && point.id !== 'origin' && point.fixed !== true && point.projected !== true ? [point.id] : [])),
+  ];
+  if (entities.length === 0) return [];
+  return [
+    { command: 'sketch.edit', params: { sketch } },
+    { command: 'sketch.transform', params: { entities, factor: Math.round(factor * 1e6) / 1e6, center: [0, 0] } },
+    { command: 'sketch.finish', params: {} },
+  ];
+}
+
+/** What changes about a logo; null or left out keeps it. */
+export interface LogoChange {
+  /** mm along the logo's own x and y. */
+  by?: [number, number] | null | undefined;
+  /** Onto its face's middle along this axis, before `by`. */
+  centre?: CentreAxis | null | undefined;
+  /** Degrees counter-clockwise about its middle, after moving. */
+  rotate?: number | null | undefined;
+  /** How wide in mm, aspect kept, about its middle. */
+  width?: number | null | undefined;
+  /** How deep or high in mm. */
+  depth?: number | null | undefined;
+}
+
+/**
+ * The steps that change a logo: scaled to `width` about its middle, onto its face's middle along
+ * `centre`, then by `by`, then turned by `rotate`; `depth` sets how deep or high.
+ */
+export async function planLogoMove(run: Run, logo: string, change: LogoChange): Promise<LogoMove> {
+  const { by = null, centre = null, rotate = null, width = null, depth = null } = change;
   const design = await inspect(run);
-  const { logos } = await readLogos(run, design);
+  const { logos, read } = await readLogos(run, design);
   const sketches = logos.get(logo) ?? logos.get(`${LOGO_PREFIX}${logo}`);
   const first = sketches?.[0];
   if (!sketches || !first) throw new Error(`there is no logo "${logo}"; placed logos: ${[...logos.keys()].join(', ') || 'none'}`);
@@ -147,7 +200,15 @@ export async function planLogoMove(run: Run, logo: string, by: [number, number] 
   const turn = rotate ?? 0;
   // Every sketch of the logo shares the plane through its middle, so all turn about the same point.
   const planeOf = (plane: SketchPlane) => (turn === 0 ? movedPlane(plane, du, dv) : rotatedPlane(movedPlane(plane, du, dv), turn));
-  const steps: Step[] = du !== 0 || dv !== 0 || turn !== 0 ? sketches.map((sketch) => ({ command: 'sketch.redefine', params: { sketch: sketch.id, plane: planeOf(sketch.plane) } })) : [];
+  const steps: Step[] = [];
+  if (width !== null) {
+    const box = boxOf(sketches, read);
+    if (!box || box[2] - box[0] <= 0) throw new Error(`${first.name} has no drawing PartBuddy can measure`);
+    const factor = width / (box[2] - box[0]);
+    // Every sketch's middle is its origin: each scales about [0, 0] and the pieces stay together.
+    if (Math.abs(factor - 1) > 1e-6) for (const sketch of sketches) steps.push(...scaleSteps(sketch.id, read.get(sketch.id), factor));
+  }
+  if (du !== 0 || dv !== 0 || turn !== 0) steps.push(...sketches.map((sketch) => ({ command: 'sketch.redefine', params: { sketch: sketch.id, plane: planeOf(sketch.plane) } })));
   if (depth !== null) {
     const now = await depthOf(run, design, sketches);
     if (!now) throw new Error(`${first.name} is not built by an extrusion whose depth PartBuddy can set`);
@@ -183,19 +244,12 @@ export async function logoAt(run: Run, point: Vec3): Promise<LogoSpot | null> {
   const design = await inspect(run);
   const { logos, read } = await readLogos(run, design);
   let best: { sketch: PlacedSketch; distance: number; box: [number, number, number, number] } | null = null;
-  for (const sketch of [...logos.values()].flat()) {
-    let positions: Float32Array;
-    try {
-      positions = tessellateSketch(sketchFromInspect(read.get(sketch.id))).positions;
-    } catch {
-      continue;
-    }
+  for (const group of logos.values()) {
+    const sketch = group[0];
+    const box = boxOf(group, read);
+    if (!sketch || !box) continue;
     const [u, v] = inPlane(sketch.plane, point);
-    let [minU, minV, maxU, maxV] = [Infinity, Infinity, -Infinity, -Infinity];
-    for (let p = 0; p + 2 < positions.length; p += 3) {
-      const [a, b] = inPlane(sketch.plane, [positions[p] ?? 0, positions[p + 1] ?? 0, positions[p + 2] ?? 0]);
-      [minU, minV, maxU, maxV] = [Math.min(minU, a), Math.min(minV, b), Math.max(maxU, a), Math.max(maxV, b)];
-    }
+    const [minU, minV, maxU, maxV] = box;
     const { x_dir: x, y_dir: y, origin } = sketch.plane;
     const normal: Vec3 = [x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]];
     const distance = Math.abs(normal.reduce((sum, n, k) => sum + n * ((point[k] ?? 0) - (origin[k] ?? 0)), 0));
@@ -203,7 +257,7 @@ export async function logoAt(run: Run, point: Vec3): Promise<LogoSpot | null> {
     if (inside && distance <= REACH_MM && (!best || distance < best.distance)) best = { sketch, distance, box: [minU, minV, maxU, maxV] };
   }
   if (!best) return null;
-  const first = logos.get(best.sketch.name)?.[0] ?? best.sketch;
+  const first = best.sketch;
   const host = await hostOf(run, design, first.plane);
   const middle = host ? centring(host.extent, 'both') : null;
   const tidy = (value: number) => Math.round(value * 1000) / 1000 || 0;

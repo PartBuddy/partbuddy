@@ -1183,7 +1183,9 @@ if (!app.requestSingleInstanceLock()) {
           ? { key: 'logoDepth' as const, values: { name, depth: move.depth } }
           : only && move.rotate
             ? { key: 'logoRotated' as const, values: { name, angle: move.rotate } }
-            : { key: 'logoMoved' as const, values: { name } };
+            : only && move.width
+              ? { key: 'logoResized' as const, values: { name, width: move.width } }
+              : { key: 'logoMoved' as const, values: { name } };
       await steps.recordUser(phrase, () => supervisor.moveLogo(move));
       log('moved a logo');
       return undefined;

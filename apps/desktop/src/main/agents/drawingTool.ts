@@ -35,8 +35,8 @@ const placeTool: UpstreamTool = {
 const moveTool: UpstreamTool = {
   name: MOVE_DRAWING_TOOL,
   description:
-    'Move a placed logo (a drawing in sketches named "Logo <name>") exactly on its face, centre it on the face, or turn it. ' +
-    'Pocket, cut and colour bodies follow in one step. `centre` comes first, then `by`, then `rotate`.',
+    'Move a placed logo (a drawing in sketches named "Logo <name>") exactly on its face, centre it on the face, turn it or resize it. ' +
+    'Pocket, cut and colour bodies follow in one step. `width` comes first (about its middle), then `centre`, `by` and `rotate`.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -44,6 +44,7 @@ const moveTool: UpstreamTool = {
       by: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: "mm along the logo's own x (its width, left to right as it reads) and y (up)." },
       centre: { type: 'string', enum: ['x', 'y', 'both'], description: "Onto the middle of the face it sits on: along the logo's x, its y, or both." },
       rotate: { type: 'number', minimum: -360, maximum: 360, description: 'Degrees to turn it counter-clockwise, looking at the face, about its middle (90 turns it a quarter left).' },
+      width: { type: 'number', exclusiveMinimum: 0, maximum: 1000, description: 'Its new width in mm (along its own x), aspect kept, about its middle.' },
     },
     required: ['logo'],
     additionalProperties: false,
@@ -144,18 +145,20 @@ async function moveDrawing(upstream: UpstreamTools, args: Record<string, unknown
   if (args.by !== undefined && !by) throw new Error('by must be two numbers in mm');
   const rotate = typeof args.rotate === 'number' && Number.isFinite(args.rotate) && Math.abs(args.rotate) <= 360 ? args.rotate : null;
   if (args.rotate !== undefined && rotate === null) throw new Error('rotate must be degrees between -360 and 360');
-  if (!by && !centre && !rotate) throw new Error('say how far (by), centre or rotate');
+  const width = typeof args.width === 'number' && args.width > 0 && args.width <= 1000 ? args.width : null;
+  if (args.width !== undefined && width === null) throw new Error('width must be 0–1000 mm');
+  if (!by && !centre && !rotate && !width) throw new Error('say how far (by), centre, rotate or width');
   const run: Run = async (commands) => {
     const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[]; failed?: { error?: unknown } };
     if (reply.failed) throw new Error(`SolidCraft refused it: ${String(reply.failed.error)}`);
     return reply.results ?? [];
   };
-  const move = await planLogoMove(run, name, by, centre, null, rotate);
+  const move = await planLogoMove(run, name, { by, centre, rotate, width });
   await run(move.steps);
   const [du, dv] = move.by;
   const face = move.face ? ` on face ${move.face}` : '';
   const mm = (value: number) => String(Math.round(value * 100) / 100);
-  const turned = rotate ? `, turned by ${mm(rotate)}° (now ${mm(move.angle)}° from level)` : '';
+  const turned = (width ? `, now ${mm(width)} mm wide` : '') + (rotate ? `, turned by ${mm(rotate)}° (now ${mm(move.angle)}° from level)` : '');
   return `Moved ${move.name} by ${mm(du)} mm along its x and ${mm(dv)} mm along its y${face}${turned}; its middle is now at [${move.origin.map(mm).join(', ')}] mm.`;
 }
 
