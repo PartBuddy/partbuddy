@@ -14,7 +14,7 @@ import { Button } from '../ui/Button';
 import { Tip } from '../ui/Tooltip';
 import { parseLength } from './lengthInput';
 import { useLivePreview } from './livePreview';
-import { FontChoice } from './FontChoice';
+import { FontChoice, useBoldable } from './FontChoice';
 import { inputClass, fieldLabelClass, UnitInput } from '../ui/Field';
 import { buttonClass } from '../ui/Button';
 import { CheckMark, choiceInlineClass, chipToggleClass, SelectField as Choice } from '../ui/Choice';
@@ -61,9 +61,9 @@ function Words({ label, value, onChange, testId }: { label: string; value: strin
   );
 }
 
-function Check({ label, selected, onChange, testId }: { label: string; selected: boolean; onChange: (selected: boolean) => void; testId: string }) {
+function Check({ label, selected, onChange, testId, isDisabled }: { label: string; selected: boolean; onChange: (selected: boolean) => void; testId: string; isDisabled?: boolean }) {
   return (
-    <CheckboxField isSelected={selected} onChange={onChange} data-testid={testId}>
+    <CheckboxField isSelected={selected} onChange={onChange} isDisabled={isDisabled ?? false} data-testid={testId}>
       <CheckboxButton className={choiceInlineClass}>
         <CheckMark />
         {label}
@@ -242,6 +242,8 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   );
 
   const tried = status && (!status.block || status.block === block) ? status : null;
+  // A font without a bold face cannot be set bold (SolidCraft refuses it).
+  const boldable = useBoldable(spec.block === 'text' ? (spec.font ?? '') : '');
   if (!face || !block) return null;
   const kind = (next: BlockKind) => {
     const sizes = sizesOf(next);
@@ -494,11 +496,11 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               <Length key={block.mode} label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
               <Length label={t('blocks.textHeight')} value={block.height} onChange={(height) => setBlock({ ...block, height })} testId="block-height" />
               <div className="flex items-end pb-1">
-                <Check label={t('blocks.bold')} selected={block.bold} onChange={(bold) => setBlock({ ...block, bold })} testId="block-bold" />
+                <Check label={t('blocks.bold')} selected={block.bold && boldable} isDisabled={!boldable} onChange={(bold) => setBlock({ ...block, bold })} testId="block-bold" />
               </div>
               <FontChoice
                 value={block.font ?? ''}
-                onChange={(font) => setBlock({ ...block, font: font || undefined })}
+                onChange={(font, canBold) => setBlock({ ...block, font: font || undefined, bold: block.bold && canBold })}
               />
             </div>
           ) : block.block === 'logo' ? (

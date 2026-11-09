@@ -8,16 +8,43 @@ import { ListCheck, listItemClass } from '../ui/Choice';
 import { fieldLabelClass, inputClass } from '../ui/Field';
 import { popoverClass } from '../ui/Overlay';
 
-/** Installed font families, read once (Chromium's local font access, granted in main for this window only). */
-let installedFonts: Promise<string[]> | null = null;
-function fontFamilies(): Promise<string[]> {
-  const query = (window as { queryLocalFonts?: () => Promise<{ family: string }[]> }).queryLocalFonts;
+/**
+ * Installed font families and whether each has a bold face, read once (Chromium's local font
+ * access, granted in main for this window only). SolidCraft refuses bold for a family without one.
+ */
+let installedFonts: Promise<Map<string, boolean>> | null = null;
+function fontFaces(): Promise<Map<string, boolean>> {
+  const query = (window as { queryLocalFonts?: () => Promise<{ family: string; style: string }[]> }).queryLocalFonts;
   installedFonts ??= query
     ? query()
-        .then((fonts) => [...new Set(fonts.map((font) => font.family))].sort((a, b) => a.localeCompare(b)))
-        .catch(() => [])
-    : Promise.resolve([]);
+        .then((fonts) => {
+          const faces = new Map<string, boolean>();
+          for (const font of [...fonts].sort((a, b) => a.family.localeCompare(b.family))) faces.set(font.family, (faces.get(font.family) ?? false) || /\bbold\b/i.test(font.style));
+          return faces;
+        })
+        .catch(() => new Map<string, boolean>())
+    : Promise.resolve(new Map<string, boolean>());
   return installedFonts;
+}
+
+function useFontFaces(): Map<string, boolean> {
+  const [faces, setFaces] = useState<Map<string, boolean>>(() => new Map());
+  useEffect(() => {
+    let live = true;
+    void fontFaces().then((found) => {
+      if (live) setFaces(found);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return faces;
+}
+
+/** Whether a font can be set bold: the built-in one (then Arial) and any family with a bold face; an unknown one is left to SolidCraft. */
+export function useBoldable(font: string): boolean {
+  const faces = useFontFaces();
+  return !font || faces.get(font) !== false;
 }
 
 /** The key of SolidCraft's built-in font in the list; the value outside is "". */
@@ -28,19 +55,11 @@ const faceOf = (font: string) => (font ? { fontFamily: `"${font}"` } : undefined
  * The text's font: the built-in one or any installed family, each shown in its own face (decided
  * 2026-11-09). A field to type into, since a PC has hundreds: typing narrows the list.
  */
-export function FontChoice({ value, onChange, isDisabled }: { value: string; onChange: (font: string) => void; isDisabled?: boolean }) {
+export function FontChoice({ value, onChange, isDisabled }: { value: string; onChange: (font: string, boldable: boolean) => void; isDisabled?: boolean }) {
   const { t } = useTranslation();
   const { contains } = useFilter({ sensitivity: 'base' });
-  const [families, setFamilies] = useState<string[]>([]);
-  useEffect(() => {
-    let live = true;
-    void fontFamilies().then((list) => {
-      if (live) setFamilies(list);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
+  const faces = useFontFaces();
+  const families = [...faces.keys()];
   const items = [{ id: BUILT_IN, label: t('blocks.fontBuiltIn'), font: '' }, ...families.map((family) => ({ id: family, label: family, font: family }))];
   // A font from a project made on another PC stays listed, so it can be seen and changed.
   if (value && !families.includes(value)) items.push({ id: value, label: value, font: value });
@@ -51,7 +70,9 @@ export function FontChoice({ value, onChange, isDisabled }: { value: string; onC
       defaultFilter={contains}
       value={value || BUILT_IN}
       onChange={(key) => {
-        if (key !== null) onChange(key === BUILT_IN ? '' : String(key));
+        if (key === null) return;
+        const font = key === BUILT_IN ? '' : String(key);
+        onChange(font, !font || faces.get(font) !== false);
       }}
       isDisabled={isDisabled ?? false}
       data-testid="block-font"
@@ -63,8 +84,9 @@ export function FontChoice({ value, onChange, isDisabled }: { value: string; onC
           <IconChevronDown className="size-icon-sm text-text-subtle" aria-hidden />
         </AriaButton>
       </div>
-      <Popover placement="bottom start" offset={4} className={popoverClass}>
-        <ListBox className="max-h-menu-max overflow-auto outline-none">
+      {/* As wide as the field and a few lines tall, so it covers little of the dock and the part. */}
+      <Popover placement="bottom start" offset={4} className={`${popoverClass} w-(--trigger-width)`}>
+        <ListBox className="max-h-[16rem] overflow-auto outline-none">
           {(item: (typeof items)[number]) => (
             <ListBoxItem id={item.id} textValue={item.label} className={listItemClass}>
               <ListCheck />

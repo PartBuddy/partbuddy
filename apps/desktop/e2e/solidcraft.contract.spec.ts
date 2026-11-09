@@ -1819,6 +1819,8 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
     await page.getByTestId('block-tile-text').click();
     await page.getByTestId('block-font').getByRole('button').click();
     await expect(page.getByRole('option', { name: 'Arial', exact: true })).toBeVisible();
+    // A few lines tall and as wide as the field, so it covers little.
+    expect((await page.getByRole('listbox').boundingBox())?.height ?? 999).toBeLessThanOrEqual(270);
     // Esc closes the list, not the form.
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('block-form')).toBeVisible();
@@ -1827,6 +1829,11 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
     await expect(page.getByRole('option', { name: 'Arial', exact: true })).toHaveCount(0);
     await page.getByRole('option', { name: 'Georgia', exact: true }).click();
     await expect(page.getByTestId('block-font').getByRole('combobox')).toHaveValue('Georgia');
+    // Impact has no bold face: bold goes off and cannot be set, so SolidCraft is not refused.
+    await page.getByTestId('block-font').getByRole('combobox').fill('Impact');
+    await page.getByRole('option', { name: 'Impact', exact: true }).click();
+    await expect(page.getByTestId('block-bold').getByRole('checkbox')).not.toBeChecked();
+    await expect(page.getByTestId('block-bold').getByRole('checkbox')).toBeDisabled();
     await page.getByTestId('block-tile-logo').click();
     // A way back: Cancel and Esc close the form, the face stays picked, the tile opens it again.
     await page.getByTestId('block-cancel').click();
