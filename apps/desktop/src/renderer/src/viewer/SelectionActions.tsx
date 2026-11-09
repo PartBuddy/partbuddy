@@ -8,6 +8,7 @@ import { Button } from '../ui/Button';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
 import { actionsFor, type ActionKind } from './actionKinds';
+import { useFacePosition } from './facePosition';
 import { parseLength } from './lengthInput';
 import { edgePoints, lineDirection, localMeasure, type MeasurePick } from './measure';
 import { inputClass, fieldLabelClass } from '../ui/Field';
@@ -26,14 +27,15 @@ const ICONS: Record<ActionKind, ReactNode> = {
   shell: <CadIcon name="shell" className="size-icon-sm" />,
 };
 
-function actionOf(kind: ActionKind, body: string, picks: Pick[], size: number): DesignAction {
+function actionOf(kind: ActionKind, body: string, picks: Pick[], size: number, at: [number, number, number] | null): DesignAction {
   const points = picks.map((pick) => pick.point);
   const [first] = points as [[number, number, number]];
   switch (kind) {
     case 'extrude':
       return { action: 'extrude', body, points: [first], size };
     case 'hole':
-      return { action: 'hole', body, points: [first], size };
+      // Where the fields and arrows put it on the face; at first where it was clicked.
+      return { action: 'hole', body, points: [at ?? first], size };
     default:
       return { action: kind, body, points, size };
   }
@@ -56,6 +58,10 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
   // Extrude also takes a negative distance (a cut); the others are positive lengths.
   const size = open === 'extrude' && text.trim().startsWith('-') ? -parseLength(text.trim().slice(1)) : parseLength(text);
   const valid = Number.isFinite(size) && size !== 0;
+  // A hole is placed on its face before it is drilled (Manuel 2026-11-09), like a block.
+  const { centre, controls: position } = useFacePosition({ bodies, picks, active: open === 'hole', busy, testId: 'hole' });
+  const mm3 = (value: number) => Math.round(value * 1000) / 1000;
+  const at = open === 'hole' && centre ? (centre.map(mm3) as [number, number, number]) : null;
 
   useEffect(() => {
     if (!open || !body || !valid || busy) return;
@@ -63,7 +69,7 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
     const typed = text;
     const timer = setTimeout(() => {
       platform()
-        .design.previewAction(actionOf(open, body, picks, size))
+        .design.previewAction(actionOf(open, body, picks, size, at))
         .then((result) => {
           if (latest.current !== id) return;
           setState(result.ok ? { text: typed, ok: true } : { text: typed, ok: false, error: result.error });
@@ -76,7 +82,9 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
     return () => {
       clearTimeout(timer);
     };
-  }, [open, body, picks, size, valid, busy, text, onGhost]);
+    // at is derived from centre; its array is new on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, body, picks, size, valid, busy, text, onGhost, at?.join()]);
 
   if (kinds.length === 0 || !body) return null;
   const current = state?.text === text ? state : null;
@@ -90,7 +98,7 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
 
   const apply = () => {
     if (!open || !valid || busy || !current?.ok) return;
-    const action = actionOf(open, body, picks, size);
+    const action = actionOf(open, body, picks, size, at);
     choose(null);
     void platform()
       .design.applyAction(action)
@@ -120,6 +128,7 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
           </Tip>
         ))}
       </ToggleButtonGroup>
+      {open === 'hole' ? position : null}
       {open ? (
         <TextField value={text} onChange={setText} inputMode="decimal" isDisabled={busy} className="flex flex-col gap-1" data-testid="action-field">
           <Label className={fieldLabelClass}>

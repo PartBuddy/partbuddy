@@ -2,7 +2,7 @@ import { featureOf, surfaceKind } from '@partbuddy/geometry';
 import { useTranslation } from 'react-i18next';
 
 import type { BodyModel, Pick } from '../state/store';
-import { facePlace } from './BlockPanel';
+import { facePlace } from './facePosition';
 import { circleOf, edgePoints } from './measure';
 import { edgeLabel } from './viewState';
 

@@ -1,10 +1,10 @@
-import { IconDots, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle, IconNut, IconTypography, IconVectorBezier2 } from '@tabler/icons-react';
+import { IconDots, IconNut, IconTypography, IconVectorBezier2 } from '@tabler/icons-react';
 import type { TFunction } from 'i18next';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, CheckboxButton, CheckboxField, FileTrigger, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
+import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
 
-import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, planeAt, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
 import { drawingColours, drawingSvg, mergedColours, naturalWidth, parseDrawing, type Drawing, type DrawingProblem } from '../../../shared/svgDrawing';
 import { DrawingDetailNote } from '../assistant/DrawingDetailNote';
 import { platform } from '../platform';
@@ -14,9 +14,9 @@ import { Button } from '../ui/Button';
 import { Tip } from '../ui/Tooltip';
 import { parseLength } from './lengthInput';
 import { useLivePreview } from './livePreview';
+import { useFacePosition } from './facePosition';
 import { boldable as canBold, FontChoice, setFont, useFontFaces } from './FontChoice';
 import { inputClass, fieldLabelClass, UnitInput } from '../ui/Field';
-import { buttonClass } from '../ui/Button';
 import { CheckMark, choiceInlineClass, chipToggleClass, SelectField as Choice } from '../ui/Choice';
 
 function Length({ label, value, onChange, testId }: { label: string; value: number; onChange: (value: number) => void; testId: string }) {
@@ -89,28 +89,6 @@ export function flatFace(bodies: BodyModel[], picks: Pick[]): { body: string; po
   return { body: body.name, point: pick.point, normal };
 }
 
-/**
- * Where a block can go on its face (decided 2026-11-09, like a logo): the face's own frame (the
- * one the block is built in, planeAt) and the face's middle in it, from the face's mesh points,
- * as an offset from the clicked point, and its size across and up.
- */
-export function facePlace(body: BodyModel, face: number, point: Vec, normal: Vec): { x: Vec; y: Vec; middle: [number, number]; size: [number, number] } {
-  const { x_dir: x, y_dir: y } = planeAt(point, normal);
-  const positions = body.model.geometry.getAttribute('position');
-  const faces = body.model.vertexFaces;
-  let [minU, minV, maxU, maxV] = [Infinity, Infinity, -Infinity, -Infinity];
-  for (let i = 0; i < faces.length; i += 1) {
-    if (faces[i] !== face) continue;
-    const [dx, dy, dz] = [positions.getX(i) - point[0], positions.getY(i) - point[1], positions.getZ(i) - point[2]];
-    const [u, v] = [dx * x[0] + dy * x[1] + dz * x[2], dx * y[0] + dy * y[1] + dz * y[2]];
-    [minU, minV, maxU, maxV] = [Math.min(minU, u), Math.min(minV, v), Math.max(maxU, u), Math.max(maxV, v)];
-  }
-  if (!Number.isFinite(minU)) return { x, y, middle: [0, 0], size: [0, 0] };
-  return { x, y, middle: [(minU + maxU) / 2, (minV + maxV) / 2], size: [maxU - minU, maxV - minV] };
-}
-
-const round2 = (value: number) => Math.round(value * 100) / 100 || 0;
-
 /** The blocks with a tile of their own in the dock (decided 2026-11-09); the rest are under "More …". */
 const TILES = [
   { kind: 'logo', icon: <IconVectorBezier2 className="size-icon-sm" aria-hidden /> },
@@ -148,26 +126,10 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   const [status, setStatus] = useState<{ ok: boolean; error?: string; block?: FeatureBlock } | null>(null);
   const [fileProblem, setFileProblem] = useState<DrawingProblem | 'unreadable' | null>(null);
   const at = face ? `${face.body}\u0000${face.point.join(',')}\u0000${face.normal.join(',')}` : null;
-  // The face's frame, and where the block sits from the face's middle: at first where it was clicked.
-  const pick = picks[0];
-  // Keyed by plain values: the picks and bodies arrays are new on every store change (the arrows write to it).
-  const faceIndex = pick?.kind === 'face' ? pick.face : -1;
-  const model = pick ? bodies[pick.body] : undefined;
-  const place = useMemo(() => {
-    if (!at || !model || faceIndex < 0) return null;
-    const [, point = '', normal = ''] = at.split('\u0000');
-    return facePlace(model, faceIndex, point.split(',').map(Number) as Vec, normal.split(',').map(Number) as Vec);
-  }, [at, model, faceIndex]);
-  const [offset, setOffset] = useState<[number, number]>(() => (place ? [round2(-place.middle[0]), round2(-place.middle[1])] : [0, 0]));
+  // Where the block sits on its face, from the face's middle; at first where it was clicked.
+  const { place, centre, controls: position } = useFacePosition({ bodies, picks, active: open, busy, testId: 'block' });
   // A row of holes: how many across and up, and how far apart, laid out evenly around the position.
   const [row, setRow] = useState<{ count: [number, number]; pitch: [number, number] }>({ count: [1, 1], pitch: [10, 10] });
-  const centre = useMemo<Vec | null>(() => {
-    if (!at) return null;
-    const clicked = (at.split('\u0000')[1] ?? '').split(',').map(Number) as Vec;
-    if (!place) return clicked;
-    const [u, v] = [place.middle[0] + offset[0], place.middle[1] + offset[1]];
-    return clicked.map((value, i) => value + u * (place.x[i] ?? 0) + v * (place.y[i] ?? 0)) as Vec;
-  }, [at, place, offset]);
   const faces = useFontFaces();
   // A bold text goes to SolidCraft in its bold face's full name; the form keeps the family.
   const sent = (b: FeatureBlock): FeatureBlock => (b.block === 'text' && b.font ? { ...b, ...setFont(faces, b.font, b.bold) } : b);
@@ -187,34 +149,6 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     }
     return { ...spec, body, point: points[0] ?? centre, more: points.slice(1) } as FeatureBlock;
   }, [spec, at, centre, place, row]);
-
-  // Two arrows on the part move the block across and up its face while the form is open; the preview follows.
-  const setHandles = useStudio((s) => s.setLogoHandles);
-  useEffect(() => {
-    if (!open || !place || !centre || busy) {
-      setHandles([]);
-      return;
-    }
-    const arrow = (axis: 0 | 1) => {
-      const direction = axis === 0 ? place.x : place.y;
-      return {
-        origin: centre.map((value, i) => value + (direction[i] ?? 0) * 6) as [number, number, number],
-        direction,
-        perMm: 1,
-        signed: true,
-        value: offset[axis],
-        label: t(axis === 0 ? 'blocks.dragAcross' : 'blocks.dragUp'),
-        testId: axis === 0 ? 'block-arrow-x' : 'block-arrow-y',
-        onDrag: (dragged: number) => {
-          setOffset(axis === 0 ? [dragged, offset[1]] : [offset[0], dragged]);
-        },
-      };
-    };
-    setHandles([arrow(0), arrow(1)]);
-    return () => {
-      setHandles([]);
-    };
-  }, [open, place, busy, offset, centre, setHandles, t]);
 
   // The fills of a logo's drawing: with two or more it can be built a body per colour.
   const logoSvg = spec.block === 'logo' ? spec.svg : '';
@@ -350,52 +284,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
             <Choice label={t('blocks.kind')} value={block.block} items={BLOCK_KINDS.map((id) => ({ id, label: t(`blocks.kinds.${id}`) }))} onChange={(id) => kind(id)} testId="block-kind" />
             {hasSize(block.block) ? <Choice label={t('blocks.size')} value={block.size} items={sizes.map((id) => ({ id, label: id }))} onChange={(id) => size(id)} testId="block-size" /> : null}
           </div>
-          {place ? (
-            <div className="flex flex-col gap-1" data-testid="block-position">
-              <span className={fieldLabelClass}>{t('blocks.position')}</span>
-              <div className="flex flex-wrap items-end gap-2">
-                {([0, 1] as const).map((axis) => (
-                  <NumberField
-                    key={axis}
-                    value={offset[axis]}
-                    step={0.1}
-                    isDisabled={busy}
-                    formatOptions={{ maximumFractionDigits: 2 }}
-                    onChange={(next) => {
-                      if (Number.isFinite(next)) setOffset(axis === 0 ? [next, offset[1]] : [offset[0], next]);
-                    }}
-                    className="flex w-field-dock flex-col gap-1"
-                    data-testid={axis === 0 ? 'block-x' : 'block-y'}
-                  >
-                    <Label className={fieldLabelClass}>{t(axis === 0 ? 'logoMove.across' : 'logoMove.up')}</Label>
-                    <UnitInput unit={t('units.mmShort')} />
-                  </NumberField>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {(
-                  [
-                    ['x', IconLayoutAlignCenter, 'logoMove.centreAcross'],
-                    ['y', IconLayoutAlignMiddle, 'logoMove.centreUp'],
-                    ['both', IconFocusCentered, 'logoMove.centre'],
-                  ] as const
-                ).map(([axis, Icon, label]) => (
-                  <AriaButton
-                    key={axis}
-                    isDisabled={busy}
-                    onPress={() => {
-                      setOffset([axis === 'y' ? offset[0] : 0, axis === 'x' ? offset[1] : 0]);
-                    }}
-                    className={buttonClass('secondary', 'sm')}
-                    data-testid={`block-centre-${axis}`}
-                  >
-                    <Icon className="size-icon-sm" aria-hidden />
-                    {t(label)}
-                  </AriaButton>
-                ))}
-              </div>
-            </div>
-          ) : null}
+          {position}
           {place && ROW_KINDS.has(block.block) ? (
             <div className="flex flex-col gap-1" data-testid="block-row">
               <span className={fieldLabelClass}>{t('blocks.row')}</span>
