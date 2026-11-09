@@ -653,7 +653,10 @@
     "renameLabel": "New name for {name}",
     "hideShort": "Hide",
     "showShort": "Show",
-    "focus": "Zoom to"
+    "focus": "Zoom to",
+    "isolate": "Isolate",
+    "showAll": "Show all bodies",
+    "resize": "Width of the structure"
   },
   "parameters": {
     "title": "Parameters ({count})",
@@ -912,7 +915,8 @@
         "del": "Del",
         "drag": "Drag",
         "rightDrag": "Right-drag",
-        "wheel": "Mouse wheel"
+        "wheel": "Mouse wheel",
+        "space": "Space"
       }
     },
     "keywords": {
@@ -1233,7 +1237,8 @@
       "title": "SolidCraft is not running",
       "body": "Projects open, start and import once SolidCraft runs.",
       "settings": "Set up SolidCraft …"
-    }
+    },
+    "reverse": "Reverse the order"
   },
   "versions": {
     "title": "Versions",

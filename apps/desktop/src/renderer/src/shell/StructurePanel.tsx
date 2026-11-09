@@ -1,4 +1,4 @@
-import { IconBox, IconEye, IconEyeOff, IconFileImport, IconFocusCentered, IconPencil, IconPencilPlus, IconNut, IconTransform } from '@tabler/icons-react';
+import { IconBox, IconEye, IconEyeOff, IconFileImport, IconFocusCentered, IconLayersSubtract, IconPencil, IconPencilPlus, IconNut, IconTransform } from '@tabler/icons-react';
 import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ToggleButton } from 'react-aria-components';
@@ -8,6 +8,7 @@ import { NotesSection } from '../notes/NotesSection';
 import { bodyKindOf } from './bodyKinds';
 import { useFileImport } from './fileImport';
 import { ParametersSection } from './ParametersSection';
+import { ChatResizer, DEFAULT_SIDE_WIDTH, MAX_SIDE_WIDTH, MIN_SIDE_WIDTH, useSideWidth } from './ChatResizer';
 import { ExpandToggle, NEW_PART, PartDetails, PrintedToggle, useParts } from './PartDetails';
 import { RenameField, Tree, TreeEmpty, TreeExtra, TreeItem, TreeSection, type TreeAction } from './Tree';
 import { platform } from '../platform';
@@ -107,6 +108,8 @@ export function StructurePanel() {
   const { parts, save } = useParts(ready?.documentId ?? null, printable);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  // As wide as the user drags it (audit N-09), kept for the next start.
+  const [width, setWidth] = useSideWidth();
   if (model.status !== 'ready') return null;
   const { bodies, sketches } = model.structure;
   const editing = new Set(model.sketches.filter((sketch) => sketch.active).map((sketch) => sketch.id));
@@ -143,6 +146,7 @@ export function StructurePanel() {
   };
 
   return (
+    <div className="relative flex min-h-0 shrink-0" style={{ width }}>
     <Tree label={t('structure.title')} first="section:parameters" testId="structure">
       <ParametersSection />
       <TreeSection
@@ -181,8 +185,29 @@ export function StructurePanel() {
               id: 'visibility',
               label: t(body.visible ? 'structure.hideShort' : 'structure.showShort'),
               icon: body.visible ? <IconEyeOff className="size-icon-sm" aria-hidden /> : <IconEye className="size-icon-sm" aria-hidden />,
+              shortcut: 'Space',
               onAction: () => toggle({ bodies: [body.name], sketches: [], visible: !body.visible }),
             },
+            {
+              id: 'isolate',
+              label: t('structure.isolate'),
+              icon: <IconLayersSubtract className="size-icon-sm" aria-hidden />,
+              onAction: () => {
+                const others = bodies.filter((other) => other.name !== body.name && other.visible).map((other) => other.name);
+                if (others.length > 0) toggle({ bodies: others, sketches: [], visible: false });
+                if (!body.visible) toggle({ bodies: [body.name], sketches: [], visible: true });
+              },
+            },
+            ...(bodies.some((other) => !other.visible)
+              ? [
+                  {
+                    id: 'showAll',
+                    label: t('structure.showAll'),
+                    icon: <IconEye className="size-icon-sm" aria-hidden />,
+                    onAction: () => toggle({ bodies: bodies.filter((other) => !other.visible).map((other) => other.name), sketches: [], visible: true }),
+                  },
+                ]
+              : []),
             { id: 'focus', label: t('structure.focus'), icon: <IconFocusCentered className="size-icon-sm" aria-hidden />, onAction: () => focus(item) },
           ];
           return (
@@ -273,5 +298,7 @@ export function StructurePanel() {
       </TreeSection>
       <NotesSection />
     </Tree>
+    <ChatResizer edge="right" width={width} min={MIN_SIDE_WIDTH} max={MAX_SIDE_WIDTH} standard={DEFAULT_SIDE_WIDTH} onChange={setWidth} label={t('structure.resize')} testId="structure-resizer" />
+    </div>
   );
 }

@@ -51,8 +51,9 @@ export const PROJECT_SORTS = ['modified', 'name', 'created'] as const;
 export type ProjectSort = (typeof PROJECT_SORTS)[number];
 
 /** The projects in the chosen order: newest change or creation first, names in the language's order. */
-export function sortProjects(projects: ProjectEntry[], sort: ProjectSort, language: string): ProjectEntry[] {
+export function sortProjects(projects: ProjectEntry[], sort: ProjectSort, language: string, reversed = false): ProjectEntry[] {
   const names = new Intl.Collator(language, { numeric: true, sensitivity: 'base' });
-  // Favourites stay on top in every order (P5).
-  return [...projects].sort((a, b) => Number(b.favorite) - Number(a.favorite) || (sort === 'name' ? names.compare(a.name, b.name) : b[sort] - a[sort]));
+  const direction = reversed ? -1 : 1;
+  // Favourites stay on top in every order (P5), also reversed (audit A-18).
+  return [...projects].sort((a, b) => Number(b.favorite) - Number(a.favorite) || direction * (sort === 'name' ? names.compare(a.name, b.name) : b[sort] - a[sort]));
 }

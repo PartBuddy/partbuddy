@@ -4,6 +4,7 @@ import { Button as AriaButton, Menu, MenuItem, Popover } from 'react-aria-compon
 import { pressable } from '../ui/Button';
 import { fieldBox } from '../ui/Field';
 import { POPOVER_OFFSET, menuClass, menuItemClass, popoverClass } from '../ui/Overlay';
+import { Shortcut } from '../ui/Tooltip';
 
 /**
  * The structure tree's frame (CAD-style browser): one ARIA tree with a roving tab stop, sections
@@ -32,7 +33,7 @@ export function Tree({ label, first, children, testId }: { label: string; first:
   };
   return (
     <Roving.Provider value={{ current, setCurrent }}>
-      <div ref={stop} role="tree" aria-label={label} onKeyDown={onKeyDown} className="flex w-menu shrink-0 flex-col overflow-y-auto border-r border-border bg-surface py-1" data-testid={testId}>
+      <div ref={stop} role="tree" aria-label={label} onKeyDown={onKeyDown} className="flex w-full min-w-0 flex-col overflow-y-auto border-r border-border bg-surface py-1" data-testid={testId}>
         {children}
       </div>
     </Roving.Provider>
@@ -269,7 +270,7 @@ export function TreeItem({
               <MenuItem key={action.id} id={action.id} textValue={action.label} className={menuItemClass}>
                 <span className="inline-flex text-text-muted">{action.icon}</span>
                 <span className="flex-1">{action.label}</span>
-                {action.shortcut ? <span className="text-xs text-text-subtle">{action.shortcut}</span> : null}
+                {action.shortcut ? <Shortcut keys={action.shortcut} className="text-xs" /> : null}
               </MenuItem>
             ))}
           </Menu>

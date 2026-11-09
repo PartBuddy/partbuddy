@@ -45,13 +45,61 @@ export function useChatWidth(): [number, (width: number) => void, number] {
   return [clampChatWidth(wanted, windowWidth), set, maxChatWidth(windowWidth)];
 }
 
+/** Width limits of the structure panel on the left (audit N-09). */
+export const MIN_SIDE_WIDTH = 200;
+export const MAX_SIDE_WIDTH = 480;
+export const DEFAULT_SIDE_WIDTH = 240;
+const SIDE_KEY = 'partbuddy.sideWidth';
+
+/** The structure panel's width, dragged by the user and remembered for the next start. */
+export function useSideWidth(): [number, (width: number) => void] {
+  const [width, setWidth] = useState(() => {
+    try {
+      const stored = Number(window.localStorage.getItem(SIDE_KEY));
+      return stored > 0 ? Math.min(MAX_SIDE_WIDTH, Math.max(MIN_SIDE_WIDTH, stored)) : DEFAULT_SIDE_WIDTH;
+    } catch {
+      return DEFAULT_SIDE_WIDTH;
+    }
+  });
+  const set = (next: number) => {
+    const clamped = Math.round(Math.min(MAX_SIDE_WIDTH, Math.max(MIN_SIDE_WIDTH, next)));
+    setWidth(clamped);
+    try {
+      window.localStorage.setItem(SIDE_KEY, String(clamped));
+    } catch {
+      // Without storage the width lasts until the window closes.
+    }
+  };
+  return [width, set];
+}
+
 /**
- * The handle on the chat's left edge: drag it, use the arrow keys (Shift for bigger steps), Home
+ * The handle on a panel's inner edge: drag it, use the arrow keys (Shift for bigger steps), Home
  * and End, or double-click to go back to the standard width. A window splitter in the WAI-ARIA
- * sense: a focusable separator with its value.
+ * sense: a focusable separator with its value. On the chat (`edge` left) moving left widens it;
+ * on the structure panel (`edge` right) moving right does.
  */
-export function ChatResizer({ width, max, onChange }: { width: number; max: number; onChange: (width: number) => void }) {
+export function ChatResizer({
+  width,
+  max,
+  onChange,
+  edge = 'left',
+  min = MIN_CHAT_WIDTH,
+  standard = DEFAULT_CHAT_WIDTH,
+  label,
+  testId = 'chat-resizer',
+}: {
+  width: number;
+  max: number;
+  onChange: (width: number) => void;
+  edge?: 'left' | 'right';
+  min?: number;
+  standard?: number;
+  label?: string;
+  testId?: string;
+}) {
   const { t } = useTranslation();
+  const grow = edge === 'left' ? -1 : 1;
   const drag = useRef<{ x: number; width: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -59,14 +107,14 @@ export function ChatResizer({ width, max, onChange }: { width: number; max: numb
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label={t('assistant.resize')}
+      aria-label={label ?? t('assistant.resize')}
       aria-valuenow={width}
-      aria-valuemin={MIN_CHAT_WIDTH}
+      aria-valuemin={min}
       aria-valuemax={max}
       tabIndex={0}
-      data-testid="chat-resizer"
+      data-testid={testId}
       title={t('assistant.resizeHint')}
-      className={`group absolute inset-y-0 -left-1 z-10 flex w-2 cursor-col-resize touch-none justify-center outline-none focus-visible:focus-ring ${dragging ? 'bg-accent-subtle' : ''}`}
+      className={`group absolute inset-y-0 ${edge === 'left' ? '-left-1' : '-right-1'} z-10 flex w-2 cursor-col-resize touch-none justify-center outline-none focus-visible:focus-ring ${dragging ? 'bg-accent-subtle' : ''}`}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -74,8 +122,7 @@ export function ChatResizer({ width, max, onChange }: { width: number; max: numb
         setDragging(true);
       }}
       onPointerMove={(event) => {
-        // The handle is on the chat's left edge: moving left makes the chat wider.
-        if (drag.current) onChange(drag.current.width + drag.current.x - event.clientX);
+        if (drag.current) onChange(drag.current.width + grow * (event.clientX - drag.current.x));
       }}
       onPointerUp={() => {
         drag.current = null;
@@ -86,15 +133,15 @@ export function ChatResizer({ width, max, onChange }: { width: number; max: numb
         setDragging(false);
       }}
       onDoubleClick={() => {
-        onChange(DEFAULT_CHAT_WIDTH);
+        onChange(standard);
       }}
       onKeyDown={(event) => {
         const step = event.shiftKey ? KEY_STEP * 4 : KEY_STEP;
-        if (event.key === 'ArrowLeft') onChange(width + step);
-        else if (event.key === 'ArrowRight') onChange(width - step);
-        else if (event.key === 'Home') onChange(MIN_CHAT_WIDTH);
+        if (event.key === 'ArrowLeft') onChange(width - grow * step);
+        else if (event.key === 'ArrowRight') onChange(width + grow * step);
+        else if (event.key === 'Home') onChange(min);
         else if (event.key === 'End') onChange(max);
-        else if (event.key === 'Enter') onChange(DEFAULT_CHAT_WIDTH);
+        else if (event.key === 'Enter') onChange(standard);
         else return;
         event.preventDefault();
       }}
