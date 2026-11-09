@@ -74,6 +74,23 @@ export function movedPlane(plane: SketchPlane, du: number, dv: number): SketchPl
   return { ...plane, origin };
 }
 
+/** The plane turned by `degrees` counter-clockwise (looking at the face) about its origin, the logo's middle. */
+export function rotatedPlane(plane: SketchPlane, degrees: number): SketchPlane {
+  const [c, s] = [Math.cos((degrees * Math.PI) / 180), Math.sin((degrees * Math.PI) / 180)];
+  const { x_dir: x, y_dir: y } = plane;
+  return { ...plane, x_dir: x.map((value, i) => tidy(c * value + s * (y[i] ?? 0))) as Vec3, y_dir: y.map((value, i) => tidy(c * value - s * (x[i] ?? 0))) as Vec3 };
+}
+
+/** How far the plane is turned from the level frame a logo is placed in (planeAt in blocks.ts), in degrees, −180 to 180. */
+export function planeAngle(plane: SketchPlane): number {
+  const n = cross(plane.x_dir, plane.y_dir);
+  const level = cross([0, 0, 1], n);
+  const size = Math.hypot(...level);
+  const x0: Vec3 = size < 1e-6 ? [1, 0, 0] : (level.map((value) => value / size) as Vec3);
+  const degrees = (Math.atan2(dot(plane.x_dir, cross(n, x0)), dot(plane.x_dir, x0)) * 180) / Math.PI;
+  return Math.round(degrees * 1000) / 1000 || 0;
+}
+
 export interface Extent {
   min: [number, number];
   max: [number, number];

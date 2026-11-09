@@ -67,6 +67,7 @@ export const STEP_PHRASE_KEYS = [
   'logo',
   'logoMoved',
   'logoDepth',
+  'logoRotated',
   'command',
 ] as const;
 
@@ -409,6 +410,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     logo: '{mode, select, emboss {Logo “{name}” embossed} other {Logo “{name}” engraved}}',
     logoMoved: 'Logo “{name}” moved',
     logoDepth: 'Logo “{name}” set to {depth} mm',
+    logoRotated: 'Logo “{name}” turned by {angle}°',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -465,6 +467,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     logo: '{mode, select, emboss {Logo „{name}“ erhaben} other {Logo „{name}“ vertieft}}',
     logoMoved: 'Logo „{name}“ verschoben',
     logoDepth: 'Logo „{name}“ auf {depth} mm gesetzt',
+    logoRotated: 'Logo „{name}“ um {angle}° gedreht',
     command: 'SolidCraft: {command}',
   },
 };

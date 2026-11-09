@@ -643,7 +643,7 @@ export class SolidCraftSupervisor {
         throw error;
       });
       this.options.log(`logo read: ${spot ? spot.logo : 'none'}, ${String(calls)} engine commands in ${String(Math.round(performance.now() - started))} ms`);
-      return spot && { logo: spot.logo, offset: spot.offset, origin: spot.plane.origin, xDir: spot.plane.x_dir, yDir: spot.plane.y_dir, box: spot.box, depth: spot.depth };
+      return spot && { logo: spot.logo, offset: spot.offset, origin: spot.plane.origin, xDir: spot.plane.x_dir, yDir: spot.plane.y_dir, box: spot.box, depth: spot.depth, angle: spot.angle };
     });
     this.probing = read.catch(() => undefined);
     return read;
@@ -652,14 +652,14 @@ export class SolidCraftSupervisor {
   /** A logo moved on trial: its sketches redefined, the part and its colour bodies exported for the ghost. */
   previewLogoMove(move: LogoMoveRequest): Promise<ActionPreview> {
     return this.trial('logo preview', async () => {
-      const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre, move.depth ?? null);
+      const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre, move.depth ?? null, move.rotate ?? null);
       return this.actions.previewSteps(planned.steps, planned.bodies);
     });
   }
 
   async moveLogo(move: LogoMoveRequest): Promise<void> {
     await this.probing;
-    const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre, move.depth ?? null);
+    const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move.by, move.centre, move.depth ?? null, move.rotate ?? null);
     // Already where it should be (centred twice): nothing to do.
     if (planned.steps.length === 0) return;
     await this.actions.applySteps(planned.steps);

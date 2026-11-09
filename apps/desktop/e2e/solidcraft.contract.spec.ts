@@ -1859,6 +1859,17 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
     }
     expect(after('Body1')?.volume_mm3).toBeCloseTo(4000 - 128 * 0.6, 1);
 
+    // Turned a quarter left about its middle (10, 8): the 16 × 8 plate now stands 8 × 16, pocket and colours with it.
+    await say('Move the logo {"logo": "Badge", "rotate": 90}');
+    await expect(page.getByText(/^Logo: Moved Logo Badge .*turned by 90° \(now 90° from level\)/)).toBeVisible({ timeout: 30_000 });
+    await say('Measure the bodies');
+    await expect(page.getByText(/^Measured: /)).toHaveCount(3, { timeout: 30_000 });
+    const turned = JSON.parse(/\{.*\}/.exec((await page.getByText(/^Measured: /).last().textContent()) ?? '')?.[0] ?? '{}') as Measured;
+    const plate = turned.bodies.find((entry) => entry.name === 'Badge 1d71b8 1');
+    plate?.bbox.min.forEach((value, i) => expect(value).toBeCloseTo([6, 0, 9.4][i] ?? 0, 2));
+    plate?.bbox.max.forEach((value, i) => expect(value).toBeCloseTo([14, 16, 10][i] ?? 0, 2));
+    expect(turned.bodies.find((entry) => entry.name === 'Body1')?.volume_mm3).toBeCloseTo(4000 - 128 * 0.6, 1);
+
     // Through the form: a free multi-colour SVG (Twemoji fox, CC-BY 4.0) on the box's front face.
     await page.getByTestId('timeline-feature').first().waitFor();
     const box = await page.getByTestId('viewport').boundingBox();
@@ -2586,6 +2597,16 @@ test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved
     await expect(page.getByText(/^Measured: /)).toHaveCount(2, { timeout: 30_000 });
     const deeper = JSON.parse(/{.*}/.exec((await page.getByText(/^Measured: /).last().textContent()) ?? '')?.[0] ?? '{}') as { bodies: { name: string; volume_mm3: number }[] };
     expect(deeper.bodies.find((entry) => entry.name === 'Body1')?.volume_mm3).toBeCloseTo(4000 - 16 * Math.PI, 0);
+
+    // A quarter turn left from the dock: the field reads level before and 90° after.
+    expect(await pickLogo(), 'a click on the deeper logo').toBe(true);
+    await expect(page.getByTestId('logo-angle').getByRole('textbox')).toHaveValue('0');
+    await page.getByTestId('logo-move').screenshot({ path: test.info().outputPath('logo-dock.png') });
+    revision = await page.getByTestId('viewer').getAttribute('data-revision');
+    await page.getByTestId('logo-turn-left').click();
+    await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 15_000 });
+    await expect(page.getByTestId('step-text').last()).toHaveText('Logo “logo-o” turned by 90°');
+    expect(await at([10 + dragged, 10, 9]), 'the turned logo').toMatchObject({ angle: 90 });
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
