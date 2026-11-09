@@ -10,7 +10,7 @@ import { MAX_NOTE_TEXT, useNoteCommand } from '../notes/NoteParts';
 import { sendToAssistant } from '../assistant/send';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Input, Label, RadioButton, RadioField, RadioGroup, TextField } from 'react-aria-components';
+import { Button as AriaButton, Label, RadioButton, RadioField, RadioGroup, TextField, TextArea } from 'react-aria-components';
 import { BufferAttribute, BufferGeometry, type Color } from 'three';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -25,7 +25,7 @@ import { selectionName, selectionOf, selectionsOf } from './viewState';
 import { dimensionFor, handleOf } from './dimensionOf';
 import { Button, IconButton, iconButtonClass } from '../ui/Button';
 import { Tip } from '../ui/Tooltip';
-import { inputClass, fieldLabelClass, UnitInput } from '../ui/Field';
+import { fieldLabelClass, textAreaClass, UnitInput } from '../ui/Field';
 import { badgeClass } from '../ui/Feedback';
 import { RadioMark, choiceRowClass } from '../ui/Choice';
 
@@ -426,11 +426,15 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       <div className="flex flex-col gap-1" data-testid="hud-wish">
         <TextField value={wish} onChange={setWish} maxLength={MAX_NOTE_TEXT} isDisabled={busy} className="flex flex-col gap-1">
           <Label className={fieldLabelClass}>{t('hud.wish')}</Label>
-          <Input
+          <TextArea
+            rows={1}
             placeholder={t('hud.wishExample')}
-            className={inputClass('sm')}
+            className={`${textAreaClass} max-h-24 min-h-control-sm resize-none [field-sizing:content]`}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') {
+              if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                if (picks.length === 1) void keep();
+              } else if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
                 ask();
               }

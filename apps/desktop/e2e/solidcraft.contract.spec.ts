@@ -2102,7 +2102,7 @@ test('a template from the start page becomes a project whose sizes are its param
     const length = lengthRow.getByTestId('parameter-field').getByRole('textbox');
     await length.fill('100');
     await length.press('Enter');
-    await expect(lengthRow).toHaveAccessibleName(/length 100 mm$/, { timeout: 30_000 });
+    await expect(lengthRow).toHaveAccessibleName(/length.* 100 mm$/, { timeout: 30_000 });
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="ok"]').first()).toBeVisible();
     await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });

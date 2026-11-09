@@ -40,7 +40,7 @@ function NoteCard({ note, number, busy }: { note: NoteView; number: number; busy
     <div
       role="dialog"
       aria-label={t('notes.card', { number })}
-      className="pointer-events-auto absolute left-4 top-0 flex w-menu -translate-y-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      className="pointer-events-auto absolute left-4 top-0 flex w-menu origin-left -translate-y-1/2 animate-pop-in flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2 [--cs-pop-x:calc(var(--cs-motion-offset)*-1)] [--cs-pop-y:0]"
       data-testid="note-card"
       onPointerDown={(event) => {
         event.stopPropagation();
@@ -100,7 +100,7 @@ function NoteCard({ note, number, busy }: { note: NoteView; number: number; busy
               {t('notes.accept')}
             </Button>
           )}
-          <Button isDisabled={busy} onPress={() => void run(() => platform().notes.delete(note.id))} data-testid="note-delete">
+          <Button variant="quiet" className="text-danger" isDisabled={busy} onPress={() => void run(() => platform().notes.delete(note.id))} data-testid="note-delete">
             {t('notes.delete')}
           </Button>
         </div>

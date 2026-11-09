@@ -113,6 +113,8 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
         <span className="min-w-0 flex-1 truncate" title={title || undefined}>
           {parameter.favorite ? <IconStarFilled className="absolute top-1 left-1 size-icon-sm text-warning" aria-label={t('parameters.favorite')} /> : null}
           {parameter.name}
+          {/* What it means beside the identifier, which formulas use (audit B-30, A-12). */}
+          {note ? <span className="ml-1 text-xs text-text-subtle">{note}</span> : null}
         </span>
         {editing ? (
           <TextField
