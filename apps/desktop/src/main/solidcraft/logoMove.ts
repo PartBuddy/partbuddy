@@ -1,6 +1,6 @@
 import { sketchFromInspect, tessellateSketch } from '@partbuddy/geometry';
 
-import { centring, hostFace, inPlane, LOGO_PREFIX, movedPlane, placedLogos, type CentreAxis, type PlacedSketch, type SketchPlane, type Vec3 } from '../../shared/drawingPlacement';
+import { centring, hostFace, inPlane, LOGO_PREFIX, movedPlane, placedLogos, planeAngle, rotatedPlane, type CentreAxis, type PlacedSketch, type SketchPlane, type Vec3 } from '../../shared/drawingPlacement';
 
 /**
  * Moving a placed logo, shared by the assistant's `partbuddy_move_drawing` and the logo controls
@@ -65,6 +65,8 @@ export interface LogoMove {
   by: [number, number];
   /** The logo's middle afterwards. */
   origin: Vec3;
+  /** How far it is turned afterwards from level, in degrees. */
+  angle: number;
   /** The face it was centred on, "<face> of <body>", or null. */
   face: string | null;
   /** The bodies the move changes, for a ghost. */
@@ -122,8 +124,11 @@ async function depthOf(run: Run, design: Design, sketches: readonly PlacedSketch
   return first ? { params: params.map(({ name, sign }) => ({ name, sign })), depth: first.value } : null;
 }
 
-/** The steps that move a logo: onto its face's middle along `centre` first, then by `by`; `depth` sets how deep or high. */
-export async function planLogoMove(run: Run, logo: string, by: [number, number] | null, centre: CentreAxis | null, depth: number | null = null): Promise<LogoMove> {
+/**
+ * The steps that move a logo: onto its face's middle along `centre` first, then by `by`, then turned
+ * by `rotate` degrees counter-clockwise about its middle; `depth` sets how deep or high.
+ */
+export async function planLogoMove(run: Run, logo: string, by: [number, number] | null, centre: CentreAxis | null, depth: number | null = null, rotate: number | null = null): Promise<LogoMove> {
   const design = await inspect(run);
   const { logos } = await readLogos(run, design);
   const sketches = logos.get(logo) ?? logos.get(`${LOGO_PREFIX}${logo}`);
@@ -139,7 +144,10 @@ export async function planLogoMove(run: Run, logo: string, by: [number, number] 
   }
   du += by?.[0] ?? 0;
   dv += by?.[1] ?? 0;
-  const steps: Step[] = du !== 0 || dv !== 0 ? sketches.map((sketch) => ({ command: 'sketch.redefine', params: { sketch: sketch.id, plane: movedPlane(sketch.plane, du, dv) } })) : [];
+  const turn = rotate ?? 0;
+  // Every sketch of the logo shares the plane through its middle, so all turn about the same point.
+  const planeOf = (plane: SketchPlane) => (turn === 0 ? movedPlane(plane, du, dv) : rotatedPlane(movedPlane(plane, du, dv), turn));
+  const steps: Step[] = du !== 0 || dv !== 0 || turn !== 0 ? sketches.map((sketch) => ({ command: 'sketch.redefine', params: { sketch: sketch.id, plane: planeOf(sketch.plane) } })) : [];
   if (depth !== null) {
     const now = await depthOf(run, design, sketches);
     if (!now) throw new Error(`${first.name} is not built by an extrusion whose depth PartBuddy can set`);
@@ -150,6 +158,7 @@ export async function planLogoMove(run: Run, logo: string, by: [number, number] 
     steps,
     by: [du, dv],
     origin: movedPlane(first.plane, du, dv).origin,
+    angle: planeAngle(planeOf(first.plane)),
     face,
     bodies: touched(design, first),
   };
@@ -165,6 +174,8 @@ export interface LogoSpot {
   box: [number, number, number, number];
   /** How deep (cut in) or high (built up) it is, or null when no extrusion of it has a distance to set. */
   depth: { value: number; raised: boolean } | null;
+  /** How far it is turned from level, in degrees counter-clockwise. */
+  angle: number;
 }
 
 /** The logo a picked point belongs to: within its drawing's box seen along the sketch's normal, nearest to its plane. */
@@ -203,5 +214,6 @@ export async function logoAt(run: Run, point: Vec3): Promise<LogoSpot | null> {
     plane: first.plane,
     box: best.box.map(tidy) as LogoSpot['box'],
     depth: depth && { value: tidy(depth.depth), raised: depth.params[0]?.sign === 1 },
+    angle: planeAngle(first.plane),
   };
 }

@@ -1177,7 +1177,13 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.designMoveLogo, async (move) => {
       assistantIdle();
       const name = move.logo.replace(/^Logo /, '').slice(0, 40);
-      const phrase = move.by === null && move.centre === null && move.depth ? { key: 'logoDepth' as const, values: { name, depth: move.depth } } : { key: 'logoMoved' as const, values: { name } };
+      const only = move.by === null && move.centre === null;
+      const phrase =
+        only && move.depth
+          ? { key: 'logoDepth' as const, values: { name, depth: move.depth } }
+          : only && move.rotate
+            ? { key: 'logoRotated' as const, values: { name, angle: move.rotate } }
+            : { key: 'logoMoved' as const, values: { name } };
       await steps.recordUser(phrase, () => supervisor.moveLogo(move));
       log('moved a logo');
       return undefined;

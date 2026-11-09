@@ -1,4 +1,4 @@
-import { IconCheck, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle } from '@tabler/icons-react';
+import { IconCheck, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle, IconRotate, IconRotateClockwise } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Label, NumberField } from 'react-aria-components';
@@ -13,6 +13,8 @@ import { fieldLabelClass, UnitInput } from '../ui/Field';
 const PREVIEW_DELAY_MS = 250;
 
 const round = (value: number) => Math.round(value * 1000) / 1000 || 0;
+/** An angle as the shortest turn, −180 to 180 degrees. */
+const shortest = (degrees: number) => round(((((degrees + 180) % 360) + 360) % 360) - 180);
 
 /**
  * Moving a placed logo exactly (decided 2026-11-08): picked on the part, the dock shows where its
@@ -30,6 +32,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
   const [spot, setSpot] = useState<LogoSpot | null>(null);
   const [value, setValue] = useState<[number, number]>([0, 0]);
   const [depth, setDepth] = useState<number | null>(null);
+  const [angle, setAngle] = useState(0);
   const shown = useRef(false);
 
   useEffect(() => {
@@ -42,6 +45,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
         setSpot(found);
         if (found) setValue(found.offset ?? [0, 0]);
         setDepth(found?.depth?.value ?? null);
+        setAngle(found?.angle ?? 0);
       })
       .catch(() => undefined);
     return () => {
@@ -53,8 +57,9 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
   const by: [number, number] = [round(value[0] - base[0]), round(value[1] - base[1])];
   const moved = by[0] !== 0 || by[1] !== 0;
   const deeper = depth !== null && spot?.depth != null && depth > 0 && Math.abs(depth - spot.depth.value) > 1e-6;
-  const changed = moved || deeper;
-  const request = (): Omit<LogoMoveRequest, 'logo'> => ({ by: moved ? by : null, centre: null, depth: deeper ? depth : null });
+  const turn = shortest(angle - (spot?.angle ?? 0));
+  const changed = moved || deeper || turn !== 0;
+  const request = (): Omit<LogoMoveRequest, 'logo'> => ({ by: moved ? by : null, centre: null, depth: deeper ? depth : null, rotate: turn !== 0 ? turn : null });
 
   const move = (request: Omit<LogoMoveRequest, 'logo'>) => {
     if (!spot || busy) return;
@@ -90,7 +95,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
     };
     // The request is derived from value, depth and spot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spot, busy, value[0], value[1], depth]);
+  }, [spot, busy, value[0], value[1], depth, angle]);
 
   // The arrows on the part: across and up.
   useEffect(() => {
@@ -184,18 +189,44 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
             <UnitInput unit={t('units.mmShort')} />
           </NumberField>
         ) : null}
+        <NumberField
+          value={angle}
+          minValue={-360}
+          maxValue={360}
+          step={15}
+          isDisabled={busy}
+          formatOptions={{ maximumFractionDigits: 2 }}
+          onChange={(next) => {
+            if (Number.isFinite(next)) setAngle(next);
+          }}
+          className="flex w-field-dock flex-col gap-1"
+          data-testid="logo-angle"
+        >
+          <Label className={fieldLabelClass}>{t('logoMove.angle')}</Label>
+          <UnitInput unit="°" />
+        </NumberField>
         <AriaButton isDisabled={busy || !changed} onPress={() => move(request())} className={buttonClass('primary', 'sm')} data-testid="logo-move-apply">
           <IconCheck className="size-icon-sm" aria-hidden />
           {t('logoMove.apply')}
         </AriaButton>
       </div>
-      {spot.offset ? (
-        <div className="flex flex-wrap gap-1">
-          {centre('x', IconLayoutAlignCenter, t('logoMove.centreAcross'), 'logo-centre-x')}
-          {centre('y', IconLayoutAlignMiddle, t('logoMove.centreUp'), 'logo-centre-y')}
-          {centre('both', IconFocusCentered, t('logoMove.centre'), 'logo-centre')}
-        </div>
-      ) : null}
+      <div className="flex flex-wrap gap-1">
+        {spot.offset ? (
+          <>
+            {centre('x', IconLayoutAlignCenter, t('logoMove.centreAcross'), 'logo-centre-x')}
+            {centre('y', IconLayoutAlignMiddle, t('logoMove.centreUp'), 'logo-centre-y')}
+            {centre('both', IconFocusCentered, t('logoMove.centre'), 'logo-centre')}
+          </>
+        ) : null}
+        <AriaButton isDisabled={busy} onPress={() => move({ by: null, centre: null, rotate: 90 })} aria-label={t('logoMove.turnLeft')} className={buttonClass('secondary', 'sm')} data-testid="logo-turn-left">
+          <IconRotate className="size-icon-sm" aria-hidden />
+          90°
+        </AriaButton>
+        <AriaButton isDisabled={busy} onPress={() => move({ by: null, centre: null, rotate: -90 })} aria-label={t('logoMove.turnRight')} className={buttonClass('secondary', 'sm')} data-testid="logo-turn-right">
+          <IconRotateClockwise className="size-icon-sm" aria-hidden />
+          90°
+        </AriaButton>
+      </div>
     </section>
   );
 }

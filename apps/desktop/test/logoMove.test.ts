@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { logoAt, planLogoMove, type Run } from '../src/main/solidcraft/logoMove';
 import { draggedValue } from '../src/renderer/src/viewer/dimensionOf';
+import { planeAngle, rotatedPlane } from '../src/shared/drawingPlacement';
 
 type Vec3 = [number, number, number];
 const line = (name: string, start: Vec3, end: Vec3) => ({ name, start, end, mid: start.map((value, i) => (value + (end[i] ?? 0)) / 2), length: Math.hypot(...start.map((value, i) => value - (end[i] ?? 0))) });
@@ -72,6 +73,23 @@ describe('moving a placed logo', () => {
     await expect(planLogoMove(run, 'Nothing', [1, 0], null)).rejects.toThrow('placed logos: Logo Badge');
     // Only the depth: the logo's own extrusion, cut in as before; the other sketch's stays.
     expect((await planLogoMove(run, 'Logo Badge', null, null, 1.2)).steps).toEqual([{ command: 'parameters.change', params: { name: 'd5', expression: '-1.2 mm' } }]);
+  });
+
+  it('turns a logo about its middle and reads its turn back from the plane', async () => {
+    const { run } = engine();
+    const move = await planLogoMove(run, 'Badge', null, null, null, 90);
+    // A quarter left looking down on the top face: x runs along +y, y along −x; the middle stays.
+    expect(move.steps).toEqual([{ command: 'sketch.redefine', params: { sketch: 3, plane: { origin: [14, 20, 10], x_dir: [0, 1, 0], y_dir: [-1, 0, 0] } } }]);
+    expect(move.angle).toBe(90);
+    expect(planeAngle(plane)).toBe(0);
+    expect(planeAngle(rotatedPlane(plane, -30))).toBe(-30);
+    // On a side face (normal −y) level is +x as planeAt places it; turning there keeps the normal.
+    const side = { origin: [0, 0, 0] as Vec3, x_dir: [1, 0, 0] as Vec3, y_dir: [0, 0, 1] as Vec3 };
+    const turned = rotatedPlane(side, 45);
+    expect(planeAngle(turned)).toBe(45);
+    expect(turned.x_dir[1]).toBe(0);
+    expect(turned.y_dir[1]).toBe(0);
+    expect((await logoAt(run, [16, 21, 9.4]))?.angle).toBe(0);
   });
 
   it('lets a logo arrow go below zero', () => {
