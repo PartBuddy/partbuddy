@@ -504,7 +504,9 @@ function Picker({ bodies, meshes }: { bodies: BodyModel[]; meshes: MeshList }) {
       const moved = Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y);
       pressed = null;
       if (moved > scene.clickSlop) return;
-      const pick = pickAt(event.clientX, event.clientY);
+      const found = pickAt(event.clientX, event.clientY);
+      // Alt picks exactly this face or edge, also on a logo (a plain click there picks the whole logo).
+      const pick = found && event.altKey ? { ...found, exact: true as const } : found;
       // Ctrl or Shift adds to the selection or removes from it; a plain click starts anew.
       if ((event.ctrlKey || event.shiftKey || event.metaKey) && pick) toggle(pick);
       else select(pick);
@@ -631,6 +633,13 @@ function Sketch({ sketch, colors }: { sketch: MirroredSketch; colors: ViewerColo
       ) : null}
     </group>
   );
+}
+
+/** The picked logo's contours over the part, in the selection colour (its sketches are hidden, so not mirrored). */
+function LogoOutline({ color }: { color: Color }) {
+  const outline = useStudio((s) => s.logoOutline);
+  if (!outline || outline.length < 6) return null;
+  return <Line points={Array.from(outline)} segments color={color} lineWidth={scene.activeSketchWidth} raycast={noRaycast} />;
 }
 
 function boundsOf(bodies: BodyModel[], sketches: MirroredSketch[]): Sphere {
@@ -1066,6 +1075,7 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
           <SelectionGhost color={colors.selection} />
           <DimensionArrow />
           <LogoArrows />
+          <LogoOutline color={colors.selection} />
           <ScenePins bodies={bodies} />
           <DimensionMarks color={colors.dimension} ghostColor={colors.selection} meshes={meshes} plane={plane} />
           <ParameterGhost color={colors.selection} />

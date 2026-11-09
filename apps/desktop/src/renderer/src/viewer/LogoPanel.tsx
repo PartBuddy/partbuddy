@@ -1,10 +1,10 @@
-import { IconCheck, IconChevronRight, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle, IconRotate, IconRotateClockwise } from '@tabler/icons-react';
+import { IconCheck, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle, IconRotate, IconRotateClockwise } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Label, NumberField } from 'react-aria-components';
 
 import type { LogoMoveRequest, LogoSpot } from '../../../shared/contract';
-import { logoTitle } from '../../../shared/drawingPlacement';
+import { LOGO_PREFIX, type Vec3 } from '../../../shared/drawingPlacement';
 import { platform } from '../platform';
 import { useStudio, type DraggedDimension, type Pick } from '../state/store';
 import { buttonClass } from '../ui/Button';
@@ -14,9 +14,9 @@ import { fieldLabelClass, UnitInput } from '../ui/Field';
 const PREVIEW_DELAY_MS = 250;
 
 const round = (value: number) => Math.round(value * 1000) / 1000 || 0;
-/** An angle as the shortest turn, −180 to 180 degrees. */
 /** The drawing's width as the dock shows it, to a hundredth of a mm. */
 const widthOf = (spot: LogoSpot) => Math.round((spot.box[2] - spot.box[0]) * 100) / 100;
+/** An angle as the shortest turn, −180 to 180 degrees. */
 const shortest = (degrees: number) => round(((((degrees + 180) % 360) + 360) % 360) - 180);
 
 /**
@@ -26,51 +26,37 @@ const shortest = (degrees: number) => round(((((degrees + 180) % 360) + 360) % 3
  * ghost and "Move" applies it; the two arrows on the part move it by dragging and apply when let
  * go; the centre buttons put it onto the face's middle. Pocket, cut and colour bodies follow.
  */
-export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boolean; onGhost: (ghost: Uint8Array | null) => void }) {
+export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boolean; onGhost: (ghost: Uint8Array | null) => void }) {
   const { t } = useTranslation();
   const setNotice = useStudio((s) => s.setNotice);
   const setLogoHandles = useStudio((s) => s.setLogoHandles);
-  const [pick] = picks;
-  const point = picks.length === 1 ? pick?.point : undefined;
-  const [spot, setSpot] = useState<LogoSpot | null>(null);
-  const [value, setValue] = useState<[number, number]>([0, 0]);
-  const [depth, setDepth] = useState<number | null>(null);
-  const [angle, setAngle] = useState(0);
-  const [wide, setWide] = useState(0);
-  // Folded until asked for: a click on a logo is often only for a note or a measure there (09.11.2026).
-  const [open, setOpen] = useState(false);
+  const setLogoOutline = useStudio((s) => s.setLogoOutline);
+  // The caller keys the panel by the spot, so a new reading starts the fields afresh.
+  const [value, setValue] = useState<[number, number]>(() => spot.offset ?? [0, 0]);
+  const [depth, setDepth] = useState<number | null>(() => spot.depth?.value ?? null);
+  const [angle, setAngle] = useState(() => spot.angle);
+  const [wide, setWide] = useState(() => widthOf(spot));
   const shown = useRef(false);
 
+  // The whole logo drawn in the selection colour while it is picked.
   useEffect(() => {
-    if (!point) return;
-    let live = true;
-    platform()
-      .design.logoAt(point)
-      .then((found) => {
-        if (!live) return;
-        setSpot(found);
-        if (found) setValue(found.offset ?? [0, 0]);
-        setDepth(found?.depth?.value ?? null);
-        setAngle(found?.angle ?? 0);
-        setWide(found ? widthOf(found) : 0);
-      })
-      .catch(() => undefined);
+    setLogoOutline(spot.outline);
     return () => {
-      live = false;
+      setLogoOutline(null);
     };
-  }, [point]);
+  }, [spot.outline, setLogoOutline]);
 
-  const base = spot?.offset ?? [0, 0];
+  const base = spot.offset ?? [0, 0];
   const by: [number, number] = [round(value[0] - base[0]), round(value[1] - base[1])];
   const moved = by[0] !== 0 || by[1] !== 0;
-  const deeper = depth !== null && spot?.depth != null && depth > 0 && Math.abs(depth - spot.depth.value) > 1e-6;
-  const turn = shortest(angle - (spot?.angle ?? 0));
-  const resized = spot !== null && wide > 0 && Math.abs(wide - widthOf(spot)) > 0.005;
+  const deeper = depth !== null && spot.depth != null && depth > 0 && Math.abs(depth - spot.depth.value) > 1e-6;
+  const turn = shortest(angle - spot.angle);
+  const resized = wide > 0 && Math.abs(wide - widthOf(spot)) > 0.005;
   const changed = moved || deeper || turn !== 0 || resized;
   const request = (): Omit<LogoMoveRequest, 'logo'> => ({ by: moved ? by : null, centre: null, depth: deeper ? depth : null, rotate: turn !== 0 ? turn : null, width: resized ? wide : null });
 
   const move = (request: Omit<LogoMoveRequest, 'logo'>) => {
-    if (!spot || busy) return;
+    if (busy) return;
     void platform()
       .design.moveLogo({ logo: spot.logo, ...request })
       .catch((error: unknown) => {
@@ -80,7 +66,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
 
   // The ghost of a changed value, tried once the typing or dragging pauses.
   useEffect(() => {
-    if (!spot || busy) return;
+    if (busy) return;
     if (!changed) {
       if (shown.current) onGhost(null);
       shown.current = false;
@@ -107,7 +93,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
 
   // The arrows on the part: across and up.
   useEffect(() => {
-    if (!spot || busy || !open) {
+    if (busy) {
       setLogoHandles([]);
       return;
     }
@@ -145,9 +131,8 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
     };
     // move and base follow spot; value is what the arrows start from.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spot, busy, open, value[0], value[1], depth, setLogoHandles]);
+  }, [spot, busy, value[0], value[1], depth, setLogoHandles]);
 
-  if (!spot) return null;
   const field = (axis: 0 | 1) => (
     <NumberField
       value={value[axis]}
@@ -171,22 +156,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
     </AriaButton>
   );
   return (
-    <section aria-label={t('logoMove.title', { name: logoTitle(spot.logo) })} className="flex flex-col gap-2 border-t border-border pt-2" data-testid="logo-move">
-      <h3 className="text-sm font-medium text-text">
-        <AriaButton
-          aria-expanded={open}
-          onPress={() => {
-            setOpen(!open);
-          }}
-          className="flex w-full items-center gap-1 rounded-sm text-left outline-none focus-visible:focus-ring"
-          data-testid="logo-move-open"
-        >
-          <IconChevronRight className={`size-icon-sm shrink-0 text-text-subtle transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />
-          {t('logoMove.title', { name: logoTitle(spot.logo) })}
-        </AriaButton>
-      </h3>
-      {open ? (
-        <>
+    <section aria-label={t('logoMove.title', { name: logoTitleOf(spot) })} className="flex flex-col gap-2" data-testid="logo-move">
       <p className="text-xs text-text-muted">{spot.offset ? t('logoMove.hint') : t('logoMove.hintNoFace')}</p>
       <div className="flex flex-wrap items-end gap-2">
         {field(0)}
@@ -262,8 +232,38 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
           90°
         </AriaButton>
       </div>
-        </>
-      ) : null}
     </section>
   );
+}
+
+/** The readable name of a picked logo, without the sketch prefix. */
+export const logoTitleOf = (spot: LogoSpot) => (spot.logo.startsWith(LOGO_PREFIX) ? spot.logo.slice(LOGO_PREFIX.length) : spot.logo);
+
+/**
+ * The logo under a single plain pick (decided 2026-11-09: a click on a logo picks the whole logo),
+ * null when there is none or the design has no logos, undefined while it is being read. An
+ * Alt+click picks exactly and leaves the logo out.
+ */
+export function useLogoSpot(picks: Pick[]): LogoSpot | null | undefined {
+  const hasLogos = useStudio((s) => s.model.status === 'ready' && s.model.structure.sketches.some((sketch) => sketch.name.startsWith(LOGO_PREFIX)));
+  const [pick] = picks;
+  const point = picks.length === 1 && pick && !pick.exact && hasLogos ? pick.point : undefined;
+  const [found, setFound] = useState<{ point: Vec3; spot: LogoSpot | null } | null>(null);
+  useEffect(() => {
+    if (!point) return;
+    let live = true;
+    platform()
+      .design.logoAt(point)
+      .then((spot) => {
+        if (live) setFound({ point, spot });
+      })
+      .catch(() => {
+        if (live) setFound({ point, spot: null });
+      });
+    return () => {
+      live = false;
+    };
+  }, [point]);
+  if (!point) return null;
+  return found?.point === point ? found.spot : undefined;
 }

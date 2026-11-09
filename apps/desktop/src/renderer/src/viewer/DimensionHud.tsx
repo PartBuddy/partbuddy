@@ -1,7 +1,7 @@
 import { parseTagged3mf } from '@partbuddy/geometry';
 import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
 import { BlockPanel } from './BlockPanel';
-import { LogoPanel } from './LogoPanel';
+import { LogoPanel, logoTitleOf, useLogoSpot } from './LogoPanel';
 import { PartPanel } from './PartPanel';
 import { PrintFaceButton } from './PrintFaceButton';
 import { ActionPanel, MeasureLine } from './SelectionActions';
@@ -85,6 +85,8 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
   const assistant = selectedStatus(useAssistant((s) => s.state));
   const busy = assistant.state === 'busy';
   const assistantReady = assistant.state === 'ready';
+  // A plain click on a placed logo picks the whole logo: its controls instead of the face's or edge's.
+  const logo = useLogoSpot(picks);
   const dimension = useMemo(() => dimensionFor(bodies, picks), [bodies, picks]);
   const decimal = (1.5).toLocaleString(i18n.language).charAt(1);
   const show = useCallback((number: number) => String(round(number)).replace('.', decimal), [decimal]);
@@ -237,12 +239,20 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       aria-label={t('hud.dock')}
       // Bottom right, clear of the axis triad (bottom left) and the view cube (top right); narrow and
       // scrolling, so an open building block does not cover the part (polish round 2).
-      className="pointer-events-auto absolute bottom-3 right-3 z-10 flex max-h-[calc(100%_-_1.5rem)] w-dialog-sm max-w-[calc(100%_-_1.5rem)] flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-surface-raised p-3 shadow-2"
+      // z-40: above the labels, pins and drag arrows drawn into the view (drei Html, z 11–32), which would cover its fields.
+      className="pointer-events-auto absolute bottom-3 right-3 z-40 flex max-h-[calc(100%_-_1.5rem)] w-dialog-sm max-w-[calc(100%_-_1.5rem)] flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-surface-raised p-3 shadow-2"
       data-testid="selection-hud"
       data-view-overlay
     >
       <div className="flex items-start justify-between gap-3">
-        <SelectionInfo bodies={bodies} selection={selection} />
+        {logo ? (
+          <div className="flex min-w-0 flex-col" data-testid="logo-picked">
+            <span className="truncate text-sm font-medium text-text">{t('logoMove.title', { name: logoTitleOf(logo) })}</span>
+            <span className="text-xs text-text-subtle">{t('logoMove.exactHint')}</span>
+          </div>
+        ) : (
+          <SelectionInfo bodies={bodies} selection={selection} />
+        )}
         {picks.length > 1 ? (
           <span className={badgeClass('accent')} data-testid="hud-count">
             {t('hud.selected', { count: picks.length })}
@@ -251,7 +261,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       </div>
       {picks.length === 2 ? <MeasureLine bodies={bodies} picks={picks} /> : null}
       <div className="flex flex-wrap items-start gap-3">
-        {dimension ? (
+        {dimension && !logo ? (
           <TextField value={text} onChange={setText} inputMode="decimal" isDisabled={busy} className="flex w-field-dock flex-col gap-1" data-testid="dimension-field">
             <Label className={fieldLabelClass}>
               {t(`hud.${dimension.shown}`)} · {t('units.mmShort')}
@@ -278,22 +288,26 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
           </TextField>
         ) : null}
         <div className={`flex min-w-0 flex-1 flex-wrap items-start gap-1 ${dimension ? 'pt-5' : ''}`}>
-          <ActionPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
-          <BlockPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
-          <PartPanel bodies={bodies} picks={picks} busy={busy} />
-          <PrintFaceButton bodies={bodies} picks={picks} busy={busy} />
+          {logo === null ? (
+            <>
+              <ActionPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
+              <BlockPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
+              <PartPanel bodies={bodies} picks={picks} busy={busy} />
+              <PrintFaceButton bodies={bodies} picks={picks} busy={busy} />
+            </>
+          ) : null}
           {picks.length === 1 ? <NoteComposer selection={current} busy={busy} /> : null}
         </div>
       </div>
-      <LogoPanel picks={picks} busy={busy} onGhost={setActionGhost} />
-      {status ? (
+      {logo ? <LogoPanel key={`${logo.logo}|${logo.origin.join()}|${String(logo.angle)}|${logo.box.join()}|${String(logo.depth?.value)}`} spot={logo} busy={busy} onGhost={setActionGhost} /> : null}
+      {status && !logo ? (
         <p className="flex items-center gap-1 text-xs text-text-muted" role="status" data-testid="dimension-status" data-mode={result?.mode ?? 'probing'}>
           {result?.mode === 'direct' ? <IconBolt className="size-icon-sm text-accent" aria-hidden /> : null}
           {result?.mode === 'assistant' ? <IconSparkles className="size-icon-sm text-accent" aria-hidden /> : null}
           {status}
         </p>
       ) : null}
-      {result?.mode === 'choice' ? (
+      {result?.mode === 'choice' && !logo ? (
         <RadioGroup
           aria-label={t('hud.choose')}
           value={option?.parameter ?? null}

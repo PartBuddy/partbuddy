@@ -643,7 +643,7 @@ export class SolidCraftSupervisor {
         throw error;
       });
       this.options.log(`logo read: ${spot ? spot.logo : 'none'}, ${String(calls)} engine commands in ${String(Math.round(performance.now() - started))} ms`);
-      return spot && { logo: spot.logo, offset: spot.offset, origin: spot.plane.origin, xDir: spot.plane.x_dir, yDir: spot.plane.y_dir, box: spot.box, depth: spot.depth, angle: spot.angle };
+      return spot && { logo: spot.logo, offset: spot.offset, origin: spot.plane.origin, xDir: spot.plane.x_dir, yDir: spot.plane.y_dir, box: spot.box, depth: spot.depth, angle: spot.angle, outline: spot.outline };
     });
     this.probing = read.catch(() => undefined);
     return read;
