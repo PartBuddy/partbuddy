@@ -136,6 +136,12 @@ test('edges and vertices can be picked, and the view switches projection and sta
   await expect(page.getByTestId('dock-hint')).toBeVisible();
   await page.getByTestId('dock-hint-ok').click();
   await expect(page.getByTestId('dock-hint')).toHaveCount(0);
+  // Folded to its head the dock leaves the part free, and opens again.
+  await page.getByTestId('hud-fold').click();
+  await expect(page.getByTestId('hud-wish')).toHaveCount(0);
+  await expect(page.getByTestId('selected-face')).toBeVisible();
+  await page.getByTestId('hud-fold').click();
+  await expect(page.getByTestId('hud-wish')).toBeVisible();
 
   const grid: { x: number; y: number }[] = [];
   for (let y = 0.3; y <= 0.7; y += 0.025) for (let x = 0.25; x <= 0.75; x += 0.0125) grid.push({ x: box.x + box.width * x, y: box.y + box.height * y });

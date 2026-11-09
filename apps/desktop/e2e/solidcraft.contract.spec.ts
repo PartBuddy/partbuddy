@@ -1819,8 +1819,14 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
     await page.getByTestId('block-tile-text').click();
     await page.getByTestId('block-font').getByRole('button').click();
     await expect(page.getByRole('option', { name: 'Arial', exact: true })).toBeVisible();
+    // Esc closes the list, not the form.
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('block-form')).toBeVisible();
+    // Typing narrows the hundreds of fonts.
+    await page.getByTestId('block-font').getByRole('combobox').fill('georg');
+    await expect(page.getByRole('option', { name: 'Arial', exact: true })).toHaveCount(0);
     await page.getByRole('option', { name: 'Georgia', exact: true }).click();
-    await expect(page.getByTestId('block-font')).toContainText('Georgia');
+    await expect(page.getByTestId('block-font').getByRole('combobox')).toHaveValue('Georgia');
     await page.getByTestId('block-tile-logo').click();
     // A way back: Cancel and Esc close the form, the face stays picked, the tile opens it again.
     await page.getByTestId('block-cancel').click();
@@ -2877,8 +2883,7 @@ test('a built text is picked as a whole and changed afterwards: words, height an
     await page.getByTestId('logo-words').getByRole('textbox').fill('AB');
     await page.getByTestId('logo-text-height').getByRole('textbox').fill('4');
     await page.getByTestId('logo-text-height').getByRole('textbox').press('Tab');
-    // Opened from the keyboard: near the dock's foot the list opens over its button, where a mouse release would pick at once.
-    await page.getByTestId('block-font').getByRole('button').press('Enter');
+    await page.getByTestId('block-font').getByRole('combobox').fill('Georgia');
     await page.getByRole('option', { name: 'Georgia', exact: true }).click();
     const revision = await page.getByTestId('viewer').getAttribute('data-revision');
     await page.screenshot({ path: test.info().outputPath('text-edit.png') });
@@ -2893,7 +2898,7 @@ test('a built text is picked as a whole and changed afterwards: words, height an
       await expect(page.getByTestId('logo-words').getByRole('textbox')).toHaveValue('AB', { timeout: 3000 });
     }, 'the changed text under a click').toPass({ timeout: 60_000, intervals: [500] });
     await expect(page.getByTestId('logo-text-height').getByRole('textbox')).toHaveValue('4');
-    await expect(page.getByTestId('block-font')).toContainText('Georgia');
+    await expect(page.getByTestId('block-font').getByRole('combobox')).toHaveValue('Georgia');
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });

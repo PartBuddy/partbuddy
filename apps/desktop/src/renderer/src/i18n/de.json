@@ -597,7 +597,9 @@
       "extrude": "Zieht die Fläche heraus; ein negativer Abstand schneidet hinein",
       "hole": "Bohrt ein rundes Loch in die Fläche",
       "shell": "Höhlt den Körper aus; die gewählte Fläche bleibt offen"
-    }
+    },
+    "fold": "Einklappen: nur die Auswahl zeigen",
+    "unfold": "Ausklappen"
   },
   "structure": {
     "title": "Struktur",

@@ -597,7 +597,9 @@
       "extrude": "Pulls the face out; a negative distance cuts in",
       "hole": "Drills a round hole into the face",
       "shell": "Hollows the body out; the picked face stays open"
-    }
+    },
+    "fold": "Fold: show only the selection",
+    "unfold": "Unfold"
   },
   "structure": {
     "title": "Structure",

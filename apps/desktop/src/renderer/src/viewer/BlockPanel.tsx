@@ -334,6 +334,8 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
           // Esc leaves the form and its preview, the face stays picked.
           onKeyDown={(event) => {
             if (event.key !== 'Escape') return;
+            // Esc in a list or a field with a list closes only that list.
+            if ((event.target as HTMLElement).closest('[role=combobox], [role=listbox], [role=option]')) return;
             event.preventDefault();
             event.stopPropagation();
             close();
