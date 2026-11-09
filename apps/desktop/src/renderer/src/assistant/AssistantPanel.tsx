@@ -43,6 +43,7 @@ import { selectedStatus, useAssistant, type Attachment, type ConversationItem } 
 import { emptySketch, SketchPad, type SketchPicture, type SketchState } from './SketchPad';
 import { photoPicture } from './photo';
 import { drawingFile, drawingFrom, isSvg, isSvgText, type OutgoingDrawing } from './drawing';
+import { DrawingDetailNote } from './DrawingDetailNote';
 import { drawingFacts, type DrawingProblem } from '../../../shared/svgDrawing';
 import { useChatScroll } from './useChatScroll';
 import { card } from './Fold';
@@ -757,6 +758,18 @@ export function AssistantPanel() {
                 </span>
               ) : null}
             </div>
+          ) : null}
+          {drawing ? (
+            <DrawingDetailNote
+              drawing={drawing.drawing}
+              width={drawing.width}
+              onWiden={(width) => {
+                setDrawing({ ...drawing, width });
+              }}
+              onShow={(png) => {
+                openAttachment({ thumbnail: drawing.thumbnail, photo: png });
+              }}
+            />
           ) : null}
           {/* Typing goes on while the assistant works; only sending waits (chat polish). */}
           <TextField value={draft} onChange={setDraft} aria-label={t('assistant.composer')} isDisabled={!writable}>

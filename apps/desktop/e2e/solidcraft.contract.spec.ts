@@ -2451,6 +2451,19 @@ test('an SVG dropped on the chat goes along exactly: an "O" at 40 mm, 2 mm high,
     await expect(page.getByTestId('composer-drawing-name')).toHaveText('Pasted drawing');
     await expect(composer).toHaveValue('');
     await page.getByTestId('composer-drawing-remove').click();
+    // A bar 0.2 mm high at 20 mm wide is narrower than the 0.4 mm nozzle: shown, marked, and widened on a click.
+    await drop('thin-bar.svg', fixture('thin-bar.svg'));
+    const detail = page.getByTestId('drawing-detail');
+    await expect(detail).toContainText('One place is narrower than the nozzle (0.4 mm), the narrowest 0.2 mm');
+    await page.getByTestId('drawing-detail-show').click();
+    await expect(page.getByTestId('photo-large')).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('svg-detail-marked.png') });
+    await page.keyboard.press('Escape');
+    await page.screenshot({ path: test.info().outputPath('svg-detail.png') });
+    await page.getByTestId('drawing-detail-widen').click();
+    await expect(page.getByTestId('composer-drawing-width').getByRole('textbox')).toHaveValue('44');
+    await expect(detail).toHaveCount(0, { timeout: 5_000 });
+    await page.getByTestId('composer-drawing-remove').click();
     // The "O" says 20 mm in its file; the user makes it 40.
     await drop('logo-o.svg', fixture('logo-o.svg'));
     const chip = page.getByTestId('composer-drawing');

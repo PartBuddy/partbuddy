@@ -506,6 +506,11 @@
       "done": "Teilen-Paket gespeichert in exports\\{folder}"
     }
   },
+  "drawingDetail": {
+    "fine": "{places, plural, one {Eine Stelle ist} other {# Stellen sind}} schmaler als die Düse ({nozzle, number} mm), die schmalste {thinnest, number} mm: Sie drucken nicht sauber oder schließen sich. Ab {fineFrom, number} mm Breite passt alles.",
+    "widen": "Auf {width, number} mm vergrößern",
+    "show": "Stellen zeigen"
+  },
   "logoMove": {
     "title": "Logo „{name}“",
     "hint": "Abstand der Logomitte zur Flächenmitte, Drehung und Tiefe. Ändern zeigt eine Vorschau, die Pfeile am Teil ändern direkt.",

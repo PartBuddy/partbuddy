@@ -1,4 +1,5 @@
 import { drawingSize, loopsPathData, naturalWidth, parseDrawing, SVG_MAX_BYTES, type Drawing, type DrawingProblem } from '../../../shared/svgDrawing';
+import type { DrawingDetail } from '../../../shared/drawingDetail';
 import { PHOTO_EDGE } from './photo';
 
 /** An SVG drawing for the next message: the file's text goes to the main process, which reads it again. */
@@ -42,6 +43,30 @@ function render(drawing: Drawing, edge: number): HTMLCanvasElement {
     context.fill(new Path2D(loopsPathData(drawing, shape.loops, scale)), 'evenodd');
   }
   return canvas;
+}
+
+/** The drawing large with its too-fine places marked, as PNG: for the user to see where they are. */
+export async function markedPicture(drawing: Drawing, width: number, mask: DrawingDetail['mask']): Promise<Uint8Array> {
+  const canvas = render(drawing, PHOTO_EDGE);
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('no 2D canvas');
+  const size = drawingSize(drawing);
+  // Mask pixel → mm → the canvas's pixels at render's scale; render left the context moved by its margin.
+  const perPx = (mask.mmPerPx * size.width) / width / Math.max(size.width, size.height, 1e-9) * PHOTO_EDGE;
+  const dot = Math.max(2, perPx);
+  // A marking on the picture, the same in light and dark.
+  context.fillStyle = 'rgba(229, 72, 77, 0.85)';
+  for (let i = 0; i < mask.fine.length; i += 1) {
+    if (!mask.fine[i]) continue;
+    const x = (i % mask.width) - mask.pad;
+    const y = Math.floor(i / mask.width) - mask.pad;
+    context.fillRect(x * perPx - (dot - perPx) / 2, y * perPx - (dot - perPx) / 2, dot, dot);
+  }
+  const blob = await new Promise<Blob | null>((done) => {
+    canvas.toBlob(done, 'image/png');
+  });
+  if (!blob) throw new Error('the drawing could not be drawn');
+  return new Uint8Array(await blob.arrayBuffer());
 }
 
 /** Reads an SVG text into a drawing for the composer, or says why it cannot be one. */

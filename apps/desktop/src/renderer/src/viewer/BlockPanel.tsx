@@ -6,6 +6,7 @@ import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, TextField, To
 
 import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
 import { drawingColours, parseDrawing, type DrawingProblem } from '../../../shared/svgDrawing';
+import { DrawingDetailNote } from '../assistant/DrawingDetailNote';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
@@ -119,10 +120,13 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
 
   // The fills of a logo's drawing: with two or more it can be built a body per colour.
   const logoSvg = spec.block === 'logo' ? spec.svg : '';
-  const fills = useMemo(() => {
+  const logoDrawing = useMemo(() => {
     const read = logoSvg ? parseDrawing(logoSvg) : null;
-    return read?.ok ? drawingColours(read.drawing) : [];
+    return read?.ok ? read.drawing : null;
   }, [logoSvg]);
+  const fills = useMemo(() => (logoDrawing ? drawingColours(logoDrawing) : []), [logoDrawing]);
+  // The width field shows a width taken from the detail warning by starting afresh.
+  const [widened, setWidened] = useState(0);
   // A logo waits for its file.
   const waiting = block?.block === 'logo' && !block.svg;
 
@@ -281,7 +285,17 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               ) : null}
               <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id, depth: id === 'emboss' ? 0.4 : 0.6 })} testId="block-mode" />
               <Length key={block.mode} label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
-              <Length label={t('blocks.width')} value={block.width} onChange={(width) => setBlock({ ...block, width })} testId="block-width" />
+              <Length key={widened} label={t('blocks.width')} value={block.width} onChange={(width) => setBlock({ ...block, width })} testId="block-width" />
+              <div className="col-span-2">
+                <DrawingDetailNote
+                  drawing={logoDrawing}
+                  width={block.width}
+                  onWiden={(width) => {
+                    setBlock({ ...block, width });
+                    setWidened((n) => n + 1);
+                  }}
+                />
+              </div>
               <div className="col-span-2 flex">
                 <Check label={t('blocks.logoCentre')} selected={Boolean(block.centre)} onChange={(centre) => setBlock({ ...block, centre })} testId="block-centre" />
               </div>
