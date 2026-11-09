@@ -1,7 +1,15 @@
 import type { DimensionHandle } from '../viewer/dimensionOf';
 
 /** A drag arrow as the dock places it; `onDrag` takes each value, `done` once the arrow is let go. */
-export type DraggedDimension = DimensionHandle & { value: number; onDrag: (value: number, done: boolean) => void; /** A logo's height arrow, not its depth. */ raised?: boolean };
+export type DraggedDimension = DimensionHandle & {
+  value: number;
+  onDrag: (value: number, done: boolean) => void;
+  /** A logo's height arrow, not its depth. */
+  raised?: boolean;
+  /** What dragging does, and the arrow's test id, where the logo's own do not fit (a block's arrows). */
+  label?: string;
+  testId?: string;
+};
 import type { FindingBox, PrintCheck, ViewerModel } from '@partbuddy/geometry';
 import { create } from 'zustand';
 

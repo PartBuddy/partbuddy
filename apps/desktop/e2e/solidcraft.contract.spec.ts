@@ -1801,6 +1801,20 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
     await expect(page.getByTestId('block-logo-problem')).toHaveCount(0);
     await page.getByTestId('block-width').getByRole('textbox').fill('6');
     await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    // Placed like a logo: across and up from the face's middle, with arrows on the part; "Centre" puts it on the middle.
+    await expect(page.getByTestId('block-arrow-x')).toBeVisible();
+    await expect(page.getByTestId('block-arrow-y')).toBeVisible();
+    const across = page.getByTestId('block-x').getByRole('textbox');
+    const up = page.getByTestId('block-y').getByRole('textbox');
+    const clicked = [await across.inputValue(), await up.inputValue()];
+    await page.getByTestId('block-centre-both').click();
+    await expect(across).toHaveValue('0');
+    await expect(up).toHaveValue('0');
+    // Back to where the face was clicked: the middle holds the ring built up before, a slow overlap to try.
+    await across.fill(clicked[0] ?? '0');
+    await up.fill(clicked[1] ?? '0');
+    await up.press('Tab');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
     await page.screenshot({ path: test.info().outputPath('block-form-logo.png') });
     await page.getByTestId('block-apply').click();
     await expect(page.getByText('Logo “badge” engraved')).toBeVisible({ timeout: 30_000 });
