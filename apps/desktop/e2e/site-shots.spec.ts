@@ -458,18 +458,16 @@ test('website pictures', async () => {
       if ((await home.count()) === 0) await page.getByTestId('home-button').click();
       await home.locator('[data-template="wallHolder"]').click();
       await expect(name).toHaveText(/^Wall holder/, { timeout: 60_000 });
-      await page.getByTestId('viewport').hover();
-      await page.keyboard.press('1');
+      // The template's own slanted view shows the whole plate beside the dock.
       await page.waitForTimeout(1500);
     };
     // A plain click on the built logo or text picks it whole; the camera may still settle.
-    const pickPlaced = async (panel: string) => {
+    const pickPlaced = async (panel: string, spots: readonly (readonly [number, number])[]) => {
       const view = await page.getByTestId('viewport').boundingBox();
       if (!view) throw new Error('viewport not visible');
-      const spots = [[0.5, 0.42], [0.48, 0.45], [0.52, 0.4], [0.5, 0.38], [0.46, 0.42], [0.54, 0.44]] as const;
       let n = 0;
       await expect(async () => {
-        const [x, y] = spots[n++ % spots.length] ?? [0.5, 0.42];
+        const [x, y] = spots[n++ % spots.length] ?? [0.36, 0.5];
         await page.keyboard.press('Escape');
         await page.mouse.click(view.x + view.width * x, view.y + view.height * y);
         await expect(page.getByTestId(panel)).toBeVisible({ timeout: 3000 });
@@ -477,38 +475,42 @@ test('website pictures', async () => {
     };
     await step('logo', async () => {
       await wallHolder();
-      await pickFace(page, [[0.5, 0.42], [0.5, 0.35], [0.45, 0.4]]);
+      await pickFace(page, PLATE_FRONT);
       await page.getByTestId('block-tile-logo').click();
       await page.getByTestId('block-logo').locator('input[type=file]').setInputFiles(join(__dirname, '..', 'test', 'fixtures', 'svg', 'twemoji-fox.svg'));
       await page.getByTestId('block-mode').getByRole('button').click();
       await page.getByRole('option', { name: 'Embossed' }).click();
       await page.getByTestId('block-width').getByRole('textbox').fill('30');
       await page.getByTestId('block-colours').click();
+      // Three filaments: the fox's nearest colours merge, and the preview comes quicker.
+      await page.getByTestId('block-colours-most').getByRole('button').click();
+      await page.getByRole('option', { name: '3', exact: true }).click();
       await page.getByTestId('block-centre').click();
-      await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
+      await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 180_000 });
       await page.getByTestId('block-apply').click();
       await expect(page.getByText('SVG-Logo twemoji-fox', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
       await page.waitForTimeout(1500);
-      await pickPlaced('logo-move');
+      await pickPlaced('logo-move', [[0.36, 0.5], [0.34, 0.52], [0.38, 0.48], [0.36, 0.46], [0.33, 0.5], [0.39, 0.53]]);
       await shot('logo');
       await page.keyboard.press('Escape');
     });
     await step('text', async () => {
       await wallHolder();
-      await pickFace(page, [[0.5, 0.42], [0.5, 0.35], [0.45, 0.4]]);
+      await pickFace(page, PLATE_FRONT);
       await page.getByTestId('block-tile-text').click();
       await page.getByTestId('block-text').getByRole('textbox').fill('Werkstatt');
       await page.getByTestId('block-mode').getByRole('button').click();
       await page.getByRole('option', { name: 'Embossed' }).click();
-      await page.getByTestId('block-height').getByRole('textbox').fill('8');
+      await page.getByTestId('block-height').getByRole('textbox').fill('6');
       await page.getByTestId('block-font').getByRole('combobox').fill('Segoe UI');
       await page.getByRole('option', { name: 'Segoe UI', exact: true }).click();
       await page.getByTestId('block-centre-both').click();
-      await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
+      await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 180_000 });
       await page.getByTestId('block-apply').click();
       await expect(page.getByText('Text Werkstatt', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
       await page.waitForTimeout(1500);
-      await pickPlaced('logo-text');
+      // The letters run slanted below the plate's middle in this view.
+      await pickPlaced('logo-text', [[0.3, 0.56], [0.35, 0.58], [0.4, 0.6], [0.28, 0.55], [0.33, 0.57], [0.38, 0.59]]);
       await shot('text');
       await page.keyboard.press('Escape');
     });
@@ -540,6 +542,8 @@ test('website pictures', async () => {
   }
 });
 
+/** The wall holder's plate in its template view, beside the dock. */
+const PLATE_FRONT = [[0.36, 0.5], [0.38, 0.45], [0.34, 0.55]] as const;
 const PLATE_TOP = [[0.62, 0.72], [0.7, 0.74], [0.45, 0.74]] as const;
 // Down the middle of the view in small steps, until a click lands on an edge.
 const EDGE_SWEEP = Array.from({ length: 80 }, (_, i) => [0.5, 0.4 + i * 0.005] as const);
