@@ -66,13 +66,30 @@ export function FirstStart() {
       className={overlayClass.replace('z-10', 'z-20')}
     >
       <Modal className={modalClass('lg')}>
-        <Dialog className="flex max-h-dialog-max flex-col gap-4 overflow-y-auto p-5 outline-none" data-testid="first-start" data-step={step}>
+        <Dialog className="flex max-h-[min(var(--cs-size-dialog-max-height),calc(100dvh_-_4rem))] flex-col gap-4 p-5 outline-none" data-testid="first-start" data-step={step}>
           <div className="flex flex-col gap-1">
             <Heading slot="title" className="text-lg font-semibold text-text">
               {t('firstStart.title')}
             </Heading>
-            <p className="text-sm text-text-muted tabular-nums">{t('firstStart.progress', { step: index + 1, count: STEPS.length, name: t(`firstStart.step.${step}`) })}</p>
+            <ol aria-label={t('firstStart.progress', { step: index + 1, count: STEPS.length, name: t(`firstStart.step.${step}`) })} className="flex flex-wrap items-center gap-1 text-xs" data-testid="first-start-steps">
+              {STEPS.map((name, n) => (
+                <li key={name} className="flex items-center gap-1">
+                  {n > 0 ? <span aria-hidden className="h-hairline w-4 bg-border" /> : null}
+                  <button
+                    type="button"
+                    disabled={n >= index}
+                    aria-current={n === index ? 'step' : undefined}
+                    onClick={() => setIndex(n)}
+                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 outline-none focus-visible:focus-ring ${n === index ? 'bg-accent-subtle font-semibold text-accent-text' : n < index ? 'text-text hover:bg-surface-hover' : 'text-text-subtle'}`}
+                  >
+                    <span className="tabular-nums">{n + 1}</span>
+                    {t(`firstStart.step.${name}`)}
+                  </button>
+                </li>
+              ))}
+            </ol>
           </div>
+          <div className="-mx-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-1">
           {step === 'solidcraft' ? (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-text">{t('firstStart.solidcraft')}</p>
@@ -104,6 +121,7 @@ export function FirstStart() {
               <ProjectsFolderField info={info} onChange={setInfo} />
             </div>
           ) : null}
+          </div>
           <div className="flex items-center gap-2 border-t border-border pt-3">
             <Button onPress={finish} data-testid="first-start-skip">
               {t('firstStart.skip')}
@@ -114,7 +132,7 @@ export function FirstStart() {
                 {t('firstStart.back')}
               </Button>
             ) : null}
-            <Button variant="primary" onPress={next} data-testid="first-start-next">
+            <Button variant={step === 'print' ? 'secondary' : 'primary'} onPress={next} data-testid="first-start-next">
               {last ? t('firstStart.done') : t('firstStart.next')}
             </Button>
           </div>

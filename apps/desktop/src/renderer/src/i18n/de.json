@@ -1133,7 +1133,7 @@
       "busy": "Gerade nicht möglich."
     },
     "trashTitle": "„{name}“ in den Papierkorb?",
-    "trashBody": "Der Projektordner mit Design, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen. Danach beginnt ein neues, leeres Projekt.",
+    "trashBody": "Der Projektordner mit Design, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen. Danach zeigt PartBuddy die Startseite.",
     "trashConfirm": "In den Papierkorb",
     "import": "Als neues Projekt importieren …",
     "insert": "Datei einfügen …",
@@ -1145,7 +1145,8 @@
     "dropNoPath": "Diese Datei liegt noch nicht auf dem Datenträger. Erst speichern, dann aus dem Explorer ziehen.",
     "trashBodyKeep": "Der Projektordner mit Design, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen.",
     "exportPackage": "Als Datei exportieren …",
-    "exportedPackage": "Das Projekt ist als .partbuddy-Datei gespeichert, mit Chat, Versionen und Skizzen."
+    "exportedPackage": "Das Projekt ist als .partbuddy-Datei gespeichert, mit Chat, Versionen und Skizzen.",
+    "trashed": "„{name}“ liegt im Papierkorb auf der Startseite und lässt sich dort wiederherstellen."
   },
   "home": {
     "title": "Projekte",
@@ -1156,7 +1157,7 @@
     "import": "Importieren …",
     "list": "{count, plural, one {# Projekt} other {# Projekte}}",
     "emptyTitle": "Noch keine Projekte",
-    "emptyBody": "Starte ein neues Projekt, öffne eines oder importiere eine Datei (STEP, IGES, STL, 3MF, OBJ oder ein SolidCraft-Design), auch per Ziehen aufs Fenster. Jedes Projekt bekommt einen eigenen Ordner unter Dokumente\\PartBuddy.",
+    "emptyBody": "Starte ein neues Projekt, öffne eines oder importiere eine Datei (STEP, IGES, STL, 3MF, OBJ oder ein SolidCraft-Design), auch per Ziehen aufs Fenster. Jedes Projekt bekommt einen eigenen Ordner im Projektordner (Einstellungen › Allgemein).",
     "noMatch": "Kein Projekt passt zu „{query}“.",
     "openNow": "Gerade geöffnet",
     "justNow": "gerade eben",
@@ -1216,6 +1217,14 @@
       "save": "Speichern",
       "edit": "Tags …",
       "filter": "Nach Tag filtern"
+    },
+    "mine": "Meine Projekte",
+    "found": "{count, plural, one {# Treffer} other {# Treffer}}",
+    "offline": {
+      "starting": "SolidCraft startet – gleich lassen sich Projekte öffnen.",
+      "title": "SolidCraft läuft nicht",
+      "body": "Projekte lassen sich erst öffnen, anlegen und importieren, wenn SolidCraft läuft.",
+      "settings": "SolidCraft einrichten …"
     }
   },
   "versions": {

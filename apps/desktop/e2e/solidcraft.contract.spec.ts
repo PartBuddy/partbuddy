@@ -1043,6 +1043,8 @@ test('a part becomes a project folder that is renamed, duplicated, opened, start
     await page.getByTestId('project-trash-confirm').click();
     await expect(name).toHaveText('New part', { timeout: 30_000 });
     expect(existsSync(join(projects, 'Bracket'))).toBe(false);
+    // Then the start page with the bin, not a silent new part (audit A-22).
+    await expect(page.getByTestId('home-page')).toBeVisible();
     const slots = readdirSync(join(projects, '.trash'));
     expect(slots.some((slot) => existsSync(join(projects, '.trash', slot, 'Bracket', 'Bracket.sc')))).toBe(true);
     expect(readFileSync(join(projects, 'Wall holder', 'Wall holder.sc')).length).toBeGreaterThan(0);
@@ -2092,7 +2094,7 @@ test('a template from the start page becomes a project whose sizes are its param
     expect(existsSync(join(projects, 'Housing', 'Housing.sc'))).toBe(true);
     // Its sizes are parameters, each with what it means, and the light finds nothing to block.
     const parameters = page.getByTestId('parameter');
-    await expect(parameters).toHaveCount(8, { timeout: 30_000 });
+    await expect(parameters).toHaveCount(10, { timeout: 30_000 });
     await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });
     // A size changes through its parameter, without the assistant.
     const lengthRow = page.locator('[data-testid="parameter"][data-name="length"]');

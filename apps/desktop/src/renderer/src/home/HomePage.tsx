@@ -1,4 +1,4 @@
-import { IconChevronDown, IconCopy, IconCube, IconDots, IconFileExport, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPencil, IconSearch, IconStar, IconStarFilled, IconTags, IconTrash, IconX } from '@tabler/icons-react';
+import { IconAlertTriangle, IconArrowsSort, IconChevronDown, IconCopy, IconCube, IconDots, IconFileExport, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPencil, IconSearch, IconStar, IconStarFilled, IconTags, IconTrash, IconX } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Heading, Input, ListBox, ListBoxItem, Menu, MenuItem, MenuTrigger, Popover, SearchField, Select, SelectValue, Separator, ToggleButton } from 'react-aria-components';
@@ -11,7 +11,8 @@ import { exportProject, RenameDialog, TrashDialog } from '../shell/ProjectMenu';
 import { useProjectSwitch } from '../shell/projectSwitch';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
-import { StatusDot, type Tone } from '../ui/Feedback';
+import { Busy, StatusDot, type Tone } from '../ui/Feedback';
+import { Tip } from '../ui/Tooltip';
 import { TagsDialog } from './TagsDialog';
 import { TrashSection } from './TrashSection';
 import { matching, PROJECT_SORTS, relativeTime, sortProjects, tagsOf, type ProjectSort } from './projectTiles';
@@ -123,6 +124,12 @@ export function HomePage() {
     const tagged = tag === null ? (projects ?? []) : (projects ?? []).filter((project) => project.tags.some((own) => own.toLocaleLowerCase() === tag.toLocaleLowerCase()));
     return sortProjects(matching(tagged, query), sort, i18n.language);
   }, [projects, query, sort, tag, i18n.language]);
+  // The search narrows the templates too (audit A-16).
+  const templates = useMemo(() => {
+    const words = query.trim().toLocaleLowerCase(i18n.language);
+    if (!words) return TEMPLATE_IDS;
+    return TEMPLATE_IDS.filter((id) => `${t(`home.templates.items.${id}.name`)} ${t(`home.templates.items.${id}.body`)}`.toLocaleLowerCase(i18n.language).includes(words));
+  }, [query, t, i18n.language]);
   const favorite = (project: ProjectEntry, next: boolean) => {
     void api.setMeta(project.folder, { favorite: next }).then(reload, failed);
   };
@@ -140,8 +147,9 @@ export function HomePage() {
       className="absolute inset-0 z-5 overflow-y-auto bg-canvas"
       data-testid="home-page"
     >
-      <div className="mx-auto flex max-w-page-max flex-col gap-5 px-6 py-6">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="mx-auto flex max-w-[100rem] flex-col gap-5 px-6 pb-6">
+        {/* Stays on top while the page scrolls (audit A-33). */}
+        <div className="sticky top-0 z-10 -mx-6 flex flex-wrap items-center gap-3 border-b border-border bg-canvas px-6 pt-6 pb-3">
           <Heading id="home-title" level={1} className="mr-auto font-display text-xl font-semibold text-text">
             {t('home.title')}
           </Heading>
@@ -166,10 +174,13 @@ export function HomePage() {
             }}
             data-testid="home-sort"
           >
-            <AriaButton className={selectTriggerClass('md')}>
-              <SelectValue className="truncate">{({ selectedText }) => selectedText}</SelectValue>
-              <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
-            </AriaButton>
+            <Tip label={t('home.sort')}>
+              <AriaButton className={selectTriggerClass('md')}>
+                <IconArrowsSort className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
+                <SelectValue className="truncate">{({ selectedText }) => selectedText}</SelectValue>
+                <IconChevronDown className="size-icon-sm shrink-0 text-text-subtle" aria-hidden />
+              </AriaButton>
+            </Tip>
             <Popover offset={4} className={popoverClass}>
               <ListBox className="max-h-menu-max overflow-auto outline-none">
                 {PROJECT_SORTS.map((item) => (
@@ -195,31 +206,11 @@ export function HomePage() {
           </Button>
         </div>
 
-        <section aria-labelledby="home-templates-title" className="flex flex-col gap-2" data-testid="home-templates">
-          <Heading id="home-templates-title" level={2} className="text-sm font-semibold text-text-muted">
-            {t('home.templates.title')}
-          </Heading>
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(var(--cs-size-tile),1fr))] gap-4">
-            {TEMPLATE_IDS.map((id) => (
-              <li key={id}>
-                <AriaButton
-                  isDisabled={!ready}
-                  onPress={() => run(() => api.fromTemplate(id, t(`home.templates.items.${id}.name`)))}
-                  className="group flex w-full items-center gap-3 overflow-hidden rounded-lg border border-border bg-surface p-2 text-left outline-none transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:focus-ring disabled:cursor-default disabled:opacity-disabled"
-                  data-testid="home-template"
-                  data-template={id}
-                >
-                  <img src={TEMPLATE_PICTURES[id]} alt="" className="aspect-[4/3] w-1/3 shrink-0 rounded-md object-cover" draggable={false} />
-                  <span className="flex min-w-0 flex-col gap-1">
-                    <span className="truncate text-sm font-medium text-text">{t(`home.templates.items.${id}.name`)}</span>
-                    <span className="line-clamp-2 text-xs text-text-subtle">{t(`home.templates.items.${id}.body`)}</span>
-                  </span>
-                </AriaButton>
-              </li>
-            ))}
-          </ul>
-        </section>
 
+        <HomeConnection />
+        <Heading level={2} className="text-sm font-semibold text-text-muted" data-testid="home-mine">
+          {query.trim() && projects?.length ? t('home.found', { count: shown.length }) : t('home.mine')}
+        </Heading>
         {tags.length > 0 ? (
           <div role="group" aria-label={t('home.tags.filter')} className="flex flex-wrap items-center gap-2" data-testid="home-tags">
             <IconTags className="size-icon-sm text-text-subtle" aria-hidden />
@@ -238,15 +229,18 @@ export function HomePage() {
           </div>
         ) : null}
 
-        {projects === null ? null : projects.length === 0 ? (
+        {projects === null ? null : projects.length === 0 && !ready ? null : projects.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-7 text-center" data-testid="home-empty">
             <p className="text-md font-semibold text-text">{t('home.emptyTitle')}</p>
             <p className="max-w-text-max text-sm text-text-muted">{t('home.emptyBody')}</p>
           </div>
         ) : shown.length === 0 ? (
-          <p className="py-7 text-center text-sm text-text-muted" role="status" data-testid="home-no-match">
-            {t('home.noMatch', { query })}
-          </p>
+          <div className="flex flex-col items-center gap-2 py-7 text-center" role="status" data-testid="home-no-match">
+            <p className="text-sm text-text-muted">{t('home.noMatch', { query })}</p>
+            <Button size="sm" onPress={() => setQuery('')} data-testid="home-no-match-clear">
+              {t('home.searchClear')}
+            </Button>
+          </div>
         ) : (
           <ul aria-label={t('home.list', { count: shown.length })} className="grid grid-cols-[repeat(auto-fill,minmax(var(--cs-size-tile),1fr))] gap-4" data-testid="home-projects">
             {shown.map((project) => (
@@ -281,6 +275,34 @@ export function HomePage() {
             ))}
           </ul>
         )}
+        {templates.length > 0 ? (
+        <section aria-labelledby="home-templates-title" className="flex flex-col gap-2" data-testid="home-templates">
+          <Heading id="home-templates-title" level={2} className="text-sm font-semibold text-text-muted">
+            {t('home.templates.title')}
+          </Heading>
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(var(--cs-size-tile),1fr))] gap-4">
+            {templates.map((id) => (
+              <li key={id}>
+                <AriaButton
+                  isDisabled={!ready}
+                  onPress={() => run(() => api.fromTemplate(id, t(`home.templates.items.${id}.name`)))}
+                  className="group flex w-full items-center gap-3 overflow-hidden rounded-lg border border-border bg-surface p-2 text-left outline-none transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:focus-ring disabled:cursor-default disabled:opacity-disabled"
+                  data-testid="home-template"
+                  data-template={id}
+                >
+                  <img src={TEMPLATE_PICTURES[id]} alt="" className="aspect-[4/3] w-1/3 shrink-0 rounded-md object-cover" draggable={false} />
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="truncate text-sm font-medium text-text">{t(`home.templates.items.${id}.name`)}</span>
+                    <span className="line-clamp-3 text-xs text-text-subtle" title={t(`home.templates.items.${id}.body`)}>
+                      {t(`home.templates.items.${id}.body`)}
+                    </span>
+                  </span>
+                </AriaButton>
+              </li>
+            ))}
+          </ul>
+        </section>
+        ) : null}
         <TrashSection entries={trash} now={now} onChange={reload} />
       </div>
       {dialog?.kind === 'rename' ? <RenameDialog key={dialog.project.folder} open name={dialog.project.name} folder={dialog.project.folder} onClose={() => setDialog(null)} onDone={reload} /> : null}
@@ -297,6 +319,51 @@ export function HomePage() {
         />
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Why the start page is greyed while SolidCraft is not there, and the way forward (audit A-07, A-19,
+ * C-05): a busy line while it starts, otherwise a notice with "Start SolidCraft" and the settings.
+ */
+function HomeConnection() {
+  const { t } = useTranslation();
+  const connection = useStudio((s) => s.connection);
+  if (connection.state === 'connected') return null;
+  if (connection.state === 'searching' || connection.state === 'connecting' || connection.state === 'starting') {
+    return (
+      <div className="flex items-center gap-2" role="status" data-testid="home-connection">
+        <Busy label={t('home.offline.starting')} />
+      </div>
+    );
+  }
+  return (
+    <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-warning bg-warning-subtle px-4 py-3" data-testid="home-connection">
+      <IconAlertTriangle className="size-icon shrink-0 text-warning" aria-hidden />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <p className="text-sm font-semibold text-text">{t('home.offline.title')}</p>
+        <p className="text-sm text-text-muted">{t('home.offline.body')}</p>
+      </div>
+      {connection.state === 'notInstalled' ? null : (
+        <Button
+          variant="primary"
+          onPress={() => {
+            void platform().solidcraft.start();
+          }}
+          data-testid="home-connection-start"
+        >
+          {t('connection.start')}
+        </Button>
+      )}
+      <Button
+        onPress={() => {
+          useStudio.getState().setSettingsSection('solidcraft');
+        }}
+        data-testid="home-connection-settings"
+      >
+        {t('home.offline.settings')}
+      </Button>
+    </div>
   );
 }
 

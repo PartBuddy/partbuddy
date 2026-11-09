@@ -66,7 +66,7 @@ export function TrashSection({ entries, now, onChange }: { entries: TrashEntry[]
               </Button>
             )}
           </div>
-          <ul aria-label={t('home.trash.title', { count: entries.length })} className="flex flex-col" data-testid="home-trash-list">
+          <ul aria-label={t('home.trash.title', { count: entries.length })} className="flex max-w-[48rem] flex-col" data-testid="home-trash-list">
             {entries.map((entry) => (
               <li key={entry.id} className="flex items-center gap-3 border-b border-border py-2 last:border-b-0" data-testid="home-trash-entry" data-name={entry.name}>
                 <div className="flex size-step-preview shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-surface-sunken">

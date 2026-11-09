@@ -5,6 +5,7 @@ import { Button as AriaButton } from 'react-aria-components';
 
 import type { ConnectionStatus } from '../../../shared/contract';
 import { platform } from '../platform';
+import { Tip } from '../ui/Tooltip';
 import { useStudio } from '../state/store';
 import { StatusDot, type Tone } from '../ui/Feedback';
 import { BrandMark } from './BrandMark';
@@ -69,6 +70,7 @@ export function TitleBar() {
   return (
     <header className="title-bar flex h-titlebar shrink-0 items-center gap-3 border-b border-border bg-surface select-none" data-testid="title-bar">
       {/* The logo opens the start page with the projects (B3) and closes it again. */}
+      <Tip label={homeOpen ? t('home.close') : t('home.open')} placement="bottom">
       <AriaButton
         onPress={() => {
           setHomeOpen(!homeOpen);
@@ -82,12 +84,13 @@ export function TitleBar() {
         <BrandMark />
         <span className="font-display text-lg font-semibold text-text">{t('app.name')}</span>
       </AriaButton>
+      </Tip>
       <nav aria-label={t('app.design')} className="flex min-w-0 items-center gap-2 text-md">
         <span className="text-text-subtle">/</span>
         <ProjectMenu designName={designName} />
-        {model.status === 'ready' && connection.save ? <SaveState state={connection.save} /> : null}
+        {model.status === 'ready' && connection.save && !homeOpen ? <SaveState state={connection.save} /> : null}
       </nav>
-      <DesignActions />
+      {homeOpen ? null : <DesignActions />}
       <div className="ml-auto flex items-center gap-2" data-testid="connection-status" data-engine={connection.engine}>
         <StatusDot
           tone={connectionTone(connection)}

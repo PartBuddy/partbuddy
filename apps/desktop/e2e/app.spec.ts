@@ -1329,7 +1329,7 @@ test('PartBuddy starts on the start page with the projects, which searches and c
     const { page } = launched;
     // The window opens on the start page, without the logo.
     const home = page.getByTestId('home-page');
-    await expect(home.getByRole('heading', { name: 'Projects' })).toBeVisible();
+    await expect(home.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible();
     const tiles = home.getByTestId('home-tile');
     await expect(tiles).toHaveCount(3);
     // Newest first, with the last change and the light at the last preview.
@@ -1346,7 +1346,7 @@ test('PartBuddy starts on the start page with the projects, which searches and c
     await page.getByTestId('home-search').fill('ubersicht');
     await expect(tiles).toHaveCount(1);
     await page.getByTestId('home-search').fill('lamp');
-    await expect(page.getByTestId('home-no-match')).toHaveText('No project matches “lamp”.');
+    await expect(page.getByTestId('home-no-match')).toContainText('No project matches “lamp”.');
     await page.getByTestId('home-search').fill('');
     await expect(tiles).toHaveCount(3);
 
