@@ -145,7 +145,27 @@ export function ProjectMenu({ designName }: { designName: string }) {
         </Popover>
       </MenuTrigger>
       {project ? <RenameDialog open={dialog === 'rename'} name={project.name} onClose={() => setDialog(null)} /> : null}
-      {project ? <TrashDialog open={dialog === 'trash'} name={project.name} opensNew onClose={() => setDialog(null)} onConfirm={() => run(() => api.trash())} /> : null}
+      {project ? (
+        <TrashDialog
+          open={dialog === 'trash'}
+          name={project.name}
+          opensNew
+          onClose={() => setDialog(null)}
+          onConfirm={() => {
+            // Afterwards the start page with the bin, and a note where it went (audit A-22).
+            const name = project.name;
+            void beforeProjectSwitch()
+              .then(() => api.trash())
+              .then(() => {
+                useStudio.getState().setHomeOpen(true);
+                useStudio.getState().setNotice({ tone: 'success', text: t('project.trashed', { name }) });
+              })
+              .catch((error: unknown) => {
+                useStudio.getState().setNotice({ tone: 'danger', text: t('project.failed', { detail: (error as Error).message.slice(0, 200) }) });
+              });
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -257,7 +277,7 @@ export function TrashDialog({ open, name, opensNew, onClose, onConfirm }: { open
               {t('project.cancel')}
             </Button>
             <Button
-              variant="primary"
+              variant="danger"
               onPress={() => {
                 onClose();
                 onConfirm();

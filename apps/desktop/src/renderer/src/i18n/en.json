@@ -1133,7 +1133,7 @@
       "busy": "Not possible right now."
     },
     "trashTitle": "Move \"{name}\" to the recycle bin?",
-    "trashBody": "The project folder with design, conversation, versions and exports goes to the recycle bin at the bottom of the start page and can be restored there for 30 days. A new, empty project starts afterwards.",
+    "trashBody": "The project folder with design, chat, versions and exports goes to the bin at the bottom of the start page and can be restored there for 30 days. PartBuddy then shows the start page.",
     "trashConfirm": "Move to recycle bin",
     "import": "Import as new project …",
     "insert": "Insert file …",
@@ -1145,7 +1145,8 @@
     "dropNoPath": "This file has no place on the disk yet. Save it first, then drop it from Explorer.",
     "trashBodyKeep": "The project folder with design, conversation, versions and exports goes to the recycle bin at the bottom of the start page and can be restored there for 30 days.",
     "exportPackage": "Export as a file …",
-    "exportedPackage": "The project is saved as a .partbuddy file, with conversation, versions and sketches."
+    "exportedPackage": "The project is saved as a .partbuddy file, with conversation, versions and sketches.",
+    "trashed": "“{name}” is in the bin on the start page and can be restored there."
   },
   "home": {
     "title": "Projects",
@@ -1156,7 +1157,7 @@
     "import": "Import …",
     "list": "{count, plural, one {# project} other {# projects}}",
     "emptyTitle": "No projects yet",
-    "emptyBody": "Start a new project, open one or import a file (STEP, IGES, STL, 3MF, OBJ or a SolidCraft design), also by dropping it onto the window. Every project gets a folder of its own under Documents\\PartBuddy.",
+    "emptyBody": "Start a new project, open one or import a file (STEP, IGES, STL, 3MF, OBJ or a SolidCraft design), also by dropping it on the window. Every project gets a folder of its own in the projects folder (Settings › General).",
     "noMatch": "No project matches “{query}”.",
     "openNow": "Open now",
     "justNow": "just now",
@@ -1216,6 +1217,14 @@
       "save": "Save",
       "edit": "Tags …",
       "filter": "Filter by tag"
+    },
+    "mine": "My projects",
+    "found": "{count, plural, one {# match} other {# matches}}",
+    "offline": {
+      "starting": "SolidCraft is starting – projects open in a moment.",
+      "title": "SolidCraft is not running",
+      "body": "Projects open, start and import once SolidCraft runs.",
+      "settings": "Set up SolidCraft …"
     }
   },
   "versions": {
