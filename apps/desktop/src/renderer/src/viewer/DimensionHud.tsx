@@ -1,16 +1,16 @@
 import { parseTagged3mf } from '@partbuddy/geometry';
-import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
+import { IconBolt, IconNote, IconSparkles } from '@tabler/icons-react';
 import { BlockPanel, flatFace } from './BlockPanel';
 import { LogoPanel, logoTitleOf, useLogoSpot } from './LogoPanel';
 import { actionsFor } from './actionKinds';
 import { PartPanel } from './PartPanel';
 import { PrintFaceButton } from './PrintFaceButton';
 import { ActionPanel, MeasureLine } from './SelectionActions';
-import { NoteComposer } from '../notes/NoteComposer';
+import { MAX_NOTE_TEXT, useNoteCommand } from '../notes/NoteParts';
 import { sendToAssistant } from '../assistant/send';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Input, Label, RadioButton, RadioField, RadioGroup, TextField } from 'react-aria-components';
+import { Input, Label, RadioButton, RadioField, RadioGroup, TextField } from 'react-aria-components';
 import { BufferAttribute, BufferGeometry, type Color } from 'three';
 
 import type { DimensionProbeResult } from '../../../shared/contract';
@@ -22,8 +22,7 @@ import { blendWeights, GHOST_OPACITY, PREVIEW_BLEND } from './blend';
 import { SelectionInfo } from './SelectionInfo';
 import { selectionName, selectionOf, selectionsOf } from './viewState';
 import { dimensionFor, handleOf } from './dimensionOf';
-import { buttonVariants, pressable } from '../ui/Button';
-import { Tip } from '../ui/Tooltip';
+import { Button } from '../ui/Button';
 import { inputClass, fieldLabelClass } from '../ui/Field';
 import { badgeClass } from '../ui/Feedback';
 import { RadioMark, choiceRowClass } from '../ui/Choice';
@@ -109,6 +108,8 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
   // The ghost of an open action, which takes the place of the dimension preview.
   const [actionGhost, setActionGhost] = useState<Uint8Array | null>(null);
   const [wish, setWish] = useState('');
+  // The same words kept as a note on the one picked spot, for later or for the assistant to read.
+  const runNote = useNoteCommand();
   const latest = useRef(0);
   const field = useRef<HTMLInputElement>(null);
   // The value the drag arrow was let go at, before SolidCraft had tried it.
@@ -236,6 +237,11 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
     setWish('');
     void sendToAssistant(message, all);
   };
+  const keep = async () => {
+    const text = wish.trim();
+    if (!text || picks.length !== 1) return;
+    if (await runNote(() => platform().notes.add(current, text))) setWish('');
+  };
 
   let status: string | null = null;
   if (changed) {
@@ -316,7 +322,6 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
               </DockGroup>
             </>
           ) : null}
-          {picks.length === 1 ? <NoteComposer selection={current} busy={busy} /> : null}
         </div>
       </div>
       {logo ? <LogoPanel key={`${logo.logo}|${logo.origin.join()}|${String(logo.angle)}|${logo.box.join()}|${String(logo.depth?.value)}`} spot={logo} busy={busy} onGhost={setActionGhost} /> : null}
@@ -350,29 +355,35 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
           ))}
         </RadioGroup>
       ) : null}
-      <TextField value={wish} onChange={setWish} aria-label={t('hud.ask')} isDisabled={!assistantReady} className="flex items-center gap-1">
-        <Input
-          placeholder={t('hud.ask')}
-          className={`${inputClass('sm')} flex-1`}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              ask();
-            }
-          }}
-          data-testid="hud-ask"
-        />
-        <Tip label={t('assistant.send')}>
-          <AriaButton
-            aria-label={t('assistant.send')}
-            isDisabled={!assistantReady || wish.trim() === ''}
-            onPress={ask}
-            className={`inline-flex size-control-sm shrink-0 items-center justify-center rounded-md ${buttonVariants.primary} ${pressable}`}
-          >
-            <IconArrowUp className="size-icon-sm" aria-hidden />
-          </AriaButton>
-        </Tip>
-      </TextField>
+      {/* One field for what should happen here: done now by the assistant, or kept as a note on the spot. */}
+      <div className="flex flex-col gap-1" data-testid="hud-wish">
+        <TextField value={wish} onChange={setWish} maxLength={MAX_NOTE_TEXT} isDisabled={busy} className="flex flex-col gap-1">
+          <Label className={fieldLabelClass}>{t('hud.wish')}</Label>
+          <Input
+            placeholder={t('hud.wishExample')}
+            className={inputClass('sm')}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                ask();
+              }
+            }}
+            data-testid="hud-ask"
+          />
+        </TextField>
+        <div className="flex flex-wrap gap-1">
+          <Button variant="primary" size="sm" isDisabled={busy || !assistantReady || wish.trim() === ''} onPress={ask} data-testid="hud-do">
+            <IconSparkles className="size-icon-sm" aria-hidden />
+            {t('hud.doNow')}
+          </Button>
+          {picks.length === 1 ? (
+            <Button size="sm" isDisabled={busy || wish.trim() === ''} onPress={() => void keep()} data-testid="hud-note">
+              <IconNote className="size-icon-sm" aria-hidden />
+              {t('hud.keepNote')}
+            </Button>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

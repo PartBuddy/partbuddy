@@ -555,7 +555,10 @@
       "noDriver": "No single parameter drives this – Enter asks the assistant"
     },
     "noAssistant": "No single parameter drives this, and the assistant is not ready",
-    "ask": "Tell the assistant what should happen here …",
+    "wish": "What should happen here?",
+    "wishExample": "e.g. keep 3 mm of wall here",
+    "doNow": "Do it now",
+    "keepNote": "Keep as a note",
     "assistantRequest": "Change the {what} of {name} from {from} mm to {to} mm. Keep the rest of the part as it is.",
     "selected": "{count} elements selected",
     "actions": "Actions",
@@ -662,7 +665,7 @@
   },
   "notes": {
     "title": "Notes ({count})",
-    "none": "No notes yet. Select a face, edge or corner and press “Note”.",
+    "none": "No notes yet. Select a face, edge or corner, write in “What should happen here?” and press “Keep as a note”.",
     "add": "Note",
     "newLabel": "Note at this place",
     "editLabel": "Change note",
@@ -691,7 +694,7 @@
     "unreadable": "{count, plural, one {# note} other {# notes}} in the file could not be read",
     "failed": "The note could not be saved: {detail}",
     "titleShort": "Notes",
-    "noneShort": "Select a face, then “Note”"
+    "noneShort": "Select a face, then “Keep as a note”"
   },
   "dimensions": {
     "tool": "Dimensions",

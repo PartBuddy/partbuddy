@@ -555,7 +555,10 @@
       "noDriver": "Kein Parameter steuert das allein – Enter fragt die KI"
     },
     "noAssistant": "Kein Parameter steuert das allein; der Assistent ist nicht bereit",
-    "ask": "Sag der KI, was hier passieren soll …",
+    "wish": "Was soll hier passieren?",
+    "wishExample": "z. B. hier 3 mm Wand lassen",
+    "doNow": "Jetzt machen",
+    "keepNote": "Als Notiz merken",
     "assistantRequest": "Ändere {what} von {name} von {from} mm auf {to} mm. Behalte den Rest des Teils bei.",
     "selected": "{count} Elemente ausgewählt",
     "actions": "Aktionen",
@@ -662,7 +665,7 @@
   },
   "notes": {
     "title": "Notizen ({count})",
-    "none": "Noch keine Notiz. Wähle eine Fläche, Kante oder Ecke und tippe auf „Notiz“.",
+    "none": "Noch keine Notiz. Wähle eine Fläche, Kante oder Ecke, schreib ins Feld „Was soll hier passieren?“ und tippe auf „Als Notiz merken“.",
     "add": "Notiz",
     "newLabel": "Notiz an dieser Stelle",
     "editLabel": "Notiz ändern",
@@ -691,7 +694,7 @@
     "unreadable": "{count, plural, one {# Notiz} other {# Notizen}} in der Datei nicht lesbar",
     "failed": "Die Notiz ließ sich nicht speichern: {detail}",
     "titleShort": "Notizen",
-    "noneShort": "Fläche wählen, dann „Notiz“"
+    "noneShort": "Fläche wählen, dann „Als Notiz merken“"
   },
   "dimensions": {
     "tool": "Bemaßungen",
