@@ -54,6 +54,7 @@
   "viewer": {
     "canvasLabel": "3D-Ansicht des Designs",
     "selection": "Auswahl",
+    "flatFace": "Flache Fläche {across, number} × {up, number} mm",
     "surface": {
       "plane": "Ebene",
       "cylinder": "Zylinder",

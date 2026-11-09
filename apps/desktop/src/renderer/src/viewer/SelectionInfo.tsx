@@ -2,6 +2,7 @@ import { featureOf, surfaceKind } from '@partbuddy/geometry';
 import { useTranslation } from 'react-i18next';
 
 import type { BodyModel, Pick } from '../state/store';
+import { facePlace } from './BlockPanel';
 import { circleOf, edgePoints } from './measure';
 import { edgeLabel } from './viewState';
 
@@ -29,12 +30,21 @@ export function SelectionInfo({ bodies, selection }: { bodies: BodyModel[]; sele
   if (selection.kind === 'face') {
     const face = model.table.faces[selection.face];
     if (!face) return null;
-    label = face.cylinder ? `${t(`viewer.surface.${surfaceKind(face)}`)} Ø ${mm(face.cylinder.radius * 2)}` : t(`viewer.surface.${surfaceKind(face)}`);
     name = `${face.name} (${featureOf(face)})`;
-    facts = [
-      ...(face.cylinder ? [{ label: t('viewer.radius'), value: mm(face.cylinder.radius) }] : []),
-      { label: t('viewer.area'), value: t('units.mm2', { value: face.area }) },
-    ];
+    // A flat face says how big it is, across and up in the frame blocks are placed in (polish round 3).
+    // shortcut: the box around the face in that frame, too big for a face turned against it; upgrade if a face's outline is read exactly.
+    const size = face.planeNormal ? facePlace(body, selection.face, face.point, face.planeNormal).size : null;
+    if (size && size[0] > 0 && size[1] > 0) {
+      const round = (value: number) => Math.round(value * 10) / 10;
+      label = t('viewer.flatFace', { across: round(size[0]), up: round(size[1]) });
+      facts = [];
+    } else {
+      label = face.cylinder ? `${t(`viewer.surface.${surfaceKind(face)}`)} Ø ${mm(face.cylinder.radius * 2)}` : t(`viewer.surface.${surfaceKind(face)}`);
+      facts = [
+        ...(face.cylinder ? [{ label: t('viewer.radius'), value: mm(face.cylinder.radius) }] : []),
+        { label: t('viewer.area'), value: t('units.mm2', { value: face.area }) },
+      ];
+    }
   } else if (selection.kind === 'edge') {
     const edge = edgeLabel(model, selection.edge);
     label = `${t('viewer.kind.edge')} ${mm(model.edgeLengths[selection.edge] ?? 0)}`;
