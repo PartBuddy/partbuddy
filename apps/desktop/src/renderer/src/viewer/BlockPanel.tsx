@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, TextField, ToggleButton } from 'react-aria-components';
 
 import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
-import { drawingColours, parseDrawing, type DrawingProblem } from '../../../shared/svgDrawing';
+import { drawingColours, drawingSvg, mergedColours, naturalWidth, parseDrawing, type Drawing, type DrawingProblem } from '../../../shared/svgDrawing';
 import { DrawingDetailNote } from '../assistant/DrawingDetailNote';
 import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
@@ -125,6 +125,10 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     return read?.ok ? read.drawing : null;
   }, [logoSvg]);
   const fills = useMemo(() => (logoDrawing ? drawingColours(logoDrawing) : []), [logoDrawing]);
+  // The drawing as the file has it, before its colours were brought down to fewer filaments.
+  const [logoFull, setLogoFull] = useState<Drawing | null>(null);
+  const fullDrawing = logoFull ?? logoDrawing;
+  const fullCount = useMemo(() => (fullDrawing ? drawingColours(fullDrawing).length : 0), [fullDrawing]);
   // The width field shows a width taken from the detail warning by starting afresh.
   const [widened, setWidened] = useState(0);
   // A logo waits for its file.
@@ -167,6 +171,8 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
         setFileProblem('problem' in logo ? logo.problem : null);
         if ('problem' in logo) return;
         setStatus(null);
+        const read = parseDrawing(logo.svg);
+        setLogoFull(read.ok ? read.drawing : null);
         // The fields may have changed while the file was read; a file with a size in mm keeps it.
         setBlock((current) => (current.block === 'logo' ? { ...current, svg: logo.svg, ...(logo.width ? { width: logo.width } : {}), name: file.name.replace(/\.svg$/i, '').slice(0, 200) } : current));
       },
@@ -309,6 +315,20 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
                       ))}
                     </span>
                   </div>
+                  {block.colours && fullDrawing && fullCount > 2 ? (
+                    <Choice
+                      label={t('blocks.logoMost')}
+                      value={String(fills.length)}
+                      items={Array.from({ length: fullCount - 1 }, (_, k) => String(fullCount - k)).map((id) => ({ id, label: id }))}
+                      onChange={(id) => {
+                        // The nearest colours merge, the larger area keeping its colour; back up from the file as it was.
+                        const merged = mergedColours(fullDrawing, Number(id));
+                        setLogoFull(fullDrawing);
+                        setBlock({ ...block, svg: drawingSvg(merged, naturalWidth(merged) ?? 100) });
+                      }}
+                      testId="block-colours-most"
+                    />
+                  ) : null}
                   {block.colours ? <p className="text-xs text-text-muted">{t(`blocks.logoColoursHint.${block.mode}`)}</p> : null}
                 </div>
               ) : null}

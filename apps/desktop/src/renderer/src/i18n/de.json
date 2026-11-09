@@ -1340,6 +1340,7 @@
     },
     "logoCentre": "Auf die Flächenmitte",
     "logoColours": "Je Farbe ein Körper ({count} Farben, Mehrfarbdruck)",
+    "logoMost": "Anzahl Farben (Filamente)",
     "logoColoursHint": {
       "deboss": "Die Farben liegen bündig in einer Tasche ihrer Form; jede Farbe ist ein eigener Körper für ihr Filament.",
       "emboss": "Die Farben stehen auf der Fläche; jede Farbe ist ein eigener Körper für ihr Filament."

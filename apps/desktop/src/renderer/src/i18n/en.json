@@ -1340,6 +1340,7 @@
     },
     "logoCentre": "On the middle of the face",
     "logoColours": "A body per colour ({count} colours, multi-colour print)",
+    "logoMost": "Number of colours (filaments)",
     "logoColoursHint": {
       "deboss": "The colours lie flush in a pocket of their shape; each colour is its own body for its filament.",
       "emboss": "The colours stand on the face; each colour is its own body for its filament."
