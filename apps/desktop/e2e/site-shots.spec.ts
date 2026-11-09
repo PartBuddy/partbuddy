@@ -455,9 +455,14 @@ test('website pictures', async () => {
     // 0.2.0's main feature: a logo and a text on the wall holder's plate, each picked with its own
     // controls in the dock. The fox is Twemoji (CC-BY 4.0, test/fixtures/svg/twemoji-fox.LICENSE).
     const wallHolder = async () => {
+      const before = (await name.textContent()) ?? '';
       if ((await home.count()) === 0) await page.getByTestId('home-button').click();
       await home.locator('[data-template="wallHolder"]').click();
+      // A new project each time ("Wall holder", then "Wall holder 2"), in the template's own slanted view.
       await expect(name).toHaveText(/^Wall holder/, { timeout: 60_000 });
+      await expect(name).not.toHaveText(before, { timeout: 60_000 });
+      await page.getByTestId('viewport').hover();
+      await page.keyboard.press('0');
       // The template's own slanted view shows the whole plate beside the dock.
       await page.waitForTimeout(1500);
     };
@@ -472,6 +477,12 @@ test('website pictures', async () => {
         await page.mouse.click(view.x + view.width * x, view.y + view.height * y);
         await expect(page.getByTestId(panel)).toBeVisible({ timeout: 3000 });
       }).toPass({ timeout: 60_000, intervals: [500] });
+      // Pan the part left of the dock (right-drag, above the dock), so the dock covers none of it.
+      await page.mouse.move(view.x + view.width * 0.55, view.y + view.height * 0.25);
+      await page.mouse.down({ button: 'right' });
+      await page.mouse.move(view.x + view.width * 0.38, view.y + view.height * 0.25, { steps: 12 });
+      await page.mouse.up({ button: 'right' });
+      await page.waitForTimeout(800);
     };
     await step('logo', async () => {
       await wallHolder();
