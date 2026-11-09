@@ -369,6 +369,10 @@ const finite = z.number();
 const point3 = z.tuple([finite, finite, finite]);
 
 const bodyName = z.string().min(1).max(200);
+/** SolidCraft's stable face name (ADR 0004): after fillets and engravings it lists every face it came from, 500 characters and more. */
+const faceName = z.string().min(1).max(2000);
+/** An edge name: both face names, sorted, joined by "|". */
+const edgeName = z.string().min(1).max(4010);
 
 /**
  * What changed between a version and the open design, body by body (B5, from `inspect.compare`):
@@ -405,7 +409,7 @@ export const faceSelectionSchema = z
     kind: z.literal('face'),
     body: bodyName,
     /** SolidCraft's stable face name (ADR 0004). */
-    face: z.string().min(1).max(200),
+    face: faceName,
     surface: z.enum(['plane', 'cylinder', 'other']),
     area: finite.nonnegative(),
     /** Where the user clicked, on the face, in mm. */
@@ -420,7 +424,7 @@ export const edgeSelectionSchema = z
     kind: z.literal('edge'),
     body: bodyName,
     /** SolidCraft's edge name: both face names, sorted, joined by "|". */
-    edge: z.string().min(1).max(410),
+    edge: edgeName,
     /** False when the two faces meet along more than one edge; the point tells them apart. */
     exact: z.boolean(),
     length: finite.nonnegative(),
@@ -635,9 +639,9 @@ export const shareResultSchema = z.object({ folder: z.string().min(1).max(260) }
 
 /** The dimension field at a selection (M1b): an edge length or the radius of a cylindrical face. */
 export const dimensionTargetSchema = z.discriminatedUnion('measure', [
-  z.object({ measure: z.literal('length'), body: bodyName, edge: z.string().min(1).max(410), point: point3 }).strict(),
-  z.object({ measure: z.literal('radius'), body: bodyName, face: z.string().min(1).max(200) }).strict(),
-  z.object({ measure: z.literal('distance'), body: bodyName, faces: z.tuple([z.string().min(1).max(200), z.string().min(1).max(200)]) }).strict(),
+  z.object({ measure: z.literal('length'), body: bodyName, edge: edgeName, point: point3 }).strict(),
+  z.object({ measure: z.literal('radius'), body: bodyName, face: faceName }).strict(),
+  z.object({ measure: z.literal('distance'), body: bodyName, faces: z.tuple([faceName, faceName]) }).strict(),
 ]);
 const length = finite.positive().max(100_000);
 export const dimensionProbeSchema = z.object({ target: dimensionTargetSchema, current: length, value: length }).strict();
@@ -759,7 +763,7 @@ export const slicersSchema = z.array(z.object({ id: z.string().min(1).max(80), n
 export const sendToSlicerSchema = z.object({ slicer: z.string().min(1).max(80) }).strict();
 /** The flat face at `point` of `body` becomes the face it lies on in the slicer (B8); null clears it. */
 /** `face`: the face's name, which PartBuddy keeps for the plate view (the engine does not report print faces back). */
-export const printFaceSchema = z.object({ body: bodyName, point: point3.nullable(), face: z.string().max(300).optional() }).strict();
+export const printFaceSchema = z.object({ body: bodyName, point: point3.nullable(), face: faceName.optional() }).strict();
 /** The print face of each body as PartBuddy set it, by face name. */
 export const printFacesSchema = z.record(bodyName, z.string().max(300));
 /** A function block at a picked flat face (F1); `shared/blocks.ts` turns it into SolidCraft's command. */
@@ -941,7 +945,7 @@ export const noteViewSchema = z
     kind: z.enum(['face', 'edge', 'point']),
     body: bodyName,
     /** The face or edge name the note sits on now; null for a point note. */
-    target: z.string().max(410).nullable(),
+    target: z.string().max(4010).nullable(),
     status: z.enum(['attached', 'moved', 'ambiguous', 'orphaned']),
     own: z.boolean(),
     world: point3,
@@ -954,7 +958,7 @@ export const notesStateSchema = z
     documentId: z.string().max(200).nullable(),
     notes: z.array(noteViewSchema).max(500),
     /** Notes that undo or "go back" removed, for this design; the user can put them back. */
-    restorable: z.array(z.object({ id: noteId, text: noteText, target: z.string().max(410).nullable() }).strict()).max(50),
+    restorable: z.array(z.object({ id: noteId, text: noteText, target: z.string().max(4010).nullable() }).strict()).max(50),
     /** Note entries in the file that PartBuddy could not read (damaged or from a newer version). */
     unreadable: z.number().int().nonnegative(),
   })
@@ -1088,7 +1092,7 @@ export const partMaterialRequestSchema = z.object({ material: profileId }).stric
  */
 const findingSeveritySchema = z.enum(['block', 'warn']);
 const findingPlacesSchema = z
-  .array(z.object({ body: bodyName, faces: z.array(z.string().min(1).max(200)).max(40) }).strict())
+  .array(z.object({ body: bodyName, faces: z.array(faceName).max(40) }).strict())
   .max(20);
 const mmValue = finite.nonnegative().max(100_000);
 export const printFindingSchema = z.discriminatedUnion('kind', [

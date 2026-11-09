@@ -23,7 +23,7 @@ import {
   type StoredNote,
 } from '../src/main/notes/noteRecord';
 import { NotesService } from '../src/main/notes/notesService';
-import type { NotesState, Selection } from '../src/shared/contract';
+import { noteAddSchema, notesStateSchema, type NotesState, type Selection } from '../src/shared/contract';
 
 const key = Buffer.alloc(32, 7);
 const otherKey = Buffer.alloc(32, 9);
@@ -46,6 +46,14 @@ afterEach(() => {
 });
 
 describe('stored notes', () => {
+  it('takes a note on a face whose name grew long with fillets and an engraving', () => {
+    // The top of the site's cable clip after its root fillet: 502 characters in SolidCraft 0.40.0-rc.3.
+    const face = `F1:+z#[${Array.from({ length: 30 }, (_, i) => `F11:blend:F1:+z|F4:+${String(i)}`).join(',')}]`;
+    expect(face.length).toBeGreaterThan(500);
+    expect(noteAddSchema.safeParse({ selection: { ...top, face }, text: 'Keep 3 mm of wall here' }).success).toBe(true);
+    expect(noteAddSchema.safeParse({ selection: { ...top, face: 'F'.repeat(2001) }, text: 'x' }).success).toBe(false);
+  });
+
   it('signs own notes and tells changed or foreign ones apart', () => {
     const note = createNote(key, 'abc123', 'R2 instead of R1', anchorOnTop);
     expect(isOwnNote(key, note)).toBe(true);
@@ -200,6 +208,16 @@ function service(fake: ReturnType<typeof fakeDesign>) {
 }
 
 describe('notes service', () => {
+  it('keeps a note on a face with a long name valid in the state it sends to the window', async () => {
+    const face = `F1:+z#[${Array.from({ length: 30 }, (_, i) => `F11:blend:F1:+z|F4:+${String(i)}`).join(',')}]`;
+    // The same top face under the name SolidCraft gives it after fillets.
+    table.faces.push({ index: 2, name: face, exact: true, area: 400, centroid: [10, 10, 20], point: [5, 5, 20], planeNormal: [0, 0, 1] });
+    cleanups.push(() => void table.faces.pop());
+    const { notes } = service(fakeDesign());
+    await notes.add({ ...top, face }, 'Keep 3 mm of wall here');
+    expect(notesStateSchema.safeParse(notes.state()).success).toBe(true);
+  });
+
   it('adds a signed note on a face, places it and tells the model with the next message', async () => {
     const fake = fakeDesign();
     const { notes, mentions } = service(fake);

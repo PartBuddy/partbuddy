@@ -16,7 +16,8 @@ export const MAX_NOTE_TEXT = 1000;
 export const MAX_NOTES = 500;
 
 const vec3 = z.tuple([z.number(), z.number(), z.number()]);
-const name = z.string().min(1).max(410);
+// Room for an edge name: two face names, each up to 2000 characters after fillets and engravings.
+const name = z.string().min(1).max(4010);
 const signatureSchema = z
   .object({
     surface: z.enum(['plane', 'cylinder', 'other']),

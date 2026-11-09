@@ -15,13 +15,27 @@ const say = (text) => {
 };
 
 // The synthetic cable clip of the repository (tools/fixtures), built step by step.
-const CABLE_CLIP = JSON.parse(readFileSync(join(import.meta.dirname, '..', '..', '..', 'tools', 'fixtures', 'cable-clip.script.json'), 'utf8')).commands;
+// For the pictures it gets the finish a real answer would add: rounded clip and root, engraved size.
+const CABLE_CLIP = [
+  ...JSON.parse(readFileSync(join(import.meta.dirname, '..', '..', '..', 'tools', 'fixtures', 'cable-clip.script.json'), 'utf8')).commands,
+  {"command":"solid.fillet","params":{"edges":[[10,10,8],[-10,10,8],[10,-10,8],[-10,-10,8]],"radius":"1.5 mm","tangent_chain":false,"name":"ClipCorners"}},
+  {"command":"solid.fillet","params":{"edges":[[0,10,4],[0,-10,4]],"radius":"1.5 mm","name":"ClipRoot"}},
+  {"command":"sketch.create","params":{"plane":"XY","offset":3.5,"name":"Label"}},
+  {"command":"sketch.text","params":{"text":"Ø12","at":[-4,-14.8],"height":3}},
+  {"command":"solid.extrude","params":{"sketch":"Label","distance":1,"operation":"cut","targets":["CableClip"],"name":"LabelEngraved"}},
+  {"command":"browser.visibility","params":{"visible":false,"folder":"sketches"}},
+];
 
 // A case and a flat lid 0.1 mm above its rim: the indicator flags it as tighter than the push fit.
 const CASE_AND_LID = [
-  { command: 'solid.box', params: { length: 40, width: 30, height: 18, operation: 'new', body_name: 'Case', name: 'Case' } },
-  { command: 'solid.shell', params: { faces: ['F1:+z'], thickness: 2, body: 'Case', name: 'Hollow' } },
-  { command: 'solid.box', params: { length: 40, width: 30, height: 2, corner: [0, 0, 18.1], operation: 'new', body_name: 'Lid', name: 'Lid' } },
+  {"command":"solid.box","params":{"length":40,"width":30,"height":18,"operation":"new","body_name":"Case","name":"Case"}},
+  {"command":"solid.fillet","params":{"edges":[[0,0,9],[40,0,9],[0,30,9],[40,30,9]],"radius":4,"body":"Case","name":"Case corners"}},
+  {"command":"solid.shell","params":{"faces":["F1:+z"],"thickness":2,"body":"Case","name":"Hollow"}},
+  {"command":"solid.chamfer","params":{"edges":[[20,0,0]],"distance":0.6,"body":"Case","name":"Bed chamfer"}},
+  {"command":"solid.cylinder","params":{"diameter":12,"height":4,"base":[20,-1,18],"axis":"Y","operation":"cut","targets":["Case"],"name":"Finger notch"}},
+  {"command":"solid.box","params":{"length":40,"width":30,"height":2,"corner":[0,0,18.1],"operation":"new","body_name":"Lid","name":"Lid"}},
+  {"command":"solid.fillet","params":{"edges":[[0,0,19.1],[40,0,19.1],[0,30,19.1],[40,30,19.1]],"radius":4,"body":"Lid","name":"Lid corners"}},
+  {"command":"solid.fillet","params":{"edges":[[20,0,20.1]],"radius":0.8,"body":"Lid","name":"Lid edge"}},
 ];
 
 const HOUSING_ROUND = [
@@ -37,7 +51,7 @@ const HOUSING_ROUND = [
   {
     header: 'Openings',
     question: 'Which openings does the housing need?',
-    options: [{ label: 'USB-C', recommended: true }, { label: 'Vent slots', recommended: true }, { label: 'LED window' }],
+    options: [{ label: 'USB-C', recommended: true }, { label: 'LED window', recommended: true }, { label: 'Button' }],
     multiSelect: true,
   },
 ];
@@ -137,7 +151,7 @@ if (args[0] === '--version') {
       for (const step of CABLE_CLIP) await client?.callTool({ name: 'execute', arguments: step });
       await client?.close();
       say(
-        'The cable clip is built: a **64 × 32 mm** base plate with two countersunk holes for M3 screws and a snap clip for a **12 mm** cable.\n\n' +
+        'The cable clip is built: a **64 × 32 mm** base plate with two countersunk holes for M3 screws and a snap clip for a **12 mm** cable, its size engraved beside it.\n\n' +
           'Plate size, cable diameter and snap opening are favourite parameters with their ranges, so you can change them with the sliders.',
       );
     } else if (said === 'Build a case and a lid') {
