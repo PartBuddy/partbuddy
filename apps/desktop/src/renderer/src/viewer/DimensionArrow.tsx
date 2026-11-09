@@ -39,7 +39,7 @@ export function LogoArrows() {
 function DragArrow({ handle, label, testId }: { handle: DraggedDimension; label: string; testId: string }) {
   const { camera, size } = useThree();
   const icon = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ x: number; y: number; step: { x: number; y: number }; value: number | null } | null>(null);
+  const drag = useRef<{ x: number; y: number; step: { x: number; y: number }; base: number; value: number | null } | null>(null);
 
   // Where 1 mm along the arrow lands on screen, from its foot.
   const step = () => {
@@ -64,12 +64,13 @@ function DragArrow({ handle, label, testId }: { handle: DraggedDimension; label:
         onPointerDown={(event) => {
           event.stopPropagation();
           event.currentTarget.setPointerCapture(event.pointerId);
-          drag.current = { x: event.clientX, y: event.clientY, step: step(), value: null };
+          // The value at the press: dragging adds to it, also while the panel already shows the moved value.
+          drag.current = { x: event.clientX, y: event.clientY, step: step(), base: handle.value, value: null };
         }}
         onPointerMove={(event) => {
           const start = drag.current;
           if (!start) return;
-          const value = draggedValue(handle.value, handle, start.step, { x: event.clientX - start.x, y: event.clientY - start.y }, event.altKey);
+          const value = draggedValue(start.base, handle, start.step, { x: event.clientX - start.x, y: event.clientY - start.y }, event.altKey);
           if (value === null || value === start.value) return;
           start.value = value;
           handle.onDrag(value, false);

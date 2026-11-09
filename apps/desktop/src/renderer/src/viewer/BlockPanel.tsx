@@ -13,11 +13,10 @@ import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
 import { Tip } from '../ui/Tooltip';
 import { parseLength } from './lengthInput';
+import { useLivePreview } from './livePreview';
 import { inputClass, fieldLabelClass, UnitInput } from '../ui/Field';
 import { buttonClass } from '../ui/Button';
 import { CheckMark, choiceInlineClass, chipToggleClass, SelectField as Choice } from '../ui/Choice';
-
-const PREVIEW_DELAY_MS = 300;
 
 function Length({ label, value, onChange, testId }: { label: string; value: number; onChange: (value: number) => void; testId: string }) {
   const { t, i18n } = useTranslation();
@@ -147,7 +146,6 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   // SolidCraft's answer for a block; only the answer for the block as it is now counts (a moved one is tried anew).
   const [status, setStatus] = useState<{ ok: boolean; error?: string; block?: FeatureBlock } | null>(null);
   const [fileProblem, setFileProblem] = useState<DrawingProblem | 'unreadable' | null>(null);
-  const latest = useRef(0);
   const at = face ? `${face.body}\u0000${face.point.join(',')}\u0000${face.normal.join(',')}` : null;
   // The face's frame, and where the block sits from the face's middle: at first where it was clicked.
   const pick = picks[0];
@@ -232,25 +230,15 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   // A logo waits for its file.
   const waiting = block?.block === 'logo' && !block.svg;
 
-  useEffect(() => {
-    if (!open || !block || busy || waiting) return;
-    const id = ++latest.current;
-    const timer = setTimeout(() => {
-      void platform()
-        .design.previewBlock(block)
-        .then((result) => {
-          if (latest.current !== id) return;
-          setStatus(result.ok ? { ok: true, block } : { ok: false, error: result.error, block });
-          onGhost(result.ok ? result.preview : null);
-        })
-        .catch(() => {
-          if (latest.current === id) onGhost(null);
-        });
-    }, PREVIEW_DELAY_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [open, block, busy, waiting, onGhost]);
+  // The ghost keeps up while the block is dragged or its values are typed.
+  useLivePreview(
+    open && block && !busy && !waiting ? block : null,
+    (tried) => platform().design.previewBlock(tried),
+    (tried, result) => {
+      setStatus(result.ok ? { ok: true, block: tried } : { ok: false, error: result.error, block: tried });
+      onGhost(result.ok ? result.preview : null);
+    },
+  );
 
   const tried = status && (!status.block || status.block === block) ? status : null;
   if (!face || !block) return null;

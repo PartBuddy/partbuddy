@@ -1718,7 +1718,7 @@ test('a snap fit stands out of a face, its catch across the arm, with its strain
 });
 
 test('a logo from an SVG file is engraved and built up at a face, a ring keeping its hole, also through the form (F1)', async () => {
-  test.setTimeout(240_000);
+  test.setTimeout(360_000);
   const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
@@ -1786,11 +1786,31 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
     // Centred, so the row stays on the face; the clicked spot comes back for the logo (the middle holds a ring).
     const picked = [await page.getByTestId('block-x').getByRole('textbox').inputValue(), await page.getByTestId('block-y').getByRole('textbox').inputValue()];
     await page.getByTestId('block-centre-both').click();
+    // Dragged out and back to where it was pressed, the arrow lands on its start value: no run-away while the panel follows.
+    {
+      // Centred first, so the arrow sits still and the start is a whole mm the drag grid can come back to.
+      const field = page.getByTestId('block-y').getByRole('textbox');
+      await expect(field).toHaveValue('0');
+      const start = '0';
+      const handle = page.getByTestId('block-arrow-y');
+      const turn = Number(/rotate\((-?[\d.e-]+)rad\)/.exec((await handle.locator('div').first().getAttribute('style')) ?? '')?.[1] ?? 0);
+      await handle.hover();
+      const arrow = await handle.boundingBox();
+      if (!arrow) throw new Error('arrow not visible');
+      const [x, y] = [arrow.x + arrow.width / 2, arrow.y + arrow.height / 2];
+      await page.mouse.down();
+      for (let i = 1; i <= 8; i++) await page.mouse.move(x + Math.cos(turn) * 8 * i, y + Math.sin(turn) * 8 * i, { steps: 2 });
+      await expect(field).not.toHaveValue(start);
+      for (let i = 7; i >= 0; i--) await page.mouse.move(x + Math.cos(turn) * 8 * i, y + Math.sin(turn) * 8 * i, { steps: 2 });
+      await page.mouse.up();
+      await expect(field).toHaveValue(start);
+    }
     await page.getByTestId('block-count-x').getByRole('textbox').fill('3');
     await page.getByTestId('block-count-x').getByRole('textbox').press('Tab');
     await page.getByTestId('block-pitch-x').getByRole('textbox').fill('5');
     await page.getByTestId('block-pitch-x').getByRole('textbox').press('Tab');
-    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    // The middle holds the ring built before: a preview through it takes SolidCraft up to half a minute, twice when the count and spacing come one after the other.
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 90_000 });
     await page.screenshot({ path: test.info().outputPath('block-form-row.png') });
     await page.getByTestId('block-x').getByRole('textbox').fill(picked[0] ?? '0');
     await page.getByTestId('block-y').getByRole('textbox').fill(picked[1] ?? '0');
