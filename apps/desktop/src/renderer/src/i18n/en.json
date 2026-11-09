@@ -1257,6 +1257,11 @@
   },
   "blocks": {
     "more": "More …",
+    "row": "Row",
+    "countAcross": "Count across",
+    "countUp": "Count up",
+    "pitchAcross": "Spacing across",
+    "pitchUp": "Spacing up",
     "position": "Position from the face middle",
     "dragAcross": "Drag moves the block across (Alt: tenths)",
     "dragUp": "Drag moves the block up (Alt: tenths)",

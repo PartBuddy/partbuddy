@@ -765,12 +765,14 @@ export const printFacesSchema = z.record(bodyName, z.string().max(300));
 /** A function block at a picked flat face (F1); `shared/blocks.ts` turns it into SolidCraft's command. */
 const blockSize = z.enum(['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10']);
 const blockLength = finite.positive().max(500);
+/** Further points of a row of the same hole (the first is `point`). */
+const morePoints = z.array(point3).max(99).optional();
 export const featureBlockSchema = z.discriminatedUnion('block', [
-  z.object({ block: z.literal('tappedHole'), body: bodyName, point: point3, size: blockSize, depth: blockLength.nullable(), modeled: z.boolean() }).strict(),
+  z.object({ block: z.literal('tappedHole'), body: bodyName, point: point3, size: blockSize, depth: blockLength.nullable(), modeled: z.boolean(), more: morePoints }).strict(),
   z
-    .object({ block: z.literal('screwHole'), body: bodyName, point: point3, size: blockSize, head: z.enum(['none', 'cap', 'countersunk']), fit: z.enum(['close', 'normal', 'loose']) })
+    .object({ block: z.literal('screwHole'), body: bodyName, point: point3, size: blockSize, head: z.enum(['none', 'cap', 'countersunk']), fit: z.enum(['close', 'normal', 'loose']), more: morePoints })
     .strict(),
-  z.object({ block: z.literal('insertSeat'), body: bodyName, point: point3, size: blockSize, diameter: blockLength, depth: blockLength }).strict(),
+  z.object({ block: z.literal('insertSeat'), body: bodyName, point: point3, size: blockSize, diameter: blockLength, depth: blockLength, more: morePoints }).strict(),
   z.object({ block: z.literal('boss'), body: bodyName, point: point3, size: blockSize, diameter: blockLength, height: blockLength }).strict(),
   z
     .object({

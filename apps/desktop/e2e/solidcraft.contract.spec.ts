@@ -1546,7 +1546,7 @@ test('function blocks are previewed and built at a face: tapped hole, screw hole
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
     const top = (x: number, y: number) => ({ body: 'Body1', point: [x, y, 10] });
     const blocks = [
-      { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: true },
+      { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: true, more: [[5, 10, 10]] },
       { block: 'screwHole', ...top(15, 5), size: 'M3', head: 'countersunk', fit: 'normal' },
       { block: 'insertSeat', ...top(5, 15), size: 'M3', diameter: 4, depth: 6.7 },
       { block: 'boss', ...top(15, 15), size: 'M2', diameter: 7.2, height: 6 },
@@ -1780,6 +1780,22 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
       await page.getByTestId('block-tile-logo').click({ timeout: 1500 });
       await expect(page.getByTestId('block-form')).toBeVisible({ timeout: 1000 });
     }, 'a flat face of the box and its form').toPass({ timeout: 45_000, intervals: [500] });
+    // A row of screw holes: a count across brings its spacing, the row is tried as one.
+    await page.getByTestId('block-tile-screwHole').click();
+    await expect(page.getByTestId('block-pitch-x')).toHaveCount(0);
+    // Centred, so the row stays on the face; the clicked spot comes back for the logo (the middle holds a ring).
+    const picked = [await page.getByTestId('block-x').getByRole('textbox').inputValue(), await page.getByTestId('block-y').getByRole('textbox').inputValue()];
+    await page.getByTestId('block-centre-both').click();
+    await page.getByTestId('block-count-x').getByRole('textbox').fill('3');
+    await page.getByTestId('block-count-x').getByRole('textbox').press('Tab');
+    await page.getByTestId('block-pitch-x').getByRole('textbox').fill('5');
+    await page.getByTestId('block-pitch-x').getByRole('textbox').press('Tab');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    await page.screenshot({ path: test.info().outputPath('block-form-row.png') });
+    await page.getByTestId('block-x').getByRole('textbox').fill(picked[0] ?? '0');
+    await page.getByTestId('block-y').getByRole('textbox').fill(picked[1] ?? '0');
+    await page.getByTestId('block-y').getByRole('textbox').press('Tab');
+    await page.getByTestId('block-tile-logo').click();
     // A way back: Cancel and Esc close the form, the face stays picked, the tile opens it again.
     await page.getByTestId('block-cancel').click();
     await expect(page.getByTestId('block-form')).toHaveCount(0);
