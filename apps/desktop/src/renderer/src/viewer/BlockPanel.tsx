@@ -1,6 +1,6 @@
 import { IconDots, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle, IconNut, IconTypography, IconVectorBezier2 } from '@tabler/icons-react';
 import type { TFunction } from 'i18next';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, CheckboxButton, CheckboxField, FileTrigger, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
 
