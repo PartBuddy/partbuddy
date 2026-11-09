@@ -847,6 +847,17 @@ function read(text: string): Drawing {
 // Output.
 
 /** The drawing's size in its units. */
+/** The drawing with only these fills (a white background square left out, say), its box shrunk to them. */
+export function withFills(drawing: Drawing, fills: readonly string[]): Drawing {
+  const shapes = drawing.shapes.filter((shape) => fills.includes(shape.fill));
+  const rough = Math.max(drawing.bounds.maxX - drawing.bounds.minX, drawing.bounds.maxY - drawing.bounds.minY) || 1;
+  const points = shapes.flatMap((shape) => shape.loops.flatMap((loop) => flatten(loop, rough * 1e-5)));
+  if (points.length === 0) return { ...drawing, shapes };
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  return { ...drawing, shapes, bounds: { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) } };
+}
+
 export const drawingSize = (drawing: Drawing) => ({ width: drawing.bounds.maxX - drawing.bounds.minX, height: drawing.bounds.maxY - drawing.bounds.minY });
 
 /** The width the drawing has from its file: its physical size, else null. */

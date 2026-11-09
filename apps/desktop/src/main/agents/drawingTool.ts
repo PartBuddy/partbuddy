@@ -1,5 +1,5 @@
-import { drawingColours, drawingFacts, drawingSvg, mergedColours, type Drawing } from '../../shared/svgDrawing';
-import { LOGO_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
+import { drawingColours, drawingFacts, drawingSvg, mergedColours, withFills, type Drawing } from '../../shared/svgDrawing';
+import { LOGO_PREFIX, logoBase, uniqueLogoName } from '../../shared/drawingPlacement';
 import { colourLayers, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
 import { planLogoMove, type Run } from '../solidcraft/logoMove';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -12,23 +12,24 @@ const vector = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems
 const placeTool: UpstreamTool = {
   name: PLACE_DRAWING_TOOL,
   description:
-    'Put an attached SVG drawing on a face as a logo: engraved (deboss) or built up (emboss), optionally a body per colour for multi-colour printing, ' +
-    'and centred on the face. PartBuddy builds it like its logo block, in one step; the sketch is named "SVG-Logo <file name>".',
+    'Build an attached SVG drawing: on a face as a logo, engraved (deboss) or built up (emboss), or as a part of its own (part: a pendant, a sign, a badge), ' +
+    'optionally a body per colour for multi-colour printing. PartBuddy builds it in one step and the user can then move, turn and resize it; the sketch is named "SVG-Logo <file name>".',
   inputSchema: {
     type: 'object',
     properties: {
       drawing: { type: 'string', description: 'The drawing id, e.g. "svg-1".' },
-      body: { type: 'string', description: 'The body it goes on (or into).' },
-      point: { ...vector, description: "A point on the face in mm: the logo's middle." },
-      normal: { ...vector, description: 'The outward normal of the face there.' },
-      mode: { type: 'string', enum: ['deboss', 'emboss'], description: 'deboss: into the face (in colours: an inlay flush with the face); emboss: standing on it.' },
-      depth: { type: 'number', exclusiveMinimum: 0, maximum: 50, description: 'How deep or high, in mm.' },
+      body: { type: 'string', description: 'The body it goes on (or into); not for part.' },
+      point: { ...vector, description: "A point on the face in mm: the logo's middle. For part where its middle goes, default the origin." },
+      normal: { ...vector, description: 'The outward normal of the face there. For part the way it stands up, default +Z (lying on the bed).' },
+      mode: { type: 'string', enum: ['deboss', 'emboss', 'part'], description: 'deboss: into the face (in colours: an inlay flush with the face); emboss: standing on it; part: a body of its own.' },
+      depth: { type: 'number', exclusiveMinimum: 0, maximum: 50, description: 'How deep or high (for part: how thick), in mm.' },
+      fills: { type: 'array', items: { type: 'string', pattern: '^#[0-9a-f]{6}$' }, minItems: 1, description: 'Only these fills, e.g. leave out a white background square; default all.' },
       width: { type: 'number', exclusiveMinimum: 0, maximum: 1000, description: 'Width in mm, aspect kept; default the width the user chose.' },
       colours: { type: 'boolean', description: 'A body per colour, each coloured like its fill (only for a drawing with several fills).' },
       colours_max: { type: 'integer', minimum: 2, maximum: 16, description: "With colours: at most this many (the printer's filaments); the nearest colours merge, the larger area keeping its colour." },
       centre: { type: 'string', enum: ['x', 'y', 'both'], description: 'Then centre it on the face along its x, y or both.' },
     },
-    required: ['drawing', 'body', 'point', 'normal', 'mode', 'depth'],
+    required: ['drawing', 'mode', 'depth'],
     additionalProperties: false,
   },
 };
@@ -115,7 +116,9 @@ export function drawingNote(id: string, kept: KeptDrawing, skipped: Drawing['ski
     ` As a logo on a face (engraved, built up, in colours, centred), place it with \`${PLACE_DRAWING_TOOL}\` {drawing: "${id}", body, point, normal, mode, depth` +
     (facts.colours.length > 1 ? ', colours: true for a body per fill' + (facts.colours.length > 2 ? ', colours_max for fewer filaments' : '') : '') +
     `, centre}: PartBuddy builds it exactly; \`${MOVE_DRAWING_TOOL}\` moves it afterwards. ` +
-    `Only for other uses (an outline to extrude, a cut-out through the part) put it into a sketch with \`sketch.insert_svg\` {text: "drawing:${id}", width: ${mm(facts.width)}, align: "center", at: [x, y]}: ` +
+    `As a part of its own (a pendant, a sign, the drawing extruded) use mode "part" {drawing: "${id}", mode: "part", depth}, never a sketch of your own, so the user can move, turn and resize it. ` +
+    'fills: [...] builds only some fills; a white or light fill behind the whole drawing is usually background to leave out. ' +
+    `Only for other uses (a cut-out through the part, a profile to revolve or sweep) put it into a sketch with \`sketch.insert_svg\` {text: "drawing:${id}", width: ${mm(facts.width)}, align: "center", at: [x, y]}: ` +
     'PartBuddy replaces that text with the exact contours, so never type, trace or redraw the paths. Build that with `solid.extrude` (a loop inside a hole stays material, as drawn); ' +
     '`solid.emboss` without `profiles` would fill the holes. ' +
     'Ask with a clarification card where it goes and how deep, if the message does not say.]'
@@ -174,19 +177,29 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
   const body = typeof args.body === 'string' ? args.body.trim() : '';
   const point = vec3(args.point);
   const normal = vec3(args.normal);
-  const mode = args.mode === 'emboss' || args.mode === 'deboss' ? args.mode : null;
+  const mode = args.mode === 'emboss' || args.mode === 'deboss' || args.mode === 'part' ? args.mode : null;
+  const part = mode === 'part';
   const depth = typeof args.depth === 'number' && args.depth > 0 && args.depth <= 50 ? args.depth : null;
   const width = args.width === undefined ? kept.width : typeof args.width === 'number' && args.width > 0 && args.width <= 1000 ? args.width : null;
   const centre = args.centre === 'x' || args.centre === 'y' || args.centre === 'both' ? args.centre : null;
-  if (!body || !point || !normal || Math.hypot(...normal) < 1e-9) throw new Error('body, point and normal (not zero) are needed');
-  if (!mode || !depth || !width) throw new Error('mode must be deboss or emboss, depth 0–50 mm, width 0–1000 mm');
+  if (!part && (!body || !point || !normal)) throw new Error('body, point and normal are needed on a face; for a part of its own use mode part');
+  if (normal && Math.hypot(...normal) < 1e-9) throw new Error('the normal must not be zero');
+  if (!mode || !depth || !width) throw new Error('mode must be deboss, emboss or part, depth 0–50 mm, width 0–1000 mm');
+  if (part && args.centre !== undefined) throw new Error('a part of its own has no face to centre on');
+  const fills = Array.isArray(args.fills) ? args.fills.filter((fill): fill is string => typeof fill === 'string').map((fill) => fill.toLowerCase()) : null;
+  const colours = drawingColours(kept.drawing);
+  const unknown = (fills ?? []).filter((fill) => !colours.includes(fill));
+  if (unknown.length > 0 || (fills && fills.length === 0)) throw new Error(`the drawing's fills are ${colours.join(', ')}`);
+  const drawing = fills ? withFills(kept.drawing, fills) : kept.drawing;
   if (args.centre !== undefined && !centre) throw new Error('centre must be x, y or both');
   const most = Number.isInteger(args.colours_max) && (args.colours_max as number) >= 2 && (args.colours_max as number) <= 16 ? (args.colours_max as number) : null;
   if (args.colours_max !== undefined && most === null) throw new Error('colours_max must be a whole number 2–16');
-  const block: Extract<FeatureBlock, { block: 'logo' }> = { block: 'logo', body, point, normal, size: 'M3', name: kept.name, svg: drawingSvg(most ? mergedColours(kept.drawing, most) : kept.drawing, width), width, depth, mode, colours: args.colours === true };
+  // A part of its own is built like a logo standing on the plane, but as a new body.
+  const block: Extract<FeatureBlock, { block: 'logo' }> = { block: 'logo', body: part ? '' : body, point: point ?? [0, 0, 0], normal: normal ?? [0, 0, 1], size: 'M3', name: kept.name, svg: drawingSvg(most ? mergedColours(drawing, most) : drawing, width), width, depth, mode: part ? 'emboss' : mode, colours: args.colours === true };
   const sketches = (jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { sketches?: { name?: unknown }[] }).sketches ?? [];
   const sketch = uniqueLogoName(kept.name, sketches.flatMap((entry) => (typeof entry.name === 'string' ? [entry.name] : [])));
-  const reply = jsonOf(await upstream.callTool('batch', { commands: stepsOf(block, sketch) }, callId)) as { failed?: { error?: unknown } };
+  const steps = stepsOf(block, sketch).map((step) => (part && step.command === 'solid.extrude' && step.params.operation === 'join' ? { ...step, params: { ...step.params, operation: 'new', body_name: logoBase(kept.name) } } : step));
+  const reply = jsonOf(await upstream.callTool('batch', { commands: steps }, callId)) as { failed?: { error?: unknown } };
   if (reply.failed) throw new Error(`SolidCraft refused it: ${String(reply.failed.error)}`);
   const layers = colourLayers(block);
   if (layers.length > 0) {
@@ -194,8 +207,8 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
     const recolour = splitPieceSteps(layers, jsonOf(await upstream.callTool('inspect_design', {}, callId)));
     if (recolour.length > 0) jsonOf(await upstream.callTool('batch', { commands: recolour }, callId));
   }
-  const how = `${mode === 'deboss' ? (layers.length > 0 ? 'inlaid' : 'engraved') : 'built up'} ${String(depth)} mm, ${String(width)} mm wide` + (layers.length > 0 ? `, ${String(layers.length)} colour bodies` : '');
-  const placed = `Placed "${sketch}" on ${body} (${how}).`;
+  const how = `${part ? 'a part of its own' : mode === 'deboss' ? (layers.length > 0 ? 'inlaid' : 'engraved') : 'built up'} ${String(depth)} mm, ${String(width)} mm wide` + (layers.length > 0 ? `, ${String(layers.length)} colour bodies` : '');
+  const placed = part ? `Built "${sketch}" (${how}).` : `Placed "${sketch}" on ${body} (${how}).`;
   return centre ? `${placed} ${await moveDrawing(upstream, { logo: sketch, centre }, callId)}` : placed;
 }
 
