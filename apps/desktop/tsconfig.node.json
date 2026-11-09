@@ -14,5 +14,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src/main", "src/preload", "src/shared", "test", "e2e", "electron.vite.config.ts", "vitest.config.mts", "playwright.config.ts"]
+  "include": ["src/main", "src/preload", "src/shared", "test", "e2e", "electron.vite.config.ts", "vitest.config.mts", "playwright.config.ts"],
+  "exclude": ["e2e/audit*.ts"]
 }

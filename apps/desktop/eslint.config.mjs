@@ -11,7 +11,7 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         // Two programs: Node (main, preload, tests) and DOM (renderer); shared code is in both.
-        project: ['./tsconfig.node.json', './tsconfig.web.json'],
+        project: ['./tsconfig.node.json', './tsconfig.web.json', './tsconfig.audit.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
