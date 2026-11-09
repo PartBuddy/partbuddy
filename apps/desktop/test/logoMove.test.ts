@@ -30,7 +30,7 @@ function engine(): { run: Run; seen: string[] } {
       case 'parameters.list':
         return { parameters: [{ name: 'd5', expression: '-0.6 mm', value: -0.6 }, { name: 'd6', expression: '2 mm', value: 2 }] };
       case 'sketch.inspect':
-        return { id: params.sketch, name: 'Logo Badge', plane, curves: [{ id: 'c1', type: 'circle', center_at: [0, 0], radius: 4 }] };
+        return { id: params.sketch, name: 'Logo Badge', plane, curves: [{ id: 'c1', type: 'circle', center_at: [0, 0], radius: 4 }], points: [{ id: 'origin', fixed: true, at: [0, 0] }] };
       case 'model.faces':
         return params.body === 'Box' ? { faces: [{ name: 'F1:+z', plane_normal: [0, 0, 1], point: [30, 30, 10] }] } : { faces: [] };
       case 'model.edges':
@@ -64,20 +64,20 @@ describe('moving a placed logo', () => {
 
   it('plans centring and an exact move as one redefine per sketch, with the bodies for the ghost', async () => {
     const { run } = engine();
-    const move = await planLogoMove(run, 'Badge', [0, 2], 'x');
+    const move = await planLogoMove(run, 'Badge', { by: [0, 2], centre: 'x' });
     expect(move.by).toEqual([6, 2]);
     expect(move.origin).toEqual([20, 22, 10]);
     expect(move.steps).toEqual([{ command: 'sketch.redefine', params: { sketch: 3, plane: { ...plane, origin: [20, 22, 10] } } }]);
     expect(move.face).toBe('F1:+z of Box');
     expect(move.bodies.sort()).toEqual(['Badge 1d71b8 1', 'Box']);
-    await expect(planLogoMove(run, 'Nothing', [1, 0], null)).rejects.toThrow('placed logos: Logo Badge');
+    await expect(planLogoMove(run, 'Nothing', { by: [1, 0] })).rejects.toThrow('placed logos: Logo Badge');
     // Only the depth: the logo's own extrusion, cut in as before; the other sketch's stays.
-    expect((await planLogoMove(run, 'Logo Badge', null, null, 1.2)).steps).toEqual([{ command: 'parameters.change', params: { name: 'd5', expression: '-1.2 mm' } }]);
+    expect((await planLogoMove(run, 'Logo Badge', { depth: 1.2 })).steps).toEqual([{ command: 'parameters.change', params: { name: 'd5', expression: '-1.2 mm' } }]);
   });
 
   it('turns a logo about its middle and reads its turn back from the plane', async () => {
     const { run } = engine();
-    const move = await planLogoMove(run, 'Badge', null, null, null, 90);
+    const move = await planLogoMove(run, 'Badge', { rotate: 90 });
     // A quarter left looking down on the top face: x runs along +y, y along −x; the middle stays.
     expect(move.steps).toEqual([{ command: 'sketch.redefine', params: { sketch: 3, plane: { origin: [14, 20, 10], x_dir: [0, 1, 0], y_dir: [-1, 0, 0] } } }]);
     expect(move.angle).toBe(90);
@@ -90,6 +90,19 @@ describe('moving a placed logo', () => {
     expect(turned.x_dir[1]).toBe(0);
     expect(turned.y_dir[1]).toBe(0);
     expect((await logoAt(run, [16, 21, 9.4]))?.angle).toBe(0);
+  });
+
+  it('scales a logo about its middle to a new width, its fixed origin left out', async () => {
+    const { run } = engine();
+    // The circle is 8 mm across; 12 mm is 1.5 times that (within the tessellation).
+    const move = await planLogoMove(run, 'Badge', { width: 12 });
+    expect(move.steps.map((step) => step.command)).toEqual(['sketch.edit', 'sketch.transform', 'sketch.finish']);
+    const transform = move.steps[1]?.params as { entities: string[]; factor: number; center: number[] };
+    expect(transform.entities).toEqual(['c1']);
+    expect(transform.center).toEqual([0, 0]);
+    expect(transform.factor).toBeCloseTo(1.5, 2);
+    // Scaled first, then moved: the move keeps its own steps after the scaling.
+    expect((await planLogoMove(run, 'Badge', { width: 12, by: [1, 0] })).steps.map((step) => step.command)).toEqual(['sketch.edit', 'sketch.transform', 'sketch.finish', 'sketch.redefine']);
   });
 
   it('lets a logo arrow go below zero', () => {

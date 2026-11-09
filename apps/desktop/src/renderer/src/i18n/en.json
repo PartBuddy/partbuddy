@@ -513,7 +513,7 @@
   },
   "logoMove": {
     "title": "Logo “{name}”",
-    "hint": "Distance of the logo's middle from the face's middle, its turn and its depth. A change shows a preview; the arrows on the part change it directly.",
+    "hint": "Distance of the logo's middle from the face's middle, its width, turn and depth. A change shows a preview; the arrows on the part change it directly.",
     "hintNoFace": "Moves the logo by the given millimetres. The arrows on the part change it directly.",
     "across": "Across",
     "up": "Up",
@@ -521,6 +521,7 @@
     "depth": "Depth",
     "height": "Height",
     "angle": "Turn",
+    "width": "Width",
     "turnLeft": "Turn 90° to the left",
     "turnRight": "Turn 90° to the right",
     "dragDepth": "Drag to change the depth (Alt: tenths); let go to apply",

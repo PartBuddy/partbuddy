@@ -14,6 +14,8 @@ const PREVIEW_DELAY_MS = 250;
 
 const round = (value: number) => Math.round(value * 1000) / 1000 || 0;
 /** An angle as the shortest turn, −180 to 180 degrees. */
+/** The drawing's width as the dock shows it, to a hundredth of a mm. */
+const widthOf = (spot: LogoSpot) => Math.round((spot.box[2] - spot.box[0]) * 100) / 100;
 const shortest = (degrees: number) => round(((((degrees + 180) % 360) + 360) % 360) - 180);
 
 /**
@@ -33,6 +35,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
   const [value, setValue] = useState<[number, number]>([0, 0]);
   const [depth, setDepth] = useState<number | null>(null);
   const [angle, setAngle] = useState(0);
+  const [wide, setWide] = useState(0);
   const shown = useRef(false);
 
   useEffect(() => {
@@ -46,6 +49,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
         if (found) setValue(found.offset ?? [0, 0]);
         setDepth(found?.depth?.value ?? null);
         setAngle(found?.angle ?? 0);
+        setWide(found ? widthOf(found) : 0);
       })
       .catch(() => undefined);
     return () => {
@@ -58,8 +62,9 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
   const moved = by[0] !== 0 || by[1] !== 0;
   const deeper = depth !== null && spot?.depth != null && depth > 0 && Math.abs(depth - spot.depth.value) > 1e-6;
   const turn = shortest(angle - (spot?.angle ?? 0));
-  const changed = moved || deeper || turn !== 0;
-  const request = (): Omit<LogoMoveRequest, 'logo'> => ({ by: moved ? by : null, centre: null, depth: deeper ? depth : null, rotate: turn !== 0 ? turn : null });
+  const resized = spot !== null && wide > 0 && Math.abs(wide - widthOf(spot)) > 0.005;
+  const changed = moved || deeper || turn !== 0 || resized;
+  const request = (): Omit<LogoMoveRequest, 'logo'> => ({ by: moved ? by : null, centre: null, depth: deeper ? depth : null, rotate: turn !== 0 ? turn : null, width: resized ? wide : null });
 
   const move = (request: Omit<LogoMoveRequest, 'logo'>) => {
     if (!spot || busy) return;
@@ -95,7 +100,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
     };
     // The request is derived from value, depth and spot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spot, busy, value[0], value[1], depth, angle]);
+  }, [spot, busy, value[0], value[1], depth, angle, wide]);
 
   // The arrows on the part: across and up.
   useEffect(() => {
@@ -190,10 +195,25 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
           </NumberField>
         ) : null}
         <NumberField
+          value={wide}
+          maxValue={1000}
+          step={0.1}
+          isDisabled={busy}
+          formatOptions={{ maximumFractionDigits: 2 }}
+          onChange={(next) => {
+            if (Number.isFinite(next) && next > 0) setWide(next);
+          }}
+          className="flex w-field-dock flex-col gap-1"
+          data-testid="logo-width"
+        >
+          <Label className={fieldLabelClass}>{t('logoMove.width')}</Label>
+          <UnitInput unit={t('units.mmShort')} />
+        </NumberField>
+        <NumberField
           value={angle}
           minValue={-360}
           maxValue={360}
-          step={15}
+          step={1}
           isDisabled={busy}
           formatOptions={{ maximumFractionDigits: 2 }}
           onChange={(next) => {
