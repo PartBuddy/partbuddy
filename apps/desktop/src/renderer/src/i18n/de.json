@@ -582,7 +582,16 @@
     "actionRefused": "SolidCraft kann das so nicht bauen: {detail}",
     "distance": "Abstand {value} mm",
     "angle": "Winkel {value}°",
-    "approximate": "Aus der Ansicht gelesen; das genaue Maß von SolidCraft folgt"
+    "approximate": "Aus der Ansicht gelesen; das genaue Maß von SolidCraft folgt",
+    "firstHint": "Hier änderst du die Auswahl, fügst Bausteine wie Schraubenlöcher oder ein Logo hinzu oder sagst, was passieren soll. Halte die Maus über einen Knopf für eine kurze Erklärung.",
+    "firstHintOk": "Verstanden",
+    "actionHint": {
+      "fillet": "Rundet die gewählte Kante mit einem Radius ab",
+      "chamfer": "Schrägt die gewählte Kante ab",
+      "extrude": "Zieht die Fläche heraus; ein negativer Abstand schneidet hinein",
+      "hole": "Bohrt ein rundes Loch in die Fläche",
+      "shell": "Höhlt den Körper aus; die gewählte Fläche bleibt offen"
+    }
   },
   "structure": {
     "title": "Struktur",
@@ -1371,6 +1380,13 @@
     "logoColoursHint": {
       "deboss": "Die Farben liegen bündig in einer Tasche ihrer Form; jede Farbe ist ein eigener Körper für ihr Filament.",
       "emboss": "Die Farben stehen auf der Fläche; jede Farbe ist ein eigener Körper für ihr Filament."
+    },
+    "moreHint": "Weitere Bausteine: Gewindebohrung, Mutternfalle, Schraubdom, Langloch, Lippe oder Nut für Deckel, Schnapphaken",
+    "tileHints": {
+      "logo": "Setzt eine SVG-Grafik auf die Fläche, erhaben oder vertieft",
+      "text": "Schreibt Text auf die Fläche, erhaben oder vertieft",
+      "screwHole": "Loch für eine Schraube mit Platz für den Kopf, auch als Reihe",
+      "insertSeat": "Loch für eine Einschmelzmutter, auch als Reihe"
     }
   },
   "assembly": {

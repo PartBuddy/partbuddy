@@ -12,6 +12,7 @@ import { parseLength } from './lengthInput';
 import { edgePoints, lineDirection, localMeasure, type MeasurePick } from './measure';
 import { inputClass, fieldLabelClass } from '../ui/Field';
 import { chipToggleClass } from '../ui/Choice';
+import { Tip } from '../ui/Tooltip';
 
 /** Starting sizes in mm, typical for FDM parts. */
 const DEFAULT_SIZE: Record<ActionKind, number> = { fillet: 1, chamfer: 0.5, extrude: 5, hole: 3, shell: 1.6 };
@@ -111,15 +112,12 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
         className="flex flex-wrap gap-1"
       >
         {kinds.map((kind) => (
-          <ToggleButton
-            key={kind}
-            id={kind}
-            className={chipToggleClass}
-            data-testid={`action-${kind}`}
-          >
-            {ICONS[kind]}
-            {t(`hud.action.${kind}`)}
-          </ToggleButton>
+          <Tip key={kind} label={t(`hud.actionHint.${kind}`)}>
+            <ToggleButton id={kind} className={chipToggleClass} data-testid={`action-${kind}`}>
+              {ICONS[kind]}
+              {t(`hud.action.${kind}`)}
+            </ToggleButton>
+          </Tip>
         ))}
       </ToggleButtonGroup>
       {open ? (

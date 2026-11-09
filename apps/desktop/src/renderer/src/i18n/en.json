@@ -582,7 +582,16 @@
     "actionRefused": "SolidCraft cannot build it like this: {detail}",
     "distance": "Distance {value} mm",
     "angle": "Angle {value}°",
-    "approximate": "Read from the view; SolidCraft's exact measure follows"
+    "approximate": "Read from the view; SolidCraft's exact measure follows",
+    "firstHint": "Here you change the selection, add blocks such as screw holes or a logo, or say what should happen. Hover a button for a short explanation.",
+    "firstHintOk": "Got it",
+    "actionHint": {
+      "fillet": "Rounds the picked edge off with a radius",
+      "chamfer": "Bevels the picked edge",
+      "extrude": "Pulls the face out; a negative distance cuts in",
+      "hole": "Drills a round hole into the face",
+      "shell": "Hollows the body out; the picked face stays open"
+    }
   },
   "structure": {
     "title": "Structure",
@@ -1371,6 +1380,13 @@
     "logoColoursHint": {
       "deboss": "The colours lie flush in a pocket of their shape; each colour is its own body for its filament.",
       "emboss": "The colours stand on the face; each colour is its own body for its filament."
+    },
+    "moreHint": "More blocks: tapped hole, nut trap, screw boss, slot, lip or groove for a lid, snap fit",
+    "tileHints": {
+      "logo": "Puts an SVG drawing on the face, raised or engraved",
+      "text": "Writes text on the face, raised or engraved",
+      "screwHole": "A hole for a screw with room for its head, also as a row",
+      "insertSeat": "A hole for a heat-set insert, also as a row"
     }
   },
   "assembly": {
