@@ -270,3 +270,17 @@ App-Fehler nicht belegt und wird in Phase 2 von Hand geprüft.
 | A-12 | Parameter- und Vorlagennamen | In der deutschen Oberfläche stehen rohe englische Bezeichner: `insert_hole`, `screw_hole`, `insert_depth`, `length`. Die Vorlagen-Features heißen laut report.json „Corner radius“, „Vent front 1“, „Lid“. | de-narrow/tooltip-home-button-light.png, de-narrow/work-light.png, de-narrow/report.json (clipped: home-projects, tooltip-home-button) | Fusion „Change Parameters“: Name plus Spalte „Comment“, Favoriten oben | Vorlagen lokalisieren. Zu jedem Parameter einen lesbaren Anzeigenamen bzw. Kommentar führen und den Bezeichner nur als Zweitinformation zeigen. | M | Fehler |
 | A-01 | Oberflächengröße (90/110/125 %) | Bei 90 % und 125 % ist nichts abgeschnitten, und es bleibt kein weißer Rand. Dialog, Composer und Schließen-X passen ins Fenster. Bei 125 % und 960 px bleibt aber Folgendes: Der Projektname schrumpft auf „G“, „SolidCraft · Revision 3“ bricht zweizeilig um, die Werkzeugleiste wird zweispaltig hoch, und der Statusleisten-Hinweis ist abgeschnitten. Priorität jetzt Optik. Der Fenster-Scrollbalken in diesen Bildern kommt vom hängenden Drop-Overlay (siehe N-02). *(nachgeprüft an Runde 2)* | run2: dn/zoom-0.9-l, zoom-1.25-l, settings-general-l | VS Code: `window.zoomLevel` bricht das ganze Layout auf die neue Breite um | Die Interface-Größe als Zoom-Faktor des Fensters umsetzen, sodass das Layout auf die effektive Breite neu umbricht. Den Dialog auf max. `100vw − 32px` begrenzen. E2E-Prüfung bei 960×600 mit 125 %. | M | Optik |
 | A-29 | Statusleiste | Der Hinweistext wird bei 960 px abgeschnitten („…Mausrad zoo…“). „mm“ steht ohne erkennbare Funktion. Die obere Rahmenlinie ist auf der Startseite zwischen x≈315 und 648 unterbrochen. | de-narrow/work-light.png, home-no-match-light.png, home-scrolled-light.png | VS Code Statusbar: kurze Einträge, langer Text im Tooltip | Den Hinweis kürzen („Klicken wählt · Ziehen dreht · Rechts verschiebt“) und den Rest in den Tooltip. „mm“ als Knopf „Einheit: mm“ mit Menü. Die Linie als `border-top` der Leiste statt am Inhalt. | S | Optik |
+
+## Umsetzung Phase 2 (Stand 09.11.2026)
+
+| PR | Bereich | Offen geblieben (mit Grund) |
+|---|---|---|
+| #262 | Querschnitt | AX-07 Fehlalarm (Liste mit virtuellem Fokus aus dem Suchfeld); THREE.Clock-Warnung kommt aus R3F |
+| #263 | 3D-Ansicht und Dock | B-26 widerspricht der Viewport-Entscheidung vom 07.11. (kein Verlauf, kein Bodenschatten); B-22/M-12 Auswahlfarbe; B-05 Kamera-Schwenk in den freien Bereich; B-21 aufrechte Würfel-Beschriftung; B-23 |
+| #264 | Assistent | C-10 (Zeile „Arbeitet …“ vorhanden), C-17, C-19 dunkles Skizzenpapier |
+| #265 | Start und Projekte | A-17 Tag-Chips, A-18 Sortierrichtung, A-20 Kachel-Platzhalter, A-02 Standardname, A-26 Neustart-Hinweis Schritt 4 |
+| #266 | Einstellungen und Druck | A-37 nur im nicht installierten Build; N-01 Malfehler der Aufnahme (ein Element im DOM); A-23, N-05, A-33/34 Material-Layout |
+| #267 | Struktur, Zeitleiste, Notizen | N-09 ziehbare Seitenleiste, B-12 Isolieren/Löschen, B-11, B-03, B-32 |
+| #268 | Titelleiste, Menüs, Versionen | – |
+| #269 | Performance | P-01: Messfehler im Zähler (unveränderte Teilbäume mitgezählt), neu gemessen; P-02/P-07 SolidCraft-Neustart je Projekt (mit SolidCraft klären), P-06 Heap-Analyse |
+| #270 | Animation | M-12 Auswahl-Überblendung im Shader |

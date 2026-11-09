@@ -144,7 +144,7 @@ export function HomePage() {
   return (
     <section
       aria-labelledby="home-title"
-      className="absolute inset-0 z-5 overflow-y-auto bg-canvas"
+      className="absolute inset-0 z-5 animate-fade-in overflow-y-auto bg-canvas"
       data-testid="home-page"
     >
       <div className="mx-auto flex max-w-[100rem] flex-col gap-5 px-6 pb-6">

@@ -76,7 +76,7 @@ export function FileDrop() {
 
   if (!dragging || overChat) return null;
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 flex items-center justify-center bg-overlay p-4" data-testid="file-drop">
+    <div className="pointer-events-none fixed inset-0 z-20 flex animate-fade-in items-center justify-center bg-overlay p-4" data-testid="file-drop">
       <div className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-accent bg-surface-raised px-6 py-5 text-center shadow-3">
         <IconFileImport className="size-control-sm text-accent" aria-hidden />
         <p className="text-md font-semibold text-text">{t(homeOpen ? 'project.dropAsProject' : 'project.dropIntoDesign')}</p>

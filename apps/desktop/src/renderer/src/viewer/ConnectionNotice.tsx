@@ -42,7 +42,7 @@ export function ConnectionNotice() {
   const card = (title: string, body: string | null, actions: ReactNode) => (
     <div
       role="status"
-      className="pointer-events-auto flex max-w-text-max flex-col gap-2 rounded-lg border border-border bg-surface-raised p-3 shadow-2"
+      className="pointer-events-auto flex max-w-text-max animate-fade-in flex-col gap-2 rounded-lg border border-border bg-surface-raised p-3 shadow-2"
     >
       <p className="text-md font-semibold text-text">{title}</p>
       {body ? <p className="text-sm text-text-muted">{body}</p> : null}
