@@ -66,7 +66,7 @@ export type FeatureBlock =
   | { block: 'insertSeat'; body: string; point: [number, number, number]; size: BlockSize; diameter: number; depth: number; more?: Point[] | undefined }
   | { block: 'boss'; body: string; point: [number, number, number]; size: BlockSize; diameter: number; height: number }
   /** Text embossed onto or engraved into the face, centred on the point. */
-  | { block: 'text'; body: string; point: Point; normal: Point; size: BlockSize; text: string; height: number; depth: number; mode: 'emboss' | 'deboss'; bold: boolean }
+  | { block: 'text'; body: string; point: Point; normal: Point; size: BlockSize; text: string; height: number; depth: number; mode: 'emboss' | 'deboss'; bold: boolean; /** An installed font family; none is SolidCraft's built-in Liberation Sans. */ font?: string | undefined }
   /** A hexagonal pocket for a nut with a clearance hole through the rest. */
   | { block: 'nutTrap'; body: string; point: Point; normal: Point; size: BlockSize; flats: number; depth: number }
   /** A slot for a screw, across or along the face, through or to a depth. */
@@ -195,7 +195,7 @@ export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
       return [
         { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
         // SolidCraft's built-in font has no bold face; Arial comes with every Windows.
-        { command: 'sketch.text', params: { text: block.text, at: [0, round(-block.height / 2)], height: block.height, align: 'center', ...(block.bold ? { font: BOLD_FONT, bold: true } : {}) } },
+        { command: 'sketch.text', params: { text: block.text, at: [0, round(-block.height / 2)], height: block.height, align: 'center', ...textFont(block) } },
         { command: 'solid.emboss', params: { depth: mm(block.depth), mode: block.mode, face: block.point } },
       ];
     case 'nutTrap': {
@@ -248,6 +248,12 @@ export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
       // A row of holes: the same hole at each further point.
       return [block.point, ...('more' in block ? (block.more ?? []) : [])].map((point) => stepOf({ ...block, point }));
   }
+}
+
+/** The font of a text: the chosen family, or Arial for bold since the built-in font has no bold face. */
+function textFont(block: { bold: boolean; font?: string | undefined }): { font?: string; bold?: boolean } {
+  const font = block.font ?? (block.bold ? BOLD_FONT : undefined);
+  return { ...(font ? { font } : {}), ...(block.bold ? { bold: true } : {}) };
 }
 
 /** The SolidCraft command of a block that is one feature. */

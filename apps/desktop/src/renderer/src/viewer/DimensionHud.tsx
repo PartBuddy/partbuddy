@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Input, Label, RadioButton, RadioField, RadioGroup, TextField } from 'react-aria-components';
 import { BufferAttribute, BufferGeometry, type Color } from 'three';
+import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 import type { DimensionProbeResult } from '../../../shared/contract';
 import { selectedStatus, useAssistant } from '../assistant/store';
@@ -38,8 +39,11 @@ export function Ghost({ preview, color }: { preview: Uint8Array; color: Color })
       const built = new BufferGeometry();
       built.setAttribute('position', new BufferAttribute(Float32Array.from(mesh.positions), 3));
       built.setIndex(new BufferAttribute(mesh.indices, 1));
-      built.computeVertexNormals();
-      return built;
+      // The preview's mesh shares corners across edges; plain vertex normals would smear every sharp
+      // edge (raised text looked melted). Creased normals keep edges sharp and curves smooth.
+      const creased = toCreasedNormals(built, Math.PI / 6);
+      built.dispose();
+      return creased;
     } catch {
       return null;
     }

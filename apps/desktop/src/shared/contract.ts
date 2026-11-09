@@ -786,6 +786,7 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       depth: blockLength,
       mode: z.enum(['emboss', 'deboss']),
       bold: z.boolean(),
+      font: z.string().trim().min(1).max(100).optional(),
     })
     .strict(),
   z.object({ block: z.literal('nutTrap'), body: bodyName, point: point3, normal: point3, size: blockSize, flats: blockLength, depth: blockLength }).strict(),

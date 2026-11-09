@@ -1387,7 +1387,9 @@
       "text": "Writes text on the face, raised or engraved",
       "screwHole": "A hole for a screw with room for its head, also as a row",
       "insertSeat": "A hole for a heat-set insert, also as a row"
-    }
+    },
+    "font": "Font",
+    "fontBuiltIn": "Default (Liberation Sans)"
   },
   "assembly": {
     "title": "Assembly",

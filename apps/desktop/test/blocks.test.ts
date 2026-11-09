@@ -59,6 +59,15 @@ describe('function blocks (F1)', () => {
     expect(steps[2]?.params).toEqual({ depth: '0.6 mm', mode: 'deboss', face: at });
   });
 
+  it('sets text in a chosen installed font, bold or not; without one the built-in font, Arial for bold', () => {
+    const text = { ...defaultBlock('text', 'Body1', at, 'M3', [0, 0, 1]), bold: false } as FeatureBlock;
+    expect(stepsOf(text)[1]?.params).not.toHaveProperty('font');
+    expect(stepsOf({ ...text, font: 'Georgia' } as FeatureBlock)[1]?.params).toMatchObject({ font: 'Georgia' });
+    expect(stepsOf({ ...text, font: 'Georgia' } as FeatureBlock)[1]?.params).not.toHaveProperty('bold');
+    expect(stepsOf({ ...text, font: 'Georgia', bold: true } as FeatureBlock)[1]?.params).toMatchObject({ font: 'Georgia', bold: true });
+    expect(featureBlockSchema.safeParse({ ...text, font: 'x'.repeat(101) }).success).toBe(false);
+  });
+
   it('cuts a nut trap to its depth and drills the clearance hole from its bottom', () => {
     const block = defaultBlock('nutTrap', 'Body1', at, 'M3', [0, 0, 1]);
     expect(block).toMatchObject({ flats: 5.8, depth: 2.8 });

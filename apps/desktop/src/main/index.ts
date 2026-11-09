@@ -227,8 +227,9 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(() => {
     protocol.handle(APP_SCHEME, serveRenderer);
-    session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => {
-      callback(false);
+    // Only the installed fonts' names, for the font of a text block; every other permission is refused.
+    session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => {
+      callback(permission === 'local-fonts' && contents.id === mainWindow?.webContents.id);
     });
 
     const appearance = new AppearanceSettings(settingsStore);
