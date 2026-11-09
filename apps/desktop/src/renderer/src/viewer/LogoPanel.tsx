@@ -11,7 +11,7 @@ import { useStudio, type DraggedDimension, type Pick } from '../state/store';
 import { buttonClass } from '../ui/Button';
 import { CheckMark, choiceInlineClass } from '../ui/Choice';
 import { fieldLabelClass, inputClass, UnitInput } from '../ui/Field';
-import { FontChoice } from './FontChoice';
+import { FontChoice, useBoldable } from './FontChoice';
 import { useLivePreview } from './livePreview';
 
 const round = (value: number) => Math.round(value * 1000) / 1000 || 0;
@@ -42,6 +42,8 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
   const [font, setFont] = useState(() => spot.text?.font ?? '');
   const [tall, setTall] = useState(() => spot.text?.height ?? 0);
   const [bold, setBold] = useState(() => spot.text?.bold ?? false);
+  // A font without a bold face cannot be set bold (SolidCraft refuses it).
+  const boldable = useBoldable(font);
   const shown = useRef(false);
 
   // The whole logo drawn in the selection colour while it is picked.
@@ -202,7 +204,13 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
             <Label className={fieldLabelClass}>{t('logoMove.words')}</Label>
             <Input className={inputClass('sm')} />
           </TextField>
-          <FontChoice value={font} onChange={setFont} />
+          <FontChoice
+            value={font}
+            onChange={(next, canBold) => {
+              setFont(next);
+              if (!canBold) setBold(false);
+            }}
+          />
           <NumberField
             value={tall}
             minValue={0.5}
@@ -219,7 +227,7 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
             <Label className={fieldLabelClass}>{t('logoMove.textHeight')}</Label>
             <UnitInput unit={t('units.mmShort')} />
           </NumberField>
-          <CheckboxField isSelected={bold} onChange={setBold} isDisabled={busy} className="flex items-end pb-1" data-testid="logo-bold">
+          <CheckboxField isSelected={bold} onChange={setBold} isDisabled={busy || !boldable} className="flex items-end pb-1" data-testid="logo-bold">
             <CheckboxButton className={choiceInlineClass}>
               <CheckMark />
               {t('logoMove.bold')}
