@@ -2553,9 +2553,12 @@ test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved
     // The arrow across: dragged, the field follows, and let go, the logo moves there.
     expect(await pickLogo(), 'a click on the centred logo').toBe(true);
     const arrow = page.getByTestId('logo-arrow-x');
+    // The arrow turns to its line on the next frame: wait for that before reading it.
+    const turnOf = async () => Number(/rotate\((-?[\d.e-]+)rad\)/.exec((await arrow.locator('div').first().getAttribute('style')) ?? '')?.[1] ?? Number.NaN);
+    await expect.poll(turnOf, { timeout: 10_000 }).not.toBeNaN();
+    const turn = await turnOf();
     const grip = await arrow.boundingBox();
     if (!grip) throw new Error('arrow not visible');
-    const turn = Number(/rotate\((-?[\d.e-]+)rad\)/.exec((await arrow.locator('div').first().getAttribute('style')) ?? '')?.[1] ?? Number.NaN);
     const [gx, gy] = [grip.x + grip.width / 2, grip.y + grip.height / 2];
     revision = await page.getByTestId('viewer').getAttribute('data-revision');
     await page.mouse.move(gx, gy);

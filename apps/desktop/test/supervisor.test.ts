@@ -116,7 +116,7 @@ describe('SolidCraft supervisor', () => {
     expect(curves.curves.length).toBe(57);
     // The fixture sketch lies on XZ, offset 5 mm.
     for (let i = 1; i < curves.positions.length; i += 3) expect(curves.positions[i]).toBeCloseTo(5, 4);
-    expect(fake.methods.filter((method) => method === 'engine.batch')).toHaveLength(1);
+    expect(fake.methods.filter((method) => method === 'engine.batch')).toHaveLength(2);
   });
 
   it('undoes and redoes the user\'s steps and mirrors the history depth (ADR 0016)', async () => {

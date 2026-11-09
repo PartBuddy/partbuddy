@@ -176,15 +176,7 @@ export class FakeSolidCraft {
       case 'document.revision':
         return revision;
       case 'document.inspect':
-        return {
-          name: 'Cable clip',
-          bodies: this.bodies.map((name) => ({ name, visible: !this.hidden.has(name) })),
-          sketches: this.sketches.map((sketch) => ({ ...sketch, visible: sketch.visible && !this.hidden.has(sketch.id) })),
-          active_sketch: this.activeSketch,
-          undo: this.undoDepth,
-          redo: this.redoDepth,
-          revision: 99,
-        };
+        return this.inspect();
       case 'engine.batch': {
         if (this.options.batchDelayMs) await new Promise((done) => setTimeout(done, this.options.batchDelayMs));
         const allowed = (params.allow_paths as string[] | undefined) ?? [];
@@ -216,10 +208,24 @@ export class FakeSolidCraft {
     }
   }
 
+  private inspect(): unknown {
+    return {
+      name: 'Cable clip',
+      bodies: this.bodies.map((name) => ({ name, visible: !this.hidden.has(name) })),
+      sketches: this.sketches.map((sketch) => ({ ...sketch, visible: sketch.visible && !this.hidden.has(sketch.id) })),
+      active_sketch: this.activeSketch,
+      undo: this.undoDepth,
+      redo: this.redoDepth,
+      revision: 99,
+    };
+  }
+
   private execute(command: string, params: Record<string, unknown>, allowed: string[]): unknown {
     switch (command) {
       case 'document.revision':
         return { document_id: this.documentId, revision: this.revision };
+      case 'document.inspect':
+        return this.inspect();
       case 'model.faces':
         return modelFaces(this.moved);
       case 'sketch.inspect': {

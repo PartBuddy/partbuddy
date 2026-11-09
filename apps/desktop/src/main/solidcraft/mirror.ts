@@ -161,7 +161,17 @@ export function withColours(structure: Structure, listing: unknown): Structure {
 export async function mirrorActiveDesign(client: ControlRequester, cacheDir: string): Promise<MirrorRevision> {
   const started = performance.now();
   await mkdir(cacheDir, { recursive: true });
-  const inspect = await client.request<InspectResult>('document.inspect', {}, 60_000);
+  // The revision before anything is read: a change while this runs makes the scheduler mirror once
+  // more. Read last, it named the new revision for the old structure, and the scheduler dropped the
+  // newer request as done (a sketch added right after a mirror began never showed).
+  const first = await client.request<BatchResult>(
+    'engine.batch',
+    { commands: [{ command: 'document.revision', params: {} }, { command: 'document.inspect', params: {} }], rollback: false },
+    60_000,
+  );
+  if (first.failed) throw new Error(`${first.failed.command} failed: ${first.failed.error}`);
+  const startRevision = (first.results[0] as { revision?: unknown } | undefined)?.revision;
+  const inspect = (first.results[1] ?? {}) as InspectResult;
   const designName = typeof inspect.name === 'string' ? inspect.name : '';
   const bodies = (inspect.bodies ?? [])
     .filter((body) => body.visible !== false && typeof body.name === 'string' && body.name !== '')
@@ -205,7 +215,7 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
     }
     return {
       documentId: head.document_id,
-      revision: head.revision,
+      revision: typeof startRevision === 'number' ? Math.min(startRevision, head.revision) : head.revision,
       designName,
       bodies: mirrored,
       sketches: mirrorSketches(batch.results.slice(1 + bodies.length * 2), sketches),
