@@ -26,7 +26,7 @@ export function StatusBar() {
 
   return (
     <footer className="flex h-statusbar shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap border-t border-border bg-surface px-3 text-xs text-text-muted">
-      <span>{t('status.units')}</span>
+      <span title={t('status.unitsTitle')}>{t('status.units')}</span>
       <MaterialMenu />
       <PrintCheckChip />
       {bodies.length > 0 && !homeOpen ? (
@@ -51,7 +51,9 @@ export function StatusBar() {
         </span>
       ) : (
         // The hint how to select and move the view lives here, not on top of the part.
-        <span className="truncate" data-testid="view-hint">{t('viewer.hint')}</span>
+        <span className="truncate" title={t('viewer.hint')} data-testid="view-hint">
+          {t('viewer.hintShort')}
+        </span>
       )}
     </footer>
   );

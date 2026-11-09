@@ -27,6 +27,8 @@ describe('settings index', () => {
   it('finds options by name, help text and section, without accents and case', () => {
     expect(searchSettings('', german)).toEqual([]);
     expect(searchSettings('dunkel', german).map((entry) => entry.id)).toEqual(['theme']);
+    // More words people search with (audit N-04).
+    expect(searchSettings('farbe', german).map((entry) => entry.id)).toContain('theme');
     expect(searchSettings('SPRACHE', german)[0]?.id).toBe('language');
     expect(searchSettings('uber', german).map((entry) => entry.section)).toContain('about');
     expect(searchSettings('ordner projekt', german)[0]?.id).toBe('projectsFolder');

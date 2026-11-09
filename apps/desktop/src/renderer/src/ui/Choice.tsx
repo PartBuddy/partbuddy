@@ -75,13 +75,14 @@ export const chipToggleClass =
   pressable;
 
 /** The well of a segmented control (Apple HIG, Linear): one of a few, side by side. */
-export const segmentGroupClass = 'inline-flex shrink-0 items-center gap-hairline rounded-md bg-surface-sunken p-hairline';
+export const segmentGroupClass = 'inline-flex shrink-0 items-center gap-hairline rounded-md border border-border bg-surface-sunken p-hairline';
 
 /** One segment: quiet until chosen, then raised like a key that is down. */
 export function segmentClass(size: FieldSize = 'sm'): string {
   return (
     `inline-flex ${size === 'sm' ? 'h-control-sm text-sm' : 'h-control-md text-md'} items-center justify-center gap-1 whitespace-nowrap rounded-sm px-2 text-text-muted ` +
-    'hover:text-text pressed:bg-surface-pressed selected:bg-surface-raised selected:text-text selected:shadow-1 ' +
+    'hover:text-text pressed:bg-surface-pressed selected:bg-surface-raised selected:font-semibold selected:text-text selected:shadow-1 selected:ring-1 selected:ring-border-strong ' +
+    'forced-colors:selected:bg-[Highlight] forced-colors:selected:text-[HighlightText] ' +
     pressable
   );
 }
