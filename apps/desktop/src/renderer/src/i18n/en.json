@@ -521,6 +521,7 @@
     "depth": "Depth",
     "height": "Height",
     "angle": "Turn",
+    "exactHint": "Alt+click picks a single face or edge in it.",
     "width": "Width",
     "turnLeft": "Turn 90° to the left",
     "turnRight": "Turn 90° to the right",

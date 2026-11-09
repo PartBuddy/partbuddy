@@ -521,6 +521,7 @@
     "depth": "Tiefe",
     "height": "Höhe",
     "angle": "Drehung",
+    "exactHint": "Alt+Klick wählt eine einzelne Fläche oder Kante darin.",
     "width": "Breite",
     "turnLeft": "Um 90° nach links drehen",
     "turnRight": "Um 90° nach rechts drehen",

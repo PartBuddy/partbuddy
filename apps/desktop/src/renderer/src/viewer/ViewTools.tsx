@@ -119,7 +119,7 @@ function SectionPanel({ section }: { section: Section }) {
     <div
       role="group"
       aria-label={t('viewer.section.title')}
-      className="pointer-events-auto absolute left-0 top-full z-10 mt-2 flex w-menu flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      className="pointer-events-auto absolute left-0 top-full z-40 mt-2 flex w-menu flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
       data-testid="section-panel"
     >
       <span className="px-1 text-xs font-semibold text-text-muted">{t('viewer.section.title')}</span>
@@ -204,7 +204,7 @@ function ExplodePanel({ amount }: { amount: number }) {
     <div
       role="group"
       aria-label={t('viewer.explode.title')}
-      className="pointer-events-auto absolute left-0 top-full z-10 mt-2 flex w-menu flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      className="pointer-events-auto absolute left-0 top-full z-40 mt-2 flex w-menu flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
       data-testid="explode-panel"
     >
       <Slider

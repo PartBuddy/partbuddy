@@ -843,7 +843,7 @@ export const actionPreviewSchema = z.discriminatedUnion('ok', [
 ]);
 /** A placed logo at a picked point (sketches named "SVG-Logo <name>"), and where it sits from its face's middle. */
 export const logoSpotSchema = z
-  .object({ logo: z.string().min(1).max(200), offset: z.tuple([finite, finite]).nullable(), origin: point3, xDir: point3, yDir: point3, box: z.tuple([finite, finite, finite, finite]), depth: z.object({ value: finite, raised: z.boolean() }).strict().nullable(), angle: finite })
+  .object({ logo: z.string().min(1).max(200), offset: z.tuple([finite, finite]).nullable(), origin: point3, xDir: point3, yDir: point3, box: z.tuple([finite, finite, finite, finite]), depth: z.object({ value: finite, raised: z.boolean() }).strict().nullable(), angle: finite, outline: z.instanceof(Float32Array) })
   .strict();
 /** Changes a logo: onto its face's middle along `centre` first, then by `by` mm along its own x and y, turned by `rotate`, its width and its depth. */
 export const logoMoveSchema = z

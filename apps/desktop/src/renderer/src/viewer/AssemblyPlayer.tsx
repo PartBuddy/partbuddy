@@ -32,7 +32,7 @@ export function AssemblyPlayer({ steps, source }: { steps: PlayStep[]; source: '
     <div
       role="group"
       aria-label={t('assembly.title')}
-      className="pointer-events-auto absolute bottom-3 left-1/2 z-10 flex w-dialog-sm max-w-[calc(100%_-_1.5rem)] -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      className="pointer-events-auto absolute bottom-3 left-1/2 z-40 flex w-dialog-sm max-w-[calc(100%_-_1.5rem)] -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
       data-view-overlay
       data-testid="assembly-panel"
       data-step={current}

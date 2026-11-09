@@ -2567,15 +2567,16 @@ test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved
     const view = await page.getByTestId('viewport').boundingBox();
     if (!view) throw new Error('viewport not visible');
     const panel = page.getByTestId('logo-move');
+    let spotOnLogo: [number, number] = [0, 0];
     const pickLogo = async () => {
       for (let y = 0.3; y <= 0.7; y += 0.04) {
         for (let x = 0.3; x <= 0.7; x += 0.04) {
           await page.mouse.click(view.x + view.width * x, view.y + view.height * y);
           if (await panel.waitFor({ state: 'visible', timeout: 1500 }).then(() => true).catch(() => false)) {
-            // Folded at first: the note field stays first, no arrows on the part until it is opened.
-            await expect(page.getByTestId('logo-x')).toHaveCount(0);
-            await expect(page.getByTestId('logo-arrow-x')).toHaveCount(0);
-            await page.getByTestId('logo-move-open').click();
+            // The whole logo is picked: its name heads the dock, no face or edge, its contours drawn.
+            await expect(page.getByTestId('logo-picked')).toBeVisible();
+            await expect(page.getByTestId('selection-bar')).toHaveCount(0);
+            spotOnLogo = [view.x + view.width * x, view.y + view.height * y];
             return true;
           }
         }
@@ -2583,6 +2584,14 @@ test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved
       return false;
     };
     expect(await pickLogo(), 'a click on the logo').toBe(true);
+    // Alt+click on the same spot picks exactly the face or edge there, without the logo controls.
+    await page.keyboard.down('Alt');
+    await page.mouse.click(...spotOnLogo);
+    await page.keyboard.up('Alt');
+    await expect(page.getByTestId('selection-bar')).toBeVisible();
+    await expect(panel).toHaveCount(0);
+    await page.mouse.click(...spotOnLogo);
+    await expect(panel).toBeVisible({ timeout: 10_000 });
     const across = page.getByTestId('logo-x').getByRole('textbox');
     await expect(across).toHaveValue('0');
     await expect(page.getByTestId('logo-arrow-x')).toBeVisible();

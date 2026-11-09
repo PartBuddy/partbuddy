@@ -58,10 +58,14 @@ export interface MirrorLatency {
 type Vec3 = [number, number, number];
 
 /** What the pointer is over or the user selected: a face, a B-rep edge or a vertex of one body. */
-export type Pick =
+export type Pick = (
   | { kind: 'face'; body: number; face: number; point: Vec3; normal: Vec3 }
   | { kind: 'edge'; body: number; edge: number; point: Vec3 }
-  | { kind: 'vertex'; body: number; vertex: number; point: Vec3 };
+  | { kind: 'vertex'; body: number; vertex: number; point: Vec3 }
+) & {
+  /** Alt+click: exactly this face, edge or vertex, also where it belongs to a logo. */
+  exact?: true;
+};
 
 /** The index of the picked face, edge or vertex within its body. */
 export function pickIndex(pick: Pick): number {
@@ -187,6 +191,9 @@ interface StudioState {
   /** The two drag arrows of a picked logo (across, up), or none. */
   logoHandles: DraggedDimension[];
   setLogoHandles: (handles: DraggedDimension[]) => void;
+  /** The picked logo's contours, two world points per segment, drawn in the selection colour. */
+  logoOutline: Float32Array | null;
+  setLogoOutline: (outline: Float32Array | null) => void;
   model: ModelState;
   hover: Pick | null;
   /** The latest picked element; the dimension field and the HUD belong to it. */
@@ -333,6 +340,10 @@ export const useStudio = create<StudioState>()((set) => ({
   logoHandles: [],
   setLogoHandles: (logoHandles) => {
     set({ logoHandles });
+  },
+  logoOutline: null,
+  setLogoOutline: (logoOutline) => {
+    set({ logoOutline });
   },
   dimensionHandle: null,
   setDimensionHandle: (dimensionHandle) => {

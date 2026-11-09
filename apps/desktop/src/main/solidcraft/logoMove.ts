@@ -237,6 +237,8 @@ export interface LogoSpot {
   depth: { value: number; raised: boolean } | null;
   /** How far it is turned from level, in degrees counter-clockwise. */
   angle: number;
+  /** Its contours over every sketch of it, two world points per segment, to show the whole logo picked. */
+  outline: Float32Array<ArrayBuffer>;
 }
 
 /** The logo a picked point belongs to: within its drawing's box seen along the sketch's normal, nearest to its plane. */
@@ -269,5 +271,24 @@ export async function logoAt(run: Run, point: Vec3): Promise<LogoSpot | null> {
     box: best.box.map(tidy) as LogoSpot['box'],
     depth: depth && { value: tidy(depth.depth), raised: depth.params[0]?.sign === 1 },
     angle: planeAngle(first.plane),
+    outline: outlineOf(logos.get(first.name) ?? [first], read),
   };
+}
+
+/** The tessellated curves of a logo's sketches, one array. */
+function outlineOf(sketches: readonly PlacedSketch[], read: Map<number, unknown>): Float32Array<ArrayBuffer> {
+  const parts = sketches.flatMap((sketch) => {
+    try {
+      return [tessellateSketch(sketchFromInspect(read.get(sketch.id))).positions];
+    } catch {
+      return [];
+    }
+  });
+  const outline = new Float32Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let at = 0;
+  for (const part of parts) {
+    outline.set(part, at);
+    at += part.length;
+  }
+  return outline;
 }
