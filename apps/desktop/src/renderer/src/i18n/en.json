@@ -30,7 +30,7 @@
     "notRunning": "SolidCraft not running",
     "starting": "Starting SolidCraft",
     "connecting": "Connecting to SolidCraft",
-    "connected": "SolidCraft · revision {revision}",
+    "connected": "SolidCraft · Revision {revision}",
     "rebuilding": "SolidCraft · rebuilding",
     "lost": "Connection to SolidCraft lost",
     "failed": "SolidCraft could not be reached"
@@ -129,7 +129,8 @@
       "assembled": "Assembled",
       "apart": "Apart",
       "hint": "For looking only: selecting, notes and dimensions come back when the view is closed."
-    }
+    },
+    "hintShort": "Click selects · drag orbits · right-drag pans · scroll zooms"
   },
   "status": {
     "units": "mm",
@@ -137,7 +138,8 @@
     "noFace": "Nothing selected",
     "sketches": "{count, plural, one {# sketch} other {# sketches}}",
     "sketchesEditing": "{count, plural, one {# sketch} other {# sketches}} · editing {name}",
-    "details": "{triangles} triangles · mirrored in {ms, number} ms"
+    "details": "{triangles} triangles · mirrored in {ms, number} ms",
+    "unitsTitle": "All sizes in millimetres"
   },
   "assistant": {
     "title": "Assistant",
@@ -799,7 +801,7 @@
       "source": {
         "default": "The standard folder under Documents.",
         "setting": "Chosen by you.",
-        "override": "Set by the environment (PARTBUDDY_PROJECTS_DIR)."
+        "override": "Set from outside – cannot be changed here."
       },
       "restartHint": "The new project folder applies after a restart.",
       "hint": "PartBuddy keeps every project in a folder of its own here."
@@ -912,6 +914,11 @@
         "rightDrag": "Right-drag",
         "wheel": "Mouse wheel"
       }
+    },
+    "keywords": {
+      "theme": "colour color design theme light dark mode",
+      "zoom": "font text size zoom larger smaller",
+      "projectsFolder": "location folder path documents"
     }
   },
   "print": {
@@ -1053,7 +1060,7 @@
       "warn": "{count, plural, one {# warning} other {# warnings}}",
       "block": "Not ready to print"
     },
-    "none": "Nothing found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
+    "none": "No problems found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
     "basis": "Checked after every change, as designed (standing on its lowest point), with the printer and material of this part. Supports, bridges and the orientation are up to the slicer.",
     "faces": "{count, plural, one {# face} other {# faces}}",
     "show": "Show the place",
@@ -1084,7 +1091,7 @@
     "source": {
       "automatic": "Found automatically",
       "setting": "Chosen by you",
-      "override": "Set by the test environment"
+      "override": "Set from outside – cannot be changed here"
     },
     "version": "Version",
     "unknownVersion": "unknown",
@@ -1105,7 +1112,7 @@
     "automatic": "Search automatically",
     "choose": "Choose program …",
     "restart": "Restart PartBuddy",
-    "close": "Close",
+    "close": "Done",
     "reading": "Checking SolidCraft …",
     "works": "PartBuddy works with this version.",
     "detailsTitle": "About SolidCraft versions"

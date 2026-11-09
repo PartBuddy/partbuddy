@@ -127,7 +127,7 @@ function Setting({ id, layout = 'row', children }: { id: string; layout?: 'row' 
       id={`setting-${id}`}
       data-setting={id}
       data-highlighted={hit || undefined}
-      className={`scroll-m-4 px-4 py-3 transition-colors data-[highlighted]:bg-accent-subtle ${layout === 'row' ? 'flex flex-wrap items-center justify-between gap-x-6 gap-y-2' : 'flex flex-col gap-3'}`}
+      className={`scroll-m-4 px-4 py-3 transition-shadow data-[highlighted]:ring-2 data-[highlighted]:ring-accent data-[highlighted]:ring-inset ${layout === 'row' ? 'flex flex-wrap items-center justify-between gap-x-6 gap-y-2' : 'flex flex-col gap-3'}`}
     >
       <div className={`flex min-w-0 flex-col gap-1 ${layout === 'row' ? 'flex-1 basis-text-max' : ''}`}>
         <span className="flex flex-wrap items-center gap-2">
@@ -173,7 +173,7 @@ function ResetButton({ section, done, label }: { section: SettingsReset; done: (
   const { t } = useTranslation();
   return (
     <DialogTrigger>
-      <Button data-testid={`settings-reset-${section}`}>
+      <Button variant="quiet" size="sm" data-testid={`settings-reset-${section}`}>
         <IconRestore className="size-icon" aria-hidden />
         {label}
       </Button>
@@ -281,7 +281,9 @@ export function ProjectsFolderField({ info, onChange, titled = true }: { info: G
           {info.projectsFolder}
         </span>
       </div>
-      <p className="text-xs text-text-subtle">{t(`settings.projects.source.${info.projectsSource}`)}</p>
+      <p className="text-xs text-text-subtle" title={info.projectsSource === 'override' ? 'PARTBUDDY_PROJECTS_DIR' : undefined}>
+        {t(`settings.projects.source.${info.projectsSource}`)}
+      </p>
       <div className="flex flex-wrap gap-2">
         <Button isDisabled={info.projectsSource === 'override'} onPress={() => void platform().settings.chooseProjectsFolder().then(onChange)} data-testid="settings-projects-choose">
           {t('settings.projects.choose')}
@@ -664,7 +666,7 @@ function AboutSection({ done }: { done: () => void }) {
 function PrintSection({ close }: { close: () => void }) {
   const { ref, hit } = useHighlight(['printers', 'materials']);
   return (
-    <div ref={ref} data-highlighted={hit || undefined} className="flex flex-col gap-4 rounded-lg transition-colors data-[highlighted]:bg-accent-subtle">
+    <div ref={ref} data-highlighted={hit || undefined} className="flex flex-col gap-4 rounded-lg transition-shadow data-[highlighted]:ring-2 data-[highlighted]:ring-accent data-[highlighted]:ring-inset">
       <PrintProfilesEditor close={close} />
     </div>
   );
@@ -775,7 +777,7 @@ export function SettingsDialog() {
       className={overlayClass}
     >
       <Modal className={modalClass('settings')}>
-        <Dialog className="flex h-dialog-settings-height max-h-dialog-max flex-col outline-none" data-testid="settings-dialog">
+        <Dialog className="flex h-[min(54rem,calc(100dvh_-_7rem))] flex-col outline-none" data-testid="settings-dialog">
           <div className="flex items-center gap-3 border-b border-border py-2 pr-2 pl-5">
             <Heading slot="title" className={`mr-auto ${dialogTitleClass}`}>
               {t('settings.title')}

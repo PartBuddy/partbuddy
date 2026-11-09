@@ -129,7 +129,8 @@
       "assembled": "Zusammengebaut",
       "apart": "Auseinander",
       "hint": "Nur zum Ansehen: Auswählen, Notizen und Maße sind wieder da, sobald die Ansicht zu ist."
-    }
+    },
+    "hintShort": "Klicken wählt · Ziehen dreht · Rechts verschiebt · Rad zoomt"
   },
   "status": {
     "units": "mm",
@@ -137,7 +138,8 @@
     "noFace": "Nichts ausgewählt",
     "sketches": "{count, plural, one {# Skizze} other {# Skizzen}}",
     "sketchesEditing": "{count, plural, one {# Skizze} other {# Skizzen}} · {name} in Bearbeitung",
-    "details": "{triangles} Dreiecke · gespiegelt in {ms, number} ms"
+    "details": "{triangles} Dreiecke · gespiegelt in {ms, number} ms",
+    "unitsTitle": "Alle Maße in Millimetern"
   },
   "assistant": {
     "title": "Assistent",
@@ -799,7 +801,7 @@
       "source": {
         "default": "Der Standardordner unter Dokumente.",
         "setting": "Von dir gewählt.",
-        "override": "Von der Umgebung vorgegeben (PARTBUDDY_PROJECTS_DIR)."
+        "override": "Vorgegeben – hier nicht änderbar."
       },
       "restartHint": "Der neue Projektordner gilt nach einem Neustart.",
       "hint": "Hier legt PartBuddy jedes Projekt als eigenen Ordner ab."
@@ -912,6 +914,11 @@
         "rightDrag": "Rechte Maustaste ziehen",
         "wheel": "Mausrad"
       }
+    },
+    "keywords": {
+      "theme": "Farbe Farben Design Theme hell dunkel Modus",
+      "zoom": "Schrift Schriftgröße Zoom größer kleiner",
+      "projectsFolder": "Speicherort Ordner Pfad Dokumente"
     }
   },
   "print": {
@@ -951,7 +958,7 @@
       "turn": "Drehen"
     },
     "defaultMaterial": "Standard für neue Teile",
-    "materialHint": "Startwerte, nicht für deinen Drucker gemessen. Miss sie mit »Toleranzen einmessen …« an drei kleinen Prüfkörpern nach; der Assistent baut mit diesen Spielen.",
+    "materialHint": "Startwerte, nicht für deinen Drucker gemessen. Miss sie mit „Toleranzen einmessen …“ an drei kleinen Prüfkörpern nach; der Assistent baut mit diesen Spielen.",
     "nameMissing": "Jedes Profil braucht einen Namen.",
     "supportFree": "Stützfrei konstruieren",
     "supportFreeHint": "Der Assistent gibt Kanten zum Druckbett eine Fase statt einer Rundung, gibt breiten liegenden Bohrungen ein Tropfendach und überbrückt Senkungen, die nach unten zeigen. So braucht der Slicer keine Stützen.",
@@ -1036,7 +1043,7 @@
       "value": "Wert",
       "before": "Bisher",
       "after": "Neu",
-      "applyHint": "Übernehmen schreibt die Werte ins Material; gespeichert wird mit »Speichern«.",
+      "applyHint": "Übernehmen schreibt die Werte ins Material; gespeichert wird mit „Speichern“.",
       "apply": "Übernehmen",
       "problem": {
         "fit": "{fit}: keine Stufe des Kamms.",
@@ -1053,7 +1060,7 @@
       "warn": "{count, plural, one {# Hinweis} other {# Hinweise}}",
       "block": "Nicht druckbereit"
     },
-    "none": "Nichts gefunden: Das Teil passt in den Bauraum, die Wände sind dick genug, nichts neigt sich über den Überhangwinkel.",
+    "none": "Keine Probleme gefunden: Das Teil passt in den Bauraum, die Wände sind dick genug, nichts neigt sich über den Überhangwinkel.",
     "basis": "Geprüft nach jeder Änderung, wie konstruiert (auf der untersten Stelle stehend), mit Drucker und Material dieses Teils. Stützen, Brücken und die Lage entscheidet der Slicer.",
     "faces": "{count, plural, one {# Fläche} other {# Flächen}}",
     "show": "Stelle zeigen",
@@ -1084,7 +1091,7 @@
     "source": {
       "automatic": "Automatisch gefunden",
       "setting": "Von dir gewählt",
-      "override": "Von der Testumgebung vorgegeben"
+      "override": "Vorgegeben – hier nicht änderbar"
     },
     "version": "Version",
     "unknownVersion": "unbekannt",
@@ -1105,7 +1112,7 @@
     "automatic": "Automatisch suchen",
     "choose": "Programm wählen …",
     "restart": "PartBuddy neu starten",
-    "close": "Schließen",
+    "close": "Fertig",
     "reading": "SolidCraft wird geprüft …",
     "works": "Mit dieser Version arbeitet PartBuddy.",
     "detailsTitle": "Mehr zu den SolidCraft-Versionen"

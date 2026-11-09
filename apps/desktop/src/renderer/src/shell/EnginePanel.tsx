@@ -58,16 +58,18 @@ export function EnginePanel({ close, closable = true }: { close: () => void; clo
         <div className="flex flex-col gap-1">
           <span className="text-xs text-text-muted">{t('engine.program')}</span>
           <span className="break-all" data-testid="engine-path">
-            {info.path ?? t('engine.none')}
+            {info.path ? info.path.replace(/\//g, '\\') : t('engine.none')}
           </span>
-          <span className="text-xs text-text-subtle">{t(`engine.source.${info.source}`)}</span>
+          <span className="text-xs text-text-subtle" title={info.source === 'override' ? 'PARTBUDDY_SOLIDCRAFT_EXE' : undefined}>
+            {t(`engine.source.${info.source}`)}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-text-muted">{t('engine.version')}</span>
           <span className="tabular-nums" data-testid="engine-version">
             {info.version ?? t('engine.unknownVersion')}
           </span>
-          {info.path ? (
+          {info.path && info.support !== 'unknown' ? (
             <span className={badgeClass(supportTone[info.support])} data-testid="engine-support">
               {t(`engine.support.${info.support}`)}
             </span>

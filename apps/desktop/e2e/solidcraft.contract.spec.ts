@@ -36,7 +36,7 @@ test('connects to a SolidCraft window the user opened and shows its design', asy
   const launched = await launchApp({ isolated: false });
   try {
     const { page } = launched;
-    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · revision \d+/, { timeout: 90_000 });
+    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
     await expect(page.getByTestId('mesh-summary')).toContainText('face', { timeout: 60_000 });
     // Give WebGL a moment to draw the first frames before the evidence screenshot.
     await page.waitForTimeout(2000);
@@ -57,7 +57,7 @@ test('starts SolidCraft without a window when none runs, and ends it on quit (AD
   const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: '7881' } });
   try {
     const { page } = launched;
-    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · revision \d+/, { timeout: 30_000 });
+    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 30_000 });
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless');
     await expect(page.getByText('Tell the assistant what you need.')).toBeVisible();
     // No SolidCraft window was opened; the engine runs as solidcraft-cli.
@@ -651,7 +651,7 @@ test('the user\'s Claude Code builds a part in SolidCraft through the gate proxy
   const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port } });
   try {
     const { page } = launched;
-    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · revision \d+/, { timeout: 90_000 });
+    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
     await expect(page.getByTestId('agent-status')).toContainText('Claude Code', { timeout: 30_000 });
     await page
       .getByRole('textbox', { name: 'Message to the assistant' })
@@ -693,7 +693,7 @@ test('ChatGPT builds a part in SolidCraft with the user\'s plan', async () => {
   const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port } });
   try {
     const { page } = launched;
-    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · revision \d+/, { timeout: 90_000 });
+    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
     await page.getByRole('radio', { name: 'ChatGPT' }).or(page.getByRole('button', { name: 'ChatGPT' })).click();
     await expect(page.getByTestId('agent-status')).toContainText('ChatGPT ·', { timeout: 30_000 });
     await page
