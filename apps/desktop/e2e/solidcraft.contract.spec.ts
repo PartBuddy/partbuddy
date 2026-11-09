@@ -1719,7 +1719,7 @@ test('a snap fit stands out of a face, its catch across the arm, with its strain
 
 test('a logo from an SVG file is engraved and built up at a face, a ring keeping its hole, also through the form (F1)', async () => {
   test.setTimeout(240_000);
-  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-blocks4-'));
@@ -1753,15 +1753,22 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
       await apply(block);
     }
     for (const line of ['Logo “ring” engraved', 'Logo “ring” embossed']) await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
-    // A drawing with only a stroke has no area to build: PartBuddy turns it away before SolidCraft.
-    const stroke = { ...logo, svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="black"/></svg>', point: [10, 10, 10], normal: [0, 0, 1], depth: 0.6, mode: 'deboss' };
-    expect(await preview(stroke).catch(() => ({ ok: false }))).toMatchObject({ ok: false });
+    // A line icon (Tabler "rocket", strokes only, round caps and joins) is built at its stroke width, engraved in the side.
+    const rocket = { ...logo, name: 'rocket', svg: readFileSync(join(__dirname, '..', 'test', 'fixtures', 'svg', 'tabler-rocket.svg'), 'utf8'), point: [20, 10, 5], normal: [1, 0, 0], depth: 0.6, mode: 'deboss', width: 8 };
+    expect(await preview(rocket)).toEqual({ ok: true, error: null });
+    await apply(rocket);
+    await expect(page.getByText('Logo “rocket” engraved')).toBeVisible({ timeout: 30_000 });
+    // A line without a stroke has nothing to build: PartBuddy turns it away before SolidCraft.
+    const bare = { ...logo, svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10"/></svg>', point: [10, 10, 10], normal: [0, 0, 1], depth: 0.6, mode: 'deboss' };
+    expect(await preview(bare).catch(() => ({ ok: false }))).toMatchObject({ ok: false });
+    // Once the rocket's sketch is listed, the view has it too.
+    await expect(page.getByText('Logo rocket', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
     await page.screenshot({ path: test.info().outputPath('blocks-logo.png') });
 
     // Through the form: no build before a file is chosen; a page that is no SVG is turned away.
     const box = await page.getByTestId('viewport').boundingBox();
     if (!box) throw new Error('viewport not visible');
-    await expect(page.getByTestId('timeline-feature')).toHaveCount(5, { timeout: 30_000 });
+    await expect(page.getByTestId('timeline-feature')).toHaveCount(7, { timeout: 30_000 });
     await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'saved', { timeout: 30_000 });
     await page.waitForTimeout(1000);
     const spots = [[0.5, 0.75], [0.35, 0.6], [0.7, 0.65], [0.5, 0.5], [0.6, 0.8]] as const;

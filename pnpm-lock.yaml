@@ -217,6 +217,9 @@ importers:
       ai:
         specifier: 7.0.159
         version: 7.0.159(zod@4.6.7)
+      clipper2-ts:
+        specifier: 2.0.1-18
+        version: 2.0.1-18
       electron-updater:
         specifier: 6.8.11
         version: 6.8.11(supports-color@7.2.0)
@@ -1696,6 +1699,10 @@ packages:
 
   client-only@0.0.1:
     resolution: {integrity: sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA==}
+
+  clipper2-ts@2.0.1-18:
+    resolution: {integrity: sha512-WuRO1ZHzyYTVHY78r4wVWVydvQ+1lx9qZ+DeZa/8zhvrxIgCVzElJ6lwSMGtUUKFPefhvfJsHZ5C9RNkgisCOQ==}
+    engines: {node: '>=14.0.0'}
 
   cliui@8.0.1:
     resolution: {integrity: sha512-BSeNnyus75C4//NQ9gQt1/csTXyo/8Sb+afLAkzAptFuMsod9HFokGNudZpi/oQV73hnVK+sR+5PVRMd+Dr7YQ==}
@@ -5108,6 +5115,8 @@ snapshots:
   ci-info@4.4.0: {}
 
   client-only@0.0.1: {}
+
+  clipper2-ts@2.0.1-18: {}
 
   cliui@8.0.1:
     dependencies:
