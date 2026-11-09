@@ -1,7 +1,8 @@
 import { parseTagged3mf } from '@partbuddy/geometry';
 import { IconArrowUp, IconBolt, IconSparkles } from '@tabler/icons-react';
-import { BlockPanel } from './BlockPanel';
+import { BlockPanel, flatFace } from './BlockPanel';
 import { LogoPanel, logoTitleOf, useLogoSpot } from './LogoPanel';
+import { actionsFor } from './actionKinds';
 import { PartPanel } from './PartPanel';
 import { PrintFaceButton } from './PrintFaceButton';
 import { ActionPanel, MeasureLine } from './SelectionActions';
@@ -76,6 +77,16 @@ export function SelectionDock({ bodies }: { bodies: BodyModel[] }) {
   // A new selection gets a fresh dock that starts from its current size.
   const key = selections.map((pick) => `${pick.kind}:${pick.body}:${pick.kind === 'face' ? pick.face : pick.kind === 'edge' ? pick.edge : pick.vertex}`).join(',');
   return <HudCard key={key} bodies={bodies} selection={selection} picks={selections} />;
+}
+
+/** One group of the dock's actions under a small heading. */
+function DockGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section aria-label={title} className="flex flex-col gap-1" data-testid="dock-group">
+      <h4 className="text-xs font-medium text-text-subtle">{title}</h4>
+      {children}
+    </section>
+  );
 }
 
 function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection: Pick; picks: Pick[] }) {
@@ -287,13 +298,22 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
             />
           </TextField>
         ) : null}
-        <div className={`flex min-w-0 flex-1 flex-wrap items-start gap-1 ${dimension ? 'pt-5' : ''}`}>
-          {logo === null ? (
-            <>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          {/* What the pick allows, in three groups (decided 2026-11-09): change it, add to it, print on it. */}
+          {logo === null && actionsFor(bodies, picks).length > 0 ? (
+            <DockGroup title={t('hud.group.change')}>
               <ActionPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
-              <BlockPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
-              <PartPanel bodies={bodies} picks={picks} busy={busy} />
-              <PrintFaceButton bodies={bodies} picks={picks} busy={busy} />
+            </DockGroup>
+          ) : null}
+          {logo === null && flatFace(bodies, picks) ? (
+            <>
+              <DockGroup title={t('hud.group.add')}>
+                <BlockPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
+                <PartPanel bodies={bodies} picks={picks} busy={busy} />
+              </DockGroup>
+              <DockGroup title={t('hud.group.print')}>
+                <PrintFaceButton bodies={bodies} picks={picks} busy={busy} />
+              </DockGroup>
             </>
           ) : null}
           {picks.length === 1 ? <NoteComposer selection={current} busy={busy} /> : null}

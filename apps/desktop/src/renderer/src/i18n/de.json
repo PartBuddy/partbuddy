@@ -535,6 +535,11 @@
     "dragUp": "Ziehen verschiebt das Logo hoch (Alt: Zehntel), Loslassen übernimmt"
   },
   "hud": {
+    "group": {
+      "change": "Ändern",
+      "add": "Hinzufügen",
+      "print": "Drucken"
+    },
     "dock": "Auswahl",
     "length": "Länge",
     "diameter": "Durchmesser",
@@ -1249,7 +1254,13 @@
     }
   },
   "blocks": {
-    "action": "Funktionsbaustein",
+    "more": "Mehr …",
+    "tiles": {
+      "logo": "Logo / SVG",
+      "text": "Text",
+      "screwHole": "Schraubenloch",
+      "insertSeat": "Einschmelzmutter"
+    },
     "kind": "Baustein",
     "size": "Größe",
     "through": "Durchgehend",

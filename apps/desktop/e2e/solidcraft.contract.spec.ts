@@ -1776,11 +1776,10 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
     await expect(async () => {
       const [x, y] = spots[spot++ % spots.length] ?? [0.5, 0.5];
       await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
-      await page.getByTestId('action-block').click({ timeout: 1500 });
+      // The logo has a tile of its own in the dock's "Add" group.
+      await page.getByTestId('block-tile-logo').click({ timeout: 1500 });
       await expect(page.getByTestId('block-form')).toBeVisible({ timeout: 1000 });
     }, 'a flat face of the box and its form').toPass({ timeout: 45_000, intervals: [500] });
-    await page.getByTestId('block-kind').getByRole('button').click();
-    await page.getByRole('option', { name: 'Logo (SVG)' }).click();
     await expect(page.getByTestId('block-size')).toHaveCount(0);
     await expect(page.getByTestId('block-status')).toHaveText('Choose an SVG file for the logo');
     await expect(page.getByTestId('block-apply')).toBeDisabled();
