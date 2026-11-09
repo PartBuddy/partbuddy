@@ -42,7 +42,7 @@ import { selectedStatus, useAssistant } from '../assistant/store';
 import { NotePins } from '../notes/NotePins';
 import { DimensionMarks, useDimensionMarks } from './Dimensions';
 import { activeStep, type Vec3 as ExplodeVec } from './explode';
-import { Animator, PlateBed, PlaybackCamera, PlaybackClock, usePlateLayout, usePlaySteps, useProjectViewData, useTargetPoses, type PlateLayout, type Pose } from './motion';
+import { Animator, ExplodeCamera, PlateBed, PlaybackCamera, PlaybackClock, usePlateLayout, usePlaySteps, useProjectViewData, useTargetPoses, type PlateLayout, type Pose } from './motion';
 import { PlateBar } from './PlateBar';
 import { AssemblyPlayer } from './AssemblyPlayer';
 
@@ -63,8 +63,9 @@ const scene = {
   keyLight: [-70, -90, 130] as [number, number, number],
   fillLight: [100, 30, 50] as [number, number, number],
   // The axis triad in the lower left corner.
-  triadMargin: [48, 48] as [number, number],
-  triadScale: 28,
+  // Large enough to read its letters at a glance (audit B-29).
+  triadMargin: [60, 60] as [number, number],
+  triadScale: 40,
   // Matte faces and strong model edges (UI upgrade, view look "calm").
   roughness: 0.8,
   edgeWidth: 1.6,
@@ -1071,6 +1072,7 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
       {plateOpen && bed ? <PlateBed bed={bed} colors={colors} /> : null}
       {plane ? <SectionPlaneMark plane={plane} bodies={bodies} color={colors.section} /> : null}
       {exploded ? <ExplosionLines bodies={bodies} targets={targets} color={colors.edge} /> : null}
+      {exploded ? <ExplodeCamera bodies={bodies} targets={targets} /> : null}
       {moved ? null : (
         <>
           <Highlights bodies={bodies} colors={colors} />
@@ -1148,7 +1150,7 @@ export function Viewer() {
     <main
       // isolate: pins and dimension labels (drei Html, z 11–32) stay under dialogs, menus and the start page.
       // select-none: a drag in the view must not select the labels of the tools around it.
-      className="relative isolate min-h-0 flex-1 select-none bg-surface-sunken"
+      className="@container relative isolate min-h-0 flex-1 select-none bg-surface-sunken"
       aria-label={t('viewer.canvasLabel')}
       data-testid="viewer"
       data-revision={model.status === 'ready' ? model.revision : undefined}

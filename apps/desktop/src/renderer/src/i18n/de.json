@@ -53,7 +53,8 @@
     "emptyBody": "Lege in SolidCraft einen Körper an oder lass den Assistenten einen konstruieren. Er erscheint hier nach jedem Schritt.",
     "mirrorFailedTitle": "Das Modell konnte nicht gespiegelt werden",
     "mirrorFailedBody": "PartBuddy zeigt den letzten guten Stand. Details: {detail}",
-    "emptyBodyHeadless": "Beschreibe dem Assistenten, was du brauchst. Jeder Schritt erscheint hier, Skizzen schon vor dem Körper."
+    "emptyBodyHeadless": "Beschreibe dem Assistenten, was du brauchst. Jeder Schritt erscheint hier, Skizzen schon vor dem Körper.",
+    "startingProgress": "Einen Moment …"
   },
   "viewer": {
     "canvasLabel": "3D-Ansicht des Designs",
@@ -118,7 +119,6 @@
       "along": "Quer zu {axis} schneiden",
       "position": "Wo der Schnitt liegt",
       "flip": "Andere Seite zeigen",
-      "at": "Schnitt bei {axis} = {value, number, ::.# unit/millimeter}",
       "alignFace": "An der gewählten Fläche ausrichten",
       "fromFace": "{value, number, ::.# unit/millimeter} von der Fläche",
       "faceHint": "Wähle eine ebene Fläche, um an ihr entlang zu schneiden."
@@ -590,12 +590,11 @@
     },
     "invalid": "Gib eine Zahl ein",
     "actionReady": "Vorschau in der Ansicht – Enter übernimmt, Esc bricht ab",
-    "actionRefused": "SolidCraft kann das so nicht bauen: {detail}",
     "distance": "Abstand {value} mm",
     "angle": "Winkel {value}°",
     "approximate": "Aus der Ansicht gelesen; das genaue Maß von SolidCraft folgt",
-    "firstHint": "Hier änderst du die Auswahl, fügst Bausteine wie Schraubenlöcher oder ein Logo hinzu oder sagst, was passieren soll. Halte die Maus über einen Knopf für eine kurze Erklärung.",
-    "firstHintOk": "Verstanden",
+    "firstHint": "Ändere die Auswahl, füge Bausteine hinzu oder sag, was passieren soll. Die Maus über einem Knopf erklärt ihn.",
+    "firstHintOk": "Hinweis schließen",
     "actionHint": {
       "fillet": "Rundet die gewählte Kante mit einem Radius ab",
       "chamfer": "Schrägt die gewählte Kante ab",
@@ -604,7 +603,21 @@
       "shell": "Höhlt den Körper aus; die gewählte Fläche bleibt offen"
     },
     "fold": "Einklappen: nur die Auswahl zeigen",
-    "unfold": "Ausklappen"
+    "unfold": "Ausklappen",
+    "refused": {
+      "shell": "Die Wandstärke passt nicht zu dieser Form – probier einen kleineren Wert.",
+      "fillet": "Der Radius ist für diese Kante zu groß – probier einen kleineren Wert.",
+      "chamfer": "Die Fase ist für diese Kante zu breit – probier einen kleineren Wert.",
+      "boolean": "Die Form lässt sich so nicht mit dem Teil verbinden – verschieb oder verkleinere sie.",
+      "other": "SolidCraft kann das so nicht bauen – probier einen anderen Wert.",
+      "details": "Details"
+    },
+    "field": {
+      "length": "Neue Kantenlänge",
+      "radius": "Neuer Radius",
+      "diameter": "Neuer Durchmesser",
+      "spacing": "Neuer Abstand"
+    }
   },
   "structure": {
     "title": "Struktur",
@@ -1324,7 +1337,7 @@
     "modeled": "Gewinde modellieren (druckbar etwa ab M5; kleinere besser nachschneiden)",
     "head": "Schraubenkopf",
     "fit": "Spiel",
-    "apply": "Bauen",
+    "apply": "Übernehmen",
     "text": "Text",
     "textHeight": "Schrifthöhe",
     "textMode": "Art",

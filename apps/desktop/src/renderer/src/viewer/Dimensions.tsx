@@ -16,14 +16,13 @@ import { Ghost } from './DimensionHud';
 import { layoutLabels, type LabelBox } from './labelLayout';
 import { parseLength, stepLength } from './lengthInput';
 import { keeps } from './section';
+import { refusalText } from './refusal';
 import { edgeLabel } from './viewState';
 import { TreeExtra } from '../shell/Tree';
 import { inputClass, fieldLabelClass } from '../ui/Field';
 
 type MeshList = RefObject<(Mesh | null)[]>;
 const PROBE_DELAY_MS = 250;
-/** Longest formula a label shows in full; the field shows all of it. */
-const FORMULA_CHARS = 18;
 const PLAIN_NUMBER = /^\s*-?\d+(\.\d+)?\s*(mm|deg)?\s*$/;
 
 
@@ -155,7 +154,7 @@ export function MarkField({ mark, onGhost, onClose }: { mark: DimensionMark; onG
   if (!changed) status = mark.edit.mode === 'parameter' ? t('dimensions.followsParameter', { name: mark.edit.name, count: mark.edit.others }) : direct ? t('dimensions.typeNew') : t('dimensions.formula', { expression: mark.expression });
   else if (!direct) status = assistant.state === 'ready' ? t('dimensions.toAssistant') : t('hud.noAssistant');
   else if (!current) status = t('hud.probing');
-  else if (!current.ok) status = t('hud.actionRefused', { detail: current.error ?? '' });
+  else if (!current.ok) status = refusalText(t, current.error ?? '');
   else status = mark.edit.mode === 'parameter' ? t('dimensions.changesParameter', { name: mark.edit.name, count: mark.edit.others }) : t('dimensions.direct');
 
   return (
@@ -213,12 +212,16 @@ function MarkLabel({ mark, open, onToggle }: { mark: DimensionMark; open: boolea
       className={`pointer-events-auto flex min-h-control-sm -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border px-2 text-xs font-semibold tabular-nums text-text shadow-1 outline-none focus-visible:focus-ring ${
         open ? 'border-dimension bg-surface-selected' : 'border-dimension/35 bg-surface-raised/95 hover:border-dimension'
       }`}
+      {...(text.formula ? { title: `${text.name}: ${text.formula}` } : {})}
       data-testid="mark-label"
       data-mark={mark.id}
       data-parameter={mark.parameter}
     >
+      {/* The value only; a formula shows as ƒ and in full on hover, so labels stay short (audit B-10). */}
       {text.formula ? (
-        <span className="font-normal text-text-subtle">{text.formula.length > FORMULA_CHARS ? `${text.formula.slice(0, FORMULA_CHARS - 1)}…` : text.formula}</span>
+        <span className="font-normal text-text-subtle" aria-hidden>
+          ƒ
+        </span>
       ) : null}
       <span>{text.value}</span>
     </AriaButton>

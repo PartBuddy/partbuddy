@@ -1640,8 +1640,7 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
       await page.getByTestId('action-block').click({ timeout: 1500 });
       await expect(page.getByTestId('block-form')).toBeVisible({ timeout: 1000 });
     }, 'a flat face of the case and its form').toPass({ timeout: 45_000, intervals: [500] });
-    await page.getByTestId('block-kind').getByRole('button').click();
-    await page.getByRole('option', { name: 'Text' }).click();
+    await page.getByTestId('block-tile-text').click();
     await expect(page.getByTestId('block-size')).toHaveCount(0);
     await page.getByTestId('block-text').getByRole('textbox').fill('UI');
     await page.getByTestId('block-height').getByRole('textbox').fill('3');
@@ -1985,8 +1984,7 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
       await page.getByTestId('action-block').click({ timeout: 1500 });
       await expect(page.getByTestId('block-form')).toBeVisible({ timeout: 1000 });
     }, 'a side face of the box and its form').toPass({ timeout: 45_000, intervals: [500] });
-    await page.getByTestId('block-kind').getByRole('button').click();
-    await page.getByRole('option', { name: 'Logo (SVG)' }).click();
+    await page.getByTestId('block-tile-logo').click();
     await page.getByTestId('block-logo').locator('input[type=file]').setInputFiles(join(__dirname, '..', 'test', 'fixtures', 'svg', 'twemoji-fox.svg'));
     await expect(page.getByTestId('block-logo-name')).toHaveText('twemoji-fox');
     await page.getByTestId('block-width').getByRole('textbox').fill('9');

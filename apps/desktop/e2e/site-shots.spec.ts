@@ -265,9 +265,7 @@ test('website pictures', async () => {
     await step('blocks', async () => {
       // The top of the base plate, as in the view picture: a seat for an insert belongs there.
       await pickFace(page, PLATE_TOP);
-      await page.getByTestId('action-block').click();
-      await page.getByTestId('block-kind').click();
-      await page.getByRole('option', { name: 'Heat-set insert seat' }).click();
+      await page.getByTestId('block-tile-insertSeat').click();
       await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
       await panBesideDock(400);
       await shot('blocks');

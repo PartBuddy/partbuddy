@@ -21,8 +21,9 @@ export function animateCamera(): boolean {
  * orbits. Add them if users reach for them.
  */
 
-const CUBE = 64;
-const BOX = 96;
+// Larger than iTwin's 64 px so the labels read at a glance (audit B-21).
+const CUBE = 72;
+const BOX = 104;
 const CELLS = [-1, 0, 1] as const;
 
 /** Every face element, for the frame loop to turn without React. */
@@ -129,7 +130,7 @@ export function ViewCube() {
                     onPointerDown={(event) => {
                       event.stopPropagation();
                     }}
-                    className={`cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold text-text outline-none hover:bg-accent-subtle focus-visible:bg-accent-subtle ${centre ? 'flex items-center justify-center' : ''}`}
+                    className={`cursor-pointer border-0 bg-transparent p-0 text-sm font-semibold text-text outline-none hover:bg-accent/35 focus-visible:bg-accent/35 forced-colors:hover:bg-[Highlight] ${centre ? 'flex items-center justify-center' : ''}`}
                   >
                     {centre ? t(`viewer.cube.${face}`) : null}
                   </button>

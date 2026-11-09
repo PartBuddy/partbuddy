@@ -15,6 +15,8 @@ import { Tip } from '../ui/Tooltip';
 import { parseLength } from './lengthInput';
 import { useLivePreview } from './livePreview';
 import { useFacePosition } from './facePosition';
+import { ProbeStatus } from './ProbeStatus';
+import { useOneEditor } from './dockEditor';
 import { boldable as canBold, FontChoice, setFont, useFontFaces } from './FontChoice';
 import { inputClass, fieldLabelClass, UnitInput } from '../ui/Field';
 import { CheckMark, choiceInlineClass, chipToggleClass, SelectField as Choice } from '../ui/Choice';
@@ -34,10 +36,8 @@ function Length({ label, value, onChange, testId }: { label: string; value: numb
       className="flex min-w-0 flex-col gap-1"
       data-testid={testId}
     >
-      <Label className={fieldLabelClass}>
-        {label} · {t('units.mmShort')}
-      </Label>
-      <Input className={`${inputClass('sm')} tabular-nums`} />
+      <Label className={fieldLabelClass}>{label}</Label>
+      <UnitInput unit={t('units.mmShort')} />
     </TextField>
   );
 }
@@ -181,6 +181,10 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   const tried = status && (!status.block || status.block === block) ? status : null;
   // A font without a bold face cannot be set bold (SolidCraft refuses it).
   const boldable = canBold(faces, spec.block === 'text' ? (spec.font ?? '') : '');
+  useOneEditor('block', open, () => {
+    setOpen(false);
+    onGhost(null);
+  });
   if (!face || !block) return null;
   const kind = (next: BlockKind) => {
     const sizes = sizesOf(next);
@@ -280,10 +284,13 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
             close();
           }}
         >
-          <div className="grid grid-cols-2 gap-2">
-            <Choice label={t('blocks.kind')} value={block.block} items={BLOCK_KINDS.map((id) => ({ id, label: t(`blocks.kinds.${id}`) }))} onChange={(id) => kind(id)} testId="block-kind" />
-            {hasSize(block.block) ? <Choice label={t('blocks.size')} value={block.size} items={sizes.map((id) => ({ id, label: id }))} onChange={(id) => size(id)} testId="block-size" /> : null}
-          </div>
+          {/* The tiles choose their own kind; the list holds only the kinds behind "More …" (audit B-06). */}
+          {tiled(block.block) && !hasSize(block.block) ? null : (
+            <div className="grid grid-cols-2 gap-2">
+              {tiled(block.block) ? null : <Choice label={t('blocks.kind')} value={block.block} items={BLOCK_KINDS.filter((id) => !tiled(id)).map((id) => ({ id, label: t(`blocks.kinds.${id}`) }))} onChange={(id) => kind(id)} testId="block-kind" />}
+              {hasSize(block.block) ? <Choice label={t('blocks.size')} value={block.size} items={sizes.map((id) => ({ id, label: id }))} onChange={(id) => size(id)} testId="block-size" /> : null}
+            </div>
+          )}
           {position}
           {place && ROW_KINDS.has(block.block) ? (
             <div className="flex flex-col gap-1" data-testid="block-row">
@@ -488,9 +495,13 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
             </div>
           )}
           <p className="text-xs text-text-subtle">{t(`blocks.hint.${block.block}`)}</p>
-          <p className="text-xs text-text-muted" role="status" data-testid="block-status" data-ok={tried ? String(tried.ok) : undefined}>
-            {waiting ? t('blocks.logoWaiting') : !tried ? t('hud.probing') : tried.ok ? t('blocks.ready') : t('hud.actionRefused', { detail: tried.error ?? '' })}
-          </p>
+          {waiting ? (
+            <p className="text-xs text-text-muted" role="status" data-testid="block-status">
+              {t('blocks.logoWaiting')}
+            </p>
+          ) : (
+            <ProbeStatus state={!tried ? 'probing' : tried.ok ? 'ready' : 'refused'} error={tried?.error} ready={t('blocks.ready')} testId="block-status" />
+          )}
           <div className="flex gap-2">
             <Button variant="primary" isDisabled={busy || !tried?.ok} onPress={apply} className="flex-1" data-testid="block-apply">
               {t('blocks.apply')}

@@ -70,7 +70,14 @@ export function ConnectionNotice() {
         </>,
       );
     case 'starting':
-      return card(t('connection.startingTitle'), t('connection.startingBody'), <Busy label={t('solidcraft.starting')} />);
+      // Once, over an empty view; over a shown model a small chip, so the part stays visible (audit B-25).
+      return hasModel ? (
+        <div className="pointer-events-auto rounded-md bg-surface-raised px-2 py-1 shadow-2">
+          <Busy label={t('solidcraft.starting')} />
+        </div>
+      ) : (
+        card(t('connection.startingTitle'), t('connection.startingBody'), <Busy label={t('connection.startingProgress')} />)
+      );
     case 'lost':
       return card(t('connection.lostTitle'), t('connection.lostBody'), retry);
     case 'failed':
