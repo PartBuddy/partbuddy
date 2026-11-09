@@ -16,16 +16,23 @@ test.skip(!folder || process.env.PARTBUDDY_E2E_SOLIDCRAFT !== '1', 'audit measur
 const SOAK_MIN = Number(process.env.PARTBUDDY_AUDIT_SOAK_MIN ?? '60');
 const fakeClaude = JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]);
 
-/** Installed before React loads: counts commits and which components rendered in them. */
+/**
+ * Installed before React loads: counts commits and which components rendered in them. Only the
+ * parts of the tree that this commit touched are walked (as React DevTools does): a subtree React
+ * skipped keeps its old fibers, whose "performed work" flag is left over from an earlier commit.
+ * The first audit walked the whole tree and counted those, so every commit looked like a full
+ * render (P-01).
+ */
 const COMMIT_COUNTER = `(() => {
   const counts = {}; let commits = 0;
   const visit = (fiber) => {
     for (let node = fiber; node; node = node.sibling) {
-      if ((node.tag === 0 || node.tag === 1 || node.tag === 11 || node.tag === 14 || node.tag === 15) && (node.flags & 1)) {
+      const fresh = node.alternate === null;
+      if ((node.tag === 0 || node.tag === 1 || node.tag === 11 || node.tag === 14 || node.tag === 15) && (fresh || (node.flags & 1))) {
         const name = node.type?.displayName || node.type?.name || node.type?.render?.name || 'anonymous';
         counts[name] = (counts[name] || 0) + 1;
       }
-      if (node.child) visit(node.child);
+      if (node.child && (fresh || node.child !== node.alternate.child)) visit(node.child);
     }
   };
   window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
