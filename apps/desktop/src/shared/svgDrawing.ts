@@ -41,7 +41,7 @@ export interface Drawing {
   /** Millimetres per unit when the file states a physical size (mm, cm, in, pt, pc), else null. */
   unitMm: number | null;
   /** What has no area and was left out: shapes with neither fill nor stroke (`strokes`), text, embedded pictures. */
-  skipped: { strokes: number; texts: number; images: number };
+  skipped: { strokes: number; texts: number; images: number; backgrounds: number };
 }
 export type DrawingProblem = 'tooBig' | 'notSvg' | 'unsafe' | 'tooComplex' | 'empty';
 export type DrawingResult = { ok: true; drawing: Drawing } | { ok: false; problem: DrawingProblem; detail: string };
@@ -630,6 +630,42 @@ function besides(polygon: readonly Pt[], gap: number): [Pt, Pt][] {
 // ---------------------------------------------------------------------------------------------
 // Reading the drawing.
 
+type Box = { minX: number; minY: number; maxX: number; maxY: number };
+const boxOf = (points: readonly Pt[]): Box => ({
+  minX: Math.min(...points.map((p) => p[0])),
+  minY: Math.min(...points.map((p) => p[1])),
+  maxX: Math.max(...points.map((p) => p[0])),
+  maxY: Math.max(...points.map((p) => p[1])),
+});
+/** Nearly the whole box: a rectangle, also one with small rounded corners. */
+const rectangular = (polygon: readonly Pt[], box: Box) => Math.abs(area(polygon)) >= 0.95 * (box.maxX - box.minX) * (box.maxY - box.minY);
+
+/**
+ * The shapes without what only frames the drawing (decided 2026-11-09): a light sheet (white,
+ * near white: paper) as a rectangle behind everything, and a thin rectangular frame along its
+ * edge, of any colour. A coloured plate stays, a sign may want it; a drawing that is nothing else
+ * stays whole.
+ */
+function withoutBackdrop(shapes: Shape[], rough: number): Shape[] {
+  if (shapes.length < 2) return shapes;
+  const polygons = shapes.map((shape) => shape.loops.map((loop) => flatten(loop, rough * 1e-3)));
+  const all = boxOf(polygons.flat(2));
+  const [w, h] = [all.maxX - all.minX, all.maxY - all.minY];
+  const spans = (box: Box) => box.minX - all.minX <= 0.02 * w && all.maxX - box.maxX <= 0.02 * w && box.minY - all.minY <= 0.02 * h && all.maxY - box.maxY <= 0.02 * h;
+  const drop = shapes.map((shape, i) => {
+    const loops = polygons[i] ?? [];
+    const outer = loops.reduce((best, polygon) => (Math.abs(area(polygon)) > Math.abs(area(best)) ? polygon : best), loops[0] ?? []);
+    const box = boxOf(outer);
+    if (outer.length < 3 || !spans(box) || !rectangular(outer, box)) return false;
+    const inner = loops.filter((polygon) => polygon !== outer);
+    // A frame: one rectangular hole leaving a thin band.
+    const hole = inner[0];
+    if (inner.length === 1 && hole && rectangular(hole, boxOf(hole)) && Math.abs(area(hole)) >= 0.8 * Math.abs(area(outer))) return true;
+    return lab(shape.fill)[0] >= 90;
+  });
+  return drop.every(Boolean) ? shapes : shapes.filter((_, i) => !drop[i]);
+}
+
 /** A stroked element: its loops (open ones have ends) in the drawing's frame and how it is stroked. */
 interface Stroke {
   colour: string;
@@ -715,7 +751,7 @@ function read(text: string): Drawing {
   index(svg);
 
   const shapes: (Shape & { rule: string })[] = [];
-  const skipped = { strokes: 0, texts: 0, images: 0 };
+  const skipped = { strokes: 0, texts: 0, images: 0, backgrounds: 0 };
   let segments = 0;
   type Inherited = { fill: string | undefined; rule: string; color: string; hidden: boolean; fillOpacity: number; stroke: string | undefined; strokeWidth: string; strokeOpacity: number; join: string; cap: string; miter: number };
   const strokes: Stroke[] = [];
@@ -823,10 +859,12 @@ function read(text: string): Drawing {
   const ys = all.map((p) => p[1]);
   // The control points bound the curves; the exact box comes from a fine polygon.
   const rough = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) || 1;
-  const clean = shapes
+  const drawn = shapes
     .map((shape) => ({ fill: shape.fill, loops: boundaryLoops(shape.loops, shape.rule, rough) }))
     .filter((shape) => shape.loops.length > 0);
-  if (clean.length === 0) throw new Refused('empty', 'the drawing has no filled shapes');
+  if (drawn.length === 0) throw new Refused('empty', 'the drawing has no filled shapes');
+  const clean = withoutBackdrop(drawn, rough);
+  skipped.backgrounds = drawn.length - clean.length;
   const fine = clean.flatMap((shape) => shape.loops.flatMap((loop) => flatten(loop, rough * 1e-5)));
   const bounds = {
     minX: Math.min(...fine.map((p) => p[0])),

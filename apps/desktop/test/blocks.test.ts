@@ -122,6 +122,7 @@ describe('function blocks (F1)', () => {
       // eslint-disable-next-line no-restricted-syntax -- the drawing's own fill
       svg: '<svg xmlns="http://www.w3.org/2000/svg" width="30mm" height="15mm" viewBox="0 0 30 15"><path fill="#000000" fill-rule="evenodd" d="M0 0L30 0L30 15L0 15Z"/></svg>',
       width: 30,
+      backgrounds: 0,
     });
     expect(logoFrom('<html><body>no</body></html>')).toEqual({ problem: 'notSvg' });
     expect(logoFrom(`<svg>${'x'.repeat(512 * 1024)}</svg>`)).toEqual({ problem: 'tooBig' });

@@ -509,7 +509,8 @@
   "drawingDetail": {
     "fine": "{places, plural, one {One place is} other {# places are}} narrower than the nozzle ({nozzle, number} mm), the narrowest {thinnest, number} mm: they will not print cleanly or will close up. From {fineFrom, number} mm wide everything fits.",
     "widen": "Make it {width, number} mm wide",
-    "show": "Show the places"
+    "show": "Show the places",
+    "backdrop": "Background or frame around the drawing left out – it is not part of the logo."
   },
   "logoMove": {
     "title": "Logo “{name}”",

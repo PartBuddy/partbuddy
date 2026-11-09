@@ -2476,6 +2476,11 @@ test('an SVG dropped on the chat goes along exactly: an "O" at 40 mm, 2 mm high,
     await expect(page.getByTestId('composer-drawing-name')).toHaveText('Pasted drawing');
     await expect(composer).toHaveValue('');
     await page.getByTestId('composer-drawing-remove').click();
+    // A white sheet behind a star is no part of the logo: left out, and the composer says so.
+    await drop('star-on-sheet.svg', fixture('star-on-sheet.svg'));
+    await expect(page.getByTestId('composer-drawing-backdrop')).toContainText('Background or frame around the drawing left out');
+    await page.getByTestId('composer-drawing-remove').click();
+    await expect(page.getByTestId('composer-drawing-backdrop')).toHaveCount(0);
     // A bar 0.2 mm high at 20 mm wide is narrower than the 0.4 mm nozzle: shown, marked, and widened on a click.
     await drop('thin-bar.svg', fixture('thin-bar.svg'));
     const detail = page.getByTestId('drawing-detail');

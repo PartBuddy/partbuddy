@@ -127,6 +127,8 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   const fills = useMemo(() => (logoDrawing ? drawingColours(logoDrawing) : []), [logoDrawing]);
   // The drawing as the file has it, before its colours were brought down to fewer filaments.
   const [logoFull, setLogoFull] = useState<Drawing | null>(null);
+  // The file had a sheet or frame around the drawing, left out.
+  const [backdrop, setBackdrop] = useState(false);
   const fullDrawing = logoFull ?? logoDrawing;
   const fullCount = useMemo(() => (fullDrawing ? drawingColours(fullDrawing).length : 0), [fullDrawing]);
   // The width field shows a width taken from the detail warning by starting afresh.
@@ -173,6 +175,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
         setStatus(null);
         const read = parseDrawing(logo.svg);
         setLogoFull(read.ok ? read.drawing : null);
+        setBackdrop(logo.backgrounds > 0);
         // The fields may have changed while the file was read; a file with a size in mm keeps it.
         setBlock((current) => (current.block === 'logo' ? { ...current, svg: logo.svg, ...(logo.width ? { width: logo.width } : {}), name: file.name.replace(/\.svg$/i, '').slice(0, 200) } : current));
       },
@@ -284,6 +287,11 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
                   </span>
                 ) : null}
               </div>
+              {backdrop && block.svg ? (
+                <p className="col-span-2 text-xs text-text-muted" data-testid="block-logo-backdrop">
+                  {t('drawingDetail.backdrop')}
+                </p>
+              ) : null}
               {fileProblem ? (
                 <p className="col-span-2 text-xs text-danger" role="alert" data-testid="block-logo-problem">
                   {t(`blocks.logoProblems.${fileProblem}`)}
