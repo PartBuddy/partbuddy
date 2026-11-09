@@ -22,22 +22,22 @@ const boxTop = [
 
 describe('placing a logo', () => {
   it('names a second logo of the same file apart', () => {
-    expect(uniqueLogoName('badge.svg', [])).toBe('Logo badgesvg');
-    expect(uniqueLogoName('Badge', ['Logo Badge'])).toBe('Logo Badge 2');
-    expect(uniqueLogoName('Badge', ['Logo Badge', 'Logo Badge 2'])).toBe('Logo Badge 3');
+    expect(uniqueLogoName('badge.svg', [])).toBe('SVG-Logo badgesvg');
+    expect(uniqueLogoName('Badge', ['SVG-Logo Badge'])).toBe('SVG-Logo Badge 2');
+    expect(uniqueLogoName('Badge', ['SVG-Logo Badge', 'SVG-Logo Badge 2'])).toBe('SVG-Logo Badge 3');
   });
 
   it('groups the sketches of a logo in colours and skips other sketches', () => {
     const logos = placedLogos({
       sketches: [
-        { id: 2, name: 'Logo Badge', plane: top },
-        { id: 5, name: 'Logo Badge', plane: top },
+        { id: 2, name: 'SVG-Logo Badge', plane: top },
+        { id: 5, name: 'SVG-Logo Badge', plane: top },
         { id: 7, name: 'Sketch3', plane: top },
-        { id: 8, name: 'Logo Broken' },
+        { id: 8, name: 'SVG-Logo Broken' },
       ],
     });
-    expect([...logos.keys()]).toEqual(['Logo Badge']);
-    expect(logos.get('Logo Badge')?.map((sketch) => sketch.id)).toEqual([2, 5]);
+    expect([...logos.keys()]).toEqual(['SVG-Logo Badge']);
+    expect(logos.get('SVG-Logo Badge')?.map((sketch) => sketch.id)).toEqual([2, 5]);
   });
 
   it('moves the plane along its own axes', () => {

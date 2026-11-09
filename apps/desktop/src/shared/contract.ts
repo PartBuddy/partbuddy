@@ -841,7 +841,7 @@ export const actionPreviewSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable() }).strict(),
   z.object({ ok: z.literal(false), error: z.string().max(300) }).strict(),
 ]);
-/** A placed logo at a picked point (sketches named "Logo <name>"), and where it sits from its face's middle. */
+/** A placed logo at a picked point (sketches named "SVG-Logo <name>"), and where it sits from its face's middle. */
 export const logoSpotSchema = z
   .object({ logo: z.string().min(1).max(200), offset: z.tuple([finite, finite]).nullable(), origin: point3, xDir: point3, yDir: point3, box: z.tuple([finite, finite, finite, finite]), depth: z.object({ value: finite, raised: z.boolean() }).strict().nullable(), angle: finite })
   .strict();

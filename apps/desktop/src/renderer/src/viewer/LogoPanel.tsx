@@ -1,9 +1,10 @@
-import { IconCheck, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle, IconRotate, IconRotateClockwise } from '@tabler/icons-react';
+import { IconCheck, IconChevronRight, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle, IconRotate, IconRotateClockwise } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Label, NumberField } from 'react-aria-components';
 
 import type { LogoMoveRequest, LogoSpot } from '../../../shared/contract';
+import { logoTitle } from '../../../shared/drawingPlacement';
 import { platform } from '../platform';
 import { useStudio, type DraggedDimension, type Pick } from '../state/store';
 import { buttonClass } from '../ui/Button';
@@ -36,6 +37,8 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
   const [depth, setDepth] = useState<number | null>(null);
   const [angle, setAngle] = useState(0);
   const [wide, setWide] = useState(0);
+  // Folded until asked for: a click on a logo is often only for a note or a measure there (09.11.2026).
+  const [open, setOpen] = useState(false);
   const shown = useRef(false);
 
   useEffect(() => {
@@ -104,7 +107,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
 
   // The arrows on the part: across and up.
   useEffect(() => {
-    if (!spot || busy) {
+    if (!spot || busy || !open) {
       setLogoHandles([]);
       return;
     }
@@ -142,7 +145,7 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
     };
     // move and base follow spot; value is what the arrows start from.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spot, busy, value[0], value[1], depth, setLogoHandles]);
+  }, [spot, busy, open, value[0], value[1], depth, setLogoHandles]);
 
   if (!spot) return null;
   const field = (axis: 0 | 1) => (
@@ -168,11 +171,23 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
     </AriaButton>
   );
   return (
-    <section aria-label={t('logoMove.title', { name: spot.logo.replace(/^Logo /, '') })} className="flex flex-col gap-2 border-t border-border pt-2" data-testid="logo-move">
-      <div className="flex flex-col gap-hairline">
-        <h3 className="text-sm font-medium text-text">{t('logoMove.title', { name: spot.logo.replace(/^Logo /, '') })}</h3>
-        <p className="text-xs text-text-muted">{spot.offset ? t('logoMove.hint') : t('logoMove.hintNoFace')}</p>
-      </div>
+    <section aria-label={t('logoMove.title', { name: logoTitle(spot.logo) })} className="flex flex-col gap-2 border-t border-border pt-2" data-testid="logo-move">
+      <h3 className="text-sm font-medium text-text">
+        <AriaButton
+          aria-expanded={open}
+          onPress={() => {
+            setOpen(!open);
+          }}
+          className="flex w-full items-center gap-1 rounded-sm text-left outline-none focus-visible:focus-ring"
+          data-testid="logo-move-open"
+        >
+          <IconChevronRight className={`size-icon-sm shrink-0 text-text-subtle transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />
+          {t('logoMove.title', { name: logoTitle(spot.logo) })}
+        </AriaButton>
+      </h3>
+      {open ? (
+        <>
+      <p className="text-xs text-text-muted">{spot.offset ? t('logoMove.hint') : t('logoMove.hintNoFace')}</p>
       <div className="flex flex-wrap items-end gap-2">
         {field(0)}
         {field(1)}
@@ -247,6 +262,8 @@ export function LogoPanel({ picks, busy, onGhost }: { picks: Pick[]; busy: boole
           90°
         </AriaButton>
       </div>
+        </>
+      ) : null}
     </section>
   );
 }

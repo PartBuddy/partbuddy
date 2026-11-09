@@ -63,6 +63,7 @@ import { parseDrawing } from '../shared/svgDrawing';
 import { shareDescription } from './share/description';
 import { freeFolder } from './share/freeFolder';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
+import { logoTitle } from '../shared/drawingPlacement';
 
 app.setName('PartBuddy');
 // Windows counts a window beside all displays as covered and stops painting it; test runs
@@ -1176,7 +1177,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.designMoveLogo, async (move) => {
       assistantIdle();
-      const name = move.logo.replace(/^Logo /, '').slice(0, 40);
+      const name = logoTitle(move.logo).slice(0, 40);
       const only = move.by === null && move.centre === null;
       const phrase =
         only && move.depth

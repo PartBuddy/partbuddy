@@ -226,7 +226,7 @@ export async function planLogoMove(run: Run, logo: string, change: LogoChange): 
 }
 
 export interface LogoSpot {
-  /** The sketch name, "Logo <name>". */
+  /** The sketch name, "SVG-Logo <name>". */
   logo: string;
   /** Where the logo's middle sits from its face's middle, along the logo's x and y; null without a flat face under it. */
   offset: [number, number] | null;
