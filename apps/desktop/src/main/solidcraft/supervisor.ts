@@ -587,8 +587,44 @@ export class SolidCraftSupervisor {
     await this.engine?.checkForChange();
   }
 
+  /**
+   * How a bold text is set in a family (decided 2026-11-09): SolidCraft takes some families with
+   * `bold` (Bahnschrift, a variable font, whose "Bahnschrift Bold" it does not know) and others only
+   * by their bold face's full name (Segoe Print). Tried once per family, the answer kept.
+   */
+  private boldFonts = new Map<string, { font: string; bold: boolean }>();
+
+  private async boldFont(font: string | undefined, bold: boolean | undefined, boldFace: string | undefined): Promise<{ font?: string; bold?: boolean }> {
+    if (!font || !bold || !boldFace) return { ...(font !== undefined ? { font } : {}), ...(bold !== undefined ? { bold } : {}) };
+    const known = this.boldFonts.get(font);
+    if (known) return known;
+    const tried = await this.trialSteps([
+      { command: 'sketch.create', params: { plane: { origin: [0, 0, 0], x_dir: [1, 0, 0], y_dir: [0, 1, 0] }, project_edges: false } },
+      { command: 'sketch.text', params: { text: 'A', at: [0, 0], height: 5, font, bold: true } },
+    ]);
+    const chosen = tried ? { font, bold: true } : { font: boldFace, bold: false };
+    this.options.log(`bold text in ${font}: ${tried ? 'the family with bold' : `its face "${boldFace}"`}`);
+    this.boldFonts.set(font, chosen);
+    return chosen;
+  }
+
+  /** A text block with its bold font settled; other blocks as they are. */
+  private async boldBlock(block: FeatureBlock): Promise<FeatureBlock> {
+    if (block.block !== 'text') return block;
+    const { boldFace, ...rest } = block;
+    return { ...rest, ...(await this.boldFont(block.font, block.bold, boldFace)) };
+  }
+
+  /** A text change with its bold font settled. */
+  private async boldMove(move: LogoMoveRequest): Promise<LogoMoveRequest> {
+    if (!move.text) return move;
+    const { boldFace, ...text } = move.text;
+    return { ...move, text: { ...text, ...(await this.boldFont(text.font, text.bold, boldFace)) } };
+  }
+
   /** A function block (F1) on trial for the ghost, like an action. */
-  previewBlock(block: FeatureBlock): Promise<ActionPreview> {
+  async previewBlock(given: FeatureBlock): Promise<ActionPreview> {
+    const block = await this.boldBlock(given);
     return this.trial('block preview', async () => {
       const placed = await this.centredBlock(block);
       return this.actions.previewSteps(stepsOf(placed), blockBodies(placed));
@@ -609,7 +645,8 @@ export class SolidCraftSupervisor {
     return { ...block, point: movedPlane(plane, du, dv).origin };
   }
 
-  async applyBlock(block: FeatureBlock): Promise<void> {
+  async applyBlock(given: FeatureBlock): Promise<void> {
+    let block = await this.boldBlock(given);
     await this.probing;
     // A logo's sketches get a name no other logo has, so it can be moved on its own later.
     const sketch =
@@ -651,14 +688,16 @@ export class SolidCraftSupervisor {
   }
 
   /** A logo moved on trial: its sketches redefined, the part and its colour bodies exported for the ghost. */
-  previewLogoMove(move: LogoMoveRequest): Promise<ActionPreview> {
+  async previewLogoMove(given: LogoMoveRequest): Promise<ActionPreview> {
+    const move = await this.boldMove(given);
     return this.trial('logo preview', async () => {
       const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move);
       return this.actions.previewSteps(planned.steps, planned.bodies);
     });
   }
 
-  async moveLogo(move: LogoMoveRequest): Promise<void> {
+  async moveLogo(given: LogoMoveRequest): Promise<void> {
+    const move = await this.boldMove(given);
     await this.probing;
     const planned = await planLogoMove((commands) => this.actions.run(commands), move.logo, move);
     // Already where it should be (centred twice): nothing to do.

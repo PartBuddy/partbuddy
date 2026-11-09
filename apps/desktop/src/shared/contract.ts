@@ -787,6 +787,7 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       mode: z.enum(['emboss', 'deboss']),
       bold: z.boolean(),
       font: z.string().trim().min(1).max(100).optional(),
+      boldFace: z.string().trim().min(1).max(100).optional(),
     })
     .strict(),
   z.object({ block: z.literal('nutTrap'), body: bodyName, point: point3, normal: point3, size: blockSize, flats: blockLength, depth: blockLength }).strict(),
@@ -862,7 +863,7 @@ export const logoMoveSchema = z
     width: finite.positive().max(1000).nullable().optional(),
     /** A placed text's words, capital height, font ("" the built-in one) and boldness; left out keeps each. */
     text: z
-      .object({ words: z.string().trim().min(1).max(80).optional(), height: finite.positive().max(500).optional(), font: z.string().max(100).optional(), bold: z.boolean().optional() })
+      .object({ words: z.string().trim().min(1).max(80).optional(), height: finite.positive().max(500).optional(), font: z.string().max(100).optional(), bold: z.boolean().optional(), boldFace: z.string().max(100).optional() })
       .strict()
       .nullable()
       .optional(),

@@ -66,7 +66,7 @@ export type FeatureBlock =
   | { block: 'insertSeat'; body: string; point: [number, number, number]; size: BlockSize; diameter: number; depth: number; more?: Point[] | undefined }
   | { block: 'boss'; body: string; point: [number, number, number]; size: BlockSize; diameter: number; height: number }
   /** Text embossed onto or engraved into the face, centred on the point. */
-  | { block: 'text'; body: string; point: Point; normal: Point; size: BlockSize; text: string; height: number; depth: number; mode: 'emboss' | 'deboss'; bold: boolean; /** An installed font family; none is SolidCraft's built-in Liberation Sans. */ font?: string | undefined }
+  | { block: 'text'; body: string; point: Point; normal: Point; size: BlockSize; text: string; height: number; depth: number; mode: 'emboss' | 'deboss'; bold: boolean; /** An installed font family; none is SolidCraft's built-in Liberation Sans. */ font?: string | undefined; /** The full name of the family's bold face, for SolidCraft to try when bold with the family is refused. */ boldFace?: string | undefined }
   /** A hexagonal pocket for a nut with a clearance hole through the rest. */
   | { block: 'nutTrap'; body: string; point: Point; normal: Point; size: BlockSize; flats: number; depth: number }
   /** A slot for a screw, across or along the face, through or to a depth. */
