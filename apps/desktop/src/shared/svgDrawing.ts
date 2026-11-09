@@ -597,8 +597,34 @@ function boundaryLoops(loops: Loop[], rule: string, size: number): Loop[] {
     const polygon = polygons[k] as Pt[];
     if (Math.abs(area(polygon)) < size * size * 1e-12) return false;
     const beside = sides(polygon, size * 1e-6);
-    return beside !== null && filled(beside[0]) !== filled(beside[1]);
+    if (beside === null) return false;
+    if (filled(beside[0]) !== filled(beside[1])) return true;
+    // Another loop may touch just that spot (a bar meeting the middle of a block's side): a loop is
+    // an edge if it is one anywhere, so a few more places along its longest edges decide.
+    return besides(polygon, size * 1e-6).some(([p, q]) => filled(p) !== filled(q));
   });
+}
+
+/** Points just beside a polygon, one on each side, at a third and two thirds of its three longest edges. */
+function besides(polygon: readonly Pt[], gap: number): [Pt, Pt][] {
+  const edges = polygon
+    .map((a, k) => {
+      const b = polygon[(k + 1) % polygon.length] as Pt;
+      return { a, b, length: Math.hypot(b[0] - a[0], b[1] - a[1]) };
+    })
+    .filter((edge) => edge.length > 0)
+    .sort((p, q) => q.length - p.length)
+    .slice(0, 3);
+  return edges.flatMap(({ a, b, length }) =>
+    [1 / 3, 2 / 3].map((t): [Pt, Pt] => {
+      const at: Pt = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+      const [nx, ny] = [-(b[1] - a[1]) / length, (b[0] - a[0]) / length];
+      return [
+        [at[0] + nx * gap, at[1] + ny * gap],
+        [at[0] - nx * gap, at[1] - ny * gap],
+      ];
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------------------------
