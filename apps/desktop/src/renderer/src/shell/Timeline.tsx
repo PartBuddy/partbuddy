@@ -182,7 +182,7 @@ export function Timeline() {
   return (
     <section aria-label={t('timeline.title')} className="flex h-control-lg shrink-0 items-center gap-2 border-t border-border bg-surface px-2" data-testid="timeline" data-marker={marker ?? 'end'}>
       <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-text-subtle">{t('timeline.title')}</span>
-      <ol ref={list} className="relative flex min-w-0 flex-1 items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
+      <ol ref={list} className="relative flex min-w-0 flex-1 scroll-px-2 items-center gap-2 overflow-x-auto px-1" style={{ scrollbarWidth: 'thin' }}>
         {features.map((feature, index) => {
           // While the bar moves, the steps it would roll back fade already.
           const faded = feature.suppressed || (moving === null ? feature.rolledBack : index + 1 > moving);
@@ -215,13 +215,14 @@ export function Timeline() {
                     className={menuClass}
                     onAction={(key) => {
                       if (key === 'roll') run({ action: 'rollTo', position: index + 1 });
+                      if (key === 'end') run({ action: 'rollTo', position: 'end' });
                       if (key === 'suppress') run({ action: 'suppress', feature: feature.id, suppressed: !feature.suppressed });
                     }}
-                    disabledKeys={busy ? ['roll', 'suppress'] : []}
+                    disabledKeys={busy ? ['roll', 'end', 'suppress'] : marker === null ? ['end'] : []}
                   >
                     <MenuSection>
-                      <Header className={menuHeaderClass}>
-                        {t(`timeline.kind.${kind}`, { defaultValue: kind })} · {t('timeline.rebuild', { ms: Math.round(feature.ms) })}
+                      <Header className={menuHeaderClass} title={t('timeline.rebuild', { ms: Math.round(feature.ms) })}>
+                        {feature.name} · {t(`timeline.kind.${kind}`, { defaultValue: kind })}
                       </Header>
                       {feature.error || feature.warning ? (
                         <Header className={`px-2 pb-1 text-xs ${feature.error ? 'text-danger' : 'text-warning'}`} data-testid="timeline-problem">
@@ -232,6 +233,9 @@ export function Timeline() {
                     <MenuSection>
                       <MenuItem id="roll" className={menuItemClass}>
                         {t('timeline.rollTo')}
+                      </MenuItem>
+                      <MenuItem id="end" className={menuItemClass}>
+                        {t('timeline.toEnd')}
                       </MenuItem>
                       <MenuItem id="suppress" className={menuItemClass}>
                         {feature.suppressed ? t('timeline.unsuppress') : t('timeline.suppress')}
