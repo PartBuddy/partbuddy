@@ -1,4 +1,4 @@
-import { drawingColours, drawingFacts, drawingSvg, type Drawing } from '../../shared/svgDrawing';
+import { drawingColours, drawingFacts, drawingSvg, mergedColours, type Drawing } from '../../shared/svgDrawing';
 import { uniqueLogoName } from '../../shared/drawingPlacement';
 import { colourLayers, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
 import { planLogoMove, type Run } from '../solidcraft/logoMove';
@@ -25,6 +25,7 @@ const placeTool: UpstreamTool = {
       depth: { type: 'number', exclusiveMinimum: 0, maximum: 50, description: 'How deep or high, in mm.' },
       width: { type: 'number', exclusiveMinimum: 0, maximum: 1000, description: 'Width in mm, aspect kept; default the width the user chose.' },
       colours: { type: 'boolean', description: 'A body per colour, each coloured like its fill (only for a drawing with several fills).' },
+      colours_max: { type: 'integer', minimum: 2, maximum: 16, description: "With colours: at most this many (the printer's filaments); the nearest colours merge, the larger area keeping its colour." },
       centre: { type: 'string', enum: ['x', 'y', 'both'], description: 'Then centre it on the face along its x, y or both.' },
     },
     required: ['drawing', 'body', 'point', 'normal', 'mode', 'depth'],
@@ -112,7 +113,7 @@ export function drawingNote(id: string, kept: KeptDrawing, skipped: Drawing['ski
     `${String(facts.holes)} of them hole${facts.holes === 1 ? '' : 's'}; fills ${colours}.` +
     (left.length > 0 ? ` Left out because they have no area: ${left.join(', ')}.` : '') +
     ` As a logo on a face (engraved, built up, in colours, centred), place it with \`${PLACE_DRAWING_TOOL}\` {drawing: "${id}", body, point, normal, mode, depth` +
-    (facts.colours.length > 1 ? ', colours: true for a body per fill' : '') +
+    (facts.colours.length > 1 ? ', colours: true for a body per fill' + (facts.colours.length > 2 ? ', colours_max for fewer filaments' : '') : '') +
     `, centre}: PartBuddy builds it exactly; \`${MOVE_DRAWING_TOOL}\` moves it afterwards. ` +
     `Only for other uses (an outline to extrude, a cut-out through the part) put it into a sketch with \`sketch.insert_svg\` {text: "drawing:${id}", width: ${mm(facts.width)}, align: "center", at: [x, y]}: ` +
     'PartBuddy replaces that text with the exact contours, so never type, trace or redraw the paths. Build that with `solid.extrude` (a loop inside a hole stays material, as drawn); ' +
@@ -180,7 +181,9 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
   if (!body || !point || !normal || Math.hypot(...normal) < 1e-9) throw new Error('body, point and normal (not zero) are needed');
   if (!mode || !depth || !width) throw new Error('mode must be deboss or emboss, depth 0–50 mm, width 0–1000 mm');
   if (args.centre !== undefined && !centre) throw new Error('centre must be x, y or both');
-  const block: Extract<FeatureBlock, { block: 'logo' }> = { block: 'logo', body, point, normal, size: 'M3', name: kept.name, svg: drawingSvg(kept.drawing, width), width, depth, mode, colours: args.colours === true };
+  const most = Number.isInteger(args.colours_max) && (args.colours_max as number) >= 2 && (args.colours_max as number) <= 16 ? (args.colours_max as number) : null;
+  if (args.colours_max !== undefined && most === null) throw new Error('colours_max must be a whole number 2–16');
+  const block: Extract<FeatureBlock, { block: 'logo' }> = { block: 'logo', body, point, normal, size: 'M3', name: kept.name, svg: drawingSvg(most ? mergedColours(kept.drawing, most) : kept.drawing, width), width, depth, mode, colours: args.colours === true };
   const sketches = (jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { sketches?: { name?: unknown }[] }).sketches ?? [];
   const sketch = uniqueLogoName(kept.name, sketches.flatMap((entry) => (typeof entry.name === 'string' ? [entry.name] : [])));
   const reply = jsonOf(await upstream.callTool('batch', { commands: stepsOf(block, sketch) }, callId)) as { failed?: { error?: unknown } };

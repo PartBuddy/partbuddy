@@ -1907,6 +1907,10 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
     await page.getByTestId('block-width').getByRole('textbox').fill('9');
     await expect(page.getByTestId('block-logo-colours')).toContainText('5 colours');
     await page.getByTestId('block-colours').click();
+    // A printer with three filaments: the nearest colours merge, the fox keeps its three biggest.
+    await page.getByTestId('block-colours-most').getByRole('button').click();
+    await page.getByRole('option', { name: '3', exact: true }).click();
+    await expect(page.getByTestId('block-logo-colours')).toContainText('3 colours');
     // Wherever the face was clicked, the fox goes onto its middle.
     await page.getByTestId('block-centre').click();
     await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
@@ -1916,6 +1920,9 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
     // Every body but the box has its colour in the tree, also a piece a cut split in two.
     const count = await page.getByTestId('structure-body').count();
     await expect(page.getByTestId('structure-body-colour')).toHaveCount(count - 1);
+    // Only the fox's bodies: the badge from before keeps its own two colours.
+    const swatches = await page.getByTestId('structure-body').filter({ hasText: 'twemoji-fox' }).getByTestId('structure-body-colour').all();
+    expect(new Set(await Promise.all(swatches.map((swatch) => swatch.getAttribute('title')))).size).toBe(3);
     type Logos = { partbuddy: { design: { logoAt(point: number[]): Promise<{ logo: string; offset: number[] | null } | null> } } };
     const fox = await page.evaluate(() => (globalThis as unknown as Logos).partbuddy.design.logoAt([10, 0, 5]));
     expect(fox?.logo).toBe('Logo twemoji-fox');
