@@ -3,32 +3,45 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, ComboBox, Input, Label, ListBox, ListBoxItem, Popover, useFilter } from 'react-aria-components';
 
-import { iconButtonClass } from '../ui/Button';
 import { ListCheck, listItemClass } from '../ui/Choice';
 import { fieldLabelClass, inputClass } from '../ui/Field';
 import { popoverClass } from '../ui/Overlay';
 
 /**
- * Installed font families and whether each has a bold face, read once (Chromium's local font
- * access, granted in main for this window only). SolidCraft refuses bold for a family without one.
+ * Installed font families and the full name of each one's bold face (null without one), read once
+ * (Chromium's local font access, granted in main for this window only). SolidCraft finds a bold
+ * face reliably only by that full name ("Segoe Print Bold"; `bold` with the family is refused for
+ * it, checked 2026-11-09), so a bold text is set in it.
  */
-let installedFonts: Promise<Map<string, boolean>> | null = null;
-function fontFaces(): Promise<Map<string, boolean>> {
-  const query = (window as { queryLocalFonts?: () => Promise<{ family: string; style: string }[]> }).queryLocalFonts;
+export interface FontFaces {
+  boldOf: Map<string, string | null>;
+  /** The family of a bold face's full name, to read a text set in one back as family and bold. */
+  familyOf: Map<string, string>;
+}
+const NO_FONTS: FontFaces = { boldOf: new Map(), familyOf: new Map() };
+let installedFonts: Promise<FontFaces> | null = null;
+function fontFaces(): Promise<FontFaces> {
+  const query = (window as { queryLocalFonts?: () => Promise<{ family: string; fullName: string; style: string }[]> }).queryLocalFonts;
   installedFonts ??= query
     ? query()
         .then((fonts) => {
-          const faces = new Map<string, boolean>();
-          for (const font of [...fonts].sort((a, b) => a.family.localeCompare(b.family))) faces.set(font.family, (faces.get(font.family) ?? false) || /\bbold\b/i.test(font.style));
+          const faces: FontFaces = { boldOf: new Map(), familyOf: new Map() };
+          for (const font of [...fonts].sort((a, b) => a.family.localeCompare(b.family))) {
+            if (!faces.boldOf.has(font.family)) faces.boldOf.set(font.family, null);
+            if (font.style.toLowerCase() === 'bold') {
+              faces.boldOf.set(font.family, font.fullName);
+              faces.familyOf.set(font.fullName, font.family);
+            }
+          }
           return faces;
         })
-        .catch(() => new Map<string, boolean>())
-    : Promise.resolve(new Map<string, boolean>());
+        .catch(() => NO_FONTS)
+    : Promise.resolve(NO_FONTS);
   return installedFonts;
 }
 
-function useFontFaces(): Map<string, boolean> {
-  const [faces, setFaces] = useState<Map<string, boolean>>(() => new Map());
+export function useFontFaces(): FontFaces {
+  const [faces, setFaces] = useState<FontFaces>(NO_FONTS);
   useEffect(() => {
     let live = true;
     void fontFaces().then((found) => {
@@ -42,9 +55,14 @@ function useFontFaces(): Map<string, boolean> {
 }
 
 /** Whether a font can be set bold: the built-in one (then Arial) and any family with a bold face; an unknown one is left to SolidCraft. */
-export function useBoldable(font: string): boolean {
-  const faces = useFontFaces();
-  return !font || faces.get(font) !== false;
+export function boldable(faces: FontFaces, font: string): boolean {
+  return !font || faces.boldOf.get(font) !== null;
+}
+
+/** The font SolidCraft gets: a bold text in its bold face's full name, else the family with `bold` as asked. */
+export function setFont(faces: FontFaces, font: string, bold: boolean): { font: string; bold: boolean } {
+  const face = bold && font ? faces.boldOf.get(font) : null;
+  return face ? { font: face, bold: false } : { font, bold };
 }
 
 /** The key of SolidCraft's built-in font in the list; the value outside is "". */
@@ -59,7 +77,7 @@ export function FontChoice({ value, onChange, isDisabled }: { value: string; onC
   const { t } = useTranslation();
   const { contains } = useFilter({ sensitivity: 'base' });
   const faces = useFontFaces();
-  const families = [...faces.keys()];
+  const families = [...faces.boldOf.keys()];
   const items = [{ id: BUILT_IN, label: t('blocks.fontBuiltIn'), font: '' }, ...families.map((family) => ({ id: family, label: family, font: family }))];
   // A font from a project made on another PC stays listed, so it can be seen and changed.
   if (value && !families.includes(value)) items.push({ id: value, label: value, font: value });
@@ -72,7 +90,7 @@ export function FontChoice({ value, onChange, isDisabled }: { value: string; onC
       onChange={(key) => {
         if (key === null) return;
         const font = key === BUILT_IN ? '' : String(key);
-        onChange(font, !font || faces.get(font) !== false);
+        onChange(font, boldable(faces, font));
       }}
       isDisabled={isDisabled ?? false}
       data-testid="block-font"
@@ -80,8 +98,9 @@ export function FontChoice({ value, onChange, isDisabled }: { value: string; onC
       <Label className={fieldLabelClass}>{t('blocks.font')}</Label>
       <div className="relative flex items-center">
         <Input className={`${inputClass('sm')} w-full pr-7`} style={faceOf(value) ?? {}} />
-        <AriaButton className={`absolute right-1 ${iconButtonClass('sm')}`}>
-          <IconChevronDown className="size-icon-sm text-text-subtle" aria-hidden />
+        {/* A plain chevron inside the field, like the other selects' (no button frame of its own). */}
+        <AriaButton className="absolute inset-y-0 right-0 flex w-7 items-center justify-center text-text-subtle outline-none">
+          <IconChevronDown className="size-icon-sm" aria-hidden />
         </AriaButton>
       </div>
       {/* As wide as the field and a few lines tall, so it covers little of the dock and the part. */}
