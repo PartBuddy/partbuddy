@@ -1,5 +1,5 @@
 import { IconCheck, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle, IconRotate, IconRotateClockwise } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Label, NumberField } from 'react-aria-components';
 
@@ -9,9 +9,7 @@ import { platform } from '../platform';
 import { useStudio, type DraggedDimension, type Pick } from '../state/store';
 import { buttonClass } from '../ui/Button';
 import { fieldLabelClass, UnitInput } from '../ui/Field';
-
-/** Quiet time after a change before PartBuddy tries the move in SolidCraft. */
-const PREVIEW_DELAY_MS = 250;
+import { useLivePreview } from './livePreview';
 
 const round = (value: number) => Math.round(value * 1000) / 1000 || 0;
 /** The drawing's width as the dock shows it, to a hundredth of a mm. */
@@ -64,32 +62,26 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
       });
   };
 
-  // The ghost of a changed value, tried once the typing or dragging pauses.
+  // The ghost of a changed value keeps up while it is dragged or typed; back to unchanged, it goes.
   useEffect(() => {
-    if (busy) return;
-    if (!changed) {
-      if (shown.current) onGhost(null);
-      shown.current = false;
-      return;
-    }
-    let live = true;
-    const timer = setTimeout(() => {
-      platform()
-        .design.previewLogoMove({ logo: spot.logo, ...request() })
-        .then((result) => {
-          if (!live) return;
-          shown.current = true;
-          onGhost(result.ok ? result.preview : null);
-        })
-        .catch(() => undefined);
-    }, PREVIEW_DELAY_MS);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-    // The request is derived from value, depth and spot.
+    if (busy || changed) return;
+    if (shown.current) onGhost(null);
+    shown.current = false;
+  }, [busy, changed, onGhost]);
+  const tried = useMemo(
+    () => (busy || !changed ? null : { logo: spot.logo, ...request() }),
+    // The request is derived from value, depth, angle and width.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spot, busy, value[0], value[1], depth, angle, wide]);
+    [spot, busy, changed, value[0], value[1], depth, angle, wide],
+  );
+  useLivePreview(
+    tried,
+    (move) => platform().design.previewLogoMove(move),
+    (_move, result) => {
+      shown.current = true;
+      onGhost(result.ok ? result.preview : null);
+    },
+  );
 
   // The arrows on the part: across and up.
   useEffect(() => {
