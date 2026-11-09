@@ -52,7 +52,8 @@ export function Ghost({ preview, color }: { preview: Uint8Array; color: Color })
   if (!geometry) return null;
   return (
     <mesh geometry={geometry} raycast={() => null} renderOrder={3} name="dimension preview">
-      <meshStandardMaterial color={color} transparent opacity={opacity} depthWrite={false} />
+      {/* Pulled toward the camera: faces it shares with the part would flicker in stripes against them. */}
+      <meshStandardMaterial color={color} transparent opacity={opacity} depthWrite={false} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-4} />
     </mesh>
   );
 }
@@ -293,7 +294,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       <div className="flex items-start justify-between gap-3">
         {logo ? (
           <div className="flex min-w-0 flex-col" data-testid="logo-picked">
-            <span className="truncate text-sm font-medium text-text">{t('logoMove.title', { name: logoTitleOf(logo) })}</span>
+            <span className="truncate text-sm font-medium text-text">{t(logo.text ? 'logoMove.titleText' : 'logoMove.title', { name: logoTitleOf(logo) })}</span>
             <span className="text-xs text-text-subtle">{t('logoMove.exactHint')}</span>
           </div>
         ) : (

@@ -533,7 +533,13 @@
     "centreUp": "Centre up",
     "centre": "Centre",
     "dragAcross": "Drag to move the logo across (Alt: tenths); let go to apply",
-    "dragUp": "Drag to move the logo up (Alt: tenths); let go to apply"
+    "dragUp": "Drag to move the logo up (Alt: tenths); let go to apply",
+    "titleText": "Text “{name}”",
+    "hintText": "Words, font, size, place and depth of the text. A change shows a preview; the arrows on the part change it directly.",
+    "words": "Text",
+    "textHeight": "Letter height",
+    "bold": "Bold",
+    "dragSize": "Drag to change the size (Alt: tenths); let go to apply"
   },
   "hud": {
     "cancel": "Cancel",

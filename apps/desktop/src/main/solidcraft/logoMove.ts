@@ -1,6 +1,6 @@
 import { sketchFromInspect, tessellateSketch } from '@partbuddy/geometry';
 
-import { centring, hostFace, inPlane, LOGO_PREFIX, movedPlane, placedLogos, planeAngle, rotatedPlane, type CentreAxis, type PlacedSketch, type SketchPlane, type Vec3 } from '../../shared/drawingPlacement';
+import { centring, hostFace, inPlane, isPlacedName, LOGO_PREFIX, movedPlane, placedLogos, planeAngle, rotatedPlane, type CentreAxis, type PlacedSketch, type SketchPlane, type Vec3 } from '../../shared/drawingPlacement';
 
 /**
  * Moving a placed logo, shared by the assistant's `partbuddy_move_drawing` and the logo controls
@@ -79,7 +79,7 @@ export interface LogoMove {
  */
 async function readLogos(run: Run, design: Design): Promise<{ logos: Map<string, PlacedSketch[]>; read: Map<number, unknown> }> {
   const list = (Array.isArray(design.sketches) ? design.sketches : []) as { id?: unknown; name?: unknown }[];
-  const wanted = list.filter((sketch) => typeof sketch.name === 'string' && sketch.name.startsWith(LOGO_PREFIX) && Number.isInteger(sketch.id));
+  const wanted = list.filter((sketch) => typeof sketch.name === 'string' && isPlacedName(sketch.name) && Number.isInteger(sketch.id));
   if (wanted.length === 0) return { logos: new Map(), read: new Map() };
   const results = await run(wanted.map((sketch) => ({ command: 'sketch.inspect', params: { sketch: sketch.id } })));
   const plane = (result: unknown) => (result as { plane?: unknown } | undefined)?.plane;
@@ -94,16 +94,19 @@ interface Depth {
   params: { name: string; sign: 1 | -1 }[];
   /** How deep or high it is now, in mm. */
   depth: number;
+  /** Built up out of the face (else cut in). */
+  raised: boolean;
 }
 
 /**
- * How deep or high a logo is: the extrusions on its sketches (in colours one per piece) and their
- * distance parameters, which SolidCraft creates for every feature input. One value sets them all.
+ * How deep or high a logo or text is: the extrusions on its sketches (in colours one per piece), or
+ * a text's emboss, and their distance or depth parameters, which SolidCraft creates for every
+ * feature input. One value sets them all.
  */
 async function depthOf(run: Run, design: Design, sketches: readonly PlacedSketch[]): Promise<Depth | null> {
   type Entry = { id?: unknown; type?: unknown; suppressed?: unknown; rolled_back?: unknown };
   const timeline = (Array.isArray(design.timeline) ? (design.timeline as Entry[]) : []).filter(
-    (entry) => Number.isInteger(entry.id) && typeof entry.type === 'string' && entry.type.startsWith('Extrude') && entry.suppressed !== true && entry.rolled_back !== true,
+    (entry) => Number.isInteger(entry.id) && typeof entry.type === 'string' && /^(Extrude|Emboss)/.test(entry.type) && entry.suppressed !== true && entry.rolled_back !== true,
   );
   if (timeline.length === 0) return null;
   const results = await run([...timeline.map((entry) => ({ command: 'timeline.inspect', params: { feature: entry.id } })), { command: 'parameters.list', params: {} }]);
@@ -111,17 +114,20 @@ async function depthOf(run: Run, design: Design, sketches: readonly PlacedSketch
   const values = new Map((Array.isArray(listed) ? (listed as { name?: unknown; value?: unknown }[]) : []).map((entry) => [entry.name, entry.value]));
   const ids = sketches.map((sketch) => sketch.id);
   const params: (Depth['params'][number] & { value: number })[] = [];
-  for (const result of results.slice(0, timeline.length) as { inputs?: unknown; definition?: { sketch?: unknown } }[]) {
+  let raised: boolean | null = null;
+  for (const result of results.slice(0, timeline.length) as { type?: unknown; inputs?: unknown; definition?: { sketch?: unknown; mode?: unknown } }[]) {
     if (!ids.includes(result.definition?.sketch as number)) continue;
+    // An emboss keeps its depth positive and says by its mode whether it stands out (the default) or cuts in.
+    if (result.type === 'emboss') raised ??= result.definition?.mode !== 'deboss';
     for (const input of Array.isArray(result.inputs) ? (result.inputs as { label?: unknown; param?: unknown; expression?: unknown }[]) : []) {
-      if (typeof input.label !== 'string' || !input.label.toLowerCase().includes('distance') || typeof input.param !== 'string') continue;
+      if (typeof input.label !== 'string' || !/distance|depth/.test(input.label.toLowerCase()) || typeof input.param !== 'string') continue;
       const known = values.get(input.param);
       const value = typeof known === 'number' ? known : Number.parseFloat(String(input.expression));
       if (Number.isFinite(value) && value !== 0) params.push({ name: input.param, sign: value < 0 ? -1 : 1, value: Math.abs(value) });
     }
   }
   const first = params[0];
-  return first ? { params: params.map(({ name, sign }) => ({ name, sign })), depth: first.value } : null;
+  return first ? { params: params.map(({ name, sign }) => ({ name, sign })), depth: first.value, raised: raised ?? first.sign === 1 } : null;
 }
 
 /** The drawing's box over every sketch of a logo, in the first one's plane around the middle: [min x, min y, max x, max y] in mm. */
@@ -162,6 +168,28 @@ function scaleSteps(sketch: number, inspected: unknown, factor: number): Step[] 
   ];
 }
 
+/** A text's words and how they are set, as SolidCraft's text link keeps them. */
+export interface TextSource {
+  words: string;
+  /** Capital height in mm. */
+  height: number;
+  /** The installed family, or null for the built-in font. */
+  font: string | null;
+  bold: boolean;
+}
+
+/** The text of a placed text sketch: its link id and how it is set, or null for a logo. */
+function textOf(inspected: unknown): (TextSource & { link: string }) | null {
+  const links = (inspected as { links?: unknown } | undefined)?.links;
+  for (const link of Array.isArray(links) ? (links as { id?: unknown; kind?: unknown; source?: Record<string, unknown> }[]) : []) {
+    const source = link.source ?? {};
+    if (link.kind !== 'text' || typeof link.id !== 'string' || typeof source.text !== 'string') continue;
+    const style = (source.style ?? {}) as { bold?: unknown };
+    return { link: link.id, words: source.text, height: typeof source.height === 'number' ? source.height : 5, font: typeof source.font === 'string' && source.font ? source.font : null, bold: style.bold === true };
+  }
+  return null;
+}
+
 /** What changes about a logo; null or left out keeps it. */
 export interface LogoChange {
   /** mm along the logo's own x and y. */
@@ -174,6 +202,8 @@ export interface LogoChange {
   width?: number | null | undefined;
   /** How deep or high in mm. */
   depth?: number | null | undefined;
+  /** A text's words, height, font ("" the built-in one) or boldness; left out keeps each. */
+  text?: { words?: string | undefined; height?: number | undefined; font?: string | undefined; bold?: boolean | undefined } | null | undefined;
 }
 
 /**
@@ -181,7 +211,7 @@ export interface LogoChange {
  * `centre`, then by `by`, then turned by `rotate`; `depth` sets how deep or high.
  */
 export async function planLogoMove(run: Run, logo: string, change: LogoChange): Promise<LogoMove> {
-  const { by = null, centre = null, rotate = null, width = null, depth = null } = change;
+  const { by = null, centre = null, rotate = null, width = null, depth = null, text = null } = change;
   const design = await inspect(run);
   const { logos, read } = await readLogos(run, design);
   const sketches = logos.get(logo) ?? logos.get(`${LOGO_PREFIX}${logo}`);
@@ -201,6 +231,26 @@ export async function planLogoMove(run: Run, logo: string, change: LogoChange): 
   // Every sketch of the logo shares the plane through its middle, so all turn about the same point.
   const planeOf = (plane: SketchPlane) => (turn === 0 ? movedPlane(plane, du, dv) : rotatedPlane(movedPlane(plane, du, dv), turn));
   const steps: Step[] = [];
+  if (text) {
+    const now = textOf(read.get(first.id));
+    if (!now) throw new Error(`${first.name} holds no text to change`);
+    // Centred on the sketch's middle as the text block sets it: the baseline half a height below.
+    const height = text.height ?? now.height;
+    steps.push(
+      { command: 'sketch.edit', params: { sketch: first.id } },
+      {
+        command: 'sketch.edit_text',
+        params: {
+          link: now.link,
+          ...(text.words !== undefined ? { text: text.words } : {}),
+          ...(text.height !== undefined ? { height, at: [0, Math.round((-height / 2) * 1000) / 1000] } : {}),
+          ...(text.font !== undefined ? { font: text.font } : {}),
+          ...(text.bold !== undefined ? { bold: text.bold } : {}),
+        },
+      },
+      { command: 'sketch.finish', params: {} },
+    );
+  }
   if (width !== null) {
     const box = boxOf(sketches, read);
     if (!box || box[2] - box[0] <= 0) throw new Error(`${first.name} has no drawing PartBuddy can measure`);
@@ -239,6 +289,8 @@ export interface LogoSpot {
   angle: number;
   /** Its contours over every sketch of it, two world points per segment, to show the whole logo picked. */
   outline: Float32Array<ArrayBuffer>;
+  /** A placed text's words and how they are set; null for a logo. */
+  text: TextSource | null;
 }
 
 /** The logo a picked point belongs to: within its drawing's box seen along the sketch's normal, nearest to its plane. */
@@ -269,10 +321,17 @@ export async function logoAt(run: Run, point: Vec3): Promise<LogoSpot | null> {
     offset: middle ? [tidy(-middle[0]), tidy(-middle[1])] : null,
     plane: first.plane,
     box: best.box.map(tidy) as LogoSpot['box'],
-    depth: depth && { value: tidy(depth.depth), raised: depth.params[0]?.sign === 1 },
+    depth: depth && { value: tidy(depth.depth), raised: depth.raised },
     angle: planeAngle(first.plane),
     outline: outlineOf(logos.get(first.name) ?? [first], read),
+    text: textSource(read.get(first.id)),
   };
+}
+
+/** A text's source without its link id. */
+function textSource(inspected: unknown): TextSource | null {
+  const text = textOf(inspected);
+  return text && { words: text.words, height: text.height, font: text.font, bold: text.bold };
 }
 
 /** The tessellated curves of a logo's sketches, one array. */

@@ -19,8 +19,14 @@ export interface SketchPlane {
  */
 export const LOGO_PREFIX = 'SVG-Logo ';
 
-/** The readable name of a logo sketch, without the prefix. */
-export const logoTitle = (sketch: string) => (sketch.startsWith(LOGO_PREFIX) ? sketch.slice(LOGO_PREFIX.length) : sketch);
+/** The sketch name of a text block, "Text <words>": found again on a pick and changed like a logo (decided 2026-11-09). */
+export const TEXT_PREFIX = 'Text ';
+
+/** A sketch PartBuddy placed as a whole, a logo or a text, which a pick finds and the dock moves. */
+export const isPlacedName = (name: string) => name.startsWith(LOGO_PREFIX) || name.startsWith(TEXT_PREFIX);
+
+/** The readable name of a logo or text sketch, without the prefix. */
+export const logoTitle = (sketch: string) => (sketch.startsWith(LOGO_PREFIX) ? sketch.slice(LOGO_PREFIX.length) : sketch.startsWith(TEXT_PREFIX) ? sketch.slice(TEXT_PREFIX.length) : sketch);
 
 /** A file name as the readable part of body and sketch names. */
 export function logoBase(name: string): string {
@@ -28,8 +34,8 @@ export function logoBase(name: string): string {
 }
 
 /** The sketch name of a new logo: SolidCraft allows a name twice, so a second "Badge" becomes "SVG-Logo Badge 2". */
-export function uniqueLogoName(name: string, taken: readonly string[]): string {
-  const first = `${LOGO_PREFIX}${logoBase(name)}`;
+export function uniqueLogoName(name: string, taken: readonly string[], prefix = LOGO_PREFIX): string {
+  const first = `${prefix}${logoBase(name)}`;
   if (!taken.includes(first)) return first;
   let n = 2;
   while (taken.includes(`${first} ${String(n)}`)) n++;
@@ -55,7 +61,7 @@ export function placedLogos(inspect: unknown): Map<string, PlacedSketch[]> {
   const sketches = (inspect as { sketches?: unknown } | null)?.sketches;
   for (const entry of Array.isArray(sketches) ? (sketches as Record<string, unknown>[]) : []) {
     const plane = entry.plane as Record<string, unknown> | undefined;
-    if (typeof entry.name !== 'string' || !entry.name.startsWith(LOGO_PREFIX) || !Number.isInteger(entry.id)) continue;
+    if (typeof entry.name !== 'string' || !isPlacedName(entry.name) || !Number.isInteger(entry.id)) continue;
     if (!plane || !isVec3(plane.origin) || !isVec3(plane.x_dir) || !isVec3(plane.y_dir)) continue;
     const list = logos.get(entry.name) ?? [];
     list.push({ id: entry.id as number, name: entry.name, plane: { origin: plane.origin, x_dir: plane.x_dir, y_dir: plane.y_dir } });

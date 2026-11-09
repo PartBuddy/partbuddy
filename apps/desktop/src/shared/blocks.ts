@@ -6,7 +6,7 @@
  * everything stays editable because printers, nuts and inserts differ.
  */
 
-import { logoBase, uniqueLogoName } from './drawingPlacement';
+import { logoBase, TEXT_PREFIX, uniqueLogoName } from './drawingPlacement';
 import { drawingColours, drawingPieces, drawingSize, drawingSvg, naturalWidth, parseDrawing, shapesOverlap, shapesSvg, type DrawingProblem, type Shape } from './svgDrawing';
 
 export const BLOCK_SIZES = ['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10'] as const;
@@ -193,7 +193,8 @@ export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
   switch (block.block) {
     case 'text':
       return [
-        { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
+        // Named "Text <words>", so a pick finds it again and the dock changes it like a logo.
+        { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false, name: sketch ?? uniqueLogoName(block.text, [], TEXT_PREFIX) } },
         // SolidCraft's built-in font has no bold face; Arial comes with every Windows.
         { command: 'sketch.text', params: { text: block.text, at: [0, round(-block.height / 2)], height: block.height, align: 'center', ...textFont(block) } },
         { command: 'solid.emboss', params: { depth: mm(block.depth), mode: block.mode, face: block.point } },

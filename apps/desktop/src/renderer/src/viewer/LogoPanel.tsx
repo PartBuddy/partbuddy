@@ -1,14 +1,17 @@
 import { IconCheck, IconFocusCentered, IconLayoutAlignCenter, IconLayoutAlignMiddle, IconRotate, IconRotateClockwise } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button as AriaButton, Label, NumberField } from 'react-aria-components';
+import { Button as AriaButton, CheckboxButton, CheckboxField, Input, Label, NumberField, TextField } from 'react-aria-components';
 
 import type { LogoMoveRequest, LogoSpot } from '../../../shared/contract';
-import { LOGO_PREFIX, type Vec3 } from '../../../shared/drawingPlacement';
+import { BOLD_FONT } from '../../../shared/blocks';
+import { isPlacedName, logoTitle, type Vec3 } from '../../../shared/drawingPlacement';
 import { platform } from '../platform';
 import { useStudio, type DraggedDimension, type Pick } from '../state/store';
 import { buttonClass } from '../ui/Button';
-import { fieldLabelClass, UnitInput } from '../ui/Field';
+import { CheckMark, choiceInlineClass } from '../ui/Choice';
+import { fieldLabelClass, inputClass, UnitInput } from '../ui/Field';
+import { FontChoice } from './FontChoice';
 import { useLivePreview } from './livePreview';
 
 const round = (value: number) => Math.round(value * 1000) / 1000 || 0;
@@ -34,6 +37,11 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
   const [depth, setDepth] = useState<number | null>(() => spot.depth?.value ?? null);
   const [angle, setAngle] = useState(() => spot.angle);
   const [wide, setWide] = useState(() => widthOf(spot));
+  // A placed text: its words, font ("" the built-in one), capital height and boldness.
+  const [words, setWords] = useState(() => spot.text?.words ?? '');
+  const [font, setFont] = useState(() => spot.text?.font ?? '');
+  const [tall, setTall] = useState(() => spot.text?.height ?? 0);
+  const [bold, setBold] = useState(() => spot.text?.bold ?? false);
   const shown = useRef(false);
 
   // The whole logo drawn in the selection colour while it is picked.
@@ -49,9 +57,26 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
   const moved = by[0] !== 0 || by[1] !== 0;
   const deeper = depth !== null && spot.depth != null && depth > 0 && Math.abs(depth - spot.depth.value) > 1e-6;
   const turn = shortest(angle - spot.angle);
-  const resized = wide > 0 && Math.abs(wide - widthOf(spot)) > 0.005;
-  const changed = moved || deeper || turn !== 0 || resized;
-  const request = (): Omit<LogoMoveRequest, 'logo'> => ({ by: moved ? by : null, centre: null, depth: deeper ? depth : null, rotate: turn !== 0 ? turn : null, width: resized ? wide : null });
+  const resized = !spot.text && wide > 0 && Math.abs(wide - widthOf(spot)) > 0.005;
+  const now = spot.text;
+  const retext = now
+    ? {
+        ...(words.trim() && words.trim() !== now.words ? { words: words.trim() } : {}),
+        ...(tall > 0 && Math.abs(tall - now.height) > 0.005 ? { height: tall } : {}),
+        // The built-in font has no bold face: bold without a chosen font is set in Arial, as the block does.
+        ...(font !== (now.font ?? '') || bold !== now.bold ? { font: font || (bold ? BOLD_FONT : ''), bold } : {}),
+      }
+    : {};
+  const retyped = Object.keys(retext).length > 0;
+  const changed = moved || deeper || turn !== 0 || resized || retyped;
+  const request = (): Omit<LogoMoveRequest, 'logo'> => ({
+    by: moved ? by : null,
+    centre: null,
+    depth: deeper ? depth : null,
+    rotate: turn !== 0 ? turn : null,
+    width: resized ? wide : null,
+    ...(retyped ? { text: retext } : {}),
+  });
 
   const move = (request: Omit<LogoMoveRequest, 'logo'>) => {
     if (busy) return;
@@ -70,9 +95,9 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
   }, [busy, changed, onGhost]);
   const tried = useMemo(
     () => (busy || !changed ? null : { logo: spot.logo, ...request() }),
-    // The request is derived from value, depth, angle and width.
+    // The request is derived from value, depth, angle, width and the text's settings.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [spot, busy, changed, value[0], value[1], depth, angle, wide],
+    [spot, busy, changed, value[0], value[1], depth, angle, wide, words, font, tall, bold],
   );
   useLivePreview(
     tried,
@@ -100,6 +125,27 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
       { origin: at(spot.xDir, spot.box[2]), direction: spot.xDir, perMm: 1, signed: true, value: value[0], onDrag: drag(0) },
       { origin: at(spot.yDir, spot.box[3]), direction: spot.yDir, perMm: 1, signed: true, value: value[1], onDrag: drag(1) },
     ];
+    // Size, from the drawing's lower right corner along its x: a logo grows about its middle, so
+    // its width changes twice the drag; a text's height follows its width in proportion.
+    const across = spot.box[2] - spot.box[0];
+    if (across > 0) {
+      const corner = spot.origin.map((value, i) => value + (spot.xDir[i] ?? 0) * (spot.box[2] + 2) + (spot.yDir[i] ?? 0) * (spot.box[1] - 2)) as [number, number, number];
+      handles.push({
+        origin: corner,
+        direction: spot.xDir,
+        perMm: spot.text ? (2 * spot.text.height) / across : 2,
+        value: spot.text ? tall : wide,
+        label: t('logoMove.dragSize'),
+        testId: 'logo-arrow-size',
+        onDrag: (dragged, done) => {
+          if (dragged <= 0) return;
+          const size = round(dragged);
+          if (spot.text) setTall(size);
+          else setWide(size);
+          if (done) move(spot.text ? { by: null, centre: null, text: { height: size } } : { by: null, centre: null, width: size });
+        },
+      });
+    }
     if (spot.depth && depth !== null) {
       // At the middle, along the face's normal: out of the face for a raised logo, into it for an engraved one.
       const [x, y] = [spot.xDir, spot.yDir];
@@ -123,7 +169,7 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
     };
     // move and base follow spot; value is what the arrows start from.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spot, busy, value[0], value[1], depth, setLogoHandles]);
+  }, [spot, busy, value[0], value[1], depth, wide, tall, setLogoHandles]);
 
   const field = (axis: 0 | 1) => (
     <NumberField
@@ -148,8 +194,39 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
     </AriaButton>
   );
   return (
-    <section aria-label={t('logoMove.title', { name: logoTitleOf(spot) })} className="flex flex-col gap-2" data-testid="logo-move">
-      <p className="text-xs text-text-muted">{spot.offset ? t('logoMove.hint') : t('logoMove.hintNoFace')}</p>
+    <section aria-label={t(spot.text ? 'logoMove.titleText' : 'logoMove.title', { name: logoTitleOf(spot) })} className="flex flex-col gap-2" data-testid="logo-move">
+      <p className="text-xs text-text-muted">{spot.offset ? t(spot.text ? 'logoMove.hintText' : 'logoMove.hint') : t('logoMove.hintNoFace')}</p>
+      {spot.text ? (
+        <div className="grid grid-cols-2 gap-2" data-testid="logo-text">
+          <TextField value={words} onChange={setWords} maxLength={80} isDisabled={busy} className="col-span-2 flex min-w-0 flex-col gap-1" data-testid="logo-words">
+            <Label className={fieldLabelClass}>{t('logoMove.words')}</Label>
+            <Input className={inputClass('sm')} />
+          </TextField>
+          <FontChoice value={font} onChange={setFont} />
+          <NumberField
+            value={tall}
+            minValue={0.5}
+            maxValue={500}
+            step={0.5}
+            isDisabled={busy}
+            formatOptions={{ maximumFractionDigits: 2 }}
+            onChange={(next) => {
+              if (Number.isFinite(next) && next > 0) setTall(next);
+            }}
+            className="flex min-w-0 flex-col gap-1"
+            data-testid="logo-text-height"
+          >
+            <Label className={fieldLabelClass}>{t('logoMove.textHeight')}</Label>
+            <UnitInput unit={t('units.mmShort')} />
+          </NumberField>
+          <CheckboxField isSelected={bold} onChange={setBold} isDisabled={busy} className="flex items-end pb-1" data-testid="logo-bold">
+            <CheckboxButton className={choiceInlineClass}>
+              <CheckMark />
+              {t('logoMove.bold')}
+            </CheckboxButton>
+          </CheckboxField>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-end gap-2">
         {field(0)}
         {field(1)}
@@ -171,6 +248,7 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
             <UnitInput unit={t('units.mmShort')} />
           </NumberField>
         ) : null}
+        {spot.text ? null : (
         <NumberField
           value={wide}
           maxValue={1000}
@@ -186,6 +264,7 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
           <Label className={fieldLabelClass}>{t('logoMove.width')}</Label>
           <UnitInput unit={t('units.mmShort')} />
         </NumberField>
+        )}
         <NumberField
           value={angle}
           minValue={-360}
@@ -229,7 +308,7 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
 }
 
 /** The readable name of a picked logo, without the sketch prefix. */
-export const logoTitleOf = (spot: LogoSpot) => (spot.logo.startsWith(LOGO_PREFIX) ? spot.logo.slice(LOGO_PREFIX.length) : spot.logo);
+export const logoTitleOf = (spot: LogoSpot) => logoTitle(spot.logo);
 
 /**
  * The logo under a single plain pick (decided 2026-11-09: a click on a logo picks the whole logo),
@@ -237,7 +316,7 @@ export const logoTitleOf = (spot: LogoSpot) => (spot.logo.startsWith(LOGO_PREFIX
  * Alt+click picks exactly and leaves the logo out.
  */
 export function useLogoSpot(picks: Pick[]): LogoSpot | null | undefined {
-  const hasLogos = useStudio((s) => s.model.status === 'ready' && s.model.structure.sketches.some((sketch) => sketch.name.startsWith(LOGO_PREFIX)));
+  const hasLogos = useStudio((s) => s.model.status === 'ready' && s.model.structure.sketches.some((sketch) => isPlacedName(sketch.name)));
   const [pick] = picks;
   const point = picks.length === 1 && pick && !pick.exact && hasLogos ? pick.point : undefined;
   const [found, setFound] = useState<{ point: Vec3; spot: LogoSpot | null } | null>(null);
