@@ -16,7 +16,7 @@ import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFea
 import type { DesignParameter, DimensionMark, LogoMoveRequest, LogoSpot } from '../../shared/contract';
 import { logoAt, planLogoMove } from './logoMove';
 import { blockBodies, colourLayers, planeAt, stepsOf, type FeatureBlock } from '../../shared/blocks';
-import { centring, hostFace, movedPlane, uniqueLogoName } from '../../shared/drawingPlacement';
+import { centring, hostFace, movedPlane, TEXT_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
 import { insertCommand, type ImportKind } from '../projects/importFile';
 import { freeBodyName, libraryOf, STANDARD_PARTS_KEY, standardPartsOf } from './standardParts';
 import { ProjectStore } from '../projects/projectStore';
@@ -612,7 +612,8 @@ export class SolidCraftSupervisor {
   async applyBlock(block: FeatureBlock): Promise<void> {
     await this.probing;
     // A logo's sketches get a name no other logo has, so it can be moved on its own later.
-    const sketch = block.block === 'logo' ? uniqueLogoName(block.name, await this.actions.sketchNames()) : undefined;
+    const sketch =
+      block.block === 'logo' ? uniqueLogoName(block.name, await this.actions.sketchNames()) : block.block === 'text' ? uniqueLogoName(block.text, await this.actions.sketchNames(), TEXT_PREFIX) : undefined;
     block = await this.centredBlock(block);
     await this.actions.applySteps(stepsOf(block, sketch));
     // A logo in colours: pieces a cut split off get their colour too.
@@ -643,7 +644,7 @@ export class SolidCraftSupervisor {
         throw error;
       });
       this.options.log(`logo read: ${spot ? spot.logo : 'none'}, ${String(calls)} engine commands in ${String(Math.round(performance.now() - started))} ms`);
-      return spot && { logo: spot.logo, offset: spot.offset, origin: spot.plane.origin, xDir: spot.plane.x_dir, yDir: spot.plane.y_dir, box: spot.box, depth: spot.depth, angle: spot.angle, outline: spot.outline };
+      return spot && { logo: spot.logo, offset: spot.offset, origin: spot.plane.origin, xDir: spot.plane.x_dir, yDir: spot.plane.y_dir, box: spot.box, depth: spot.depth, angle: spot.angle, outline: spot.outline, text: spot.text };
     });
     this.probing = read.catch(() => undefined);
     return read;

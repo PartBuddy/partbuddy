@@ -533,7 +533,13 @@
     "centreUp": "Mittig hoch",
     "centre": "Mittig",
     "dragAcross": "Ziehen verschiebt das Logo quer (Alt: Zehntel), Loslassen übernimmt",
-    "dragUp": "Ziehen verschiebt das Logo hoch (Alt: Zehntel), Loslassen übernimmt"
+    "dragUp": "Ziehen verschiebt das Logo hoch (Alt: Zehntel), Loslassen übernimmt",
+    "titleText": "Text „{name}“",
+    "hintText": "Wortlaut, Schrift, Größe, Lage und Tiefe des Textes. Ändern zeigt eine Vorschau, die Pfeile am Teil ändern direkt.",
+    "words": "Text",
+    "textHeight": "Schrifthöhe",
+    "bold": "Fett",
+    "dragSize": "Ziehen ändert die Größe (Alt: Zehntel), Loslassen übernimmt"
   },
   "hud": {
     "cancel": "Abbrechen",

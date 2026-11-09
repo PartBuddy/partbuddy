@@ -111,3 +111,47 @@ describe('moving a placed logo', () => {
     expect(draggedValue(2, handle, { x: 4, y: 0 }, { x: -8, y: 0 }, false)).toBe(0);
   });
 });
+
+describe('changing a placed text', () => {
+  // "Text PB" raised 0.6 mm on the same top face, set in Georgia 5 mm high.
+  const textEngine = (): Run => (commands) =>
+    Promise.resolve(
+      commands.map(({ command, params }) => {
+        switch (command) {
+          case 'document.inspect':
+            return { bodies: [{ name: 'Box', bbox: { min: [0, 0, 0], max: [40, 40, 10.6] } }], sketches: [{ id: 2, name: 'Text PB', plane }], timeline: [{ id: 3, type: 'EmbossFeature' }] };
+          case 'timeline.inspect':
+            return { type: 'emboss', inputs: [{ label: 'Depth', param: 'd4', expression: '0.6 mm' }], definition: { sketch: 2 } };
+          case 'parameters.list':
+            return { parameters: [{ name: 'd4', expression: '0.6 mm', value: 0.6 }] };
+          case 'sketch.inspect':
+            return {
+              id: params.sketch,
+              name: 'Text PB',
+              plane,
+              curves: [{ id: 'c1', type: 'circle', center_at: [0, 0], radius: 4 }],
+              points: [],
+              links: [{ id: 'j1', kind: 'text', source: { text: 'PB', height: 5, font: 'Georgia', at: [0, -2.5], style: { align: 'center' } } }],
+            };
+          default:
+            return {};
+        }
+      }),
+    );
+
+  it('reads its words, font and height, and that it stands out of the face', async () => {
+    const spot = await logoAt(textEngine(), [14, 20, 10.3]);
+    expect(spot).toMatchObject({ logo: 'Text PB', text: { words: 'PB', height: 5, font: 'Georgia', bold: false }, depth: { value: 0.6, raised: true } });
+  });
+
+  it('changes words, height and font in its sketch, the baseline half a height below the middle', async () => {
+    const move = await planLogoMove(textEngine(), 'Text PB', { text: { words: 'Hallo', height: 8, font: '', bold: false } });
+    expect(move.steps).toEqual([
+      { command: 'sketch.edit', params: { sketch: 2 } },
+      { command: 'sketch.edit_text', params: { link: 'j1', text: 'Hallo', height: 8, at: [0, -4], font: '', bold: false } },
+      { command: 'sketch.finish', params: {} },
+    ]);
+    // Its depth is the emboss's, set positive whether raised or engraved.
+    expect((await planLogoMove(textEngine(), 'Text PB', { depth: 1.2 })).steps).toEqual([{ command: 'parameters.change', params: { name: 'd4', expression: '1.2 mm' } }]);
+  });
+});

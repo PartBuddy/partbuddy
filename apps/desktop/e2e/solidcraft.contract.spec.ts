@@ -2828,3 +2828,74 @@ test('the tolerance assistant has SolidCraft build its test pieces and shows a p
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a built text is picked as a whole and changed afterwards: words, height and font, with a size arrow (F1)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-text-edit-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7935',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  type Bridge = { partbuddy: { design: { applyBlock(block: unknown): Promise<void> } } };
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    // Raised 0.6 mm on the top face's middle, the sketch named after its words.
+    const text = { block: 'text', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', text: 'PB', height: 6, depth: 0.6, mode: 'emboss', bold: false };
+    await page.evaluate((b) => (globalThis as unknown as Bridge).partbuddy.design.applyBlock(b), text);
+    await expect(page.getByText('Text PB', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+    // Seen from the top (key 7), the letters lie flat in the middle.
+    await page.getByTestId('viewport').hover();
+    await page.keyboard.press('7');
+    await page.waitForTimeout(1000);
+    // A plain click on the letters picks the whole text: its own controls instead of the face's.
+    const box = await page.getByTestId('viewport').boundingBox();
+    if (!box) throw new Error('viewport not visible');
+    const spots = [[0.5, 0.5], [0.48, 0.5], [0.52, 0.5], [0.5, 0.48], [0.5, 0.52], [0.46, 0.5], [0.54, 0.5]] as const;
+    let spot = 0;
+    await expect(async () => {
+      const [x, y] = spots[spot++ % spots.length] ?? [0.5, 0.5];
+      await page.keyboard.press('Escape');
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+      await expect(page.getByTestId('logo-text')).toBeVisible({ timeout: 3000 });
+    }, 'the built text under a click').toPass({ timeout: 60_000, intervals: [500] });
+    await expect(page.getByTestId('logo-picked')).toContainText('Text “PB”');
+    await expect(page.getByTestId('logo-words').getByRole('textbox')).toHaveValue('PB');
+    await expect(page.getByTestId('logo-text-height').getByRole('textbox')).toHaveValue('6');
+    await expect(page.getByTestId('logo-arrow-size')).toBeVisible();
+    // New words, height and font: tried as a ghost, applied in its sketch.
+    await page.getByTestId('logo-words').getByRole('textbox').fill('AB');
+    await page.getByTestId('logo-text-height').getByRole('textbox').fill('4');
+    await page.getByTestId('logo-text-height').getByRole('textbox').press('Tab');
+    // Opened from the keyboard: near the dock's foot the list opens over its button, where a mouse release would pick at once.
+    await page.getByTestId('block-font').getByRole('button').press('Enter');
+    await page.getByRole('option', { name: 'Georgia', exact: true }).click();
+    const revision = await page.getByTestId('viewer').getAttribute('data-revision');
+    await page.screenshot({ path: test.info().outputPath('text-edit.png') });
+    await page.getByTestId('logo-move-apply').click();
+    await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 30_000 });
+    // Picked again, it reads back as changed.
+    spot = 0;
+    await expect(async () => {
+      const [x, y] = spots[spot++ % spots.length] ?? [0.5, 0.5];
+      await page.keyboard.press('Escape');
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+      await expect(page.getByTestId('logo-words').getByRole('textbox')).toHaveValue('AB', { timeout: 3000 });
+    }, 'the changed text under a click').toPass({ timeout: 60_000, intervals: [500] });
+    await expect(page.getByTestId('logo-text-height').getByRole('textbox')).toHaveValue('4');
+    await expect(page.getByTestId('block-font')).toContainText('Georgia');
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
