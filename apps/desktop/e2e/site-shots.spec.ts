@@ -276,9 +276,8 @@ test('website pictures', async () => {
     await step('view', async () => {
       await open('Cable clip');
       await pickFace(page);
+      await page.getByTestId('hud-ask').fill('Keep 3 mm of wall here – the screw head sits on it.');
       await page.getByTestId('hud-note').click();
-      await page.getByTestId('note-new-text').fill('Keep 3 mm of wall here – the screw head sits on it.');
-      await page.getByTestId('note-new-save').click();
       await expect(page.getByTestId('note-pin')).toHaveCount(1, { timeout: 15_000 });
       // The face picked again beside the pin: its name shows with the selection.
       await pickFace(page, PLATE_TOP);
@@ -288,9 +287,8 @@ test('website pictures', async () => {
     // Notes on the model (ADR 0006, 0020): one more on an edge and one on the plate's top, all three in the list.
     await step('notes', async () => {
       const note = async (text: string) => {
+        await page.getByTestId('hud-ask').fill(text);
         await page.getByTestId('hud-note').click();
-        await page.getByTestId('note-new-text').fill(text);
-        await page.getByTestId('note-new-save').click();
       };
       await pickFace(page, EDGE_SWEEP, 'edge');
       await note('This edge R2 instead of R1.');

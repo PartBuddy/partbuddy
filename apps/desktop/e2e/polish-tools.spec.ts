@@ -107,13 +107,12 @@ for (const size of WIDTHS) {
         '01-note-new',
         async () => {
           await pickFace(page);
-          await page.getByTestId('hud-note').click();
-          await page.getByTestId('note-new-text').fill('Hier 3 mm Wand lassen – der Schraubenkopf sitzt darauf.');
+          await page.getByTestId('hud-ask').fill('Hier 3 mm Wand lassen – der Schraubenkopf sitzt darauf.');
         },
         false,
       );
       await step('02-note-pinned', async () => {
-        await page.getByTestId('note-new-save').click();
+        await page.getByTestId('hud-note').click();
         await expect(page.getByTestId('note-pin')).toHaveCount(1, { timeout: 15_000 });
       });
       await step(

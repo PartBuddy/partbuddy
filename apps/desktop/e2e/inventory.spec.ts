@@ -142,10 +142,9 @@ test('inventory: real part, every state, light and dark', async () => {
     });
     await step(report, '10-note', async () => {
       await pick(page, 'face');
-      await page.getByTestId('hud-note').click();
-      await page.getByRole('textbox', { name: 'Note at this place' }).fill('Hier 3 mm Wand, sonst bricht der Haken.');
+      await page.getByTestId('hud-ask').fill('Hier 3 mm Wand, sonst bricht der Haken.');
       await shot(page, '10-note-composer');
-      await page.getByRole('button', { name: 'Save' }).click();
+      await page.getByTestId('hud-note').click();
       await page.keyboard.press('Escape');
       await page.waitForTimeout(800);
       await shot(page, '11-note-pin');

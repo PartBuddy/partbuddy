@@ -758,9 +758,9 @@ test('a note on a face stays with the design, out of the assistant\'s reach, and
     }
     expect(picked, 'a face of the box').toBe(true);
 
+    // One field for what should happen here: "Keep as a note" pins it.
+    await page.getByTestId('hud-ask').fill('Wall 2 mm here');
     await page.getByTestId('hud-note').click();
-    await page.getByTestId('note-new-text').fill('Wall 2 mm here');
-    await page.getByTestId('note-new-save').click();
     const pin = page.getByTestId('note-pin');
     await expect(pin).toHaveCount(1, { timeout: 15_000 });
     const row = page.getByTestId('note-row');
