@@ -132,6 +132,10 @@ test('edges and vertices can be picked, and the view switches projection and sta
   await expect(bar).toContainText(/Length/);
   await expect(page.getByTestId('composer-selection')).toHaveText(/Selected edge goes with the message: Edge [\d.]+ mm · CableClip/);
   await page.screenshot({ path: test.info().outputPath('edge-selected.png') });
+  // Once, on the first pick: what the dock is for; "Got it" puts it away for good.
+  await expect(page.getByTestId('dock-hint')).toBeVisible();
+  await page.getByTestId('dock-hint-ok').click();
+  await expect(page.getByTestId('dock-hint')).toHaveCount(0);
 
   const grid: { x: number; y: number }[] = [];
   for (let y = 0.3; y <= 0.7; y += 0.025) for (let x = 0.25; x <= 0.75; x += 0.0125) grid.push({ x: box.x + box.width * x, y: box.y + box.height * y });

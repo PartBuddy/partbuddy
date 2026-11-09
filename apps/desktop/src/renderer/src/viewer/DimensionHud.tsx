@@ -79,6 +79,31 @@ export function SelectionDock({ bodies }: { bodies: BodyModel[] }) {
 }
 
 /** One group of the dock's actions under a small heading. */
+/** Kept in the renderer's localStorage: the dock's first-pick hint was read. */
+const DOCK_HINT_KEY = 'partbuddy.dockHintSeen';
+
+/** Once, on the first pick: what the dock offers and where the explanations are. */
+function DockHint() {
+  const { t } = useTranslation();
+  const [seen, setSeen] = useState(() => window.localStorage.getItem(DOCK_HINT_KEY) === '1');
+  if (seen) return null;
+  return (
+    <div className="flex items-start gap-2 rounded-md bg-accent-subtle p-2 text-xs text-text" role="note" data-testid="dock-hint">
+      <span className="flex-1">{t('hud.firstHint')}</span>
+      <Button
+        size="sm"
+        onPress={() => {
+          window.localStorage.setItem(DOCK_HINT_KEY, '1');
+          setSeen(true);
+        }}
+        data-testid="dock-hint-ok"
+      >
+        {t('hud.firstHintOk')}
+      </Button>
+    </div>
+  );
+}
+
 function DockGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section aria-label={title} className="flex flex-col gap-1" data-testid="dock-group">
@@ -276,6 +301,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
           </span>
         ) : null}
       </div>
+      <DockHint />
       {picks.length === 2 ? <MeasureLine bodies={bodies} picks={picks} /> : null}
       <div className="flex flex-wrap items-start gap-3">
         {dimension && !logo ? (

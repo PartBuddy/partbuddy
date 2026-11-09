@@ -11,6 +11,7 @@ import { platform } from '../platform';
 import { CadIcon } from '../ui/CadIcon';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
+import { Tip } from '../ui/Tooltip';
 import { parseLength } from './lengthInput';
 import { inputClass, fieldLabelClass, UnitInput } from '../ui/Field';
 import { buttonClass } from '../ui/Button';
@@ -303,36 +304,39 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
       {/* The usual blocks as tiles of their own, the rest behind "More …" with its chooser. */}
       <div className="flex flex-wrap gap-1">
         {TILES.map((tile) => (
+          <Tip key={tile.kind} label={t(`blocks.tileHints.${tile.kind}`)}>
+            <ToggleButton
+              isSelected={open && block.block === tile.kind}
+              onChange={(next) => {
+                if (next) kind(tile.kind);
+                else onGhost(null);
+                setOpen(next);
+              }}
+              isDisabled={busy}
+              className={chipToggleClass}
+              data-testid={`block-tile-${tile.kind}`}
+            >
+              {tile.icon}
+              {t(`blocks.tiles.${tile.kind}`)}
+            </ToggleButton>
+          </Tip>
+        ))}
+        <Tip label={t('blocks.moreHint')}>
           <ToggleButton
-            key={tile.kind}
-            isSelected={open && block.block === tile.kind}
+            isSelected={open && !tiled(block.block)}
             onChange={(next) => {
-              if (next) kind(tile.kind);
-              else onGhost(null);
+              if (next && tiled(block.block)) kind('tappedHole');
+              if (!next) onGhost(null);
               setOpen(next);
             }}
             isDisabled={busy}
             className={chipToggleClass}
-            data-testid={`block-tile-${tile.kind}`}
+            data-testid="action-block"
           >
-            {tile.icon}
-            {t(`blocks.tiles.${tile.kind}`)}
+            <IconDots className="size-icon-sm" aria-hidden />
+            {t('blocks.more')}
           </ToggleButton>
-        ))}
-        <ToggleButton
-          isSelected={open && !tiled(block.block)}
-          onChange={(next) => {
-            if (next && tiled(block.block)) kind('tappedHole');
-            if (!next) onGhost(null);
-            setOpen(next);
-          }}
-          isDisabled={busy}
-          className={chipToggleClass}
-          data-testid="action-block"
-        >
-          <IconDots className="size-icon-sm" aria-hidden />
-          {t('blocks.more')}
-        </ToggleButton>
+        </Tip>
       </div>
       {open ? (
         <div
