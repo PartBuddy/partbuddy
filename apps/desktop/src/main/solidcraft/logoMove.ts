@@ -203,7 +203,7 @@ export interface LogoChange {
   /** How deep or high in mm. */
   depth?: number | null | undefined;
   /** A text's words, height, font ("" the built-in one) or boldness; left out keeps each. */
-  text?: { words?: string | undefined; height?: number | undefined; font?: string | undefined; bold?: boolean | undefined } | null | undefined;
+  text?: { words?: string | undefined; height?: number | undefined; font?: string | undefined; bold?: boolean | undefined; boldFace?: string | undefined } | null | undefined;
 }
 
 /**

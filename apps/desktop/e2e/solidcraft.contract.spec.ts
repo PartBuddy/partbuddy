@@ -2910,6 +2910,12 @@ test('a built text is picked as a whole and changed afterwards: words, height an
     await expect(page.getByTestId('logo-text-height').getByRole('textbox')).toHaveValue('4');
     await expect(page.getByTestId('block-font').getByRole('combobox')).toHaveValue('Segoe Print');
     await expect(page.getByTestId('logo-bold').getByRole('checkbox')).toBeChecked();
+    // Bahnschrift, a variable font, is set bold the other way (the family with bold): tried once, then applied.
+    await page.getByTestId('block-font').getByRole('combobox').fill('Bahnschrift');
+    await page.getByRole('option', { name: 'Bahnschrift', exact: true }).click();
+    const before = await page.getByTestId('viewer').getAttribute('data-revision');
+    await page.getByTestId('logo-move-apply').click();
+    await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', before ?? '', { timeout: 30_000 });
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });

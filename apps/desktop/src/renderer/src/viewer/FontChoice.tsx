@@ -59,10 +59,10 @@ export function boldable(faces: FontFaces, font: string): boolean {
   return !font || faces.boldOf.get(font) !== null;
 }
 
-/** The font SolidCraft gets: a bold text in its bold face's full name, else the family with `bold` as asked. */
-export function setFont(faces: FontFaces, font: string, bold: boolean): { font: string; bold: boolean } {
+/** The font as sent: the family and `bold`, with its bold face's full name for SolidCraft to fall back on. */
+export function setFont(faces: FontFaces, font: string, bold: boolean): { font: string; bold: boolean; boldFace?: string } {
   const face = bold && font ? faces.boldOf.get(font) : null;
-  return face ? { font: face, bold: false } : { font, bold };
+  return face ? { font, bold, boldFace: face } : { font, bold };
 }
 
 /** The key of SolidCraft's built-in font in the list; the value outside is "". */
