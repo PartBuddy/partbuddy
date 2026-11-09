@@ -28,6 +28,8 @@ export async function launchApp(
      * colour theme (`nativeTheme.themeSource`). `null` turns the emulation off.
      */
     colorScheme?: 'light' | 'dark' | null;
+    /** More Chromium switches, e.g. `--force-device-scale-factor=1.5` for Windows scaling. */
+    args?: string[];
   } = {},
 ): Promise<LaunchedApp> {
   const isolated = options.isolated ?? true;
@@ -62,7 +64,7 @@ export async function launchApp(
     ...options.env,
   };
   const app = await electron.launch({
-    args: [appDir, '--lang=en-US', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', `--user-data-dir=${join(work, 'profile')}`],
+    args: [appDir, '--lang=en-US', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', `--user-data-dir=${join(work, 'profile')}`, ...(options.args ?? [])],
     cwd: appDir,
     env,
     colorScheme: options.colorScheme === undefined ? 'light' : options.colorScheme,
