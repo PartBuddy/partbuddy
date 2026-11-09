@@ -147,7 +147,27 @@ function edgeExtent(plane: SketchPlane, edge: EdgeEntry): [number, number][] {
   return points;
 }
 
-const faceNames = (edge: string) => edge.split('|').map((part) => part.replace(/~\d+$/, ''));
+/**
+ * The two face names of an edge name "<face>|<face>". A face changed by a cut or emboss carries its
+ * history in brackets, which hold "|" of their own ("F1:-y#[F10:blend:F1:+x|F1:-z,…]"), so it is split
+ * only outside brackets; a text or logo cut into a face otherwise found no face under it.
+ */
+export function faceNames(edge: string): string[] {
+  const names: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < edge.length; i++) {
+    const c = edge[i];
+    if (c === '[') depth++;
+    else if (c === ']') depth = Math.max(0, depth - 1);
+    else if (c === '|' && depth === 0) {
+      names.push(edge.slice(start, i));
+      start = i + 1;
+    }
+  }
+  names.push(edge.slice(start));
+  return names.map((part) => part.replace(/~\d+$/, ''));
+}
 
 /** The extent of a face in the plane, from its edges (`model.edges`). */
 export function faceExtent(plane: SketchPlane, edges: readonly EdgeEntry[], face: string): Extent | null {

@@ -83,3 +83,12 @@ describe('logo colour bodies', () => {
     expect(isLogoColourBody('Lid 2')).toBe(false);
   });
 });
+
+describe('edge names', () => {
+  it('splits an edge into its two faces outside the brackets of a changed face', async () => {
+    const { faceNames } = await import('../src/shared/drawingPlacement');
+    expect(faceNames('F1:+z|F1:-y')).toEqual(['F1:+z', 'F1:-y']);
+    expect(faceNames('F1:-x|F1:-y#[F10:blend:F1:+x|F1:-z,F15:face:100]')).toEqual(['F1:-x', 'F1:-y#[F10:blend:F1:+x|F1:-z,F15:face:100]']);
+    expect(faceNames('F2:+y~2|F3:-y')).toEqual(['F2:+y', 'F3:-y']);
+  });
+});
