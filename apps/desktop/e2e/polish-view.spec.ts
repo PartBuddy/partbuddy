@@ -94,16 +94,26 @@ for (const size of WIDTHS) {
       await step('01-view', async () => {
         await page.waitForTimeout(1000);
       });
+      // The dock with its first-pick hint, read once; the later pictures show the dock without it.
       await step('02-face', () => pickFace(page));
-      await step('03-fillet', async () => {
+      await pickFace(page);
+      await page.getByTestId('dock-hint-ok').click();
+      // A face offers extrude, hole and shell (fillet and chamfer belong to edges).
+      await step('03-extrude', async () => {
         await pickFace(page);
-        await page.getByTestId('action-fillet').click();
+        await page.getByTestId('action-extrude').click();
         await expect(page.getByTestId('action-field')).toBeVisible();
         await page.waitForTimeout(1500);
       });
       await step('04-measure', async () => {
+        // Two picks measure: a face, then a second spot with Ctrl.
         await pickFace(page);
-        await page.getByTestId('hud-measure').click();
+        const box = await page.getByTestId('viewport').boundingBox();
+        if (!box) throw new Error('viewport not visible');
+        await page.keyboard.down('Control');
+        await page.mouse.click(box.x + box.width * 0.62, box.y + box.height * 0.45);
+        await page.keyboard.up('Control');
+        await expect(page.getByTestId('hud-measure')).toBeVisible();
         await page.waitForTimeout(1000);
       });
       await step('05-blocks', async () => {
@@ -111,16 +121,23 @@ for (const size of WIDTHS) {
         await page.getByTestId('action-block').click();
         await expect(page.getByTestId('block-panel')).toBeVisible();
       });
-      await step('06-parts', async () => {
+      // A row of screw holes on the face (standard parts show at a picked hole, which a spot click rarely finds).
+      await step('06-row', async () => {
         await pickFace(page);
-        await page.getByTestId('action-part').click();
-        await expect(page.getByTestId('part-panel')).toBeVisible();
+        await page.getByTestId('block-tile-screwHole').click();
+        await page.getByTestId('block-centre-both').click();
+        await page.getByTestId('block-count-x').getByRole('textbox').fill('3');
+        await page.getByTestId('block-count-x').getByRole('textbox').press('Tab');
+        await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
       });
+      await page.keyboard.press('Escape');
+      // "All dimensions" shows once dimensions are on.
       await step('07-dimensions', async () => {
+        await page.getByTestId('dimensions').click();
         await page.getByTestId('dimensions-all').click();
         await page.waitForTimeout(1000);
       });
-      await page.getByTestId('dimensions-all').click().catch(() => undefined);
+      await page.getByTestId('dimensions').click().catch(() => undefined);
       await step('08-parameter-preview', async () => {
         await page.getByTestId('parameters').getByTestId('parameter').first().dblclick();
         const field = page.getByTestId('parameters').getByRole('textbox').first();
