@@ -1603,7 +1603,7 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.applyAction({ action: 'shell', body: 'Body1', points: [[10, 10, 10]], size: 3 }));
     await expect(page.getByTestId('timeline-feature')).toHaveCount(2, { timeout: 30_000 });
     const blocks = [
-      { block: 'text', body: 'Body1', point: [10, 0, 5], normal: [0, -1, 0], size: 'M3', text: 'PB', height: 4, depth: 0.6, mode: 'deboss', bold: true },
+      { block: 'text', body: 'Body1', point: [10, 0, 5], normal: [0, -1, 0], size: 'M3', text: 'PB', height: 4, depth: 0.6, mode: 'deboss', bold: true, font: 'Georgia' },
       { block: 'nutTrap', body: 'Body1', point: [10, 10, 0], normal: [0, 0, -1], size: 'M2', flats: 4.3, depth: 2 },
       { block: 'slot', body: 'Body1', point: [20, 10, 5], normal: [1, 0, 0], size: 'M3', length: 6, width: 3.4, depth: 3, along: 'x' },
       { block: 'lip', body: 'Body1', point: [1.5, 10, 10], size: 'M3', type: 'lip', width: 1.2, height: 2, gap: 0.2 },
@@ -1815,6 +1815,12 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
     await page.getByTestId('block-x').getByRole('textbox').fill(picked[0] ?? '0');
     await page.getByTestId('block-y').getByRole('textbox').fill(picked[1] ?? '0');
     await page.getByTestId('block-y').getByRole('textbox').press('Tab');
+    // A text's font: every installed family, each listed in its own face (SolidCraft setting it: the sketched blocks test).
+    await page.getByTestId('block-tile-text').click();
+    await page.getByTestId('block-font').getByRole('button').click();
+    await expect(page.getByRole('option', { name: 'Arial', exact: true })).toBeVisible();
+    await page.getByRole('option', { name: 'Georgia', exact: true }).click();
+    await expect(page.getByTestId('block-font')).toContainText('Georgia');
     await page.getByTestId('block-tile-logo').click();
     // A way back: Cancel and Esc close the form, the face stays picked, the tile opens it again.
     await page.getByTestId('block-cancel').click();

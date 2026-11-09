@@ -108,7 +108,7 @@ export interface SelectFieldProps<T extends string> {
   label?: string;
   'aria-label'?: string;
   value: T;
-  items: readonly { id: T; label: string }[];
+  items: readonly { id: T; label: string; font?: string }[];
   onChange: (id: T) => void;
   size?: FieldSize;
   className?: string;
@@ -138,7 +138,9 @@ export function SelectField<T extends string>({ label, value, items, onChange, s
           {items.map((item) => (
             <ListBoxItem key={item.id} id={item.id} textValue={item.label} className={listItemClass}>
               <ListCheck />
-              <span className="truncate">{item.label}</span>
+              <span className="truncate" style={item.font ? { fontFamily: `"${item.font}"` } : undefined}>
+                {item.label}
+              </span>
             </ListBoxItem>
           ))}
         </ListBox>

@@ -1387,7 +1387,9 @@
       "text": "Schreibt Text auf die Fläche, erhaben oder vertieft",
       "screwHole": "Loch für eine Schraube mit Platz für den Kopf, auch als Reihe",
       "insertSeat": "Loch für eine Einschmelzmutter, auch als Reihe"
-    }
+    },
+    "font": "Schrift",
+    "fontBuiltIn": "Standard (Liberation Sans)"
   },
   "assembly": {
     "title": "Zusammenbau",

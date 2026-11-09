@@ -122,6 +122,37 @@ const tiled = (kind: BlockKind) => TILES.some((tile) => tile.kind === kind);
 /** Above this strain at the arm's root, printed PLA tends to crack (PETG takes about 3 %). */
 const SNAP_STRAIN_LIMIT = 2;
 
+/** Installed font families, read once (Chromium's local font access, granted in main for this window only). */
+let installedFonts: Promise<string[]> | null = null;
+function fontFamilies(): Promise<string[]> {
+  const query = (window as { queryLocalFonts?: () => Promise<{ family: string }[]> }).queryLocalFonts;
+  installedFonts ??= query
+    ? query()
+        .then((fonts) => [...new Set(fonts.map((font) => font.family))].sort((a, b) => a.localeCompare(b)))
+        .catch(() => [])
+    : Promise.resolve([]);
+  return installedFonts;
+}
+
+/** The text's font: the built-in one or any installed family, each shown in its own face (decided 2026-11-09). */
+function FontChoice({ value, onChange }: { value: string; onChange: (font: string) => void }) {
+  const { t } = useTranslation();
+  const [families, setFamilies] = useState<string[]>([]);
+  useEffect(() => {
+    let live = true;
+    void fontFamilies().then((list) => {
+      if (live) setFamilies(list);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const items = [{ id: '', label: t('blocks.fontBuiltIn') }, ...families.map((family) => ({ id: family, label: family, font: family }))];
+  // A font from a project made on another PC stays listed, so it can be seen and changed.
+  if (value && !families.includes(value)) items.push({ id: value, label: value, font: value });
+  return <Choice className="col-span-2" label={t('blocks.font')} value={value} items={items} onChange={onChange} testId="block-font" />;
+}
+
 /** The catch's direction named by its world axis, so it matches the axes in the view. */
 function hookLabel(vector: Vec, index: number, t: TFunction): string {
   const axis = vector.findIndex((value) => Math.abs(Math.abs(value) - 1) < 1e-6);
@@ -493,6 +524,10 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               <div className="flex items-end pb-1">
                 <Check label={t('blocks.bold')} selected={block.bold} onChange={(bold) => setBlock({ ...block, bold })} testId="block-bold" />
               </div>
+              <FontChoice
+                value={block.font ?? ''}
+                onChange={(font) => setBlock({ ...block, font: font || undefined })}
+              />
             </div>
           ) : block.block === 'logo' ? (
             <div className="grid grid-cols-2 gap-2" key={block.block} data-testid="block-logo">
