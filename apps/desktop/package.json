@@ -32,7 +32,7 @@
     "ai": "7.0.159",
     "electron-updater": "6.8.11",
     "fflate": "0.8.3",
-    "i18next": "26.6.0",
+    "i18next": "26.7.1",
     "i18next-icu": "2.6.1",
     "intl-messageformat": "12.1.4",
     "jose": "6.2.15",
