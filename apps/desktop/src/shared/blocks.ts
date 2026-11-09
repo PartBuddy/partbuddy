@@ -61,9 +61,9 @@ export const HEAD_ALLOWANCE = { diameter: 0.6, depth: 0.4 };
 type Point = [number, number, number];
 
 export type FeatureBlock =
-  | { block: 'tappedHole'; body: string; point: [number, number, number]; size: BlockSize; depth: number | null; modeled: boolean }
-  | { block: 'screwHole'; body: string; point: [number, number, number]; size: BlockSize; head: 'none' | 'cap' | 'countersunk'; fit: 'close' | 'normal' | 'loose' }
-  | { block: 'insertSeat'; body: string; point: [number, number, number]; size: BlockSize; diameter: number; depth: number }
+  | { block: 'tappedHole'; body: string; point: [number, number, number]; size: BlockSize; depth: number | null; modeled: boolean; more?: Point[] | undefined }
+  | { block: 'screwHole'; body: string; point: [number, number, number]; size: BlockSize; head: 'none' | 'cap' | 'countersunk'; fit: 'close' | 'normal' | 'loose'; more?: Point[] | undefined }
+  | { block: 'insertSeat'; body: string; point: [number, number, number]; size: BlockSize; diameter: number; depth: number; more?: Point[] | undefined }
   | { block: 'boss'; body: string; point: [number, number, number]; size: BlockSize; diameter: number; height: number }
   /** Text embossed onto or engraved into the face, centred on the point. */
   | { block: 'text'; body: string; point: Point; normal: Point; size: BlockSize; text: string; height: number; depth: number; mode: 'emboss' | 'deboss'; bold: boolean }
@@ -245,7 +245,8 @@ export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
     case 'lip':
       return [{ command: 'plastic.lip', params: { face: block.point, type: block.type, width: mm(block.width), height: mm(block.height), ...(block.type === 'groove' ? { gap: mm(block.gap) } : {}) } }];
     default:
-      return [stepOf(block)];
+      // A row of holes: the same hole at each further point.
+      return [block.point, ...('more' in block ? (block.more ?? []) : [])].map((point) => stepOf({ ...block, point }));
   }
 }
 

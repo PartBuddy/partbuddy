@@ -1257,6 +1257,11 @@
   },
   "blocks": {
     "more": "Mehr …",
+    "row": "Reihe",
+    "countAcross": "Anzahl quer",
+    "countUp": "Anzahl hoch",
+    "pitchAcross": "Abstand quer",
+    "pitchUp": "Abstand hoch",
     "position": "Position ab Flächenmitte",
     "dragAcross": "Ziehen verschiebt den Baustein quer (Alt: Zehntel)",
     "dragUp": "Ziehen verschiebt den Baustein hoch (Alt: Zehntel)",

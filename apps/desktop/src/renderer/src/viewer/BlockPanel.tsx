@@ -73,6 +73,9 @@ function Check({ label, selected, onChange, testId }: { label: string; selected:
 
 type Vec = [number, number, number];
 
+/** The holes that can be laid out as a row. */
+const ROW_KINDS = new Set<BlockKind>(['tappedHole', 'screwHole', 'insertSeat']);
+
 /** One picked flat face of a body that is no standard part, or null. */
 export function flatFace(bodies: BodyModel[], picks: Pick[]): { body: string; point: Vec; normal: Vec } | null {
   const [pick] = picks;
@@ -155,27 +158,43 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     return facePlace(model, faceIndex, point.split(',').map(Number) as Vec, normal.split(',').map(Number) as Vec);
   }, [at, model, faceIndex]);
   const [offset, setOffset] = useState<[number, number]>(() => (place ? [round2(-place.middle[0]), round2(-place.middle[1])] : [0, 0]));
-  const block = useMemo<FeatureBlock | null>(() => {
+  // A row of holes: how many across and up, and how far apart, laid out evenly around the position.
+  const [row, setRow] = useState<{ count: [number, number]; pitch: [number, number] }>({ count: [1, 1], pitch: [10, 10] });
+  const centre = useMemo<Vec | null>(() => {
     if (!at) return null;
-    const [body = '', point = '', normal = ''] = at.split('\u0000');
+    const clicked = (at.split('\u0000')[1] ?? '').split(',').map(Number) as Vec;
+    if (!place) return clicked;
+    const [u, v] = [place.middle[0] + offset[0], place.middle[1] + offset[1]];
+    return clicked.map((value, i) => value + u * (place.x[i] ?? 0) + v * (place.y[i] ?? 0)) as Vec;
+  }, [at, place, offset]);
+  const block = useMemo<FeatureBlock | null>(() => {
+    if (!at || !centre) return null;
+    const [body = '', , normal = ''] = at.split('\u0000');
     const vec = (text: string) => text.split(',').map(Number) as Vec;
-    const clicked = vec(point);
-    const [u, v] = place ? [place.middle[0] + offset[0], place.middle[1] + offset[1]] : [0, 0];
-    const placed = place ? (clicked.map((value, i) => Math.round((value + u * (place.x[i] ?? 0) + v * (place.y[i] ?? 0)) * 1000) / 1000) as Vec) : clicked;
-    return { ...spec, body, point: placed, ...(needsNormal(spec.block) ? { normal: vec(normal) } : {}) };
-  }, [spec, at, place, offset]);
+    const mm3 = (value: number) => Math.round(value * 1000) / 1000;
+    if (!ROW_KINDS.has(spec.block)) return { ...spec, body, point: centre.map(mm3) as Vec, ...(needsNormal(spec.block) ? { normal: vec(normal) } : {}) };
+    const points: Vec[] = [];
+    const [nx, ny] = row.count;
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const [u, v] = [(i - (nx - 1) / 2) * row.pitch[0], (j - (ny - 1) / 2) * row.pitch[1]];
+        points.push(centre.map((value, k) => mm3(value + u * (place?.x[k] ?? 0) + v * (place?.y[k] ?? 0))) as Vec);
+      }
+    }
+    return { ...spec, body, point: points[0] ?? centre, more: points.slice(1) } as FeatureBlock;
+  }, [spec, at, centre, place, row]);
 
   // Two arrows on the part move the block across and up its face while the form is open; the preview follows.
   const setHandles = useStudio((s) => s.setLogoHandles);
   useEffect(() => {
-    if (!open || !place || !block || busy) {
+    if (!open || !place || !centre || busy) {
       setHandles([]);
       return;
     }
     const arrow = (axis: 0 | 1) => {
       const direction = axis === 0 ? place.x : place.y;
       return {
-        origin: block.point.map((value, i) => value + (direction[i] ?? 0) * 6) as [number, number, number],
+        origin: centre.map((value, i) => value + (direction[i] ?? 0) * 6) as [number, number, number],
         direction,
         perMm: 1,
         signed: true,
@@ -191,7 +210,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     return () => {
       setHandles([]);
     };
-  }, [open, place, busy, offset, block, setHandles, t]);
+  }, [open, place, busy, offset, centre, setHandles, t]);
 
   // The fills of a logo's drawing: with two or more it can be built a body per colour.
   const logoSvg = spec.block === 'logo' ? spec.svg : '';
@@ -373,6 +392,56 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
                     {t(label)}
                   </AriaButton>
                 ))}
+              </div>
+            </div>
+          ) : null}
+          {place && ROW_KINDS.has(block.block) ? (
+            <div className="flex flex-col gap-1" data-testid="block-row">
+              <span className={fieldLabelClass}>{t('blocks.row')}</span>
+              <div className="flex flex-wrap items-end gap-2">
+                {([0, 1] as const).map((axis) => (
+                  <NumberField
+                    key={`count-${String(axis)}`}
+                    value={row.count[axis]}
+                    minValue={1}
+                    maxValue={10}
+                    step={1}
+                    isDisabled={busy}
+                    onChange={(next) => {
+                      if (!Number.isFinite(next)) return;
+                      const count: [number, number] = axis === 0 ? [next, row.count[1]] : [row.count[0], next];
+                      setRow({ ...row, count });
+                    }}
+                    className="flex w-field-dock flex-col gap-1"
+                    data-testid={axis === 0 ? 'block-count-x' : 'block-count-y'}
+                  >
+                    <Label className={fieldLabelClass}>{t(axis === 0 ? 'blocks.countAcross' : 'blocks.countUp')}</Label>
+                    <UnitInput unit="×" />
+                  </NumberField>
+                ))}
+                {([0, 1] as const)
+                  .filter((axis) => row.count[axis] > 1)
+                  .map((axis) => (
+                    <NumberField
+                      key={`pitch-${String(axis)}`}
+                      value={row.pitch[axis]}
+                      minValue={0.5}
+                      maxValue={500}
+                      step={0.5}
+                      isDisabled={busy}
+                      formatOptions={{ maximumFractionDigits: 2 }}
+                      onChange={(next) => {
+                        if (!Number.isFinite(next)) return;
+                        const pitch: [number, number] = axis === 0 ? [next, row.pitch[1]] : [row.pitch[0], next];
+                        setRow({ ...row, pitch });
+                      }}
+                      className="flex w-field-dock flex-col gap-1"
+                      data-testid={axis === 0 ? 'block-pitch-x' : 'block-pitch-y'}
+                    >
+                      <Label className={fieldLabelClass}>{t(axis === 0 ? 'blocks.pitchAcross' : 'blocks.pitchUp')}</Label>
+                      <UnitInput unit={t('units.mmShort')} />
+                    </NumberField>
+                  ))}
               </div>
             </div>
           ) : null}
