@@ -22,7 +22,8 @@ function contentSecurityPolicy(): Plugin {
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",
-    "frame-ancestors 'none'",
+    // No frame-ancestors: a <meta> CSP ignores it and logs an error at every start (audit X-03); the
+    // page is a file in Electron's own window, never framed.
   ];
   return {
     name: 'partbuddy-csp',

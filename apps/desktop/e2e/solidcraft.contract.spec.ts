@@ -1352,6 +1352,13 @@ test('versions are saved by name, before requests and at exports, compared with 
     await details.getByTestId('part-printed-count').getByRole('textbox').fill('1');
     await details.getByTestId('part-printed-count').getByRole('textbox').press('Tab');
     await expect(page.getByTestId('parts-progress')).toContainText('1/2 printed');
+    // Only panels scroll, never the window, also with the details open (audit N-02).
+    expect(
+      await page.evaluate(() => {
+        const window = globalThis as unknown as { document: { scrollingElement: { scrollHeight: number } | null }; innerHeight: number };
+        return window.document.scrollingElement?.scrollHeight === window.innerHeight;
+      }),
+    ).toBe(true);
     await expect.poll(() => readFileSync(join(work, 'projects', 'Part First box', 'parts.json'), 'utf8')).toContain('PETG black');
     await body.getByTestId('part-printed').click();
     await expect(page.getByTestId('parts-progress')).toContainText('2/2 printed');
@@ -2095,7 +2102,7 @@ test('a template from the start page becomes a project whose sizes are its param
     const length = lengthRow.getByTestId('parameter-field').getByRole('textbox');
     await length.fill('100');
     await length.press('Enter');
-    await expect(lengthRow).toHaveAttribute('aria-label', 'length, 100 mm', { timeout: 30_000 });
+    await expect(lengthRow).toHaveAccessibleName(/length 100 mm$/, { timeout: 30_000 });
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="ok"]').first()).toBeVisible();
     await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });

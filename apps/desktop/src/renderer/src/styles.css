@@ -27,6 +27,9 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  /* Only panels scroll, never the window (audit N-02): a tall part detail or a stuck overlay must not
+     add a second scroll bar over the title and status bars. */
+  overflow: hidden;
   background: var(--cs-color-canvas);
   font-family: var(--cs-font-sans);
 }

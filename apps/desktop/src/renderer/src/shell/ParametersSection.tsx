@@ -1,5 +1,6 @@
 import { IconAlertCircle, IconSparkles, IconStarFilled, IconVariable } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
+import i18next from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Input, Slider, TextField } from 'react-aria-components';
 
@@ -17,7 +18,8 @@ import { SliderBar } from '../ui/Choice';
 
 const PREVIEW_DELAY_MS = 250;
 
-const format = (value: number) => String(Number(value.toFixed(4)));
+// Values in the interface's own decimal mark (audit B-09); parseLength takes comma and point alike.
+const format = (value: number) => new Intl.NumberFormat(i18next.language, { maximumFractionDigits: 4, useGrouping: false }).format(value);
 
 /** One parameter: a field for a plain length, the formula as text otherwise. */
 function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; body: string | null; busy: boolean }) {
@@ -100,7 +102,6 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
     <div ref={box}>
       <TreeItem
         id={`parameter:${parameter.name}`}
-        label={`${parameter.name}, ${format(parameter.value)} ${parameter.unit}`}
         selected={editing}
         onOpen={start}
         onEnter={start}

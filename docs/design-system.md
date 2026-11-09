@@ -38,7 +38,7 @@ produces nothing. ESLint rejects hex colour literals in UI code.
 | `surface-raised` | `#ffffff` | `#242930` | Menus, dialogs, popovers |
 | `surface-hover` / `surface-selected` | `#e8ebef` / `#dde8fb` | `#2a3037` / `#1d3354` | List rows |
 | `border` / `border-strong` | `#d5d9df` / `#828a94` | `#2f353d` / `#6a727d` | Dividers / control outlines (3:1) |
-| `text` / `text-muted` / `text-subtle` | `#1b1f24` / `#545c66` / `#6a727c` | `#e7eaee` / `#a9b0b9` / `#939ba5` | Text hierarchy (all ≥ 4.5:1) |
+| `text` / `text-muted` / `text-subtle` | `#1b1f24` / `#545c66` / `#5f6670` | `#e7eaee` / `#a9b0b9` / `#939ba5` | Text hierarchy (all ≥ 4.5:1) |
 | `accent` / `accent-hover` | `#1f5fd1` / `#1a52b6` | `#2f6ad6` / `#265cbf` | Primary buttons, selection fill |
 | `accent-text` / `accent-subtle` | `#1f5fd1` / `#e6efff` | `#7aa7f6` / `#1b2c47` | Accent text, selected backgrounds |
 | `focus` | `#1f5fd1` | `#6e9ff5` | Focus ring (2 px, ≥ 3:1) |
@@ -59,7 +59,7 @@ forced two fixes during Phase 1: white text on the dark accent (4.0:1) and contr
 | Type | Segoe UI Variable everywhere, also for names, numbers and code blocks (no monospace in the app, Manuel 2026-11-05 and 2026-11-07; Shiki colours and a sunken surface mark code); sizes 11 / 12 / 13 / 15 / 18 px; weights 400 / 500 / 600; numbers use tabular figures |
 | Radii | `sm` 3 · `md` 5 · `lg` 8 · `full` |
 | Elevation | `shadow-1` (raised controls), `shadow-2` (popovers, overlays in the view), `shadow-3` (dialogs) |
-| Motion | 90 ms and 160 ms with a standard easing; overlays enter with `easing-enter` (decelerate, rising `motion-offset` 4 px) and leave with `easing-exit` (`animate-pop-in/out`, `animate-fade-in/out`, `animate-dialog-in`); all motion off under `prefers-reduced-motion` |
+| Motion | 90 ms and 160 ms with a standard easing; panels and cards 220 ms on `easing-spring` (critically damped, no overshoot, `animate-panel-in`); camera moves 250 ms (`duration-camera`); overlays enter with `easing-enter` (decelerate, rising `motion-offset` 4 px) and leave with `easing-exit` (`animate-pop-in/out`, `animate-fade-in/out`, `animate-dialog-in`); all motion off under `prefers-reduced-motion` |
 | States | `surface-pressed`, `accent-pressed`, `danger-solid` (+ `-hover`, `-pressed`, white text ≥ 4.5:1); disabled controls fade to `opacity-disabled` (0.45) |
 | Focus | One ring for every control: `focus-visible:focus-ring` (2 px `focus`, 1 px off), `focus-ring-inset` inside lists and menus |
 

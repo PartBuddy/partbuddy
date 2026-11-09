@@ -7,7 +7,6 @@ import {
   Dialog,
   Heading,
   Input,
-  Keyboard,
   Label,
   Menu,
   MenuItem,
@@ -24,6 +23,7 @@ import { beforeProjectSwitch } from '../assistant/useAssistantBridge';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
+import { Shortcut } from '../ui/Tooltip';
 import { useFileImport } from './fileImport';
 import { useProjectSwitch } from './projectSwitch';
 import { FieldMessage, fieldLabelClass, inputClass } from '../ui/Field';
@@ -42,7 +42,7 @@ function Item({ id, icon, label, shortcut, testId, isDisabled }: { id: string; i
     <MenuItem id={id} textValue={label} className={itemClass} data-testid={testId} isDisabled={isDisabled ?? false}>
       {icon}
       <span className="flex-1">{label}</span>
-      {shortcut ? <Keyboard className="text-xs text-text-subtle">{shortcut}</Keyboard> : null}
+      {shortcut ? <Shortcut keys={shortcut} className="text-xs" /> : null}
     </MenuItem>
   );
 }
