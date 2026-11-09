@@ -148,3 +148,13 @@ describe('line icons', () => {
     expect(drawingSize(open).height).toBeCloseTo(2, 6);
   });
 });
+
+describe('shapes that touch', () => {
+  it('keeps a shape another one meets right at the middle of its longest side', () => {
+    // Two blocks joined by a bar at half height: the bar touches the middle of each block's inner side.
+    const d = drawing('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><path d="M0 0H8V10H0Z M12 0H20V10H12Z M8 4.9H12V5.1H8Z"/></svg>');
+    expect(d.shapes[0]?.loops).toHaveLength(3);
+    expect(d.bounds.minX).toBeCloseTo(0, 6);
+    expect(d.bounds.maxX).toBeCloseTo(20, 6);
+  });
+});
