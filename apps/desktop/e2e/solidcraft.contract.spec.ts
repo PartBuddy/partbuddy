@@ -2915,3 +2915,51 @@ test('a built text is picked as a whole and changed afterwards: words, height an
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a hole is placed on its face before it is drilled: across and up from the middle, centred, with arrows', async () => {
+  test.setTimeout(180_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-hole-place-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7936',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await page.getByTestId('viewport').hover();
+    await page.keyboard.press('7');
+    await page.waitForTimeout(1000);
+    const box = await page.getByTestId('viewport').boundingBox();
+    if (!box) throw new Error('viewport not visible');
+    await expect(async () => {
+      await page.keyboard.press('Escape');
+      await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.45);
+      await page.getByTestId('action-hole').click({ timeout: 1500 });
+    }, 'the top face and its hole button').toPass({ timeout: 30_000, intervals: [500] });
+    // Placed like a block: fields from the face's middle, centre buttons, arrows on the part.
+    await expect(page.getByTestId('hole-position')).toBeVisible();
+    await expect(page.getByTestId('hole-arrow-x')).toBeVisible();
+    await page.getByTestId('hole-centre-both').click();
+    await expect(page.getByTestId('hole-x').getByRole('textbox')).toHaveValue('0');
+    await page.getByTestId('hole-x').getByRole('textbox').fill('4');
+    await page.getByTestId('hole-x').getByRole('textbox').press('Tab');
+    await expect(page.getByTestId('action-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    const revision = await page.getByTestId('viewer').getAttribute('data-revision');
+    await page.getByTestId('action-apply').click();
+    await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).not.toContainText('· 6 faces', { timeout: 30_000 });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
