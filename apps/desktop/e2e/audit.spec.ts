@@ -102,7 +102,7 @@ function recorder(app: ElectronApplication, page: Page, report: Report, dir: str
         });
       if (axe) report.timings.axeChecks = (report.timings.axeChecks ?? 0) + 1;
       for (const violation of axe?.violations ?? []) {
-        for (const node of violation.nodes.slice(0, 4)) report.axe.push(`${name} ${scheme}: ${violation.id} ${node.target.join(' ')} — ${node.failureSummary?.split('\n')[1]?.trim() ?? ''}`.slice(0, 400));
+        for (const node of violation.nodes.slice(0, 4)) report.axe.push(`${name} ${scheme}: ${violation.id} ${node.target.join(' ')} ${node.html.slice(0, 160)} — ${node.failureSummary?.split('\n')[1]?.trim() ?? ''}`.slice(0, 400));
       }
     }
     const clipped = await clippedTexts(page);

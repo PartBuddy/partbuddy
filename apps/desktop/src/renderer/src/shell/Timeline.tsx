@@ -52,6 +52,8 @@ function iconOf(feature: TimelineFeature): ReactNode {
 
 /** Room between two steps, where the rollback bar sits (CSS px; matches `gap-2`). */
 const SLOT_GAP = 8;
+// The gap at the rollback bar is widened to the bar's 24 px target (WCAG 2.5.8, audit AX-02).
+const HANDLE_EXTRA = 16;
 
 /**
  * The rollback bar (UI upgrade step 14): drag it between the steps, or move it with the arrow keys
@@ -98,7 +100,7 @@ function RollbackBar({
     <span
       // In the gap after the last active step. Every step is a button of the same width, so the
       // place follows from the count alone: nothing to measure, right from the first frame.
-      style={{ left: `calc(${String(shown)} * (var(--cs-control-sm) + ${String(SLOT_GAP)}px) - ${String(SLOT_GAP / 2)}px)` }}
+      style={{ left: `calc(${String(shown)} * (var(--cs-control-sm) + ${String(SLOT_GAP)}px) - ${String(SLOT_GAP / 2)}px + ${String(HANDLE_EXTRA / 2)}px)` }}
       role="slider"
       tabIndex={busy ? -1 : 0}
       aria-label={t('timeline.handle')}
@@ -108,7 +110,7 @@ function RollbackBar({
       aria-valuetext={shown === count ? t('timeline.handleEnd') : t('timeline.handleAfter', { name: names[shown - 1] ?? '' })}
       aria-disabled={busy}
       title={t('timeline.handleHint')}
-      className={`group absolute top-1/2 flex h-control-sm w-3 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-sm outline-none focus-visible:focus-ring ${busy ? 'opacity-disabled' : ''}`}
+      className={`group absolute top-1/2 flex h-control-sm w-6 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-sm outline-none focus-visible:focus-ring ${busy ? 'opacity-disabled' : ''}`}
       data-testid="timeline-handle"
       data-position={shown}
       onPointerDown={(event) => {
@@ -186,7 +188,7 @@ export function Timeline() {
           const faded = feature.suppressed || (moving === null ? feature.rolledBack : index + 1 > moving);
           const kind = featureKind(feature.type);
           return (
-            <li key={feature.id} className="flex shrink-0 items-center gap-1">
+            <li key={feature.id} className="flex shrink-0 items-center gap-1" style={index === shown && index > 0 ? { marginLeft: HANDLE_EXTRA } : undefined}>
               <MenuTrigger>
                 <TooltipTrigger delay={500} closeDelay={0}>
                 <AriaButton
@@ -241,6 +243,8 @@ export function Timeline() {
             </li>
           );
         })}
+        {/* A list holds only items (audit AX-02); `contents` keeps the bar placed against the list. */}
+        <li className="contents">
         <RollbackBar
           shown={shown}
           position={position}
@@ -253,6 +257,7 @@ export function Timeline() {
             run({ action: 'rollTo', position: next === features.length ? 'end' : next });
           }}
         />
+        </li>
       </ol>
       {marker !== null ? (
         <AriaButton

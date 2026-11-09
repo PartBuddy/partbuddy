@@ -90,7 +90,7 @@ export function PartDetails({ body, note, standard, onChange }: { body: string; 
   const [filament, setFilament] = useState(note.filament);
   const [text, setText] = useState(note.note);
   return (
-    <li className="flex flex-col gap-2 rounded-md bg-surface-sunken px-2 py-2" data-testid="part-details" data-body={body}>
+    <div role="group" aria-label={body} className="flex flex-col gap-2 rounded-md bg-surface-sunken px-2 py-2" data-testid="part-details" data-body={body}>
       <div className="grid grid-cols-2 gap-2">
         <NumberField value={note.quantity} minValue={1} maxValue={999} onChange={(value) => Number.isFinite(value) && onChange({ ...note, quantity: value, printed: Math.min(note.printed, value) })} className="flex flex-col gap-1" data-testid="part-quantity">
           <Label className={fieldLabelClass}>{t('parts.quantity')}</Label>
@@ -117,6 +117,6 @@ export function PartDetails({ body, note, standard, onChange }: { body: string; 
         <Label className={fieldLabelClass}>{t('parts.note')}</Label>
         <Input className={inputClass('sm')} data-testid="part-note" />
       </TextField>
-    </li>
+    </div>
   );
 }

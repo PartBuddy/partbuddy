@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Tooltip as AriaTooltip, TooltipTrigger, type TooltipProps } from 'react-aria-components';
 
 /** The tooltip surface (Linear, Fluent 2): small, raised, framed so it reads on white panels too. */
@@ -8,12 +9,25 @@ export const tooltipClass =
   'placement-top:[--cs-pop-y:var(--cs-motion-offset)] placement-left:[--cs-pop-x:var(--cs-motion-offset)] placement-left:[--cs-pop-y:0] ' +
   'placement-right:[--cs-pop-x:calc(var(--cs-motion-offset)*-1)] placement-right:[--cs-pop-y:0]';
 
+/**
+ * A shortcut such as "Ctrl+N" as the reader's keyboard names it ("Strg+N" in German), in the interface
+ * font with even digits: one look in menus and tooltips (audit X-01, A-11).
+ */
+export function Shortcut({ keys, className }: { keys: string; className?: string }) {
+  const { t } = useTranslation();
+  const label = keys
+    .split('+')
+    .map((key) => (key.length > 1 ? t(`settings.keys.token.${key.toLowerCase()}`, { defaultValue: key }) : key))
+    .join('+');
+  return <kbd className={`font-sans text-text-subtle tabular-nums ${className ?? ''}`}>{label}</kbd>;
+}
+
 /** Label and, when there is one, the shortcut beside it in a quieter tone. */
 export function TipText({ label, shortcut }: { label: ReactNode; shortcut?: string | undefined }) {
   return (
     <>
       {label}
-      {shortcut ? <kbd className="ml-2 font-sans text-text-subtle tabular-nums">{shortcut}</kbd> : null}
+      {shortcut ? <Shortcut keys={shortcut} className="ml-2" /> : null}
     </>
   );
 }

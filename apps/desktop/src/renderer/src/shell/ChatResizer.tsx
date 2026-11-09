@@ -99,7 +99,7 @@ export function ChatResizer({ width, max, onChange }: { width: number; max: numb
         event.preventDefault();
       }}
     >
-      <span aria-hidden className={`h-full w-px ${dragging ? 'bg-accent' : 'bg-transparent group-hover:bg-accent group-focus-visible:bg-accent'}`} />
+      <span aria-hidden className={`h-full rounded-full transition-[width,background-color] ${dragging ? 'w-1 bg-accent' : 'w-px bg-transparent group-hover:w-1 group-hover:bg-accent group-focus-visible:w-1 group-focus-visible:bg-accent'}`} />
     </div>
   );
 }

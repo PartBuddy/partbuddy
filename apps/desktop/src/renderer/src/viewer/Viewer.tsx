@@ -32,7 +32,7 @@ import { blendWeights, PREVIEW_BLEND } from './blend';
 import { PICK_PIXELS, segmentCandidates, vertexCandidates, type Project } from './picking';
 import { useTokenColors, type ViewerColors } from './useTokenColors';
 import { StepPreviews } from './StepPreviews';
-import { ViewCube, ViewCubeSync } from './ViewCube';
+import { animateCamera, ViewCube, ViewCubeSync } from './ViewCube';
 import { gridStep, lineScaleFor, needsReframe } from './framing';
 import { pickBox, selectionBox, VIEW_DIRECTIONS, type PickArrays } from './camera';
 import { ViewTools } from './ViewTools';
@@ -703,8 +703,8 @@ function FrameDesign({ documentId, bodies, sketches }: { documentId: string; bod
     // Following changes moves the camera on its own; a user who moved it keeps their view.
     if (framedElsewhere || state.userMoved || follow || !(newCamera || needsReframe(state.framed, bounds))) return;
     state.framed = bounds.clone();
-    centrePivot(controls, !newCamera);
-    void controls.fitToSphere(bounds, !newCamera);
+    centrePivot(controls, !newCamera && animateCamera());
+    void controls.fitToSphere(bounds, !newCamera && animateCamera());
     keepView(controls);
   }, [controls, documentId, bounds, follow, framedElsewhere]);
   return null;
@@ -759,8 +759,8 @@ function StandardViews({ bodies, sketches }: { bodies: BodyModel[]; sketches: Mi
     if (!controls || !request || request.serial === done.current || bounds.radius <= 0) return;
     done.current = request.serial;
     if (request.view === 'fit') {
-      centrePivot(controls, true);
-      void controls.fitToSphere(bounds, true);
+      centrePivot(controls, animateCamera());
+      void controls.fitToSphere(bounds, animateCamera());
     } else if (request.view === 'selection') {
       const picks = useStudio.getState().selections;
       const box = selectionBox(
@@ -771,12 +771,12 @@ function StandardViews({ bodies, sketches }: { bodies: BodyModel[]; sketches: Mi
         SELECTION_CONTEXT,
       );
       // Nothing selected: fit everything, as Fit does.
-      centrePivot(controls, true);
+      centrePivot(controls, animateCamera());
       // A sphere keeps the direction the user looks from (a box fit turns to the nearest axis).
-      if (box) void controls.fitToSphere(new Box3(new Vector3(...box.min), new Vector3(...box.max)).getBoundingSphere(new Sphere()), true);
-      else void controls.fitToSphere(bounds, true);
+      if (box) void controls.fitToSphere(new Box3(new Vector3(...box.min), new Vector3(...box.max)).getBoundingSphere(new Sphere()), animateCamera());
+      else void controls.fitToSphere(bounds, animateCamera());
     } else {
-      lookFrom(controls, request.view === 'iso' ? scene.viewDirection : VIEW_DIRECTIONS[request.view], bounds, true);
+      lookFrom(controls, request.view === 'iso' ? scene.viewDirection : VIEW_DIRECTIONS[request.view], bounds, animateCamera());
     }
   }, [controls, request, bounds, bodies]);
   return null;
@@ -881,8 +881,8 @@ function FollowChanges() {
     // Small changes (one fillet) stay in context: frame at least a 40 mm neighbourhood.
     const size = target.getSize(new Vector3());
     target.expandByVector(new Vector3(Math.max(0, 40 - size.x) / 2, Math.max(0, 40 - size.y) / 2, Math.max(0, 40 - size.z) / 2));
-    centrePivot(controls, true);
-    void controls.fitToBox(target, true, { paddingTop: 12, paddingBottom: 12, paddingLeft: 12, paddingRight: 12 });
+    centrePivot(controls, animateCamera());
+    void controls.fitToBox(target, animateCamera(), { paddingTop: 12, paddingBottom: 12, paddingLeft: 12, paddingRight: 12 });
   }, [follow, controls, serial, box]);
   return null;
 }
@@ -899,8 +899,8 @@ function FocusRequest() {
     // A small spot stays in context: frame at least a 30 mm neighbourhood.
     const size = target.getSize(new Vector3());
     target.expandByVector(new Vector3(Math.max(0, 30 - size.x) / 2, Math.max(0, 30 - size.y) / 2, Math.max(0, 30 - size.z) / 2));
-    centrePivot(controls, true);
-    void controls.fitToBox(target, true, { paddingTop: 12, paddingBottom: 12, paddingLeft: 12, paddingRight: 12 });
+    centrePivot(controls, animateCamera());
+    void controls.fitToBox(target, animateCamera(), { paddingTop: 12, paddingBottom: 12, paddingLeft: 12, paddingRight: 12 });
   }, [controls, request]);
   return null;
 }
@@ -1016,7 +1016,9 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
       dpr={[1, 2]}
       // While the camera moves, a large part may draw at a lower resolution for a moment (AdaptiveDpr).
       performance={{ min: 0.5 }}
-      shadows
+      // three 0.187 removed PCFSoftShadowMap (plain `shadows`) and fell back to PCF with a console
+      // warning; ask for PCF itself (audit X-04).
+      shadows="percentage"
       // The canvas starts with a camera of its own before ours takes over; with the same field of
       // view, a framing done in between keeps fitting.
       camera={{ fov: scene.fieldOfView, near: 0.5, far: 5000, position: lastView.position.toArray() }}

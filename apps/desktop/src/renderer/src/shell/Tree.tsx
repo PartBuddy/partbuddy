@@ -183,7 +183,8 @@ export function TreeItem({
   className = '',
 }: {
   id: string;
-  label: string;
+  /** The row's name; without one, its visible text names it (WCAG 2.5.3: the name contains what is shown). */
+  label?: string;
   selected?: boolean;
   dimmed?: boolean;
   expanded?: boolean;
@@ -228,7 +229,7 @@ export function TreeItem({
         ref={ref}
         role="treeitem"
         aria-level={2}
-        aria-label={label}
+        {...(label === undefined ? {} : { 'aria-label': label })}
         aria-selected={selected ?? false}
         {...(expanded === undefined ? {} : { 'aria-expanded': expanded })}
         onClick={(event) => {
@@ -252,7 +253,7 @@ export function TreeItem({
       {actions?.length ? (
         <Popover triggerRef={ref} isOpen={menu} onOpenChange={setMenu} placement="bottom start" offset={POPOVER_OFFSET} className={popoverClass}>
           <Menu
-            aria-label={label}
+            aria-label={label ?? id}
             autoFocus="first"
             onAction={(key) => {
               actions.find((action) => action.id === key)?.onAction();

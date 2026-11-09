@@ -6,6 +6,11 @@ import { Vector3 } from 'three';
 
 import { cellDirection, FACE_ORDER, faceTransform, viewRotation, type CubeFace, type Vec3 } from './navCube';
 
+/** Camera moves glide unless the system asks for reduced motion (audit M-01, WCAG 2.3.3). */
+export function animateCamera(): boolean {
+  return !matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 /**
  * The view cube (2026-11-07, Manuel: "something professional and ready-made"): Bentley's iTwin.js
  * CubeNavigationAid (MIT), its geometry (navCube.ts) and look: flat faces with a soft gradient, a
@@ -78,7 +83,7 @@ function look(direction: Vec3): void {
     const distance = controls.getPosition(new Vector3()).distanceTo(target);
     // Straight up or down leans a hair to the front, so "up" stays defined.
     const d = new Vector3(direction[0], direction[1] === 0 && direction[0] === 0 ? -1e-4 : direction[1], direction[2]).normalize().multiplyScalar(distance);
-    const animate = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const animate = animateCamera();
     void controls.setFocalOffset(0, 0, 0, animate);
     void controls.setLookAt(target.x + d.x, target.y + d.y, target.z + d.z, target.x, target.y, target.z, animate);
 }

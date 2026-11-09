@@ -82,6 +82,7 @@
       "title": "Ansichtswürfel"
     },
     "kind": {
+      "face": "Fläche",
       "edge": "Kante",
       "vertex": "Ecke"
     },
@@ -1238,7 +1239,25 @@
     "filament": "Filament",
     "filamentPlaceholder": "Zum Beispiel: PETG schwarz",
     "note": "Notiz",
-    "tile": "{printed}/{total} gedruckt"
+    "tile": "{printed}/{total} gedruckt",
+    "action": "Normteil",
+    "hole": "Bohrung ⌀ {diameter} mm",
+    "family": "Art",
+    "size": "Größe",
+    "length": "Länge",
+    "insert": "In die Bohrung setzen",
+    "hint": "Ein Gegenstück aus der SolidCraft-Bibliothek: Es erscheint in der Ansicht, wird aber weder exportiert noch gedruckt.",
+    "inserted": "{name} als Gegenstück eingesetzt.",
+    "families": {
+      "socket_head_cap_screw": "Zylinderschraube",
+      "button_head_cap_screw": "Linsenkopfschraube",
+      "hex_bolt": "Sechskantschraube",
+      "set_screw": "Gewindestift",
+      "hex_nut": "Sechskantmutter",
+      "washer": "Unterlegscheibe",
+      "dowel_pin": "Zylinderstift",
+      "bearing": "Kugellager"
+    }
   },
   "printFace": {
     "action": "Auf dieser Fläche drucken",

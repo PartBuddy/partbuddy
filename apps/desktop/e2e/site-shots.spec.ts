@@ -310,7 +310,7 @@ test('website pictures', async () => {
       const length = lengthRow.getByTestId('parameter-field').getByRole('textbox');
       await length.fill('80');
       await length.press('Enter');
-      await expect(lengthRow).toHaveAttribute('aria-label', 'base_length, 80 mm', { timeout: 30_000 });
+      await expect(lengthRow).toContainText('80', { timeout: 30_000 });
       await page.waitForTimeout(1500);
       await page.getByTestId('versions-button').click();
       const first = dialog.getByTestId('version').filter({ hasText: 'First print' });

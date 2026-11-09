@@ -13,6 +13,12 @@ export const contrastPairs = [
   { fg: '--cs-color-text-muted', bg: '--cs-color-surface-sunken', min: 4.5 },
   { fg: '--cs-color-text-muted', bg: '--cs-color-canvas', min: 4.5 },
   { fg: '--cs-color-text-subtle', bg: '--cs-color-surface', min: 4.5 },
+  // Units, dates and shortcuts also sit on hovered, selected, sunken and raised rows (audit AX-06).
+  { fg: '--cs-color-text-subtle', bg: '--cs-color-surface-hover', min: 4.5 },
+  { fg: '--cs-color-text-subtle', bg: '--cs-color-surface-selected', min: 4.5 },
+  { fg: '--cs-color-text-subtle', bg: '--cs-color-surface-sunken', min: 4.5 },
+  { fg: '--cs-color-text-subtle', bg: '--cs-color-surface-raised', min: 4.5 },
+  { fg: '--cs-color-text-subtle', bg: '--cs-color-canvas', min: 4.5 },
   { fg: '--cs-color-text-on-accent', bg: '--cs-color-accent', min: 4.5 },
   { fg: '--cs-color-text-on-accent', bg: '--cs-color-accent-hover', min: 4.5 },
   { fg: '--cs-color-text-on-accent', bg: '--cs-color-accent-pressed', min: 4.5 },

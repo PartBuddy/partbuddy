@@ -327,7 +327,7 @@ test('the parameter panel lists the design parameters and changes a length with 
   // Favourites first, one row each (name, value, unit); comment, range and formula show on hover.
   const rows = panel.getByTestId('parameter');
   await expect(rows.first()).toHaveAttribute('data-name', 'breite');
-  await expect(rows.first()).toHaveAttribute('aria-label', 'breite, 40 mm');
+  await expect(rows.first()).toHaveAccessibleName(/breite 40 mm$/);
   await expect(rows.first().locator('[title]').first()).toHaveAttribute('title', 'Plate width\nRange 30 to 60 mm');
   await expect(rows.nth(1).locator('[title]').first()).toHaveAttribute('title', /^= breite \/ 10\n/);
   const floorRow = panel.locator('[data-testid="parameter"][data-name="boden"]');
@@ -356,7 +356,7 @@ test('the parameter panel lists the design parameters and changes a length with 
 
   await field.press('Enter');
   await expect.poll(() => solidcraft.parameters.find((entry) => entry.name === 'breite')?.value).toBe(50);
-  await expect(rows.first()).toHaveAttribute('aria-label', 'breite, 50 mm');
+  await expect(rows.first()).toHaveAccessibleName(/breite 50 mm$/);
   await expect(rows.first()).toBeFocused();
 
   // F2 opens it again; a value SolidCraft cannot build is refused before Enter; Escape keeps the current value.
@@ -365,7 +365,7 @@ test('the parameter panel lists the design parameters and changes a length with 
   await expect(panel.getByText('SolidCraft cannot build the part with this value')).toBeVisible();
   await field.press('Escape');
   await expect(field).toHaveCount(0);
-  await expect(rows.first()).toHaveAttribute('aria-label', 'breite, 50 mm');
+  await expect(rows.first()).toHaveAccessibleName(/breite 50 mm$/);
 
   // The user setting a snapped size makes it theirs: the mark goes, so a printer change leaves it alone.
   await floorRow.dblclick();

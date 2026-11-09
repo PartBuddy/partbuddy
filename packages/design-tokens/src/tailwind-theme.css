@@ -102,6 +102,8 @@
   --animate-fade-in: cs-fade-in var(--cs-duration-normal) var(--cs-easing-enter);
   --animate-fade-out: cs-fade-out var(--cs-duration-fast) var(--cs-easing-exit);
   --animate-dialog-in: cs-dialog-in var(--cs-duration-normal) var(--cs-easing-enter);
+  /* Panels and cards that open in place rise a little and land on a spring. */
+  --animate-panel-in: cs-pop-in var(--cs-duration-panel) var(--cs-easing-spring);
 
   --radius-sm: var(--cs-radius-sm);
   --radius-md: var(--cs-radius-md);
@@ -119,6 +121,7 @@
   --ease-standard: var(--cs-easing-standard);
   --ease-enter: var(--cs-easing-enter);
   --ease-exit: var(--cs-easing-exit);
+  --ease-spring: var(--cs-easing-spring);
   --opacity-disabled: var(--cs-opacity-disabled);
 
   --text-xs: var(--cs-text-xs);

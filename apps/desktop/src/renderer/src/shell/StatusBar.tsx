@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { MaterialMenu } from '../print/MaterialMenu';
@@ -14,18 +13,6 @@ export function StatusBar() {
   const homeOpen = useStudio((s) => s.homeOpen);
   const hover = useStudio((s) => s.hover);
   const latency = useStudio((s) => s.latency);
-  const notice = useStudio((s) => s.notice);
-  const setNotice = useStudio((s) => s.setNotice);
-  // A success fades after a few seconds; an error stays until the next action.
-  useEffect(() => {
-    if (notice?.tone !== 'success') return;
-    const timer = setTimeout(() => {
-      setNotice(null);
-    }, 6000);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [notice, setNotice]);
   const number = new Intl.NumberFormat(i18n.language);
   const focus = hover ?? selection;
   const bodies = model.status === 'ready' ? model.bodies : [];
@@ -66,9 +53,6 @@ export function StatusBar() {
         // The hint how to select and move the view lives here, not on top of the part.
         <span className="truncate" data-testid="view-hint">{t('viewer.hint')}</span>
       )}
-      <span role="status" className={`ml-auto truncate ${notice?.tone === 'danger' ? 'text-danger' : 'text-text'}`} data-testid="notice">
-        {notice?.text}
-      </span>
     </footer>
   );
 }

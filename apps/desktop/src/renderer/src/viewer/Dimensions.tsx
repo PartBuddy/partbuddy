@@ -210,7 +210,7 @@ function MarkLabel({ mark, open, onToggle }: { mark: DimensionMark; open: boolea
       aria-label={t('dimensions.edit', { name: text.name, value: text.value })}
       aria-expanded={open}
       onPress={onToggle}
-      className={`pointer-events-auto flex -translate-x-1/2 -translate-y-1/2 items-baseline gap-1 whitespace-nowrap rounded-full border px-2 text-xs font-semibold tabular-nums text-text shadow-1 outline-none focus-visible:focus-ring ${
+      className={`pointer-events-auto flex min-h-control-sm -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border px-2 text-xs font-semibold tabular-nums text-text shadow-1 outline-none focus-visible:focus-ring ${
         open ? 'border-dimension bg-surface-selected' : 'border-dimension/35 bg-surface-raised/95 hover:border-dimension'
       }`}
       data-testid="mark-label"
