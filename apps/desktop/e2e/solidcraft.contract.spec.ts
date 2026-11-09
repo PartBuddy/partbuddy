@@ -1780,6 +1780,16 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
       await page.getByTestId('block-tile-logo').click({ timeout: 1500 });
       await expect(page.getByTestId('block-form')).toBeVisible({ timeout: 1000 });
     }, 'a flat face of the box and its form').toPass({ timeout: 45_000, intervals: [500] });
+    // A way back: Cancel and Esc close the form, the face stays picked, the tile opens it again.
+    await page.getByTestId('block-cancel').click();
+    await expect(page.getByTestId('block-form')).toHaveCount(0);
+    await page.getByTestId('block-tile-logo').click();
+    await page.getByTestId('block-form').getByRole('button').first().focus();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('block-form')).toHaveCount(0);
+    await expect(page.getByTestId('selection-bar')).toBeVisible();
+    await page.getByTestId('block-tile-logo').click();
+    await expect(page.getByTestId('block-form')).toBeVisible();
     await expect(page.getByTestId('block-size')).toHaveCount(0);
     await expect(page.getByTestId('block-status')).toHaveText('Choose an SVG file for the logo');
     await expect(page.getByTestId('block-apply')).toBeDisabled();

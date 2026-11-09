@@ -196,6 +196,10 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     setBlock(block.block === 'screwHole' ? { ...block, size: next } : block.block === 'slot' ? { ...defaultBlock('slot', face.body, face.point, next, face.normal), length: block.length, depth: block.depth, along: block.along } as FeatureBlock : defaultBlock(block.block, face.body, face.point, next, face.normal));
     setStatus(null);
   };
+  const close = () => {
+    setOpen(false);
+    onGhost(null);
+  };
   const apply = () => {
     if (!status?.ok) return;
     setOpen(false);
@@ -245,7 +249,17 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
         </ToggleButton>
       </div>
       {open ? (
-        <div className="flex flex-col gap-2 rounded-md border border-border bg-surface p-2" data-testid="block-form">
+        <div
+          className="flex flex-col gap-2 rounded-md border border-border bg-surface p-2"
+          data-testid="block-form"
+          // Esc leaves the form and its preview, the face stays picked.
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            close();
+          }}
+        >
           <div className="grid grid-cols-2 gap-2">
             <Choice label={t('blocks.kind')} value={block.block} items={BLOCK_KINDS.map((id) => ({ id, label: t(`blocks.kinds.${id}`) }))} onChange={(id) => kind(id)} testId="block-kind" />
             {hasSize(block.block) ? <Choice label={t('blocks.size')} value={block.size} items={sizes.map((id) => ({ id, label: id }))} onChange={(id) => size(id)} testId="block-size" /> : null}
@@ -402,9 +416,14 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
           <p className="text-xs text-text-muted" role="status" data-testid="block-status" data-ok={status ? String(status.ok) : undefined}>
             {waiting ? t('blocks.logoWaiting') : !status ? t('hud.probing') : status.ok ? t('blocks.ready') : t('hud.actionRefused', { detail: status.error ?? '' })}
           </p>
-          <Button variant="primary" isDisabled={busy || !status?.ok} onPress={apply} data-testid="block-apply">
-            {t('blocks.apply')}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="primary" isDisabled={busy || !status?.ok} onPress={apply} className="flex-1" data-testid="block-apply">
+              {t('blocks.apply')}
+            </Button>
+            <Button onPress={close} data-testid="block-cancel">
+              {t('hud.cancel')}
+            </Button>
+          </div>
         </div>
       ) : null}
     </div>

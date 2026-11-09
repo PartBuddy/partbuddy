@@ -4,6 +4,7 @@ import { Input, Label, TextField, ToggleButton, ToggleButtonGroup } from 'react-
 
 import type { DesignAction, MeasureItem, MeasureResult } from '../../../shared/contract';
 import { platform } from '../platform';
+import { Button } from '../ui/Button';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
 import { actionsFor, type ActionKind } from './actionKinds';
@@ -143,6 +144,15 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
           <p className="text-xs text-text-muted" role="status" data-testid="action-status" data-ok={current ? String(current.ok) : undefined}>
             {!valid ? t('hud.invalid') : !current ? t('hud.probing') : current.ok ? t('hud.actionReady') : t('hud.actionRefused', { detail: current.error ?? '' })}
           </p>
+          {/* Enter and Esc do the same; the buttons show that there is a way on and a way back. */}
+          <div className="flex gap-2">
+            <Button variant="primary" size="sm" isDisabled={busy || !valid || !current?.ok} onPress={apply} className="flex-1" data-testid="action-apply">
+              {t('hud.apply')}
+            </Button>
+            <Button size="sm" onPress={() => choose(null)} data-testid="action-cancel">
+              {t('hud.cancel')}
+            </Button>
+          </div>
         </TextField>
       ) : null}
     </div>

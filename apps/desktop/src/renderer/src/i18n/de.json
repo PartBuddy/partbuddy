@@ -535,6 +535,8 @@
     "dragUp": "Ziehen verschiebt das Logo hoch (Alt: Zehntel), Loslassen übernimmt"
   },
   "hud": {
+    "cancel": "Abbrechen",
+    "apply": "Übernehmen",
     "group": {
       "change": "Ändern",
       "add": "Hinzufügen",

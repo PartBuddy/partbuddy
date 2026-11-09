@@ -535,6 +535,8 @@
     "dragUp": "Drag to move the logo up (Alt: tenths); let go to apply"
   },
   "hud": {
+    "cancel": "Cancel",
+    "apply": "Apply",
     "group": {
       "change": "Change",
       "add": "Add",
