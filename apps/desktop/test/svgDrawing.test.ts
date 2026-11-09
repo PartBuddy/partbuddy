@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { drawingColours, drawingFacts, drawingSize, drawingPieces, drawingSvg, flatten, naturalWidth, parseDrawing, parsePathData, shapesOverlap, type Drawing, type Shape } from '../src/shared/svgDrawing';
+import { drawingColours, drawingFacts, drawingPieces, drawingSize, drawingSvg, flatten, mergedColours, naturalWidth, parseDrawing, parsePathData, shapesOverlap, type Drawing, type Shape } from '../src/shared/svgDrawing';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', 'svg', name), 'utf8');
 
@@ -146,5 +146,25 @@ describe('line icons', () => {
     const open = drawing('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><polyline points="5,5 15,5" fill="none" stroke="#000" stroke-width="2"/></svg>');
     expect(drawingSize(open).width).toBeCloseTo(10, 6);
     expect(drawingSize(open).height).toBeCloseTo(2, 6);
+  });
+});
+
+describe('colours for the filaments', () => {
+  const shades = (fills: string[]) =>
+    drawing(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${String(fills.length * 10)} 10">${fills.map((fill, i) => `<rect x="${String(i * 10)}" width="${String(i === 0 ? 10 : 9)}" height="10" fill="${fill}"/>`).join('')}</svg>`);
+
+  it('merges fills that look the same, the larger area keeping its colour', () => {
+    // Two blues off by one in a byte, as an export rounds them, and a red.
+    const d = shades(['#1d71b8', '#1d71b9', '#e30613']);
+    expect(drawingColours(d)).toEqual(['#1d71b8', '#e30613']);
+  });
+
+  it('brings a drawing down to a number of filaments by merging the nearest colours', () => {
+    const d = shades(['#1d71b8', '#5bc0eb', '#e30613', '#ffd500']);
+    expect(drawingColours(d)).toHaveLength(4);
+    // The two blues are nearest; the first, larger one stays.
+    expect(drawingColours(mergedColours(d, 3))).toEqual(['#1d71b8', '#e30613', '#ffd500']);
+    expect(drawingColours(mergedColours(d, 2))).toHaveLength(2);
+    expect(mergedColours(d, 9)).toBe(d);
   });
 });

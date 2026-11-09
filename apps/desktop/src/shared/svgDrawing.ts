@@ -814,7 +814,7 @@ function read(text: string): Drawing {
   const [vw, vh] = view.length === 4 ? [view[2] as number, view[3] as number] : [length(svg.attrs.get('width')), length(svg.attrs.get('height'))];
   const scales = [wMm && vw > 0 ? wMm / vw : null, hMm && vh > 0 ? hMm / vh : null].filter((s): s is number => s !== null);
   const unitMm = scales.length > 0 ? Math.min(...scales) : null;
-  return { shapes: clean, bounds, unitMm, skipped };
+  return mergedColours({ shapes: clean, bounds, unitMm, skipped });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -830,6 +830,51 @@ export function naturalWidth(drawing: Drawing): number | null {
 
 /** The fills in the drawing, in painting order of their first shape. */
 export const drawingColours = (drawing: Drawing): string[] => [...new Set(drawing.shapes.map((shape) => shape.fill))];
+
+/** CIE L*a*b* of a #rrggbb colour (sRGB, D65). */
+function lab(hex: string): [number, number, number] {
+  const linear = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  const [r, g, b] = linear;
+  const xyz = [(0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047, 0.2126 * r + 0.7152 * g + 0.0722 * b, (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883];
+  const [fx, fy, fz] = xyz.map((t) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116)) as [number, number, number];
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+
+/** Fills closer than this (ΔE*ab) look the same: shades from smoothing or rounding in an export. */
+const SAME_COLOUR = 6;
+
+/**
+ * The drawing with fills merged: those that look the same always, then, down to `most` colours
+ * (the printer's filaments), the two nearest each time. The fill with less area takes the other's
+ * colour, so the drawing keeps the colours that shape it.
+ */
+export function mergedColours(drawing: Drawing, most = Infinity): Drawing {
+  const areas = new Map(drawingFacts(drawing, 1000).colours.map((entry) => [entry.fill, entry.area]));
+  const into = new Map<string, string>();
+  const left = [...areas.keys()];
+  for (;;) {
+    let best: [number, number, number] | null = null;
+    for (let i = 0; i < left.length; i += 1) {
+      for (let j = i + 1; j < left.length; j += 1) {
+        const [a, b] = [lab(left[i] as string), lab(left[j] as string)];
+        const distance = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+        if (!best || distance < best[2]) best = [i, j, distance];
+      }
+    }
+    if (!best || (best[2] >= SAME_COLOUR && left.length <= most)) break;
+    const [p, q] = [left[best[0]] as string, left[best[1]] as string];
+    const [keep, gone] = (areas.get(p) ?? 0) >= (areas.get(q) ?? 0) ? [p, q] : [q, p];
+    areas.set(keep, (areas.get(keep) ?? 0) + (areas.get(gone) ?? 0));
+    for (const [from, to] of into) if (to === gone) into.set(from, keep);
+    into.set(gone, keep);
+    left.splice(left.indexOf(gone), 1);
+  }
+  if (into.size === 0) return drawing;
+  return { ...drawing, shapes: drawing.shapes.map((shape) => ({ ...shape, fill: into.get(shape.fill) ?? shape.fill })) };
+}
 
 const fmt = (value: number) => String(Math.round(value * 1e4) / 1e4);
 
