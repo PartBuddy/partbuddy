@@ -23,7 +23,7 @@ export function PlateBar({ layout, bed }: { layout: PlateLayout; bed: [number, n
     <div
       role="group"
       aria-label={t('plate.title')}
-      className="pointer-events-auto absolute bottom-3 left-1/2 z-40 flex max-w-[calc(100%_-_1.5rem)] -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      className="pointer-events-auto absolute bottom-3 left-1/2 z-40 flex animate-fade-in max-w-[calc(100%_-_1.5rem)] -translate-x-1/2 flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
       data-view-overlay
       data-testid="plate-bar"
       data-plates={plates}

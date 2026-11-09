@@ -110,7 +110,7 @@ export function TreeSection({
         </span>
       </div>
       {open ? (
-        <div role="group" className="relative pb-1 before:absolute before:top-0 before:bottom-1 before:left-3 before:border-l before:border-border">
+        <div role="group" className="relative animate-fade-in pb-1 before:absolute before:top-0 before:bottom-1 before:left-3 before:border-l before:border-border">
           {children}
         </div>
       ) : null}

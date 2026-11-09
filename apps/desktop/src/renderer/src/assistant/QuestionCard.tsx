@@ -25,7 +25,7 @@ interface Props {
 
 function Answered({ text }: { text: string }) {
   return (
-    <p className="flex items-center gap-1 text-sm text-text-muted" data-testid="question-answered">
+    <p className="flex animate-fade-in items-center gap-1 text-sm text-text-muted" data-testid="question-answered">
       <IconCheck className="size-icon-sm text-success" aria-hidden />
       {text}
     </p>
