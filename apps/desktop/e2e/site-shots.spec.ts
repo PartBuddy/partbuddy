@@ -452,6 +452,66 @@ test('website pictures', async () => {
       await page.getByTestId('dialog-close').click();
       await expect(profiles).toHaveCount(0);
     });
+    // 0.2.0's main feature: a logo and a text on the wall holder's plate, each picked with its own
+    // controls in the dock. The fox is Twemoji (CC-BY 4.0, test/fixtures/svg/twemoji-fox.LICENSE).
+    const wallHolder = async () => {
+      if ((await home.count()) === 0) await page.getByTestId('home-button').click();
+      await home.locator('[data-template="wallHolder"]').click();
+      await expect(name).toHaveText(/^Wall holder/, { timeout: 60_000 });
+      await page.getByTestId('viewport').hover();
+      await page.keyboard.press('1');
+      await page.waitForTimeout(1500);
+    };
+    // A plain click on the built logo or text picks it whole; the camera may still settle.
+    const pickPlaced = async (panel: string) => {
+      const view = await page.getByTestId('viewport').boundingBox();
+      if (!view) throw new Error('viewport not visible');
+      const spots = [[0.5, 0.42], [0.48, 0.45], [0.52, 0.4], [0.5, 0.38], [0.46, 0.42], [0.54, 0.44]] as const;
+      let n = 0;
+      await expect(async () => {
+        const [x, y] = spots[n++ % spots.length] ?? [0.5, 0.42];
+        await page.keyboard.press('Escape');
+        await page.mouse.click(view.x + view.width * x, view.y + view.height * y);
+        await expect(page.getByTestId(panel)).toBeVisible({ timeout: 3000 });
+      }).toPass({ timeout: 60_000, intervals: [500] });
+    };
+    await step('logo', async () => {
+      await wallHolder();
+      await pickFace(page, [[0.5, 0.42], [0.5, 0.35], [0.45, 0.4]]);
+      await page.getByTestId('block-tile-logo').click();
+      await page.getByTestId('block-logo').locator('input[type=file]').setInputFiles(join(__dirname, '..', 'test', 'fixtures', 'svg', 'twemoji-fox.svg'));
+      await page.getByTestId('block-mode').getByRole('button').click();
+      await page.getByRole('option', { name: 'Embossed' }).click();
+      await page.getByTestId('block-width').getByRole('textbox').fill('30');
+      await page.getByTestId('block-colours').click();
+      await page.getByTestId('block-centre').click();
+      await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
+      await page.getByTestId('block-apply').click();
+      await expect(page.getByText('SVG-Logo twemoji-fox', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
+      await page.waitForTimeout(1500);
+      await pickPlaced('logo-move');
+      await shot('logo');
+      await page.keyboard.press('Escape');
+    });
+    await step('text', async () => {
+      await wallHolder();
+      await pickFace(page, [[0.5, 0.42], [0.5, 0.35], [0.45, 0.4]]);
+      await page.getByTestId('block-tile-text').click();
+      await page.getByTestId('block-text').getByRole('textbox').fill('Werkstatt');
+      await page.getByTestId('block-mode').getByRole('button').click();
+      await page.getByRole('option', { name: 'Embossed' }).click();
+      await page.getByTestId('block-height').getByRole('textbox').fill('8');
+      await page.getByTestId('block-font').getByRole('combobox').fill('Segoe UI');
+      await page.getByRole('option', { name: 'Segoe UI', exact: true }).click();
+      await page.getByTestId('block-centre-both').click();
+      await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
+      await page.getByTestId('block-apply').click();
+      await expect(page.getByText('Text Werkstatt', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
+      await page.waitForTimeout(1500);
+      await pickPlaced('logo-text');
+      await shot('text');
+      await page.keyboard.press('Escape');
+    });
     await step('settings', async () => {
       await page.getByTestId('settings').click();
       // The assistant's page: the general page shows the projects folder with the account's name.
