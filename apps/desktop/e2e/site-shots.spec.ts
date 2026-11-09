@@ -157,6 +157,18 @@ test('website pictures', async () => {
       await page.keyboard.press('Escape').catch(() => undefined);
     }
   };
+  // The part panned left of the dock (right-drag, left of the dock, which can reach the view's top),
+  // so the dock covers none of it; `out` scrolls the view out a little first.
+  const panBesideDock = async (out = 0) => {
+    const view = await page.getByTestId('viewport').boundingBox();
+    if (!view) throw new Error('viewport not visible');
+    await page.mouse.move(view.x + view.width * 0.42, view.y + view.height * 0.5);
+    if (out) await page.mouse.wheel(0, out);
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.move(view.x + view.width * 0.25, view.y + view.height * 0.5, { steps: 12 });
+    await page.mouse.up({ button: 'right' });
+    await page.waitForTimeout(800);
+  };
   const send = async (text: string) => {
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill(text);
     await page.getByRole('button', { name: 'Send' }).click();
@@ -257,6 +269,7 @@ test('website pictures', async () => {
       await page.getByTestId('block-kind').click();
       await page.getByRole('option', { name: 'Heat-set insert seat' }).click();
       await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+      await panBesideDock(400);
       await shot('blocks');
       await page.getByTestId('action-block').click();
       await page.keyboard.press('Escape');
@@ -484,12 +497,7 @@ test('website pictures', async () => {
         await page.mouse.click(view.x + view.width * x, view.y + view.height * y);
         await expect(page.getByTestId(panel)).toBeVisible({ timeout: 3000 });
       }).toPass({ timeout: 60_000, intervals: [500] });
-      // Pan the part left of the dock (right-drag, above the dock), so the dock covers none of it.
-      await page.mouse.move(view.x + view.width * 0.55, view.y + view.height * 0.25);
-      await page.mouse.down({ button: 'right' });
-      await page.mouse.move(view.x + view.width * 0.38, view.y + view.height * 0.25, { steps: 12 });
-      await page.mouse.up({ button: 'right' });
-      await page.waitForTimeout(800);
+      await panBesideDock();
     };
     await step('logo', async () => {
       await wallHolder();
