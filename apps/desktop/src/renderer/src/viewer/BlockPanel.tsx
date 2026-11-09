@@ -1,4 +1,4 @@
-import { IconPuzzle } from '@tabler/icons-react';
+import { IconDots, IconNut, IconTypography, IconVectorBezier2 } from '@tabler/icons-react';
 import type { TFunction } from 'i18next';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoFr
 import { drawingColours, drawingSvg, mergedColours, naturalWidth, parseDrawing, type Drawing, type DrawingProblem } from '../../../shared/svgDrawing';
 import { DrawingDetailNote } from '../assistant/DrawingDetailNote';
 import { platform } from '../platform';
+import { CadIcon } from '../ui/CadIcon';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
 import { parseLength } from './lengthInput';
@@ -72,7 +73,7 @@ function Check({ label, selected, onChange, testId }: { label: string; selected:
 type Vec = [number, number, number];
 
 /** One picked flat face of a body that is no standard part, or null. */
-function flatFace(bodies: BodyModel[], picks: Pick[]): { body: string; point: Vec; normal: Vec } | null {
+export function flatFace(bodies: BodyModel[], picks: Pick[]): { body: string; point: Vec; normal: Vec } | null {
   const [pick] = picks;
   if (picks.length !== 1 || pick?.kind !== 'face') return null;
   const body = bodies[pick.body];
@@ -82,6 +83,15 @@ function flatFace(bodies: BodyModel[], picks: Pick[]): { body: string; point: Ve
   if (model.status === 'ready' && model.structure.standardParts?.includes(body.name)) return null;
   return { body: body.name, point: pick.point, normal };
 }
+
+/** The blocks with a tile of their own in the dock (decided 2026-11-09); the rest are under "More …". */
+const TILES = [
+  { kind: 'logo', icon: <IconVectorBezier2 className="size-icon-sm" aria-hidden /> },
+  { kind: 'text', icon: <IconTypography className="size-icon-sm" aria-hidden /> },
+  { kind: 'screwHole', icon: <CadIcon name="hole" className="size-icon-sm" /> },
+  { kind: 'insertSeat', icon: <IconNut className="size-icon-sm" aria-hidden /> },
+] as const satisfies readonly { kind: BlockKind; icon: React.ReactNode }[];
+const tiled = (kind: BlockKind) => TILES.some((tile) => tile.kind === kind);
 
 /** Above this strain at the arm's root, printed PLA tends to crack (PETG takes about 3 %). */
 const SNAP_STRAIN_LIMIT = 2;
@@ -200,19 +210,40 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
 
   return (
     <div className="flex flex-col gap-2" data-testid="block-panel">
-      <ToggleButton
-        isSelected={open}
-        onChange={(next) => {
-          setOpen(next);
-          if (!next) onGhost(null);
-        }}
-        isDisabled={busy}
-        className={`${chipToggleClass} self-start`}
-        data-testid="action-block"
-      >
-        <IconPuzzle className="size-icon-sm" aria-hidden />
-        {t('blocks.action')}
-      </ToggleButton>
+      {/* The usual blocks as tiles of their own, the rest behind "More …" with its chooser. */}
+      <div className="flex flex-wrap gap-1">
+        {TILES.map((tile) => (
+          <ToggleButton
+            key={tile.kind}
+            isSelected={open && block.block === tile.kind}
+            onChange={(next) => {
+              if (next) kind(tile.kind);
+              else onGhost(null);
+              setOpen(next);
+            }}
+            isDisabled={busy}
+            className={chipToggleClass}
+            data-testid={`block-tile-${tile.kind}`}
+          >
+            {tile.icon}
+            {t(`blocks.tiles.${tile.kind}`)}
+          </ToggleButton>
+        ))}
+        <ToggleButton
+          isSelected={open && !tiled(block.block)}
+          onChange={(next) => {
+            if (next && tiled(block.block)) kind('tappedHole');
+            if (!next) onGhost(null);
+            setOpen(next);
+          }}
+          isDisabled={busy}
+          className={chipToggleClass}
+          data-testid="action-block"
+        >
+          <IconDots className="size-icon-sm" aria-hidden />
+          {t('blocks.more')}
+        </ToggleButton>
+      </div>
       {open ? (
         <div className="flex flex-col gap-2 rounded-md border border-border bg-surface p-2" data-testid="block-form">
           <div className="grid grid-cols-2 gap-2">

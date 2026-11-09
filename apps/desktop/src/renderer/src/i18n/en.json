@@ -535,6 +535,11 @@
     "dragUp": "Drag to move the logo up (Alt: tenths); let go to apply"
   },
   "hud": {
+    "group": {
+      "change": "Change",
+      "add": "Add",
+      "print": "Print"
+    },
     "dock": "Selection",
     "length": "Length",
     "diameter": "Diameter",
@@ -1249,7 +1254,13 @@
     }
   },
   "blocks": {
-    "action": "Function block",
+    "more": "More …",
+    "tiles": {
+      "logo": "Logo / SVG",
+      "text": "Text",
+      "screwHole": "Screw hole",
+      "insertSeat": "Heat-set insert"
+    },
     "kind": "Block",
     "size": "Size",
     "through": "Through",
