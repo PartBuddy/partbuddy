@@ -1,4 +1,4 @@
-import { IconCube, IconHistory, IconX } from '@tabler/icons-react';
+import { IconCheck, IconCube, IconHistory, IconX } from '@tabler/icons-react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Heading, Input, Label, Modal, ModalOverlay, TextField, ToggleButton } from 'react-aria-components';
@@ -115,10 +115,11 @@ function VersionRow({ version, now, busy, onRestore, onAsProject, onChanged }: {
             }}
           />
         ) : confirming ? (
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('versions.restoreQuestion')}>
-            <span className="text-sm text-text">{t('versions.restoreQuestion')}</span>
-            <Button onPress={() => setConfirming(false)}>{t('project.cancel')}</Button>
+          <div className="flex flex-wrap items-center justify-end gap-2" role="group" aria-label={t('versions.restoreQuestion')}>
+            <span className="mr-auto text-sm text-text">{t('versions.restoreQuestion')}</span>
+            <Button size="sm" onPress={() => setConfirming(false)}>{t('project.cancel')}</Button>
             <Button
+              size="sm"
               variant="primary"
               isDisabled={busy}
               onPress={() => {
@@ -131,17 +132,17 @@ function VersionRow({ version, now, busy, onRestore, onAsProject, onChanged }: {
             </Button>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            <Button isDisabled={busy || comparison === 'loading'} onPress={compare} data-testid="version-compare">
-              {t('versions.compare')}
-            </Button>
-            <Button isDisabled={busy} onPress={() => setConfirming(true)} data-testid="version-restore">
+          <div className="flex flex-wrap gap-1">
+            <Button size="sm" isDisabled={busy} onPress={() => setConfirming(true)} data-testid="version-restore">
               {t('versions.restore')} …
             </Button>
-            <Button isDisabled={busy} onPress={() => setNaming(true)} data-testid="version-rename">
+            <Button size="sm" variant="quiet" isDisabled={busy || comparison === 'loading'} onPress={compare} data-testid="version-compare">
+              {t('versions.compare')}
+            </Button>
+            <Button size="sm" variant="quiet" isDisabled={busy} onPress={() => setNaming(true)} data-testid="version-rename">
               {version.reason === 'manual' ? t('versions.rename') : t('versions.keep')} …
             </Button>
-            <Button isDisabled={busy} onPress={onAsProject} data-testid="version-as-project">
+            <Button size="sm" variant="quiet" isDisabled={busy} onPress={onAsProject} data-testid="version-as-project">
               {t('versions.asProject')}
             </Button>
           </div>
@@ -308,6 +309,7 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
               className={chipToggleClass}
               data-testid="versions-milestones"
             >
+              {milestones ? <IconCheck className="size-icon-sm" aria-hidden /> : null}
               {t('versions.milestonesOnly')}
             </ToggleButton>
           </div>

@@ -1137,7 +1137,8 @@
       "empty": "Nothing of this name is left for a valid file name.",
       "exists": "A project of this name exists already.",
       "noProject": "The design has no project yet; it gets one once it has content.",
-      "busy": "Not possible right now."
+      "busy": "Not possible right now.",
+      "chars": "A name cannot contain any of these characters: \\ / : * ? \" | nor angle brackets."
     },
     "trashTitle": "Move \"{name}\" to the recycle bin?",
     "trashBody": "The project folder with design, chat, versions and exports goes to the bin at the bottom of the start page and can be restored there for 30 days. PartBuddy then shows the start page.",
@@ -1241,7 +1242,7 @@
     "namePlaceholder": "For example: before the lid",
     "save": "Save version",
     "hint": "PartBuddy also saves a version at every export and before each request to the assistant when the design changed.",
-    "empty": "No versions yet. The project gets one once it has content.",
+    "empty": "No version saved yet. Type a name above; PartBuddy also keeps one at every export and before every request to the assistant.",
     "list": "{count, plural, one {# version} other {# versions}}",
     "compare": "Compare with now",
     "comparing": "Comparing …",

@@ -187,7 +187,11 @@ export function RenameDialog({ open, name, folder, onClose, onDone }: { open: bo
   const [value, setValue] = useState(name);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Folders and files take the name: Windows' forbidden characters are named while typing (audit A-04).
+  const forbidden = /[\\/:*?"<>|]/.test(value);
+  const shown = error ?? (forbidden ? t('project.renameError.chars') : null);
   const submit = () => {
+    if (forbidden) return;
     setBusy(true);
     void beforeProjectSwitch()
       .then(() => platform().project.rename(value, folder))
@@ -234,16 +238,16 @@ export function RenameDialog({ open, name, folder, onClose, onDone }: { open: bo
                 setError(null);
               }}
               autoFocus
-              isInvalid={error !== null}
+              isInvalid={shown !== null}
               className="flex flex-col gap-1"
             >
               <Label className={fieldLabelClass}>{t('project.name')}</Label>
               <Input className={inputClass('md')} data-testid="project-name-input" />
-              <FieldMessage error={error} hint={t('project.renameHint')} testId="project-rename-error" />
+              <FieldMessage error={shown} hint={t('project.renameHint')} testId="project-rename-error" />
             </TextField>
             <div className="flex justify-end gap-2">
               <Button onPress={onClose}>{t('project.cancel')}</Button>
-              <Button type="submit" variant="primary" isDisabled={busy || value.trim() === ''} data-testid="project-rename-save">
+              <Button type="submit" variant="primary" isDisabled={busy || value.trim() === '' || forbidden} data-testid="project-rename-save">
                 {t('project.renameSave')}
               </Button>
             </div>

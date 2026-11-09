@@ -1,4 +1,4 @@
-import { IconArrowBackUp, IconArrowForwardUp, IconChevronDown, IconDownload, IconExternalLink, IconHistory } from '@tabler/icons-react';
+import { IconArrowBackUp, IconArrowForwardUp, IconChevronDown, IconDownload, IconExternalLink, IconFile3d, IconFileExport, IconHistory, IconPrinter, IconShare } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator } from 'react-aria-components';
@@ -13,6 +13,8 @@ import { VersionsDialog } from './VersionsDialog';
 import { POPOVER_OFFSET, menuClass, menuHeaderClass, menuItemTwoLineClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
 
 const FORMATS: ExportFormat[] = ['3mf', 'stl', 'step'];
+const iconItemClass = `${menuItemTwoLineClass} flex-row! gap-2!`;
+const itemIcon = 'mt-hairline size-icon-sm shrink-0 text-text-muted';
 
 /** True when the key event comes from a field where Ctrl+Z belongs to the text. */
 function inTextField(target: EventTarget | null): boolean {
@@ -174,11 +176,14 @@ export function DesignActions() {
                   key={format}
                   id={format}
                   textValue={t(`actions.format.${format}.name`)}
-                  className={menuItemTwoLineClass}
+                  className={iconItemClass}
                   data-testid={`export-${format}`}
                 >
-                  <span className="text-sm font-medium text-text">{t(`actions.format.${format}.name`)}</span>
-                  <span className="text-xs text-text-muted">{t(`actions.format.${format}.hint`)}</span>
+                  {format === 'step' ? <IconFileExport className={itemIcon} aria-hidden /> : <IconFile3d className={itemIcon} aria-hidden />}
+                  <span className="flex flex-col">
+                    <span className="text-sm font-medium text-text">{t(`actions.format.${format}.name`)}</span>
+                    <span className="text-xs text-text-muted">{t(`actions.format.${format}.hint`)}</span>
+                  </span>
                 </MenuItem>
               ))}
             </MenuSection>
@@ -187,29 +192,35 @@ export function DesignActions() {
               <MenuItem
                 id="share"
                 textValue={t('actions.share.name')}
-                className={menuItemTwoLineClass}
+                className={iconItemClass}
                 data-testid="export-share"
               >
-                <span className="text-sm font-medium text-text">{t('actions.share.name')}</span>
-                <span className="text-xs text-text-muted">{t('actions.share.hint')}</span>
+                <IconShare className={itemIcon} aria-hidden />
+                <span className="flex flex-col">
+                  <span className="text-sm font-medium text-text">{t('actions.share.name')}</span>
+                  <span className="text-xs text-text-muted">{t('actions.share.hint')}</span>
+                </span>
               </MenuItem>
             </MenuSection>
             {slicers.length > 0 ? (
               <>
                 <Separator className={menuSeparatorClass} />
                 <MenuSection>
-                  <Header className={menuHeaderClass}>{t('actions.slicer.title')}</Header>
+                  <Header className={`${menuHeaderClass} uppercase tracking-wide`}>{t('actions.slicer.title')}</Header>
                   {slicers.map((slicer) => (
                     <MenuItem
                       key={slicer.id}
                       id={`slicer:${slicer.id}`}
                       textValue={t('actions.slicer.open', { name: slicer.name })}
-                      className={menuItemTwoLineClass}
+                      className={iconItemClass}
                       data-testid="export-slicer"
                       data-slicer={slicer.id}
                     >
-                      <span className="text-sm font-medium text-text">{t('actions.slicer.open', { name: slicer.name })}</span>
-                      <span className="text-xs text-text-muted">{t('actions.slicer.hint')}</span>
+                      <IconPrinter className={itemIcon} aria-hidden />
+                      <span className="flex flex-col">
+                        <span className="text-sm font-medium text-text">{t('actions.slicer.open', { name: slicer.name })}</span>
+                        <span className="text-xs text-text-muted">{t('actions.slicer.hint')}</span>
+                      </span>
                     </MenuItem>
                   ))}
                 </MenuSection>

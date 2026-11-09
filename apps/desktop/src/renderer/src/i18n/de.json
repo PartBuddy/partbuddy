@@ -1137,7 +1137,8 @@
       "empty": "Von diesem Namen bleibt kein gültiger Dateiname übrig.",
       "exists": "Es gibt schon ein Projekt mit diesem Namen.",
       "noProject": "Das Design hat noch kein Projekt; es bekommt eines, sobald es Inhalt hat.",
-      "busy": "Gerade nicht möglich."
+      "busy": "Gerade nicht möglich.",
+      "chars": "Ein Name darf keines dieser Zeichen enthalten: \\ / : * ? \" | und keine spitzen Klammern."
     },
     "trashTitle": "„{name}“ in den Papierkorb?",
     "trashBody": "Der Projektordner mit Design, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen. Danach zeigt PartBuddy die Startseite.",
@@ -1241,7 +1242,7 @@
     "namePlaceholder": "Zum Beispiel: vor dem Deckel",
     "save": "Version speichern",
     "hint": "PartBuddy speichert außerdem bei jedem Export und vor jeder Anfrage an den Assistenten eine Version, wenn sich das Design geändert hat.",
-    "empty": "Noch keine Versionen. Das Projekt bekommt eine, sobald es Inhalt hat.",
+    "empty": "Noch keine Version gespeichert. Gib oben einen Namen ein; beim Exportieren und vor jeder Anfrage an den Assistenten legt PartBuddy selbst eine an.",
     "list": "{count, plural, one {# Version} other {# Versionen}}",
     "compare": "Mit jetzt vergleichen",
     "comparing": "Vergleiche …",
