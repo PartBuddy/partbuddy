@@ -11,7 +11,7 @@ import { useStudio, type DraggedDimension, type Pick } from '../state/store';
 import { buttonClass } from '../ui/Button';
 import { CheckMark, choiceInlineClass } from '../ui/Choice';
 import { fieldLabelClass, inputClass, UnitInput } from '../ui/Field';
-import { FontChoice, useBoldable } from './FontChoice';
+import { boldable as canBold, FontChoice, setFont as fontFor, useFontFaces } from './FontChoice';
 import { useLivePreview } from './livePreview';
 
 const round = (value: number) => Math.round(value * 1000) / 1000 || 0;
@@ -43,7 +43,20 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
   const [tall, setTall] = useState(() => spot.text?.height ?? 0);
   const [bold, setBold] = useState(() => spot.text?.bold ?? false);
   // A font without a bold face cannot be set bold (SolidCraft refuses it).
-  const boldable = useBoldable(font);
+  const faces = useFontFaces();
+  const boldable = canBold(faces, font);
+  // A text set in a bold face's full name reads back as its family and bold.
+  const shownFont = spot.text?.font ? faces.familyOf.get(spot.text.font) : undefined;
+  const now = spot.text && (shownFont ? { ...spot.text, font: shownFont, bold: true } : spot.text);
+  // Once the installed fonts are read (state adjusted while rendering, as React advises over an effect).
+  const [readAs, setReadAs] = useState<string | undefined>(undefined);
+  if (shownFont !== readAs) {
+    setReadAs(shownFont);
+    if (shownFont) {
+      setFont(shownFont);
+      setBold(true);
+    }
+  }
   const shown = useRef(false);
 
   // The whole logo drawn in the selection colour while it is picked.
@@ -60,13 +73,12 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
   const deeper = depth !== null && spot.depth != null && depth > 0 && Math.abs(depth - spot.depth.value) > 1e-6;
   const turn = shortest(angle - spot.angle);
   const resized = !spot.text && wide > 0 && Math.abs(wide - widthOf(spot)) > 0.005;
-  const now = spot.text;
   const retext = now
     ? {
         ...(words.trim() && words.trim() !== now.words ? { words: words.trim() } : {}),
         ...(tall > 0 && Math.abs(tall - now.height) > 0.005 ? { height: tall } : {}),
         // The built-in font has no bold face: bold without a chosen font is set in Arial, as the block does.
-        ...(font !== (now.font ?? '') || bold !== now.bold ? { font: font || (bold ? BOLD_FONT : ''), bold } : {}),
+        ...(font !== (now.font ?? '') || bold !== now.bold ? (font ? fontFor(faces, font, bold) : { font: bold ? BOLD_FONT : '', bold }) : {}),
       }
     : {};
   const retyped = Object.keys(retext).length > 0;

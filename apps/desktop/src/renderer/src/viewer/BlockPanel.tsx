@@ -14,7 +14,7 @@ import { Button } from '../ui/Button';
 import { Tip } from '../ui/Tooltip';
 import { parseLength } from './lengthInput';
 import { useLivePreview } from './livePreview';
-import { FontChoice, useBoldable } from './FontChoice';
+import { boldable as canBold, FontChoice, setFont, useFontFaces } from './FontChoice';
 import { inputClass, fieldLabelClass, UnitInput } from '../ui/Field';
 import { buttonClass } from '../ui/Button';
 import { CheckMark, choiceInlineClass, chipToggleClass, SelectField as Choice } from '../ui/Choice';
@@ -168,6 +168,9 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     const [u, v] = [place.middle[0] + offset[0], place.middle[1] + offset[1]];
     return clicked.map((value, i) => value + u * (place.x[i] ?? 0) + v * (place.y[i] ?? 0)) as Vec;
   }, [at, place, offset]);
+  const faces = useFontFaces();
+  // A bold text goes to SolidCraft in its bold face's full name; the form keeps the family.
+  const sent = (b: FeatureBlock): FeatureBlock => (b.block === 'text' && b.font ? { ...b, ...setFont(faces, b.font, b.bold) } : b);
   const block = useMemo<FeatureBlock | null>(() => {
     if (!at || !centre) return null;
     const [body = '', , normal = ''] = at.split('\u0000');
@@ -234,7 +237,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   // The ghost keeps up while the block is dragged or its values are typed.
   useLivePreview(
     open && block && !busy && !waiting ? block : null,
-    (tried) => platform().design.previewBlock(tried),
+    (tried) => platform().design.previewBlock(sent(tried)),
     (tried, result) => {
       setStatus(result.ok ? { ok: true, block: tried } : { ok: false, error: result.error, block: tried });
       onGhost(result.ok ? result.preview : null);
@@ -243,7 +246,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
 
   const tried = status && (!status.block || status.block === block) ? status : null;
   // A font without a bold face cannot be set bold (SolidCraft refuses it).
-  const boldable = useBoldable(spec.block === 'text' ? (spec.font ?? '') : '');
+  const boldable = canBold(faces, spec.block === 'text' ? (spec.font ?? '') : '');
   if (!face || !block) return null;
   const kind = (next: BlockKind) => {
     const sizes = sizesOf(next);
@@ -283,7 +286,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     setOpen(false);
     onGhost(null);
     void platform()
-      .design.applyBlock(block)
+      .design.applyBlock(sent(block))
       .catch((error: unknown) => {
         useStudio.getState().setNotice({ tone: 'danger', text: t('actions.failed', { detail: (error as Error).message.slice(0, 200) }) });
       });

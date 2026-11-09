@@ -2890,8 +2890,11 @@ test('a built text is picked as a whole and changed afterwards: words, height an
     await page.getByTestId('logo-words').getByRole('textbox').fill('AB');
     await page.getByTestId('logo-text-height').getByRole('textbox').fill('4');
     await page.getByTestId('logo-text-height').getByRole('textbox').press('Tab');
-    await page.getByTestId('block-font').getByRole('combobox').fill('Georgia');
-    await page.getByRole('option', { name: 'Georgia', exact: true }).click();
+    // Segoe Print's bold face is found only by its full name: set so, it builds.
+    await page.getByTestId('block-font').getByRole('combobox').fill('Segoe Print');
+    await page.getByRole('option', { name: 'Segoe Print', exact: true }).click();
+    await page.getByTestId('logo-bold').getByText('Bold').click();
+    await expect(page.getByTestId('logo-bold').getByRole('checkbox')).toBeChecked();
     const revision = await page.getByTestId('viewer').getAttribute('data-revision');
     await page.screenshot({ path: test.info().outputPath('text-edit.png') });
     await page.getByTestId('logo-move-apply').click();
@@ -2905,7 +2908,8 @@ test('a built text is picked as a whole and changed afterwards: words, height an
       await expect(page.getByTestId('logo-words').getByRole('textbox')).toHaveValue('AB', { timeout: 3000 });
     }, 'the changed text under a click').toPass({ timeout: 60_000, intervals: [500] });
     await expect(page.getByTestId('logo-text-height').getByRole('textbox')).toHaveValue('4');
-    await expect(page.getByTestId('block-font').getByRole('combobox')).toHaveValue('Georgia');
+    await expect(page.getByTestId('block-font').getByRole('combobox')).toHaveValue('Segoe Print');
+    await expect(page.getByTestId('logo-bold').getByRole('checkbox')).toBeChecked();
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
