@@ -186,7 +186,7 @@ type Step = { command: string; params: Record<string, unknown> };
 
 /**
  * The SolidCraft commands of a block, in one batch: one feature, or a sketch and its feature. A
- * logo's sketches are named `sketch` (default `Logo <name>`), so it can be moved later (drawingPlacement.ts).
+ * logo's sketches are named `sketch` (default `SVG-Logo <name>`), so it can be moved later (drawingPlacement.ts).
  */
 export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
   const mm = (value: number) => `${String(round(value))} mm`;

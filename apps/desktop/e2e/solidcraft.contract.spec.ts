@@ -1762,7 +1762,7 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
     const bare = { ...logo, svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10"/></svg>', point: [10, 10, 10], normal: [0, 0, 1], depth: 0.6, mode: 'deboss' };
     expect(await preview(bare).catch(() => ({ ok: false }))).toMatchObject({ ok: false });
     // Once the rocket's sketch is listed, the view has it too.
-    await expect(page.getByText('Logo rocket', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('SVG-Logo rocket', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
     await page.screenshot({ path: test.info().outputPath('blocks-logo.png') });
 
     // Through the form: no build before a file is chosen; a page that is no SVG is turned away.
@@ -1851,10 +1851,10 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
     await page.screenshot({ path: test.info().outputPath('logo-colours.png') });
 
     // Moved exactly, then centred across: the pocket and both colour bodies follow in one step each.
-    await say('Move the logo {"logo": "Logo Badge", "by": [3, -2]}');
-    await expect(page.getByText(/^Logo: Moved Logo Badge .*\[13, 8, 10\] mm/)).toBeVisible({ timeout: 30_000 });
+    await say('Move the logo {"logo": "SVG-Logo Badge", "by": [3, -2]}');
+    await expect(page.getByText(/^Logo: Moved SVG-Logo Badge .*\[13, 8, 10\] mm/)).toBeVisible({ timeout: 30_000 });
     await say('Move the logo {"logo": "Badge", "centre": "x"}');
-    await expect(page.getByText(/^Logo: Moved Logo Badge by -3 mm along its x and 0 mm along its y on face .* of Body1; its middle is now at \[10, 8, 10\] mm/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/^Logo: Moved SVG-Logo Badge by -3 mm along its x and 0 mm along its y on face .* of Body1; its middle is now at \[10, 8, 10\] mm/)).toBeVisible({ timeout: 30_000 });
     await say('Measure the bodies');
     const again = page.getByText(/^Measured: /).last();
     await expect(page.getByText(/^Measured: /)).toHaveCount(2, { timeout: 30_000 });
@@ -1868,7 +1868,7 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
 
     // Turned a quarter left about its middle (10, 8): the 16 × 8 plate now stands 8 × 16, pocket and colours with it.
     await say('Move the logo {"logo": "Badge", "rotate": 90}');
-    await expect(page.getByText(/^Logo: Moved Logo Badge .*turned by 90° \(now 90° from level\)/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/^Logo: Moved SVG-Logo Badge .*turned by 90° \(now 90° from level\)/)).toBeVisible({ timeout: 30_000 });
     await say('Measure the bodies');
     await expect(page.getByText(/^Measured: /)).toHaveCount(3, { timeout: 30_000 });
     const turned = JSON.parse(/\{.*\}/.exec((await page.getByText(/^Measured: /).last().textContent()) ?? '')?.[0] ?? '{}') as Measured;
@@ -1879,7 +1879,7 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
 
     // Half as wide about its middle: the turned plate 4 × 8, the pocket a quarter of what it was.
     await say('Move the logo {"logo": "Badge", "width": 8}');
-    await expect(page.getByText(/^Logo: Moved Logo Badge .*now 8 mm wide/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/^Logo: Moved SVG-Logo Badge .*now 8 mm wide/)).toBeVisible({ timeout: 30_000 });
     await say('Measure the bodies');
     await expect(page.getByText(/^Measured: /)).toHaveCount(4, { timeout: 30_000 });
     const smaller = JSON.parse(/\{.*\}/.exec((await page.getByText(/^Measured: /).last().textContent()) ?? '')?.[0] ?? '{}') as Measured;
@@ -1925,7 +1925,7 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
     expect(new Set(await Promise.all(swatches.map((swatch) => swatch.getAttribute('title')))).size).toBe(3);
     type Logos = { partbuddy: { design: { logoAt(point: number[]): Promise<{ logo: string; offset: number[] | null } | null> } } };
     const fox = await page.evaluate(() => (globalThis as unknown as Logos).partbuddy.design.logoAt([10, 0, 5]));
-    expect(fox?.logo).toBe('Logo twemoji-fox');
+    expect(fox?.logo).toBe('SVG-Logo twemoji-fox');
     fox?.offset?.forEach((value) => expect(value).toBeCloseTo(0, 2));
     await page.mouse.click(box.x + box.width * 0.9, box.y + box.height * 0.1);
     await page.waitForTimeout(1000);
@@ -2553,7 +2553,7 @@ test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved
     await expect(page.getByTestId('composer-drawing')).toBeVisible();
     // Put down off the middle of the 20 mm box's top face, then centred: the "O" 10 mm wide, 0.6 mm deep.
     await say('Place the logo {"drawing": "svg-1", "body": "Body1", "point": [4, 5, 10], "normal": [0, 0, 1], "mode": "deboss", "depth": 0.6, "width": 10, "centre": "both"}');
-    await expect(page.getByText(/^Logo: Placed "Logo logo-o" on Body1 \(engraved 0\.6 mm, 10 mm wide\)\. Moved .*its middle is now at \[10, 10, 10\] mm/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/^Logo: Placed "SVG-Logo logo-o" on Body1 \(engraved 0\.6 mm, 10 mm wide\)\. Moved .*its middle is now at \[10, 10, 10\] mm/)).toBeVisible({ timeout: 60_000 });
     await say('Measure the bodies');
     const answer = page.getByText(/^Measured: /);
     await expect(answer).toBeVisible({ timeout: 30_000 });
@@ -2571,7 +2571,13 @@ test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved
       for (let y = 0.3; y <= 0.7; y += 0.04) {
         for (let x = 0.3; x <= 0.7; x += 0.04) {
           await page.mouse.click(view.x + view.width * x, view.y + view.height * y);
-          if (await panel.waitFor({ state: 'visible', timeout: 1500 }).then(() => true).catch(() => false)) return true;
+          if (await panel.waitFor({ state: 'visible', timeout: 1500 }).then(() => true).catch(() => false)) {
+            // Folded at first: the note field stays first, no arrows on the part until it is opened.
+            await expect(page.getByTestId('logo-x')).toHaveCount(0);
+            await expect(page.getByTestId('logo-arrow-x')).toHaveCount(0);
+            await page.getByTestId('logo-move-open').click();
+            return true;
+          }
         }
       }
       return false;
@@ -2589,7 +2595,7 @@ test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved
     await expect(page.getByTestId('viewer')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 15_000 });
     type Logos = { partbuddy: { design: { logoAt(point: number[]): Promise<{ logo: string; offset: number[] | null } | null> } } };
     const at = (point: number[]) => page.evaluate((p) => (globalThis as unknown as Logos).partbuddy.design.logoAt(p), point);
-    expect(await at([13, 10, 9.4])).toMatchObject({ logo: 'Logo logo-o', offset: [3, 0] });
+    expect(await at([13, 10, 9.4])).toMatchObject({ logo: 'SVG-Logo logo-o', offset: [3, 0] });
     await expect(page.getByTestId('step-text').last()).toHaveText('Logo “logo-o” moved');
 
     expect(await pickLogo(), 'a click on the moved logo').toBe(true);

@@ -1,5 +1,5 @@
 import { drawingColours, drawingFacts, drawingSvg, mergedColours, type Drawing } from '../../shared/svgDrawing';
-import { uniqueLogoName } from '../../shared/drawingPlacement';
+import { LOGO_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
 import { colourLayers, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
 import { planLogoMove, type Run } from '../solidcraft/logoMove';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -13,7 +13,7 @@ const placeTool: UpstreamTool = {
   name: PLACE_DRAWING_TOOL,
   description:
     'Put an attached SVG drawing on a face as a logo: engraved (deboss) or built up (emboss), optionally a body per colour for multi-colour printing, ' +
-    'and centred on the face. PartBuddy builds it like its logo block, in one step; the sketch is named "Logo <file name>".',
+    'and centred on the face. PartBuddy builds it like its logo block, in one step; the sketch is named "SVG-Logo <file name>".',
   inputSchema: {
     type: 'object',
     properties: {
@@ -36,12 +36,12 @@ const placeTool: UpstreamTool = {
 const moveTool: UpstreamTool = {
   name: MOVE_DRAWING_TOOL,
   description:
-    'Move a placed logo (a drawing in sketches named "Logo <name>") exactly on its face, centre it on the face, turn it or resize it. ' +
+    'Move a placed logo (a drawing in sketches named "SVG-Logo <name>") exactly on its face, centre it on the face, turn it or resize it. ' +
     'Pocket, cut and colour bodies follow in one step. `width` comes first (about its middle), then `centre`, `by` and `rotate`.',
   inputSchema: {
     type: 'object',
     properties: {
-      logo: { type: 'string', description: 'The sketch name, e.g. "Logo Badge".' },
+      logo: { type: 'string', description: 'The sketch name, e.g. "SVG-Logo Badge".' },
       by: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: "mm along the logo's own x (its width, left to right as it reads) and y (up)." },
       centre: { type: 'string', enum: ['x', 'y', 'both'], description: "Onto the middle of the face it sits on: along the logo's x, its y, or both." },
       rotate: { type: 'number', minimum: -360, maximum: 360, description: 'Degrees to turn it counter-clockwise, looking at the face, about its middle (90 turns it a quarter left).' },
@@ -223,6 +223,14 @@ export function withDrawings(upstream: UpstreamTools, drawings: Drawings): Upstr
         } catch (cause) {
           return error(`Not moved: ${(cause as Error).message}`);
         }
+      }
+      // Logo sketches are PartBuddy's: one the assistant names so would look movable as a logo.
+      const reserved = (step: Record<string, unknown> | null) => {
+        const params = object(step?.params);
+        return typeof params?.name === 'string' && params.name.trim().startsWith(LOGO_PREFIX.trim());
+      };
+      if ((name === 'execute' && reserved(args)) || (name === 'batch' && Array.isArray(args.commands) && (args.commands as unknown[]).some((entry) => reserved(object(entry))))) {
+        return error(`Names starting with "${LOGO_PREFIX.trim()}" are for logos PartBuddy places with ${PLACE_DRAWING_TOOL}; give the sketch another name.`);
       }
       if (name === 'execute' && args.command === 'sketch.insert_svg') {
         const params = replaced(drawings, object(args.params) ?? {});

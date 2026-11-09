@@ -69,7 +69,7 @@ describe('SVG drawings for the assistant', () => {
       listTools: () => Promise.resolve([]),
       callTool: (name, args) => {
         calls.push({ name, args });
-        const reply = name === 'inspect_design' ? { sketches: [{ name: 'Logo O' }] } : { results: [] };
+        const reply = name === 'inspect_design' ? { sketches: [{ name: 'SVG-Logo O' }] } : { results: [] };
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(reply) }] });
       },
     };
@@ -77,14 +77,22 @@ describe('SVG drawings for the assistant', () => {
     expect((await tools.listTools()).map((tool) => tool.name)).toContain('partbuddy_place_drawing');
     const args = { drawing: id, body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], mode: 'deboss', depth: 0.6 };
     const placed = await tools.callTool('partbuddy_place_drawing', args);
-    expect(placed.content[0]).toMatchObject({ text: 'Placed "Logo O 2" on Body1 (engraved 0.6 mm, 40 mm wide).' });
+    expect(placed.content[0]).toMatchObject({ text: 'Placed "SVG-Logo O 2" on Body1 (engraved 0.6 mm, 40 mm wide).' });
     const steps = calls[1]?.args.commands as { command: string; params: Record<string, unknown> }[];
     expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.insert_svg', 'solid.extrude']);
-    expect(steps[0]?.params.name).toBe('Logo O 2');
+    expect(steps[0]?.params.name).toBe('SVG-Logo O 2');
     expect(steps[2]?.params).toMatchObject({ distance: '-0.6 mm', operation: 'cut' });
     const unknown = await tools.callTool('partbuddy_place_drawing', { ...args, drawing: 'svg-9' });
     expect(unknown.isError).toBe(true);
     expect(calls).toHaveLength(2);
+    // The logo name is PartBuddy's: the assistant's own sketch may not take it, alone or in a batch.
+    const own = await tools.callTool('execute', { command: 'sketch.create', params: { plane: 'XY', name: 'SVG-Logo Stern' } });
+    const inBatch = await tools.callTool('batch', { commands: [{ command: 'sketch.create', params: { plane: 'XY', name: 'SVG-Logo' } }] });
+    expect(own.isError).toBe(true);
+    expect(inBatch.isError).toBe(true);
+    // Any other name, "Logo …" included, goes through.
+    expect((await tools.callTool('execute', { command: 'sketch.create', params: { plane: 'XY', name: 'Logo Skizze' } })).isError).toBeFalsy();
+    expect(calls).toHaveLength(3);
   });
 
   it('tells the model the exact facts, what was left out and how to build it', () => {

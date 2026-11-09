@@ -1,6 +1,6 @@
 /**
  * Moving a placed logo exactly. A logo is the sketch (or, in colours, the sketches) named
- * `Logo <name>`, whose origin is the drawing's middle. `sketch.redefine` gives every sketch of it a
+ * `SVG-Logo <name>`, whose origin is the drawing's middle. `sketch.redefine` gives every sketch of it a
  * new plane, and SolidCraft rebuilds the pocket, the cut and the colour bodies there in one go
  * (probed with SolidCraft 0.40, 2026-11-08). PartBuddy keeps nothing of its own: SolidCraft's
  * `document.inspect` lists the sketches with their planes.
@@ -13,14 +13,21 @@ export interface SketchPlane {
   y_dir: Vec3;
 }
 
-export const LOGO_PREFIX = 'Logo ';
+/**
+ * The name prefix of a logo PartBuddy placed. Reserved: the assistant may not give its own sketches
+ * this name (drawingTool.ts), so a sketch it drew and named "Logo …" is no logo to move (09.11.2026).
+ */
+export const LOGO_PREFIX = 'SVG-Logo ';
+
+/** The readable name of a logo sketch, without the prefix. */
+export const logoTitle = (sketch: string) => (sketch.startsWith(LOGO_PREFIX) ? sketch.slice(LOGO_PREFIX.length) : sketch);
 
 /** A file name as the readable part of body and sketch names. */
 export function logoBase(name: string): string {
   return (name.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'Logo').slice(0, 60);
 }
 
-/** The sketch name of a new logo: SolidCraft allows a name twice, so a second "Badge" becomes "Logo Badge 2". */
+/** The sketch name of a new logo: SolidCraft allows a name twice, so a second "Badge" becomes "SVG-Logo Badge 2". */
 export function uniqueLogoName(name: string, taken: readonly string[]): string {
   const first = `${LOGO_PREFIX}${logoBase(name)}`;
   if (!taken.includes(first)) return first;

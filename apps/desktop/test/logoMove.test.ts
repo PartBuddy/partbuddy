@@ -7,7 +7,7 @@ import { planeAngle, rotatedPlane } from '../src/shared/drawingPlacement';
 type Vec3 = [number, number, number];
 const line = (name: string, start: Vec3, end: Vec3) => ({ name, start, end, mid: start.map((value, i) => (value + (end[i] ?? 0)) / 2), length: Math.hypot(...start.map((value, i) => value - (end[i] ?? 0))) });
 
-// A 40 × 40 × 10 box with a logo 8 mm across ("Logo Badge"), its middle at (14, 20) on the top face: 6 mm left of the face's middle.
+// A 40 × 40 × 10 box with a logo 8 mm across ("SVG-Logo Badge"), its middle at (14, 20) on the top face: 6 mm left of the face's middle.
 const plane = { origin: [14, 20, 10] as Vec3, x_dir: [1, 0, 0] as Vec3, y_dir: [0, 1, 0] as Vec3 };
 function engine(): { run: Run; seen: string[] } {
   const seen: string[] = [];
@@ -20,7 +20,7 @@ function engine(): { run: Run; seen: string[] } {
             { name: 'Badge 1d71b8 1', bbox: { min: [10, 16, 9.4], max: [18, 24, 10] } },
             { name: 'Other', bbox: { min: [50, 0, 0], max: [60, 10, 10] } },
           ],
-          sketches: [{ id: 3, name: 'Logo Badge', plane }, { id: 4, name: 'Sketch1', plane }],
+          sketches: [{ id: 3, name: 'SVG-Logo Badge', plane }, { id: 4, name: 'Sketch1', plane }],
           timeline: [{ id: 1, type: 'Box' }, { id: 5, type: 'Extrude' }, { id: 6, type: 'Extrude' }],
         };
       case 'timeline.inspect':
@@ -30,7 +30,7 @@ function engine(): { run: Run; seen: string[] } {
       case 'parameters.list':
         return { parameters: [{ name: 'd5', expression: '-0.6 mm', value: -0.6 }, { name: 'd6', expression: '2 mm', value: 2 }] };
       case 'sketch.inspect':
-        return { id: params.sketch, name: 'Logo Badge', plane, curves: [{ id: 'c1', type: 'circle', center_at: [0, 0], radius: 4 }], points: [{ id: 'origin', fixed: true, at: [0, 0] }] };
+        return { id: params.sketch, name: 'SVG-Logo Badge', plane, curves: [{ id: 'c1', type: 'circle', center_at: [0, 0], radius: 4 }], points: [{ id: 'origin', fixed: true, at: [0, 0] }] };
       case 'model.faces':
         return params.body === 'Box' ? { faces: [{ name: 'F1:+z', plane_normal: [0, 0, 1], point: [30, 30, 10] }] } : { faces: [] };
       case 'model.edges':
@@ -55,7 +55,7 @@ describe('moving a placed logo', () => {
     const { run } = engine();
     // On the floor of the pocket, inside the drawing's box.
     const spot = await logoAt(run, [16, 21, 9.4]);
-    expect(spot).toMatchObject({ logo: 'Logo Badge', offset: [-6, 0], plane, depth: { value: 0.6, raised: false } });
+    expect(spot).toMatchObject({ logo: 'SVG-Logo Badge', offset: [-6, 0], plane, depth: { value: 0.6, raised: false } });
     // The circle as drawn on screen, within its tessellation.
     spot?.box.forEach((value, i) => expect(value).toBeCloseTo([-4, -4, 4, 4][i] ?? NaN, 1));
     // Beside the drawing on the same face: no logo.
@@ -70,9 +70,9 @@ describe('moving a placed logo', () => {
     expect(move.steps).toEqual([{ command: 'sketch.redefine', params: { sketch: 3, plane: { ...plane, origin: [20, 22, 10] } } }]);
     expect(move.face).toBe('F1:+z of Box');
     expect(move.bodies.sort()).toEqual(['Badge 1d71b8 1', 'Box']);
-    await expect(planLogoMove(run, 'Nothing', { by: [1, 0] })).rejects.toThrow('placed logos: Logo Badge');
+    await expect(planLogoMove(run, 'Nothing', { by: [1, 0] })).rejects.toThrow('placed logos: SVG-Logo Badge');
     // Only the depth: the logo's own extrusion, cut in as before; the other sketch's stays.
-    expect((await planLogoMove(run, 'Logo Badge', { depth: 1.2 })).steps).toEqual([{ command: 'parameters.change', params: { name: 'd5', expression: '-1.2 mm' } }]);
+    expect((await planLogoMove(run, 'SVG-Logo Badge', { depth: 1.2 })).steps).toEqual([{ command: 'parameters.change', params: { name: 'd5', expression: '-1.2 mm' } }]);
   });
 
   it('turns a logo about its middle and reads its turn back from the plane', async () => {
