@@ -8,6 +8,7 @@ import { platform } from '../platform';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { Button } from '../ui/Button';
 import { hasLength, suggestLength, suggestSize } from './partChoice';
+import { useOneEditor } from './dockEditor';
 import { chipToggleClass, SelectField as Choice } from '../ui/Choice';
 
 /** The diameter of the hole whose wall is picked, or null when the pick is no cylinder. */
@@ -61,6 +62,9 @@ export function PartPanel({ bodies, picks, busy }: { bodies: BodyModel[]; picks:
     setSize(suggested);
     setLength(suggested ? suggestLength(list, next, suggested) : null);
   };
+  useOneEditor('part', open, () => {
+    setOpen(false);
+  });
   if (hole === null) return null;
   const entry = library?.find((candidate) => candidate.family === family);
   const point = picks[0]?.point;

@@ -29,15 +29,20 @@ export function PlateBar({ layout, bed }: { layout: PlateLayout; bed: [number, n
       data-plates={plates}
     >
       <div className="flex items-center gap-2">
-        <IconButton size="md" label={t('plate.previous')} isDisabled={plate <= 0} onPress={() => { setPlate(plate - 1); }} data-testid="plate-prev">
-          <IconChevronLeft className="size-icon-sm" aria-hidden />
-        </IconButton>
+        {/* Paging only when there is more than one plate (audit B-24). */}
+        {plates > 1 ? (
+          <IconButton size="md" label={t('plate.previous')} isDisabled={plate <= 0} onPress={() => { setPlate(plate - 1); }} data-testid="plate-prev">
+            <IconChevronLeft className="size-icon-sm" aria-hidden />
+          </IconButton>
+        ) : null}
         <span className="min-w-field-number whitespace-nowrap text-center text-sm font-medium tabular-nums text-text" aria-live="polite" data-testid="plate-label">
           {layout.status === 'computing' ? <Busy label={t('plate.computing')} /> : layout.status === 'error' ? t('plate.failed') : t('plate.of', { plate: plate + 1, plates })}
         </span>
-        <IconButton size="md" label={t('plate.next')} isDisabled={plate >= plates - 1} onPress={() => { setPlate(plate + 1); }} data-testid="plate-next">
-          <IconChevronRight className="size-icon-sm" aria-hidden />
-        </IconButton>
+        {plates > 1 ? (
+          <IconButton size="md" label={t('plate.next')} isDisabled={plate >= plates - 1} onPress={() => { setPlate(plate + 1); }} data-testid="plate-next">
+            <IconChevronRight className="size-icon-sm" aria-hidden />
+          </IconButton>
+        ) : null}
         {bed ? (
           <span className="whitespace-nowrap border-l border-border pl-3 text-xs tabular-nums text-text-muted" data-testid="plate-bed">
             {printer ? `${printer} · ` : ''}

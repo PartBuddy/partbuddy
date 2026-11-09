@@ -3,9 +3,11 @@ import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button as AriaButton,
+  Label,
   Menu,
   MenuItem,
   MenuTrigger,
+  NumberField,
   Popover,
   Slider,
   ToggleButton,
@@ -17,9 +19,9 @@ import {
 import { useStudio, type DisplayMode, type Section, type StandardView } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
 import { bodiesBox, faceSection, sectionSpan } from './section';
-import { ViewIcon } from '../ui/ViewIcon';
 import { iconButtonClass, toggleSelected } from '../ui/Button';
 import { tooltipClass } from '../ui/Tooltip';
+import { UnitInput } from '../ui/Field';
 import { segmentClass, segmentGroupClass, SliderBar } from '../ui/Choice';
 import { POPOVER_OFFSET, menuClass, menuItemClass, popoverClass } from '../ui/Overlay';
 
@@ -119,7 +121,8 @@ function SectionPanel({ section }: { section: Section }) {
     <div
       role="group"
       aria-label={t('viewer.section.title')}
-      className="pointer-events-auto absolute left-0 top-full z-40 mt-2 flex w-menu flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      className="pointer-events-auto flex w-menu animate-pop-in flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      data-view-overlay
       data-testid="section-panel"
     >
       <span className="px-1 text-xs font-semibold text-text-muted">{t('viewer.section.title')}</span>
@@ -186,10 +189,23 @@ function SectionPanel({ section }: { section: Section }) {
         <span className="px-1 text-xs tabular-nums text-text-muted" data-testid="section-at">
           {t('viewer.section.fromFace', { value: Math.round(fromFace * 10) / 10 })}
         </span>
-      ) : at !== null ? (
-        <span className="px-1 text-xs tabular-nums text-text-muted" data-testid="section-at">
-          {t('viewer.section.at', { axis: section.axis.toUpperCase(), value: Math.round(at * 10) / 10 })}
-        </span>
+      ) : at !== null && span ? (
+        // Where it cuts, to type exactly (audit B-20); the slider moves the same value.
+        <NumberField
+          value={Math.round(at * 10) / 10}
+          minValue={Math.round(span.min * 10) / 10}
+          maxValue={Math.round(span.max * 10) / 10}
+          step={0.5}
+          formatOptions={{ maximumFractionDigits: 1 }}
+          onChange={(next) => {
+            if (Number.isFinite(next) && span.max > span.min) setSection({ ...section, position: (next - span.min) / (span.max - span.min) });
+          }}
+          className="flex items-center gap-2 px-1"
+          data-testid="section-at"
+        >
+          <Label className="text-xs text-text-muted">{section.axis.toUpperCase()} =</Label>
+          <UnitInput unit={t('units.mmShort')} />
+        </NumberField>
       ) : null}
       {!section.face && !pickedNormal ? <span className="px-1 text-xs text-text-subtle">{t('viewer.section.faceHint')}</span> : null}
     </div>
@@ -204,7 +220,8 @@ function ExplodePanel({ amount }: { amount: number }) {
     <div
       role="group"
       aria-label={t('viewer.explode.title')}
-      className="pointer-events-auto absolute left-0 top-full z-40 mt-2 flex w-menu flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      className="pointer-events-auto flex w-menu animate-pop-in flex-col gap-2 rounded-lg border border-border bg-surface-raised p-2 shadow-2"
+      data-view-overlay
       data-testid="explode-panel"
     >
       <Slider
@@ -287,13 +304,12 @@ export function ViewTools() {
   const views: { view: StandardView; key: string; icon: ReactNode }[] = [
     { view: 'fit', key: 'F', icon: <IconMaximize className="size-icon-sm" aria-hidden /> },
     { view: 'selection', key: 'Shift+F', icon: <IconFocusCentered className="size-icon-sm" aria-hidden /> },
+    // Front, right, top and the rest come from the view cube and the keys 1–9 (audit B-17): one row.
     { view: 'iso', key: '0', icon: <IconCube className="size-icon-sm" aria-hidden /> },
-    { view: 'front', key: '1', icon: <ViewIcon face="front" className="size-icon-sm" /> },
-    { view: 'right', key: '3', icon: <ViewIcon face="right" className="size-icon-sm" /> },
-    { view: 'top', key: '7', icon: <ViewIcon face="top" className="size-icon-sm" /> },
   ];
 
   return (
+    <>
     <div
       role="toolbar"
       aria-orientation="horizontal"
@@ -331,10 +347,11 @@ export function ViewTools() {
           <CadIcon name="dimension" className="size-icon-sm" />
         </ToggleButton>
       </Tip>
-      {dimensions === 'off' ? null : (
-        <Tip label={t('dimensions.all')}>
+      {/* Always there, greyed while dimensions are off, so the tools after it keep their place (B-28). */}
+      <Tip label={t('dimensions.all')}>
           <ToggleButton
             aria-label={t('dimensions.all')}
+            isDisabled={dimensions === 'off'}
             isSelected={dimensions === 'all'}
             onChange={(all) => {
               setDimensions(all ? 'all' : 'feature');
@@ -344,8 +361,7 @@ export function ViewTools() {
           >
             <IconRulerMeasure className="size-icon-sm" aria-hidden />
           </ToggleButton>
-        </Tip>
-      )}
+      </Tip>
       <Tip label={`${t(ortho ? 'viewer.views.ortho' : 'viewer.views.perspective')} (5)`}>
         <ToggleButton
           aria-label={t('viewer.views.ortho')}
@@ -375,7 +391,6 @@ export function ViewTools() {
           <IconSlice className="size-icon-sm" aria-hidden />
         </ToggleButton>
       </Tip>
-      {section ? <SectionPanel section={section} /> : null}
       {parts > 1 ? (
         <Tip label={t('viewer.explode.title')}>
           <ToggleButton
@@ -407,7 +422,6 @@ export function ViewTools() {
           </ToggleButton>
         </Tip>
       ) : null}
-      {explode !== null && parts > 1 ? <ExplodePanel amount={explode} /> : null}
       {parts > 1 ? (
         <>
           <span aria-hidden className="my-1 w-hairline self-stretch bg-border" />
@@ -434,5 +448,8 @@ export function ViewTools() {
         </>
       ) : null}
     </div>
+    {section ? <SectionPanel section={section} /> : null}
+    {explode !== null && parts > 1 ? <ExplodePanel amount={explode} /> : null}
+    </>
   );
 }

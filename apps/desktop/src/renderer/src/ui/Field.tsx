@@ -1,5 +1,5 @@
 import { IconAlertCircle } from '@tabler/icons-react';
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { Group, Input, Text, type InputProps } from 'react-aria-components';
 
 export type FieldSize = 'sm' | 'md';
@@ -50,7 +50,7 @@ export function FieldMessage({ error, hint, testId }: { error?: ReactNode; hint?
  * A number input with its unit inside the frame (Onshape, Fusion: "12 mm"), for a NumberField or
  * a TextField. The unit is part of the label for screen readers through the field's own label.
  */
-export function UnitInput({ unit, size = 'sm', className, ...props }: Omit<InputProps, 'className' | 'size'> & { unit: string; size?: FieldSize; className?: string }) {
+export function UnitInput({ unit, size = 'sm', className, ...props }: Omit<InputProps, 'className' | 'size'> & { unit: string; size?: FieldSize; className?: string; ref?: Ref<HTMLInputElement> }) {
   return (
     <Group className={`flex items-center gap-1 pr-2 ${boxSizes[size]} ${fieldBox} ${className ?? ''}`}>
       <Input {...props} className="h-full w-full min-w-0 bg-transparent pl-2 text-right tabular-nums outline-none placeholder:text-text-subtle" />

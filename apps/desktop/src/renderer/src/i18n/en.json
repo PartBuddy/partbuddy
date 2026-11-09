@@ -53,7 +53,8 @@
     "emptyBody": "Create a body in SolidCraft or let the assistant design one. It appears here after every step.",
     "mirrorFailedTitle": "The model could not be mirrored",
     "mirrorFailedBody": "PartBuddy shows the last good state. Details: {detail}",
-    "emptyBodyHeadless": "Tell the assistant what you need. Every step appears here, sketches even before the body."
+    "emptyBodyHeadless": "Tell the assistant what you need. Every step appears here, sketches even before the body.",
+    "startingProgress": "One moment …"
   },
   "viewer": {
     "canvasLabel": "3D view of the design",
@@ -118,7 +119,6 @@
       "along": "Cut across {axis}",
       "position": "Where the section cuts",
       "flip": "Show the other side",
-      "at": "Cut at {axis} = {value, number, ::.# unit/millimeter}",
       "alignFace": "Align to the selected face",
       "fromFace": "{value, number, ::.# unit/millimeter} from the face",
       "faceHint": "Select a flat face to cut along it."
@@ -590,12 +590,11 @@
     },
     "invalid": "Type a number",
     "actionReady": "Preview in the view – Enter builds it, Escape cancels",
-    "actionRefused": "SolidCraft cannot build it like this: {detail}",
     "distance": "Distance {value} mm",
     "angle": "Angle {value}°",
     "approximate": "Read from the view; SolidCraft's exact measure follows",
-    "firstHint": "Here you change the selection, add blocks such as screw holes or a logo, or say what should happen. Hover a button for a short explanation.",
-    "firstHintOk": "Got it",
+    "firstHint": "Change the selection, add building blocks or say what should happen. Hover a button to see what it does.",
+    "firstHintOk": "Close hint",
     "actionHint": {
       "fillet": "Rounds the picked edge off with a radius",
       "chamfer": "Bevels the picked edge",
@@ -604,7 +603,21 @@
       "shell": "Hollows the body out; the picked face stays open"
     },
     "fold": "Fold: show only the selection",
-    "unfold": "Unfold"
+    "unfold": "Unfold",
+    "refused": {
+      "shell": "The wall thickness does not fit this shape – try a smaller value.",
+      "fillet": "The radius is too large for this edge – try a smaller value.",
+      "chamfer": "The chamfer is too wide for this edge – try a smaller value.",
+      "boolean": "The shape cannot be joined to the part like this – move it or make it smaller.",
+      "other": "SolidCraft cannot build it like this – try another value.",
+      "details": "Details"
+    },
+    "field": {
+      "length": "New edge length",
+      "radius": "New radius",
+      "diameter": "New diameter",
+      "spacing": "New distance"
+    }
   },
   "structure": {
     "title": "Structure",
@@ -1324,7 +1337,7 @@
     "modeled": "Modelled thread (print it from about M5; smaller ones are better tapped)",
     "head": "Screw head",
     "fit": "Clearance",
-    "apply": "Build",
+    "apply": "Apply",
     "text": "Text",
     "textHeight": "Letter height",
     "textMode": "Kind",

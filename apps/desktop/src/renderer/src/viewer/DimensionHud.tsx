@@ -1,5 +1,5 @@
 import { parseTagged3mf } from '@partbuddy/geometry';
-import { IconBolt, IconChevronDown, IconChevronUp, IconNote, IconSparkles } from '@tabler/icons-react';
+import { IconBolt, IconChevronDown, IconChevronUp, IconNote, IconSparkles, IconX } from '@tabler/icons-react';
 import { BlockPanel, flatFace } from './BlockPanel';
 import { LogoPanel, logoTitleOf, useLogoSpot } from './LogoPanel';
 import { actionsFor } from './actionKinds';
@@ -23,9 +23,9 @@ import { blendWeights, GHOST_OPACITY, PREVIEW_BLEND } from './blend';
 import { SelectionInfo } from './SelectionInfo';
 import { selectionName, selectionOf, selectionsOf } from './viewState';
 import { dimensionFor, handleOf } from './dimensionOf';
-import { Button, iconButtonClass } from '../ui/Button';
+import { Button, IconButton, iconButtonClass } from '../ui/Button';
 import { Tip } from '../ui/Tooltip';
-import { inputClass, fieldLabelClass } from '../ui/Field';
+import { inputClass, fieldLabelClass, UnitInput } from '../ui/Field';
 import { badgeClass } from '../ui/Feedback';
 import { RadioMark, choiceRowClass } from '../ui/Choice';
 
@@ -104,18 +104,19 @@ function DockHint() {
   const [seen, setSeen] = useState(() => window.localStorage.getItem(DOCK_HINT_KEY) === '1');
   if (seen) return null;
   return (
-    <div className="flex items-start gap-2 rounded-md bg-accent-subtle p-2 text-xs text-text" role="note" data-testid="dock-hint">
+    // One short closable line, so the actions stay in view (audit N-12).
+    <div className="flex items-center gap-1 rounded-md bg-accent-subtle py-0.5 pr-0.5 pl-2 text-xs text-text" role="note" data-testid="dock-hint">
       <span className="flex-1">{t('hud.firstHint')}</span>
-      <Button
-        size="sm"
+      <IconButton
+        label={t('hud.firstHintOk')}
         onPress={() => {
           window.localStorage.setItem(DOCK_HINT_KEY, '1');
           setSeen(true);
         }}
         data-testid="dock-hint-ok"
       >
-        {t('hud.firstHintOk')}
-      </Button>
+        <IconX className="size-icon-sm" aria-hidden />
+      </IconButton>
     </div>
   );
 }
@@ -296,10 +297,11 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
     <div
       role="region"
       aria-label={t('hud.dock')}
-      // Bottom right, clear of the axis triad (bottom left) and the view cube (top right); narrow and
-      // scrolling, so an open building block does not cover the part (polish round 2).
+      // Bottom right, clear of the axis triad (bottom left); it stops 10rem under the top so the view
+      // tools and the view cube stay free (audit N-06). In a narrow view it is a sheet along the bottom
+      // that leaves the upper half to the part (B-05). Scrolls inside.
       // z-40: above the labels, pins and drag arrows drawn into the view (drei Html, z 11–32), which would cover its fields.
-      className="pointer-events-auto absolute bottom-3 right-3 z-40 flex max-h-[calc(100%_-_1.5rem)] w-dialog-sm max-w-[calc(100%_-_1.5rem)] flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-surface-raised p-3 shadow-2"
+      className="pointer-events-auto absolute right-3 bottom-3 z-40 flex max-h-[calc(100%_-_10rem)] w-dialog-sm max-w-[calc(100%_-_1.5rem)] animate-panel-in flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-surface-raised p-3 shadow-2 @max-[40rem]:left-3 @max-[40rem]:max-h-[45%] @max-[40rem]:w-auto"
       data-testid="selection-hud"
       data-view-overlay
     >
@@ -347,12 +349,10 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
       <div className="flex flex-wrap items-start gap-3">
         {dimension && !logo ? (
           <TextField value={text} onChange={setText} inputMode="decimal" isDisabled={busy} className="flex w-field-dock flex-col gap-1" data-testid="dimension-field">
-            <Label className={fieldLabelClass}>
-              {t(`hud.${dimension.shown}`)} · {t('units.mmShort')}
-            </Label>
-            <Input
+            <Label className={fieldLabelClass}>{t(`hud.field.${dimension.shown}`)}</Label>
+            <UnitInput
               ref={field}
-              className={`${inputClass('sm')} tabular-nums`}
+              unit={t('units.mmShort')}
               aria-keyshortcuts="ArrowUp ArrowDown"
               onKeyDown={(event) => {
                 const stepped = stepLength(text, event.key, event, decimal);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Input, Label, TextField, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
+import { Label, TextField, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
 
 import type { DesignAction, MeasureItem, MeasureResult } from '../../../shared/contract';
 import { platform } from '../platform';
@@ -11,7 +11,9 @@ import { actionsFor, type ActionKind } from './actionKinds';
 import { useFacePosition } from './facePosition';
 import { parseLength } from './lengthInput';
 import { edgePoints, lineDirection, localMeasure, type MeasurePick } from './measure';
-import { inputClass, fieldLabelClass } from '../ui/Field';
+import { ProbeStatus } from './ProbeStatus';
+import { useOneEditor } from './dockEditor';
+import { fieldLabelClass, UnitInput } from '../ui/Field';
 import { chipToggleClass } from '../ui/Choice';
 import { Tip } from '../ui/Tooltip';
 
@@ -86,6 +88,12 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, body, picks, size, valid, busy, text, onGhost, at?.join()]);
 
+  useOneEditor('action', open !== null, () => {
+    setOpen(null);
+    setState(null);
+    onGhost(null);
+  });
+
   if (kinds.length === 0 || !body) return null;
   const current = state?.text === text ? state : null;
 
@@ -131,12 +139,11 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
       {open === 'hole' ? position : null}
       {open ? (
         <TextField value={text} onChange={setText} inputMode="decimal" isDisabled={busy} className="flex flex-col gap-1" data-testid="action-field">
-          <Label className={fieldLabelClass}>
-            {t(`hud.size.${open}`)} · {t('units.mmShort')}
-          </Label>
-          <Input
+          <Label className={fieldLabelClass}>{t(`hud.size.${open}`)}</Label>
+          <UnitInput
+            unit={t('units.mmShort')}
+            size="md"
             autoFocus
-            className={`${inputClass('md')} tabular-nums`}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();
@@ -148,9 +155,7 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
               }
             }}
           />
-          <p className="text-xs text-text-muted" role="status" data-testid="action-status" data-ok={current ? String(current.ok) : undefined}>
-            {!valid ? t('hud.invalid') : !current ? t('hud.probing') : current.ok ? t('hud.actionReady') : t('hud.actionRefused', { detail: current.error ?? '' })}
-          </p>
+          <ProbeStatus state={!valid ? 'invalid' : !current ? 'probing' : current.ok ? 'ready' : 'refused'} error={current?.error} testId="action-status" />
           {/* Enter and Esc do the same; the buttons show that there is a way on and a way back. */}
           <div className="flex gap-2">
             <Button variant="primary" size="sm" isDisabled={busy || !valid || !current?.ok} onPress={apply} className="flex-1" data-testid="action-apply">

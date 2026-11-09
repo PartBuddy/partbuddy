@@ -281,6 +281,30 @@ export function PlaybackClock({ count }: { count: number }) {
   return null;
 }
 
+/**
+ * Keeps an exploded view in frame (audit B-19): a moment after the slider stops, the camera fits all
+ * parts where they now stand, keeping its direction.
+ */
+export function ExplodeCamera({ bodies, targets }: { bodies: BodyModel[]; targets: Map<string, Pose> }) {
+  const controls = useThree((state) => state.controls) as CameraControls | null;
+  const boxes = useBodyBoxes(bodies);
+  useEffect(() => {
+    if (!controls) return;
+    const timer = setTimeout(() => {
+      const box = new Box3();
+      for (const [name, own] of boxes) {
+        const offset = new Vector3(...(targets.get(name)?.position ?? REST.position));
+        box.union(new Box3(new Vector3(...own.min).add(offset), new Vector3(...own.max).add(offset)));
+      }
+      if (!box.isEmpty()) void controls.fitToSphere(box.getBoundingSphere(new Sphere()), !reducedMotion());
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [controls, boxes, targets]);
+  return null;
+}
+
 /** Turns the camera to the step that plays: the moving part, where it comes from and what it joins. */
 export function PlaybackCamera({ steps, bodies }: { steps: PlayStep[]; bodies: BodyModel[] }) {
   const controls = useThree((state) => state.controls) as CameraControls | null;
