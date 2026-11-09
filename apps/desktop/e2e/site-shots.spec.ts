@@ -81,6 +81,10 @@ test('website pictures', async () => {
   });
   const { page } = launched;
   const report: Record<string, string> = {};
+  // The dock's one-time hint is for a first start; the pictures show the dock as it is used.
+  await page.evaluate(() => {
+    (globalThis as unknown as { localStorage: { setItem: (key: string, value: string) => void } }).localStorage.setItem('partbuddy.dockHintSeen', '1');
+  });
   const home = page.getByTestId('home-page');
   const name = page.getByTestId('design-name');
   const logs: string[] = [];

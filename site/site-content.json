@@ -29,7 +29,8 @@
       "points": [
         "Threads, countersinks, snap fits, inserts and nut traps on the face you pick",
         "Visible edges rounded, bed edges chamfered and sizes snapped to your nozzle, without being asked",
-        "The sizes you name stay exact, and every refinement can be turned off"
+        "The sizes you name stay exact, and every refinement can be turned off",
+        "Logos from SVG files and text in any installed font, placed, sized and changed right on the part"
       ],
       "shot": "view",
       "alt": "A cable clip with a selected face and its name, area and actions"
@@ -239,7 +240,8 @@
       "Sketches, photos and research as input",
       "Ready-to-print check and slicer hand-off",
       "English and German, installer with update checks",
-      "Dimensions on the part: type them, step them or drag the arrow"
+      "Dimensions on the part: type them, step them or drag the arrow",
+      "Logos and text on the part, holes and blocks placed before they are built"
     ],
     "next": [
       "SolidCraft 0.40 final"
