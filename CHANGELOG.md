@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.2.0](https://github.com/PartBuddy/partbuddy/compare/v0.1.0...v0.2.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** a built text is changed afterwards like a logo, and logos and texts get a size arrow ([#246](https://github.com/PartBuddy/partbuddy/issues/246)) ([5dd17bf](https://github.com/PartBuddy/partbuddy/commit/5dd17bf651c5e6bfba7feba62c6d31c314267af0))
+* **desktop:** a click on a logo picks the whole logo; panels above the view's arrows ([#233](https://github.com/PartBuddy/partbuddy/issues/233)) ([9ccbc44](https://github.com/PartBuddy/partbuddy/commit/9ccbc44b6ea76b59f2846de7e5f33649b4f32dba))
+* **desktop:** a hole is placed on its face before it is drilled, like a block ([#250](https://github.com/PartBuddy/partbuddy/issues/250)) ([089d236](https://github.com/PartBuddy/partbuddy/commit/089d236d0bf55f0c304a27927d66f4bd9b9c35bf))
+* **desktop:** a row of holes from the dock: count and spacing across and up ([#239](https://github.com/PartBuddy/partbuddy/issues/239)) ([b3d7217](https://github.com/PartBuddy/partbuddy/commit/b3d72179c61c7d62c5ebce95c769b387c4e73103))
+* **desktop:** a way back from the dock's forms: Cancel, Apply and Esc ([#237](https://github.com/PartBuddy/partbuddy/issues/237)) ([0ae15e8](https://github.com/PartBuddy/partbuddy/commit/0ae15e8d60ca47b257094f8015f7e2aad36a2fbe))
+* **desktop:** add six printers to the catalog, test version on SolidCraft rc.3 ([#195](https://github.com/PartBuddy/partbuddy/issues/195)) ([65dc224](https://github.com/PartBuddy/partbuddy/commit/65dc224ca59fc9411cd2fb4cef9dfba236917cdf))
+* **desktop:** an SVG as a part of its own, with chosen fills, as a movable logo ([#234](https://github.com/PartBuddy/partbuddy/issues/234)) ([1f311ab](https://github.com/PartBuddy/partbuddy/commit/1f311ab5daff01a62ae7b4e0d4d81b60da1fd5ea))
+* **desktop:** build an SVG logo a body per colour for multi-colour prints ([#201](https://github.com/PartBuddy/partbuddy/issues/201)) ([7909341](https://github.com/PartBuddy/partbuddy/commit/790934134df83ffc4c824f01b893463832140346))
+* **desktop:** build SVG strokes as outlines, so line icons work ([#229](https://github.com/PartBuddy/partbuddy/issues/229)) ([4836ada](https://github.com/PartBuddy/partbuddy/commit/4836ada3d9f9b87e5a60a294fde766d661992a52))
+* **desktop:** detailed templates and showcase models for the website pictures ([#194](https://github.com/PartBuddy/partbuddy/issues/194)) ([5fe3fc4](https://github.com/PartBuddy/partbuddy/commit/5fe3fc49cc360b56a2c78ac8c1c28b6dfd1dba85))
+* **desktop:** dimension field for the distance of two parallel faces ([#197](https://github.com/PartBuddy/partbuddy/issues/197)) ([697b18d](https://github.com/PartBuddy/partbuddy/commit/697b18d1932f1464da089fc2c7f9d7def264562f))
+* **desktop:** drag arrow on the part for the dimension field ([#199](https://github.com/PartBuddy/partbuddy/issues/199)) ([e8421b1](https://github.com/PartBuddy/partbuddy/commit/e8421b12e6933c4ae80aa4c3a6a61719ee9c406c))
+* **desktop:** leave out a white sheet or a frame around an SVG drawing ([#235](https://github.com/PartBuddy/partbuddy/issues/235)) ([d2bde12](https://github.com/PartBuddy/partbuddy/commit/d2bde123c3c37ed6dc4f2e2e35fa2b9addad56d5))
+* **desktop:** merge SVG colours that look the same, and down to the filaments ([#230](https://github.com/PartBuddy/partbuddy/issues/230)) ([60d1afe](https://github.com/PartBuddy/partbuddy/commit/60d1afe63595e4960c849e5e6a48136efdd013b9))
+* **desktop:** move a placed logo exactly and centre it on its face ([#202](https://github.com/PartBuddy/partbuddy/issues/202)) ([adf17cf](https://github.com/PartBuddy/partbuddy/commit/adf17cf8de5ad850d1b82dd507deb4171484b31e))
+* **desktop:** move a placed logo on the part with fields, arrows and centre buttons ([#206](https://github.com/PartBuddy/partbuddy/issues/206)) ([d47d7af](https://github.com/PartBuddy/partbuddy/commit/d47d7af238250f8316ce28958291649f345a7530))
+* **desktop:** one field in the dock for what should happen here: do it now or keep as a note ([#240](https://github.com/PartBuddy/partbuddy/issues/240)) ([c65d6f6](https://github.com/PartBuddy/partbuddy/commit/c65d6f69735bdbdfde3c6d7fa1716a15e224b636))
+* **desktop:** pick the parameter when several drive a dimension ([#198](https://github.com/PartBuddy/partbuddy/issues/198)) ([97fdd38](https://github.com/PartBuddy/partbuddy/commit/97fdd38174ef409449f30a2fec244317fdeef10d))
+* **desktop:** place a block before building it, like a logo ([#238](https://github.com/PartBuddy/partbuddy/issues/238)) ([f2a48b6](https://github.com/PartBuddy/partbuddy/commit/f2a48b6e76b1f81e2ad9741686eafdee4a053b4c))
+* **desktop:** place an attached SVG as a logo with its own tool ([#205](https://github.com/PartBuddy/partbuddy/issues/205)) ([a2c7139](https://github.com/PartBuddy/partbuddy/commit/a2c713915dd9ed3bbb3256b41a9fc711ba4f9bed))
+* **desktop:** read SVG drawings in the chat exactly and safely ([#200](https://github.com/PartBuddy/partbuddy/issues/200)) ([231eadc](https://github.com/PartBuddy/partbuddy/commit/231eadc327ad27d380d032f10ffb1cc2d9a45ac0))
+* **desktop:** resize a placed logo about its middle ([#228](https://github.com/PartBuddy/partbuddy/issues/228)) ([37ca06e](https://github.com/PartBuddy/partbuddy/commit/37ca06e811b6f030a0d3702da4a9fd03bf4e6c84))
+* **desktop:** set a logo's depth on the part and centre a new one on its face ([#207](https://github.com/PartBuddy/partbuddy/issues/207)) ([559a231](https://github.com/PartBuddy/partbuddy/commit/559a23122fd9154aae75a813f8feb73ed548dcea))
+* **desktop:** step the dimension field with the arrow keys ([#196](https://github.com/PartBuddy/partbuddy/issues/196)) ([c617843](https://github.com/PartBuddy/partbuddy/commit/c61784311353fac504933c6642d35ec0b20f5a40))
+* **desktop:** text in any installed font, and a preview with sharp edges ([#245](https://github.com/PartBuddy/partbuddy/issues/245)) ([f5c0231](https://github.com/PartBuddy/partbuddy/commit/f5c023108fce476e352bfa67b9a8a424cc2b0bf9))
+* **desktop:** the dock explains its buttons and itself once ([#242](https://github.com/PartBuddy/partbuddy/issues/242)) ([eb3ba49](https://github.com/PartBuddy/partbuddy/commit/eb3ba496c720f30dbb74b7864ec1d99936a32d79))
+* **desktop:** the dock's head tells a flat face by its size, not as a plane with an area ([#241](https://github.com/PartBuddy/partbuddy/issues/241)) ([2346563](https://github.com/PartBuddy/partbuddy/commit/23465635cdde1318463c648fd1fa270a61569ee4))
+* **desktop:** the font is a field to type into over a list in each font's face, and the dock folds ([#247](https://github.com/PartBuddy/partbuddy/issues/247)) ([f78a39a](https://github.com/PartBuddy/partbuddy/commit/f78a39aa784212ed1f9d000ef73f698dc4f739b2))
+* **desktop:** the selection dock groups its actions, with tiles for the usual blocks ([#236](https://github.com/PartBuddy/partbuddy/issues/236)) ([a48b56d](https://github.com/PartBuddy/partbuddy/commit/a48b56d3f075a1532fa8bcc7cd3523c01de18bb2))
+* **desktop:** turn a placed logo about its middle ([#226](https://github.com/PartBuddy/partbuddy/issues/226)) ([a8b3309](https://github.com/PartBuddy/partbuddy/commit/a8b33094d37ab70d07e5938b952139a2f437ff60))
+* **desktop:** warn about SVG details narrower than the nozzle ([#227](https://github.com/PartBuddy/partbuddy/issues/227)) ([744e427](https://github.com/PartBuddy/partbuddy/commit/744e427efeb608784ce99ad72614b30cf3f7af4d))
+
+
+### Bug Fixes
+
+* **deps:** update 3d viewer ([#216](https://github.com/PartBuddy/partbuddy/issues/216)) ([c87ab24](https://github.com/PartBuddy/partbuddy/commit/c87ab24229abf4ad34f676e494e14fc29135ce07))
+* **deps:** update ai and @ai-sdk/openai together ([#220](https://github.com/PartBuddy/partbuddy/issues/220)) ([250ee36](https://github.com/PartBuddy/partbuddy/commit/250ee36af4a4f73ce3899b78628f180e53487527))
+* **deps:** update dependency dockview-react to v8.8.3 ([#217](https://github.com/PartBuddy/partbuddy/issues/217)) ([a85de6a](https://github.com/PartBuddy/partbuddy/commit/a85de6add15a755502ad623ccaef1a4cc6956f49))
+* **deps:** update dependency i18next to v26.6.0 ([#218](https://github.com/PartBuddy/partbuddy/issues/218)) ([cbb12bb](https://github.com/PartBuddy/partbuddy/commit/cbb12bb7eeab36354302d7f4782a4f27b1e7f277))
+* **deps:** update dependency jose to v6.2.14 ([#213](https://github.com/PartBuddy/partbuddy/issues/213)) ([5d5d1c9](https://github.com/PartBuddy/partbuddy/commit/5d5d1c9497267102981094a280246de4d29ff351))
+* **deps:** update dependency jose to v6.2.15 ([#222](https://github.com/PartBuddy/partbuddy/issues/222)) ([261e3c2](https://github.com/PartBuddy/partbuddy/commit/261e3c295e8ca90d8d23174d9f7d17d1aeb1bd65))
+* **deps:** update dependency react-i18next to v17.1.10 ([#214](https://github.com/PartBuddy/partbuddy/issues/214)) ([4f99029](https://github.com/PartBuddy/partbuddy/commit/4f990292797b5ef6640397228e83c2ba05207b4f))
+* **deps:** update dependency react-i18next to v17.1.11 ([#223](https://github.com/PartBuddy/partbuddy/issues/223)) ([ceda8d4](https://github.com/PartBuddy/partbuddy/commit/ceda8d4b5eea3ffee4bcac17471c63568d761297))
+* **desktop:** a small font list, and no bold for a font without a bold face ([#248](https://github.com/PartBuddy/partbuddy/issues/248)) ([c29a47b](https://github.com/PartBuddy/partbuddy/commit/c29a47bc5d2c024d4147419a473df9aa061f4f2d))
+* **desktop:** bold text in its bold face's full name, and a plain chevron in the font field ([#249](https://github.com/PartBuddy/partbuddy/issues/249)) ([4131c30](https://github.com/PartBuddy/partbuddy/commit/4131c30623c5b73c00ac4d6d75263395a3ad465f))
+* **desktop:** bold text tried once per font, the family with bold or its bold face's full name ([#251](https://github.com/PartBuddy/partbuddy/issues/251)) ([8db2374](https://github.com/PartBuddy/partbuddy/commit/8db23745e55299447e2c63c77663139802d66ccf))
+* **desktop:** drag arrows follow the mouse, and the ghost keeps up while dragging ([#244](https://github.com/PartBuddy/partbuddy/issues/244)) ([08cb889](https://github.com/PartBuddy/partbuddy/commit/08cb889bd87c84f5e24835f5212d5ae02667fea3))
+* **desktop:** keep an SVG shape that another one touches at its edge's middle ([#231](https://github.com/PartBuddy/partbuddy/issues/231)) ([1a29713](https://github.com/PartBuddy/partbuddy/commit/1a29713c70e6c519d03510ad190dfa4465f64913))
+* **desktop:** mirror again when the design changes while a mirror reads it ([#224](https://github.com/PartBuddy/partbuddy/issues/224)) ([2b0e04b](https://github.com/PartBuddy/partbuddy/commit/2b0e04bf99f158ebc040a28a0f58368600848f2c))
+* **desktop:** only PartBuddy's own logos get the logo controls, folded ([#232](https://github.com/PartBuddy/partbuddy/issues/232)) ([6979566](https://github.com/PartBuddy/partbuddy/commit/6979566b236b122d49d660776c464ba710984560))
+
 ## 0.1.0 (2026-11-08)
 
 ### Features
