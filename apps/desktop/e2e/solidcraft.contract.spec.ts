@@ -2673,6 +2673,13 @@ test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved
     await expect(page.getByTestId('step-text').last()).toHaveText('Logo “logo-o” made 20 mm wide');
     const grown = (await at([10 + dragged, 10, 9])) as unknown as { box: number[] } | null;
     expect((grown?.box[2] ?? 0) - (grown?.box[0] ?? 0)).toBeCloseTo(20, 0);
+
+    // The same drawing as a part of its own beside the box (a pendant): a new body, and a logo the dock can change.
+    await say('Place the logo {"drawing": "svg-1", "mode": "part", "depth": 2, "width": 10, "point": [40, 0, 0]}');
+    await expect(page.getByText(/^Logo: Built "SVG-Logo logo-o 2" \(a part of its own 2 mm, 10 mm wide\)/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    // No face under it to measure from; 2 mm high, standing up.
+    expect(await at([42, 0, 2])).toMatchObject({ logo: 'SVG-Logo logo-o 2', offset: null, depth: { value: 2, raised: true } });
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });

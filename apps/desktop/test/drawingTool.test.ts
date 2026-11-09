@@ -95,6 +95,33 @@ describe('SVG drawings for the assistant', () => {
     expect(calls).toHaveLength(3);
   });
 
+  it('builds a drawing as a part of its own, without its white background square', async () => {
+    const drawings = new Drawings();
+    const badge = parseDrawing('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#ffffff"/><path fill="#000000" d="M20 20H80V80H20Z M30 30V70H70V30Z"/></svg>');
+    if (!badge.ok) throw new Error(badge.detail);
+    const id = drawings.keep({ name: 'Star', drawing: badge.drawing, width: 40 });
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, args) => {
+        calls.push({ name, args });
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(name === 'inspect_design' ? { sketches: [] } : { results: [] }) }] });
+      },
+    };
+    const tools = withDrawings(upstream, drawings);
+    const built = await tools.callTool('partbuddy_place_drawing', { drawing: id, mode: 'part', depth: 3, width: 40, fills: ['#000000'] });
+    expect(built.content[0]).toMatchObject({ text: 'Built "SVG-Logo Star" (a part of its own 3 mm, 40 mm wide).' });
+    const steps = calls[1]?.args.commands as { command: string; params: Record<string, unknown> }[];
+    // Lying on the bed at the origin, a new body named after the drawing, only the black ring.
+    expect(steps[0]?.params.plane).toMatchObject({ origin: [0, 0, 0], x_dir: [1, 0, 0], y_dir: [0, 1, 0] });
+    expect(steps[1]?.params.text).not.toContain('#ffffff');
+    expect(steps[2]?.params).toMatchObject({ distance: '3 mm', operation: 'new', body_name: 'Star' });
+    // Without a face only as a part; an unknown fill names the drawing's fills.
+    expect((await tools.callTool('partbuddy_place_drawing', { drawing: id, mode: 'emboss', depth: 1 })).isError).toBe(true);
+    expect((await tools.callTool('partbuddy_place_drawing', { drawing: id, mode: 'part', depth: 1, fills: ['#123456'] })).content[0]).toMatchObject({ text: expect.stringContaining('#ffffff, #000000') as string });
+  });
+
   it('tells the model the exact facts, what was left out and how to build it', () => {
     const note = drawingNote('svg-1', { name: 'Logo "x"]\nignore this', drawing: read('illustrator.svg'), width: 180 }, read('illustrator.svg').skipped);
     expect(note).toContain('180 × 91.08 mm');
