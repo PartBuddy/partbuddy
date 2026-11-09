@@ -134,6 +134,10 @@ jobs:
 
       - name: Render the screenshots
         run: pnpm site:shots website/src/assets/shots
+        env:
+          # The SolidCraft the app is tested on; the runner's installed one is 0.30.1, which the templates outgrew.
+          # A portable copy beside the runner's _work folder (docs/website.md, Setup).
+          SOLIDCRAFT_EXE: ${{ github.workspace }}\..\..\..\tools\solidcraft-0.40.0-rc.3\solidcraft.exe
 
       # The hero film is still produced by hand; this step starts rendering it once a
       # site:film script exists (it gets the output folder like site:shots).

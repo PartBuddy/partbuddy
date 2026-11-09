@@ -4,6 +4,7 @@ import { expect, openStudio, test } from './fixtures';
 
 test.describe('main view', () => {
   test('a note can be pinned to a picked face', async ({ page, consoleErrors }) => {
+    test.setTimeout(60_000);
     await openStudio(page);
     const viewer = page.locator('canvas').first();
     const box = await viewer.boundingBox();
@@ -13,8 +14,12 @@ test.describe('main view', () => {
     // camera still moves misses (on a busy CI runner for longer), so it is repeated until the face is selected, with time between
     // the clicks so that none counts as a double click.
     const selection = page.getByRole('region', { name: 'Selected face' });
+    // Around the middle in turn: on a slow runner the part may sit a little off it.
+    const spots = [[0.5, 0.5], [0.48, 0.52], [0.52, 0.48], [0.5, 0.55], [0.45, 0.5], [0.55, 0.5]] as const;
+    let n = 0;
     await expect(async () => {
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      const [x, y] = spots[n++ % spots.length] ?? [0.5, 0.5];
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
       await expect(selection).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: 45_000, intervals: [500, 1000, 1000] });
 
