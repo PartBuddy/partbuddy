@@ -15,7 +15,7 @@ describe('function blocks (F1)', () => {
   });
 
   it('builds a row of the same hole at each of its points, and checks the row at the boundary', () => {
-    const row: FeatureBlock = { ...defaultBlock('screwHole', 'Body1', at, 'M3'), more: [[20, 10, 10], [30, 10, 10]] };
+    const row: FeatureBlock = { block: 'screwHole', body: 'Body1', point: at, size: 'M3', head: 'cap', fit: 'normal', more: [[20, 10, 10], [30, 10, 10]] };
     const steps = stepsOf(row);
     expect(steps.map((step) => step.params.position)).toEqual([at, [20, 10, 10], [30, 10, 10]]);
     expect(new Set(steps.map((step) => step.params.cb_diameter))).toEqual(new Set(['6.7 mm']));
