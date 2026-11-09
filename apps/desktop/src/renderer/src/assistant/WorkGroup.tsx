@@ -11,6 +11,8 @@ import { badgeClass } from '../ui/Feedback';
 export function Queries({ tools }: { tools: ToolItem[] }) {
   const { t } = useTranslation();
   const running = tools.some((tool) => tool.ok === undefined);
+  // A failed call shows on the folded line already, not only after opening it (audit C-03).
+  const failed = tools.filter((tool) => tool.ok === false).length;
   return (
     <Fold
       testId="tool-queries"
@@ -18,6 +20,11 @@ export function Queries({ tools }: { tools: ToolItem[] }) {
         <>
           <LiveIcon live={running} icon={IconListSearch} />
           <span className="min-w-0 truncate">{t(running ? 'assistant.queriesRunning' : 'assistant.queries', { count: tools.length })}</span>
+          {failed > 0 ? (
+            <span className={badgeClass('danger')} data-testid="tool-queries-failed">
+              {t('assistant.queriesFailed', { count: failed })}
+            </span>
+          ) : null}
         </>
       }
     >

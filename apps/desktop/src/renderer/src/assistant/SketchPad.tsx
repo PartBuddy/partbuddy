@@ -375,6 +375,13 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
 
   // Sketches kept in the project (F10), read when the menu opens.
   const [kept, setKept] = useState<KeptSketch[] | null>(null);
+  // Read once on opening too: with none sent yet the button is off instead of a dead end (audit C-14).
+  useEffect(() => {
+    void platform()
+      .sketches.list()
+      .then(setKept)
+      .catch(() => undefined);
+  }, []);
   const openKept = async (id: string) => {
     const state = await platform().sketches.load(id);
     if (!state) return;
@@ -590,7 +597,8 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
         if (!next) onClose();
       }}
       isDismissable
-      className={`${overlayClass} overflow-y-auto pb-4 [@media(max-height:720px)]:pt-4`}
+      // Centred and within the window: the paper shrinks with the window's height (audit N-03).
+      className={`${overlayClass} items-center! overflow-y-auto py-4!`}
     >
       <Modal className={modalClass('xl')}>
         <Dialog className="outline-none" data-testid="sketch-pad">
@@ -726,7 +734,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
                 if (open) void platform().sketches.list().then(setKept);
               }}
             >
-              <IconButton size="md" tone="secondary" label={t('assistant.sketch.kept')} data-testid="sketch-kept">
+              <IconButton size="md" tone="secondary" label={t('assistant.sketch.kept')} tooltip={kept?.length === 0 ? t('assistant.sketch.keptNone') : undefined} isDisabled={kept?.length === 0} data-testid="sketch-kept">
                 <IconHistory className="size-icon" aria-hidden />
               </IconButton>
               <Popover placement="bottom end" offset={POPOVER_OFFSET} className={popoverClass}>
@@ -787,7 +795,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
               height={SKETCH_SIZE.height * 2}
               role="img"
               aria-label={t('assistant.sketch.canvas', { count: items.length })}
-              className={`block aspect-[640/420] w-full touch-none rounded-md border border-border-strong ${tool === 'select' ? 'cursor-default' : 'cursor-crosshair'}`}
+              className={`mx-auto block aspect-[640/420] w-full max-w-[calc((100dvh_-_19rem)*640/420)] touch-none rounded-md border border-border-strong ${tool === 'select' ? 'cursor-default' : 'cursor-crosshair'}`}
               data-testid="sketch-canvas"
               data-items={items.length}
               data-selected={selected ?? ''}

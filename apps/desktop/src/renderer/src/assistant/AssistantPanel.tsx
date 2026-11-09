@@ -1,5 +1,6 @@
 import {
   IconAlertTriangle,
+  IconFileText,
   IconArrowDown,
   IconArrowUp,
   IconArrowUpRight,
@@ -28,7 +29,8 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { selectionLabel, selectionName, selectionsOf } from '../viewer/viewState';
 import { Button, IconButton, pressable } from '../ui/Button';
-import { tooltipClass } from '../ui/Tooltip';
+import { Tip, tooltipClass } from '../ui/Tooltip';
+import { DialogClose } from '../ui/Dialog';
 import { UnitInput } from '../ui/Field';
 import { Busy } from '../ui/Feedback';
 import { ChatResizer, useChatWidth } from '../shell/ChatResizer';
@@ -299,7 +301,7 @@ function Item({
             {t('assistant.failed.title')}
           </p>
           <p className="text-sm text-text-muted">
-            {t(`assistant.failed.reason.${FAILURE_REASONS.has(item.detail) ? item.detail : 'other'}`)} {t('assistant.failed.log')}
+            {t(`assistant.failed.reason.${FAILURE_REASONS.has(item.detail) ? item.detail : 'other'}`)}
           </p>
           {/* Signed out mid-chat: the way back sits in the card; the sign-in notice is far up the chat. */}
           {item.detail === 'signedOut' ? (
@@ -314,12 +316,25 @@ function Item({
               {t('assistant.signIn')}
             </Button>
           ) : null}
-          {retry ? (
-            <Button onPress={retry} data-testid="turn-retry">
-              <IconRefresh className="size-icon-sm" aria-hidden />
-              {t('assistant.failed.retry')}
+          <div className="flex flex-wrap gap-2">
+            {retry ? (
+              <Button onPress={retry} data-testid="turn-retry">
+                <IconRefresh className="size-icon-sm" aria-hidden />
+                {t('assistant.failed.retry')}
+              </Button>
+            ) : null}
+            {/* The details are one click away, not a path to look up (audit C-04). */}
+            <Button
+              variant="quiet"
+              onPress={() => {
+                void platform().settings.revealLog();
+              }}
+              data-testid="turn-log"
+            >
+              <IconFileText className="size-icon-sm" aria-hidden />
+              {t('assistant.failed.openLog')}
             </Button>
-          ) : null}
+          </div>
         </div>
       );
     case 'session':
@@ -385,7 +400,7 @@ function dragsPicture(data: DataTransfer | null): boolean {
 }
 
 export function AssistantPanel() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const status = selectedStatus(useAssistant((s) => s.state));
   const items = useAssistant((s) => s.items);
   const connected = useStudio((s) => s.connection.state === 'connected');
@@ -420,6 +435,8 @@ export function AssistantPanel() {
   // A photo of a real object for the next message (F6); one picture goes along, a sketch or a photo.
   const [photo, setPhoto] = useState<SketchPicture | null>(null);
   const [photoFailed, setPhotoFailed] = useState(false);
+  // The file's own name and size on the chip, so two pictures can be told apart (audit C-12).
+  const [photoName, setPhotoName] = useState('');
   const photoInput = useRef<HTMLInputElement>(null);
   // A picture dragged over the chat; pasted and dropped pictures go along like a chosen photo.
   const [dropping, setDropping] = useState(false);
@@ -445,6 +462,7 @@ export function AssistantPanel() {
     }
     photoPicture(file).then(
       (picture) => {
+        setPhotoName(`${file.name || t('assistant.photo.pasted')} · ${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 }).format(file.size / 1024 / 1024)} MB`);
         setPhoto(picture);
         setSketch(null);
         setDrawing(null);
@@ -549,7 +567,7 @@ export function AssistantPanel() {
       </h2>
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={list} {...handlers} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="chat-list">
-      <div ref={content} className="cs-chat-list flex flex-col gap-2 p-3">
+      <div ref={content} className="cs-chat-list flex flex-col gap-2 p-3 pb-12">
         <Setup />
         {items.length === 0 && (status.state === 'ready' || busy) ? (
           // A way in for an empty chat (polish round 1): examples fill the input, they do not send.
@@ -596,16 +614,19 @@ export function AssistantPanel() {
       </div>
       </div>
       {!atEnd && items.length > 0 ? (
-        <AriaButton
-          onPress={() => {
-            toEnd(true);
-          }}
-          className={`absolute bottom-2 left-1/2 inline-flex h-control-md whitespace-nowrap -translate-x-1/2 animate-fade-in items-center gap-1 rounded-full border border-border bg-surface-raised px-3 text-sm text-text shadow-2 hover:bg-surface-hover pressed:bg-surface-pressed ${pressable}`}
-          data-testid="chat-to-latest"
-        >
-          <IconArrowDown className="size-icon-sm" aria-hidden />
-          {t('assistant.scroll.toLatest')}
-        </AriaButton>
+        // A round arrow, its words in the tooltip: it covers no button of the last card (audit C-01, C-20).
+        <Tip label={t('assistant.scroll.toLatest')}>
+          <AriaButton
+            aria-label={t('assistant.scroll.toLatest')}
+            onPress={() => {
+              toEnd(true);
+            }}
+            className={`absolute bottom-2 left-1/2 inline-flex size-control-md -translate-x-1/2 animate-fade-in items-center justify-center rounded-full border border-border bg-surface-raised text-text shadow-2 hover:bg-surface-hover pressed:bg-surface-pressed ${pressable}`}
+            data-testid="chat-to-latest"
+          >
+            <IconArrowDown className="size-icon-sm" aria-hidden />
+          </AriaButton>
+        </Tip>
       ) : null}
       </div>
       <Form
@@ -700,8 +721,9 @@ export function AssistantPanel() {
                   >
                     <img src={photo.thumbnail} alt="" className="block h-control-lg w-auto" draggable={false} />
                   </AriaButton>
-                  <span className="truncate" title={t('assistant.photo.goesWith')}>
-                    {t('assistant.photo.button')}
+                  <span className="truncate" title={`${photoName}
+${t('assistant.photo.goesWith')}`}>
+                    {photoName}
                   </span>
                   <IconButton
                     label={t('assistant.photo.remove')}
@@ -924,11 +946,15 @@ export function AssistantPanel() {
             URL.revokeObjectURL(shownPhoto);
             setShownPhoto(null);
           }}
-          className="fixed inset-0 z-10 flex items-center justify-center bg-overlay p-6 entering:animate-fade-in"
+          // A darker backdrop than a dialog's: the picture is the only thing to look at (audit C-13).
+          className="fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-6 entering:animate-fade-in"
         >
-          <Modal className="max-h-full max-w-full overflow-hidden rounded-lg border border-border bg-surface-raised shadow-3 entering:animate-dialog-in">
+          <Modal className="relative max-h-full max-w-full overflow-hidden rounded-lg border border-border bg-surface-raised shadow-3 entering:animate-dialog-in">
             <Dialog aria-label={t('assistant.photo.show')} className="outline-none" data-testid="photo-large">
-              <img src={shownPhoto} alt="" className="block max-h-[calc(100dvh_-_3rem)] max-w-full object-contain" />
+              <img src={shownPhoto} alt="" className="block max-h-[90vh] min-h-[min(60vh,30rem)] max-w-[90vw] object-contain" />
+              <span className="absolute top-2 right-2 rounded-md bg-surface-raised/90 shadow-1">
+                <DialogClose />
+              </span>
             </Dialog>
           </Modal>
         </ModalOverlay>

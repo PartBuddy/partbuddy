@@ -130,7 +130,7 @@ async function designInRounds(id: string, port: number, request: string, photo?:
       await card.scrollIntoViewIfNeeded();
       await card.screenshot({ path: test.info().outputPath(`round-${String(round)}-${kind}.png`) });
       rounds.push({ round, kind, card: await card.innerText() });
-      if (kind === 'plan') await card.getByRole('button', { name: 'Go' }).click();
+      if (kind === 'plan') await card.getByRole('button', { name: 'Build' }).click();
       else await answerRound(card, undefined);
       await waitForTurn(page);
     }

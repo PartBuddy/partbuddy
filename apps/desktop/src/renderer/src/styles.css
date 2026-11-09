@@ -136,11 +136,17 @@ body,
   font-size: var(--cs-text-xs);
   color: var(--cs-color-text-muted);
 }
+/* The language label in the interface face, like every other label (no monospace in the UI). */
+.cs-markdown [data-streamdown="code-block-header"] span {
+  font-family: var(--cs-font-sans);
+}
+/* Streamdown pads the body by 16 px under its header: with the label that read as an empty line (audit C-18). */
 .cs-markdown [data-streamdown="code-block-body"] {
   border: 0;
   border-radius: 0;
   background: transparent;
   font-size: var(--cs-text-sm);
+  padding: var(--cs-space-1) var(--cs-space-3) var(--cs-space-2);
 }
 /* A proportional face cannot line columns up anyway, so long lines wrap instead of scrolling. */
 .cs-markdown [data-streamdown="code-block-body"] pre {

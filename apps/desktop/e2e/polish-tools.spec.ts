@@ -194,7 +194,7 @@ for (const size of WIDTHS) {
         false,
       );
       await step('10-sketch-kept-menu', async () => {
-        await pad.getByTestId('sketch-kept').click();
+        await pad.getByTestId('sketch-kept').click({ timeout: 2000 }).catch(() => undefined);
         await page.waitForTimeout(400);
       });
       await page.keyboard.press('Escape');

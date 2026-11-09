@@ -69,7 +69,7 @@ export async function converse(page: Page, message: string, answer: string | und
       const text = ((await card.textContent()) ?? '').slice(0, 600);
       let answered: string;
       if (kind === 'plan') {
-        await card.getByRole('button', { name: 'Go' }).click();
+        await card.getByRole('button', { name: 'Build' }).click();
         answered = 'Go';
       } else {
         await answerRound(card, answer);

@@ -543,14 +543,14 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
     await page.screenshot({ path: test.info().outputPath('plan-card.png') });
 
-    await card.getByRole('button', { name: 'Go' }).click();
+    await card.getByRole('button', { name: 'Build' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
     // The first save names the new part after its project (B2) and mirrors it once more; picks wait for that.
     await expect(page.getByTestId('design-name')).toHaveText('Part', { timeout: 15_000 });
     await expect(page.getByTestId('step-card').getByTestId('step-text')).toHaveText('Box 20 × 20 × 10 mm');
     await expect(page.getByTestId('step-card').getByTestId('step-preview')).toHaveAttribute('src', /^data:image\//, { timeout: 10_000 });
-    await expect(card.getByTestId('question-answered')).toHaveText('Approved, the assistant builds it');
-    await expect(card.getByRole('button', { name: 'Go' })).toHaveCount(0);
+    await expect(card.getByTestId('question-answered')).toHaveText(/^(Approved, the assistant builds it|Built)$/);
+    await expect(card.getByRole('button', { name: 'Build' })).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('plan-approved.png') });
     // While the assistant works, Stop takes Send's place and the chip keeps its name (it shrank to a dot beside both).
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Take your time');
@@ -567,7 +567,7 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     await page.getByRole('button', { name: 'Send' }).click();
     const failed = page.getByTestId('turn-failed');
     await expect(failed).toContainText('An error stopped the assistant while it worked.', { timeout: 30_000 });
-    await expect(failed).toContainText('Settings › About');
+    await expect(failed.getByTestId('turn-log')).toHaveText('Show log file');
     await failed.getByTestId('turn-retry').click();
     await expect(page.getByTestId('turn-failed')).toHaveCount(2, { timeout: 30_000 });
     // Only the newest failure offers to send again.
@@ -2308,9 +2308,7 @@ test('a sent sketch is kept in the project, opens again, and a photo goes under 
       await page.mouse.up();
     };
     // Nothing kept yet; then a rectangle with a scale, sent.
-    await pad.getByTestId('sketch-kept').click();
-    await expect(page.getByText('No sketch sent from this project yet.')).toBeVisible();
-    await page.keyboard.press('Escape');
+    await expect(pad.getByTestId('sketch-kept')).toBeDisabled();
     await pad.getByTestId('sketch-tool-rect').click();
     await drag([0.2, 0.2], [0.6, 0.6]);
     await pad.getByTestId('sketch-scale').fill('5');

@@ -7,7 +7,7 @@ import type { MessageAnswer } from '../../../shared/contract';
 import { Button } from '../ui/Button';
 import { card } from './Fold';
 import { roundAnswers, roundMessage, type Round } from './round';
-import type { ConversationItem } from './store';
+import { selectedStatus, useAssistant, type ConversationItem } from './store';
 import { inputClass } from '../ui/Field';
 import { CheckMark, RadioMark, choiceRowClass } from '../ui/Choice';
 import { badgeClass } from '../ui/Feedback';
@@ -41,10 +41,12 @@ export function QuestionCard({ item, ready, answer, change }: Props) {
   const headingId = useId();
   const { question } = item;
   const open = !item.answered;
+  const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy';
 
   if (question.kind === 'ask') return <RoundCard round={question} open={open} ready={ready} answer={answer} />;
 
-  const outcome = item.choice === 'go' ? 'go' : item.choice === 'cancel' ? 'cancel' : 'change';
+  // "Builds" only while the assistant still works; afterwards the card says it is built (audit C-02).
+  const outcome = item.choice === 'go' ? (busy ? 'go' : 'built') : item.choice === 'cancel' ? 'cancel' : 'change';
   return (
     <section aria-labelledby={headingId} data-testid="question-card" data-kind="plan" className={`${card} gap-2 p-3 ${open ? 'border-accent' : 'border-border'}`}>
       <p id={headingId} className="flex items-center gap-1 text-xs font-medium text-text-muted">
@@ -73,7 +75,9 @@ export function QuestionCard({ item, ready, answer, change }: Props) {
             <IconPencil className="size-icon-sm" aria-hidden />
             {t('assistant.planCard.change')}
           </Button>
+          {/* Build leads, Change follows, Cancel is the quiet way out (audit C-15). */}
           <Button
+            variant="quiet"
             isDisabled={!ready}
             onPress={() => {
               answer(t('assistant.planCard.cancelMessage'), { question: question.id, choice: 'cancel' });
@@ -142,9 +146,17 @@ function RoundCard({ round, open, ready, answer }: { round: Round; open: boolean
             {entry.header ? <span className="text-xs font-medium uppercase text-text-muted">{entry.header}</span> : null}
             <p id={labelId} className="text-md text-text">
               {entry.question}
-              {entry.multiSelect && open ? <span className="text-xs text-text-muted"> · {t('assistant.question.several')}</span> : null}
             </p>
-            {!open ? null : entry.multiSelect ? (
+            {/* A line of its own, so it never breaks inside the question (audit C-16). */}
+            {entry.multiSelect && open ? <span className="text-xs text-text-muted">{t('assistant.question.several')}</span> : null}
+            {/* Answered: what was chosen stays under its question (audit C-11). */}
+            {!open ? (
+              picked.length > 0 || (other[i] ?? '').trim() ? (
+                <p className="text-sm text-text" data-testid="question-chosen">
+                  → {[...picked.map((n) => entry.options[n]?.label ?? ''), (other[i] ?? '').trim()].filter(Boolean).join(', ')}
+                </p>
+              ) : null
+            ) : entry.multiSelect ? (
               <div role="group" aria-labelledby={labelId} className="flex flex-col gap-hairline">
                 {entry.options.map((option, n) => (
                   <CheckboxField

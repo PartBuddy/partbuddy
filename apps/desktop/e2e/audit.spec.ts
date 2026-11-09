@@ -428,7 +428,7 @@ for (const run of RUNS) {
       });
       await step('sketch-kept-menu', async () => {
         await page.getByTestId('composer-sketch-open').click();
-        await page.getByTestId('sketch-kept').click();
+        await page.getByTestId('sketch-kept').click({ timeout: 2000 }).catch(() => undefined);
         await page.waitForTimeout(300);
       });
       await step('sketch-photo', async () => {

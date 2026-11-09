@@ -38,10 +38,14 @@ export function ToolCall({ item, framed = false }: { item: ToolItem; framed?: bo
         <span className="shrink-0 text-xs text-text-subtle">{state}</span>
       </span>
       {item.reason ? <span className="pl-5 text-text-muted">{item.reason}</span> : null}
-      {item.summary ? (
-        <span className="truncate pl-5 text-xs text-text-subtle" title={item.summary}>
-          {item.summary}
-        </span>
+      {item.summary && /^[[{]/.test(item.summary.trim()) ? (
+        // Raw call data only on request, wrapped instead of cut (audit C-03).
+        <details className="pl-5 text-xs text-text-subtle">
+          <summary className="cursor-default">{t('assistant.tool.details')}</summary>
+          <p className="break-all whitespace-pre-wrap">{item.summary}</p>
+        </details>
+      ) : item.summary ? (
+        <span className="pl-5 text-xs break-words text-text-subtle">{item.summary}</span>
       ) : null}
     </div>
   );
