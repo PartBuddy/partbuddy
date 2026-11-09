@@ -1,5 +1,5 @@
 import { parseTagged3mf } from '@partbuddy/geometry';
-import { IconBolt, IconNote, IconSparkles } from '@tabler/icons-react';
+import { IconBolt, IconChevronDown, IconChevronUp, IconNote, IconSparkles } from '@tabler/icons-react';
 import { BlockPanel, flatFace } from './BlockPanel';
 import { LogoPanel, logoTitleOf, useLogoSpot } from './LogoPanel';
 import { actionsFor } from './actionKinds';
@@ -10,7 +10,7 @@ import { MAX_NOTE_TEXT, useNoteCommand } from '../notes/NoteParts';
 import { sendToAssistant } from '../assistant/send';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Input, Label, RadioButton, RadioField, RadioGroup, TextField } from 'react-aria-components';
+import { Button as AriaButton, Input, Label, RadioButton, RadioField, RadioGroup, TextField } from 'react-aria-components';
 import { BufferAttribute, BufferGeometry, type Color } from 'three';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -23,7 +23,8 @@ import { blendWeights, GHOST_OPACITY, PREVIEW_BLEND } from './blend';
 import { SelectionInfo } from './SelectionInfo';
 import { selectionName, selectionOf, selectionsOf } from './viewState';
 import { dimensionFor, handleOf } from './dimensionOf';
-import { Button } from '../ui/Button';
+import { Button, iconButtonClass } from '../ui/Button';
+import { Tip } from '../ui/Tooltip';
 import { inputClass, fieldLabelClass } from '../ui/Field';
 import { badgeClass } from '../ui/Feedback';
 import { RadioMark, choiceRowClass } from '../ui/Choice';
@@ -84,6 +85,16 @@ export function SelectionDock({ bodies }: { bodies: BodyModel[] }) {
 }
 
 /** One group of the dock's actions under a small heading. */
+/** Kept in the renderer's localStorage: the dock folded to its head, so it covers less of the part. */
+const DOCK_FOLDED_KEY = 'partbuddy.dockFolded';
+function readFolded(): boolean {
+  try {
+    return window.localStorage.getItem(DOCK_FOLDED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 /** Kept in the renderer's localStorage: the dock's first-pick hint was read. */
 const DOCK_HINT_KEY = 'partbuddy.dockHintSeen';
 
@@ -138,6 +149,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
   // The ghost of an open action, which takes the place of the dimension preview.
   const [actionGhost, setActionGhost] = useState<Uint8Array | null>(null);
   const [wish, setWish] = useState('');
+  const [folded, setFolded] = useState(readFolded);
   // The same words kept as a note on the one picked spot, for later or for the assistant to read.
   const runNote = useNoteCommand();
   const latest = useRef(0);
@@ -300,12 +312,36 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
         ) : (
           <SelectionInfo bodies={bodies} selection={selection} />
         )}
-        {picks.length > 1 ? (
-          <span className={badgeClass('accent')} data-testid="hud-count">
-            {t('hud.selected', { count: picks.length })}
-          </span>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-1">
+          {picks.length > 1 ? (
+            <span className={badgeClass('accent')} data-testid="hud-count">
+              {t('hud.selected', { count: picks.length })}
+            </span>
+          ) : null}
+          {/* Folded to its head the dock leaves the part free; it stays so until unfolded. */}
+          <Tip label={t(folded ? 'hud.unfold' : 'hud.fold')}>
+            <AriaButton
+              aria-label={t(folded ? 'hud.unfold' : 'hud.fold')}
+              aria-expanded={!folded}
+              onPress={() => {
+                const next = !folded;
+                setFolded(next);
+                try {
+                  window.localStorage.setItem(DOCK_FOLDED_KEY, next ? '1' : '0');
+                } catch {
+                  // Not kept: the dock still folds for now.
+                }
+              }}
+              className={iconButtonClass('sm')}
+              data-testid="hud-fold"
+            >
+              {folded ? <IconChevronUp className="size-icon-sm" aria-hidden /> : <IconChevronDown className="size-icon-sm" aria-hidden />}
+            </AriaButton>
+          </Tip>
+        </div>
       </div>
+      {folded ? null : (
+      <>
       <DockHint />
       {picks.length === 2 ? <MeasureLine bodies={bodies} picks={picks} /> : null}
       <div className="flex flex-wrap items-start gap-3">
@@ -415,6 +451,8 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
           ) : null}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
