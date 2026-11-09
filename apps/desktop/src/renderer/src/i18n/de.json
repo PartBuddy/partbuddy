@@ -12,6 +12,10 @@
       "saved": "Gespeichert",
       "failed": "Nicht gespeichert",
       "hint": "PartBuddy speichert das Teil nach jeder Änderung."
+    },
+    "crashed": {
+      "text": "PartBuddy ist auf einen Fehler gestoßen. Dein Teil bleibt erhalten, der Fehler steht im Protokoll.",
+      "reload": "Neu laden"
     }
   },
   "units": {

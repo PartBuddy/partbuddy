@@ -12,6 +12,10 @@
       "saved": "Saved",
       "failed": "Not saved",
       "hint": "PartBuddy saves the part after every change."
+    },
+    "crashed": {
+      "text": "PartBuddy ran into an error. Your part is kept, the error is in the log.",
+      "reload": "Reload"
     }
   },
   "units": {
