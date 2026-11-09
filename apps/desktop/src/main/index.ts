@@ -199,6 +199,13 @@ function createWindow(): BrowserWindow {
     if (url.startsWith('https://')) void shell.openExternal(url);
     return { action: 'deny' };
   });
+  // Errors of the interface land in the log too, or a white window leaves nothing to go on.
+  window.webContents.on('console-message', ({ level, message }) => {
+    if (level === 'error') log(`interface error: ${message.slice(0, 4000)}`);
+  });
+  window.webContents.on('render-process-gone', (_event, details) => {
+    log(`interface process gone: ${details.reason} (exit code ${String(details.exitCode)})`);
+  });
   window.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith(rendererOrigin)) event.preventDefault();
   });
