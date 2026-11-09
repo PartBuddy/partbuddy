@@ -119,7 +119,7 @@ describe('SVG drawings for the assistant', () => {
     expect(steps[2]?.params).toMatchObject({ distance: '3 mm', operation: 'new', body_name: 'Star' });
     // Without a face only as a part; an unknown fill names the drawing's fills.
     expect((await tools.callTool('partbuddy_place_drawing', { drawing: id, mode: 'emboss', depth: 1 })).isError).toBe(true);
-    expect((await tools.callTool('partbuddy_place_drawing', { drawing: id, mode: 'part', depth: 1, fills: ['#123456'] })).content[0]).toMatchObject({ text: expect.stringContaining('#ffffff, #000000') as string });
+    expect((await tools.callTool('partbuddy_place_drawing', { drawing: id, mode: 'part', depth: 1, fills: ['#123456'] })).content[0]).toMatchObject({ text: expect.stringContaining("the drawing's fills are #000000") as string });
   });
 
   it('tells the model the exact facts, what was left out and how to build it', () => {

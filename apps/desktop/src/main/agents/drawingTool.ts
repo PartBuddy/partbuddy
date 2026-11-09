@@ -113,6 +113,7 @@ export function drawingNote(id: string, kept: KeptDrawing, skipped: Drawing['ski
     `${mm(facts.width)} × ${mm(facts.height)} mm as the user sized it, ${String(facts.loops)} closed loop${facts.loops === 1 ? '' : 's'}, ` +
     `${String(facts.holes)} of them hole${facts.holes === 1 ? '' : 's'}; fills ${colours}.` +
     (left.length > 0 ? ` Left out because they have no area: ${left.join(', ')}.` : '') +
+    (skipped.backgrounds ? ' Left out as no part of the drawing: a light sheet or a frame around it.' : '') +
     ` As a logo on a face (engraved, built up, in colours, centred), place it with \`${PLACE_DRAWING_TOOL}\` {drawing: "${id}", body, point, normal, mode, depth` +
     (facts.colours.length > 1 ? ', colours: true for a body per fill' + (facts.colours.length > 2 ? ', colours_max for fewer filaments' : '') : '') +
     `, centre}: PartBuddy builds it exactly; \`${MOVE_DRAWING_TOOL}\` moves it afterwards. ` +

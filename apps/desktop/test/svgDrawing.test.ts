@@ -40,7 +40,7 @@ describe('SVG drawings', () => {
     const d = drawing(fixture('illustrator.svg'));
     // The black line and polyline (stroke 2, butt ends) come last, painted over the fills.
     expect(drawingColours(d)).toEqual(['#1d71b8', '#ffd500', '#e30613', '#000000']);
-    expect(d.skipped).toEqual({ strokes: 0, texts: 1, images: 0 });
+    expect(d.skipped).toEqual({ strokes: 0, texts: 1, images: 0, backgrounds: 0 });
     // px without a unit: no physical size.
     expect(naturalWidth(d)).toBeNull();
     // Butt ends reach past their end points by half the width across the line: the polyline's at (0, 0), the line's at (200, 100).
@@ -131,7 +131,7 @@ describe('line icons', () => {
     const d = drawing(fixture('tabler-rocket.svg'));
     expect(drawingColours(d)).toEqual(['#000000']);
     expect(d.shapes).toHaveLength(1);
-    expect(d.skipped).toEqual({ strokes: 1, texts: 0, images: 0 });
+    expect(d.skipped).toEqual({ strokes: 1, texts: 0, images: 0, backgrounds: 0 });
     // The drawn lines run from about 4 to 20; a stroke 2 wide reaches one further each way.
     expect(Math.abs(d.bounds.minX - 3)).toBeLessThan(0.1);
     expect(Math.abs(d.bounds.maxX - 21)).toBeLessThan(0.1);
@@ -176,5 +176,27 @@ describe('colours for the filaments', () => {
     expect(drawingColours(mergedColours(d, 3))).toEqual(['#1d71b8', '#e30613', '#ffd500']);
     expect(drawingColours(mergedColours(d, 2))).toHaveLength(2);
     expect(mergedColours(d, 9)).toBe(d);
+  });
+});
+
+describe('backgrounds and frames', () => {
+  const svg = (body: string) => drawing(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${body}</svg>`);
+  const star = '<path fill="#000000" d="M50 10L61 40H90L66 58L75 88L50 70L25 88L34 58L10 40H39Z"/>';
+
+  it('leaves out a white sheet behind the logo and a thin frame around it, and says so', () => {
+    const sheet = svg(`<rect width="100" height="100" fill="#ffffff"/>${star}`);
+    expect(drawingColours(sheet)).toEqual(['#000000']);
+    expect(sheet.skipped.backgrounds).toBe(1);
+    expect(sheet.bounds.minY).toBeCloseTo(10, 3);
+    // A frame drawn as a stroke along the edge, black like the star.
+    const framed = svg(`<rect x="1" y="1" width="98" height="98" fill="none" stroke="#000000" stroke-width="2"/>${star}`);
+    expect(framed.skipped.backgrounds).toBe(1);
+    expect(framed.bounds.minX).toBeCloseTo(10, 3);
+  });
+
+  it('keeps a coloured plate, a light shape that is part of the logo, and a drawing that is only a sheet', () => {
+    expect(svg(`<rect width="100" height="100" fill="#1d71b8"/>${star.replace('#000000', '#ffffff')}`).skipped.backgrounds).toBe(0);
+    expect(svg(`<circle cx="50" cy="50" r="50" fill="#ffffff"/>${star}`).skipped.backgrounds).toBe(0);
+    expect(svg('<rect width="100" height="100" fill="#ffffff"/>').shapes).toHaveLength(1);
   });
 });

@@ -509,7 +509,8 @@
   "drawingDetail": {
     "fine": "{places, plural, one {Eine Stelle ist} other {# Stellen sind}} schmaler als die Düse ({nozzle, number} mm), die schmalste {thinnest, number} mm: Sie drucken nicht sauber oder schließen sich. Ab {fineFrom, number} mm Breite passt alles.",
     "widen": "Auf {width, number} mm vergrößern",
-    "show": "Stellen zeigen"
+    "show": "Stellen zeigen",
+    "backdrop": "Hintergrund bzw. Rahmen um die Zeichnung weggelassen – er gehört nicht zum Logo."
   },
   "logoMove": {
     "title": "Logo „{name}“",

@@ -759,6 +759,11 @@ export function AssistantPanel() {
               ) : null}
             </div>
           ) : null}
+          {drawing && drawing.drawing.skipped.backgrounds > 0 ? (
+            <p className="px-1 text-xs text-text-muted" data-testid="composer-drawing-backdrop">
+              {t('drawingDetail.backdrop')}
+            </p>
+          ) : null}
           {drawing ? (
             <DrawingDetailNote
               drawing={drawing.drawing}

@@ -352,9 +352,9 @@ function colourSteps(block: LogoBlock, sketch: string): Step[] {
  * An SVG file as a logo: the clean drawing SolidCraft gets (svgDrawing.ts) and its width from the
  * file when it states one, or why the file cannot be one.
  */
-export function logoFrom(text: string): { svg: string; width: number | null } | { problem: DrawingProblem } {
+export function logoFrom(text: string): { svg: string; width: number | null; backgrounds: number } | { problem: DrawingProblem } {
   const result = parseDrawing(text);
   if (!result.ok) return { problem: result.problem };
   const width = naturalWidth(result.drawing);
-  return { svg: drawingSvg(result.drawing, width ?? 100), width };
+  return { svg: drawingSvg(result.drawing, width ?? 100), width, backgrounds: result.drawing.skipped.backgrounds };
 }
