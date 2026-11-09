@@ -46,6 +46,8 @@ describe('favourites and tags on the start page (P5)', () => {
   it('keeps favourites on top, finds tags and lists each tag once', () => {
     expect(sortProjects(projects, 'modified', 'de').map((p) => p.name)).toEqual(['Clip', 'Halter', 'Box']);
     expect(sortProjects(projects, 'name', 'de').map((p) => p.name)).toEqual(['Clip', 'Box', 'Halter']);
+    // Reversed, favourites still lead (audit A-18).
+    expect(sortProjects(projects, 'name', 'de', true).map((p) => p.name)).toEqual(['Clip', 'Halter', 'Box']);
     expect(matching(projects, 'kuche').map((p) => p.name)).toEqual(['Clip']);
     expect(tagsOf(projects, 'de')).toEqual(['Garage', 'Küche']);
     expect(parseTags(' Garage, ,Küche ,')).toEqual(['Garage', 'Küche']);

@@ -461,7 +461,8 @@ if (!app.requestSingleInstanceLock()) {
         systemLocale: app.getSystemLocale().slice(0, 40),
         projectsFolder: folder,
         projectsSource: override ? ('override' as const) : chosen ? ('setting' as const) : ('default' as const),
-        restartNeeded: resolve(folder) !== resolve(projects),
+        // Both as long paths: a short 8.3 path (ADMINI~1) of the same folder needs no restart (audit A-26).
+        restartNeeded: resolve(longPath(folder)) !== resolve(projects),
         setupDone: !setupNeeded || general.setupDone(),
       };
     };

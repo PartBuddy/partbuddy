@@ -1,4 +1,4 @@
-import { IconAlertTriangle, IconArrowsSort, IconChevronDown, IconCopy, IconCube, IconDots, IconFileExport, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPencil, IconSearch, IconStar, IconStarFilled, IconTags, IconTrash, IconX } from '@tabler/icons-react';
+import { IconAlertTriangle, IconArrowsDownUp, IconArrowsSort, IconChevronDown, IconCopy, IconCube, IconDots, IconFileExport, IconFileImport, IconFilePlus, IconFolderOpen, IconFolderSearch, IconPencil, IconSearch, IconStar, IconStarFilled, IconTags, IconTrash, IconX } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Heading, Input, ListBox, ListBoxItem, Menu, MenuItem, MenuTrigger, Popover, SearchField, Select, SelectValue, Separator, ToggleButton } from 'react-aria-components';
@@ -41,6 +41,21 @@ function storedSort(): ProjectSort {
     return 'modified';
   }
 }
+const REVERSED_KEY = 'partbuddy.homeSortReversed';
+function storedReversed(): boolean {
+  try {
+    return window.localStorage.getItem(REVERSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function keepReversed(reversed: boolean): void {
+  try {
+    window.localStorage.setItem(REVERSED_KEY, reversed ? '1' : '0');
+  } catch {
+    // Without storage the direction is only kept until the window closes.
+  }
+}
 function keepSort(sort: ProjectSort): void {
   try {
     window.localStorage.setItem(SORT_KEY, sort);
@@ -68,6 +83,7 @@ export function HomePage() {
   const [current, setCurrent] = useState<ProjectInfo>(null);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<ProjectSort>(storedSort);
+  const [reversed, setReversed] = useState(storedReversed);
   const [dialog, setDialog] = useState<{ kind: 'rename' | 'trash' | 'tags'; project: ProjectEntry } | null>(null);
   const [tag, setTag] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -122,8 +138,8 @@ export function HomePage() {
   const tags = useMemo(() => tagsOf(projects ?? [], i18n.language), [projects, i18n.language]);
   const shown = useMemo(() => {
     const tagged = tag === null ? (projects ?? []) : (projects ?? []).filter((project) => project.tags.some((own) => own.toLocaleLowerCase() === tag.toLocaleLowerCase()));
-    return sortProjects(matching(tagged, query), sort, i18n.language);
-  }, [projects, query, sort, tag, i18n.language]);
+    return sortProjects(matching(tagged, query), sort, i18n.language, reversed);
+  }, [projects, query, sort, tag, reversed, i18n.language]);
   // The search narrows the templates too (audit A-16).
   const templates = useMemo(() => {
     const words = query.trim().toLocaleLowerCase(i18n.language);
@@ -192,6 +208,20 @@ export function HomePage() {
               </ListBox>
             </Popover>
           </Select>
+          <Tip label={t('home.reverse')}>
+            <ToggleButton
+              aria-label={t('home.reverse')}
+              isSelected={reversed}
+              onChange={(next) => {
+                setReversed(next);
+                keepReversed(next);
+              }}
+              className={`${iconButtonClass('md')} selected:bg-surface-selected selected:text-accent-text`}
+              data-testid="home-sort-reverse"
+            >
+              <IconArrowsDownUp className="size-icon-sm" aria-hidden />
+            </ToggleButton>
+          </Tip>
           <Button variant="primary" isDisabled={!ready} onPress={() => run(() => api.create())} data-testid="home-new">
             <IconFilePlus className="size-icon" aria-hidden />
             {t('project.new')}

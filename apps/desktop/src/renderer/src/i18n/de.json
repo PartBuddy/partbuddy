@@ -653,7 +653,10 @@
     "renameLabel": "Neuer Name für {name}",
     "hideShort": "Ausblenden",
     "showShort": "Einblenden",
-    "focus": "Heranzoomen"
+    "focus": "Heranzoomen",
+    "isolate": "Isolieren",
+    "showAll": "Alle Körper zeigen",
+    "resize": "Breite der Struktur"
   },
   "parameters": {
     "title": "Parameter ({count})",
@@ -912,7 +915,8 @@
         "del": "Entf",
         "drag": "Linke Maustaste ziehen",
         "rightDrag": "Rechte Maustaste ziehen",
-        "wheel": "Mausrad"
+        "wheel": "Mausrad",
+        "space": "Leertaste"
       }
     },
     "keywords": {
@@ -1233,7 +1237,8 @@
       "title": "SolidCraft läuft nicht",
       "body": "Projekte lassen sich erst öffnen, anlegen und importieren, wenn SolidCraft läuft.",
       "settings": "SolidCraft einrichten …"
-    }
+    },
+    "reverse": "Reihenfolge umkehren"
   },
   "versions": {
     "title": "Versionen",
