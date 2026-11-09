@@ -54,6 +54,7 @@
   "viewer": {
     "canvasLabel": "3D view of the design",
     "selection": "Selection",
+    "flatFace": "Flat face {across, number} × {up, number} mm",
     "surface": {
       "plane": "Plane",
       "cylinder": "Cylinder",

@@ -463,7 +463,7 @@ test('the view switches display modes and opens a section with its own controls'
   for (const [x, y] of [[0.5, 0.6], [0.45, 0.65], [0.6, 0.6], [0.55, 0.7], [0.4, 0.6]] as const) {
     await page.mouse.click(view.x + view.width * x, view.y + view.height * y);
     await page.waitForTimeout(300);
-    if ((await page.getByTestId('selected-face').count()) > 0 && /^Plane/.test((await page.getByTestId('selected-face').textContent()) ?? '')) break;
+    if ((await page.getByTestId('selected-face').count()) > 0 && /^(Plane|Flat face)/.test((await page.getByTestId('selected-face').textContent()) ?? '')) break;
   }
   await page.getByTestId('section').click();
   await panel.getByTestId('section-face').click();

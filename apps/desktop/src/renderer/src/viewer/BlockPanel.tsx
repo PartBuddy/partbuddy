@@ -91,9 +91,9 @@ export function flatFace(bodies: BodyModel[], picks: Pick[]): { body: string; po
 /**
  * Where a block can go on its face (decided 2026-11-09, like a logo): the face's own frame (the
  * one the block is built in, planeAt) and the face's middle in it, from the face's mesh points,
- * as an offset from the clicked point.
+ * as an offset from the clicked point, and its size across and up.
  */
-function facePlace(body: BodyModel, face: number, point: Vec, normal: Vec): { x: Vec; y: Vec; middle: [number, number] } {
+export function facePlace(body: BodyModel, face: number, point: Vec, normal: Vec): { x: Vec; y: Vec; middle: [number, number]; size: [number, number] } {
   const { x_dir: x, y_dir: y } = planeAt(point, normal);
   const positions = body.model.geometry.getAttribute('position');
   const faces = body.model.vertexFaces;
@@ -104,7 +104,8 @@ function facePlace(body: BodyModel, face: number, point: Vec, normal: Vec): { x:
     const [u, v] = [dx * x[0] + dy * x[1] + dz * x[2], dx * y[0] + dy * y[1] + dz * y[2]];
     [minU, minV, maxU, maxV] = [Math.min(minU, u), Math.min(minV, v), Math.max(maxU, u), Math.max(maxV, v)];
   }
-  return { x, y, middle: Number.isFinite(minU) ? [(minU + maxU) / 2, (minV + maxV) / 2] : [0, 0] };
+  if (!Number.isFinite(minU)) return { x, y, middle: [0, 0], size: [0, 0] };
+  return { x, y, middle: [(minU + maxU) / 2, (minV + maxV) / 2], size: [maxU - minU, maxV - minV] };
 }
 
 const round2 = (value: number) => Math.round(value * 100) / 100 || 0;
