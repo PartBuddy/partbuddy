@@ -531,6 +531,66 @@ test('a joint moves with its slider and goes back to as designed (ADR 0027)', as
   await expect(page.getByTestId('joint-error')).toHaveCount(0);
 });
 
+test('a joint plays through its range, is held where it is paused and stays as it was when the panel closes', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.bodies = ['CableClip', 'Second clip'];
+  fake.occurrences = new Map([
+    [1, 'CableClip'],
+    [2, 'Second clip'],
+  ]);
+  fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [0, 1, 0] }, values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+  await fake.start();
+  const { page } = launched;
+  await lookAgain(page);
+  await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
+  await page.getByTestId('joints').click();
+  const panel = page.getByTestId('joint-panel');
+  const shown = async () => Number(await panel.getByTestId('joint-value').getAttribute('data-shown'));
+  const play = panel.getByTestId('joint-play');
+  await expect(play).toHaveAccessibleName('Play Hinge');
+  // Faster, and starting over at the end instead of turning round.
+  await panel.getByRole('radio', { name: '2×' }).click();
+  await panel.getByTestId('joint-mode-loop').click();
+  await expect(panel.getByTestId('joint-mode-loop')).toHaveAttribute('aria-checked', 'true');
+  await play.click();
+  await expect(play).toHaveAttribute('data-playing', 'true');
+  await expect(play).toHaveAccessibleName('Pause Hinge');
+  // The part moves in the view, and keeps moving; SolidCraft is not driven while it plays.
+  await expect.poll(shown).toBeLessThan(-5);
+  await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joint-playing.png') });
+  const first = await shown();
+  await expect.poll(shown).not.toBe(first);
+  expect(fake.joints[0]?.values[0]?.value).toBe(0);
+  // Paused, the joint is held there: driven in SolidCraft, and the light says it is not as designed.
+  await play.click();
+  await expect(play).toHaveAttribute('data-playing', 'false');
+  await expect.poll(() => fake?.joints[0]?.values[0]?.value).not.toBe(0);
+  const held = fake.joints[0]?.values[0]?.value ?? 0;
+  expect(held).toBeLessThan(0);
+  expect(held).toBeGreaterThanOrEqual(-180);
+  await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue(String(Math.round(held)));
+  await page.getByTestId('print-check').click();
+  const findings = page.getByTestId('print-check-panel');
+  await expect(findings.locator('[data-kind="posed"]')).toContainText('Hinge stands at');
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(findings).toBeHidden({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  await panel.getByTestId('joint-reset').click();
+  await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(0);
+  await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue('0');
+  // Closing the panel while it plays leaves the joint as it was.
+  await play.click();
+  await expect.poll(shown).toBeLessThan(-5);
+  await page.getByTestId('joints').click();
+  await expect(panel).toHaveCount(0);
+  await page.getByTestId('joints').click();
+  await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue('0');
+  expect(fake.joints[0]?.values[0]?.value).toBe(0);
+  await expect(panel.getByTestId('joint-error')).toHaveCount(0);
+});
+
 test('a print of two parts switches to the plate, explodes along its assembly and plays the assembly', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });

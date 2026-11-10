@@ -85,6 +85,8 @@ export class FakeSolidCraft {
   quitRequested = false;
   /** Joints as `joint.list` reports them; `joint.drive` sets a value within its limits. */
   joints: { id: number; name: string; type: string; a?: number; b?: number; frame_a?: { origin: [number, number, number]; z: [number, number, number] }; values: { name: string; unit: 'deg' | 'mm'; value: number; limits: [number, number] | null }[] }[] = [];
+  /** The body each occurrence places, by occurrence id: what a joint's `a` and `b` name, so the mirror knows which bodies it moves. */
+  occurrences = new Map<number, string>();
   /** Where `joint.sweep` stops on its way to a value, by that value; a sweep to any other value runs through. */
   sweepStops = new Map<number, { stopped_at: number; stopped_by: { a: string; b: string; at: [number, number, number] } }>();
   /** User parameters as `parameters.list` reports them; `parameters.change` sets plain values. */
@@ -252,7 +254,14 @@ export class FakeSolidCraft {
       }
       case 'component.list':
         // Every body in the design itself, as a part made in SolidCraft: no inserted standard parts.
-        return { active: 0, components: [{ id: 0, name: 'Design', parent: null, bodies: [...this.bodies], children: [] }] };
+        return {
+          active: 0,
+          components: [
+            { id: 0, name: 'Design', parent: null, bodies: [...this.bodies], children: [] },
+            // Listed beside the design, not under it: they place bodies without counting as components that hold parts.
+            ...[...this.occurrences].map(([id, body]) => ({ id: 1000 + id, name: body, parent: null, bodies: [body], occurrences: [{ id, name: `${body}:1` }] })),
+          ],
+        };
       case 'joint.list':
         return { joints: this.joints, conflicts: [], errors: [], floating: [], links: [] };
       case 'joint.sweep':

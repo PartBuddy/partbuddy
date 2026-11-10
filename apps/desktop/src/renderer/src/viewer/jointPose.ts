@@ -38,3 +38,20 @@ export function rotate([x, y, z, w]: [number, number, number, number], [px, py, 
   const tz = 2 * (x * py - y * px);
   return [px + w * tx + (y * tz - z * ty), py + w * ty + (z * tx - x * tz), pz + w * tz + (x * ty - y * tx)];
 }
+
+/** Seconds a joint takes from one end of its range to the other at normal speed. */
+export const TRAVEL_SECONDS = 2.5;
+
+/**
+ * One frame of a joint that plays: the value moved by `amount` in its direction. At an end of the
+ * range it turns round (`bounce`) or starts over at the other end (`loop`).
+ */
+export function playStep(value: number, direction: 1 | -1, [min, max]: [number, number], amount: number, mode: 'bounce' | 'loop'): { value: number; direction: 1 | -1 } {
+  const span = max - min;
+  if (!(span > 0)) return { value: min, direction };
+  const next = value + direction * Math.min(amount, span);
+  if (next >= min && next <= max) return { value: next, direction };
+  const over = next > max ? next - max : min - next;
+  if (mode === 'loop') return { value: next > max ? min + over : max - over, direction };
+  return next > max ? { value: max - over, direction: -1 } : { value: min + over, direction: 1 };
+}
