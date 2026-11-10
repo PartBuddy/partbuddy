@@ -57,6 +57,10 @@ describe('printer and material profiles (M7)', () => {
     const german = new PrintProfiles({ file: join(root, 'none.json'), designFile: () => null, log: () => undefined, printerName: () => 'Mein Drucker' });
     expect(german.settings().printers.map((printer) => printer.name)).toEqual(['Mein Drucker']);
     expect(printSettingsSchema.safeParse(german.settings()).success).toBe(true);
+    // A saved starting name follows the language; a name the user gave stays (audit A-02).
+    const saved = new PrintProfiles({ file: join(root, 'saved.json'), designFile: () => null, log: () => undefined, printerName: () => 'Mein Drucker' });
+    saved.save({ ...DEFAULT_PRINT_SETTINGS, printers: [...DEFAULT_PRINT_SETTINGS.printers, { id: 'mk4', name: 'Prusa MK4', bed: [250, 210, 220], nozzle: 0.4, layer: 0.2 }] });
+    expect(saved.settings().printers.map((printer) => printer.name)).toEqual(['Mein Drucker', 'Prusa MK4']);
   });
 
   it('holds the part material until the design has a file, then writes it next to the design', () => {

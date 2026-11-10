@@ -267,7 +267,60 @@ const GERMAN: Record<string, string> = {
 /** The body names in German (polish round 3); every step that names a body follows. */
 const GERMAN_BODIES: Record<string, string> = { Box: 'Box', Lid: 'Deckel', Housing: 'Gehäuse', 'Wall holder': 'Wandhalter', 'Cable clip': 'Kabelclip', Adapter: 'Adapter' };
 
-/** A step with its parameter comment and the bodies it names in German. */
+/** Feature and sketch names in German, so the timeline speaks the tree's language (audit B-03). */
+const GERMAN_FEATURES: Record<string, string> = {
+  ...GERMAN_BODIES,
+  'Bed chamfer': 'Fase am Bett',
+  Cable: 'Kabel',
+  'Corner radius': 'Eckenradius',
+  'Countersunk holes': 'Senkbohrungen',
+  Ear: 'Lasche',
+  'Ear corners': 'Laschenecken',
+  'Ear edges': 'Laschenkanten',
+  'Ear slot': 'Laschenschlitz',
+  'End chamfers': 'Endfasen',
+  'Finger notch': 'Griffmulde',
+  Floor: 'Boden',
+  'Floor slot': 'Bodenschlitz',
+  Hollow: 'Aushöhlen',
+  Boss: 'Schraubdom',
+  'Inner radius': 'Innenradius',
+  Insert: 'Einschmelzmutter',
+  'Lid bed chamfer': 'Deckel-Fase am Bett',
+  'Lid corners': 'Deckelecken',
+  'Lid edge radius': 'Deckel-Kantenradius',
+  Lip: 'Rand',
+  'Lip corners': 'Randecken',
+  'Lip inner corners': 'Rand-Innenecken',
+  'Lip inside': 'Rand innen',
+  Opening: 'Öffnung',
+  'Outer bend': 'Außenbogen',
+  'Outer corners': 'Außenecken',
+  Plate: 'Platte',
+  Profile: 'Profil',
+  'Rim radius': 'Randradius',
+  Ring: 'Ring',
+  'Root radius': 'Fußradius',
+  'Screw hole': 'Schraubloch',
+  'Screw points': 'Schraubpunkte',
+  'Soft edges': 'Weiche Kanten',
+  'Soft transition': 'Weicher Übergang',
+  Tab: 'Lasche',
+  'Tab corners': 'Laschenecken',
+  'Vent back': 'Lüftung hinten',
+  'Vent front': 'Lüftung vorn',
+};
+
+/** "Ear slot 2 end 1" → "Laschenschlitz 2 Ende 1": the base from the list, numbers kept. */
+export function germanFeatureName(name: string): string {
+  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)$/.exec(name);
+  const base = match?.[1] ?? name;
+  const german = GERMAN_FEATURES[base];
+  if (german === undefined) return name;
+  return german + (match?.[2] ?? '') + (match?.[3] ?? '').replace(' end ', ' Ende ');
+}
+
+/** A step with its parameter comment, the bodies and the features it names in German. */
 function inGerman(step: Step): Step {
   const params = { ...step.params };
   const comment = step.command === 'parameters.add' ? params.comment : undefined;
@@ -275,6 +328,8 @@ function inGerman(step: Step): Step {
   const body = (name: unknown) => (typeof name === 'string' ? (GERMAN_BODIES[name] ?? name) : name);
   for (const key of ['body_name', 'body'] as const) if (key in params) params[key] = body(params[key]);
   if (Array.isArray(params.targets)) params.targets = params.targets.map(body);
+  // A sketch is referred to by its name, so the reference follows the translation.
+  for (const key of ['name', 'sketch'] as const) if (step.command !== 'parameters.add' && typeof params[key] === 'string') params[key] = germanFeatureName(params[key]);
   return { ...step, params };
 }
 

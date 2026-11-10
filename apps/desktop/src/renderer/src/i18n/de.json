@@ -675,6 +675,7 @@
     "name": "Name",
     "value": "Wert",
     "invalid": "Eine Länge größer als 0 eingeben",
+    "discarded": "„{{value}}“ verworfen, {{kept}} bleibt",
     "fitted": "Vom Assistenten gewählt, folgt Düse und Schichthöhe des Druckers"
   },
   "timeline": {

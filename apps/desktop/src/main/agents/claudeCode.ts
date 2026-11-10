@@ -273,7 +273,7 @@ function roleOf(research: boolean): string {
     'Use only the partbuddy tools to inspect and change the design. Work in small visible steps:',
     'one sketch or one feature group per call. Units are millimetres.',
     'If PartBuddy refuses a tool, tell the user why and continue without it.',
-    'Answer in the language the user writes in.',
+    'Answer in the language the user writes in, and name bodies, features and sketches in it too: the structure tree and the timeline show these names.',
     VIEW_GUIDANCE,
     ASSEMBLY_GUIDANCE,
     QUESTION_GUIDANCE,
