@@ -51,12 +51,19 @@ const PARTS: Part[] = [
       'Baue ein Gehäuse mit Schiebedeckel für eine Platine 50 × 30 × 15 mm. Innen vier Schraubdome für M2,5 in den Ecken der Platine ' +
       '(Lochabstand 44 × 24 mm), Wandstärke 2 mm. Der Deckel soll mit 0,2 mm Spiel in einer Nut gleiten.',
   },
+  // Parts that move (ADR 0027): the request names no tool; the report says whether the assistant took partbuddy_mechanism.
+  {
+    id: '6-klappdose',
+    request:
+      'Baue eine flache Dose 60 × 40 × 20 mm mit einem Deckel, der über ein Scharnier an einer langen Seite aufklappt. ' +
+      'Dose und Deckel sollen zusammen in einem Stück druckbar sein, ohne Stützmaterial.',
+  },
 ];
 
 const PRINT_CHECK =
   'Prüfe, ob das Teil gut druckbar ist (Überhänge, Wandstärken, Passungen, Spiel), und nenne die beste Druckausrichtung. Ändere nichts.';
 
-for (const part of process.env.PARTBUDDY_PRACTICE === '1' ? PARTS : []) {
+for (const part of process.env.PARTBUDDY_PRACTICE === '1' ? PARTS.filter((entry) => !process.env.PARTBUDDY_PRACTICE_PART || entry.id === process.env.PARTBUDDY_PRACTICE_PART) : []) {
   test(`practice: ${part.id}`, async () => {
     test.setTimeout(45 * 60 * 1000);
     const work = mkdtempSync(join(tmpdir(), `partbuddy-practice-${part.id}-`));
@@ -73,6 +80,37 @@ for (const part of process.env.PARTBUDDY_PRACTICE === '1' ? PARTS : []) {
       report.build = await converse(page, part.request, part.answer);
       report.mesh = await page.getByTestId('mesh-summary').textContent();
       await page.screenshot({ path: test.info().outputPath('built.png') });
+      // Parts that move: the joints with their ranges, and the steps of the work log that made them.
+      report.steps = await page.getByText(/with its joint|Joint “|parts that can move/).allInnerTexts();
+      if ((await page.getByTestId('joints').count()) > 0) {
+        await page.getByTestId('joints').click();
+        const sliders = page.getByTestId('joint-panel').getByRole('slider');
+        const joints: unknown[] = [];
+        for (let i = 0; i < (await sliders.count()); i += 1) {
+          const slider = sliders.nth(i);
+          joints.push({ name: await slider.getAttribute('aria-label'), min: await slider.getAttribute('min'), max: await slider.getAttribute('max'), value: await slider.inputValue() });
+        }
+        report.joints = joints;
+        await page.screenshot({ path: test.info().outputPath('joints.png') });
+        // Opened as far as it goes, to see the lid stand.
+        if ((await sliders.count()) > 0) {
+          const first = sliders.first();
+          const start = await first.inputValue();
+          await first.focus();
+          await page.keyboard.press((await first.getAttribute('max')) === start ? 'Home' : 'End');
+          await expect(page.getByTestId('joint-reset')).toBeEnabled({ timeout: 60_000 });
+          await page.waitForTimeout(2000);
+          await page.screenshot({ path: test.info().outputPath('joint-at-end.png') });
+          await page.getByTestId('joint-reset').click();
+          await expect(page.getByTestId('joint-reset')).toBeDisabled({ timeout: 60_000 });
+        }
+        await page.getByTestId('joints').click();
+      } else {
+        report.joints = [];
+      }
+      await page.getByTestId('print-check').click();
+      report.findings = await page.getByTestId('print-check-panel').locator('[data-kind]').allInnerTexts();
+      await page.keyboard.press('Escape');
       await page.keyboard.press('0');
       await page.waitForTimeout(800);
       await page.screenshot({ path: test.info().outputPath('built-iso.png') });
