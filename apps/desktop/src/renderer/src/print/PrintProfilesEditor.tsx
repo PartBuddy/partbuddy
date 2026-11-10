@@ -1,5 +1,5 @@
-import { IconCopy, IconTrash } from '@tabler/icons-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { IconCopy, IconRuler2, IconTrash } from '@tabler/icons-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CheckboxButton,
@@ -261,22 +261,34 @@ function MaterialForm({
   );
 }
 
-/** The printer and material profiles as a form with Save and Cancel; in its dialog and in the settings (B6). */
-export function PrintProfilesEditor({ close }: { close: () => void }) {
+/** Changes wait this long, so typing a name writes the file once and not per letter. */
+const SAVE_DELAY_MS = 400;
+
+/**
+ * The printer and material profiles; every change applies at once, as in the other settings
+ * (audit A-23). A profile without a name is held back and says so until it has one again.
+ */
+export function PrintProfilesEditor() {
   const { t } = useTranslation();
   const part = useStudio((s) => s.print);
   const tab = useStudio((s) => s.profilesTab);
   const setTab = useStudio((s) => s.setProfilesTab);
-  const [draft, setDraft] = useState<PrintSettings | null>(null);
+  const [draft, setLoaded] = useState<PrintSettings | null>(null);
+  // The change still waiting for its save; written at once when the editor closes.
+  const pending = useRef<PrintSettings | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [materialId, setMaterialId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Measuring tolerances replaces the profiles; coming back puts the focus on its button again (APG dialog).
+  const [measuring, setMeasuring] = useState(false);
+  const [returned, setReturned] = useState(false);
   useEffect(() => {
     let live = true;
     void platform()
       .print.settings()
       .then((settings) => {
         if (!live) return;
-        setDraft(settings);
+        setLoaded(settings);
         setMaterialId(part?.material.id ?? settings.material);
       });
     return () => {
@@ -285,6 +297,36 @@ export function PrintProfilesEditor({ close }: { close: () => void }) {
     // Loaded once when the dialog opens; the draft is the user's from then on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const write = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    const next = pending.current;
+    pending.current = null;
+    if (!next) return;
+    const trimmed: PrintSettings = {
+      ...next,
+      printers: next.printers.map((item) => ({ ...item, name: item.name.trim() })),
+      materials: next.materials.map((item) => ({ ...item, name: item.name.trim() })),
+    };
+    platform()
+      .print.saveSettings(trimmed)
+      .then(() => {
+        setError(null);
+      })
+      .catch((reason: unknown) => {
+        console.warn('PartBuddy: saving the print profiles failed', reason);
+        setError(t('print.saveFailed'));
+      });
+  };
+  const writeRef = useRef(write);
+  writeRef.current = write;
+  // Closing the settings saves what is still waiting.
+  useEffect(
+    () => () => {
+      writeRef.current();
+    },
+    [],
+  );
   if (!draft) return <p className="text-sm text-text-muted">{t('print.loading')}</p>;
 
   const printer = draft.printers.find((item) => item.id === draft.printer) ?? draft.printers[0];
@@ -297,24 +339,35 @@ export function PrintProfilesEditor({ close }: { close: () => void }) {
     setDraft({ ...draft, materials: draft.materials.map((item) => (item.id === next.id ? next : item)) });
   };
   const invalid = [...draft.printers, ...draft.materials].some((item) => item.name.trim() === '');
-
-  const save = () => {
-    if (invalid) {
-      setError(t('print.nameMissing'));
+  function setDraft(next: PrintSettings) {
+    setLoaded(next);
+    if (timer.current) clearTimeout(timer.current);
+    // A missing name keeps the last saved profiles; the field says why.
+    if ([...next.printers, ...next.materials].some((item) => item.name.trim() === '')) {
+      pending.current = null;
       return;
     }
-    const trimmed: PrintSettings = {
-      ...draft,
-      printers: draft.printers.map((item) => ({ ...item, name: item.name.trim() })),
-      materials: draft.materials.map((item) => ({ ...item, name: item.name.trim() })),
-    };
-    platform()
-      .print.saveSettings(trimmed)
-      .then(close)
-      .catch(() => {
-        setError(t('print.saveFailed'));
-      });
-  };
+    pending.current = next;
+    timer.current = setTimeout(write, SAVE_DELAY_MS);
+  }
+
+  if (measuring) {
+    return (
+      <ToleranceAssistant
+        materials={draft.materials}
+        material={material.id}
+        printer={printer}
+        onApply={(next) => {
+          setMaterial(next);
+          setMaterialId(next.id);
+        }}
+        onClose={() => {
+          setMeasuring(false);
+          setReturned(true);
+        }}
+      />
+    );
+  }
 
   return (
     <>
@@ -415,31 +468,21 @@ export function PrintProfilesEditor({ close }: { close: () => void }) {
               }}
               onChange={setMaterial}
             />
-            <ToleranceAssistant
-              materials={draft.materials}
-              material={material.id}
-              printer={printer}
-              onApply={(next) => {
-                setMaterial(next);
-                setMaterialId(next.id);
-              }}
-            />
+            <Button
+              autoFocus={returned}
+              onFocus={() => setReturned(false)}
+              onPress={() => setMeasuring(true)} className="self-start" data-testid="tolerance-start">
+              <IconRuler2 className="size-icon-sm" aria-hidden />
+              {t('print.tolerance.start')}
+            </Button>
           </ProfileColumns>
         </TabPanel>
       </Tabs>
-      {error ? (
-        <p role="alert" className="text-sm text-danger">
-          {error}
+      {error || invalid ? (
+        <p role="alert" className="text-sm text-danger" data-testid="print-unsaved">
+          {error ?? t('print.nameMissing')}
         </p>
       ) : null}
-      <div className="flex justify-end gap-2">
-        <Button onPress={close} data-testid="print-cancel">
-          {t('print.cancel')}
-        </Button>
-        <Button variant="primary" onPress={save} data-testid="print-save">
-          {t('print.save')}
-        </Button>
-      </div>
     </>
   );
 }

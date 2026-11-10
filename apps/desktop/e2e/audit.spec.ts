@@ -328,7 +328,7 @@ for (const run of RUNS) {
       });
       for (const tab of ['printer', 'material']) {
         await step(`print-profiles-${tab}`, async () => {
-          if ((await page.getByTestId('print-save').count()) === 0) {
+          if ((await page.getByTestId('print-tab-printer').count()) === 0) {
             await page.getByTestId('material-chip').click();
             await page.getByTestId('print-profiles-open').click();
           }

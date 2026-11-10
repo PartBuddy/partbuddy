@@ -964,12 +964,11 @@
     },
     "defaultMaterial": "Default for new parts",
     "materialHint": "Starting values, not measured on your printer. Measure them with »Measure tolerances …« on three small test pieces; the assistant designs with these clearances.",
-    "nameMissing": "Every profile needs a name.",
+    "nameMissing": "Every profile needs a name. Until then the last saved profiles stay.",
     "saveFailed": "The profiles could not be saved.",
     "supportFree": "Design without support",
     "supportFreeHint": "The assistant chamfers edges facing the bed instead of rounding them, gives wide lying holes a teardrop roof and bridges countersinks that open downwards, so the slicer needs no support.",
     "cancel": "Cancel",
-    "save": "Save",
     "design": {
       "title": "Design well on its own",
       "hint": "What the assistant adds without being asked. It names it in one line after every step; in the chat you can turn it off for one project (\"no fillets\"), which goes before these switches. Sizes you name are always built exactly.",
@@ -1055,7 +1054,8 @@
         "hole": "Ø {size} mm: the reading is more than 1 mm off.",
         "overhang": "Overhang: not a step of the staircase.",
         "order": "The clearances must grow from clamp to turn. Check the steps you picked."
-      }
+      },
+      "backToMaterials": "Back to materials"
     }
   },
   "check": {
@@ -1117,7 +1117,6 @@
     "automatic": "Search automatically",
     "choose": "Choose program …",
     "restart": "Restart PartBuddy",
-    "close": "Done",
     "reading": "Checking SolidCraft …",
     "works": "PartBuddy works with this version.",
     "detailsTitle": "About SolidCraft versions"

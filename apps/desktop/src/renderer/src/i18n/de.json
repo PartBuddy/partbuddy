@@ -964,12 +964,11 @@
     },
     "defaultMaterial": "Standard für neue Teile",
     "materialHint": "Startwerte, nicht für deinen Drucker gemessen. Miss sie mit „Toleranzen einmessen …“ an drei kleinen Prüfkörpern nach; der Assistent baut mit diesen Spielen.",
-    "nameMissing": "Jedes Profil braucht einen Namen.",
+    "nameMissing": "Jedes Profil braucht einen Namen. Bis dahin bleibt der zuletzt gespeicherte Stand.",
     "supportFree": "Stützfrei konstruieren",
     "supportFreeHint": "Der Assistent gibt Kanten zum Druckbett eine Fase statt einer Rundung, gibt breiten liegenden Bohrungen ein Tropfendach und überbrückt Senkungen, die nach unten zeigen. So braucht der Slicer keine Stützen.",
     "saveFailed": "Die Profile konnten nicht gespeichert werden.",
     "cancel": "Abbrechen",
-    "save": "Speichern",
     "design": {
       "title": "Von sich aus gut konstruieren",
       "hint": "Was der Assistent ungefragt einbaut. Er nennt es nach jedem Schritt in einer Zeile; im Chat kannst du es für ein Projekt abwählen („keine Rundungen“), das geht diesen Schaltern vor. Maße, die du nennst, setzt er immer exakt um.",
@@ -1055,7 +1054,8 @@
         "hole": "Ø {size} mm: der Messwert liegt mehr als 1 mm daneben.",
         "overhang": "Überhang: keine Stufe der Treppe.",
         "order": "Die Spiele müssen von Klemmen bis Drehen wachsen. Prüfe die gewählten Stufen."
-      }
+      },
+      "backToMaterials": "Zurück zu Material"
     }
   },
   "check": {
@@ -1117,7 +1117,6 @@
     "automatic": "Automatisch suchen",
     "choose": "Programm wählen …",
     "restart": "PartBuddy neu starten",
-    "close": "Fertig",
     "reading": "SolidCraft wird geprüft …",
     "works": "Mit dieser Version arbeitet PartBuddy.",
     "detailsTitle": "Mehr zu den SolidCraft-Versionen"

@@ -1,14 +1,13 @@
-import { IconRuler2 } from '@tabler/icons-react';
-import { useEffect, useMemo, useState } from 'react';
+import { IconArrowLeft } from '@tabler/icons-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Heading, Label, Modal, ModalOverlay, NumberField } from 'react-aria-components';
+import { Heading, Label, NumberField } from 'react-aria-components';
 
 import { FIT_KINDS, type FitKind, type MaterialProfile, type PrinterProfile, type Slicer } from '../../../shared/contract';
 import { applyReadings, FIT_STEPS, HOLE_SIZES, OVERHANG_STEPS, type ToleranceReadings } from '../../../shared/tolerances';
 import { platform } from '../platform';
 import { Button } from '../ui/Button';
 import { SelectField } from '../ui/Choice';
-import { modalClass, overlayClass } from '../ui/Dialog';
 import { fieldLabelClass, UnitInput } from '../ui/Field';
 
 const STEPS = ['material', 'pieces', 'results', 'preview'] as const;
@@ -18,22 +17,24 @@ const NONE = 'none';
 /**
  * »Measure tolerances« (decided 2026-11-08): test pieces from SolidCraft for the printer in use, a
  * short print guide, the readings and a before/after preview. Applying writes the material into
- * the settings draft; it is saved with Save like any change, and Cancel leaves it as it was. Only
- * the material's design values change, never slicer settings.
+ * the material like any change. Only the material's design values change, never slicer settings.
+ * It takes the place of the profiles in the settings instead of a second dialog above them (audit
+ * N-05); Escape and "Back to materials" return there.
  */
 export function ToleranceAssistant({
   materials,
   material: initial,
   printer,
   onApply,
+  onClose,
 }: {
   materials: MaterialProfile[];
   material: string;
   printer: PrinterProfile;
   onApply: (material: MaterialProfile) => void;
+  onClose: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [materialId, setMaterialId] = useState(initial);
   const [readings, setReadings] = useState<ToleranceReadings>({ fits: {}, holes: HOLE_SIZES.map(() => null), overhang: null });
@@ -44,18 +45,14 @@ export function ToleranceAssistant({
   const step: Step = STEPS[index] ?? 'material';
   const material = materials.find((item) => item.id === materialId) ?? materials[0];
 
-  const start = () => {
-    setIndex(0);
-    setMaterialId(initial);
-    setReadings({ fits: {}, holes: HOLE_SIZES.map(() => null), overhang: null });
-    setStatus(null);
-    setPicture(null);
-    setOpen(true);
-  };
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    heading.current?.focus();
+  }, [index]);
 
   // The picture and the slicers are read when the step with the test pieces comes up.
   useEffect(() => {
-    if (!open || step !== 'pieces') return;
+    if (step !== 'pieces') return;
     let live = true;
     void platform()
       .print.testPiecesPicture({ nozzle: printer.nozzle, layer: printer.layer })
@@ -73,7 +70,7 @@ export function ToleranceAssistant({
     return () => {
       live = false;
     };
-  }, [open, step, printer.nozzle, printer.layer]);
+  }, [step, printer.nozzle, printer.layer]);
 
   if (!material) return null;
   const result = applyReadings(material, readings);
@@ -112,16 +109,24 @@ export function ToleranceAssistant({
   const last = index === STEPS.length - 1;
 
   return (
-    <>
-      <Button onPress={start} className="self-start" data-testid="tolerance-start">
-        <IconRuler2 className="size-icon-sm" aria-hidden />
-        {t('print.tolerance.start')}
-      </Button>
-      <ModalOverlay isOpen={open} onOpenChange={setOpen} isDismissable className={overlayClass.replace('z-10', 'z-20')}>
-        <Modal className={modalClass('lg')}>
-          <Dialog className="flex max-h-dialog-max flex-col gap-4 overflow-y-auto p-5 outline-none" data-testid="tolerance-assistant" data-step={step}>
+          <section
+            aria-labelledby="tolerance-title"
+            className="flex flex-col gap-4"
+            data-testid="tolerance-assistant"
+            data-step={step}
+            onKeyDown={(event) => {
+              // Escape goes back to the materials, not out of the settings.
+              if (event.key !== 'Escape' || event.defaultPrevented) return;
+              event.stopPropagation();
+              onClose();
+            }}
+          >
+            <Button onPress={onClose} className="self-start" data-testid="tolerance-cancel">
+              <IconArrowLeft className="size-icon-sm" aria-hidden />
+              {t('print.tolerance.backToMaterials')}
+            </Button>
             <div className="flex flex-col gap-1">
-              <Heading slot="title" className="text-lg font-semibold text-text">
+              <Heading ref={heading} id="tolerance-title" level={3} tabIndex={-1} className="text-lg font-semibold text-text outline-none">
                 {t('print.tolerance.title')}
               </Heading>
               <p className="text-sm text-text-muted tabular-nums">{t('print.tolerance.progress', { step: index + 1, count: STEPS.length, name: t(`print.tolerance.step.${step}`) })}</p>
@@ -244,9 +249,6 @@ export function ToleranceAssistant({
               </div>
             )}
             <div className="flex items-center gap-2 border-t border-border pt-3">
-              <Button onPress={() => setOpen(false)} data-testid="tolerance-cancel">
-                {t('print.cancel')}
-              </Button>
               <span className="flex-1" />
               {index > 0 ? (
                 <Button onPress={() => setIndex(index - 1)} data-testid="tolerance-back">
@@ -262,16 +264,13 @@ export function ToleranceAssistant({
                     return;
                   }
                   onApply(result.material);
-                  setOpen(false);
+                  onClose();
                 }}
                 data-testid="tolerance-next"
               >
                 {last ? t('print.tolerance.apply') : t('firstStart.next')}
               </Button>
             </div>
-          </Dialog>
-        </Modal>
-      </ModalOverlay>
-    </>
+          </section>
   );
 }

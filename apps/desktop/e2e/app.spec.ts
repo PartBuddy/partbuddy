@@ -613,7 +613,7 @@ test('the first start walks through SolidCraft, assistant, printer and project f
     await setup.getByTestId('first-start-next').click();
     await expect(setup).toHaveAttribute('data-step', 'print');
     await setup.getByTestId('printer-name').getByRole('textbox').fill('Werkstatt');
-    await setup.getByTestId('print-save').click();
+    await setup.getByTestId('first-start-next').click();
     await expect(setup).toHaveAttribute('data-step', 'projects');
     await expect(setup.getByTestId('settings-projects-folder')).toHaveText(join(work, 'projects'));
     await setup.getByTestId('first-start-back').click();
@@ -1058,7 +1058,8 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await overhang.fill('35');
   await overhang.press('Tab');
   await page.screenshot({ path: test.info().outputPath('print-profiles.png') });
-  await dialog.getByTestId('print-save').click();
+  // Every change applies at once (audit A-23); closing the settings writes what still waits.
+  await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(chip).toContainText('Werkstatt');
 
@@ -1077,10 +1078,11 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await expect(rounding).not.toBeChecked();
   await expect(assistant.getByTestId('design-snap').getByRole('switch')).toBeChecked();
 
-  // Cancel keeps what was saved, the switch included.
+  // A profile without a name is not saved and says so; the last saved one stays, the switch too.
   await page.getByTestId('settings-print').click();
-  await dialog.getByTestId('printer-name').getByRole('textbox').fill('Anders');
-  await dialog.getByTestId('print-cancel').click();
+  await dialog.getByTestId('printer-name').getByRole('textbox').fill('');
+  await expect(dialog.getByTestId('print-unsaved')).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(chip).toContainText('Werkstatt');
   await page.getByTestId('settings').click();
@@ -1122,7 +1124,7 @@ test('a printer from the catalog becomes an ordinary profile that can be changed
   await expect(nozzle).toHaveValue('0.4');
   await nozzle.fill('0.6');
   await nozzle.press('Tab');
-  await dialog.getByTestId('print-save').click();
+  await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
   const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ printer: string; printers: { id: string; name: string; nozzle: number }[] }> } } }).partbuddy.print.settings());
@@ -1130,7 +1132,7 @@ test('a printer from the catalog becomes an ordinary profile that can be changed
   expect(saved.printers.find((item) => item.id === saved.printer)).toMatchObject({ name: 'Prusa MK4S', nozzle: 0.6 });
 });
 
-test('the tolerance assistant reads the test pieces into the material, which Save keeps', async () => {
+test('the tolerance assistant reads the test pieces into the material in place of the profiles', async () => {
   const { app } = await connectedApp();
   const { page } = app;
   await page.getByTestId('settings').click();
@@ -1140,13 +1142,20 @@ test('the tolerance assistant reads the test pieces into the material, which Sav
   await dialog.getByTestId('materials-list').getByRole('option', { name: /^PLA( |$)/ }).click();
   const assistant = page.getByTestId('tolerance-assistant');
 
-  // Cancel leaves the material as it was.
+  // It takes the place of the profiles, not a second dialog (audit N-05); back leaves the material as it was.
   await dialog.getByTestId('tolerance-start').click();
   await expect(assistant).toHaveAttribute('data-step', 'material');
+  await expect(dialog.getByTestId('materials-list')).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(1);
   await assistant.getByTestId('tolerance-cancel').click();
   await expect(assistant).toHaveCount(0);
+  await expect(dialog.getByTestId('tolerance-start')).toBeFocused();
   await expect(dialog.getByTestId('material-overhang').getByRole('textbox')).toHaveValue('45');
-  // Escape then closes the settings, as anywhere else in them.
+  // Escape in the assistant goes back to the materials, then closes the settings, as anywhere else in them.
+  await dialog.getByTestId('tolerance-start').click();
+  await page.keyboard.press('Escape');
+  await expect(assistant).toHaveCount(0);
+  await expect(dialog).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await page.getByTestId('settings').click();
@@ -1189,7 +1198,7 @@ test('the tolerance assistant reads the test pieces into the material, which Sav
   await expect(dialog.getByTestId('material-overhang').getByRole('textbox')).toHaveValue('50');
   await expect(dialog.getByTestId('material-hole').getByRole('textbox')).toHaveValue('0.25');
   await expect(dialog.getByTestId('material-fit-clamp').getByRole('textbox')).toHaveValue('-0.05');
-  await dialog.getByTestId('print-save').click();
+  await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ materials: { id: string; overhang: number; holeShrink: number; clearance: Record<string, number> }[] }> } } }).partbuddy.print.settings());
   expect(saved.materials.find((item) => item.id === 'pla')).toMatchObject({ overhang: 50, holeShrink: 0.25, clearance: { clamp: -0.05, push: 0.1, slide: 0.2, turn: 0.3 } });
@@ -1225,7 +1234,7 @@ test('a material from the catalog becomes an ordinary profile with its starting 
   const slide = dialog.getByTestId('material-fit-slide').getByRole('textbox');
   await slide.fill('0.45');
   await slide.press('Tab');
-  await dialog.getByTestId('print-save').click();
+  await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
   const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ materials: { id: string; name: string; overhang: number; holeShrink: number; clearance: Record<string, number> }[] }> } } }).partbuddy.print.settings());
@@ -1252,7 +1261,7 @@ test('the ready-to-print light follows the printer, points at its findings and a
     await field.fill('50');
     await field.press('Tab');
   }
-  await dialog.getByTestId('print-save').click();
+  await page.keyboard.press('Escape');
   await expect(light).toHaveAttribute('data-status', 'block');
   await expect(light).toHaveText('Not ready to print');
   await light.click();

@@ -663,11 +663,11 @@ function AboutSection({ done }: { done: () => void }) {
 }
 
 /** The print profiles keep their own tabs; a link to printers or materials opens the right one. */
-function PrintSection({ close }: { close: () => void }) {
+function PrintSection() {
   const { ref, hit } = useHighlight(['printers', 'materials']);
   return (
     <div ref={ref} data-highlighted={hit || undefined} className="flex flex-col gap-4 rounded-lg transition-shadow data-[highlighted]:ring-2 data-[highlighted]:ring-accent data-[highlighted]:ring-inset">
-      <PrintProfilesEditor close={close} />
+      <PrintProfilesEditor />
     </div>
   );
 }
@@ -844,7 +844,7 @@ export function SettingsDialog() {
                   <SectionHead id="solidcraft" done={reload} />
                   <Group id="program">
                     <Setting id="engine" layout="block">
-                      <EnginePanel close={close} />
+                      <EnginePanel />
                     </Setting>
                   </Group>
                 </TabPanel>
@@ -868,7 +868,7 @@ export function SettingsDialog() {
                 </TabPanel>
                 <TabPanel id="print" className={panelClass} data-testid="print-profiles">
                   <SectionHead id="print" />
-                  <PrintSection close={close} />
+                  <PrintSection />
                 </TabPanel>
                 <TabPanel id="shortcuts" className={panelClass} data-testid="settings-shortcuts-panel">
                   <SectionHead id="shortcuts" />

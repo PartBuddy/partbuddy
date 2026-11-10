@@ -286,3 +286,4 @@ App-Fehler nicht belegt und wird in Phase 2 von Hand geprüft.
 | #270 | Animation | M-12 Auswahl-Überblendung im Shader |
 | #271 | Reste | erledigt: N-09 ziehbare Seitenleiste, B-12 Isolieren, A-18 Sortierrichtung, A-26 Neustart-Hinweis (Kurzpfad-Vergleich) |
 | #272 | Reste | erledigt: B-11 verworfener Parameterwert (Enter verschob den Fokus in die eigene Zeile), A-02 Druckername folgt der Sprache, B-03 Feature-Namen der Vorlagen deutsch + Namensvorgabe an den Assistenten; A-33 war schon da. Offen: C-17 (schwebende Nachrichten-Aktionen würden von `content-visibility` abgeschnitten) |
+| #273 | Einstellungen | erledigt: A-23 Drucker und Material speichern sofort (400 ms verzögert, beim Schließen sofort; ohne Namen bleibt der letzte Stand), SolidCraft-Karte ohne „Fertig“; N-05 Toleranz-Assistent als Schrittansicht statt zweitem Modal, Esc und „Zurück zu Material“ führen zurück. Offen: „Bereich zurücksetzen“ für Drucker und Material |
