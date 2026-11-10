@@ -75,7 +75,10 @@ const scene = {
   // At full glow; the glow fades out after a change (LiveBar), so no face stays tinted.
   changeTint: 0.35,
   hoverTint: 0.35,
-  selectionTint: 0.55,
+  // A light tint, so the shading stays readable; the outline carries the selection (audit B-22).
+  selectionTint: 0.25,
+  // Parts outside the assembly step that plays move this far toward the background (audit B-22).
+  dimmedTint: 0.6,
   // See-through faces in the X-ray display mode.
   xrayOpacity: 0.3,
   // Studio look: soft room light from above (Z up).
@@ -117,6 +120,7 @@ function Body({
   mode,
   plane,
   emphasis,
+  dimmed,
   lineScale,
 }: {
   index: number;
@@ -129,6 +133,8 @@ function Body({
   plane: Plane | null;
   /** The part of the assembly step that plays, or a part that does not fit the bed. */
   emphasis: 'active' | 'misfit' | null;
+  /** Another part plays in the assembly: this one steps back instead of the playing one being tinted. */
+  dimmed: boolean;
   /** Line widths shrink with the part on screen (lineScale), so a small part keeps clean lines. */
   lineScale: number;
 }) {
@@ -147,7 +153,7 @@ function Body({
 
   useEffect(() => {
     const attribute = model.geometry.getAttribute('color') as BufferAttribute;
-    const base = own ? new Color(own) : colors.body;
+    const base = (own ? new Color(own) : colors.body.clone()).lerp(colors.background, dimmed ? scene.dimmedTint : 0);
     const changed = new Set(changes?.bodies.find((entry) => entry.body === index)?.faces ?? []);
     // A body that is new as a whole is not tinted: the whole part in the change colour reads as a
     // toy, not as a change. Changed faces of an existing body get a tint of the body colour.
@@ -165,8 +171,9 @@ function Body({
     }
     const hovered = hover?.kind === 'face' && hover.body === index ? hover.face : -1;
     const selected = new Set(selections.filter((pick) => pick.kind === 'face' && pick.body === index).map((pick) => (pick.kind === 'face' ? pick.face : -1)));
-    // A whole part stands out in the playback (the step that plays) and on the plate (does not fit).
-    const whole = emphasis === 'active' || picked ? base.clone().lerp(colors.selection, scene.selectionTint) : emphasis === 'misfit' ? base.clone().lerp(colors.misfit, 0.6) : null;
+    // A part that does not fit the bed is tinted; a part picked in the tree gets an outline only, and
+    // the step that plays stands out by the others stepping back (audit B-22).
+    const whole = emphasis === 'misfit' ? base.clone().lerp(colors.misfit, 0.6) : null;
     for (let v = 0; v < model.vertexFaces.length; v += 1) {
       const face = model.vertexFaces[v] ?? -1;
       let color = whole ?? base;
@@ -176,7 +183,8 @@ function Body({
       attribute.setXYZ(v, color.r, color.g, color.b);
     }
     attribute.needsUpdate = true;
-  }, [model, index, colors, own, hover, selections, changes, stepHighlight, body.name, emphasis, glow, picked]);
+  }, [model, index, colors, own, hover, selections, changes, stepHighlight, body.name, emphasis, dimmed, glow]);
+  const edge = picked ? colors.selection : colors.edge;
 
   const clipping = useMemo(() => (plane ? [plane] : []), [plane]);
   return (
@@ -219,10 +227,10 @@ function Body({
           <meshBasicMaterial color={colors.section} side={BackSide} clippingPlanes={clipping} />
         </mesh>
       ) : null}
-      {plane === null && (mode === 'shadedEdges' || mode === 'hiddenEdges') && fade > 0 ? <Silhouette geometry={model.geometry} color={colors.edge} opacity={fade} scale={lineScale} /> : null}
+      {plane === null && (mode === 'shadedEdges' || mode === 'hiddenEdges') && fade > 0 ? <Silhouette geometry={model.geometry} color={edge} opacity={fade} scale={picked ? lineScale * 1.6 : lineScale} /> : null}
       {mode === 'hiddenEdges' && fade > 0 ? <HiddenEdges geometry={model.edges} color={colors.hiddenEdge} plane={clipping} /> : null}
       {mode === 'shaded' || fade === 0 ? null : plane === null && mode !== 'xray' ? (
-        <FatEdges geometry={model.edges} color={colors.edge} width={scene.edgeWidth * lineScale} opacity={fade} />
+        <FatEdges geometry={model.edges} color={edge} width={(picked ? scene.selectedFaceOutline : scene.edgeWidth) * lineScale} opacity={fade} />
       ) : (
         <lineSegments geometry={model.edges} raycast={noRaycast}>
           <lineBasicMaterial key={plane ? 'cut' : 'whole'} color={colors.edge} clippingPlanes={clipping} />
@@ -1057,6 +1065,7 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
           mode={displayMode}
           plane={plane}
           emphasis={active.includes(body.name) ? 'active' : misfits.includes(body.name) ? 'misfit' : null}
+          dimmed={active.length > 0 && !active.includes(body.name)}
           lineScale={lineScale}
         />
       ))}
