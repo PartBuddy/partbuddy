@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.0](https://github.com/PartBuddy/partbuddy/compare/v0.2.1...v0.3.0) (2026-11-10)
+
+
+### Features
+
+* **desktop:** joints move with a slider in the view ([#296](https://github.com/PartBuddy/partbuddy/issues/296)) ([21073ab](https://github.com/PartBuddy/partbuddy/commit/21073abe79158b99c10f53676bb784082b9d0106))
+* **desktop:** the assistant builds a dovetail guide with one call ([#300](https://github.com/PartBuddy/partbuddy/issues/300)) ([3772bff](https://github.com/PartBuddy/partbuddy/commit/3772bff25723586bfe9db49cf8461fe0b8211f78))
+* **desktop:** the assistant builds a print-in-place hinge with one call ([#299](https://github.com/PartBuddy/partbuddy/issues/299)) ([6a9cd0a](https://github.com/PartBuddy/partbuddy/commit/6a9cd0a482bbc2e2d83bb393873d9338f8b0da74))
+* **desktop:** the parts of a joint follow its slider while it is dragged ([#301](https://github.com/PartBuddy/partbuddy/issues/301)) ([f61ee5f](https://github.com/PartBuddy/partbuddy/commit/f61ee5f4cdb9a5a15a56951ddd08394612b8a7c1))
+* **desktop:** the ready-to-print check runs joints through their range ([#298](https://github.com/PartBuddy/partbuddy/issues/298)) ([a252a2e](https://github.com/PartBuddy/partbuddy/commit/a252a2e6ddddbf7f320c3060aab7f210a4e89420))
+
+
+### Bug Fixes
+
+* **desktop:** a joint away from as designed shows in the check at once ([#306](https://github.com/PartBuddy/partbuddy/issues/306)) ([0295778](https://github.com/PartBuddy/partbuddy/commit/029577840de8ca09596352353a14ede0d69b7cca))
+* **desktop:** a mechanism out of reach of its bodies is taken back ([#302](https://github.com/PartBuddy/partbuddy/issues/302)) ([48fee2e](https://github.com/PartBuddy/partbuddy/commit/48fee2e2d7e7b17f7929ada7e7bc2be73a5e4f6c))
+* **desktop:** sketched blocks stay in a part when its joint moves ([#304](https://github.com/PartBuddy/partbuddy/issues/304)) ([0fed294](https://github.com/PartBuddy/partbuddy/commit/0fed2944498591f6f59616413e858c4a05342390))
+* **desktop:** the outer knuckles of a hinge stand clear of a wider body ([#307](https://github.com/PartBuddy/partbuddy/issues/307)) ([8ab1d19](https://github.com/PartBuddy/partbuddy/commit/8ab1d192d170d064175dc13dff998c2e1c6f573c))
+* **desktop:** what is built onto a part that moves is built in its component ([#303](https://github.com/PartBuddy/partbuddy/issues/303)) ([d7c4130](https://github.com/PartBuddy/partbuddy/commit/d7c41304da3f57bae0a41c37e3e179035afef5d2))
+
 ## [0.2.1](https://github.com/PartBuddy/partbuddy/compare/v0.2.0...v0.2.1) (2026-11-10)
 
 
