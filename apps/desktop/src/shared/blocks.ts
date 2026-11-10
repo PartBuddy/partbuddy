@@ -317,7 +317,11 @@ export function splitPieceSteps(layers: readonly { body: string; fill: string }[
 
 /** The bodies a block changes or makes, for the ghost: the part, and a logo's colour bodies. */
 export function blockBodies(block: FeatureBlock): string[] {
-  return [block.body, ...(block.block === 'logo' ? colourLayers(block).map((layer) => layer.body) : [])];
+  if (block.block !== 'logo') return [block.body];
+  const layers = colourLayers(block);
+  // Inlaid, the pieces of a fill are joined into its first one (colourSteps).
+  const kept = block.mode === 'deboss' ? layers.filter((layer, i) => layers.findIndex((other) => other.fill === layer.fill) === i) : layers;
+  return [block.body, ...kept.map((layer) => layer.body)];
 }
 
 /**
@@ -343,8 +347,28 @@ function colourSteps(block: LogoBlock, sketch: string): Step[] {
     // Coloured at once, so a piece a later cut splits keeps its colour in both parts.
     { command: 'appearance.assign', params: { bodies: [layer.body], color: layer.fill } },
   ]);
-  // The pocket first, while the pieces still overlap: a cut by pieces already cut against each other fails.
-  if (inlay) steps.push({ command: 'solid.combine', params: { target: block.body, tools: layers.map((layer) => layer.body), operation: 'cut', keep_tools: true } });
+  if (inlay) {
+    // Inlaid, the pieces of one fill become one body first, then the pocket is cut a fill at a time:
+    // pieces of one fill that touch along an edge make the pocket's walls meet, and SolidCraft's boolean
+    // fails on that (make_faceuse status 1001, colour fox 2026-11-10). A fill keeps its colour as one body.
+    const fills = [...new Set(layers.map((layer) => layer.fill))].map((fill) => layers.filter((layer) => layer.fill === fill));
+    const bodyOf = new Map(fills.flatMap((group) => group.map((layer) => [layer.body, group[0]?.body ?? layer.body] as const)));
+    for (const [first, ...rest] of fills) {
+      if (first && rest.length > 0) steps.push({ command: 'solid.combine', params: { target: first.body, tools: rest.map((layer) => layer.body), operation: 'join', touching: 'one_body' } });
+    }
+    for (const [first] of fills) if (first) steps.push({ command: 'solid.combine', params: { target: block.body, tools: [first.body], operation: 'cut', keep_tools: true } });
+    // Where a later piece of another fill covers an earlier one, the earlier fill gives way, once per pair of fills.
+    const cut = new Set<string>();
+    layers.forEach((layer, i) => {
+      for (const later of layers.slice(i + 1)) {
+        const [target, tool] = [bodyOf.get(layer.body) ?? layer.body, bodyOf.get(later.body) ?? later.body];
+        if (target === tool || cut.has(`${target}|${tool}`) || cut.has(`${tool}|${target}`) || !shapesOverlap(read.drawing, [layer.piece], [later.piece])) continue;
+        cut.add(`${target}|${tool}`);
+        steps.push({ command: 'solid.combine', params: { target, tools: [tool], operation: 'cut', keep_tools: true } });
+      }
+    });
+    return steps;
+  }
   layers.forEach((layer, i) => {
     // Only later pieces of another fill that cover part of this one: a cut by a body that does not meet it fails.
     const above = layers
