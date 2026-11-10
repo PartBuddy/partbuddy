@@ -12,19 +12,22 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
   it('builds knuckles in turn, each clearing its room in the other body first, then bore and pin', () => {
     const steps = hingeSteps(spec);
     expect(steps.map((step) => [step.params.operation, (step.params.targets as string[])[0], step.params.diameter, step.params.height])).toEqual([
-      // Room for the knuckles: a gap wider all round, and a gap longer at the ends inside the hinge.
-      ['cut', 'Flap', '6.8 mm', '10.133 mm'],
+      // Room for the knuckles: a gap wider all round and a gap longer at both ends, past the ends of the hinge line too.
+      ['cut', 'Flap', '6.8 mm', '10.533 mm'],
       ['cut', 'Base', '6.8 mm', '10.533 mm'],
-      ['cut', 'Flap', '6.8 mm', '10.133 mm'],
+      ['cut', 'Flap', '6.8 mm', '10.533 mm'],
       ['join', 'Base', '6 mm', '9.733 mm'],
       ['join', 'Flap', '6 mm', '9.733 mm'],
       ['join', 'Base', '6 mm', '9.733 mm'],
-      ['cut', 'Flap', '3.8 mm', '30 mm'],
+      ['cut', 'Flap', '3.8 mm', '30.8 mm'],
       ['join', 'Base', '3 mm', '30 mm'],
     ]);
     expect(steps.every((step) => step.command === 'solid.cylinder' && JSON.stringify(step.params.axis) === '[0,1,0]')).toBe(true);
     // The middle knuckle starts a gap after the first one ends.
     expect(steps[4]?.params.base).toEqual([42, 10.133, 3]);
+    // A body wider than the hinge must not lie against the outer knuckles: their room and the bore start a gap before the line.
+    expect(steps[0]?.params.base).toEqual([42, -0.4, 3]);
+    expect(steps[6]?.params.base).toEqual([42, -0.4, 3]);
   });
 
   it('says what is wrong before anything is built', () => {
@@ -97,11 +100,12 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
       'document.inspect inspect.interference',
       'component.list',
       'component.from_bodies component.list',
-      'joint.as_built joint.sweep joint.sweep',
+      'joint.as_built',
+      'joint.sweep joint.sweep',
       'joint.limits',
     ]);
     expect(batches[5]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
-    expect(batches[6]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
+    expect(batches[7]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
 
     // A body that does not exist is named with the ones that do; nothing is built.
     const before = batches.length;
@@ -167,6 +171,32 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     };
     const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3] });
     expect(built).toMatchObject({ isError: true, content: [{ text: 'Not built: the joint(s) "Lid hinge" stand away from 0; drive them back with joint.drive first, so the bodies are where they were designed' }] });
+  });
+
+  it('keeps the joint when SolidCraft cannot run the sweep, and says so', async () => {
+    let components = false;
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, args) => {
+        if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Flap' }], undo: 0 }) }] });
+        const commands = args.commands as { command: string }[];
+        // As SolidCraft 0.40.0-rc.3 answers when parts lie against each other along the way.
+        if (commands.some((step) => step.command === 'joint.sweep')) {
+          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: [], failed: { command: 'joint.sweep', error: 'motion exceeds contact sweep collision budget; simplify the contact set or use smaller increments' } }) }] });
+        }
+        const results = commands.map((step) => {
+          if (step.command === 'component.from_bodies') components = true;
+          if (step.command === 'component.list') return { components: components ? [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ name: 'Flap:1' }] }] : [] };
+          return step.command === 'document.inspect' ? { bodies: [{ name: 'Base' }, { name: 'Flap' }], undo: 8 } : {};
+        });
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
+      },
+    };
+    const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3] });
+    expect(built.isError).toBeUndefined();
+    expect(built.content[0]).toMatchObject({ text: expect.stringContaining('SolidCraft could not run it through its range (motion exceeds contact sweep collision budget') as string });
+    expect(built.content[0]).toMatchObject({ text: expect.stringContaining('no limits are set') as string });
   });
 
   it('is one line in the work log, by its kind', () => {
