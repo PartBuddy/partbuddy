@@ -1,5 +1,5 @@
-import { IconArrowsExchange, IconArrowsSplit2, IconBox, IconBoxMultiple, IconCheck, IconCube, IconFocusCentered, IconHandMove, IconLayoutGrid, IconMaximize, IconPerspective, IconPlayerPlay, IconRulerMeasure, IconSlice, IconStack2 } from '@tabler/icons-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { IconArrowsExchange, IconArrowsSplit2, IconBox, IconBoxMultiple, IconCheck, IconCube, IconFocusCentered, IconHandMove, IconLayoutGrid, IconMaximize, IconPerspective, IconPlayerPause, IconPlayerPlay, IconRulerMeasure, IconSlice, IconStack2 } from '@tabler/icons-react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button as AriaButton,
@@ -268,9 +268,11 @@ export function ViewTools() {
   const setPlayback = useStudio((s) => s.setPlayback);
   // Parts that move (ADR 0027): the tool is there once the design has a joint.
   const joints = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.joints : undefined));
-  // The panel is open; `run` counts the presses of the play tool: each opens the panel anew, playing.
-  const [moving, setMoving] = useState<{ run: number; play: boolean } | null>(null);
-  const canPlay = joints ? playableValues(joints).length > 0 : false;
+  const moving = useStudio((s) => s.jointsOpen);
+  const setMoving = useStudio((s) => s.setJointsOpen);
+  const playing = useStudio((s) => s.jointPlay !== null);
+  const setJointPlay = useStudio((s) => s.setJointPlay);
+  const playable = useMemo(() => (joints ? playableValues(joints).map((entry) => entry.key) : []), [joints]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -414,31 +416,25 @@ export function ViewTools() {
       ) : null}
       {joints ? (
         <Tip label={t('viewer.joints.title')}>
-          <ToggleButton
-            aria-label={t('viewer.joints.title')}
-            isSelected={moving !== null}
-            onChange={(on) => {
-              setMoving(on ? { run: moving?.run ?? 0, play: false } : null);
-            }}
-            className={tool}
-            data-testid="joints"
-          >
+          <ToggleButton aria-label={t('viewer.joints.title')} isSelected={moving} onChange={setMoving} className={tool} data-testid="joints">
             <IconHandMove className="size-icon-sm" aria-hidden />
           </ToggleButton>
         </Tip>
       ) : null}
-      {/* One click from a design with a joint to its parts moving. */}
-      {joints && canPlay ? (
-        <Tip label={t('viewer.joints.playTool')}>
+      {/* One click from a design with a joint to its parts moving, and one to pause them. */}
+      {joints && playable.length > 0 ? (
+        <Tip label={t(playing ? 'viewer.joints.pauseTool' : 'viewer.joints.playTool')}>
           <AriaButton
-            aria-label={t('viewer.joints.playTool')}
+            aria-label={t(playing ? 'viewer.joints.pauseTool' : 'viewer.joints.playTool')}
             className={tool}
             onPress={() => {
-              setMoving({ run: (moving?.run ?? 0) + 1, play: true });
+              if (!moving) setMoving(true);
+              setJointPlay(playing ? null : playable);
             }}
             data-testid="joints-play"
+            data-playing={String(playing)}
           >
-            <IconPlayerPlay className="size-icon-sm" aria-hidden />
+            {playing ? <IconPlayerPause className="size-icon-sm" aria-hidden /> : <IconPlayerPlay className="size-icon-sm" aria-hidden />}
           </AriaButton>
         </Tip>
       ) : null}
@@ -486,7 +482,7 @@ export function ViewTools() {
     </div>
     {section ? <SectionPanel section={section} /> : null}
     {explode !== null && parts > 1 ? <ExplodePanel amount={explode} /> : null}
-    {moving && joints ? <JointPanel key={moving.run} joints={joints} autoPlay={moving.play} /> : null}
+    {moving && joints ? <JointPanel joints={joints} /> : null}
     </>
   );
 }

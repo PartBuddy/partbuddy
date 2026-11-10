@@ -1036,7 +1036,9 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
   const exploded = useStudio((s) => s.explode !== null);
   const plateOpen = useStudio((s) => s.viewMode === 'plate');
   const playback = useStudio((s) => s.playback !== null);
-  const moved = exploded || plateOpen || playback;
+  // So are joints away from where the mirror has them (dragged, playing or paused): what is picked, pinned and measured sits where the design is.
+  const posed = useStudio((s) => s.jointPreview !== null);
+  const moved = exploded || plateOpen || playback || posed;
   const targets = useTargetPoses(bodies, steps, layout);
   const bed = useStudio((s) => s.print?.printer.bed ?? null);
   // Select the step number, not a list: a new list on every read would loop (React #185).
@@ -1192,6 +1194,11 @@ export function Viewer() {
     if (state.viewMode !== 'assembled') state.setViewMode('assembled');
     if (state.playback) state.setPlayback(null);
   }, [bodies.length]);
+  // A design without joints (another project, or the assistant took them out) has no moving-parts panel.
+  const hasJoints = model.status === 'ready' && (model.structure.joints?.length ?? 0) > 0;
+  useEffect(() => {
+    if (!hasJoints && useStudio.getState().jointsOpen) useStudio.getState().setJointsOpen(false);
+  }, [hasJoints]);
 
   return (
     <main

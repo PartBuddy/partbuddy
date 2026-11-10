@@ -133,12 +133,12 @@
     "joints": {
       "title": "Moving parts",
       "reset": "As designed",
-      "hint": "Playing shows the way. Pausing or letting go holds the part there; it is exported and checked the way it stands.",
+      "hint": "Playing moves the parts in the view only. Letting go of a slider moves the part; that is how it is exported and checked.",
       "failed": "SolidCraft did not move the joint: {reason}",
       "play": "Play {name}",
       "pause": "Pause {name}",
       "speed": "Speed",
-      "mode": "Run",
+      "mode": "Repeat",
       "bounce": "Back and forth",
       "loop": "Start over each time",
       "playAll": "Play all",
@@ -147,11 +147,21 @@
       "together": "All together",
       "inTurn": "One after the other",
       "playTool": "Play the motion",
-      "stopped": "Stopped: {a} and {b} touch at {at}. Playing goes back from there.",
-      "showTouch": "Show the place",
-      "record": "Save as video",
-      "recording": "Recording …",
-      "videoFailed": "The video was not saved: {reason}"
+      "stopped": "{a} and {b} touch here: at {at}. Playing goes back from there.",
+      "showTouch": "Show where",
+      "record": "Record a video",
+      "pauseTool": "Pause the motion",
+      "keep": "Keep this position",
+      "viewOnly": "Moved in the view only; the design stands as before. Picking and dimensions rest meanwhile.",
+      "unchecked": "Moved together, it is not checked whether parts touch.",
+      "video": {
+        "recording": "Recording …",
+        "saving": "Saving the video …",
+        "cancelled": "The video was not saved.",
+        "unsupported": "This system cannot record the view as a video.",
+        "empty": "The recording held no picture. Please record again.",
+        "failed": "The recording failed. Please record again."
+      }
     },
     "hintShort": "Click selects · drag orbits · right-drag pans · scroll zooms"
   },

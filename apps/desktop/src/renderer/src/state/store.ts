@@ -145,6 +145,12 @@ interface StudioState {
   /** Joint values as their sliders are dragged or as they play (ADR 0027, G4): the view moves the joints' bodies there until the mirror shows them there. */
   jointPreview: JointPreview[] | null;
   setJointPreview: (preview: JointPreview[] | null) => void;
+  /** The moving-parts panel is open (ADR 0027). It shows the assembled part: the plate, the exploded view and the assembly playback close it, and it closes them. */
+  jointsOpen: boolean;
+  setJointsOpen: (open: boolean) => void;
+  /** The joint values that play, by key (`joint-index`); null when none does. Playing moves the parts in the view only. */
+  jointPlay: string[] | null;
+  setJointPlay: (keys: string[] | null) => void;
   /** Assembled or on the plate; the plate, the exploded view, the playback and a section exclude each other. */
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
@@ -183,8 +189,9 @@ interface StudioState {
   profilesTab: ProfilesTab;
   setProfilesTab: (tab: ProfilesTab) => void;
   /** The ready-to-print check of the bodies on screen (M7); null until it ran. */
-  printCheck: { revision: number; result: PrintCheck } | null;
-  setPrintCheck: (check: { revision: number; result: PrintCheck } | null) => void;
+  /** `measuring`: SolidCraft still measures gaps and the joints' ways; those findings follow. */
+  printCheck: { revision: number; result: PrintCheck; measuring?: boolean } | null;
+  setPrintCheck: (check: { revision: number; result: PrintCheck; measuring?: boolean } | null) => void;
   /** A place the camera should move to (a finding of the check), with a serial to repeat it. */
   focusRequest: { box: FindingBox; serial: number } | null;
   requestFocus: (box: FindingBox) => void;
@@ -260,6 +267,9 @@ interface StudioState {
 /** As many as one message to the assistant may carry (contract: 20). */
 const MAX_SELECTIONS = 20;
 
+/** The moving-parts panel closed: nothing plays, and the parts stand where the mirror has them. */
+const JOINTS_CLOSED = { jointsOpen: false, jointPlay: null, jointPreview: null };
+
 export const useStudio = create<StudioState>()((set) => ({
   connection: { state: 'searching', owned: false, mirror: 'idle' },
   model: { status: 'waiting' },
@@ -278,15 +288,23 @@ export const useStudio = create<StudioState>()((set) => ({
   },
   explode: null,
   setExplode: (explode) => {
-    set(explode === null ? { explode } : { explode, section: null, viewMode: 'assembled', playback: null });
+    set(explode === null ? { explode } : { explode, section: null, viewMode: 'assembled', playback: null, ...JOINTS_CLOSED });
   },
   jointPreview: null,
   setJointPreview: (jointPreview) => {
     set({ jointPreview });
   },
+  jointsOpen: false,
+  setJointsOpen: (jointsOpen) => {
+    set(jointsOpen ? { jointsOpen, explode: null, viewMode: 'assembled', playback: null } : JOINTS_CLOSED);
+  },
+  jointPlay: null,
+  setJointPlay: (jointPlay) => {
+    set({ jointPlay });
+  },
   viewMode: 'assembled',
   setViewMode: (viewMode) => {
-    set(viewMode === 'plate' ? { viewMode, plate: 0, section: null, explode: null, playback: null } : { viewMode });
+    set(viewMode === 'plate' ? { viewMode, plate: 0, section: null, explode: null, playback: null, ...JOINTS_CLOSED } : { viewMode });
   },
   plate: 0,
   setPlate: (plate) => {
@@ -294,7 +312,7 @@ export const useStudio = create<StudioState>()((set) => ({
   },
   playback: null,
   setPlayback: (playback) => {
-    set(playback ? { playback, section: null, explode: null, viewMode: 'assembled' } : { playback });
+    set(playback ? { playback, section: null, explode: null, viewMode: 'assembled', ...JOINTS_CLOSED } : { playback });
   },
   assembly: null,
   setAssembly: (assembly) => {

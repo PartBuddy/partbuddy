@@ -531,15 +531,20 @@ test('a joint moves with its slider and goes back to as designed (ADR 0027)', as
   await expect(page.getByTestId('joint-error')).toHaveCount(0);
 });
 
-test('a joint plays through its range, is held where it is paused and stays as it was when the panel closes', async () => {
-  launched = await launchApp();
-  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
-  fake.bodies = ['CableClip', 'Second clip'];
-  fake.occurrences = new Map([
+/** A hinge between the two clips that the mirror can show moving: `a` and `b` name their occurrences. */
+function hingedClips(target: FakeSolidCraft): void {
+  target.bodies = ['CableClip', 'Second clip'];
+  target.occurrences = new Map([
     [1, 'CableClip'],
     [2, 'Second clip'],
   ]);
-  fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [0, 1, 0] }, values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+  target.joints = [{ id: 9, name: 'Hinge', type: 'revolute', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [0, 1, 0] }, values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+}
+
+test('a joint plays in the view only, keeps its position when asked and stays as it was when the panel closes', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  hingedClips(fake);
   await fake.start();
   const { page } = launched;
   await lookAgain(page);
@@ -550,6 +555,7 @@ test('a joint plays through its range, is held where it is paused and stays as i
   const play = panel.getByTestId('joint-play');
   await expect(play).toHaveAccessibleName('Play Hinge');
   await expect(panel.getByTestId('joint-play-all')).toHaveCount(0);
+  await expect(panel.getByTestId('joint-keep')).toHaveCount(0);
   // Faster, and starting over at the end instead of turning round.
   await panel.getByRole('radio', { name: '2×' }).click();
   await panel.getByTestId('joint-mode-loop').click();
@@ -557,23 +563,34 @@ test('a joint plays through its range, is held where it is paused and stays as i
   await play.click();
   await expect(play).toHaveAttribute('data-playing', 'true');
   await expect(play).toHaveAccessibleName('Pause Hinge');
-  // The part moves in the view, and keeps moving; SolidCraft is not driven while it plays.
+  // The tool in the toolbar shows that it plays, too.
+  await expect(page.getByTestId('joints-play')).toHaveAttribute('data-playing', 'true');
+  // The part moves in the view, and keeps moving.
   await expect.poll(shown).toBeLessThan(-5);
   await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joint-playing.png') });
   const first = await shown();
   await expect.poll(shown).not.toBe(first);
-  expect(fake.joints[0]?.values[0]?.value).toBe(0);
-  // Paused, the joint is held there: driven in SolidCraft, and the light says it is not as designed.
+  // Paused, it stays where the view shows it, and the design is as it was: the panel says so.
   await play.click();
   await expect(play).toHaveAttribute('data-playing', 'false');
-  await expect.poll(() => fake?.joints[0]?.values[0]?.value).not.toBe(0);
-  const held = fake.joints[0]?.values[0]?.value ?? 0;
-  expect(held).toBeLessThan(0);
-  expect(held).toBeGreaterThanOrEqual(-180);
-  await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue(String(Math.round(held)));
+  await expect(panel.getByTestId('joint-view-only')).toBeVisible();
+  const paused = await shown();
+  expect(paused).toBeLessThan(0);
+  await page.waitForTimeout(400);
+  expect(await shown()).toBe(paused);
+  expect(fake.joints[0]?.values[0]?.value).toBe(0);
+  await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joint-paused.png') });
+  // Keeping the position drives SolidCraft to what the panel reads (a tenth of a degree), and the light says it is not as designed.
+  const reads = Math.round(paused * 10) / 10;
+  await expect(panel.getByTestId('joint-value').locator('output')).toHaveText(`${String(reads)}°`);
+  await panel.getByTestId('joint-keep').click();
+  await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(reads);
+  await expect(panel.getByTestId('joint-value').locator('output')).toHaveText(`${String(reads)}°`);
+  await expect(panel.getByTestId('joint-keep')).toHaveCount(0);
+  await expect(panel.getByTestId('joint-view-only')).toHaveCount(0);
   await page.getByTestId('print-check').click();
   const findings = page.getByTestId('print-check-panel');
-  await expect(findings.locator('[data-kind="posed"]')).toContainText('Hinge stands at');
+  await expect(findings.locator('[data-kind="posed"]')).toContainText(`Hinge stands at ${String(reads)}°`);
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(findings).toBeHidden({ timeout: 1000 });
@@ -586,7 +603,19 @@ test('a joint plays through its range, is held where it is paused and stays as i
   await expect.poll(shown).toBeLessThan(-5);
   await page.getByTestId('joints').click();
   await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId('joints-play')).toHaveAttribute('data-playing', 'false');
   await page.getByTestId('joints').click();
+  await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue('0');
+  await expect(play).toHaveAttribute('data-playing', 'false');
+  // Another view of the parts closes the panel with what played in it.
+  await play.click();
+  await expect(play).toHaveAttribute('data-playing', 'true');
+  await page.getByTestId('explode').click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId('joints-play')).toHaveAttribute('data-playing', 'false');
+  // And opening the panel closes that view.
+  await page.getByTestId('joints').click();
+  await expect(page.getByTestId('explode-panel')).toHaveCount(0);
   await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue('0');
   expect(fake.joints[0]?.values[0]?.value).toBe(0);
   await expect(panel.getByTestId('joint-error')).toHaveCount(0);
@@ -595,12 +624,7 @@ test('a joint plays through its range, is held where it is paused and stays as i
 test('the playback stops where the check found parts in the joint\'s way, and goes back from there', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
-  fake.bodies = ['CableClip', 'Second clip'];
-  fake.occurrences = new Map([
-    [1, 'CableClip'],
-    [2, 'Second clip'],
-  ]);
-  fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [0, 1, 0] }, values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+  hingedClips(fake);
   // On its way to the lower limit the second clip meets the first.
   fake.sweepStops.set(-180, { stopped_at: -28.07, stopped_by: { a: 'Second clip:1', b: 'CableClip:1', at: [10, 5, 2] } });
   await fake.start();
@@ -619,13 +643,14 @@ test('the playback stops where the check found parts in the joint\'s way, and go
   const panel = page.getByTestId('joint-panel');
   const play = panel.getByTestId('joint-play');
   const shown = async () => Number(await panel.getByTestId('joint-value').getAttribute('data-shown'));
-  // It stops at the touch by itself, says which parts meet, and drives nothing.
+  // It stops at the touch by itself, says which parts meet, and drives nothing. A runner that draws a few frames a second takes its time to get there.
   const stopped = panel.getByTestId('joint-stopped');
-  // A runner that draws a few frames a second takes its time to get there.
-  await expect(stopped).toHaveText(/Stopped: Second clip and CableClip touch at -28\.1°/, { timeout: 30_000 });
+  await expect(stopped).toHaveText('Second clip and CableClip touch here: at -28.1°. Playing goes back from there.', { timeout: 30_000 });
   await expect(play).toHaveAttribute('data-playing', 'false');
+  await expect(page.getByTestId('joints-play')).toHaveAttribute('data-playing', 'false');
   expect(await shown()).toBeCloseTo(-28.1);
   expect(fake.joints[0]?.values[0]?.value).toBe(0);
+  await expect(panel.getByTestId('joint-view-only')).toBeVisible();
   await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joint-stopped.png') });
   await panel.getByTestId('joint-stopped-show').click();
   // Playing again goes back from the touch, and stops there again on its way back down. At half speed, so the way is seen.
@@ -645,12 +670,7 @@ test('the playback stops where the check found parts in the joint\'s way, and go
 test('the joints playing are saved as a video file', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
-  fake.bodies = ['CableClip', 'Second clip'];
-  fake.occurrences = new Map([
-    [1, 'CableClip'],
-    [2, 'Second clip'],
-  ]);
-  fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [0, 1, 0] }, values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+  hingedClips(fake);
   await fake.start();
   const { app, page } = launched;
   await lookAgain(page);
@@ -665,15 +685,16 @@ test('the joints playing are saved as a video file', async () => {
   }, join(folder, 'hinge'));
   await page.getByTestId('joints').click();
   const panel = page.getByTestId('joint-panel');
+  const video = panel.getByTestId('joint-video');
   // Twice as fast, so the way there and back takes two and a half seconds. Recording starts the playback itself.
   await panel.getByRole('radio', { name: '2×' }).click();
   await panel.getByTestId('joint-record').click();
-  await expect(panel.getByTestId('joint-recording')).toBeVisible();
+  await expect(video).toHaveText('Recording …');
   await expect(panel.getByTestId('joint-play')).toHaveAttribute('data-playing', 'true');
-  await expect(panel.getByTestId('joint-video')).toHaveText(/^Saved as hinge\.(mp4|webm)$/, { timeout: 45_000 });
-  const file = join(folder, (await panel.getByTestId('joint-video').textContent())?.replace('Saved as ', '') ?? '');
+  await expect(video).toHaveText(/^Saved as hinge\.(mp4|webm)$/, { timeout: 45_000 });
+  const file = join(folder, (await video.textContent())?.replace('Saved as ', '') ?? '');
   const bytes = readFileSync(file);
-  expect(bytes.length).toBeGreaterThan(10_000);
+  expect(bytes.length).toBeGreaterThan(2000);
   // An MP4 starts with its ftyp box, a WebM with the EBML mark.
   expect(file.endsWith('.mp4') ? bytes.subarray(4, 8).toString('latin1') : bytes.subarray(0, 4).toString('hex')).toBe(file.endsWith('.mp4') ? 'ftyp' : '1a45dfa3');
   // Kept for a look outside the app (ffprobe, a player) when asked for.
@@ -682,47 +703,58 @@ test('the joints playing are saved as a video file', async () => {
   // The playback goes on; nothing was driven.
   await expect(panel.getByTestId('joint-play')).toHaveAttribute('data-playing', 'true');
   expect(fake.joints[0]?.values[0]?.value).toBe(0);
+  // Pausing ends a recording early; a save dialog closed without a file says that nothing was saved.
+  await app.evaluate(({ dialog }) => {
+    dialog.showSaveDialog = () => Promise.resolve({ canceled: true, filePath: '' });
+  });
+  await panel.getByTestId('joint-record').click();
+  await expect(video).toHaveText('Recording …');
+  await page.waitForTimeout(600);
+  await panel.getByTestId('joint-play').click();
+  await expect(video).toHaveText('The video was not saved.', { timeout: 45_000 });
 });
 
-test('one click plays all joints together, one after the other on request, and pausing holds them all', async () => {
+test('one click plays the joints one after the other as the check ran them, together on request, and nothing changes until a position is kept', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
-  fake.bodies = ['CableClip', 'Second clip'];
-  fake.occurrences = new Map([
-    [1, 'CableClip'],
-    [2, 'Second clip'],
-  ]);
-  fake.joints = [
-    { id: 9, name: 'Hinge', type: 'revolute', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [0, 1, 0] }, values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] },
-    { id: 10, name: 'Slide', type: 'slider', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [1, 0, 0] }, values: [{ name: 'distance', unit: 'mm', value: 0, limits: [0, 20] }] },
-  ];
+  hingedClips(fake);
+  fake.joints.push({ id: 10, name: 'Slide', type: 'slider', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [1, 0, 0] }, values: [{ name: 'distance', unit: 'mm', value: 0, limits: [0, 20] }] });
   await fake.start();
   const { page } = launched;
   await lookAgain(page);
   await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
   // The play tool is in the view's toolbar: one click, and the parts move.
-  await page.getByTestId('joints-play').click();
+  const tool = page.getByTestId('joints-play');
+  await expect(tool).toHaveAccessibleName('Play the motion');
+  await tool.click();
+  await expect(tool).toHaveAccessibleName('Pause the motion');
   const panel = page.getByTestId('joint-panel');
   const all = panel.getByTestId('joint-play-all');
   await expect(all).toHaveAttribute('data-playing', 'true');
   await expect(all).toHaveText('Pause all');
   const shown = (name: string) => async () => Number(await panel.getByTestId('joint-value').filter({ has: page.getByRole('slider', { name }) }).getAttribute('data-shown'));
-  await expect.poll(shown('Hinge')).toBeLessThan(-5);
-  await expect.poll(shown('Slide')).toBeGreaterThan(0.5);
-  await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joints-playing.png') });
-  // One after the other: the hinge goes there and back first, the slide waits.
-  await panel.getByTestId('joint-order-in-turn').click();
+  // One after the other is the way the check ran them: the hinge goes first, the slide waits where it stands.
   await expect(panel.getByTestId('joint-order-in-turn')).toHaveAttribute('aria-checked', 'true');
-  const [hinge, slide] = [await shown('Hinge')(), await shown('Slide')()];
-  await expect.poll(shown('Hinge')).not.toBe(hinge);
-  expect(await shown('Slide')()).toBe(slide);
-  expect(fake.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
-  // Paused, both are held where they stand.
-  await all.click();
+  await expect.poll(shown('Hinge')).toBeLessThan(-5);
+  expect(await shown('Slide')()).toBe(0);
+  await expect(panel.getByTestId('joint-unchecked')).toHaveCount(0);
+  // Together, both move at once, and the panel says that touches are not checked that way.
+  await panel.getByTestId('joint-order-together').click();
+  await expect(panel.getByTestId('joint-unchecked')).toBeVisible();
+  await expect.poll(shown('Slide'), { timeout: 30_000 }).toBeGreaterThan(0.5);
+  await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joints-playing.png') });
+  // The tool pauses them where they are; SolidCraft was not driven.
+  await tool.click();
   await expect(all).toHaveAttribute('data-playing', 'false');
-  await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBeLessThan(0);
-  await expect.poll(() => fake?.joints[1]?.values[0]?.value).toBeGreaterThan(0);
-  await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue(String(Math.round(fake.joints[0]?.values[0]?.value ?? 0)));
+  await expect(panel.getByTestId('joint-unchecked')).toHaveCount(0);
+  expect(fake.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
+  // Keeping the position drives every joint the view shows away from the design.
+  const tenth = async (name: string) => Math.round((await shown(name)()) * 10) / 10;
+  const reads = { hinge: await tenth('Hinge'), slide: await tenth('Slide') };
+  expect(reads.slide).toBeGreaterThan(0);
+  await panel.getByTestId('joint-keep').click();
+  await expect.poll(() => fake?.joints.map((joint) => joint.values[0]?.value)).toEqual([reads.hinge, reads.slide]);
+  await expect(panel.getByTestId('joint-keep')).toHaveCount(0);
   await panel.getByTestId('joint-reset').click();
   await expect.poll(() => fake?.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
   await expect(panel.getByRole('slider', { name: 'Slide' })).toHaveValue('0');

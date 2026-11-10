@@ -43,17 +43,21 @@ export function rotate([x, y, z, w]: [number, number, number, number], [px, py, 
 export const TRAVEL_SECONDS = 2.5;
 
 /**
- * One frame of a joint that plays: the value moved by `amount` in its direction. At an end of the
- * range it turns round (`bounce`) or starts over at the other end (`loop`).
+ * One frame of a joint that plays: the value moved by `amount` in its direction. Reaching an end of
+ * the range it stands exactly there for that frame (`turned`); from an end it turns round
+ * (`bounce`) or starts over at the other end (`loop`). A value outside the range is taken into it.
  */
 export function playStep(value: number, direction: 1 | -1, [min, max]: [number, number], amount: number, mode: 'bounce' | 'loop'): { value: number; direction: 1 | -1; turned: boolean } {
-  const span = max - min;
-  if (!(span > 0)) return { value: min, direction, turned: true };
-  const next = value + direction * Math.min(amount, span);
-  if (next >= min && next <= max) return { value: next, direction, turned: false };
-  const over = next > max ? next - max : min - next;
-  if (mode === 'loop') return { value: next > max ? min + over : max - over, direction, turned: true };
-  return next > max ? { value: max - over, direction: -1, turned: true } : { value: min + over, direction: 1, turned: true };
+  if (!(max - min > 0)) return { value: min, direction, turned: true };
+  let from = Math.min(max, Math.max(min, value));
+  let heading = direction;
+  if (from === (heading === 1 ? max : min)) {
+    if (mode === 'bounce') heading = heading === 1 ? -1 : 1;
+    else from = heading === 1 ? min : max;
+  }
+  const next = from + heading * amount;
+  if (next > min && next < max) return { value: next, direction: heading, turned: false };
+  return { value: heading === 1 ? max : min, direction: heading, turned: true };
 }
 
 /** A joint value shown away from where the mirror has it. */
@@ -74,9 +78,9 @@ export function jointPoses(joints: Joint[], previews: JointPreview[]): Map<strin
     .flatMap((preview) => {
       const joint = joints.find((entry) => entry.id === preview.joint);
       const move = joint ? jointMove(joint, preview.index, preview.value) : null;
-      return joint?.bodies && move ? [{ bodies: joint.bodies, move }] : [];
+      return joint?.bodies && move ? [{ id: joint.id, bodies: joint.bodies, move }] : [];
     })
-    .sort((a, b) => a.bodies.length - b.bodies.length);
+    .sort((a, b) => a.bodies.length - b.bodies.length || a.id - b.id);
   for (const { bodies, move } of moved) {
     for (const name of bodies) {
       const inner = poses.get(name);
