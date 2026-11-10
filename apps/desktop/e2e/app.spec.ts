@@ -592,6 +592,56 @@ test('a joint plays through its range, is held where it is paused and stays as i
   await expect(panel.getByTestId('joint-error')).toHaveCount(0);
 });
 
+test('the playback stops where the check found parts in the joint\'s way, and goes back from there', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.bodies = ['CableClip', 'Second clip'];
+  fake.occurrences = new Map([
+    [1, 'CableClip'],
+    [2, 'Second clip'],
+  ]);
+  fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [0, 1, 0] }, values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+  // On its way to the lower limit the second clip meets the first.
+  fake.sweepStops.set(-180, { stopped_at: -28.07, stopped_by: { a: 'Second clip:1', b: 'CableClip:1', at: [10, 5, 2] } });
+  await fake.start();
+  const { page } = launched;
+  await lookAgain(page);
+  await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
+  // The light has run the joint through its range.
+  await page.getByTestId('print-check').click();
+  const findings = page.getByTestId('print-check-panel');
+  await expect(findings.locator('[data-kind="blocked"]')).toContainText('touch at -28.1°');
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(findings).toBeHidden({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  await page.getByTestId('joints-play').click();
+  const panel = page.getByTestId('joint-panel');
+  const play = panel.getByTestId('joint-play');
+  const shown = async () => Number(await panel.getByTestId('joint-value').getAttribute('data-shown'));
+  // It stops at the touch by itself, says which parts meet, and drives nothing.
+  const stopped = panel.getByTestId('joint-stopped');
+  // A runner that draws a few frames a second takes its time to get there.
+  await expect(stopped).toHaveText(/Stopped: Second clip and CableClip touch at -28\.1°/, { timeout: 30_000 });
+  await expect(play).toHaveAttribute('data-playing', 'false');
+  expect(await shown()).toBeCloseTo(-28.1);
+  expect(fake.joints[0]?.values[0]?.value).toBe(0);
+  await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joint-stopped.png') });
+  await panel.getByTestId('joint-stopped-show').click();
+  // Playing again goes back from the touch, and stops there again on its way back down. At half speed, so the way is seen.
+  await panel.getByRole('radio', { name: '0.5×' }).click();
+  await play.click();
+  await expect(stopped).toHaveCount(0);
+  await expect.poll(shown, { timeout: 30_000 }).toBeGreaterThan(-20);
+  await expect(stopped).toBeVisible({ timeout: 30_000 });
+  expect(await shown()).toBeCloseTo(-28.1);
+  // As designed: back in the view, nothing to drive.
+  await panel.getByTestId('joint-reset').click();
+  await expect(stopped).toHaveCount(0);
+  await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue('0');
+  expect(fake.joints[0]?.values[0]?.value).toBe(0);
+});
+
 test('one click plays all joints together, one after the other on request, and pausing holds them all', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });

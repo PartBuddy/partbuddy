@@ -146,7 +146,9 @@
       "order": "Order",
       "together": "All together",
       "inTurn": "One after the other",
-      "playTool": "Play the motion"
+      "playTool": "Play the motion",
+      "stopped": "Stopped: {a} and {b} touch at {at}. Playing goes back from there.",
+      "showTouch": "Show the place"
     },
     "hintShort": "Click selects · drag orbits · right-drag pans · scroll zooms"
   },

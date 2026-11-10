@@ -146,7 +146,9 @@
       "order": "Reihenfolge",
       "together": "Alle zusammen",
       "inTurn": "Nacheinander",
-      "playTool": "Bewegung abspielen"
+      "playTool": "Bewegung abspielen",
+      "stopped": "Angehalten: {a} und {b} stoßen bei {at} aneinander. Abspielen fährt von dort zurück.",
+      "showTouch": "Stelle zeigen"
     },
     "hintShort": "Klicken wählt · Ziehen dreht · Rechts verschiebt · Rad zoomt"
   },
