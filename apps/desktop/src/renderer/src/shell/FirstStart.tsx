@@ -103,7 +103,7 @@ export function FirstStart() {
                 <IconDownload className="size-icon-sm" aria-hidden />
                 {t('firstStart.download')}
               </a>
-              <EnginePanel close={next} closable={false} />
+              <EnginePanel />
             </div>
           ) : step === 'assistant' ? (
             <div className="flex flex-col gap-3">
@@ -113,7 +113,7 @@ export function FirstStart() {
           ) : step === 'print' ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-text">{t('firstStart.print')}</p>
-              <PrintProfilesEditor close={next} />
+              <PrintProfilesEditor />
             </div>
           ) : info ? (
             <div className="flex flex-col gap-3">
@@ -132,7 +132,7 @@ export function FirstStart() {
                 {t('firstStart.back')}
               </Button>
             ) : null}
-            <Button variant={step === 'print' ? 'secondary' : 'primary'} onPress={next} data-testid="first-start-next">
+            <Button variant="primary" onPress={next} data-testid="first-start-next">
               {last ? t('firstStart.done') : t('firstStart.next')}
             </Button>
           </div>

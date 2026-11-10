@@ -18,9 +18,9 @@ const supportTone: Record<EngineInfo['support'], Tone> = {
  * Which SolidCraft PartBuddy runs (R0, ADR 0024): the program, its version and whether PartBuddy
  * supports it, with a way to choose another program (such as a portable 0.40 beside an installed
  * 0.30.1). A new choice takes effect after a restart, so the open design never changes kernel. In
- * its own dialog and in the settings (B6).
+ * the first start and in the settings (B6); no Close of its own, the settings close as a whole (audit A-23).
  */
-export function EnginePanel({ close, closable = true }: { close: () => void; closable?: boolean }) {
+export function EnginePanel() {
   const { t } = useTranslation();
   const [info, setInfo] = useState<EngineInfo | null>(null);
   const [error, setError] = useState<EngineChoiceError | null>(null);
@@ -107,10 +107,6 @@ export function EnginePanel({ close, closable = true }: { close: () => void; clo
       {info?.restartNeeded ? (
         <Button variant="primary" onPress={() => void platform().relaunch()} data-testid="engine-restart">
           {t('engine.restart')}
-        </Button>
-      ) : closable ? (
-        <Button variant="primary" onPress={close}>
-          {t('engine.close')}
         </Button>
       ) : null}
     </div>
