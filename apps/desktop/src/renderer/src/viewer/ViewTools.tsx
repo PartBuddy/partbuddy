@@ -1,4 +1,4 @@
-import { IconArrowsExchange, IconArrowsSplit2, IconBox, IconBoxMultiple, IconCheck, IconCube, IconFocusCentered, IconHandMove, IconLayoutGrid, IconMaximize, IconPerspective, IconRulerMeasure, IconSlice, IconStack2 } from '@tabler/icons-react';
+import { IconArrowsExchange, IconArrowsSplit2, IconBox, IconBoxMultiple, IconCheck, IconCube, IconFocusCentered, IconHandMove, IconLayoutGrid, IconMaximize, IconPerspective, IconPlayerPlay, IconRulerMeasure, IconSlice, IconStack2 } from '@tabler/icons-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -18,7 +18,7 @@ import {
 
 import { useStudio, type DisplayMode, type Section, type StandardView } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
-import { JointPanel } from './JointPanel';
+import { JointPanel, playableValues } from './JointPanel';
 import { bodiesBox, faceSection, sectionSpan } from './section';
 import { iconButtonClass, toggleSelected } from '../ui/Button';
 import { tooltipClass } from '../ui/Tooltip';
@@ -268,7 +268,9 @@ export function ViewTools() {
   const setPlayback = useStudio((s) => s.setPlayback);
   // Parts that move (ADR 0027): the tool is there once the design has a joint.
   const joints = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.joints : undefined));
-  const [moving, setMoving] = useState(false);
+  // The panel is open; `run` counts the presses of the play tool: each opens the panel anew, playing.
+  const [moving, setMoving] = useState<{ run: number; play: boolean } | null>(null);
+  const canPlay = joints ? playableValues(joints).length > 0 : false;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -412,9 +414,32 @@ export function ViewTools() {
       ) : null}
       {joints ? (
         <Tip label={t('viewer.joints.title')}>
-          <ToggleButton aria-label={t('viewer.joints.title')} isSelected={moving} onChange={setMoving} className={tool} data-testid="joints">
+          <ToggleButton
+            aria-label={t('viewer.joints.title')}
+            isSelected={moving !== null}
+            onChange={(on) => {
+              setMoving(on ? { run: moving?.run ?? 0, play: false } : null);
+            }}
+            className={tool}
+            data-testid="joints"
+          >
             <IconHandMove className="size-icon-sm" aria-hidden />
           </ToggleButton>
+        </Tip>
+      ) : null}
+      {/* One click from a design with a joint to its parts moving. */}
+      {joints && canPlay ? (
+        <Tip label={t('viewer.joints.playTool')}>
+          <AriaButton
+            aria-label={t('viewer.joints.playTool')}
+            className={tool}
+            onPress={() => {
+              setMoving({ run: (moving?.run ?? 0) + 1, play: true });
+            }}
+            data-testid="joints-play"
+          >
+            <IconPlayerPlay className="size-icon-sm" aria-hidden />
+          </AriaButton>
         </Tip>
       ) : null}
       {parts > 1 ? (
@@ -461,7 +486,7 @@ export function ViewTools() {
     </div>
     {section ? <SectionPanel section={section} /> : null}
     {explode !== null && parts > 1 ? <ExplodePanel amount={explode} /> : null}
-    {moving && joints ? <JointPanel joints={joints} /> : null}
+    {moving && joints ? <JointPanel key={moving.run} joints={joints} autoPlay={moving.play} /> : null}
     </>
   );
 }

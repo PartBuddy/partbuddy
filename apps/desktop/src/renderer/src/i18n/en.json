@@ -140,7 +140,13 @@
       "speed": "Speed",
       "mode": "Run",
       "bounce": "Back and forth",
-      "loop": "Start over each time"
+      "loop": "Start over each time",
+      "playAll": "Play all",
+      "pauseAll": "Pause all",
+      "order": "Order",
+      "together": "All together",
+      "inTurn": "One after the other",
+      "playTool": "Play the motion"
     },
     "hintShort": "Click selects · drag orbits · right-drag pans · scroll zooms"
   },

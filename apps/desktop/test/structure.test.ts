@@ -2,7 +2,7 @@ import { withMotion, type PrintCheck } from '@partbuddy/geometry';
 import { describe, expect, it } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
-import { jointMove, playStep, rotate } from '../src/renderer/src/viewer/jointPose';
+import { jointMove, jointPoses, playStep, rotate } from '../src/renderer/src/viewer/jointPose';
 import { sweepStopOf } from '../src/main/solidcraft/actions';
 
 import { componentsWithBodies, jointsOf, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
@@ -184,17 +184,39 @@ describe('a joint followed in the view while its slider is dragged (ADR 0027, G4
     expect(jointMove(slide, 0, 5)).toBeNull();
   });
 
+  it('moves a body beyond two joints by both: along its slide first, then about the hinge that carries the slide', () => {
+    const [hinge, slide] = jointsOf(listing, components);
+    if (!hinge || !slide) throw new Error('no joints');
+    const poses = jointPoses([hinge, slide], [
+      { joint: hinge.id, index: 0, value: -90 },
+      { joint: slide.id, index: 0, value: 12 },
+    ]);
+    // The flap only turns: as with the hinge alone.
+    expect(poses.get('Flap')).toEqual(jointMove(hinge, 0, -90));
+    // The latch slides 7 mm along x, then turns with the flap: a point of it at (62, 15, 2) goes to (69, 15, 2) and on to (43, 15, 32).
+    const latch = poses.get('Latch');
+    if (!latch) throw new Error('no pose');
+    const point = rotate(latch.quaternion, [62, 15, 2]).map((value, i) => value + (latch.position[i] ?? 0));
+    expect(point[0]).toBeCloseTo(43);
+    expect(point[1]).toBeCloseTo(15);
+    expect(point[2]).toBeCloseTo(32);
+    expect(poses.has('Base')).toBe(false);
+    // One joint alone, and nothing moved: as before.
+    expect(jointPoses([hinge, slide], [{ joint: slide.id, index: 0, value: 12 }]).get('Latch')).toEqual({ position: [7, 0, 0], quaternion: [0, 0, 0, 1] });
+    expect(jointPoses([hinge, slide], [{ joint: slide.id, index: 0, value: 5 }]).size).toBe(0);
+  });
+
   it('plays a joint through its range: back and forth, or starting over', () => {
-    expect(playStep(-10, 1, [-180, 0], 4, 'bounce')).toEqual({ value: -6, direction: 1 });
+    expect(playStep(-10, 1, [-180, 0], 4, 'bounce')).toEqual({ value: -6, direction: 1, turned: false });
     // Past the end it turns round by what was left over.
-    expect(playStep(-2, 1, [-180, 0], 5, 'bounce')).toEqual({ value: -3, direction: -1 });
-    expect(playStep(-178, -1, [-180, 0], 5, 'bounce')).toEqual({ value: -177, direction: 1 });
-    expect(playStep(-2, 1, [-180, 0], 5, 'loop')).toEqual({ value: -177, direction: 1 });
+    expect(playStep(-2, 1, [-180, 0], 5, 'bounce')).toEqual({ value: -3, direction: -1, turned: true });
+    expect(playStep(-178, -1, [-180, 0], 5, 'bounce')).toEqual({ value: -177, direction: 1, turned: true });
+    expect(playStep(-2, 1, [-180, 0], 5, 'loop')).toEqual({ value: -177, direction: 1, turned: true });
     // A frame after a long pause never leaves the range, and a range of nothing stays put.
     const far = playStep(-90, 1, [-180, 0], 10_000, 'bounce').value;
     expect(far).toBeGreaterThanOrEqual(-180);
     expect(far).toBeLessThanOrEqual(0);
-    expect(playStep(3, 1, [3, 3], 5, 'loop')).toEqual({ value: 3, direction: 1 });
+    expect(playStep(3, 1, [3, 3], 5, 'loop')).toEqual({ value: 3, direction: 1, turned: true });
   });
 });
 

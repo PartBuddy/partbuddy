@@ -1,4 +1,5 @@
 import type { DimensionHandle } from '../viewer/dimensionOf';
+import type { JointPreview } from '../viewer/jointPose';
 
 /** A drag arrow as the dock places it; `onDrag` takes each value, `done` once the arrow is let go. */
 export type DraggedDimension = DimensionHandle & {
@@ -141,9 +142,9 @@ interface StudioState {
   explode: number | null;
   setExplode: (explode: number | null) => void;
   requestView: (view: StandardView) => void;
-  /** A joint value as its slider is dragged (ADR 0027, G4): the view moves the joint's bodies there until the mirror shows them there. */
-  jointPreview: { joint: number; index: number; value: number } | null;
-  setJointPreview: (preview: { joint: number; index: number; value: number } | null) => void;
+  /** Joint values as their sliders are dragged or as they play (ADR 0027, G4): the view moves the joints' bodies there until the mirror shows them there. */
+  jointPreview: JointPreview[] | null;
+  setJointPreview: (preview: JointPreview[] | null) => void;
   /** Assembled or on the plate; the plate, the exploded view, the playback and a section exclude each other. */
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;

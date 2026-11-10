@@ -1,5 +1,5 @@
-import { IconArrowsLeftRight, IconPlayerPause, IconPlayerPlay, IconRepeat } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { IconArrowsLeftRight, IconArrowsRight, IconListNumbers, IconPlayerPause, IconPlayerPlay, IconRepeat } from '@tabler/icons-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Label, Slider, SliderOutput, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
 
@@ -8,13 +8,15 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button, IconButton } from '../ui/Button';
 import { segmentClass, segmentGroupClass, SliderBar } from '../ui/Choice';
-import { playStep, TRAVEL_SECONDS } from './jointPose';
+import { playStep, TRAVEL_SECONDS, type JointPreview } from './jointPose';
 
 type JointValue = Joint['values'][number];
 type PlayMode = 'bounce' | 'loop';
+type PlayOrder = 'together' | 'inTurn';
 
 const SPEEDS = [0.5, 1, 2];
 const segment = segmentClass('sm');
+const keyOf = (joint: number, index: number) => `${String(joint)}-${String(index)}`;
 
 /** The slider's ends: the joint's limits, and where a side has none a half turn or 100 mm, widened to hold the value. */
 export function jointRange(value: JointValue): [number, number] {
@@ -22,21 +24,36 @@ export function jointRange(value: JointValue): [number, number] {
   return [Math.min(value.limits?.[0] ?? -open, value.value), Math.max(value.limits?.[1] ?? open, value.value)];
 }
 
+/** A joint value that can play: the mirror gave its joint an axis, so its bodies move in the view. */
+export function playableValues(joints: Joint[]): { key: string; joint: Joint; index: number; value: JointValue; range: [number, number] }[] {
+  return joints.flatMap((joint) => (joint.axis && joint.origin ? joint.values.map((value, index) => ({ key: keyOf(joint.id, index), joint, index, value, range: jointRange(value) })) : []));
+}
+
 /**
- * Parts that move (ADR 0027): one slider per joint value, and a button that plays the joint through
- * its range. While it plays or is dragged the joint's bodies follow in the view only (G4); pausing or
- * letting go drives the joint in SolidCraft, and the next revision of the mirror shows where the
- * parts stand and gives the slider the value SolidCraft kept it at. Closing the panel while a joint
- * plays leaves it where the mirror has it.
+ * Parts that move (ADR 0027): one slider per joint value, a button that plays the joint through its
+ * range, and one that plays all of them. While they play or are dragged the joints' bodies follow in
+ * the view only (G4); pausing or letting go drives the joints in SolidCraft, and the next revision
+ * of the mirror shows where the parts stand and gives the sliders the values SolidCraft kept them
+ * at. Closing the panel while joints play leaves them where the mirror has them.
+ *
+ * All joints play together by default: the whole mechanism shows in the time one joint takes, however
+ * many there are, and no order has to be made up. One after the other is the choice beside it.
  */
-export function JointPanel({ joints }: { joints: Joint[] }) {
+export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; autoPlay?: boolean }) {
   const { t, i18n } = useTranslation();
+  const playable = useMemo(() => playableValues(joints), [joints]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [play, setPlay] = useState<{ joint: number; index: number } | null>(null);
+  /** The joint values that play, by key. */
+  const [play, setPlay] = useState<string[] | null>(() => (autoPlay && playable.length > 0 ? playable.map((entry) => entry.key) : null));
   const [speed, setSpeed] = useState(1);
   const [mode, setMode] = useState<PlayMode>('bounce');
-  const direction = useRef<1 | -1>(1);
+  const [order, setOrder] = useState<PlayOrder>('together');
+  const directions = useRef(new Map<string, 1 | -1>());
+  /** One after the other: whose turn it is, and how often it has turned at an end. */
+  const turn = useRef({ at: 0, turns: 0 });
+  /** Joint values on their way to SolidCraft: their preview stays until the mirror shows them there. */
+  const pending = useRef(new Set<string>());
   const preview = useStudio((s) => s.jointPreview);
   const setPreview = useStudio((s) => s.setJointPreview);
   // The bodies go back to where the mirror has them when the panel closes.
@@ -47,53 +64,88 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
     [setPreview],
   );
   // A new state of the mirror (clamped by SolidCraft, or moved by the assistant) is where the sliders stand.
+  const playing = play !== null;
+  const playingNow = useRef(playing);
+  playingNow.current = playing;
   useEffect(() => {
-    if (!play) setPreview(null);
-    // Only a new mirror clears the preview, not the end of a playback: that one is driven first.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (playingNow.current) return;
+    const kept = (useStudio.getState().jointPreview ?? []).filter((entry) => pending.current.has(keyOf(entry.joint, entry.index)));
+    setPreview(kept.length > 0 ? kept : null);
   }, [joints, setPreview]);
 
   useEffect(() => {
     if (!play) return;
-    const value = joints.find((joint) => joint.id === play.joint)?.values[play.index];
-    if (!value) return;
-    const range = jointRange(value);
+    const targets = playable.filter((entry) => play.includes(entry.key));
+    if (targets.length === 0) return;
     let last = performance.now();
     let frame = requestAnimationFrame(function tick(now) {
       const seconds = Math.min((now - last) / 1000, 0.1);
       last = now;
-      const shown = useStudio.getState().jointPreview;
-      const from = shown?.joint === play.joint && shown.index === play.index ? shown.value : value.value;
-      const step = playStep(from, direction.current, range, (seconds * speed * (range[1] - range[0])) / TRAVEL_SECONDS, mode);
-      direction.current = step.direction;
-      setPreview({ joint: play.joint, index: play.index, value: step.value });
+      const shown = useStudio.getState().jointPreview ?? [];
+      const mine = order === 'inTurn' ? targets[turn.current.at % targets.length] : null;
+      setPreview(
+        targets.map((target) => {
+          const [min, max] = target.range;
+          const from = shown.find((entry) => entry.joint === target.joint.id && entry.index === target.index)?.value ?? target.value.value;
+          if (mine && target !== mine) return { joint: target.joint.id, index: target.index, value: from };
+          // Towards the end that is further away first.
+          const step = playStep(from, directions.current.get(target.key) ?? (max - from >= from - min ? 1 : -1), target.range, (seconds * speed * (max - min)) / TRAVEL_SECONDS, mode);
+          directions.current.set(target.key, step.direction);
+          // There and back (or once through, starting over), then the next joint.
+          if (mine && step.turned && (turn.current.turns += 1) >= (mode === 'bounce' ? 2 : 1)) turn.current = { at: turn.current.at + 1, turns: 0 };
+          return { joint: target.joint.id, index: target.index, value: step.value };
+        }),
+      );
       frame = requestAnimationFrame(tick);
     });
     return () => {
       cancelAnimationFrame(frame);
     };
-  }, [play, joints, speed, mode, setPreview]);
+  }, [play, playable, speed, mode, order, setPreview]);
+
+  const start = (keys: string[]) => {
+    directions.current.clear();
+    turn.current = { at: 0, turns: 0 };
+    setPlay(keys);
+  };
 
   const drive = (moves: { joint: Joint; index: number; value: number }[]) => {
     setBusy(true);
     setError(null);
+    pending.current = new Set(moves.map((move) => keyOf(move.joint.id, move.index)));
     void (async () => {
       try {
         for (const { joint, index, value } of moves) {
           await platform().design.driveJoint({ joint: joint.id, index, value, unit: joint.values[index]?.unit ?? 'deg', name: joint.name });
+          pending.current.delete(keyOf(joint.id, index));
         }
       } catch (cause) {
         setError((cause as Error).message.slice(0, 200));
         setPreview(null);
       } finally {
+        pending.current.clear();
         setBusy(false);
       }
     })();
   };
 
-  const shownOf = (joint: Joint, index: number, value: JointValue) => (preview?.joint === joint.id && preview.index === index ? preview.value : value.value);
+  /** Ends the playback and holds every joint where the view shows it: driven there, as a slider let go. */
+  const hold = (taken?: JointPreview) => {
+    setPlay(null);
+    const shown = [...(useStudio.getState().jointPreview ?? []).filter((entry) => !(taken && entry.joint === taken.joint && entry.index === taken.index)), ...(taken ? [taken] : [])];
+    const moves = shown.flatMap((entry) => {
+      const joint = joints.find((candidate) => candidate.id === entry.joint);
+      const value = Math.round(entry.value * 10) / 10;
+      return joint && joint.values[entry.index] && value !== joint.values[entry.index]?.value ? [{ joint, index: entry.index, value }] : [];
+    });
+    if (moves.length > 0) drive(moves);
+    else setPreview(null);
+  };
+
   const away = joints.flatMap((joint) => joint.values.flatMap((value, index) => (Math.abs(value.value) > 1e-6 ? [{ joint, index, value: 0 }] : [])));
   const speedLabel = new Intl.NumberFormat(i18n.language);
+  const all = playable.map((entry) => entry.key);
+  const allPlaying = play !== null && play.length === all.length;
 
   return (
     <div
@@ -107,12 +159,13 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
         joint.values.map((value, index) => {
           const [min, max] = jointRange(value);
           const step = value.unit === 'deg' ? 1 : 0.5;
-          const shown = shownOf(joint, index, value);
-          const playing = play?.joint === joint.id && play.index === index;
+          const key = keyOf(joint.id, index);
+          const shown = preview?.find((entry) => entry.joint === joint.id && entry.index === index)?.value ?? value.value;
+          const plays = play?.includes(key) ?? false;
           const name = joint.values.length > 1 ? `${joint.name} ${String(index + 1)}` : joint.name;
           return (
             <Slider
-              key={`${String(joint.id)}-${String(index)}`}
+              key={key}
               value={Math.min(max, Math.max(min, Math.round(shown / step) * step))}
               minValue={min}
               maxValue={max}
@@ -120,14 +173,13 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
               isDisabled={busy}
               formatOptions={value.unit === 'deg' ? { style: 'unit', unit: 'degree', unitDisplay: 'narrow', maximumFractionDigits: 1 } : { style: 'unit', unit: 'millimeter', maximumFractionDigits: 1 }}
               onChange={(next) => {
-                // Taking the slider takes the joint from the playback. The bodies follow in the view at once (G4).
-                if (playing) setPlay(null);
-                setPreview({ joint: joint.id, index, value: next });
+                // Taking a slider ends the playback; the others stay where the view shows them. The bodies follow at once (G4).
+                if (play) setPlay(null);
+                setPreview([...(useStudio.getState().jointPreview ?? []).filter((entry) => !(entry.joint === joint.id && entry.index === index)), { joint: joint.id, index, value: next }]);
               }}
               onChangeEnd={(next) => {
                 // SolidCraft is driven when the slider is let go.
-                if (next !== value.value) drive([{ joint, index, value: next }]);
-                else setPreview(null);
+                hold({ joint: joint.id, index, value: next });
               }}
               className="w-full"
               data-testid="joint-value"
@@ -141,26 +193,17 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
                 {/* Without an axis from the mirror nothing would move in the view: no playback then. */}
                 {joint.axis && joint.origin ? (
                   <IconButton
-                    label={t(playing ? 'viewer.joints.pause' : 'viewer.joints.play', { name })}
-                    // One joint plays at a time.
-                    isDisabled={busy || (play !== null && !playing)}
+                    label={t(plays ? 'viewer.joints.pause' : 'viewer.joints.play', { name })}
+                    isDisabled={busy || (play !== null && !plays)}
                     onPress={() => {
-                      if (playing) {
-                        // Paused, the joint is held where it stands: driven there like a slider let go.
-                        setPlay(null);
-                        const held = Math.round(shown * 10) / 10;
-                        if (held !== value.value) drive([{ joint, index, value: held }]);
-                        else setPreview(null);
-                        return;
-                      }
-                      // Towards the end that is further away first.
-                      direction.current = max - shown >= shown - min ? 1 : -1;
-                      setPlay({ joint: joint.id, index });
+                      // Paused, the joints are held where they stand.
+                      if (plays) hold();
+                      else start([key]);
                     }}
                     data-testid="joint-play"
-                    data-playing={String(playing)}
+                    data-playing={String(plays)}
                   >
-                    {playing ? <IconPlayerPause className="size-icon-sm" aria-hidden /> : <IconPlayerPlay className="size-icon-sm" aria-hidden />}
+                    {plays ? <IconPlayerPause className="size-icon-sm" aria-hidden /> : <IconPlayerPlay className="size-icon-sm" aria-hidden />}
                   </IconButton>
                 ) : null}
                 <div className="min-w-0 flex-1">
@@ -171,7 +214,43 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
           );
         }),
       )}
-      {joints.some((joint) => joint.axis && joint.origin) ? (
+      {all.length > 1 ? (
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            size="sm"
+            className="min-w-0 flex-1"
+            isDisabled={busy || (play !== null && !allPlaying)}
+            onPress={() => {
+              if (allPlaying) hold();
+              else start(all);
+            }}
+            data-testid="joint-play-all"
+            data-playing={String(allPlaying)}
+          >
+            {allPlaying ? <IconPlayerPause className="size-icon-sm shrink-0" aria-hidden /> : <IconPlayerPlay className="size-icon-sm shrink-0" aria-hidden />}
+            <span className="truncate">{t(allPlaying ? 'viewer.joints.pauseAll' : 'viewer.joints.playAll')}</span>
+          </Button>
+          <ToggleButtonGroup
+            aria-label={t('viewer.joints.order')}
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={[order]}
+            onSelectionChange={(keys) => {
+              turn.current = { at: 0, turns: 0 };
+              setOrder([...keys][0] === 'inTurn' ? 'inTurn' : 'together');
+            }}
+            className={segmentGroupClass}
+          >
+            <ToggleButton id="together" aria-label={t('viewer.joints.together')} className={segment} data-testid="joint-order-together">
+              <IconArrowsRight className="size-icon-sm" aria-hidden />
+            </ToggleButton>
+            <ToggleButton id="inTurn" aria-label={t('viewer.joints.inTurn')} className={segment} data-testid="joint-order-in-turn">
+              <IconListNumbers className="size-icon-sm" aria-hidden />
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </div>
+      ) : null}
+      {all.length > 0 ? (
         <div className="flex items-center justify-between gap-2">
           <ToggleButtonGroup
             aria-label={t('viewer.joints.speed')}
