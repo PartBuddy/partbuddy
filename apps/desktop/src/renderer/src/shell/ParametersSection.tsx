@@ -138,7 +138,10 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
                 event.stopPropagation();
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  apply();
+                  // A refused value keeps the field: moving focus into the row would leave the edit open (audit B-11).
+                  if (!valid || problem !== null) return;
+                  if (changed) apply();
+                  else reset();
                   back();
                 } else if (event.key === 'Escape') {
                   event.preventDefault();
@@ -148,7 +151,10 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
               }}
               onBlur={(event) => {
                 // The slider of a favourite belongs to the edit; leaving the row ends it.
-                if (!box.current?.contains(event.relatedTarget)) reset();
+                if (box.current?.contains(event.relatedTarget)) return;
+                // Leaving with a refused value says it was dropped and which value stays (audit B-11).
+                if (!valid || problem !== null) setNotice({ tone: 'danger', text: t('parameters.discarded', { value: text, kept: format(parameter.value) }) });
+                reset();
               }}
             />
           </TextField>

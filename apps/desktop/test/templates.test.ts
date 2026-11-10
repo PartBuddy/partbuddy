@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { templateRequestSchema } from '../src/shared/contract';
-import { TEMPLATE_IDS, templateSteps } from '../src/shared/templates';
+import { TEMPLATE_IDS, germanFeatureName, templateSteps } from '../src/shared/templates';
 
 /** The geometry fields whose text is an expression over the design's parameters. */
 const EXPRESSION_FIELDS = new Set(['length', 'width', 'height', 'diameter', 'thickness', 'depth', 'corner', 'base', 'position', 'center', 'points', 'point', 'distance', 'cs_diameter', 'radius']);
@@ -74,5 +74,21 @@ describe('templates (F3)', () => {
     const named = housing.flatMap((step) => [step.params.body, ...targets(step)]).filter((name) => typeof name === 'string');
     expect(new Set(named)).toEqual(new Set(['Gehäuse', 'Deckel']));
     expect(templateSteps('housing').some((step) => step.params.body_name === 'Housing')).toBe(true);
+  });
+
+  it('names every feature and sketch in German on request, and a sketch reference follows (audit B-03)', () => {
+    for (const id of TEMPLATE_IDS) {
+      const english = templateSteps(id);
+      templateSteps(id, true).forEach((step, index) => {
+        const name = english[index]?.params.name;
+        if (step.command === 'parameters.add' || typeof name !== 'string' || name === 'Box' || name === 'Ring' || name === 'Adapter') return;
+        expect(step.params.name, `${id}: ${name}`).not.toBe(name);
+      });
+    }
+    expect(germanFeatureName('Ear slot 2 end 1')).toBe('Laschenschlitz 2 Ende 1');
+    expect(germanFeatureName('Vent front 4')).toBe('Lüftung vorn 4');
+    expect(germanFeatureName('Unknown')).toBe('Unknown');
+    const holder = templateSteps('wallHolder', true);
+    expect(holder.find((step) => step.command === 'solid.hole')?.params.sketch).toBe('Schraubpunkte');
   });
 });

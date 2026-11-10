@@ -100,6 +100,8 @@ function withoutOuterGrowth(stored: unknown): unknown {
  * in a small file next to its design, like the conversation. A choice made before the design has a
  * file is held and written once it has one. Both files are read back as untrusted input.
  */
+const STARTING_NAMES = new Set(['My printer', 'Mein Drucker']);
+
 export class PrintProfiles {
   private pending: PartFile | null = null;
 
@@ -112,11 +114,18 @@ export class PrintProfiles {
     return { ...DEFAULT_PRINT_SETTINGS, printers: DEFAULT_PRINT_SETTINGS.printers.map((printer) => ({ ...printer, name })) };
   }
 
+  /** A printer still carrying a starting name follows the interface language (audit A-02). */
+  private translated(settings: PrintSettings): PrintSettings {
+    const name = this.options.printerName?.();
+    if (!name) return settings;
+    return { ...settings, printers: settings.printers.map((printer) => (STARTING_NAMES.has(printer.name) ? { ...printer, name } : printer)) };
+  }
+
   settings(): PrintSettings {
     if (!existsSync(this.options.file)) return this.defaults();
     try {
       const parsed = printSettingsSchema.safeParse(withoutOuterGrowth(JSON.parse(readFileSync(this.options.file, 'utf8'))));
-      if (parsed.success) return parsed.data;
+      if (parsed.success) return this.translated(parsed.data);
       this.options.log('the print profiles do not match their format; the starting values are used');
     } catch (error) {
       this.options.log(`the print profiles could not be read: ${(error as Error).message}`);

@@ -675,6 +675,7 @@
     "name": "Name",
     "value": "Value",
     "invalid": "Type a length greater than 0",
+    "discarded": "“{{value}}” discarded, {{kept}} stays",
     "fitted": "Chosen by the assistant, follows the printer's nozzle and layer height"
   },
   "timeline": {
