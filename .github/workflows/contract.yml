@@ -1,0 +1,71 @@
+name: SolidCraft contract tests
+
+# The desktop app against a real SolidCraft (apps/desktop/e2e/solidcraft.contract.spec.ts). They need
+# SolidCraft and a Windows desktop, so the pull request CI leaves them out; without a regular run a
+# broken flow stays unnoticed (colour logo, found 2026-11-10, red since #201). Every night and by hand.
+# Runs on the Windows runner of the website screenshots (labels self-hosted, windows, partbuddy-shots)
+# with its portable SolidCraft 0.40.0-rc.3 beside the _work folder (docs/website.md, Setup).
+
+on:
+  schedule:
+    # 02:30 in Vienna (winter time), when no pull request CI runs.
+    - cron: "30 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One night run at a time; a run by hand waits for it.
+  group: solidcraft-runner
+  cancel-in-progress: false
+
+jobs:
+  contract:
+    name: Contract tests with SolidCraft
+    runs-on: [self-hosted, windows, partbuddy-shots]
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          dest: ${{ runner.tool_cache }}/setup-pnpm
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Electron downloads its binary on first use (as in ci.yml).
+      - name: Download Electron
+        run: node apps/desktop/node_modules/electron/install.js
+
+      - name: Build the app
+        run: pnpm --filter @partbuddy/desktop build
+
+      - name: Run the contract tests
+        run: pnpm --filter @partbuddy/desktop exec playwright test e2e/solidcraft.contract.spec.ts --reporter=line
+        env:
+          PARTBUDDY_E2E_SOLIDCRAFT: "1"
+          PARTBUDDY_SOLIDCRAFT_EXE: ${{ github.workspace }}\..\..\..\tools\solidcraft-0.40.0-rc.3\solidcraft.exe
+
+      # Screenshots, traces and error contexts of the failed tests, to read the cause without a rerun.
+      - name: Keep the results of failed tests
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: contract-test-results
+          path: apps/desktop/test-results
+          retention-days: 14
