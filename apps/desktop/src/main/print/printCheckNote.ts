@@ -32,7 +32,13 @@ function line(finding: Finding, nozzle: number): string {
     case 'separate':
       return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(', ')} touch but are separate; the slicer lays each on the bed by itself. Combine them if they are one part.`;
     case 'feature':
-      return `- ${tag}: feature ${JSON.stringify(finding.feature)} reports ${JSON.stringify(finding.message.slice(0, 200))}.`;
+      return (
+        `- ${tag}: feature ${JSON.stringify(finding.feature)} reports ${JSON.stringify(finding.message.slice(0, 200))}.` +
+        // Practice run 2026-11-10: the model took this for a false alarm; the lips it had added to a hinged lid did stay behind.
+        (finding.message.includes('separate pieces')
+          ? ' This is real: if the body moves with a joint, the piece was built from the design level and stays behind when the joint moves. Undo it and build it again with the body\'s component active (component.activate), the joints at 0.'
+          : '')
+      );
     case 'overlap':
       return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} overlap by ${String(finding.volume)} mm³; as separate parts they do not go together. Combine them if they are one part, otherwise make room.`;
     case 'tight':

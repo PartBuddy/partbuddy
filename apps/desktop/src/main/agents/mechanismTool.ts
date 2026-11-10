@@ -146,6 +146,35 @@ function reach(sweep: unknown, to: number, step: number): number {
 
 type Run = (commands: Step[]) => Promise<unknown[]>;
 
+/** The component that holds a body, from `component.list`; 0 (the design itself) while the body is no component. */
+function componentOf(listing: unknown, body: string): number {
+  const components = (listing as { components?: unknown } | undefined)?.components;
+  if (!Array.isArray(components)) return 0;
+  const found = (components as { id?: unknown; parent?: unknown; bodies?: unknown }[]).find((entry) => entry.parent !== null && Array.isArray(entry.bodies) && entry.bodies.includes(body));
+  return Number.isInteger(found?.id) ? (found?.id as number) : 0;
+}
+
+/**
+ * The steps with each one's component made active first. Geometry built from the design level
+ * onto a body that is a component stays where it is when a joint moves the body (SolidCraft
+ * 0.40.0-rc.3, practice run 2026-11-10: lips added to a hinged lid hung in the air once it
+ * closed); built with the body's component active it moves along. A sketch belongs to the
+ * component of the step that uses it. Ends at the design level.
+ */
+export function activated(steps: Step[], listing: unknown): Step[] {
+  const out: Step[] = [];
+  let active = 0;
+  for (const [i, step] of steps.entries()) {
+    const target = steps.slice(i).find((later) => Array.isArray(later.params.targets))?.params.targets as unknown[] | undefined;
+    const component = typeof target?.[0] === 'string' ? componentOf(listing, target[0]) : 0;
+    if (component !== active) out.push({ command: 'component.activate', params: { component } });
+    active = component;
+    out.push(step);
+  }
+  if (active !== 0) out.push({ command: 'component.activate', params: { component: 0 } });
+  return out;
+}
+
 /**
  * Builds the solids. A joined piece that does not touch its body stays in it as a separate piece,
  * and SolidCraft says so in the step's warning (0.40.0-rc.3: "… is now in 2 separate pieces"); it
@@ -158,7 +187,16 @@ async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; m
   const bodies = (before.bodies ?? []).map((body) => body.name);
   const missing = [spec.fixed, spec.moving].filter((name) => !bodies.includes(name));
   if (missing.length > 0) throw new Error(`no body ${missing.map((name) => JSON.stringify(name)).join(' or ')}; the bodies are ${bodies.map((name) => JSON.stringify(name)).join(', ') || 'none'}`);
-  const built = await run(steps);
+  // The line is given in the world as designed: with a joint away from 0 its bodies stand elsewhere.
+  const [listing, joints] = await run([
+    { command: 'component.list', params: {} },
+    { command: 'joint.list', params: {} },
+  ]);
+  const away = (((joints as { joints?: { name?: unknown; values?: { value?: unknown }[] }[] } | undefined)?.joints ?? []) as { name?: unknown; values?: { value?: unknown }[] }[])
+    .filter((joint) => (joint.values ?? []).some((value) => typeof value.value === 'number' && Math.abs(value.value) > 1e-6))
+    .map((joint) => String(joint.name));
+  if (away.length > 0) throw new Error(`the joint(s) ${away.map((name) => JSON.stringify(name)).join(', ')} stand away from 0; drive them back with joint.drive first, so the bodies are where they were designed`);
+  const built = await run(activated(steps, listing));
   const apart = built.filter((result) => {
     const warning = (result as { warning?: unknown } | undefined)?.warning;
     return typeof warning === 'string' && warning.includes('separate pieces');

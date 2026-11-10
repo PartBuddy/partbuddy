@@ -102,7 +102,9 @@ for (const part of process.env.PARTBUDDY_PRACTICE === '1' ? PARTS.filter((entry)
           await page.waitForTimeout(2000);
           await page.screenshot({ path: test.info().outputPath('joint-at-end.png') });
           await page.getByTestId('joint-reset').click();
-          await expect(page.getByTestId('joint-reset')).toBeDisabled({ timeout: 60_000 });
+          // The button is disabled while it works too: the slider back at its start says it is done.
+          await expect(sliders.first()).toHaveValue(start, { timeout: 60_000 });
+          await page.waitForTimeout(2000);
         }
         await page.getByTestId('joints').click();
       } else {

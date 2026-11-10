@@ -184,3 +184,16 @@ describe('a joint followed in the view while its slider is dragged (ADR 0027, G4
     expect(jointMove(slide, 0, 5)).toBeNull();
   });
 });
+
+describe('a piece that stays behind when its body moves (practice run 2026-11-10)', () => {
+  it('is told to the assistant as real, with the way to build it so it moves along', () => {
+    const note = printCheckNote({
+      status: 'warn',
+      nozzle: 0.4,
+      revision: 14,
+      findings: [{ kind: 'feature', severity: 'warn', feature: 'Rastlippe vorn', message: "the joined piece doesn't touch `Deckel`, so `Deckel` is now in 2 separate pieces (New Body makes it a body of its own)" }],
+    });
+    expect(note).toContain('This is real: if the body moves with a joint, the piece was built from the design level and stays behind when the joint moves.');
+    expect(note).toContain('component.activate');
+  });
+});

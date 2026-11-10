@@ -303,6 +303,17 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a flap of components" (G3): the plates are components before the hinge is asked for.
+    if (content.includes('a flap of components')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, operation: 'new', body_name: 'Base' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, corner: [44, 0, 0], operation: 'new', body_name: 'Flap' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'component.from_bodies', params: { bodies: ['Base', 'Flap'] } } });
+      const built = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], name: 'Flap hinge' } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     if (content.includes('a hinged flap')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, operation: 'new', body_name: 'Base' } } });
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, corner: [44, 0, 0], operation: 'new', body_name: 'Flap' } } });

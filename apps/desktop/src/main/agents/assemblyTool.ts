@@ -109,4 +109,6 @@ export const JOINT_GUIDANCE =
   '{type: revolute or slider, a, b: the occurrences such as "Lid:1" (a stays, b moves), at: {occurrence, point: [x, y, z] on the axis, z: the direction of the axis}, ' +
   "name in the user's language} and set its range with joint.limits {joint, min, max} (degrees or mm; 0 is the position as designed). " +
   'Check the range with joint.sweep {joint, from, to}, which reports where parts first touch, and widen the gap or narrow the limits when they do. ' +
+  'Finish the geometry of a body before you join it. To change a body that is a component afterwards, drive the joints to 0, make its component active (component.activate {component: "<its name>"}), build, then go back with component.activate {component: 0}: ' +
+  'what is built from the design level onto such a body stays behind when the joint moves it, and SolidCraft then warns that the body is in separate pieces. ' +
   "Leave the joints at 0 when you are done; the user moves them with sliders in PartBuddy's view.";

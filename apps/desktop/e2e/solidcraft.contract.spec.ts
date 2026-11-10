@@ -3246,3 +3246,43 @@ test('a hinge whose line is out of reach of the bodies is taken back, with where
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a hinge between bodies that are components already moves as a whole: its knuckles do not stay behind (G3)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-hinge-components-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7941',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a flap of components');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText(/Built the hinge "Flap hinge" between Base \(stays\) and Flap \(turns\).* It turns from -145° to 67°/)).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId('joints').click({ timeout: 30_000 });
+    const slider = page.getByTestId('joint-panel').getByRole('slider', { name: 'Flap hinge' });
+    await slider.focus();
+    await page.keyboard.press('End');
+    await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Flap hinge' })).toHaveValue('67', { timeout: 30_000 });
+    await expect(page.getByTestId('joint-reset')).toBeEnabled({ timeout: 30_000 });
+    await page.waitForTimeout(2000);
+    await page.screenshot({ path: test.info().outputPath('hinge-components-open.png') });
+    // Knuckles built from the design level would stay behind now: SolidCraft would warn that the flap is
+    // in separate pieces, and they would cut into the turned flap.
+    await page.getByTestId('print-check').click();
+    const findings = page.getByTestId('print-check-panel');
+    await expect(findings.locator('[data-kind="posed"]')).toHaveCount(1, { timeout: 30_000 });
+    await expect(findings.locator('[data-kind="feature"], [data-kind="overlap"]')).toHaveCount(0);
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
