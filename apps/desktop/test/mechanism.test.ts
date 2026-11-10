@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { hingeOf, occurrenceOf, railTravel, slideOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, hingeOf, occurrenceOf, railTravel, slideOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { describeToolCall } from '../src/shared/stepPhrases';
 import { hingeProblem, hingeSteps, slideProblem, slideSteps, type HingeSpec, type SlideSpec } from '../src/shared/mechanisms';
@@ -92,6 +92,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
       text: expect.stringContaining('Built the hinge "Lid hinge" between Base (stays) and Flap (turns): 3 knuckles, barrel 6 mm, pin 3 mm, gap 0.4 mm everywhere. It turns from -145° to 67° before the bodies meet') as string,
     });
     expect(batches.map((batch) => batch.map((step) => step.command).join(' '))).toEqual([
+      'component.list joint.list',
       Array.from({ length: 8 }, () => 'solid.cylinder').join(' '),
       'document.inspect inspect.interference',
       'component.list',
@@ -99,8 +100,8 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
       'joint.as_built joint.sweep joint.sweep',
       'joint.limits',
     ]);
-    expect(batches[4]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
-    expect(batches[5]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
+    expect(batches[5]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
+    expect(batches[6]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
 
     // A body that does not exist is named with the ones that do; nothing is built.
     const before = batches.length;
@@ -137,7 +138,35 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
         "It needs no distance from their walls: PartBuddy cuts each knuckle's room in the other body itself. Everything was taken back; call again with the line moved.",
     });
     // Every step SolidCraft counted since (11 − 3) is undone, and no joint was made.
-    expect(calls).toEqual(['inspect_design', 'batch', 'batch', ...Array.from({ length: 8 }, () => 'undo')]);
+    expect(calls).toEqual(['inspect_design', 'batch', 'batch', 'batch', ...Array.from({ length: 8 }, () => 'undo')]);
+  });
+
+  it('builds onto a body that is a component with that component active, so the knuckles move with it', () => {
+    // The flap is a component already (a second mechanism, or the assistant made components first); the base is not.
+    const listing = { active: 0, components: [{ id: 0, parent: null, bodies: ['Base'] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ name: 'Flap:1' }] }] };
+    const steps = activated(hingeSteps(spec), listing);
+    const target = (step: { command: string; params: Record<string, unknown> }) => (step.command === 'component.activate' ? `activate ${String(step.params.component)}` : (step.params.targets as string[])[0]);
+    expect(steps.map(target)).toEqual(['activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base']);
+    // Nothing is a component: the steps as they are.
+    expect(activated(hingeSteps(spec), { components: [{ id: 0, parent: null, bodies: ['Base', 'Flap'] }] })).toEqual(hingeSteps(spec));
+    // A guide's sketch belongs to the component of the extrusion that uses it, and the design level is active again at the end.
+    const guide = activated(slideSteps({ fixed: 'Base', moving: 'Flap', from: [0, 15, 4], to: [60, 15, 4], up: [0, 0, 1], width: 6, height: 3, gap: 0.4, name: 'Guide' }), listing);
+    expect(guide.map((step) => step.command)).toEqual(['component.activate', 'sketch.create', 'sketch.line', 'solid.extrude', 'component.activate', 'sketch.create', 'sketch.line', 'solid.extrude']);
+  });
+
+  it('asks for the joints at 0 before it builds', async () => {
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, args) => {
+        if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Flap' }], undo: 3 }) }] });
+        const commands = args.commands as { command: string }[];
+        const results = commands.map((step) => (step.command === 'joint.list' ? { joints: [{ name: 'Lid hinge', values: [{ unit: 'deg', value: 90 }] }] } : {}));
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
+      },
+    };
+    const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3] });
+    expect(built).toMatchObject({ isError: true, content: [{ text: 'Not built: the joint(s) "Lid hinge" stand away from 0; drive them back with joint.drive first, so the bodies are where they were designed' }] });
   });
 
   it('is one line in the work log, by its kind', () => {

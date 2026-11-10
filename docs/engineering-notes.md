@@ -199,6 +199,13 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   `stopped_at` (the last value clear of contact, refined to 0.01 mm) and
   `stopped_by {a, b, at}`; about 5 ms for two plates. Also there, not used yet: `joint.gear`,
   `joint.reach` (a drag frame with `continuous`), `motion.study`, `motion.interference`.
+- Geometry built from the design level onto a body that is a component (`targets: [body]` with the
+  root active) is not part of the component: when a joint moves the body it stays where it is, and
+  the feature then warns "the joined piece doesn't touch `<body>`, so `<body>` is now in 2 separate
+  pieces". Built with `component.activate {component}` first (world coordinates still apply, the
+  joint at 0) it moves along; `component.activate {component: 0}` goes back. A join that does not
+  touch never makes a body of its own, it stays in the body as a separate piece (practice runs
+  2026-11-10).
 - The `solidcraft-cli` on the PATH of the home server is 0.30.1; `solidcraft-cli commands` of the
   version under test lists every command with its parameters.
 
