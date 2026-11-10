@@ -497,9 +497,9 @@ test('website pictures', async () => {
       await panBesideDock();
       await page.getByTestId('composer-photo-input').setInputFiles(views);
       await expect(page.getByTestId('composer-photo')).toHaveCount(3, { timeout: 15_000 });
-      await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('My old clip from three sides – it broke at the snap. Build it again, 1 mm stronger there.');
+      await page.getByRole('textbox', { name: 'Message to the assistant' }).fill("Here's the clip from three sides – make the snap 1 mm stronger.");
       await page.getByRole('button', { name: 'Send' }).click();
-      await expect(page.getByTestId('assistant-text').last()).toContainText('three sides', { timeout: 30_000 });
+      await expect(page.getByTestId('assistant-text').last()).toContainText('three views', { timeout: 30_000 });
       await page.waitForTimeout(1000);
       await shot('photos');
     });

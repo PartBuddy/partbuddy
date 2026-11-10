@@ -141,7 +141,7 @@ if (args[0] === '--version') {
     await client?.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }));
     if (picture && content.includes('from three sides')) {
       await client?.close();
-      say('I see your clip from three sides: front, side and top. It broke where the snap meets the base plate, the thinnest place of the part. I will build it with the snap root **1 mm** thicker and a larger fillet there.');
+      say('I see the clip in three views: from above at an angle, from the front and from the top. The snap is thinnest where it meets the base plate, so I will make its root **1 mm** thicker and round it with a larger fillet.');
     } else if (said === 'Make the snap opening') {
       // Long enough for the next message to wait beside it (picture "queue").
       // One query, then a long think (the same call three times in a row is refused); the picture stops it.
