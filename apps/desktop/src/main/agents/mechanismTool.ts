@@ -1,4 +1,5 @@
 import { hingeProblem, hingeSteps, pinDiameter, slideProblem, slideSteps, type HingeSpec, type SlideSpec } from '../../shared/mechanisms';
+import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
 /**
@@ -145,14 +146,6 @@ function reach(sweep: unknown, to: number, step: number): number {
 }
 
 type Run = (commands: Step[]) => Promise<unknown[]>;
-
-/** The component that holds a body, from `component.list`; 0 (the design itself) while the body is no component. */
-function componentOf(listing: unknown, body: string): number {
-  const components = (listing as { components?: unknown } | undefined)?.components;
-  if (!Array.isArray(components)) return 0;
-  const found = (components as { id?: unknown; parent?: unknown; bodies?: unknown }[]).find((entry) => entry.parent !== null && Array.isArray(entry.bodies) && entry.bodies.includes(body));
-  return Number.isInteger(found?.id) ? (found?.id as number) : 0;
-}
 
 /**
  * The steps with each one's component made active first. Geometry built from the design level

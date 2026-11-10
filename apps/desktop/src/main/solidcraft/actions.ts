@@ -38,6 +38,14 @@ export function commandOf(action: DesignAction): Step {
   }
 }
 
+/** The component that holds a body, from `component.list`; 0 (the design itself) while the body is no component. */
+export function componentOf(listing: unknown, body: string): number {
+  const components = (listing as { components?: unknown } | undefined)?.components;
+  if (!Array.isArray(components)) return 0;
+  const found = (components as { id?: unknown; parent?: unknown; bodies?: unknown }[]).find((entry) => entry.parent !== null && Array.isArray(entry.bodies) && entry.bodies.includes(body));
+  return Number.isInteger(found?.id) ? (found?.id as number) : 0;
+}
+
 interface BatchReply {
   results?: unknown[];
   failed?: { index: number; command: string; error: string };
@@ -82,6 +90,22 @@ export class ActionService {
   async applySteps(steps: Step[]): Promise<void> {
     const reply = await this.batch(steps, true);
     if (reply.failed) throw new Error(`SolidCraft refused it: ${reply.failed.error}`);
+  }
+
+  /**
+   * Steps for a body, with the body's component active around them when they sketch. A sketch made
+   * at the design level and extruded into a body that is a component stays in the world: once a
+   * joint moves the body, a slot or an engraving is gone from it and comes back at 0 (SolidCraft
+   * 0.40.0-rc.3, checked 2026-11-10). With the component active it moves along, built at any pose;
+   * the plane stays in world coordinates. Commands that pick by a point (fillet, hole, press-pull)
+   * find the component themselves, so they cost no extra request.
+   */
+  async inComponentOf(body: string, steps: Step[]): Promise<Step[]> {
+    if (body === '' || !steps.some((step) => step.command === 'sketch.create')) return steps;
+    const reply = await this.batch([{ command: 'component.list', params: {} }], false);
+    const component = componentOf(reply.results?.[0], body);
+    if (component === 0) return steps;
+    return [{ command: 'component.activate', params: { component } }, ...steps, { command: 'component.activate', params: { component: 0 } }];
   }
 
   /** Engine commands in one batch without rolling back; SolidCraft's refusal throws (reading, moving a logo). */
