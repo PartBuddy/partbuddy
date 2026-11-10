@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.2.1](https://github.com/PartBuddy/partbuddy/compare/v0.2.0...v0.2.1) (2026-11-10)
+
+
+### Features
+
+* **desktop:** send while the assistant works – the message waits, or goes now ([#281](https://github.com/PartBuddy/partbuddy/issues/281)) ([8b3c9aa](https://github.com/PartBuddy/partbuddy/commit/8b3c9aa84f1afb17015b194cb2c5401aa44b8591))
+* **desktop:** several photos per message; the window never scrolls ([#280](https://github.com/PartBuddy/partbuddy/issues/280)) ([c5adea9](https://github.com/PartBuddy/partbuddy/commit/c5adea9e66bdbd8aea819f25a15c567d85ae5ba3))
+
+
+### Bug Fixes
+
+* **desktop:** 3D view and dock audit findings – errors in words, room, one editor ([#263](https://github.com/PartBuddy/partbuddy/issues/263)) ([fbea25b](https://github.com/PartBuddy/partbuddy/commit/fbea25b03fbb07459ded60e3ed8c0d221437a6d3))
+* **desktop:** a failed geometry check is not called a wall thickness problem ([#283](https://github.com/PartBuddy/partbuddy/issues/283)) ([db7bd84](https://github.com/PartBuddy/partbuddy/commit/db7bd847016651dd6585cc0b5e2d732334ba15a7))
+* **desktop:** a note on an edge beside a fillet is kept; several photos are counted ([#293](https://github.com/PartBuddy/partbuddy/issues/293)) ([ca27d7c](https://github.com/PartBuddy/partbuddy/commit/ca27d7c8043b0694567ee3183918f98bfcfe1c8c))
+* **desktop:** a renewed Claude sign-in is kept, its process leaves on its own ([#294](https://github.com/PartBuddy/partbuddy/issues/294)) ([62da7c5](https://github.com/PartBuddy/partbuddy/commit/62da7c547359d7c90fe8c3dd67f287ceea04efe6))
+* **desktop:** a sharing package takes its four pictures side by side; rollback bar in its gap ([#289](https://github.com/PartBuddy/partbuddy/issues/289)) ([bdc8d15](https://github.com/PartBuddy/partbuddy/commit/bdc8d15a9435b100138ae5a3e3af383670478fe0))
+* **desktop:** a template tile says it is building, the others wait ([#278](https://github.com/PartBuddy/partbuddy/issues/278)) ([80f1881](https://github.com/PartBuddy/partbuddy/commit/80f18817e0439b2de1b6e98a36c25f92feda726c))
+* **desktop:** a text cut into a face finds its face again; the release version is checked ([#255](https://github.com/PartBuddy/partbuddy/issues/255)) ([688cdd2](https://github.com/PartBuddy/partbuddy/commit/688cdd26216479fcbc9f65a6e3012d939a3898ac))
+* **desktop:** an inlaid colour logo joins each fill first, then cuts its pocket a fill at a time ([#285](https://github.com/PartBuddy/partbuddy/issues/285)) ([4f5e6a8](https://github.com/PartBuddy/partbuddy/commit/4f5e6a83cbc1a7af4e9ff5b21ea9b3e635fee40a))
+* **desktop:** assistant audit findings – menus, cards, attachments, log ([#264](https://github.com/PartBuddy/partbuddy/issues/264)) ([32003b0](https://github.com/PartBuddy/partbuddy/commit/32003b0c1a831c3db4f8d1a151151c2ca046859e))
+* **desktop:** audit remainders – draggable structure panel, isolate, sort direction, restart hint ([#271](https://github.com/PartBuddy/partbuddy/issues/271)) ([8627817](https://github.com/PartBuddy/partbuddy/commit/8627817a9a42a0863390235b5c638d24630094c0))
+* **desktop:** audit remainders – refused parameter value, printer name, German feature names ([#272](https://github.com/PartBuddy/partbuddy/issues/272)) ([2baad1c](https://github.com/PartBuddy/partbuddy/commit/2baad1c4f11ad77c385b47707d0f3aa281fbcdea))
+* **desktop:** chat rounds 30 px apart, answer actions inside the answer ([#279](https://github.com/PartBuddy/partbuddy/issues/279)) ([7a7e9a6](https://github.com/PartBuddy/partbuddy/commit/7a7e9a683183cadf539a049fdb7ede2ad831590a))
+* **desktop:** cross-cutting audit findings – shortcuts, strings, numbers, contrast, toasts ([#262](https://github.com/PartBuddy/partbuddy/issues/262)) ([cc27644](https://github.com/PartBuddy/partbuddy/commit/cc276447da9d160563341433b455067b967e2328))
+* **desktop:** curves of an SVG with a control point on their end get a tangent ([#284](https://github.com/PartBuddy/partbuddy/issues/284)) ([ab8c6dd](https://github.com/PartBuddy/partbuddy/commit/ab8c6dda881b0ff99880c24f535967e4b465c1ff))
+* **desktop:** errors of the interface land in the log, a crash shows a message instead of white ([#260](https://github.com/PartBuddy/partbuddy/issues/260)) ([89f6fb0](https://github.com/PartBuddy/partbuddy/commit/89f6fb04c9b20e3dd5da2cf4387b063c74780ea8))
+* **desktop:** hover and selection colours fade over 120 ms ([#275](https://github.com/PartBuddy/partbuddy/issues/275)) ([bffb4cc](https://github.com/PartBuddy/partbuddy/commit/bffb4ccd7769b030fcdaee621556133e998a6309))
+* **desktop:** motion audit findings – what appeared hard now fades in; phase 2 status ([#270](https://github.com/PartBuddy/partbuddy/issues/270)) ([35fae37](https://github.com/PartBuddy/partbuddy/commit/35fae37afe58ac54aa79dee85a0c24aed26751c7))
+* **desktop:** one card per web search, readable link titles; a real research picture ([#288](https://github.com/PartBuddy/partbuddy/issues/288)) ([72955b6](https://github.com/PartBuddy/partbuddy/commit/72955b6b84bfb395370c02cfb7aa9aa9b7dfd77c))
+* **desktop:** reset printers and materials to the starting profiles ([#276](https://github.com/PartBuddy/partbuddy/issues/276)) ([1ea9e0b](https://github.com/PartBuddy/partbuddy/commit/1ea9e0ba2cf90ee71bbe2bc71480bbdcff3c38a1))
+* **desktop:** selection look – light face tint, outlined tree body, others step back in assembly ([#274](https://github.com/PartBuddy/partbuddy/issues/274)) ([366faeb](https://github.com/PartBuddy/partbuddy/commit/366faebba431847585a40e536903d04607929954))
+* **desktop:** settings and print audit findings – words, search, segments, paths ([#266](https://github.com/PartBuddy/partbuddy/issues/266)) ([f66d37f](https://github.com/PartBuddy/partbuddy/commit/f66d37fc8bde5f6937360432040d2f32c9b5f9cf))
+* **desktop:** settings save model – print profiles apply at once, tolerance steps in place ([#273](https://github.com/PartBuddy/partbuddy/issues/273)) ([18c082b](https://github.com/PartBuddy/partbuddy/commit/18c082b5888757f464bb7f301788d5ee3ac5b3e5))
+* **desktop:** start page and first start audit findings – offline way forward, order, search ([#265](https://github.com/PartBuddy/partbuddy/issues/265)) ([23d3a7c](https://github.com/PartBuddy/partbuddy/commit/23d3a7ccc6e863e1396d921a112490857013e9a4))
+* **desktop:** structure, timeline and notes audit findings – meanings, menu, wish field ([#267](https://github.com/PartBuddy/partbuddy/issues/267)) ([e25638c](https://github.com/PartBuddy/partbuddy/commit/e25638c9483a025545cee3d25188d84e1ff02f11))
+* **desktop:** the depth arrow of a logo has its name again ([#282](https://github.com/PartBuddy/partbuddy/issues/282)) ([4fc3f05](https://github.com/PartBuddy/partbuddy/commit/4fc3f052c83b521ecd7b74b8f04d5c7c0d6fd0b2))
+* **desktop:** title bar, menus and versions audit findings – rename check, versions, export icons ([#268](https://github.com/PartBuddy/partbuddy/issues/268)) ([151ca3b](https://github.com/PartBuddy/partbuddy/commit/151ca3bba53f6698e44370ce9526bec7cb70bae1))
+* **site:** take the website pictures with SolidCraft 0.40.0-rc.3 and keep the app's log ([#258](https://github.com/PartBuddy/partbuddy/issues/258)) ([55f6e0d](https://github.com/PartBuddy/partbuddy/commit/55f6e0d363d993617d71f7f58aea5cb7bb8b5904))
+
+
+### Performance
+
+* **desktop:** switch projects in the running SolidCraft instead of restarting it ([#277](https://github.com/PartBuddy/partbuddy/issues/277)) ([909e8b0](https://github.com/PartBuddy/partbuddy/commit/909e8b091aa237d015723580f1053d40d8139fc8))
+
 ## [0.2.0](https://github.com/PartBuddy/partbuddy/compare/v0.1.0...v0.2.0) (2026-11-09)
 
 
