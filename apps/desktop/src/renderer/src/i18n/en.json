@@ -625,6 +625,7 @@
     "fold": "Fold: show only the selection",
     "unfold": "Unfold",
     "refused": {
+      "check": "The resulting shape fails SolidCraft's geometry check (such as a curve with too sharp a kink) – a slightly different size often helps.",
       "shell": "The wall thickness does not fit this shape – try a smaller value.",
       "fillet": "The radius is too large for this edge – try a smaller value.",
       "chamfer": "The chamfer is too wide for this edge – try a smaller value.",

@@ -9,5 +9,7 @@ describe('SolidCraft refusals in words (audit B-01)', () => {
     expect(refusalKind('Chamfer distance exceeds edge')).toBe('chamfer');
     expect(refusalKind('boolean subtract produced no solid')).toBe('boolean');
     expect(refusalKind('unknown')).toBe('other');
+    // The kernel's check names curve values like offset=; it is not about wall thickness (colour logo, 2026-11-10).
+    expect(refusalKind("body `fox 4`: the operation failed: SMLib: SMLib's check refuses the result: 8 failed tests: SmBSplineCurve::Test #14 Bad CurveCusp (offset=2.4e-07)")).toBe('check');
   });
 });

@@ -627,7 +627,10 @@ export class SolidCraftSupervisor {
     const block = await this.boldBlock(given);
     return this.trial('block preview', async () => {
       const placed = await this.centredBlock(block);
-      return this.actions.previewSteps(stepsOf(placed), blockBodies(placed));
+      const preview = await this.actions.previewSteps(stepsOf(placed), blockBodies(placed));
+      // The panel shows a short reason; the log keeps SolidCraft's own words.
+      if (!preview.ok) this.options.log(`${block.block} preview refused: ${preview.error}`);
+      return preview;
     });
   }
 
