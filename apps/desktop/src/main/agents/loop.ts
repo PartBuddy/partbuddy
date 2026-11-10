@@ -7,7 +7,7 @@ import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
 import { RESEARCH_GUIDANCE } from './research';
 import { withToolNotes } from './toolNotes';
 import { VIEW_GUIDANCE } from './viewContext';
-import { ASSEMBLY_GUIDANCE } from './assemblyTool';
+import { ASSEMBLY_GUIDANCE, JOINT_GUIDANCE } from './assemblyTool';
 
 /**
  * What PartBuddy's own agent loop shares between its routes (ChatGPT plan, local models): the
@@ -23,6 +23,7 @@ const INSTRUCTIONS = [
   'Answer in the language the user writes in, and name bodies, features and sketches in it too: the structure tree and the timeline show these names.',
   VIEW_GUIDANCE,
   ASSEMBLY_GUIDANCE,
+  JOINT_GUIDANCE,
   QUESTION_GUIDANCE,
   ANSWER_GUIDANCE,
 ].join(' ');

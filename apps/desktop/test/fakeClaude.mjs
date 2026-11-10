@@ -18,6 +18,14 @@ const CLASHING_PARTS = [
   { command: 'solid.box', params: { length: 20, width: 20, height: 3, corner: [0, 0, 9], operation: 'new', body_name: 'Lid' } },
   { command: 'solid.box', params: { length: 5, width: 5, height: 5, corner: [0, 20.1, 0], operation: 'new', body_name: 'Clip' } },
 ];
+// A hinge (ADR 0027): two plates side by side, made into components and joined along the edge between them.
+const HINGE = [
+  { command: 'solid.box', params: { length: 40, width: 30, height: 4, operation: 'new', body_name: 'Base' } },
+  { command: 'solid.box', params: { length: 40, width: 30, height: 4, corner: [42, 0, 0], operation: 'new', body_name: 'Flap' } },
+  { command: 'component.from_bodies', params: { bodies: ['Base', 'Flap'] } },
+  { command: 'joint.as_built', params: { type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [41, 15, 4], z: [0, 1, 0] }, name: 'Hinge' } },
+  { command: 'joint.limits', params: { joint: 'Hinge', min: -180, max: 0 } },
+];
 const WALL_HOLDER = [
   ...[
     ['plate_height', '100 mm'],
@@ -281,6 +289,13 @@ if (args[0] === '--version') {
       for (const step of CLASHING_PARTS) await client.callTool({ name: 'execute', arguments: step });
       await client.close();
       out({ type: 'assistant', message: { content: [{ type: 'text', text: 'Three parts are built.' }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
+    if (content.includes('a hinge')) {
+      for (const step of HINGE) await client.callTool({ name: 'execute', arguments: step });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The hinge is built.' }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }

@@ -713,6 +713,13 @@ export class SolidCraftSupervisor {
     return this.trial('measure', () => this.actions.measure(items));
   }
 
+  /** Drives one value of a joint (ADR 0027); SolidCraft clamps it to the limits and the mirror shows where the parts stand. */
+  async driveJoint(joint: number, index: number, value: number): Promise<void> {
+    await this.probing;
+    await this.actions.applySteps([{ command: 'joint.drive', params: { joint, index, value, quiet: true } }]);
+    await this.engine?.checkForChange();
+  }
+
   /** Overlaps and gaps narrower than `gap` between the bodies (F2, `inspect.clearance`). */
   clearance(bodies: string[], gap: number): Promise<ClearanceResult> {
     return this.trial('clearance', () => this.actions.clearance(bodies, gap));

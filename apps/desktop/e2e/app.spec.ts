@@ -486,6 +486,30 @@ test('the view switches display modes and opens a section with its own controls'
   await expect(panel).toHaveCount(0);
 });
 
+test('a joint moves with its slider and goes back to as designed (ADR 0027)', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.bodies = ['CableClip', 'Second clip'];
+  fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+  await fake.start();
+  const { page } = launched;
+  await lookAgain(page);
+  await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
+  await page.getByTestId('joints').click();
+  const slider = () => page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' });
+  await expect(slider()).toHaveValue('0');
+  await expect(page.getByTestId('joint-reset')).toBeDisabled();
+  // The lower limit is the slider's end; SolidCraft is driven once, when the key is let go.
+  await slider().focus();
+  await page.keyboard.press('Home');
+  await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(-180);
+  await expect(slider()).toHaveValue('-180');
+  await page.getByTestId('joint-reset').click();
+  await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(0);
+  await expect(slider()).toHaveValue('0');
+  await expect(page.getByTestId('joint-error')).toHaveCount(0);
+});
+
 test('a print of two parts switches to the plate, explodes along its assembly and plays the assembly', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });

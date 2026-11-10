@@ -7,7 +7,7 @@ import type { ModelChoice, ModelOption, ResearchSource, AgentStatus } from '../.
 import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
 import { CLAUDE_RESEARCH_TOOLS, RESEARCH_GUIDANCE, sourceOfSearchResult, sourceOfToolUse } from './research';
 import { VIEW_GUIDANCE } from './viewContext';
-import { ASSEMBLY_GUIDANCE } from './assemblyTool';
+import { ASSEMBLY_GUIDANCE, JOINT_GUIDANCE } from './assemblyTool';
 
 /**
  * Adapter for the user's own, unmodified Claude Code (ADR 0015). PartBuddy starts the official
@@ -292,6 +292,7 @@ function roleOf(research: boolean): string {
     'Answer in the language the user writes in, and name bodies, features and sketches in it too: the structure tree and the timeline show these names.',
     VIEW_GUIDANCE,
     ASSEMBLY_GUIDANCE,
+    JOINT_GUIDANCE,
     QUESTION_GUIDANCE,
     ANSWER_GUIDANCE,
     ...(research ? [RESEARCH_GUIDANCE] : []),
