@@ -621,17 +621,19 @@ test('the playback stops where the check found parts in the joint\'s way, and go
   const shown = async () => Number(await panel.getByTestId('joint-value').getAttribute('data-shown'));
   // It stops at the touch by itself, says which parts meet, and drives nothing.
   const stopped = panel.getByTestId('joint-stopped');
-  await expect(stopped).toHaveText(/Stopped: Second clip and CableClip touch at -28\.1°/);
+  // A runner that draws a few frames a second takes its time to get there.
+  await expect(stopped).toHaveText(/Stopped: Second clip and CableClip touch at -28\.1°/, { timeout: 30_000 });
   await expect(play).toHaveAttribute('data-playing', 'false');
   expect(await shown()).toBeCloseTo(-28.1);
   expect(fake.joints[0]?.values[0]?.value).toBe(0);
   await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joint-stopped.png') });
   await panel.getByTestId('joint-stopped-show').click();
-  // Playing again goes back from the touch, and stops there again on its way back down.
+  // Playing again goes back from the touch, and stops there again on its way back down. At half speed, so the way is seen.
+  await panel.getByRole('radio', { name: '0.5×' }).click();
   await play.click();
   await expect(stopped).toHaveCount(0);
-  await expect.poll(shown).toBeGreaterThan(-20);
-  await expect(stopped).toBeVisible();
+  await expect.poll(shown, { timeout: 30_000 }).toBeGreaterThan(-20);
+  await expect(stopped).toBeVisible({ timeout: 30_000 });
   expect(await shown()).toBeCloseTo(-28.1);
   // As designed: back in the view, nothing to drive.
   await panel.getByTestId('joint-reset').click();

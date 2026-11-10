@@ -90,7 +90,7 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
     if (!play) return;
     const targets = playable
       .filter((entry) => play.includes(entry.key))
-      .map((entry) => ({ ...entry, ...playRange(entry.range, entry.value.value, stops.filter((stop) => stop.joint === entry.joint.name && stop.unit === entry.value.unit)) }));
+      .map((entry) => ({ ...entry, full: entry.range[1] - entry.range[0], ...playRange(entry.range, entry.value.value, stops.filter((stop) => stop.joint === entry.joint.name && stop.unit === entry.value.unit)) }));
     if (targets.length === 0) return;
     let last = performance.now();
     let frame = requestAnimationFrame(function tick(now) {
@@ -106,7 +106,8 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
           if (mine && target !== mine) return { joint: target.joint.id, index: target.index, value: from };
           // Towards the end that is further away first.
           const direction = directions.current.get(target.key) ?? (max - from >= from - min ? 1 : -1);
-          const step = playStep(from, direction, target.range, (seconds * speed * (max - min)) / TRAVEL_SECONDS, mode);
+          // As fast as with nothing in the way: the speed is that of the joint's whole range, not of what the stop leaves of it.
+          const step = playStep(from, direction, target.range, (seconds * speed * target.full) / TRAVEL_SECONDS, mode);
           directions.current.set(target.key, step.direction);
           // The end it reached is where parts touch: it stands there, and from there it can only go back.
           const touch = step.turned ? (direction === 1 ? target.high : target.low) : undefined;
