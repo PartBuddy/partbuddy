@@ -170,6 +170,9 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
         direction: normal.map((value) => value * way) as [number, number, number],
         perMm: 1,
         raised: spot.depth.raised,
+        // Named here: since the size arrow it is the fourth, past the list of default names (#246).
+        label: t(spot.depth.raised ? 'logoMove.dragHeight' : 'logoMove.dragDepth'),
+        testId: 'logo-arrow-depth',
         value: depth,
         onDrag: (dragged, done) => {
           setDepth(dragged);
