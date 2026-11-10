@@ -31,6 +31,17 @@ function text(value: unknown, max: number): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value.trim().slice(0, max) : undefined;
 }
 
+/** A page title that is an untranslated text key of the site, e.g. "text.skipToContent text.skipToNavigation". */
+const KEY_TITLE = /^[a-z][\w-]*(\.[a-zA-Z][\w-]*)+(\s+[a-z][\w-]*(\.[a-zA-Z][\w-]*)+)*$/;
+
+/** A link's title as people read it: a text key gives way to the page's address without the scheme. */
+export function linkTitle(title: unknown, url: string): string {
+  const given = text(title, 300);
+  if (given && !KEY_TITLE.test(given)) return given;
+  const { hostname, pathname } = new URL(url);
+  return `${hostname.replace(/^www\./, '')}${pathname === '/' ? '' : decodeURIComponent(pathname)}`.slice(0, 300);
+}
+
 /** The card of a research tool call of Claude Code, from its input. */
 export function sourceOfToolUse(name: unknown, input: unknown): ResearchSource | null {
   const args = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>;
@@ -81,7 +92,7 @@ export function sourceOfSearchResult(content: unknown): ResearchSource | null {
         if (Array.isArray(parsed)) {
           for (const entry of parsed) {
             const url = webUrl((entry as { url?: unknown }).url);
-            if (url && links.length < MAX_LINKS) links.push({ url, title: text((entry as { title?: unknown }).title, 300) ?? new URL(url).hostname });
+            if (url && links.length < MAX_LINKS) links.push({ url, title: linkTitle((entry as { title?: unknown }).title, url) });
           }
         }
       } catch {

@@ -144,12 +144,21 @@ export function reduce(items: ConversationItem[], event: AgentEvent): Conversati
     case 'error':
       return [...items, { kind: 'error', key, message: event.message }];
     case 'source': {
-      // Claude Code reports a search when it starts and again with the pages it found: one card.
-      const last = items.at(-1);
-      if (last?.kind === 'source' && last.source.kind === 'search' && event.source.kind === 'search' && last.source.query === event.source.query) {
-        return [...items.slice(0, -1), { ...last, source: event.source.links ? event.source : last.source }];
+      // Claude Code reports a search when it starts and again with the pages it found: one card. Several
+      // searches run side by side, so the results come after all the starts; the card of the same query in
+      // this request takes them (real research run 2026-11-10 showed every search twice).
+      const found = event.source;
+      if (found.kind === 'search') {
+        for (let i = items.length - 1; i >= 0; i -= 1) {
+          const item = items[i];
+          if (!item || item.kind === 'user') break;
+          if (item.kind === 'source' && item.source.kind === 'search' && item.source.query === found.query) {
+            if (!found.links) return items;
+            return [...items.slice(0, i), { ...item, source: found }, ...items.slice(i + 1)];
+          }
+        }
       }
-      return [...items, { kind: 'source', key, source: event.source }];
+      return [...items, { kind: 'source', key, source: found }];
     }
   }
 }

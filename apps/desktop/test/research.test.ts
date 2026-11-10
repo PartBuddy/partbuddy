@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { AssistantSettings } from '../src/main/agents/assistantSettings';
 import { SettingsStore } from '../src/main/settingsStore';
 import { parseStreamLine } from '../src/main/agents/claudeCode';
-import { sourceOfSearchResult, sourceOfToolUse, sourceOfUrl } from '../src/main/agents/research';
+import { linkTitle, sourceOfSearchResult, sourceOfToolUse, sourceOfUrl } from '../src/main/agents/research';
+import { reduce, type ConversationItem } from '../src/renderer/src/assistant/store';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -53,5 +54,27 @@ describe('research sources (B7)', () => {
     expect(settings.apiBilling()).toBe(true);
     settings.setWebResearch(true);
     expect(settings.webResearch()).toBe(true);
+  });
+});
+
+describe('research cards of a real run (2026-11-10)', () => {
+  it('gives each search one card, also when several run side by side', () => {
+    const queries = ['ISO 4762 M3', 'M3 insert hole', 'ISO 10642 M3'];
+    let items: ConversationItem[] = reduce([], { type: 'user', text: 'Research the M3 screws' });
+    for (const query of queries) items = reduce(items, { type: 'source', source: { kind: 'search', query } });
+    for (const query of queries) items = reduce(items, { type: 'source', source: { kind: 'search', query, links: [{ url: `https://example.org/${query.length}`, title: query }] } });
+    const cards = items.filter((item) => item.kind === 'source');
+    expect(cards).toHaveLength(3);
+    expect(cards.map((item) => (item.source.kind === 'search' ? (item.source.links?.length ?? 0) : -1))).toEqual([1, 1, 1]);
+    // The same query in a later request gets a card of its own.
+    items = reduce(items, { type: 'user', text: 'Again' });
+    items = reduce(items, { type: 'source', source: { kind: 'search', query: 'ISO 4762 M3' } });
+    expect(items.filter((item) => item.kind === 'source')).toHaveLength(4);
+  });
+
+  it('reads a text key of a site as its address instead of a title', () => {
+    expect(linkTitle('text.skipToContent text.skipToNavigation', 'https://www.fabory.com/de/schraube/p/123')).toBe('fabory.com/de/schraube/p/123');
+    expect(linkTitle('ISO 4762 socket head cap screws', 'https://example.org/a')).toBe('ISO 4762 socket head cap screws');
+    expect(linkTitle(undefined, 'https://example.org/')).toBe('example.org');
   });
 });

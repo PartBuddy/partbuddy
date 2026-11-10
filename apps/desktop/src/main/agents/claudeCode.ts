@@ -1,5 +1,5 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { appendFileSync, existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
@@ -339,7 +339,11 @@ export class ClaudeSession {
     const child = spawn(claude.command, args, { cwd, env, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, shell: false });
     this.child = child;
     const lines = createInterface({ input: child.stdout });
+    // PARTBUDDY_CLAUDE_TRACE=<file>: Claude Code's raw stream for diagnosis (which events a real run sends);
+    // read from PartBuddy's own environment, never set in a build.
+    const trace = process.env.PARTBUDDY_CLAUDE_TRACE;
     lines.on('line', (line) => {
+      if (trace) appendFileSync(trace, `${line}\n`);
       for (const event of parseStreamLine(line)) this.emit(event);
     });
     child.once('exit', (code) => {
