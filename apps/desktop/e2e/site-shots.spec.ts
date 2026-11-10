@@ -23,12 +23,15 @@ const LATER: Record<string, string[]> = {
   clip: ['params', 'blocks', 'section', 'export', 'share', 'versions', 'model', 'start', 'view'],
   versions: ['start', 'view'],
   view: ['notes'],
-  import: ['clarify'],
+  import: ['clarify', 'research'],
   clarify: ['research'],
   research: ['explode', 'plate', 'assembly'],
   sketch: ['sketch-chat'],
 };
-const wanted = (step: string): boolean => ONLY.size === 0 || ONLY.has(step) || (LATER[step] ?? []).some(wanted);
+// PARTBUDDY_SITE_REAL_CLAUDE=1: the research picture from a real web search by the user's own Claude Code (it uses
+// the subscription, so only on request). The scripted questions before it would make the real assistant build, so they stay out.
+const REAL = process.env.PARTBUDDY_SITE_REAL_CLAUDE === '1';
+const wanted = (step: string): boolean => !(REAL && step === 'clarify') && (ONLY.size === 0 || ONLY.has(step) || (LATER[step] ?? []).some(wanted));
 
 // Its own port, beside the contract tests (7881–7930) and other sessions' SolidCraft.
 const PORT = '7951';
@@ -107,7 +110,7 @@ test('website pictures', async () => {
       PARTBUDDY_PROJECTS_DIR: projects,
       PARTBUDDY_START_PAGE: '1',
       PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
-      PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'siteClaude.mjs')]),
+      ...(REAL ? {} : { PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'siteClaude.mjs')]) }),
     },
   });
   const { page } = launched;
@@ -172,7 +175,8 @@ test('website pictures', async () => {
   const send = async (text: string) => {
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill(text);
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByRole('button', { name: 'Send' })).toBeVisible({ timeout: 120_000 });
+    // A real assistant (PARTBUDDY_SITE_REAL_CLAUDE) searches for minutes.
+    await expect(page.getByRole('button', { name: 'Send' })).toBeVisible({ timeout: REAL ? 10 * 60_000 : 120_000 });
   };
   const open = async (title: string) => {
     if ((await home.count()) === 0) await page.getByTestId('home-button').click();
@@ -377,13 +381,30 @@ test('website pictures', async () => {
     });
     await step('research', async () => {
       await send('Research the M3 screws for the lid');
-      await expect(page.getByTestId('source-card')).toHaveCount(2, { timeout: 30_000 });
+      if (REAL) {
+        // Right after the click Send still shows for a moment, so send() may return early: the turn has
+        // ended once Stop is gone and an answer stands. A real answer is long: the chat goes back to its
+        // first source card, so the picture shows the searches and the start of the answer.
+        await expect
+          .poll(async () => (await page.getByTestId('composer-stop').count()) === 0 && (await page.getByTestId('assistant-text').count()) > 0, { timeout: 10 * 60_000, intervals: [2000] })
+          .toBe(true);
+        console.log(`research: ${String(await page.getByTestId('source-card').count())} source cards`);
+      } else await expect(page.getByTestId('source-card')).toHaveCount(2, { timeout: 30_000 });
       // The standard part the answer speaks of, in the lid hole nearest the camera (lid beside the housing).
       const inserted = await page.evaluate(() =>
         (globalThis as unknown as Bridge).partbuddy.design.insertPart({ family: 'socket_head_cap_screw', size: 'M3', length: 10, point: [76.2, 75.5, 1] }),
       );
       if (!inserted.body) throw new Error('no screw inserted');
       await expect(page.getByTestId('structure-body').filter({ hasText: 'standard part' })).toHaveCount(1, { timeout: 30_000 });
+      if (REAL) {
+        // The seated screw took the chat to its end; the website's crop (crops.ts: x 560–1440, y 300–720 at
+        // 1440 × 900) shows the chat's middle, so the first search card goes there.
+        await page.waitForTimeout(1000);
+        await page.getByTestId('source-card').first().evaluate((card) => {
+          (card as unknown as { scrollIntoView: (options: { block: string }) => void }).scrollIntoView({ block: 'center' });
+        });
+        await page.waitForTimeout(800);
+      }
       await shot('research');
     });
     await step('explode', async () => {

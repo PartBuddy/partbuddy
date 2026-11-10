@@ -7,8 +7,6 @@ test.describe('main view', () => {
     test.setTimeout(60_000);
     await openStudio(page);
     const viewer = page.locator('canvas').first();
-    const box = await viewer.boundingBox();
-    if (!box) throw new Error('3D view has no size');
 
     // The camera frames the part; the centre of the view lies on the clip block. A click while the
     // camera still moves misses (on a busy CI runner for longer), so it is repeated until the face is selected, with time between
@@ -19,6 +17,9 @@ test.describe('main view', () => {
     let n = 0;
     await expect(async () => {
       const [x, y] = spots[n++ % spots.length] ?? [0.5, 0.5];
+      // Measured anew each time: panels still sliding in move the view, and a size taken once missed it on CI.
+      const box = await viewer.boundingBox();
+      if (!box) throw new Error('3D view has no size');
       await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
       await expect(selection).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: 45_000, intervals: [500, 1000, 1000] });
