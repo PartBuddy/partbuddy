@@ -6,6 +6,10 @@ import { _electron as electron, test, type ElectronApplication, type Page } from
 
 export const appDir = resolve(__dirname, '..');
 
+// The runner's service session has no mouse, so `@media (hover: hover)` is false there and nothing shown
+// on hover ever appears (the eye of a body in the structure). Tests always run as on a PC with a mouse.
+const HOVER = '--blink-settings=primaryHoverType=2,availableHoverTypes=2';
+
 export interface LaunchedApp {
   app: ElectronApplication;
   page: Page;
@@ -64,12 +68,15 @@ export async function launchApp(
     ...options.env,
   };
   const app = await electron.launch({
-    args: [appDir, '--lang=en-US', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', `--user-data-dir=${join(work, 'profile')}`, ...(options.args ?? [])],
+    args: [appDir, '--lang=en-US', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', `--user-data-dir=${join(work, 'profile')}`, HOVER, ...(options.args ?? [])],
     cwd: appDir,
     env,
     colorScheme: options.colorScheme === undefined ? 'light' : options.colorScheme,
   });
   const page = await app.firstWindow();
+  // The runner's desktop is 1024 × 768 and Windows shrinks the window to it: PARTBUDDY_E2E_WINDOW=1024x768 shows a test as it runs there.
+  const size = process.env.PARTBUDDY_E2E_WINDOW?.split('x').map(Number);
+  if (size?.length === 2) await app.evaluate(({ BrowserWindow }, [width, height]) => BrowserWindow.getAllWindows()[0]?.setSize(width ?? 0, height ?? 0), size);
   return {
     app,
     page,

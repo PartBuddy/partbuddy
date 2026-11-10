@@ -1843,8 +1843,12 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
     await page.getByTestId('block-y').getByRole('textbox').press('Tab');
     // A text's font: every installed family, each listed in its own face (SolidCraft setting it: the sketched blocks test).
     await page.getByTestId('block-tile-text').click();
-    await page.getByTestId('block-font').getByRole('button').click();
-    await expect(page.getByRole('option', { name: 'Arial', exact: true })).toBeVisible();
+    // In a low window the form scrolls to the field for the click, and a list closes when the page under it
+    // scrolls: click again until it stays open.
+    await expect(async () => {
+      await page.getByTestId('block-font').getByRole('button').click();
+      await expect(page.getByRole('option', { name: 'Arial', exact: true })).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 20_000 });
     // A few lines tall and as wide as the field, so it covers little.
     expect((await page.getByRole('listbox').boundingBox())?.height ?? 999).toBeLessThanOrEqual(270);
     // Esc closes the list, not the form.
