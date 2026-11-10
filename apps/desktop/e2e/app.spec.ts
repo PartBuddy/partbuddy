@@ -549,6 +549,7 @@ test('a joint plays through its range, is held where it is paused and stays as i
   const shown = async () => Number(await panel.getByTestId('joint-value').getAttribute('data-shown'));
   const play = panel.getByTestId('joint-play');
   await expect(play).toHaveAccessibleName('Play Hinge');
+  await expect(panel.getByTestId('joint-play-all')).toHaveCount(0);
   // Faster, and starting over at the end instead of turning round.
   await panel.getByRole('radio', { name: '2×' }).click();
   await panel.getByTestId('joint-mode-loop').click();
@@ -591,6 +592,51 @@ test('a joint plays through its range, is held where it is paused and stays as i
   await expect(panel.getByTestId('joint-error')).toHaveCount(0);
 });
 
+test('one click plays all joints together, one after the other on request, and pausing holds them all', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.bodies = ['CableClip', 'Second clip'];
+  fake.occurrences = new Map([
+    [1, 'CableClip'],
+    [2, 'Second clip'],
+  ]);
+  fake.joints = [
+    { id: 9, name: 'Hinge', type: 'revolute', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [0, 1, 0] }, values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] },
+    { id: 10, name: 'Slide', type: 'slider', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [1, 0, 0] }, values: [{ name: 'distance', unit: 'mm', value: 0, limits: [0, 20] }] },
+  ];
+  await fake.start();
+  const { page } = launched;
+  await lookAgain(page);
+  await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
+  // The play tool is in the view's toolbar: one click, and the parts move.
+  await page.getByTestId('joints-play').click();
+  const panel = page.getByTestId('joint-panel');
+  const all = panel.getByTestId('joint-play-all');
+  await expect(all).toHaveAttribute('data-playing', 'true');
+  await expect(all).toHaveText('Pause all');
+  const shown = (name: string) => async () => Number(await panel.getByTestId('joint-value').filter({ has: page.getByRole('slider', { name }) }).getAttribute('data-shown'));
+  await expect.poll(shown('Hinge')).toBeLessThan(-5);
+  await expect.poll(shown('Slide')).toBeGreaterThan(0.5);
+  await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joints-playing.png') });
+  // One after the other: the hinge goes there and back first, the slide waits.
+  await panel.getByTestId('joint-order-in-turn').click();
+  await expect(panel.getByTestId('joint-order-in-turn')).toHaveAttribute('aria-checked', 'true');
+  const [hinge, slide] = [await shown('Hinge')(), await shown('Slide')()];
+  await expect.poll(shown('Hinge')).not.toBe(hinge);
+  expect(await shown('Slide')()).toBe(slide);
+  expect(fake.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
+  // Paused, both are held where they stand.
+  await all.click();
+  await expect(all).toHaveAttribute('data-playing', 'false');
+  await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBeLessThan(0);
+  await expect.poll(() => fake?.joints[1]?.values[0]?.value).toBeGreaterThan(0);
+  await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue(String(Math.round(fake.joints[0]?.values[0]?.value ?? 0)));
+  await panel.getByTestId('joint-reset').click();
+  await expect.poll(() => fake?.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
+  await expect(panel.getByRole('slider', { name: 'Slide' })).toHaveValue('0');
+  await expect(panel.getByTestId('joint-error')).toHaveCount(0);
+});
+
 test('a print of two parts switches to the plate, explodes along its assembly and plays the assembly', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
@@ -599,6 +645,10 @@ test('a print of two parts switches to the plate, explodes along its assembly an
   const { page } = launched;
   await lookAgain(page);
   await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
+  // Nothing of the moving parts shows in a design without a joint.
+  await expect(page.getByTestId('view-tools')).toBeVisible();
+  await expect(page.getByTestId('joints')).toHaveCount(0);
+  await expect(page.getByTestId('joints-play')).toHaveCount(0);
   const shot = (name: string) => page.getByTestId('viewer').screenshot({ path: test.info().outputPath(`${name}.png`) });
 
   // The plate: both clips laid out on the printer's bed in a worker, with the bed's size.

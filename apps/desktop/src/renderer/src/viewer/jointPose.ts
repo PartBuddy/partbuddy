@@ -46,12 +46,49 @@ export const TRAVEL_SECONDS = 2.5;
  * One frame of a joint that plays: the value moved by `amount` in its direction. At an end of the
  * range it turns round (`bounce`) or starts over at the other end (`loop`).
  */
-export function playStep(value: number, direction: 1 | -1, [min, max]: [number, number], amount: number, mode: 'bounce' | 'loop'): { value: number; direction: 1 | -1 } {
+export function playStep(value: number, direction: 1 | -1, [min, max]: [number, number], amount: number, mode: 'bounce' | 'loop'): { value: number; direction: 1 | -1; turned: boolean } {
   const span = max - min;
-  if (!(span > 0)) return { value: min, direction };
+  if (!(span > 0)) return { value: min, direction, turned: true };
   const next = value + direction * Math.min(amount, span);
-  if (next >= min && next <= max) return { value: next, direction };
+  if (next >= min && next <= max) return { value: next, direction, turned: false };
   const over = next > max ? next - max : min - next;
-  if (mode === 'loop') return { value: next > max ? min + over : max - over, direction };
-  return next > max ? { value: max - over, direction: -1 } : { value: min + over, direction: 1 };
+  if (mode === 'loop') return { value: next > max ? min + over : max - over, direction, turned: true };
+  return next > max ? { value: max - over, direction: -1, turned: true } : { value: min + over, direction: 1, turned: true };
+}
+
+/** A joint value shown away from where the mirror has it. */
+export interface JointPreview {
+  joint: number;
+  index: number;
+  value: number;
+}
+
+/**
+ * Where the bodies stand in the view with several joint values away from the mirror at once. A body
+ * beyond two joints of a chain takes both moves: the one nearer to it first, then the one that
+ * carries that joint along (it moves more bodies).
+ */
+export function jointPoses(joints: Joint[], previews: JointPreview[]): Map<string, JointMove> {
+  const poses = new Map<string, JointMove>();
+  const moved = previews
+    .flatMap((preview) => {
+      const joint = joints.find((entry) => entry.id === preview.joint);
+      const move = joint ? jointMove(joint, preview.index, preview.value) : null;
+      return joint?.bodies && move ? [{ bodies: joint.bodies, move }] : [];
+    })
+    .sort((a, b) => a.bodies.length - b.bodies.length);
+  for (const { bodies, move } of moved) {
+    for (const name of bodies) {
+      const inner = poses.get(name);
+      poses.set(name, inner ? { quaternion: multiply(move.quaternion, inner.quaternion), position: rotate(move.quaternion, inner.position).map((value, i) => value + (move.position[i] ?? 0)) as Vec3 } : move);
+    }
+  }
+  return poses;
+}
+
+type Quaternion = [number, number, number, number];
+
+/** The turn `b`, then the turn `a`. */
+function multiply([ax, ay, az, aw]: Quaternion, [bx, by, bz, bw]: Quaternion): Quaternion {
+  return [aw * bx + ax * bw + ay * bz - az * by, aw * by - ax * bz + ay * bw + az * bx, aw * bz + ax * by - ay * bx + az * bw, aw * bw - ax * bx - ay * by - az * bz];
 }

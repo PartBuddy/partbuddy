@@ -140,7 +140,13 @@
       "speed": "Tempo",
       "mode": "Ablauf",
       "bounce": "Hin und her",
-      "loop": "Immer von vorn"
+      "loop": "Immer von vorn",
+      "playAll": "Alle abspielen",
+      "pauseAll": "Alle anhalten",
+      "order": "Reihenfolge",
+      "together": "Alle zusammen",
+      "inTurn": "Nacheinander",
+      "playTool": "Bewegung abspielen"
     },
     "hintShort": "Klicken wählt · Ziehen dreht · Rechts verschiebt · Rad zoomt"
   },

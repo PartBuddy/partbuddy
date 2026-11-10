@@ -11,7 +11,7 @@ import { useStudio, type BodyModel } from '../state/store';
 import type { NestRequest, NestResponse } from '../workers/nest.worker';
 import { suggestAssembly, type PartBox } from './assemblyOrder';
 import { activeStep, explodeAlong, playbackPoses, type Box } from './explode';
-import { jointMove } from './jointPose';
+import { jointPoses } from './jointPose';
 import type { NestResult, Vec2 } from './nesting';
 import type { ViewerColors } from './useTokenColors';
 import { requestShadow } from './SceneLook';
@@ -200,10 +200,11 @@ export function useTargetPoses(bodies: BodyModel[], steps: PlayStep[], layout: P
     } else if (explode !== null) {
       for (const [name, offset] of explodeAlong(steps, boxes, explode)) poses.set(name, { ...REST, position: offset });
     } else if (preview) {
-      // A joint's bodies follow its slider (G4). Once the mirror shows them there the move is none, and they must not glide back.
-      const joint = joints?.find((entry) => entry.id === preview.joint);
-      const move = joint ? jointMove(joint, preview.index, preview.value) : null;
-      for (const name of joint?.bodies ?? []) poses.set(name, { ...REST, ...move, snap: true });
+      // The joints' bodies follow their sliders (G4). Once the mirror shows them there the move is none, and they must not glide back.
+      const moves = jointPoses(joints ?? [], preview);
+      for (const id of new Set(preview.map((entry) => entry.joint))) {
+        for (const name of joints?.find((entry) => entry.id === id)?.bodies ?? []) poses.set(name, { ...REST, ...moves.get(name), snap: true });
+      }
     }
     return poses;
   }, [bodies, steps, boxes, explode, viewMode, plate, position, layout, preview, joints]);
