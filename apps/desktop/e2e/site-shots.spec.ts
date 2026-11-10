@@ -346,7 +346,7 @@ test('website pictures', async () => {
       await page.getByTestId('hud-note').click();
       await expect(page.getByTestId('note-pin')).toHaveCount(1, { timeout: 15_000 });
       // The face picked again beside the pin: its name shows with the selection.
-      await pickFace(page);
+      await pickFace(page, FACE_GRID);
       await shot('view');
       await page.keyboard.press('Escape');
     });
@@ -359,7 +359,7 @@ test('website pictures', async () => {
       await pickFace(page, EDGE_SWEEP, 'edge');
       await note('This edge R2 instead of R1.');
       await expect(page.getByTestId('note-pin')).toHaveCount(2, { timeout: 15_000 });
-      await pickFace(page, [...SPOTS].reverse());
+      await pickFace(page, [...FACE_GRID].reverse());
       await note('Make this plate 1 mm thicker.');
       await expect(page.getByTestId('note-pin')).toHaveCount(3, { timeout: 15_000 });
       await page.keyboard.press('Escape');
@@ -617,7 +617,8 @@ test('website pictures', async () => {
     await step('local', async () => {
       await page.getByTestId('agent-status').click();
       await page.getByTestId('agent-menu').getByText('Local model', { exact: true }).click();
-      await expect(page.getByTestId('agent-status')).toContainText(/Local model · \S+/, { timeout: 30_000 });
+      // The chip cuts its text in a narrow chat; its label holds all of it.
+      await expect(page.getByTestId('agent-status')).toHaveAttribute('aria-label', /Local model · \S+/, { timeout: 30_000 });
       await shot('local');
       await page.keyboard.press('Escape');
     });
@@ -641,6 +642,8 @@ const PLATE_TOP = [[0.62, 0.72], [0.7, 0.74], [0.45, 0.74]] as const;
 // Down the middle of the view in small steps, until a click lands on an edge.
 const EDGE_SWEEP = Array.from({ length: 80 }, (_, i) => [0.5, 0.4 + i * 0.005] as const);
 const SPOTS = [[0.5, 0.62], [0.42, 0.6], [0.6, 0.62], [0.5, 0.55], [0.35, 0.55], [0.65, 0.55]] as const;
+// Across the middle of the view, for a second face once the pin and the dock take the usual spots.
+const FACE_GRID = Array.from({ length: 63 }, (_, i) => [0.3 + (i % 9) * 0.05, 0.45 + Math.floor(i / 9) * 0.05] as const);
 
 /** Clicks across the view until a face (or the given kind) is selected. */
 async function pickFace(page: Page, points: readonly (readonly [number, number])[] = SPOTS, kind: 'face' | 'edge' = 'face'): Promise<void> {
