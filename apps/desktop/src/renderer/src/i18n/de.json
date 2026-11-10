@@ -133,8 +133,14 @@
     "joints": {
       "title": "Bewegliche Teile",
       "reset": "Wie konstruiert",
-      "hint": "Loslassen bewegt das Teil. Exportiert und geprüft wird die Stellung, in der es steht.",
-      "failed": "SolidCraft hat das Gelenk nicht bewegt: {reason}"
+      "hint": "Abspielen zeigt den Weg. Pause oder Loslassen hält das Teil dort; exportiert und geprüft wird die Stellung, in der es steht.",
+      "failed": "SolidCraft hat das Gelenk nicht bewegt: {reason}",
+      "play": "{name} abspielen",
+      "pause": "{name} anhalten",
+      "speed": "Tempo",
+      "mode": "Ablauf",
+      "bounce": "Hin und her",
+      "loop": "Immer von vorn"
     },
     "hintShort": "Klicken wählt · Ziehen dreht · Rechts verschiebt · Rad zoomt"
   },

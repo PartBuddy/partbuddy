@@ -2,7 +2,7 @@ import { withMotion, type PrintCheck } from '@partbuddy/geometry';
 import { describe, expect, it } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
-import { jointMove, rotate } from '../src/renderer/src/viewer/jointPose';
+import { jointMove, playStep, rotate } from '../src/renderer/src/viewer/jointPose';
 import { sweepStopOf } from '../src/main/solidcraft/actions';
 
 import { componentsWithBodies, jointsOf, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
@@ -182,6 +182,19 @@ describe('a joint followed in the view while its slider is dragged (ADR 0027, G4
     expect(jointMove(slide, 0, 12)).toEqual({ position: [7, 0, 0], quaternion: [0, 0, 0, 1] });
     // Where the mirror already has them, nothing moves.
     expect(jointMove(slide, 0, 5)).toBeNull();
+  });
+
+  it('plays a joint through its range: back and forth, or starting over', () => {
+    expect(playStep(-10, 1, [-180, 0], 4, 'bounce')).toEqual({ value: -6, direction: 1 });
+    // Past the end it turns round by what was left over.
+    expect(playStep(-2, 1, [-180, 0], 5, 'bounce')).toEqual({ value: -3, direction: -1 });
+    expect(playStep(-178, -1, [-180, 0], 5, 'bounce')).toEqual({ value: -177, direction: 1 });
+    expect(playStep(-2, 1, [-180, 0], 5, 'loop')).toEqual({ value: -177, direction: 1 });
+    // A frame after a long pause never leaves the range, and a range of nothing stays put.
+    const far = playStep(-90, 1, [-180, 0], 10_000, 'bounce').value;
+    expect(far).toBeGreaterThanOrEqual(-180);
+    expect(far).toBeLessThanOrEqual(0);
+    expect(playStep(3, 1, [3, 3], 5, 'loop')).toEqual({ value: 3, direction: 1 });
   });
 });
 

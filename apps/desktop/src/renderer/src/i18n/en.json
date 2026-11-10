@@ -133,8 +133,14 @@
     "joints": {
       "title": "Moving parts",
       "reset": "As designed",
-      "hint": "Letting go moves the part. It is exported and checked the way it stands.",
-      "failed": "SolidCraft did not move the joint: {reason}"
+      "hint": "Playing shows the way. Pausing or letting go holds the part there; it is exported and checked the way it stands.",
+      "failed": "SolidCraft did not move the joint: {reason}",
+      "play": "Play {name}",
+      "pause": "Pause {name}",
+      "speed": "Speed",
+      "mode": "Run",
+      "bounce": "Back and forth",
+      "loop": "Start over each time"
     },
     "hintShort": "Click selects · drag orbits · right-drag pans · scroll zooms"
   },
