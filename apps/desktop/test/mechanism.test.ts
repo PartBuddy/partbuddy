@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { hingeOf, occurrenceOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { hingeOf, occurrenceOf, railTravel, slideOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
-import { hingeProblem, hingeSteps, type HingeSpec } from '../src/shared/mechanisms';
+import { describeToolCall } from '../src/shared/stepPhrases';
+import { hingeProblem, hingeSteps, slideProblem, slideSteps, type HingeSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -108,7 +109,47 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(batches).toHaveLength(before);
   });
 
+  it('is one line in the work log, by its kind', () => {
+    expect(describeToolCall('partbuddy_mechanism', { kind: 'hinge', name: 'Lid hinge' })).toEqual([{ key: 'hinge', values: { name: 'Lid hinge' } }]);
+    expect(describeToolCall('partbuddy_mechanism', { kind: 'slide' })).toEqual([{ key: 'guide', values: { name: 'Guide' } }]);
+  });
+
   it('is a tool the policy lets through', () => {
     expect(decide('partbuddy_mechanism', { kind: 'hinge' })).toEqual({ allow: true });
+  });
+});
+
+describe('the dovetail guide (ADR 0027, G3)', () => {
+  const guide: SlideSpec = { fixed: 'Base', moving: 'Carriage', from: [0, 15, 4], to: [60, 15, 4], up: [0, 0, 1], width: 6, height: 3, gap: 0.4, name: 'Guide' };
+
+  it('cuts the groove a gap wider all round, then builds the rail, both sketched square to the line and extruded along it', () => {
+    const steps = slideSteps(guide);
+    expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.line', 'solid.extrude', 'sketch.create', 'sketch.line', 'solid.extrude']);
+    // Sketch x across the rail, y up: the extrusion runs from "from" towards "to".
+    expect(steps[0]?.params.plane).toEqual({ origin: [0, 15, 4], x_dir: [0, 1, 0], y_dir: [0, 0, 1] });
+    expect(steps[2]?.params).toMatchObject({ distance: '60 mm', operation: 'cut', targets: ['Carriage'] });
+    expect(steps[5]?.params).toMatchObject({ distance: '60 mm', operation: 'join', targets: ['Base'] });
+    // The rail: 6 mm at its foot, 3 mm high, 45° flanks.
+    expect(steps[4]?.params.points).toEqual([[-3, 0], [3, 0], [6, 3], [-6, 3]]);
+    // The groove: the flanks 0.4 mm away measured square to them, its roof 0.4 mm above the rail.
+    expect(steps[1]?.params.points).toEqual([[-3.566, -0.4], [3.566, -0.4], [3.566, 0], [6.966, 3.4], [-6.966, 3.4], [-3.566, 0]]);
+  });
+
+  it('says what is wrong before anything is built, and fills in the defaults', () => {
+    expect(slideProblem(guide)).toBeNull();
+    expect(slideProblem({ ...guide, up: [1, 0, 0] })).toContain('up must be square to the line');
+    expect(slideProblem({ ...guide, to: [3, 15, 4] })).toBe('from and to must be at least 5 mm apart');
+    expect(slideOf({ kind: 'slide', fixed: 'Base', moving: 'Carriage', from: [0, 15, 4], to: [60, 15, 4] }, 0.6)).toMatchObject({ up: [0, 0, 1], width: 6, height: 3, gap: 0.6, name: 'Guide' });
+  });
+
+  it('lets the moving body travel as far as it stays on the rail', () => {
+    // inspect.measure as SolidCraft 0.40.0-rc.3 answers: the carriage lies over x 20 to 40 of a rail from 0 to 60.
+    const measure = { bodies: [{ name: 'Carriage', bbox: { min: [20, 0, 4.4], max: [40, 30, 10.4] } }] };
+    expect(railTravel(measure, [0, 15, 4], [60, 15, 4])).toEqual([-20, 20]);
+    // Seen from the other end of a shorter rail the same body, turned round.
+    expect(railTravel(measure, [60, 15, 4], [10, 15, 4])).toEqual([-20, 10]);
+    // A body longer than the rail has nowhere to go.
+    expect(railTravel({ bodies: [{ bbox: { min: [-5, 0, 4.4], max: [70, 30, 10.4] } }] }, [0, 15, 4], [60, 15, 4])).toEqual([0, 0]);
+    expect(railTravel({}, [0, 15, 4], [60, 15, 4])).toBeNull();
   });
 });

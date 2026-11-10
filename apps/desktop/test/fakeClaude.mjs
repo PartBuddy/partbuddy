@@ -302,6 +302,16 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a sliding carriage" (G3): a base, a carriage a gap above it, then PartBuddy's own guide between them.
+    if (content.includes('a sliding carriage')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 60, width: 30, height: 4, operation: 'new', body_name: 'Base' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 20, width: 30, height: 6, corner: [20, 0, 4.4], operation: 'new', body_name: 'Carriage' } } });
+      const built = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'slide', fixed: 'Base', moving: 'Carriage', from: [0, 15, 4], to: [60, 15, 4], name: 'Carriage guide' } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     if (content.includes('a hinge')) {
       for (const step of HINGE) await client.callTool({ name: 'execute', arguments: step });
       await client.close();
