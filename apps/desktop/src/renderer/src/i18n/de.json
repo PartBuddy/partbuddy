@@ -625,6 +625,7 @@
     "fold": "Einklappen: nur die Auswahl zeigen",
     "unfold": "Ausklappen",
     "refused": {
+      "check": "Die entstehende Form besteht SolidCrafts Geometrieprüfung nicht (etwa eine zu scharf geknickte Kurve) – eine etwas andere Größe hilft oft.",
       "shell": "Die Wandstärke passt nicht zu dieser Form – probier einen kleineren Wert.",
       "fillet": "Der Radius ist für diese Kante zu groß – probier einen kleineren Wert.",
       "chamfer": "Die Fase ist für diese Kante zu breit – probier einen kleineren Wert.",
