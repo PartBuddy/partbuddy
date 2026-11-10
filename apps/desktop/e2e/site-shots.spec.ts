@@ -151,6 +151,8 @@ test('website pictures', async () => {
   const step = async (file: string, run: () => Promise<void>) => {
     if (!wanted(file)) return;
     try {
+      // An error card stays until it is closed (since the audit, #262) and would cover the toolbar in every later picture.
+      if ((await page.getByTestId('notice-close').count()) > 0) await page.getByTestId('notice-close').click();
       await run();
       report[file] = 'ok';
     } catch (error) {
@@ -344,7 +346,7 @@ test('website pictures', async () => {
       await page.getByTestId('hud-note').click();
       await expect(page.getByTestId('note-pin')).toHaveCount(1, { timeout: 15_000 });
       // The face picked again beside the pin: its name shows with the selection.
-      await pickFace(page, PLATE_TOP);
+      await pickFace(page);
       await shot('view');
       await page.keyboard.press('Escape');
     });
@@ -357,7 +359,7 @@ test('website pictures', async () => {
       await pickFace(page, EDGE_SWEEP, 'edge');
       await note('This edge R2 instead of R1.');
       await expect(page.getByTestId('note-pin')).toHaveCount(2, { timeout: 15_000 });
-      await pickFace(page, PLATE_TOP);
+      await pickFace(page, [...SPOTS].reverse());
       await note('Make this plate 1 mm thicker.');
       await expect(page.getByTestId('note-pin')).toHaveCount(3, { timeout: 15_000 });
       await page.keyboard.press('Escape');
@@ -456,6 +458,50 @@ test('website pictures', async () => {
       await expect(page.getByTestId('print-check-panel').locator('[data-kind="tight"], [data-kind="overlap"]')).not.toHaveCount(0, { timeout: 30_000 });
       await shot('printready');
       await page.keyboard.press('Escape');
+    });
+    // Release 0.2.1: a second message waits while the assistant still works on the first (#281).
+    await step('queue', async () => {
+      await fresh();
+      await send('Build a cable clip for a 12 mm cable that I can screw under my desk');
+      await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 60_000 });
+      await page.keyboard.press('0');
+      await panBesideDock();
+      const box = page.getByRole('textbox', { name: 'Message to the assistant' });
+      await box.fill('Make the snap opening 1 mm wider');
+      await page.getByTestId('composer-send').click();
+      await expect(page.getByTestId('composer-stop')).toBeVisible({ timeout: 15_000 });
+      await box.fill('Then add a third screw hole in the middle');
+      await page.getByTestId('composer-queue').click();
+      await expect(page.getByTestId('chat-queued')).toBeVisible({ timeout: 15_000 });
+      await page.waitForTimeout(1500);
+      await shot('queue');
+      await page.getByTestId('chat-queued-drop').click();
+      await page.getByTestId('composer-stop').click();
+      await expect(page.getByRole('button', { name: 'Send' })).toBeVisible({ timeout: 60_000 });
+    });
+    // Release 0.2.1: one message with three photos (#280). The "photos" are the clip's own views,
+    // taken from the app, so they need no licence.
+    await step('photos', async () => {
+      await fresh();
+      await send('Build a cable clip for a 12 mm cable that I can screw under my desk');
+      await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 60_000 });
+      const views: string[] = [];
+      for (const key of ['0', '1', '7']) {
+        await page.keyboard.press(key);
+        await page.waitForTimeout(900);
+        const file = join(work, `clip-${key}.png`);
+        await page.getByTestId('viewport').screenshot({ path: file });
+        views.push(file);
+      }
+      await page.keyboard.press('0');
+      await panBesideDock();
+      await page.getByTestId('composer-photo-input').setInputFiles(views);
+      await expect(page.getByTestId('composer-photo')).toHaveCount(3, { timeout: 15_000 });
+      await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('My old clip from three sides – it broke at the snap. Build it again, 1 mm stronger there.');
+      await page.getByRole('button', { name: 'Send' }).click();
+      await expect(page.getByTestId('assistant-text').last()).toContainText('three sides', { timeout: 30_000 });
+      await page.waitForTimeout(1000);
+      await shot('photos');
     });
     await step('photo', async () => {
       await fresh();
