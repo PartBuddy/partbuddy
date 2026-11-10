@@ -141,6 +141,9 @@ interface StudioState {
   explode: number | null;
   setExplode: (explode: number | null) => void;
   requestView: (view: StandardView) => void;
+  /** A joint value as its slider is dragged (ADR 0027, G4): the view moves the joint's bodies there until the mirror shows them there. */
+  jointPreview: { joint: number; index: number; value: number } | null;
+  setJointPreview: (preview: { joint: number; index: number; value: number } | null) => void;
   /** Assembled or on the plate; the plate, the exploded view, the playback and a section exclude each other. */
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
@@ -275,6 +278,10 @@ export const useStudio = create<StudioState>()((set) => ({
   explode: null,
   setExplode: (explode) => {
     set(explode === null ? { explode } : { explode, section: null, viewMode: 'assembled', playback: null });
+  },
+  jointPreview: null,
+  setJointPreview: (jointPreview) => {
+    set({ jointPreview });
   },
   viewMode: 'assembled',
   setViewMode: (viewMode) => {

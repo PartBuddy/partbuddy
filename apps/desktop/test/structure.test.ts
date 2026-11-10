@@ -2,6 +2,7 @@ import { withMotion, type PrintCheck } from '@partbuddy/geometry';
 import { describe, expect, it } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
+import { jointMove, rotate } from '../src/renderer/src/viewer/jointPose';
 import { sweepStopOf } from '../src/main/solidcraft/actions';
 
 import { componentsWithBodies, jointsOf, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
@@ -138,5 +139,48 @@ describe('the motion of joints in the ready-to-print check (ADR 0027)', () => {
     });
     expect(note).toContain('joint "Hinge" stops at 28.1 deg, before its limit of 90 deg: bodies "Flap" and "Base" touch there');
     expect(note).toContain('joint "Hinge" stands at -90 deg, not at 0 as designed');
+  });
+});
+
+describe('a joint followed in the view while its slider is dragged (ADR 0027, G4)', () => {
+  // joint.list and component.list as SolidCraft 0.40.0-rc.3 answer for two plates hinged along Y at x 41, z 4.
+  const listing = {
+    joints: [
+      { a: 4, b: 6, id: 9, name: 'Hinge', type: 'revolute', frame_a: { origin: [41, 15, 4], z: [0, 1, 0] }, frame_b: { origin: [41, 15, 4], z: [0, 1, 0] }, values: [{ limits: null, name: 'angle', unit: 'deg', value: 0 }] },
+      { a: 6, b: 8, id: 10, name: 'Slide', type: 'slider', frame_a: { origin: [60, 15, 4], z: [1, 0, 0] }, values: [{ limits: null, name: 'distance', unit: 'mm', value: 5 }] },
+    ],
+  };
+  const components = {
+    components: [
+      { id: 0, parent: null, bodies: [], occurrences: [] },
+      { id: 3, parent: 0, bodies: ['Base'], occurrences: [{ id: 4, name: 'Base:1' }] },
+      { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ id: 6, name: 'Flap:1' }] },
+      { id: 7, parent: 0, bodies: ['Latch'], occurrences: [{ id: 8, name: 'Latch:1' }] },
+    ],
+  };
+
+  it('gives each joint its axis and the bodies it moves, those joined on beyond it too', () => {
+    const [hinge, slide] = jointsOf(listing, components);
+    expect(hinge).toMatchObject({ origin: [41, 15, 4], axis: [0, 1, 0], bodies: ['Flap', 'Latch'] });
+    expect(slide).toMatchObject({ origin: [60, 15, 4], axis: [1, 0, 0], bodies: ['Latch'] });
+    expect(structureSchema.safeParse({ ...structureOf({}), joints: [hinge, slide] }).success).toBe(true);
+    // Without the components nothing says which bodies move: the joint has a slider but no preview.
+    expect(jointsOf(listing)[0]).not.toHaveProperty('bodies');
+  });
+
+  it('turns the bodies about the axis as SolidCraft drives the joint, and shifts them along a slide', () => {
+    const [hinge, slide] = jointsOf(listing, components);
+    if (!hinge || !slide) throw new Error('no joints');
+    // Driven to -90°, SolidCraft puts the middle of the flap (62, 15, 2) at (43, 15, 25).
+    const move = jointMove(hinge, 0, -90);
+    if (!move) throw new Error('no move');
+    const turned = rotate(move.quaternion, [62, 15, 2]).map((value, i) => value + (move.position[i] ?? 0));
+    expect(turned[0]).toBeCloseTo(43);
+    expect(turned[1]).toBeCloseTo(15);
+    expect(turned[2]).toBeCloseTo(25);
+    // The slide stands at 5 mm: dragged to 12 mm, its bodies move 7 mm along the axis.
+    expect(jointMove(slide, 0, 12)).toEqual({ position: [7, 0, 0], quaternion: [0, 0, 0, 1] });
+    // Where the mirror already has them, nothing moves.
+    expect(jointMove(slide, 0, 5)).toBeNull();
   });
 });

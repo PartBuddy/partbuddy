@@ -47,8 +47,9 @@ each sweep in about 5 ms), and an own model would have to redo all of it.
 
 * Good, because motion, limits and collisions are SolidCraft's and exact.
 * Good, because older projects open unchanged.
-* Bad, because the view follows only when the slider is let go; moving while dragging needs the
-  parts' transforms in the view and comes with dragging at the part itself.
+* Neutral: while a slider is dragged the view moves the joint's bodies itself, about the axis the
+  mirror reads (G4), and SolidCraft is driven once when it is let go. Bodies that only follow
+  through a closed loop move then.
 * Bad, because a design left open at an angle is exported at that angle; the check along the way
   (next step) names it.
 

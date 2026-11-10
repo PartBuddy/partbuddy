@@ -3053,6 +3053,39 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
     await page.screenshot({ path: test.info().outputPath('hinge-blocked.png') });
     await page.keyboard.press('Escape');
     await page.screenshot({ path: test.info().outputPath('hinge-as-designed.png') });
+    // Dragged, the flap follows in the view at once, before SolidCraft is asked: the revision stays, a body is turned.
+    const turned = () =>
+      page.evaluate(() => {
+        interface Node3 {
+          isGroup?: boolean;
+          quaternion: { w: number };
+        }
+        const canvas = (globalThis as unknown as { document: { querySelector(selector: string): { __r3f?: () => { scene: { traverse(visit: (node: Node3) => void): void } } } | null } }).document.querySelector('[data-testid="viewport"] canvas');
+        let count = 0;
+        canvas?.__r3f?.().scene.traverse((node) => {
+          if (node.isGroup && Math.abs(node.quaternion.w) < 0.9999) count += 1;
+        });
+        return count;
+      });
+    expect(await turned()).toBe(0);
+    const revision = await page.getByTestId('connection-status').textContent();
+    const track = await page.getByTestId('joint-value').locator('.relative').first().boundingBox();
+    if (!track) throw new Error('the slider has no track');
+    // The limits are -180° and 90°, so 0° is two thirds along the track.
+    await page.mouse.move(track.x + (track.width * 2) / 3, track.y + track.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(track.x + track.width / 3, track.y + track.height / 2, { steps: 8 });
+    await expect.poll(turned).toBe(1);
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: test.info().outputPath('hinge-dragging.png') });
+    expect(await page.getByTestId('connection-status').textContent()).toBe(revision);
+    // Let go: SolidCraft drives the joint, the mirror shows the flap there, and nothing is turned on top of it.
+    await page.mouse.up();
+    await expect(page.getByTestId('connection-status')).not.toHaveText(revision ?? '', { timeout: 30_000 });
+    await expect.poll(turned, { timeout: 30_000 }).toBe(0);
+    await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' })).toHaveValue(/^-(8\d|9\d)$/);
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: test.info().outputPath('hinge-dragged.png') });
     // To the lower limit: SolidCraft folds the flap onto the base, and the mirror brings the value back.
     await slider.focus();
     await page.keyboard.press('Home');

@@ -84,7 +84,7 @@ export class FakeSolidCraft {
   moved = new Set<string>();
   quitRequested = false;
   /** Joints as `joint.list` reports them; `joint.drive` sets a value within its limits. */
-  joints: { id: number; name: string; type: string; values: { name: string; unit: 'deg' | 'mm'; value: number; limits: [number, number] | null }[] }[] = [];
+  joints: { id: number; name: string; type: string; a?: number; b?: number; frame_a?: { origin: [number, number, number]; z: [number, number, number] }; values: { name: string; unit: 'deg' | 'mm'; value: number; limits: [number, number] | null }[] }[] = [];
   /** Where `joint.sweep` stops on its way to a value, by that value; a sweep to any other value runs through. */
   sweepStops = new Map<number, { stopped_at: number; stopped_by: { a: string; b: string; at: [number, number, number] } }>();
   /** User parameters as `parameters.list` reports them; `parameters.change` sets plain values. */

@@ -97,26 +97,70 @@ async function withLibraryParts(client: ControlRequester, structure: Structure, 
 }
 
 /** The joints from `joint.list` (ADR 0027), checked field by field; a joint or value that reads oddly is left out. */
-export function jointsOf(listing: unknown): Joint[] {
+const vec = (value: unknown): [number, number, number] | null =>
+  Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry)) ? (value as [number, number, number]) : null;
+
+/** The bodies each occurrence places, by occurrence id, from `component.list`. */
+function bodiesByOccurrence(components: unknown): Map<number, string[]> {
+  const placed = new Map<number, string[]>();
+  const entries = (components as { components?: unknown } | undefined)?.components;
+  if (!Array.isArray(entries)) return placed;
+  for (const entry of entries as { bodies?: unknown; occurrences?: unknown }[]) {
+    const bodies = Array.isArray(entry.bodies) ? entry.bodies.filter((name): name is string => typeof name === 'string') : [];
+    for (const occurrence of Array.isArray(entry.occurrences) ? (entry.occurrences as { id?: unknown }[]) : []) {
+      if (Number.isInteger(occurrence.id)) placed.set(occurrence.id as number, bodies);
+    }
+  }
+  return placed;
+}
+
+/** The occurrences a joint moves: its `b` and everything joined on beyond it, never back through `a`. */
+function movedBy(joint: { a?: unknown; b?: unknown }, joints: { a?: unknown; b?: unknown }[]): number[] {
+  if (!Number.isInteger(joint.a) || !Number.isInteger(joint.b)) return [];
+  const moved = new Set<number>([joint.b as number]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const other of joints) {
+      if (other === joint || !Number.isInteger(other.a) || !Number.isInteger(other.b)) continue;
+      for (const [near, far] of [[other.a, other.b], [other.b, other.a]] as [number, number][]) {
+        if (moved.has(near) && !moved.has(far) && far !== joint.a) {
+          moved.add(far);
+          grew = true;
+        }
+      }
+    }
+  }
+  return [...moved];
+}
+
+export function jointsOf(listing: unknown, components?: unknown): Joint[] {
+  const placed = bodiesByOccurrence(components);
   const joints = (listing as { joints?: unknown } | undefined)?.joints;
   if (!Array.isArray(joints)) return [];
   const limit = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
   return (joints as Record<string, unknown>[])
     .filter((joint) => Number.isInteger(joint.id) && (joint.id as number) >= 0 && joint.suppressed !== true)
     .slice(0, 200)
-    .map((joint) => ({
-      id: joint.id as number,
-      name: text(joint.name, 200) ?? `#${String(joint.id)}`,
-      type: text(joint.type, 40) ?? 'joint',
-      values: (Array.isArray(joint.values) ? (joint.values as Record<string, unknown>[]) : [])
-        .filter((value) => (value.unit === 'deg' || value.unit === 'mm') && typeof value.value === 'number' && Number.isFinite(value.value))
-        .slice(0, 6)
-        .map((value) => ({
-          unit: value.unit as 'deg' | 'mm',
-          value: value.value as number,
-          limits: Array.isArray(value.limits) ? ([limit(value.limits[0]), limit(value.limits[1])] as [number | null, number | null]) : null,
-        })),
-    }))
+    .map((joint) => {
+      const frame = joint.frame_a as { origin?: unknown; z?: unknown } | undefined;
+      const origin = vec(frame?.origin);
+      const axis = vec(frame?.z);
+      const bodies = movedBy(joint, joints as Record<string, unknown>[]).flatMap((occurrence) => placed.get(occurrence) ?? []).slice(0, 500);
+      return {
+        id: joint.id as number,
+        name: text(joint.name, 200) ?? `#${String(joint.id)}`,
+        type: text(joint.type, 40) ?? 'joint',
+        ...(origin && axis && bodies.length > 0 ? { origin, axis, bodies } : {}),
+        values: (Array.isArray(joint.values) ? (joint.values as Record<string, unknown>[]) : [])
+          .filter((value) => (value.unit === 'deg' || value.unit === 'mm') && typeof value.value === 'number' && Number.isFinite(value.value))
+          .slice(0, 6)
+          .map((value) => ({
+            unit: value.unit as 'deg' | 'mm',
+            value: value.value as number,
+            limits: Array.isArray(value.limits) ? ([limit(value.limits[0]), limit(value.limits[1])] as [number | null, number | null]) : null,
+          })),
+      };
+    })
     .filter((joint) => joint.values.length > 0);
 }
 
@@ -233,7 +277,7 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
       throw new Error('document.revision returned no revision');
     }
     const tail = 1 + bodies.length * 2 + sketches.length;
-    const joints = jointsOf(batch.results[tail + 2]);
+    const joints = jointsOf(batch.results[tail + 2], batch.results[tail]);
     const structure = withColours(await withLibraryParts(client, structureOf(inspect), batch.results[tail]), batch.results[tail + 1]);
     const mirrored: MirroredBody[] = [];
     for (const [i, name] of bodies.entries()) {
