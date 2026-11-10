@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Label, Slider, SliderOutput } from 'react-aria-components';
 
 import type { Joint } from '../../../shared/contract';
 import { platform } from '../platform';
+import { useStudio } from '../state/store';
 import { Button } from '../ui/Button';
 import { SliderBar } from '../ui/Choice';
 
@@ -16,14 +17,22 @@ export function jointRange(value: JointValue): [number, number] {
 }
 
 /**
- * Parts that move (ADR 0027): one slider per joint value. Letting go drives the joint in
- * SolidCraft; the next revision of the mirror shows where the parts stand and gives the slider the
- * value SolidCraft kept it at.
+ * Parts that move (ADR 0027): one slider per joint value. While it is dragged the joint's bodies
+ * follow in the view (G4); letting go drives the joint in SolidCraft, and the next revision of the
+ * mirror shows where the parts stand and gives the slider the value SolidCraft kept it at.
  */
 export function JointPanel({ joints }: { joints: Joint[] }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const setPreview = useStudio((s) => s.setJointPreview);
+  // The bodies go back to where the mirror has them when the panel closes.
+  useEffect(
+    () => () => {
+      setPreview(null);
+    },
+    [setPreview],
+  );
 
   const drive = (moves: { joint: Joint; index: number; value: number }[]) => {
     setBusy(true);
@@ -35,6 +44,7 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
         }
       } catch (cause) {
         setError((cause as Error).message.slice(0, 200));
+        setPreview(null);
       } finally {
         setBusy(false);
       }
@@ -64,8 +74,13 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
               step={value.unit === 'deg' ? 1 : 0.5}
               isDisabled={busy}
               formatOptions={value.unit === 'deg' ? { style: 'unit', unit: 'degree', unitDisplay: 'narrow', maximumFractionDigits: 1 } : { style: 'unit', unit: 'millimeter', maximumFractionDigits: 1 }}
+              onChange={(next) => {
+                // The bodies follow in the view at once (G4); SolidCraft is driven when the slider is let go.
+                setPreview({ joint: joint.id, index, value: next });
+              }}
               onChangeEnd={(next) => {
                 if (next !== value.value) drive([{ joint, index, value: next }]);
+                else setPreview(null);
               }}
               className="w-full"
               data-testid="joint-value"
@@ -83,6 +98,7 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
         size="sm"
         isDisabled={busy || away.length === 0}
         onPress={() => {
+          setPreview(null);
           drive(away);
         }}
         data-testid="joint-reset"

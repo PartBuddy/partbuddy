@@ -125,6 +125,10 @@ export const jointSchema = z
     values: z
       .array(z.object({ unit: z.enum(['deg', 'mm']), value: z.number(), limits: z.tuple([z.number().nullable(), z.number().nullable()]).nullable() }).strict())
       .max(6),
+    /** A point on the joint's axis and the axis, in the world as mirrored; the bodies it moves, those beyond it in the chain too. Left out when SolidCraft gave no frame. */
+    origin: z.tuple([z.number(), z.number(), z.number()]).optional(),
+    axis: z.tuple([z.number(), z.number(), z.number()]).optional(),
+    bodies: z.array(z.string().max(200)).max(500).optional(),
   })
   .strict();
 
