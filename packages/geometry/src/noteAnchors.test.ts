@@ -96,6 +96,9 @@ describe('note anchors (ADR 0006)', () => {
     expect(resolved.status).toBe('attached');
     expect(resolved.world[0]).toBeCloseTo(33, 6);
     expect(edgeAnchor(table, 'F1:+x|F99:nope', [0, 0, 0])).toBeNull();
+    // An edge at a fillet: the fillet's face has a `|` in its own name.
+    expect(edgeAnchor(table, 'F1:+z|F3:blend:F1:+x|F1:+z', [0, 0, 0])).toMatchObject({ faces: ['F1:+z', 'F3:blend:F1:+x|F1:+z'] });
+    expect(edgeAnchor(table, 'F2:blend:F1:+x|F1:+y|F3:blend:F1:+z|F2:blend:F1:+x|F1:+y', [0, 0, 0])).toMatchObject({ faces: ['F2:blend:F1:+x|F1:+y', 'F3:blend:F1:+z|F2:blend:F1:+x|F1:+y'] });
   });
 
   it('keeps a point note while its body exists', () => {

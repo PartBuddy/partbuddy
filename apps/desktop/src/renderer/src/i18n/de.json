@@ -403,7 +403,7 @@
       "remove": "Foto entfernen",
       "failed": "Das Bild ließ sich nicht lesen. PNG, JPEG und WebP gehen.",
       "drop": "Bild loslassen: es geht mit deiner Nachricht",
-      "sent": "Mit Foto",
+      "sent": "{count, plural, one {Mit Foto} other {Mit # Fotos}}",
       "defaultText": "Mach mir ein passendes Teil für den Gegenstand auf dem Foto.",
       "show": "Foto groß zeigen",
       "pasted": "Eingefügtes Bild",

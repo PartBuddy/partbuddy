@@ -36,6 +36,8 @@ export class Bridge {
     private readonly ipc: IpcRegistry,
     private readonly isTrustedSender: (event: SenderEvent) => boolean,
     private readonly validateOutgoing: boolean,
+    /** Every request that fails goes to the log: the interface shows the user only a short notice. */
+    private readonly log: (line: string) => void = () => undefined,
   ) {}
 
   handle<C extends InvokeChannel>(channel: C, handler: Handler<C>): void {
@@ -44,8 +46,13 @@ export class Bridge {
       if (!this.isTrustedSender(event)) throw new Error(`${channel}: refused, untrusted sender`);
       const parsed = schema.request.safeParse(payload);
       if (!parsed.success) throw new Error(`${channel}: invalid request`);
-      const response = await handler(parsed.data as InvokeRequest<C>);
-      return this.validateOutgoing ? schema.response.parse(response) : response;
+      try {
+        const response = await handler(parsed.data as InvokeRequest<C>);
+        return this.validateOutgoing ? schema.response.parse(response) : response;
+      } catch (error) {
+        this.log(`${channel} failed: ${(error as Error).message.slice(0, 300)}`);
+        throw error;
+      }
     });
   }
 

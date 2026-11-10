@@ -126,9 +126,15 @@ export function faceAnchor(table: FaceTable, faceName: string, point: Vec3, norm
 
 /** The anchor for a note on an edge: the two faces that meet there (`A|B`, as SolidCraft names edges). */
 export function edgeAnchor(table: FaceTable, edgeName: string, point: Vec3): NoteAnchor | null {
-  const names = edgeName.split('|');
-  if (names.length !== 2) return null;
-  const [a, b] = names.map((name) => table.faces.find((face) => face.name === name));
+  // A face left by a fillet carries a `|` in its own name (`F2:blend:F1:+x|F1:+y`), so the edge's name is
+  // cut at each `|` in turn until both halves are faces of the body.
+  const face = (name: string) => table.faces.find((candidate) => candidate.name === name);
+  let a: FaceInfo | undefined;
+  let b: FaceInfo | undefined;
+  for (let cut = edgeName.indexOf('|'); cut >= 0 && !(a && b); cut = edgeName.indexOf('|', cut + 1)) {
+    a = face(edgeName.slice(0, cut));
+    b = face(edgeName.slice(cut + 1));
+  }
   if (!a || !b) return null;
   return { kind: 'edge', body: table.body, faces: [a.name, b.name], centroids: [roundVec(a.centroid), roundVec(b.centroid)], world: roundVec(point) };
 }

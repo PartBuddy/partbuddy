@@ -403,7 +403,7 @@
       "remove": "Remove the photo",
       "failed": "The picture could not be read. PNG, JPEG and WebP work.",
       "drop": "Drop the picture: it goes with your message",
-      "sent": "With a photo",
+      "sent": "{count, plural, one {With a photo} other {With # photos}}",
       "defaultText": "Make a part that fits the object in the photo.",
       "show": "Show the photo large",
       "pasted": "Pasted picture",
