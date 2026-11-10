@@ -305,6 +305,29 @@ function arcToCubics(p0: Pt, rxIn: number, ryIn: number, angle: number, large: b
 }
 
 /** Path data as loops; every subpath is closed, as filling does. */
+/** A control point this close to its end, as a share of the chord, makes a near-cusp. */
+const CUSP_SHARE = 0.05;
+/** How far such a control point moves towards the other one: the tangent stays, the shape barely changes. */
+const CUSP_OPEN = 0.1;
+
+/**
+ * A cubic whose control point sits (almost) on its end has no tangent there, a near-cusp that
+ * SolidCraft's geometry check refuses (SmBSplineCurve "Bad CurveCusp", colour logo 2026-11-10;
+ * drawing programs and "S" after a line write such curves). The control point moves a little
+ * towards the other one, so the curve keeps its course and gets a tangent.
+ */
+export function openedControls(from: Pt, c1: Pt, c2: Pt, to: Pt): { c1: Pt; c2: Pt } {
+  const chord = Math.hypot(to[0] - from[0], to[1] - from[1]);
+  if (chord === 0) return { c1, c2 };
+  const near = (control: Pt, end: Pt) => Math.hypot(control[0] - end[0], control[1] - end[1]) < CUSP_SHARE * chord;
+  const toward = (end: Pt, other: Pt): Pt => [end[0] + (other[0] - end[0]) * CUSP_OPEN, end[1] + (other[1] - end[1]) * CUSP_OPEN];
+  // Both on their ends is a straight piece and stays as it is.
+  const first = near(c1, from);
+  const second = near(c2, to);
+  if (first && second) return { c1, c2 };
+  return { c1: first ? toward(from, c2) : c1, c2: second ? toward(to, c1) : c2 };
+}
+
 export function parsePathData(d: string): Loop[] {
   const loops: Loop[] = [];
   let i = 0;
@@ -349,7 +372,8 @@ export function parsePathData(d: string): Loop[] {
     current = null;
     pen = start;
   };
-  const add = (segment: Segment) => {
+  const add = (given: Segment) => {
+    const segment = 'c1' in given ? { ...given, ...openedControls(pen, given.c1, given.c2, given.to) } : given;
     current ??= { start: pen, segments: [] };
     if (current.segments.length === 0) current.start = pen;
     current.segments.push(segment);
