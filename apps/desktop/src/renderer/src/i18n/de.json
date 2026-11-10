@@ -133,7 +133,7 @@
     "joints": {
       "title": "Bewegliche Teile",
       "reset": "Wie konstruiert",
-      "hint": "Abspielen zeigt den Weg. Pause oder Loslassen hält das Teil dort; exportiert und geprüft wird die Stellung, in der es steht.",
+      "hint": "Abspielen bewegt die Teile nur in der Ansicht. Einen Regler loslassen stellt das Teil um; so wird es exportiert und geprüft.",
       "failed": "SolidCraft hat das Gelenk nicht bewegt: {reason}",
       "play": "{name} abspielen",
       "pause": "{name} anhalten",
@@ -147,11 +147,21 @@
       "together": "Alle zusammen",
       "inTurn": "Nacheinander",
       "playTool": "Bewegung abspielen",
-      "stopped": "Angehalten: {a} und {b} stoßen bei {at} aneinander. Abspielen fährt von dort zurück.",
+      "stopped": "Hier stoßen {a} und {b} aneinander: bei {at}. Abspielen fährt von dort zurück.",
       "showTouch": "Stelle zeigen",
-      "record": "Als Video speichern",
-      "recording": "Aufnahme läuft …",
-      "videoFailed": "Das Video wurde nicht gespeichert: {reason}"
+      "record": "Video aufnehmen",
+      "pauseTool": "Bewegung anhalten",
+      "keep": "Stellung übernehmen",
+      "viewOnly": "Nur in der Ansicht bewegt, das Modell steht wie zuvor. Auswählen und Maße ruhen so lange.",
+      "unchecked": "Zusammen bewegt ist nicht geprüft, ob Teile aneinanderstoßen.",
+      "video": {
+        "recording": "Aufnahme läuft …",
+        "saving": "Video wird gespeichert …",
+        "cancelled": "Das Video wurde nicht gespeichert.",
+        "unsupported": "Dieses System kann die Ansicht nicht als Video aufnehmen.",
+        "empty": "Die Aufnahme enthielt kein Bild. Bitte noch einmal aufnehmen.",
+        "failed": "Die Aufnahme ist fehlgeschlagen. Bitte noch einmal aufnehmen."
+      }
     },
     "hintShort": "Klicken wählt · Ziehen dreht · Rechts verschiebt · Rad zoomt"
   },

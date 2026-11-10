@@ -30,16 +30,17 @@ export function usePrintCheck(): void {
       const joints = model.structure.joints ?? [];
       // A joint left away from "as designed" needs no measuring, so it shows at once: with a lid closed onto its
       // box SolidCraft's measures took longer than a look at the list (practice run 2026-11-10).
-      useStudio.getState().setPrintCheck({ revision: model.revision, result: joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result });
+      // A logo's colour pieces sit in the part on purpose; measuring them, SolidCraft took minutes
+      // for a logo of many pieces and held up every trial after it.
+      const parts = printed.filter((body) => !isLogoColourBody(body.name));
+      const measuring = parts.length >= 2 || joints.length > 0;
+      useStudio.getState().setPrintCheck({ revision: model.revision, result: joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result, ...(measuring ? { measuring } : {}) });
       const report = (final: typeof result) => {
         void platform()
           .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision))
           .catch(() => undefined);
       };
-      // A logo's colour pieces sit in the part on purpose; measuring them, SolidCraft took minutes
-      // for a logo of many pieces and held up every trial after it.
-      const parts = printed.filter((body) => !isLogoColourBody(body.name));
-      if (parts.length < 2 && joints.length === 0) {
+      if (!measuring) {
         report(result);
         return;
       }
@@ -78,7 +79,7 @@ export function usePrintCheck(): void {
       };
       void measure().then((final) => {
         if (stale) return;
-        if (final !== result) useStudio.getState().setPrintCheck({ revision: model.revision, result: final });
+        useStudio.getState().setPrintCheck({ revision: model.revision, result: final });
         report(final);
       });
     }, CHECK_DELAY_MS);

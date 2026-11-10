@@ -216,15 +216,27 @@ describe('a joint followed in the view while its slider is dragged (ADR 0027, G4
 
   it('plays a joint through its range: back and forth, or starting over', () => {
     expect(playStep(-10, 1, [-180, 0], 4, 'bounce')).toEqual({ value: -6, direction: 1, turned: false });
-    // Past the end it turns round by what was left over.
-    expect(playStep(-2, 1, [-180, 0], 5, 'bounce')).toEqual({ value: -3, direction: -1, turned: true });
-    expect(playStep(-178, -1, [-180, 0], 5, 'bounce')).toEqual({ value: -177, direction: 1, turned: true });
-    expect(playStep(-2, 1, [-180, 0], 5, 'loop')).toEqual({ value: -177, direction: 1, turned: true });
-    // A frame after a long pause never leaves the range, and a range of nothing stays put.
-    const far = playStep(-90, 1, [-180, 0], 10_000, 'bounce').value;
-    expect(far).toBeGreaterThanOrEqual(-180);
-    expect(far).toBeLessThanOrEqual(0);
+    // Reaching an end it stands exactly there for a frame.
+    expect(playStep(-2, 1, [-180, 0], 5, 'bounce')).toEqual({ value: 0, direction: 1, turned: true });
+    expect(playStep(-178, -1, [-180, 0], 5, 'loop')).toEqual({ value: -180, direction: -1, turned: true });
+    // From the end it turns round, or starts over at the other end.
+    expect(playStep(0, 1, [-180, 0], 5, 'bounce')).toEqual({ value: -5, direction: -1, turned: false });
+    expect(playStep(0, 1, [-180, 0], 5, 'loop')).toEqual({ value: -175, direction: 1, turned: false });
+    // A value outside the range (the stops came while it played) is taken into it, never further out.
+    expect(playStep(-100, 1, [-28, 0], 4, 'bounce')).toEqual({ value: -24, direction: 1, turned: false });
+    expect(playStep(-100, -1, [-28, 0], 4, 'bounce')).toEqual({ value: -24, direction: 1, turned: false });
+    // A frame after a long pause ends at the end, and a range of nothing stays put.
+    expect(playStep(-90, 1, [-180, 0], 10_000, 'bounce')).toEqual({ value: 0, direction: 1, turned: true });
     expect(playStep(3, 1, [3, 3], 5, 'loop')).toEqual({ value: 3, direction: 1, turned: true });
+  });
+
+  it('keeps one order for joints that move the same bodies, whichever was taken last', () => {
+    const [hinge, slide] = jointsOf(listing, components);
+    if (!hinge || !slide) throw new Error('no joints');
+    const same = { ...slide, bodies: hinge.bodies ?? [] };
+    const a = jointPoses([hinge, same], [{ joint: hinge.id, index: 0, value: -90 }, { joint: same.id, index: 0, value: 12 }]);
+    const b = jointPoses([hinge, same], [{ joint: same.id, index: 0, value: 12 }, { joint: hinge.id, index: 0, value: -90 }]);
+    expect(a.get('Latch')).toEqual(b.get('Latch'));
   });
 });
 

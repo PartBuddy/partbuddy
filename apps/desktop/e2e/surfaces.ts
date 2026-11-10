@@ -52,6 +52,8 @@ export const SURFACES: Surface[] = [
   { area: '3D-Ansicht', name: 'Ortho/Perspektive', file: 'viewer/ViewTools.tsx', open: 'K / T 5', states: 'an/aus', steps: ['view-ortho'], inventory: true },
   { area: '3D-Ansicht', name: 'Schnitt-Panel', file: 'viewer/ViewTools.tsx', open: 'K', states: 'offen', steps: ['section-panel'] },
   { area: '3D-Ansicht', name: 'Explosions-Panel', file: 'viewer/ViewTools.tsx', open: 'K', states: 'offen, gezogen', steps: ['explode-panel'] },
+  // No picture in audit.spec.ts yet: its fixtures have no joint. The flows in app.spec.ts take the pictures (joint-playing, joint-paused, joint-stopped).
+  { area: '3D-Ansicht', name: 'Bewegliche Teile (Panel, Tooltips)', file: 'viewer/JointPanel.tsx', open: 'K', states: 'Regler, spielt, angehalten, Anschlag, Aufnahme', steps: [] },
   { area: '3D-Ansicht', name: 'Montage-Spieler', file: 'viewer/AssemblyPlayer.tsx', open: 'K', states: 'Schritte', steps: ['assembly-panel'] },
   { area: '3D-Ansicht', name: 'Druckplatte', file: 'viewer/PlateBar.tsx', open: 'K', states: 'eine/mehrere Platten, passt nicht', steps: ['plate'] },
   { area: '3D-Ansicht', name: 'Maße', file: 'viewer/Dimensions.tsx', open: 'K / T M', states: 'Auswahl, alle, bearbeiten', steps: ['dimensions', 'dimensions-all', 'dimension-edit'], inventory: true },

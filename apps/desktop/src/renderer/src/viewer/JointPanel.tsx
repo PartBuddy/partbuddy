@@ -9,20 +9,24 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button, IconButton } from '../ui/Button';
 import { segmentClass, segmentGroupClass, SliderBar } from '../ui/Choice';
-import { recordView, type Recording } from './recording';
+import { Tip } from '../ui/Tooltip';
+import { canRecord, recordView, type Recording, type RecordingFault } from './recording';
 import { playRange, playStep, TRAVEL_SECONDS, type JointPreview } from './jointPose';
 
 type JointValue = Joint['values'][number];
 type PlayMode = 'bounce' | 'loop';
 type PlayOrder = 'together' | 'inTurn';
 type Blocked = Extract<PrintFinding, { kind: 'blocked' }>;
-const NO_FINDINGS: PrintFinding[] = [];
 
 const SPEEDS = [0.5, 1, 2];
 /** A recording never runs longer than this (seconds): many joints one after the other at half speed would. */
 const MAX_RECORDING = 30;
+const FAULTS: RecordingFault[] = ['unsupported', 'empty', 'failed'];
 const segment = segmentClass('sm');
 const keyOf = (joint: number, index: number) => `${String(joint)}-${String(index)}`;
+const stepOf = (value: JointValue) => (value.unit === 'deg' ? 1 : 0.5);
+const formatOf = (unit: JointValue['unit']): Intl.NumberFormatOptions =>
+  unit === 'deg' ? { style: 'unit', unit: 'degree', unitDisplay: 'narrow', maximumFractionDigits: 1 } : { style: 'unit', unit: 'millimeter', maximumFractionDigits: 1 };
 
 /** The slider's ends: the joint's limits, and where a side has none a half turn or 100 mm, widened to hold the value. */
 export function jointRange(value: JointValue): [number, number] {
@@ -30,77 +34,77 @@ export function jointRange(value: JointValue): [number, number] {
   return [Math.min(value.limits?.[0] ?? -open, value.value), Math.max(value.limits?.[1] ?? open, value.value)];
 }
 
-/** A joint value that can play: the mirror gave its joint an axis, so its bodies move in the view. */
+/** A joint value that can play: the mirror gave its joint an axis, so its bodies move in the view, and it has a way to go. */
 export function playableValues(joints: Joint[]): { key: string; joint: Joint; index: number; value: JointValue; range: [number, number] }[] {
-  return joints.flatMap((joint) => (joint.axis && joint.origin ? joint.values.map((value, index) => ({ key: keyOf(joint.id, index), joint, index, value, range: jointRange(value) })) : []));
+  return joints.flatMap((joint) =>
+    joint.axis && joint.origin ? joint.values.map((value, index) => ({ key: keyOf(joint.id, index), joint, index, value, range: jointRange(value) })).filter((entry) => entry.range[1] > entry.range[0]) : [],
+  );
 }
 
 /**
  * Parts that move (ADR 0027): one slider per joint value, a button that plays the joint through its
- * range, and one that plays all of them. While they play or are dragged the joints' bodies follow in
- * the view only (G4); pausing or letting go drives the joints in SolidCraft, and the next revision
- * of the mirror shows where the parts stand and gives the sliders the values SolidCraft kept them
- * at. Closing the panel while joints play leaves them where the mirror has them.
+ * range, and one that plays all of them.
  *
- * Where the check found parts in a joint's way (`blocked`, from `joint.sweep`), the playback stops:
- * the parts stand at the touch in the view, the panel says which parts meet, and nothing is driven.
+ * Playing is for looking: the joints' bodies move in the view only, paused they stay where the view
+ * shows them, and the design is as it was. "Keep this position" drives the joints there in
+ * SolidCraft, as letting go of a slider does; "As designed" puts everything back. Closing the panel
+ * leaves the joints where the mirror has them.
  *
- * The video button records the view while the joints run once through their way and saves it as a
- * file (MP4, or WebM where the system records no MP4).
- *
- * All joints play together by default: the whole mechanism shows in the time one joint takes, however
- * many there are, and no order has to be made up. One after the other is the choice beside it.
+ * Several joints play one after the other by default: each goes there and back while the others
+ * stand, which is the way the check ran them (`joint.sweep` moves one joint at a time). So where the
+ * check found parts in a joint's way (`blocked`), the playback stops and says which parts meet.
+ * Played together, the whole mechanism moves at once, but what touches then is not checked, and the
+ * panel says so.
  */
-export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; autoPlay?: boolean }) {
+export function JointPanel({ joints }: { joints: Joint[] }) {
   const { t, i18n } = useTranslation();
   const playable = useMemo(() => playableValues(joints), [joints]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** The joint values that play, by key. */
-  const [play, setPlay] = useState<string[] | null>(() => (autoPlay && playable.length > 0 ? playable.map((entry) => entry.key) : null));
+  const play = useStudio((s) => s.jointPlay);
+  const setPlay = useStudio((s) => s.setJointPlay);
   const [speed, setSpeed] = useState(1);
   const [mode, setMode] = useState<PlayMode>('bounce');
-  const [order, setOrder] = useState<PlayOrder>('together');
+  const [order, setOrder] = useState<PlayOrder>('inTurn');
   const directions = useRef(new Map<string, 1 | -1>());
-  /** One after the other: whose turn it is, and how often it has turned at an end. */
-  const turn = useRef({ at: 0, turns: 0 });
+  /** One after the other: whose turn it is, and how often it has reached an end. */
+  const turn = useRef({ at: 0, ends: 0 });
   /** Joint values on their way to SolidCraft: their preview stays until the mirror shows them there. */
   const pending = useRef(new Set<string>());
+  /** The recording that runs, and what became of the last one. */
+  const recording = useRef<Recording | null>(null);
+  const [video, setVideo] = useState<{ state: 'recording' | 'saving' | 'cancelled' } | { state: 'saved'; file: string } | { state: 'failed'; fault: RecordingFault } | null>(null);
   /** The touch the playback stopped at. */
   const [stopped, setStopped] = useState<Blocked | null>(null);
-  const findings = useStudio((s) => s.printCheck?.result.findings ?? NO_FINDINGS);
+  const check = useStudio((s) => s.printCheck);
   const requestFocus = useStudio((s) => s.requestFocus);
-  // shortcut: a stop is matched to its joint by name and unit, which a joint with two values of one unit shares; give the finding the value's index when such joints get limits.
-  const stops = useMemo(() => findings.filter((finding): finding is Blocked => finding.kind === 'blocked'), [findings]);
-  /** The recording that runs, and what became of the last one: the file's name, or why there is none. */
-  const recording = useRef<Recording | null>(null);
-  const [recordingNow, setRecordingNow] = useState(false);
-  const [video, setVideo] = useState<{ saved: string } | { failed: string } | null>(null);
+  // While SolidCraft still measures the joints' ways for a new revision, the stops of the last one hold: a
+  // playback started in between would run through the parts.
+  const measured = useRef<Blocked[]>([]);
+  // shortcut: a stop is matched to its joint by name and unit, which two joints of one name or a joint with two values of one unit share; give the finding the joint's id and the value's index when that comes up.
+  const stops = useMemo(() => {
+    if (check && !check.measuring) measured.current = check.result.findings.filter((finding): finding is Blocked => finding.kind === 'blocked');
+    return measured.current;
+  }, [check]);
   const preview = useStudio((s) => s.jointPreview);
   const setPreview = useStudio((s) => s.setJointPreview);
-  // The bodies go back to where the mirror has them when the panel closes.
-  useEffect(
-    () => () => {
-      setPreview(null);
-    },
-    [setPreview],
-  );
-  // A new state of the mirror (clamped by SolidCraft, or moved by the assistant) is where the sliders stand.
-  const playing = play !== null;
-  const playingNow = useRef(playing);
-  playingNow.current = playing;
-  // The playback ended (paused, or parts touched): the recording ends with it and is saved. Closing the panel drops it.
-  useEffect(() => {
-    if (!playing) recording.current?.stop();
-  }, [playing]);
+  // Closing the panel ends the playback and drops a recording; the bodies go back to where the mirror has them.
   useEffect(
     () => () => {
       recording.current?.cancel();
+      setPlay(null);
+      setPreview(null);
     },
-    [],
+    [setPlay, setPreview],
   );
+  // The playback ended (paused, or parts touched): the recording ends with it and is saved.
+  const playing = play !== null;
   useEffect(() => {
-    if (playingNow.current) return;
+    if (!playing) recording.current?.stop();
+  }, [playing]);
+  // A new state of the mirror (moved by the assistant, or driven from here) is where the sliders stand.
+  useEffect(() => {
+    if (useStudio.getState().jointPlay) return;
     const kept = (useStudio.getState().jointPreview ?? []).filter((entry) => pending.current.has(keyOf(entry.joint, entry.index)));
     setPreview(kept.length > 0 ? kept : null);
     setStopped(null);
@@ -108,10 +112,16 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
 
   useEffect(() => {
     if (!play) return;
+    // Stops are those of a joint moved alone: they hold while one joint moves at a time.
+    const alone = play.length === 1 || order === 'inTurn';
     const targets = playable
       .filter((entry) => play.includes(entry.key))
-      .map((entry) => ({ ...entry, full: entry.range[1] - entry.range[0], ...playRange(entry.range, entry.value.value, stops.filter((stop) => stop.joint === entry.joint.name && stop.unit === entry.value.unit)) }));
-    if (targets.length === 0) return;
+      .map((entry) => ({ ...entry, full: entry.range[1] - entry.range[0], ...playRange(entry.range, entry.value.value, alone ? stops.filter((stop) => stop.joint === entry.joint.name && stop.unit === entry.value.unit) : []) }));
+    // The joints that played are gone (the assistant rebuilt them): nothing plays.
+    if (targets.length === 0) {
+      setPlay(null);
+      return;
+    }
     let last = performance.now();
     let frame = requestAnimationFrame(function tick(now) {
       const seconds = Math.min((now - last) / 1000, 0.1);
@@ -119,47 +129,42 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
       const shown = useStudio.getState().jointPreview ?? [];
       const mine = order === 'inTurn' ? targets[turn.current.at % targets.length] : null;
       let hit: Blocked | undefined;
-      setPreview(
-        targets.map((target) => {
-          const [min, max] = target.range;
-          const from = shown.find((entry) => entry.joint === target.joint.id && entry.index === target.index)?.value ?? target.value.value;
-          if (mine && target !== mine) return { joint: target.joint.id, index: target.index, value: from };
-          // Towards the end that is further away first.
-          const direction = directions.current.get(target.key) ?? (max - from >= from - min ? 1 : -1);
-          // As fast as with nothing in the way: the speed is that of the joint's whole range, not of what the stop leaves of it.
-          const step = playStep(from, direction, target.range, (seconds * speed * target.full) / TRAVEL_SECONDS, mode);
-          directions.current.set(target.key, step.direction);
-          // The end it reached is where parts touch: it stands there, and from there it can only go back.
-          const touch = step.turned ? (direction === 1 ? target.high : target.low) : undefined;
-          if (touch) {
-            hit = touch;
-            directions.current.set(target.key, direction === 1 ? -1 : 1);
-            return { joint: target.joint.id, index: target.index, value: touch.at };
-          }
-          // There and back (or once through, starting over), then the next joint.
-          if (mine && step.turned && (turn.current.turns += 1) >= (mode === 'bounce' ? 2 : 1)) turn.current = { at: turn.current.at + 1, turns: 0 };
-          return { joint: target.joint.id, index: target.index, value: step.value };
-        }),
-      );
+      const next = targets.map((target) => {
+        const [min, max] = target.range;
+        const from = shown.find((entry) => entry.joint === target.joint.id && entry.index === target.index)?.value ?? target.value.value;
+        if (mine && target !== mine) return { joint: target.joint.id, index: target.index, value: from };
+        // A way of nothing: the parts touch where the joint stands.
+        if (!(max > min)) {
+          hit = target.high ?? target.low;
+          return { joint: target.joint.id, index: target.index, value: from };
+        }
+        // Towards the end that is further away first; as fast as with nothing in the way (the speed is that of the whole range).
+        const step = playStep(from, directions.current.get(target.key) ?? (max - from >= from - min ? 1 : -1), target.range, (seconds * speed * target.full) / TRAVEL_SECONDS, mode);
+        directions.current.set(target.key, step.direction);
+        // The end it reached is where parts touch: it stands there.
+        if (step.turned) hit = (step.direction === 1 ? target.high : target.low) ?? hit;
+        // There and back (or once through), then the next joint, and this one waits where it started.
+        // A touch counts as an end reached: played on, the joint goes back and the next one follows.
+        if (mine && step.turned) turn.current.ends += 1;
+        if (mine && step.turned && !hit && turn.current.ends >= (mode === 'bounce' ? 2 : 1)) {
+          turn.current = { at: turn.current.at + 1, ends: 0 };
+          if (mode === 'loop') return { joint: target.joint.id, index: target.index, value: step.direction === 1 ? min : max };
+        }
+        return { joint: target.joint.id, index: target.index, value: step.value };
+      });
+      setPreview(next);
       if (hit) {
         setStopped(hit);
         setPlay(null);
         return;
       }
+      setStopped(null);
       frame = requestAnimationFrame(tick);
     });
     return () => {
       cancelAnimationFrame(frame);
     };
-  }, [play, playable, stops, speed, mode, order, setPreview]);
-
-  const start = (keys: string[]) => {
-    // From a touch the joints go on the way back; otherwise towards the end that is further away.
-    if (!stopped) directions.current.clear();
-    turn.current = { at: 0, turns: 0 };
-    setStopped(null);
-    setPlay(keys);
-  };
+  }, [play, playable, stops, speed, mode, order, setPlay, setPreview]);
 
   const drive = (moves: { joint: Joint; index: number; value: number }[]) => {
     setBusy(true);
@@ -177,20 +182,30 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
       } finally {
         pending.current.clear();
         setBusy(false);
+        // The mirror may have shown the new values before the last answer came: what was driven is no preview any more.
+        if (!useStudio.getState().jointPlay) {
+          const left = (useStudio.getState().jointPreview ?? []).filter((entry) => !moves.some((move) => move.joint.id === entry.joint && move.index === entry.index));
+          setPreview(left.length > 0 ? left : null);
+        }
       }
     })();
   };
 
-  /** Ends the playback and holds every joint where the view shows it: driven there, as a slider let go. */
-  const hold = (taken?: JointPreview) => {
-    setStopped(null);
-    setPlay(null);
-    const shown = [...(useStudio.getState().jointPreview ?? []).filter((entry) => !(taken && entry.joint === taken.joint && entry.index === taken.index)), ...(taken ? [taken] : [])];
-    const moves = shown.flatMap((entry) => {
+  /** What the view shows away from the mirror, to the tenth the panel reads it at: what is kept is what was read. */
+  const shownAway = (taken?: JointPreview) =>
+    [...(preview ?? []).filter((entry) => !(taken && entry.joint === taken.joint && entry.index === taken.index)), ...(taken ? [taken] : [])].flatMap((entry) => {
       const joint = joints.find((candidate) => candidate.id === entry.joint);
+      const current = joint?.values[entry.index];
+      if (!joint || !current) return [];
       const value = Math.round(entry.value * 10) / 10;
-      return joint && joint.values[entry.index] && value !== joint.values[entry.index]?.value ? [{ joint, index: entry.index, value }] : [];
+      return value !== current.value ? [{ joint, index: entry.index, value }] : [];
     });
+
+  /** Keeps the joints where the view shows them: driven there in SolidCraft. */
+  const keep = (taken?: JointPreview) => {
+    setPlay(null);
+    setStopped(null);
+    const moves = shownAway(taken);
     if (moves.length > 0) drive(moves);
     else setPreview(null);
   };
@@ -198,33 +213,44 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
   /** Records the view while the joints that play (or all of them) run once through their way, then asks where to save it. */
   const record = (keys: string[]) => {
     const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="viewport"] canvas');
-    if (!canvas) return;
+    if (!canvas || !canRecord()) {
+      setVideo({ state: 'failed', fault: 'unsupported' });
+      return;
+    }
+    // One whole round from wherever the joints stand: there and back, or once through.
     const once = ((mode === 'bounce' ? 2 : 1) * TRAVEL_SECONDS) / speed;
-    if (!play) start(keys);
-    setVideo(null);
-    setRecordingNow(true);
+    if (!play) setPlay(keys);
+    setVideo({ state: 'recording' });
     const take = recordView(canvas, Math.min(MAX_RECORDING, once * (order === 'inTurn' ? keys.length : 1)) * 1000);
     recording.current = take;
     void take.done
-      .then((taken) => (taken ? platform().design.saveVideo(taken) : null))
+      .then((taken) => {
+        recording.current = null;
+        if (!taken) return undefined;
+        setVideo({ state: 'saving' });
+        return platform().design.saveVideo(taken);
+      })
       .then(
         (result) => {
-          if (result) setVideo({ saved: result.file });
+          // undefined: the panel closed and dropped the recording; null: the user closed the save dialog.
+          if (result !== undefined) setVideo(result ? { state: 'saved', file: result.file } : { state: 'cancelled' });
         },
         (cause: unknown) => {
-          setVideo({ failed: (cause as Error).message.slice(0, 200) });
+          recording.current = null;
+          const fault = (cause as Error).message as RecordingFault;
+          console.warn(`recording: no video saved (${(cause as Error).message})`);
+          setVideo({ state: 'failed', fault: FAULTS.includes(fault) ? fault : 'failed' });
         },
-      )
-      .finally(() => {
-        recording.current = null;
-        setRecordingNow(false);
-      });
+      );
   };
 
   const away = joints.flatMap((joint) => joint.values.flatMap((value, index) => (Math.abs(value.value) > 1e-6 ? [{ joint, index, value: 0 }] : [])));
-  const speedLabel = new Intl.NumberFormat(i18n.language);
+  const number = new Intl.NumberFormat(i18n.language);
   const all = playable.map((entry) => entry.key);
-  const allPlaying = play !== null && play.length === all.length;
+  const allPlaying = play !== null && all.every((key) => play.includes(key));
+  const recordingNow = video?.state === 'recording' || video?.state === 'saving';
+  // Shown in the view only, and not on its way to SolidCraft: the user says what becomes of it.
+  const inViewOnly = !playing && !busy && shownAway().length > 0;
 
   return (
     <div
@@ -237,7 +263,7 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
       {joints.flatMap((joint) =>
         joint.values.map((value, index) => {
           const [min, max] = jointRange(value);
-          const step = value.unit === 'deg' ? 1 : 0.5;
+          const step = stepOf(value);
           const key = keyOf(joint.id, index);
           const shown = preview?.find((entry) => entry.joint === joint.id && entry.index === index)?.value ?? value.value;
           const plays = play?.includes(key) ?? false;
@@ -250,7 +276,7 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
               maxValue={max}
               step={step}
               isDisabled={busy}
-              formatOptions={value.unit === 'deg' ? { style: 'unit', unit: 'degree', unitDisplay: 'narrow', maximumFractionDigits: 1 } : { style: 'unit', unit: 'millimeter', maximumFractionDigits: 1 }}
+              formatOptions={formatOf(value.unit)}
               onChange={(next) => {
                 // Taking a slider ends the playback; the others stay where the view shows them. The bodies follow at once (G4).
                 if (play) setPlay(null);
@@ -258,8 +284,8 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
                 setPreview([...(useStudio.getState().jointPreview ?? []).filter((entry) => !(entry.joint === joint.id && entry.index === index)), { joint: joint.id, index, value: next }]);
               }}
               onChangeEnd={(next) => {
-                // SolidCraft is driven when the slider is let go.
-                hold({ joint: joint.id, index, value: next });
+                // Letting go keeps the position: SolidCraft is driven.
+                keep({ joint: joint.id, index, value: next });
               }}
               className="w-full"
               data-testid="joint-value"
@@ -267,18 +293,17 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
             >
               <div className="flex justify-between gap-2 text-xs text-text-muted">
                 <Label className="truncate">{name}</Label>
-                <SliderOutput className="tabular-nums" />
+                {/* Standing still in the view it reads to a tenth, as the touch is named; running, in the slider's steps. */}
+                <SliderOutput className="tabular-nums">{({ state }) => (plays ? state.getThumbValueLabel(0) : new Intl.NumberFormat(i18n.language, formatOf(value.unit)).format(Math.round(shown * 10) / 10))}</SliderOutput>
               </div>
               <div className="flex items-center gap-1">
                 {/* Without an axis from the mirror nothing would move in the view: no playback then. */}
-                {joint.axis && joint.origin ? (
+                {all.includes(key) ? (
                   <IconButton
                     label={t(plays ? 'viewer.joints.pause' : 'viewer.joints.play', { name })}
                     isDisabled={busy || (play !== null && !plays)}
                     onPress={() => {
-                      // Paused, the joints are held where they stand.
-                      if (plays) hold();
-                      else start([key]);
+                      setPlay(plays ? null : [key]);
                     }}
                     data-testid="joint-play"
                     data-playing={String(plays)}
@@ -301,8 +326,7 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
             className="min-w-0 flex-1"
             isDisabled={busy || (play !== null && !allPlaying)}
             onPress={() => {
-              if (allPlaying) hold();
-              else start(all);
+              setPlay(allPlaying ? null : all);
             }}
             data-testid="joint-play-all"
             data-playing={String(allPlaying)}
@@ -316,17 +340,21 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
             disallowEmptySelection
             selectedKeys={[order]}
             onSelectionChange={(keys) => {
-              turn.current = { at: 0, turns: 0 };
-              setOrder([...keys][0] === 'inTurn' ? 'inTurn' : 'together');
+              turn.current = { at: 0, ends: 0 };
+              setOrder([...keys][0] === 'together' ? 'together' : 'inTurn');
             }}
             className={segmentGroupClass}
           >
-            <ToggleButton id="together" aria-label={t('viewer.joints.together')} className={segment} data-testid="joint-order-together">
-              <IconArrowsRight className="size-icon-sm" aria-hidden />
-            </ToggleButton>
-            <ToggleButton id="inTurn" aria-label={t('viewer.joints.inTurn')} className={segment} data-testid="joint-order-in-turn">
-              <IconListNumbers className="size-icon-sm" aria-hidden />
-            </ToggleButton>
+            <Tip label={t('viewer.joints.inTurn')}>
+              <ToggleButton id="inTurn" aria-label={t('viewer.joints.inTurn')} className={segment} data-testid="joint-order-in-turn">
+                <IconListNumbers className="size-icon-sm" aria-hidden />
+              </ToggleButton>
+            </Tip>
+            <Tip label={t('viewer.joints.together')}>
+              <ToggleButton id="together" aria-label={t('viewer.joints.together')} className={segment} data-testid="joint-order-together">
+                <IconArrowsRight className="size-icon-sm" aria-hidden />
+              </ToggleButton>
+            </Tip>
           </ToggleButtonGroup>
         </div>
       ) : null}
@@ -344,7 +372,7 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
           >
             {SPEEDS.map((factor) => (
               <ToggleButton key={factor} id={String(factor)} className={`${segment} tabular-nums`} data-testid="joint-speed">
-                {`${speedLabel.format(factor)}×`}
+                {`${number.format(factor)}×`}
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
@@ -358,77 +386,89 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
             }}
             className={segmentGroupClass}
           >
-            <ToggleButton id="bounce" aria-label={t('viewer.joints.bounce')} className={segment} data-testid="joint-mode-bounce">
-              <IconArrowsLeftRight className="size-icon-sm" aria-hidden />
-            </ToggleButton>
-            <ToggleButton id="loop" aria-label={t('viewer.joints.loop')} className={segment} data-testid="joint-mode-loop">
-              <IconRepeat className="size-icon-sm" aria-hidden />
-            </ToggleButton>
+            <Tip label={t('viewer.joints.bounce')}>
+              <ToggleButton id="bounce" aria-label={t('viewer.joints.bounce')} className={segment} data-testid="joint-mode-bounce">
+                <IconArrowsLeftRight className="size-icon-sm" aria-hidden />
+              </ToggleButton>
+            </Tip>
+            <Tip label={t('viewer.joints.loop')}>
+              <ToggleButton id="loop" aria-label={t('viewer.joints.loop')} className={segment} data-testid="joint-mode-loop">
+                <IconRepeat className="size-icon-sm" aria-hidden />
+              </ToggleButton>
+            </Tip>
           </ToggleButtonGroup>
           <IconButton
-            label={t(recordingNow ? 'viewer.joints.recording' : 'viewer.joints.record')}
+            label={t('viewer.joints.record')}
             isDisabled={busy || recordingNow}
             onPress={() => {
               record(play ?? all);
             }}
-            className={recordingNow ? 'text-danger' : ''}
+            className={video?.state === 'recording' ? 'text-danger' : ''}
             data-testid="joint-record"
-            data-recording={String(recordingNow)}
+            data-recording={String(video?.state === 'recording')}
           >
             <IconVideo className="size-icon-sm" aria-hidden />
           </IconButton>
         </div>
       ) : null}
-      <Button
-        size="sm"
-        isDisabled={busy || (away.length === 0 && !preview)}
-        onPress={() => {
-          setPlay(null);
-          setStopped(null);
-          setPreview(null);
-          if (away.length > 0) drive(away);
-        }}
-        data-testid="joint-reset"
-      >
-        {t('viewer.joints.reset')}
-      </Button>
-      {recordingNow ? (
-        <p role="status" className="text-xs text-text-muted" data-testid="joint-recording">
-          {t('viewer.joints.recording')}
-        </p>
-      ) : video ? (
-        <p role={'failed' in video ? 'alert' : 'status'} className={`text-xs ${'failed' in video ? 'text-danger' : 'text-text-muted'}`} data-testid="joint-video">
-          {'failed' in video ? t('viewer.joints.videoFailed', { reason: video.failed }) : t('actions.exported', { file: video.saved })}
-        </p>
-      ) : null}
-      {stopped ? (
-        <div role="status" className="flex flex-col items-start gap-1 text-xs text-warning" data-testid="joint-stopped">
-          <p>
-            {t('viewer.joints.stopped', {
-              a: stopped.bodies[0],
-              b: stopped.bodies[1],
-              at: new Intl.NumberFormat(i18n.language, stopped.unit === 'deg' ? { style: 'unit', unit: 'degree', unitDisplay: 'narrow', maximumFractionDigits: 1 } : { style: 'unit', unit: 'millimeter', maximumFractionDigits: 1 }).format(stopped.at),
-            })}
+      <div className="flex flex-col gap-2">
+        {inViewOnly ? (
+          <Button
+            size="sm"
+            onPress={() => {
+              keep();
+            }}
+            data-testid="joint-keep"
+          >
+            <span className="truncate">{t('viewer.joints.keep')}</span>
+          </Button>
+        ) : null}
+        <Button
+          size="sm"
+          isDisabled={busy || (away.length === 0 && !preview)}
+          onPress={() => {
+            setPlay(null);
+            setStopped(null);
+            setPreview(null);
+            if (away.length > 0) drive(away);
+          }}
+          data-testid="joint-reset"
+        >
+          <span className="truncate">{t('viewer.joints.reset')}</span>
+        </Button>
+      </div>
+      {/* One live region that stays, so a screen reader hears what comes into it. */}
+      <div role="status" className="flex flex-col items-start gap-1 text-xs text-text-muted empty:hidden" data-testid="joint-status">
+        {stopped ? (
+          <p className="text-warning" data-testid="joint-stopped">
+            {t('viewer.joints.stopped', { a: stopped.bodies[0], b: stopped.bodies[1], at: new Intl.NumberFormat(i18n.language, formatOf(stopped.unit)).format(stopped.at) })}
           </p>
-          {stopped.box ? (
-            <Button
-              size="sm"
-              variant="quiet"
-              onPress={() => {
-                if (stopped.box) requestFocus(stopped.box);
-              }}
-              data-testid="joint-stopped-show"
-            >
-              {t('viewer.joints.showTouch')}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
+        ) : null}
+        {stopped?.box ? (
+          <Button
+            size="sm"
+            variant="quiet"
+            onPress={() => {
+              if (stopped.box) requestFocus(stopped.box);
+            }}
+            data-testid="joint-stopped-show"
+          >
+            {t('viewer.joints.showTouch')}
+          </Button>
+        ) : null}
+        {playing && play.length > 1 && order === 'together' ? <p data-testid="joint-unchecked">{t('viewer.joints.unchecked')}</p> : null}
+        {inViewOnly ? <p data-testid="joint-view-only">{t('viewer.joints.viewOnly')}</p> : null}
+        {video ? (
+          <p className={video.state === 'failed' ? 'text-danger' : ''} data-testid="joint-video" data-state={video.state}>
+            {video.state === 'saved' ? t('actions.exported', { file: video.file }) : video.state === 'failed' ? t(`viewer.joints.video.${video.fault}`) : t(`viewer.joints.video.${video.state}`)}
+          </p>
+        ) : null}
+      </div>
       {error ? (
         <p role="alert" className="text-xs text-danger" data-testid="joint-error">
           {t('viewer.joints.failed', { reason: error })}
         </p>
-      ) : (
+      ) : inViewOnly || stopped ? null : (
         <p className="text-xs text-text-muted">{t('viewer.joints.hint')}</p>
       )}
     </div>
