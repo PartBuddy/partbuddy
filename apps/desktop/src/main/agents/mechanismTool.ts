@@ -210,7 +210,7 @@ async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; m
 }
 
 /** Makes the two bodies components unless they are, joins them where they are and sets the limits: the range clear of contact within `range`. */
-async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3; to: Vec3; name: string }, type: 'revolute' | 'slider', range: [number, number], step: number): Promise<[number, number]> {
+async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3; to: Vec3; name: string }, type: 'revolute' | 'slider', range: [number, number], step: number): Promise<[number, number] | string> {
   let [listing] = await run([{ command: 'component.list', params: {} }]);
   const loners = [spec.fixed, spec.moving].filter((name) => occurrenceOf(listing, name) === null);
   if (loners.length > 0) [, listing] = await run([{ command: 'component.from_bodies', params: { bodies: loners } }, { command: 'component.list', params: {} }]);
@@ -220,14 +220,25 @@ async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3;
   const middle = spec.from.map((value, i) => (value + (spec.to[i] ?? value)) / 2);
   const axis = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
   const sweeps = range.filter((to) => to !== 0).map((to) => ({ command: 'joint.sweep', params: { joint: spec.name, from: 0, to } }));
-  const results = await run([{ command: 'joint.as_built', params: { type, a, b, at: { occurrence: a, point: middle, z: axis }, name: spec.name, quiet: true } }, ...sweeps]);
-  const limit = (to: number) => (to === 0 ? 0 : reach(results[1 + sweeps.findIndex((sweep) => sweep.params.to === to)], to, step));
+  await run([{ command: 'joint.as_built', params: { type, a, b, at: { occurrence: a, point: middle, z: axis }, name: spec.name, quiet: true } }]);
+  // SolidCraft refuses a sweep it cannot afford, such as parts that lie against each other along the way: the joint stays, without limits.
+  let results: unknown[];
+  try {
+    results = await run(sweeps);
+  } catch (cause) {
+    return (cause as Error).message.replace(/^SolidCraft refused joint\.sweep: /, '');
+  }
+  const limit = (to: number) => (to === 0 ? 0 : reach(results[sweeps.findIndex((sweep) => sweep.params.to === to)], to, step));
   const limits: [number, number] = [limit(range[0]), limit(range[1])];
   await run([{ command: 'joint.limits', params: { joint: spec.name, min: limits[0], max: limits[1] } }]);
   return limits;
 }
 
 const MOVE = 'The user moves it with the slider "Moving parts" in the view.';
+
+/** What the model hears when the joint is made but its range could not be found. */
+const unswept = (reason: string) =>
+  `SolidCraft could not run it through its range (${reason.slice(0, 160)}), so no limits are set. The two bodies probably lie against each other somewhere: look with inspect.clearance, make room, then set joint.limits yourself after joint.sweep.`;
 
 async function buildMechanism(upstream: UpstreamTools, args: Record<string, unknown>, nozzle: number, callId: string | undefined): Promise<string> {
   const run: Run = async (commands) => {
@@ -247,7 +258,9 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
       `Put the hinge line within ${reach} mm of both bodies (the barrel is ${String(spec.diameter)} mm, so it must overlap each by at least 0.5 mm). It needs no distance from their walls: PartBuddy cuts each knuckle's room in the other body itself.`,
       callId,
     );
-    const [min, max] = await join(run, spec, 'revolute', [-180, 180], 1);
+    const range = await join(run, spec, 'revolute', [-180, 180], 1);
+    if (typeof range === 'string') return `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns) and joined them, but ${unswept(range)}${warnings}`;
+    const [min, max] = range;
     return (
       `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns): ${String(spec.knuckles)} knuckles, barrel ${String(spec.diameter)} mm, pin ${String(pinDiameter(spec.diameter))} mm, ` +
       `gap ${String(spec.gap)} mm everywhere. It turns from ${String(min)}° to ${String(max)}° before the bodies meet, and those are its limits now; 0° is as designed. ` +
@@ -261,7 +274,9 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     const [measure] = await run([{ command: 'inspect.measure', params: { bodies: [spec.moving] } }]);
     const travel = railTravel(measure, spec.from, spec.to);
     if (!travel) throw new Error('the guide is built, but the moving body could not be measured; join the bodies with joint.as_built {type: slider}');
-    const [min, max] = await join(run, spec, 'slider', travel, 0.1);
+    const range = await join(run, spec, 'slider', travel, 0.1);
+    if (typeof range === 'string') return `Built the guide "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (slides) and joined them, but ${unswept(range)}${warnings}`;
+    const [min, max] = range;
     const mm = (value: number) => String(Math.round(value * 10) / 10);
     return (
       `Built the guide "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (slides): a dovetail rail ${String(spec.width)} mm wide at its foot and ${String(spec.height)} mm high, ` +

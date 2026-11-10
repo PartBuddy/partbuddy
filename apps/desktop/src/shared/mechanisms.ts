@@ -75,11 +75,13 @@ export function hingeSteps(spec: HingeSpec): Step[] {
     return { start, end: start + knuckle, owner: i % 2 === 0 ? spec.fixed : spec.moving, other: i % 2 === 0 ? spec.moving : spec.fixed, label: `${spec.name} ${String(i + 1)}` };
   });
   return [
-    // Room for each knuckle in the other body, a gap wider all round and at both ends.
-    ...spans.map((span) => cylinder(spec.diameter + 2 * spec.gap, Math.max(0, span.start - spec.gap), Math.min(length, span.end + spec.gap), 'cut', span.other, `${span.label} ·`)),
+    // Room for each knuckle in the other body, a gap wider all round and at both ends: past the ends of the
+    // hinge line too, where a body wider than the hinge would otherwise lie against the outer knuckles
+    // (found 2026-11-10: the parts touched there, and SolidCraft's sweep ran out of its collision budget).
+    ...spans.map((span) => cylinder(spec.diameter + 2 * spec.gap, span.start - spec.gap, span.end + spec.gap, 'cut', span.other, `${span.label} ·`)),
     ...spans.map((span) => cylinder(spec.diameter, span.start, span.end, 'join', span.owner, span.label)),
     // The bore through the moving knuckles, then the pin through everything.
-    cylinder(pin + 2 * spec.gap, 0, length, 'cut', spec.moving, `${spec.name} ○`),
+    cylinder(pin + 2 * spec.gap, -spec.gap, length + spec.gap, 'cut', spec.moving, `${spec.name} ○`),
     cylinder(pin, 0, length, 'join', spec.fixed, `${spec.name} ●`),
   ];
 }

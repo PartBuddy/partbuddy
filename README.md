@@ -71,13 +71,16 @@ PartBuddy 0.1.0 is the first preview, for Windows 10 and 11.
 
 ## Status
 
-0.1.0 is a preview: everything above works and is covered by automated tests, but PartBuddy is
+PartBuddy is a preview (0.x): everything above works and is covered by automated tests, but PartBuddy is
 young. Known limits:
 
 - Windows only for now; the installer is not code-signed.
 - It relies on a pre-release of SolidCraft (0.40.0-rc.3) until SolidCraft 0.40.0 is final.
 - The ready-to-print light checks the part as designed, standing on its lowest point; supports,
   bridges and the orientation in detail stay with your slicer.
+- Hinges and guides the assistant builds are designed to print in one piece and are checked through
+  their range in SolidCraft; they have not been test-printed yet, so print
+  one before you rely on the gap.
 
 What comes next is planned in the [feature catalogue](docs/feature-catalog.md); changes are listed
 in the [changelog](CHANGELOG.md).

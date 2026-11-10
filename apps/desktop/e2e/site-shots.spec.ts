@@ -27,6 +27,7 @@ const LATER: Record<string, string[]> = {
   clarify: ['research'],
   research: ['explode', 'plate', 'assembly'],
   sketch: ['sketch-chat'],
+  motion: ['motion-check'],
 };
 // PARTBUDDY_SITE_REAL_CLAUDE=1: the research picture from a real web search by the user's own Claude Code (it uses
 // the subscription, so only on request). The scripted questions before it would make the real assistant build, so they stay out.
@@ -460,6 +461,40 @@ test('website pictures', async () => {
       await page.keyboard.press('Escape');
     });
     // Release 0.2.1: a second message waits while the assistant still works on the first (#281).
+    // Release 0.3.0: a hinge the assistant built with one call, moved with its slider, and the check that ran it through its range.
+    await step('motion', async () => {
+      await fresh();
+      await send('Build a box with a hinged lid');
+      await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 60_000 });
+      await page.keyboard.press('0');
+      await page.waitForTimeout(1200);
+      await page.getByTestId('joints').click();
+      const slider = page.getByTestId('joint-panel').getByRole('slider', { name: 'Lid hinge' });
+      await expect(slider).toHaveValue('0');
+      const track = await page.getByTestId('joint-value').locator('.relative').first().boundingBox();
+      if (!track) throw new Error('the joint slider has no track');
+      // 0° is the left end, 180° the right: let go at about 115°, the lid well on its way.
+      await page.mouse.move(track.x + 2, track.y + track.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(track.x + track.width * 0.64, track.y + track.height / 2, { steps: 10 });
+      await page.mouse.up();
+      await expect(page.getByTestId('joint-reset')).toBeEnabled({ timeout: 30_000 });
+      await page.keyboard.press('f');
+      await page.waitForTimeout(2000);
+      await shot('motion');
+    });
+    await step('motion-check', async () => {
+      await page.getByTestId('joint-reset').click();
+      await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Lid hinge' })).toHaveValue('0', { timeout: 30_000 });
+      await page.keyboard.press('f');
+      await page.getByTestId('print-check').click();
+      await expect(page.getByTestId('print-check-panel').locator('[data-kind="blocked"]')).toHaveCount(1, { timeout: 30_000 });
+      await page.waitForTimeout(1500);
+      await shot('motion-check');
+      await page.keyboard.press('Escape');
+      await page.getByTestId('joints').click();
+    });
+
     await step('queue', async () => {
       await fresh();
       await send('Build a cable clip for a 12 mm cable that I can screw under my desk');

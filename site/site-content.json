@@ -42,7 +42,8 @@
       "points": [
         "Build volume, wall thickness, overhangs and bed contact",
         "Fits per material, measured on your printer with three test pieces",
-        "ISO screws, nuts and heat-set inserts, sized for printing"
+        "ISO screws, nuts and heat-set inserts, sized for printing",
+        "Hinges and guides run through their whole range: where parts meet on the way is found before you print"
       ],
       "shot": "printready",
       "alt": "The ready-to-print check reporting that lid and case are too tight"
@@ -158,6 +159,19 @@
   },
   "bento": [
     {
+      "title": "Parts that move",
+      "text": "Ask for a lid that folds or a carriage that slides. The assistant builds a print-in-place hinge or a dovetail guide with the gap your nozzle needs, and you move it with a slider before anything is printed.",
+      "shot": "motion",
+      "alt": "A shallow box with its lid half folded on a hinge, the slider for the hinge above the view",
+      "size": "wide"
+    },
+    {
+      "title": "Checked through its range",
+      "text": "The print check runs every joint to its limits and points at the place where two parts meet too early.",
+      "shot": "motion-check",
+      "alt": "The ready-to-print check reporting that the lid meets the box before the hinge reaches its limit"
+    },
+    {
       "title": "Pull it apart",
       "text": "Exploded views along the directions the parts go together, and sections along any axis or flat face.",
       "shot": "explode",
@@ -241,7 +255,8 @@
       "Ready-to-print check and slicer hand-off",
       "English and German, installer with update checks",
       "Dimensions on the part: type them, step them or drag the arrow",
-      "Logos and text on the part, holes and blocks placed before they are built"
+      "Logos and text on the part, holes and blocks placed before they are built",
+      "Hinges and guides that move in the view, checked through their range"
     ],
     "next": [
       "SolidCraft 0.40 final"
