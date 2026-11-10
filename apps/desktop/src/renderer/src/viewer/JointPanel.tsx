@@ -1,4 +1,4 @@
-import { IconArrowsLeftRight, IconArrowsRight, IconListNumbers, IconPlayerPause, IconPlayerPlay, IconRepeat } from '@tabler/icons-react';
+import { IconArrowsLeftRight, IconArrowsRight, IconListNumbers, IconPlayerPause, IconPlayerPlay, IconRepeat, IconVideo } from '@tabler/icons-react';
 import type { PrintFinding } from '@partbuddy/geometry';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,7 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button, IconButton } from '../ui/Button';
 import { segmentClass, segmentGroupClass, SliderBar } from '../ui/Choice';
+import { recordView, type Recording } from './recording';
 import { playRange, playStep, TRAVEL_SECONDS, type JointPreview } from './jointPose';
 
 type JointValue = Joint['values'][number];
@@ -18,6 +19,8 @@ type Blocked = Extract<PrintFinding, { kind: 'blocked' }>;
 const NO_FINDINGS: PrintFinding[] = [];
 
 const SPEEDS = [0.5, 1, 2];
+/** A recording never runs longer than this (seconds): many joints one after the other at half speed would. */
+const MAX_RECORDING = 30;
 const segment = segmentClass('sm');
 const keyOf = (joint: number, index: number) => `${String(joint)}-${String(index)}`;
 
@@ -41,6 +44,9 @@ export function playableValues(joints: Joint[]): { key: string; joint: Joint; in
  *
  * Where the check found parts in a joint's way (`blocked`, from `joint.sweep`), the playback stops:
  * the parts stand at the touch in the view, the panel says which parts meet, and nothing is driven.
+ *
+ * The video button records the view while the joints run once through their way and saves it as a
+ * file (MP4, or WebM where the system records no MP4).
  *
  * All joints play together by default: the whole mechanism shows in the time one joint takes, however
  * many there are, and no order has to be made up. One after the other is the choice beside it.
@@ -66,6 +72,10 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
   const requestFocus = useStudio((s) => s.requestFocus);
   // shortcut: a stop is matched to its joint by name and unit, which a joint with two values of one unit shares; give the finding the value's index when such joints get limits.
   const stops = useMemo(() => findings.filter((finding): finding is Blocked => finding.kind === 'blocked'), [findings]);
+  /** The recording that runs, and what became of the last one: the file's name, or why there is none. */
+  const recording = useRef<Recording | null>(null);
+  const [recordingNow, setRecordingNow] = useState(false);
+  const [video, setVideo] = useState<{ saved: string } | { failed: string } | null>(null);
   const preview = useStudio((s) => s.jointPreview);
   const setPreview = useStudio((s) => s.setJointPreview);
   // The bodies go back to where the mirror has them when the panel closes.
@@ -79,6 +89,16 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
   const playing = play !== null;
   const playingNow = useRef(playing);
   playingNow.current = playing;
+  // The playback ended (paused, or parts touched): the recording ends with it and is saved. Closing the panel drops it.
+  useEffect(() => {
+    if (!playing) recording.current?.stop();
+  }, [playing]);
+  useEffect(
+    () => () => {
+      recording.current?.cancel();
+    },
+    [],
+  );
   useEffect(() => {
     if (playingNow.current) return;
     const kept = (useStudio.getState().jointPreview ?? []).filter((entry) => pending.current.has(keyOf(entry.joint, entry.index)));
@@ -173,6 +193,32 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
     });
     if (moves.length > 0) drive(moves);
     else setPreview(null);
+  };
+
+  /** Records the view while the joints that play (or all of them) run once through their way, then asks where to save it. */
+  const record = (keys: string[]) => {
+    const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="viewport"] canvas');
+    if (!canvas) return;
+    const once = ((mode === 'bounce' ? 2 : 1) * TRAVEL_SECONDS) / speed;
+    if (!play) start(keys);
+    setVideo(null);
+    setRecordingNow(true);
+    const take = recordView(canvas, Math.min(MAX_RECORDING, once * (order === 'inTurn' ? keys.length : 1)) * 1000);
+    recording.current = take;
+    void take.done
+      .then((taken) => (taken ? platform().design.saveVideo(taken) : null))
+      .then(
+        (result) => {
+          if (result) setVideo({ saved: result.file });
+        },
+        (cause: unknown) => {
+          setVideo({ failed: (cause as Error).message.slice(0, 200) });
+        },
+      )
+      .finally(() => {
+        recording.current = null;
+        setRecordingNow(false);
+      });
   };
 
   const away = joints.flatMap((joint) => joint.values.flatMap((value, index) => (Math.abs(value.value) > 1e-6 ? [{ joint, index, value: 0 }] : [])));
@@ -319,6 +365,18 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
               <IconRepeat className="size-icon-sm" aria-hidden />
             </ToggleButton>
           </ToggleButtonGroup>
+          <IconButton
+            label={t(recordingNow ? 'viewer.joints.recording' : 'viewer.joints.record')}
+            isDisabled={busy || recordingNow}
+            onPress={() => {
+              record(play ?? all);
+            }}
+            className={recordingNow ? 'text-danger' : ''}
+            data-testid="joint-record"
+            data-recording={String(recordingNow)}
+          >
+            <IconVideo className="size-icon-sm" aria-hidden />
+          </IconButton>
         </div>
       ) : null}
       <Button
@@ -334,6 +392,15 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
       >
         {t('viewer.joints.reset')}
       </Button>
+      {recordingNow ? (
+        <p role="status" className="text-xs text-text-muted" data-testid="joint-recording">
+          {t('viewer.joints.recording')}
+        </p>
+      ) : video ? (
+        <p role={'failed' in video ? 'alert' : 'status'} className={`text-xs ${'failed' in video ? 'text-danger' : 'text-text-muted'}`} data-testid="joint-video">
+          {'failed' in video ? t('viewer.joints.videoFailed', { reason: video.failed }) : t('actions.exported', { file: video.saved })}
+        </p>
+      ) : null}
       {stopped ? (
         <div role="status" className="flex flex-col items-start gap-1 text-xs text-warning" data-testid="joint-stopped">
           <p>

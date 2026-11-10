@@ -86,6 +86,7 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.designUndo]: { tool: 'undo' },
   [invokeChannels.designRedo]: { tool: 'redo' },
   [invokeChannels.designExport]: { reason: FILES },
+  [invokeChannels.designSaveVideo]: { reason: FILES },
   [invokeChannels.designShare]: { reason: FILES },
   [invokeChannels.designOpenInSolidCraft]: { reason: 'opens SolidCraft’s own window for the user' },
   [invokeChannels.designProbeDimension]: { reason: PREVIEW },

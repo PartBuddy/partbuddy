@@ -148,7 +148,10 @@
       "inTurn": "One after the other",
       "playTool": "Play the motion",
       "stopped": "Stopped: {a} and {b} touch at {at}. Playing goes back from there.",
-      "showTouch": "Show the place"
+      "showTouch": "Show the place",
+      "record": "Save as video",
+      "recording": "Recording …",
+      "videoFailed": "The video was not saved: {reason}"
     },
     "hintShort": "Click selects · drag orbits · right-drag pans · scroll zooms"
   },

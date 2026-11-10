@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -639,6 +639,48 @@ test('the playback stops where the check found parts in the joint\'s way, and go
   await panel.getByTestId('joint-reset').click();
   await expect(stopped).toHaveCount(0);
   await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue('0');
+  expect(fake.joints[0]?.values[0]?.value).toBe(0);
+});
+
+test('the joints playing are saved as a video file', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.bodies = ['CableClip', 'Second clip'];
+  fake.occurrences = new Map([
+    [1, 'CableClip'],
+    [2, 'Second clip'],
+  ]);
+  fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', a: 1, b: 2, frame_a: { origin: [0, 0, 0], z: [0, 1, 0] }, values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+  await fake.start();
+  const { app, page } = launched;
+  await lookAgain(page);
+  await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
+  // The save dialog is the system's; the test answers it with a file in its own folder, with the format's ending.
+  const folder = mkdtempSync(join(tmpdir(), 'partbuddy-e2e-video-'));
+  await app.evaluate(({ dialog }, target) => {
+    dialog.showSaveDialog = (...args: unknown[]) => {
+      const options = args[args.length - 1] as { filters?: { extensions: string[] }[] };
+      return Promise.resolve({ canceled: false, filePath: `${target}.${options.filters?.[0]?.extensions[0] ?? 'bin'}` });
+    };
+  }, join(folder, 'hinge'));
+  await page.getByTestId('joints').click();
+  const panel = page.getByTestId('joint-panel');
+  // Twice as fast, so the way there and back takes two and a half seconds. Recording starts the playback itself.
+  await panel.getByRole('radio', { name: '2×' }).click();
+  await panel.getByTestId('joint-record').click();
+  await expect(panel.getByTestId('joint-recording')).toBeVisible();
+  await expect(panel.getByTestId('joint-play')).toHaveAttribute('data-playing', 'true');
+  await expect(panel.getByTestId('joint-video')).toHaveText(/^Saved as hinge\.(mp4|webm)$/, { timeout: 45_000 });
+  const file = join(folder, (await panel.getByTestId('joint-video').textContent())?.replace('Saved as ', '') ?? '');
+  const bytes = readFileSync(file);
+  expect(bytes.length).toBeGreaterThan(10_000);
+  // An MP4 starts with its ftyp box, a WebM with the EBML mark.
+  expect(file.endsWith('.mp4') ? bytes.subarray(4, 8).toString('latin1') : bytes.subarray(0, 4).toString('hex')).toBe(file.endsWith('.mp4') ? 'ftyp' : '1a45dfa3');
+  // Kept for a look outside the app (ffprobe, a player) when asked for.
+  if (process.env.PARTBUDDY_KEEP_VIDEO) copyFileSync(file, join(process.env.PARTBUDDY_KEEP_VIDEO, file.endsWith('.mp4') ? 'hinge.mp4' : 'hinge.webm'));
+  console.log(`recorded ${file} (${String(bytes.length)} bytes)`);
+  // The playback goes on; nothing was driven.
+  await expect(panel.getByTestId('joint-play')).toHaveAttribute('data-playing', 'true');
   expect(fake.joints[0]?.values[0]?.value).toBe(0);
 });
 

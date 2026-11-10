@@ -148,7 +148,10 @@
       "inTurn": "Nacheinander",
       "playTool": "Bewegung abspielen",
       "stopped": "Angehalten: {a} und {b} stoßen bei {at} aneinander. Abspielen fährt von dort zurück.",
-      "showTouch": "Stelle zeigen"
+      "showTouch": "Stelle zeigen",
+      "record": "Als Video speichern",
+      "recording": "Aufnahme läuft …",
+      "videoFailed": "Das Video wurde nicht gespeichert: {reason}"
     },
     "hintShort": "Klicken wählt · Ziehen dreht · Rechts verschiebt · Rad zoomt"
   },
