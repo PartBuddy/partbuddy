@@ -1585,8 +1585,8 @@ test('function blocks are previewed and built at a face: tapped hole, screw hole
     for (const line of ['Tapped hole M4', 'Screw hole M3', 'Hole ⌀ 4 mm, 6.7 mm deep', 'Screw boss ⌀ 7.2 mm']) {
       await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
     }
-    // The design changed only through the four blocks: previews leave nothing behind.
-    await expect(page.getByTestId('timeline-feature')).toHaveCount(5, { timeout: 30_000 });
+    // The design changed only through the four blocks: previews leave nothing behind. By name, so a red run says which step is too many.
+    await expect.poll(() => page.getByTestId('timeline-feature').allInnerTexts(), { timeout: 30_000 }).toHaveLength(5);
     expect((await preview({ block: 'boss', body: 'Body1', point: [10, 10, 5], size: 'M3', diameter: 8, height: 5 })).ok).toBe(false);
     await page.screenshot({ path: test.info().outputPath('blocks.png') });
   } finally {
