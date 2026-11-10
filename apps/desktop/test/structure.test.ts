@@ -2,7 +2,7 @@ import { withMotion, type PrintCheck } from '@partbuddy/geometry';
 import { describe, expect, it } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
-import { jointMove, jointPoses, playStep, rotate } from '../src/renderer/src/viewer/jointPose';
+import { jointMove, jointPoses, playRange, playStep, rotate } from '../src/renderer/src/viewer/jointPose';
 import { sweepStopOf } from '../src/main/solidcraft/actions';
 
 import { componentsWithBodies, jointsOf, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
@@ -204,6 +204,14 @@ describe('a joint followed in the view while its slider is dragged (ADR 0027, G4
     // One joint alone, and nothing moved: as before.
     expect(jointPoses([hinge, slide], [{ joint: slide.id, index: 0, value: 12 }]).get('Latch')).toEqual({ position: [7, 0, 0], quaternion: [0, 0, 0, 1] });
     expect(jointPoses([hinge, slide], [{ joint: slide.id, index: 0, value: 5 }]).size).toBe(0);
+  });
+
+  it('ends the range a joint plays in where the check found parts in its way', () => {
+    const stop = { at: -28.1, limit: -180 };
+    expect(playRange([-180, 0], 0, [stop])).toEqual({ range: [-28.1, 0], low: stop });
+    expect(playRange([-90, 90], 0, [{ at: 40, limit: 90 }, stop])).toEqual({ range: [-28.1, 40], low: stop, high: { at: 40, limit: 90 } });
+    // Nothing in the way: the whole range.
+    expect(playRange([-180, 0], 0, [])).toEqual({ range: [-180, 0] });
   });
 
   it('plays a joint through its range: back and forth, or starting over', () => {

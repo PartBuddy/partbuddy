@@ -92,3 +92,18 @@ type Quaternion = [number, number, number, number];
 function multiply([ax, ay, az, aw]: Quaternion, [bx, by, bz, bw]: Quaternion): Quaternion {
   return [aw * bx + ax * bw + ay * bz - az * by, aw * by - ax * bz + ay * bw + az * bx, aw * bz + ax * by - ay * bx + az * bw, aw * bw - ax * bx - ay * by - az * bz];
 }
+
+/**
+ * The range a joint plays in, cut to where the check found parts in its way (`joint.sweep`, ADR
+ * 0027): a stop on the way to a limit below the value ends the range there, one above likewise.
+ * `low` and `high` are the stops the range now ends at, if any.
+ */
+export function playRange<Stop extends { at: number; limit: number }>([min, max]: [number, number], value: number, stops: readonly Stop[]): { range: [number, number]; low?: Stop; high?: Stop } {
+  let low: Stop | undefined;
+  let high: Stop | undefined;
+  for (const stop of stops) {
+    if (stop.limit < value && stop.at >= min && (!low || stop.at > low.at)) low = stop;
+    if (stop.limit > value && stop.at <= max && (!high || stop.at < high.at)) high = stop;
+  }
+  return { range: [low ? Math.min(low.at, value) : min, high ? Math.max(high.at, value) : max], ...(low ? { low } : {}), ...(high ? { high } : {}) };
+}

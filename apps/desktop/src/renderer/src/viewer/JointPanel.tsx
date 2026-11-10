@@ -1,4 +1,5 @@
 import { IconArrowsLeftRight, IconArrowsRight, IconListNumbers, IconPlayerPause, IconPlayerPlay, IconRepeat } from '@tabler/icons-react';
+import type { PrintFinding } from '@partbuddy/geometry';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Label, Slider, SliderOutput, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
@@ -8,11 +9,13 @@ import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { Button, IconButton } from '../ui/Button';
 import { segmentClass, segmentGroupClass, SliderBar } from '../ui/Choice';
-import { playStep, TRAVEL_SECONDS, type JointPreview } from './jointPose';
+import { playRange, playStep, TRAVEL_SECONDS, type JointPreview } from './jointPose';
 
 type JointValue = Joint['values'][number];
 type PlayMode = 'bounce' | 'loop';
 type PlayOrder = 'together' | 'inTurn';
+type Blocked = Extract<PrintFinding, { kind: 'blocked' }>;
+const NO_FINDINGS: PrintFinding[] = [];
 
 const SPEEDS = [0.5, 1, 2];
 const segment = segmentClass('sm');
@@ -36,6 +39,9 @@ export function playableValues(joints: Joint[]): { key: string; joint: Joint; in
  * of the mirror shows where the parts stand and gives the sliders the values SolidCraft kept them
  * at. Closing the panel while joints play leaves them where the mirror has them.
  *
+ * Where the check found parts in a joint's way (`blocked`, from `joint.sweep`), the playback stops:
+ * the parts stand at the touch in the view, the panel says which parts meet, and nothing is driven.
+ *
  * All joints play together by default: the whole mechanism shows in the time one joint takes, however
  * many there are, and no order has to be made up. One after the other is the choice beside it.
  */
@@ -54,6 +60,12 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
   const turn = useRef({ at: 0, turns: 0 });
   /** Joint values on their way to SolidCraft: their preview stays until the mirror shows them there. */
   const pending = useRef(new Set<string>());
+  /** The touch the playback stopped at. */
+  const [stopped, setStopped] = useState<Blocked | null>(null);
+  const findings = useStudio((s) => s.printCheck?.result.findings ?? NO_FINDINGS);
+  const requestFocus = useStudio((s) => s.requestFocus);
+  // shortcut: a stop is matched to its joint by name and unit, which a joint with two values of one unit shares; give the finding the value's index when such joints get limits.
+  const stops = useMemo(() => findings.filter((finding): finding is Blocked => finding.kind === 'blocked'), [findings]);
   const preview = useStudio((s) => s.jointPreview);
   const setPreview = useStudio((s) => s.setJointPreview);
   // The bodies go back to where the mirror has them when the panel closes.
@@ -71,11 +83,14 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
     if (playingNow.current) return;
     const kept = (useStudio.getState().jointPreview ?? []).filter((entry) => pending.current.has(keyOf(entry.joint, entry.index)));
     setPreview(kept.length > 0 ? kept : null);
+    setStopped(null);
   }, [joints, setPreview]);
 
   useEffect(() => {
     if (!play) return;
-    const targets = playable.filter((entry) => play.includes(entry.key));
+    const targets = playable
+      .filter((entry) => play.includes(entry.key))
+      .map((entry) => ({ ...entry, ...playRange(entry.range, entry.value.value, stops.filter((stop) => stop.joint === entry.joint.name && stop.unit === entry.value.unit)) }));
     if (targets.length === 0) return;
     let last = performance.now();
     let frame = requestAnimationFrame(function tick(now) {
@@ -83,29 +98,45 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
       last = now;
       const shown = useStudio.getState().jointPreview ?? [];
       const mine = order === 'inTurn' ? targets[turn.current.at % targets.length] : null;
+      let hit: Blocked | undefined;
       setPreview(
         targets.map((target) => {
           const [min, max] = target.range;
           const from = shown.find((entry) => entry.joint === target.joint.id && entry.index === target.index)?.value ?? target.value.value;
           if (mine && target !== mine) return { joint: target.joint.id, index: target.index, value: from };
           // Towards the end that is further away first.
-          const step = playStep(from, directions.current.get(target.key) ?? (max - from >= from - min ? 1 : -1), target.range, (seconds * speed * (max - min)) / TRAVEL_SECONDS, mode);
+          const direction = directions.current.get(target.key) ?? (max - from >= from - min ? 1 : -1);
+          const step = playStep(from, direction, target.range, (seconds * speed * (max - min)) / TRAVEL_SECONDS, mode);
           directions.current.set(target.key, step.direction);
+          // The end it reached is where parts touch: it stands there, and from there it can only go back.
+          const touch = step.turned ? (direction === 1 ? target.high : target.low) : undefined;
+          if (touch) {
+            hit = touch;
+            directions.current.set(target.key, direction === 1 ? -1 : 1);
+            return { joint: target.joint.id, index: target.index, value: touch.at };
+          }
           // There and back (or once through, starting over), then the next joint.
           if (mine && step.turned && (turn.current.turns += 1) >= (mode === 'bounce' ? 2 : 1)) turn.current = { at: turn.current.at + 1, turns: 0 };
           return { joint: target.joint.id, index: target.index, value: step.value };
         }),
       );
+      if (hit) {
+        setStopped(hit);
+        setPlay(null);
+        return;
+      }
       frame = requestAnimationFrame(tick);
     });
     return () => {
       cancelAnimationFrame(frame);
     };
-  }, [play, playable, speed, mode, order, setPreview]);
+  }, [play, playable, stops, speed, mode, order, setPreview]);
 
   const start = (keys: string[]) => {
-    directions.current.clear();
+    // From a touch the joints go on the way back; otherwise towards the end that is further away.
+    if (!stopped) directions.current.clear();
     turn.current = { at: 0, turns: 0 };
+    setStopped(null);
     setPlay(keys);
   };
 
@@ -131,6 +162,7 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
 
   /** Ends the playback and holds every joint where the view shows it: driven there, as a slider let go. */
   const hold = (taken?: JointPreview) => {
+    setStopped(null);
     setPlay(null);
     const shown = [...(useStudio.getState().jointPreview ?? []).filter((entry) => !(taken && entry.joint === taken.joint && entry.index === taken.index)), ...(taken ? [taken] : [])];
     const moves = shown.flatMap((entry) => {
@@ -175,6 +207,7 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
               onChange={(next) => {
                 // Taking a slider ends the playback; the others stay where the view shows them. The bodies follow at once (G4).
                 if (play) setPlay(null);
+                setStopped(null);
                 setPreview([...(useStudio.getState().jointPreview ?? []).filter((entry) => !(entry.joint === joint.id && entry.index === index)), { joint: joint.id, index, value: next }]);
               }}
               onChangeEnd={(next) => {
@@ -289,16 +322,40 @@ export function JointPanel({ joints, autoPlay = false }: { joints: Joint[]; auto
       ) : null}
       <Button
         size="sm"
-        isDisabled={busy || away.length === 0}
+        isDisabled={busy || (away.length === 0 && !preview)}
         onPress={() => {
           setPlay(null);
+          setStopped(null);
           setPreview(null);
-          drive(away);
+          if (away.length > 0) drive(away);
         }}
         data-testid="joint-reset"
       >
         {t('viewer.joints.reset')}
       </Button>
+      {stopped ? (
+        <div role="status" className="flex flex-col items-start gap-1 text-xs text-warning" data-testid="joint-stopped">
+          <p>
+            {t('viewer.joints.stopped', {
+              a: stopped.bodies[0],
+              b: stopped.bodies[1],
+              at: new Intl.NumberFormat(i18n.language, stopped.unit === 'deg' ? { style: 'unit', unit: 'degree', unitDisplay: 'narrow', maximumFractionDigits: 1 } : { style: 'unit', unit: 'millimeter', maximumFractionDigits: 1 }).format(stopped.at),
+            })}
+          </p>
+          {stopped.box ? (
+            <Button
+              size="sm"
+              variant="quiet"
+              onPress={() => {
+                if (stopped.box) requestFocus(stopped.box);
+              }}
+              data-testid="joint-stopped-show"
+            >
+              {t('viewer.joints.showTouch')}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       {error ? (
         <p role="alert" className="text-xs text-danger" data-testid="joint-error">
           {t('viewer.joints.failed', { reason: error })}
