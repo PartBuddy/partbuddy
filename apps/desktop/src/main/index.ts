@@ -664,11 +664,11 @@ if (!app.requestSingleInstanceLock()) {
       return versions.save(file, reason, label, skipUnchanged);
     };
     // A photo (F6) is kept in the project's "photos" folder, so SolidCraft can use it by path.
-    const keepPhoto = (png: Uint8Array): string | null => {
+    const keepPhoto = (png: Uint8Array, when: Date, index: number): string | null => {
       const project = supervisor.projectFile();
       if (!project || !projectStore.holds(project)) return null;
       try {
-        const file = photoFile(dirname(project), new Date());
+        const file = photoFile(dirname(project), when, index);
         mkdirSync(dirname(file), { recursive: true });
         writeFileSync(file, png);
         return file;
@@ -690,7 +690,7 @@ if (!app.requestSingleInstanceLock()) {
       const folder = projectFolder();
       return folder ? loadSketch(folder, id, log) : null;
     });
-    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, sketch, sketchElements, sketchState, photo, drawing }) => {
+    bridge.handle(invokeChannels.agentSend, async ({ text, selections, answer, sketch, sketchElements, sketchState, photos, drawing }) => {
       // The drawing's text is untrusted: read here again, and only its clean form is kept.
       const read = drawing ? parseDrawing(drawing.svg) : null;
       if (read && !read.ok) {
@@ -717,6 +717,7 @@ if (!app.requestSingleInstanceLock()) {
         log(`no version before the request: ${(error as Error).message}`);
       });
       const conversation = agent.conversation();
+      const sentAt = new Date();
       const lines = [
         // Once after a restart: what the earlier conversation about this design was about.
         chats?.takeDigest() ?? null,
@@ -727,11 +728,11 @@ if (!app.requestSingleInstanceLock()) {
         steps.takeNote(),
         notesService.selectionNote(selections ?? []),
         sketch ? sketchNote(sketchElements) : null,
-        photo ? photoNote(keepPhoto(photo)) : null,
+        photos ? photoNote(photos.map((png, i) => keepPhoto(png, sentAt, i))) : null,
         drawingLine,
       ].filter((line): line is string => line !== null);
       try {
-        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, photo ?? drawing?.png ?? sketch ?? null, photo ? 'photo' : drawing ? 'drawing' : 'sketch');
+        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, photos ?? (drawing ? [drawing.png] : sketch ? [sketch] : []), photos ? 'photo' : drawing ? 'drawing' : 'sketch');
       } catch (error) {
         profileNote.forget();
         checkNote.forget();

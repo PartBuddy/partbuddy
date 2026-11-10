@@ -24,9 +24,9 @@ export interface AgentBackend {
   /**
    * `selections`: what the user selected in PartBuddy's view, sent along as a short note.
    * `note`: what the user changed or undid since the model's last turn (work log, M2a) and notes.
-   * `image`: a PNG that goes along as a picture, a rough sketch (F4) or a photo (F6) as `kind` says.
+   * `images`: PNGs that go along as pictures, a rough sketch (F4), photos (F6) or a drawing as `kind` says.
    */
-  send(text: string, selections?: Selection[], note?: string | null, image?: Uint8Array | null, kind?: PictureKind): Promise<void>;
+  send(text: string, selections?: Selection[], note?: string | null, images?: readonly Uint8Array[], kind?: PictureKind): Promise<void>;
   stop(): Promise<void>;
   /** Ends the conversation; the next message starts a new one (another project, B2). */
   newConversation(): Promise<void>;
@@ -76,8 +76,8 @@ export class Assistant {
     return this.state();
   }
 
-  send(text: string, selections: Selection[] = [], note: string | null = null, image: Uint8Array | null = null, kind: PictureKind = 'sketch'): Promise<void> {
-    return this.current().send(text, selections, note, image, kind);
+  send(text: string, selections: Selection[] = [], note: string | null = null, images: readonly Uint8Array[] = [], kind: PictureKind = 'sketch'): Promise<void> {
+    return this.current().send(text, selections, note, images, kind);
   }
 
   stop(): Promise<void> {

@@ -133,7 +133,7 @@ export class ChatGptAgent implements AgentBackend {
     return this.history.length === 0;
   }
 
-  async send(text: string, selections: Selection[] = [], note: string | null = null, image: Uint8Array | null = null, kind: PictureKind = 'sketch'): Promise<void> {
+  async send(text: string, selections: Selection[] = [], note: string | null = null, images: readonly Uint8Array[] = [], kind: PictureKind = 'sketch'): Promise<void> {
     if (this.status().state !== 'ready') throw new Error(`assistant is ${this.status().state}`);
     const upstream = await this.options.tools();
     if (!upstream) {
@@ -142,10 +142,10 @@ export class ChatGptAgent implements AgentBackend {
     }
     if (!this.choice) await this.readModels();
     const message = composeMessage(text, selections, note);
-    this.options.event(userEvent(text, message.label, message.summary, image ? kind : undefined));
+    this.options.event(userEvent(text, message.label, message.summary, images.length > 0 ? kind : undefined));
     this.history.push(
-      image
-        ? { role: 'user', content: [{ type: 'text', text: message.prompt }, { type: 'image', image, mediaType: 'image/png' }] }
+      images.length > 0
+        ? { role: 'user', content: [{ type: 'text', text: message.prompt }, ...images.map((image) => ({ type: 'image' as const, image, mediaType: 'image/png' }))] }
         : { role: 'user', content: message.prompt },
     );
     this.busy = true;

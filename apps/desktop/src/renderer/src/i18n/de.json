@@ -406,7 +406,8 @@
       "sent": "Mit Foto",
       "defaultText": "Mach mir ein passendes Teil für den Gegenstand auf dem Foto.",
       "show": "Foto groß zeigen",
-      "pasted": "Eingefügtes Bild"
+      "pasted": "Eingefügtes Bild",
+      "tooMany": "Höchstens {{count}} Fotos je Nachricht; weitere wurden nicht angehängt."
     },
     "local": {
       "ready": "{server} · {model}",

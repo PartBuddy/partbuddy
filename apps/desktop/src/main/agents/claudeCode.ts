@@ -352,15 +352,13 @@ export class ClaudeSession {
     });
   }
 
-  /** One user message; a PNG of the view goes along as an image block (stream-json input). */
-  send(text: string, image: Uint8Array | null = null): void {
+  /** One user message; PNGs that go along become image blocks after the text (stream-json input). */
+  send(text: string, images: readonly Uint8Array[] = []): void {
     if (!this.child?.stdin) throw new Error('Claude Code is not running');
-    const content = image
-      ? [
-          { type: 'text', text },
-          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: Buffer.from(image).toString('base64') } },
-        ]
-      : text;
+    const content =
+      images.length > 0
+        ? [{ type: 'text', text }, ...images.map((image) => ({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: Buffer.from(image).toString('base64') } }))]
+        : text;
     const message = { type: 'user', message: { role: 'user', content } };
     this.child.stdin.write(`${JSON.stringify(message)}\n`);
   }
