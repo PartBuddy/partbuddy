@@ -220,7 +220,8 @@ function Item({
   switch (item.kind) {
     case 'user':
       return (
-        <div className="group/message ml-6 flex max-w-[85%] min-w-0 flex-col items-end gap-1 self-end">
+        // A new request starts a new round: 24 px above it, 8 px between the parts of one (audit C-17).
+        <div className="group/message ml-6 flex max-w-[85%] min-w-0 flex-col items-end gap-1 self-end not-first:mt-4">
           {item.selection ? (
             // The count and the body; the exact names, which mean little to most people, on hover.
             <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-selection" title={item.selection}>
