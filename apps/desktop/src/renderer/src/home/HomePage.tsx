@@ -78,6 +78,8 @@ export function HomePage() {
   const connection = useStudio((s) => s.connection);
   const setHomeOpen = useStudio((s) => s.setHomeOpen);
   const run = useProjectSwitch();
+  // The template SolidCraft is building: its tile says so, and the others wait (audit P-02).
+  const [building, setBuilding] = useState<TemplateId | null>(null);
   const { asProject } = useFileImport();
   const [projects, setProjects] = useState<ProjectEntry[] | null>(null);
   const [current, setCurrent] = useState<ProjectInfo>(null);
@@ -314,18 +316,30 @@ export function HomePage() {
             {templates.map((id) => (
               <li key={id}>
                 <AriaButton
-                  isDisabled={!ready}
-                  onPress={() => run(() => api.fromTemplate(id, t(`home.templates.items.${id}.name`)))}
-                  className="group flex w-full items-center gap-3 overflow-hidden rounded-lg border border-border bg-surface p-2 text-left outline-none transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:focus-ring disabled:cursor-default disabled:opacity-disabled"
+                  isDisabled={!ready || building !== null}
+                  onPress={() => {
+                    setBuilding(id);
+                    run(() =>
+                      api.fromTemplate(id, t(`home.templates.items.${id}.name`)).finally(() => {
+                        setBuilding(null);
+                      }),
+                    );
+                  }}
+                  data-building={building === id || undefined}
+                  className="group flex w-full items-center gap-3 overflow-hidden rounded-lg border border-border bg-surface p-2 text-left outline-none transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:focus-ring disabled:cursor-default disabled:opacity-disabled data-[building]:opacity-100"
                   data-testid="home-template"
                   data-template={id}
                 >
                   <img src={TEMPLATE_PICTURES[id]} alt="" className="aspect-[4/3] w-1/3 shrink-0 rounded-md object-cover" draggable={false} />
                   <span className="flex min-w-0 flex-col gap-1">
                     <span className="truncate text-sm font-medium text-text">{t(`home.templates.items.${id}.name`)}</span>
-                    <span className="line-clamp-3 text-xs text-text-subtle" title={t(`home.templates.items.${id}.body`)}>
-                      {t(`home.templates.items.${id}.body`)}
-                    </span>
+                    {building === id ? (
+                      <Busy label={t('home.templates.building')} />
+                    ) : (
+                      <span className="line-clamp-3 text-xs text-text-subtle" title={t(`home.templates.items.${id}.body`)}>
+                        {t(`home.templates.items.${id}.body`)}
+                      </span>
+                    )}
                   </span>
                 </AriaButton>
               </li>
