@@ -2,7 +2,7 @@ import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { splitPieceSteps } from '../../shared/blocks';
-import type { ClearanceResult, DesignAction, MeasureItem, MeasureResult } from '../../shared/contract';
+import type { ClearanceResult, DesignAction, JointSweep, JointSweepResult, MeasureItem, MeasureResult } from '../../shared/contract';
 import type { ControlRequester } from './mirror';
 
 /**
@@ -120,6 +120,14 @@ export class ActionService {
     };
   }
 
+  /** Runs each joint value to a limit on a copy of the design (`joint.sweep`, ADR 0027); a sweep SolidCraft refuses counts as run through. */
+  async sweepJoints(sweeps: JointSweep[]): Promise<JointSweepResult> {
+    if (sweeps.length === 0) return [];
+    const reply = await this.batch(sweeps.map((sweep) => ({ command: 'joint.sweep', params: { ...sweep } })), false);
+    if (reply.failed) throw new Error(reply.failed.error);
+    return sweeps.map((_, i) => sweepStopOf(reply.results?.[i]));
+  }
+
   /**
    * Overlaps and gaps narrower than `gap` between bodies (`inspect.clearance`, plan step F2). Mesh
    * bodies are not measured; SolidCraft lists them as unchecked, which the light leaves out.
@@ -129,6 +137,16 @@ export class ActionService {
     if (reply.failed) throw new Error(reply.failed.error);
     return clearanceOf(reply.results?.[0]);
   }
+}
+
+/** SolidCraft's answer of one `joint.sweep`: the stop when two parts made it, null when it ran through or a limit or loop ended it. */
+export function sweepStopOf(result: unknown): JointSweepResult[number] {
+  const { stopped_at: stoppedAt, stopped_by: by } = (result ?? {}) as { stopped_at?: unknown; stopped_by?: unknown };
+  if (typeof stoppedAt !== 'number' || !Number.isFinite(stoppedAt) || typeof by !== 'object' || by === null) return null;
+  const { a, b, at } = by as { a?: unknown; b?: unknown; at?: unknown };
+  const first = name(a);
+  const second = name(b);
+  return first && second && isVec(at) ? { stoppedAt, a: first, b: second, at } : null;
 }
 
 type Vec3 = [number, number, number];

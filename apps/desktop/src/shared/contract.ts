@@ -901,6 +901,12 @@ export const clearanceRequestSchema = z.object({ bodies: z.array(bodyName).min(2
 export const jointDriveSchema = z
   .object({ joint: z.number().int().nonnegative(), index: z.number().int().min(0).max(5), value: finite.min(-100_000).max(100_000), unit: z.enum(['deg', 'mm']), name: z.string().max(200) })
   .strict();
+/** Joint values run from where they stand to a limit, without changing the design (ADR 0027, `joint.sweep`). */
+export const jointSweepRequestSchema = z
+  .object({ sweeps: z.array(z.object({ joint: z.number().int().nonnegative(), index: z.number().int().min(0).max(5), from: finite, to: finite }).strict()).max(40) })
+  .strict();
+/** Per sweep, in the same order: where two parts stopped it, or null when it ran through. */
+export const jointSweepResultSchema = z.array(z.object({ stoppedAt: finite, a: z.string().max(200), b: z.string().max(200), at: point3 }).strict().nullable()).max(40);
 const boxSchema = z.object({ min: point3, max: point3 }).strict();
 export const clearanceResultSchema = z
   .object({
@@ -1125,6 +1131,8 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
   z.object({ kind: z.literal('overlap'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), volume: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('tight'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), gap: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('blocked'), severity: findingSeveritySchema, joint: z.string().max(200), bodies: z.tuple([bodyName, bodyName]), at: finite, limit: finite, unit: z.enum(['deg', 'mm']), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('posed'), severity: findingSeveritySchema, joint: z.string().max(200), value: finite, unit: z.enum(['deg', 'mm']) }).strict(),
 ]);
 export const printCheckReportSchema = z
   .object({
@@ -1211,6 +1219,7 @@ export const invokeContract = {
   [invokeChannels.designMeasure]: { request: measureRequestSchema, response: measureResultSchema },
   [invokeChannels.designClearance]: { request: clearanceRequestSchema, response: clearanceResultSchema },
   [invokeChannels.designDriveJoint]: { request: jointDriveSchema, response: none },
+  [invokeChannels.designSweepJoints]: { request: jointSweepRequestSchema, response: jointSweepResultSchema },
   [invokeChannels.designPartsLibrary]: { request: none, response: partsLibrarySchema },
   [invokeChannels.designPreviewBlock]: { request: featureBlockSchema, response: actionPreviewSchema },
   [invokeChannels.designApplyBlock]: { request: featureBlockSchema, response: none },
@@ -1342,6 +1351,8 @@ export type TimelineFeature = z.infer<typeof timelineFeatureSchema>;
 export type Structure = z.infer<typeof structureSchema>;
 export type Joint = z.infer<typeof jointSchema>;
 export type JointDrive = z.infer<typeof jointDriveSchema>;
+export type JointSweep = z.infer<typeof jointSweepRequestSchema>['sweeps'][number];
+export type JointSweepResult = z.infer<typeof jointSweepResultSchema>;
 export type TimelineCommand = z.infer<typeof timelineCommandSchema>;
 export type VisibilityCommand = z.infer<typeof visibilityCommandSchema>;
 export type NoteView = z.infer<typeof noteViewSchema>;

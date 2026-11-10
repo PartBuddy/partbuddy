@@ -81,7 +81,7 @@ printed. SolidCraft's joints carry it ([ADR 0027](adr/0027-joints-for-motion.md)
 | Step | Content |
 | --- | --- |
 | G1 Joints that move (done) | The assistant makes moving bodies into components and joins them with SolidCraft's joints (`component.from_bodies`, `joint.as_built`, `joint.limits`), told so in its instructions. The mirror reads `joint.list`; a tool "Moving parts" in the view toolbar, there once the design has a joint, shows one slider per joint value between its limits. Letting go drives the joint (`joint.drive`), a step in the work log, and the view shows where the parts stand; "As designed" drives every joint back to 0. |
-| G2 Collisions along the way | The ready-to-print check sweeps every joint through its range (`joint.sweep`) and names where parts first touch, and a design left away from "as designed". |
+| G2 Collisions along the way (done) | The ready-to-print check runs every joint value from where it stands to its limits on a copy of the design (`joint.sweep`, a few milliseconds per joint). Parts that touch before a limit are a warning that names the joint, the two bodies, the value they meet at and the limit, and points at the place; a sweep that ends within 0.5° or 0.1 mm of the limit reached it (a flap folding flat onto its base). A joint left away from "as designed" is a warning too, since the design is exported as it stands. Both go to the assistant with the check, with what to do about them. |
 | G3 Mechanism blocks | Hinge, guide and a pair of gears (`joint.gear`) as function blocks that bring their joint. |
 | G4 Dragging the part | The part follows the pointer in the view (`joint.reach`), with the parts' transforms applied in the view while dragging. |
 

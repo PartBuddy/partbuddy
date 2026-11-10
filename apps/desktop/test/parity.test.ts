@@ -95,6 +95,7 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.designMeasure]: { tool: 'measure' },
   [invokeChannels.designClearance]: { command: 'inspect.clearance' },
   [invokeChannels.designDriveJoint]: { command: 'joint.drive' },
+  [invokeChannels.designSweepJoints]: { command: 'joint.sweep' },
   [invokeChannels.designPartsLibrary]: { command: 'parts.library' },
   [invokeChannels.designPreviewBlock]: { reason: PREVIEW },
   [invokeChannels.designApplyBlock]: { command: 'plastic.snap_fit' },

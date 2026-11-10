@@ -9,7 +9,7 @@ import type { ConnectionStatus, ExportFormat, MirrorRevision } from '../../share
 import type { UpstreamTools } from '../agents/gateProxy';
 import { ControlClient, ControlError } from './controlClient';
 import { cliBeside, endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
-import type { ClearanceResult, DesignAction, MeasureItem, MeasureResult, PartInsert, PartsLibrary, TimelineCommand, VisibilityCommand } from '../../shared/contract';
+import type { ClearanceResult, DesignAction, JointSweep, JointSweepResult, MeasureItem, MeasureResult, PartInsert, PartsLibrary, TimelineCommand, VisibilityCommand } from '../../shared/contract';
 import { ActionService, type ActionPreview } from './actions';
 import { DimensionService, type DimensionTarget, type ProbeResult } from './dimensions';
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
@@ -718,6 +718,11 @@ export class SolidCraftSupervisor {
     await this.probing;
     await this.actions.applySteps([{ command: 'joint.drive', params: { joint, index, value, quiet: true } }]);
     await this.engine?.checkForChange();
+  }
+
+  /** Where parts stop each joint value on its way to a limit (ADR 0027, `joint.sweep`); the design stays as it is. */
+  sweepJoints(sweeps: JointSweep[]): Promise<JointSweepResult> {
+    return this.trial('joint sweep', () => this.actions.sweepJoints(sweeps));
   }
 
   /** Overlaps and gaps narrower than `gap` between the bodies (F2, `inspect.clearance`). */

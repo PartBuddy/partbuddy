@@ -1096,7 +1096,9 @@
       "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",
       "feature": "{feature}: {message}",
       "overlap": "{a} und {b} überschneiden sich um {volume} mm³ – als getrennte Teile passen sie so nicht zusammen; gehören sie zu einem Teil, vereinen",
-      "tight": "{a} und {b} kommen sich bis auf {gap} mm nahe, ohne sich zu berühren – unter der Steckpassung von {minimum} mm je Seite gehen sie nur mit Kraft zusammen"
+      "tight": "{a} und {b} kommen sich bis auf {gap} mm nahe, ohne sich zu berühren – unter der Steckpassung von {minimum} mm je Seite gehen sie nur mit Kraft zusammen",
+      "blocked": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk erreicht seine Grenze von {limit} nicht",
+      "posed": "{joint} steht auf {value}, nicht wie konstruiert – exportiert und geprüft wird diese Stellung"
     },
     "confirm": {
       "title": "Trotzdem exportieren?",

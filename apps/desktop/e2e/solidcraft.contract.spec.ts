@@ -3045,6 +3045,13 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
     await page.getByTestId('joints').click({ timeout: 30_000 });
     const slider = page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' });
     await expect(slider).toHaveValue('0');
+    // The light swept the joint: folding down it lies flat on the base at the limit, upwards the flap's edge meets the base.
+    await page.getByTestId('print-check').click();
+    const findings = page.getByTestId('print-check-panel');
+    await expect(findings.locator('[data-kind="blocked"]')).toHaveCount(1, { timeout: 30_000 });
+    await expect(findings.locator('[data-kind="blocked"]')).toContainText('Hinge: Flap and Base touch at 28.1° – the joint does not reach its limit of 90°');
+    await page.screenshot({ path: test.info().outputPath('hinge-blocked.png') });
+    await page.keyboard.press('Escape');
     await page.screenshot({ path: test.info().outputPath('hinge-as-designed.png') });
     // To the lower limit: SolidCraft folds the flap onto the base, and the mirror brings the value back.
     await slider.focus();
@@ -3054,6 +3061,9 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
     await page.waitForTimeout(1500);
     await page.screenshot({ path: test.info().outputPath('hinge-folded.png') });
+    await page.getByTestId('print-check').click();
+    await expect(findings.locator('[data-kind="posed"]')).toContainText('Hinge stands at -180°, not as designed', { timeout: 30_000 });
+    await page.keyboard.press('Escape');
     await page.getByTestId('joint-reset').click();
     await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' })).toHaveValue('0', { timeout: 30_000 });
     await expect(page.getByTestId('joint-error')).toHaveCount(0);

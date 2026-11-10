@@ -1,5 +1,5 @@
 import { isLogoColourBody } from '../../../shared/drawingPlacement';
-import { checkPrint, withClearance } from '@partbuddy/geometry';
+import { checkPrint, withClearance, withMotion, type PrintCheck } from '@partbuddy/geometry';
 import { useEffect } from 'react';
 
 import { platform } from '../platform';
@@ -36,29 +36,49 @@ export function usePrintCheck(): void {
       // A logo's colour pieces sit in the part on purpose; measuring them, SolidCraft took minutes
       // for a logo of many pieces and held up every trial after it.
       const parts = printed.filter((body) => !isLogoColourBody(body.name));
-      if (parts.length < 2) {
+      const joints = model.structure.joints ?? [];
+      if (parts.length < 2 && joints.length === 0) {
         report(result);
         return;
       }
-      // Several parts (F2): SolidCraft measures overlaps and gaps under the push fit exactly. The
-      // mesh check shows at once; the light takes the measure when it comes, if nothing changed.
-      const pushFit = print.material.clearance.push;
-      void platform()
-        .design.clearance(
-          parts.map((body) => body.name),
-          Math.max(pushFit, 0),
-        )
-        .then(
-          (measured) => {
-            if (stale) return;
-            const merged = withClearance(result, measured, pushFit);
-            useStudio.getState().setPrintCheck({ revision: model.revision, result: merged });
-            report(merged);
-          },
-          () => {
-            if (!stale) report(result);
-          },
-        );
+      // What SolidCraft measures exactly. The mesh check shows at once; the light takes the measures
+      // when they come, if nothing changed. A measure that fails leaves its findings out.
+      const measure = async (): Promise<PrintCheck> => {
+        let final = result;
+        // Several parts (F2): overlaps and gaps under the push fit.
+        const pushFit = print.material.clearance.push;
+        if (parts.length >= 2) {
+          const measured = await platform()
+            .design.clearance(
+              parts.map((body) => body.name),
+              Math.max(pushFit, 0),
+            )
+            .catch(() => null);
+          if (measured) final = withClearance(final, measured, pushFit);
+        }
+        // Parts that move (ADR 0027): every joint value runs from where it stands to its limits.
+        if (joints.length > 0) {
+          const sweeps = joints.flatMap((joint) =>
+            joint.values.flatMap((value, index) =>
+              (value.limits ?? []).flatMap((limit) => (limit !== null && Math.abs(limit - value.value) > 1e-6 ? [{ joint: joint.id, name: joint.name, unit: value.unit, index, from: value.value, to: limit }] : [])),
+            ),
+          ).slice(0, 40);
+          const stopped = await platform()
+            .design.sweepJoints(sweeps.map(({ joint, index, from, to }) => ({ joint, index, from, to })))
+            .catch(() => []);
+          const stops = sweeps.flatMap((sweep, i) => {
+            const stop = stopped[i];
+            return stop ? [{ joint: sweep.name, unit: sweep.unit, to: sweep.to, ...stop }] : [];
+          });
+          final = withMotion(final, { joints, stops });
+        }
+        return final;
+      };
+      void measure().then((final) => {
+        if (stale) return;
+        if (final !== result) useStudio.getState().setPrintCheck({ revision: model.revision, result: final });
+        report(final);
+      });
     }, CHECK_DELAY_MS);
     let stale = false;
     return () => {

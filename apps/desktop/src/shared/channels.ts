@@ -76,6 +76,7 @@ export const invokeChannels = {
   designMeasure: 'design:measure',
   designClearance: 'design:clearance',
   designDriveJoint: 'design:drive-joint',
+  designSweepJoints: 'design:sweep-joints',
   designPartsLibrary: 'design:parts-library',
   designPreviewBlock: 'design:preview-block',
   designApplyBlock: 'design:apply-block',
