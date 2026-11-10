@@ -110,6 +110,22 @@ export function choiceArgs(choice: ModelChoice | null): string[] {
 }
 
 /**
+ * Ends a Claude Code process by closing its input, so it leaves on its own, and kills it only when it
+ * has not left after `graceMs`. A process killed at once can die while it renews the sign-in: the service
+ * has then already replaced the token that Claude Code never got to save, and the next start finds the
+ * sign-in expired ("OAuth session expired and could not be refreshed" at the first request after a
+ * night, seen on 2026-11-09 and 2026-11-10).
+ */
+export function endGently(child: ChildProcess, graceMs: number): void {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const timer = setTimeout(() => child.kill(), graceMs);
+  child.once('exit', () => {
+    clearTimeout(timer);
+  });
+  child.stdin?.end();
+}
+
+/**
  * Asks Claude Code for the models of the user's plan (B1): a short session that only sends the
  * `initialize` control request of the stream-json protocol, so no prompt reaches a model.
  */
@@ -129,7 +145,7 @@ export function listModels(claude: ClaudeCommand, env: NodeJS.ProcessEnv, cwd: s
     const finish = (error: Error | null, models: ModelOption[] = []) => {
       if (outcome) return;
       outcome = { error, models };
-      if (!exited) child.kill();
+      if (!exited) endGently(child, 5000);
       settle();
     };
     const timer = setTimeout(() => {
@@ -392,7 +408,9 @@ export class ClaudeSession {
         clearTimeout(timer);
         resolve();
       });
-      child.kill();
+      // A running turn is interrupted first, so nothing more is built while the process leaves.
+      if (child.stdin?.writable) child.stdin.write(`${JSON.stringify({ type: 'control_request', request_id: 'partbuddy-stop', request: { subtype: 'interrupt' } })}\n`);
+      endGently(child, 1500);
     });
   }
 

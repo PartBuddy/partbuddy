@@ -70,7 +70,17 @@ export class AgentService implements AgentBackend {
     return this.current;
   }
 
-  async refresh(): Promise<AgentStatus> {
+  /** One look at a time: a second call while one runs gets the same answer instead of more Claude Code processes. */
+  private looking: Promise<AgentStatus> | null = null;
+
+  refresh(): Promise<AgentStatus> {
+    this.looking ??= this.look().finally(() => {
+      this.looking = null;
+    });
+    return this.looking;
+  }
+
+  private async look(): Promise<AgentStatus> {
     const claude = findClaudeCode(this.options.env, this.options.home);
     this.claude = claude;
     if (!claude) {
@@ -96,6 +106,8 @@ export class AgentService implements AgentBackend {
     if (!this.claude) return;
     const child = startSignIn(this.claude, this.options.env);
     child.once('exit', () => {
+      // Another account may have another plan: its models are read again.
+      this.models = null;
       void this.refresh();
     });
   }
@@ -241,8 +253,13 @@ export class AgentService implements AgentBackend {
     this.session = session;
   }
 
-  /** Reads the plan's models once per refresh; the kept choice applies once it proves offered. */
+  /**
+   * Reads the plan's models once per start of the app; the kept choice applies once it proves offered.
+   * Not at every refresh: each reading is a Claude Code process of its own, and the fewer of them start,
+   * the less often two renew the sign-in at the same moment.
+   */
   private async readModels(claude: ClaudeCommand): Promise<void> {
+    if (this.models && this.models.length > 0) return;
     try {
       mkdirSync(this.options.workDir, { recursive: true });
       const models = await (this.options.listModels ?? ((command) => listModels(command, this.options.env, this.options.workDir)))(claude);
