@@ -43,7 +43,7 @@ export type Settings = z.infer<typeof settingsSchema>;
 export type SettingKey = keyof Settings;
 
 /** What "reset" puts back per section of the settings dialog; the first-start flag is never reset. */
-export const RESET_KEYS: Record<Exclude<SettingsReset, 'solidcraft' | 'all'>, readonly SettingKey[]> = {
+export const RESET_KEYS: Record<Exclude<SettingsReset, 'solidcraft' | 'print' | 'all'>, readonly SettingKey[]> = {
   general: ['language', 'theme', 'projectsFolder', 'zoom', 'startPage', 'checkUpdates'],
   assistant: ['webResearch', 'claudeApiBilling', 'models'],
 };

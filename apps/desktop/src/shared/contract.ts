@@ -344,7 +344,7 @@ export const appSettingRequestSchema = z.discriminatedUnion('key', [
   z.object({ key: z.literal('checkUpdates'), value: z.boolean() }).strict(),
 ]);
 /** A section of the settings to put back to its defaults, or all of them. */
-export const settingsResetSchema = z.enum(['general', 'solidcraft', 'assistant', 'all']);
+export const settingsResetSchema = z.enum(['general', 'solidcraft', 'assistant', 'print', 'all']);
 export const languageRequestSchema = z.object({ language: languageSchema }).strict();
 /**
  * General settings (B6): the language, Windows' own language (for "follow Windows") and the project
