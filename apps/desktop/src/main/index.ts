@@ -898,6 +898,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     bridge.handle(invokeChannels.designMeasure, ({ items }) => supervisor.measure(items));
     bridge.handle(invokeChannels.designClearance, ({ bodies, gap }) => supervisor.clearance(bodies, gap));
+    bridge.handle(invokeChannels.designSweepJoints, ({ sweeps }) => supervisor.sweepJoints(sweeps));
     bridge.handle(invokeChannels.designDriveJoint, async ({ joint, index, value, unit, name }) => {
       assistantIdle();
       await steps.recordUser(describeUserAction({ kind: 'jointMove', name, value, unit }), () => supervisor.driveJoint(joint, index, value));

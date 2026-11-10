@@ -16,6 +16,7 @@ export function useFindingText(): (finding: PrintFinding) => string {
   const { t, i18n } = useTranslation();
   const nozzle = useStudio((s) => s.print?.printer.nozzle ?? 0.4);
   const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 });
+  const amount = (value: number, unit: 'deg' | 'mm') => `${number.format(value)}${unit === 'deg' ? '°' : ' mm'}`;
   return (finding) => {
     switch (finding.kind) {
       case 'size':
@@ -39,6 +40,10 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.overlap', { a: finding.bodies[0], b: finding.bodies[1], volume: number.format(finding.volume) });
       case 'tight':
         return t('check.finding.tight', { a: finding.bodies[0], b: finding.bodies[1], gap: number.format(finding.gap), minimum: number.format(finding.minimum) });
+      case 'blocked':
+        return t('check.finding.blocked', { joint: finding.joint, a: finding.bodies[0], b: finding.bodies[1], at: amount(finding.at, finding.unit), limit: amount(finding.limit, finding.unit) });
+      case 'posed':
+        return t('check.finding.posed', { joint: finding.joint, value: amount(finding.value, finding.unit) });
     }
   };
 }

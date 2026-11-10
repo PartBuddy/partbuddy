@@ -24,7 +24,7 @@ const HINGE = [
   { command: 'solid.box', params: { length: 40, width: 30, height: 4, corner: [42, 0, 0], operation: 'new', body_name: 'Flap' } },
   { command: 'component.from_bodies', params: { bodies: ['Base', 'Flap'] } },
   { command: 'joint.as_built', params: { type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [41, 15, 4], z: [0, 1, 0] }, name: 'Hinge' } },
-  { command: 'joint.limits', params: { joint: 'Hinge', min: -180, max: 0 } },
+  { command: 'joint.limits', params: { joint: 'Hinge', min: -180, max: 90 } },
 ];
 const WALL_HOLDER = [
   ...[

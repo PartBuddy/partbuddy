@@ -85,6 +85,8 @@ export class FakeSolidCraft {
   quitRequested = false;
   /** Joints as `joint.list` reports them; `joint.drive` sets a value within its limits. */
   joints: { id: number; name: string; type: string; values: { name: string; unit: 'deg' | 'mm'; value: number; limits: [number, number] | null }[] }[] = [];
+  /** Where `joint.sweep` stops on its way to a value, by that value; a sweep to any other value runs through. */
+  sweepStops = new Map<number, { stopped_at: number; stopped_by: { a: string; b: string; at: [number, number, number] } }>();
   /** User parameters as `parameters.list` reports them; `parameters.change` sets plain values. */
   parameters: FakeParameter[] = [];
   /** Steps `edit.undo` and `edit.redo` can take, as `document.inspect` reports them. */
@@ -253,6 +255,8 @@ export class FakeSolidCraft {
         return { active: 0, components: [{ id: 0, name: 'Design', parent: null, bodies: [...this.bodies], children: [] }] };
       case 'joint.list':
         return { joints: this.joints, conflicts: [], errors: [], floating: [], links: [] };
+      case 'joint.sweep':
+        return this.sweepStops.get(Number(params.to)) ?? { stopped_at: null, stopped_by: null };
       case 'joint.drive': {
         const value = this.joints.find((joint) => joint.id === params.joint)?.values[Number(params.index ?? 0)];
         if (!value) throw new Error(`no joint ${String(params.joint)}`);

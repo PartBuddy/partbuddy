@@ -491,6 +491,8 @@ test('a joint moves with its slider and goes back to as designed (ADR 0027)', as
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
   fake.bodies = ['CableClip', 'Second clip'];
   fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+  // On its way to the lower limit the second clip meets the first.
+  fake.sweepStops.set(-180, { stopped_at: -28.07, stopped_by: { a: 'Second clip:1', b: 'CableClip:1', at: [10, 5, 2] } });
   await fake.start();
   const { page } = launched;
   await lookAgain(page);
@@ -499,11 +501,22 @@ test('a joint moves with its slider and goes back to as designed (ADR 0027)', as
   const slider = () => page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' });
   await expect(slider()).toHaveValue('0');
   await expect(page.getByTestId('joint-reset')).toBeDisabled();
+  // The light ran the joint through its range: it does not reach the limit.
+  await page.getByTestId('print-check').click();
+  const findings = page.getByTestId('print-check-panel');
+  await expect(findings.locator('[data-kind="blocked"]')).toContainText('Hinge: Second clip and CableClip touch at -28.1° – the joint does not reach its limit of -180°');
+  await expect(findings.locator('[data-kind="posed"]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
   // The lower limit is the slider's end; SolidCraft is driven once, when the key is let go.
   await slider().focus();
   await page.keyboard.press('Home');
   await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(-180);
   await expect(slider()).toHaveValue('-180');
+  // Left at the limit, the design is exported like that, and the light says so.
+  await page.getByTestId('print-check').click();
+  await expect(findings.locator('[data-kind="posed"]')).toContainText('Hinge stands at -180°, not as designed');
+  await expect(findings.locator('[data-kind="blocked"]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await page.getByTestId('joint-reset').click();
   await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(0);
   await expect(slider()).toHaveValue('0');

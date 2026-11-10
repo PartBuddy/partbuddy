@@ -1,4 +1,8 @@
+import { withMotion, type PrintCheck } from '@partbuddy/geometry';
 import { describe, expect, it } from 'vitest';
+
+import { printCheckNote } from '../src/main/print/printCheckNote';
+import { sweepStopOf } from '../src/main/solidcraft/actions';
 
 import { componentsWithBodies, jointsOf, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
 import { describeCommands, describeUserAction } from '../src/shared/stepPhrases';
@@ -93,5 +97,46 @@ describe('joints of parts that move (ADR 0027)', () => {
         { command: 'joint.as_built', params: { type: 'revolute', name: 'Hinge' } },
       ]).map((phrase) => phrase.key),
     ).toEqual(['movableParts', 'joint']);
+  });
+});
+
+describe('the motion of joints in the ready-to-print check (ADR 0027)', () => {
+  const ready: PrintCheck = { status: 'ready', findings: [] };
+  const stop = (to: number, stoppedAt: number) => ({ joint: 'Hinge', unit: 'deg' as const, to, stoppedAt, a: 'Flap:1', b: 'Base:1', at: [40, 30, 0] as [number, number, number] });
+
+  it('names a joint that parts stop before its limit, by the bodies, and not one that reaches it', () => {
+    const check = withMotion(ready, { joints: [{ name: 'Hinge', values: [{ unit: 'deg', value: 0 }] }], stops: [stop(90, 28.0703125), stop(-180, -179.9921875)] });
+    expect(check.status).toBe('warn');
+    expect(check.findings).toEqual([
+      { kind: 'blocked', severity: 'warn', joint: 'Hinge', bodies: ['Flap', 'Base'], at: 28.1, limit: 90, unit: 'deg', places: [], box: { min: [38, 28, -2], max: [42, 32, 2] } },
+    ]);
+  });
+
+  it('names a joint left away from the position as designed', () => {
+    const check = withMotion(ready, { joints: [{ name: 'Hinge', values: [{ unit: 'deg', value: -90 }] }, { name: 'Slide', values: [{ unit: 'mm', value: 0 }] }], stops: [] });
+    expect(check.findings).toEqual([{ kind: 'posed', severity: 'warn', joint: 'Hinge', value: -90, unit: 'deg' }]);
+    expect(withMotion(ready, { joints: [], stops: [] })).toEqual(ready);
+  });
+
+  it('reads the stop of joint.sweep as SolidCraft 0.40.0-rc.3 answers it', () => {
+    expect(sweepStopOf({ stopped_at: 28.0703125, stopped_by: { a: 'Flap:1', at: [40, 30, 0], b: 'Base:1' }, to: 200 })).toEqual({ stoppedAt: 28.0703125, a: 'Flap:1', b: 'Base:1', at: [40, 30, 0] });
+    // It ran through, or a limit or a closed loop ended it: no parts to name.
+    expect(sweepStopOf({ stopped_at: null, stopped_by: null })).toBeNull();
+    expect(sweepStopOf({ stopped_at: 12, stopped_by: 'limit' })).toBeNull();
+    expect(sweepStopOf(undefined)).toBeNull();
+  });
+
+  it('words both for the assistant', () => {
+    const note = printCheckNote({
+      status: 'warn',
+      nozzle: 0.4,
+      revision: 3,
+      findings: [
+        { kind: 'blocked', severity: 'warn', joint: 'Hinge', bodies: ['Flap', 'Base'], at: 28.1, limit: 90, unit: 'deg', places: [] },
+        { kind: 'posed', severity: 'warn', joint: 'Hinge', value: -90, unit: 'deg' },
+      ],
+    });
+    expect(note).toContain('joint "Hinge" stops at 28.1 deg, before its limit of 90 deg: bodies "Flap" and "Base" touch there');
+    expect(note).toContain('joint "Hinge" stands at -90 deg, not at 0 as designed');
   });
 });

@@ -101,6 +101,7 @@ const api: PartBuddyApi = {
     measure: (items) => ipcRenderer.invoke(invokeChannels.designMeasure, { items }),
     clearance: (bodies, gap) => ipcRenderer.invoke(invokeChannels.designClearance, { bodies, gap }),
     driveJoint: (drive) => ipcRenderer.invoke(invokeChannels.designDriveJoint, drive),
+    sweepJoints: (sweeps) => ipcRenderer.invoke(invokeChannels.designSweepJoints, { sweeps }),
     timeline: (command) => ipcRenderer.invoke(invokeChannels.designTimeline, command),
     visibility: (command) => ipcRenderer.invoke(invokeChannels.designVisibility, command),
     renameBody: (body, name) => ipcRenderer.invoke(invokeChannels.designRenameBody, { body, name }),

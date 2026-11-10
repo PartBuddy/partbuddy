@@ -1096,7 +1096,9 @@
       "separate": "{bodies} touch but are separate bodies: the slicer lays each on the bed by itself. Combine them if they are one part.",
       "feature": "{feature}: {message}",
       "overlap": "{a} and {b} overlap by {volume} mm³ – as separate parts they do not go together; combine them if they are one part",
-      "tight": "{a} and {b} come within {gap} mm without touching – under the push fit of {minimum} mm per side, they only go together with force"
+      "tight": "{a} and {b} come within {gap} mm without touching – under the push fit of {minimum} mm per side, they only go together with force",
+      "blocked": "{joint}: {a} and {b} touch at {at} – the joint does not reach its limit of {limit}",
+      "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands"
     },
     "confirm": {
       "title": "Export anyway?",

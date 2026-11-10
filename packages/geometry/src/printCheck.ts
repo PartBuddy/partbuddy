@@ -67,7 +67,19 @@ export type PrintFinding =
   /** Two bodies share volume: as separate parts they do not go together (F2, SolidCraft's measure). */
   | ({ kind: 'overlap'; severity: FindingSeverity; bodies: [string, string]; volume: number } & Located)
   /** Two bodies come closer than the material's push fit without touching (F2). */
-  | ({ kind: 'tight'; severity: FindingSeverity; bodies: [string, string]; gap: number; minimum: number } & Located);
+  | ({ kind: 'tight'; severity: FindingSeverity; bodies: [string, string]; gap: number; minimum: number } & Located)
+  /** A joint does not reach a limit: two parts touch on the way (ADR 0027, SolidCraft's sweep). */
+  | ({ kind: 'blocked'; severity: FindingSeverity; joint: string; bodies: [string, string]; at: number; limit: number; unit: JointUnit } & Located)
+  /** A joint stands away from the position as designed, and the design is exported as it stands. */
+  | { kind: 'posed'; severity: FindingSeverity; joint: string; value: number; unit: JointUnit };
+
+export type JointUnit = 'deg' | 'mm';
+
+/** A joint value as it stands, and where a sweep towards a limit stopped because two parts touched. */
+export interface MeasuredMotion {
+  joints: { name: string; values: { unit: JointUnit; value: number }[] }[];
+  stops: { joint: string; unit: JointUnit; to: number; stoppedAt: number; a: string; b: string; at: [number, number, number] }[];
+}
 
 export interface PrintCheck {
   status: PrintStatus;
@@ -410,6 +422,31 @@ export function withClearance(check: PrintCheck, measured: MeasuredClearance, pu
       const min = near.from.map((value, i) => round(Math.min(value, near.to[i] ?? value) - GAP_PAD, 3)) as [number, number, number];
       const max = near.from.map((value, i) => round(Math.max(value, near.to[i] ?? value) + GAP_PAD, 3)) as [number, number, number];
       findings.push({ kind: 'tight', severity: 'warn', bodies: [near.a, near.b], gap: round(near.distance), minimum: pushFit, places: [], box: { min, max } });
+    }
+  }
+  findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+  return { status: statusOf(findings), findings };
+}
+/** A sweep that stops this close to its limit reached it: a flap folding flat onto its base (deg, mm). */
+const AT_LIMIT: Record<JointUnit, number> = { deg: 0.5, mm: 0.1 };
+/** SolidCraft names an occurrence "<component>:<n>"; the component of a body carries the body's name. */
+const bodyOf = (occurrence: string) => occurrence.replace(/:\d+$/, '');
+
+/**
+ * Adds the motion of the joints (ADR 0027) to the check: a joint that parts stop before its limit,
+ * and a joint left away from the position as designed. Both print, so both are warnings.
+ */
+export function withMotion(check: PrintCheck, measured: MeasuredMotion): PrintCheck {
+  const findings: PrintFinding[] = [...check.findings];
+  for (const stop of measured.stops) {
+    if (Math.abs(stop.to - stop.stoppedAt) <= AT_LIMIT[stop.unit]) continue;
+    const min = stop.at.map((value) => round(value - GAP_PAD, 3)) as [number, number, number];
+    const max = stop.at.map((value) => round(value + GAP_PAD, 3)) as [number, number, number];
+    findings.push({ kind: 'blocked', severity: 'warn', joint: stop.joint, bodies: [bodyOf(stop.a), bodyOf(stop.b)], at: round(stop.stoppedAt, 1), limit: round(stop.to, 1), unit: stop.unit, places: [], box: { min, max } });
+  }
+  for (const joint of measured.joints) {
+    for (const value of joint.values) {
+      if (Math.abs(value.value) > 1e-3) findings.push({ kind: 'posed', severity: 'warn', joint: joint.name, value: round(value.value, 1), unit: value.unit });
     }
   }
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);

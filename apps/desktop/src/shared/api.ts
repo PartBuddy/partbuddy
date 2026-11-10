@@ -44,6 +44,8 @@ import type {
   MeasureResult,
   ClearanceResult,
   JointDrive,
+  JointSweep,
+  JointSweepResult,
   MessageAnswer,
   TimelineCommand,
   VisibilityCommand,
@@ -233,6 +235,8 @@ export interface PartBuddyApi {
     clearance(bodies: string[], gap: number): Promise<ClearanceResult>;
     /** Moves a joint to a value (ADR 0027); SolidCraft keeps it within its limits. */
     driveJoint(drive: JointDrive): Promise<void>;
+    /** Runs joint values to their limits on a copy and says where parts stop them (ADR 0027). */
+    sweepJoints(sweeps: JointSweep[]): Promise<JointSweepResult>;
     /** Rolls the timeline back or forward, or suppresses a feature (M1c). */
     timeline(command: TimelineCommand): Promise<void>;
     /** Shows or hides bodies and sketches. */
