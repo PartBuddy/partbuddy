@@ -15,9 +15,9 @@ const png = (size: number) => {
 
 describe('a photo for the assistant (F6)', () => {
   it('takes a photo as a PNG with a message, but not together with a sketch', () => {
-    expect(agentMessageSchema.safeParse({ text: 'A holder for this', photo: png(2_000_000) }).success).toBe(true);
-    expect(agentMessageSchema.safeParse({ text: 'x', photo: png(100), sketch: png(100) }).success).toBe(false);
-    expect(agentMessageSchema.safeParse({ text: 'x', photo: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5]) }).success).toBe(false);
+    expect(agentMessageSchema.safeParse({ text: 'A holder for this', photos: [png(2_000_000)] }).success).toBe(true);
+    expect(agentMessageSchema.safeParse({ text: 'x', photos: [png(100)], sketch: png(100) }).success).toBe(false);
+    expect(agentMessageSchema.safeParse({ text: 'x', photos: [new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5])] }).success).toBe(false);
   });
 
   it('marks the message in the chat, and the archive keeps the mark', () => {
@@ -49,7 +49,7 @@ describe('a photo for the assistant (F6)', () => {
   it('tells the model the photo has no scale, and how to use the saved photo', () => {
     const file = photoFile(join(tmpdir(), 'P'), new Date(2026, 10, 6, 9, 5, 7));
     const forward = file.replaceAll('\\', '/');
-    const note = photoNote(file);
+    const note = photoNote([file]);
     expect(note).toContain('never read sizes off its pixels');
     expect(note).toContain('clarification card');
     // Forward slashes, as the model copies them into canvas.insert; the policy takes them too.
@@ -57,6 +57,21 @@ describe('a photo for the assistant (F6)', () => {
     expect(decide('execute', { command: 'canvas.insert', params: { path: forward } })).toEqual({ allow: true });
     expect(note).toContain('canvas.calibrate');
     expect(note).toContain('compare_picture');
-    expect(photoNote(null)).not.toContain('canvas.insert');
+    expect(photoNote([null])).not.toContain('canvas.insert');
+  });
+
+  it('keeps several photos of one message apart and names them all (chat: several pictures)', () => {
+    const project = join(tmpdir(), 'P');
+    const when = new Date(2026, 10, 6, 9, 5, 7);
+    const files = [0, 1, 2].map((i) => photoFile(project, when, i));
+    expect(files.map((file) => file.split(sep).at(-1))).toEqual(['photo-20261106-090507.png', 'photo-20261106-090507-2.png', 'photo-20261106-090507-3.png']);
+    // Up to four photos go along with one message, a fifth is refused.
+    expect(agentMessageSchema.safeParse({ text: 'x', photos: [1, 2, 3, 4].map(() => png(100)) }).success).toBe(true);
+    expect(agentMessageSchema.safeParse({ text: 'x', photos: [1, 2, 3, 4, 5].map(() => png(100)) }).success).toBe(false);
+    for (const file of files) expect(decide('execute', { command: 'canvas.insert', params: { path: file } })).toEqual({ allow: true });
+    const note = photoNote([files[0] ?? null, null, files[2] ?? null]);
+    expect(note).toContain('the 3 attached pictures are photos');
+    expect(note).toContain('The photos are saved at');
+    expect(note).not.toContain('-2.png');
   });
 });

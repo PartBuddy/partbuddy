@@ -2399,6 +2399,22 @@ test('a photo goes to the assistant as a picture with its note and is kept in th
     expect(project).toBeDefined();
     expect(readdirSync(join(projects, project ?? '', 'photos'))).toEqual([expect.stringMatching(/^photo-\d{8}-\d{6}\.png$/)]);
     await page.screenshot({ path: test.info().outputPath('photo-sent.png') });
+
+    // Several photos go along with one message, each kept in the project and shown in the chat.
+    const pictures = ['housing', 'cableClip'].map((name) => join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', `${name}.png`));
+    await page.getByTestId('composer-photo-input').setInputFiles(pictures);
+    await expect(page.getByTestId('composer-photo')).toHaveCount(2);
+    // In the order they were chosen, though each is read on its own.
+    await expect(page.getByTestId('composer-photo').nth(0)).toContainText('housing.png');
+    await expect(page.getByTestId('composer-photo').nth(1)).toContainText('cableClip.png');
+    await page.getByTestId('composer').getByRole('textbox').first().fill('Both sides of the object');
+    await page.getByTestId('composer-send').click();
+    await expect(page.getByTestId('composer-stop')).toBeHidden({ timeout: 60_000 });
+    await expect(page.getByTestId('message-attachment')).toHaveCount(3);
+    await expect(() => {
+      expect(readdirSync(join(projects, project ?? '', 'photos')).filter((name) => /^photo-\d{8}-\d{6}(-2)?\.png$/.test(name))).toHaveLength(3);
+    }).toPass({ timeout: 10_000 });
+    await page.screenshot({ path: test.info().outputPath('photos-sent.png') });
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });

@@ -901,6 +901,8 @@ export const visibilityCommandSchema = z
   .strict()
   .refine((command) => command.bodies.length + command.sketches.length > 0, 'nothing to show or hide');
 
+/** Photos that go along with one message; four of about 3 MB stay well inside a request. */
+export const MAX_PHOTOS = 4;
 /** The PNG signature, and at most 4 MB: the sketch pad writes about 50 KB, a photo scaled to 1568 px about 3 MB. */
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 export const sketchPngSchema = z
@@ -917,8 +919,8 @@ export const agentMessageSchema = z
     sketchElements: z.string().min(1).max(8000).optional(),
     /** The whole sketch, kept in the project with its picture (F10). */
     sketchState: sketchStateSchema.optional(),
-    /** A photo of a real object (F6), scaled down and turned into a PNG by the renderer. */
-    photo: sketchPngSchema.optional(),
+    /** Photos of a real object (F6), scaled down and turned into PNGs by the renderer; up to four. */
+    photos: z.array(sketchPngSchema).min(1).max(MAX_PHOTOS).optional(),
     /** An SVG drawing: the file's text, read again in the main process, the width in mm and its picture. */
     drawing: z
       .object({ svg: z.string().min(1).max(512 * 1024), width: z.number().positive().max(1000), name: z.string().min(1).max(200), png: sketchPngSchema })
@@ -926,7 +928,7 @@ export const agentMessageSchema = z
       .optional(),
   })
   .strict()
-  .refine((message) => [message.sketch, message.photo, message.drawing].filter(Boolean).length <= 1, 'one picture: a sketch, a photo or a drawing');
+  .refine((message) => [message.sketch, message.photos, message.drawing].filter(Boolean).length <= 1, 'one kind of picture: a sketch, photos or a drawing');
 export const apiBillingSchema = z.object({ allow: z.boolean() }).strict();
 export const agentSelectionSchema = z.object({ agent: agentKindSchema }).strict();
 export const assistantStateSchema = z.object({ selected: agentKindSchema, agents: z.array(agentStatusSchema) }).strict();

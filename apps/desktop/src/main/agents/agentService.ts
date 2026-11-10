@@ -100,7 +100,7 @@ export class AgentService implements AgentBackend {
     });
   }
 
-  async send(text: string, selections: Selection[] = [], note: string | null = null, image: Uint8Array | null = null, kind: PictureKind = 'sketch'): Promise<void> {
+  async send(text: string, selections: Selection[] = [], note: string | null = null, images: readonly Uint8Array[] = [], kind: PictureKind = 'sketch'): Promise<void> {
     if (this.current.state !== 'ready') throw new Error(`assistant is ${this.current.state}`);
     const tools = await this.options.tools();
     if (!tools) {
@@ -109,10 +109,10 @@ export class AgentService implements AgentBackend {
     }
     await this.ensureSession(tools);
     const message = composeMessage(text, selections, note);
-    this.listeners.event(userEvent(text, message.label, message.summary, image ? kind : undefined));
+    this.listeners.event(userEvent(text, message.label, message.summary, images.length > 0 ? kind : undefined));
     this.setStatus({ ...this.current, state: 'busy' });
     this.proxy?.newTurn();
-    this.session?.send(message.prompt, image);
+    this.session?.send(message.prompt, images);
   }
 
   /** Model and effort from the next turn on, in a running session too (B1). */

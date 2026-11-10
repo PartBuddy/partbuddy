@@ -247,7 +247,7 @@ export class LocalAgent implements AgentBackend {
     return Promise.resolve();
   }
 
-  async send(text: string, selections: Selection[] = [], note: string | null = null, image: Uint8Array | null = null, kind: PictureKind = 'sketch'): Promise<void> {
+  async send(text: string, selections: Selection[] = [], note: string | null = null, images: readonly Uint8Array[] = [], kind: PictureKind = 'sketch'): Promise<void> {
     if (this.status().state !== 'ready') throw new Error(`assistant is ${this.status().state}`);
     const model = this.runnable().find((entry) => entry.option.id === this.choice?.model);
     if (!model) throw new Error('no local model is chosen');
@@ -257,12 +257,12 @@ export class LocalAgent implements AgentBackend {
       return;
     }
     const message = composeMessage(text, selections, note);
-    this.options.event(userEvent(text, message.label, message.summary, image ? kind : undefined));
+    this.options.event(userEvent(text, message.label, message.summary, images.length > 0 ? kind : undefined));
     // A model without vision gets the words only, and the user learns why the picture went nowhere.
-    const picture = image && model.vision ? image : null;
-    if (image && !picture) this.options.event({ type: 'error', message: `${model.option.name} cannot see pictures; it got your words only.` });
-    const turn: ModelMessage = picture
-      ? { role: 'user', content: [{ type: 'text', text: message.prompt }, { type: 'image', image: picture, mediaType: 'image/png' }] }
+    const pictures = model.vision ? images : [];
+    if (images.length > 0 && pictures.length === 0) this.options.event({ type: 'error', message: `${model.option.name} cannot see pictures; it got your words only.` });
+    const turn: ModelMessage = pictures.length > 0
+      ? { role: 'user', content: [{ type: 'text', text: message.prompt }, ...pictures.map((image) => ({ type: 'image' as const, image, mediaType: 'image/png' }))] }
       : { role: 'user', content: message.prompt };
     this.busy = true;
     this.options.changed();

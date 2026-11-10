@@ -137,7 +137,7 @@ describe('ChatGPT agent', () => {
     const { agent, openai, events } = setup();
     await agent.refresh();
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]);
-    await agent.send('Hold this', [], '[PartBuddy: a photo of the object]', png);
+    await agent.send('Hold this', [], '[PartBuddy: a photo of the object]', [png]);
     await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
     expect(events[0]).toEqual({ type: 'user', text: 'Hold this', sketch: true });
     const input = JSON.stringify(openai.bodies[0]?.input);

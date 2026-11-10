@@ -29,7 +29,7 @@ export type ConversationItem =
       sketch?: true | undefined;
       photo?: true | undefined;
       drawing?: true | undefined;
-      attachment?: Attachment | undefined;
+      attachments?: Attachment[] | undefined;
     }
   | { kind: 'assistant'; key: number; text: string; open: boolean }
   | {
@@ -84,8 +84,8 @@ interface AssistantStore {
   /** The view's picture and changed faces of a step, taken once its revision is on screen. */
   attachPreview: (step: string, preview: string | null, changed: ChangedFaces[]) => void;
   /** The picture the next message with a sketch or photo goes with, set when it is sent. */
-  nextAttachment: Attachment | null;
-  attachNext: (attachment: Attachment | null) => void;
+  nextAttachment: Attachment[] | null;
+  attachNext: (attachments: Attachment[] | null) => void;
 }
 
 let nextKey = 1;
@@ -213,12 +213,12 @@ export const useAssistant = create<AssistantStore>()((set) => ({
       // The message with a picture takes the picture this window sent with it.
       const last = items.at(-1);
       if (event.type !== 'user' || !state.nextAttachment || last?.kind !== 'user' || !(last.sketch || last.photo || last.drawing)) return { items };
-      return { items: [...items.slice(0, -1), { ...last, attachment: state.nextAttachment }], nextAttachment: null };
+      return { items: [...items.slice(0, -1), { ...last, attachments: state.nextAttachment }], nextAttachment: null };
     });
   },
   nextAttachment: null,
-  attachNext: (attachment) => {
-    set({ nextAttachment: attachment });
+  attachNext: (attachments) => {
+    set({ nextAttachment: attachments });
   },
   restore: (chat) => {
     set((state) => ({ items: [...fromStored(chat), ...state.items] }));

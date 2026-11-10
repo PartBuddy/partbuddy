@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button as AriaButton, Dialog, Form, NumberField, ProgressBar, Modal, ModalOverlay, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
 
-import type { MessageAnswer } from '../../../shared/contract';
+import { MAX_PHOTOS, type MessageAnswer } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { selectionLabel, selectionName, selectionsOf } from '../viewer/viewState';
@@ -247,18 +247,23 @@ function Item({
               {t('assistant.photo.sent')}
             </span>
           ) : null}
-          {item.attachment && open ? (
-            // The picture that went along; a sketch opens again to change it, a photo shows large.
-            <AriaButton
-              onPress={() => {
-                if (item.attachment) open(item.attachment);
-              }}
-              aria-label={t(item.attachment.sketch ? 'assistant.sketch.reopen' : 'assistant.photo.show')}
-              className={`overflow-hidden rounded-md border border-border hover:border-border-strong pressed:border-accent ${pressable}`}
-              data-testid="message-attachment"
-            >
-              <img src={item.attachment.thumbnail} alt="" className="block h-[5rem] w-auto" draggable={false} />
-            </AriaButton>
+          {item.attachments && open ? (
+            // The pictures that went along; a sketch opens again to change it, a photo shows large.
+            <div className="flex flex-wrap justify-end gap-1">
+              {item.attachments.map((attachment, index) => (
+                <AriaButton
+                  key={index}
+                  onPress={() => {
+                    open(attachment);
+                  }}
+                  aria-label={t(attachment.sketch ? 'assistant.sketch.reopen' : 'assistant.photo.show')}
+                  className={`overflow-hidden rounded-md border border-border hover:border-border-strong pressed:border-accent ${pressable}`}
+                  data-testid="message-attachment"
+                >
+                  <img src={attachment.thumbnail} alt="" className="block h-[5rem] w-auto" draggable={false} />
+                </AriaButton>
+              ))}
+            </div>
           ) : null}
           {/* The actions sit beside the bubble, so a calm chat keeps no empty row under each message. */}
           <div className="flex min-w-0 items-center gap-1">
@@ -391,8 +396,8 @@ const chipPicture = `shrink-0 overflow-hidden rounded-sm border border-border ho
 const round = `inline-flex size-control-md shrink-0 items-center justify-center rounded-full ${pressable}`;
 
 /** The first picture among pasted or dropped files; other files are left to the window's import. */
-function pictureIn(data: DataTransfer | null): File | null {
-  return [...(data?.files ?? [])].find((file) => file.type.startsWith('image/')) ?? null;
+function picturesIn(data: DataTransfer | null): File[] {
+  return [...(data?.files ?? [])].filter((file) => file.type.startsWith('image/'));
 }
 
 /** Whether a drag carries a picture; while dragging, only the items' types can be read. */
@@ -433,11 +438,10 @@ export function AssistantPanel() {
   useEffect(() => {
     if (request?.what === 'parameters') composer.current?.focus();
   }, [request]);
-  // A photo of a real object for the next message (F6); one picture goes along, a sketch or a photo.
-  const [photo, setPhoto] = useState<SketchPicture | null>(null);
-  const [photoFailed, setPhotoFailed] = useState(false);
-  // The file's own name and size on the chip, so two pictures can be told apart (audit C-12).
-  const [photoName, setPhotoName] = useState('');
+  // Photos of a real object for the next message (F6), up to four; a sketch or a drawing goes alone.
+  // Each keeps the file's own name and size for its chip, so two pictures can be told apart (audit C-12).
+  const [photos, setPhotos] = useState<{ picture: SketchPicture; name: string }[]>([]);
+  const [photoFailed, setPhotoFailed] = useState<'failed' | 'tooMany' | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
   // A picture dragged over the chat; pasted and dropped pictures go along like a chosen photo.
   const [dropping, setDropping] = useState(false);
@@ -450,45 +454,68 @@ export function AssistantPanel() {
       return;
     }
     setDrawing(next);
-    setPhoto(null);
+    setPhotos([]);
     setSketch(null);
     composer.current?.focus();
   };
-  const attachPhoto = (file: File) => {
-    setPhotoFailed(false);
+  const attachPhotos = (files: File[]) => {
+    setPhotoFailed(null);
     setDrawingProblem(null);
-    if (isSvg(file)) {
-      void drawingFile(file).then(takeDrawing);
+    // An SVG file is a drawing and goes alone.
+    const svg = files.find(isSvg);
+    if (svg) {
+      void drawingFile(svg).then(takeDrawing);
       return;
     }
-    photoPicture(file).then(
-      (picture) => {
-        setPhotoName(`${file.name || t('assistant.photo.pasted')} · ${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 }).format(file.size / 1024 / 1024)} MB`);
-        setPhoto(picture);
-        setSketch(null);
-        setDrawing(null);
-        composer.current?.focus();
-      },
-      () => {
-        setPhotoFailed(true);
-      },
-    );
+    const size = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 });
+    // All read before any is added, so they keep the order the user chose them in.
+    void Promise.allSettled(files.map((file) => photoPicture(file))).then((results) => {
+      const added = results.flatMap((result, i) =>
+        result.status === 'fulfilled' ? [{ picture: result.value, name: `${files[i]?.name || t('assistant.photo.pasted')} · ${size.format((files[i]?.size ?? 0) / 1024 / 1024)} MB` }] : [],
+      );
+      if (added.length < results.length) {
+        console.warn('PartBuddy: a picture could not be read', results.filter((result) => result.status === 'rejected'));
+        setPhotoFailed('failed');
+      }
+      if (added.length === 0) return;
+      if (photos.length + added.length > MAX_PHOTOS) setPhotoFailed('tooMany');
+      setPhotos((current) => [...current, ...added].slice(0, MAX_PHOTOS));
+      setSketch(null);
+      setDrawing(null);
+      composer.current?.focus();
+    });
   };
 
   const send = () => {
     // A sketch, a photo or a drawing alone is a message too: build a part from it.
-    const text = draft.trim() || (drawing ? t('assistant.drawing.defaultText') : photo ? t('assistant.photo.defaultText') : sketch ? t('assistant.sketch.defaultText') : '');
+    const text = draft.trim() || (drawing ? t('assistant.drawing.defaultText') : photos.length > 0 ? t('assistant.photo.defaultText') : sketch ? t('assistant.sketch.defaultText') : '');
     if (!text || !ready) return;
     setDraft('');
     setSketch(null);
-    setPhoto(null);
+    setPhotos([]);
+    setPhotoFailed(null);
     setDrawing(null);
     // The user's own message always brings the chat back to its end.
     toEnd();
     useAssistant
       .getState()
-      .attachNext(drawing ? { thumbnail: drawing.thumbnail, photo: drawing.png } : photo ? { thumbnail: photo.thumbnail, photo: photo.png } : sketch ? { thumbnail: sketch.picture.thumbnail, sketch: sketch.state } : null);
-    void sendToAssistant(text, selections, undefined, photo || drawing ? undefined : (sketch ?? undefined), photo?.png, drawing ? { svg: drawing.svg, width: drawing.width, name: drawing.name, png: drawing.png } : undefined);
+      .attachNext(
+        drawing
+          ? [{ thumbnail: drawing.thumbnail, photo: drawing.png }]
+          : photos.length > 0
+            ? photos.map(({ picture }) => ({ thumbnail: picture.thumbnail, photo: picture.png }))
+            : sketch
+              ? [{ thumbnail: sketch.picture.thumbnail, sketch: sketch.state }]
+              : null,
+      );
+    void sendToAssistant(
+      text,
+      selections,
+      undefined,
+      photos.length > 0 || drawing ? undefined : (sketch ?? undefined),
+      photos.length > 0 ? photos.map(({ picture }) => picture.png) : undefined,
+      drawing ? { svg: drawing.svg, width: drawing.width, name: drawing.name, png: drawing.png } : undefined,
+    );
   };
   // A sent sketch opens again as the start of a new one; a sent photo shows large.
   const [padStart, setPadStart] = useState<SketchState | null>(null);
@@ -542,10 +569,10 @@ export function AssistantPanel() {
       }}
       onDrop={(event) => {
         setDropping(false);
-        const file = ready ? pictureIn(event.dataTransfer) : null;
-        if (!file) return;
+        const files = ready ? picturesIn(event.dataTransfer) : [];
+        if (files.length === 0) return;
         event.preventDefault();
-        attachPhoto(file);
+        attachPhotos(files);
       }}
     >
       {dropping ? (
@@ -684,7 +711,7 @@ export function AssistantPanel() {
               </span>
             </span>
           ) : null}
-          {sketch || photo || drawing ? (
+          {sketch || photos.length > 0 || drawing ? (
             <div className="flex flex-wrap gap-1">
               {sketch ? (
                 <span className={`${chip} p-1 pr-1`} data-testid="composer-sketch">
@@ -711,32 +738,33 @@ export function AssistantPanel() {
                   </IconButton>
                 </span>
               ) : null}
-              {photo ? (
-                <span className={`${chip} p-1 pr-1`} data-testid="composer-photo">
+              {photos.map(({ picture, name }, index) => (
+                <span key={picture.thumbnail} className={`${chip} p-1 pr-1`} data-testid="composer-photo">
                   <AriaButton
                     aria-label={t('assistant.photo.show')}
                     onPress={() => {
-                      openAttachment({ thumbnail: photo.thumbnail, photo: photo.png });
+                      openAttachment({ thumbnail: picture.thumbnail, photo: picture.png });
                     }}
                     className={chipPicture}
                   >
-                    <img src={photo.thumbnail} alt="" className="block h-control-lg w-auto" draggable={false} />
+                    <img src={picture.thumbnail} alt="" className="block h-control-lg w-auto" draggable={false} />
                   </AriaButton>
-                  <span className="truncate" title={`${photoName}
+                  <span className="truncate" title={`${name}
 ${t('assistant.photo.goesWith')}`}>
-                    {photoName}
+                    {name}
                   </span>
                   <IconButton
                     label={t('assistant.photo.remove')}
                     onPress={() => {
-                      setPhoto(null);
+                      setPhotos((current) => current.filter((_, i) => i !== index));
+                      setPhotoFailed(null);
                     }}
                     data-testid="composer-photo-remove"
                   >
                     <IconX className="size-icon-sm" aria-hidden />
                   </IconButton>
                 </span>
-              ) : null}
+              ))}
               {drawing ? (
                 <span className={`${chip} p-1 pr-1`} data-testid="composer-drawing">
                   <AriaButton
@@ -808,10 +836,10 @@ ${t('assistant.photo.goesWith')}`}>
               className="max-h-[40vh] w-full resize-none bg-transparent px-1 py-1 text-md text-text outline-none [field-sizing:content] placeholder:text-text-subtle disabled:cursor-not-allowed disabled:opacity-disabled"
               onPaste={(event) => {
                 // A picture from the clipboard (a screenshot, a copied photo, an SVG file) goes along; text pastes as usual.
-                const file = pictureIn(event.clipboardData);
-                if (file) {
+                const files = picturesIn(event.clipboardData);
+                if (files.length > 0) {
                   event.preventDefault();
-                  attachPhoto(file);
+                  attachPhotos(files);
                   return;
                 }
                 // SVG markup copied from a drawing program is a drawing, not words for the message.
@@ -836,8 +864,8 @@ ${t('assistant.photo.goesWith')}`}>
             />
           </TextField>
           {photoFailed ? (
-            <p role="alert" className="px-1 text-xs text-danger">
-              {t('assistant.photo.failed')}
+            <p role="alert" className="px-1 text-xs text-danger" data-testid="composer-photo-problem">
+              {photoFailed === 'tooMany' ? t('assistant.photo.tooMany', { count: MAX_PHOTOS }) : t('assistant.photo.failed')}
             </p>
           ) : null}
           {drawingProblem ? (
@@ -849,14 +877,15 @@ ${t('assistant.photo.goesWith')}`}>
             ref={photoInput}
             type="file"
             accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg"
+            multiple
             className="hidden"
             tabIndex={-1}
             aria-hidden
             data-testid="composer-photo-input"
             onChange={(event) => {
-              const file = event.target.files?.[0];
+              const files = [...(event.target.files ?? [])];
               event.target.value = '';
-              if (file) attachPhoto(file);
+              if (files.length > 0) attachPhotos(files);
             }}
           />
           <div className="flex min-w-0 items-center gap-1">
@@ -906,7 +935,7 @@ ${t('assistant.photo.goesWith')}`}>
               ) : (
                 <AriaButton
                   type="submit"
-                  isDisabled={!ready || (draft.trim() === '' && !sketch && !photo && !drawing)}
+                  isDisabled={!ready || (draft.trim() === '' && !sketch && photos.length === 0 && !drawing)}
                   aria-label={t('assistant.send')}
                   className={`${round} bg-accent text-on-accent hover:bg-accent-hover pressed:bg-accent-pressed`}
                   data-testid="composer-send"
@@ -930,7 +959,7 @@ ${t('assistant.photo.goesWith')}`}>
         }}
         onAttach={(state, picture) => {
           setSketch({ state, picture });
-          setPhoto(null);
+          setPhotos([]);
           setDrawing(null);
           setSketching(false);
           setPadStart(null);
