@@ -652,6 +652,10 @@ export const goToStepSchema = z.object({ step: z.string().min(1).max(40) }).stri
 export const exportFormatSchema = z.enum(['3mf', 'stl', 'step']);
 export const exportRequestSchema = z.object({ format: exportFormatSchema }).strict();
 /** The saved file's name only, never the folder (no paths outside the app's own folders here). */
+/** A recording of the view (the playback of the joints): the browser's own MP4 or WebM, saved where the user says. */
+export const videoSaveSchema = z
+  .object({ bytes: z.instanceof(Uint8Array).refine((bytes) => bytes.length > 0 && bytes.length <= 64 * 1024 * 1024, 'no video, or one over 64 MB'), format: z.enum(['mp4', 'webm']) })
+  .strict();
 export const exportResultSchema = z.object({ file: z.string().min(1).max(260) }).strict().nullable();
 /** The sharing package (F5): its folder's name inside the project's exports, never the full path. */
 export const shareResultSchema = z.object({ folder: z.string().min(1).max(260) }).strict();
@@ -1214,6 +1218,7 @@ export const invokeContract = {
   [invokeChannels.designUndo]: { request: none, response: none },
   [invokeChannels.designRedo]: { request: none, response: none },
   [invokeChannels.designExport]: { request: exportRequestSchema, response: exportResultSchema },
+  [invokeChannels.designSaveVideo]: { request: videoSaveSchema, response: exportResultSchema },
   [invokeChannels.designShare]: { request: none, response: shareResultSchema },
   [invokeChannels.designOpenInSolidCraft]: { request: none, response: none },
   [invokeChannels.designProbeDimension]: { request: dimensionProbeSchema, response: dimensionProbeResultSchema },
@@ -1339,6 +1344,7 @@ export type PrintCheckReport = z.infer<typeof printCheckReportSchema>;
 export type DesignParameter = z.infer<typeof designParameterSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type ExportResult = z.infer<typeof exportResultSchema>;
+export type VideoSave = z.infer<typeof videoSaveSchema>;
 export type ShareResult = z.infer<typeof shareResultSchema>;
 export type LogoSpot = z.infer<typeof logoSpotSchema>;
 export type LogoMoveRequest = z.infer<typeof logoMoveSchema>;

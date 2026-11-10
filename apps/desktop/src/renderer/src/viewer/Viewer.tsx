@@ -24,6 +24,7 @@ import { Busy } from '../ui/Feedback';
 import { ConnectionNotice } from './ConnectionNotice';
 import { Ghost, SelectionDock, SelectionGhost } from './DimensionHud';
 import { DimensionArrow, LogoArrows } from './DimensionArrow';
+import { frameDrawn } from './recording';
 import { ContactLight, GroundShadow, requestShadow, SkyLight } from './SceneLook';
 import { silhouetteMaterial } from './silhouette';
 import { bodiesBox, keeps, useSectionPlane } from './section';
@@ -1018,6 +1019,14 @@ function ScenePins({ bodies }: { bodies: BodyModel[] }) {
   return <NotePins bodies={bodies} busy={busy} />;
 }
 
+/** Hands each drawn frame to a recording that runs: after the triad's helper (priority 1) drew the scene. */
+function RecordingTap() {
+  useFrame(({ gl }) => {
+    frameDrawn(gl.domElement);
+  }, 2);
+  return null;
+}
+
 function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[]; steps: PlayStep[]; layout: PlateLayout }) {
   const { t } = useTranslation();
   const displayMode = useStudio((s) => s.displayMode);
@@ -1098,6 +1107,7 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
         />
       ))}
       <Animator bodies={bodies} groups={groups} targets={targets} />
+      <RecordingTap />
       <LineScale bounds={bounds} onChange={setLineScale} />
       <ShadowRefresh keys={[bodies, plane, displayMode]} />
       {playback ? (

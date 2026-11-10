@@ -39,6 +39,7 @@ import type {
   LogoSpot,
   ExportFormat,
   ExportResult,
+  VideoSave,
   ShareResult,
   MeasureItem,
   MeasureResult,
@@ -196,6 +197,8 @@ export interface PartBuddyApi {
     redo(): Promise<void>;
     /** Asks where to save, then exports all bodies; null when the user cancelled. */
     export(format: ExportFormat): Promise<ExportResult>;
+    /** Asks where to save a recording of the view, then writes it; null when the user cancelled. */
+    saveVideo(video: VideoSave): Promise<ExportResult>;
     /** The sharing package (F5): 3MF, STEP, pictures and a description in a folder of the project's exports. */
     share(): Promise<ShareResult>;
     /** Saves the design to the project folder and opens it in the SolidCraft window. */

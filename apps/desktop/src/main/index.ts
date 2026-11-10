@@ -811,6 +811,19 @@ if (!app.requestSingleInstanceLock()) {
       });
       return { file: basename(choice.filePath) };
     });
+    // A recording of the joints playing: the bytes come from the view, the user says where they go.
+    bridge.handle(invokeChannels.designSaveVideo, async ({ bytes, format }) => {
+      const name = safeDesignFileName(supervisor.currentRevision()?.designName ?? '');
+      const project = supervisor.projectFile();
+      const folder = project ? join(dirname(project), 'exports') : projects;
+      mkdirSync(folder, { recursive: true });
+      const options = { title: 'Video', defaultPath: join(folder, `${name}.${format}`), filters: [{ name: format.toUpperCase(), extensions: [format] }] };
+      const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
+      if (choice.canceled || !choice.filePath) return null;
+      writeFileSync(choice.filePath, bytes);
+      log(`saved a recording of the view as ${format}, ${String(bytes.length)} bytes`);
+      return { file: basename(choice.filePath) };
+    });
     // The sharing package (F5): everything Printables or MakerWorld asks for, in one new folder.
     bridge.handle(invokeChannels.designShare, async () => {
       const design = await supervisor.saveNow();
