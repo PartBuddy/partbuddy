@@ -472,7 +472,15 @@
       "pasted": "Pasted drawing",
       "defaultText": "Build a part from this drawing."
     },
-    "queriesFailed": "{count, plural, one {# failed} other {# failed}}"
+    "queriesFailed": "{count, plural, one {# failed} other {# failed}}",
+    "queued": {
+      "title": "Waits until the assistant is done",
+      "stopping": "Stopping the run, then it goes …",
+      "now": "Send now",
+      "drop": "Discard",
+      "send": "Send once the assistant is done",
+      "sendHint": "Goes once the run ends"
+    }
   },
   "live": {
     "thinking": "The assistant is planning the next step",

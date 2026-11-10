@@ -1,5 +1,6 @@
 import {
   IconAlertTriangle,
+  IconClockHour4,
   IconFileText,
   IconArrowDown,
   IconArrowUp,
@@ -24,7 +25,8 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button as AriaButton, Dialog, Form, NumberField, ProgressBar, Modal, ModalOverlay, TextArea, TextField, Tooltip, TooltipTrigger } from 'react-aria-components';
 
-import { MAX_PHOTOS, type MessageAnswer } from '../../../shared/contract';
+import { MAX_PHOTOS, type MessageAnswer, type Selection } from '../../../shared/contract';
+import type { OutgoingDrawingMessage } from '../../../shared/api';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { selectionLabel, selectionName, selectionsOf } from '../viewer/viewState';
@@ -396,6 +398,22 @@ const chipPicture = `shrink-0 overflow-hidden rounded-sm border border-border ho
 const round = `inline-flex size-control-md shrink-0 items-center justify-center rounded-full ${pressable}`;
 
 /** The first picture among pasted or dropped files; other files are left to the window's import. */
+/** A message as it goes to the assistant, kept while it waits for a run to end. */
+interface Outgoing {
+  text: string;
+  selections: Selection[];
+  attachments: Attachment[] | null;
+  sketch: { picture: SketchPicture; state: SketchState } | undefined;
+  photos: Uint8Array[] | undefined;
+  drawing: OutgoingDrawingMessage | undefined;
+}
+
+/** A further message while one waits: its words follow, and its pictures take the place of the earlier ones. */
+function joinQueued(waiting: Outgoing, next: Outgoing): Outgoing {
+  const pictures = next.attachments !== null;
+  return { ...(pictures ? next : waiting), text: `${waiting.text}\n\n${next.text}`, selections: next.selections.length > 0 ? next.selections : waiting.selections };
+}
+
 function picturesIn(data: DataTransfer | null): File[] {
   return [...(data?.files ?? [])].filter((file) => file.type.startsWith('image/'));
 }
@@ -486,36 +504,60 @@ export function AssistantPanel() {
     });
   };
 
+  const deliver = (message: Outgoing) => {
+    // The user's own message always brings the chat back to its end.
+    toEnd();
+    useAssistant.getState().attachNext(message.attachments);
+    void sendToAssistant(message.text, message.selections, undefined, message.sketch, message.photos, message.drawing);
+  };
+  // A message sent while the assistant works waits and goes once the run ends (decided 2026-11-10);
+  // "Send now" stops the run first. One waits at a time; a further one adds its words to it.
+  const [queued, setQueued] = useState<Outgoing | null>(null);
+  const [sendNow, setSendNow] = useState(false);
+  // The message last handed over, so a repeated effect (development's double run) never sends it twice.
+  const delivered = useRef<Outgoing | null>(null);
+  useEffect(() => {
+    if (!queued || !ready) return;
+    const message = queued;
+    void Promise.resolve().then(() => {
+      if (delivered.current === message) return;
+      delivered.current = message;
+      setQueued(null);
+      setSendNow(false);
+      deliver(message);
+    });
+    // deliver only reads stable store actions and the scroll helper.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queued, ready]);
   const send = () => {
     // A sketch, a photo or a drawing alone is a message too: build a part from it.
     const text = draft.trim() || (drawing ? t('assistant.drawing.defaultText') : photos.length > 0 ? t('assistant.photo.defaultText') : sketch ? t('assistant.sketch.defaultText') : '');
-    if (!text || !ready) return;
+    if (!text || !(ready || (busy && connected))) return;
+    const message: Outgoing = {
+      text,
+      selections,
+      attachments: drawing
+        ? [{ thumbnail: drawing.thumbnail, photo: drawing.png }]
+        : photos.length > 0
+          ? photos.map(({ picture }) => ({ thumbnail: picture.thumbnail, photo: picture.png }))
+          : sketch
+            ? [{ thumbnail: sketch.picture.thumbnail, sketch: sketch.state }]
+            : null,
+      sketch: photos.length > 0 || drawing ? undefined : (sketch ?? undefined),
+      photos: photos.length > 0 ? photos.map(({ picture }) => picture.png) : undefined,
+      drawing: drawing ? { svg: drawing.svg, width: drawing.width, name: drawing.name, png: drawing.png } : undefined,
+    };
     setDraft('');
     setSketch(null);
     setPhotos([]);
     setPhotoFailed(null);
     setDrawing(null);
-    // The user's own message always brings the chat back to its end.
+    if (ready) {
+      deliver(message);
+      return;
+    }
+    setQueued((waiting) => (waiting ? joinQueued(waiting, message) : message));
     toEnd();
-    useAssistant
-      .getState()
-      .attachNext(
-        drawing
-          ? [{ thumbnail: drawing.thumbnail, photo: drawing.png }]
-          : photos.length > 0
-            ? photos.map(({ picture }) => ({ thumbnail: picture.thumbnail, photo: picture.png }))
-            : sketch
-              ? [{ thumbnail: sketch.picture.thumbnail, sketch: sketch.state }]
-              : null,
-      );
-    void sendToAssistant(
-      text,
-      selections,
-      undefined,
-      photos.length > 0 || drawing ? undefined : (sketch ?? undefined),
-      photos.length > 0 ? photos.map(({ picture }) => picture.png) : undefined,
-      drawing ? { svg: drawing.svg, width: drawing.width, name: drawing.name, png: drawing.png } : undefined,
-    );
   };
   // A sent sketch opens again as the start of a new one; a sent photo shows large.
   const [padStart, setPadStart] = useState<SketchState | null>(null);
@@ -635,6 +677,39 @@ export function AssistantPanel() {
             <ItemRow key={row.item.key} item={row.item} quiet={row.quiet} retry={row.item === items.at(-1) ? retryLast : null} open={openAttachment} resend={resend} />
           ),
         )}
+        {queued ? (
+          <div className={`${card} ml-6 gap-2 self-end border-dashed border-border-strong px-3 py-2`} data-testid="chat-queued">
+            <p className="flex items-center gap-1 text-xs text-text-muted">
+              <IconClockHour4 className="size-icon-sm shrink-0" aria-hidden />
+              {sendNow ? t('assistant.queued.stopping') : t('assistant.queued.title')}
+            </p>
+            <p className="text-md break-words whitespace-pre-wrap text-text">{queued.text}</p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                size="sm"
+                onPress={() => {
+                  setQueued(null);
+                  setSendNow(false);
+                }}
+                data-testid="chat-queued-drop"
+              >
+                {t('assistant.queued.drop')}
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                isDisabled={sendNow}
+                onPress={() => {
+                  setSendNow(true);
+                  void platform().agent.stop();
+                }}
+                data-testid="chat-queued-now"
+              >
+                {t('assistant.queued.now')}
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {/* While words stream in, the answer itself shows the work; otherwise a quiet "working" line. */}
         {busy && !streamingNow ? (
           <Working label={t(`assistant.working.${status.agent}`)} />
@@ -921,7 +996,16 @@ ${t('assistant.photo.goesWith')}`}>
             </span>
             {/* Stop takes Send's place while the assistant works, so the chip keeps its room (Manuel, 2026-11-06). */}
             <TooltipTrigger delay={500} closeDelay={0}>
-              {busy ? (
+              {busy && (draft.trim() !== '' || sketch || photos.length > 0 || drawing) ? (
+                <AriaButton
+                  type="submit"
+                  aria-label={t('assistant.queued.send')}
+                  className={`${round} bg-accent text-on-accent hover:bg-accent-hover pressed:bg-accent-pressed`}
+                  data-testid="composer-queue"
+                >
+                  <IconArrowUp className="size-icon-sm" aria-hidden />
+                </AriaButton>
+              ) : busy ? (
                 <AriaButton
                   onPress={() => {
                     void platform().agent.stop();
@@ -944,7 +1028,7 @@ ${t('assistant.photo.goesWith')}`}>
                 </AriaButton>
               )}
               <Tooltip placement="top" offset={6} className={tooltipClass}>
-                {busy ? t('assistant.stopHint') : t('assistant.sendHint')}
+                {busy && (draft.trim() !== '' || sketch || photos.length > 0 || drawing) ? t('assistant.queued.sendHint') : busy ? t('assistant.stopHint') : t('assistant.sendHint')}
               </Tooltip>
             </TooltipTrigger>
           </div>
