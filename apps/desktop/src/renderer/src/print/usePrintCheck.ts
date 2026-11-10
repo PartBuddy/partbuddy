@@ -27,7 +27,10 @@ export function usePrintCheck(): void {
       const standard = new Set(model.structure.standardParts ?? []);
       const printed = model.bodies.filter((body) => !standard.has(body.name));
       const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, overhang: print.material.overhang }, model.structure.features);
-      useStudio.getState().setPrintCheck({ revision: model.revision, result });
+      const joints = model.structure.joints ?? [];
+      // A joint left away from "as designed" needs no measuring, so it shows at once: with a lid closed onto its
+      // box SolidCraft's measures took longer than a look at the list (practice run 2026-11-10).
+      useStudio.getState().setPrintCheck({ revision: model.revision, result: joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result });
       const report = (final: typeof result) => {
         void platform()
           .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision))
@@ -36,7 +39,6 @@ export function usePrintCheck(): void {
       // A logo's colour pieces sit in the part on purpose; measuring them, SolidCraft took minutes
       // for a logo of many pieces and held up every trial after it.
       const parts = printed.filter((body) => !isLogoColourBody(body.name));
-      const joints = model.structure.joints ?? [];
       if (parts.length < 2 && joints.length === 0) {
         report(result);
         return;
