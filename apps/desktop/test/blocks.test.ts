@@ -157,17 +157,22 @@ describe('function blocks (F1)', () => {
     const steps = stepsOf(block);
     const piece = ['sketch.create', 'sketch.insert_svg', 'solid.extrude', 'appearance.assign'];
     // The plate, the two squares of one path and the dot: four pieces, each its own body.
-    expect(steps.map((step) => step.command)).toEqual([...piece, ...piece, ...piece, ...piece, 'solid.combine', 'solid.combine']);
-    expect(blockBodies(block)).toEqual(['Body1', 'Badge 1d71b8 1', 'Badge ffd500 1', 'Badge ffd500 2', 'Badge ffd500 3']);
+    expect(steps.map((step) => step.command)).toEqual([...piece, ...piece, ...piece, ...piece, 'solid.combine', 'solid.combine', 'solid.combine', 'solid.combine']);
+    expect(blockBodies({ ...block, mode: 'emboss' } as FeatureBlock)).toEqual(['Body1', 'Badge 1d71b8 1', 'Badge ffd500 1', 'Badge ffd500 2', 'Badge ffd500 3']);
+    // Inlaid, a fill is one body.
+    expect(blockBodies(block)).toEqual(['Body1', 'Badge 1d71b8 1', 'Badge ffd500 1']);
     // Every piece keeps the drawing's frame: its top left corner at (−w/2, h/2).
     expect(steps[1]?.params).toMatchObject({ at: [-20, 10], align: 'origin', text: expect.stringContaining('viewBox="0 0 40 20"') as string });
     expect(steps[5]?.params).toMatchObject({ at: [-20, 10], text: expect.stringContaining('d="M5 5L9 5L9 9L5 9Z"') as string });
     expect(steps[2]?.params).toEqual({ distance: '-0.6 mm', operation: 'new', body_name: 'Badge 1d71b8 1' });
     // eslint-disable-next-line no-restricted-syntax -- the drawing's own fill
     expect(steps[7]?.params).toEqual({ bodies: ['Badge ffd500 1'], color: '#ffd500' });
-    // The pocket first, then the yellow pieces out of the plate.
-    expect(steps[16]?.params).toEqual({ target: 'Body1', tools: ['Badge 1d71b8 1', 'Badge ffd500 1', 'Badge ffd500 2', 'Badge ffd500 3'], operation: 'cut', keep_tools: true });
-    expect(steps[17]?.params).toEqual({ target: 'Badge 1d71b8 1', tools: ['Badge ffd500 1', 'Badge ffd500 2', 'Badge ffd500 3'], operation: 'cut', keep_tools: true });
+    // The yellow pieces become one body, the pocket is cut a fill at a time, then the yellow out of the plate
+    // (pieces of one fill that touch made SolidCraft's boolean fail, colour fox 2026-11-10).
+    expect(steps[16]?.params).toEqual({ target: 'Badge ffd500 1', tools: ['Badge ffd500 2', 'Badge ffd500 3'], operation: 'join', touching: 'one_body' });
+    expect(steps[17]?.params).toEqual({ target: 'Body1', tools: ['Badge 1d71b8 1'], operation: 'cut', keep_tools: true });
+    expect(steps[18]?.params).toEqual({ target: 'Body1', tools: ['Badge ffd500 1'], operation: 'cut', keep_tools: true });
+    expect(steps[19]?.params).toEqual({ target: 'Badge 1d71b8 1', tools: ['Badge ffd500 1'], operation: 'cut', keep_tools: true });
     // Built up, the bodies stand on the face and the part keeps its face.
     const raised = stepsOf({ ...block, mode: 'emboss', depth: 0.4 } as FeatureBlock);
     expect(raised[2]?.params).toMatchObject({ distance: '0.4 mm', operation: 'new' });
