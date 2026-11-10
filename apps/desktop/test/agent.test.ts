@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -259,6 +259,20 @@ describe('agent service with a fake Claude Code', () => {
     const status = await service.refresh();
     expect(status).toMatchObject({ agent: 'claude-code', state: 'ready', version: '9.9.9', method: 'claude.ai', plan: 'max', apiBillingAllowed: false });
     expect(JSON.stringify(status)).not.toContain('example.com');
+  });
+
+  it('lets Claude Code leave on its own and starts it once for the models, however often it looks', async () => {
+    const traceDir = mkdtempSync(join(tmpdir(), 'partbuddy-claude-trace-'));
+    cleanups.push(() => {
+      rmSync(traceDir, { recursive: true, force: true });
+    });
+    const { service } = setup({ FAKE_CLAUDE_TRACE_DIR: traceDir });
+    // Two looks at once are one; a third later reads no models again.
+    await Promise.all([service.refresh(), service.refresh()]);
+    await service.refresh();
+    expect(readFileSync(join(traceDir, 'starts'), 'utf8')).toBe('start\n');
+    // The process was not killed: it wrote its file after its input closed.
+    expect(existsSync(join(traceDir, 'left'))).toBe(true);
   });
 
   it('lists the models of the plan and changes model and effort, also in a running session (B1)', async () => {

@@ -1,7 +1,8 @@
 // Test double for the Claude Code program (ADR 0015). It answers `--version` and
 // `auth status --json` like Claude Code 2.1, and in `-p` stream-json mode it connects to the MCP
 // server named in --mcp-config, calls one SolidCraft tool per message and streams an answer.
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
@@ -69,6 +70,13 @@ if (args[0] === '--version') {
   let model = args.includes('--model') ? args[args.indexOf('--model') + 1] : 'default';
   let effort = args.includes('--effort') ? args[args.indexOf('--effort') + 1] : 'none';
   out({ type: 'system', subtype: 'init', model: 'fake-model' });
+  // FAKE_CLAUDE_TRACE_DIR: one line per start, and a file written a moment after the input closed, as Claude
+  // Code saves a renewed sign-in on its way out. A process killed at once never writes it.
+  const traceDir = process.env.FAKE_CLAUDE_TRACE_DIR;
+  if (traceDir) {
+    appendFileSync(join(traceDir, 'starts'), 'start\n');
+    process.stdin.once('end', () => setTimeout(() => appendFileSync(join(traceDir, 'left'), 'left\n'), 300));
+  }
   const lines = createInterface({ input: process.stdin });
   for await (const line of lines) {
     const message = JSON.parse(line);
