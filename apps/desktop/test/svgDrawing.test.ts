@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { drawingColours, drawingFacts, drawingPieces, drawingSize, drawingSvg, flatten, mergedColours, naturalWidth, parseDrawing, parsePathData, shapesOverlap, type Drawing, type Shape } from '../src/shared/svgDrawing';
+import { drawingColours, drawingFacts, drawingPieces, drawingSize, drawingSvg, flatten, mergedColours, naturalWidth, openedControls, parseDrawing, parsePathData, shapesOverlap, type Drawing, type Shape } from '../src/shared/svgDrawing';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', 'svg', name), 'utf8');
 
@@ -198,5 +198,27 @@ describe('backgrounds and frames', () => {
     expect(svg(`<rect width="100" height="100" fill="#1d71b8"/>${star.replace('#000000', '#ffffff')}`).skipped.backgrounds).toBe(0);
     expect(svg(`<circle cx="50" cy="50" r="50" fill="#ffffff"/>${star}`).skipped.backgrounds).toBe(0);
     expect(svg('<rect width="100" height="100" fill="#ffffff"/>').shapes).toHaveLength(1);
+  });
+});
+
+describe('near-cusps in curves (colour logo, 2026-11-10)', () => {
+  it('moves a control point off its end, keeping the tangent, and leaves good curves alone', () => {
+    // c2 on the end, as twemoji-fox writes it: c2 moves a tenth of the way towards c1.
+    const close = (got: readonly number[], want: readonly number[]) => {
+      want.forEach((value, i) => {
+        expect(got[i]).toBeCloseTo(value, 9);
+      });
+    };
+    const opened = openedControls([0, 0], [3, 3], [6, 0], [6, 0]);
+    expect(opened.c1).toEqual([3, 3]);
+    close(opened.c2, [5.7, 0.3]);
+    close(openedControls([0, 0], [0, 0.001], [6, 3], [6, 0]).c1, [0.6, 0.3]);
+    expect(openedControls([0, 0], [2, 3], [4, 3], [6, 0])).toEqual({ c1: [2, 3], c2: [4, 3] });
+    // A straight piece with both controls on its ends stays as it is.
+    expect(openedControls([0, 0], [0, 0], [6, 0], [6, 0])).toEqual({ c1: [0, 0], c2: [6, 0] });
+    // Through the parser: "S" after a line takes the pen as its first control and is opened too.
+    const [loop] = parsePathData('M0 0 L10 0 S20 10 20 0 Z');
+    const curve = loop?.segments[1];
+    expect(curve && 'c1' in curve ? curve.c1 : null).not.toEqual([10, 0]);
   });
 });
