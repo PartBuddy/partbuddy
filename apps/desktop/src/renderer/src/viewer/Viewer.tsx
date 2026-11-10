@@ -79,6 +79,8 @@ const scene = {
   selectionTint: 0.25,
   // Parts outside the assembly step that plays move this far toward the background (audit B-22).
   dimmedTint: 0.6,
+  // Hover and selection fade in and out over this long, at once under reduced motion (audit M-12).
+  colorFadeMs: 120,
   // See-through faces in the X-ray display mode.
   xrayOpacity: 0.3,
   // Studio look: soft room light from above (Z up).
@@ -150,6 +152,9 @@ function Body({
   const { model } = body;
   // A body with its own colour in SolidCraft (a colour of a logo) shows in it; the others in the theme's.
   const own = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.bodies.find((entry) => entry.name === body.name)?.colour : undefined));
+  const invalidate = useThree((state) => state.invalidate);
+  // The geometry whose colours are on screen; a new one is painted at once, not faded in from black.
+  const painted = useRef<BodyModel['model'] | null>(null);
 
   useEffect(() => {
     const attribute = model.geometry.getAttribute('color') as BufferAttribute;
@@ -169,6 +174,7 @@ function Body({
       changed.clear();
       for (const face of model.table.faces) if (stepFaces.has(face.name)) changed.add(face.index);
     }
+    const target = new Float32Array(attribute.array.length);
     const hovered = hover?.kind === 'face' && hover.body === index ? hover.face : -1;
     const selected = new Set(selections.filter((pick) => pick.kind === 'face' && pick.body === index).map((pick) => (pick.kind === 'face' ? pick.face : -1)));
     // A part that does not fit the bed is tinted; a part picked in the tree gets an outline only, and
@@ -180,10 +186,32 @@ function Body({
       if (changed.has(face)) color = stepHighlight ? colors.changed : tint;
       if (face === hovered) color = hoverTint;
       if (selected.has(face)) color = selectedTint;
-      attribute.setXYZ(v, color.r, color.g, color.b);
+      target.set([color.r, color.g, color.b], v * 3);
     }
-    attribute.needsUpdate = true;
-  }, [model, index, colors, own, hover, selections, changes, stepHighlight, body.name, emphasis, dimmed, glow]);
+    const array = attribute.array as Float32Array;
+    const show = (k: number, from: Float32Array) => {
+      for (let i = 0; i < array.length; i += 1) array[i] = (from[i] ?? 0) + ((target[i] ?? 0) - (from[i] ?? 0)) * k;
+      attribute.needsUpdate = true;
+      invalidate();
+    };
+    if (painted.current !== model || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      painted.current = model;
+      show(1, target);
+      return;
+    }
+    const from = array.slice();
+    const start = performance.now();
+    let frame = 0;
+    const step = () => {
+      const k = Math.min(1, (performance.now() - start) / scene.colorFadeMs);
+      show(k, from);
+      if (k < 1) frame = requestAnimationFrame(step);
+    };
+    step();
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [model, index, colors, own, hover, selections, changes, stepHighlight, body.name, emphasis, dimmed, glow, invalidate]);
   const edge = picked ? colors.selection : colors.edge;
 
   const clipping = useMemo(() => (plane ? [plane] : []), [plane]);
