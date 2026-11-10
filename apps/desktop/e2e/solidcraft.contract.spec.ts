@@ -2088,6 +2088,11 @@ test('a template from the start page becomes a project whose sizes are its param
     await expect(home.getByTestId('home-template')).toHaveCount(5);
     await page.screenshot({ path: test.info().outputPath('home-templates.png') });
     await home.locator('[data-template="housing"]').click();
+    // While SolidCraft builds it, its tile says so and the other templates wait (audit P-02).
+    await expect(home.locator('[data-template="housing"]')).toHaveAttribute('data-building', 'true');
+    await expect(home.locator('[data-template="housing"]').getByRole('progressbar')).toBeVisible();
+    await expect(home.locator('[data-template="adapter"]')).toBeDisabled();
+    await page.screenshot({ path: test.info().outputPath('home-template-building.png') });
     await expect(home).toHaveCount(0, { timeout: 30_000 });
     await expect(page.getByTestId('design-name')).toHaveText('Housing', { timeout: 30_000 });
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });

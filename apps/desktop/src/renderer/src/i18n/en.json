@@ -1202,7 +1202,8 @@
           "name": "Tube adapter",
           "body": "Joins two tubes or hoses of different diameters."
         }
-      }
+      },
+      "building": "Building …"
     },
     "sort": "Sort",
     "modified": "Last changed",
