@@ -118,8 +118,8 @@ test('an assistant step changes the headless design, and it is back after a rest
       await expect(handle).toBeVisible();
       const last = await second.page.getByTestId('timeline-feature').last().boundingBox();
       const bar = await handle.boundingBox();
-      // Its middle sits in the middle of the 8 px gap after the last step.
-      expect(bar && last ? Math.abs(bar.x + bar.width / 2 - (last.x + last.width + 4)) : 99).toBeLessThan(1.5);
+      // Its 24 px target starts where the last step ends (audit AX-02), so its middle is 12 px on.
+      expect(bar && last ? Math.abs(bar.x + bar.width / 2 - (last.x + last.width + 12)) : 99).toBeLessThan(1.5);
     } finally {
       await second.close();
     }
@@ -2285,7 +2285,7 @@ test('a sharing package holds 3MF, STEP, four pictures and a description of the 
     const description = readFileSync(join(exports, folder, 'description.md'), 'utf8');
     expect(description).toContain('# Housing');
     expect(description).toContain('- Supports: none needed, it prints as designed');
-    expect(description).toContain('- Housing: 80 × 60 × 30 mm');
+    expect(description).toContain('- Housing: 104 × 60 × 30 mm');
     expect(description).toContain('- `insert_hole` = 4 mm – Hole for an M3 heat-set insert (ruthex: 4 mm)');
     // A second package goes beside the first, never over it.
     await page.getByTestId('export').click();

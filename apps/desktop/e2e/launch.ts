@@ -1,8 +1,8 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
+import { _electron as electron, test, type ElectronApplication, type Page } from '@playwright/test';
 
 export const appDir = resolve(__dirname, '..');
 
@@ -76,6 +76,12 @@ export async function launchApp(
     controlDir,
     async close() {
       await app.close();
+      // The app's log goes to the test's results: a red run on the runner shows what the app did.
+      try {
+        appendFileSync(test.info().outputPath('partbuddy.log'), readFileSync(join(work, 'partbuddy.log')));
+      } catch {
+        // No log written, or called outside a test.
+      }
       if (!options.work) rmSync(work, { recursive: true, force: true });
     },
   };

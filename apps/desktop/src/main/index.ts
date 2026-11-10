@@ -823,12 +823,17 @@ if (!app.requestSingleInstanceLock()) {
         const step = `${name}.step`;
         await supervisor.exportDesign('3mf', join(folder, model));
         await supervisor.exportDesign('step', join(folder, step));
-        const pictures: string[] = [];
-        for (const view of ['iso', 'front', 'top', 'right'] as const) {
-          const picture = `${name}-${view}.png`;
-          await supervisor.snapshot(design, view, join(folder, picture));
-          pictures.push(picture);
-        }
+        log('sharing package: 3MF and STEP written');
+        // Each picture is its own SolidCraft run that rebuilds the design (about 20 s for a housing), so
+        // the four run side by side.
+        const pictures = await Promise.all(
+          (['iso', 'front', 'top', 'right'] as const).map(async (view) => {
+            const picture = `${name}-${view}.png`;
+            await supervisor.snapshot(design, view, join(folder, picture));
+            return picture;
+          }),
+        );
+        log('sharing package: pictures written');
         const print = printProfiles.part();
         const parameters = (await supervisor.parameters().catch(() => [])).filter((parameter) => parameter.editable);
         const description = shareDescription({
@@ -856,6 +861,7 @@ if (!app.requestSingleInstanceLock()) {
         writeFileSync(join(folder, german ? 'Beschreibung.md' : 'description.md'), description, 'utf8');
       } catch (error) {
         rmSync(folder, { recursive: true, force: true });
+        log(`no sharing package: ${(error as Error).message}`);
         throw error;
       }
       log('saved a sharing package');

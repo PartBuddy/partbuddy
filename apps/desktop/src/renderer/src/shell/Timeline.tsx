@@ -98,9 +98,10 @@ function RollbackBar({
     );
   return (
     <span
-      // In the gap after the last active step. Every step is a button of the same width, so the
-      // place follows from the count alone: nothing to measure, right from the first frame.
-      style={{ left: `calc(${String(shown)} * (var(--cs-control-sm) + ${String(SLOT_GAP)}px) - ${String(SLOT_GAP / 2)}px + ${String(HANDLE_EXTRA / 2)}px)` }}
+      // In the middle of the widened gap after the last active step. Every step is a button of the
+      // same width, so the place follows from the count alone: nothing to measure, right from the
+      // first frame. The list's own padding (`px-1`) is half a gap, which takes the half gap off again.
+      style={{ left: `calc(${String(shown)} * (var(--cs-control-sm) + ${String(SLOT_GAP)}px) + ${String(HANDLE_EXTRA / 2)}px)` }}
       role="slider"
       tabIndex={busy ? -1 : 0}
       aria-label={t('timeline.handle')}
