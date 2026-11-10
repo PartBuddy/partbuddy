@@ -1130,6 +1130,16 @@ test('a printer from the catalog becomes an ordinary profile that can be changed
   const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ printer: string; printers: { id: string; name: string; nozzle: number }[] }> } } }).partbuddy.print.settings());
   expect(saved.printers).toHaveLength(2);
   expect(saved.printers.find((item) => item.id === saved.printer)).toMatchObject({ name: 'Prusa MK4S', nozzle: 0.6 });
+
+  // Resetting the section brings back the starting printer only (audit A-23).
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-print').click();
+  await dialog.getByTestId('settings-reset-print').click();
+  await page.getByTestId('settings-reset-go').click();
+  await expect(dialog.getByTestId('printers-list').getByRole('option')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  const reset = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ printers: unknown[] }> } } }).partbuddy.print.settings());
+  expect(reset.printers).toHaveLength(1);
 });
 
 test('the tolerance assistant reads the test pieces into the material in place of the profiles', async () => {

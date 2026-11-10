@@ -9,7 +9,7 @@ import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen
 
 import { invokeChannels, eventChannels } from '../shared/channels';
 import type { AssemblyPlan } from '../shared/assembly';
-import { DESIGN_DEFAULTS, type AgentEvent, type ExportFormat, type PartPrint, type PrintCheckReport, type ViewState } from '../shared/contract';
+import { DESIGN_DEFAULTS, type AgentEvent, type ExportFormat, type PartPrint, type PrintCheckReport, type PrintSettings, type ViewState } from '../shared/contract';
 import { refit, withoutFitMark } from '../shared/designFit';
 import { AgentService } from './agents/agentService';
 import { AppearanceSettings } from './appearance';
@@ -394,7 +394,7 @@ if (!app.requestSingleInstanceLock()) {
         await steps.recordUser(describeUserAction({ kind: 'dimension', parameter: change.name, value: change.value }), () => supervisor.applyDimension(change.name, change.value, 1, true));
       if (changes.length > 0) log(`fitted ${String(changes.length)} snapped sizes to the printer`);
     };
-    bridge.handle(invokeChannels.printSaveSettings, (settings) => {
+    const savePrint = (settings: PrintSettings) => {
       const before = printProfiles.part();
       const saved = printProfiles.save(settings);
       printChanged();
@@ -402,7 +402,8 @@ if (!app.requestSingleInstanceLock()) {
         log(`the snapped sizes were not fitted to the printer: ${(error as Error).message}`);
       });
       return saved;
-    });
+    };
+    bridge.handle(invokeChannels.printSaveSettings, savePrint);
     bridge.handle(invokeChannels.printPart, () => printProfiles.part());
     bridge.handle(invokeChannels.printSetMaterial, ({ material }) => {
       const part = printProfiles.setMaterial(material);
@@ -763,6 +764,7 @@ if (!app.requestSingleInstanceLock()) {
         changed();
       }
       if (section === 'solidcraft' || section === 'all') await engineChoice.choose(null);
+      if (section === 'print') savePrint(printProfiles.startingProfiles());
       log(`settings reset: ${section}`);
       return generalInfo();
     });

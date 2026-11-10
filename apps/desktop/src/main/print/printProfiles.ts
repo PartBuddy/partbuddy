@@ -133,6 +133,12 @@ export class PrintProfiles {
     return this.defaults();
   }
 
+  /** Printers and materials back to the starting ones; the assistant's design rules stay (audit A-23). */
+  startingProfiles(): PrintSettings {
+    const { supportFree, design } = this.settings();
+    return { ...this.defaults(), supportFree, design };
+  }
+
   save(settings: PrintSettings): PrintSettings {
     const parsed = printSettingsSchema.parse(settings);
     writeAtomic(this.options.file, parsed);

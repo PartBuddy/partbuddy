@@ -63,6 +63,16 @@ describe('printer and material profiles (M7)', () => {
     expect(saved.settings().printers.map((printer) => printer.name)).toEqual(['Mein Drucker', 'Prusa MK4']);
   });
 
+  it('goes back to the starting profiles and keeps the design rules (audit A-23)', () => {
+    const { root } = setup();
+    const profiles = new PrintProfiles({ file: join(root, 'reset.json'), designFile: () => null, log: () => undefined, printerName: () => 'Mein Drucker' });
+    profiles.save({ ...DEFAULT_PRINT_SETTINGS, supportFree: false, printers: [{ id: 'mk4', name: 'Prusa MK4', bed: [250, 210, 220], nozzle: 0.6, layer: 0.2 }], printer: 'mk4' });
+    const start = profiles.startingProfiles();
+    expect(start.printers.map((printer) => printer.name)).toEqual(['Mein Drucker']);
+    expect(start.materials).toEqual(DEFAULT_PRINT_SETTINGS.materials);
+    expect(start.supportFree).toBe(false);
+  });
+
   it('holds the part material until the design has a file, then writes it next to the design', () => {
     const { profiles, state, root } = setup();
     expect(profiles.setMaterial('petg-cf').material.id).toBe('petg-cf');

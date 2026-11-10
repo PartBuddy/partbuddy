@@ -216,7 +216,7 @@ function SectionHead({ id, done }: { id: SettingsSection; done?: () => void }) {
         <h2 className="font-display text-xl font-semibold text-text">{t(`settings.section.${id}`)}</h2>
         <p className="text-md text-text-muted">{t(`settings.intro.${id}`)}</p>
       </div>
-      {done && id !== 'print' && id !== 'about' && id !== 'shortcuts' ? <ResetButton section={id} done={done} label={t('settings.reset.section')} /> : null}
+      {done && id !== 'about' && id !== 'shortcuts' ? <ResetButton section={id} done={done} label={t('settings.reset.section')} /> : null}
     </div>
   );
 }
@@ -867,7 +867,7 @@ export function SettingsDialog() {
                   </Group>
                 </TabPanel>
                 <TabPanel id="print" className={panelClass} data-testid="print-profiles">
-                  <SectionHead id="print" />
+                  <SectionHead id="print" done={reload} />
                   <PrintSection />
                 </TabPanel>
                 <TabPanel id="shortcuts" className={panelClass} data-testid="settings-shortcuts-panel">
