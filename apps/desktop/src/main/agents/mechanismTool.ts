@@ -17,7 +17,7 @@ const mechanismTool: UpstreamTool = {
   description:
     'Build a print-in-place mechanism between two bodies that exist, printed in one piece without support, with the same gap everywhere. ' +
     'hinge: knuckles in turn on both bodies and a pin through them. Give the hinge line (from, to) in the gap between the bodies, level with the bed and half the barrel diameter above it when the part prints lying flat; ' +
-    'the bodies should reach to within the barrel radius of that line, so the knuckles grow out of them. ' +
+    'the line must lie closer to both bodies than the barrel radius less 0.5 mm, so the knuckles grow out of them; it needs no distance from their walls, because PartBuddy cuts each knuckle\'s room in the other body itself. ' +
     'slide: a dovetail rail on the fixed body and its groove in the moving body, which lies over the rail a gap above the face. Give the middle line of the rail (from, to) on that face and the face normal (up). ' +
     'PartBuddy also joins the two with a joint, finds how far it moves before the bodies meet (a slide: while the moving body stays on its rail) and sets that as its limits; the user then moves it with a slider in the view. ' +
     'Use this instead of modelling a hinge or a guide yourself.',
@@ -146,22 +146,36 @@ function reach(sweep: unknown, to: number, step: number): number {
 
 type Run = (commands: Step[]) => Promise<unknown[]>;
 
-/** Builds the solids and says what went wrong with them: a piece that came loose as a body of its own, or volume the two still share. */
-async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; moving: string }, steps: Step[], callId: string | undefined): Promise<string> {
-  const bodies = ((jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { bodies?: { name?: unknown }[] }).bodies ?? []).map((body) => body.name);
+/**
+ * Builds the solids. A joined piece that does not touch its body stays in it as a separate piece,
+ * and SolidCraft says so in the step's warning (0.40.0-rc.3: "… is now in 2 separate pieces"); it
+ * means the line is not where the bodies are: everything is taken back (practice run 2026-11-10: the model kept a gap between the
+ * hinge line and the walls, mended the loose knuckles with webs, and their warnings stayed in the
+ * timeline), and `where` tells the model where the line goes. Volume the two still share is a warning.
+ */
+async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; moving: string }, steps: Step[], where: string, callId: string | undefined): Promise<string> {
+  const before = jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { bodies?: { name?: unknown }[]; undo?: unknown };
+  const bodies = (before.bodies ?? []).map((body) => body.name);
   const missing = [spec.fixed, spec.moving].filter((name) => !bodies.includes(name));
   if (missing.length > 0) throw new Error(`no body ${missing.map((name) => JSON.stringify(name)).join(' or ')}; the bodies are ${bodies.map((name) => JSON.stringify(name)).join(', ') || 'none'}`);
-  await run(steps);
+  const built = await run(steps);
+  const apart = built.filter((result) => {
+    const warning = (result as { warning?: unknown } | undefined)?.warning;
+    return typeof warning === 'string' && warning.includes('separate pieces');
+  }).length;
   const [after, clash] = await run([
     { command: 'document.inspect', params: {} },
     { command: 'inspect.interference', params: { bodies: [spec.fixed, spec.moving] } },
   ]);
-  const count = ((after as { bodies?: unknown[] } | undefined)?.bodies ?? []).length;
   const overlaps = ((clash as { count?: unknown } | undefined)?.count as number | undefined) ?? 0;
-  return (
-    (count > bodies.length ? ` Warning: ${String(count - bodies.length)} piece(s) came loose as bodies of their own: a body does not reach the line, so move the line or the body and undo this.` : '') +
-    (overlaps > 0 ? ' Warning: the two bodies still share volume away from the mechanism; make room between them.' : '')
-  );
+  if (apart > 0) {
+    const loose = `${String(apart)} piece(s) did not touch their body and stand apart from it. ${where}`;
+    const undone = (after as { undo?: unknown } | undefined)?.undo;
+    if (typeof before.undo !== 'number' || typeof undone !== 'number' || undone <= before.undo) throw new Error(`${loose} Undo what was built, then call again.`);
+    for (let step = before.undo; step < undone; step += 1) await upstream.callTool('undo', {}, callId);
+    throw new Error(`${loose} Everything was taken back; call again with the line moved.`);
+  }
+  return overlaps > 0 ? ' Warning: the two bodies still share volume away from the mechanism; make room between them.' : '';
 }
 
 /** Makes the two bodies components unless they are, joins them where they are and sets the limits: the range clear of contact within `range`. */
@@ -193,7 +207,15 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
   if (args.kind === 'hinge') {
     const spec = hingeOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, hingeSteps(spec), callId);
+    const reach = String(Math.round((spec.diameter / 2 - 0.5) * 10) / 10);
+    const warnings = await build(
+      upstream,
+      run,
+      spec,
+      hingeSteps(spec),
+      `Put the hinge line within ${reach} mm of both bodies (the barrel is ${String(spec.diameter)} mm, so it must overlap each by at least 0.5 mm). It needs no distance from their walls: PartBuddy cuts each knuckle's room in the other body itself.`,
+      callId,
+    );
     const [min, max] = await join(run, spec, 'revolute', [-180, 180], 1);
     return (
       `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns): ${String(spec.knuckles)} knuckles, barrel ${String(spec.diameter)} mm, pin ${String(pinDiameter(spec.diameter))} mm, ` +
@@ -204,7 +226,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
   if (args.kind === 'slide') {
     const spec = slideOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, slideSteps(spec), callId);
+    const warnings = await build(upstream, run, spec, slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`, callId);
     const [measure] = await run([{ command: 'inspect.measure', params: { bodies: [spec.moving] } }]);
     const travel = railTravel(measure, spec.from, spec.to);
     if (!travel) throw new Error('the guide is built, but the moving body could not be measured; join the bodies with joint.as_built {type: slider}');

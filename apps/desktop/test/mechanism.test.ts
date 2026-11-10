@@ -109,6 +109,37 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(batches).toHaveLength(before);
   });
 
+  it('takes everything back when a knuckle does not touch its body, and says where the line goes', async () => {
+    const calls: string[] = [];
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, args) => {
+        calls.push(name);
+        // Before: three steps to undo. Of the cylinders the five knuckles (48 mm of hinge line) do not touch their body, as SolidCraft 0.40.0-rc.3 warns.
+        if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Box' }, { name: 'Lid' }], undo: 3 }) }] });
+        if (name === 'undo') return Promise.resolve({ content: [{ type: 'text', text: '{}' }] });
+        const commands = args.commands as { command: string; params: { operation?: string; diameter?: string } }[];
+        const results = commands.map((step) =>
+          step.command === 'document.inspect'
+            ? { bodies: [{ name: 'Box' }, { name: 'Lid' }], undo: 11 }
+            : step.params.operation === 'join' && step.params.diameter === '6 mm'
+              ? { warning: "the joined piece doesn't touch `Box`, so `Box` is now in 2 separate pieces (New Body makes it a body of its own)" }
+              : { count: 0, warning: null },
+        );
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
+      },
+    };
+    const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Box', moving: 'Lid', from: [0, 43.4, 3], to: [48, 43.4, 3] });
+    expect(built.isError).toBe(true);
+    expect(built.content[0]).toMatchObject({
+      text: 'Not built: 5 piece(s) did not touch their body and stand apart from it. Put the hinge line within 2.5 mm of both bodies (the barrel is 6 mm, so it must overlap each by at least 0.5 mm). ' +
+        "It needs no distance from their walls: PartBuddy cuts each knuckle's room in the other body itself. Everything was taken back; call again with the line moved.",
+    });
+    // Every step SolidCraft counted since (11 − 3) is undone, and no joint was made.
+    expect(calls).toEqual(['inspect_design', 'batch', 'batch', ...Array.from({ length: 8 }, () => 'undo')]);
+  });
+
   it('is one line in the work log, by its kind', () => {
     expect(describeToolCall('partbuddy_mechanism', { kind: 'hinge', name: 'Lid hinge' })).toEqual([{ key: 'hinge', values: { name: 'Lid hinge' } }]);
     expect(describeToolCall('partbuddy_mechanism', { kind: 'slide' })).toEqual([{ key: 'guide', values: { name: 'Guide' } }]);

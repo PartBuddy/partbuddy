@@ -293,6 +293,16 @@ if (args[0] === '--version') {
       continue;
     }
     // "a hinged flap" (G3): two plates 4 mm apart, then PartBuddy's own hinge between them.
+    // "a flap out of reach" (G3): the plates are 10 mm apart, so a 6 mm barrel in the middle touches neither.
+    if (content.includes('a flap out of reach')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, operation: 'new', body_name: 'Base' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, corner: [50, 0, 0], operation: 'new', body_name: 'Flap' } } });
+      const built = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [45, 0, 3], to: [45, 30, 3] } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     if (content.includes('a hinged flap')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, operation: 'new', body_name: 'Base' } } });
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, corner: [44, 0, 0], operation: 'new', body_name: 'Flap' } } });

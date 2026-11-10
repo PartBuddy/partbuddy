@@ -3216,3 +3216,33 @@ test('the assistant builds a dovetail guide with one call: joined as a slider th
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a hinge whose line is out of reach of the bodies is taken back, with where the line goes (G3)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-hinge-far-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7940',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a flap out of reach');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText(/Not built: 3 piece\(s\) did not touch their body and stand apart from it\. Put the hinge line within 2\.5 mm of both bodies .* Everything was taken back; call again with the line moved\./)).toBeVisible({ timeout: 60_000 });
+    // The two plates are as they were: no knuckle, no cut, no joint.
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies · 12 faces', { timeout: 30_000 });
+    await expect(page.getByTestId('joints')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('hinge-taken-back.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
