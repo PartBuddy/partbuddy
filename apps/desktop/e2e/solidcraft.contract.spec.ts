@@ -3286,3 +3286,50 @@ test('a hinge between bodies that are components already moves as a whole: its k
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a slot built into a hinged flap stays in it when the flap turns (ADR 0027)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-slot-flap-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7942',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a hinged flap');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText(/Built the hinge "Flap hinge"/)).toBeVisible({ timeout: 60_000 });
+    const summary = page.getByTestId('mesh-summary');
+    await expect(summary).toContainText('2 bodies', { timeout: 30_000 });
+    const before = (await summary.textContent()) ?? '';
+    // The slot block, as the form sends it: a sketch on the flap's top face, cut through.
+    await page.evaluate(async () => {
+      const bridge = (globalThis as unknown as { partbuddy: { design: { applyBlock(block: unknown): Promise<void> } } }).partbuddy;
+      await bridge.design.applyBlock({ block: 'slot', body: 'Flap', point: [64, 15, 4], normal: [0, 0, 1], size: 'M3', length: 10, width: 3.4, depth: null, along: 'x' });
+    });
+    await expect(summary).not.toHaveText(before, { timeout: 30_000 });
+    const slotted = (await summary.textContent()) ?? '';
+    // Turned as far as it goes: the slot is still in the flap. Sketched at the design level it would
+    // stay in the world, and the flap would be whole again.
+    await page.getByTestId('joints').click({ timeout: 30_000 });
+    const slider = page.getByTestId('joint-panel').getByRole('slider', { name: 'Flap hinge' });
+    await slider.focus();
+    await page.keyboard.press('End');
+    await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Flap hinge' })).toHaveValue('67', { timeout: 30_000 });
+    await expect(page.getByTestId('joint-reset')).toBeEnabled({ timeout: 30_000 });
+    await page.waitForTimeout(2000);
+    await expect(summary).toHaveText(slotted);
+    await page.screenshot({ path: test.info().outputPath('slot-in-turned-flap.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

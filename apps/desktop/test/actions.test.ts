@@ -152,3 +152,44 @@ describe('the drag arrow of the dimension field', () => {
     expect(draggedValue(20, handle, { x: 0.1, y: 0.1 }, { x: 5, y: 5 }, false)).toBeNull();
   });
 });
+
+describe('function blocks on a body that moves with a joint (ADR 0027)', () => {
+  const slot = [
+    { command: 'sketch.create', params: { plane: { origin: [62, 15, 4], x_dir: [1, 0, 0], y_dir: [0, 1, 0] }, project_edges: false } },
+    { command: 'sketch.slot.center_to_center', params: { p0: [-5, 0], p1: [5, 0], width: 4 } },
+    { command: 'solid.extrude', params: { distance: '-1000 mm', operation: 'cut' } },
+  ];
+  // component.list as SolidCraft 0.40.0-rc.3 answers once a hinge joined the two plates.
+  const listing = { components: [{ id: 0, parent: null, bodies: [] }, { id: 3, parent: 0, bodies: ['Base'] }, { id: 5, parent: 0, bodies: ['Flap'] }] };
+  const service = (answer: unknown) => {
+    const asked: string[] = [];
+    const requester: ControlRequester = {
+      request: <T>(_method: string, params: Record<string, unknown> = {}) => {
+        const commands = params.commands as { command: string }[];
+        asked.push(...commands.map((step) => step.command));
+        return Promise.resolve({ completed: commands.length, results: commands.map(() => answer) } as T);
+      },
+    };
+    return { actions: new ActionService(() => requester, tmpdir()), asked };
+  };
+
+  it('sketches with the body\'s component active, and goes back to the design level', async () => {
+    const { actions } = service(listing);
+    expect((await actions.inComponentOf('Flap', slot)).map((step) => (step.command === 'component.activate' ? `activate ${String(step.params.component)}` : step.command))).toEqual([
+      'activate 5',
+      'sketch.create',
+      'sketch.slot.center_to_center',
+      'solid.extrude',
+      'activate 0',
+    ]);
+  });
+
+  it('leaves the steps as they are for a body in the design itself, and does not ask for steps that pick by a point', async () => {
+    const plain = service({ components: [{ id: 0, parent: null, bodies: ['Flap'] }] });
+    expect(await plain.actions.inComponentOf('Flap', slot)).toEqual(slot);
+    const picked = service(listing);
+    const hole = [{ command: 'solid.hole', params: { position: [62, 15, 4], diameter: '3 mm' } }];
+    expect(await picked.actions.inComponentOf('Flap', hole)).toEqual(hole);
+    expect(picked.asked).toEqual([]);
+  });
+});

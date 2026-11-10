@@ -206,6 +206,11 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   joint at 0) it moves along; `component.activate {component: 0}` goes back. A join that does not
   touch never makes a body of its own, it stays in the body as a separate piece (practice runs
   2026-11-10).
+- Which commands find the component themselves (0.40.0-rc.3, checked 2026-11-10): those that pick
+  by a point on the body (`solid.fillet`, `solid.hole`, `solid.press_pull`) follow a moved joint from
+  the design level, also when built at a pose. A sketch with `solid.extrude` does not: cut from the
+  design level, a slot is gone from the body once the joint moves it and back at 0. PartBuddy's
+  sketched blocks therefore run inside `component.activate` (`ActionService.inComponentOf`).
 - The `solidcraft-cli` on the PATH of the home server is 0.30.1; `solidcraft-cli commands` of the
   version under test lists every command with its parameters.
 

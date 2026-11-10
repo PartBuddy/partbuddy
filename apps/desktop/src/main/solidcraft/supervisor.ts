@@ -627,7 +627,7 @@ export class SolidCraftSupervisor {
     const block = await this.boldBlock(given);
     return this.trial('block preview', async () => {
       const placed = await this.centredBlock(block);
-      const preview = await this.actions.previewSteps(stepsOf(placed), blockBodies(placed));
+      const preview = await this.actions.previewSteps(await this.actions.inComponentOf(placed.body, stepsOf(placed)), blockBodies(placed));
       // The panel shows a short reason; the log keeps SolidCraft's own words.
       if (!preview.ok) this.options.log(`${block.block} preview refused: ${preview.error}`);
       return preview;
@@ -655,7 +655,7 @@ export class SolidCraftSupervisor {
     const sketch =
       block.block === 'logo' ? uniqueLogoName(block.name, await this.actions.sketchNames()) : block.block === 'text' ? uniqueLogoName(block.text, await this.actions.sketchNames(), TEXT_PREFIX) : undefined;
     block = await this.centredBlock(block);
-    await this.actions.applySteps(stepsOf(block, sketch));
+    await this.actions.applySteps(await this.actions.inComponentOf(block.body, stepsOf(block, sketch)));
     // A logo in colours: pieces a cut split off get their colour too.
     const layers = block.block === 'logo' ? colourLayers(block) : [];
     if (layers.length > 0) {
