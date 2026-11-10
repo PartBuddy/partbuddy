@@ -2,21 +2,19 @@ name: SolidCraft contract tests
 
 # The desktop app against a real SolidCraft (apps/desktop/e2e/solidcraft.contract.spec.ts). They need
 # SolidCraft and a Windows desktop, so the pull request CI leaves them out; without a regular run a
-# broken flow stays unnoticed (colour logo, found 2026-11-10, red since #201). Every night and by hand.
+# broken flow stays unnoticed (colour logo, found 2026-11-10, red since #201). Run by hand when a change
+# touches SolidCraft and before a release (decided 2026-11-10: not every night).
 # Runs on the Windows runner of the website screenshots (labels self-hosted, windows, partbuddy-shots)
 # with its portable SolidCraft 0.40.0-rc.3 beside the _work folder (docs/website.md, Setup).
 
 on:
-  schedule:
-    # 02:30 in Vienna (winter time), when no pull request CI runs.
-    - cron: "30 1 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  # One night run at a time; a run by hand waits for it.
+  # One run at a time on the runner.
   group: solidcraft-runner
   cancel-in-progress: false
 
