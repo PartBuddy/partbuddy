@@ -290,3 +290,4 @@ App-Fehler nicht belegt und wird in Phase 2 von Hand geprüft.
 | #274 | Auswahl-Optik | erledigt: B-22 Flächenauswahl 25 % Tönung plus Umriss, Körper aus dem Baum nur als Akzent-Umriss, im Montageschritt treten die übrigen Teile zurück. M-12 folgt in #275 |
 | #275 | Auswahl-Überblendung | erledigt: M-12 Hover- und Auswahlfarbe blenden 120 ms über (Vertex-Farben), unter reduzierter Bewegung sofort; ein neues Modell malt sofort |
 | #276 | Einstellungen | erledigt: „Bereich zurücksetzen“ für Drucker und Material (Startprofile, Konstruktionsregeln bleiben) |
+| #277 | Performance | erledigt: P-07/P-02 Projektwechsel und Vorlage öffnen ohne SolidCraft-Neustart: das laufende SolidCraft nimmt ein leeres Design (`file.new`, gibt die Dateien frei) und öffnet das nächste Projekt (`doc.open`, 6 ms im Versuch); scheitert einer der Befehle, startet SolidCraft wie bisher neu. Offen: Fortschritt in der Kachel beim Bauen einer Vorlage |

@@ -1132,20 +1132,37 @@ export class SolidCraftSupervisor {
     return this.autosaving;
   }
 
+  /** One command in the headless engine; false (and logged) when SolidCraft refuses it or does not answer. */
+  private async inEngine(engine: HeadlessEngine, step: { command: string; params: Record<string, unknown> }): Promise<boolean> {
+    try {
+      const batch = await engine.requester.request<BatchResult>('engine.batch', { commands: [step], rollback: false }, 60_000);
+      if (!batch.failed) return true;
+      this.options.log(`${step.command} failed in the running SolidCraft: ${batch.failed.error}; starting it again`);
+    } catch (error) {
+      this.options.log(`${step.command} failed in the running SolidCraft: ${(error as Error).message}; starting it again`);
+    }
+    return false;
+  }
+
   private async launch(): Promise<Launched> {
     const executable = findExecutable(this.options.environment);
     if (!executable) throw new Error('SolidCraft is not installed');
     const reopen = this.reopen;
     this.reopen = null;
     if (reopen) {
-      // The design is saved; the engine ends, the files change, and the engine opens the next project.
+      // The design is saved. The running engine takes an empty design, so nothing holds the files
+      // while they change, and opens the next project itself: no new process (audit P-02, P-07).
+      // Only when that fails does the engine end and start again with the next project.
       const engine = this.engine;
-      this.engine = null;
       this.scheduler.reset();
       this.latest = null;
       this.savedAs = null;
       this.plannedName = null;
-      await engine?.close();
+      const kept = engine?.isOpen === true && (await this.inEngine(engine, { command: 'file.new', params: {} }));
+      if (!kept) {
+        this.engine = null;
+        await engine?.close();
+      }
       const previous = this.designFile;
       let next: string | null;
       try {
@@ -1158,6 +1175,16 @@ export class SolidCraftSupervisor {
       else this.designs?.forget();
       this.designFile = null;
       this.currentFile = null;
+      if (kept && (next === null || (await this.inEngine(engine, { command: 'doc.open', params: { path: next } })))) {
+        this.designFile = next && this.designs?.holds(next) ? next : null;
+        this.currentFile = next;
+        this.options.log(`switched the project in the running SolidCraft${next ? '' : ' to a new design'}`);
+        return { launchedAt: Date.now(), headless: true };
+      }
+      if (kept) {
+        this.engine = null;
+        await engine.close();
+      }
       return this.launchHeadless(executable);
     }
     const handoff = this.handoffFile;
