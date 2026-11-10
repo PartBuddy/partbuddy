@@ -101,6 +101,14 @@ for (const part of process.env.PARTBUDDY_PRACTICE === '1' ? PARTS.filter((entry)
           await expect(page.getByTestId('joint-reset')).toBeEnabled({ timeout: 60_000 });
           await page.waitForTimeout(2000);
           await page.screenshot({ path: test.info().outputPath('joint-at-end.png') });
+          // What the check says with the joint at its end: a piece that stayed behind shows as "separate pieces".
+          await page.getByTestId('print-check').click();
+          await page.waitForTimeout(2500);
+          report.findingsMoved = await page.getByTestId('print-check-panel').locator('[data-kind]').allInnerTexts();
+          await expect(async () => {
+            await page.keyboard.press('Escape');
+            await expect(page.getByTestId('print-check-panel')).toBeHidden({ timeout: 1000 });
+          }).toPass({ timeout: 15_000 });
           await page.getByTestId('joint-reset').click();
           // The button is disabled while it works too: the slider back at its start says it is done.
           await expect(sliders.first()).toHaveValue(start, { timeout: 60_000 });
