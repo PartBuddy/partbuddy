@@ -3072,3 +3072,52 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('the assistant builds a print-in-place hinge with one call: one piece per body, joined, limits where the parts meet (G3)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-hinge-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7938',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a hinged flap');
+    await page.getByRole('button', { name: 'Send' }).click();
+    // PartBuddy's answer to the tool: the gap is the nozzle of the printer in use, and the limits are where the plates meet.
+    await expect(page.getByText(/Built the hinge "Flap hinge" between Base \(stays\) and Flap \(turns\): 3 knuckles, barrel 6 mm, pin 3 mm, gap 0\.4 mm everywhere\. It turns from -145° to 67°/)).toBeVisible({ timeout: 60_000 });
+    // Knuckles and pin grew onto their bodies: still two bodies, none loose.
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    // The hinge is one step of the work log.
+    await expect(page.getByText('Hinge “Flap hinge” between two parts, with its joint')).toHaveCount(1);
+    await page.getByTestId('joints').click({ timeout: 30_000 });
+    const slider = page.getByTestId('joint-panel').getByRole('slider', { name: 'Flap hinge' });
+    await expect(slider).toHaveAttribute('min', '-145');
+    await expect(slider).toHaveAttribute('max', '67');
+    // The limits are clear of the contact, so the light has no joint that is stopped on its way, and nothing overlaps.
+    await page.getByTestId('print-check').click();
+    const findings = page.getByTestId('print-check-panel');
+    await expect(findings).toBeVisible();
+    await page.waitForTimeout(1500);
+    await expect(findings.locator('[data-kind="blocked"], [data-kind="overlap"], [data-kind="tight"], [data-kind="posed"]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    // Opened as far as it goes, the flap stands where SolidCraft put it.
+    await slider.focus();
+    await page.keyboard.press('End');
+    await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Flap hinge' })).toHaveValue('67', { timeout: 30_000 });
+    await expect(page.getByTestId('joint-reset')).toBeEnabled({ timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: test.info().outputPath('hinge-built-open.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
