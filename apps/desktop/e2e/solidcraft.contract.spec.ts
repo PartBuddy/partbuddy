@@ -560,8 +560,26 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     const chip = await page.getByTestId('agent-status').boundingBox();
     expect(chip?.width ?? 0).toBeGreaterThan(120);
     await page.screenshot({ path: test.info().outputPath('composer-busy.png') });
+    // A message written meanwhile waits and goes once the run ends (decided 2026-11-10).
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('What about the holes?');
+    await page.getByTestId('composer-queue').click();
+    await expect(page.getByTestId('chat-queued')).toContainText('What about the holes?');
+    await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('composer-queued.png') });
     await expect(page.getByText('Done, slowly.')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole('button', { name: 'Send' })).toBeVisible();
+    await expect(page.getByTestId('chat-queued')).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByTestId('chat-list').getByText('What about the holes?', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Send' })).toBeVisible({ timeout: 30_000 });
+    // "Send now" stops the run and sends at once.
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Take your time');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible();
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Stop, make it taller');
+    await page.getByTestId('composer-queue').click();
+    await page.getByTestId('chat-queued-now').click();
+    await expect(page.getByTestId('chat-queued')).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByTestId('chat-list').getByText('Stop, make it taller', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Send' })).toBeVisible({ timeout: 30_000 });
     // A failed turn says so, with its reason and the way to the log, and sends the message again on request.
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make it fail');
     await page.getByRole('button', { name: 'Send' }).click();

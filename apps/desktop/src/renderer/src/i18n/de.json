@@ -472,7 +472,15 @@
       "pasted": "Eingefügte Zeichnung",
       "defaultText": "Bau mir aus dieser Zeichnung ein Teil."
     },
-    "queriesFailed": "{count, plural, one {# fehlgeschlagen} other {# fehlgeschlagen}}"
+    "queriesFailed": "{count, plural, one {# fehlgeschlagen} other {# fehlgeschlagen}}",
+    "queued": {
+      "title": "Wartet, bis der Assistent fertig ist",
+      "stopping": "Lauf wird gestoppt, dann geht sie raus …",
+      "now": "Jetzt senden",
+      "drop": "Verwerfen",
+      "send": "Senden, sobald der Assistent fertig ist",
+      "sendHint": "Geht raus, sobald der Lauf endet"
+    }
   },
   "live": {
     "thinking": "Der Assistent plant den nächsten Schritt",
