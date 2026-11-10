@@ -285,3 +285,4 @@ App-Fehler nicht belegt und wird in Phase 2 von Hand geprüft.
 | #269 | Performance | P-01: Messfehler im Zähler (unveränderte Teilbäume mitgezählt), neu gemessen; P-02/P-07 SolidCraft-Neustart je Projekt (mit SolidCraft klären), P-06 Heap-Analyse |
 | #270 | Animation | M-12 Auswahl-Überblendung im Shader |
 | #271 | Reste | erledigt: N-09 ziehbare Seitenleiste, B-12 Isolieren, A-18 Sortierrichtung, A-26 Neustart-Hinweis (Kurzpfad-Vergleich) |
+| #272 | Reste | erledigt: B-11 verworfener Parameterwert (Enter verschob den Fokus in die eigene Zeile), A-02 Druckername folgt der Sprache, B-03 Feature-Namen der Vorlagen deutsch + Namensvorgabe an den Assistenten; A-33 war schon da. Offen: C-17 (schwebende Nachrichten-Aktionen würden von `content-visibility` abgeschnitten) |
