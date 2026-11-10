@@ -74,6 +74,7 @@ export const STEP_PHRASE_KEYS = [
   'joint',
   'jointMove',
   'hinge',
+  'guide',
   'command',
 ] as const;
 
@@ -294,8 +295,8 @@ export function describeCommands(steps: Step[]): StepPhrase[] {
 
 /** What one tool call of the assistant did; a call PartBuddy cannot read gets one generic line. */
 export function describeToolCall(tool: string, args: Params): StepPhrase[] {
-  // PartBuddy's own tool builds the hinge from many commands: one line names it.
-  if (tool === 'partbuddy_mechanism') return [{ key: 'hinge', values: { name: text(args.name, 'Hinge').slice(0, 60) } }];
+  // PartBuddy's own tool builds a mechanism from many commands: one line names it.
+  if (tool === 'partbuddy_mechanism') return [args.kind === 'slide' ? { key: 'guide', values: { name: text(args.name, 'Guide').slice(0, 60) } } : { key: 'hinge', values: { name: text(args.name, 'Hinge').slice(0, 60) } }];
   const steps = commandsOf(tool, args);
   const phrases = steps ? describeCommands(steps).slice(0, MAX_PHRASES_PER_STEP) : [];
   return phrases.length > 0 ? phrases : [{ key: 'command', values: { command: tool.slice(0, 80) } }];
@@ -435,6 +436,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     joint: 'Joint “{name}”',
     jointMove: 'Moved “{name}” to {value}',
     hinge: 'Hinge “{name}” between two parts, with its joint',
+    guide: 'Guide “{name}” between two parts, with its joint',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -497,6 +499,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     joint: 'Gelenk „{name}“',
     jointMove: '„{name}“ auf {value} bewegt',
     hinge: 'Scharnier „{name}“ zwischen zwei Teilen, mit Gelenk',
+    guide: 'Führung „{name}“ zwischen zwei Teilen, mit Gelenk',
     command: 'SolidCraft: {command}',
   },
 };

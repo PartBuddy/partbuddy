@@ -83,3 +83,90 @@ export function hingeSteps(spec: HingeSpec): Step[] {
     cylinder(pin, 0, length, 'join', spec.fixed, `${spec.name} ●`),
   ];
 }
+
+export interface SlideSpec {
+  /** The body that stays and carries the rail. */
+  fixed: string;
+  /** The body that slides; it lies over the rail and gets the groove. */
+  moving: string;
+  /** The ends of the rail's middle line, on the face of the fixed body the rail stands on. */
+  from: Vec3;
+  to: Vec3;
+  /** The way the rail stands out of that face (its normal). */
+  up: Vec3;
+  /** Width of the rail at its foot in mm; it widens by its height on each side (45° flanks print without support). */
+  width: number;
+  /** Height of the rail in mm. */
+  height: number;
+  /** The gap between rail and groove in mm. */
+  gap: number;
+  name: string;
+}
+
+const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+
+/** What is wrong with a guide before anything is built; null when it can be built. */
+export function slideProblem(spec: SlideSpec): string | null {
+  const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
+  const length = Math.hypot(...delta);
+  const up = Math.hypot(...spec.up);
+  if (spec.fixed === spec.moving) return 'fixed and moving must be two bodies';
+  if (length < 5) return 'from and to must be at least 5 mm apart';
+  if (up < 1e-9) return 'up must not be zero';
+  if (Math.abs(delta.reduce((sum, value, i) => sum + value * (spec.up[i] ?? 0), 0)) > 1e-6 * length * up) return 'up must be square to the line from–to (the normal of the face the rail stands on)';
+  if (!(spec.width >= 2 && spec.width <= 60)) return 'width must be 2–60 mm';
+  if (!(spec.height >= 1.5 && spec.height <= 20)) return 'height must be 1.5–20 mm';
+  if (!(spec.gap >= 0.2 && spec.gap <= 1)) return 'gap must be 0.2–1 mm';
+  return null;
+}
+
+/**
+ * The solids of a dovetail guide along the line `from`–`to`: a rail on the fixed body that widens
+ * upwards at 45°, and its groove in the moving body, a gap wider all round. Both are a sketch at
+ * `from`, square to the line, extruded along it.
+ */
+export function slideSteps(spec: SlideSpec): Step[] {
+  const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
+  const length = Math.hypot(...delta);
+  const axis = delta.map((value) => value / length) as Vec3;
+  const upLength = Math.hypot(...spec.up);
+  const up = spec.up.map((value) => value / upLength) as Vec3;
+  // Sketch x across the rail, y up: x × y is the line's direction, so a positive distance runs along it.
+  const plane = { origin: spec.from.map(round), x_dir: cross(up, axis).map(round), y_dir: up.map(round) };
+  const half = spec.width / 2;
+  const { height, gap } = spec;
+  // The flank moved out by the gap, measured square to it.
+  const out = gap * Math.SQRT2;
+  const profile = (points: [number, number][], operation: 'cut' | 'join', target: string, name: string): Step[] => [
+    { command: 'sketch.create', params: { plane, project_edges: false, name } },
+    { command: 'sketch.line', params: { points: points.map(([x, y]) => [round(x), round(y)]), closed: true } },
+    { command: 'solid.extrude', params: { distance: `${String(round(length))} mm`, operation, targets: [target], name } },
+  ];
+  return [
+    // The groove first: it also reaches a little below the face, so the moving body stands clear of the rail's foot.
+    ...profile(
+      [
+        [-(half + out), -gap],
+        [half + out, -gap],
+        [half + out, 0],
+        [half + out + height + gap, height + gap],
+        [-(half + out + height + gap), height + gap],
+        [-(half + out), 0],
+      ],
+      'cut',
+      spec.moving,
+      `${spec.name} ·`,
+    ),
+    ...profile(
+      [
+        [-half, 0],
+        [half, 0],
+        [half + height, height],
+        [-(half + height), height],
+      ],
+      'join',
+      spec.fixed,
+      spec.name,
+    ),
+  ];
+}

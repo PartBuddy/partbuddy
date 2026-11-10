@@ -3121,3 +3121,49 @@ test('the assistant builds a print-in-place hinge with one call: one piece per b
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('the assistant builds a dovetail guide with one call: joined as a slider that stays on its rail (G3)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-slide-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7939',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a sliding carriage');
+    await page.getByRole('button', { name: 'Send' }).click();
+    // The carriage lies over 20 to 40 mm of a 60 mm rail: 20 mm each way.
+    await expect(page.getByText(/Built the guide "Carriage guide" between Base \(stays\) and Carriage \(slides\): a dovetail rail 6 mm wide at its foot and 3 mm high, gap 0\.4 mm everywhere\. It slides from -20 mm to 20 mm/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    await page.getByTestId('joints').click({ timeout: 30_000 });
+    const slider = page.getByTestId('joint-panel').getByRole('slider', { name: 'Carriage guide' });
+    await expect(page.getByText('Guide “Carriage guide” between two parts, with its joint')).toHaveCount(1);
+    await expect(slider).toHaveAttribute('min', '-20');
+    await expect(slider).toHaveAttribute('max', '20');
+    // Rail and groove neither overlap nor come closer than the push fit, and nothing stops the travel.
+    await page.getByTestId('print-check').click();
+    const findings = page.getByTestId('print-check-panel');
+    await expect(findings).toBeVisible();
+    await page.waitForTimeout(1500);
+    await expect(findings.locator('[data-kind="blocked"], [data-kind="overlap"], [data-kind="tight"], [data-kind="posed"]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await slider.focus();
+    await page.keyboard.press('End');
+    await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Carriage guide' })).toHaveValue('20', { timeout: 30_000 });
+    await expect(page.getByTestId('joint-reset')).toBeEnabled({ timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: test.info().outputPath('guide-built-moved.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
