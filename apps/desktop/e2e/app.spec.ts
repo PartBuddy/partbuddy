@@ -506,7 +506,11 @@ test('a joint moves with its slider and goes back to as designed (ADR 0027)', as
   const findings = page.getByTestId('print-check-panel');
   await expect(findings.locator('[data-kind="blocked"]')).toContainText('Hinge: Second clip and CableClip touch at -28.1° – the joint does not reach its limit of -180°');
   await expect(findings.locator('[data-kind="posed"]')).toHaveCount(0);
-  await page.keyboard.press('Escape');
+  // Escape reaches the findings only once they have the focus: again until they are gone.
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(findings).toBeHidden({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
   // The lower limit is the slider's end; SolidCraft is driven once, when the key is let go.
   await slider().focus();
   await page.keyboard.press('Home');
@@ -516,7 +520,11 @@ test('a joint moves with its slider and goes back to as designed (ADR 0027)', as
   await page.getByTestId('print-check').click();
   await expect(findings.locator('[data-kind="posed"]')).toContainText('Hinge stands at -180°, not as designed');
   await expect(findings.locator('[data-kind="blocked"]')).toHaveCount(0);
-  await page.keyboard.press('Escape');
+  // Escape reaches the findings only once they have the focus: again until they are gone.
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(findings).toBeHidden({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
   await page.getByTestId('joint-reset').click();
   await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(0);
   await expect(slider()).toHaveValue('0');

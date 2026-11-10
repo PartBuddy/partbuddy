@@ -3051,7 +3051,11 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
     await expect(findings.locator('[data-kind="blocked"]')).toHaveCount(1, { timeout: 30_000 });
     await expect(findings.locator('[data-kind="blocked"]')).toContainText('Hinge: Flap and Base touch at 28.1° – the joint does not reach its limit of 90°');
     await page.screenshot({ path: test.info().outputPath('hinge-blocked.png') });
-    await page.keyboard.press('Escape');
+    // Escape reaches the findings only once they have the focus: again until they are gone.
+    await expect(async () => {
+      await page.keyboard.press('Escape');
+      await expect(findings).toBeHidden({ timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
     await page.screenshot({ path: test.info().outputPath('hinge-as-designed.png') });
     // Dragged, the flap follows in the view at once, before SolidCraft is asked: the revision stays, a body is turned.
     const turned = () =>
@@ -3096,7 +3100,11 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
     await page.screenshot({ path: test.info().outputPath('hinge-folded.png') });
     await page.getByTestId('print-check').click();
     await expect(findings.locator('[data-kind="posed"]')).toContainText('Hinge stands at -180°, not as designed', { timeout: 30_000 });
-    await page.keyboard.press('Escape');
+    // Escape reaches the findings only once they have the focus: again until they are gone.
+    await expect(async () => {
+      await page.keyboard.press('Escape');
+      await expect(findings).toBeHidden({ timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
     await page.getByTestId('joint-reset').click();
     await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' })).toHaveValue('0', { timeout: 30_000 });
     await expect(page.getByTestId('joint-error')).toHaveCount(0);
@@ -3141,7 +3149,11 @@ test('the assistant builds a print-in-place hinge with one call: one piece per b
     await expect(findings).toBeVisible();
     await page.waitForTimeout(1500);
     await expect(findings.locator('[data-kind="blocked"], [data-kind="overlap"], [data-kind="tight"], [data-kind="posed"]')).toHaveCount(0);
-    await page.keyboard.press('Escape');
+    // Escape reaches the findings only once they have the focus: again until they are gone.
+    await expect(async () => {
+      await page.keyboard.press('Escape');
+      await expect(findings).toBeHidden({ timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
     // Opened as far as it goes, the flap stands where SolidCraft put it.
     await slider.focus();
     await page.keyboard.press('End');
@@ -3188,7 +3200,11 @@ test('the assistant builds a dovetail guide with one call: joined as a slider th
     await expect(findings).toBeVisible();
     await page.waitForTimeout(1500);
     await expect(findings.locator('[data-kind="blocked"], [data-kind="overlap"], [data-kind="tight"], [data-kind="posed"]')).toHaveCount(0);
-    await page.keyboard.press('Escape');
+    // Escape reaches the findings only once they have the focus: again until they are gone.
+    await expect(async () => {
+      await page.keyboard.press('Escape');
+      await expect(findings).toBeHidden({ timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
     await slider.focus();
     await page.keyboard.press('End');
     await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Carriage guide' })).toHaveValue('20', { timeout: 30_000 });
