@@ -40,6 +40,8 @@ const ALLOWED = new Set([
   'partbuddy_move_drawing',
   // Places an attached SVG as a logo with the logo block's steps (drawingTool.ts), answered by PartBuddy.
   'partbuddy_place_drawing',
+  // Builds a print-in-place hinge with its joint from engine commands (mechanismTool.ts), answered by PartBuddy.
+  'partbuddy_mechanism',
 ]);
 
 /**

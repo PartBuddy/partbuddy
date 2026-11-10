@@ -39,6 +39,10 @@ each sweep in about 5 ms), and an own model would have to redo all of it.
   it stands. "As designed" drives every joint back to 0, the position an as-built joint was made in.
 * A design without joints stays as it is: no components, no extra request beyond `joint.list`.
 
+* Mechanisms come to the user through the assistant, not through a gallery or a block at a face
+  (product owner, 2026-11-10): `partbuddy_mechanism` builds a proven print-in-place hinge between
+  two bodies, joins them and sets the limits where they meet, so gaps and knuckles do not depend
+  on the model. The ready-to-print check also sweeps the joints (G2).
 ### Consequences
 
 * Good, because motion, limits and collisions are SolidCraft's and exact.

@@ -27,6 +27,7 @@ import { withDesignTool } from './agents/designTool';
 import { keepPrintFace, readAssembly, readPrintFaces, writeAssembly } from './projects/assembly';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
+import { withMechanismTool } from './agents/mechanismTool';
 import { blockPhrase, describeUserAction } from '../shared/stepPhrases';
 import { ChatGptAccount } from './chatgpt/account';
 import { ChatGptAgent } from './chatgpt/chatgptAgent';
@@ -574,7 +575,7 @@ if (!app.requestSingleInstanceLock()) {
         steps.tools(
           withDesignTool(
             withAssemblyTool(
-              withViewTool(guardNotes(withDrawings(upstream, drawings), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
+              withViewTool(guardNotes(withMechanismTool(withDrawings(upstream, drawings), () => printProfiles.part().printer.nozzle), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
               () => viewState?.bodies.map((body) => body.name) ?? [],
               saveAssembly,
             ),

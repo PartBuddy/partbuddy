@@ -8,6 +8,7 @@ import { RESEARCH_GUIDANCE } from './research';
 import { withToolNotes } from './toolNotes';
 import { VIEW_GUIDANCE } from './viewContext';
 import { ASSEMBLY_GUIDANCE, JOINT_GUIDANCE } from './assemblyTool';
+import { MECHANISM_GUIDANCE } from './mechanismTool';
 
 /**
  * What PartBuddy's own agent loop shares between its routes (ChatGPT plan, local models): the
@@ -24,6 +25,7 @@ const INSTRUCTIONS = [
   VIEW_GUIDANCE,
   ASSEMBLY_GUIDANCE,
   JOINT_GUIDANCE,
+  MECHANISM_GUIDANCE,
   QUESTION_GUIDANCE,
   ANSWER_GUIDANCE,
 ].join(' ');
