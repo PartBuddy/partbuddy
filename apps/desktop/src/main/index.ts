@@ -242,7 +242,7 @@ if (!app.requestSingleInstanceLock()) {
     const appearance = new AppearanceSettings(settingsStore);
     nativeTheme.themeSource = appearance.theme();
 
-    const bridge = new Bridge(ipcMain, trustedSender(() => mainWindow?.webContents.id, rendererOrigin), !app.isPackaged);
+    const bridge = new Bridge(ipcMain, trustedSender(() => mainWindow?.webContents.id, rendererOrigin), !app.isPackaged, log);
     // The user's project folder: the only place the assistant's SolidCraft may read and write.
     // PARTBUDDY_PROJECTS_DIR: tests keep the user's documents untouched.
     const defaultProjects = join(app.getPath('documents'), 'PartBuddy');

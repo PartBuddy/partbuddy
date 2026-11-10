@@ -246,7 +246,7 @@ function Item({
           {item.photo ? (
             <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="message-photo">
               <IconPhoto className="size-icon-sm shrink-0" aria-hidden />
-              {t('assistant.photo.sent')}
+              {t('assistant.photo.sent', { count: item.attachments?.length ?? 1 })}
             </span>
           ) : null}
           {item.attachments && open ? (

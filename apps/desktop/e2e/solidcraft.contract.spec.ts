@@ -1585,8 +1585,9 @@ test('function blocks are previewed and built at a face: tapped hole, screw hole
     for (const line of ['Tapped hole M4', 'Screw hole M3', 'Hole ⌀ 4 mm, 6.7 mm deep', 'Screw boss ⌀ 7.2 mm']) {
       await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
     }
-    // The design changed only through the four blocks: previews leave nothing behind. By name, so a red run says which step is too many.
-    await expect.poll(() => page.getByTestId('timeline-feature').allInnerTexts(), { timeout: 30_000 }).toHaveLength(5);
+    // The design changed only through the four blocks, the tapped hole twice (`more`): previews leave nothing
+    // behind. All six by name: a count alone passed while the timeline was still one step behind.
+    await expect(page.getByTestId('timeline-feature')).toHaveText(['Box1', 'Hole1', 'Hole2', 'Hole3', 'Hole4', 'Boss1'], { timeout: 30_000 });
     expect((await preview({ block: 'boss', body: 'Body1', point: [10, 10, 5], size: 'M3', diameter: 8, height: 5 })).ok).toBe(false);
     await page.screenshot({ path: test.info().outputPath('blocks.png') });
   } finally {
@@ -2433,6 +2434,7 @@ test('a photo goes to the assistant as a picture with its note and is kept in th
     await page.getByTestId('composer-send').click();
     await expect(page.getByTestId('composer-stop')).toBeHidden({ timeout: 60_000 });
     await expect(page.getByTestId('message-attachment')).toHaveCount(3);
+    await expect(page.getByTestId('message-photo').last()).toHaveText('With 2 photos');
     await expect(() => {
       expect(readdirSync(join(projects, project ?? '', 'photos')).filter((name) => /^photo-\d{8}-\d{6}(-2)?\.png$/.test(name))).toHaveLength(3);
     }).toPass({ timeout: 10_000 });
