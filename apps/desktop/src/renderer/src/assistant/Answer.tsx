@@ -27,7 +27,7 @@ export function Answer({ text, streaming, quiet }: { text: string; streaming: bo
   }, [text, shortened]);
 
   return (
-    <div className="group/message flex min-w-0 flex-col gap-1">
+    <div className="group/message relative flex min-w-0 flex-col gap-1">
       <div
         ref={box}
         data-testid="assistant-text"
@@ -37,20 +37,23 @@ export function Answer({ text, streaming, quiet }: { text: string; streaming: bo
       >
         <Markdown text={text} streaming={streaming} />
       </div>
-      <div className="flex min-h-control-sm items-center gap-2">
-        {quiet && (overflows || expanded) ? (
-          <AriaButton
-            onPress={() => {
-              setExpanded(!expanded);
-            }}
-            className={`text-xs ${linkClass}`}
-            data-testid="answer-more"
-          >
-            {expanded ? t('assistant.showLess') : t('assistant.showMore')}
-          </AriaButton>
-        ) : null}
-        {streaming ? null : <MessageActions text={text} />}
-      </div>
+      {quiet && (overflows || expanded) ? (
+        <AriaButton
+          onPress={() => {
+            setExpanded(!expanded);
+          }}
+          className={`self-start text-xs ${linkClass}`}
+          data-testid="answer-more"
+        >
+          {expanded ? t('assistant.showLess') : t('assistant.showMore')}
+        </AriaButton>
+      ) : null}
+      {/* Over the answer's top corner, inside its box: no row kept free under every answer (audit C-17). */}
+      {streaming ? null : (
+        <div className="absolute top-0 right-0 rounded-md focus-within:bg-surface group-hover/message:bg-surface">
+          <MessageActions text={text} />
+        </div>
+      )}
     </div>
   );
 }
