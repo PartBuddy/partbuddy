@@ -111,7 +111,7 @@ if (args[0] === '--version') {
 
     // PartBuddy's notes and earlier messages can go along with the user's words, so each answer keys on
     // the phrase of the user's own that comes last.
-    const said = ['Research the', 'Build a cable clip', 'Build a case and a lid', 'Fit this housing']
+    const said = ['Research the', 'Make the snap opening', 'Build a cable clip', 'Build a case and a lid', 'Fit this housing']
       .map((phrase) => [phrase, content.lastIndexOf(phrase)])
       .filter(([, at]) => at >= 0)
       .sort((a, b) => b[1] - a[1])[0]?.[0];
@@ -139,7 +139,17 @@ if (args[0] === '--version') {
 
     const client = server ? new Client({ name: 'site-claude', version: '1.0.0' }) : null;
     await client?.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }));
-    if (picture && content.includes('photo of a real object')) {
+    if (picture && content.includes('from three sides')) {
+      await client?.close();
+      say('I see the clip in three views: from above at an angle, from the front and from the top. The snap is thinnest where it meets the base plate, so I will make its root **1 mm** thicker and round it with a larger fillet.');
+    } else if (said === 'Make the snap opening') {
+      // Long enough for the next message to wait beside it (picture "queue").
+      // One query, then a long think (the same call three times in a row is refused); the picture stops it.
+      await client?.callTool({ name: 'inspect_design', arguments: { measure: true } });
+      await new Promise((done) => setTimeout(done, 45_000));
+      await client?.close();
+      say('The snap opening is checked; widening it by 1 mm keeps 1.8 mm of wall on each arm.');
+    } else if (picture && content.includes('photo of a real object')) {
       await client?.callTool({ name: 'partbuddy_ask', arguments: { questions: PHOTO_ROUND } });
       await client?.close();
       say('I see a rectangular box with a separate lid that sits on a lip. To build a holder that fits it I need one real measure.');
