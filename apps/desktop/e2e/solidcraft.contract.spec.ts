@@ -3114,6 +3114,69 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
   }
 });
 
+test('a hinge plays in the view, stops where SolidCraft found the parts touching, and is driven only when the position is kept (ADR 0027)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-joints-play-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7938',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a hinge');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    // The light swept the joint in SolidCraft: upwards the flap's edge meets the base at 28.1°.
+    await page.getByTestId('print-check').click({ timeout: 30_000 });
+    const findings = page.getByTestId('print-check-panel');
+    await expect(findings.locator('[data-kind="blocked"]')).toContainText('Hinge: Flap and Base touch at 28.1°', { timeout: 30_000 });
+    await expect(async () => {
+      await page.keyboard.press('Escape');
+      await expect(findings).toBeHidden({ timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+    const revision = await page.getByTestId('connection-status').textContent();
+    // One click plays it: down to its limit first (the longer way), then up until the parts touch.
+    await page.getByTestId('joints-play').click();
+    const panel = page.getByTestId('joint-panel');
+    await panel.getByRole('radio', { name: '2×' }).click();
+    const shown = async () => Number(await panel.getByTestId('joint-value').getAttribute('data-shown'));
+    await expect.poll(shown, { timeout: 30_000 }).toBeLessThan(-20);
+    await page.screenshot({ path: test.info().outputPath('hinge-playing.png') });
+    const stopped = panel.getByTestId('joint-stopped');
+    await expect(stopped).toHaveText('Flap and Base touch here: at 28.1°. Playing goes back from there.', { timeout: 60_000 });
+    expect(await shown()).toBeCloseTo(28.1);
+    await page.screenshot({ path: test.info().outputPath('hinge-stopped.png') });
+    // SolidCraft was not driven: the revision is the one before.
+    await expect(page.getByTestId('connection-status')).toHaveText(revision ?? '');
+    await expect(panel.getByTestId('joint-view-only')).toBeVisible();
+    // Kept, SolidCraft drives the joint to what the panel reads, and the light says it stands there.
+    await panel.getByTestId('joint-keep').click();
+    await expect(page.getByTestId('connection-status')).not.toHaveText(revision ?? '', { timeout: 30_000 });
+    await expect(panel.getByTestId('joint-value').locator('output')).toHaveText('28.1°', { timeout: 30_000 });
+    await expect(panel.getByTestId('joint-keep')).toHaveCount(0);
+    await page.getByTestId('print-check').click();
+    await expect(findings.locator('[data-kind="posed"]')).toContainText('Hinge stands at 28.1°', { timeout: 30_000 });
+    await expect(async () => {
+      await page.keyboard.press('Escape');
+      await expect(findings).toBeHidden({ timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+    await panel.getByTestId('joint-reset').click();
+    await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue('0', { timeout: 30_000 });
+    await expect(panel.getByTestId('joint-error')).toHaveCount(0);
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('the assistant builds a print-in-place hinge with one call: one piece per body, joined, limits where the parts meet (G3)', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
