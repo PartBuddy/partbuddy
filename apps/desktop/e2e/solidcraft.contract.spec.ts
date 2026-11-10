@@ -3019,3 +3019,46 @@ test('a hole is placed on its face before it is drilled: across and up from the 
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   }
 });
+
+test('a hinge the assistant joined moves with its slider and goes back to as designed (ADR 0027)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-joints-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7937',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    // A part alone has no joint, so the tool is not there.
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a hinge');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    // The bodies keep their names as components, and the joint SolidCraft lists shows as a slider.
+    await page.getByTestId('joints').click({ timeout: 30_000 });
+    const slider = page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' });
+    await expect(slider).toHaveValue('0');
+    await page.screenshot({ path: test.info().outputPath('hinge-as-designed.png') });
+    // To the lower limit: SolidCraft folds the flap onto the base, and the mirror brings the value back.
+    await slider.focus();
+    await page.keyboard.press('Home');
+    await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' })).toHaveValue('-180', { timeout: 30_000 });
+    await expect(page.getByTestId('joint-reset')).toBeEnabled({ timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: test.info().outputPath('hinge-folded.png') });
+    await page.getByTestId('joint-reset').click();
+    await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' })).toHaveValue('0', { timeout: 30_000 });
+    await expect(page.getByTestId('joint-error')).toHaveCount(0);
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});

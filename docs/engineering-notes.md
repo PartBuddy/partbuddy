@@ -185,6 +185,23 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   called `Body<n>` until `body.rename`. PartBuddy notes standard part bodies under
   `io.github.manuelstaggl.partbuddy.standard-parts`; export and the light leave them out.
 
+## Joints and motion (0.40.0-rc.3, checked 2026-11-10)
+
+- `component.from_bodies {bodies}` makes one component per body; the first is grounded, the
+  occurrences are called `<body>:1`. The bodies keep their names: `document.inspect`,
+  `model.faces` and `file.export {bodies}` go on naming them and answer in world placement, so the
+  mirror shows a driven part where it stands without knowing about components.
+- `joint.as_built {type, a, b, at: {occurrence, point, z}, name}` joins two occurrences where
+  they are (0 is the position as designed); `joint.limits {joint, min, max}`;
+  `joint.drive {joint, index, value}` moves it, clamps to the limits (`held` says why) and is one
+  undo step and one revision. `joint.list` gives `values: [{name, unit: deg|mm, value, limits}]`.
+- `joint.sweep {joint, from, to}` runs the range without changing the design and answers
+  `stopped_at` (the last value clear of contact, refined to 0.01 mm) and
+  `stopped_by {a, b, at}`; about 5 ms for two plates. Also there, not used yet: `joint.gear`,
+  `joint.reach` (a drag frame with `continuous`), `motion.study`, `motion.interference`.
+- The `solidcraft-cli` on the PATH of the home server is 0.30.1; `solidcraft-cli commands` of the
+  version under test lists every command with its parameters.
+
 ## Slicer (0.40, checked 2026-11-05)
 
 - `file.slicers` lists `{id, name, program}` (here `bambu`, `orca`). `file.send_to_slicer {slicer,

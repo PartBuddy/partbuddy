@@ -130,6 +130,12 @@
       "apart": "Auseinander",
       "hint": "Nur zum Ansehen: Auswählen, Notizen und Maße sind wieder da, sobald die Ansicht zu ist."
     },
+    "joints": {
+      "title": "Bewegliche Teile",
+      "reset": "Wie konstruiert",
+      "hint": "Loslassen bewegt das Teil. Exportiert und geprüft wird die Stellung, in der es steht.",
+      "failed": "SolidCraft hat das Gelenk nicht bewegt: {reason}"
+    },
     "hintShort": "Klicken wählt · Ziehen dreht · Rechts verschiebt · Rad zoomt"
   },
   "status": {

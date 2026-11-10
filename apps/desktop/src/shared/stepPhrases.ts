@@ -69,6 +69,10 @@ export const STEP_PHRASE_KEYS = [
   'logoDepth',
   'logoRotated',
   'logoResized',
+  // Parts that move (ADR 0027).
+  'movableParts',
+  'joint',
+  'jointMove',
   'command',
 ] as const;
 
@@ -231,6 +235,14 @@ function phraseOf(command: string, params: Params): StepPhrase | 'curve' | 'dime
     case 'parts.insert':
     case 'parts.fastener':
       return { key: 'standardPart', values: { name: `${text(params.size, '?')}${typeof params.length === 'number' ? `×${String(params.length)}` : ''}` } };
+    case 'component.from_bodies':
+      return { key: 'movableParts', values: {} };
+    case 'joint.create':
+    case 'joint.as_built':
+      return { key: 'joint', values: { name: text(params.name, text(params.type, '?')).slice(0, 60) } };
+    case 'joint.drive':
+      // The assistant names the joint or gives its id; the unit is the joint's own.
+      return { key: 'jointMove', values: { name: String(size(params.joint) ?? '?').slice(0, 60), value: String(size(params.value) ?? '?').slice(0, 40) } };
   }
   if (command.startsWith('sketch.')) return 'curve';
   if (command.startsWith('construct.')) return { key: 'construction', values: {} };
@@ -296,10 +308,13 @@ export function describeUserAction(
     | { kind: 'insertFile'; name: string }
     | { kind: 'repairBody' | 'convertMesh'; body: string }
     | { kind: 'standardPart'; name: string }
-    | { kind: 'printFace'; cleared: boolean },
+    | { kind: 'printFace'; cleared: boolean }
+    | { kind: 'jointMove'; name: string; value: number; unit: 'deg' | 'mm' },
 ): StepPhrase {
   const round = (value: number) => Math.round(value * 100) / 100;
   switch (action.kind) {
+    case 'jointMove':
+      return { key: 'jointMove', values: { name: action.name.slice(0, 60), value: `${String(round(action.value))}${action.unit === 'deg' ? '°' : ' mm'}` } };
     case 'dimension':
       return { key: 'dimension', values: { name: action.parameter.slice(0, 60), value: round(action.value) } };
     case 'rollTo':
@@ -413,6 +428,9 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     logoDepth: 'Logo “{name}” set to {depth} mm',
     logoRotated: 'Logo “{name}” turned by {angle}°',
     logoResized: 'Logo “{name}” made {width} mm wide',
+    movableParts: 'Made the bodies into parts that can move',
+    joint: 'Joint “{name}”',
+    jointMove: 'Moved “{name}” to {value}',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -471,6 +489,9 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     logoDepth: 'Logo „{name}“ auf {depth} mm gesetzt',
     logoRotated: 'Logo „{name}“ um {angle}° gedreht',
     logoResized: 'Logo „{name}“ auf {width} mm Breite',
+    movableParts: 'Körper zu beweglichen Teilen gemacht',
+    joint: 'Gelenk „{name}“',
+    jointMove: '„{name}“ auf {value} bewegt',
     command: 'SolidCraft: {command}',
   },
 };

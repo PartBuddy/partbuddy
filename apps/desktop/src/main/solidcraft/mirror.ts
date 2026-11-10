@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { faceTableFromModelFaces, sketchFromInspect, tessellateSketch, type SketchLines } from '@partbuddy/geometry';
 
-import type { MirroredBody, MirroredSketch, MirrorRevision, Structure } from '../../shared/contract';
+import type { Joint, MirroredBody, MirroredSketch, MirrorRevision, Structure } from '../../shared/contract';
 import { isLibraryPart, standardPartsOf } from './standardParts';
 
 /** The part of the control client the mirror needs. */
@@ -94,6 +94,30 @@ async function withLibraryParts(client: ControlRequester, structure: Structure, 
   } catch {
     return structure;
   }
+}
+
+/** The joints from `joint.list` (ADR 0027), checked field by field; a joint or value that reads oddly is left out. */
+export function jointsOf(listing: unknown): Joint[] {
+  const joints = (listing as { joints?: unknown } | undefined)?.joints;
+  if (!Array.isArray(joints)) return [];
+  const limit = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+  return (joints as Record<string, unknown>[])
+    .filter((joint) => Number.isInteger(joint.id) && (joint.id as number) >= 0 && joint.suppressed !== true)
+    .slice(0, 200)
+    .map((joint) => ({
+      id: joint.id as number,
+      name: text(joint.name, 200) ?? `#${String(joint.id)}`,
+      type: text(joint.type, 40) ?? 'joint',
+      values: (Array.isArray(joint.values) ? (joint.values as Record<string, unknown>[]) : [])
+        .filter((value) => (value.unit === 'deg' || value.unit === 'mm') && typeof value.value === 'number' && Number.isFinite(value.value))
+        .slice(0, 6)
+        .map((value) => ({
+          unit: value.unit as 'deg' | 'mm',
+          value: value.value as number,
+          limits: Array.isArray(value.limits) ? ([limit(value.limits[0]), limit(value.limits[1])] as [number | null, number | null]) : null,
+        })),
+    }))
+    .filter((joint) => joint.values.length > 0);
 }
 
 export function count(value: unknown): number {
@@ -192,6 +216,8 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
   commands.push({ command: 'component.list', params: {} });
   // Colours given to bodies (a logo in colours for a multi-colour print), shown in the view.
   commands.push({ command: 'appearance.list', params: {} });
+  // Joints of parts that move against each other, with where they stand (ADR 0027).
+  commands.push({ command: 'joint.list', params: {} });
 
   try {
     const batch = await client.request<BatchResult>(
@@ -206,6 +232,9 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
     if (typeof head?.document_id !== 'string' || typeof head.revision !== 'number') {
       throw new Error('document.revision returned no revision');
     }
+    const tail = 1 + bodies.length * 2 + sketches.length;
+    const joints = jointsOf(batch.results[tail + 2]);
+    const structure = withColours(await withLibraryParts(client, structureOf(inspect), batch.results[tail]), batch.results[tail + 1]);
     const mirrored: MirroredBody[] = [];
     for (const [i, name] of bodies.entries()) {
       const faces = faceTableFromModelFaces(batch.results[1 + i * 2], name, designName);
@@ -219,7 +248,7 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
       designName,
       bodies: mirrored,
       sketches: mirrorSketches(batch.results.slice(1 + bodies.length * 2), sketches),
-      structure: withColours(await withLibraryParts(client, structureOf(inspect), batch.results[1 + bodies.length * 2 + sketches.length]), batch.results[2 + bodies.length * 2 + sketches.length]),
+      structure: joints.length > 0 ? { ...structure, joints } : structure,
       history: { undo: count(inspect.undo), redo: count(inspect.redo) },
       mirrorMs: Math.round(performance.now() - started),
     };

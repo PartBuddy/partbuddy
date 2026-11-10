@@ -115,6 +115,19 @@ export const timelineFeatureSchema = z
   })
   .strict();
 
+/** A joint between two parts and where it stands (ADR 0027), from SolidCraft's `joint.list`. */
+export const jointSchema = z
+  .object({
+    id: z.number().int().nonnegative(),
+    name: z.string().max(200),
+    type: z.string().max(40),
+    /** One value per direction the joint moves in; a side of the limits that is not set is null. */
+    values: z
+      .array(z.object({ unit: z.enum(['deg', 'mm']), value: z.number(), limits: z.tuple([z.number().nullable(), z.number().nullable()]).nullable() }).strict())
+      .max(6),
+  })
+  .strict();
+
 /** What the structure tree and the timeline show: every body and sketch, visible or not, and the features. */
 export const structureSchema = z
   .object({
@@ -137,6 +150,8 @@ export const structureSchema = z
     sketches: z.array(z.object({ id: z.number().int().nonnegative(), name: z.string().max(200), visible: z.boolean() }).strict()).max(2000),
     /** Bodies that are standard parts (B7): counterparts, neither exported nor checked for printing. */
     standardParts: z.array(z.string().max(200)).max(500).optional(),
+    /** The joints of parts that move against each other (ADR 0027); left out when there are none. */
+    joints: z.array(jointSchema).max(200).optional(),
   })
   .strict();
 
@@ -882,6 +897,10 @@ export const measureRequestSchema = z.object({ items: z.array(measureItemSchema)
 export const measureResultSchema = z.object({ distance: finite.nullable(), angle: finite.nullable() }).strict();
 /** The printed bodies whose clearance SolidCraft measures (F2); standard parts stay out. */
 export const clearanceRequestSchema = z.object({ bodies: z.array(bodyName).min(2).max(200), gap: finite.min(0).max(5) }).strict();
+/** One value of a joint driven to where the user set its slider (ADR 0027); the name is for the work log. */
+export const jointDriveSchema = z
+  .object({ joint: z.number().int().nonnegative(), index: z.number().int().min(0).max(5), value: finite.min(-100_000).max(100_000), unit: z.enum(['deg', 'mm']), name: z.string().max(200) })
+  .strict();
 const boxSchema = z.object({ min: point3, max: point3 }).strict();
 export const clearanceResultSchema = z
   .object({
@@ -1191,6 +1210,7 @@ export const invokeContract = {
   [invokeChannels.designApplyAction]: { request: designActionSchema, response: none },
   [invokeChannels.designMeasure]: { request: measureRequestSchema, response: measureResultSchema },
   [invokeChannels.designClearance]: { request: clearanceRequestSchema, response: clearanceResultSchema },
+  [invokeChannels.designDriveJoint]: { request: jointDriveSchema, response: none },
   [invokeChannels.designPartsLibrary]: { request: none, response: partsLibrarySchema },
   [invokeChannels.designPreviewBlock]: { request: featureBlockSchema, response: actionPreviewSchema },
   [invokeChannels.designApplyBlock]: { request: featureBlockSchema, response: none },
@@ -1320,6 +1340,8 @@ export type MeasureResult = z.infer<typeof measureResultSchema>;
 export type ClearanceResult = z.infer<typeof clearanceResultSchema>;
 export type TimelineFeature = z.infer<typeof timelineFeatureSchema>;
 export type Structure = z.infer<typeof structureSchema>;
+export type Joint = z.infer<typeof jointSchema>;
+export type JointDrive = z.infer<typeof jointDriveSchema>;
 export type TimelineCommand = z.infer<typeof timelineCommandSchema>;
 export type VisibilityCommand = z.infer<typeof visibilityCommandSchema>;
 export type NoteView = z.infer<typeof noteViewSchema>;

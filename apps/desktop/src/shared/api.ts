@@ -43,6 +43,7 @@ import type {
   MeasureItem,
   MeasureResult,
   ClearanceResult,
+  JointDrive,
   MessageAnswer,
   TimelineCommand,
   VisibilityCommand,
@@ -230,6 +231,8 @@ export interface PartBuddyApi {
     measure(items: MeasureItem[]): Promise<MeasureResult>;
     /** Overlaps and narrow gaps between printed bodies (F2), measured by SolidCraft. */
     clearance(bodies: string[], gap: number): Promise<ClearanceResult>;
+    /** Moves a joint to a value (ADR 0027); SolidCraft keeps it within its limits. */
+    driveJoint(drive: JointDrive): Promise<void>;
     /** Rolls the timeline back or forward, or suppresses a feature (M1c). */
     timeline(command: TimelineCommand): Promise<void>;
     /** Shows or hides bodies and sketches. */

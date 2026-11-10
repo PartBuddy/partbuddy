@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { componentsWithBodies, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
+import { componentsWithBodies, jointsOf, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
+import { describeCommands, describeUserAction } from '../src/shared/stepPhrases';
 import { structureSchema } from '../src/shared/contract';
 
 describe('structure tree and timeline from document.inspect (M1c)', () => {
@@ -62,5 +63,35 @@ describe('standard parts the assistant inserted itself', () => {
     expect(coloured.bodies.map((body) => body.colour)).toEqual([undefined, '#ffd500']);
     expect(structureSchema.safeParse(coloured).success).toBe(true);
     expect(withColours(structure, undefined)).toEqual(structure);
+  });
+});
+
+describe('joints of parts that move (ADR 0027)', () => {
+  it('reads joint.list as SolidCraft 0.40.0-rc.3 answers it, and leaves out what it cannot show', () => {
+    const joints = jointsOf({
+      joints: [
+        { a: 4, b: 6, id: 9, name: 'Hinge', type: 'revolute', suppressed: false, values: [{ limits: [-180, 0], name: 'angle', unit: 'deg', value: -90 }] },
+        { id: 11, name: 'Slide', type: 'slider', values: [{ limits: null, name: 'distance', unit: 'mm', value: 12.5 }] },
+        { id: 12, name: 'Fixed', type: 'rigid', values: [] },
+        { id: 13, name: 'Off', type: 'revolute', suppressed: true, values: [{ limits: null, name: 'angle', unit: 'deg', value: 0 }] },
+        { id: 'broken' },
+      ],
+    });
+    expect(joints).toEqual([
+      { id: 9, name: 'Hinge', type: 'revolute', values: [{ unit: 'deg', value: -90, limits: [-180, 0] }] },
+      { id: 11, name: 'Slide', type: 'slider', values: [{ unit: 'mm', value: 12.5, limits: null }] },
+    ]);
+    expect(structureSchema.safeParse({ ...structureOf({}), joints }).success).toBe(true);
+    expect(jointsOf(undefined)).toEqual([]);
+  });
+
+  it('names the steps in the work log', () => {
+    expect(describeUserAction({ kind: 'jointMove', name: 'Hinge', value: -90.004, unit: 'deg' })).toEqual({ key: 'jointMove', values: { name: 'Hinge', value: '-90°' } });
+    expect(
+      describeCommands([
+        { command: 'component.from_bodies', params: { bodies: ['Base', 'Flap'] } },
+        { command: 'joint.as_built', params: { type: 'revolute', name: 'Hinge' } },
+      ]).map((phrase) => phrase.key),
+    ).toEqual(['movableParts', 'joint']);
   });
 });

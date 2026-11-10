@@ -83,6 +83,8 @@ export class FakeSolidCraft {
   /** Faces whose geometry changed in the latest revision. */
   moved = new Set<string>();
   quitRequested = false;
+  /** Joints as `joint.list` reports them; `joint.drive` sets a value within its limits. */
+  joints: { id: number; name: string; type: string; values: { name: string; unit: 'deg' | 'mm'; value: number; limits: [number, number] | null }[] }[] = [];
   /** User parameters as `parameters.list` reports them; `parameters.change` sets plain values. */
   parameters: FakeParameter[] = [];
   /** Steps `edit.undo` and `edit.redo` can take, as `document.inspect` reports them. */
@@ -193,7 +195,7 @@ export class FakeSolidCraft {
             return { completed: index, results, failed: { index, command: step.command, error: (error as Error).message } };
           }
         }
-        if (commands.some((step) => ['parameters.change', 'body.rename', 'browser.visibility'].includes(step.command))) {
+        if (commands.some((step) => ['parameters.change', 'body.rename', 'browser.visibility', 'joint.drive'].includes(step.command))) {
           setTimeout(() => {
             this.change();
           }, 0);
@@ -249,6 +251,15 @@ export class FakeSolidCraft {
       case 'component.list':
         // Every body in the design itself, as a part made in SolidCraft: no inserted standard parts.
         return { active: 0, components: [{ id: 0, name: 'Design', parent: null, bodies: [...this.bodies], children: [] }] };
+      case 'joint.list':
+        return { joints: this.joints, conflicts: [], errors: [], floating: [], links: [] };
+      case 'joint.drive': {
+        const value = this.joints.find((joint) => joint.id === params.joint)?.values[Number(params.index ?? 0)];
+        if (!value) throw new Error(`no joint ${String(params.joint)}`);
+        const [min, max] = value.limits ?? [-Infinity, Infinity];
+        value.value = Math.min(max, Math.max(min, Number(params.value)));
+        return { moved: true, values: [value] };
+      }
       case 'appearance.list':
         // No body has a colour of its own here.
         return { bodies: {}, components: [], faces: [], in_design: [] };

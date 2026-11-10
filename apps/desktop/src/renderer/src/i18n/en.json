@@ -130,6 +130,12 @@
       "apart": "Apart",
       "hint": "For looking only: selecting, notes and dimensions come back when the view is closed."
     },
+    "joints": {
+      "title": "Moving parts",
+      "reset": "As designed",
+      "hint": "Letting go moves the part. It is exported and checked the way it stands.",
+      "failed": "SolidCraft did not move the joint: {reason}"
+    },
     "hintShort": "Click selects · drag orbits · right-drag pans · scroll zooms"
   },
   "status": {
