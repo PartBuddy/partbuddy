@@ -207,7 +207,7 @@ for (const run of RUNS) {
         await expect(page.getByTestId('home-sort-option').first()).toBeVisible();
       });
       await step('tooltip-home-new', () => hover(home.getByTestId('home-new')));
-      for (const id of ['housing', 'boxWithLid']) {
+      for (const id of ['housing', 'hingedBox']) {
         if ((await home.count()) === 0) await page.getByTestId('home-button').click();
         const started = Date.now();
         await home.locator(`[data-template="${id}"]`).click();

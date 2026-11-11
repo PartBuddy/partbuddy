@@ -17,8 +17,8 @@ import { TagsDialog } from './TagsDialog';
 import { TrashSection } from './TrashSection';
 import { matching, PROJECT_SORTS, relativeTime, sortProjects, tagsOf, type ProjectSort } from './projectTiles';
 import adapter from './templates/adapter.png';
-import boxWithLid from './templates/boxWithLid.png';
 import cableClip from './templates/cableClip.png';
+import hingedBox from './templates/hingedBox.png';
 import housing from './templates/housing.png';
 import wallHolder from './templates/wallHolder.png';
 import { iconButtonClass, pressable } from '../ui/Button';
@@ -27,7 +27,7 @@ import { chipToggleClass, ListCheck, listItemClass, selectTriggerClass } from '.
 import { POPOVER_OFFSET, menuClass, menuItemClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
 
 /** Pictures of the templates, rendered by SolidCraft (tools/templates/render-previews.mjs). */
-const TEMPLATE_PICTURES: Record<TemplateId, string> = { boxWithLid, housing, wallHolder, cableClip, adapter };
+const TEMPLATE_PICTURES: Record<TemplateId, string> = { hingedBox, housing, wallHolder, cableClip, adapter };
 
 const CHECK_TONE: Record<ProjectCheck, Tone> = { ready: 'success', warn: 'warning', block: 'danger' };
 

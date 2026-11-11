@@ -7,13 +7,20 @@
  * `solid.hole` keeps a position given as expressions but does not move with it (0.40.0-rc.2: the
  * hole stays where it was placed and warns), so plain holes are cut cylinders, which follow, and
  * countersunk holes are drilled at sketch points, which follow too.
+ *
+ * Parts that move take their geometry from the mechanisms the assistant uses (`mechanisms.ts`) and
+ * are joined in the script itself: SolidCraft takes a component by the name of its body
+ * (0.40.0-rc.4), so no occurrence id has to be read first.
  */
 
-export const TEMPLATE_IDS = ['boxWithLid', 'housing', 'wallHolder', 'cableClip', 'adapter'] as const;
+import { hingeSteps } from './mechanisms';
+
+export const TEMPLATE_IDS = ['hingedBox', 'housing', 'wallHolder', 'cableClip', 'adapter'] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 
 type Step = { command: string; params: Record<string, unknown> };
 type Expr = string | number;
+type Vec3 = [number, number, number];
 
 /** A user parameter with its starting value and what it means; the assistant reads the comment. */
 const parameter = (name: string, expression: string, comment: string): Step => ({ command: 'parameters.add', params: { name, expression, comment } });
@@ -21,48 +28,69 @@ const parameter = (name: string, expression: string, comment: string): Step => (
 /** The gap between parts printed side by side, so they are separate objects in the slicer. */
 const BESIDE = '10 mm';
 
-function boxWithLid(): Step[] {
-  const lidY = `width + ${BESIDE}`;
-  const inset = 'wall + fit';
+/**
+ * Makes the two bodies components and joins them where they stand, the fixed one grounded. Each side
+ * is a round wall of its own body, which SolidCraft keeps by name: the joint then follows both when the
+ * sizes change (0.40.0-rc.4: `joint.as_built` at a point stays behind, and kept on one body only it
+ * shifts the other). The two ends face each other `offset` apart. `limits` is the range clear of
+ * contact, found with `joint.sweep` at the starting sizes.
+ */
+const joined = (type: 'revolute' | 'slider', fixed: string, moving: string, on: { fixed: Vec3; moving: Vec3; offset: number }, name: string, limits: [number, number]): Step[] => {
+  const origin = (occurrence: string, circle: Vec3) => ({ occurrence, circle, x: [0, 0, 1] });
   return [
-    parameter('length', '60 mm', 'Outer length of box and lid'),
-    parameter('width', '40 mm', 'Outer width of box and lid'),
-    parameter('height', '30 mm', 'Outer height of the box'),
-    parameter('wall', '2 mm', 'Wall, floor and lid thickness'),
-    parameter('lip', '4 mm', 'How deep the lid\'s lip reaches into the box'),
-    parameter('fit', '0.2 mm', 'Gap per side between the lip and the box wall'),
-    parameter('corner', '5 mm', 'Radius of the outer corners of box and lid'),
-    { command: 'solid.box', params: { length: 'length', width: 'width', height: 'height', operation: 'new', body_name: 'Box', name: 'Box' } },
+    { command: 'component.from_bodies', params: { bodies: [fixed, moving] } },
+    { command: 'joint.create', params: { type, a: origin(fixed, on.fixed), b: origin(moving, on.moving), offset: on.offset, name, limits: [limits], quiet: true } },
+  ];
+};
+
+/**
+ * Two halves of one height side by side, open side up, with a print-in-place hinge on the rims
+ * between them: the lid turns half a turn onto the box. The hinge keeps its length and stays in the
+ * middle of the long side and on the rim when the sizes change.
+ */
+function hingedBox(): Step[] {
+  // The room between the halves; the hinge line runs in its middle, within reach of both walls.
+  const between = 1;
+  const [length, width, height, hinge] = [60, 40, 16, 40];
+  const [diameter, gap, knuckles] = [8, 0.4, 5];
+  const start = (length - hinge) / 2;
+  const knuckle = (hinge - (knuckles - 1) * gap) / knuckles;
+  const top = height + diameter / 2;
+  // The outside of the lid's front wall, away from the hinge.
+  const front = between + width;
+  const shell = (body: string, y: Expr, y0: number, feature: (name: string) => string): Step[] => [
+    { command: 'solid.box', params: { length: 'length', width: 'width', height: 'height', corner: [0, y, 0], operation: 'new', body_name: body, name: body } },
     // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
-    { command: 'solid.fillet', params: { edges: [[0, 0, 15], [60, 0, 15], [0, 40, 15], [60, 40, 15]], radius: 'corner', body: 'Box', name: 'Corner radius' } },
-    { command: 'solid.shell', params: { faces: ['F1:+z'], thickness: 'wall', body: 'Box', name: 'Hollow' } },
-    { command: 'solid.chamfer', params: { edges: [[30, 0, 0]], distance: '0.6 mm', body: 'Box', name: 'Bed chamfer' } },
-    // A finger notch in the front wall, to lift the lid off.
-    { command: 'solid.cylinder', params: { diameter: '16 mm', height: 'wall + 2 mm', base: ['length / 2', '-1 mm', 'height'], axis: 'Y', operation: 'cut', targets: ['Box'], name: 'Finger notch' } },
-    { command: 'solid.fillet', params: { edges: [[10, 0, 30]], radius: '0.6 mm', body: 'Box', name: 'Rim radius' } },
-    // The lid lies beside the box, outside down; its lip is a ring as thick as the wall.
-    { command: 'solid.box', params: { length: 'length', width: 'width', height: 'wall', corner: [0, lidY, 0], operation: 'new', body_name: 'Lid', name: 'Lid' } },
-    { command: 'solid.fillet', params: { edges: [[0, 50, 1], [60, 50, 1], [0, 90, 1], [60, 90, 1]], radius: 'corner', body: 'Lid', name: 'Lid corners' } },
-    { command: 'solid.chamfer', params: { edges: [[30, 50, 0]], distance: '0.6 mm', body: 'Lid', name: 'Lid bed chamfer' } },
-    {
-      command: 'solid.box',
-      params: { length: `length - 2 * (${inset})`, width: `width - 2 * (${inset})`, height: 'lip', corner: [inset, `${lidY} + ${inset}`, 'wall'], operation: 'join', targets: ['Lid'], name: 'Lip' },
-    },
-    {
-      command: 'solid.box',
-      params: {
-        length: `length - 2 * (2 * wall + fit)`,
-        width: `width - 2 * (2 * wall + fit)`,
-        height: 'lip',
-        corner: ['2 * wall + fit', `${lidY} + 2 * wall + fit`, 'wall'],
-        operation: 'cut',
-        targets: ['Lid'],
-        name: 'Lip inside',
-      },
-    },
-    // The lip follows the rounded inside of the box.
-    { command: 'solid.fillet', params: { edges: [[2.2, 52.2, 4], [57.8, 52.2, 4], [2.2, 87.8, 4], [57.8, 87.8, 4]], radius: 'corner - wall - fit', body: 'Lid', name: 'Lip corners' } },
-    { command: 'solid.fillet', params: { edges: [[4.4, 54.4, 4], [55.6, 54.4, 4], [4.4, 85.6, 4], [55.6, 85.6, 4]], radius: 'corner - 2 * wall - fit', body: 'Lid', name: 'Lip inner corners' } },
+    { command: 'solid.fillet', params: { edges: [[0, y0, 8], [length, y0, 8], [0, y0 + width, 8], [length, y0 + width, 8]], radius: 'corner', body, name: feature('corners') } },
+    { command: 'solid.shell', params: { faces: [[length / 2, y0 + width / 2, height]], thickness: 'wall', body, name: feature('hollow') } },
+    { command: 'solid.chamfer', params: { edges: [[length / 2, y0, 0]], distance: '0.6 mm', body, name: feature('bed chamfer') } },
+  ];
+  return [
+    parameter('length', '60 mm', 'Outer length of box and lid; at least 54 mm, the hinge is 40 mm long'),
+    parameter('width', '40 mm', 'Outer width of box and lid'),
+    parameter('height', '16 mm', 'Height of each half; closed, the box is twice as high. At least 15 mm, for the latch'),
+    parameter('wall', '2 mm', 'Wall and floor thickness'),
+    parameter('corner', '5 mm', 'Radius of the outer corners of box and lid'),
+    ...shell('Box', '-width', -width, (name) => `Box ${name}`),
+    ...shell('Lid', between, between, (name) => `Lid ${name}`),
+    // The latch: an arm on the lid's front, standing on a foot outside its wall, 0.3 mm clear of the box's wall
+    // once closed. Its catch reaches 0.5 mm into a window in the box, whose upper edge prints as a short
+    // bridge; both flanks of the catch slope, so it prints without support and the lid pulls open again.
+    // Boxes over the parameters, not `plastic.snap_fit`: that keeps the place it was put (0.40.0-rc.4).
+    { command: 'solid.box', params: { length: '8 mm', width: '1.8 mm', height: '4 mm', corner: ['length / 2 - 4 mm', 'width + 1 mm', 'height - 4 mm'], operation: 'join', targets: ['Lid'], name: 'Latch foot' } },
+    { command: 'solid.chamfer', params: { edges: [[length / 2, front + 1.8, height - 4]], distance: '1.7 mm', body: 'Lid', name: 'Latch foot slope' } },
+    { command: 'solid.box', params: { length: '6 mm', width: '1.5 mm', height: '12 mm', corner: ['length / 2 - 3 mm', 'width + 1.3 mm', 'height'], operation: 'join', targets: ['Lid'], name: 'Latch arm' } },
+    { command: 'solid.box', params: { length: '6 mm', width: '0.8 mm', height: '2 mm', corner: ['length / 2 - 3 mm', 'width + 0.5 mm', 'height + 10 mm'], operation: 'join', targets: ['Lid'], name: 'Latch catch' } },
+    { command: 'solid.chamfer', params: { edges: [[length / 2, front - 0.5, height + 10], [length / 2, front - 0.5, height + 12]], distance: '0.75 mm', body: 'Lid', name: 'Latch catch slopes' } },
+    { command: 'solid.box', params: { length: '7 mm', width: 'wall + 2 mm', height: '2.7 mm', corner: ['length / 2 - 3.5 mm', '-width - 1 mm', 'height - 12.4 mm'], operation: 'cut', targets: ['Box'], name: 'Latch window' } },
+    // The hinge of the mechanism tool, built at the starting sizes, then tied to the parameters.
+    ...hingeSteps({ fixed: 'Box', moving: 'Lid', from: [start, between / 2, height], to: [start + hinge, between / 2, height], diameter, gap, knuckles, name: 'Hinge' }).map((step) => {
+      const [x, y] = step.params.base as Vec3;
+      return { ...step, params: { ...step.params, base: [`length / 2 + ${String(x - length / 2)} mm`, y, 'height'] } };
+    }),
+    // It turns until the catch meets the box's wall at 177°; the last 3° are the latch snapping in by hand.
+    // Where the first knuckle of the box faces the first of the lid: a point on top of each barrel, near that end.
+    ...joined('revolute', 'Box', 'Lid', { fixed: [start + knuckle - 0.5, between / 2, top], moving: [start + knuckle + gap + 0.5, between / 2, top], offset: gap }, 'Hinge', [0, 177]),
   ];
 }
 
@@ -224,16 +252,15 @@ function adapter(): Step[] {
   ];
 }
 
-const BUILDERS: Record<TemplateId, () => Step[]> = { boxWithLid, housing, wallHolder, cableClip, adapter };
+const BUILDERS: Record<TemplateId, () => Step[]> = { hingedBox, housing, wallHolder, cableClip, adapter };
 
 /** The parameter comments in German (polish round 2); names stay the same, so expressions and the assistant find them. */
 const GERMAN: Record<string, string> = {
-  'Outer length of box and lid': 'Außenlänge von Box und Deckel',
+  'Outer length of box and lid; at least 54 mm, the hinge is 40 mm long': 'Außenlänge von Box und Deckel; mindestens 54 mm, das Scharnier ist 40 mm lang',
   'Outer width of box and lid': 'Außenbreite von Box und Deckel',
-  'Outer height of the box': 'Außenhöhe der Box',
+  'Height of each half; closed, the box is twice as high. At least 15 mm, for the latch': 'Höhe jeder Hälfte; geschlossen ist die Box doppelt so hoch. Mindestens 15 mm, für den Verschluss',
+  'Wall and floor thickness': 'Stärke von Wand und Boden',
   'Wall, floor and lid thickness': 'Stärke von Wand, Boden und Deckel',
-  "How deep the lid's lip reaches into the box":'Wie tief der Rand des Deckels in die Box greift',
-  'Gap per side between the lip and the box wall': 'Spalt je Seite zwischen Deckelrand und Boxwand',
   'Outer length of housing and lid': 'Außenlänge von Gehäuse und Deckel',
   'Outer width of housing and lid': 'Außenbreite von Gehäuse und Deckel',
   'Outer height of the housing without the lid': 'Außenhöhe des Gehäuses ohne Deckel',
@@ -271,6 +298,9 @@ const GERMAN_BODIES: Record<string, string> = { Box: 'Box', Lid: 'Deckel', Housi
 const GERMAN_FEATURES: Record<string, string> = {
   ...GERMAN_BODIES,
   'Bed chamfer': 'Fase am Bett',
+  'Box bed chamfer': 'Box-Fase am Bett',
+  'Box corners': 'Box-Ecken',
+  'Box hollow': 'Box aushöhlen',
   Cable: 'Kabel',
   'Corner radius': 'Eckenradius',
   'Countersunk holes': 'Senkbohrungen',
@@ -279,20 +309,25 @@ const GERMAN_FEATURES: Record<string, string> = {
   'Ear edges': 'Laschenkanten',
   'Ear slot': 'Laschenschlitz',
   'End chamfers': 'Endfasen',
-  'Finger notch': 'Griffmulde',
   Floor: 'Boden',
+  Hinge: 'Scharnier',
   'Floor slot': 'Bodenschlitz',
   Hollow: 'Aushöhlen',
   Boss: 'Schraubdom',
   'Inner radius': 'Innenradius',
+  'Latch arm': 'Verschlussarm',
+  'Latch catch': 'Rastnase',
+  'Latch catch slopes': 'Rastnasen-Schrägen',
+  'Latch foot': 'Verschlussfuß',
+  'Latch foot slope': 'Verschlussfuß-Schräge',
+  'Latch window': 'Rastfenster',
   Insert: 'Einschmelzmutter',
   'Lid bed chamfer': 'Deckel-Fase am Bett',
   'Lid corners': 'Deckelecken',
   'Lid edge radius': 'Deckel-Kantenradius',
+  'Lid hollow': 'Deckel aushöhlen',
   Lip: 'Rand',
   'Lip corners': 'Randecken',
-  'Lip inner corners': 'Rand-Innenecken',
-  'Lip inside': 'Rand innen',
   Opening: 'Öffnung',
   'Outer bend': 'Außenbogen',
   'Outer corners': 'Außenecken',
@@ -311,13 +346,13 @@ const GERMAN_FEATURES: Record<string, string> = {
   'Vent front': 'Lüftung vorn',
 };
 
-/** "Ear slot 2 end 1" → "Laschenschlitz 2 Ende 1": the base from the list, numbers kept. */
+/** "Ear slot 2 end 1" → "Laschenschlitz 2 Ende 1": the base from the list, numbers and a mechanism's mark (·, ○, ●) kept. */
 export function germanFeatureName(name: string): string {
-  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)$/.exec(name);
+  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)((?: [·○●])?)$/.exec(name);
   const base = match?.[1] ?? name;
   const german = GERMAN_FEATURES[base];
   if (german === undefined) return name;
-  return german + (match?.[2] ?? '') + (match?.[3] ?? '').replace(' end ', ' Ende ');
+  return german + (match?.[2] ?? '') + (match?.[3] ?? '').replace(' end ', ' Ende ') + (match?.[4] ?? '');
 }
 
 /** A step with its parameter comment, the bodies and the features it names in German. */
@@ -327,7 +362,12 @@ function inGerman(step: Step): Step {
   if (typeof comment === 'string' && GERMAN[comment]) params.comment = GERMAN[comment];
   const body = (name: unknown) => (typeof name === 'string' ? (GERMAN_BODIES[name] ?? name) : name);
   for (const key of ['body_name', 'body'] as const) if (key in params) params[key] = body(params[key]);
-  if (Array.isArray(params.targets)) params.targets = params.targets.map(body);
+  for (const key of ['targets', 'bodies'] as const) if (Array.isArray(params[key])) params[key] = params[key].map(body);
+  // A joint names its two components, which carry their bodies' names.
+  for (const key of ['a', 'b'] as const) {
+    const origin = params[key] as { occurrence?: unknown } | undefined;
+    if (step.command === 'joint.create' && origin) params[key] = { ...origin, occurrence: body(origin.occurrence) };
+  }
   // A sketch is referred to by its name, so the reference follows the translation.
   for (const key of ['name', 'sketch'] as const) if (step.command !== 'parameters.add' && typeof params[key] === 'string') params[key] = germanFeatureName(params[key]);
   return { ...step, params };

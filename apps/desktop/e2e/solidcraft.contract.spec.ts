@@ -2138,7 +2138,7 @@ test('a template from the start page becomes a project whose sizes are its param
 
     // Every other template builds as well.
     for (const [id, name, bodies] of [
-      ['boxWithLid', 'Box with lid', '2 bodies'],
+      ['hingedBox', 'Hinged box', '2 bodies'],
       ['wallHolder', 'Wall holder', '1 body'],
       ['cableClip', 'Cable clip', '1 body'],
       ['adapter', 'Tube adapter', '1 body'],
@@ -2149,6 +2149,22 @@ test('a template from the start page becomes a project whose sizes are its param
       await expect(page.getByTestId('mesh-summary')).toContainText(bodies, { timeout: 30_000 });
       await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });
       await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+      await page.screenshot({ path: test.info().outputPath(`template-${id}.png`) });
+      if (id !== 'hingedBox') continue;
+      // The hinge came joined: it turns up to where the latch meets the box, and the light's sweep finds nothing before that.
+      await page.getByTestId('joints').click({ timeout: 30_000 });
+      const slider = page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' });
+      await expect(slider).toHaveAttribute('max', '177');
+      await page.getByTestId('print-check').click();
+      await expect(page.getByTestId('print-check-panel').locator('[data-kind="blocked"]')).toHaveCount(0);
+      await page.screenshot({ path: test.info().outputPath('template-hingedBox-check.png') });
+      await page.keyboard.press('Escape');
+      await slider.focus();
+      await page.keyboard.press('End');
+      await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' })).toHaveValue('177', { timeout: 30_000 });
+      await page.screenshot({ path: test.info().outputPath('template-hingedBox-closed.png') });
+      await page.keyboard.press('Home');
+      await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' })).toHaveValue('0', { timeout: 30_000 });
     }
   } finally {
     await launched.close();
@@ -2364,7 +2380,7 @@ test('a sent sketch is kept in the project, opens again, and a photo goes under 
     await expect(pad.getByTestId('sketch-scale')).toHaveValue('5');
     // A photo under the top sheet, marked with a circle; the picture and the list say so.
     await pad.getByTestId('sketch-sheet-top').click();
-    await pad.getByTestId('sketch-photo-file').setInputFiles(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'boxWithLid.png'));
+    await pad.getByTestId('sketch-photo-file').setInputFiles(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'housing.png'));
     await expect(pad.getByTestId('sketch-photo-remove')).toBeVisible();
     await pad.getByTestId('sketch-tool-circle').click();
     await drag([0.5, 0.5], [0.56, 0.5]);
@@ -2409,7 +2425,7 @@ test('a photo goes to the assistant as a picture with its note and is kept in th
     await expect(home).toHaveCount(0, { timeout: 30_000 });
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     // Any photo will do; a template picture stands in for one.
-    await page.getByTestId('composer-photo-input').setInputFiles(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'boxWithLid.png'));
+    await page.getByTestId('composer-photo-input').setInputFiles(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'housing.png'));
     await expect(page.getByTestId('composer-photo')).toBeVisible();
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('message-photo')).toHaveText('With a photo', { timeout: 30_000 });
@@ -2517,7 +2533,7 @@ test('a picture pasted into the chat or dropped on it goes along like a photo', 
   const launched = await launchApp({ isolated: false, work, env });
   const { page } = launched;
   // A template picture stands in for a screenshot or a photo.
-  const bytes = [...readFileSync(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'boxWithLid.png'))];
+  const bytes = [...readFileSync(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'housing.png'))];
   try {
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     const composer = page.getByRole('textbox', { name: 'Message to the assistant' });

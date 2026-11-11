@@ -1228,9 +1228,9 @@
     "templates": {
       "title": "Start from a template",
       "items": {
-        "boxWithLid": {
-          "name": "Box with lid",
-          "body": "A box and a lid with a lip that sits in it, with 0.2 mm of play."
+        "hingedBox": {
+          "name": "Hinged box",
+          "body": "Two halves on a hinge, printed in one piece. Close it under Moving parts."
         },
         "housing": {
           "name": "Housing",
