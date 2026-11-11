@@ -80,6 +80,7 @@ export const STEP_PHRASE_KEYS = [
   'screwLid',
   'snapHooks',
   'plug',
+  'latch',
   'keyhole',
   'woodScrewHole',
   'knob',
@@ -314,6 +315,7 @@ export function describeToolCall(tool: string, args: Params): StepPhrase[] {
     if (args.block === 'knob') return [{ key: 'knob', values: { name: text(args.body, 'Knob').slice(0, 60) } }];
     return [{ key: 'blockByAssistant', values: { block: text(args.block, 'block').slice(0, 20), body: text(args.body, '').slice(0, 60) } }];
   }
+  if (tool === 'partbuddy_mechanism' && args.kind === 'latch') return [{ key: 'latch', values: { name: text(args.name, 'Latch').slice(0, 60) } }];
   if (tool === 'partbuddy_mechanism' && args.kind === 'plug') return [{ key: 'plug', values: { name: text(args.name, args.shape === 'dovetail' ? 'Dovetail' : 'Peg').slice(0, 60) } }];
   if (tool === 'partbuddy_mechanism' && args.kind === 'snap') return [{ key: 'snapHooks', values: { name: text(args.name, 'Snap hook').slice(0, 60) } }];
   if (tool === 'partbuddy_mechanism' && args.kind === 'lid') return [{ key: 'screwLid', values: { name: text(args.moving, 'Lid').slice(0, 60) } }];
@@ -465,6 +467,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     screwLid: 'Screw lid “{name}” with its thread on the container',
     snapHooks: 'Snap hooks “{name}” with their windows',
     plug: 'Plugged connection “{name}” between two parts',
+    latch: 'Snap latch “{name}” outside, between lid and box',
     keyhole: 'Keyhole slot for a {screw} mm screw, to hang on a wall',
     woodScrewHole: 'Countersunk hole for a {screw} mm wood screw',
     knob: 'Knob “{name}” for a shaft',
@@ -538,6 +541,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     screwLid: 'Schraubdeckel „{name}“ mit Gewinde am Behälter',
     snapHooks: 'Schnapphaken „{name}“ mit ihren Fenstern',
     plug: 'Steckverbindung „{name}“ zwischen zwei Teilen',
+    latch: 'Schnapplasche „{name}“ außen, zwischen Deckel und Dose',
     keyhole: 'Schlüsselloch für eine {screw}-mm-Schraube, zum Aufhängen',
     woodScrewHole: 'Senkbohrung für eine {screw}-mm-Holzschraube',
     knob: 'Drehknopf „{name}“ für eine Welle',

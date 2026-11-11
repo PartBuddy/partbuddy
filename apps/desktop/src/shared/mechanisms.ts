@@ -678,3 +678,102 @@ export function pegSteps(spec: PegSpec): Step[] {
     ];
   });
 }
+
+export interface LatchSpec {
+  /** The box: it gets the bead. */
+  fixed: string;
+  /** The lid: the latch grows out of its outer wall. */
+  moving: string;
+  /** The middle of the latch, on the line where lid and box meet, on their outer wall. */
+  from: Vec3;
+  /** The way from the box to the lid. */
+  up: Vec3;
+  /** The way out of the wall; what of it runs along `up` is dropped. */
+  out: Vec3;
+  /** The latch's width along the wall in mm. */
+  width: number;
+  name: string;
+}
+
+/**
+ * A snap latch outside a box, in mm (decided 2026-11-11: no hinge, whose play is larger than any catch). An arm
+ * `thick` stands `off` the wall, rooted in the lid between `foot` and `head` above the joint, where a 45° slope
+ * carries it; `lever` below its root a hook reaches to `clear` off the wall, under a bead that stands `bead` out of
+ * the box, the two 45° faces `seat` apart; `tab` of arm below the hook is for the finger. Snapping over the bead bends
+ * the root by 1.5 · thick · (bead − clear) / lever² = 1.3 %.
+ */
+export const LATCH = { thick: 1.6, off: 1.5, foot: 1, head: 5, lever: 12, bead: 1.2, clear: 0.4, seat: 0.2, tab: 2, into: 0.5, beside: 1 };
+
+/** How much flat wall the latch needs: on the lid above the joint, and on the box below it. */
+export function latchReach(): { above: number; below: number } {
+  const hook = LATCH.off - LATCH.clear;
+  return { above: round(LATCH.head + LATCH.off + LATCH.thick), below: round(LATCH.lever - LATCH.foot + hook + LATCH.tab) };
+}
+
+/** What is wrong with a latch before anything is built; null when it can be built. */
+export function latchProblem(spec: LatchSpec): string | null {
+  if (spec.fixed === spec.moving) return 'fixed and moving must be two bodies';
+  if (Math.hypot(...spec.up) < 1e-9) return 'up must not be zero';
+  const up = spec.up.map((value) => value / Math.hypot(...spec.up)) as Vec3;
+  if (Math.hypot(...cross(up, spec.out)) < 1e-6) return 'to must lie straight out of the wall from from: not along up';
+  if (!(spec.width >= 5 && spec.width <= 40)) return 'width must be 5–40 mm';
+  return null;
+}
+
+/**
+ * The latch on the lid and its bead on the box, each one profile in the plane square to the wall, extruded along the
+ * wall. Sketch x runs out of the wall and y up, from the joint. With the lid printed on its top the arm grows out of
+ * it without support, and so does the bead with the box standing.
+ */
+export function latchSteps(spec: LatchSpec): Step[] {
+  const length = Math.hypot(...spec.up);
+  const up = spec.up.map((value) => value / length) as Vec3;
+  const along = spec.out.reduce((sum, value, i) => sum + value * (up[i] ?? 0), 0);
+  const flat = spec.out.map((value, i) => value - along * (up[i] ?? 0)) as Vec3;
+  const out = flat.map((value) => value / Math.hypot(...flat)) as Vec3;
+  // x × y of the sketch: the profiles are extruded this way along the wall.
+  const run = cross(out, up);
+  const tidy = (vector: Vec3) => vector.map((value) => round(value) + 0) as Vec3;
+  const { thick, off, foot, head, lever, bead, clear, seat, tab, into, beside } = LATCH;
+  const hook = off - clear;
+  const crest = foot - lever;
+  const outer = off + thick;
+  // The bead's crest lies above the hook's so that their faces are `seat` apart, measured upright.
+  const ridge = crest + bead - clear + seat;
+  const profile = (points: [number, number][], half: number, target: string, name: string): Step[] => [
+    { command: 'sketch.create', params: { plane: { origin: spec.from.map((value, i) => round(value - (run[i] ?? 0) * half)), x_dir: tidy(out), y_dir: tidy(up) }, project_edges: false, name } },
+    { command: 'sketch.line', params: { points: points.map(([x, y]) => [round(x), round(y)]), closed: true } },
+    { command: 'solid.extrude', params: { distance: `${String(round(2 * half))} mm`, operation: 'join', targets: [target], name } },
+  ];
+  return [
+    ...profile(
+      [
+        [-into, ridge + bead],
+        [0, ridge + bead],
+        [bead, ridge],
+        [0, ridge - bead],
+        [-into, ridge - bead],
+      ],
+      spec.width / 2 + beside,
+      spec.fixed,
+      `${spec.name} ◁`,
+    ),
+    ...profile(
+      [
+        [-into, head + outer],
+        [0, head + outer],
+        [outer, head],
+        [outer, crest - hook - tab],
+        [off, crest - hook - tab],
+        [off, crest - hook],
+        [clear, crest],
+        [off, crest + hook],
+        [off, foot],
+        [-into, foot],
+      ],
+      spec.width / 2,
+      spec.moving,
+      spec.name,
+    ),
+  ];
+}

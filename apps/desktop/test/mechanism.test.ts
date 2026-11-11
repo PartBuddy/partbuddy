@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, hingeOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, hingeOf, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, snapProblem, snapSteps, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -574,5 +574,50 @@ describe('a plugged connection (standards)', () => {
     expect(String(built.content[0]?.text)).toContain('Built the dovetail "Dovetail" between Left (carries the rail) and Right (has the groove): 6 mm wide at its foot and 3 mm high with 45° flanks, 0.2 mm clear all round. It makes no joint');
     expect(calls.flat()).not.toContain('joint.as_built');
     expect(calls.flat().filter((command) => command === 'solid.extrude')).toHaveLength(2);
+  });
+});
+
+describe('a snap latch outside a box (standards)', () => {
+  // A box 20 mm high with its lid on it; their front walls lie in the plane y = 0, which faces −Y.
+  const args = { kind: 'latch', fixed: 'Box', moving: 'Lid', from: [20, 0, 20], to: [20, -5, 20] };
+
+  it('grows the bead out of the box and the arm with its hook out of the lid, 45° faces a seat apart', () => {
+    const spec = latchOf(args);
+    if (typeof spec === 'string') throw new Error(spec);
+    expect(spec).toMatchObject({ up: [0, 0, 1], out: [0, -5, 0], width: 10, name: 'Latch' });
+    const steps = latchSteps(spec);
+    expect(steps.map((step) => [step.command, step.params.name ?? '', (step.params.targets as string[] | undefined)?.[0] ?? ''])).toEqual([
+      ['sketch.create', 'Latch ◁', ''],
+      ['sketch.line', '', ''],
+      ['solid.extrude', 'Latch ◁', 'Box'],
+      ['sketch.create', 'Latch', ''],
+      ['sketch.line', '', ''],
+      ['solid.extrude', 'Latch', 'Lid'],
+    ]);
+    // Sketch x runs out of the wall and y up; the profiles run along the wall from one edge of the latch to the other.
+    expect(steps[0]?.params.plane).toEqual({ origin: [26, 0, 20], x_dir: [0, -1, 0], y_dir: [0, 0, 1] });
+    expect(steps[2]?.params).toMatchObject({ distance: '12 mm', operation: 'join' });
+    // The bead: a ridge 1.2 mm high with 45° faces, its crest 10 mm under the joint, rooted 0.5 mm in the wall.
+    expect(steps[1]?.params.points).toEqual([[-0.5, -8.8], [0, -8.8], [1.2, -10], [0, -11.2], [-0.5, -11.2]]);
+    expect(steps[3]?.params.plane).toMatchObject({ origin: [25, 0, 20] });
+    expect(steps[5]?.params).toMatchObject({ distance: '10 mm', operation: 'join' });
+    // The arm: a 45° slope out of the lid's wall, 1.6 mm thick and 1.5 mm off the wall, the hook's crest 0.4 mm off it
+    // and 1 mm under the bead's, then 2 mm of tab.
+    expect(steps[4]?.params.points).toEqual([[-0.5, 8.1], [0, 8.1], [3.1, 5], [3.1, -14.1], [1.5, -14.1], [1.5, -12.1], [0.4, -11], [1.5, -9.9], [1.5, 1], [-0.5, 1]]);
+    expect(latchReach()).toEqual({ above: 8.1, below: 14.1 });
+    // The strain at the root as the hook passes the bead: 1.5 · thickness · overlap / lever².
+    expect((150 * LATCH.thick * (LATCH.bead - LATCH.clear)) / LATCH.lever ** 2).toBeCloseTo(1.33, 2);
+  });
+
+  it('refuses what is no wall, and is allowed and named in the work log', () => {
+    expect(latchOf({ ...args, to: [20, 0, 25] })).toContain('to must lie straight out of the wall');
+    expect(latchOf({ ...args, width: 3 })).toBe('width must be 5–40 mm');
+    expect(latchOf({ ...args, moving: 'Box' })).toBe('fixed and moving must be two bodies');
+    // On a side wall, and with a point that also lies higher: only the way out of the wall counts.
+    const side = latchOf({ ...args, from: [40, 15, 20], to: [45, 15, 23] });
+    if (typeof side === 'string') throw new Error(side);
+    expect(latchSteps(side)[0]?.params.plane).toEqual({ origin: [40, 21, 20], x_dir: [1, 0, 0], y_dir: [0, 0, 1] });
+    expect(decide('partbuddy_mechanism', { kind: 'latch' })).toEqual({ allow: true });
+    expect(describeToolCall('partbuddy_mechanism', { kind: 'latch', name: 'Front latch' })).toEqual([{ key: 'latch', values: { name: 'Front latch' } }]);
   });
 });
