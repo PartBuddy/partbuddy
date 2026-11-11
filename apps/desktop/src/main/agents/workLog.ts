@@ -21,7 +21,7 @@ export interface WorkLogOptions {
 }
 
 /** Tools that may change the design; every other tool only reads and is not tracked. */
-export const CHANGING_TOOLS = new Set(['execute', 'batch', 'set_parameter', 'undo', 'redo', 'partbuddy_mechanism']);
+export const CHANGING_TOOLS = new Set(['execute', 'batch', 'set_parameter', 'undo', 'redo', 'partbuddy_mechanism', 'partbuddy_block']);
 /** Tools that move through the history instead of adding to it. */
 const HISTORY_TOOLS = new Set(['undo', 'redo']);
 

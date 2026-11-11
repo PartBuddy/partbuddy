@@ -323,6 +323,16 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a wall plate": a plate standing upright, two keyholes on its back and two countersunk holes on its front, through PartBuddy's own blocks.
+    if (content.includes('a wall plate')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 80, width: 8, height: 100, operation: 'new', body_name: 'Plate' } } });
+      const hung = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'keyhole', body: 'Plate', point: [20, 0, 80], normal: [0, -1, 0], up: [0, 0, 1], more: [[60, 0, 80]] } });
+      const screwed = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'woodScrew', body: 'Plate', point: [20, 8, 30], more: [[60, 8, 30]] } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: [hung, screwed].flatMap((built) => (built.content ?? []).map((block) => block.text ?? '')).join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "a jar with a screw lid": a hollow round jar, then PartBuddy's own screw lid on its neck.
     if (content.includes('a jar with a screw lid')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.cylinder', params: { diameter: 60, height: 50, operation: 'new', body_name: 'Jar' } } });

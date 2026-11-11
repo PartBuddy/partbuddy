@@ -3327,6 +3327,39 @@ test('the assistant builds a dovetail guide with one call: joined as a slider th
   }
 });
 
+test('the assistant hangs a part on the wall with its blocks: keyhole slots on the back, countersunk holes on the front', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-wall-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7956',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a wall plate');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText(/Built 2 keyhole slots for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4\.5 mm wide running 8 mm up .* Built 2 countersunk holes for 4 mm wood screws in Plate: 4\.7 mm through, countersink 8\.8 mm at 90°/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
+    // Each block is one line of the work log, and no feature failed.
+    await expect(page.getByText('Keyhole slot for a 4 mm screw, to hang on a wall')).toHaveCount(1);
+    await expect(page.getByText('Countersunk hole for a 4 mm wood screw')).toHaveCount(1);
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });
+    await page.screenshot({ path: test.info().outputPath('wall-plate-built.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('the assistant makes a screw lid for a jar with one call: the threads mesh as built and the lid prints on its top', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
