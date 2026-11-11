@@ -581,8 +581,9 @@ test('a joint plays in the view only, keeps its position when asked and stays as
   expect(fake.joints[0]?.values[0]?.value).toBe(0);
   await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joint-paused.png') });
   // Keeping the position drives SolidCraft to what the panel reads (a tenth of a degree), and the light says it is not as designed.
-  const reads = Math.round(paused * 10) / 10;
-  await expect(panel.getByTestId('joint-value').locator('output')).toHaveText(`${String(reads)}°`);
+  // What the panel reads is its own rounding of the value: `data-shown` has two decimals of it, and a value ending in 5 there rounds either way.
+  const reads = Number.parseFloat((await panel.getByTestId('joint-value').locator('output').textContent()) ?? '');
+  expect(Math.abs(reads - paused)).toBeLessThanOrEqual(0.06);
   await panel.getByTestId('joint-keep').click();
   await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(reads);
   await expect(panel.getByTestId('joint-value').locator('output')).toHaveText(`${String(reads)}°`);

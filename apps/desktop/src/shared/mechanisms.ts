@@ -32,6 +32,7 @@ const MIN_BARREL_WALL = 0.8;
 const MIN_KNUCKLE = 2.5;
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
+const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
 /** The pin's diameter: half the barrel, never under 2 mm. */
 export function pinDiameter(diameter: number): number {
@@ -47,6 +48,8 @@ export function hingeProblem(spec: HingeSpec): string | null {
   if (!Number.isInteger(spec.knuckles) || spec.knuckles < 3 || spec.knuckles > 9 || spec.knuckles % 2 === 0) return 'knuckles must be 3, 5, 7 or 9';
   const wall = (spec.diameter - pinDiameter(spec.diameter)) / 2 - spec.gap;
   if (wall < MIN_BARREL_WALL) return `the barrel wall around the pin would be ${String(round(wall))} mm; use a diameter of at least ${String(Math.ceil((MIN_BARREL_WALL + spec.gap) * 4))} mm`;
+  const roof = spec.diameter / 2 - (pinDiameter(spec.diameter) / 2 + spec.gap) * ROOF_TOP;
+  if (roof < 0.6) return `the barrel would be ${String(round(roof))} mm thin over the bore's roof; use a larger diameter or a smaller gap`;
   const knuckle = (length - (spec.knuckles - 1) * spec.gap) / spec.knuckles;
   if (knuckle < MIN_KNUCKLE) return `from and to are ${String(round(length))} mm apart, which leaves ${String(round(knuckle))} mm per knuckle; use fewer knuckles or a longer hinge line (at least ${String(MIN_KNUCKLE)} mm each)`;
   return null;
@@ -82,7 +85,35 @@ export function hingeSteps(spec: HingeSpec): Step[] {
     ...spans.map((span) => cylinder(spec.diameter, span.start, span.end, 'join', span.owner, span.label)),
     // The bore through the moving knuckles, then the pin through everything.
     cylinder(pin + 2 * spec.gap, -spec.gap, length + spec.gap, 'cut', spec.moving, `${spec.name} ○`),
+    ...boreRoof(spec, axis, at(-spec.gap), length + 2 * spec.gap, pin / 2 + spec.gap),
     cylinder(pin, 0, length, 'join', spec.fixed, `${spec.name} ●`),
+  ];
+}
+
+/** How far above the axis the roof of a bore of radius 1 is cut flat: the bridge left is 0.43 of the radius wide. */
+export const ROOF_TOP = 1.2;
+
+/**
+ * The roof of the bore when the hinge prints lying (its line level): the round top of a hole sags, and here only the
+ * gap is left above the pin. Two flanks at 45° rise from the bore and a short flat closes them (a teardrop cut off),
+ * so the bore prints as drawn. An upright hinge needs none.
+ */
+function boreRoof(spec: HingeSpec, axis: Vec3, origin: Vec3, distance: number, radius: number): Step[] {
+  if (Math.abs(axis[2]) > 1e-6) return [];
+  const side = radius / Math.SQRT2;
+  const flat = radius * (Math.SQRT2 - ROOF_TOP);
+  const points: [number, number][] = [
+    [-side, side],
+    [side, side],
+    [flat, radius * ROOF_TOP],
+    [-flat, radius * ROOF_TOP],
+  ];
+  const name = `${spec.name} △`;
+  return [
+    // Sketch x across the line, y up: x × y is the line's direction.
+    { command: 'sketch.create', params: { plane: { origin: origin.map(round), x_dir: cross([0, 0, 1], axis).map(round), y_dir: [0, 0, 1] }, project_edges: false, name } },
+    { command: 'sketch.line', params: { points: points.map(([x, y]) => [round(x), round(y)]), closed: true } },
+    { command: 'solid.extrude', params: { distance: `${String(round(distance))} mm`, operation: 'cut', targets: [spec.moving], name } },
   ];
 }
 
@@ -105,7 +136,6 @@ export interface SlideSpec {
   name: string;
 }
 
-const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
 /** What is wrong with a guide before anything is built; null when it can be built. */
 export function slideProblem(spec: SlideSpec): string | null {
