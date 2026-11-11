@@ -2,10 +2,9 @@
 
 ## Reporting a vulnerability
 
-The repository is private; only invited collaborators can read it. Report vulnerabilities as an
-issue with the label `type: security` and mark sensitive details as such. A public reporting channel
-(security contact address or GitHub private vulnerability reporting) is set up before the first
-public release.
+Report a vulnerability in private through
+[GitHub's private vulnerability reporting](https://github.com/PartBuddy/partbuddy/security/advisories/new),
+not as a public issue.
 
 Include the affected version, the steps to reproduce and the impact you expect. Remove personal
 data, API keys and model files from logs before attaching them.
