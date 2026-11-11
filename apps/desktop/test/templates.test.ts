@@ -92,3 +92,22 @@ describe('templates (F3)', () => {
     expect(holder.find((step) => step.command === 'solid.hole')?.params.sketch).toBe('Schraubpunkte');
   });
 });
+
+describe('templates with moving parts', () => {
+  it('joins the hinged box by its bodies, in either language, with the hinge tied to the parameters', () => {
+    for (const [german, box, lid] of [[false, 'Box', 'Lid'], [true, 'Box', 'Deckel']] as const) {
+      const steps = templateSteps('hingedBox', german);
+      expect(steps.find((step) => step.command === 'component.from_bodies')?.params.bodies).toEqual([box, lid]);
+      const joint = steps.find((step) => step.command === 'joint.create')?.params as { a: { occurrence: string }; b: { occurrence: string }; limits: unknown };
+      expect([joint.a.occurrence, joint.b.occurrence, joint.limits]).toEqual([box, lid, [[0, 177]]]);
+      // Every knuckle sits on the rim and keeps its place from the middle of the box.
+      const knuckles = steps.filter((step) => step.command === 'solid.cylinder');
+      expect(knuckles).toHaveLength(12);
+      // The latch follows the sizes too: nothing of it is placed by a bare number.
+      for (const step of steps.filter((step) => step.command === 'solid.box' && String(step.params.name).match(/^(Latch|Verschluss|Rast)/))) expect(JSON.stringify(step.params.corner)).toMatch(/length.*width.*height/);
+      for (const step of knuckles) expect(step.params.base).toEqual([expect.stringMatching(/^length \/ 2 \+ -?[\d.]+ mm$/), 0.5, 'height']);
+    }
+    expect(germanFeatureName('Hinge 2 ·')).toBe('Scharnier 2 ·');
+    expect(germanFeatureName('Hinge ●')).toBe('Scharnier ●');
+  });
+});

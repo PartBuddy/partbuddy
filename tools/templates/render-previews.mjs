@@ -6,8 +6,20 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { registerHooks } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
+// The templates import their neighbours without an extension, as the bundler takes it; node needs the ".ts".
+registerHooks({
+  resolve(specifier, context, next) {
+    try {
+      return next(specifier, context);
+    } catch (error) {
+      if (!specifier.startsWith('.')) throw error;
+      return next(`${specifier}.ts`, context);
+    }
+  },
+});
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const cli = process.argv[2];
 if (!cli) {

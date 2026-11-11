@@ -1228,9 +1228,9 @@
     "templates": {
       "title": "Mit einer Vorlage beginnen",
       "items": {
-        "boxWithLid": {
-          "name": "Box mit Deckel",
-          "body": "Box und Deckel mit eingreifender Lippe, 0,2 mm Spiel."
+        "hingedBox": {
+          "name": "Dose mit Scharnier",
+          "body": "Zwei Hälften am Scharnier, in einem Stück gedruckt. Unter „Bewegliche Teile“ klappt sie zu."
         },
         "housing": {
           "name": "Gehäuse",

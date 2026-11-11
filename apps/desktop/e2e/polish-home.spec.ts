@@ -80,7 +80,7 @@ for (const size of WIDTHS) {
       await step('05-start-empty', async () => {
         await expect(home).toBeVisible();
       });
-      for (const id of ['housing', 'boxWithLid', 'cableClip']) {
+      for (const id of ['housing', 'hingedBox', 'cableClip']) {
         if ((await home.count()) === 0) await page.getByTestId('home-button').click();
         await home.locator(`[data-template="${id}"]`).click();
         await expect(home).toHaveCount(0, { timeout: 60_000 });

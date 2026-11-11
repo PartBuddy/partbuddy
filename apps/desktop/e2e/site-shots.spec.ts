@@ -40,7 +40,7 @@ const CLI = process.env.SOLIDCRAFT_CLI ?? 'C:\\Program Files\\SolidCraft\\solidc
 // With the cable clip, four projects fill one row of the start page.
 const TEMPLATES = [
   ['housing', 'Housing'],
-  ['boxWithLid', 'Box with lid'],
+  ['hingedBox', 'Hinged box'],
   ['wallHolder', 'Wall holder'],
 ] as const;
 // A synthetic circuit board of 50 × 30 mm with mounting holes, chips, a pin header and two capacitors,
@@ -541,7 +541,7 @@ test('website pictures', async () => {
     await step('photo', async () => {
       await fresh();
       // No photo of a real object here; a rendered template picture stands in for one.
-      await page.getByTestId('composer-photo-input').setInputFiles(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'boxWithLid.png'));
+      await page.getByTestId('composer-photo-input').setInputFiles(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'housing.png'));
       await page.getByRole('button', { name: 'Send' }).click();
       await expect(page.getByTestId('question-card')).toHaveAttribute('data-kind', 'ask', { timeout: 30_000 });
       await shot('photo');
