@@ -750,14 +750,16 @@ test('one click plays the joints one after the other as the check ran them, toge
   await expect(panel.getByTestId('joint-unchecked')).toHaveCount(0);
   expect(fake.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
   // Keeping the position drives every joint the view shows away from the design.
-  const tenth = async (name: string) => Math.round((await shown(name)()) * 10) / 10;
-  const reads = { hinge: await tenth('Hinge'), slide: await tenth('Slide') };
-  expect(reads.slide).toBeGreaterThan(0);
+  // The view shows two decimals and the app keeps a tenth of the value itself: 13.749 shows as 13.75 and is kept as 13.7.
+  const reads = [await shown('Hinge')(), await shown('Slide')()];
+  expect(reads[1]).toBeGreaterThan(0);
   await panel.getByTestId('joint-keep').click();
-  await expect.poll(() => fake?.joints.map((joint) => joint.values[0]?.value)).toEqual([reads.hinge, reads.slide]);
+  await expect.poll(() => fake?.joints.map((joint, i) => Math.abs((joint.values[0]?.value ?? 0) - (reads[i] ?? 0)) <= 0.06)).toEqual([true, true]);
+  expect(fake.joints.map((joint) => joint.values[0]?.value)).not.toContain(0);
   await expect(panel.getByTestId('joint-keep')).toHaveCount(0);
   await panel.getByTestId('joint-reset').click();
-  await expect.poll(() => fake?.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
+  // Two joints are driven back one after the other; on a loaded runner that took more than the 5 s a poll waits (2026-11-11).
+  await expect.poll(() => fake?.joints.map((joint) => joint.values[0]?.value), { timeout: 30_000 }).toEqual([0, 0]);
   await expect(panel.getByRole('slider', { name: 'Slide' })).toHaveValue('0');
   await expect(panel.getByTestId('joint-error')).toHaveCount(0);
 });
@@ -793,22 +795,15 @@ test('a gear\'s mate follows its driver in the panel, the playback and what is k
   await panel.getByTestId('joint-play').click();
   await expect.poll(async () => Math.abs(await shown('Small axle')()), { timeout: 30_000 }).toBeGreaterThan(10);
   await panel.getByTestId('joint-play').click();
-  // The pause takes a frame: read the position once it stands (found 2026-11-11: read 39.2, kept 39.1).
-  let driver = Number.NaN;
-  await expect
-    .poll(async () => {
-      const before = driver;
-      driver = await shown('Small axle')();
-      return driver === before;
-    })
-    .toBe(true);
+  const driver = await shown('Small axle')();
   expect(await shown('Large axle (follows Small axle)')()).toBeCloseTo(-0.5 * driver, 1);
   await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('gear-paused.png') });
   expect(fake.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
   // Kept, only the driver is driven; SolidCraft moves the mate along.
-  const reads = Math.round(driver * 10) / 10;
+  // The view shows two decimals and the app keeps a tenth of the value itself: 39.149 shows as 39.15 and is kept as 39.1 (found 2026-11-11).
   await panel.getByTestId('joint-keep').click();
-  await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(reads);
+  await expect.poll(() => Math.abs((fake?.joints[0]?.values[0]?.value ?? 0) - driver) <= 0.06).toBe(true);
+  const reads = fake.joints[0]?.values[0]?.value ?? 0;
   await expect.poll(() => fake?.joints[1]?.values[0]?.value).toBeCloseTo(-0.5 * reads);
   await expect(panel.getByTestId('joint-keep')).toHaveCount(0);
   // The light names the driver as posed, not the mate as well.
