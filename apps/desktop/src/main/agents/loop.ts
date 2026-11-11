@@ -8,6 +8,7 @@ import { RESEARCH_GUIDANCE } from './research';
 import { withToolNotes } from './toolNotes';
 import { VIEW_GUIDANCE } from './viewContext';
 import { ASSEMBLY_GUIDANCE, JOINT_GUIDANCE } from './assemblyTool';
+import { BLOCK_GUIDANCE } from './blockTool';
 import { MECHANISM_GUIDANCE } from './mechanismTool';
 
 /**
@@ -26,6 +27,7 @@ const INSTRUCTIONS = [
   ASSEMBLY_GUIDANCE,
   JOINT_GUIDANCE,
   MECHANISM_GUIDANCE,
+  BLOCK_GUIDANCE,
   QUESTION_GUIDANCE,
   ANSWER_GUIDANCE,
 ].join(' ');

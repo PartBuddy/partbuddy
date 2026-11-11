@@ -78,6 +78,9 @@ export const STEP_PHRASE_KEYS = [
   'closure',
   'screwJoint',
   'screwLid',
+  'keyhole',
+  'woodScrewHole',
+  'blockByAssistant',
   'command',
 ] as const;
 
@@ -299,6 +302,12 @@ export function describeCommands(steps: Step[]): StepPhrase[] {
 /** What one tool call of the assistant did; a call PartBuddy cannot read gets one generic line. */
 export function describeToolCall(tool: string, args: Params): StepPhrase[] {
   // PartBuddy's own tool builds a mechanism from many commands: one line names it.
+  // A function block the assistant built from the standard tables: one line names it.
+  if (tool === 'partbuddy_block') {
+    if (args.block === 'keyhole') return [{ key: 'keyhole', values: { screw: (typeof args.screw === 'number' ? args.screw : 4) } }];
+    if (args.block === 'woodScrew') return [{ key: 'woodScrewHole', values: { screw: (typeof args.screw === 'number' ? args.screw : 4) } }];
+    return [{ key: 'blockByAssistant', values: { block: text(args.block, 'block').slice(0, 20), body: text(args.body, '').slice(0, 60) } }];
+  }
   if (tool === 'partbuddy_mechanism' && args.kind === 'lid') return [{ key: 'screwLid', values: { name: text(args.moving, 'Lid').slice(0, 60) } }];
   if (tool === 'partbuddy_mechanism' && args.kind === 'screw') return [{ key: 'screwJoint', values: { name: text(args.name, 'Screw').slice(0, 60) } }];
   if (tool === 'partbuddy_mechanism' && args.kind === 'closure') return [{ key: 'closure', values: { name: text(args.name, 'Closure').slice(0, 60) } }];
@@ -446,6 +455,9 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     closure: 'Snap closure “{name}” between lid and box',
     screwJoint: 'Screw joint “{name}” between two parts',
     screwLid: 'Screw lid “{name}” with its thread on the container',
+    keyhole: 'Keyhole slot for a {screw} mm screw, to hang on a wall',
+    woodScrewHole: 'Countersunk hole for a {screw} mm wood screw',
+    blockByAssistant: 'Function block {block} on {body}',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -512,6 +524,9 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     closure: 'Rastverschluss „{name}“ zwischen Deckel und Dose',
     screwJoint: 'Schraubverbindung „{name}“ zwischen zwei Teilen',
     screwLid: 'Schraubdeckel „{name}“ mit Gewinde am Behälter',
+    keyhole: 'Schlüsselloch für eine {screw}-mm-Schraube, zum Aufhängen',
+    woodScrewHole: 'Senkbohrung für eine {screw}-mm-Holzschraube',
+    blockByAssistant: 'Funktionsbaustein {block} an {body}',
     command: 'SolidCraft: {command}',
   },
 };

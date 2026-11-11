@@ -42,6 +42,8 @@ const ALLOWED = new Set([
   'partbuddy_place_drawing',
   // Builds a print-in-place hinge with its joint from engine commands (mechanismTool.ts), answered by PartBuddy.
   'partbuddy_mechanism',
+  // Builds a function block or a wall mounting from the standard tables (blockTool.ts), answered by PartBuddy.
+  'partbuddy_block',
 ]);
 
 /**

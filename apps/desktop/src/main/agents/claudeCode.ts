@@ -8,6 +8,7 @@ import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
 import { CLAUDE_RESEARCH_TOOLS, RESEARCH_GUIDANCE, sourceOfSearchResult, sourceOfToolUse } from './research';
 import { VIEW_GUIDANCE } from './viewContext';
 import { ASSEMBLY_GUIDANCE, JOINT_GUIDANCE } from './assemblyTool';
+import { BLOCK_GUIDANCE } from './blockTool';
 import { MECHANISM_GUIDANCE } from './mechanismTool';
 
 /**
@@ -295,6 +296,7 @@ function roleOf(research: boolean): string {
     ASSEMBLY_GUIDANCE,
     JOINT_GUIDANCE,
     MECHANISM_GUIDANCE,
+  BLOCK_GUIDANCE,
     QUESTION_GUIDANCE,
     ANSWER_GUIDANCE,
     ...(research ? [RESEARCH_GUIDANCE] : []),
