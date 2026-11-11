@@ -342,6 +342,17 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a latched box": a hollow box and its lid on it, then PartBuddy's own snap latch on the front wall.
+    if (content.includes('a latched box')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 20, operation: 'new', body_name: 'Box' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 36, width: 26, height: 18, corner: [2, 2, 2], operation: 'cut', targets: ['Box'] } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 10, corner: [0, 0, 20], operation: 'new', body_name: 'Lid' } } });
+      const built = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'latch', fixed: 'Box', moving: 'Lid', from: [20, 0, 20], to: [20, -5, 20], name: 'Front latch' } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "a split block": two halves of a block side by side, then PartBuddy's own pegs across the cut.
     if (content.includes('a split block')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 30, width: 30, height: 20, operation: 'new', body_name: 'Left' } } });
