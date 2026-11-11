@@ -2181,6 +2181,9 @@ test('a rough sketch drawn with the mouse goes to the assistant as a picture wit
     const pad = page.getByTestId('sketch-pad');
     const canvas = pad.getByTestId('sketch-canvas');
     await expect(pad.getByTestId('sketch-attach')).toBeDisabled();
+    // Wait until the dialog has grown in and takes the mouse: while it enters (since #176) a press
+    // lands on the page behind it, which counts as a click beside the dialog and closes it.
+    await canvas.hover();
     const box = await canvas.boundingBox();
     if (!box) throw new Error('canvas not visible');
     // An L-shaped bracket, then a stray line that is taken back.
