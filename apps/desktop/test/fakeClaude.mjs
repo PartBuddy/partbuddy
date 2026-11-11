@@ -341,6 +341,18 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a clipped cover": a base and a hollow cover over it, then PartBuddy's own snap hooks into two opposite walls.
+    if (content.includes('a clipped cover')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, operation: 'new', body_name: 'Base' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 20, corner: [0, 0, 4], operation: 'new', body_name: 'Cover' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 36, width: 26, height: 18, corner: [2, 2, 4], operation: 'cut', targets: ['Cover'] } } });
+      const back = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'snap', fixed: 'Base', moving: 'Cover', from: [20, 28, 4], to: [20, 30, 4], name: 'Back clip' } });
+      const front = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'snap', fixed: 'Base', moving: 'Cover', from: [20, 2, 4], to: [20, 0, 4], name: 'Front clip' } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: [back, front].flatMap((built) => (built.content ?? []).map((block) => block.text ?? '')).join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "a jar with a screw lid": a hollow round jar, then PartBuddy's own screw lid on its neck.
     if (content.includes('a jar with a screw lid')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.cylinder', params: { diameter: 60, height: 50, operation: 'new', body_name: 'Jar' } } });

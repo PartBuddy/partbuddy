@@ -538,3 +538,82 @@ export function lidSteps(spec: LidSpec): Step[] {
     { command: 'body.print_face', params: { body: spec.moving, point: [cx, cy, round(rim + LID.top)] } },
   ];
 }
+
+export interface SnapSpec {
+  /** The body the hook stands on. */
+  fixed: string;
+  /** The body whose wall the hook catches in; it gets the window. */
+  moving: string;
+  /** The foot of the hook: on the face of the fixed body, at the inner face of the other body's wall. */
+  from: Vec3;
+  /** The way the hook stands out of that face, which is the way the two parts come apart. */
+  up: Vec3;
+  /** The way the catch points: from the foot into the wall; what of it runs along `up` is dropped. */
+  toward: Vec3;
+  /** Further hooks catching the same way: the foot of each. */
+  more: Vec3[];
+  /** The wall's thickness in mm: the window goes that deep, so through it. */
+  wall: number;
+  name: string;
+}
+
+/**
+ * One cantilever hook, in mm: an arm 12 long, 1.5 thick and 5 wide (Hubs: no narrower) with a catch of 0.8 on its last
+ * 1.5, which bends the root by 1.4 % as it snaps in (Bayer's and BASF's 0.67 · strain · length² / thickness, turned
+ * round). The arm stands `gap` off the wall, the window is `side` wider on each side, its edge lies `seat` under the
+ * catch and it leaves `air` over the tip. Clearances are those of guides for printed parts, which run from 0.1 to 0.5.
+ */
+export const SNAP = { length: 12, thickness: 1.5, width: 5, catch: 0.8, catchLength: 1.5, gap: 0.2, side: 0.3, seat: 0.2, air: 0.5 };
+
+/** What is wrong with a snap hook before anything is built; null when it can be built. */
+export function snapProblem(spec: SnapSpec): string | null {
+  if (spec.fixed === spec.moving) return 'fixed and moving must be two bodies';
+  if (Math.hypot(...spec.up) < 1e-9) return 'up must not be zero';
+  const up = spec.up.map((value) => value / Math.hypot(...spec.up)) as Vec3;
+  if (Math.hypot(...cross(up, spec.toward)) < 1e-6) return 'to must lie beside from, in the wall the catch goes into: not straight along up';
+  if (!(spec.wall >= 1.6 && spec.wall <= 10)) return 'wall must be 1.6–10 mm';
+  if (spec.more.length > 20) return 'at most 20 further hooks';
+  return null;
+}
+
+/**
+ * A snap hook on the fixed body and its window in the wall of the other: the catch's flat underside lies over the
+ * window's edge and holds against pulling the parts apart; pressed back through the window it lets go. The window is
+ * cut first and the hook built last, each with its own body's component active.
+ */
+export function snapSteps(spec: SnapSpec): Step[] {
+  const length = Math.hypot(...spec.up);
+  const up = spec.up.map((value) => value / length) as Vec3;
+  const along = spec.toward.reduce((sum, value, i) => sum + value * (up[i] ?? 0), 0);
+  const flat = spec.toward.map((value, i) => value - along * (up[i] ?? 0)) as Vec3;
+  const toward = flat.map((value) => value / Math.hypot(...flat)) as Vec3;
+  const tidy = (vector: Vec3) => vector.map((value) => round(value) + 0) as Vec3;
+  const mm = (value: number) => `${String(round(value))} mm`;
+  const feet = [spec.from, ...spec.more];
+  const half = round(SNAP.width / 2 + SNAP.side);
+  const high = round(SNAP.catchLength + SNAP.seat + SNAP.air);
+  const windows = feet.flatMap((foot, i): Step[] => {
+    const name = `${spec.name} ${String(i + 1)} □`;
+    return [
+      // Sketch x across the hook, y up it: x × y points into the wall, so a positive distance cuts.
+      { command: 'sketch.create', params: { plane: { origin: foot.map((value, k) => round(value + (up[k] ?? 0) * (SNAP.length - SNAP.catchLength - SNAP.seat))), x_dir: tidy(cross(up, toward)), y_dir: tidy(up) }, project_edges: false, name } },
+      { command: 'sketch.line', params: { points: [[-half, 0], [half, 0], [half, high], [-half, high]], closed: true } },
+      { command: 'solid.extrude', params: { distance: mm(spec.wall), operation: 'cut', targets: [spec.moving], name } },
+    ];
+  });
+  const hooks = feet.map((foot): Step => ({
+    command: 'plastic.snap_fit',
+    params: {
+      position: foot.map((value, k) => round(value - (toward[k] ?? 0) * SNAP.gap)),
+      direction: tidy(up),
+      hook: tidy(toward),
+      length: mm(SNAP.length),
+      thickness: mm(SNAP.thickness),
+      width: mm(SNAP.width),
+      catch_depth: mm(SNAP.catch),
+      catch_length: mm(SNAP.catchLength),
+      body: spec.fixed,
+    },
+  }));
+  return [...windows, ...hooks];
+}
