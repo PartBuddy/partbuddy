@@ -323,6 +323,16 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a screwed plate": a block and a plate on it, then PartBuddy's own screw joint through both, twice.
+    if (content.includes('a screwed plate')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 60, width: 40, height: 20, operation: 'new', body_name: 'Block' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 60, width: 40, height: 6, corner: [0, 0, 20], operation: 'new', body_name: 'Plate' } } });
+      const built = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'screw', fixed: 'Block', moving: 'Plate', from: [10, 10, 26], to: [10, 10, 20], more: [[50, 30, 26]], name: 'Plate screws' } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "a snap lid" (G3): a box and its lid sitting on it, both hollow, then PartBuddy's own closure between them.
     if (content.includes('a snap lid')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 60, width: 40, height: 20, operation: 'new', body_name: 'Box' } } });

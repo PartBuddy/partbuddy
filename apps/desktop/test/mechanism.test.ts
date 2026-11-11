@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, hingeOf, lipOf, occurrenceOf, railTravel, slideOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, hingeOf, lipOf, occurrenceOf, railTravel, screwOf, slideOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, lipProblem, lipSteps, slideProblem, slideSteps, type HingeSpec, type LipSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { hingeProblem, hingeSteps, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, type HingeSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -331,5 +331,65 @@ describe('the snap closure of a lid (G3)', () => {
     expect(built.content[0]).toMatchObject({ text: expect.stringContaining('Built the closure "Closure" between Box (the box) and Lid (the lid): a lip 1.2 mm thick and 4 mm high inside the lid, 0.25 mm clear') as string });
     expect(batches).toHaveLength(3);
     expect(batches.join(' ')).not.toContain('joint.as_built');
+  });
+});
+
+describe('the screw joint (standards)', () => {
+  // A plate 6 mm thick on a block: the screws go in from above at z 26 and pass into the block at z 20.
+  const joint: ScrewSpec = { fixed: 'Block', moving: 'Plate', from: [10, 10, 26], to: [10, 10, 20], more: [[50, 30, 26]], size: 'M3', head: 'cap', thread: 'insert', screws: true, name: 'Screw' };
+
+  it('drills the clearance hole with its counterbore only through the plate, seats the insert on the same line, and puts the screws in last', () => {
+    const steps = screwSteps(joint);
+    expect(steps.map((step) => [step.command, step.params.name ?? ''])).toEqual([
+      ['solid.hole', 'Screw 1'],
+      ['solid.hole', 'Screw 1 ○'],
+      ['solid.hole', 'Screw 2'],
+      ['solid.hole', 'Screw 2 ○'],
+      ['parts.insert', ''],
+      ['parts.insert', ''],
+    ]);
+    expect(steps[0]?.params).toEqual({ position: [10, 10, 26], clearance: 'M3', fit: 'normal', type: 'counterbore', cb_diameter: '6.7 mm', cb_depth: '3.4 mm', direction: [0, 0, -1], depth: '6 mm', targets: ['Plate'], name: 'Screw 1' });
+    // The seat is a millimetre deeper than the 5.7 mm insert.
+    expect(steps[1]?.params).toEqual({ position: [10, 10, 20], direction: [0, 0, -1], diameter: '4 mm', depth: '6.7 mm', targets: ['Block'], name: 'Screw 1 ○' });
+    expect(steps[3]?.params.position).toEqual([50, 30, 20]);
+    // M3×8: 2.6 mm of plate under the head and 5.4 mm of the 5.7 mm insert. It sits on the counterbore's floor, head up.
+    expect(screwLength(joint)).toBe(8);
+    expect(steps[4]?.params).toEqual({ family: 'socket_head_cap_screw', size: 'M3', length: 8, point: [10, 10, 22.6], direction: [0, 0, 1] });
+    // A countersunk screw is measured from its top, which lies flush; a thread from M5 is modelled.
+    const sunk = screwSteps({ ...joint, head: 'countersunk', size: 'M4', more: [] });
+    expect(sunk[0]?.params).toMatchObject({ type: 'countersink', cs_diameter: '9.56 mm', cs_angle: '90 deg' });
+    expect(sunk[2]?.params).toMatchObject({ family: 'countersunk_socket_screw', length: 12, point: [10, 10, 26] });
+    expect(screwSteps({ ...joint, size: 'M6', thread: 'tapped', head: 'none', more: [] })[1]?.params).toMatchObject({ thread: 'M6', modeled: true, depth: '16 mm' });
+    expect(screwSteps({ ...joint, screws: false })).toHaveLength(4);
+  });
+
+  it('says what is wrong before anything is built', () => {
+    expect(screwProblem(joint)).toBeNull();
+    expect(screwProblem({ ...joint, size: 'M8' })).toContain('there is no heat-set insert for M8');
+    expect(screwProblem({ ...joint, thread: 'tapped' })).toContain('a printed M3 thread strips');
+    expect(screwProblem({ ...joint, to: [10, 10, 23] })).toContain('make it at least 4.6 mm thick, or use head none');
+    expect(screwProblem({ ...joint, head: 'countersunk', size: 'M2' })).toBe('countersunk screws start at M3');
+    const args = { kind: 'screw', fixed: 'Block', moving: 'Plate', from: [10, 10, 26], to: [10, 10, 20] };
+    expect(screwOf(args)).toMatchObject({ size: 'M3', head: 'cap', thread: 'insert', more: [], screws: true, name: 'Screw' });
+    expect(screwOf({ ...args, size: 'M7' })).toContain('size must be one of M2');
+    expect(screwOf({ ...args, more: [[1, 2]] })).toBe('more must be a list of points, each three numbers');
+    expect(describeToolCall('partbuddy_mechanism', { kind: 'screw', name: 'Lid screws' })).toEqual([{ key: 'screwJoint', values: { name: 'Lid screws' } }]);
+  });
+
+  it('is built by the tool with one call, which says what to buy', async () => {
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, args) => {
+        if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Block' }, { name: 'Plate' }] }) }] });
+        const commands = args.commands as { command: string }[];
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'inspect.interference' ? { count: 0 } : step.command === 'component.list' ? { components: [] } : {})) }) }] });
+      },
+    };
+    const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'screw', fixed: 'Block', moving: 'Plate', from: [10, 10, 26], to: [10, 10, 20], more: [[50, 30, 26]], name: 'Plate screws' });
+    expect(built.isError).toBeUndefined();
+    const text = String(built.content[0]?.text);
+    expect(text).toContain('Built 2 screw joints "Plate screws" that hold Plate on Block: in Plate a clearance hole for M3 (ISO 273, normal) with a counterbore for the head, in Block the seat of a heat-set insert (4 mm wide, 6.7 mm deep).');
+    expect(text).toContain('To buy: 2 × M3×8 socket head cap screws (ISO 4762) and 2 M3 heat-set inserts 5.7 mm long; the screws are in the design as standard parts.');
   });
 });
