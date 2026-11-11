@@ -102,7 +102,8 @@ export function hingeOf(args: Record<string, unknown>, nozzle: number): HingeSpe
   const spec: HingeSpec = {
     ...rest,
     diameter: typeof args.diameter === 'number' ? args.diameter : 6,
-    knuckles: typeof args.knuckles === 'number' ? args.knuckles : length < 40 ? 3 : length < 90 ? 5 : 7,
+    // Knuckles of at most 10 mm where the line allows: inside each one the pin bridges from neighbour to neighbour.
+    knuckles: typeof args.knuckles === 'number' ? args.knuckles : ([3, 5, 7, 9].find((count) => length / count <= 10) ?? 9),
   };
   return hingeProblem(spec) ?? spec;
 }

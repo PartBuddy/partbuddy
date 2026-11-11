@@ -10,7 +10,16 @@ const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [
 
 describe('the print-in-place hinge (ADR 0027, G3)', () => {
   it('builds knuckles in turn, each clearing its room in the other body first, then bore and pin', () => {
-    const steps = hingeSteps(spec);
+    const all = hingeSteps(spec);
+    const steps = all.filter((step) => step.command === 'solid.cylinder');
+    // Lying, the bore gets a roof: flanks at 45° from the bore (radius 1.9 mm) and a flat 1.2 radii up, cut through the flap along the whole line.
+    const roof = all.filter((step) => step.command !== 'solid.cylinder');
+    expect(roof.map((step) => step.command)).toEqual(['sketch.create', 'sketch.line', 'solid.extrude']);
+    expect(roof[0]?.params.plane).toEqual({ origin: [42, -0.4, 3], x_dir: [-1, 0, 0], y_dir: [0, 0, 1] });
+    expect(roof[1]?.params.points).toEqual([[-1.344, 1.344], [1.344, 1.344], [0.407, 2.28], [-0.407, 2.28]]);
+    expect(roof[2]?.params).toMatchObject({ distance: '30.8 mm', operation: 'cut', targets: ['Flap'], name: 'Hinge △' });
+    // Upright, a round bore prints as it is.
+    expect(hingeSteps({ ...spec, from: [0, 0, 0], to: [0, 0, 30] }).every((step) => step.command === 'solid.cylinder')).toBe(true);
     expect(steps.map((step) => [step.params.operation, (step.params.targets as string[])[0], step.params.diameter, step.params.height])).toEqual([
       // Room for the knuckles: a gap wider all round and a gap longer at both ends, past the ends of the hinge line too.
       ['cut', 'Flap', '6.8 mm', '10.533 mm'],
@@ -22,7 +31,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
       ['cut', 'Flap', '3.8 mm', '30.8 mm'],
       ['join', 'Base', '3 mm', '30 mm'],
     ]);
-    expect(steps.every((step) => step.command === 'solid.cylinder' && JSON.stringify(step.params.axis) === '[0,1,0]')).toBe(true);
+    expect(steps.every((step) => JSON.stringify(step.params.axis) === '[0,1,0]')).toBe(true);
     // The middle knuckle starts a gap after the first one ends.
     expect(steps[4]?.params.base).toEqual([42, 10.133, 3]);
     // A body wider than the hinge must not lie against the outer knuckles: their room and the bore start a gap before the line.
@@ -40,7 +49,10 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
 
   it('fills in the gap from the nozzle and the knuckles from the length', () => {
     const args = { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [0, 0, 3], to: [0, 60, 3] };
-    expect(hingeOf(args, 0.4)).toMatchObject({ diameter: 6, gap: 0.4, knuckles: 5, name: 'Hinge' });
+    // 60 mm of line: seven knuckles, so none is longer than 10 mm.
+    expect(hingeOf(args, 0.4)).toMatchObject({ diameter: 6, gap: 0.4, knuckles: 7, name: 'Hinge' });
+    expect(hingeOf({ ...args, to: [0, 30, 3] }, 0.4)).toMatchObject({ knuckles: 3 });
+    expect(hingeOf({ ...args, to: [0, 200, 3] }, 0.4)).toMatchObject({ knuckles: 9 });
     expect(hingeOf(args, 0.2)).toMatchObject({ gap: 0.3 });
     expect(hingeOf({ ...args, to: [0, 0, 3] }, 0.4)).toBe('from and to must be two points');
     expect(hingeOf({ ...args, fixed: '' }, 0.4)).toBe('fixed, moving, from and to are needed');
@@ -96,7 +108,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     });
     expect(batches.map((batch) => batch.map((step) => step.command).join(' '))).toEqual([
       'component.list joint.list',
-      Array.from({ length: 8 }, () => 'solid.cylinder').join(' '),
+      [...Array.from({ length: 7 }, () => 'solid.cylinder'), 'sketch.create', 'sketch.line', 'solid.extrude', 'solid.cylinder'].join(' '),
       'document.inspect inspect.interference',
       'component.list',
       'component.from_bodies component.list',
@@ -149,8 +161,9 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     // The flap is a component already (a second mechanism, or the assistant made components first); the base is not.
     const listing = { active: 0, components: [{ id: 0, parent: null, bodies: ['Base'] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ name: 'Flap:1' }] }] };
     const steps = activated(hingeSteps(spec), listing);
-    const target = (step: { command: string; params: Record<string, unknown> }) => (step.command === 'component.activate' ? `activate ${String(step.params.component)}` : (step.params.targets as string[])[0]);
-    expect(steps.map(target)).toEqual(['activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base']);
+    const target = (step: { command: string; params: Record<string, unknown> }) => (step.command === 'component.activate' ? `activate ${String(step.params.component)}` : ((step.params.targets as string[] | undefined)?.[0] ?? step.command));
+    // The roof's sketch is drawn with the flap active, as the bore before it and the cut after it.
+    expect(steps.map(target)).toEqual(['activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'sketch.create', 'sketch.line', 'Flap', 'activate 0', 'Base']);
     // Nothing is a component: the steps as they are.
     expect(activated(hingeSteps(spec), { components: [{ id: 0, parent: null, bodies: ['Base', 'Flap'] }] })).toEqual(hingeSteps(spec));
     // A guide's sketch belongs to the component of the extrusion that uses it, and the design level is active again at the end.
