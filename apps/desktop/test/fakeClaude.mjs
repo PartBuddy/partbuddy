@@ -323,6 +323,18 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a snap lid" (G3): a box and its lid sitting on it, both hollow, then PartBuddy's own closure between them.
+    if (content.includes('a snap lid')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 60, width: 40, height: 20, operation: 'new', body_name: 'Box' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.shell', params: { faces: [[30, 20, 20]], thickness: 2, body: 'Box' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 60, width: 40, height: 10, corner: [0, 0, 20], operation: 'new', body_name: 'Lid' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.shell', params: { faces: [[30, 20, 20]], thickness: 2, body: 'Lid' } } });
+      const built = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [2, 2, 20], to: [58, 38, 20], up: [0, 0, -1], side: 'y-', name: 'Lid closure' } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "a sliding carriage" (G3): a base, a carriage a gap above it, then PartBuddy's own guide between them.
     if (content.includes('a sliding carriage')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 60, width: 30, height: 4, operation: 'new', body_name: 'Base' } } });

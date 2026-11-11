@@ -108,9 +108,10 @@ describe('templates with moving parts', () => {
       const rings = steps.filter((step) => step.command === 'sketch.rectangle.rounded');
       expect(rings).toHaveLength(4);
       for (const step of rings) expect(JSON.stringify([step.params.p0, step.params.p1, step.params.radius])).toMatch(/wall.*length.*width.*corner/);
-      const catches = steps.filter((step) => /^(Catch|Rast)/.test(String(step.params.name)) && step.command !== 'solid.chamfer');
-      expect(catches).toHaveLength(2);
-      for (const step of catches) expect(JSON.stringify(step.params.corner ?? step.params.base)).toMatch(/length.*width.*wall.*height/);
+      // Bead and rille of the mechanism's closure, in the lid and in the box.
+      const catches = steps.filter((step) => /^(Closure|Verschluss) [●○]$/.test(String(step.params.name)));
+      expect(catches.map((step) => (step.params.targets as string[])[0])).toEqual([lid, box]);
+      for (const step of catches) expect(JSON.stringify(step.params.corner ?? step.params.base)).toMatch(/length.*width.*height/);
       for (const step of knuckles) expect(step.params.base).toEqual([expect.stringMatching(/^length \/ 2 \+ -?[\d.]+ mm$/), 0.5, 'height']);
     }
     expect(germanFeatureName('Hinge 2 ·')).toBe('Scharnier 2 ·');

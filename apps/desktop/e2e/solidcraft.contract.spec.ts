@@ -3318,6 +3318,46 @@ test('the assistant builds a dovetail guide with one call: joined as a slider th
   }
 });
 
+test('the assistant builds a snap closure with one call: a lip in the lid, its bead in a rille of the box, no overlap (G3)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-closure-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7953',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a snap lid');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText(/Built the closure "Lid closure" between Box \(the box\) and Lid \(the lid\): a lip 1\.2 mm thick and 4 mm high inside the lid, 0\.25 mm clear of the box's wall, a bead that snaps 0\.25 mm into a rille/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    // The closure is one step of the work log, and no feature of it failed.
+    await expect(page.getByText('Snap closure “Lid closure” between lid and box')).toHaveCount(1);
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    // Lip and box neither overlap nor stop anything: there is no joint.
+    await page.getByTestId('print-check').click();
+    const findings = page.getByTestId('print-check-panel');
+    await expect(findings).toBeVisible();
+    await page.waitForTimeout(1500);
+    await expect(findings.locator('[data-kind="blocked"], [data-kind="overlap"]')).toHaveCount(0);
+    // What the light does say: the lid lies on the box, as it is built.
+    await expect(findings).toContainText('Box and Lid touch but are separate bodies');
+    await page.screenshot({ path: test.info().outputPath('closure-built.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('a hinge whose line is out of reach of the bodies is taken back, with where the line goes (G3)', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');

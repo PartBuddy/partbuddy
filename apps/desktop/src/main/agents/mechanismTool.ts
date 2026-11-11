@@ -1,4 +1,4 @@
-import { hingeProblem, hingeSteps, pinDiameter, slideProblem, slideSteps, type HingeSpec, type SlideSpec } from '../../shared/mechanisms';
+import { LIP, hingeProblem, hingeSteps, lipProblem, lipSteps, pinDiameter, slideProblem, slideSteps, type HingeSpec, type LipSpec, type SlideSpec } from '../../shared/mechanisms';
 import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
@@ -21,16 +21,24 @@ const mechanismTool: UpstreamTool = {
     'the line must lie closer to both bodies than the barrel radius less 0.5 mm, so the knuckles grow out of them; it needs no distance from their walls, because PartBuddy cuts each knuckle\'s room in the other body itself. ' +
     'slide: a dovetail rail on the fixed body and its groove in the moving body, which lies over the rail a gap above the face. Give the middle line of the rail (from, to) on that face and the face normal (up). ' +
     'PartBuddy also joins the two with a joint, finds how far it moves before the bodies meet (a slide: while the moving body stays on its rail) and sets that as its limits; the user then moves it with a slider in the view. ' +
-    'Use this instead of modelling a hinge or a guide yourself.',
+    'closure: a snap closure between a lid and its box, nothing standing out: a lip inside the lid that goes into the box along its wall and centres the lid, a bead that snaps into a rille of the box\'s wall, and a notch for a fingernail. ' +
+    'Give from and to as opposite corners of the lid\'s inner room at its rim (both at the rim\'s height), up as the way the lip stands out of the lid (+Z when the lid lies open side up, -Z when it sits on the box), wall and radius of the lid, and the side with the catch (a long wall, opposite the hinge). ' +
+    'When the lid is built open beside the box and closes on a hinge, give the hinge line too (hinge_from, hinge_to), so the rille lands where the bead closes. It makes no joint. ' +
+    'Use this instead of modelling a hinge, a guide or a snap lid yourself.',
   inputSchema: {
     type: 'object',
     properties: {
-      kind: { type: 'string', enum: ['hinge', 'slide'], description: 'hinge: turns about a line; slide: moves along a line.' },
-      fixed: { type: 'string', description: 'The body that stays (exact name); it carries the pin or the rail.' },
-      moving: { type: 'string', description: 'The body that moves (exact name).' },
-      from: { ...vector, description: 'One end of the line in mm.' },
-      to: { ...vector, description: 'The other end of the line in mm.' },
-      up: { ...vector, description: 'slide: the normal of the face of the fixed body the rail stands on; default +Z.' },
+      kind: { type: 'string', enum: ['hinge', 'slide', 'closure'], description: 'hinge: turns about a line; slide: moves along a line; closure: a lid snaps shut on its box.' },
+      fixed: { type: 'string', description: 'The body that stays (exact name); it carries the pin or the rail. closure: the box.' },
+      moving: { type: 'string', description: 'The body that moves (exact name). closure: the lid.' },
+      from: { ...vector, description: 'One end of the line in mm. closure: one corner of the lid\'s inner room at its rim.' },
+      to: { ...vector, description: 'The other end of the line in mm. closure: the opposite corner, at the same height.' },
+      up: { ...vector, description: 'slide: the normal of the face of the fixed body the rail stands on; default +Z. closure: the way the lip stands out of the lid, +Z or -Z; default +Z.' },
+      side: { type: 'string', enum: ['x-', 'x+', 'y-', 'y+'], description: 'closure: the wall of the lid\'s inner room with the catch and the notch.' },
+      wall: { type: 'number', minimum: 1.6, maximum: 10, description: 'closure: the lid\'s wall thickness in mm; default 2.' },
+      radius: { type: 'number', minimum: 0, maximum: 100, description: 'closure: the radius of the inner room\'s corners in mm; default 0 (sharp).' },
+      hinge_from: { ...vector, description: 'closure: one end of the hinge line the lid closes about, when it is built open.' },
+      hinge_to: { ...vector, description: 'closure: the other end of that line; it runs along X or along Y.' },
       diameter: { type: 'number', minimum: 4, maximum: 40, description: 'hinge: outer diameter of the barrel in mm; default 6. The pin is half of it.' },
       knuckles: { type: 'integer', enum: [3, 5, 7, 9], description: 'hinge: how many knuckles; default by the length of the line.' },
       width: { type: 'number', minimum: 2, maximum: 60, description: 'slide: width of the rail at its foot in mm; default 6. It widens by its height on each side.' },
@@ -107,6 +115,41 @@ export function slideOf(args: Record<string, unknown>, nozzle: number): SlideSpe
   if (!up) return 'up must be three numbers';
   const spec: SlideSpec = { fixed: base.fixed, moving: base.moving, from: base.from, to: base.to, gap: base.gap, name: base.name, up, width: typeof args.width === 'number' ? args.width : 6, height: typeof args.height === 'number' ? args.height : 3 };
   return slideProblem(spec) ?? spec;
+}
+
+/** The closure the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
+export function lipOf(args: Record<string, unknown>): LipSpec | string {
+  const base = common(args, 0.4, 'Closure');
+  if (typeof base === 'string') return base;
+  const { from, to } = base;
+  if (Math.abs(from[2] - to[2]) > 1e-6) return 'from and to must both lie at the height of the lid\'s rim';
+  const up = args.up === undefined ? ([0, 0, 1] as Vec3) : vec3(args.up);
+  if (!up || Math.abs(up[0]) > 1e-6 || Math.abs(up[1]) > 1e-6 || Math.abs(up[2]) < 1e-6) return 'up must be +Z (the lid lies open side up) or -Z (the lid sits on the box)';
+  const side = args.side;
+  if (side !== 'x-' && side !== 'x+' && side !== 'y-' && side !== 'y+') return 'side must be x-, x+, y- or y+: the wall with the catch';
+  let hinge: LipSpec['hinge'];
+  if (args.hinge_from !== undefined || args.hinge_to !== undefined) {
+    const [a, b] = [vec3(args.hinge_from), vec3(args.hinge_to)];
+    if (!a || !b) return 'hinge_from and hinge_to must both be three numbers';
+    const alongX = Math.abs(a[1] - b[1]) < 1e-6 && Math.abs(a[0] - b[0]) > 1e-6;
+    const alongY = Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) > 1e-6;
+    if (Math.abs(a[2] - b[2]) > 1e-6 || alongX === alongY) return 'the hinge line must run level, along X or along Y';
+    hinge = alongX ? { along: 'x', across: a[1], z: a[2] } : { along: 'y', across: a[0], z: a[2] };
+  }
+  const spec: LipSpec = {
+    fixed: base.fixed,
+    moving: base.moving,
+    min: [Math.min(from[0], to[0]), Math.min(from[1], to[1])],
+    max: [Math.max(from[0], to[0]), Math.max(from[1], to[1])],
+    rim: from[2],
+    up: up[2] > 0 ? 1 : -1,
+    radius: typeof args.radius === 'number' ? args.radius : 0,
+    wall: typeof args.wall === 'number' ? args.wall : 2,
+    side,
+    ...(hinge ? { hinge } : {}),
+    name: base.name,
+  };
+  return lipProblem(spec) ?? spec;
 }
 
 /** The occurrence that places a body, from `component.list`; null while the body is still in the design itself. */
@@ -284,7 +327,15 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
       `${MOVE} Nothing holds it at the ends of the rail; add stops if it must not come off.${warnings}`
     );
   }
-  throw new Error('kind must be hinge or slide');
+  if (args.kind === 'closure') {
+    const spec = lipOf(args);
+    if (typeof spec === 'string') throw new Error(spec);
+    const warnings = await build(upstream, run, spec, lipSteps(spec), `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, callId);
+    return (
+      `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(LIP.thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch in the lid's rim to open it. It makes no joint and needs no room outside the box. Keep the box's wall straight and at least 1.6 mm thick where the lip goes in.${warnings}`
+    );
+  }
+  throw new Error('kind must be hinge, slide or closure');
 }
 
 /** The upstream tools plus `partbuddy_mechanism`; `nozzle` is the printer's nozzle in use, for the default gap. */
@@ -304,4 +355,4 @@ export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number)
 }
 
 /** Added to the role prompt of every route, after the joint guidance. */
-export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the print-in-place geometry with the right gaps, joins the bodies and sets the limits.`;
+export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the print-in-place geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through.`;

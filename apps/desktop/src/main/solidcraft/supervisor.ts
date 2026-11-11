@@ -715,8 +715,14 @@ export class SolidCraftSupervisor {
 
   /** Drives one value of a joint (ADR 0027); SolidCraft clamps it to the limits and the mirror shows where the parts stand. */
   async driveJoint(joint: number, index: number, value: number): Promise<void> {
-    await this.probing;
-    await this.actions.applySteps([{ command: 'joint.drive', params: { joint, index, value, quiet: true } }]);
+    // In line with the trials, not only after the one running: a sweep that tries a snap fit poses the joint at its
+    // limit and puts it back where it stood, and a drive between its steps would be taken back with it.
+    const run = this.probing.then(() => this.actions.applySteps([{ command: 'joint.drive', params: { joint, index, value, quiet: true } }]));
+    this.probing = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    await run;
     await this.engine?.checkForChange();
   }
 
