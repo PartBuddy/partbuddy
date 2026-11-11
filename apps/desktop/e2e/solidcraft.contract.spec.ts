@@ -3327,7 +3327,7 @@ test('the assistant builds a dovetail guide with one call: joined as a slider th
   }
 });
 
-test('the assistant hangs a part on the wall with its blocks: keyhole slots on the back, countersunk holes on the front', async () => {
+test('the assistant hangs a part on the wall with its blocks: keyhole slots on the back, countersunk holes and magnet pockets on the front', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
@@ -3351,6 +3351,9 @@ test('the assistant hangs a part on the wall with its blocks: keyhole slots on t
     // Each block is one line of the work log, and no feature failed.
     await expect(page.getByText('Keyhole slot for a 4 mm screw, to hang on a wall')).toHaveCount(1);
     await expect(page.getByText('Countersunk hole for a 4 mm wood screw')).toHaveCount(1);
+    await expect(page.getByText(/Built 2 pockets for 6 × 2 mm disc magnets in Plate: 6\.3 mm wide and 2\.2 mm deep/)).toBeVisible();
+    await expect(page.getByText('Pocket for a 6 × 2 mm magnet')).toHaveCount(1);
+    await expect(page.getByText(/SolidCraft warns:/)).toHaveCount(0);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });
     await page.screenshot({ path: test.info().outputPath('wall-plate-built.png') });

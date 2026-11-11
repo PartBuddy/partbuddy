@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { blockOf, knobOf, wallOf, withBlockTool } from '../src/main/agents/blockTool';
+import { blockOf, knobOf, magnetOf, wallOf, withBlockTool } from '../src/main/agents/blockTool';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
 import { KNOB, knobProblem, knobSteps, type KnobSpec } from '../src/shared/knob';
+import { MAGNET, magnetPocket, magnetSteps } from '../src/shared/magnet';
 import { describeToolCall } from '../src/shared/stepPhrases';
 import { KEYHOLE, WALL, keyholeDepth, keyholeProblem, keyholeSteps, woodScrewSteps, type KeyholeSpec } from '../src/shared/wallMount';
 
@@ -133,6 +134,35 @@ describe('a knob for a shaft (standards)', () => {
     expect(kept).toEqual(['Volume:face-7']);
     expect(await tools.callTool('partbuddy_block', { block: 'knob', body: 'Panel', point: [0, 0, 0] })).toMatchObject({ isError: true, content: [{ text: 'Not built: there is a body named Panel already; give the knob another name' }] });
     expect(describeToolCall('partbuddy_block', { block: 'knob', body: 'Volume' })).toEqual([{ key: 'knob', values: { name: 'Volume' } }]);
+  });
+});
+
+describe('pockets for disc magnets (standards)', () => {
+  it('cuts each pocket into the face with a chamfered mouth, sized by the magnet and how it is held', () => {
+    const steps = magnetSteps({ body: 'Lid', point: [10, 10, 0], normal: [0, 0, -2], more: [[30, 10, 0]], diameter: 6, height: 2, hold: 'glue', name: 'Magnet' });
+    expect(steps.map((step) => [step.command, step.params.name])).toEqual([
+      ['solid.cylinder', 'Magnet 1'],
+      ['solid.cone', 'Magnet 1 ◣'],
+      ['solid.cylinder', 'Magnet 2'],
+      ['solid.cone', 'Magnet 2 ◣'],
+    ]);
+    // On the underside: the pocket goes up into the part, 0.3 mm wider than the magnet and 0.2 mm deeper.
+    expect(steps[0]?.params).toEqual({ diameter: '6.3 mm', height: '2.2 mm', base: [10, 10, 0], axis: [0, 0, 1], operation: 'cut', targets: ['Lid'], name: 'Magnet 1' });
+    expect(steps[1]?.params).toMatchObject({ diameter: '7.1 mm', top_diameter: '6.3 mm', height: '0.4 mm', base: [10, 10, 0], axis: [0, 0, 1], operation: 'cut' });
+    expect(steps[2]?.params).toMatchObject({ base: [30, 10, 0] });
+    expect(magnetPocket({ diameter: 10, height: 3, hold: 'press' })).toEqual({ diameter: 10.1, depth: 3.2 });
+    expect(MAGNET).toEqual({ room: { glue: 0.3, press: 0.1 }, sunk: 0.2, chamfer: 0.4 });
+  });
+
+  it('fills a pocket in from the standard, says how the magnet is held and refuses what is no magnet', () => {
+    const glued = magnetOf({ block: 'magnet', body: 'Lid', point: [10, 10, 0], normal: [0, 0, -1], more: [[30, 10, 0]] });
+    expect((glued as { text: string }).text).toContain('Built 2 pockets for 6 × 2 mm disc magnets in Lid: 6.3 mm wide and 2.2 mm deep, so the magnet lies 0.2 mm under the face, with a chamfered mouth. The magnet drops in and is held by a drop of superglue.');
+    expect((magnetOf({ block: 'magnet', body: 'Lid', point: [10, 10, 0], normal: [0, 0, -1], diameter: 8, height: 3, hold: 'press' }) as { text: string }).text).toContain('8.1 mm wide and 3.2 mm deep');
+    expect(magnetOf({ block: 'magnet', body: 'Lid', point: [10, 10, 0] })).toBe('magnet needs normal: the way out of the face the pocket opens in, three numbers');
+    expect(magnetOf({ block: 'magnet', body: 'Lid', point: [10, 10, 0], normal: [0, 0, 1], diameter: 1 })).toBe('diameter must be 2–40 mm (the magnet)');
+    expect(magnetOf({ block: 'magnet', body: 'Lid', point: [10, 10, 0], normal: [0, 0, 1], hold: 'tape' })).toBe('hold must be one of glue, press');
+    expect(magnetOf({ block: 'knob', body: 'Lid', point: [0, 0, 0] })).toBeNull();
+    expect(describeToolCall('partbuddy_block', { block: 'magnet', diameter: 8, height: 3 })).toEqual([{ key: 'magnetPocket', values: { diameter: 8, height: 3 } }]);
   });
 });
 
