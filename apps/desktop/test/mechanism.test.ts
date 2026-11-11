@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, hingeOf, lidOf, lipOf, occurrenceOf, railTravel, screwOf, slideOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, hingeOf, lidOf, lipOf, occurrenceOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, snapProblem, snapSteps, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -473,5 +473,41 @@ describe('the screw lid (standards)', () => {
     expect(text).toContain('The lid is 67.8 mm wide and covers the top 14.2 mm of the neck');
     const taken = await withMechanismTool(upstream(['Jar', 'Lid']), () => 0.4).callTool('partbuddy_mechanism', args);
     expect(taken).toMatchObject({ isError: true, content: [{ text: 'Not built: a body "Lid" exists already; give the lid another name, or delete that body first' }] });
+  });
+});
+
+describe('snap hooks with their windows (standards)', () => {
+  // A base with a cover over it: the cover's wall stands from y = 20 to y = 22, the hooks stand on the base's top at z = 4.
+  const args = { kind: 'snap', fixed: 'Base', moving: 'Cover', from: [20, 20, 4], to: [20, 22, 4], more: [[32, 20, 4]] };
+
+  it('cuts each window through the wall first and stands each hook a gap off it, the catch over the window\'s edge', () => {
+    const spec = snapOf(args);
+    if (typeof spec === 'string') throw new Error(spec);
+    expect(spec).toMatchObject({ up: [0, 0, 1], toward: [0, 2, 0], wall: 2, name: 'Snap hook' });
+    const steps = snapSteps(spec);
+    expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.line', 'solid.extrude', 'sketch.create', 'sketch.line', 'solid.extrude', 'plastic.snap_fit', 'plastic.snap_fit']);
+    // The window's lower edge lies 0.2 mm under the catch (12 − 1.5 above the face); x × y points into the wall.
+    expect(steps[0]?.params.plane).toEqual({ origin: [20, 20, 14.3], x_dir: [-1, 0, 0], y_dir: [0, 0, 1] });
+    expect(steps[1]?.params).toEqual({ points: [[-2.8, 0], [2.8, 0], [2.8, 2.2], [-2.8, 2.2]], closed: true });
+    expect(steps[2]?.params).toMatchObject({ distance: '2 mm', operation: 'cut', targets: ['Cover'], name: 'Snap hook 1 □' });
+    expect(steps[3]?.params.plane).toMatchObject({ origin: [32, 20, 14.3] });
+    expect(steps[6]?.params).toEqual({ position: [20, 19.8, 4], direction: [0, 0, 1], hook: [0, 1, 0], length: '12 mm', thickness: '1.5 mm', width: '5 mm', catch_depth: '0.8 mm', catch_length: '1.5 mm', body: 'Base' });
+    expect(steps[7]?.params).toMatchObject({ position: [32, 19.8, 4] });
+    expect(SNAP).toEqual({ length: 12, thickness: 1.5, width: 5, catch: 0.8, catchLength: 1.5, gap: 0.2, side: 0.3, seat: 0.2, air: 0.5 });
+  });
+
+  it('refuses what cannot catch, and builds the hook with its own body\'s component active', () => {
+    expect(snapOf({ ...args, to: [20, 20, 9] })).toContain('to must lie beside from');
+    expect(snapOf({ ...args, wall: 1 })).toBe('wall must be 1.6–10 mm');
+    expect(snapOf({ ...args, moving: 'Base' })).toBe('fixed and moving must be two bodies');
+    const spec = snapOf(args);
+    if (typeof spec === 'string') throw new Error(spec);
+    expect(snapProblem(spec)).toBeNull();
+    // A to that also runs up the hook only names the wall's side.
+    expect(snapSteps({ ...spec, toward: [0, 1, 5] })[6]?.params).toMatchObject({ hook: [0, 1, 0] });
+    const listing = { components: [{ id: 0, parent: null, bodies: [] }, { id: 3, parent: 0, bodies: ['Base'], occurrences: [{ name: 'Base:1' }] }, { id: 4, parent: 0, bodies: ['Cover'], occurrences: [{ name: 'Cover:1' }] }] };
+    expect(activated(snapSteps({ ...spec, more: [] }), listing).map((step) => (step.command === 'component.activate' ? `activate ${String(step.params.component)}` : step.command))).toEqual(['activate 4', 'sketch.create', 'sketch.line', 'solid.extrude', 'activate 3', 'plastic.snap_fit', 'activate 0']);
+    expect(decide('partbuddy_mechanism', { kind: 'snap' })).toEqual({ allow: true });
+    expect(describeToolCall('partbuddy_mechanism', { kind: 'snap', name: 'Cover clips' })).toEqual([{ key: 'snapHooks', values: { name: 'Cover clips' } }]);
   });
 });

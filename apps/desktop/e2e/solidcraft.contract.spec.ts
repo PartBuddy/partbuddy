@@ -3392,6 +3392,43 @@ test('the assistant makes a knob for a D shaft with one call: a part of its own 
   }
 });
 
+test('the assistant clips a cover onto its base with snap hooks: each hook catches in its window and the parts share no volume', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-snap-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7958',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a clipped cover');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText(/Built 1 snap hook "Back clip" on Base, each with its window through the 2 mm wall of Cover: an arm 12 mm long, 1\.5 mm thick and 5 mm wide, 0\.2 mm off the wall.* Built 1 snap hook "Front clip" on Base/)).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    await expect(page.getByText('Snap hooks “Back clip” with their windows')).toHaveCount(1);
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    // Hooks and cover share no volume: each catch lies in its window.
+    await page.getByTestId('print-check').click();
+    const findings = page.getByTestId('print-check-panel');
+    await expect(findings).toBeVisible();
+    await page.waitForTimeout(1500);
+    await expect(findings.locator('[data-kind="overlap"]')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('snap-hooks-built.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('the assistant makes a screw lid for a jar with one call: the threads mesh as built and the lid prints on its top', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
