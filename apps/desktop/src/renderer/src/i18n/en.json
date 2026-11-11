@@ -1230,15 +1230,11 @@
       "items": {
         "hingedBox": {
           "name": "Hinged box",
-          "body": "Two halves on a hinge, printed in one piece. Close it under Moving parts."
+          "body": "Two halves on a hinge, printed in one piece, with a lip that snaps shut. Close it under Moving parts."
         },
         "slideStop": {
           "name": "Adjustable stop",
           "body": "A stop that slides on a dovetail rail and is clamped by a screw, for a workbench or a drill stand."
-        },
-        "crankWheels": {
-          "name": "Wheels with crank",
-          "body": "Two wheels coupled like gears: turn the crank and the small one runs along. A start for a gear train."
         },
         "sign": {
           "name": "Sign with text",

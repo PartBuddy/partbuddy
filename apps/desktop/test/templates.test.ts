@@ -4,7 +4,7 @@ import { templateRequestSchema } from '../src/shared/contract';
 import { TEMPLATE_IDS, germanFeatureName, templateSteps } from '../src/shared/templates';
 
 /** The geometry fields whose text is an expression over the design's parameters. */
-const EXPRESSION_FIELDS = new Set(['length', 'width', 'height', 'diameter', 'thickness', 'depth', 'corner', 'base', 'position', 'center', 'points', 'point', 'distance', 'cs_diameter', 'radius', 'text_expression', 'offset', 'ra', 'rb']);
+const EXPRESSION_FIELDS = new Set(['length', 'width', 'height', 'diameter', 'thickness', 'depth', 'corner', 'base', 'position', 'center', 'points', 'point', 'distance', 'cs_diameter', 'radius', 'text_expression', 'offset']);
 
 function expressions(value: unknown): string[] {
   if (typeof value === 'string') return [value];
@@ -100,29 +100,29 @@ describe('templates with moving parts', () => {
       const steps = templateSteps('hingedBox', german);
       expect(steps.find((step) => step.command === 'component.from_bodies')?.params.bodies).toEqual([box, lid]);
       const joint = steps.find((step) => step.command === 'joint.create')?.params as { a: { occurrence: string }; b: { occurrence: string }; limits: unknown };
-      expect([joint.a.occurrence, joint.b.occurrence, joint.limits]).toEqual([box, lid, [[0, 177]]]);
+      expect([joint.a.occurrence, joint.b.occurrence, joint.limits]).toEqual([box, lid, [[0, 180]]]);
       // Every knuckle sits on the rim and keeps its place from the middle of the box.
-      const knuckles = steps.filter((step) => step.command === 'solid.cylinder');
+      const knuckles = steps.filter((step) => step.command === 'solid.cylinder' && /^(Hinge|Scharnier)/.test(String(step.params.name)));
       expect(knuckles).toHaveLength(12);
-      // The latch follows the sizes too: nothing of it is placed by a bare number.
-      for (const step of steps.filter((step) => step.command === 'solid.box' && String(step.params.name).match(/^(Latch|Verschluss|Rast)/))) expect(JSON.stringify(step.params.corner)).toMatch(/length.*width.*height/);
+      // The closure follows the sizes too: lip, bead and rille are placed by the parameters, and nothing cuts through a wall.
+      const rings = steps.filter((step) => step.command === 'sketch.rectangle.rounded');
+      expect(rings).toHaveLength(4);
+      for (const step of rings) expect(JSON.stringify([step.params.p0, step.params.p1, step.params.radius])).toMatch(/wall.*length.*width.*corner/);
+      const catches = steps.filter((step) => /^(Catch|Rast)/.test(String(step.params.name)) && step.command !== 'solid.chamfer');
+      expect(catches).toHaveLength(2);
+      for (const step of catches) expect(JSON.stringify(step.params.corner ?? step.params.base)).toMatch(/length.*width.*wall.*height/);
       for (const step of knuckles) expect(step.params.base).toEqual([expect.stringMatching(/^length \/ 2 \+ -?[\d.]+ mm$/), 0.5, 'height']);
     }
     expect(germanFeatureName('Hinge 2 ·')).toBe('Scharnier 2 ·');
   });
 
-  it('joins the stop as a slider and couples the wheels by their radii, by name in either language', () => {
+  it('joins the stop as a slider, by name in either language', () => {
     for (const [german, base, stop, guide] of [[false, 'Base', 'Stop', 'Guide'], [true, 'Grundplatte', 'Anschlag', 'Führung']] as const) {
       const slider = templateSteps('slideStop', german).find((step) => step.command === 'joint.as_built')?.params as { a: string; b: string; at: { occurrence: string }; name: string };
       expect([slider.a, slider.b, slider.at.occurrence, slider.name]).toEqual([base, stop, base, guide]);
     }
     // The rail and its groove are as long as the base.
     expect(templateSteps('slideStop').filter((step) => step.command === 'solid.extrude').map((step) => step.params.distance)).toEqual(['length', 'length']);
-    for (const [german, crank, axle] of [[false, 'Crank', 'Small axle'], [true, 'Kurbel', 'Kleine Achse']] as const) {
-      const steps = templateSteps('crankWheels', german);
-      expect(steps.filter((step) => step.command === 'joint.create').map((step) => step.params.name)).toEqual([crank, axle]);
-      expect(steps.find((step) => step.command === 'joint.gear')?.params).toEqual({ a: crank, b: axle, ra: 'large / 2', rb: 'small / 2' });
-    }
   });
 
   it('seats the housing\'s screws as standard parts on the lid, and words the sign from its text parameter', () => {

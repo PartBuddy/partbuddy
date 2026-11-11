@@ -2108,7 +2108,7 @@ test('a template from the start page becomes a project whose sizes are its param
   const home = page.getByTestId('home-page');
   try {
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
-    await expect(home.getByTestId('home-template')).toHaveCount(6);
+    await expect(home.getByTestId('home-template')).toHaveCount(5);
     await page.screenshot({ path: test.info().outputPath('home-templates.png') });
     await home.locator('[data-template="housing"]').click();
     // While SolidCraft builds it, its tile says so and the other templates wait (audit P-02).
@@ -2145,7 +2145,6 @@ test('a template from the start page becomes a project whose sizes are its param
       ['hingedBox', 'Hinged box', '2 bodies'],
       ['wallHolder', 'Wall holder', '1 body'],
       ['slideStop', 'Adjustable stop', '2 bodies'],
-      ['crankWheels', 'Wheels with crank', '3 bodies'],
       ['sign', 'Sign with text', '1 body'],
     ] as const) {
       await page.getByTestId('home-button').click();
@@ -2167,30 +2166,20 @@ test('a template from the start page becomes a project whose sizes are its param
         await page.screenshot({ path: test.info().outputPath('template-slideStop-check.png') });
         await page.keyboard.press('Escape');
       }
-      if (id === 'crankWheels') {
-        // The small wheel follows the crank and has no handle of its own.
-        // The panel stays open from one project to the next.
-        if (!(await page.getByTestId('joint-panel').isVisible())) await page.getByTestId('joints').click({ timeout: 30_000 });
-        const panel = page.getByTestId('joint-panel');
-        await expect(panel.getByRole('slider', { name: 'Crank', exact: true })).toBeEnabled();
-        await expect(panel.getByRole('slider', { name: 'Small axle (follows Crank)' })).toBeDisabled();
-        await page.getByTestId('print-check').click();
-        await expect(page.getByTestId('print-check-panel').locator('[data-kind="blocked"]')).toHaveCount(0);
-        await page.screenshot({ path: test.info().outputPath('template-crankWheels-check.png') });
-        await page.keyboard.press('Escape');
-      }
       if (id !== 'hingedBox') continue;
-      // The hinge came joined: it turns up to where the latch meets the box, and the light's sweep finds nothing before that.
+      // The hinge came joined and closes all the way: the bead of the closure pressing past the box's rim is a snap fit, no stop.
       if (!(await page.getByTestId('joint-panel').isVisible())) await page.getByTestId('joints').click({ timeout: 30_000 });
       const slider = page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' });
-      await expect(slider).toHaveAttribute('max', '177');
+      await expect(slider).toHaveAttribute('max', '180');
+      // Trying the closed pose for the snap left the lid open, as designed.
+      await expect(slider).toHaveValue('0');
       await page.getByTestId('print-check').click();
       await expect(page.getByTestId('print-check-panel').locator('[data-kind="blocked"]')).toHaveCount(0);
       await page.screenshot({ path: test.info().outputPath('template-hingedBox-check.png') });
       await page.keyboard.press('Escape');
       await slider.focus();
       await page.keyboard.press('End');
-      await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' })).toHaveValue('177', { timeout: 30_000 });
+      await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' })).toHaveValue('180', { timeout: 30_000 });
       await page.screenshot({ path: test.info().outputPath('template-hingedBox-closed.png') });
       await page.keyboard.press('Home');
       await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' })).toHaveValue('0', { timeout: 30_000 });

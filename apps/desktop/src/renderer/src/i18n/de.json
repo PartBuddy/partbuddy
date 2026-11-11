@@ -1230,15 +1230,11 @@
       "items": {
         "hingedBox": {
           "name": "Dose mit Scharnier",
-          "body": "Zwei Hälften am Scharnier, in einem Stück gedruckt. Unter „Bewegliche Teile“ klappt sie zu."
+          "body": "Zwei Hälften am Scharnier, in einem Stück gedruckt, mit Rand, der einrastet. Unter „Bewegliche Teile“ klappt sie zu."
         },
         "slideStop": {
           "name": "Verstellbarer Anschlag",
           "body": "Ein Anschlag, der auf einer Schwalbenschwanz-Schiene fährt und mit einer Schraube geklemmt wird, für Werkbank oder Bohrständer."
-        },
-        "crankWheels": {
-          "name": "Räder mit Kurbel",
-          "body": "Zwei Räder, gekoppelt wie Zahnräder: An der Kurbel gedreht, läuft das kleine mit. Ausgangspunkt für ein Getriebe."
         },
         "sign": {
           "name": "Schild mit Text",

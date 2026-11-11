@@ -16,7 +16,6 @@ import { Tip } from '../ui/Tooltip';
 import { TagsDialog } from './TagsDialog';
 import { TrashSection } from './TrashSection';
 import { matching, PROJECT_SORTS, relativeTime, sortProjects, tagsOf, type ProjectSort } from './projectTiles';
-import crankWheels from './templates/crankWheels.png';
 import hingedBox from './templates/hingedBox.png';
 import housing from './templates/housing.png';
 import sign from './templates/sign.png';
@@ -28,7 +27,7 @@ import { chipToggleClass, ListCheck, listItemClass, selectTriggerClass } from '.
 import { POPOVER_OFFSET, menuClass, menuItemClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
 
 /** Pictures of the templates, rendered by SolidCraft (tools/templates/render-previews.mjs). */
-const TEMPLATE_PICTURES: Record<TemplateId, string> = { hingedBox, slideStop, crankWheels, housing, sign, wallHolder };
+const TEMPLATE_PICTURES: Record<TemplateId, string> = { hingedBox, slideStop, housing, sign, wallHolder };
 
 const CHECK_TONE: Record<ProjectCheck, Tone> = { ready: 'success', warn: 'warning', block: 'danger' };
 

@@ -144,12 +144,37 @@ export class ActionService {
     };
   }
 
-  /** Runs each joint value to a limit on a copy of the design (`joint.sweep`, ADR 0027); a sweep SolidCraft refuses counts as run through. */
+  /**
+   * Runs each joint value to a limit on a copy of the design (`joint.sweep`, ADR 0027); a sweep SolidCraft refuses counts as run through.
+   * So does a snap fit: parts that meet a short way before the limit and are free of each other at the limit press past
+   * one another there, as a lid's bead does over the rim of its box. The limit's pose is tried and the joint put back
+   * where it stood (a batch taken back leaves a driven joint where it was driven, 0.40.0-rc.4).
+   */
   async sweepJoints(sweeps: JointSweep[]): Promise<JointSweepResult> {
     if (sweeps.length === 0) return [];
     const reply = await this.batch(sweeps.map((sweep) => ({ command: 'joint.sweep', params: { ...sweep } })), false);
     if (reply.failed) throw new Error(reply.failed.error);
-    return sweeps.map((_, i) => sweepStopOf(reply.results?.[i]));
+    const stops = sweeps.map((_, i) => sweepStopOf(reply.results?.[i]));
+    for (const [i, sweep] of sweeps.entries()) {
+      const stop = stops[i];
+      if (!stop || sweep.index !== 0 || !snapSpan(stop.stoppedAt, sweep.to, (reply.results?.[i] as { unit?: unknown } | undefined)?.unit)) continue;
+      // Where the joint stands now, read here: the sweep's own start may be older than the user's last move.
+      const listed = await this.batch([{ command: 'joint.list', params: {} }], false);
+      const joints = (listed.results?.[0] as { joints?: { id?: unknown; values?: { value?: unknown }[] }[] } | undefined)?.joints ?? [];
+      const stands = joints.find((joint) => joint.id === sweep.joint)?.values?.[0]?.value;
+      if (listed.failed || typeof stands !== 'number') continue;
+      const posed = await this.batch(
+        [
+          { command: 'joint.drive', params: { joint: sweep.joint, value: sweep.to, quiet: true } },
+          { command: 'inspect.interference', params: {} },
+          { command: 'joint.drive', params: { joint: sweep.joint, value: stands, quiet: true } },
+        ],
+        true,
+      );
+      // Free at the limit: what stopped the sweep is pressed past on the way there.
+      if (!posed.failed && (posed.results?.[1] as { count?: unknown } | undefined)?.count === 0) stops[i] = null;
+    }
+    return stops;
   }
 
   /**
@@ -161,6 +186,19 @@ export class ActionService {
     if (reply.failed) throw new Error(reply.failed.error);
     return clearanceOf(reply.results?.[0]);
   }
+}
+
+/**
+ * How close to its limit a contact must lie to be a snap fit rather than a stop: a bead's way over a rim, not a part in
+ * the way. Nearer than `REACHED` it reached the limit anyway (the light's own rule), and nothing needs trying.
+ */
+const SNAP_SPAN = { deg: 6, mm: 4 };
+const REACHED = { deg: 0.5, mm: 0.1 };
+
+/** Whether a sweep that stopped at `stoppedAt` on its way to `to` stopped close enough to be a snap fit, if the limit's pose is free. */
+export function snapSpan(stoppedAt: number, to: number, unit: unknown): boolean {
+  const short = Math.abs(to - stoppedAt);
+  return unit === 'mm' ? short > REACHED.mm && short <= SNAP_SPAN.mm : short > REACHED.deg && short <= SNAP_SPAN.deg;
 }
 
 /** SolidCraft's answer of one `joint.sweep`: the stop when two parts made it, null when it ran through or a limit or loop ended it. */
