@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, hingeOf, occurrenceOf, railTravel, slideOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, hingeOf, lipOf, occurrenceOf, railTravel, slideOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, slideProblem, slideSteps, type HingeSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { hingeProblem, hingeSteps, lipProblem, lipSteps, slideProblem, slideSteps, type HingeSpec, type LipSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -241,5 +241,82 @@ describe('the dovetail guide (ADR 0027, G3)', () => {
     // A body longer than the rail has nowhere to go.
     expect(railTravel({ bodies: [{ bbox: { min: [-5, 0, 4.4], max: [70, 30, 10.4] } }] }, [0, 15, 4], [60, 15, 4])).toEqual([0, 0]);
     expect(railTravel({}, [0, 15, 4], [60, 15, 4])).toBeNull();
+  });
+});
+
+describe('the snap closure of a lid (G3)', () => {
+  // A lid sitting on its box: the room inside both is 56 × 36 mm, the rim at 20 mm, the lip goes down.
+  const lid: LipSpec = { fixed: 'Box', moving: 'Lid', min: [2, 2], max: [58, 38], rim: 20, up: -1, radius: 0, wall: 2, side: 'y-', name: 'Closure' };
+
+  it('builds a lip ring on a foot inside the lid, a bead on it, its rille in the box and a notch, nothing outside', () => {
+    const steps = lipSteps(lid);
+    expect(steps.map((step) => [step.command, step.params.name ?? ''])).toEqual([
+      ['sketch.create', 'Closure ·'],
+      ['sketch.rectangle.two_point', ''],
+      ['sketch.rectangle.two_point', ''],
+      ['solid.extrude', 'Closure ·'],
+      ['sketch.create', 'Closure'],
+      ['sketch.rectangle.two_point', ''],
+      ['sketch.rectangle.two_point', ''],
+      ['solid.extrude', 'Closure'],
+      ['solid.chamfer', 'Closure ◢'],
+      ['solid.box', 'Closure ●'],
+      ['solid.chamfer', 'Closure ◆'],
+      ['solid.cylinder', 'Closure ○'],
+      ['solid.cylinder', 'Closure ◠'],
+    ]);
+    // The foot lies above the rim in the lid, 0.2 mm into its wall; the lip hangs 4 mm below the rim, 0.25 mm clear, 1.2 mm thick.
+    expect(steps[0]?.params.offset).toBe('20 mm');
+    expect(steps[1]?.params).toEqual({ p0: ['2 mm - 0.2 mm', '2 mm - 0.2 mm'], p1: ['58 mm + 0.2 mm', '38 mm + 0.2 mm'] });
+    expect(steps[4]?.params.offset).toBe('20 mm - 4 mm');
+    expect(steps[5]?.params).toEqual({ p0: ['2 mm + 0.25 mm', '2 mm + 0.25 mm'], p1: ['58 mm - 0.25 mm', '38 mm - 0.25 mm'] });
+    expect(steps[6]?.params).toEqual({ p0: ['2 mm + 1.45 mm', '2 mm + 1.45 mm'], p1: ['58 mm - 1.45 mm', '38 mm - 1.45 mm'] });
+    // Only the rille is cut from the box; everything else belongs to the lid.
+    expect(steps.filter((step) => JSON.stringify(step.params.targets ?? step.params.body ?? '').includes('Box')).map((step) => step.params.name)).toEqual(['Closure ○']);
+    // The bead stands 0.25 mm past the wall's face (0.5 mm proud of the lip), 14 mm long in the wall's middle; its rille sits where it lands.
+    expect(steps[9]?.params).toMatchObject({ length: '14 mm', width: '0.5 mm', height: '1 mm', corner: ['(2 mm + 58 mm) / 2 - 7 mm', '2 mm - 0.25 mm', '20 mm - 3 mm'] });
+    expect(steps[11]?.params).toMatchObject({ diameter: '1.4 mm', axis: 'X', base: ['(2 mm + 58 mm) / 2 - 7.5 mm', '2 mm + 0.25 mm', '20 mm - 2.5 mm'] });
+    // Rounded rooms get rounded rings, each radius less its inset.
+    expect(lipSteps({ ...lid, radius: 4 })[5]?.params).toMatchObject({ radius: '4 mm - 0.25 mm' });
+  });
+
+  it('puts the rille where the bead lands when the lid is built open and closes on a hinge, and follows a template\'s parameters', () => {
+    const open = lipSteps({ ...lid, up: 1, side: 'y+', rim: { at: 16, expr: 'height' }, hinge: { along: 'x', across: 0.5, z: { at: 16, expr: 'height' } } });
+    expect(open[11]?.params.base).toEqual(['(2 mm + 58 mm) / 2 - 7.5 mm', '2 * 0.5 mm - (38 mm - 0.25 mm)', '2 * (height) - ((height) + 2.5 mm)']);
+    expect(open[0]?.params.offset).toBe('(height) - 3 mm');
+  });
+
+  it('says what is wrong before anything is built', () => {
+    expect(lipProblem(lid)).toBeNull();
+    expect(lipProblem({ ...lid, moving: 'Box' })).toBe('fixed and moving must be two bodies');
+    expect(lipProblem({ ...lid, side: 'x-', max: [58, 20] })).toContain('Put the catch on a longer wall');
+    expect(lipProblem({ ...lid, wall: 1 })).toContain('wall must be 1.6–10 mm');
+    const args = { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [58, 2, 20], to: [2, 38, 20], up: [0, 0, -1], side: 'y-' };
+    expect(lipOf(args)).toMatchObject({ min: [2, 2], max: [58, 38], rim: 20, up: -1, wall: 2, radius: 0, name: 'Closure' });
+    expect(lipOf({ ...args, to: [2, 38, 25] })).toBe("from and to must both lie at the height of the lid's rim");
+    expect(lipOf({ ...args, up: [1, 0, 0] })).toContain('up must be +Z');
+    expect(lipOf({ ...args, side: 'front' })).toContain('side must be x-, x+, y- or y+');
+    expect(lipOf({ ...args, hinge_from: [0, 0, 20], hinge_to: [60, 0, 20] })).toMatchObject({ hinge: { along: 'x', across: 0, z: 20 } });
+    expect(lipOf({ ...args, hinge_from: [0, 0, 20], hinge_to: [60, 10, 20] })).toBe('the hinge line must run level, along X or along Y');
+  });
+
+  it('is one line of the work log, and the tool builds it without a joint', async () => {
+    expect(describeToolCall('partbuddy_mechanism', { kind: 'closure', name: 'Lid closure' })).toEqual([{ key: 'closure', values: { name: 'Lid closure' } }]);
+    const batches: string[] = [];
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, args) => {
+        if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Box' }, { name: 'Lid' }] }) }] });
+        const commands = args.commands as { command: string }[];
+        batches.push(commands.map((step) => step.command).join(' '));
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'inspect.interference' ? { count: 0 } : step.command === 'component.list' ? { components: [] } : {})) }) }] });
+      },
+    };
+    const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [2, 2, 20], to: [58, 38, 20], up: [0, 0, -1], side: 'y-' });
+    expect(built.isError).toBeUndefined();
+    expect(built.content[0]).toMatchObject({ text: expect.stringContaining('Built the closure "Closure" between Box (the box) and Lid (the lid): a lip 1.2 mm thick and 4 mm high inside the lid, 0.25 mm clear') as string });
+    expect(batches).toHaveLength(3);
+    expect(batches.join(' ')).not.toContain('joint.as_built');
   });
 });

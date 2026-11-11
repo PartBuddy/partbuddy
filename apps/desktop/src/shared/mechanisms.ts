@@ -172,3 +172,138 @@ export function slideSteps(spec: SlideSpec): Step[] {
     ),
   ];
 }
+
+/** A length as it is at the start and, where the caller has parameters (a template), the expression it follows; a plain number stays as it is. */
+export type Size = number | { at: number; expr: string };
+const at = (size: Size): number => (typeof size === 'number' ? size : size.at);
+const ex = (size: Size): string => (typeof size === 'number' ? `${String(round(size))} mm` : `(${size.expr})`);
+
+export interface LipSpec {
+  /** The box: its wall gets the rille the bead snaps into. */
+  fixed: string;
+  /** The lid: it gets the lip, the bead and the notch. */
+  moving: string;
+  /** The lid's inner room at its rim, as built: opposite corners in x and y. */
+  min: [Size, Size];
+  max: [Size, Size];
+  /** The height (z) of the lid's rim. */
+  rim: Size;
+  /** The way the lip stands out of that rim: 1 up (the lid lies open side up), -1 down (the lid sits on the box). */
+  up: 1 | -1;
+  /** The radius of the room's corners; under 2 mm the lip gets sharp corners. */
+  radius: Size;
+  /** The lid's wall thickness, which the notch goes through. */
+  wall: Size;
+  /** The wall with the catch and the notch; opposite the hinge, where there is one. */
+  side: 'x-' | 'x+' | 'y-' | 'y+';
+  /**
+   * The hinge line the lid turns half a turn about to close, along x or along y: the other coordinate of
+   * the line and its height. Without it the lid is built where it closes.
+   */
+  hinge?: { along: 'x' | 'y'; across: Size; z: Size };
+  name: string;
+}
+
+/**
+ * The snap closure of a printed lid, by the usual sizes for a 0.4 mm nozzle: the lip 1.2 mm thick and 4 mm high,
+ * 0.25 mm clear of the box's wall; the bead 0.5 mm proud, so 0.25 mm of catch, with 45° flanks, 14 mm long in the
+ * middle of a wall (never in a corner, which cannot give way); the rille 0.2 mm deeper than the bead reaches.
+ */
+export const LIP = { thick: 1.2, high: 4, clear: 0.25, foot: 3, bead: 0.5, beadLong: 14, notch: 16 };
+
+/** What is wrong with a closure before anything is built; null when it can be built. */
+export function lipProblem(spec: LipSpec): string | null {
+  const span = spec.side.startsWith('y') ? at(spec.max[0]) - at(spec.min[0]) : at(spec.max[1]) - at(spec.min[1]);
+  if (spec.fixed === spec.moving) return 'fixed and moving must be two bodies';
+  if (!(at(spec.max[0]) - at(spec.min[0]) >= 12 && at(spec.max[1]) - at(spec.min[1]) >= 12)) return 'from and to must be opposite corners of the lid\'s inner room, at least 12 mm apart in x and in y';
+  if (span < LIP.beadLong + 2 * Math.max(at(spec.radius), 2) + 2) return `the wall with the catch is ${String(round(span))} mm long inside; the bead needs ${String(LIP.beadLong + 2 * Math.max(at(spec.radius), 2) + 2)} mm between the corners. Put the catch on a longer wall`;
+  if (!(at(spec.wall) >= 1.6 && at(spec.wall) <= 10)) return 'wall must be 1.6–10 mm (the lid\'s wall thickness)';
+  if (at(spec.radius) < 0) return 'radius must not be negative';
+  return null;
+}
+
+/**
+ * The solids of a snap closure between a lid and its box. A lip ring stands inside the lid: below the rim it lies
+ * on the lid's wall, with a 45° slope underneath so it prints without support; beyond the rim it steps in by the
+ * clearance and goes into the box along its wall, which centres the lid. A bead on the lip snaps into a rille of
+ * the box's wall, and a notch in the lid's rim takes a fingernail. Nothing stands out of the box.
+ */
+export function lipSteps(spec: LipSpec): Step[] {
+  const { up, name } = spec;
+  const [x0, y0, x1, y1] = [spec.min[0], spec.min[1], spec.max[0], spec.max[1]];
+  const mm = (value: number) => `${String(round(Math.abs(value)))} mm`;
+  // An expression moved by a number of mm.
+  const by = (size: Size, value: number) => (value === 0 ? ex(size) : `${ex(size)} ${value < 0 ? '-' : '+'} ${mm(value)}`);
+  const inner = LIP.clear + LIP.thick;
+  const round_ = at(spec.radius) >= 2;
+  // A ring between two outlines of the lid's room, each moved in by an inset, from the height `z` upwards.
+  const ring = (label: string, z: string, outside: number, distance: number): Step[] => [
+    { command: 'sketch.create', params: { plane: 'XY', offset: z, project_edges: false, name: label } },
+    ...[outside, inner].map((inset) => ({
+      command: round_ ? 'sketch.rectangle.rounded' : 'sketch.rectangle.two_point',
+      params: { p0: [by(x0, inset), by(y0, inset)], p1: [by(x1, -inset), by(y1, -inset)], ...(round_ ? { radius: by(spec.radius, -inset) } : {}) },
+    })),
+    { command: 'solid.extrude', params: { distance: mm(distance), operation: 'join', targets: [spec.moving], name: label } },
+  ];
+  // The wall with the catch: across it runs `n` (out of the room), along it the bead.
+  const alongX = spec.side.startsWith('y');
+  const out = spec.side.endsWith('+') ? 1 : -1;
+  const wallAt = alongX ? (out > 0 ? y1 : y0) : out > 0 ? x1 : x0;
+  const [a0, a1] = alongX ? [x0, x1] : [y0, y1];
+  const middle = `(${ex(a0)} + ${ex(a1)}) / 2`;
+  const middleAt = (at(a0) + at(a1)) / 2;
+  // A point given along the wall, across it and in height, in x, y, z.
+  const xyz = <T,>(along: T, across: T, z: T): [T, T, T] => (alongX ? [along, across, z] : [across, along, z]);
+  const size = (along: string, across: string, height: string) => (alongX ? { length: along, width: across, height } : { length: across, width: along, height });
+  // The lip's outside on that wall, and where the bead's crest stands.
+  const face = -out * LIP.clear;
+  const crest = face + out * LIP.bead;
+  const beadFrom = up > 0 ? 2 : -3;
+  // Where the closed lid has a point of the open one: half a turn about the hinge line.
+  const closed = (point: [string, string, string]): [string, string, string] => {
+    const hinge = spec.hinge;
+    if (!hinge) return point;
+    const turned = (value: string, about: Size) => `2 * ${ex(about)} - (${value})`;
+    return hinge.along === 'x' ? [point[0], turned(point[1], hinge.across), turned(point[2], hinge.z)] : [turned(point[0], hinge.across), point[1], turned(point[2], hinge.z)];
+  };
+  return [
+    ...ring(`${name} ·`, by(spec.rim, up > 0 ? -LIP.foot : 0), -0.2, LIP.foot),
+    ...ring(name, by(spec.rim, up > 0 ? 0 : -LIP.high), LIP.clear, LIP.high),
+    { command: 'solid.chamfer', params: { edges: [xyz(middleAt, at(wallAt) - out * inner, at(spec.rim) - up * LIP.foot)], distance: mm(inner - 0.05), body: spec.moving, name: `${name} ◢` } },
+    {
+      command: 'solid.box',
+      params: {
+        ...size(mm(LIP.beadLong), mm(LIP.bead), '1 mm'),
+        corner: xyz(`${middle} - ${mm(LIP.beadLong / 2)}`, by(wallAt, Math.min(face, crest)), by(spec.rim, beadFrom)),
+        operation: 'join',
+        targets: [spec.moving],
+        name: `${name} ●`,
+      },
+    },
+    { command: 'solid.chamfer', params: { edges: [2, 3].map((high) => xyz(middleAt, at(wallAt) + crest, at(spec.rim) + up * high)), distance: mm(LIP.bead - 0.05), body: spec.moving, name: `${name} ◆` } },
+    {
+      command: 'solid.cylinder',
+      params: {
+        diameter: '1.4 mm',
+        height: mm(LIP.beadLong + 1),
+        base: closed(xyz(`${middle} - ${mm(LIP.beadLong / 2 + 0.5)}`, by(wallAt, -out * 0.25), by(spec.rim, up * 2.5))),
+        axis: alongX ? 'X' : 'Y',
+        operation: 'cut',
+        targets: [spec.fixed],
+        name: `${name} ○`,
+      },
+    },
+    {
+      command: 'solid.cylinder',
+      params: {
+        diameter: mm(LIP.notch),
+        height: ex(spec.wall),
+        base: xyz(middle, out > 0 ? ex(wallAt) : `${ex(wallAt)} - ${ex(spec.wall)}`, by(spec.rim, up * (LIP.notch / 2 - 2.5))),
+        axis: alongX ? 'Y' : 'X',
+        operation: 'cut',
+        targets: [spec.moving],
+        name: `${name} ◠`,
+      },
+    },
+  ];
+}

@@ -13,7 +13,7 @@
  * (0.40.0-rc.4), so no occurrence id has to be read first.
  */
 
-import { hingeSteps, pinDiameter, slideSteps } from './mechanisms';
+import { hingeSteps, lipSteps, pinDiameter, slideSteps } from './mechanisms';
 
 export const TEMPLATE_IDS = ['hingedBox', 'slideStop', 'housing', 'sign', 'wallHolder'] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
@@ -57,24 +57,14 @@ function hingedBox(): Step[] {
   const far = start + 2 * knuckle + gap - 0.3;
   // The outside of the lid's front wall, away from the hinge.
   const front = between + width;
-  // The wall at the start, and where the lip's outside stands in the lid, towards the hinge.
+  // The wall at the start.
   const wall0 = 2.4;
-  const lipY = between + wall0 + 0.25;
   const shell = (body: string, y: Expr, y0: number, feature: (name: string) => string): Step[] => [
     { command: 'solid.box', params: { length: 'length', width: 'width', height: 'height', corner: [0, y, 0], operation: 'new', body_name: body, name: body } },
     // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
     { command: 'solid.fillet', params: { edges: [[0, y0, 8], [length, y0, 8], [0, y0 + width, 8], [length, y0 + width, 8]], radius: 'corner', body, name: feature('corners') } },
     { command: 'solid.shell', params: { faces: [[length / 2, y0 + width / 2, height]], thickness: 'wall', body, name: feature('hollow') } },
     { command: 'solid.chamfer', params: { edges: [[length / 2, y0, 0]], distance: '0.6 mm', body, name: feature('bed chamfer') } },
-  ];
-  // A ring inside the lid, its outside `inset` from the lid's inner wall and its inside 1.45 mm from it, rounded as the lid is.
-  const ring = (name: string, z: string, inset: number, distance: string): Step[] => [
-    { command: 'sketch.create', params: { plane: 'XY', offset: z, project_edges: false, name } },
-    ...[inset, 1.45].map((o) => ({
-      command: 'sketch.rectangle.rounded',
-      params: { p0: [`wall + ${String(o)} mm`, `1 mm + wall + ${String(o)} mm`], p1: [`length - wall - ${String(o)} mm`, `width + 1 mm - wall - ${String(o)} mm`], radius: `corner - wall - ${String(o)} mm` },
-    })),
-    { command: 'solid.extrude', params: { distance, operation: 'join', targets: ['Lid'], name } },
   ];
   return [
     parameter('length', '60 mm', 'Outer length of box and lid; at least 54 mm, the hinge is 40 mm long'),
@@ -84,18 +74,21 @@ function hingedBox(): Step[] {
     parameter('corner', '5 mm', 'Radius of the outer corners of box and lid; at least 2 mm more than the wall'),
     ...shell('Box', '-width', -width, (name) => `Box ${name}`),
     ...shell('Lid', between, between, (name) => `Lid ${name}`),
-    // The closure, after the usual snap lid (lip 1.2 mm thick and 4 mm high, 0.25 mm clear, a bead 0.5 mm proud
-    // in the middle of the front, so 0.25 mm of catch): a lip stands inside the lid and goes into the box along
-    // its full wall, centring the lid. Below the rim it lies on the lid's wall, with a 45° slope underneath.
-    ...ring('Lip foot', 'height - 3 mm', -0.2, '3 mm'),
-    ...ring('Lip', 'height', 0.25, '4 mm'),
-    { command: 'solid.chamfer', params: { edges: [[length / 2, lipY + 1.2, height - 3]], distance: '1.4 mm', body: 'Lid', name: 'Lip foot slope' } },
-    // The bead with 45° flanks, and its rille in the box's front wall, 0.2 mm deeper than the bead reaches.
-    { command: 'solid.box', params: { length: '14 mm', width: '0.5 mm', height: '1 mm', corner: ['length / 2 - 7 mm', 'width + 0.75 mm - wall', 'height + 2 mm'], operation: 'join', targets: ['Lid'], name: 'Catch bead' } },
-    { command: 'solid.chamfer', params: { edges: [[length / 2, front - wall0 + 0.25, height + 2], [length / 2, front - wall0 + 0.25, height + 3]], distance: '0.45 mm', body: 'Lid', name: 'Catch bead flanks' } },
-    { command: 'solid.cylinder', params: { diameter: '1.4 mm', height: '15 mm', base: ['length / 2 - 7.5 mm', '-width + wall + 0.25 mm', 'height - 2.5 mm'], axis: 'X', operation: 'cut', targets: ['Box'], name: 'Catch rille' } },
-    // A notch in the lid's front rim for a fingernail, to pull it open.
-    { command: 'solid.cylinder', params: { diameter: '16 mm', height: 'wall', base: ['length / 2', 'width + 1 mm - wall', 'height + 5.5 mm'], axis: 'Y', operation: 'cut', targets: ['Lid'], name: 'Finger notch' } },
+    // The snap closure of the mechanism tool on the lid's inner room, the catch on the front, away from the hinge:
+    // the lid is built open and closes half a turn about the hinge line.
+    ...lipSteps({
+      fixed: 'Box',
+      moving: 'Lid',
+      min: [{ at: wall0, expr: 'wall' }, { at: between + wall0, expr: '1 mm + wall' }],
+      max: [{ at: length - wall0, expr: 'length - wall' }, { at: front - wall0, expr: 'width + 1 mm - wall' }],
+      rim: { at: height, expr: 'height' },
+      up: 1,
+      radius: { at: 5 - wall0, expr: 'corner - wall' },
+      wall: { at: wall0, expr: 'wall' },
+      side: 'y+',
+      hinge: { along: 'x', across: between / 2, z: { at: height, expr: 'height' } },
+      name: 'Closure',
+    }),
     // The hinge of the mechanism tool, built at the starting sizes, then tied to the parameters.
     ...hingeSteps({ fixed: 'Box', moving: 'Lid', from: [start, between / 2, height], to: [start + hinge, between / 2, height], diameter, gap, knuckles, name: 'Hinge' }).map((step) => {
       const [x, y] = step.params.base as Vec3;
@@ -346,6 +339,7 @@ const GERMAN_FEATURES: Record<string, string> = {
   'Base corners': 'Grundplatten-Ecken',
   'Bed chamfer': 'Fase am Bett',
   'Clamp hole': 'Klemmloch',
+  Closure: 'Verschluss',
   Counterbore: 'Senkung',
   Guide: 'Führung',
   Label: 'Beschriftung',
@@ -355,16 +349,12 @@ const GERMAN_FEATURES: Record<string, string> = {
   'Box bed chamfer': 'Box-Fase am Bett',
   'Box corners': 'Box-Ecken',
   'Box hollow': 'Box aushöhlen',
-  'Catch bead': 'Rastwulst',
-  'Catch bead flanks': 'Rastwulst-Flanken',
-  'Catch rille': 'Rastrille',
   'Corner radius': 'Eckenradius',
   'Countersunk holes': 'Senkbohrungen',
   Ear: 'Lasche',
   'Ear corners': 'Laschenecken',
   'Ear edges': 'Laschenkanten',
   'Ear slot': 'Laschenschlitz',
-  'Finger notch': 'Griffmulde',
   Floor: 'Boden',
   Hinge: 'Scharnier',
   'Floor slot': 'Bodenschlitz',
@@ -377,8 +367,6 @@ const GERMAN_FEATURES: Record<string, string> = {
   'Lid edge radius': 'Deckel-Kantenradius',
   'Lid hollow': 'Deckel aushöhlen',
   Lip: 'Rand',
-  'Lip foot': 'Randfuß',
-  'Lip foot slope': 'Randfuß-Schräge',
   'Lip corners': 'Randecken',
   'Outer bend': 'Außenbogen',
   'Outer corners': 'Außenecken',
@@ -391,9 +379,9 @@ const GERMAN_FEATURES: Record<string, string> = {
   'Vent front': 'Lüftung vorn',
 };
 
-/** "Ear slot 2 end 1" → "Laschenschlitz 2 Ende 1": the base from the list, numbers and a mechanism's mark (·, ○, ●) kept. */
+/** "Ear slot 2 end 1" → "Laschenschlitz 2 Ende 1": the base from the list, numbers and a mechanism's mark (·, ○, ● …) kept. */
 export function germanFeatureName(name: string): string {
-  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)((?: [·○●])?)$/.exec(name);
+  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)((?: [·○●◢◆◠])?)$/.exec(name);
   const base = match?.[1] ?? name;
   const german = GERMAN_FEATURES[base];
   if (german === undefined) return name;
