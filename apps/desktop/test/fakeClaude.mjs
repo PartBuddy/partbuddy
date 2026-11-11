@@ -341,6 +341,16 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a split block": two halves of a block side by side, then PartBuddy's own pegs across the cut.
+    if (content.includes('a split block')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 30, width: 30, height: 20, operation: 'new', body_name: 'Left' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 30, width: 30, height: 20, corner: [30, 0, 0], operation: 'new', body_name: 'Right' } } });
+      const built = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'plug', fixed: 'Left', moving: 'Right', from: [30, 8, 10], to: [35, 8, 10], more: [[30, 22, 10]], name: 'Alignment' } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "a clipped cover": a base and a hollow cover over it, then PartBuddy's own snap hooks into two opposite walls.
     if (content.includes('a clipped cover')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, operation: 'new', body_name: 'Base' } } });
