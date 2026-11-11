@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
 import { jointMove, jointPoses, playRange, playStep, rotate, withFollowers } from '../src/renderer/src/viewer/jointPose';
-import { sweepStopOf } from '../src/main/solidcraft/actions';
+import { snapSpan, sweepStopOf } from '../src/main/solidcraft/actions';
 
 import { componentsWithBodies, jointsOf, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
 import { describeCommands, describeUserAction } from '../src/shared/stepPhrases';
@@ -125,6 +125,13 @@ describe('the motion of joints in the ready-to-print check (ADR 0027)', () => {
     expect(sweepStopOf({ stopped_at: null, stopped_by: null })).toBeNull();
     expect(sweepStopOf({ stopped_at: 12, stopped_by: 'limit' })).toBeNull();
     expect(sweepStopOf(undefined)).toBeNull();
+    // A lid's bead meets the rim 4.4° before closed: near enough to be a snap fit; a flap stopped at 28° of 90° is not.
+    expect(snapSpan(175.6, 180, 'deg')).toBe(true);
+    expect(snapSpan(28.07, 90, 'deg')).toBe(false);
+    expect(snapSpan(-3, 0, 'mm')).toBe(true);
+    expect(snapSpan(10, 20, 'mm')).toBe(false);
+    // A flap folded flat onto its base reached the limit: nothing to try.
+    expect(snapSpan(-179.98, -180, 'deg')).toBe(false);
   });
 
   it('words both for the assistant', () => {
