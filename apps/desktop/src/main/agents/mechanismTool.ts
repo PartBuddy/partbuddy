@@ -1,4 +1,4 @@
-import { LIP, hingeProblem, hingeSteps, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, type HingeSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../../shared/mechanisms';
+import { LID, LIP, hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -27,15 +27,17 @@ const mechanismTool: UpstreamTool = {
     'When the lid is built open beside the box and closes on a hinge, give the hinge line too (hinge_from, hinge_to), so the rille lands where the bead closes. It makes no joint. ' +
     'screw: one or more screws that hold the moving body on the fixed one: a clearance hole with the room for the head in the moving body, and on the same line the seat of a heat-set insert (or a modelled thread from M5) in the fixed body; the screws go in as standard parts. ' +
     'Give from where the screw goes in (on the outer face of the moving body) and to where its line passes into the fixed body (on the face the two meet at); more lists where further screws of the same kind go in. ' +
-    'Use this instead of modelling a hinge, a guide, a snap lid or the holes of a screw joint yourself.',
+    'lid: a screw lid for a round container. It coils a thread with 45° flanks onto the container\'s neck and makes the lid itself, with the matching thread, flutes to grip and its top as print face; the two mesh as built. ' +
+    'Give the container as fixed, the name the lid shall have as moving (no such body yet), from as the centre of the rim at its height, and diameter as the neck\'s outer diameter; the neck must be a plain upright cylinder of that diameter below the rim (the answer says how far). ' +
+    'Use this instead of modelling a hinge, a guide, a snap lid, a threaded lid or the holes of a screw joint yourself.',
   inputSchema: {
     type: 'object',
     properties: {
-      kind: { type: 'string', enum: ['hinge', 'slide', 'closure', 'screw'], description: 'hinge: turns about a line; slide: moves along a line; closure: a lid snaps shut on its box; screw: one body screwed onto the other.' },
+      kind: { type: 'string', enum: ['hinge', 'slide', 'closure', 'screw', 'lid'], description: 'hinge: turns about a line; slide: moves along a line; closure: a lid snaps shut on its box; screw: one body screwed onto the other; lid: a screw lid is made for a round container.' },
       fixed: { type: 'string', description: 'The body that stays (exact name); it carries the pin or the rail. closure: the box.' },
       moving: { type: 'string', description: 'The body that moves (exact name). closure: the lid.' },
-      from: { ...vector, description: 'One end of the line in mm. closure: one corner of the lid\'s inner room at its rim.' },
-      to: { ...vector, description: 'The other end of the line in mm. closure: the opposite corner, at the same height.' },
+      from: { ...vector, description: 'One end of the line in mm. closure: one corner of the lid\'s inner room at its rim. lid: the centre of the container\'s rim.' },
+      to: { ...vector, description: 'The other end of the line in mm. closure: the opposite corner, at the same height. lid: not needed.' },
       up: { ...vector, description: 'slide: the normal of the face of the fixed body the rail stands on; default +Z. closure: the way the lip stands out of the lid, +Z or -Z; default +Z.' },
       side: { type: 'string', enum: ['x-', 'x+', 'y-', 'y+'], description: 'closure: the wall of the lid\'s inner room with the catch and the notch.' },
       wall: { type: 'number', minimum: 1.6, maximum: 10, description: 'closure: the lid\'s wall thickness in mm; default 2.' },
@@ -47,14 +49,15 @@ const mechanismTool: UpstreamTool = {
       screws: { type: 'boolean', description: 'screw: put the screws in as standard parts; default true.' },
       hinge_from: { ...vector, description: 'closure: one end of the hinge line the lid closes about, when it is built open.' },
       hinge_to: { ...vector, description: 'closure: the other end of that line; it runs along X or along Y.' },
-      diameter: { type: 'number', minimum: 4, maximum: 40, description: 'hinge: outer diameter of the barrel in mm; default 6. The pin is half of it.' },
+      diameter: { type: 'number', minimum: 4, maximum: 200, description: 'hinge: outer diameter of the barrel in mm (4 to 40); default 6. The pin is half of it. lid: the outer diameter of the neck (16 to 200).' },
+      starts: { type: 'integer', enum: [1, 2, 3], description: 'lid: threads side by side; default 1. With 2 or 3 the lid closes in less than a turn.' },
       knuckles: { type: 'integer', enum: [3, 5, 7, 9], description: 'hinge: how many knuckles; default by the length of the line.' },
       width: { type: 'number', minimum: 2, maximum: 60, description: 'slide: width of the rail at its foot in mm; default 6. It widens by its height on each side.' },
       height: { type: 'number', minimum: 1.5, maximum: 20, description: 'slide: height of the rail in mm; default 3.' },
       gap: { type: 'number', minimum: 0.2, maximum: 1, description: "The gap between the parts in mm; default the printer's nozzle, at least 0.3." },
       name: { type: 'string', maxLength: 60, description: "The mechanism's name in the user's language, e.g. \"Lid hinge\"." },
     },
-    required: ['kind', 'fixed', 'moving', 'from', 'to'],
+    required: ['kind', 'fixed', 'moving', 'from'],
     additionalProperties: false,
   },
 };
@@ -161,6 +164,25 @@ export function lipOf(args: Record<string, unknown>): LipSpec | string {
   return lipProblem(spec) ?? spec;
 }
 
+/** The screw lid the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
+export function lidOf(args: Record<string, unknown>, nozzle: number): LidSpec | string {
+  const stays = typeof args.fixed === 'string' ? args.fixed.trim() : '';
+  const lid = typeof args.moving === 'string' ? args.moving.trim().slice(0, 60) : '';
+  const centre = vec3(args.from);
+  if (!stays || !lid || !centre || typeof args.diameter !== 'number') return 'fixed (the container), moving (the name of the lid to make), from (the centre of the rim) and diameter (of the neck) are needed';
+  const spec: LidSpec = {
+    fixed: stays,
+    moving: lid,
+    centre,
+    diameter: args.diameter,
+    starts: typeof args.starts === 'number' ? args.starts : 1,
+    // A nozzle's three quarters, at least 0.3 mm: lids of printed jars run from 0.2 to 0.6 mm, and a tight one binds on a wide neck.
+    gap: typeof args.gap === 'number' ? args.gap : Math.min(0.6, Math.max(0.3, Math.round(nozzle * 75) / 100)),
+    name: typeof args.name === 'string' && args.name.trim() !== '' ? args.name.trim().slice(0, 60) : 'Thread',
+  };
+  return lidProblem(spec) ?? spec;
+}
+
 /** The screw joint the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
 export function screwOf(args: Record<string, unknown>): ScrewSpec | string {
   const base = common(args, 0.4, 'Screw');
@@ -214,6 +236,9 @@ function reach(sweep: unknown, to: number, step: number): number {
 }
 
 type Run = (commands: Step[]) => Promise<unknown[]>;
+/** Keeps the face a mechanism laid its part on, by the face's name, for the plate view. */
+type KeepFace = (body: string, face: string) => void;
+const round2 = (value: number) => Math.round(value * 100) / 100;
 
 /**
  * The steps with each one's component made active first. Geometry built from the design level
@@ -243,10 +268,12 @@ export function activated(steps: Step[], listing: unknown): Step[] {
  * hinge line and the walls, mended the loose knuckles with webs, and their warnings stayed in the
  * timeline), and `where` tells the model where the line goes. Volume the two still share is a warning.
  */
-async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; moving: string }, steps: Step[], where: string, callId: string | undefined): Promise<string> {
+async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; moving: string }, steps: Step[], where: string, callId: string | undefined, makes = false): Promise<string> {
   const before = jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { bodies?: { name?: unknown }[]; undo?: unknown };
   const bodies = (before.bodies ?? []).map((body) => body.name);
-  const missing = [spec.fixed, spec.moving].filter((name) => !bodies.includes(name));
+  // A mechanism that makes its moving body (a lid) needs the name free.
+  if (makes && bodies.includes(spec.moving)) throw new Error(`a body ${JSON.stringify(spec.moving)} exists already; give the lid another name, or delete that body first`);
+  const missing = (makes ? [spec.fixed] : [spec.fixed, spec.moving]).filter((name) => !bodies.includes(name));
   if (missing.length > 0) throw new Error(`no body ${missing.map((name) => JSON.stringify(name)).join(' or ')}; the bodies are ${bodies.map((name) => JSON.stringify(name)).join(', ') || 'none'}`);
   // The line is given in the world as designed: with a joint away from 0 its bodies stand elsewhere.
   const [listing, joints] = await run([
@@ -308,7 +335,7 @@ const MOVE = 'The user moves it with the slider "Moving parts" in the view.';
 const unswept = (reason: string) =>
   `SolidCraft could not run it through its range (${reason.slice(0, 160)}), so no limits are set. The two bodies probably lie against each other somewhere: look with inspect.clearance, make room, then set joint.limits yourself after joint.sweep.`;
 
-async function buildMechanism(upstream: UpstreamTools, args: Record<string, unknown>, nozzle: number, callId: string | undefined): Promise<string> {
+async function buildMechanism(upstream: UpstreamTools, args: Record<string, unknown>, nozzle: number, callId: string | undefined, keepFace: KeepFace): Promise<string> {
   const run: Run = async (commands) => {
     const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[]; failed?: { command?: unknown; error?: unknown } };
     if (reply.failed) throw new Error(`SolidCraft refused ${String(reply.failed.command)}: ${String(reply.failed.error).slice(0, 200)}`);
@@ -360,6 +387,24 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
       `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(LIP.thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch in the lid's rim to open it. It makes no joint and needs no room outside the box. Keep the box's wall straight and at least 1.6 mm thick where the lip goes in.${warnings}`
     );
   }
+  if (args.kind === 'lid') {
+    const spec = lidOf(args, nozzle);
+    if (typeof spec === 'string') throw new Error(spec);
+    const thread = lidThread(spec);
+    const skirt = lidSkirt(spec);
+    const warnings = await build(upstream, run, spec, lidSteps(spec), `Give from as the centre of the rim of ${spec.fixed} and diameter as the outer diameter of its neck, which must be a plain upright cylinder over the top ${String(skirt)} mm.`, callId, true);
+    // SolidCraft has the lid's print face from the steps, but does not report it: asked for once more, it names the face,
+    // which the plate view needs to lay the lid on its top too.
+    const [laid] = await run([{ command: 'body.print_face', params: { body: spec.moving, point: [spec.centre[0], spec.centre[1], round2(spec.centre[2] + LID.top)] } }]).catch(() => []);
+    const face = (laid as { face?: unknown } | undefined)?.face;
+    if (typeof face === 'string') keepFace(spec.moving, face);
+    return (
+      `Built the screw lid "${spec.moving}" for ${spec.fixed}: a thread with 45° flanks on the neck, pitch ${String(thread.pitch)} mm, ${String(thread.depth)} mm deep, ${String(spec.starts)} start${spec.starts > 1 ? 's' : ''}, ` +
+      `and the same inside the lid, ${String(spec.gap)} mm clear; it closes in ${String(round2(thread.turns))} turn${thread.turns > 1 ? 's' : ''} and stops with its inner top on the rim. ` +
+      `The lid is ${String(round2(spec.diameter + 2 * (thread.depth + spec.gap + LID.wall)))} mm wide and covers the top ${String(skirt)} mm of the neck, has flutes to grip and prints standing on its top (its print face is set); both parts print without support. ` +
+      `Keep the neck a plain cylinder of ${String(spec.diameter)} mm there, with a wall of at least 2 mm.${warnings}`
+    );
+  }
   if (args.kind === 'screw') {
     const spec = screwOf(args);
     if (typeof spec === 'string') throw new Error(spec);
@@ -376,18 +421,18 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
       `${spec.thread === 'insert' ? 'Leave at least 2 mm of plastic around each insert (a boss where the wall is thinner).' : ''}${warnings}`
     );
   }
-  throw new Error('kind must be hinge, slide, closure or screw');
+  throw new Error('kind must be hinge, slide, closure, screw or lid');
 }
 
 /** The upstream tools plus `partbuddy_mechanism`; `nozzle` is the printer's nozzle in use, for the default gap. */
-export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number): UpstreamTools {
+export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number, keepFace: KeepFace = () => undefined): UpstreamTools {
   return {
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), mechanismTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
       if (name !== MECHANISM_TOOL) return upstream.callTool(name, args, callId);
       try {
-        return { content: [{ type: 'text', text: await buildMechanism(upstream, args, nozzle(), callId) }] };
+        return { content: [{ type: 'text', text: await buildMechanism(upstream, args, nozzle(), callId, keepFace) }] };
       } catch (cause) {
         return { content: [{ type: 'text', text: `Not built: ${(cause as Error).message}` }], isError: true };
       }
@@ -396,4 +441,4 @@ export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number)
 }
 
 /** Added to the role prompt of every route, after the joint guidance. */
-export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the print-in-place geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through. For parts that are screwed together (a lid on a housing, a bracket on a base, a cover) call it with kind screw instead of drilling the holes yourself: it sizes the clearance hole, the room for the head and the seat of the heat-set insert, and says which screws to buy.`;
+export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the print-in-place geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through. For parts that are screwed together (a lid on a housing, a bracket on a base, a cover) call it with kind screw instead of drilling the holes yourself: it sizes the clearance hole, the room for the head and the seat of the heat-set insert, and says which screws to buy. For a round container that should screw shut (a jar, a canister, a bottle cap) build the container with a plain cylindrical neck and call it with kind lid: it threads the neck and makes the lid, instead of modelling a thread yourself.`;

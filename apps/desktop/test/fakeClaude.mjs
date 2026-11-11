@@ -323,6 +323,16 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a jar with a screw lid": a hollow round jar, then PartBuddy's own screw lid on its neck.
+    if (content.includes('a jar with a screw lid')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.cylinder', params: { diameter: 60, height: 50, operation: 'new', body_name: 'Jar' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.cylinder', params: { diameter: 55.2, height: 47.6, base: [0, 0, 2.4], operation: 'cut', targets: ['Jar'] } } });
+      const built = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'lid', fixed: 'Jar', moving: 'Jar lid', from: [0, 0, 50], diameter: 60 } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "a screwed plate": a block and a plate on it, then PartBuddy's own screw joint through both, twice.
     if (content.includes('a screwed plate')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 60, width: 40, height: 20, operation: 'new', body_name: 'Block' } } });

@@ -218,6 +218,8 @@ export interface PartBuddyApi {
     setPrintFace(body: string, point: [number, number, number] | null, face?: string): Promise<void>;
     /** The print faces PartBuddy set in the open project, by body (for the plate view). */
     printFaces(): Promise<Record<string, string>>;
+    /** The print faces changed without the window doing it: a mechanism of the assistant laid its part down. */
+    onPrintFaces(listener: (faces: Record<string, string>) => void): () => void;
     /** Builds a function block (F1) on trial for the ghost preview. */
     previewBlock(block: FeatureBlock): Promise<ActionPreviewResult>;
     /** Builds a function block for real; one step of the work log. */

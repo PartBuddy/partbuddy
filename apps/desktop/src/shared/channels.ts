@@ -129,6 +129,7 @@ export const eventChannels = {
   notesChanged: 'notes:changed',
   printChanged: 'print:changed',
   assemblyChanged: 'assembly:changed',
+  printFacesChanged: 'design:print-faces-changed',
 } as const;
 
 export type InvokeChannel = (typeof invokeChannels)[keyof typeof invokeChannels];

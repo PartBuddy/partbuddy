@@ -447,3 +447,94 @@ function headRoom(spec: ScrewSpec): Record<string, unknown> {
   return {};
 }
 
+
+export interface LidSpec {
+  /** The container: its round neck gets the thread. */
+  fixed: string;
+  /** The lid, which is made: no body of that name may exist. */
+  moving: string;
+  /** The centre of the container's rim, at the rim's height; the neck stands upright (along Z). */
+  centre: Vec3;
+  /** The neck's outer diameter at the rim, in mm. */
+  diameter: number;
+  /** How many threads run side by side: 1, or 2 to 3 for a lid that closes in less than a turn. */
+  starts: number;
+  /** The room between the two threads, radially; all of it on the lid. */
+  gap: number;
+  name: string;
+}
+
+/**
+ * The thread of a printed screw lid, after the neck finishes of bottles and the usual printed jars: flat crests
+ * and roots with flanks at 45°, which print without support on the neck standing and in the lid lying on its top;
+ * pitch and depth by the neck's diameter; the threads engage over 1.75 turns of one start (at least three quarters
+ * of a turn each with several).
+ */
+export function lidThread(spec: Pick<LidSpec, 'diameter' | 'starts'>): { pitch: number; depth: number; lead: number; turns: number; length: number; crest: number; foot: number } {
+  const [pitch, depth] = spec.diameter <= 24 ? [3, 1.1] : spec.diameter <= 77 ? [4, 1.2] : [5, 1.5];
+  const lead = pitch * spec.starts;
+  const turns = Math.max(0.75, 1.75 / spec.starts);
+  return { pitch, depth, lead, turns, length: round(turns * lead), crest: round(pitch / 2 - depth), foot: round(pitch / 2 + depth) };
+}
+
+/** Plain neck above the thread, the lid's wall and top, and the room below the lid's thread, in mm. */
+export const LID = { plain: 1, wall: 2.4, top: 2.4, mouth: 1, flute: 3 };
+
+/** How far below the rim the neck must be a plain cylinder of the given diameter: the lid's skirt covers it. */
+export function lidSkirt(spec: Pick<LidSpec, 'diameter' | 'starts'>): number {
+  const thread = lidThread(spec);
+  return round(LID.plain + thread.foot / 2 + thread.length + thread.pitch / 2 + thread.foot / 2 + LID.mouth);
+}
+
+/** What is wrong with a screw lid before anything is built; null when it can be built. */
+export function lidProblem(spec: LidSpec): string | null {
+  if (spec.fixed === spec.moving) return 'moving is the name of the lid to make, not the container';
+  if (!(spec.diameter >= 16 && spec.diameter <= 200)) return 'diameter must be 16–200 mm: the outer diameter of the neck';
+  if (!Number.isInteger(spec.starts) || spec.starts < 1 || spec.starts > 3) return 'starts must be 1, 2 or 3';
+  if (!(spec.gap >= 0.2 && spec.gap <= 0.6)) return 'gap must be 0.2–0.6 mm';
+  return null;
+}
+
+/**
+ * The solids of a screw lid on a round neck: the thread coiled onto the neck, and a lid made for it, a cap whose
+ * inner top lands on the rim, with the same thread inside, half a pitch lower and the gap further out, so the two
+ * mesh as they are built; flutes round the lid for the fingers; the lid's print face is its top.
+ */
+export function lidSteps(spec: LidSpec): Step[] {
+  const thread = lidThread(spec);
+  const [cx, cy, rim] = spec.centre.map(round) as Vec3;
+  const radius = spec.diameter / 2;
+  const mm = (value: number) => `${String(round(value))} mm`;
+  // The middle of the neck's thread at its lower end, the lid's half a pitch below, and the lid's mouth.
+  const start = rim - LID.plain - thread.foot / 2 - thread.length;
+  const lidStart = start - thread.pitch / 2;
+  const mouth = rim - lidSkirt(spec);
+  const bore = radius + thread.depth + spec.gap;
+  const outer = bore + LID.wall;
+  // The section reaches 0.2 mm into its body, along its flanks, but never to the next turn.
+  const into = Math.min(thread.foot / 2 + 0.2, thread.pitch / 2 - 0.05);
+  const coil = (label: string, target: string, z: number, foot: number, crest: number, k: number): Step[] => {
+    const angle = (2 * Math.PI * k) / spec.starts;
+    const name = `${label} ${String(k + 1)}`;
+    return [
+      // The section's plane holds the axis, turned by the start: both threads begin at the same angles.
+      { command: 'sketch.create', params: { plane: { origin: [cx, cy, round(z)], x_dir: [round(Math.cos(angle)), round(Math.sin(angle)), 0], y_dir: [0, 0, 1] }, project_edges: false, name } },
+      { command: 'sketch.line', params: { points: [[foot, -into], [crest, -thread.crest / 2], [crest, thread.crest / 2], [foot, into]].map(([x, y]) => [round(x ?? 0), round(y ?? 0)]), closed: true } },
+      { command: 'solid.coil', params: { sketch: name, pitch: mm(thread.lead), height: mm(thread.length), base: [cx, cy, round(z)], axis: 'Z', operation: 'join', targets: [target], name } },
+    ];
+  };
+  const flutes = Math.max(8, Math.round((2 * Math.PI * outer) / 7));
+  return [
+    ...Array.from({ length: spec.starts }, (_, k) => coil(spec.name, spec.fixed, start, radius - 0.2, radius + thread.depth, k)).flat(),
+    // The lid's top edge lies on the bed when it prints, so its last 0.6 mm are a cone, not a chamfer: SolidCraft
+    // 0.40.0-rc.4 refuses to chamfer the top edge of a cylinder from about 60 mm of diameter.
+    { command: 'solid.cylinder', params: { diameter: mm(2 * outer), height: mm(rim + LID.top - 0.6 - mouth), base: [cx, cy, round(mouth)], operation: 'new', body_name: spec.moving, name: spec.moving } },
+    { command: 'solid.cone', params: { diameter: mm(2 * outer), top_diameter: mm(2 * outer - 1.2), height: '0.6 mm', base: [cx, cy, round(rim + LID.top - 0.6)], operation: 'join', targets: [spec.moving], name: `${spec.name} ◢` } },
+    { command: 'solid.cylinder', params: { diameter: mm(2 * bore), height: mm(rim - mouth), base: [cx, cy, round(mouth)], operation: 'cut', targets: [spec.moving], name: `${spec.name} ○` } },
+    ...Array.from({ length: spec.starts }, (_, k) => coil(`${spec.name} ·`, spec.moving, lidStart, bore + 0.2, radius + spec.gap, k)).flat(),
+    // Flutes for the fingers, ending below the top so its edge stays whole for the bed.
+    { command: 'solid.cylinder', params: { diameter: mm(LID.flute), height: mm(rim - mouth), base: [round(cx + outer + LID.flute / 4), cy, round(mouth)], operation: 'cut', targets: [spec.moving], name: `${spec.name} ◆` } },
+    { command: 'solid.pattern.circular', params: { features: [`${spec.name} ◆`], axis: { origin: [cx, cy, 0], dir: [0, 0, 1] }, count: flutes } },
+    { command: 'body.print_face', params: { body: spec.moving, point: [cx, cy, round(rim + LID.top)] } },
+  ];
+}

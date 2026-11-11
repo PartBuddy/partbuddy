@@ -416,3 +416,8 @@ export function templateSteps(id: TemplateId, german = false): Step[] {
   const steps = BUILDERS[id]();
   return german ? steps.map(inGerman) : steps;
 }
+
+/** The print faces a template's script sets, by body and a point on the face: PartBuddy keeps them for its plate view as well. */
+export function templatePrintFaces(id: TemplateId, german = false): { body: string; point: [number, number, number] }[] {
+  return templateSteps(id, german).flatMap((step) => (step.command === 'body.print_face' ? [{ body: step.params.body as string, point: step.params.point as [number, number, number] }] : []));
+}

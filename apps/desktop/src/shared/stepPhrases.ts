@@ -77,6 +77,7 @@ export const STEP_PHRASE_KEYS = [
   'guide',
   'closure',
   'screwJoint',
+  'screwLid',
   'command',
 ] as const;
 
@@ -298,6 +299,7 @@ export function describeCommands(steps: Step[]): StepPhrase[] {
 /** What one tool call of the assistant did; a call PartBuddy cannot read gets one generic line. */
 export function describeToolCall(tool: string, args: Params): StepPhrase[] {
   // PartBuddy's own tool builds a mechanism from many commands: one line names it.
+  if (tool === 'partbuddy_mechanism' && args.kind === 'lid') return [{ key: 'screwLid', values: { name: text(args.moving, 'Lid').slice(0, 60) } }];
   if (tool === 'partbuddy_mechanism' && args.kind === 'screw') return [{ key: 'screwJoint', values: { name: text(args.name, 'Screw').slice(0, 60) } }];
   if (tool === 'partbuddy_mechanism' && args.kind === 'closure') return [{ key: 'closure', values: { name: text(args.name, 'Closure').slice(0, 60) } }];
   if (tool === 'partbuddy_mechanism') return [args.kind === 'slide' ? { key: 'guide', values: { name: text(args.name, 'Guide').slice(0, 60) } } : { key: 'hinge', values: { name: text(args.name, 'Hinge').slice(0, 60) } }];
@@ -443,6 +445,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     guide: 'Guide “{name}” between two parts, with its joint',
     closure: 'Snap closure “{name}” between lid and box',
     screwJoint: 'Screw joint “{name}” between two parts',
+    screwLid: 'Screw lid “{name}” with its thread on the container',
     command: 'SolidCraft: {command}',
   },
   de: {
@@ -508,6 +511,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     guide: 'Führung „{name}“ zwischen zwei Teilen, mit Gelenk',
     closure: 'Rastverschluss „{name}“ zwischen Deckel und Dose',
     screwJoint: 'Schraubverbindung „{name}“ zwischen zwei Teilen',
+    screwLid: 'Schraubdeckel „{name}“ mit Gewinde am Behälter',
     command: 'SolidCraft: {command}',
   },
 };
