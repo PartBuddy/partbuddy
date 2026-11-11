@@ -66,6 +66,7 @@ describe('a knob for a shaft (standards)', () => {
       ['solid.cylinder', 'Knob ◆'],
       ['solid.pattern.circular', ''],
       ['solid.cylinder', 'Knob ○'],
+      ['solid.cone', 'Knob ◣'],
       ['sketch.create', 'Knob ▬'],
       ['sketch.line', ''],
       ['solid.extrude', 'Knob ▬'],
@@ -81,15 +82,17 @@ describe('a knob for a shaft (standards)', () => {
     // The bore: the shaft and 0.2 mm, 11 mm deep under 5 mm of roof.
     expect(steps[4]?.params).toMatchObject({ diameter: '6.2 mm', height: '11 mm', base: [0, 0, 0], operation: 'cut' });
     // The flat over the bore's last 7 mm: sketch x runs to the pointer (+Y), and the flat lies at x = −(4.5 − 3 + 0.1).
-    expect(steps[5]?.params.plane).toEqual({ origin: [0, 0, 4], x_dir: [0, 1, 0], y_dir: [-1, 0, 0] });
-    expect(steps[6]?.params).toEqual({ points: [[-1.6, -3.1], [-1.6, 3.1], [-3.6, 3.1], [-3.6, -3.1]], closed: true });
-    expect(steps[7]?.params).toMatchObject({ distance: '7 mm', operation: 'join' });
+    // Its mouth opens by 0.5 mm, so the shaft finds its way in.
+    expect(steps[5]?.params).toMatchObject({ diameter: '7.2 mm', top_diameter: '6.2 mm', height: '0.5 mm', base: [0, 0, 0], operation: 'cut' });
+    expect(steps[6]?.params.plane).toEqual({ origin: [0, 0, 4], x_dir: [0, 1, 0], y_dir: [-1, 0, 0] });
+    expect(steps[7]?.params).toEqual({ points: [[-1.6, -3.1], [-1.6, 3.1], [-3.6, 3.1], [-3.6, -3.1]], closed: true });
+    expect(steps[8]?.params).toMatchObject({ distance: '7 mm', operation: 'join' });
     // The pointer: a groove on the top from a third of the radius to the rim, towards +Y.
-    expect(steps[8]?.params.plane).toEqual({ origin: [0, 0, 16], x_dir: [-1, 0, 0], y_dir: [0, 1, 0] });
-    expect(steps[9]?.params).toEqual({ p0: [0, 4.375], p1: [0, 12.5], width: 1.2 });
-    expect(steps[10]?.params).toMatchObject({ distance: '0.6 mm', operation: 'cut' });
-    expect(steps[11]?.params).toEqual({ body: 'Knob', point: [0, 0, 16] });
-    expect(KNOB).toMatchObject({ roof: 3, wall: 2.4, insert: 11, flat: 7, setScrew: 2.6 });
+    expect(steps[9]?.params.plane).toEqual({ origin: [0, 0, 16], x_dir: [-1, 0, 0], y_dir: [0, 1, 0] });
+    expect(steps[10]?.params).toEqual({ p0: [0, 4.375], p1: [0, 12.5], width: 1.2 });
+    expect(steps[11]?.params).toMatchObject({ distance: '0.6 mm', operation: 'cut' });
+    expect(steps[12]?.params).toEqual({ body: 'Knob', point: [0, 0, 16] });
+    expect(KNOB).toMatchObject({ roof: 3, wall: 2.4, insert: 11, flat: 7, mouth: 0.5, setScrew: 2.6 });
   });
 
   it('gives a round shaft a set screw from the side away from the pointer, and a knurled one a plain bore', () => {
@@ -100,15 +103,16 @@ describe('a knob for a shaft (standards)', () => {
     const knurl = knobSteps({ ...knob, shaft: 'knurl', clearance: 0 });
     expect(knurl.map((step) => step.command)).not.toContain('sketch.line');
     expect(knurl[4]?.params).toMatchObject({ diameter: '6 mm' });
+    expect(knurl[5]?.params).toMatchObject({ diameter: '7 mm', top_diameter: '6 mm' });
   });
 
   it('fills a knob in from the standard and refuses what cannot hold a shaft', () => {
     const built = knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0] });
     expect(built).toMatchObject({ body: 'Volume', fresh: true });
-    expect((built as { text: string }).text).toContain('Built the knob "Volume" for a 6 mm D shaft (flat at 4.5 mm): the bore is 6.2 mm wide and 11 mm deep, flat over its last 7 mm on the side away from the pointer, to push on. It is 25 mm wide and 16 mm high, with 11 flutes to grip');
+    expect((built as { text: string }).text).toContain('Built the knob "Volume" for a 6 mm D shaft (flat at 4.5 mm): the bore is 6.2 mm wide and 11 mm deep, flat over its last 7 mm on the side away from the pointer, with a chamfered mouth, to push on. It is 25 mm wide and 16 mm high, with 11 flutes to grip');
     expect((knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], shaft: 'knurl' }) as { text: string }).text).toContain('a plain bore 6 mm wide and 11 mm deep');
     // A shaft along Y takes its pointer up.
-    expect((knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], normal: [0, 1, 0] }) as { steps: { params: { plane?: { y_dir: number[] } } }[] }).steps[8]?.params.plane?.y_dir).toEqual([0, 0, 1]);
+    expect((knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], normal: [0, 1, 0] }) as { steps: { params: { plane?: { y_dir: number[] } } }[] }).steps[9]?.params.plane?.y_dir).toEqual([0, 0, 1]);
     expect(knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], shaftDiameter: 6.35 })).toBe("a D shaft of 6.35 mm has no one flat: give flat, the shaft's thickness there, as measured");
     expect(knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], shaftDiameter: 6.35, flat: 5.54 })).toMatchObject({ body: 'Volume' });
     expect(knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], diameter: 10 })).toBe('diameter must be 13–80 mm for a 6 mm shaft');

@@ -3382,7 +3382,7 @@ test('the assistant makes a knob for a D shaft with one call: a part of its own 
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a volume knob');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the knob "Volume" for a 6 mm D shaft \(flat at 4\.5 mm\): the bore is 6\.2 mm wide and 11 mm deep, flat over its last 7 mm .* with 11 flutes to grip/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Built the knob "Volume" for a 6 mm D shaft \(flat at 4\.5 mm\): the bore is 6\.2 mm wide and 11 mm deep, flat over its last 7 mm .* with a chamfered mouth, to push on.* with 11 flutes to grip/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/SolidCraft warns:/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
     await expect(page.getByText('Knob “Volume” for a shaft')).toHaveCount(1);
@@ -3425,6 +3425,8 @@ test('the assistant latches a lid onto its box: the arm grows out of the lid and
     await expect(findings).toBeVisible();
     await page.waitForTimeout(1500);
     await expect(findings.locator('[data-kind="overlap"]')).toHaveCount(0);
+    // Bead and hook end in a flat crest, not a knife edge the nozzle cannot print.
+    await expect(findings.locator('[data-kind="thinWall"]')).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('latch-built.png') });
   } finally {
     await launched.close();
