@@ -468,6 +468,20 @@ export class SolidCraftSupervisor {
     return found.name;
   }
 
+  /**
+   * The name of the face a body's print face lies on: SolidCraft keeps print faces but does not list them, so the face
+   * is marked once more and the answer read. For print faces a script set (a template), which the plate view needs too.
+   */
+  async printFaceName(body: string, point: [number, number, number]): Promise<string | null> {
+    await this.probing;
+    // Right after a project switch the engine is still connecting: wait for it, five seconds at most.
+    for (let tries = 0; tries < 20 && this.actor.getSnapshot().value !== 'connected'; tries += 1) await new Promise((resolve) => setTimeout(resolve, 250));
+    const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'body.print_face', params: { body, point } }], rollback: false }, 60_000);
+    if (reply.failed) throw new Error(reply.failed.error);
+    const face = (reply.results[0] as { face?: unknown } | undefined)?.face;
+    return typeof face === 'string' ? face : null;
+  }
+
   /** Marks or clears the body's print face (B8, `body.print_face`), which the slicer export uses. */
   setPrintFace(body: string, point: [number, number, number] | null): Promise<void> {
     return this.run({ command: 'body.print_face', params: { body, ...(point ? { point } : {}) } });

@@ -1291,6 +1291,7 @@ export const eventContract = {
   [eventChannels.notesChanged]: notesStateSchema,
   [eventChannels.printChanged]: partPrintSchema,
   [eventChannels.assemblyChanged]: assemblyPlanSchema.nullable(),
+  [eventChannels.printFacesChanged]: printFacesSchema,
 } as const satisfies Record<EventChannel, z.ZodType>;
 
 export type FaceTableMessage = z.infer<typeof faceTableSchema>;

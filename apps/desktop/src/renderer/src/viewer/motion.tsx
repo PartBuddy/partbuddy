@@ -104,6 +104,13 @@ export function useProjectViewData(): void {
       }),
     [],
   );
+  useEffect(
+    () =>
+      platform().design.onPrintFaces((faces) => {
+        useStudio.getState().setPrintFaces(faces);
+      }),
+    [],
+  );
 }
 
 /** How each body is turned to lie on its print face (or as designed), with its footprint and height that way. */

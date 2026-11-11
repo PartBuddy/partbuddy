@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { templateRequestSchema } from '../src/shared/contract';
-import { TEMPLATE_IDS, germanFeatureName, templateSteps } from '../src/shared/templates';
+import { TEMPLATE_IDS, germanFeatureName, templatePrintFaces, templateSteps } from '../src/shared/templates';
 
 /** The geometry fields whose text is an expression over the design's parameters. */
 const EXPRESSION_FIELDS = new Set(['length', 'width', 'height', 'diameter', 'thickness', 'depth', 'corner', 'base', 'position', 'center', 'points', 'point', 'distance', 'cs_diameter', 'radius', 'text_expression', 'offset']);
@@ -122,6 +122,10 @@ describe('templates with moving parts', () => {
       const slider = templateSteps('slideStop', german).find((step) => step.command === 'joint.as_built')?.params as { a: string; b: string; at: { occurrence: string }; name: string };
       expect([slider.a, slider.b, slider.at.occurrence, slider.name]).toEqual([base, stop, base, guide]);
     }
+    // The stop prints on its top; PartBuddy keeps that face for its plate view, under the body's name in the user's language.
+    expect(templatePrintFaces('slideStop')).toEqual([{ body: 'Stop', point: [60, 8, 26.4] }]);
+    expect(templatePrintFaces('slideStop', true)).toEqual([{ body: 'Anschlag', point: [60, 8, 26.4] }]);
+    expect(templatePrintFaces('sign')).toEqual([]);
     // The rail and its groove are as long as the base.
     expect(templateSteps('slideStop').filter((step) => step.command === 'solid.extrude').map((step) => step.params.distance)).toEqual(['length', 'length']);
   });

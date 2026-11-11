@@ -98,6 +98,7 @@ const api: PartBuddyApi = {
     sendToSlicer: (slicer) => ipcRenderer.invoke(invokeChannels.designSendToSlicer, { slicer }),
     setPrintFace: (body, point, face) => ipcRenderer.invoke(invokeChannels.designPrintFace, { body, point, ...(face ? { face } : {}) }),
     printFaces: () => ipcRenderer.invoke(invokeChannels.designPrintFaces),
+    onPrintFaces: (listener) => subscribe(eventChannels.printFacesChanged, listener),
     insertPart: (part) => ipcRenderer.invoke(invokeChannels.designInsertPart, part),
     measure: (items) => ipcRenderer.invoke(invokeChannels.designMeasure, { items }),
     clearance: (bodies, gap) => ipcRenderer.invoke(invokeChannels.designClearance, { bodies, gap }),

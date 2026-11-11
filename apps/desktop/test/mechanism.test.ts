@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, hingeOf, lipOf, occurrenceOf, railTravel, screwOf, slideOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, hingeOf, lidOf, lipOf, occurrenceOf, railTravel, screwOf, slideOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, type HingeSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -391,5 +391,87 @@ describe('the screw joint (standards)', () => {
     const text = String(built.content[0]?.text);
     expect(text).toContain('Built 2 screw joints "Plate screws" that hold Plate on Block: in Plate a clearance hole for M3 (ISO 273, normal) with a counterbore for the head, in Block the seat of a heat-set insert (4 mm wide, 6.7 mm deep).');
     expect(text).toContain('To buy: 2 × M3×8 socket head cap screws (ISO 4762) and 2 M3 heat-set inserts 5.7 mm long; the screws are in the design as standard parts.');
+  });
+});
+
+describe('the screw lid (standards)', () => {
+  // A jar 60 mm wide whose rim is at 50 mm, centred at (10, 20).
+  const lid: LidSpec = { fixed: 'Jar', moving: 'Lid', centre: [10, 20, 50], diameter: 60, starts: 1, gap: 0.3, name: 'Thread' };
+
+  it('sizes the thread by the neck: pitch and depth from the diameter, 1.75 turns, three quarters of a turn per start at least', () => {
+    expect(lidThread({ diameter: 20, starts: 1 })).toMatchObject({ pitch: 3, depth: 1.1, lead: 3, turns: 1.75, length: 5.25 });
+    // Flat crest and root with flanks at 45°: the crest is half a pitch less the depth, the foot half a pitch more.
+    expect(lidThread({ diameter: 60, starts: 1 })).toEqual({ pitch: 4, depth: 1.2, lead: 4, turns: 1.75, length: 7, crest: 0.8, foot: 3.2 });
+    expect(lidThread({ diameter: 100, starts: 2 })).toMatchObject({ pitch: 5, depth: 1.5, lead: 10, turns: 0.875 });
+    expect(lidThread({ diameter: 40, starts: 3 })).toMatchObject({ lead: 12, turns: 0.75, length: 9 });
+    // Plain neck, thread, half a pitch for the lid's thread and its mouth: what the lid covers of the neck.
+    expect(lidSkirt({ diameter: 60, starts: 1 })).toBe(14.2);
+  });
+
+  it('coils the thread onto the neck, makes the lid with the same thread half a pitch lower and the gap further out, and lays the lid on its top', () => {
+    const steps = lidSteps(lid);
+    expect(steps.map((step) => [step.command, step.params.name ?? ''])).toEqual([
+      ['sketch.create', 'Thread 1'],
+      ['sketch.line', ''],
+      ['solid.coil', 'Thread 1'],
+      ['solid.cylinder', 'Lid'],
+      ['solid.cone', 'Thread ◢'],
+      ['solid.cylinder', 'Thread ○'],
+      ['sketch.create', 'Thread · 1'],
+      ['sketch.line', ''],
+      ['solid.coil', 'Thread · 1'],
+      ['solid.cylinder', 'Thread ◆'],
+      ['solid.pattern.circular', ''],
+      ['body.print_face', ''],
+    ]);
+    // The neck's thread: from 30 mm of radius to 31.2 mm, its middle 9.6 mm below the rim at the start, 7 mm of coil.
+    expect(steps[0]?.params.plane).toEqual({ origin: [10, 20, 40.4], x_dir: [1, 0, 0], y_dir: [0, 0, 1] });
+    expect(steps[1]?.params.points).toEqual([[29.8, -1.8], [31.2, -0.4], [31.2, 0.4], [29.8, 1.8]]);
+    expect(steps[2]?.params).toMatchObject({ pitch: '4 mm', height: '7 mm', base: [10, 20, 40.4], operation: 'join', targets: ['Jar'] });
+    // The lid: its bore 0.3 mm clear of the neck's crests, its thread 2 mm lower and reaching to 0.3 mm from the neck.
+    expect(steps[3]?.params).toMatchObject({ diameter: '67.8 mm', base: [10, 20, 35.8], operation: 'new', body_name: 'Lid' });
+    expect(steps[5]?.params).toMatchObject({ diameter: '63 mm', height: '14.2 mm', operation: 'cut', targets: ['Lid'] });
+    expect(steps[6]?.params.plane).toMatchObject({ origin: [10, 20, 38.4] });
+    expect(steps[7]?.params.points).toEqual([[31.7, -1.8], [30.3, -0.4], [30.3, 0.4], [31.7, 1.8]]);
+    expect(steps[10]?.params).toMatchObject({ features: ['Thread ◆'], count: 30 });
+    expect(steps[11]?.params).toEqual({ body: 'Lid', point: [10, 20, 52.4] });
+    // Two starts: each thread twice, the second half a turn on.
+    const two = lidSteps({ ...lid, starts: 2 });
+    expect(two.filter((step) => step.command === 'solid.coil').map((step) => step.params.name)).toEqual(['Thread 1', 'Thread 2', 'Thread · 1', 'Thread · 2']);
+    expect(two[3]?.params.plane).toMatchObject({ x_dir: [-1, 0, 0] });
+    // A narrow neck: the section stops short of the next turn.
+    expect(lidSteps({ ...lid, diameter: 20 })[1]?.params.points).toEqual([[9.8, -1.45], [11.1, -0.2], [11.1, 0.2], [9.8, 1.45]]);
+  });
+
+  it('says what is wrong before anything is built, and takes its defaults from the nozzle', () => {
+    expect(lidProblem(lid)).toBeNull();
+    expect(lidProblem({ ...lid, moving: 'Jar' })).toContain('moving is the name of the lid to make');
+    expect(lidProblem({ ...lid, diameter: 10 })).toContain('diameter must be 16–200 mm');
+    expect(lidProblem({ ...lid, starts: 4 })).toBe('starts must be 1, 2 or 3');
+    const args = { kind: 'lid', fixed: 'Jar', moving: 'Lid', from: [10, 20, 50], diameter: 60 };
+    expect(lidOf(args, 0.4)).toMatchObject({ centre: [10, 20, 50], starts: 1, gap: 0.3, name: 'Thread' });
+    expect(lidOf(args, 0.6)).toMatchObject({ gap: 0.45 });
+    expect(lidOf({ ...args, diameter: undefined }, 0.4)).toContain('are needed');
+    expect(describeToolCall('partbuddy_mechanism', { kind: 'lid', moving: 'Jar lid' })).toEqual([{ key: 'screwLid', values: { name: 'Jar lid' } }]);
+  });
+
+  it('is built by the tool with one call that makes the lid, and refuses a name that is taken', async () => {
+    const upstream = (bodies: string[]): UpstreamTools => ({
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, args) => {
+        if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: bodies.map((body) => ({ name: body })) }) }] });
+        const commands = args.commands as { command: string }[];
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'inspect.interference' ? { count: 0 } : step.command === 'component.list' ? { components: [] } : {})) }) }] });
+      },
+    });
+    const args = { kind: 'lid', fixed: 'Jar', moving: 'Lid', from: [10, 20, 50], diameter: 60 };
+    const built = await withMechanismTool(upstream(['Jar']), () => 0.4).callTool('partbuddy_mechanism', args);
+    expect(built.isError).toBeUndefined();
+    const text = String(built.content[0]?.text);
+    expect(text).toContain('Built the screw lid "Lid" for Jar: a thread with 45° flanks on the neck, pitch 4 mm, 1.2 mm deep, 1 start, and the same inside the lid, 0.3 mm clear; it closes in 1.75 turns and stops with its inner top on the rim.');
+    expect(text).toContain('The lid is 67.8 mm wide and covers the top 14.2 mm of the neck');
+    const taken = await withMechanismTool(upstream(['Jar', 'Lid']), () => 0.4).callTool('partbuddy_mechanism', args);
+    expect(taken).toMatchObject({ isError: true, content: [{ text: 'Not built: a body "Lid" exists already; give the lid another name, or delete that body first' }] });
   });
 });

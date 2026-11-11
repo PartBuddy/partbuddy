@@ -55,7 +55,7 @@ import { safeDesignFileName } from './solidcraft/headless';
 import { longPath, SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
 import { printCheckNote } from './print/printCheckNote';
-import { templateSteps } from '../shared/templates';
+import { templatePrintFaces, templateSteps } from '../shared/templates';
 import { testPieceSteps } from '../shared/testPieces';
 import { sketchNote } from './agents/sketchNote';
 import { photoFile, photoNote } from './agents/photoNote';
@@ -567,6 +567,13 @@ if (!app.requestSingleInstanceLock()) {
       log(`kept the assembly order: ${String(plan.steps.length)} steps`);
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.assemblyChanged, plan);
     };
+    // A mechanism that lays its part down (a screw lid on its top) says so here, so the plate view turns it as the slicer will.
+    const keepMechanismFace = (body: string, face: string) => {
+      const folder = assemblyFolder();
+      if (!folder) return;
+      keepPrintFace(folder, body, face);
+      bridge.emit(mainWindow?.webContents ?? null, eventChannels.printFacesChanged, readPrintFaces(folder));
+    };
     // SVG drawings sent along; the model names them and PartBuddy puts the exact contours in (drawingTool.ts).
     const drawings = new Drawings();
     // The model reads notes only through PartBuddy; results lose the note data, undo may not take a note (ADR 0020).
@@ -575,7 +582,7 @@ if (!app.requestSingleInstanceLock()) {
         steps.tools(
           withDesignTool(
             withAssemblyTool(
-              withViewTool(guardNotes(withMechanismTool(withDrawings(upstream, drawings), () => printProfiles.part().printer.nozzle), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
+              withViewTool(guardNotes(withMechanismTool(withDrawings(upstream, drawings), () => printProfiles.part().printer.nozzle, keepMechanismFace), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
               () => viewState?.bodies.map((body) => body.name) ?? [],
               saveAssembly,
             ),
@@ -1180,6 +1187,15 @@ if (!app.requestSingleInstanceLock()) {
         throw error;
       }
       await switchProject(() => Promise.resolve(target));
+      // A part the template lays down for printing (the stop on its top) lies so on the plate as well.
+      for (const { body, point } of templatePrintFaces(template, german)) {
+        const face = await supervisor.printFaceName(body, point).catch((error: unknown) => {
+          log(`print face of ${body} not read: ${(error as Error).message}`);
+          return null;
+        });
+        if (face) keepMechanismFace(body, face);
+        else log(`the template's print face of ${body} is not kept for the plate view`);
+      }
       log(`made a new project from the template ${template}`);
       return { opened: true, imported: false };
     });
