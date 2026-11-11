@@ -1,5 +1,6 @@
 import { BLOCK_SIZES, defaultBlock, needsNormal, sizesOf, stepsOf, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
+import { KNOB, KNOB_CLEARANCE, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
 import { KEYHOLE, WALL, WOOD_SCREWS, keyholeDepth, keyholeProblem, keyholeSteps, woodScrewSteps, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -18,6 +19,8 @@ export const ASSISTANT_BLOCKS = ['screwHole', 'tappedHole', 'insertSeat', 'nutTr
 type AssistantBlock = (typeof ASSISTANT_BLOCKS)[number];
 /** Wall mounting (wallMount.ts): not blocks of the interface yet. */
 export const WALL_BLOCKS = ['keyhole', 'woodScrew'] as const;
+/** A part of its own (knob.ts): body is the name of the new body. */
+export const PART_BLOCKS = ['knob'] as const;
 
 const vector = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 };
 
@@ -30,29 +33,34 @@ const blockTool: UpstreamTool = {
     'slot (a slot for a screw, to adjust), text (embossed or engraved), lip (a lip or a groove on the rim of a shelled body), snapFit (a cantilever snap hook standing on the face). ' +
     'To hang a part on a wall: keyhole (a keyhole slot on the face against the wall, over a screw already in the wall; point is where the screw rests, normal points to the wall, up is the way up as the part hangs) ' +
     'or woodScrew (a countersunk hole for a wood screw, at a point of the face away from the wall); screw is the wood screw in mm. ' +
+    "A knob for a shaft is a part of its own: knob (body is the new body's name, point the centre of its underside where the shaft goes in, normal the way the shaft points, up the way its pointer points; shaft d for a potentiometer's or encoder's D shaft, knurl for a split knurled one, round for a plain shaft with a set screw). " +
     'Give only what differs from the standard; everything else is filled in. For two parts screwed together use partbuddy_mechanism with kind screw instead, which makes both holes on one line.',
   inputSchema: {
     type: 'object',
     properties: {
-      block: { type: 'string', enum: [...ASSISTANT_BLOCKS, ...WALL_BLOCKS] },
-      body: { type: 'string', description: 'The body (exact name).' },
+      block: { type: 'string', enum: [...ASSISTANT_BLOCKS, ...WALL_BLOCKS, ...PART_BLOCKS] },
+      body: { type: 'string', description: 'The body (exact name); for knob the name of the new body.' },
       point: { ...vector, description: 'A point on the flat face the block goes at, in mm: the centre of the hole, the foot of the boss, the middle of the text.' },
-      normal: { ...vector, description: 'The way out of that face; needed for nutTrap, slot, text, snapFit and keyhole.' },
-      up: { ...vector, description: 'keyhole: the way up as the part hangs, along the face; default +Z.' },
+      normal: { ...vector, description: 'The way out of that face; needed for nutTrap, slot, text, snapFit and keyhole. knob: the way the shaft points, default +Z.' },
+      up: { ...vector, description: 'keyhole: the way up as the part hangs, along the face; default +Z. knob: the way its pointer points, across the shaft; default +Y.' },
       screw: { type: 'number', enum: [...WOOD_SCREWS], description: 'keyhole, woodScrew: the wood screw, its thread diameter in mm; default 4.' },
       size: { type: 'string', enum: [...BLOCK_SIZES], description: 'The screw; default M3. Ignored for text, lip and snapFit.' },
       more: { type: 'array', items: vector, maxItems: 99, description: 'screwHole, tappedHole, insertSeat, keyhole, woodScrew: further points on the same face, one each.' },
       head: { type: 'string', enum: ['none', 'cap', 'countersunk'], description: 'screwHole: the room for the head; default cap (a counterbore).' },
       fit: { type: 'string', enum: ['close', 'normal', 'loose'], description: 'screwHole: the clearance by ISO 273; default normal.' },
       depth: { type: 'number', description: 'tappedHole, insertSeat, nutTrap, slot, text: depth in mm; default by the block (a slot and a tapped hole go through).' },
-      diameter: { type: 'number', description: 'insertSeat: the hole for the insert; boss: its outer diameter. Default from the table.' },
-      height: { type: 'number', description: 'boss: its height; text: the height of its capitals; lip: its height. Default by the block.' },
+      diameter: { type: 'number', description: 'insertSeat: the hole for the insert; boss: its outer diameter; knob: its outer diameter, default 25. Default from the table.' },
+      height: { type: 'number', description: 'boss: its height; text: the height of its capitals; lip: its height; knob: its height, default 16. Default by the block.' },
       length: { type: 'number', description: 'slot: its length; snapFit: the length of the arm. Default 10 and 12 mm.' },
       width: { type: 'number', description: 'slot, lip, snapFit: width in mm. Default by the block.' },
       along: { type: 'string', enum: ['x', 'y'], description: "slot: along the face's first or second direction." },
       text: { type: 'string', maxLength: 80, description: 'text: the words.' },
       mode: { type: 'string', enum: ['emboss', 'deboss'], description: 'text: raised or engraved; default engraved.' },
       type: { type: 'string', enum: ['lip', 'groove'], description: 'lip: a lip, or the groove that takes one.' },
+      shaft: { type: 'string', enum: [...KNOB_SHAFTS], description: 'knob: the shaft it goes on; default d.' },
+      shaftDiameter: { type: 'number', description: 'knob: the diameter of the shaft in mm; default 6.' },
+      flat: { type: 'number', description: 'knob on a D shaft: the thickness of the shaft at its flat in mm; 4.5 on a 6 mm shaft, to be measured on any other.' },
+      clearance: { type: 'number', description: "knob: added to the shaft's diameter in mm; default 0.2 (0 for knurl). More when the printed knob sits too tight." },
       hook: { type: 'string', enum: ['x+', 'x-', 'y+', 'y-'], description: "snapFit: the way the catch points, along the face's directions." },
     },
     required: ['block', 'body', 'point'],
@@ -124,6 +132,45 @@ export function wallOf(args: Record<string, unknown>): { body: string; steps: St
   };
 }
 
+/** A knob the model asked for: its steps and what to say; null when the block is none; or what is wrong. */
+export function knobOf(args: Record<string, unknown>): { body: string; steps: Step[]; text: string; fresh: true } | string | null {
+  if (args.block !== 'knob') return null;
+  const body = typeof args.body === 'string' ? args.body.trim() : '';
+  const point = vec3(args.point);
+  if (!body || !point) return 'body (the name of the new knob) and point (three numbers, the centre of its underside) are needed';
+  const axis = args.normal === undefined ? ([0, 0, 1] as Vec3) : vec3(args.normal);
+  if (!axis) return 'normal must be three numbers';
+  // The pointer's usual way, or another when the shaft itself points that way.
+  const usual: Vec3 = Math.abs(axis[0]) < 1e-9 && Math.abs(axis[2]) < 1e-9 ? [0, 0, 1] : [0, 1, 0];
+  const toward = args.up === undefined ? usual : vec3(args.up);
+  if (!toward) return 'up must be three numbers';
+  const shaft = (args.shaft ?? 'd') as KnobShaft;
+  if (!KNOB_SHAFTS.includes(shaft)) return `shaft must be one of ${KNOB_SHAFTS.join(', ')}`;
+  const number = (value: unknown, standard: number) => (value === undefined ? standard : typeof value === 'number' ? value : Number.NaN);
+  const shaftDiameter = number(args.shaftDiameter, 6);
+  const flat = number(args.flat, knobFlat(shaftDiameter) ?? Number.NaN);
+  if (shaft === 'd' && args.flat === undefined && Number.isNaN(flat)) return `a D shaft of ${String(shaftDiameter)} mm has no one flat: give flat, the shaft's thickness there, as measured`;
+  const spec = { body, point, axis, toward, shaft, shaftDiameter, flat, diameter: number(args.diameter, 25), height: number(args.height, 16), clearance: number(args.clearance, KNOB_CLEARANCE[shaft]) };
+  const problem = knobProblem(spec);
+  if (problem) return problem;
+  const bore = Math.round((shaftDiameter + spec.clearance) * 100) / 100;
+  const insert = knobInsert(spec);
+  const hold =
+    shaft === 'd'
+      ? `for a ${String(shaftDiameter)} mm D shaft (flat at ${String(flat)} mm): the bore is ${String(bore)} mm wide and ${String(insert)} mm deep, flat over its last ${String(Math.min(KNOB.flat, insert))} mm on the side away from the pointer, to push on`
+      : shaft === 'knurl'
+        ? `for a split knurled shaft of ${String(shaftDiameter)} mm: a plain bore ${String(bore)} mm wide and ${String(insert)} mm deep, which the shaft springs into`
+        : `for a round ${String(shaftDiameter)} mm shaft: the bore is ${String(bore)} mm wide and ${String(insert)} mm deep, and an M3 set screw cuts its own thread in the ${String(KNOB.setScrew)} mm hole on the side away from the pointer`;
+  return {
+    body,
+    fresh: true,
+    steps: knobSteps(spec),
+    text:
+      `Built the knob "${body}" ${hold}. It is ${String(spec.diameter)} mm wide and ${String(spec.height)} mm high, with ${String(knobFlutes(spec.diameter))} flutes to grip and a groove on its top as the pointer. ` +
+      `It prints standing on its top, the bore open upwards, without support (its print face is set). No knob of these sizes has been printed yet: when it sits too tight or too loose, build it again with another clearance.`,
+  };
+}
+
 function jsonOf(result: ToolResult): unknown {
   const text = result.content.find((part) => part.type === 'text')?.text;
   if (result.isError || typeof text !== 'string') throw new Error(typeof text === 'string' ? text.slice(0, 300) : 'SolidCraft gave no answer');
@@ -142,13 +189,13 @@ function built(block: FeatureBlock): string {
 }
 
 /** The upstream tools plus `partbuddy_block`. */
-export function withBlockTool(upstream: UpstreamTools): UpstreamTools {
+export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, face: string) => void = () => undefined): UpstreamTools {
   return {
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), blockTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
       if (name !== BLOCK_TOOL) return upstream.callTool(name, args, callId);
-      const wall = wallOf(args);
+      const wall = wallOf(args) ?? knobOf(args);
       if (typeof wall === 'string') return { content: [{ type: 'text', text: `Not built: ${wall}` }], isError: true };
       const block = wall ? null : blockOf(args);
       if (typeof block === 'string') return { content: [{ type: 'text', text: `Not built: ${block}` }], isError: true };
@@ -163,7 +210,13 @@ export function withBlockTool(upstream: UpstreamTools): UpstreamTools {
         const body = wall ? wall.body : (block?.body ?? '');
         const [listing] = steps.some((step) => step.command === 'sketch.create') ? await run([{ command: 'component.list', params: {} }]) : [undefined];
         const component = listing === undefined ? 0 : componentOf(listing, body);
+        // A new part must not take the name of a body there is: its cuts would go into that one.
+        const taken = ((listing as { components?: { bodies?: unknown }[] } | undefined)?.components ?? []).some((entry) => Array.isArray(entry.bodies) && entry.bodies.includes(body));
+        if (wall && 'fresh' in wall && taken) return { content: [{ type: 'text', text: `Not built: there is a body named ${body} already; give the knob another name` }], isError: true };
         const results = await run(component === 0 ? steps : [{ command: 'component.activate', params: { component } }, ...steps, { command: 'component.activate', params: { component: 0 } }]);
+        // The plate view lays the part on the face SolidCraft names (print-faces.json), as the slicer will.
+        const face = results.map((result) => (result as { face?: unknown } | undefined)?.face).find((entry) => typeof entry === 'string');
+        if (face) keepFace(body, face);
         const warnings = results.flatMap((result) => {
           const warning = (result as { warning?: unknown } | undefined)?.warning;
           return typeof warning === 'string' ? [warning.slice(0, 200)] : [];
@@ -177,4 +230,4 @@ export function withBlockTool(upstream: UpstreamTools): UpstreamTools {
 }
 
 /** Added to the role prompt of every route. */
-export const BLOCK_GUIDANCE = `For a screw hole, a tapped hole, the seat of a heat-set insert, a nut trap, a screw boss, a slot, text, a lid's lip or a snap hook on one body call ${BLOCK_TOOL} instead of drilling or modelling it yourself: it takes clearance, head, nut and insert sizes from the standard tables. For a part that hangs on a wall use its keyhole (hung over screws in the wall) or woodScrew (screwed on through countersunk holes) blocks, two of them level for anything wider than 60 mm.`;
+export const BLOCK_GUIDANCE = `For a screw hole, a tapped hole, the seat of a heat-set insert, a nut trap, a screw boss, a slot, text, a lid's lip or a snap hook on one body call ${BLOCK_TOOL} instead of drilling or modelling it yourself: it takes clearance, head, nut and insert sizes from the standard tables. For a part that hangs on a wall use its keyhole (hung over screws in the wall) or woodScrew (screwed on through countersunk holes) blocks, two of them level for anything wider than 60 mm. For a knob on a potentiometer, an encoder or any other shaft use its knob block, which makes the knob as a part of its own; ask for the shaft (D, knurled or round, and its diameter) when the user has not said.`;

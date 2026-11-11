@@ -80,6 +80,7 @@ export const STEP_PHRASE_KEYS = [
   'screwLid',
   'keyhole',
   'woodScrewHole',
+  'knob',
   'blockByAssistant',
   'command',
 ] as const;
@@ -306,6 +307,7 @@ export function describeToolCall(tool: string, args: Params): StepPhrase[] {
   if (tool === 'partbuddy_block') {
     if (args.block === 'keyhole') return [{ key: 'keyhole', values: { screw: (typeof args.screw === 'number' ? args.screw : 4) } }];
     if (args.block === 'woodScrew') return [{ key: 'woodScrewHole', values: { screw: (typeof args.screw === 'number' ? args.screw : 4) } }];
+    if (args.block === 'knob') return [{ key: 'knob', values: { name: text(args.body, 'Knob').slice(0, 60) } }];
     return [{ key: 'blockByAssistant', values: { block: text(args.block, 'block').slice(0, 20), body: text(args.body, '').slice(0, 60) } }];
   }
   if (tool === 'partbuddy_mechanism' && args.kind === 'lid') return [{ key: 'screwLid', values: { name: text(args.moving, 'Lid').slice(0, 60) } }];
@@ -457,6 +459,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     screwLid: 'Screw lid “{name}” with its thread on the container',
     keyhole: 'Keyhole slot for a {screw} mm screw, to hang on a wall',
     woodScrewHole: 'Countersunk hole for a {screw} mm wood screw',
+    knob: 'Knob “{name}” for a shaft',
     blockByAssistant: 'Function block {block} on {body}',
     command: 'SolidCraft: {command}',
   },
@@ -526,6 +529,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     screwLid: 'Schraubdeckel „{name}“ mit Gewinde am Behälter',
     keyhole: 'Schlüsselloch für eine {screw}-mm-Schraube, zum Aufhängen',
     woodScrewHole: 'Senkbohrung für eine {screw}-mm-Holzschraube',
+    knob: 'Drehknopf „{name}“ für eine Welle',
     blockByAssistant: 'Funktionsbaustein {block} an {body}',
     command: 'SolidCraft: {command}',
   },
