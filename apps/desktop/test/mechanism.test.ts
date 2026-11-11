@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, hingeOf, lidOf, lipOf, occurrenceOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, hingeOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, snapProblem, snapSteps, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, snapProblem, snapSteps, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -509,5 +509,70 @@ describe('snap hooks with their windows (standards)', () => {
     expect(activated(snapSteps({ ...spec, more: [] }), listing).map((step) => (step.command === 'component.activate' ? `activate ${String(step.params.component)}` : step.command))).toEqual(['activate 4', 'sketch.create', 'sketch.line', 'solid.extrude', 'activate 3', 'plastic.snap_fit', 'activate 0']);
     expect(decide('partbuddy_mechanism', { kind: 'snap' })).toEqual({ allow: true });
     expect(describeToolCall('partbuddy_mechanism', { kind: 'snap', name: 'Cover clips' })).toEqual([{ key: 'snapHooks', values: { name: 'Cover clips' } }]);
+  });
+});
+
+describe('a plugged connection (standards)', () => {
+  // Two halves of a block meet at x = 30; the pegs grow out of the left half into the right one.
+  const args = { kind: 'plug', fixed: 'Left', moving: 'Right', from: [30, 10, 10], to: [35, 10, 10], more: [[30, 20, 10]] };
+  const upstream = (calls: string[][]): UpstreamTools => ({
+    instructions: () => undefined,
+    listTools: () => Promise.resolve([]),
+    callTool: (name, input) => {
+      if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Left' }, { name: 'Right' }] }) }] });
+      const commands = input.commands as { command: string }[];
+      calls.push(commands.map((step) => step.command));
+      return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'inspect.interference' ? { count: 0 } : step.command === 'component.list' ? { components: [] } : {})) }) }] });
+    },
+  });
+
+  it('cuts each pocket with its chamfered mouth, then grows the peg out of its body with a chamfered tip', () => {
+    const spec = pegOf(args);
+    if (typeof spec === 'string') throw new Error(spec);
+    expect(spec).toMatchObject({ diameter: 5, gap: 0.2, name: 'Peg' });
+    const steps = pegSteps(spec);
+    expect(steps.map((step) => [step.command, step.params.operation, (step.params.targets as string[])[0], step.params.name])).toEqual([
+      ['solid.cylinder', 'cut', 'Right', 'Peg 1 ○'],
+      ['solid.cone', 'cut', 'Right', 'Peg 1 ◣'],
+      ['solid.cylinder', 'join', 'Left', 'Peg 1'],
+      ['solid.cone', 'join', 'Left', 'Peg 1 ◢'],
+      ['solid.cylinder', 'cut', 'Right', 'Peg 2 ○'],
+      ['solid.cone', 'cut', 'Right', 'Peg 2 ◣'],
+      ['solid.cylinder', 'join', 'Left', 'Peg 2'],
+      ['solid.cone', 'join', 'Left', 'Peg 2 ◢'],
+    ]);
+    // The pocket: 0.2 mm of room per side and 1 mm deeper than the peg is long (7.5 mm); its mouth opens by 0.5 mm.
+    expect(steps[0]?.params).toMatchObject({ diameter: '5.4 mm', height: '8.5 mm', base: [30, 10, 10], axis: [1, 0, 0] });
+    expect(steps[1]?.params).toMatchObject({ diameter: '6.4 mm', top_diameter: '5.4 mm', height: '0.5 mm', base: [30, 10, 10] });
+    // The peg is rooted 0.5 mm in its body and ends in a tip chamfered by 0.5 mm.
+    expect(steps[2]?.params).toMatchObject({ diameter: '5 mm', height: '7.5 mm', base: [29.5, 10, 10] });
+    expect(steps[3]?.params).toMatchObject({ diameter: '5 mm', top_diameter: '4 mm', height: '0.5 mm', base: [37, 10, 10] });
+    expect(steps[6]?.params).toMatchObject({ base: [29.5, 20, 10] });
+    expect(pegLength(8)).toBe(12);
+    expect(PEG).toEqual({ ratio: 1.5, deeper: 1, chamfer: 0.5, root: 0.5, least: 5 });
+  });
+
+  it('refuses what cannot be plugged and warns of a single or a thin peg', async () => {
+    expect(pegOf({ ...args, diameter: 2 })).toBe('diameter must be 3–20 mm');
+    expect(pegOf({ ...args, gap: 0.8 })).toBe('gap must be 0.05–0.5 mm');
+    expect(pegOf({ ...args, moving: 'Left' })).toBe('fixed and moving must be two bodies');
+    const tools = withMechanismTool(upstream([]), () => 0.4);
+    const two = String((await tools.callTool('partbuddy_mechanism', args)).content[0]?.text);
+    expect(two).toContain('Built 2 pegs "Peg" on Left with their pockets in Right: 5 mm thick and 7.5 mm long, 0.2 mm clear per side, the pocket 1 mm deeper for air and glue, tip and mouth chamfered. It makes no joint.');
+    expect(two).not.toContain('lets the parts turn');
+    const one = String((await tools.callTool('partbuddy_mechanism', { ...args, more: undefined, diameter: 4, gap: 0.1 })).content[0]?.text);
+    expect(one).toContain('One round peg lets the parts turn about it');
+    expect(one).toContain('A peg under 5 mm printed standing is weak.');
+    expect(await tools.callTool('partbuddy_mechanism', { ...args, shape: 'star' })).toMatchObject({ isError: true, content: [{ text: 'Not built: shape must be peg or dovetail' }] });
+    expect(describeToolCall('partbuddy_mechanism', { kind: 'plug' })).toEqual([{ key: 'plug', values: { name: 'Peg' } }]);
+    expect(describeToolCall('partbuddy_mechanism', { kind: 'plug', shape: 'dovetail' })).toEqual([{ key: 'plug', values: { name: 'Dovetail' } }]);
+  });
+
+  it('builds a dovetail as the guide\'s rail and groove with a close fit, and makes no joint', async () => {
+    const calls: string[][] = [];
+    const built = await withMechanismTool(upstream(calls), () => 0.4).callTool('partbuddy_mechanism', { kind: 'plug', shape: 'dovetail', fixed: 'Left', moving: 'Right', from: [0, 15, 4], to: [40, 15, 4] });
+    expect(String(built.content[0]?.text)).toContain('Built the dovetail "Dovetail" between Left (carries the rail) and Right (has the groove): 6 mm wide at its foot and 3 mm high with 45° flanks, 0.2 mm clear all round. It makes no joint');
+    expect(calls.flat()).not.toContain('joint.as_built');
+    expect(calls.flat().filter((command) => command === 'solid.extrude')).toHaveLength(2);
   });
 });

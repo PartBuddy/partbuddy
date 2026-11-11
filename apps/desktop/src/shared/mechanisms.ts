@@ -617,3 +617,64 @@ export function snapSteps(spec: SnapSpec): Step[] {
   }));
   return [...windows, ...hooks];
 }
+
+export interface PegSpec {
+  /** The body the peg grows out of. */
+  fixed: string;
+  /** The body that gets the pocket. */
+  moving: string;
+  /** The foot of the peg, on the face the two bodies meet at. */
+  from: Vec3;
+  /** A point further into the moving body: the way the peg points. */
+  to: Vec3;
+  /** Further pegs pointing the same way: the foot of each. */
+  more: Vec3[];
+  /** The peg's diameter in mm. */
+  diameter: number;
+  /** The room round the peg in its pocket, per side, in mm. */
+  gap: number;
+  name: string;
+}
+
+/**
+ * A peg, in mm: one and a half diameters long (what makers of split prints publish: 1.5 to 2), its pocket `deeper` for
+ * air and glue, and `chamfer` at 45° on the peg's tip and the pocket's mouth so they find each other. Under 5 mm a
+ * standing peg is perimeters only and weak (Hubs).
+ */
+export const PEG = { ratio: 1.5, deeper: 1, chamfer: 0.5, root: 0.5, least: 5 };
+
+/** How far a peg stands out of its face. */
+export function pegLength(diameter: number): number {
+  return round(diameter * PEG.ratio);
+}
+
+/** What is wrong with a peg before anything is built; null when it can be built. */
+export function pegProblem(spec: PegSpec): string | null {
+  if (spec.fixed === spec.moving) return 'fixed and moving must be two bodies';
+  if (!(spec.diameter >= 3 && spec.diameter <= 20)) return 'diameter must be 3–20 mm';
+  if (!(spec.gap >= 0.05 && spec.gap <= 0.5)) return 'gap must be 0.05–0.5 mm';
+  if (spec.more.length > 20) return 'at most 20 further pegs';
+  return null;
+}
+
+/**
+ * Pegs on the fixed body and their pockets in the moving one, along the line `from`–`to`: each pocket with its
+ * chamfered mouth first, then the peg, rooted in its body, with a chamfered tip.
+ */
+export function pegSteps(spec: PegSpec): Step[] {
+  const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
+  const axis = delta.map((value) => round(value / Math.hypot(...delta)) + 0) as Vec3;
+  const mm = (value: number) => `${String(round(value))} mm`;
+  const long = pegLength(spec.diameter);
+  const bore = spec.diameter + 2 * spec.gap;
+  return [spec.from, ...spec.more].flatMap((foot, i): Step[] => {
+    const at = (distance: number) => foot.map((value, k) => round(value + (axis[k] ?? 0) * distance)) as Vec3;
+    const label = `${spec.name} ${String(i + 1)}`;
+    return [
+      { command: 'solid.cylinder', params: { diameter: mm(bore), height: mm(long + PEG.deeper), base: at(0), axis, operation: 'cut', targets: [spec.moving], name: `${label} ○` } },
+      { command: 'solid.cone', params: { diameter: mm(bore + 2 * PEG.chamfer), top_diameter: mm(bore), height: mm(PEG.chamfer), base: at(0), axis, operation: 'cut', targets: [spec.moving], name: `${label} ◣` } },
+      { command: 'solid.cylinder', params: { diameter: mm(spec.diameter), height: mm(long - PEG.chamfer + PEG.root), base: at(-PEG.root), axis, operation: 'join', targets: [spec.fixed], name: label } },
+      { command: 'solid.cone', params: { diameter: mm(spec.diameter), top_diameter: mm(spec.diameter - 2 * PEG.chamfer), height: mm(PEG.chamfer), base: at(long - PEG.chamfer), axis, operation: 'join', targets: [spec.fixed], name: `${label} ◢` } },
+    ];
+  });
+}

@@ -1,4 +1,4 @@
-import { LID, LIP, hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, snapProblem, snapSteps, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { LID, LIP, hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, snapProblem, snapSteps, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -28,18 +28,21 @@ const mechanismTool: UpstreamTool = {
     'screw: one or more screws that hold the moving body on the fixed one: a clearance hole with the room for the head in the moving body, and on the same line the seat of a heat-set insert (or a modelled thread from M5) in the fixed body; the screws go in as standard parts. ' +
     'Give from where the screw goes in (on the outer face of the moving body) and to where its line passes into the fixed body (on the face the two meet at); more lists where further screws of the same kind go in. ' +
     'snap: cantilever snap hooks standing on the fixed body, each catching in a window cut through a wall of the moving body, for a cover that clips on and comes off by pressing the catches back. Give from as the foot of the hook (on the face of the fixed body it stands on, at the inner face of that wall), up as the way the hook stands, which is the way the parts come apart, to as a point further into the wall (the way the catch points), wall as the wall\'s thickness, and more for further hooks catching the same way; call again for the opposite wall. It makes no joint. ' +
+    'plug: a plugged connection that makes no joint, to align and glue the halves of a split part or to push one part onto another. With shape peg (the default): round pegs on the fixed body and their pockets in the moving one; give from as the foot of the peg on the face the two meet at, to as a point further into the moving body, more for further pegs (two or more, far apart, keep the parts from turning), diameter (default 5) and gap per side (default 0.2 to slide and glue, 0.1 to press). ' +
+    'With shape dovetail: a dovetail rail on the fixed body and its groove in the moving one, given as for slide (from, to, up, width, height) but a close fit and without a joint; the moving body is pushed on from the end at from and stops at to where the groove ends inside it. ' +
     'lid: a screw lid for a round container. It coils a thread with 45° flanks onto the container\'s neck and makes the lid itself, with the matching thread, flutes to grip and its top as print face; the two mesh as built. ' +
     'Give the container as fixed, the name the lid shall have as moving (no such body yet), from as the centre of the rim at its height, and diameter as the neck\'s outer diameter; the neck must be a plain upright cylinder of that diameter below the rim (the answer says how far). ' +
     'Use this instead of modelling a hinge, a guide, a snap lid, a threaded lid or the holes of a screw joint yourself.',
   inputSchema: {
     type: 'object',
     properties: {
-      kind: { type: 'string', enum: ['hinge', 'slide', 'closure', 'screw', 'lid', 'snap'], description: 'hinge: turns about a line; slide: moves along a line; closure: a lid snaps shut on its box; screw: one body screwed onto the other; lid: a screw lid is made for a round container; snap: snap hooks on one body catch in windows of the other.' },
+      kind: { type: 'string', enum: ['hinge', 'slide', 'closure', 'screw', 'lid', 'snap', 'plug'], description: 'plug: two parts are plugged together, by pegs in pockets or pushed onto a dovetail; hinge: turns about a line; slide: moves along a line; closure: a lid snaps shut on its box; screw: one body screwed onto the other; lid: a screw lid is made for a round container; snap: snap hooks on one body catch in windows of the other.' },
       fixed: { type: 'string', description: 'The body that stays (exact name); it carries the pin or the rail. closure: the box.' },
       moving: { type: 'string', description: 'The body that moves (exact name). closure: the lid.' },
       from: { ...vector, description: 'One end of the line in mm. closure: one corner of the lid\'s inner room at its rim. lid: the centre of the container\'s rim. snap: the foot of the hook.' },
       to: { ...vector, description: 'The other end of the line in mm. closure: the opposite corner, at the same height. lid: not needed. snap: a point further into the wall the catch goes into.' },
       up: { ...vector, description: 'slide: the normal of the face of the fixed body the rail stands on; default +Z. closure: the way the lip stands out of the lid, +Z or -Z; default +Z. snap: the way the hook stands out of the fixed body; default +Z.' },
+      shape: { type: 'string', enum: ['peg', 'dovetail'], description: 'plug: pegs in pockets, or a dovetail to push together; default peg.' },
       side: { type: 'string', enum: ['x-', 'x+', 'y-', 'y+'], description: 'closure: the wall of the lid\'s inner room with the catch and the notch.' },
       wall: { type: 'number', minimum: 1.6, maximum: 10, description: 'closure: the lid\'s wall thickness in mm; default 2. snap: the thickness of the wall the window goes through; default 2.' },
       radius: { type: 'number', minimum: 0, maximum: 100, description: 'closure: the radius of the inner room\'s corners in mm; default 0 (sharp).' },
@@ -50,12 +53,12 @@ const mechanismTool: UpstreamTool = {
       screws: { type: 'boolean', description: 'screw: put the screws in as standard parts; default true.' },
       hinge_from: { ...vector, description: 'closure: one end of the hinge line the lid closes about, when it is built open.' },
       hinge_to: { ...vector, description: 'closure: the other end of that line; it runs along X or along Y.' },
-      diameter: { type: 'number', minimum: 4, maximum: 200, description: 'hinge: outer diameter of the barrel in mm (4 to 40); default 6. The pin is half of it. lid: the outer diameter of the neck (16 to 200).' },
+      diameter: { type: 'number', minimum: 3, maximum: 200, description: 'plug: the diameter of the pegs (3 to 20); default 5. hinge: outer diameter of the barrel in mm (4 to 40); default 6. The pin is half of it. lid: the outer diameter of the neck (16 to 200).' },
       starts: { type: 'integer', enum: [1, 2, 3], description: 'lid: threads side by side; default 1. With 2 or 3 the lid closes in less than a turn.' },
       knuckles: { type: 'integer', enum: [3, 5, 7, 9], description: 'hinge: how many knuckles; default by the length of the line.' },
       width: { type: 'number', minimum: 2, maximum: 60, description: 'slide: width of the rail at its foot in mm; default 6. It widens by its height on each side.' },
       height: { type: 'number', minimum: 1.5, maximum: 20, description: 'slide: height of the rail in mm; default 3.' },
-      gap: { type: 'number', minimum: 0.2, maximum: 1, description: "The gap between the parts in mm; default the printer's nozzle, at least 0.3." },
+      gap: { type: 'number', minimum: 0.05, maximum: 1, description: "The gap between the parts in mm; default the printer's nozzle, at least 0.3 (hinge, slide and lid: 0.2 at the least). plug: the room per side, default 0.2." },
       name: { type: 'string', maxLength: 60, description: "The mechanism's name in the user's language, e.g. \"Lid hinge\"." },
     },
     required: ['kind', 'fixed', 'moving', 'from'],
@@ -163,6 +166,16 @@ export function lipOf(args: Record<string, unknown>): LipSpec | string {
     name: base.name,
   };
   return lipProblem(spec) ?? spec;
+}
+
+/** The pegs the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
+export function pegOf(args: Record<string, unknown>): PegSpec | string {
+  const base = common(args, 0.4, 'Peg');
+  if (typeof base === 'string') return base;
+  const more = args.more === undefined ? [] : Array.isArray(args.more) ? args.more.map(vec3) : null;
+  if (!more || more.some((point) => point === null)) return 'more must be a list of points, each three numbers';
+  const spec: PegSpec = { fixed: base.fixed, moving: base.moving, from: base.from, to: base.to, more: more as Vec3[], diameter: typeof args.diameter === 'number' ? args.diameter : PEG.least, gap: typeof args.gap === 'number' ? args.gap : 0.2, name: base.name };
+  return pegProblem(spec) ?? spec;
 }
 
 /** The snap hooks the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
@@ -448,7 +461,30 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
       `An arm printed standing breaks along its layers at about half the strain: where the part allows, lay ${spec.fixed} so that the arms lie flat, and use PETG or ABS rather than PLA for a part opened often. Put hooks on opposite walls so that they hold each other in their windows.${warnings}`
     );
   }
-  throw new Error('kind must be hinge, slide, closure, screw, lid or snap');
+  if (args.kind === 'plug' && args.shape === 'dovetail') {
+    // The guide's own dovetail as a close fit: 0.2 mm, where guides for printed dovetails run from 0.1 to 0.3.
+    const spec = slideOf({ ...args, gap: typeof args.gap === 'number' ? args.gap : 0.2, name: typeof args.name === 'string' && args.name.trim() !== '' ? args.name : 'Dovetail' }, nozzle);
+    if (typeof spec === 'string') throw new Error(spec);
+    const warnings = await build(upstream, run, spec, slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`, callId);
+    return (
+      `Built the dovetail "${spec.name}" between ${spec.fixed} (carries the rail) and ${spec.moving} (has the groove): ${String(spec.width)} mm wide at its foot and ${String(spec.height)} mm high with 45° flanks, ${String(spec.gap)} mm clear all round. ` +
+      `It makes no joint: ${spec.moving} is pushed on along the line and stops where the groove ends inside it; where the groove runs through, nothing stops it. Print both with the rail's line level or upright, so the flanks need no support. Not printed yet: when it binds or rattles, build it again with another gap.${warnings}`
+    );
+  }
+  if (args.kind === 'plug') {
+    if (args.shape !== undefined && args.shape !== 'peg') throw new Error('shape must be peg or dovetail');
+    const spec = pegOf(args);
+    if (typeof spec === 'string') throw new Error(spec);
+    const warnings = await build(upstream, run, spec, pegSteps(spec), `Give from as a point on the face where ${spec.fixed} and ${spec.moving} meet, and to as a point further into ${spec.moving}.`, callId);
+    const count = spec.more.length + 1;
+    const long = pegLength(spec.diameter);
+    return (
+      `Built ${String(count)} peg${count > 1 ? 's' : ''} "${spec.name}" on ${spec.fixed} with ${count > 1 ? 'their pockets' : 'its pocket'} in ${spec.moving}: ${String(spec.diameter)} mm thick and ${String(long)} mm long, ${String(spec.gap)} mm clear per side, the pocket ${String(PEG.deeper)} mm deeper for air and glue, tip and mouth chamfered. It makes no joint. ` +
+      `${count === 1 ? 'One round peg lets the parts turn about it: add a second one far from it (more). ' : ''}${spec.diameter < PEG.least ? `A peg under ${String(PEG.least)} mm printed standing is weak. ` : ''}` +
+      `A peg printed standing breaks along its layers sooner than one lying; ${String(Math.max(2 * spec.diameter, 4))} mm of plastic should stay round each pocket's axis. Not printed yet: when it binds or rattles, build it again with another gap.${warnings}`
+    );
+  }
+  throw new Error('kind must be hinge, slide, closure, screw, lid, snap or plug');
 }
 
 /** The upstream tools plus `partbuddy_mechanism`; `nozzle` is the printer's nozzle in use, for the default gap. */
@@ -468,4 +504,4 @@ export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number,
 }
 
 /** Added to the role prompt of every route, after the joint guidance. */
-export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the print-in-place geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through. For parts that are screwed together (a lid on a housing, a bracket on a base, a cover) call it with kind screw instead of drilling the holes yourself: it sizes the clearance hole, the room for the head and the seat of the heat-set insert, and says which screws to buy. For a round container that should screw shut (a jar, a canister, a bottle cap) build the container with a plain cylindrical neck and call it with kind lid: it threads the neck and makes the lid, instead of modelling a thread yourself. For a cover or a housing half that should clip on and come off again by pressing on catches (an electronics housing, a battery cover) call it with kind snap: hooks on one part, their windows through the other part's wall.`;
+export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the print-in-place geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through. For parts that are screwed together (a lid on a housing, a bracket on a base, a cover) call it with kind screw instead of drilling the holes yourself: it sizes the clearance hole, the room for the head and the seat of the heat-set insert, and says which screws to buy. For a round container that should screw shut (a jar, a canister, a bottle cap) build the container with a plain cylindrical neck and call it with kind lid: it threads the neck and makes the lid, instead of modelling a thread yourself. For a cover or a housing half that should clip on and come off again by pressing on catches (an electronics housing, a battery cover) call it with kind snap: hooks on one part, their windows through the other part's wall. For a part split in two to fit the printer, or two parts that are plugged or glued together, call it with kind plug: pegs with their pockets (two or more), or shape dovetail to push one part onto the other.`;
