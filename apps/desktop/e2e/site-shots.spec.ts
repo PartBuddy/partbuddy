@@ -240,7 +240,7 @@ test('website pictures', async () => {
     expect(size, 'window 1440 × 900 at scale 2').toEqual([1440, 900, 2]);
 
     await step('templates', async () => {
-      await expect(home.getByTestId('home-template')).toHaveCount(5);
+      await expect(home.getByTestId('home-template')).toHaveCount(6);
       await expect(home.getByTestId('home-empty')).toBeVisible();
       await shot('templates');
     });

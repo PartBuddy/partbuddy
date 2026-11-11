@@ -15,7 +15,7 @@ test.skip(!folder, 'needs SolidCraft; set PARTBUDDY_VIEWPORT_SHOTS to a folder')
 
 const TEMPLATES = [
   { id: 'wallHolder', bodies: '1', port: '7961' },
-  { id: 'housing', bodies: '2', port: '7962' },
+  { id: 'housing', bodies: '6', port: '7962' },
 ] as const;
 
 async function shoot(page: Page, name: string): Promise<void> {

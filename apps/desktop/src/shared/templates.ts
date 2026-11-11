@@ -13,9 +13,9 @@
  * (0.40.0-rc.4), so no occurrence id has to be read first.
  */
 
-import { hingeSteps } from './mechanisms';
+import { hingeSteps, slideSteps } from './mechanisms';
 
-export const TEMPLATE_IDS = ['hingedBox', 'housing', 'wallHolder', 'cableClip', 'adapter'] as const;
+export const TEMPLATE_IDS = ['hingedBox', 'slideStop', 'crankWheels', 'housing', 'sign', 'wallHolder'] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 
 type Step = { command: string; params: Record<string, unknown> };
@@ -25,23 +25,20 @@ type Vec3 = [number, number, number];
 /** A user parameter with its starting value and what it means; the assistant reads the comment. */
 const parameter = (name: string, expression: string, comment: string): Step => ({ command: 'parameters.add', params: { name, expression, comment } });
 
-/** The gap between parts printed side by side, so they are separate objects in the slicer. */
-const BESIDE = '10 mm';
+/** Makes the bodies components, the first one grounded; each is named after its body. */
+const components = (...bodies: string[]): Step => ({ command: 'component.from_bodies', params: { bodies } });
 
 /**
- * Makes the two bodies components and joins them where they stand, the fixed one grounded. Each side
- * is a round wall of its own body, which SolidCraft keeps by name: the joint then follows both when the
- * sizes change (0.40.0-rc.4: `joint.as_built` at a point stays behind, and kept on one body only it
- * shifts the other). The two ends face each other `offset` apart. `limits` is the range clear of
- * contact, found with `joint.sweep` at the starting sizes.
+ * Joins two components where they stand. Each side is a place on its own body that SolidCraft keeps
+ * by name (a round wall, a flat face): the joint then follows both when the sizes change (0.40.0-rc.4:
+ * `joint.as_built` at a point stays behind, and kept on one body only it shifts the other). `rest` is
+ * what else the joint needs to leave the parts where they are (offset, flip) and its `limits`, the
+ * range clear of contact, found with `joint.sweep`.
  */
-const joined = (type: 'revolute' | 'slider', fixed: string, moving: string, on: { fixed: Vec3; moving: Vec3; offset: number }, name: string, limits: [number, number]): Step[] => {
-  const origin = (occurrence: string, circle: Vec3) => ({ occurrence, circle, x: [0, 0, 1] });
-  return [
-    { command: 'component.from_bodies', params: { bodies: [fixed, moving] } },
-    { command: 'joint.create', params: { type, a: origin(fixed, on.fixed), b: origin(moving, on.moving), offset: on.offset, name, limits: [limits], quiet: true } },
-  ];
-};
+const joint = (type: 'revolute' | 'slider', fixed: string, moving: string, on: { fixed: Record<string, unknown>; moving: Record<string, unknown> }, rest: Record<string, unknown>, name: string): Step => ({
+  command: 'joint.create',
+  params: { type, a: { occurrence: fixed, ...on.fixed }, b: { occurrence: moving, ...on.moving }, ...rest, name, quiet: true },
+});
 
 /**
  * Two halves of one height side by side, open side up, with a print-in-place hinge on the rims
@@ -90,7 +87,124 @@ function hingedBox(): Step[] {
     }),
     // It turns until the catch meets the box's wall at 177°; the last 3° are the latch snapping in by hand.
     // Where the first knuckle of the box faces the first of the lid: a point on top of each barrel, near that end.
-    ...joined('revolute', 'Box', 'Lid', { fixed: [start + knuckle - 0.5, between / 2, top], moving: [start + knuckle + gap + 0.5, between / 2, top], offset: gap }, 'Hinge', [0, 177]),
+    components('Box', 'Lid'),
+    joint('revolute', 'Box', 'Lid', { fixed: { circle: [start + knuckle - 0.5, between / 2, top], x: [0, 0, 1] }, moving: { circle: [start + knuckle + gap + 0.5, between / 2, top], x: [0, 0, 1] } }, { offset: gap, limits: [[0, 177]] }, 'Hinge'),
+  ];
+}
+
+/**
+ * An adjustable stop for a workbench or a drill stand: a base screwed down, with the dovetail rail of
+ * the mechanism tool, and a stop that slides on it and is clamped by a screw in a heat-set insert.
+ * The stop prints beside the base (plate view) and is pushed onto the rail from an end.
+ */
+function slideStop(): Step[] {
+  // The base is 6 mm thick: the rail's sketch stands on its top, and a sketch plane takes no expression.
+  const [length, baseWidth, thick, gap] = [120, 40, 6, 0.4];
+  const screws: [Expr, Expr][] = [
+    ['length * 0.15', '-(base_width / 2 - 7 mm)'],
+    ['length * 0.85', 'base_width / 2 - 7 mm'],
+  ];
+  const stopX = 'length / 2 - stop_length / 2';
+  return [
+    parameter('length', '120 mm', 'Length of base and rail'),
+    parameter('base_width', '40 mm', 'Width of the base; the stop is 24 mm wide'),
+    parameter('stop_length', '30 mm', 'Length of the stop along the rail'),
+    parameter('stop_height', '20 mm', 'Height of the stop above the base'),
+    parameter('screw_hole', '4.5 mm', 'Holes in the base for 4 mm wood screws'),
+    parameter('screw_head', '9 mm', 'Diameter of the counterbore for their heads, so the stop passes over them'),
+    parameter('clamp_hole', '5.6 mm', 'Hole in the stop for an M4 heat-set insert; its screw clamps the stop on the rail'),
+    { command: 'solid.box', params: { length: 'length', width: 'base_width', height: `${String(thick)} mm`, corner: [0, '-base_width / 2', 0], operation: 'new', body_name: 'Base', name: 'Base' } },
+    // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
+    { command: 'solid.fillet', params: { edges: [[0, -baseWidth / 2, 3], [0, baseWidth / 2, 3], [length, -baseWidth / 2, 3], [length, baseWidth / 2, 3]], radius: '3 mm', body: 'Base', name: 'Base corners' } },
+    { command: 'solid.chamfer', params: { edges: [[length / 2, -baseWidth / 2, 0]], distance: '0.6 mm', body: 'Base', name: 'Bed chamfer' } },
+    ...screws.flatMap(([x, y], i) => [
+      { command: 'solid.cylinder', params: { diameter: 'screw_hole', height: '8 mm', base: [x, y, '-1 mm'], operation: 'cut', targets: ['Base'], name: `Screw hole ${String(i + 1)}` } },
+      { command: 'solid.cylinder', params: { diameter: 'screw_head', height: '4 mm', base: [x, y, '3 mm'], operation: 'cut', targets: ['Base'], name: `Counterbore ${String(i + 1)}` } },
+    ]),
+    { command: 'solid.box', params: { length: 'stop_length', width: '24 mm', height: 'stop_height', corner: [stopX, '-12 mm', `${String(thick + gap)} mm`], operation: 'new', body_name: 'Stop', name: 'Stop' } },
+    { command: 'solid.fillet', params: { edges: [[45, -12, 12], [45, 12, 12], [75, -12, 12], [75, 12, 12]], radius: '2 mm', body: 'Stop', name: 'Stop corners' } },
+    { command: 'solid.cylinder', params: { diameter: 'clamp_hole', height: 'stop_height', base: ['length / 2', 0, `${String(thick + gap)} mm`], operation: 'cut', targets: ['Stop'], name: 'Clamp hole' } },
+    // The guide of the mechanism tool along the whole base; its length follows the parameter.
+    ...slideSteps({ fixed: 'Base', moving: 'Stop', from: [0, 0, thick], to: [length, 0, thick], up: [0, 0, 1], width: 6, height: 3, gap, name: 'Guide' }).map((step) =>
+      step.command === 'solid.extrude' ? { ...step, params: { ...step.params, distance: 'length' } } : step,
+    ),
+    // A slider only needs its direction, which no size changes, so it is joined as built at a point on the rail;
+    // the stop travels until it is flush with either end of the rail at the starting sizes (limits take no expression).
+    // Printed standing on its top, the groove needs no bridge: the plate view and the slicer export lay it so.
+    { command: 'body.print_face', params: { body: 'Stop', point: [length / 2, 8, thick + gap + 20] } },
+    components('Base', 'Stop'),
+    {
+      command: 'joint.as_built',
+      params: { type: 'slider', a: 'Base', b: 'Stop', at: { occurrence: 'Base', point: [length / 2, 0, thick], z: [1, 0, 0] }, name: 'Guide', limits: [[-45, 45]], quiet: true },
+    },
+  ];
+}
+
+/**
+ * Two wheels on axles of one base, coupled like a pair of gears (`joint.gear`, by their radii): the
+ * crank turns the large wheel and the small one runs along, the other way and faster. SolidCraft
+ * 0.40.0-rc.4 makes no teeth, so the rims are smooth and stand a gap apart; a start for a gear train.
+ */
+function crankWheels(): Step[] {
+  const [large, small, plate, lift] = [40, 20, 3, 0.4];
+  // The small wheel's axle: the two rims a gap apart.
+  const far = 'large / 2 + small / 2 + 0.4 mm';
+  const farAt = large / 2 + small / 2 + 0.4;
+  const z0 = `${String(plate + lift)} mm`;
+  const wheel = (body: string, diameter: string, x: Expr): Step[] => [
+    { command: 'solid.cylinder', params: { diameter, height: 'wheel', base: [x, 0, z0], operation: 'new', body_name: body, name: body } },
+    { command: 'solid.cylinder', params: { diameter: 'axle + 0.8 mm', height: 'wheel', base: [x, 0, z0], operation: 'cut', targets: [body], name: `${body} bore` } },
+  ];
+  // A point on an axle's wall above the wheel, and on the wheel's bore: the round faces the joints are kept on.
+  const axle = (x: number) => ({ fixed: { circle: [x + 3, 0, plate + lift + 6.5] }, moving: { circle: [x + 3.4, 0, plate + lift + 5.5] } });
+  return [
+    parameter('large', '40 mm', 'Diameter of the wheel with the crank'),
+    parameter('small', '20 mm', 'Diameter of the wheel that runs along; half the diameter turns twice as fast'),
+    parameter('wheel', '6 mm', 'Thickness of both wheels'),
+    parameter('axle', '6 mm', 'Diameter of the axles; the bores are 0.8 mm wider'),
+    { command: 'solid.box', params: { length: 'large + small + 10.4 mm', width: 'large + 10 mm', height: `${String(plate)} mm`, corner: ['-large / 2 - 5 mm', '-large / 2 - 5 mm', 0], operation: 'new', body_name: 'Base', name: 'Base' } },
+    // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
+    { command: 'solid.fillet', params: { edges: [[-25, -25, 1.5], [-25, 25, 1.5], [45.4, -25, 1.5], [45.4, 25, 1.5]], radius: '5 mm', body: 'Base', name: 'Base corners' } },
+    { command: 'solid.chamfer', params: { edges: [[0, -25, 0]], distance: '0.6 mm', body: 'Base', name: 'Bed chamfer' } },
+    { command: 'solid.cylinder', params: { diameter: 'axle', height: 'wheel + 1.4 mm', base: [0, 0, `${String(plate)} mm`], operation: 'join', targets: ['Base'], name: 'Axle 1' } },
+    { command: 'solid.cylinder', params: { diameter: 'axle', height: 'wheel + 1.4 mm', base: [far, 0, `${String(plate)} mm`], operation: 'join', targets: ['Base'], name: 'Axle 2' } },
+    ...wheel('Large wheel', 'large', 0),
+    { command: 'solid.cylinder', params: { diameter: '6 mm', height: '10 mm', base: ['large / 2 - 6 mm', 0, `wheel + ${z0}`], operation: 'join', targets: ['Large wheel'], name: 'Crank handle' } },
+    ...wheel('Small wheel', 'small', far),
+    // A dimple near the rim shows the small wheel turning.
+    { command: 'solid.cylinder', params: { diameter: '3 mm', height: '1 mm', base: [`${far} + small / 2 - 3.5 mm`, 0, `wheel + ${String(plate + lift - 1)} mm`], operation: 'cut', targets: ['Small wheel'], name: 'Mark' } },
+    components('Base', 'Large wheel', 'Small wheel'),
+    joint('revolute', 'Base', 'Large wheel', axle(0), { flip: true, offset: -1, limits: [[-180, 180]] }, 'Crank'),
+    joint('revolute', 'Base', 'Small wheel', axle(farAt), { flip: true, offset: -1 }, 'Small axle'),
+    { command: 'joint.gear', params: { a: 'Crank', b: 'Small axle', ra: 'large / 2', rb: 'small / 2' } },
+  ];
+}
+
+/**
+ * A sign to screw on: a door, a drawer, a shelf. Its words are a text parameter, so the parameter
+ * panel relabels it; the raised letters stay in the middle of the plate.
+ */
+function sign(): Step[] {
+  const [length, width] = [80, 25];
+  return [
+    { command: 'parameters.add', params: { name: 'label', expression: 'PartBuddy', unit: 'text', comment: 'The words on the sign' } },
+    parameter('length', '80 mm', 'Length of the sign'),
+    parameter('width', '25 mm', 'Width of the sign'),
+    parameter('thickness', '3 mm', 'Thickness of the plate'),
+    parameter('text_height', '9 mm', 'Height of the capital letters'),
+    parameter('screw_hole', '3.4 mm', 'Holes for M3 screws (ISO 273, normal)'),
+    { command: 'solid.box', params: { length: 'length', width: 'width', height: 'thickness', operation: 'new', body_name: 'Sign', name: 'Plate' } },
+    // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
+    { command: 'solid.fillet', params: { edges: [[0, 0, 1.5], [length, 0, 1.5], [0, width, 1.5], [length, width, 1.5]], radius: '4 mm', name: 'Outer corners' } },
+    { command: 'solid.chamfer', params: { edges: [[length / 2, 0, 0]], distance: '0.6 mm', name: 'Bed chamfer' } },
+    ...(['6 mm', 'length - 6 mm'] as const).map((x, i) => ({
+      command: 'solid.cylinder',
+      params: { diameter: 'screw_hole', height: 'thickness', base: [x, 'width / 2', 0], operation: 'cut', name: `Screw hole ${String(i + 1)}` },
+    })),
+    // On the plate's top, in the world's own x and y. Arial has a bold face; SolidCraft's built-in font has none.
+    { command: 'sketch.create', params: { plane: 'XY', offset: 'thickness', project_edges: false, name: 'Label' } },
+    { command: 'sketch.text', params: { text_expression: 'label', at: ['length / 2', 'width / 2'], height: 'text_height', align: 'center', vertical_align: 'middle', font: 'Arial', bold: true } },
+    { command: 'solid.extrude', params: { distance: '0.8 mm', operation: 'join', name: 'Letters' } },
   ];
 }
 
@@ -113,7 +227,8 @@ function housing(): Step[] {
     [c, `width - ${c}`],
     [`length - ${c}`, `width - ${c}`],
   ];
-  const lidY = `width + ${BESIDE}`;
+  // Where the bosses stand at the starting sizes, for the screws.
+  const c0 = 2 + 8 / 2 - 0.5;
   return [
     parameter('length', '80 mm', 'Outer length of housing and lid'),
     parameter('width', '60 mm', 'Outer width of housing and lid'),
@@ -153,14 +268,22 @@ function housing(): Step[] {
       command: 'solid.cylinder',
       params: { diameter: 'insert_hole', height: 'insert_depth', base: [x, y, 'height - insert_depth'], operation: 'cut', targets: ['Housing'], name: `Insert ${String(i + 1)}` },
     })),
-    { command: 'solid.box', params: { length: 'length', width: 'width', height: 'wall', corner: [0, lidY, 0], operation: 'new', body_name: 'Lid', name: 'Lid' } },
-    { command: 'solid.fillet', params: { edges: [[0, 70, 1], [80, 70, 1], [0, 130, 1], [80, 130, 1]], radius: 'corner', body: 'Lid', name: 'Lid corners' } },
-    { command: 'solid.chamfer', params: { edges: [[40, 70, 0]], distance: '0.6 mm', body: 'Lid', name: 'Lid bed chamfer' } },
-    { command: 'solid.fillet', params: { edges: [[40, 70, 2]], radius: '0.8 mm', body: 'Lid', name: 'Lid edge radius' } },
+    // The lid lies on the housing, as it is assembled; the plate view lays the two side by side for printing.
+    { command: 'solid.box', params: { length: 'length', width: 'width', height: 'wall', corner: [0, 0, 'height'], operation: 'new', body_name: 'Lid', name: 'Lid' } },
+    { command: 'solid.fillet', params: { edges: [[0, 0, 31], [80, 0, 31], [0, 60, 31], [80, 60, 31]], radius: 'corner', body: 'Lid', name: 'Lid corners' } },
+    { command: 'solid.chamfer', params: { edges: [[40, 0, 30]], distance: '0.6 mm', body: 'Lid', name: 'Lid bed chamfer' } },
+    { command: 'solid.fillet', params: { edges: [[40, 0, 32]], radius: '0.8 mm', body: 'Lid', name: 'Lid edge radius' } },
     ...corners.map(([x, y], i) => ({
       command: 'solid.cylinder',
-      params: { diameter: 'screw_hole', height: 'wall', base: [x, `${lidY} + ${String(y)}`, 0], operation: 'cut', targets: ['Lid'], name: `Screw hole ${String(i + 1)}` },
+      params: { diameter: 'screw_hole', height: 'wall', base: [x, y, 'height'], operation: 'cut', targets: ['Lid'], name: `Screw hole ${String(i + 1)}` },
     })),
+    // The screws as standard parts, each seated on the rim of its hole in the lid: they are not printed. One
+    // part per hole, since the view shows a part placed four times only once.
+    ...[[c0, c0], [80 - c0, c0], [c0, 60 - c0], [80 - c0, 60 - c0]].flatMap(([x, y], i) => [
+      { command: 'parts.insert', params: { family: 'button_head_cap_screw', size: 'M3', length: 8, at: [(x ?? 0) + 1.7, y, 32] } },
+      // SolidCraft calls the bodies of inserted parts Body1, Body2, … in turn.
+      { command: 'body.rename', params: { body: `Body${String(i + 1)}`, name: `M3 screw ${String(i + 1)}` } },
+    ]),
   ];
 }
 
@@ -198,66 +321,29 @@ function wallHolder(): Step[] {
   ];
 }
 
-function cableClip(): Step[] {
-  const axis = 'cable / 2 + wall';
-  return [
-    parameter('cable', '6 mm', 'Diameter of the cable'),
-    parameter('wall', '1.6 mm', 'Wall of the clip'),
-    parameter('width', '8 mm', 'Width of the clip along the cable'),
-    parameter('tab', '10 mm', 'Length of the tab with the screw hole'),
-    parameter('screw_hole', '3.4 mm', 'Hole for an M3 screw (ISO 273, normal)'),
-    { command: 'solid.cylinder', params: { diameter: 'cable + 2 * wall', height: 'width', base: [0, 0, axis], axis: 'Y', operation: 'new', body_name: 'Cable clip', name: 'Ring' } },
-    { command: 'solid.box', params: { length: `${axis} + tab`, width: 'width', height: 'wall', corner: [0, 0, 0], operation: 'join', name: 'Tab' } },
-    { command: 'solid.cylinder', params: { diameter: 'cable', height: 'width', base: [0, 0, axis], axis: 'Y', operation: 'cut', name: 'Cable' } },
-    // The opening is 80 % of the cable: it snaps in and stays.
-    { command: 'solid.box', params: { length: 'cable * 0.8', width: 'width', height: axis, corner: ['-cable * 0.4', 0, axis], operation: 'cut', name: 'Opening' } },
-    { command: 'solid.cylinder', params: { diameter: 'screw_hole', height: 'wall', base: [`${axis} + tab / 2`, 'width / 2', 0], operation: 'cut', name: 'Screw hole' } },
-    // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
-    { command: 'solid.fillet', params: { edges: [[14.6, 0, 0.8], [14.6, 8, 0.8]], radius: '3 mm', name: 'Tab corners' } },
-    { command: 'solid.fillet', params: { edges: [[3.49, 4, 1.6]], radius: '1.5 mm', name: 'Root radius' } },
-  ];
-}
-
-function adapter(): Step[] {
-  const top = 'length_a + transition';
-  const end = `${top} + length_b`;
-  return [
-    parameter('inner_a', '32 mm', 'Inner diameter at the bottom end'),
-    parameter('inner_b', '20 mm', 'Inner diameter at the top end'),
-    parameter('wall', '2 mm', 'Wall thickness'),
-    parameter('length_a', '25 mm', 'Length of the bottom end'),
-    parameter('length_b', '25 mm', 'Length of the top end'),
-    parameter('transition', '15 mm', 'Length of the cone; at least half the difference of the diameters, so it prints without support'),
-    { command: 'sketch.create', params: { plane: 'YZ', name: 'Profile' } },
-    {
-      command: 'sketch.line',
-      params: {
-        closed: true,
-        points: [
-          ['inner_a / 2', 0],
-          ['inner_a / 2', 'length_a'],
-          ['inner_b / 2', top],
-          ['inner_b / 2', end],
-          ['inner_b / 2 + wall', end],
-          ['inner_b / 2 + wall', top],
-          ['inner_a / 2 + wall', 'length_a'],
-          ['inner_a / 2 + wall', 0],
-        ],
-      },
-    },
-    { command: 'solid.revolve', params: { axis: 'Z', body_name: 'Adapter', name: 'Adapter' } },
-    // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
-    { command: 'solid.fillet', params: { edges: [[0, 18, 25], [0, 12, 40]], radius: '4 mm', name: 'Soft transition' } },
-    { command: 'solid.chamfer', params: { edges: [[0, 18, 0], [0, 12, 65], [0, 16, 0], [0, 10, 65]], distance: '0.6 mm', name: 'End chamfers' } },
-  ];
-}
-
-const BUILDERS: Record<TemplateId, () => Step[]> = { hingedBox, housing, wallHolder, cableClip, adapter };
+const BUILDERS: Record<TemplateId, () => Step[]> = { hingedBox, slideStop, crankWheels, housing, sign, wallHolder };
 
 /** The parameter comments in German (polish round 2); names stay the same, so expressions and the assistant find them. */
 const GERMAN: Record<string, string> = {
   'Outer length of box and lid; at least 54 mm, the hinge is 40 mm long': 'Außenlänge von Box und Deckel; mindestens 54 mm, das Scharnier ist 40 mm lang',
   'Outer width of box and lid': 'Außenbreite von Box und Deckel',
+  'Length of base and rail': 'Länge von Grundplatte und Schiene',
+  'Width of the base; the stop is 24 mm wide': 'Breite der Grundplatte; der Anschlag ist 24 mm breit',
+  'Length of the stop along the rail': 'Länge des Anschlags entlang der Schiene',
+  'Height of the stop above the base': 'Höhe des Anschlags über der Grundplatte',
+  'Holes in the base for 4 mm wood screws': 'Löcher in der Grundplatte für 4-mm-Holzschrauben',
+  'Diameter of the counterbore for their heads, so the stop passes over them': 'Durchmesser der Senkung für ihre Köpfe, damit der Anschlag darüber fährt',
+  'Hole in the stop for an M4 heat-set insert; its screw clamps the stop on the rail': 'Loch im Anschlag für eine M4-Einschmelzmutter; ihre Schraube klemmt den Anschlag auf der Schiene',
+  'Diameter of the wheel with the crank': 'Durchmesser des Rads mit der Kurbel',
+  'Diameter of the wheel that runs along; half the diameter turns twice as fast': 'Durchmesser des mitlaufenden Rads; der halbe Durchmesser dreht doppelt so schnell',
+  'Thickness of both wheels': 'Dicke beider Räder',
+  'Diameter of the axles; the bores are 0.8 mm wider': 'Durchmesser der Achsen; die Bohrungen sind 0,8 mm weiter',
+  'The words on the sign': 'Der Text auf dem Schild',
+  'Length of the sign': 'Länge des Schilds',
+  'Width of the sign': 'Breite des Schilds',
+  'Thickness of the plate': 'Stärke der Platte',
+  'Height of the capital letters': 'Höhe der Großbuchstaben',
+  'Holes for M3 screws (ISO 273, normal)': 'Löcher für M3-Schrauben (ISO 273, mittel)',
   'Height of each half; closed, the box is twice as high. At least 15 mm, for the latch': 'Höhe jeder Hälfte; geschlossen ist die Box doppelt so hoch. Mindestens 15 mm, für den Verschluss',
   'Wall and floor thickness': 'Stärke von Wand und Boden',
   'Wall, floor and lid thickness': 'Stärke von Wand, Boden und Deckel',
@@ -278,37 +364,39 @@ const GERMAN: Record<string, string> = {
   'Height of the front lip': 'Höhe des vorderen Rands',
   'Hole for the wall screws (4 mm wood screws)': 'Loch für die Wandschrauben (4-mm-Holzschrauben)',
   'Diameter of the countersink for their heads': 'Durchmesser der Senkung für ihre Köpfe',
-  'Diameter of the cable': 'Durchmesser des Kabels',
-  'Wall of the clip': 'Wand des Clips',
-  'Width of the clip along the cable': 'Breite des Clips entlang des Kabels',
-  'Length of the tab with the screw hole': 'Länge der Lasche mit dem Schraubloch',
-  'Hole for an M3 screw (ISO 273, normal)': 'Loch für eine M3-Schraube (ISO 273, mittel)',
-  'Inner diameter at the bottom end': 'Innendurchmesser am unteren Ende',
-  'Inner diameter at the top end': 'Innendurchmesser am oberen Ende',
-  'Wall thickness': 'Wandstärke',
-  'Length of the bottom end': 'Länge des unteren Endes',
-  'Length of the top end': 'Länge des oberen Endes',
-  'Length of the cone; at least half the difference of the diameters, so it prints without support': 'Länge des Kegels; mindestens die halbe Durchmesser-Differenz, damit er ohne Stützen druckt',
 };
 
 /** The body names in German (polish round 3); every step that names a body follows. */
-const GERMAN_BODIES: Record<string, string> = { Box: 'Box', Lid: 'Deckel', Housing: 'Gehäuse', 'Wall holder': 'Wandhalter', 'Cable clip': 'Kabelclip', Adapter: 'Adapter' };
+const GERMAN_BODIES: Record<string, string> = { Box: 'Box', Lid: 'Deckel', Base: 'Grundplatte', Stop: 'Anschlag', 'Large wheel': 'Großes Rad', 'Small wheel': 'Kleines Rad', Sign: 'Schild', Housing: 'Gehäuse', 'Wall holder': 'Wandhalter' };
 
 /** Feature and sketch names in German, so the timeline speaks the tree's language (audit B-03). */
 const GERMAN_FEATURES: Record<string, string> = {
   ...GERMAN_BODIES,
+  Axle: 'Achse',
+  'Base corners': 'Grundplatten-Ecken',
   'Bed chamfer': 'Fase am Bett',
+  'Clamp hole': 'Klemmloch',
+  Counterbore: 'Senkung',
+  Crank: 'Kurbel',
+  'Crank handle': 'Kurbelgriff',
+  Guide: 'Führung',
+  Label: 'Beschriftung',
+  'Large wheel bore': 'Bohrung großes Rad',
+  Letters: 'Buchstaben',
+  'M3 screw': 'M3-Schraube',
+  Mark: 'Markierung',
+  'Small axle': 'Kleine Achse',
+  'Small wheel bore': 'Bohrung kleines Rad',
+  'Stop corners': 'Anschlag-Ecken',
   'Box bed chamfer': 'Box-Fase am Bett',
   'Box corners': 'Box-Ecken',
   'Box hollow': 'Box aushöhlen',
-  Cable: 'Kabel',
   'Corner radius': 'Eckenradius',
   'Countersunk holes': 'Senkbohrungen',
   Ear: 'Lasche',
   'Ear corners': 'Laschenecken',
   'Ear edges': 'Laschenkanten',
   'Ear slot': 'Laschenschlitz',
-  'End chamfers': 'Endfasen',
   Floor: 'Boden',
   Hinge: 'Scharnier',
   'Floor slot': 'Bodenschlitz',
@@ -328,20 +416,13 @@ const GERMAN_FEATURES: Record<string, string> = {
   'Lid hollow': 'Deckel aushöhlen',
   Lip: 'Rand',
   'Lip corners': 'Randecken',
-  Opening: 'Öffnung',
   'Outer bend': 'Außenbogen',
   'Outer corners': 'Außenecken',
   Plate: 'Platte',
-  Profile: 'Profil',
   'Rim radius': 'Randradius',
-  Ring: 'Ring',
-  'Root radius': 'Fußradius',
   'Screw hole': 'Schraubloch',
   'Screw points': 'Schraubpunkte',
   'Soft edges': 'Weiche Kanten',
-  'Soft transition': 'Weicher Übergang',
-  Tab: 'Lasche',
-  'Tab corners': 'Laschenecken',
   'Vent back': 'Lüftung hinten',
   'Vent front': 'Lüftung vorn',
 };
@@ -363,10 +444,12 @@ function inGerman(step: Step): Step {
   const body = (name: unknown) => (typeof name === 'string' ? (GERMAN_BODIES[name] ?? name) : name);
   for (const key of ['body_name', 'body'] as const) if (key in params) params[key] = body(params[key]);
   for (const key of ['targets', 'bodies'] as const) if (Array.isArray(params[key])) params[key] = params[key].map(body);
-  // A joint names its two components, which carry their bodies' names.
-  for (const key of ['a', 'b'] as const) {
-    const origin = params[key] as { occurrence?: unknown } | undefined;
-    if (step.command === 'joint.create' && origin) params[key] = { ...origin, occurrence: body(origin.occurrence) };
+  // A gear names its two joints, a joint its two components, which carry their bodies' names.
+  if (step.command === 'joint.gear') for (const key of ['a', 'b'] as const) params[key] = germanFeatureName(params[key] as string);
+  for (const key of ['a', 'b', 'at'] as const) {
+    const origin = params[key] as { occurrence?: unknown } | string | undefined;
+    if (!step.command.startsWith('joint.') || step.command === 'joint.gear' || origin === undefined) continue;
+    params[key] = typeof origin === 'string' ? body(origin) : { ...origin, occurrence: body(origin.occurrence) };
   }
   // A sketch is referred to by its name, so the reference follows the translation.
   for (const key of ['name', 'sketch'] as const) if (step.command !== 'parameters.add' && typeof params[key] === 'string') params[key] = germanFeatureName(params[key]);
