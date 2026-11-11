@@ -83,6 +83,7 @@ export const STEP_PHRASE_KEYS = [
   'keyhole',
   'woodScrewHole',
   'knob',
+  'magnetPocket',
   'blockByAssistant',
   'command',
 ] as const;
@@ -309,6 +310,7 @@ export function describeToolCall(tool: string, args: Params): StepPhrase[] {
   if (tool === 'partbuddy_block') {
     if (args.block === 'keyhole') return [{ key: 'keyhole', values: { screw: (typeof args.screw === 'number' ? args.screw : 4) } }];
     if (args.block === 'woodScrew') return [{ key: 'woodScrewHole', values: { screw: (typeof args.screw === 'number' ? args.screw : 4) } }];
+    if (args.block === 'magnet') return [{ key: 'magnetPocket', values: { diameter: typeof args.diameter === 'number' ? args.diameter : 6, height: typeof args.height === 'number' ? args.height : 2 } }];
     if (args.block === 'knob') return [{ key: 'knob', values: { name: text(args.body, 'Knob').slice(0, 60) } }];
     return [{ key: 'blockByAssistant', values: { block: text(args.block, 'block').slice(0, 20), body: text(args.body, '').slice(0, 60) } }];
   }
@@ -466,6 +468,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     keyhole: 'Keyhole slot for a {screw} mm screw, to hang on a wall',
     woodScrewHole: 'Countersunk hole for a {screw} mm wood screw',
     knob: 'Knob “{name}” for a shaft',
+    magnetPocket: 'Pocket for a {diameter} × {height} mm magnet',
     blockByAssistant: 'Function block {block} on {body}',
     command: 'SolidCraft: {command}',
   },
@@ -538,6 +541,7 @@ export const stepMessages: Record<'en' | 'de', Record<StepPhraseKey, string>> = 
     keyhole: 'Schlüsselloch für eine {screw}-mm-Schraube, zum Aufhängen',
     woodScrewHole: 'Senkbohrung für eine {screw}-mm-Holzschraube',
     knob: 'Drehknopf „{name}“ für eine Welle',
+    magnetPocket: 'Tasche für einen Magneten {diameter} × {height} mm',
     blockByAssistant: 'Funktionsbaustein {block} an {body}',
     command: 'SolidCraft: {command}',
   },

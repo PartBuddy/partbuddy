@@ -1,6 +1,7 @@
 import { BLOCK_SIZES, defaultBlock, needsNormal, sizesOf, stepsOf, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import { KNOB, KNOB_CLEARANCE, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
+import { MAGNET, MAGNET_HOLDS, magnetPocket, magnetProblem, magnetSteps, type MagnetHold } from '../../shared/magnet';
 import { KEYHOLE, WALL, WOOD_SCREWS, keyholeDepth, keyholeProblem, keyholeSteps, woodScrewSteps, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -18,7 +19,7 @@ export const BLOCK_TOOL = 'partbuddy_block';
 export const ASSISTANT_BLOCKS = ['screwHole', 'tappedHole', 'insertSeat', 'nutTrap', 'boss', 'slot', 'text', 'lip', 'snapFit'] as const;
 type AssistantBlock = (typeof ASSISTANT_BLOCKS)[number];
 /** Wall mounting (wallMount.ts): not blocks of the interface yet. */
-export const WALL_BLOCKS = ['keyhole', 'woodScrew'] as const;
+export const WALL_BLOCKS = ['keyhole', 'woodScrew', 'magnet'] as const;
 /** A part of its own (knob.ts): body is the name of the new body. */
 export const PART_BLOCKS = ['knob'] as const;
 
@@ -33,6 +34,7 @@ const blockTool: UpstreamTool = {
     'slot (a slot for a screw, to adjust), text (embossed or engraved), lip (a lip or a groove on the rim of a shelled body), snapFit (a cantilever snap hook standing on the face). ' +
     'To hang a part on a wall: keyhole (a keyhole slot on the face against the wall, over a screw already in the wall; point is where the screw rests, normal points to the wall, up is the way up as the part hangs) ' +
     'or woodScrew (a countersunk hole for a wood screw, at a point of the face away from the wall); screw is the wood screw in mm. ' +
+    'To hold with magnets: magnet (a pocket for a disc magnet at a point of a face, normal out of that face; diameter and height are the magnet\'s, default 6 × 2 mm; hold glue to drop it in on a drop of glue, press to press it in). ' +
     "A knob for a shaft is a part of its own: knob (body is the new body's name, point the centre of its underside where the shaft goes in, normal the way the shaft points, up the way its pointer points; shaft d for a potentiometer's or encoder's D shaft, knurl for a split knurled one, round for a plain shaft with a set screw). " +
     'Give only what differs from the standard; everything else is filled in. For two parts screwed together use partbuddy_mechanism with kind screw instead, which makes both holes on one line.',
   inputSchema: {
@@ -41,22 +43,23 @@ const blockTool: UpstreamTool = {
       block: { type: 'string', enum: [...ASSISTANT_BLOCKS, ...WALL_BLOCKS, ...PART_BLOCKS] },
       body: { type: 'string', description: 'The body (exact name); for knob the name of the new body.' },
       point: { ...vector, description: 'A point on the flat face the block goes at, in mm: the centre of the hole, the foot of the boss, the middle of the text.' },
-      normal: { ...vector, description: 'The way out of that face; needed for nutTrap, slot, text, snapFit and keyhole. knob: the way the shaft points, default +Z.' },
+      normal: { ...vector, description: 'The way out of that face; needed for nutTrap, slot, text, snapFit, keyhole and magnet. knob: the way the shaft points, default +Z.' },
       up: { ...vector, description: 'keyhole: the way up as the part hangs, along the face; default +Z. knob: the way its pointer points, across the shaft; default +Y.' },
       screw: { type: 'number', enum: [...WOOD_SCREWS], description: 'keyhole, woodScrew: the wood screw, its thread diameter in mm; default 4.' },
       size: { type: 'string', enum: [...BLOCK_SIZES], description: 'The screw; default M3. Ignored for text, lip and snapFit.' },
-      more: { type: 'array', items: vector, maxItems: 99, description: 'screwHole, tappedHole, insertSeat, keyhole, woodScrew: further points on the same face, one each.' },
+      more: { type: 'array', items: vector, maxItems: 99, description: 'screwHole, tappedHole, insertSeat, keyhole, woodScrew, magnet: further points on the same face, one each.' },
       head: { type: 'string', enum: ['none', 'cap', 'countersunk'], description: 'screwHole: the room for the head; default cap (a counterbore).' },
       fit: { type: 'string', enum: ['close', 'normal', 'loose'], description: 'screwHole: the clearance by ISO 273; default normal.' },
       depth: { type: 'number', description: 'tappedHole, insertSeat, nutTrap, slot, text: depth in mm; default by the block (a slot and a tapped hole go through).' },
-      diameter: { type: 'number', description: 'insertSeat: the hole for the insert; boss: its outer diameter; knob: its outer diameter, default 25. Default from the table.' },
-      height: { type: 'number', description: 'boss: its height; text: the height of its capitals; lip: its height; knob: its height, default 16. Default by the block.' },
+      diameter: { type: 'number', description: 'insertSeat: the hole for the insert; boss: its outer diameter; knob: its outer diameter, default 25; magnet: the diameter of the magnet, default 6. Default from the table.' },
+      height: { type: 'number', description: 'boss: its height; text: the height of its capitals; lip: its height; knob: its height, default 16; magnet: the height of the magnet, default 2. Default by the block.' },
       length: { type: 'number', description: 'slot: its length; snapFit: the length of the arm. Default 10 and 12 mm.' },
       width: { type: 'number', description: 'slot, lip, snapFit: width in mm. Default by the block.' },
       along: { type: 'string', enum: ['x', 'y'], description: "slot: along the face's first or second direction." },
       text: { type: 'string', maxLength: 80, description: 'text: the words.' },
       mode: { type: 'string', enum: ['emboss', 'deboss'], description: 'text: raised or engraved; default engraved.' },
       type: { type: 'string', enum: ['lip', 'groove'], description: 'lip: a lip, or the groove that takes one.' },
+      hold: { type: 'string', enum: [...MAGNET_HOLDS], description: 'magnet: glued in (0.3 mm of room, the default) or pressed in (0.1 mm).' },
       shaft: { type: 'string', enum: [...KNOB_SHAFTS], description: 'knob: the shaft it goes on; default d.' },
       shaftDiameter: { type: 'number', description: 'knob: the diameter of the shaft in mm; default 6.' },
       flat: { type: 'number', description: 'knob on a D shaft: the thickness of the shaft at its flat in mm; 4.5 on a 6 mm shaft, to be measured on any other.' },
@@ -132,6 +135,34 @@ export function wallOf(args: Record<string, unknown>): { body: string; steps: St
   };
 }
 
+/** Magnet pockets the model asked for: their steps and what to say; null when the block is none; or what is wrong. */
+export function magnetOf(args: Record<string, unknown>): { body: string; steps: Step[]; text: string } | string | null {
+  if (args.block !== 'magnet') return null;
+  const body = typeof args.body === 'string' ? args.body.trim() : '';
+  const point = vec3(args.point);
+  if (!body || !point) return 'body and point (three numbers on a flat face) are needed';
+  const normal = vec3(args.normal);
+  if (!normal) return 'magnet needs normal: the way out of the face the pocket opens in, three numbers';
+  const more = args.more === undefined ? [] : Array.isArray(args.more) ? args.more.map(vec3) : null;
+  if (!more || more.some((entry) => entry === null)) return 'more must be a list of points, each three numbers';
+  const hold = (args.hold ?? 'glue') as MagnetHold;
+  if (!MAGNET_HOLDS.includes(hold)) return `hold must be one of ${MAGNET_HOLDS.join(', ')}`;
+  const number = (value: unknown, standard: number) => (value === undefined ? standard : typeof value === 'number' ? value : Number.NaN);
+  const spec = { body, point, normal, more: more as Vec3[], diameter: number(args.diameter, 6), height: number(args.height, 2), hold, name: 'Magnet' };
+  const problem = magnetProblem(spec);
+  if (problem) return problem;
+  const pocket = magnetPocket(spec);
+  const count = more.length + 1;
+  return {
+    body,
+    steps: magnetSteps(spec),
+    text:
+      `Built ${String(count)} pocket${count > 1 ? 's' : ''} for ${String(spec.diameter)} × ${String(spec.height)} mm disc magnets in ${body}: ${String(pocket.diameter)} mm wide and ${String(pocket.depth)} mm deep, so the magnet lies ${String(MAGNET.sunk)} mm under the face, with a chamfered mouth. ` +
+      (hold === 'glue' ? 'The magnet drops in and is held by a drop of superglue. ' : `The magnet is pressed in (${String(MAGNET.room.press)} mm of room on the diameter); with more than that missing the plastic splits along its layers, so try one pocket first. `) +
+      `Keep at least 1.2 mm of plastic round a pocket and 0.6 mm under it. Mark the poles before gluing a pair: the two parts must attract. Neodymium magnets lose strength above 80 °C. No pocket of these sizes has been printed yet.`,
+  };
+}
+
 /** A knob the model asked for: its steps and what to say; null when the block is none; or what is wrong. */
 export function knobOf(args: Record<string, unknown>): { body: string; steps: Step[]; text: string; fresh: true } | string | null {
   if (args.block !== 'knob') return null;
@@ -195,7 +226,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
     listTools: async () => [...(await upstream.listTools()), blockTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
       if (name !== BLOCK_TOOL) return upstream.callTool(name, args, callId);
-      const wall = wallOf(args) ?? knobOf(args);
+      const wall = wallOf(args) ?? knobOf(args) ?? magnetOf(args);
       if (typeof wall === 'string') return { content: [{ type: 'text', text: `Not built: ${wall}` }], isError: true };
       const block = wall ? null : blockOf(args);
       if (typeof block === 'string') return { content: [{ type: 'text', text: `Not built: ${block}` }], isError: true };
@@ -230,4 +261,4 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
 }
 
 /** Added to the role prompt of every route. */
-export const BLOCK_GUIDANCE = `For a screw hole, a tapped hole, the seat of a heat-set insert, a nut trap, a screw boss, a slot, text, a lid's lip or a snap hook on one body call ${BLOCK_TOOL} instead of drilling or modelling it yourself: it takes clearance, head, nut and insert sizes from the standard tables. For a part that hangs on a wall use its keyhole (hung over screws in the wall) or woodScrew (screwed on through countersunk holes) blocks, two of them level for anything wider than 60 mm. For a knob on a potentiometer, an encoder or any other shaft use its knob block, which makes the knob as a part of its own; ask for the shaft (D, knurled or round, and its diameter) when the user has not said.`;
+export const BLOCK_GUIDANCE = `For a screw hole, a tapped hole, the seat of a heat-set insert, a nut trap, a screw boss, a slot, text, a lid's lip or a snap hook on one body call ${BLOCK_TOOL} instead of drilling or modelling it yourself: it takes clearance, head, nut and insert sizes from the standard tables. For a part that hangs on a wall use its keyhole (hung over screws in the wall) or woodScrew (screwed on through countersunk holes) blocks, two of them level for anything wider than 60 mm. For parts held by magnets (a lid, a tool holder, a sign) use its magnet block for each pocket instead of drilling a hole of the magnet's size; ask for the magnet's diameter and height when the user has not said. For a knob on a potentiometer, an encoder or any other shaft use its knob block, which makes the knob as a part of its own; ask for the shaft (D, knurled or round, and its diameter) when the user has not said.`;
