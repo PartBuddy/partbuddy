@@ -58,6 +58,15 @@ const PARTS: Part[] = [
       'Baue eine flache Dose 60 × 40 × 20 mm mit einem Deckel, der über ein Scharnier an einer langen Seite aufklappt. ' +
       'Dose und Deckel sollen zusammen in einem Stück druckbar sein, ohne Stützmaterial.',
   },
+  // The standards of 2026-11-11: no request names a tool; the work log shows whether the block or mechanism was taken,
+  // and for the last two the answer shows whether partbuddy_standard was read.
+  { id: '7-poti-knopf', request: 'Bau mir einen Drehknopf für ein Poti mit 6-mm-D-Welle.' },
+  { id: '8-schnapphaken', request: 'Bau ein flaches Gehäuse 60 × 40 × 20 mm aus Boden und Haube, die mit Schnapphaken aufgeklipst wird.' },
+  { id: '9-steckverbindung', request: 'Teile einen Block 60 × 30 × 20 mm in zwei Hälften, die ich zusammenstecken und verkleben kann.' },
+  { id: '10-magnetdeckel', request: 'Bau einen Deckel 50 × 50 × 4 mm mit vier Taschen für 6×2-mm-Magnete in den Ecken.' },
+  { id: '11-schnapplasche', request: 'Bau eine Dose 60 × 40 × 30 mm mit aufgesetztem Deckel und einem Verschluss außen an der Vorderseite.' },
+  { id: '12-pi-gehaeuse', request: 'Bau ein Gehäuse für einen Raspberry Pi 4 mit Lüftungsschlitzen.' },
+  { id: '13-rohrschelle', request: 'Bau eine Schelle für ein 22-mm-Rohr zum Aufschnappen.' },
 ];
 
 const PRINT_CHECK =

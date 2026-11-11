@@ -480,7 +480,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     return (
       `Built the latch "${spec.name}": an arm ${String(spec.width)} mm wide and ${String(LATCH.thick)} mm thick grows out of the wall of ${spec.moving} (the lid), hangs ${String(LATCH.off)} mm off the wall over the joint and snaps with its hook under a bead ${String(LATCH.bead)} mm high on ${spec.fixed} (the box); the two overlap by ${String(LATCH.bead - LATCH.clear)} mm on 45° faces. ` +
       `Pressing the lid down snaps it shut (about 1.3 % strain at the arm's root); pulling the arm's lower end away from the box opens it, and so does a strong pull on the lid. It makes no joint. ` +
-      `It needs ${String(reach.above)} mm of flat wall on the lid above the joint and ${String(reach.below)} mm on the box below it. Print the lid on its top: the arm then grows out of it without support; the box prints standing. Not printed yet: how firmly it holds shows on the first print.${warnings}`
+      `It needs ${String(reach.above)} mm of flat wall on the lid above the joint and ${String(reach.below)} mm on the box below it. Print the lid on its top: the arm then grows out of it without support; the box prints standing. The arm stands upright that way and bends across its layers, the weak way: for a lid opened often use PETG or ABS rather than PLA. Not printed yet: how firmly it holds shows on the first print.${warnings}`
     );
   }
   if (args.kind === 'plug' && args.shape === 'dovetail') {

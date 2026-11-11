@@ -14,10 +14,11 @@ export type KnobShaft = (typeof KNOB_SHAFTS)[number];
 /**
  * In mm: the plastic over the shaft's end, the wall left round the bore under the flutes, how far
  * the shaft goes in at the most, how much of that is flat on a D shaft (the shortest flat sold),
- * the flutes (as a screw lid's), the plain band and its chamfer at the top, the pointer's groove,
+ * the flutes (as a screw lid's), the plain band and its chamfer at the top, the chamfer at the bore's
+ * mouth, the pointer's groove,
  * and the pilot hole an M3 set screw cuts its own thread in.
  */
-export const KNOB = { roof: 3, wall: 2.4, insert: 11, flat: 7, flute: 3, band: 2, chamfer: 0.6, pointer: { width: 1.2, depth: 0.6 }, setScrew: 2.6 };
+export const KNOB = { roof: 3, wall: 2.4, insert: 11, flat: 7, flute: 3, band: 2, chamfer: 0.6, mouth: 0.5, pointer: { width: 1.2, depth: 0.6 }, setScrew: 2.6 };
 
 /** The room added to the shaft's diameter: a D and a round shaft push in snugly; a split knurled shaft springs into a plain bore of its own size. */
 export const KNOB_CLEARANCE: Record<KnobShaft, number> = { d: 0.2, round: 0.2, knurl: 0 };
@@ -106,6 +107,8 @@ export function knobSteps(spec: KnobSpec): Step[] {
     { command: 'solid.cylinder', params: { diameter: mm(KNOB.flute), height: mm(spec.height - KNOB.band), base: at(0, (radius + KNOB.flute / 4) * Math.cos(half), (radius + KNOB.flute / 4) * Math.sin(half)), axis: tidy(axis), operation: 'cut', targets: [name], name: `${name} ◆` } },
     { command: 'solid.pattern.circular', params: { features: [`${name} ◆`], axis: { origin: at(0), dir: tidy(axis) }, count: flutes } },
     { command: 'solid.cylinder', params: { diameter: mm(bore), height: mm(insert), base: at(0), axis: tidy(axis), operation: 'cut', targets: [name], name: `${name} ○` } },
+    // The shaft finds its way in; printed on its top, the mouth is the last layer and needs no support.
+    { command: 'solid.cone', params: { diameter: mm(bore + 2 * KNOB.mouth), top_diameter: mm(bore), height: mm(KNOB.mouth), base: at(0), axis: tidy(axis), operation: 'cut', targets: [name], name: `${name} ◣` } },
   ];
   if (spec.shaft === 'd') {
     // The flat fills the bore's end again, on the side away from the pointer; the entry stays round, as the shaft is below its flat.

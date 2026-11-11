@@ -188,7 +188,7 @@ export function knobOf(args: Record<string, unknown>): { body: string; steps: St
   const insert = knobInsert(spec);
   const hold =
     shaft === 'd'
-      ? `for a ${String(shaftDiameter)} mm D shaft (flat at ${String(flat)} mm): the bore is ${String(bore)} mm wide and ${String(insert)} mm deep, flat over its last ${String(Math.min(KNOB.flat, insert))} mm on the side away from the pointer, to push on`
+      ? `for a ${String(shaftDiameter)} mm D shaft (flat at ${String(flat)} mm): the bore is ${String(bore)} mm wide and ${String(insert)} mm deep, flat over its last ${String(Math.min(KNOB.flat, insert))} mm on the side away from the pointer, with a chamfered mouth, to push on`
       : shaft === 'knurl'
         ? `for a split knurled shaft of ${String(shaftDiameter)} mm: a plain bore ${String(bore)} mm wide and ${String(insert)} mm deep, which the shaft springs into`
         : `for a round ${String(shaftDiameter)} mm shaft: the bore is ${String(bore)} mm wide and ${String(insert)} mm deep, and an M3 set screw cuts its own thread in the ${String(KNOB.setScrew)} mm hole on the side away from the pointer`;
