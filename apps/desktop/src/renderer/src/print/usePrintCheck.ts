@@ -27,7 +27,8 @@ export function usePrintCheck(): void {
       const standard = new Set(model.structure.standardParts ?? []);
       const printed = model.bodies.filter((body) => !standard.has(body.name));
       const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, overhang: print.material.overhang }, model.structure.features);
-      const joints = model.structure.joints ?? [];
+      // A value that follows another through a motion link (a gear) is neither swept nor posed on its own: its driver is.
+      const joints = (model.structure.joints ?? []).map((joint) => ({ ...joint, values: joint.values.map((value, index) => ({ ...value, index })).filter((value) => !value.follows) })).filter((joint) => joint.values.length > 0);
       // A joint left away from "as designed" needs no measuring, so it shows at once: with a lid closed onto its
       // box SolidCraft's measures took longer than a look at the list (practice run 2026-11-10).
       // A logo's colour pieces sit in the part on purpose; measuring them, SolidCraft took minutes
@@ -62,8 +63,8 @@ export function usePrintCheck(): void {
         // Parts that move (ADR 0027): every joint value runs from where it stands to its limits.
         if (joints.length > 0) {
           const sweeps = joints.flatMap((joint) =>
-            joint.values.flatMap((value, index) =>
-              (value.limits ?? []).flatMap((limit) => (limit !== null && Math.abs(limit - value.value) > 1e-6 ? [{ joint: joint.id, name: joint.name, unit: value.unit, index, from: value.value, to: limit }] : [])),
+            joint.values.flatMap((value) =>
+              (value.limits ?? []).flatMap((limit) => (limit !== null && Math.abs(limit - value.value) > 1e-6 ? [{ joint: joint.id, name: joint.name, unit: value.unit, index: value.index, from: value.value, to: limit }] : [])),
             ),
           ).slice(0, 40);
           const stopped = await platform()

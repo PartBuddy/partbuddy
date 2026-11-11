@@ -2,7 +2,7 @@ import { withMotion, type PrintCheck } from '@partbuddy/geometry';
 import { describe, expect, it } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
-import { jointMove, jointPoses, playRange, playStep, rotate } from '../src/renderer/src/viewer/jointPose';
+import { jointMove, jointPoses, playRange, playStep, rotate, withFollowers } from '../src/renderer/src/viewer/jointPose';
 import { sweepStopOf } from '../src/main/solidcraft/actions';
 
 import { componentsWithBodies, jointsOf, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
@@ -212,6 +212,34 @@ describe('a joint followed in the view while its slider is dragged (ADR 0027, G4
     expect(playRange([-90, 90], 0, [{ at: 40, limit: 90 }, stop])).toEqual({ range: [-28.1, 40], low: stop, high: { at: 40, limit: 90 } });
     // Nothing in the way: the whole range.
     expect(playRange([-180, 0], 0, [])).toEqual({ range: [-180, 0] });
+  });
+
+  it('reads the motion links of joint.list and moves a gear\'s mate with its driver', () => {
+    // joint.list as SolidCraft 0.40.0-rc.4 answers after joint.gear {ra: 10, rb: 20} with the axles at 30° and 10°.
+    const geared = {
+      joints: [
+        { a: 5, b: 7, id: 13, name: 'Small axle', type: 'revolute', frame_a: { origin: [0, 0, 5], z: [0, 0, 1] }, values: [{ limits: null, name: 'angle', unit: 'deg', value: 90 }] },
+        { a: 5, b: 9, id: 14, name: 'Large axle', type: 'revolute', frame_a: { origin: [30.5, 0, 5], z: [0, 0, 1] }, values: [{ limits: null, name: 'angle', unit: 'deg', value: -20 }] },
+      ],
+      links: [{ a: 13, b: 14, coupling: { ra: 10, rb: 20, type: 'gear' }, ia: 0, ib: 0, offset: 24.999999999999996, ratio: -0.5, unit: 'deg' }],
+    };
+    const parts = { components: [{ id: 6, parent: 0, bodies: ['Small'], occurrences: [{ id: 7 }] }, { id: 8, parent: 0, bodies: ['Large'], occurrences: [{ id: 9 }] }] };
+    const [small, large] = jointsOf(geared, parts);
+    if (!small || !large) throw new Error('no joints');
+    expect(small.values[0]).not.toHaveProperty('follows');
+    expect(large.values[0]?.follows).toEqual({ joint: 13, index: 0, ratio: -0.5, offset: 24.999999999999996 });
+    expect(structureSchema.safeParse({ ...structureOf({}), joints: [small, large] }).success).toBe(true);
+    // The driver shown at 30°: the mate stands at 25 − 15 = 10°, where SolidCraft had it when the link was made.
+    const shown = withFollowers([small, large], [{ joint: 13, index: 0, value: 30 }]);
+    expect(shown.map((entry) => [entry.joint, entry.index])).toEqual([
+      [13, 0],
+      [14, 0],
+    ]);
+    expect(shown[1]?.value).toBeCloseTo(10);
+    // Both bodies turn in the view; nothing follows a preview of the mate itself, and a link that reads oddly is left out.
+    expect([...jointPoses([small, large], [{ joint: 13, index: 0, value: 30 }]).keys()].sort()).toEqual(['Large', 'Small']);
+    expect(withFollowers([small, large], [])).toEqual([]);
+    expect(jointsOf({ ...geared, links: [{ a: 13, b: 14, ratio: 'half' }] }, parts)[1]?.values[0]).not.toHaveProperty('follows');
   });
 
   it('plays a joint through its range: back and forth, or starting over', () => {

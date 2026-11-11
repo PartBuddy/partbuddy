@@ -136,6 +136,7 @@
       "hint": "Playing moves the parts in the view only. Letting go of a slider moves the part; that is how it is exported and checked.",
       "failed": "SolidCraft did not move the joint: {reason}",
       "play": "Play {name}",
+      "follows": "{name} (follows {driver})",
       "pause": "Pause {name}",
       "speed": "Speed",
       "mode": "Repeat",

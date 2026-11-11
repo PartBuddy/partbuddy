@@ -133,8 +133,28 @@ function movedBy(joint: { a?: unknown; b?: unknown }, joints: { a?: unknown; b?:
   return [...moved];
 }
 
+/**
+ * The motion links of `joint.list` (gears, racks, screws, cams as SolidCraft 0.40 lists them): the
+ * value `ib` of joint `b` is `offset + ratio ×` the value `ia` of joint `a`. By follower, `joint:index`.
+ */
+function followersOf(listing: unknown): Map<string, { joint: number; index: number; ratio: number; offset: number }> {
+  const followers = new Map<string, { joint: number; index: number; ratio: number; offset: number }>();
+  const links = (listing as { links?: unknown } | undefined)?.links;
+  if (!Array.isArray(links)) return followers;
+  const index = (value: unknown) => (value === undefined ? 0 : Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 5 ? (value as number) : null);
+  for (const link of links as Record<string, unknown>[]) {
+    const [ia, ib] = [index(link.ia), index(link.ib)];
+    if (!Number.isInteger(link.a) || !Number.isInteger(link.b) || (link.a as number) < 0 || ia === null || ib === null) continue;
+    if (typeof link.ratio !== 'number' || !Number.isFinite(link.ratio)) continue;
+    const offset = typeof link.offset === 'number' && Number.isFinite(link.offset) ? link.offset : 0;
+    followers.set(`${String(link.b)}:${String(ib)}`, { joint: link.a as number, index: ia, ratio: link.ratio, offset });
+  }
+  return followers;
+}
+
 export function jointsOf(listing: unknown, components?: unknown): Joint[] {
   const placed = bodiesByOccurrence(components);
+  const followers = followersOf(listing);
   const joints = (listing as { joints?: unknown } | undefined)?.joints;
   if (!Array.isArray(joints)) return [];
   const limit = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
@@ -154,11 +174,15 @@ export function jointsOf(listing: unknown, components?: unknown): Joint[] {
         values: (Array.isArray(joint.values) ? (joint.values as Record<string, unknown>[]) : [])
           .filter((value) => (value.unit === 'deg' || value.unit === 'mm') && typeof value.value === 'number' && Number.isFinite(value.value))
           .slice(0, 6)
-          .map((value) => ({
-            unit: value.unit as 'deg' | 'mm',
-            value: value.value as number,
-            limits: Array.isArray(value.limits) ? ([limit(value.limits[0]), limit(value.limits[1])] as [number | null, number | null]) : null,
-          })),
+          .map((value, index) => {
+            const follows = followers.get(`${String(joint.id)}:${String(index)}`);
+            return {
+              unit: value.unit as 'deg' | 'mm',
+              value: value.value as number,
+              limits: Array.isArray(value.limits) ? ([limit(value.limits[0]), limit(value.limits[1])] as [number | null, number | null]) : null,
+              ...(follows ? { follows } : {}),
+            };
+          }),
       };
     })
     .filter((joint) => joint.values.length > 0);

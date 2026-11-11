@@ -761,6 +761,61 @@ test('one click plays the joints one after the other as the check ran them, toge
   await expect(panel.getByTestId('joint-error')).toHaveCount(0);
 });
 
+test('a gear\'s mate follows its driver in the panel, the playback and what is kept; it has no handle of its own', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.bodies = ['CableClip', 'Second clip'];
+  fake.occurrences = new Map([
+    [1, 'CableClip'],
+    [2, 'Second clip'],
+  ]);
+  // Two axles on a ground that is no body here (occurrence 0), linked 2 : 1 the other way round, as joint.gear lists it.
+  fake.joints = [
+    { id: 13, name: 'Small axle', type: 'revolute', a: 0, b: 1, frame_a: { origin: [0, 0, 0], z: [0, 0, 1] }, values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-90, 90] }] },
+    { id: 14, name: 'Large axle', type: 'revolute', a: 0, b: 2, frame_a: { origin: [30, 0, 0], z: [0, 0, 1] }, values: [{ name: 'angle', unit: 'deg', value: 0, limits: null }] },
+  ];
+  fake.links = [{ a: 13, b: 14, ia: 0, ib: 0, ratio: -0.5, offset: 0, unit: 'deg' }];
+  await fake.start();
+  const { page } = launched;
+  await lookAgain(page);
+  await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies');
+  await page.getByTestId('joints').click();
+  const panel = page.getByTestId('joint-panel');
+  const row = (name: string) => panel.getByTestId('joint-value').filter({ has: page.getByRole('slider', { name, exact: true }) });
+  const shown = (name: string) => async () => Number(await row(name).getAttribute('data-shown'));
+  // The mate says whom it follows, cannot be taken, and has no play button; one value plays, so there is no "play all".
+  const mate = panel.getByRole('slider', { name: 'Large axle (follows Small axle)' });
+  await expect(mate).toBeDisabled();
+  await expect(panel.getByTestId('joint-play')).toHaveCount(1);
+  await expect(panel.getByTestId('joint-play-all')).toHaveCount(0);
+  // Played, the mate turns half as far the other way.
+  await panel.getByTestId('joint-play').click();
+  await expect.poll(async () => Math.abs(await shown('Small axle')()), { timeout: 30_000 }).toBeGreaterThan(10);
+  await panel.getByTestId('joint-play').click();
+  const driver = await shown('Small axle')();
+  expect(await shown('Large axle (follows Small axle)')()).toBeCloseTo(-0.5 * driver, 1);
+  await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('gear-paused.png') });
+  expect(fake.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
+  // Kept, only the driver is driven; SolidCraft moves the mate along.
+  const reads = Math.round(driver * 10) / 10;
+  await panel.getByTestId('joint-keep').click();
+  await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(reads);
+  await expect.poll(() => fake?.joints[1]?.values[0]?.value).toBeCloseTo(-0.5 * reads);
+  await expect(panel.getByTestId('joint-keep')).toHaveCount(0);
+  // The light names the driver as posed, not the mate as well.
+  await page.getByTestId('print-check').click();
+  const findings = page.getByTestId('print-check-panel');
+  await expect(findings.locator('[data-kind="posed"]')).toHaveCount(1);
+  await expect(findings.locator('[data-kind="posed"]')).toContainText('Small axle stands at');
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(findings).toBeHidden({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  await panel.getByTestId('joint-reset').click();
+  await expect.poll(() => fake?.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
+  await expect(panel.getByTestId('joint-error')).toHaveCount(0);
+});
+
 test('a print of two parts switches to the plate, explodes along its assembly and plays the assembly', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
