@@ -117,6 +117,12 @@ See [SECURITY.md](SECURITY.md). PartBuddy has no account and no telemetry; it ta
 assistant you choose and, for updates, to GitHub. Every commit is scanned for secrets and personal
 data before it is created and again in CI ([ADR 0009](docs/adr/0009-privacy-guardrails.md)).
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org). What is signed, who approves a signature and what the
+program sends where: [code signing policy](docs/code-signing-policy.md).
+
 ## Licence
 
 Copyright (C) 2026 ManuelStaggl and contributors.
