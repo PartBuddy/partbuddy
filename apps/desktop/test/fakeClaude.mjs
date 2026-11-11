@@ -323,6 +323,14 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a volume knob": a knob for a 6 mm D shaft, a part of its own, through PartBuddy's own block.
+    if (content.includes('a volume knob')) {
+      const built = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'knob', body: 'Volume', point: [0, 0, 0] } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "a wall plate": a plate standing upright, two keyholes on its back and two countersunk holes on its front, through PartBuddy's own blocks.
     if (content.includes('a wall plate')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 80, width: 8, height: 100, operation: 'new', body_name: 'Plate' } } });

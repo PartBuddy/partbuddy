@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { blockOf, wallOf, withBlockTool } from '../src/main/agents/blockTool';
+import { blockOf, knobOf, wallOf, withBlockTool } from '../src/main/agents/blockTool';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
+import { KNOB, knobProblem, knobSteps, type KnobSpec } from '../src/shared/knob';
 import { describeToolCall } from '../src/shared/stepPhrases';
 import { KEYHOLE, WALL, keyholeDepth, keyholeProblem, keyholeSteps, woodScrewSteps, type KeyholeSpec } from '../src/shared/wallMount';
 
@@ -50,6 +51,88 @@ describe('the function blocks for the assistant (standards)', () => {
     expect(describeToolCall('partbuddy_block', { block: 'keyhole', screw: 4.5 })).toEqual([{ key: 'keyhole', values: { screw: 4.5 } }]);
     expect(describeToolCall('partbuddy_block', { block: 'woodScrew' })).toEqual([{ key: 'woodScrewHole', values: { screw: 4 } }]);
     expect(describeToolCall('partbuddy_block', { block: 'insertSeat', body: 'Base' })).toEqual([{ key: 'blockByAssistant', values: { block: 'insertSeat', body: 'Base' } }]);
+  });
+});
+
+describe('a knob for a shaft (standards)', () => {
+  const knob: KnobSpec = { body: 'Knob', point: [0, 0, 0], axis: [0, 0, 1], toward: [0, 1, 0], shaft: 'd', shaftDiameter: 6, flat: 4.5, diameter: 25, height: 16, clearance: 0.2 };
+
+  it('builds the fluted body, the bore with the flat of a D shaft away from the pointer, the pointer and the print face', () => {
+    const steps = knobSteps(knob);
+    expect(steps.map((step) => [step.command, step.params.name ?? ''])).toEqual([
+      ['solid.cylinder', 'Knob'],
+      ['solid.cone', 'Knob ◢'],
+      ['solid.cylinder', 'Knob ◆'],
+      ['solid.pattern.circular', ''],
+      ['solid.cylinder', 'Knob ○'],
+      ['sketch.create', 'Knob ▬'],
+      ['sketch.line', ''],
+      ['solid.extrude', 'Knob ▬'],
+      ['sketch.create', 'Knob ▸'],
+      ['sketch.slot.center_to_center', ''],
+      ['solid.extrude', 'Knob ▸'],
+      ['body.print_face', ''],
+    ]);
+    expect(steps[0]?.params).toMatchObject({ diameter: '25 mm', height: '15.4 mm', operation: 'new', body_name: 'Knob' });
+    // Eleven flutes, one every 7 mm, stopping 2 mm under the top.
+    expect(steps[2]?.params).toMatchObject({ diameter: '3 mm', height: '14 mm', operation: 'cut' });
+    expect(steps[3]?.params).toMatchObject({ count: 11, axis: { origin: [0, 0, 0], dir: [0, 0, 1] } });
+    // The bore: the shaft and 0.2 mm, 11 mm deep under 5 mm of roof.
+    expect(steps[4]?.params).toMatchObject({ diameter: '6.2 mm', height: '11 mm', base: [0, 0, 0], operation: 'cut' });
+    // The flat over the bore's last 7 mm: sketch x runs to the pointer (+Y), and the flat lies at x = −(4.5 − 3 + 0.1).
+    expect(steps[5]?.params.plane).toEqual({ origin: [0, 0, 4], x_dir: [0, 1, 0], y_dir: [-1, 0, 0] });
+    expect(steps[6]?.params).toEqual({ points: [[-1.6, -3.1], [-1.6, 3.1], [-3.6, 3.1], [-3.6, -3.1]], closed: true });
+    expect(steps[7]?.params).toMatchObject({ distance: '7 mm', operation: 'join' });
+    // The pointer: a groove on the top from a third of the radius to the rim, towards +Y.
+    expect(steps[8]?.params.plane).toEqual({ origin: [0, 0, 16], x_dir: [-1, 0, 0], y_dir: [0, 1, 0] });
+    expect(steps[9]?.params).toEqual({ p0: [0, 4.375], p1: [0, 12.5], width: 1.2 });
+    expect(steps[10]?.params).toMatchObject({ distance: '0.6 mm', operation: 'cut' });
+    expect(steps[11]?.params).toEqual({ body: 'Knob', point: [0, 0, 16] });
+    expect(KNOB).toMatchObject({ roof: 3, wall: 2.4, insert: 11, flat: 7, setScrew: 2.6 });
+  });
+
+  it('gives a round shaft a set screw from the side away from the pointer, and a knurled one a plain bore', () => {
+    // A shaft along +X, the pointer up: the screw's hole starts outside the knob below it and runs up to the bore.
+    const round = knobSteps({ ...knob, point: [10, 5, 3], axis: [1, 0, 0], toward: [0, 0, 1], shaft: 'round', diameter: 20, height: 14 });
+    expect(round.map((step) => step.params.name ?? '')).toContain('Knob ⊙');
+    expect(round.find((step) => step.params.name === 'Knob ⊙')?.params).toMatchObject({ diameter: '2.6 mm', height: '11 mm', base: [15.5, 5, -8], axis: [0, 0, 1], operation: 'cut' });
+    const knurl = knobSteps({ ...knob, shaft: 'knurl', clearance: 0 });
+    expect(knurl.map((step) => step.command)).not.toContain('sketch.line');
+    expect(knurl[4]?.params).toMatchObject({ diameter: '6 mm' });
+  });
+
+  it('fills a knob in from the standard and refuses what cannot hold a shaft', () => {
+    const built = knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0] });
+    expect(built).toMatchObject({ body: 'Volume', fresh: true });
+    expect((built as { text: string }).text).toContain('Built the knob "Volume" for a 6 mm D shaft (flat at 4.5 mm): the bore is 6.2 mm wide and 11 mm deep, flat over its last 7 mm on the side away from the pointer, to push on. It is 25 mm wide and 16 mm high, with 11 flutes to grip');
+    expect((knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], shaft: 'knurl' }) as { text: string }).text).toContain('a plain bore 6 mm wide and 11 mm deep');
+    // A shaft along Y takes its pointer up.
+    expect((knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], normal: [0, 1, 0] }) as { steps: { params: { plane?: { y_dir: number[] } } }[] }).steps[8]?.params.plane?.y_dir).toEqual([0, 0, 1]);
+    expect(knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], shaftDiameter: 6.35 })).toBe("a D shaft of 6.35 mm has no one flat: give flat, the shaft's thickness there, as measured");
+    expect(knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], shaftDiameter: 6.35, flat: 5.54 })).toMatchObject({ body: 'Volume' });
+    expect(knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], diameter: 10 })).toBe('diameter must be 13–80 mm for a 6 mm shaft');
+    expect(knobOf({ block: 'knob', body: 'Volume', point: [0, 0, 0], height: 6 })).toContain('height must be 9–60 mm');
+    expect(knobProblem({ ...knob, toward: [0, 0, 2] })).toContain('must not run along normal');
+    expect(knobProblem({ ...knob, flat: 2 })).toContain('flat must be');
+    expect(knobOf({ block: 'keyhole', body: 'Plate', point: [0, 0, 0] })).toBeNull();
+  });
+
+  it('builds the knob as a new body, keeps its print face for the plate and refuses a name that is taken', async () => {
+    const kept: string[] = [];
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (_name, args) => {
+        const commands = args.commands as { command: string }[];
+        const reply = (step: { command: string }) => (step.command === 'component.list' ? { components: [{ id: 0, parent: null, bodies: ['Panel'] }] } : step.command === 'body.print_face' ? { body: 'Volume', face: 'face-7' } : {});
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map(reply) }) }] });
+      },
+    };
+    const tools = withBlockTool(upstream, (body, face) => kept.push(`${body}:${face}`));
+    expect(String((await tools.callTool('partbuddy_block', { block: 'knob', body: 'Volume', point: [0, 0, 0] })).content[0]?.text)).toContain('Built the knob "Volume"');
+    expect(kept).toEqual(['Volume:face-7']);
+    expect(await tools.callTool('partbuddy_block', { block: 'knob', body: 'Panel', point: [0, 0, 0] })).toMatchObject({ isError: true, content: [{ text: 'Not built: there is a body named Panel already; give the knob another name' }] });
+    expect(describeToolCall('partbuddy_block', { block: 'knob', body: 'Volume' })).toEqual([{ key: 'knob', values: { name: 'Volume' } }]);
   });
 });
 
