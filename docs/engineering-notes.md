@@ -185,6 +185,19 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   called `Body<n>` until `body.rename`. PartBuddy notes standard part bodies under
   `io.github.manuelstaggl.partbuddy.standard-parts`; export and the light leave them out.
 
+## SolidCraft 0.40.0-rc.4 (checked 2026-11-11)
+
+- PartBuddy's recommended version since 2026-11-11. The contract suite ran against it and against the
+  nightly 20261110.117.1 it contains; the nightly's own `solidcraft-cli --version` says `0.40.0-rc.3`,
+  so PartBuddy cannot tell that nightly from rc.3.
+- New since rc.3 and of use here: `joint.find_limits` (both ways in one call, also for a joint without
+  limits), `joint.sweep` with `budget_s` and `exclude_pairs` and a `stopped_by` of `"budget"` (read as
+  run through by `sweepStopOf`), `motion.export_animation`, countersunk screws (ISO 10642) in
+  `parts.insert`, a counterbore sized to the screw's head in `solid.hole`, a thumbnail in 3MF, flat
+  faces meshed as their boundary (a box has 12 triangles, not 124).
+- `joint.gear {a, b, ra, rb}` links two revolute joints (`joint.list` → `links: [{a, b, ratio, offset}]`);
+  driving the follower is held. There is still no command that makes gear teeth.
+
 ## Joints and motion (0.40.0-rc.3, checked 2026-11-10)
 
 - `component.from_bodies {bodies}` makes one component per body; the first is grounded, the

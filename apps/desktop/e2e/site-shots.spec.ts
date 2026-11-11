@@ -95,9 +95,9 @@ test('website pictures', async () => {
   const board = join(work, 'Circuit board.step');
   writeFileSync(join(work, 'board.json'), JSON.stringify({ commands: [...BOARD, { command: 'file.export', params: { path: board, format: 'step' } }] }));
   execFileSync(CLI, ['run', join(work, 'board.json'), '--quiet'], { stdio: ['ignore', 'ignore', 'inherit'] });
-  // The SolidCraft the app is tested on (0.40.0-rc.3, see the release notes), not the installed 0.30.1:
+  // The SolidCraft the app is tested on (0.40.0-rc.4, see the release notes), not the installed 0.30.1:
   // the templates need it. SOLIDCRAFT_EXE names it, else the portable copy in ~/.partbuddy.
-  const solidcraft = process.env.SOLIDCRAFT_EXE ?? join(homedir(), '.partbuddy', 'solidcraft-0.40.0-rc.3', 'app', 'solidcraft-0.40.0-rc.3-windows-x64-portable', 'solidcraft.exe');
+  const solidcraft = process.env.SOLIDCRAFT_EXE ?? join(homedir(), '.partbuddy', 'solidcraft-0.40.0-rc.4', 'solidcraft-0.40.0-rc.4-windows-x64-portable', 'solidcraft.exe');
   if (existsSync(solidcraft)) {
     mkdirSync(join(work, 'profile'), { recursive: true });
     writeFileSync(join(work, 'profile', 'solidcraft-settings.json'), JSON.stringify({ path: solidcraft }));

@@ -20,7 +20,7 @@ type Step = (typeof STEPS)[number];
  * PartBuddy recommends (RECOMMENDED_VERSION), not the list: while 0.40 is a pre-release, the list
  * marks 0.30.1 as "Latest".
  */
-const SOLIDCRAFT_DOWNLOAD = 'https://github.com/tangency-labs/solidcraft/releases/tag/v0.40.0-rc.3';
+const SOLIDCRAFT_DOWNLOAD = 'https://github.com/tangency-labs/solidcraft/releases/tag/v0.40.0-rc.4';
 
 /**
  * The first start (plan step B9): a short setup in four steps that can be skipped at any point,
