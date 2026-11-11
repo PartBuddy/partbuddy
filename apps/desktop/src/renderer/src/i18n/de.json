@@ -1232,21 +1232,25 @@
           "name": "Dose mit Scharnier",
           "body": "Zwei Hälften am Scharnier, in einem Stück gedruckt. Unter „Bewegliche Teile“ klappt sie zu."
         },
+        "slideStop": {
+          "name": "Verstellbarer Anschlag",
+          "body": "Ein Anschlag, der auf einer Schwalbenschwanz-Schiene fährt und mit einer Schraube geklemmt wird, für Werkbank oder Bohrständer."
+        },
+        "crankWheels": {
+          "name": "Räder mit Kurbel",
+          "body": "Zwei Räder, gekoppelt wie Zahnräder: An der Kurbel gedreht, läuft das kleine mit. Ausgangspunkt für ein Getriebe."
+        },
+        "sign": {
+          "name": "Schild mit Text",
+          "body": "Ein Schild zum Anschrauben. Der Text ist ein Parameter: einfach den eigenen eintippen."
+        },
         "housing": {
           "name": "Gehäuse",
-          "body": "Für Elektronik: Schraubdome für M3-Einschmelzmuttern und ein Deckel mit Schraublöchern."
+          "body": "Für Elektronik: Dome für M3-Einschmelzmuttern, Deckel mit vier M3-Schrauben, Lüftungsschlitze. „Montage“ und „Druckplatte“ zeigen Zusammenbau und Druck."
         },
         "wallHolder": {
           "name": "Wandhalter",
           "body": "Ein Haken für die Wand mit zwei Senkbohrungen."
-        },
-        "cableClip": {
-          "name": "Kabelclip",
-          "body": "Rastet um ein Kabel und wird mit einer M3-Schraube festgeschraubt."
-        },
-        "adapter": {
-          "name": "Rohradapter",
-          "body": "Verbindet zwei Rohre oder Schläuche mit verschiedenem Durchmesser."
         }
       },
       "building": "Wird gebaut …"

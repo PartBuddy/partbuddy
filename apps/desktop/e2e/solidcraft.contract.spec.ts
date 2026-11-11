@@ -2108,17 +2108,17 @@ test('a template from the start page becomes a project whose sizes are its param
   const home = page.getByTestId('home-page');
   try {
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
-    await expect(home.getByTestId('home-template')).toHaveCount(5);
+    await expect(home.getByTestId('home-template')).toHaveCount(6);
     await page.screenshot({ path: test.info().outputPath('home-templates.png') });
     await home.locator('[data-template="housing"]').click();
     // While SolidCraft builds it, its tile says so and the other templates wait (audit P-02).
     await expect(home.locator('[data-template="housing"]')).toHaveAttribute('data-building', 'true');
     await expect(home.locator('[data-template="housing"]').getByRole('progressbar')).toBeVisible();
-    await expect(home.locator('[data-template="adapter"]')).toBeDisabled();
+    await expect(home.locator('[data-template="sign"]')).toBeDisabled();
     await page.screenshot({ path: test.info().outputPath('home-template-building.png') });
     await expect(home).toHaveCount(0, { timeout: 30_000 });
     await expect(page.getByTestId('design-name')).toHaveText('Housing', { timeout: 30_000 });
-    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('6 bodies', { timeout: 30_000 });
     expect(existsSync(join(projects, 'Housing', 'Housing.sc'))).toBe(true);
     // Its sizes are parameters, each with what it means, and the light finds nothing to block.
     const parameters = page.getByTestId('parameter');
@@ -2134,14 +2134,19 @@ test('a template from the start page becomes a project whose sizes are its param
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="ok"]').first()).toBeVisible();
     await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });
+    await page.getByTestId('print-check').click();
+    // Assembled, the lid lies on the housing: the light says so, and nothing else.
+    await expect(page.getByTestId('print-check-panel')).toContainText('Housing and Lid touch but are separate bodies');
     await page.screenshot({ path: test.info().outputPath('template-housing.png') });
+    await page.keyboard.press('Escape');
 
     // Every other template builds as well.
     for (const [id, name, bodies] of [
       ['hingedBox', 'Hinged box', '2 bodies'],
       ['wallHolder', 'Wall holder', '1 body'],
-      ['cableClip', 'Cable clip', '1 body'],
-      ['adapter', 'Tube adapter', '1 body'],
+      ['slideStop', 'Adjustable stop', '2 bodies'],
+      ['crankWheels', 'Wheels with crank', '3 bodies'],
+      ['sign', 'Sign with text', '1 body'],
     ] as const) {
       await page.getByTestId('home-button').click();
       await home.locator(`[data-template="${id}"]`).click();
@@ -2150,9 +2155,33 @@ test('a template from the start page becomes a project whose sizes are its param
       await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });
       await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
       await page.screenshot({ path: test.info().outputPath(`template-${id}.png`) });
+      if (id === 'slideStop') {
+        // The stop came joined as a slider that stays on its rail.
+        // The panel stays open from one project to the next.
+        if (!(await page.getByTestId('joint-panel').isVisible())) await page.getByTestId('joints').click({ timeout: 30_000 });
+        const guide = page.getByTestId('joint-panel').getByRole('slider', { name: 'Guide' });
+        await expect(guide).toHaveAttribute('min', '-45');
+        await expect(guide).toHaveAttribute('max', '45');
+        await page.getByTestId('print-check').click();
+        await expect(page.getByTestId('print-check-panel').locator('[data-kind="blocked"]')).toHaveCount(0);
+        await page.screenshot({ path: test.info().outputPath('template-slideStop-check.png') });
+        await page.keyboard.press('Escape');
+      }
+      if (id === 'crankWheels') {
+        // The small wheel follows the crank and has no handle of its own.
+        // The panel stays open from one project to the next.
+        if (!(await page.getByTestId('joint-panel').isVisible())) await page.getByTestId('joints').click({ timeout: 30_000 });
+        const panel = page.getByTestId('joint-panel');
+        await expect(panel.getByRole('slider', { name: 'Crank', exact: true })).toBeEnabled();
+        await expect(panel.getByRole('slider', { name: 'Small axle (follows Crank)' })).toBeDisabled();
+        await page.getByTestId('print-check').click();
+        await expect(page.getByTestId('print-check-panel').locator('[data-kind="blocked"]')).toHaveCount(0);
+        await page.screenshot({ path: test.info().outputPath('template-crankWheels-check.png') });
+        await page.keyboard.press('Escape');
+      }
       if (id !== 'hingedBox') continue;
       // The hinge came joined: it turns up to where the latch meets the box, and the light's sweep finds nothing before that.
-      await page.getByTestId('joints').click({ timeout: 30_000 });
+      if (!(await page.getByTestId('joint-panel').isVisible())) await page.getByTestId('joints').click({ timeout: 30_000 });
       const slider = page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' });
       await expect(slider).toHaveAttribute('max', '177');
       await page.getByTestId('print-check').click();
@@ -2294,8 +2323,9 @@ test('a sharing package holds 3MF, STEP, four pictures and a description of the 
   try {
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByTestId('home-page').locator('[data-template="housing"]').click();
-    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
-    await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'ready', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('6 bodies', { timeout: 30_000 });
+    // The lid lying on the housing is the light's one warning.
+    await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'warn', { timeout: 30_000 });
     await page.getByTestId('export').click();
     await page.getByTestId('export-share').click();
     await expect(page.getByText(/Sharing package saved in exports\\Housing share \d{4}-\d{2}-\d{2}/)).toBeVisible({ timeout: 60_000 });
@@ -2344,7 +2374,7 @@ test('a sent sketch is kept in the project, opens again, and a photo goes under 
     const home = page.getByTestId('home-page');
     await home.locator('[data-template="housing"]').click();
     await expect(home).toHaveCount(0, { timeout: 30_000 });
-    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('6 bodies', { timeout: 30_000 });
     await page.getByTestId('composer-sketch-open').click();
     const pad = page.getByTestId('sketch-pad');
     const canvas = pad.getByTestId('sketch-canvas');
@@ -2423,7 +2453,7 @@ test('a photo goes to the assistant as a picture with its note and is kept in th
     const home = page.getByTestId('home-page');
     await home.locator('[data-template="housing"]').click();
     await expect(home).toHaveCount(0, { timeout: 30_000 });
-    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('6 bodies', { timeout: 30_000 });
     // Any photo will do; a template picture stands in for one.
     await page.getByTestId('composer-photo-input').setInputFiles(join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', 'housing.png'));
     await expect(page.getByTestId('composer-photo')).toBeVisible();
@@ -2443,12 +2473,12 @@ test('a photo goes to the assistant as a picture with its note and is kept in th
     await page.screenshot({ path: test.info().outputPath('photo-sent.png') });
 
     // Several photos go along with one message, each kept in the project and shown in the chat.
-    const pictures = ['housing', 'cableClip'].map((name) => join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', `${name}.png`));
+    const pictures = ['housing', 'wallHolder'].map((name) => join(__dirname, '..', 'src', 'renderer', 'src', 'home', 'templates', `${name}.png`));
     await page.getByTestId('composer-photo-input').setInputFiles(pictures);
     await expect(page.getByTestId('composer-photo')).toHaveCount(2);
     // In the order they were chosen, though each is read on its own.
     await expect(page.getByTestId('composer-photo').nth(0)).toContainText('housing.png');
-    await expect(page.getByTestId('composer-photo').nth(1)).toContainText('cableClip.png');
+    await expect(page.getByTestId('composer-photo').nth(1)).toContainText('wallHolder.png');
     await page.getByTestId('composer').getByRole('textbox').first().fill('Both sides of the object');
     await page.getByTestId('composer-send').click();
     await expect(page.getByTestId('composer-stop')).toBeHidden({ timeout: 60_000 });
@@ -2482,7 +2512,7 @@ test('the exploded view pulls the parts of a print apart for looking (F7)', asyn
   try {
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByTestId('home-page').locator('[data-template="housing"]').click();
-    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('6 bodies', { timeout: 30_000 });
     const viewport = page.getByTestId('viewport');
     await page.waitForTimeout(1_000);
     const assembled = await viewport.screenshot();

@@ -4,7 +4,7 @@ import { templateRequestSchema } from '../src/shared/contract';
 import { TEMPLATE_IDS, germanFeatureName, templateSteps } from '../src/shared/templates';
 
 /** The geometry fields whose text is an expression over the design's parameters. */
-const EXPRESSION_FIELDS = new Set(['length', 'width', 'height', 'diameter', 'thickness', 'depth', 'corner', 'base', 'position', 'center', 'points', 'point', 'distance', 'cs_diameter', 'radius']);
+const EXPRESSION_FIELDS = new Set(['length', 'width', 'height', 'diameter', 'thickness', 'depth', 'corner', 'base', 'position', 'center', 'points', 'point', 'distance', 'cs_diameter', 'radius', 'text_expression', 'offset', 'ra', 'rb']);
 
 function expressions(value: unknown): string[] {
   if (typeof value === 'string') return [value];
@@ -71,7 +71,8 @@ describe('templates (F3)', () => {
     const housing = templateSteps('housing', true);
     expect(housing.flatMap((step) => (typeof step.params.body_name === 'string' ? [step.params.body_name] : []))).toEqual(['Gehäuse', 'Deckel']);
     const targets = (step: (typeof housing)[number]): unknown[] => (Array.isArray(step.params.targets) ? (step.params.targets as unknown[]) : []);
-    const named = housing.flatMap((step) => [step.params.body, ...targets(step)]).filter((name) => typeof name === 'string');
+    // The screws' bodies are renamed from the names SolidCraft gave them (Body1 …), which are no bodies of the template.
+    const named = housing.flatMap((step) => (step.command === 'body.rename' ? [] : [step.params.body, ...targets(step)])).filter((name) => typeof name === 'string');
     expect(new Set(named)).toEqual(new Set(['Gehäuse', 'Deckel']));
     expect(templateSteps('housing').some((step) => step.params.body_name === 'Housing')).toBe(true);
   });
@@ -108,6 +109,27 @@ describe('templates with moving parts', () => {
       for (const step of knuckles) expect(step.params.base).toEqual([expect.stringMatching(/^length \/ 2 \+ -?[\d.]+ mm$/), 0.5, 'height']);
     }
     expect(germanFeatureName('Hinge 2 ·')).toBe('Scharnier 2 ·');
+  });
+
+  it('joins the stop as a slider and couples the wheels by their radii, by name in either language', () => {
+    for (const [german, base, stop, guide] of [[false, 'Base', 'Stop', 'Guide'], [true, 'Grundplatte', 'Anschlag', 'Führung']] as const) {
+      const slider = templateSteps('slideStop', german).find((step) => step.command === 'joint.as_built')?.params as { a: string; b: string; at: { occurrence: string }; name: string };
+      expect([slider.a, slider.b, slider.at.occurrence, slider.name]).toEqual([base, stop, base, guide]);
+    }
+    // The rail and its groove are as long as the base.
+    expect(templateSteps('slideStop').filter((step) => step.command === 'solid.extrude').map((step) => step.params.distance)).toEqual(['length', 'length']);
+    for (const [german, crank, axle] of [[false, 'Crank', 'Small axle'], [true, 'Kurbel', 'Kleine Achse']] as const) {
+      const steps = templateSteps('crankWheels', german);
+      expect(steps.filter((step) => step.command === 'joint.create').map((step) => step.params.name)).toEqual([crank, axle]);
+      expect(steps.find((step) => step.command === 'joint.gear')?.params).toEqual({ a: crank, b: axle, ra: 'large / 2', rb: 'small / 2' });
+    }
+  });
+
+  it('seats the housing\'s screws as standard parts on the lid, and words the sign from its text parameter', () => {
+    // One part per hole, each body named, so the view shows all four.
+    expect(templateSteps('housing').filter((step) => step.command === 'parts.insert')).toHaveLength(4);
+    expect(templateSteps('housing', true).filter((step) => step.command === 'body.rename').map((step) => step.params.name)).toEqual([1, 2, 3, 4].map((n) => `M3-Schraube ${String(n)}`));
+    expect(templateSteps('sign').find((step) => step.command === 'sketch.text')?.params.text_expression).toBe('label');
     expect(germanFeatureName('Hinge ●')).toBe('Scharnier ●');
   });
 });
