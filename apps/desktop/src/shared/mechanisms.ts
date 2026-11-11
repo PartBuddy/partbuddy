@@ -5,6 +5,8 @@
  * in the tool (`mechanismTool.ts`).
  */
 
+import { CAP_HEAD, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, type BlockSize } from './screwSizes';
+
 type Vec3 = [number, number, number];
 type Step = { command: string; params: Record<string, unknown> };
 
@@ -337,3 +339,111 @@ export function lipSteps(spec: LipSpec): Step[] {
     },
   ];
 }
+
+export interface ScrewSpec {
+  /** The body the screw is screwed into: it gets the seat for the insert, or the thread. */
+  fixed: string;
+  /** The body the screw holds down: it gets the clearance hole and the room for the head. */
+  moving: string;
+  /** Where the screw goes in: on the outer face of the moving body. */
+  from: Vec3;
+  /** Where its line passes from the moving body into the fixed one: on the face the two meet at. */
+  to: Vec3;
+  /** Further screws like this one: where each goes in. They run the same way and hold the same thickness. */
+  more: Vec3[];
+  size: BlockSize;
+  /** The head: sunk in a counterbore (socket head), in a countersink, or lying on the face. */
+  head: 'cap' | 'countersunk' | 'none';
+  /** What holds the screw: a heat-set insert (the usual for printed parts), or a thread modelled into the plastic. */
+  thread: 'insert' | 'tapped';
+  /** Whether the screws go in as standard parts, for the parts list and the assembly. */
+  screws: boolean;
+  name: string;
+}
+
+/** Lengths screws are sold in, ISO 4762 and ISO 10642, in mm. */
+const SCREW_LENGTHS = [4, 5, 6, 8, 10, 12, 16, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80];
+/** A modelled thread holds from about M5 in print; smaller ones strip. */
+const TAPPED_FROM = 5;
+/** Plastic left under a sunk head, in mm: three layers and more. */
+const UNDER_HEAD = 1.2;
+
+const grip = (spec: ScrewSpec) => Math.hypot(...spec.to.map((value, i) => value - (spec.from[i] ?? 0)));
+const metric = (size: BlockSize) => Number(size.slice(1));
+/** How deep the head sits in the moving body. */
+const headDepth = (spec: ScrewSpec) => (spec.head === 'cap' ? CAP_HEAD[spec.size][1] + HEAD_ALLOWANCE.depth : spec.head === 'countersunk' ? metric(spec.size) * 0.6 : 0);
+/** How deep the screw may reach into the fixed body: the insert, or 2.5 diameters of thread. */
+const hold = (spec: ScrewSpec) => (spec.thread === 'insert' ? (INSERT[spec.size]?.length ?? 0) : metric(spec.size) * 2.5);
+
+/** The screw to buy: the longest standard length that ends inside the insert or thread, and holds at least two thirds of it. */
+export function screwLength(spec: ScrewSpec): number | null {
+  // A socket head's length counts from under the head, a countersunk one's from its top.
+  const through = grip(spec) - (spec.head === 'cap' ? headDepth(spec) : 0);
+  const fits = SCREW_LENGTHS.filter((length) => length <= through + hold(spec) && length >= through + (hold(spec) * 2) / 3);
+  return fits.at(-1) ?? null;
+}
+
+/** What is wrong with a screw joint before anything is built; null when it can be built. */
+export function screwProblem(spec: ScrewSpec): string | null {
+  if (spec.fixed === spec.moving) return 'fixed and moving must be two bodies';
+  if (grip(spec) < 1) return 'from and to must be at least 1 mm apart: from where the screw goes in, to where it passes into the fixed body';
+  if (spec.thread === 'insert' && !INSERT[spec.size]) return `there is no heat-set insert for ${spec.size} in the table (M2 to M6); use thread tapped or another size`;
+  if (spec.thread === 'tapped' && metric(spec.size) < TAPPED_FROM) return `a printed ${spec.size} thread strips; use thread insert, or M${String(TAPPED_FROM)} and larger`;
+  if (spec.head === 'countersunk' && metric(spec.size) < 3) return 'countersunk screws start at M3';
+  const left = grip(spec) - headDepth(spec);
+  if (left < UNDER_HEAD) return `the moving body is ${String(round(grip(spec)))} mm thick there, which leaves ${String(round(left))} mm under the ${spec.head === 'cap' ? 'counterbore' : 'countersink'}; make it at least ${String(round(headDepth(spec) + UNDER_HEAD))} mm thick, or use head none`;
+  if (spec.more.length > 40) return 'at most 40 further screws';
+  return null;
+}
+
+/**
+ * The holes of a screw joint, one set per screw: in the moving body a clearance hole (ISO 273, normal) with the
+ * room for the head, drilled only as deep as that body is thick; in the fixed body, on the same line, the seat of a
+ * heat-set insert (a millimetre deeper than the insert, for the plastic it pushes down) or a modelled thread. With
+ * `screws` the screws themselves follow as standard parts, each seated in its hole.
+ */
+export function screwSteps(spec: ScrewSpec): Step[] {
+  const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
+  const direction = delta.map((value) => round(value / grip(spec))) as Vec3;
+  const mm = (value: number) => `${String(round(value))} mm`;
+  const insert = INSERT[spec.size];
+  const length = screwLength(spec);
+  const family = spec.head === 'countersunk' ? 'countersunk_socket_screw' : 'socket_head_cap_screw';
+  const entries = [spec.from, ...spec.more].map((entry) => entry.map(round) as Vec3);
+  const holes = entries.flatMap((entry, i): Step[] => {
+    const meet = entry.map((value, k) => round(value + (delta[k] ?? 0))) as Vec3;
+    const label = `${spec.name} ${String(i + 1)}`;
+    return [
+      { command: 'solid.hole', params: { position: entry, clearance: spec.size, fit: 'normal', ...headRoom(spec), direction, depth: mm(grip(spec)), targets: [spec.moving], name: label } },
+      {
+        command: 'solid.hole',
+        params:
+          spec.thread === 'insert' && insert
+            ? { position: meet, direction, diameter: mm(insert.diameter), depth: mm(insert.length + 1), targets: [spec.fixed], name: `${label} ○` }
+            : { position: meet, direction, thread: spec.size, modeled: true, depth: mm(hold(spec) + 1), targets: [spec.fixed], name: `${label} ○` },
+      },
+    ];
+  });
+  if (!spec.screws || length === null) return holes;
+  // Each put where it sits, head outwards: a socket head on the floor of its counterbore, a countersunk head flush with
+  // the face. (Seated by a pick on the hole, SolidCraft 0.40.0-rc.4 turns the screw in from the far side.) The screws
+  // come after every hole, so they belong to the design and not to a body's component.
+  // Plus zero: no negative zero in what goes to SolidCraft.
+  const outwards = direction.map((value) => round(-value) + 0);
+  return [
+    ...holes,
+    ...entries.map((entry) => ({
+      command: 'parts.insert',
+      params: { family, size: spec.size, length, point: entry.map((value, k) => round(value + (direction[k] ?? 0) * (spec.head === 'cap' ? headDepth(spec) : 0))), direction: outwards },
+    })),
+  ];
+}
+
+/** The room for the head, as the function block for a screw hole makes it: a counterbore or a countersink with the allowance of a printed hole. */
+function headRoom(spec: ScrewSpec): Record<string, unknown> {
+  const mm = (value: number) => `${String(round(value))} mm`;
+  if (spec.head === 'cap') return { type: 'counterbore', cb_diameter: mm(CAP_HEAD[spec.size][0] + 2 * HEAD_ALLOWANCE.diameter), cb_depth: mm(CAP_HEAD[spec.size][1] + HEAD_ALLOWANCE.depth) };
+  if (spec.head === 'countersunk') return { type: 'countersink', cs_diameter: mm((COUNTERSUNK_HEAD[spec.size] ?? CAP_HEAD[spec.size][0]) + HEAD_ALLOWANCE.diameter), cs_angle: '90 deg' };
+  return {};
+}
+

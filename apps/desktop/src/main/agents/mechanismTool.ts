@@ -1,4 +1,5 @@
-import { LIP, hingeProblem, hingeSteps, lipProblem, lipSteps, pinDiameter, slideProblem, slideSteps, type HingeSpec, type LipSpec, type SlideSpec } from '../../shared/mechanisms';
+import { LIP, hingeProblem, hingeSteps, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, type HingeSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../../shared/mechanisms';
+import { BLOCK_SIZES, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
@@ -24,11 +25,13 @@ const mechanismTool: UpstreamTool = {
     'closure: a snap closure between a lid and its box, nothing standing out: a lip inside the lid that goes into the box along its wall and centres the lid, a bead that snaps into a rille of the box\'s wall, and a notch for a fingernail. ' +
     'Give from and to as opposite corners of the lid\'s inner room at its rim (both at the rim\'s height), up as the way the lip stands out of the lid (+Z when the lid lies open side up, -Z when it sits on the box), wall and radius of the lid, and the side with the catch (a long wall, opposite the hinge). ' +
     'When the lid is built open beside the box and closes on a hinge, give the hinge line too (hinge_from, hinge_to), so the rille lands where the bead closes. It makes no joint. ' +
-    'Use this instead of modelling a hinge, a guide or a snap lid yourself.',
+    'screw: one or more screws that hold the moving body on the fixed one: a clearance hole with the room for the head in the moving body, and on the same line the seat of a heat-set insert (or a modelled thread from M5) in the fixed body; the screws go in as standard parts. ' +
+    'Give from where the screw goes in (on the outer face of the moving body) and to where its line passes into the fixed body (on the face the two meet at); more lists where further screws of the same kind go in. ' +
+    'Use this instead of modelling a hinge, a guide, a snap lid or the holes of a screw joint yourself.',
   inputSchema: {
     type: 'object',
     properties: {
-      kind: { type: 'string', enum: ['hinge', 'slide', 'closure'], description: 'hinge: turns about a line; slide: moves along a line; closure: a lid snaps shut on its box.' },
+      kind: { type: 'string', enum: ['hinge', 'slide', 'closure', 'screw'], description: 'hinge: turns about a line; slide: moves along a line; closure: a lid snaps shut on its box; screw: one body screwed onto the other.' },
       fixed: { type: 'string', description: 'The body that stays (exact name); it carries the pin or the rail. closure: the box.' },
       moving: { type: 'string', description: 'The body that moves (exact name). closure: the lid.' },
       from: { ...vector, description: 'One end of the line in mm. closure: one corner of the lid\'s inner room at its rim.' },
@@ -37,6 +40,11 @@ const mechanismTool: UpstreamTool = {
       side: { type: 'string', enum: ['x-', 'x+', 'y-', 'y+'], description: 'closure: the wall of the lid\'s inner room with the catch and the notch.' },
       wall: { type: 'number', minimum: 1.6, maximum: 10, description: 'closure: the lid\'s wall thickness in mm; default 2.' },
       radius: { type: 'number', minimum: 0, maximum: 100, description: 'closure: the radius of the inner room\'s corners in mm; default 0 (sharp).' },
+      size: { type: 'string', enum: [...BLOCK_SIZES], description: 'screw: the screw; default M3.' },
+      head: { type: 'string', enum: ['cap', 'countersunk', 'none'], description: 'screw: socket head sunk in a counterbore (default), countersunk head, or a head lying on the face.' },
+      thread: { type: 'string', enum: ['insert', 'tapped'], description: 'screw: a heat-set insert (default, M2 to M6) or a thread modelled into the plastic (M5 and larger).' },
+      more: { type: 'array', items: vector, maxItems: 40, description: 'screw: where further screws like this one go in; they run the same way through the same thickness.' },
+      screws: { type: 'boolean', description: 'screw: put the screws in as standard parts; default true.' },
       hinge_from: { ...vector, description: 'closure: one end of the hinge line the lid closes about, when it is built open.' },
       hinge_to: { ...vector, description: 'closure: the other end of that line; it runs along X or along Y.' },
       diameter: { type: 'number', minimum: 4, maximum: 40, description: 'hinge: outer diameter of the barrel in mm; default 6. The pin is half of it.' },
@@ -151,6 +159,22 @@ export function lipOf(args: Record<string, unknown>): LipSpec | string {
     name: base.name,
   };
   return lipProblem(spec) ?? spec;
+}
+
+/** The screw joint the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
+export function screwOf(args: Record<string, unknown>): ScrewSpec | string {
+  const base = common(args, 0.4, 'Screw');
+  if (typeof base === 'string') return base;
+  const size = args.size === undefined ? 'M3' : args.size;
+  if (typeof size !== 'string' || !(BLOCK_SIZES as readonly string[]).includes(size)) return `size must be one of ${BLOCK_SIZES.join(', ')}`;
+  const head = args.head === undefined ? 'cap' : args.head;
+  if (head !== 'cap' && head !== 'countersunk' && head !== 'none') return 'head must be cap, countersunk or none';
+  const thread = args.thread === undefined ? 'insert' : args.thread;
+  if (thread !== 'insert' && thread !== 'tapped') return 'thread must be insert or tapped';
+  const more = args.more === undefined ? [] : Array.isArray(args.more) ? args.more.map(vec3) : null;
+  if (!more || more.some((point) => point === null)) return 'more must be a list of points, each three numbers';
+  const spec: ScrewSpec = { fixed: base.fixed, moving: base.moving, from: base.from, to: base.to, more: more as Vec3[], size: size as BlockSize, head, thread, screws: args.screws !== false, name: base.name };
+  return screwProblem(spec) ?? spec;
 }
 
 /** The occurrence that places a body, from `component.list`; null while the body is still in the design itself. */
@@ -336,7 +360,23 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
       `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(LIP.thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch in the lid's rim to open it. It makes no joint and needs no room outside the box. Keep the box's wall straight and at least 1.6 mm thick where the lip goes in.${warnings}`
     );
   }
-  throw new Error('kind must be hinge, slide or closure');
+  if (args.kind === 'screw') {
+    const spec = screwOf(args);
+    if (typeof spec === 'string') throw new Error(spec);
+    const warnings = await build(upstream, run, spec, screwSteps(spec), `Give from on the outer face of ${spec.moving} and to on the face where it meets ${spec.fixed}.`, callId);
+    const count = spec.more.length + 1;
+    const length = screwLength(spec);
+    const insert = INSERT[spec.size];
+    const screw = spec.head === 'countersunk' ? 'countersunk screws (ISO 10642)' : 'socket head cap screws (ISO 4762)';
+    return (
+      `Built ${String(count)} screw joint${count > 1 ? 's' : ''} "${spec.name}" that hold${count > 1 ? '' : 's'} ${spec.moving} on ${spec.fixed}: in ${spec.moving} a clearance hole for ${spec.size} (ISO 273, normal)` +
+      `${spec.head === 'cap' ? ' with a counterbore for the head' : spec.head === 'countersunk' ? ' with a 90° countersink' : ''}, in ${spec.fixed} ` +
+      `${spec.thread === 'insert' && insert ? `the seat of a heat-set insert (${String(insert.diameter)} mm wide, ${String(insert.length + 1)} mm deep)` : 'a modelled thread'}. ` +
+      `${length === null ? 'No standard screw length ends inside the thread at this thickness, so no screws were put in: choose the length yourself.' : `To buy: ${String(count)} × ${spec.size}×${String(length)} ${screw}${spec.thread === 'insert' && insert ? ` and ${String(count)} ${spec.size} heat-set inserts ${String(insert.length)} mm long` : ''}${spec.screws ? '; the screws are in the design as standard parts' : ''}.`} ` +
+      `${spec.thread === 'insert' ? 'Leave at least 2 mm of plastic around each insert (a boss where the wall is thinner).' : ''}${warnings}`
+    );
+  }
+  throw new Error('kind must be hinge, slide, closure or screw');
 }
 
 /** The upstream tools plus `partbuddy_mechanism`; `nozzle` is the printer's nozzle in use, for the default gap. */
@@ -356,4 +396,4 @@ export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number)
 }
 
 /** Added to the role prompt of every route, after the joint guidance. */
-export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the print-in-place geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through.`;
+export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the print-in-place geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through. For parts that are screwed together (a lid on a housing, a bracket on a base, a cover) call it with kind screw instead of drilling the holes yourself: it sizes the clearance hole, the room for the head and the seat of the heat-set insert, and says which screws to buy.`;
