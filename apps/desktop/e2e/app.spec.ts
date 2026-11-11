@@ -793,7 +793,15 @@ test('a gear\'s mate follows its driver in the panel, the playback and what is k
   await panel.getByTestId('joint-play').click();
   await expect.poll(async () => Math.abs(await shown('Small axle')()), { timeout: 30_000 }).toBeGreaterThan(10);
   await panel.getByTestId('joint-play').click();
-  const driver = await shown('Small axle')();
+  // The pause takes a frame: read the position once it stands (found 2026-11-11: read 39.2, kept 39.1).
+  let driver = Number.NaN;
+  await expect
+    .poll(async () => {
+      const before = driver;
+      driver = await shown('Small axle')();
+      return driver === before;
+    })
+    .toBe(true);
   expect(await shown('Large axle (follows Small axle)')()).toBeCloseTo(-0.5 * driver, 1);
   await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('gear-paused.png') });
   expect(fake.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);

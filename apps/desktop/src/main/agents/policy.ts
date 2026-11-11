@@ -44,6 +44,8 @@ const ALLOWED = new Set([
   'partbuddy_mechanism',
   // Builds a function block or a wall mounting from the standard tables (blockTool.ts), answered by PartBuddy.
   'partbuddy_block',
+  // The rules and sizes for a kind of part (standardTool.ts), answered by PartBuddy; it builds nothing.
+  'partbuddy_standard',
 ]);
 
 /**
