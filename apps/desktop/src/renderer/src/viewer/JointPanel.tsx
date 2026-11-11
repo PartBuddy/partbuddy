@@ -11,7 +11,7 @@ import { Button, IconButton } from '../ui/Button';
 import { segmentClass, segmentGroupClass, SliderBar } from '../ui/Choice';
 import { Tip } from '../ui/Tooltip';
 import { canRecord, recordView, type Recording, type RecordingFault } from './recording';
-import { playRange, playStep, TRAVEL_SECONDS, type JointPreview } from './jointPose';
+import { playRange, playStep, TRAVEL_SECONDS, withFollowers, type JointPreview } from './jointPose';
 
 type JointValue = Joint['values'][number];
 type PlayMode = 'bounce' | 'loop';
@@ -34,10 +34,10 @@ export function jointRange(value: JointValue): [number, number] {
   return [Math.min(value.limits?.[0] ?? -open, value.value), Math.max(value.limits?.[1] ?? open, value.value)];
 }
 
-/** A joint value that can play: the mirror gave its joint an axis, so its bodies move in the view, and it has a way to go. */
+/** A joint value that can play: the mirror gave its joint an axis, so its bodies move in the view, it has a way to go, and it is no follower of another value (a gear's mate moves with its driver). */
 export function playableValues(joints: Joint[]): { key: string; joint: Joint; index: number; value: JointValue; range: [number, number] }[] {
   return joints.flatMap((joint) =>
-    joint.axis && joint.origin ? joint.values.map((value, index) => ({ key: keyOf(joint.id, index), joint, index, value, range: jointRange(value) })).filter((entry) => entry.range[1] > entry.range[0]) : [],
+    joint.axis && joint.origin ? joint.values.map((value, index) => ({ key: keyOf(joint.id, index), joint, index, value, range: jointRange(value) })).filter((entry) => entry.range[1] > entry.range[0] && !entry.value.follows) : [],
   );
 }
 
@@ -49,6 +49,9 @@ export function playableValues(joints: Joint[]): { key: string; joint: Joint; in
  * shows them, and the design is as it was. "Keep this position" drives the joints there in
  * SolidCraft, as letting go of a slider does; "As designed" puts everything back. Closing the panel
  * leaves the joints where the mirror has them.
+ *
+ * A value that follows another through a motion link (a gear's mate) shows where its driver puts it and
+ * has no handle of its own: SolidCraft holds it when it is driven.
  *
  * Several joints play one after the other by default: each goes there and back while the others
  * stand, which is the way the check ran them (`joint.sweep` moves one joint at a time). So where the
@@ -88,6 +91,8 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
   }, [check]);
   const preview = useStudio((s) => s.jointPreview);
   const setPreview = useStudio((s) => s.setJointPreview);
+  /** What the view shows: the previews and the values that follow them. */
+  const shownValues = useMemo(() => withFollowers(joints, preview ?? []), [joints, preview]);
   // Closing the panel ends the playback and drops a recording; the bodies go back to where the mirror has them.
   useEffect(
     () => () => {
@@ -244,7 +249,7 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
       );
   };
 
-  const away = joints.flatMap((joint) => joint.values.flatMap((value, index) => (Math.abs(value.value) > 1e-6 ? [{ joint, index, value: 0 }] : [])));
+  const away = joints.flatMap((joint) => joint.values.flatMap((value, index) => (Math.abs(value.value) > 1e-6 && !value.follows ? [{ joint, index, value: 0 }] : [])));
   const number = new Intl.NumberFormat(i18n.language);
   const all = playable.map((entry) => entry.key);
   const allPlaying = play !== null && all.every((key) => play.includes(key));
@@ -265,9 +270,12 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
           const [min, max] = jointRange(value);
           const step = stepOf(value);
           const key = keyOf(joint.id, index);
-          const shown = preview?.find((entry) => entry.joint === joint.id && entry.index === index)?.value ?? value.value;
+          const shown = shownValues.find((entry) => entry.joint === joint.id && entry.index === index)?.value ?? value.value;
           const plays = play?.includes(key) ?? false;
-          const name = joint.values.length > 1 ? `${joint.name} ${String(index + 1)}` : joint.name;
+          const own = joint.values.length > 1 ? `${joint.name} ${String(index + 1)}` : joint.name;
+          const driver = value.follows ? joints.find((candidate) => candidate.id === value.follows?.joint)?.name : undefined;
+          // A follower says whom it follows; its slider only shows where that puts it.
+          const name = driver ? t('viewer.joints.follows', { name: own, driver }) : own;
           return (
             <Slider
               key={key}
@@ -275,8 +283,9 @@ export function JointPanel({ joints }: { joints: Joint[] }) {
               minValue={min}
               maxValue={max}
               step={step}
-              isDisabled={busy}
+              isDisabled={busy || value.follows !== undefined}
               formatOptions={formatOf(value.unit)}
+              data-follows={value.follows ? String(value.follows.joint) : undefined}
               onChange={(next) => {
                 // Taking a slider ends the playback; the others stay where the view shows them. The bodies follow at once (G4).
                 if (play) setPlay(null);

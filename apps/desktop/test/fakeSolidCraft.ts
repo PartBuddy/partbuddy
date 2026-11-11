@@ -85,6 +85,8 @@ export class FakeSolidCraft {
   quitRequested = false;
   /** Joints as `joint.list` reports them; `joint.drive` sets a value within its limits. */
   joints: { id: number; name: string; type: string; a?: number; b?: number; frame_a?: { origin: [number, number, number]; z: [number, number, number] }; values: { name: string; unit: 'deg' | 'mm'; value: number; limits: [number, number] | null }[] }[] = [];
+  /** Motion links as `joint.list` reports them: joint `b` follows joint `a` (`offset + ratio ×` its value); `joint.drive` moves the follower along and holds a follower driven itself. */
+  links: { a: number; b: number; ia: number; ib: number; ratio: number; offset: number; unit: 'deg' | 'mm' }[] = [];
   /** The body each occurrence places, by occurrence id: what a joint's `a` and `b` name, so the mirror knows which bodies it moves. */
   occurrences = new Map<number, string>();
   /** Where `joint.sweep` stops on its way to a value, by that value; a sweep to any other value runs through. */
@@ -263,14 +265,19 @@ export class FakeSolidCraft {
           ],
         };
       case 'joint.list':
-        return { joints: this.joints, conflicts: [], errors: [], floating: [], links: [] };
+        return { joints: this.joints, conflicts: [], errors: [], floating: [], links: this.links };
       case 'joint.sweep':
         return this.sweepStops.get(Number(params.to)) ?? { stopped_at: null, stopped_by: null };
       case 'joint.drive': {
         const value = this.joints.find((joint) => joint.id === params.joint)?.values[Number(params.index ?? 0)];
         if (!value) throw new Error(`no joint ${String(params.joint)}`);
+        if (this.links.some((link) => link.b === params.joint && link.ib === Number(params.index ?? 0))) return { moved: false, reason: 'follows through a motion link', values: [value] };
         const [min, max] = value.limits ?? [-Infinity, Infinity];
         value.value = Math.min(max, Math.max(min, Number(params.value)));
+        for (const link of this.links.filter((entry) => entry.a === params.joint && entry.ia === Number(params.index ?? 0))) {
+          const follower = this.joints.find((joint) => joint.id === link.b)?.values[link.ib];
+          if (follower) follower.value = link.offset + link.ratio * value.value;
+        }
         return { moved: true, values: [value] };
       }
       case 'appearance.list':

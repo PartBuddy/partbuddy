@@ -68,13 +68,35 @@ export interface JointPreview {
 }
 
 /**
+ * The previews, and with them the values that follow those through a motion link (a gear turns its
+ * mate): what SolidCraft would move along when the joint is driven.
+ */
+export function withFollowers(joints: Joint[], previews: JointPreview[]): JointPreview[] {
+  const all = [...previews];
+  // A follower of a follower comes in a later round; a train of gears is never this long here.
+  for (let round = 0; round < 8; round += 1) {
+    const before = all.length;
+    for (const joint of joints) {
+      joint.values.forEach((value, index) => {
+        const link = value.follows;
+        if (!link || all.some((entry) => entry.joint === joint.id && entry.index === index)) return;
+        const driver = all.find((entry) => entry.joint === link.joint && entry.index === link.index);
+        if (driver) all.push({ joint: joint.id, index, value: link.offset + link.ratio * driver.value });
+      });
+    }
+    if (all.length === before) break;
+  }
+  return all;
+}
+
+/**
  * Where the bodies stand in the view with several joint values away from the mirror at once. A body
  * beyond two joints of a chain takes both moves: the one nearer to it first, then the one that
  * carries that joint along (it moves more bodies).
  */
 export function jointPoses(joints: Joint[], previews: JointPreview[]): Map<string, JointMove> {
   const poses = new Map<string, JointMove>();
-  const moved = previews
+  const moved = withFollowers(joints, previews)
     .flatMap((preview) => {
       const joint = joints.find((entry) => entry.id === preview.joint);
       const move = joint ? jointMove(joint, preview.index, preview.value) : null;

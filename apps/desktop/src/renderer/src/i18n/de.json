@@ -136,6 +136,7 @@
       "hint": "Abspielen bewegt die Teile nur in der Ansicht. Einen Regler loslassen stellt das Teil um; so wird es exportiert und geprüft.",
       "failed": "SolidCraft hat das Gelenk nicht bewegt: {reason}",
       "play": "{name} abspielen",
+      "follows": "{name} (folgt {driver})",
       "pause": "{name} anhalten",
       "speed": "Tempo",
       "mode": "Ablauf",
