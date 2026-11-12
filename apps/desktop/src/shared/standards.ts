@@ -83,6 +83,7 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
       'A slot the board slides into: 2.0 mm wide for a 1.6 mm board (own choice, 0.2 mm per side), 2 mm deep.',
       'Leave 0.5 mm round the board and 1 mm per side round every plug in the wall (Hubs).',
       'Boards (from the makers\' drawings, to be checked against the board in hand): Raspberry Pi 4 and 5 are 85 × 56 mm with four M2.5 holes of 2.7 mm in a rectangle 58 × 49 mm, 3.5 mm from the edges; Pi Zero 65 × 30 mm, holes 58 × 23 mm; Arduino Uno 68.58 × 53.34 mm with 3.2 mm holes at (13.97, 2.54), (15.24, 50.80), (66.04, 7.62) and (66.04, 35.56). For any other board ask for its drawing or measured holes.',
+      'Plugs of the Raspberry Pi, their centres from the makers\' drawings (approximate there; check against the board in hand). Seen from above with the pin header along the far edge, on the near long edge, from the left short edge: Pi 4 USB-C 11.2 mm, micro HDMI 26.0 and 39.5, audio jack 54.0; Pi 5 USB-C 11.2, micro HDMI 25.8 and 39.2, and no audio jack. On the right short edge, from the near long edge: Pi 4 USB 9 and 27, Ethernet 45.75; Pi 5 Ethernet 10.2, USB 29.1 and 47, so the two changed places. USB and Ethernet stand about 3 mm out over the board\'s edge (Pi 5 drawing). The drawings give no sizes for the openings: ask for the measured plugs, and do not place a plug of any board from memory.',
     ],
   },
   starKnob: {
