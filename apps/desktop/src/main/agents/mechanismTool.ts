@@ -1,4 +1,4 @@
-import { LID, LIP, hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { LID, LIP, hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -17,10 +17,10 @@ const vector = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems
 const mechanismTool: UpstreamTool = {
   name: MECHANISM_TOOL,
   description:
-    'Build a print-in-place mechanism between two bodies that exist, printed in one piece without support, with the same gap everywhere. ' +
+    'Build a mechanism between two bodies that exist, with the same gap everywhere; the answer says how it prints. ' +
     'hinge: knuckles in turn on both bodies and a pin through them. Give the hinge line (from, to) in the gap between the bodies, level with the bed and half the barrel diameter above it when the part prints lying flat; ' +
     'the line must lie closer to both bodies than the barrel radius less 0.5 mm, so the knuckles grow out of them; PartBuddy cuts each knuckle\'s room in the other body itself, a gap wider than the barrel, and carries knuckles that start above the bed on webs at 45° down to their own walls: add no supports of your own. Give wall, the thickness of the walls along the line: a room that would leave less than two lines of a wall behind it is refused, with how far to move the line. ' +
-    'slide: a dovetail rail on the fixed body and its groove in the moving body, which lies over the rail a gap above the face. Give the middle line of the rail (from, to) on that face and the face normal (up). ' +
+    'slide: a dovetail rail on the fixed body and its groove in the moving body, which lies over the rail a gap above the face. Give the middle line of the rail (from, to) on that face and the face normal (up). The two print apart and the moving body is pushed onto the rail from an end. Where the moving body stands high enough over that face (8.8 mm at the defaults; the answer names it) the groove gets a roof at 45° and prints as it stands; otherwise its ceiling is flat and the answer says how to lay the part. ' +
     'PartBuddy also joins the two with a joint, finds how far it moves before the bodies meet (a slide: while the moving body stays on its rail) and sets that as its limits; the user then moves it with a slider in the view. ' +
     'closure: a snap closure between a lid and its box, nothing standing out: a lip inside the lid that goes into the box along its wall and centres the lid, a bead that snaps into a rille of the box\'s wall, and a notch for a fingernail. ' +
     'Give from and to as opposite corners of the lid\'s inner room at its rim (both at the rim\'s height), up as the way the lip stands out of the lid (+Z when the lid lies open side up, -Z when it sits on the box), wall and radius of the lid, and the side with the catch (a long wall, opposite the hinge). ' +
@@ -275,6 +275,16 @@ export function railTravel(measure: unknown, from: Vec3, to: Vec3): [number, num
   return [round(Math.min(0, -Math.min(...along))), round(Math.max(0, length - Math.max(...along)))];
 }
 
+/** How high a body stands over a face, along the face's normal `up` from a point on it: from the body's box (`inspect.measure`). */
+function heightOver(measure: unknown, from: Vec3, up: Vec3): number | null {
+  const box = ((measure as { bodies?: { bbox?: { min?: unknown; max?: unknown } }[] } | undefined)?.bodies ?? [])[0]?.bbox;
+  const min = vec3(box?.min);
+  const max = vec3(box?.max);
+  if (!min || !max) return null;
+  const length = Math.hypot(...up);
+  return Math.max(...[0, 1, 2, 3, 4, 5, 6, 7].map((corner) => [0, 1, 2].reduce((sum, i) => sum + ((((corner >> i) & 1 ? max[i] : min[i]) ?? 0) - (from[i] ?? 0)) * ((up[i] ?? 0) / length), 0)));
+}
+
 /** How far a sweep ran before two parts met, cut towards zero so the limit is clear of the contact; `to` when it ran through. */
 function reach(sweep: unknown, to: number, step: number): number {
   const stopped = (sweep as { stopped_at?: unknown } | undefined)?.stopped_at;
@@ -476,6 +486,41 @@ export function skinProblem(depths: { fixed: number; moving: number }, spec: { f
 
 const MOVE = 'The user moves it with the slider "Moving parts" in the view.';
 
+/**
+ * Builds the rail and the groove of a guide or a dovetail. The moving body is measured first: where it stands high
+ * enough over the rail's face, the groove gets its roof; where not, the ceiling stays flat and `print` says so, with
+ * how to lay the part instead (audit 2026-11-12, T5: "printed in one piece without support" over a ceiling of 13.9 mm).
+ * shortcut: the height is the body's box, so a body lower over the rail than elsewhere gets a roof that comes out of
+ * its top; measure along the line if such bodies turn up.
+ */
+async function buildGuide(site: Site, spec: SlideSpec, nozzle: number, joins?: 'slider'): Promise<{ warnings: string; measure: unknown; print: string }> {
+  const roof = slideRoof(spec);
+  // Two lines of plastic stay over the ridge.
+  const needed = Math.round((roof.top + nozzle * 2 * 1.125) * 10) / 10;
+  let measure: unknown;
+  let high = 0;
+  const warnings = await build(
+    site,
+    spec,
+    () => slideSteps(spec),
+    `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`,
+    false,
+    async () => {
+      [measure] = await site.run([{ command: 'inspect.measure', params: { bodies: [spec.moving] } }]);
+      const over = heightOver(measure, spec.from, spec.up);
+      if (over === null) throw new Error(`${spec.moving} could not be measured, so neither the room for the groove's roof nor how far the guide may travel is known`);
+      high = Math.round(over * 10) / 10;
+      spec.roof = over >= needed;
+    },
+    joins,
+  );
+  const apart = `The two print apart, each with up pointing up, and ${spec.moving} is then pushed onto the rail from an end.`;
+  const print = spec.roof
+    ? `${apart} Neither needs support: the rail's flanks and the roof over the groove lean 45°, and the roof's ridge is a bridge of ${String(roof.ridge)} mm.`
+    : `${apart} The groove's ceiling is flat and ${String(Math.round(roof.ceiling * 10) / 10)} mm wide, more than prints as a bridge (10 mm): a roof at 45° over it needs ${spec.moving} to stand ${String(needed)} mm high over the face the rail is on, and it stands ${String(high)} mm. Print ${spec.moving} turned over instead, lying on its top with the groove open upwards (set that face as its print face), or make it higher and build this again.`;
+  return { warnings, measure, print };
+}
+
 /** What the model hears when the joint is made but its range could not be found. */
 const unswept = (reason: string) =>
   `SolidCraft could not run it through its range (${reason.slice(0, 160)}), so no limits are set. The two bodies probably lie against each other somewhere: look with inspect.clearance, make room, then set joint.limits yourself after joint.sweep.`;
@@ -567,18 +612,18 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
   if (args.kind === 'slide') {
     const spec = slideOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(site, spec, () => slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`, false, undefined, 'slider');
-    const [measure] = await run([{ command: 'inspect.measure', params: { bodies: [spec.moving] } }]);
+    // The box along the line is the same before and after the groove is cut.
+    const { warnings, measure, print } = await buildGuide(site, spec, nozzle, 'slider');
     const travel = railTravel(measure, spec.from, spec.to);
     if (!travel) throw new Error(`${spec.moving} could not be measured, so how far the guide may travel is not known.`);
     const range = await join(run, spec, 'slider', travel, 0.1);
-    if (typeof range === 'string') return `Built the guide "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (slides) and joined them, but ${unswept(range)}${warnings}`;
+    if (typeof range === 'string') return `Built the guide "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (slides) and joined them, but ${unswept(range)} ${print}${warnings}`;
     const [min, max] = range;
     const mm = (value: number) => String(Math.round(value * 10) / 10);
     return (
       `Built the guide "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (slides): a dovetail rail ${String(spec.width)} mm wide at its foot and ${String(spec.height)} mm high, ` +
       `gap ${String(spec.gap)} mm everywhere. It slides from ${mm(min)} mm to ${mm(max)} mm while ${spec.moving} stays on the rail and the bodies do not meet, and those are its limits now; 0 mm is as designed. ` +
-      `${MOVE} Nothing holds it at the ends of the rail; add stops if it must not come off.${warnings}`
+      `${MOVE} Nothing holds it at the ends of the rail; add stops if it must not come off. ${print}${warnings}`
     );
   }
   if (args.kind === 'closure') {
@@ -652,10 +697,10 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     // The guide's own dovetail as a close fit: 0.2 mm, where guides for printed dovetails run from 0.1 to 0.3.
     const spec = slideOf({ ...args, gap: typeof args.gap === 'number' ? args.gap : 0.2, name: typeof args.name === 'string' && args.name.trim() !== '' ? args.name : 'Dovetail' }, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(site, spec, slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`);
+    const { warnings, print } = await buildGuide(site, spec, nozzle);
     return (
       `Built the dovetail "${spec.name}" between ${spec.fixed} (carries the rail) and ${spec.moving} (has the groove): ${String(spec.width)} mm wide at its foot and ${String(spec.height)} mm high with 45° flanks, ${String(spec.gap)} mm clear all round. ` +
-      `It makes no joint: ${spec.moving} is pushed on along the line and stops where the groove ends inside it; where the groove runs through, nothing stops it. Print both with the rail's line level or upright, so the flanks need no support. Not printed yet: when it binds or rattles, build it again with another gap.${warnings}`
+      `It makes no joint: ${spec.moving} is pushed on along the line and stops where the groove ends inside it; where the groove runs through, nothing stops it. ${print} Not printed yet: when it binds or rattles, build it again with another gap.${warnings}`
     );
   }
   if (args.kind === 'plug') {
@@ -691,4 +736,4 @@ export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number,
 }
 
 /** Added to the role prompt of every route, after the joint guidance. */
-export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the print-in-place geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through. For parts that are screwed together (a lid on a housing, a bracket on a base, a cover) call it with kind screw instead of drilling the holes yourself: it sizes the clearance hole, the room for the head and the seat of the heat-set insert, and says which screws to buy. For a round container that should screw shut (a jar, a canister, a bottle cap) build the container with a plain cylindrical neck and call it with kind lid: it threads the neck and makes the lid, instead of modelling a thread yourself. For a cover or a housing half that should clip on and come off again by pressing on catches (an electronics housing, a battery cover) call it with kind snap: hooks on one part, their windows through the other part's wall. For a lid that should be held down by a latch one sees and opens with a finger (a tool box, a case with a hinged lid) call it with kind latch: a snap latch outside, on the wall opposite the hinge. For a part split in two to fit the printer, or two parts that are plugged or glued together, call it with kind plug: pegs with their pockets (two or more), or shape dovetail to push one part onto the other.`;
+export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through. For parts that are screwed together (a lid on a housing, a bracket on a base, a cover) call it with kind screw instead of drilling the holes yourself: it sizes the clearance hole, the room for the head and the seat of the heat-set insert, and says which screws to buy. For a round container that should screw shut (a jar, a canister, a bottle cap) build the container with a plain cylindrical neck and call it with kind lid: it threads the neck and makes the lid, instead of modelling a thread yourself. For a cover or a housing half that should clip on and come off again by pressing on catches (an electronics housing, a battery cover) call it with kind snap: hooks on one part, their windows through the other part's wall. For a lid that should be held down by a latch one sees and opens with a finger (a tool box, a case with a hinged lid) call it with kind latch: a snap latch outside, on the wall opposite the hinge. For a part split in two to fit the printer, or two parts that are plugged or glued together, call it with kind plug: pegs with their pockets (two or more), or shape dovetail to push one part onto the other.`;

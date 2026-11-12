@@ -189,9 +189,24 @@ export interface SlideSpec {
   height: number;
   /** The gap between rail and groove in mm. */
   gap: number;
+  /** The moving body is high enough over the rail's face for the roof over the groove (`slideRoof`); without it the groove's ceiling is flat. */
+  roof?: boolean;
   name: string;
 }
 
+/** The flat ridge of the roof over a groove, in mm: a bridge that short does not sag (Protolabs Network, Xometry Pro; overhang.ts). */
+const RIDGE = 5;
+
+/**
+ * The ceiling of a guide's groove and the roof that takes its place, in mm. The ceiling is flat, as wide as the rail's
+ * head and a gap more on each side, and lies only a gap over the head: 13.9 mm at the defaults and up to 102 mm, where
+ * a bridge prints up to 10 mm (audit 2026-11-12, T5). The roof rises at 45° from both edges of the ceiling to a ridge
+ * `ridge` wide, `top` above the face the rail stands on.
+ */
+export function slideRoof(spec: Pick<SlideSpec, 'width' | 'height' | 'gap'>): { ceiling: number; ridge: number; top: number } {
+  const half = spec.width / 2 + spec.gap * Math.SQRT2 + spec.height + spec.gap;
+  return { ceiling: round(2 * half), ridge: RIDGE, top: round(spec.height + spec.gap + half - RIDGE / 2) };
+}
 
 /** What is wrong with a guide before anything is built; null when it can be built. */
 export function slideProblem(spec: SlideSpec): string | null {
@@ -210,8 +225,9 @@ export function slideProblem(spec: SlideSpec): string | null {
 
 /**
  * The solids of a dovetail guide along the line `from`–`to`: a rail on the fixed body that widens
- * upwards at 45°, and its groove in the moving body, a gap wider all round. Both are a sketch at
- * `from`, square to the line, extruded along it.
+ * upwards at 45°, and its groove in the moving body, a gap wider all round, with a roof instead of
+ * a flat ceiling where the body is high enough. Both are a sketch at `from`, square to the line,
+ * extruded along it.
  */
 export function slideSteps(spec: SlideSpec): Step[] {
   const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
@@ -225,6 +241,7 @@ export function slideSteps(spec: SlideSpec): Step[] {
   const { height, gap } = spec;
   // The flank moved out by the gap, measured square to it.
   const out = gap * Math.SQRT2;
+  const roof = slideRoof(spec);
   const profile = (points: [number, number][], operation: 'cut' | 'join', target: string, name: string): Step[] => [
     { command: 'sketch.create', params: { plane, project_edges: false, name } },
     { command: 'sketch.line', params: { points: points.map(([x, y]) => [round(x), round(y)]), closed: true } },
@@ -238,6 +255,7 @@ export function slideSteps(spec: SlideSpec): Step[] {
         [half + out, -gap],
         [half + out, 0],
         [half + out + height + gap, height + gap],
+        ...(spec.roof ? ([[roof.ridge / 2, roof.top], [-roof.ridge / 2, roof.top]] as [number, number][]) : []),
         [-(half + out + height + gap), height + gap],
         [-(half + out), 0],
       ],

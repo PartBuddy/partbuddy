@@ -4,7 +4,7 @@ import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import { activated, hingeOf, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -324,6 +324,12 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
   });
 });
 
+/** The tool's description, as the model reads it. */
+const withMechanismDescription = async (): Promise<string> => {
+  const tools = await withMechanismTool({ instructions: () => undefined, listTools: () => Promise.resolve([]), callTool: () => Promise.resolve({ content: [] }) }, () => 0.4).listTools();
+  return String(tools[0]?.description);
+};
+
 describe('the dovetail guide (ADR 0027, G3)', () => {
   const guide: SlideSpec = { fixed: 'Base', moving: 'Carriage', from: [0, 15, 4], to: [60, 15, 4], up: [0, 0, 1], width: 6, height: 3, gap: 0.4, name: 'Guide' };
 
@@ -338,6 +344,51 @@ describe('the dovetail guide (ADR 0027, G3)', () => {
     expect(steps[4]?.params.points).toEqual([[-3, 0], [3, 0], [6, 3], [-6, 3]]);
     // The groove: the flanks 0.4 mm away measured square to them, its roof 0.4 mm above the rail.
     expect(steps[1]?.params.points).toEqual([[-3.566, -0.4], [3.566, -0.4], [3.566, 0], [6.966, 3.4], [-6.966, 3.4], [-3.566, 0]]);
+  });
+
+  // Audit 2026-11-12, T5: that roof is a level ceiling 13.9 mm wide (102 mm at the largest rail), a gap over the rail's
+  // head, and the tool called the guide "printed in one piece without support".
+  it('puts a roof at 45° with a 5 mm ridge over the groove where the moving body is high enough, and says how the parts print', async () => {
+    expect(slideRoof(guide)).toEqual({ ceiling: 13.931, ridge: 5, top: 7.866 });
+    expect(slideRoof({ width: 60, height: 20, gap: 0.4 })).toMatchObject({ ceiling: 101.931, top: 68.866 });
+    // From both edges of the old ceiling (±6.966 at 3.4) up at 45° to the ridge: 4.466 mm in, 4.466 mm up.
+    const roofed = slideSteps({ ...guide, roof: true });
+    expect(roofed[1]?.params.points).toEqual([[-3.566, -0.4], [3.566, -0.4], [3.566, 0], [6.966, 3.4], [2.5, 7.866], [-2.5, 7.866], [-6.966, 3.4], [-3.566, 0]]);
+    // The rail is the same.
+    expect(roofed.slice(3)).toEqual(slideSteps(guide).slice(3));
+    // The tool measures the moving body first: its top lies `top` over the base's face at z = 4.
+    const answer = async (top: number, args: Record<string, unknown> = {}) => {
+      const sent: { command: string; params: Record<string, unknown> }[] = [];
+      const upstream: UpstreamTools = {
+        instructions: () => undefined,
+        listTools: () => Promise.resolve([]),
+        callTool: (name, call) => {
+          if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Carriage' }], undo: 2 }) }] });
+          const commands = call.commands as { command: string; params: Record<string, unknown> }[];
+          sent.push(...commands);
+          const results = commands.map((step) => (step.command === 'inspect.measure' ? { bodies: [{ name: 'Carriage', bbox: { min: [20, 0, 4.4], max: [40, 30, 4 + top] } }] } : step.command === 'component.list' ? { components: [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ id: 4, name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Carriage'], occurrences: [{ id: 6, name: 'Carriage:1' }] }] } : {}));
+          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
+        },
+      };
+      const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'slide', fixed: 'Base', moving: 'Carriage', from: [0, 15, 4], to: [60, 15, 4], ...args });
+      return { text: String(built.content[0]?.text), groove: sent.find((step) => step.command === 'sketch.line')?.params.points as number[][], sent: sent.map((step) => step.command) };
+    };
+    // 7.866 mm of roof and two lines over its ridge: 8.8 mm.
+    const high = await answer(8.8);
+    expect(high.groove).toHaveLength(8);
+    expect(high.text).toContain("The two print apart, each with up pointing up, and Carriage is then pushed onto the rail from an end. Neither needs support: the rail's flanks and the roof over the groove lean 45°, and the roof's ridge is a bridge of 5 mm.");
+    // The body is measured before the first step is built.
+    expect(high.sent.indexOf('inspect.measure')).toBeLessThan(high.sent.indexOf('sketch.create'));
+    // Lower than that the ceiling stays flat, and the answer says what that means instead of "without support".
+    const low = await answer(8.7);
+    expect(low.groove).toHaveLength(6);
+    expect(low.text).not.toContain('Neither needs support');
+    expect(low.text).toContain("The groove's ceiling is flat and 13.9 mm wide, more than prints as a bridge (10 mm): a roof at 45° over it needs Carriage to stand 8.8 mm high over the face the rail is on, and it stands 8.7 mm. Print Carriage turned over instead, lying on its top with the groove open upwards (set that face as its print face), or make it higher and build this again.");
+    // The dovetail to plug together is the same groove: the same roof, the same words.
+    const plug = await answer(12, { kind: 'plug', shape: 'dovetail' });
+    expect(plug.groove).toHaveLength(8);
+    expect(plug.text).toContain('nothing stops it. The two print apart, each with up pointing up');
+    expect(await withMechanismDescription()).not.toContain('printed in one piece without support');
   });
 
   it('says what is wrong before anything is built, and fills in the defaults', () => {
@@ -632,7 +683,7 @@ describe('a plugged connection (standards)', () => {
       if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Left' }, { name: 'Right' }] }) }] });
       const commands = input.commands as { command: string }[];
       calls.push(commands.map((step) => step.command));
-      return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'inspect.interference' ? { count: 0 } : step.command === 'component.list' ? { components: [] } : {})) }) }] });
+      return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'inspect.interference' ? { count: 0 } : step.command === 'component.list' ? { components: [] } : step.command === 'inspect.measure' ? { bodies: [{ bbox: { min: [0, 0, 4.2], max: [40, 30, 16] } }] } : {})) }) }] });
     },
   });
 
