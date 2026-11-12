@@ -1,7 +1,8 @@
 name: Installer
 
 # Builds the Windows installer and the macOS dmg from a tag or branch on GitHub-hosted runners and
-# keeps them as workflow artifacts. Started by hand for now; it publishes nothing. Code signing through the
+# keeps them as workflow artifacts. Started by hand it publishes nothing unless "attach" is set; the
+# release workflow calls it to hang the dmg onto a new release. Code signing through the
 # SignPath Foundation needs exactly this: every job up to the signing request on GitHub-hosted
 # runners, and the unsigned file stored as a workflow artifact first (docs/code-signing-policy.md).
 # The self-hosted runners of ADR 0022 are therefore not used here.
@@ -13,6 +14,18 @@ on:
         description: Tag or branch to build
         type: string
         default: main
+      attach:
+        description: Attach the dmg to the release of this tag
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      attach:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -121,3 +134,23 @@ jobs:
           fi
           kill "$pid"
           tail -n 40 start.log
+
+  # The Windows installer is still built and uploaded on Windows by hand (CONTRIBUTING.md); only
+  # the dmg, which nobody can build locally, goes onto the release from here.
+  attach:
+    name: Attach the dmg to the release
+    needs: macos
+    if: inputs.attach
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Upload the dmg to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ inputs.ref }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --name partbuddy-dmg-macos --repo "$GITHUB_REPOSITORY"
+          gh release upload "$REF" PartBuddy-*-mac-universal.dmg --clobber --repo "$GITHUB_REPOSITORY"
