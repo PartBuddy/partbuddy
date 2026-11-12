@@ -279,10 +279,10 @@ describe('agent service with a fake Claude Code', () => {
     const { service, events, kept } = setup();
     const status = await service.refresh();
     // The aliases with their effort levels; pinned older versions are left out.
-    expect(status.models?.map((model) => model.id)).toEqual(['default', 'opus', 'sonnet', 'haiku']);
+    expect(status.models?.map((model) => model.id)).toEqual(['opus', 'sonnet', 'haiku']);
     expect(status.models?.find((model) => model.id === 'haiku')?.efforts).toEqual(['low', 'medium', 'high']);
-    // Nothing kept yet: the plan's default model with a named effort, as on the other routes.
-    expect(status).toMatchObject({ model: 'default', effort: 'medium' });
+    // Nothing kept yet: PartBuddy's own standard, not Claude Code's default (the plan's frontier model).
+    expect(status).toMatchObject({ model: 'opus', effort: 'medium' });
 
     // Chosen before the first message: the session starts with it, and it is kept for new chats.
     await service.chooseModel({ model: 'sonnet', effort: 'low' }, true);

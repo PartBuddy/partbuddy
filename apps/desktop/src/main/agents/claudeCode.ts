@@ -85,8 +85,10 @@ export function startSignIn(claude: ClaudeCommand, env: NodeJS.ProcessEnv): Chil
 
 /**
  * The models of the user's plan as Claude Code lists them in its answer to `initialize`: the
- * aliases (default, opus, fable, sonnet, haiku) with their effort levels. Pinned older versions
- * are left out to keep the choice short; nothing else of the answer (account, e-mail) is kept.
+ * aliases (opus, fable, sonnet, haiku) with their effort levels. Pinned older versions are left out
+ * to keep the choice short; nothing else of the answer (account, e-mail) is kept. Claude Code's own
+ * "Default (recommended)" is left out too (Manuel, 2026-11-12): it is whatever the plan's frontier
+ * model is, shown as if PartBuddy recommended it.
  */
 export function modelsFromInitialize(response: unknown): ModelOption[] {
   const models = (response as { models?: unknown } | null)?.models;
@@ -94,7 +96,7 @@ export function modelsFromInitialize(response: unknown): ModelOption[] {
   const options: ModelOption[] = [];
   for (const raw of models as Record<string, unknown>[]) {
     const id = raw.value;
-    if (typeof id !== 'string' || !/^[a-z]{1,20}$/.test(id)) continue;
+    if (typeof id !== 'string' || !/^[a-z]{1,20}$/.test(id) || id === 'default') continue;
     const name = typeof raw.displayName === 'string' ? raw.displayName.slice(0, 80) : id;
     const efforts = Array.isArray(raw.supportedEffortLevels)
       ? raw.supportedEffortLevels.filter((level): level is string => typeof level === 'string' && /^[a-z]{1,20}$/.test(level)).slice(0, 12)
