@@ -39,15 +39,13 @@ export function magnetPocket(spec: Pick<MagnetSpec, 'diameter' | 'height' | 'hol
 }
 
 /**
- * The plastic each pocket needs: itself with what must stay round and under it, as a cylinder into the face. It
- * starts half the pocket's depth under the face, so a curved face (which falls away from the point) is not read as
- * missing plastic.
+ * The plastic each pocket needs: itself with what must stay round and under it, as a cylinder into the face that
+ * starts `from` mm under the point (a face may fall away that far, as a curved one does).
  */
-export function magnetStock(spec: MagnetSpec): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number }[] {
+export function magnetStock(spec: MagnetSpec, from: number): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number }[] {
   const length = Math.hypot(...spec.normal);
   const axis = spec.normal.map((value) => round(-value / length) + 0) as Vec3;
   const pocket = magnetPocket(spec);
-  const from = round(pocket.depth / 2);
   return [spec.point, ...spec.more].map((point) => ({ at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3, axis, diameter: round(pocket.diameter + 2 * MAGNET.around), depth: round(pocket.depth - from + MAGNET.under), from }));
 }
 
