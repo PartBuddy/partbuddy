@@ -5,8 +5,14 @@ import { reportOf } from '../src/renderer/src/print/report';
 import { printCheckReportSchema } from '../src/shared/contract';
 
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
-  it('says plainly when nothing was found', () => {
-    expect(printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 1 })).toContain('ready to print, nothing found');
+  it('says what it looked at when nothing was found, and what it did not (audit R3)', () => {
+    const clean = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 1 });
+    expect(clean).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, area on the bed,');
+    expect(clean).toContain('Not checked: strength and layer direction under load, the fits and hole allowances you chose,');
+    // No verdict the model could hand on as "ready to print".
+    expect(clean).not.toMatch(/ready to print[,.]/);
+    // With findings the limits stand as well.
+    expect(printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'open', severity: 'warn', bodies: ['A'] }] })).toContain('Not checked: strength');
   });
 
   it('words every finding with its numbers and quoted face names, blocking ones first', () => {

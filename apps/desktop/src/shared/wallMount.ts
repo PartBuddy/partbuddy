@@ -55,6 +55,42 @@ export function keyholeDepth(screw: WoodScrew): number {
   return round(KEYHOLE.lip + WALL[screw].pocket + KEYHOLE.behind);
 }
 
+/**
+ * The plastic each keyhole needs: as thick as {@link keyholeDepth} behind the entry and behind where the screw
+ * rests, as cylinders that start `from` mm under the face.
+ */
+export function keyholeStock(spec: KeyholeSpec, from: number): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number }[] {
+  const [n, up] = [unit(spec.normal), unit(spec.up)];
+  const axis = n.map((value) => round(-value) + 0) as Vec3;
+  const room = { axis, diameter: WALL[spec.screw].entry, depth: round(keyholeDepth(spec.screw) - from), from };
+  const behind = (point: Vec3) => ({ at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3, ...room });
+  return [spec.point, ...spec.more].flatMap((rest) => [behind(rest), behind(rest.map((value, k) => round(value - (up[k] ?? 0) * KEYHOLE.travel)) as Vec3)]);
+}
+
+/** In mm: the clearance hole that must stay under a countersink for the screw to hold the plate (three layers of 0.2 mm; our own choice). */
+export const WOOD_SCREW_UNDER = 0.6;
+
+/** How deep the 90° countersink of a wood screw goes. */
+export function countersinkDepth(screw: WoodScrew): number {
+  return round((WALL[screw].countersink - WALL[screw].clearance) / 2);
+}
+
+/**
+ * The plastic one countersunk hole needs: the screw's diameter of plastic round its clearance hole (so the
+ * countersink keeps about 2 mm, and a 15 mm tab takes a 4 mm screw), and the plate thicker than the countersink is
+ * deep. `axis` is the way the hole went into the part, `from` how far under the face the cylinder starts; the hole
+ * itself is taken off.
+ */
+export function woodScrewStock(screw: WoodScrew, point: Vec3, axis: Vec3, from: number): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number; hole: number; slack: number } {
+  const size = WALL[screw];
+  const cone = Math.max(0, countersinkDepth(screw) - from);
+  // The 90° cone is as much wider than the clearance hole as it still has to go down.
+  const [wide, narrow] = [size.clearance / 2 + cone, size.clearance / 2];
+  const hole = (Math.PI * cone * (wide ** 2 + wide * narrow + narrow ** 2)) / 3 + Math.PI * narrow ** 2 * WOOD_SCREW_UNDER;
+  // On a curved face the hole does not end where it ends on a flat one: 0.3 mm of its depth are allowed for that.
+  return { at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3, axis, diameter: round(size.clearance + 2 * screw), depth: round(cone + WOOD_SCREW_UNDER), from, hole, slack: Math.PI * narrow ** 2 * 0.3 };
+}
+
 /** What is wrong with a keyhole before anything is built; null when it can be built. */
 export function keyholeProblem(spec: KeyholeSpec): string | null {
   if (Math.hypot(...spec.normal) < 1e-9 || Math.hypot(...spec.up) < 1e-9) return 'normal and up must not be zero';

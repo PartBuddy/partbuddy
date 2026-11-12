@@ -1085,16 +1085,17 @@ const uniqueIds = (items: readonly { id: string }[]) => new Set(items.map((item)
 
 /**
  * The groups of design rules the assistant applies without being asked (decided 2026-11-07):
- * rounded and chamfered edges, print-in-place joints, clean details and sizes snapped to nozzle and
- * layer. The user turns a group off in the settings, or for one project in the chat.
+ * rounded and chamfered edges, print-in-place joints, clean details, sizes snapped to nozzle and
+ * layer, and (2026-11-12) material and print time. The user turns a group off in the settings, or
+ * for one project in the chat.
  */
-export const DESIGN_RULES = ['rounding', 'printInPlace', 'details', 'snap'] as const;
+export const DESIGN_RULES = ['rounding', 'printInPlace', 'details', 'snap', 'economy'] as const;
 export type DesignRule = (typeof DESIGN_RULES)[number];
 export const designRulesSchema = z
-  .object({ rounding: z.boolean().default(true), printInPlace: z.boolean().default(true), details: z.boolean().default(true), snap: z.boolean().default(true) })
+  .object({ rounding: z.boolean().default(true), printInPlace: z.boolean().default(true), details: z.boolean().default(true), snap: z.boolean().default(true), economy: z.boolean().default(true) })
   .strict();
 export type DesignRules = z.infer<typeof designRulesSchema>;
-export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true, details: true, snap: true };
+export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true, details: true, snap: true, economy: true };
 
 export const printSettingsSchema = z
   .object({
@@ -1169,6 +1170,27 @@ export const printCheckReportSchema = z
     nozzle: range(0.1, 2),
     /** The mirrored revision the check belongs to, so a check of an older revision reads as pending. */
     revision: z.number().int().nonnegative(),
+    /** True for the mesh check sent ahead while SolidCraft still measures clearance and joints; the full check follows. */
+    measuring: z.boolean().optional(),
+    /** What SolidCraft could not measure for this check (its measure failed): the check then says nothing of it. */
+    unmeasured: z.array(z.enum(['clearance', 'joints'])).max(2).optional(),
+    /**
+     * Per printed body, as it lies on the bed: solid volume and the shell estimate in mm³ (two wall lines on every
+     * surface, 15 % infill inside), height in mm and its layers, mm² of surface, on the bed and leaning past the
+     * material's limit. What the shape decides of material and print time; the rest is the slicer's.
+     */
+    bodies: z
+      .array(
+        z
+          .object({ name: z.string().max(200), volume: range(0, 1e12), shell: range(0, 1e12), height: range(0, 1e6), layers: z.number().int().nonnegative(), surface: range(0, 1e9), contact: range(0, 1e9), support: range(0, 1e9) })
+          .strict(),
+      )
+      .max(40)
+      .optional(),
+    /** What the renderer could not measure or report, for the log. */
+    problem: z.string().max(300).optional(),
+    /** How many more bodies the design has than `bodies` carries. */
+    bodiesOmitted: z.number().int().positive().max(100_000).optional(),
   })
   .strict();
 

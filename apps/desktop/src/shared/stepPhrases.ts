@@ -322,6 +322,8 @@ export function describeToolCall(tool: string, args: Params): StepPhrase[] {
   if (tool === 'partbuddy_mechanism' && args.kind === 'screw') return [{ key: 'screwJoint', values: { name: text(args.name, 'Screw').slice(0, 60) } }];
   if (tool === 'partbuddy_mechanism' && args.kind === 'closure') return [{ key: 'closure', values: { name: text(args.name, 'Closure').slice(0, 60) } }];
   if (tool === 'partbuddy_mechanism') return [args.kind === 'slide' ? { key: 'guide', values: { name: text(args.name, 'Guide').slice(0, 60) } } : { key: 'hinge', values: { name: text(args.name, 'Hinge').slice(0, 60) } }];
+  if (tool === 'partbuddy_move_drawing') return [{ key: 'logoMoved', values: { name: text(args.logo, 'SVG').slice(0, 40) } }];
+  if (tool === 'partbuddy_place_drawing' && args.mode !== 'part') return [{ key: 'logo', values: { name: text(args.drawing, 'SVG').slice(0, 40), mode: args.mode === 'emboss' ? 'emboss' : 'deboss' } }];
   const steps = commandsOf(tool, args);
   const phrases = steps ? describeCommands(steps).slice(0, MAX_PHRASES_PER_STEP) : [];
   return phrases.length > 0 ? phrases : [{ key: 'command', values: { command: tool.slice(0, 80) } }];

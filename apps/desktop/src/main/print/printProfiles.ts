@@ -247,10 +247,11 @@ const RULE_NAMES: Record<DesignRule, string> = {
   printInPlace: 'print-in-place joints',
   details: 'refined details',
   snap: 'sizes snapped to nozzle and layer',
+  economy: 'saving material and print time',
 };
 
 /**
- * What a careful FDM designer does without being asked (decided 2026-11-07), in four groups the user
+ * What a careful FDM designer does without being asked (decided 2026-11-07), in five groups the user
  * can turn off: in the settings for every project, in the chat for one. The sizes come from the
  * printer in use, so they fit its nozzle and layer height. Sizes the user names are above all of it.
  */
@@ -283,11 +284,17 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
     lines.push(
       `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(minimumFloor(layer))}, print-in-place gaps ${mm(gap)}, radii and details at least ${mm(unitSize('nozzle', printer))}. Mark each such parameter's comment with the multiple, e.g. "Wall [auto 3×line]", "Floor [auto 5×layer]", "Hinge gap [auto 1×nozzle]", so PartBuddy fits it again when the user changes printer or nozzle. Sizes the user named get no mark.`,
     );
+  // Material and print time (2026-11-12): what the shape decides of them, by the makers' design guides (Prusa, Protolabs
+  // Network, Markforged, Stratasys Direct); what the slicer decides is named as not the assistant's to promise.
+  if (design.economy)
+    lines.push(
+      `- Material and print time, from the first shape on and not as a clean-up: build a shell, not a block. Slicers print ${series(line, 2, 4)} (two to four lines) as wall and fill anything thicker with sparse infill, so stiffen with ribs as thick as the wall, at least two lines (${mm(line * 2)}), instead of thickening the wall. Keep the part low as it prints: every ${mm(layer)} of height is one more layer, and print time grows with the layers. Shape it so it needs no support, which costs more time and material than any other choice. Leave out whole regions that do nothing (an open frame instead of a plate, a shorter body); small pockets and holes in a filled region add walls and save little or nothing. Split a part only when that saves support or much height and a joint is acceptable. Loaded regions, sizes the user names and what the user wants solid stay as they are. Infill, speed and layer height are set in the slicer: never promise grams or minutes. The print check lists each body's solid volume, height, layers and support area: compare them before and after a change.`,
+    );
   if (off.length > 0)
     lines.push(`- The user turned off ${off.map((rule) => RULE_NAMES[rule]).join(', ')}: do not add them unless the user asks for them.`);
   lines.push(
-    '- After each design step, name what you added on your own and the sizes you snapped in one short line, e.g. "Outer edges 2 mm rounded, hinge print-in-place with 0.4 mm gap, lid sliding fit 0.3 mm", so the user can turn it off or change it.',
-    `- When the user turns one of these off or back on ("no fillets", "screw the hinge instead"), call partbuddy_design_rules, so it holds for the rest of the project, also after a restart.`,
+    `- After each design step, name what you added on your own${design.economy ? ', what you did for material and print time' : ''} and the sizes you snapped in one short line, e.g. "Outer edges 2 mm rounded, hinge print-in-place with 0.4 mm gap, lid sliding fit 0.3 mm${design.economy ? `, shell ${mm(line * 3)} with two ribs instead of a solid block` : ''}", so the user can turn it off or change it.`,
+    `- When the user turns one of these off or back on ("no fillets", "screw the hinge instead", "make it solid"), call partbuddy_design_rules, so it holds for the rest of the project, also after a restart.`,
   );
   return lines;
 }
