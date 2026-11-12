@@ -194,6 +194,33 @@ function decideTool(name: string, args: Record<string, unknown>, depth: number):
     return decideCommand(args.command, objectOr(args.params));
   }
   if (name === 'batch') return decideBatch(args, depth);
+  return decideFileArguments(name, args);
+}
+
+/**
+ * The arguments of SolidCraft's own tools that name a file (tools/list of SolidCraft 0.40.1:
+ * `screenshot` path, `compare_picture` reference, `skill_reference` file; the names are kept wider
+ * for a tool that gains one). `screenshot {path}` writes its PNG over any file in the folders
+ * SolidCraft may use, the project and the design among them (measured).
+ */
+const FILE_ARGUMENTS = ['path', 'file', 'reference', 'output'];
+
+function decideFileArguments(name: string, args: Record<string, unknown>): ToolDecision {
+  // PartBuddy's own tools are answered by PartBuddy and take no file of SolidCraft's.
+  if (name.startsWith('partbuddy_')) return { allow: true };
+  for (const argument of FILE_ARGUMENTS) {
+    const value = args[argument];
+    if (value === undefined || value === null) continue;
+    // A photo the user sent (F6) may be compared with the model's outline; it is read, never written.
+    if (name === 'compare_picture' && argument === 'reference' && typeof value === 'string' && PHOTO_FILE.test(value) && !value.includes('..')) continue;
+    // A document of a skill built into SolidCraft, by its name.
+    if (name === 'skill_reference' && argument === 'file' && typeof value === 'string' && /^[\w-]+\.md$/.test(value)) continue;
+    return refuse(
+      name === 'screenshot'
+        ? 'screenshot with a path writes a file; PartBuddy does not allow that for the assistant. Leave out path: the picture comes back in the answer.'
+        : `${name} with ${argument} reads or writes a file; PartBuddy does not allow that for the assistant${name === 'compare_picture' ? ', except a photo the user sent, at the path PartBuddy gave' : ''}. Continue without it.`,
+    );
+  }
   return { allow: true };
 }
 

@@ -102,6 +102,34 @@ describe('tool policy', () => {
     expect(decide('execute', { command: 'parts.insert', params: { family: 'hex_nut', size: 'M3' } }).allow).toBe(true);
   });
 
+  it('refuses a file argument on every tool of SolidCraft it lets through, but for a photo the user sent', () => {
+    // Measured with SolidCraft 0.40.1: screenshot {path} wrote its PNG (442 140 bytes) over a JSON file in the cache folder.
+    const kept = 'Projects/Hook/part-references.json';
+    const screenshot = decide('screenshot', { path: kept });
+    expect(screenshot.allow).toBe(false);
+    if (!screenshot.allow) expect(screenshot.reason).toContain('Leave out path');
+    expect(decide('screenshot', { path: 'new.png', view: 'iso' }).allow).toBe(false);
+    expect(decide('screenshot', { view: 'iso', width: 800 })).toEqual({ allow: true });
+    // compare_picture reads its reference: only the photo PartBuddy kept for the user.
+    const photo = 'Projects/Hook/photos/photo-20261112-101500.png';
+    expect(decide('compare_picture', { reference: photo, view: 'top' })).toEqual({ allow: true });
+    expect(decide('compare_picture', { reference: 'Pictures/passport.png' }).allow).toBe(false);
+    expect(decide('compare_picture', { reference: 'Projects/Hook/photos/../../x/photos/photo-20261112-101500.png' }).allow).toBe(false);
+    expect(decide('compare_picture', { reference: [photo] }).allow).toBe(false);
+    expect(decide('batch', { commands: [{ command: 'compare_picture', params: { reference: kept } }] }).allow).toBe(false);
+    // A skill's document goes by its name.
+    expect(decide('skill_reference', { skill: 'solidcraft-modeling', file: 'SKILL.md' })).toEqual({ allow: true });
+    expect(decide('skill_reference', { skill: 'solidcraft-modeling' })).toEqual({ allow: true });
+    expect(decide('skill_reference', { skill: 'solidcraft-modeling', file: '../../secret.md' }).allow).toBe(false);
+    // Every other tool let through, should it gain a file argument (0.40.1 answers "unknown argument").
+    for (const tool of ['list_commands', 'describe_command', 'inspect_design', 'measure', 'body_topology', 'set_parameter', 'check_parameters', 'running', 'pending', 'undo', 'redo']) {
+      for (const argument of ['path', 'file', 'reference', 'output']) expect(decide(tool, { [argument]: kept }).allow, `${tool} ${argument}`).toBe(false);
+      expect(decide(tool, {}), tool).toEqual({ allow: true });
+    }
+    // PartBuddy's own tools are not SolidCraft's: a drawing is named, not read from a path the assistant gives.
+    expect(decide('partbuddy_place_drawing', { file: 'logo.svg', body: 'Cube' })).toEqual({ allow: true });
+  });
+
   it('decides a command id in any spelling SolidCraft runs: every rule holds for mixed case', () => {
     // Measured with SolidCraft 0.40.1: each of these ran as written and was allowed, because the rules compared the id exactly.
     const set = { component: 'Deckel', description: 'Hex nut M3' };
