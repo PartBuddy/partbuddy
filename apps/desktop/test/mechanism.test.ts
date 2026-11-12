@@ -267,6 +267,9 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
           // As SolidCraft 0.40.1 lists them: a joint's sides by the ids of their occurrences.
           if (step.command === 'joint.list') return { joints: [{ name: 'Hinge', type: 'revolute', a: 15, b: 17, frame_a: { origin: [42, 15, 3], z: [0, 1, 0] }, values: [{ value: 0, limits: [-145, 67] }] }] };
           if (step.command === 'component.list') return { components: [{ id: 14, parent: 0, bodies: ['Base'], occurrences: [{ id: 15, name: 'Base:1' }] }, { id: 16, parent: 0, bodies: ['Flap'], occurrences: [{ id: 17, name: 'Flap:1' }] }, { id: 31, parent: 0, bodies: ['Flap2'], occurrences: [{ id: 32, name: 'Flap2:1' }] }] };
+          // As SolidCraft 0.40.1 answers: the first hinge's pin from y 0 to 30, and that of a second one, which has no joint, from 40 to 70.
+          if (step.command === 'document.inspect') return { timeline: [{ id: 9, name: 'Hinge ●', type: 'CylinderFeature' }, { id: 30, name: 'Hinge (2) ●', type: 'CylinderFeature' }], undo: 12 };
+          if (step.command === 'timeline.inspect') return { definition: { axis: [0, 1, 0], base: [42, step.params.feature === 9 ? 0 : 40, 3], height: '30 mm', operation: 'join', participants: ['Base'], radius: '(3 mm) / 2' }, suppressed: false };
           return step.command === 'joint.sweep' ? { stopped_at: Number(step.params.to) > 0 ? 67.4 : -145.8 } : {};
         });
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
@@ -282,6 +285,12 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     const over = await tools.callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], knuckles: 7 });
     expect(over).toEqual({ isError: true, content: [{ type: 'text', text: 'Not built: the hinge "Hinge" already joins Base and Flap on this stretch of the line, and new knuckles would be cut into its own. Change that one instead: take it back with undo, or delete its features and its joint, then call again. A second hinge goes on the same line beside the first.' }] });
     expect(batches).toHaveLength(2);
+    // Review 3 of PR #358: half over the first (y 16 to 46 holds no joint's point), and over the second, which has no joint:
+    // both are known by their pins, and nothing is built. Beside both (y 90 to 120, below) it is built.
+    const refusal = async (from: number, to: number) => String((await tools.callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, from, 3], to: [42, to, 3] })).content[0]?.text);
+    expect(await refusal(16, 46)).toContain('Not built: the hinge "Hinge" already joins Base and Flap on this stretch of the line');
+    expect(await refusal(60, 90)).toContain('Not built: the hinge "Hinge (2)" already joins Base and Flap on this stretch of the line');
+    expect(batches.slice(2).map((batch) => batch.map((step) => step.command).join(' '))).toEqual(['component.list joint.list', 'document.inspect', 'timeline.inspect timeline.inspect', 'component.list joint.list', 'document.inspect', 'timeline.inspect timeline.inspect']);
     // Review of PR #358: on the line of the first it is the usual second hinge of a long flap. It gets its knuckles and no joint of
     // its own: the first joint is run through its limits again, since more knuckles can only narrow them.
     const before = batches.length;
@@ -465,7 +474,7 @@ describe('the dovetail guide (ADR 0027, G3)', () => {
     // The rail is the same.
     expect(roofed.slice(3)).toEqual(slideSteps(guide).slice(3));
     // The tool measures the moving body first: its top lies `top` over the base's face at z = 4.
-    const answer = async (top: number, args: Record<string, unknown> = {}, { solid = top, wide = 0, hole = 0, broken = false, overhang = 45, split = false } = {}) => {
+    const answer = async (top: number, args: Record<string, unknown> = {}, { solid = top, wide = 0, hole = 0, broken = false, refused = false, overhang = 45, split = false } = {}) => {
       const sent: { command: string; params: Record<string, unknown> }[] = [];
       const probes: number[][] = [];
       const upstream: UpstreamTools = {
@@ -483,6 +492,8 @@ describe('the dovetail guide (ADR 0027, G3)', () => {
           // Above `solid` the carriage goes on as a rib `wide` over the line, up to its top; `hole` mm of each rod lie in a gap.
           const inBody = (base: number[]) => (base[2] ?? 0) + 0.1 <= 4 + solid || (Math.abs((base[1] ?? 0) - 15) <= wide / 2 && (base[2] ?? 0) + 0.1 <= 4 + top);
           const results = commands.map((step) => (step.command === 'inspect.clearance' ? { overlaps: rods.flatMap((rod) => (inBody(rod.params.base as number[]) ? [{ a: rod.params.body_name, b: 'Carriage', volume_mm3: 0.628 * (1 - hole / 20) }] : [])) } : step.command === 'solid.extrude' && step.params.operation === 'cut' && split ? { created_bodies: ['Carriage (1)'], warning: null } : step.command === 'document.inspect' ? { timeline: [{ id: 1 }, { id: 2 }], undo: 2 } : step.command === 'inspect.measure' ? { bodies: [{ name: 'Carriage', bbox: { min: [20, 0, 4.4], max: [40, 30, 4 + top] } }] } : step.command === 'component.list' ? { components: [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ id: 4, name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Carriage'], occurrences: [{ id: 6, name: 'Carriage:1' }] }] } : {}));
+          // SolidCraft refuses the third rod: the batch ends there, with the two results before it and no comparison.
+          if (rods.length > 0 && refused) return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: results.slice(0, 2), failed: { command: 'solid.cylinder', error: 'refused', index: 2 } }) }], isError: true });
           return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
         },
       };
@@ -514,7 +525,12 @@ describe('the dovetail guide (ADR 0027, G3)', () => {
     expect(rib.groove).toHaveLength(6);
     expect(rib.text).toContain('and it is not. Print Carriage turned over');
     // A cross groove 1.5 mm wide in the carriage (under the old tenth of its length): the roof would break out into it.
-    expect((await answer(12, {}, { hole: 1.5 })).groove).toHaveLength(6);
+    const gap = await answer(12, {}, { hole: 1.5 });
+    expect(gap.groove).toHaveLength(6);
+    // Review 3 of PR #358: so do the ends of a round or chamfered body, which is full over the groove: the answer does not call it "not solid".
+    expect(gap.text).toContain('all along the groove, and it is along most of it only (material is missing at that height along up to 1.5 mm of it: at ends that are round, chamfered or turned, or in a gap across the groove). Print Carriage turned over');
+    // Review 3 of PR #358: a rod SolidCraft refuses ends the batch before the comparison, which read as rods outside the body ("it is not").
+    expect((await answer(12, {}, { refused: true })).text).toContain("whether it is could not be tried (SolidCraft's trial failed)");
     // A trial that fails says nothing about the body, and a line askew to the axes is tried by the body's box: the answer says which.
     const failed = await answer(12, {}, { broken: true });
     expect(failed.groove).toHaveLength(6);

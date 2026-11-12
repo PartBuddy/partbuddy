@@ -372,7 +372,10 @@ async function build(site: Site, spec: { fixed: string; moving: string; name: st
       // On the stretch of the first itself the new knuckles would be cut into the old ones (audit 2026-11-12, H-02): the
       // first joint lies in the middle of its hinge, so a line that holds that point lies over it.
       const at = onLine ? origin.reduce((sum, value, i) => sum + (value - (spec.from?.[i] ?? 0)) * (line[i] ?? 0), 0) / line.reduce((sum, value) => sum + value * value, 0) : -1;
-      if (at >= 0 && at <= 1) throw new Error(`the hinge ${JSON.stringify(same.name)} already joins ${spec.fixed} and ${spec.moving} on this stretch of the line, and new knuckles would be cut into its own. Change that one instead: take it back with undo, or delete its features and its joint, then call again. A second hinge goes on the same line beside the first.`);
+      // A hinge that reaches only partly over the first, or over a second one that has no joint of its own, holds no
+      // such point (review 3 of PR #358): those are known by their pins.
+      const over = at >= 0 && at <= 1 ? String(same.name) : onLine && spec.from ? await pinOver(run, spec.from, line) : null;
+      if (over !== null) throw new Error(`the hinge ${JSON.stringify(over)} already joins ${spec.fixed} and ${spec.moving} on this stretch of the line, and new knuckles would be cut into its own. Change that one instead: take it back with undo, or delete its features and its joint, then call again. A second hinge goes on the same line beside the first.`);
       if (!onLine) throw new Error(`the joint ${JSON.stringify(same.name)} already joins ${spec.fixed} and ${spec.moving} as a ${kind}${joins === 'revolute' ? ' on another line' : ''}, and a second ${joins === 'revolute' ? 'axis' : 'guide'} between the same two bodies would bind it. ${joins === 'revolute' ? 'Put this hinge on the line of the first, or change the first' : 'Change that one instead'}: take it back with undo, or delete its features and its joint, then call again.`);
       const limits = same.values?.[0]?.limits;
       site.shares = { name: String(same.name), limits: Array.isArray(limits) && typeof limits[0] === 'number' && typeof limits[1] === 'number' ? [limits[0], limits[1]] : [-180, 180] };
@@ -402,6 +405,36 @@ async function build(site: Site, spec: { fixed: string; moving: string; name: st
   const [clash] = await run([{ command: 'inspect.interference', params: { bodies: [spec.fixed, spec.moving] } }]);
   const overlaps = ((clash as { count?: unknown } | undefined)?.count as number | undefined) ?? 0;
   return overlaps > 0 ? ' Warning: the two bodies still share volume away from the mechanism; make room between them.' : '';
+}
+
+/**
+ * The name of a hinge whose pin lies on the stretch `from`–`from + line`, or null. Every hinge keeps its pin as the
+ * feature "<name> ●", and `timeline.inspect` says where that cylinder starts and how long it is (SolidCraft 0.40.1).
+ * shortcut: a pin that was renamed, or whose body was moved since, is not found; then only the first joint's point is known.
+ */
+async function pinOver(run: Run, from: Vec3, line: number[]): Promise<string | null> {
+  try {
+    const [design] = await run([{ command: 'document.inspect', params: { timeline: 'summary' } }]);
+    const timeline = (design as { timeline?: unknown } | undefined)?.timeline;
+    const pins = (Array.isArray(timeline) ? (timeline as { id?: unknown; name?: unknown }[]) : []).filter((entry) => typeof entry.name === 'string' && entry.name.endsWith(' ●'));
+    if (pins.length === 0) return null;
+    const read = (await run(pins.map((pin) => ({ command: 'timeline.inspect', params: { feature: pin.id } })))) as ({ suppressed?: unknown; definition?: { base?: unknown; axis?: unknown; height?: unknown } } | undefined)[];
+    const length = Math.hypot(...line);
+    const along = (vector: number[]) => vector.reduce((sum, value, i) => sum + value * ((line[i] ?? 0) / length), 0);
+    for (const [n, pin] of read.entries()) {
+      const [base, axis, height] = [vec3(pin?.definition?.base), vec3(pin?.definition?.axis), Number.parseFloat(String(pin?.definition?.height))];
+      if (!base || !axis || !(height > 0) || pin?.suppressed === true) continue;
+      const rel = base.map((value, i) => value - (from[i] ?? 0));
+      const [start, turn] = [along(rel), along(axis) / Math.hypot(...axis)];
+      // Beside the line, or across it: another hinge.
+      if (Math.sqrt(Math.max(0, rel.reduce((sum, value) => sum + value * value, 0) - start * start)) > 0.01 || Math.abs(turn) < 0.999) continue;
+      const [low, high] = turn > 0 ? [start, start + height] : [start - height, start];
+      if (low < length - 1e-6 && high > 1e-6) return String(pins[n]?.name).slice(0, -2);
+    }
+  } catch {
+    // Not readable: the first joint's point was tried already.
+  }
+  return null;
 }
 
 /** Makes the two bodies components unless they are, joins them where they are and sets the limits: the range clear of contact within `range`. */
@@ -522,9 +555,13 @@ async function rodsInside(upstream: UpstreamTools, rods: { name: string; base: n
   );
   const text = answer.content.find((part) => part.type === 'text')?.text;
   const found = ((JSON.parse(typeof text === 'string' ? text : '') as { results?: unknown[] }).results?.[rods.length] as { overlaps?: unknown } | undefined)?.overlaps;
+  // A rod or the comparison that failed ends the batch before its answer: that says nothing about the body.
+  if (!Array.isArray(found)) throw new Error('the trial gave no answer');
+  // Measured on SolidCraft 0.40.1 (2026-11-12): a rod wholly in a body of 30, 100 and 300 mm comes back with this
+  // volume to nine digits, and one through a 1.5 mm gap with 1.500 mm less.
   const whole = (Math.PI * ROD * ROD * length) / 4;
   for (const rod of rods) {
-    const inside = (Array.isArray(found) ? (found as { a?: unknown; b?: unknown; volume_mm3?: unknown }[]) : []).find((pair) => [pair.a, pair.b].includes(rod.name) && [pair.a, pair.b].includes(rod.body))?.volume_mm3;
+    const inside = (found as { a?: unknown; b?: unknown; volume_mm3?: unknown }[]).find((pair) => [pair.a, pair.b].includes(rod.name) && [pair.a, pair.b].includes(rod.body))?.volume_mm3;
     shares.set(rod.name, typeof inside === 'number' ? inside / whole : 0);
   }
   return shares;
@@ -544,7 +581,7 @@ async function carried(upstream: UpstreamTools, spec: HingeSpec, bed: number, si
     const base = spec.from[2] - drop <= bed ? null : spec.from.map((value, i) => value + (wall.toward[i] ?? 0) * (wall.distance + WEB.into / 2) - (i === 2 ? drop : 0));
     return [{ key, wall, base, name: `${PROBE} ${key}` }];
   });
-  const shares = await rodsInside(upstream, tried.flatMap((entry) => (entry.base ? [{ name: entry.name, base: entry.base, body: spec[entry.key] }] : [])), axis, Math.hypot(...axis), callId);
+  const shares = await rodsInside(upstream, tried.flatMap((entry) => (entry.base ? [{ name: entry.name, base: entry.base, body: spec[entry.key] }] : [])), axis, Math.hypot(...axis), callId).catch(() => new Map<string, number>());
   const out: { fixed?: HingeSide; moving?: HingeSide } = {};
   for (const entry of tried) if (entry.base === null || (shares.get(entry.name) ?? 0) >= 0.9) out[entry.key] = entry.wall;
   return out;
@@ -612,7 +649,8 @@ async function buildGuide(site: Site, spec: SlideSpec, nozzle: number, overhang:
   const needed = Math.round((roof.top + skin) * 10) / 10;
   let measure: unknown;
   // Why the groove got no roof, when it is not that the body was found short of material there.
-  const roofless: { why: 'failed' | 'askew' | null } = { why: null };
+  // 'partly': every rod lies mostly in the body, and `short` mm of the worst one do not.
+  const roofless: { why: 'failed' | 'askew' | 'partly' | null; short: number } = { why: null, short: 0 };
   const warnings = await build(
     site,
     spec,
@@ -640,7 +678,11 @@ async function buildGuide(site: Site, spec: SlideSpec, nozzle: number, overhang:
       spec.roof = shares !== null && covered > 0 && rods.every((rod) => (1 - (shares.get(rod.name) ?? 0)) * covered <= ROD);
       // shortcut: the rods are as long as the body's box along the line, so over a line askew to the axes (or a body
       // turned on its face) they reach past the body and no roof is built; lay them by the body itself when that turns up.
-      roofless.why = spec.roof ? null : shares === null ? 'failed' : along.filter((value) => Math.abs(value) > 1e-6).length > 1 ? 'askew' : null;
+      // shortcut: ends that are not flat (a round or chamfered body) leave the rods short there, and the groove gets
+      // no roof though the body is full over it; the answer says so. Try only the stretch each rod can lie in when it turns up.
+      const least = shares === null ? 0 : Math.min(...rods.map((rod) => shares.get(rod.name) ?? 0));
+      roofless.short = Math.round((1 - least) * covered * 10) / 10;
+      roofless.why = spec.roof ? null : shares === null ? 'failed' : along.filter((value) => Math.abs(value) > 1e-6).length > 1 ? 'askew' : least >= 0.5 ? 'partly' : null;
     },
     joins,
   );
@@ -651,11 +693,12 @@ async function buildGuide(site: Site, spec: SlideSpec, nozzle: number, overhang:
   const steep = overhang < 45 ? leans(flanks, overhang) : null;
   const solid = `solid up to ${String(needed)} mm over the face the rail is on`;
   const box = "the line runs askew to the axes, where the trial goes by the body's box and can reach past the body";
+  const ends = `material is missing at that height along up to ${String(roofless.short)} mm of it: at ends that are round, chamfered or turned, or in a gap across the groove`;
   const print = spec.roof
     ? `${apart} ${steep ?? `Neither needs support: the rail's flanks and the roof over the groove lean 45°, and the roof's ridge is a bridge of ${String(roof.ridge)} mm.`}`
     : roof.ceiling <= BRIDGE_SPAN
-      ? `${apart} The groove's ceiling is flat and ${wide} mm wide, which prints as a bridge (up to ${String(BRIDGE_SPAN)} mm)${steep ? `. ${steep}` : ", and the rail's flanks lean 45°: neither needs support."} ${untried === 'failed' ? `Whether ${spec.moving} is ${solid} could not be tried (SolidCraft's trial failed)` : untried === 'askew' ? `The trial did not find ${spec.moving} ${solid} all along the groove (${box})` : `${spec.moving} is not ${solid} all along the groove`}, so the groove got no roof.`
-      : `${apart} The groove's ceiling is flat and ${wide} mm wide, more than prints as a bridge (${String(BRIDGE_SPAN)} mm): a roof at 45° over it needs ${spec.moving} to be ${solid}, all along the groove, and ${untried === 'failed' ? "whether it is could not be tried (SolidCraft's trial failed)" : untried === 'askew' ? `the trial did not find it so (${box})` : 'it is not'}. Print ${spec.moving} turned over instead, lying on its top with the groove open upwards (set that face as its print face), or ${untried ? 'make sure it is' : 'make it'} that high there and build this again.${steep ? ` ${steep}` : ''}`;
+      ? `${apart} The groove's ceiling is flat and ${wide} mm wide, which prints as a bridge (up to ${String(BRIDGE_SPAN)} mm)${steep ? `. ${steep}` : ", and the rail's flanks lean 45°: neither needs support."} ${untried === 'failed' ? `Whether ${spec.moving} is ${solid} could not be tried (SolidCraft's trial failed)` : untried === 'askew' ? `The trial did not find ${spec.moving} ${solid} all along the groove (${box})` : untried === 'partly' ? `${spec.moving} is ${solid} along most of the groove only (${ends})` : `${spec.moving} is not ${solid} all along the groove`}, so the groove got no roof.`
+      : `${apart} The groove's ceiling is flat and ${wide} mm wide, more than prints as a bridge (${String(BRIDGE_SPAN)} mm): a roof at 45° over it needs ${spec.moving} to be ${solid}, all along the groove, and ${untried === 'failed' ? "whether it is could not be tried (SolidCraft's trial failed)" : untried === 'askew' ? `the trial did not find it so (${box})` : untried === 'partly' ? `it is along most of it only (${ends})` : 'it is not'}. Print ${spec.moving} turned over instead, lying on its top with the groove open upwards (set that face as its print face), or ${untried ? 'make sure it is' : 'make it'} that high there and build this again.${steep ? ` ${steep}` : ''}`;
   return { warnings, measure, print };
 }
 
