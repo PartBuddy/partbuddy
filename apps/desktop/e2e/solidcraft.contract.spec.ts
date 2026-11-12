@@ -2976,6 +2976,9 @@ test('a built text is picked as a whole and changed afterwards: words, height an
     await expect(async () => {
       const [x, y] = spots[spot++ % spots.length] ?? [0.5, 0.5];
       await page.keyboard.press('Escape');
+      // Again each time: the first key 7 is lost when the view was not ready for it, and every click then misses.
+      await page.keyboard.press('7');
+      await page.waitForTimeout(700);
       await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
       await expect(page.getByTestId('logo-text')).toBeVisible({ timeout: 3000 });
     }, 'the built text under a click').toPass({ timeout: 60_000, intervals: [500] });
@@ -3001,6 +3004,9 @@ test('a built text is picked as a whole and changed afterwards: words, height an
     await expect(async () => {
       const [x, y] = spots[spot++ % spots.length] ?? [0.5, 0.5];
       await page.keyboard.press('Escape');
+      // Again each time: the first key 7 is lost when the view was not ready for it, and every click then misses.
+      await page.keyboard.press('7');
+      await page.waitForTimeout(700);
       await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
       await expect(page.getByTestId('logo-words').getByRole('textbox')).toHaveValue('AB', { timeout: 3000 });
     }, 'the changed text under a click').toPass({ timeout: 60_000, intervals: [500] });
