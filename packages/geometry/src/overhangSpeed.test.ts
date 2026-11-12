@@ -53,36 +53,55 @@ function stem(rings: number, n: number, from: number): OverhangInput {
   return surface([...all, circle(6.5, from + rings * 0.2, n)], [...Array.from({ length: rings }, () => 0), -1], true);
 }
 
+/** The check on a mesh, with the fastest of three runs: one run alone says more about the runner than about the check. */
 function timed(mesh: OverhangInput, bed: number) {
-  const start = performance.now();
-  const map = overhangOf(mesh, bed, overhangLimits(45), smallOverhangReach(0.4));
-  return { ms: performance.now() - start, triangles: mesh.index.length / 3, support: Math.round(map.area[Overhang.Support]), small: Math.round(map.area[Overhang.Borderline]) };
+  let ms = Infinity;
+  let map = overhangOf(mesh, bed, overhangLimits(45), smallOverhangReach(0.4));
+  for (let run = 0; run < 3; run += 1) {
+    const start = performance.now();
+    map = overhangOf(mesh, bed, overhangLimits(45), smallOverhangReach(0.4));
+    ms = Math.min(ms, performance.now() - start);
+  }
+  return { ms, triangles: mesh.index.length / 3, support: Math.round(map.area[Overhang.Support]), small: Math.round(map.area[Overhang.Borderline]) };
 }
+
+/**
+ * How many times longer a mesh four times the size may take. One pass takes 4 times as long,
+ * searching anew from every rim 16 times; a limit in seconds failed on a busy runner instead
+ * (3.9 s against 3 s for the thread).
+ */
+const GROWTH = 12;
+/** Time for a test to finish at all on a busy runner; no measure of the check. */
+const PATIENCE = 120_000;
 
 describe('what stands and what hangs on large meshes, in one pass', () => {
   // Searching anew from every rim took 14 s on 24 000 triangles of the funnel and 56 s on 48 000.
-  // The limits are wide for a busy CI runner; measured locally all stay under 1 s.
-  it('finds every step of a stepped funnel small: each ledge stands on the riser below', () => {
-    expect(timed(funnel(60, 100), 0)).toMatchObject({ triangles: 24_000, support: 0, small: 13_186 });
+  it('finds every step of a stepped funnel small: each ledge stands on the riser below', { timeout: PATIENCE }, () => {
+    const small = timed(funnel(60, 100), 0);
+    expect(small).toMatchObject({ triangles: 24_000, support: 0, small: 13_186 });
     const large = timed(funnel(250, 100), 0);
     expect(large).toMatchObject({ triangles: 100_000, support: 0 });
-    expect(large.ms).toBeLessThan(2000);
+    expect(large.ms).toBeLessThan(small.ms * GROWTH);
   });
 
-  it('finds the flanks of a long thread small, turn over turn', () => {
+  it('finds the flanks of a long thread small, turn over turn', { timeout: PATIENCE }, () => {
+    const short = timed(thread(65, 96), -1);
+    expect(short).toMatchObject({ triangles: 37_440, support: 0 });
     const bolt = timed(thread(260, 96), -1);
     expect(bolt.triangles).toBe(149_760);
     expect(bolt.support).toBe(0);
     expect(bolt.small).toBeGreaterThan(4700);
-    expect(bolt.ms).toBeLessThan(3000);
+    expect(bolt.ms).toBeLessThan(short.ms * GROWTH);
   });
 
-  it('holds a ledge on a finely meshed stem that stands on the bed, and reports it on one that floats', () => {
+  it('holds a ledge on a finely meshed stem that stands on the bed, and reports it on one that floats', { timeout: PATIENCE }, () => {
+    const short = timed(stem(62, 200, 0), 0);
+    expect(short).toMatchObject({ triangles: 25_200, support: 0, small: 54 });
     const standing = timed(stem(250, 200, 0), 0);
     expect(standing).toMatchObject({ triangles: 100_400, support: 0, small: 54 });
-    expect(standing.ms).toBeLessThan(2000);
+    expect(standing.ms).toBeLessThan(short.ms * GROWTH);
     const floating = timed(stem(250, 200, 1), 0);
     expect(floating).toMatchObject({ support: 54, small: 0 });
-    expect(floating.ms).toBeLessThan(2000);
+    expect(floating.ms).toBeLessThan(timed(stem(62, 200, 1), 0).ms * GROWTH);
   });
 });
