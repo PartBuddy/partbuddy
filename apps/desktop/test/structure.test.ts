@@ -5,7 +5,7 @@ import { printCheckNote } from '../src/main/print/printCheckNote';
 import { jointMove, jointPoses, playRange, playStep, rotate, withFollowers } from '../src/renderer/src/viewer/jointPose';
 import { snapSpan, sweepStopOf } from '../src/main/solidcraft/actions';
 
-import { componentsWithBodies, jointsOf, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
+import { componentsWithBodies, hardwareOf, jointsOf, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
 import { describeCommands, describeUserAction } from '../src/shared/stepPhrases';
 import { structureSchema } from '../src/shared/contract';
 
@@ -61,6 +61,31 @@ describe('standard parts the assistant inserted itself', () => {
     // Without the library nothing is taken for a part: the bodies stay in print check and export.
     expect(libraryBodies(parts, metadata, undefined)).toEqual([]);
     expect(componentsWithBodies(undefined)).toEqual([]);
+  });
+
+  it('lists to buy only the parts kept out of printing, not a printed component that was given a part number', () => {
+    // assembly.bom and component.list as SolidCraft 0.40.1 answers after a screw joint with two countersunk screws
+    // and component.metadata.set {component: "Deckel", part_number: "ISO 4032 M3"} on a printed lid.
+    const bom = {
+      rows: [
+        { item: 1, part_number: 'ISO 10642 M3x10', description: 'Countersunk socket screw M3x10', definition: 'CSK M3x10', count: 2, components: [2, 9] },
+        { item: 2, part_number: 'ISO 4032 M3', description: '', definition: 'Deckel', count: 1, components: [16] },
+        { item: 3, part_number: '', description: '', definition: 'Bracket', count: 1, components: [20] },
+      ],
+    };
+    const listing = {
+      components: [
+        { id: 0, parent: null, bodies: ['Block'] },
+        { id: 2, parent: 0, bodies: ['Body1'] },
+        { id: 9, parent: 0, bodies: ['Body2'] },
+        { id: 16, parent: 0, bodies: ['Deckel'] },
+        { id: 20, parent: 0, bodies: ['Bracket'] },
+      ],
+    };
+    expect(hardwareOf(bom, listing, ['Body1', 'Body2'])).toEqual([{ count: 2, name: 'Countersunk socket screw M3x10', standard: 'ISO 10642 M3x10' }]);
+    // Screws the mirror did not take for standard parts are exported and printed, so they are not listed to buy either.
+    expect(hardwareOf(bom, listing, [])).toEqual([]);
+    expect(hardwareOf(undefined, listing, ['Body1'])).toEqual([]);
   });
 
   it('gives bodies the colour SolidCraft lists for them, as 0.40 answers appearance.list', () => {

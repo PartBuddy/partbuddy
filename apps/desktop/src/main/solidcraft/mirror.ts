@@ -76,6 +76,27 @@ export function libraryBodies(parts: readonly { id: number; bodies: string[] }[]
 }
 
 /**
+ * The parts to buy among the rows of `assembly.bom`: those with a part number whose components
+ * (`component.list`) hold standard parts only. A printed component the assistant gave a part number
+ * stays out, so the list names what print check, plate and export leave out and nothing else.
+ */
+export function hardwareOf(bom: unknown, listing: unknown, standardParts: readonly string[]): { count: number; name: string; standard: string }[] {
+  const rows = (bom as { rows?: unknown } | undefined)?.rows;
+  if (!Array.isArray(rows)) return [];
+  const standard = new Set(standardParts);
+  const bought = new Set(componentsWithBodies(listing).filter((part) => part.bodies.every((body) => standard.has(body))).map((part) => part.id));
+  return (rows as Record<string, unknown>[])
+    .filter((row) => typeof row.part_number === 'string' && row.part_number.trim() !== '' && typeof row.count === 'number' && row.count > 0)
+    .filter((row) => Array.isArray(row.components) && row.components.length > 0 && row.components.every((id) => bought.has(id as number)))
+    .slice(0, 100)
+    .map((row) => ({
+      count: row.count as number,
+      name: (typeof row.description === 'string' && row.description.trim() ? row.description : String(row.definition ?? row.part_number)).slice(0, 200),
+      standard: (row.part_number as string).slice(0, 200),
+    }));
+}
+
+/**
  * Adds standard parts inserted without PartBuddy to the structure. Only a design with components
  * holding bodies costs a second request; one that cannot be read leaves the structure as it was.
  */
