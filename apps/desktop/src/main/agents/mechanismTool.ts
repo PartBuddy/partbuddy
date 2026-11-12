@@ -19,7 +19,7 @@ const mechanismTool: UpstreamTool = {
   description:
     'Build a print-in-place mechanism between two bodies that exist, printed in one piece without support, with the same gap everywhere. ' +
     'hinge: knuckles in turn on both bodies and a pin through them. Give the hinge line (from, to) in the gap between the bodies, level with the bed and half the barrel diameter above it when the part prints lying flat; ' +
-    'the line must lie closer to both bodies than the barrel radius less 0.5 mm, so the knuckles grow out of them; it needs no distance from their walls, because PartBuddy cuts each knuckle\'s room in the other body itself. ' +
+    'the line must lie closer to both bodies than the barrel radius less 0.5 mm, so the knuckles grow out of them; PartBuddy cuts each knuckle\'s room in the other body itself, a gap wider than the barrel. Give wall, the thickness of the walls along the line: a room that would leave less than two lines of a wall behind it is refused, with how far to move the line. ' +
     'slide: a dovetail rail on the fixed body and its groove in the moving body, which lies over the rail a gap above the face. Give the middle line of the rail (from, to) on that face and the face normal (up). ' +
     'PartBuddy also joins the two with a joint, finds how far it moves before the bodies meet (a slide: while the moving body stays on its rail) and sets that as its limits; the user then moves it with a slider in the view. ' +
     'closure: a snap closure between a lid and its box, nothing standing out: a lip inside the lid that goes into the box along its wall and centres the lid, a bead that snaps into a rille of the box\'s wall, and a notch for a fingernail. ' +
@@ -46,7 +46,7 @@ const mechanismTool: UpstreamTool = {
       up: { ...vector, description: 'slide: the normal of the face of the fixed body the rail stands on; default +Z. closure: the way the lip stands out of the lid, +Z or -Z; default +Z. snap: the way the hook stands out of the fixed body; default +Z. latch: the way from the box to the lid; default +Z.' },
       shape: { type: 'string', enum: ['peg', 'dovetail'], description: 'plug: pegs in pockets, or a dovetail to push together; default peg.' },
       side: { type: 'string', enum: ['x-', 'x+', 'y-', 'y+'], description: 'closure: the wall of the lid\'s inner room with the catch and the notch.' },
-      wall: { type: 'number', minimum: 1.6, maximum: 10, description: 'closure: the lid\'s wall thickness in mm; default 2. snap: the thickness of the wall the window goes through; default 2.' },
+      wall: { type: 'number', minimum: 1.6, maximum: 10, description: 'closure: the lid\'s wall thickness in mm; default 2. snap: the thickness of the wall the window goes through; default 2. hinge: the thickness of the walls the hinge line runs along; no default.' },
       radius: { type: 'number', minimum: 0, maximum: 100, description: 'closure: the radius of the inner room\'s corners in mm; default 0 (sharp).' },
       size: { type: 'string', enum: [...BLOCK_SIZES], description: 'screw: the screw; default M3.' },
       head: { type: 'string', enum: ['cap', 'countersunk', 'none'], description: 'screw: socket head sunk in a counterbore (default), countersunk head, or a head lying on the face.' },
@@ -311,7 +311,7 @@ export function activated(steps: Step[], listing: unknown): Step[] {
  * hinge line and the walls, mended the loose knuckles with webs, and their warnings stayed in the
  * timeline), and `where` tells the model where the line goes. Volume the two still share is a warning.
  */
-async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; moving: string }, steps: Step[], where: string, callId: string | undefined, makes = false): Promise<string> {
+async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; moving: string }, steps: Step[], where: string, callId: string | undefined, makes = false, ready: () => Promise<void> = () => Promise.resolve()): Promise<string> {
   const before = jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { bodies?: { name?: unknown }[]; undo?: unknown };
   const bodies = (before.bodies ?? []).map((body) => body.name);
   // A mechanism that makes its moving body (a lid) needs the name free.
@@ -327,6 +327,8 @@ async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; m
     .filter((joint) => (joint.values ?? []).some((value) => typeof value.value === 'number' && Math.abs(value.value) > 1e-6))
     .map((joint) => String(joint.name));
   if (away.length > 0) throw new Error(`the joint(s) ${away.map((name) => JSON.stringify(name)).join(', ')} stand away from 0; drive them back with joint.drive first, so the bodies are where they were designed`);
+  // The bodies are there and stand as designed: what must be measured on them before anything is built.
+  await ready();
   const built = await run(activated(steps, listing));
   const apart = built.filter((result) => {
     const warning = (result as { warning?: unknown } | undefined)?.warning;
@@ -372,6 +374,61 @@ async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3;
   return limits;
 }
 
+/** The name of the body that measures where the hinge line lies; it is never kept. */
+const PROBE = 'PartBuddy probe';
+
+/**
+ * How deep the room of a knuckle goes into each body, from the face nearest the hinge line (mm; 0 when it does not
+ * reach it). A wall thicker than that by less than two lines is left as a skin behind the room (practice run
+ * 2026-11-12: 0.8 mm of a 1.8 mm wall). Measured on trial with a thin rod on the line: a step that must fail ends the
+ * batch, and SolidCraft takes the rod back. Null when it could not be measured.
+ */
+export async function roomDepths(upstream: UpstreamTools, spec: HingeSpec, callId: string | undefined): Promise<{ fixed: number; moving: number } | null> {
+  try {
+    const axis = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
+    const rod = 0.1;
+    // The batch fails on purpose, so its answer comes as an error that still carries the results before the step that failed.
+    const answer = await upstream.callTool(
+        'batch',
+        {
+          commands: [
+            { command: 'solid.cylinder', params: { diameter: rod, height: Math.hypot(...axis), base: spec.from, axis, operation: 'new', body_name: PROBE } },
+            { command: 'inspect.clearance', params: { bodies: [PROBE], against: [spec.fixed, spec.moving], clearance: spec.diameter } },
+            { command: 'sketch.inspect', params: { sketch: 2147483647 } },
+          ],
+          rollback: true,
+        },
+        callId,
+      );
+    const text = answer.content.find((part) => part.type === 'text')?.text;
+    const reply = JSON.parse(typeof text === 'string' ? text : '') as { results?: unknown[] };
+    const near = (reply.results?.[1] as { near?: { a?: unknown; b?: unknown; distance_mm?: unknown }[] } | undefined)?.near;
+    if (!Array.isArray(near)) return null;
+    const depth = (body: string) => {
+      const pair = near.find((entry) => entry.a === body || entry.b === body);
+      // No pair: the body is further away than the barrel is wide, and build() says so.
+      if (typeof pair?.distance_mm !== 'number') return 0;
+      return Math.max(0, Math.round((spec.diameter / 2 + spec.gap - pair.distance_mm - rod / 2) * 100) / 100);
+    };
+    return { fixed: depth(spec.fixed), moving: depth(spec.moving) };
+  } catch {
+    return null;
+  }
+}
+
+/** What is wrong with the walls behind the knuckles' rooms, when the model said how thick they are; null when they print. */
+export function skinProblem(depths: { fixed: number; moving: number }, spec: { fixed: string; moving: string }, wall: number, nozzle: number): string | null {
+  const least = Math.round(nozzle * 2 * 1.125 * 100) / 100;
+  const mm = (value: number) => String(Math.round(value * 100) / 100);
+  for (const [body, depth] of [[spec.fixed, depths.fixed], [spec.moving, depths.moving]] as const) {
+    const skin = wall - depth;
+    if (depth > 0 && skin > 1e-6 && skin < least - 1e-6) {
+      return `the rooms of the knuckles would go ${mm(depth)} mm into the ${mm(wall)} mm wall of ${body} and leave a skin of ${mm(skin)} mm behind them, under two lines (${mm(least)} mm). Make that wall at least ${mm(depth + least)} mm thick, or move the line ${mm(least - skin)} mm further from ${body}, or ${mm(skin)} mm closer to it so the rooms open through the wall. Nothing was built.`;
+    }
+  }
+  return null;
+}
+
 const MOVE = 'The user moves it with the slider "Moving parts" in the view.';
 
 /** What the model hears when the joint is made but its range could not be found. */
@@ -388,13 +445,22 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     const spec = hingeOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
     const reach = String(Math.round((spec.diameter / 2 - 0.5) * 10) / 10);
+    let depths: { fixed: number; moving: number } | null = null;
+    const least = String(Math.round(nozzle * 2 * 1.125 * 100) / 100);
+    const rooms = () => depths ? ` The knuckles' rooms go ${String(depths.fixed)} mm into ${spec.fixed} and ${String(depths.moving)} mm into ${spec.moving}, measured from the face nearest the line: a wall there must be ${least} mm thicker than that, or thinner than it (the room then opens through the wall); anything between is left as a thin skin.` : '';
     const warnings = await build(
       upstream,
       run,
       spec,
       hingeSteps(spec),
-      `Put the hinge line within ${reach} mm of both bodies (the barrel is ${String(spec.diameter)} mm, so it must overlap each by at least 0.5 mm). It needs no distance from their walls: PartBuddy cuts each knuckle's room in the other body itself.`,
+      `Put the hinge line within ${reach} mm of both bodies (the barrel is ${String(spec.diameter)} mm, so it must overlap each by at least 0.5 mm). PartBuddy cuts each knuckle's room in the other body itself.`,
       callId,
+      false,
+      async () => {
+        depths = await roomDepths(upstream, spec, callId);
+        const thin = depths && typeof args.wall === 'number' ? skinProblem(depths, spec, args.wall, nozzle) : null;
+        if (thin) throw new Error(thin);
+      },
     );
     const range = await join(run, spec, 'revolute', [-180, 180], 1);
     if (typeof range === 'string') return `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns) and joined them, but ${unswept(range)}${warnings}`;
@@ -402,7 +468,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     return (
       `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns): ${String(spec.knuckles)} knuckles, barrel ${String(spec.diameter)} mm, pin ${String(pinDiameter(spec.diameter))} mm, ` +
       `gap ${String(spec.gap)} mm everywhere. It turns from ${String(min)}° to ${String(max)}° before the bodies meet, and those are its limits now; 0° is as designed. ` +
-      `${MOVE} If it should open further, make room where the bodies meet and set joint.limits again.${warnings}`
+      `${MOVE} If it should open further, make room where the bodies meet and set joint.limits again.${rooms()}${warnings}`
     );
   }
   if (args.kind === 'slide') {
