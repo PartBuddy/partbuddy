@@ -2336,7 +2336,7 @@ test('a sharing package holds 3MF, STEP, four pictures and a description of the 
     expect(readFileSync(join(exports, folder, 'Housing.step'), 'utf8').startsWith('ISO-10303-21')).toBe(true);
     const description = readFileSync(join(exports, folder, 'description.md'), 'utf8');
     expect(description).toContain('# Housing');
-    expect(description).toContain('- Supports: none needed, it prints as designed');
+    expect(description).toContain("- Supports: the print check found no face that needs them; the slicer decides");
     expect(description).toContain('- Housing: 104 × 60 × 30 mm');
     expect(description).toContain('- `insert_hole` = 4 mm – Hole for an M3 heat-set insert (ruthex: 4 mm)');
     // A second package goes beside the first, never over it.

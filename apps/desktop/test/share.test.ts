@@ -28,7 +28,7 @@ describe('the sharing package (F5)', () => {
   it('describes parts, sizes, parameters and how it prints, and leaves the purpose to the user', () => {
     const text = shareDescription(facts);
     expect(text.startsWith('# Housing\n\n<!-- What is it')).toBe(true);
-    expect(text).toContain('- Material: PLA\n- Layer height: 0.2 mm\n- Nozzle: 0.4 mm\n- Supports: none needed, it prints as designed\n- Parts: 2 parts');
+    expect(text).toContain('- Material: PLA\n- Layer height: 0.2 mm\n- Nozzle: 0.4 mm\n- Supports: the print check found no face that needs them; the slicer decides\n- Parts: 2 parts');
     expect(text).toContain('- Housing: 80 × 60 × 30 mm\n- Lid\n');
     expect(text).toContain('- `length` = 80 mm – Outer length of housing and lid\n- `count` = 4\n');
     expect(text).toContain('- `Housing.3mf` – ready for the slicer');
@@ -38,6 +38,9 @@ describe('the sharing package (F5)', () => {
   it('says where supports may be needed, or that the check has not run, and speaks German', () => {
     expect(shareDescription({ ...facts, check: { status: 'warn', overhang: true } })).toContain('check them in the slicer');
     expect(shareDescription({ ...facts, check: null })).toContain('Supports: not checked');
+    // A part the check blocks is never called printable without supports (audit D5).
+    expect(shareDescription({ ...facts, check: { status: 'block', overhang: false } })).toContain("Supports: not settled: the print check found problems that keep the part from printing");
+    expect(shareDescription({ ...facts, language: 'de', check: { status: 'block', overhang: false } })).toContain('Stützen: offen: die Prüfung von PartBuddy fand Probleme, die den Druck verhindern');
     expect(shareDescription(facts)).not.toContain('Hardware');
     expect(shareDescription({ ...facts, hardware: [{ count: 2, name: 'Socket head cap screw M3x12', standard: 'ISO 4762 M3x12' }] })).toContain(
       '## Hardware\n\n- 2 × Socket head cap screw M3x12 (ISO 4762 M3x12)',
