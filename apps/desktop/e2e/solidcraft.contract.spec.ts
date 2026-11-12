@@ -3622,7 +3622,8 @@ test('the assistant builds a screw joint with one call: holes on one line in bot
     await expect(page.getByText(/Warning:/)).toHaveCount(0);
     // Block, plate and two screws, which the tree knows as standard parts.
     await expect(page.getByTestId('mesh-summary')).toContainText('4 bodies', { timeout: 30_000 });
-    await expect(page.getByText('standard part', { exact: true })).toHaveCount(2);
+    // The screws count once SolidCraft has built one to hold them against, a mirror after the bodies show.
+    await expect(page.getByText('standard part', { exact: true })).toHaveCount(2, { timeout: 30_000 });
     await expect(page.getByText('Screw joint “Plate screws” between two parts')).toHaveCount(1);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     // The screws overlap nothing: every hole is where its screw is.

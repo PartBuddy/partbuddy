@@ -99,22 +99,25 @@ export function DesignActions() {
     };
   }, [canUndo, canRedo, undo, redo]);
 
+  // Bodies that look like bought standard parts but could not be checked went along as printed ones: the user hears it with the result.
+  const unchecked = (bodies: string[] | undefined) => (bodies && bodies.length > 0 ? ` ${t('actions.uncheckedParts', { bodies: bodies.slice(0, 5).join(', '), count: bodies.length })}` : '');
+
   // A red ready-to-print check asks once before the export (M7); it does not stop it.
   const exportNow = (target: ExportTarget) => {
     void run(async () => {
       if (target.startsWith('slicer:')) {
         // To the slicer (B8): SolidCraft starts it with the printable bodies on their print faces.
-        const { name } = await platform().design.sendToSlicer(target.slice('slicer:'.length));
-        return t('actions.sentToSlicer', { name });
+        const { name, unverified } = await platform().design.sendToSlicer(target.slice('slicer:'.length));
+        return `${t('actions.sentToSlicer', { name })}${unchecked(unverified)}`;
       }
       if (target === 'share') {
         // The sharing package (F5): the main process opens its folder in Explorer.
-        const { folder } = await platform().design.share();
-        return t('actions.share.done', { folder });
+        const { folder, unverified } = await platform().design.share();
+        return `${t('actions.share.done', { folder })}${unchecked(unverified)}`;
       }
       const result = await platform().design.export(target as ExportFormat);
       if (!result) return null;
-      return t('actions.exported', { file: result.file });
+      return `${t('actions.exported', { file: result.file })}${unchecked(result.unverified)}`;
     });
   };
 

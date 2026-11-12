@@ -25,7 +25,8 @@ export function usePrintCheck(): void {
     }
     const timer = setTimeout(() => {
       // Standard parts (B7) are counterparts and are not printed.
-      const standard = new Set(model.structure.standardParts ?? []);
+      // A body whose part SolidCraft is still building is neither yet; the mirror that follows says which, and the check runs again.
+      const standard = new Set([...(model.structure.standardParts ?? []), ...(model.structure.pendingParts ?? [])]);
       const printed = model.bodies.filter((body) => !standard.has(body.name)).map((body) => ({ ...body, printFace: printFaces[body.name] }));
       const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang }, model.structure.features);
       // A value that follows another through a motion link (a gear) is neither swept nor posed on its own: its driver is.
