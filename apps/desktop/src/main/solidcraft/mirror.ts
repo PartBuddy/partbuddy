@@ -5,7 +5,7 @@ import { faceTableFromModelFaces, sketchFromInspect, tessellateSketch, type Sket
 
 import type { Joint, MirroredBody, MirroredSketch, MirrorRevision, Structure } from '../../shared/contract';
 import { cliBeside, findExecutable, systemEnvironment } from './discovery';
-import { cliReferences, sameShape, shapeOf, type PartReference, type ReferenceReader } from './partReference';
+import { cliReferences, faceCount, faceSteps, sameShape, shapeOf, type PartReference, type ReferenceReader, type ReferenceState } from './partReference';
 import { libraryPartOf, type LibraryPart } from './standardParts';
 
 /** The part of the control client the mirror needs. */
@@ -120,23 +120,44 @@ export interface BoughtPart {
 
 /**
  * The candidates whose body has the shape SolidCraft builds for their description; `measured` is
- * `inspect.measure` of their bodies. A body with material joined on, cut away or put in the part's
- * place differs and counts as printed.
+ * `inspect.measure` of their bodies, `faces` per candidate the results of its `faceSteps` (none
+ * where the count of faces already differs). A body with material joined on, cut away or put in
+ * the part's place differs and counts as printed. Every body left printed is logged with the
+ * reason, so a part that should have counted can be found in the field.
  */
-export function boughtAmong(candidates: readonly PartCandidate[], measured: unknown, references: ReadonlyMap<string, PartReference>, log: (message: string) => void): BoughtPart[] {
-  const bodies = (measured as { bodies?: unknown } | null | undefined)?.bodies;
-  const list = Array.isArray(bodies) ? (bodies as ({ name?: unknown } | null)[]) : [];
+export function boughtAmong(
+  candidates: readonly PartCandidate[],
+  measured: unknown,
+  faces: readonly (readonly unknown[] | undefined)[],
+  references: ReadonlyMap<string, ReferenceState>,
+  log: (message: string) => void,
+): BoughtPart[] {
   const bought: BoughtPart[] = [];
-  for (const { component, body, description } of candidates) {
+  for (const [i, { component, body, description }] of candidates.entries()) {
     const reference = references.get(description);
-    const shape = shapeOf(list.find((entry) => entry?.name === body));
-    if (!reference) log(`SolidCraft built no "${description}" to hold body "${body}" against: it counts as printed`);
-    else if (!shape) log(`body "${body}", described as "${description}", could not be measured: it counts as printed`);
-    else if (!sameShape(shape, reference.shape)) {
-      log(`body "${body}" is described as "${description}" but is not that part (${String(shape.volume)} mm³, ${String(shape.faces)} faces; the part has ${String(reference.shape.volume)} mm³, ${String(reference.shape.faces)} faces): it counts as printed`);
-    } else bought.push({ component, body, description, partNumber: reference.partNumber });
+    const entry = measuredBody(measured, body) as { volume_mm3?: unknown; faces?: unknown } | undefined;
+    const differs = () => {
+      const part = (reference as PartReference).shape;
+      log(`body "${body}" is described as "${description}" but is not that part (${String(entry?.volume_mm3)} mm³, ${String(entry?.faces)} faces; the part has ${String(part.volume)} mm³, ${String(part.faces)} faces): it counts as printed`);
+    };
+    if (!reference || 'failed' in reference) log(`body "${body}" is described as "${description}", which SolidCraft did not build to hold it against (${reference ? reference.failed : 'no answer'}): it counts as printed`);
+    else if ('building' in reference) log(`body "${body}" is described as "${description}", which SolidCraft is building to hold it against: it counts as printed until then`);
+    else if (!entry) log(`body "${body}", described as "${description}", could not be measured: it counts as printed`);
+    else if (faceCount(entry) !== reference.shape.faces) differs();
+    else {
+      const shape = shapeOf(entry, faces[i]);
+      if (!shape) log(`body "${body}", described as "${description}", could not be measured: it counts as printed`);
+      else if (!sameShape(shape, reference.shape)) differs();
+      else bought.push({ component, body, description, partNumber: reference.partNumber });
+    }
   }
   return bought;
+}
+
+/** One body's entry in the result of `inspect.measure`. */
+function measuredBody(measured: unknown, body: string): unknown {
+  const bodies = (measured as { bodies?: unknown } | null | undefined)?.bodies;
+  return Array.isArray(bodies) ? (bodies as ({ name?: unknown } | null)[]).find((entry) => entry?.name === body) ?? undefined : undefined;
 }
 
 /** `parts.library` per engine connection: the library does not change while SolidCraft runs. */
@@ -178,13 +199,25 @@ export async function boughtParts(client: ControlRequester, listing: unknown, ch
     if (described.failed) throw new Error(`${described.failed.command} failed: ${described.failed.error}`);
     const candidates = partCandidates(parts, described.results, library, checks.log);
     if (candidates.length === 0) return [];
+    const references = await checks.references(candidates);
     const measured = await client.request<BatchResult>(
       'engine.batch',
       { commands: [{ command: 'inspect.measure', params: { bodies: candidates.map((candidate) => candidate.body) } }], rollback: false },
       60_000,
     );
     if (measured.failed) throw new Error(`${measured.failed.command} failed: ${measured.failed.error}`);
-    return boughtAmong(candidates, measured.results[0], await checks.references(candidates), checks.log);
+    // The faces one by one, where they can still decide: the reference is there and the body has as many faces.
+    const steps: { command: string; params: Record<string, unknown> }[] = [];
+    const spans = candidates.map(({ body, description }) => {
+      const reference = references.get(description);
+      const count = faceCount(measuredBody(measured.results[0], body));
+      if (!reference || !('shape' in reference) || count !== reference.shape.faces) return null;
+      steps.push(...faceSteps(body, count));
+      return [steps.length - count, steps.length] as const;
+    });
+    const faces = steps.length > 0 ? await client.request<BatchResult>('engine.batch', { commands: steps, rollback: false }, 60_000) : null;
+    if (faces?.failed) throw new Error(`${faces.failed.command} failed: ${faces.failed.error}`);
+    return boughtAmong(candidates, measured.results[0], spans.map((span) => (span && faces ? faces.results.slice(span[0], span[1]) : undefined)), references, checks.log);
   } catch (error) {
     checks.log(`standard parts could not be told from printed bodies (${(error as Error).message}); every body counts as printed`);
     return [];
@@ -230,7 +263,8 @@ function standaloneChecks(cacheDir: string): PartChecks {
     if (!executable) throw new Error('SolidCraft is not installed');
     return cliBeside(executable);
   };
-  return { log, references: cliReferences(cli, cacheDir, log) };
+  // Nothing mirrors again for this caller, so it waits for the references.
+  return { log, references: cliReferences({ cli, dir: cacheDir, log }).ready };
 }
 
 /** The joints from `joint.list` (ADR 0027), checked field by field; a joint or value that reads oddly is left out. */
@@ -497,7 +531,23 @@ export class MirrorScheduler {
   reset(): void {
     this.next = null;
     this.lastDelivered = null;
+    this.stale = false;
   }
+
+  /**
+   * Mirrors the same revision once more: something outside the design changed what the mirror
+   * makes of it (a standard part's reference was built). A mirror that is running may have read
+   * the old state, so it is followed by one more; several calls meanwhile make one mirror.
+   */
+  refresh(): void {
+    if (this.running) this.stale = true;
+    else if (this.lastDelivered) {
+      this.next = this.lastDelivered;
+      void this.loop();
+    }
+  }
+
+  private stale = false;
 
   private async loop(): Promise<void> {
     this.running = true;
@@ -505,6 +555,7 @@ export class MirrorScheduler {
     while (this.next) {
       const target = this.next;
       this.next = null;
+      this.stale = false;
       try {
         const revision = await this.run();
         this.lastDelivered = { documentId: revision.documentId, revision: revision.revision };
@@ -515,6 +566,8 @@ export class MirrorScheduler {
         if (queued && revision.documentId === queued.documentId && revision.revision >= queued.revision) {
           this.next = null;
         }
+        // (`stale` may have been set by refresh() while the mirror ran.)
+        if (this.stale as boolean) this.next ??= this.lastDelivered;
       } catch (error) {
         this.callbacks.failed(error instanceof Error ? error : new Error(String(error)));
         if (sameTarget(this.next, target)) this.next = null;

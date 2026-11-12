@@ -24,7 +24,7 @@ import { ProjectStore } from '../projects/projectStore';
 import { HeadlessEngine, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
 import type { DesignHistory } from '../agents/workLog';
-import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, type BatchResult, type ControlRequester, type PartChecks } from './mirror';
+import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, type BatchResult, type BoughtPart, type ControlRequester, type PartChecks } from './mirror';
 
 export interface SupervisorOptions {
   environment: Environment;
@@ -112,8 +112,13 @@ export class SolidCraftSupervisor {
   /** The name the assistant's plan gave a new design (a body like "Base" names a case badly), until it has a project. */
   private plannedName: string | null = null;
   private readonly scheduler: MirrorScheduler;
-  /** How the mirror tells standard parts: the log, and each part as `solidcraft-cli` builds it. */
+  /**
+   * How the mirror tells standard parts: the log, and each part as `solidcraft-cli` builds it. The
+   * mirror does not wait for a part being built (its body counts as printed until the mirror that
+   * follows); what leaves PartBuddy does (`settledChecks`): an export must not go out with a screw in it.
+   */
   private readonly partChecks: PartChecks;
+  private readonly settledChecks: PartChecks;
   private readonly dimensions: DimensionService;
   private readonly actions: ActionService;
   /** Probes run one after another; SolidCraft runs one batch at a time anyway. */
@@ -129,7 +134,9 @@ export class SolidCraftSupervisor {
     this.options = { ...options, cacheDir: longPath(options.cacheDir) };
     const { cacheDir } = this.options;
     const log = (message: string) => options.log(message);
-    this.partChecks = { log, references: cliReferences(() => this.cli(), cacheDir, log, options.environment.env) };
+    const references = cliReferences({ cli: () => this.cli(), dir: cacheDir, log, env: options.environment.env, built: () => this.scheduler.refresh() });
+    this.partChecks = { log, references: references.known };
+    this.settledChecks = { log, references: references.ready };
     this.dimensions = new DimensionService(() => this.requester(), cacheDir);
     this.actions = new ActionService(() => this.requester(), cacheDir);
     this.designs = options.designsDir && options.projectsDir ? new ProjectStore(options.projectsDir, options.designsDir, options.newPartName) : null;
@@ -223,9 +230,7 @@ export class SolidCraftSupervisor {
    */
   async exportDesign(format: ExportFormat, destination: string): Promise<void> {
     const requester = this.requester();
-    // Standard parts (B7) are counterparts: they are not printed, so they are not exported.
-    const standard = new Set(this.latest?.structure.standardParts ?? []);
-    const bodies = this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [];
+    const bodies = await this.printedBodies();
     if (bodies.length === 0) throw new Error('the design has no body to export');
     // The file keeps the name the user chose: STEP and 3MF carry it as the part's name.
     const folder = join(this.options.cacheDir, `export-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
@@ -310,8 +315,7 @@ export class SolidCraftSupervisor {
 
   /** The size of each printed body (F5), from `inspect.measure`; null where SolidCraft gave none. */
   async bodySizes(): Promise<{ name: string; size: [number, number, number] | null }[]> {
-    const standard = new Set(this.latest?.structure.standardParts ?? []);
-    const bodies = this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [];
+    const bodies = await this.printedBodies();
     if (bodies.length === 0) return [];
     const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'inspect.measure', params: { bodies } }], rollback: false }, 60_000);
     const measured = reply.failed ? [] : ((reply.results[0] as { bodies?: unknown } | undefined)?.bodies ?? []);
@@ -332,10 +336,25 @@ export class SolidCraftSupervisor {
    * and to buy and no bought part is missing.
    */
   async hardware(): Promise<{ count: number; name: string; standard: string }[]> {
+    const { parts, listing } = await this.standardParts();
+    return hardwareOf(parts, listing);
+  }
+
+  /** The standard parts as the design stands now, every reference waited for, with the `component.list` they were read from. */
+  private async standardParts(): Promise<{ parts: BoughtPart[]; listing: unknown }> {
     const requester = this.requester();
     const reply = await requester.request<BatchResult>('engine.batch', { commands: [{ command: 'component.list', params: {} }], rollback: false }, 60_000);
     if (reply.failed) throw new Error(reply.failed.error);
-    return hardwareOf(await boughtParts(requester, reply.results[0], this.partChecks), reply.results[0]);
+    return { parts: await boughtParts(requester, reply.results[0], this.settledChecks), listing: reply.results[0] };
+  }
+
+  /**
+   * The mirrored bodies that are printed: all but the standard parts (B7), which are counterparts.
+   * Read anew rather than from the last mirror, which may still wait for a part's reference.
+   */
+  private async printedBodies(): Promise<string[]> {
+    const standard = new Set((await this.standardParts()).parts.map((part) => part.body));
+    return this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [];
   }
 
   /** `solidcraft-cli` beside the SolidCraft PartBuddy uses. */
@@ -454,8 +473,7 @@ export class SolidCraftSupervisor {
   async sendToSlicer(slicer: string): Promise<string> {
     const found = (await this.slicers()).find((candidate) => candidate.id === slicer);
     if (!found) throw new Error('this slicer is not installed');
-    const standard = new Set(this.latest?.structure.standardParts ?? []);
-    const bodies = this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [];
+    const bodies = await this.printedBodies();
     if (bodies.length === 0) throw new Error('the design has no body to print');
     const reply = await this.requester().request<BatchResult>(
       'engine.batch',

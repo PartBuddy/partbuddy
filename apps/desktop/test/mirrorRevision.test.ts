@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { mirrorActiveDesign, type ControlRequester, type PartChecks } from '../src/main/solidcraft/mirror';
+import { mirrorActiveDesign, MirrorScheduler, type ControlRequester, type PartChecks } from '../src/main/solidcraft/mirror';
 import type { PartReference } from '../src/main/solidcraft/partReference';
 
 describe('mirroring while the design changes', () => {
@@ -33,7 +33,12 @@ describe('mirroring while the design changes', () => {
 // As SolidCraft 0.40.1 measures a countersunk M3x10 and a 0.3 mm lid.
 const SCREW = { volume_mm3: 89.91686929002658, area_mm2: 167.0365086545463, faces: 11, edges: 23, vertices: 15 };
 const LID = { volume_mm3: 360.00000000000506, area_mm2: 2442, faces: 6, edges: 12, vertices: 8 };
-const SCREW_REFERENCE: PartReference = { shape: { volume: SCREW.volume_mm3, area: SCREW.area_mm2, faces: 11, edges: 23, vertices: 15 }, partNumber: 'ISO 10642 M3x10' };
+// Each face as inspect.measure {items: [{type: "face", index}]} answers, by index.
+const SCREW_FACES = Array.from({ length: 11 }, (_, index) => ({ items: [{ type: 'face', area_mm2: 4 + index, perimeter_mm: 9 + index, ...(index === 1 ? { radius: 1.5 } : {}) }] }));
+const SCREW_REFERENCE: PartReference = {
+  shape: { volume: SCREW.volume_mm3, area: SCREW.area_mm2, faces: 11, edges: 23, vertices: 15, faceAreas: SCREW_FACES.map((face) => face.items[0]?.area_mm2 ?? 0), perimeters: SCREW_FACES.map((face) => face.items[0]?.perimeter_mm ?? 0), radii: [1.5] },
+  partNumber: 'ISO 10642 M3x10',
+};
 
 /**
  * A design as SolidCraft 0.40.1 answers after partbuddy_mechanism {kind: screw, head: countersunk}: two
@@ -66,15 +71,18 @@ function design(answer: (command: string, component: number | undefined, call: n
   const logs: string[] = [];
   const client: ControlRequester = {
     request: <T,>(_method: string, params?: Record<string, unknown>): Promise<T> => {
-      const commands = (params?.commands ?? []) as { command: string; params: { component?: number } }[];
+      const commands = (params?.commands ?? []) as { command: string; params: { component?: number; items?: { index: number }[] } }[];
       const results: unknown[] = [];
       for (const step of commands) {
-        calls[step.command] = (calls[step.command] ?? 0) + 1;
-        const given = answer(step.command, step.params.component, calls[step.command] ?? 0);
+        // One face of a body is asked with inspect.measure too; here it goes by a name of its own.
+        const face = step.command === 'inspect.measure' ? step.params.items?.[0]?.index : undefined;
+        const name = face === undefined ? step.command : 'face';
+        calls[name] = (calls[name] ?? 0) + 1;
+        const given = answer(name, step.params.component, calls[name] ?? 0);
         if (given instanceof Error) return Promise.reject(given);
         if (given === 'no results') return Promise.resolve({ completed: 0, results: [] } as T);
         if (typeof given === 'object' && given !== null && 'failed' in given) return Promise.resolve({ completed: results.length, results, failed: { index: results.length, command: step.command, error: String(given.failed) } } as T);
-        results.push(given ?? (step.command === 'component.metadata' ? { description: descriptions[step.params.component ?? -1] ?? null } : (answers[step.command] ?? {})));
+        results.push(given ?? (face !== undefined ? SCREW_FACES[face] : step.command === 'component.metadata' ? { description: descriptions[step.params.component ?? -1] ?? null } : (answers[step.command] ?? {})));
       }
       return Promise.resolve({ completed: results.length, results } as T);
     },
@@ -104,10 +112,21 @@ describe('standard parts in the mirrored structure (audit S-01, G2 and its revie
 
   it('keeps a body printed that is described as a part but is not shaped like it', async () => {
     // Body2 with a plate joined on: the description still says screw, the body is something else.
-    const { mirror, logs } = design((command) => (command === 'inspect.measure' ? { bodies: [{ name: 'Body1', ...SCREW }, { name: 'Body2', ...LID }] } : undefined));
-    expect(await mirror()).toEqual(['Body1']);
-    expect(logs).toHaveLength(1);
-    expect(logs[0]).toContain('body "Body2" is described as "Countersunk socket screw M3x10" but is not that part');
+    const joined = design((command) => (command === 'inspect.measure' ? { bodies: [{ name: 'Body1', ...SCREW }, { name: 'Body2', ...LID }] } : undefined));
+    expect(await joined.mirror()).toEqual(['Body1']);
+    expect(joined.logs).toHaveLength(1);
+    expect(joined.logs[0]).toContain('body "Body2" is described as "Countersunk socket screw M3x10" but is not that part');
+    // Only the screw's faces were asked for one by one: the lid's count already differs.
+    expect(joined.calls.face).toBe(11);
+
+    // Volume, area and counts of the screw, but one face of another size (second review, point 3): the 14th face asked for is Body2's third.
+    const twin = design((command, _component, call) => (command === 'face' && call === 14 ? { items: [{ type: 'face', area_mm2: 6.5, perimeter_mm: 11 }] } : undefined));
+    expect(await twin.mirror()).toEqual(['Body1']);
+    expect(twin.logs[0]).toContain('body "Body2" is described as "Countersunk socket screw M3x10" but is not that part');
+
+    const unread = design((command, _component, call) => (command === 'face' && call === 14 ? { failed: 'no face 2' } : undefined));
+    expect(await unread.mirror()).toEqual([]);
+    expect(unread.logs).toEqual(['standard parts could not be told from printed bodies (inspect.measure failed: no face 2); every body counts as printed']);
   });
 
   it('says so in the log when parts.library fails or is empty, and reads it again with the next mirror (review 5)', async () => {
@@ -141,7 +160,61 @@ describe('standard parts in the mirrored structure (audit S-01, G2 and its revie
 
     // SolidCraft built the description as something else (or not at all): no reference for it.
     const unknown = design();
-    expect(await unknown.mirror({ ...unknown.checks, references: () => Promise.resolve(new Map()) })).toEqual([]);
+    expect(await unknown.mirror({ ...unknown.checks, references: () => new Map() })).toEqual([]);
     expect(unknown.logs).toHaveLength(2);
+  });
+
+  it('does not wait for a part SolidCraft is still building: its body counts as printed until the mirror after', async () => {
+    const { mirror, logs, checks } = design();
+    let built = false;
+    const references: PartChecks['references'] = (parts) => new Map(parts.map((part) => [part.description, built ? SCREW_REFERENCE : { building: true as const }]));
+    expect(await mirror({ ...checks, references })).toEqual([]);
+    expect(logs).toEqual([
+      'body "Body1" is described as "Countersunk socket screw M3x10", which SolidCraft is building to hold it against: it counts as printed until then',
+      'body "Body2" is described as "Countersunk socket screw M3x10", which SolidCraft is building to hold it against: it counts as printed until then',
+    ]);
+    built = true;
+    expect(await mirror({ ...checks, references })).toEqual(['Body1', 'Body2']);
+  });
+});
+
+describe('mirroring once more when a reference was built', () => {
+  const revision = (n: number) => ({ documentId: 'd', revision: n, designName: '', bodies: [], sketches: [], structure: { features: [], marker: null, bodies: [], sketches: [] }, history: { undo: 0, redo: 0 }, mirrorMs: 1 });
+
+  it('mirrors the delivered revision again, once however often it is asked, and once more after a mirror that was running', async () => {
+    let calls = 0;
+    let release: (() => void) | null = null;
+    const scheduler = new MirrorScheduler(
+      async () => {
+        calls += 1;
+        await new Promise<void>((done) => {
+          release = done;
+        });
+        return revision(1);
+      },
+      { started: () => undefined, delivered: () => undefined, failed: () => undefined, idle: () => undefined },
+    );
+    const finish = async (expected: number) => {
+      await vi.waitFor(() => expect(calls).toBe(expected));
+      (release as unknown as () => void)();
+      await new Promise((done) => setTimeout(done, 20));
+    };
+    // Nothing mirrored yet: nothing to mirror again.
+    scheduler.refresh();
+    expect(calls).toBe(0);
+    scheduler.request({ documentId: 'd', revision: 1 });
+    await finish(1);
+    // The same revision asked for again is not mirrored; a built reference mirrors it once more.
+    scheduler.request({ documentId: 'd', revision: 1 });
+    expect(calls).toBe(1);
+    scheduler.refresh();
+    await vi.waitFor(() => expect(calls).toBe(2));
+    // While that mirror runs, three more references arrive: one mirror follows, not three.
+    scheduler.refresh();
+    scheduler.refresh();
+    scheduler.refresh();
+    await finish(2);
+    await finish(3);
+    expect(calls).toBe(3);
   });
 });

@@ -6,6 +6,7 @@ import { jointMove, jointPoses, playRange, playStep, rotate, withFollowers } fro
 import { snapSpan, sweepStopOf } from '../src/main/solidcraft/actions';
 
 import { boughtAmong, componentsWithBodies, hardwareOf, jointsOf, partCandidates, structureOf, withColours } from '../src/main/solidcraft/mirror';
+import type { ReferenceState } from '../src/main/solidcraft/partReference';
 import { describeCommands, describeUserAction } from '../src/shared/stepPhrases';
 import { structureSchema } from '../src/shared/contract';
 
@@ -88,8 +89,16 @@ describe('standard parts the assistant inserted itself', () => {
   it('takes a body for the part only when it has the shape SolidCraft builds for the description (review 2, stage 2)', () => {
     // inspect.measure as SolidCraft 0.40.1 answers: an M3 nut, turned (volume and area off by 6e-11), the same nut with a
     // 0.3 mm plate joined on (solid.combine), and a 0.3 mm lid described as "Hex nut M3".
-    const nut = { volume: 45.9088439852507, area: 106.60297841336842, faces: 9, edges: 21, vertices: 14 };
-    const references = new Map([['Hex nut M3', { shape: nut, partNumber: 'ISO 4032 M3' }]]);
+    const areas = [2.4, 2.4, 6.6, 6.6, 6.6, 6.6, 6.6, 6.6, 18.1];
+    // Each face as inspect.measure {items: [{type: "face", …}]} answers; the last is the bore.
+    const facesOf = (list: number[]) => list.map((area, i) => ({ items: [{ type: 'face', area_mm2: area, perimeter_mm: area * 2, ...(i === 8 ? { radius: 1.5 } : {}) }] }));
+    const nutFaces = facesOf(areas);
+    const nut = { volume: 45.9088439852507, area: 106.60297841336842, faces: 9, edges: 21, vertices: 14, faceAreas: areas, perimeters: areas.map((area) => area * 2), radii: [1.5] };
+    const references = new Map<string, ReferenceState>([
+      ['Hex nut M3', { shape: nut, partNumber: 'ISO 4032 M3' }],
+      ['Hex nut M4', { building: true }],
+      ['Hex nut M5x5000', { failed: '`length` must be 0…2000 mm' }],
+    ]);
     const candidate = (component: number, body: string, description = 'Hex nut M3') => ({ component, body, description, part: { family: 'hex_nut', size: 'M3', length: null } });
     const measured = {
       bodies: [
@@ -99,15 +108,37 @@ describe('standard parts the assistant inserted itself', () => {
         // The same counts as the nut and a volume a thousandth off: not the part either.
         { name: 'Near', volume_mm3: 45.95, area_mm2: 106.60297841336842, faces: 9, edges: 21, vertices: 14 },
         { name: 'Open', area_mm2: 106.6, faces: 9, edges: 21, vertices: 14 },
+        // Volume, area and counts of the nut to the last digit, but other faces (second review, point 3).
+        { name: 'Twin', volume_mm3: 45.9088439852507, area_mm2: 106.60297841336842, faces: 9, edges: 21, vertices: 14 },
       ],
     };
+    const twinFaces = facesOf([1.4, 3.4, 6.6, 6.6, 6.6, 6.6, 6.6, 6.6, 18.1]);
     const logs: string[] = [];
-    const candidates = [candidate(3, 'Body1'), candidate(9, 'Body2'), candidate(16, 'Deckel'), candidate(20, 'Near'), candidate(22, 'Open'), candidate(24, 'Gone'), candidate(30, 'Body1', 'Hex nut M4')];
-    expect(boughtAmong(candidates, measured, references, (message) => void logs.push(message))).toEqual([{ component: 3, body: 'Body1', description: 'Hex nut M3', partNumber: 'ISO 4032 M3' }]);
-    expect(logs).toHaveLength(6);
+    const candidates = [
+      candidate(3, 'Body1'),
+      candidate(9, 'Body2'),
+      candidate(16, 'Deckel'),
+      candidate(20, 'Near'),
+      candidate(22, 'Open'),
+      candidate(24, 'Gone'),
+      candidate(26, 'Twin'),
+      candidate(30, 'Body1', 'Hex nut M4'),
+      candidate(32, 'Body1', 'Hex nut M5x5000'),
+      candidate(34, 'Body1', 'Hex nut M6'),
+    ];
+    const faces = [nutFaces, nutFaces, nutFaces, nutFaces, nutFaces, nutFaces, twinFaces, nutFaces, nutFaces, nutFaces];
+    expect(boughtAmong(candidates, measured, faces, references, (message) => void logs.push(message))).toEqual([{ component: 3, body: 'Body1', description: 'Hex nut M3', partNumber: 'ISO 4032 M3' }]);
+    // Every body left printed is named with the reason.
+    expect(logs).toHaveLength(9);
     expect(logs[1]).toBe('body "Deckel" is described as "Hex nut M3" but is not that part (360.00000000000506 mm³, 6 faces; the part has 45.9088439852507 mm³, 9 faces): it counts as printed');
-    expect(logs[5]).toBe('SolidCraft built no "Hex nut M4" to hold body "Body1" against: it counts as printed');
-    expect(boughtAmong(candidates, undefined, references, () => undefined)).toEqual([]);
+    expect(logs[5]).toContain('body "Twin" is described as "Hex nut M3" but is not that part');
+    expect(logs[6]).toBe('body "Body1" is described as "Hex nut M4", which SolidCraft is building to hold it against: it counts as printed until then');
+    expect(logs[7]).toBe('body "Body1" is described as "Hex nut M5x5000", which SolidCraft did not build to hold it against (`length` must be 0…2000 mm): it counts as printed');
+    expect(logs[8]).toBe('body "Body1" is described as "Hex nut M6", which SolidCraft did not build to hold it against (no answer): it counts as printed');
+    expect(boughtAmong(candidates, undefined, faces, references, () => undefined)).toEqual([]);
+    // Without its faces, or with one of them missing, a body is not measured.
+    expect(boughtAmong(candidates.slice(0, 1), measured, [], references, () => undefined)).toEqual([]);
+    expect(boughtAmong(candidates.slice(0, 1), measured, [nutFaces.slice(1)], references, () => undefined)).toEqual([]);
   });
 
   it('lists the parts to buy from the standard parts themselves, each as often as it is placed (review 4)', () => {
