@@ -153,6 +153,47 @@ const keel = soup([...cap(FOOT_CAP, 0, false), ...sides(FOOT, 0, 2), ...cap(BESI
 // A box in profile, 30 long: walls 1 mm thick that step 1.8 mm outwards 10 mm up on a floor 0.4 mm thick, under a roof or with a lip 1.5 mm out.
 const steppedBox = meshOf(gridBody('Stepped', [0, 1, 1.8, 2.8, 8.8, 9.8, 10.6, 11.6], [0, 30], [0, 10, 10.4, 14, 15], (i, _j, k) => (k === 0 ? i === 2 || i === 4 : k === 1 ? i <= 2 || i >= 4 : k === 2 ? i === 0 || i === 6 : true)));
 const steppedWall = meshOf(gridBody('Stepped', [-1.5, 0, 1, 1.8, 2.8], [0, 30], [0, 10, 10.4, 14, 15], (i, _j, k) => (k === 0 ? i === 3 : k === 1 ? i >= 1 : k === 2 ? i === 1 : i <= 1)));
+// A portal of 8 mm with a V rib along under its roof (4.4 wide, 4 deep), and what else hangs on the same body.
+const ribbed = (more: [number, number][] = [], strip: [number, number][] = []) => meshOf(prismBody('Rib', [[0, 0], [2, 0], [2, 8], ...strip, [3.8, 8], [6, 4], [8.2, 8], [10, 8], [10, 0], [12, 0], ...more, [0, 10]], 30));
+const RIB_FLANKS = 2 * 30 * Math.hypot(2.2, 4);
+// A blade hanging along under a bridge of 8 mm, 20 long: `wide` at its root, `deep`, its edge 4 mm over the bed.
+const blade = (wide: number, deep: number) => meshOf(prismBody('Blade', [[0, 0], [2, 0], [2, 4 + deep], [6 - wide / 2, 4 + deep], [6, 4], [6 + wide / 2, 4 + deep], [10, 4 + deep], [10, 0], [12, 0], [12, 6 + deep], [0, 6 + deep]], 20));
+// A plate 4.4 wide on an end wall, with a V rib under it whose edge rises 5° from the wall, beginning `low` mm over the bed.
+const RISE = 30 * Math.tan((5 * Math.PI) / 180);
+const risingRib = (low: number) => {
+  const wall: [number, number][] = [[0, 0], [4.4, 0], [4.4, 10], [4.4, 12], [0, 12], [0, 10]];
+  const rib = (tip: number): [number, number][] => [[2.2, tip], [4.4, 10], [4.4, 12], [0, 12], [0, 10]];
+  const [near, far] = [rib(low), rib(low + RISE)];
+  const loft: Point[][] = near.flatMap(([x, z], i) => {
+    const j = (i + 1) % near.length;
+    const [a, b, c, d]: Point[] = [[x, 2, z], [near[j]?.[0] ?? 0, 2, near[j]?.[1] ?? 0], [far[j]?.[0] ?? 0, 32, far[j]?.[1] ?? 0], [far[i]?.[0] ?? 0, 32, far[i]?.[1] ?? 0]];
+    return [[a ?? [0, 0, 0], c ?? [0, 0, 0], b ?? [0, 0, 0]], [a ?? [0, 0, 0], d ?? [0, 0, 0], c ?? [0, 0, 0]]];
+  });
+  const beside: [number, number][][] = [[[0, 0], [4.4, 0], [2.2, low]], [[0, 0], [2.2, low], [0, 10]], [[4.4, 0], [4.4, 10], [2.2, low]]];
+  return soup([...cap([at(wall, 0, 1, 2), at(wall, 0, 2, 3), at(wall, 0, 3, 4), at(wall, 0, 4, 5)], 0, false), ...sides(wall, 0, 2), ...cap(beside, 2, true), ...loft, ...cap([at(far, 0, 1, 2), at(far, 0, 2, 3), at(far, 0, 3, 4)], 32, true)]);
+};
+/** The two flanks of that rib (mm²). */
+const risingFlanks = (low: number) => {
+  const size = (a: Point, b: Point, c: Point) => Math.hypot((b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]), (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2;
+  return 2 * (size([2.2, 2, low], [0, 2, 10], [0, 32, 10]) + size([2.2, 2, low], [0, 32, 10], [2.2, 32, low + RISE]));
+};
+// A wall with a ledge `out` mm wide 5 mm up, and from the tip of the ledge a slope at 45° over 5 mm.
+const slopeOnLedge = (out: number) => meshOf(prismBody('Slope', [[0, 0], [5, 0], [5, 5], [5 + out, 5], [10 + out, 10], [10 + out, 12], [0, 12]], 30));
+
+// A column on the bed with a corner of 32° in plan, and a wedge floating in the air, its edge 0.6 mm from that corner.
+const WEDGE: [number, number][] = [[10.6, 3], [13, 6], [10.6, 6]];
+const besideCorner = (() => {
+  const plan: [number, number][] = [[10, 0], [-5, 4.3], [-5, -4.3]];
+  const lift = (i: number, z: number): Point => [plan[i % 3]?.[0] ?? 0, plan[i % 3]?.[1] ?? 0, z];
+  const column: Point[][] = [[lift(0, 0), lift(2, 0), lift(1, 0)], [lift(0, 12), lift(1, 12), lift(2, 12)], ...[0, 1, 2].flatMap((i) => [[lift(i, 0), lift(i + 1, 0), lift(i + 1, 12)], [lift(i, 0), lift(i + 1, 12), lift(i, 12)]])];
+  return soup([...column, ...cap([WEDGE], -5, false), ...sides(WEDGE, -5, 5), ...cap([WEDGE], 5, true)]);
+})();
+/** A funnel whose outline is a star of five points, each layer 9 % wider than the one a millimetre below. */
+const starFunnel = (() => {
+  const star = (scale: number, z: number): Point[] => Array.from({ length: 10 }, (_, i) => [(i % 2 === 0 ? 10 : 4) * scale * Math.cos((i * Math.PI) / 5), (i % 2 === 0 ? 10 : 4) * scale * Math.sin((i * Math.PI) / 5), z]);
+  return ringSurface([star(0, 0), star(1, 0), star(1.45, 5), star(0, 5)], [-1, 0, 1]);
+})();
+
 /** A funnel of `n` flat sides at 45° that opens upwards over 5 mm, with a ledge 1.5 mm out round its top. */
 const funnel = (n: number) => {
   const top = 5 + 5 / Math.cos(Math.PI / n);
@@ -195,15 +236,18 @@ const cases: [string, () => RawMesh, Want][] = [
   ['bridge 8 with a hole 3 × 3, 100 long', () => holed(100), [10, 60]],
   // Nothing hangs from material that ends in the air (first, second and third review).
   ['shelf 10', () => meshOf(prismBody('Shelf', [[0, 0], [5, 0], [5, 16], [15, 16], [15, 20], [0, 20]], 30)), 300],
-  ['shelf 8 with a drip edge', () => shelf([[13, 14], [15, 16]]), 240],
-  ['shelf 8 with a hook curled back to the wall', () => shelf([[13, 13], [11, 13], [11, 12.5], [13, 10.5], [15, 12.5]]), 240],
-  ['shelf 8 with a lip with a step of 0.5 that looks up', () => shelf([[13, 13], [12.5, 13], [12.5, 12.5], [13.75, 11.25], [15, 12.5]]), 240],
-  ['shelf 8 with a bead whose back looks up', () => shelf([[12, 14], [13.5, 12.5], [15, 14]]), 240],
+  // The lips begin in the air: besides the shelf's 240 mm² their faces at 45° are reported, 30 mm long each
+  // (review of pull request 363; before the layers only faces over the limit could be).
+  ['shelf 8 with a drip edge', () => shelf([[13, 14], [15, 16]]), 240 + 30 * 2 * Math.SQRT2],
+  ['shelf 8 with a hook curled back to the wall', () => shelf([[13, 13], [11, 13], [11, 12.5], [13, 10.5], [15, 12.5]]), 240 + 2 * 30 * 2 * Math.SQRT2],
+  ['shelf 8 with a lip with a step of 0.5 that looks up', () => shelf([[13, 13], [12.5, 13], [12.5, 12.5], [13.75, 11.25], [15, 12.5]]), 240 + 2 * 30 * 1.25 * Math.SQRT2],
+  ['shelf 8 with a bead whose back looks up', () => shelf([[12, 14], [13.5, 12.5], [15, 14]]), 240 + 2 * 30 * 1.5 * Math.SQRT2],
   ['shelf 8 with an apron 6 down, 2 wide', () => shelf([[13, 10], [15, 10]]), 300],
   ['shelf 8 onto a second wall down to the bed', () => meshOf(prismBody('Portal', [[0, 0], [5, 0], [5, 16], [13, 16], [13, 0], [15, 0], [15, 20], [0, 20]], 30)), 'free'],
-  ['shelf 8 with a pointed drip edge, as triangles', () => dripOnly(30), 240],
-  ['the same with a cheek at one end, 30 long: the lip stands only at the cheek', () => dripCheek(30), [200, 245]],
-  ['the same, 100 long', () => dripCheek(100), [750, 805]],
+  ['shelf 8 with a pointed drip edge, as triangles', () => dripOnly(30), 240 + 30 * 2 * Math.SQRT2],
+  // The ranges of the review, plus the lip's face (2.83 mm² per mm of length).
+  ['the same with a cheek at one end, 30 long: the lip stands only at the cheek', () => dripCheek(30), [280, 330]],
+  ['the same, 100 long', () => dripCheek(100), [1030, 1090]],
   ['bridge 8 onto an apron hanging from the roof', () => apron(30, []), 300],
   ['the same with a cheek at the back', () => apron(30, ['back']), [270, 305]],
   ['the same with a cheek at the front', () => apron(30, ['front']), [270, 305]],
@@ -292,11 +336,28 @@ const cases: [string, () => RawMesh, Want][] = [
   ['snap hook, nose 2', () => snap(2), 16],
   ['snap hook, nose 2.5', () => snap(2.5), 20],
   // Material that begins in the air on faces that only lean (review of pull request 363): no face hangs over, yet nothing is below.
-  ['a V rib along under a bridge of 8: 4.4 wide, 4 deep, its edge free', () => meshOf(prismBody('Rib', [[0, 0], [2, 0], [2, 8], [3.8, 8], [6, 4], [8.2, 8], [10, 8], [10, 0], [12, 0], [12, 10], [0, 10]], 30)), 'reported'],
+  ['a V rib along under a bridge of 8: 4.4 wide, 4 deep, its edge free', () => ribbed([[12, 10]]), RIB_FLANKS],
+  // What else is reported on the body takes nothing from the rib (second review of pull request 363).
+  ['the same with a ridge 0.8 wide and 1 deep hanging beside the rib', () => ribbed([[12, 10]], [[2.5, 8], [2.5, 7], [3.3, 7], [3.3, 8]]), RIB_FLANKS + 0.8 * 30 + 0.5 * 30],
+  ['the same rib on a body with a shelf 8 out', () => ribbed([[12, 6], [20, 6], [20, 10]]), RIB_FLANKS + 240],
+  // A blade with flanks nearly upright begins in the air all the same, and holds no ceiling beside it.
+  ['a blade 1 wide and 20 deep hanging along under a bridge of 8', () => blade(1, 20), 7 * 20 + 2 * 20 * Math.hypot(0.5, 20)],
+  ['a blade 0.6 wide and 10 deep', () => blade(0.6, 10), 7.4 * 20 + 2 * 20 * Math.hypot(0.3, 10)],
+  // The ceiling beside it and its bottom; its sides rest on the support the bottom gets.
+  ['a rib 1 wide with a flat bottom and sides drafted 2°, hanging along under a bridge of 8', () => meshOf(prismBody('Peg', [[0, 0], [2, 0], [2, 8], [5.36, 8], [5.5, 4], [6.5, 4], [6.64, 8], [10, 8], [10, 0], [12, 0], [12, 10], [0, 10]], 30)), 2 * 3.36 * 30 + 30],
+  // The edge of a rib that rises 5° from a wall: reported wherever it begins against the layers, from the bed too.
+  // The wall carries a wedge of each flank that widens at the angle, 9 mm at the root: about a seventh of it.
+  ...[0, 1, 1.08, 1.12, 1.2, 1.28].map((low): [string, () => RawMesh, Want] => [`a V rib whose edge rises 5° from an end wall, beginning ${String(low)} over the bed`, () => risingRib(low), [0.75 * risingFlanks(low), 0.92 * risingFlanks(low)]]),
+  // The corner of carried material runs ahead of its sides, as a slope of flat sides does, but jumps no gap.
+  ['a wedge floating 0.6 mm from the sharp corner of a column', () => besideCorner, 10 * Math.hypot(2.4, 3)],
+  ['a funnel in the outline of a star, its points running out at 42°', () => starFunnel, 'free'],
+  // A small ledge carries the slope that goes on from its tip.
+  ...[0.3, 0.5, 1, 1.5].map((out): [string, () => RawMesh, Want] => [`a slope at 45° from the tip of a ledge ${String(out)} out`, () => slopeOnLedge(out), 'free']),
+  ['a countersunk head: shank R 3, shoulder 0.5, cone at 45° to R 8.5', () => revolved([[0, 0], [3, 0], [3, 10], [3.5, 10], [8.5, 15], [8.5, 16], [0, 16]], [-1, 0, -1, 0, 0, 1]), 'free'],
   ['the same rib with a flat bottom', () => meshOf(prismBody('Rib', [[0, 0], [2, 0], [2, 8], [3.8, 8], [3.8, 4], [8.2, 4], [8.2, 8], [10, 8], [10, 0], [12, 0], [12, 10], [0, 10]], 30)), 132],
-  ['a V rib under a bridge of 10: 6.4 wide, 6 deep', () => meshOf(prismBody('Rib', [[0, 0], [2, 0], [2, 8], [3.8, 8], [7, 2], [10.2, 8], [12, 8], [12, 0], [14, 0], [14, 10], [0, 10]], 30)), 'reported'],
-  ['a keel 4 wide and 5 deep between two feet, its edge 1 mm over the bed', () => keel, 'reported'],
-  ['a blade 1.5 wide hanging 10 deep, 0.3 beside a wall, pointed at 45°', () => meshOf(prismBody('Blade', [[0, 0], [2, 0], [2, 18], [2.3, 18], [2.3, 8.75], [3.05, 8], [3.8, 8.75], [3.8, 20], [0, 20]], 30)), 'reported'],
+  ['a V rib under a bridge of 10: 6.4 wide, 6 deep', () => meshOf(prismBody('Rib', [[0, 0], [2, 0], [2, 8], [3.8, 8], [7, 2], [10.2, 8], [12, 8], [12, 0], [14, 0], [14, 10], [0, 10]], 30)), 2 * 30 * Math.hypot(3.2, 6)],
+  ['a keel 4 wide and 5 deep between two feet, its edge 1 mm over the bed', () => keel, [0.9 * 2 * 30 * Math.hypot(2, 5), 2 * 30 * Math.hypot(2, 5)]],
+  ['a blade 1.5 wide hanging 10 deep, 0.3 beside a wall, pointed at 45°', () => meshOf(prismBody('Blade', [[0, 0], [2, 0], [2, 18], [2.3, 18], [2.3, 8.75], [3.05, 8], [3.8, 8.75], [3.8, 20], [0, 20]], 30)), 2 * 30 * 0.75 * Math.SQRT2],
   ['a wedge standing on its edge on the bed', () => meshOf(prismBody('Wedge', [[2, 0], [4, 4], [0, 4]], 30)), 'free'],
   // A small overhang carries what stands on it (the same review).
   ['walls 1 mm thick that step 1.8 out on a floor of 0.4, under a roof of 9.6', () => steppedBox, 'free'],

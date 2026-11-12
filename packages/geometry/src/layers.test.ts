@@ -41,6 +41,19 @@ describe('what stands, cut in layers', () => {
     expect(fastest(column(300))).toBeLessThan(Math.max(5, fastest(column(30))) * 4);
   });
 
+  it('cuts a stair of 740 steps in no more than twelve times the time of one of 185', { timeout: 120_000 }, () => {
+    // Every cut goes through every triangle of the stair's flat ends: 4.9 s for 300 mm (second review of pull request 363).
+    const stairOf = (steps: number) => {
+      const outline: [number, number][] = [[0, 0], [5, 0], [5, 4]];
+      for (let step = 1; step <= steps; step += 1) outline.push([5 + step * 0.5, 3.6 + step * 0.4], [5 + step * 0.5, 4 + step * 0.4]);
+      const mesh = meshOf(prismBody('Stair', [...outline, [5 + steps * 0.5, 6 + steps * 0.4], [0, 6 + steps * 0.4]], 20));
+      const [cos, sin] = [Math.cos(Math.PI / 12), Math.sin(Math.PI / 12)];
+      const positions = Float32Array.from(mesh.positions, (_, i) => (i % 3 === 0 ? cos * (mesh.positions[i] ?? 0) - sin * (mesh.positions[i + 1] ?? 0) : i % 3 === 1 ? sin * (mesh.positions[i - 1] ?? 0) + cos * (mesh.positions[i] ?? 0) : (mesh.positions[i] ?? 0)));
+      return { ...mesh, positions };
+    };
+    expect(fastest(stairOf(740))).toBeLessThan(Math.max(5, fastest(stairOf(185))) * 12);
+  });
+
   it('takes a triangle that comes twice, and says so when a mesh with a hole is followed along its faces instead', () => {
     const outline: [number, number][] = [[0, 0], [5, 0], [5, 4]];
     for (let step = 1; step <= 20; step += 1) outline.push([5 + step * 1.7, 3 + step], [5 + step * 1.7, 4 + step]);

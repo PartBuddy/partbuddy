@@ -121,8 +121,10 @@ export const LYING_HOLE = 8;
 
 /** A face that points down this straight (−z of its unit normal) is a ceiling that can be bridged. */
 const LEVEL = 0.99;
-/** A face that points down at least this much (−z of its unit normal) leans: nothing can begin on it in the air. */
-const LEAN = 0.05;
+/** A face that points down at least this much (−z of its unit normal) looks down; less is a wall, and the noise of one. */
+const DOWN = 1e-3;
+/** Where a face is asked whether something is carried under it: its middle, and halfway from there to each corner. */
+const PROBES: [number, number, number][] = [[1 / 3, 1 / 3, 1 / 3], [2 / 3, 1 / 6, 1 / 6], [1 / 6, 2 / 3, 1 / 6], [1 / 6, 1 / 6, 2 / 3]];
 /** A face that looks up at least this much (z of its unit normal) has material under it. */
 const UP = 0.1;
 /** Just inside each corner of a triangle: a point on the rim itself belongs to both sides of it. */
@@ -142,6 +144,8 @@ interface Rim {
   bx: number;
   by: number;
   anchor: boolean;
+  /** How far (mm) a small overhang may hang from this rim. */
+  reach: number;
   ease: number;
 }
 
@@ -162,9 +166,10 @@ interface Rim {
  * bridge, an arm, the lips beside a slot or a hole. The rest of the patch stays out, so a hole in a
  * long bridge reports the stubs beside it, not the bridge. A patch with no anchor starts in the air.
  */
-function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, down: ArrayLike<number>, isSupport: (t: number) => boolean, leans: (t: number) => boolean, reach: number, arch: number, sinSupport: number, bedZ: number): { small: Set<number>; hanging: Set<number>; layered: boolean } {
+function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, down: ArrayLike<number>, isSupport: (t: number) => boolean, leans: (t: number) => boolean, reach: number, arch: number, sinSupport: number, bedZ: number): { small: Set<number>; hanging: Map<number, number>; layered: boolean } {
   const small = new Set<number>();
-  const hanging = new Set<number>();
+  // Per triangle that begins in the air: the share of it under which nothing is carried.
+  const hanging = new Map<number, number>();
   const count = index.length / 3;
   let any = false;
   for (let t = 0; t < count && !any; t += 1) any = isSupport(t) || leans(t);
@@ -212,27 +217,50 @@ function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, do
   }
 
   // What stands: cut in layers where the body is closed, else followed along the surface.
-  // Where the surface begins from below without hanging over: the lowest points of faces that lean.
-  const lower = new Uint8Array(vertices);
-  // Lowest among the faces that look down: the foot of a wall beside it is no way down.
-  for (let t = 0; t < count; t += 1) {
-    if (!((down[t] ?? 0) > LEAN)) continue;
-    const least = Math.min(z(at(t, 0)), z(at(t, 1)), z(at(t, 2)));
-    for (let k = 0; k < 3; k += 1) if (z(at(t, k)) > least + WELD) lower[at(t, k)] = 1;
-  }
-  const begins = new Map<number, number[]>();
-  for (let t = 0; t < count; t += 1) {
-    if (!leans(t)) continue;
-    for (let k = 0; k < 3; k += 1) {
-      const w = at(t, k);
-      if (lower[w] || z(w) <= bedZ + BED_TOLERANCE) continue;
-      const list = begins.get(w);
-      if (list) list.push(t);
-      else begins.set(w, [t]);
-    }
-  }
   const grow = Math.min(50, sinSupport / Math.sqrt(Math.max(1e-9, 1 - sinSupport * sinSupport))) + 1e-3;
-  const layers = layersOf({ count, vertices, x, y, z, at }, bedZ, grow, isSupport, [...begins.keys()].map(z));
+  // The heights where the angle of the faces alone does not say that a layer is carried as the one
+  // below it: faces that hang over, the lowest points of faces that look down (there something
+  // begins from below), and ridges under such faces that run out faster than the angle allows (the
+  // edge of a rib that rises from a wall, the corner of a funnel of flat sides).
+  const rough: [number, number][] = [];
+  const looksDown = (t: number) => (down[t] ?? 0) > DOWN;
+  const lower = new Uint8Array(vertices);
+  for (let t = 0; t < count; t += 1) {
+    const heights = [z(at(t, 0)), z(at(t, 1)), z(at(t, 2))];
+    if (isSupport(t)) rough.push([Math.min(...heights), Math.max(...heights)]);
+    if (!looksDown(t)) continue;
+    // Lowest among the faces that look down: the foot of a wall beside it is no way down.
+    for (let k = 0; k < 3; k += 1) if ((heights[k] ?? 0) > Math.min(...heights) + WELD) lower[at(t, k)] = 1;
+  }
+  for (let t = 0; t < count; t += 1) {
+    if (!looksDown(t)) continue;
+    for (let k = 0; k < 3; k += 1) if (!lower[at(t, k)]) rough.push([z(at(t, k)), z(at(t, k))]);
+  }
+  for (const [id, list] of edges) {
+    const a = Math.floor(id / vertices);
+    const b = id % vertices;
+    if (Math.hypot(x(b) - x(a), y(b) - y(a)) <= grow * Math.abs(z(b) - z(a))) continue;
+    let facing = false;
+    for (let i = 0; i < list.length; i += 2) facing ||= looksDown(list[i] ?? 0);
+    if (!facing) continue;
+    // Between two faces only a ridge counts: the far corner of the one lies behind the other.
+    if (list.length === 4) {
+      const [p, q, r] = [at(list[0] ?? 0, 0), at(list[0] ?? 0, 1), at(list[0] ?? 0, 2)];
+      const far = list[3] ?? 0;
+      const normal = [(y(q) - y(p)) * (z(r) - z(p)) - (z(q) - z(p)) * (y(r) - y(p)), (z(q) - z(p)) * (x(r) - x(p)) - (x(q) - x(p)) * (z(r) - z(p)), (x(q) - x(p)) * (y(r) - y(p)) - (y(q) - y(p)) * (x(r) - x(p))] as const;
+      const out = [x(far) - x(p), y(far) - y(p), z(far) - z(p)] as const;
+      const behind = normal[0] * out[0] + normal[1] * out[1] + normal[2] * out[2];
+      if (!(behind < -1e-7 * Math.hypot(...normal) * Math.hypot(...out))) continue;
+    }
+    rough.push([Math.min(z(a), z(b)), Math.max(z(a), z(b))]);
+  }
+  const layers = layersOf({ count, vertices, x, y, z, at }, bedZ, grow, rough);
+  // Two readings of the same cuts. What stands: a bridge and a small overhang carry what is built on
+  // them. What is sound: a small overhang carries only once the material on it has risen as far as
+  // the angle needs to reach its tip. An overhang that hangs from material that stands but is not
+  // sound has that much less reach: a wall on a small ledge stands, a stair of ledges does not.
+  const stands = layers?.track();
+  const sound = layers?.track();
   const standing = layers ? undefined : standingVertices({ count, vertices, x, y, z, at, down, isSupport, edges, reach, bedZ });
   /**
    * The rim of a patch along one edge, from `a` to `b`: it is an anchor where the neighbour goes on
@@ -240,24 +268,26 @@ function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, do
    * is asked along the edge, so a rim that is held at one end only is an anchor there only.
    */
   const rimsOf = (a: number, b: number, third: number, ease: () => number): Rim[] => {
-    const whole = (anchor: boolean): Rim[] => [{ ax: x(a), ay: y(a), bx: x(b), by: y(b), anchor, ease: anchor ? ease() : 0 }];
+    const whole = (anchor: boolean): Rim[] => [{ ax: x(a), ay: y(a), bx: x(b), by: y(b), anchor, reach: anchor ? reach : 0, ease: anchor ? ease() : 0 }];
     if (Math.max(z(a), z(b)) <= bedZ + BED_TOLERANCE) return whole(true);
     if (!(z(third) < Math.min(z(a), z(b)) - WELD)) return whole(false);
-    if (!layers) return whole(standing?.(third) ?? false);
+    if (!stands || !sound) return whole(standing?.(third) ?? false);
     const pieces = Math.max(1, Math.min(64, Math.ceil(Math.hypot(x(b) - x(a), y(b) - y(a), z(b) - z(a)) / (reach / 2))));
     const along = (s: number): [number, number, number] => [x(a) + s * (x(b) - x(a)), y(a) + s * (y(b) - y(a)), z(a) + s * (z(b) - z(a))];
     const rims: Rim[] = [];
     let from = 0;
-    let last: boolean | undefined;
+    // What a piece can hold: nothing where nothing stands, else the reach less the way to sound material.
+    let last: number | undefined;
     for (let i = 0; i <= pieces; i += 1) {
-      const anchor = i < pieces ? layers.held(...along((i + 0.5) / pieces)) : undefined;
-      if (anchor === last) continue;
+      const point = along((i + 0.5) / pieces);
+      const left = i === pieces ? undefined : stands.gap(...point) > 0 ? -1 : Math.max(0, reach - sound.gap(...point));
+      if (left !== undefined && last !== undefined && Math.abs(left - last) < 1e-6) continue;
       if (last !== undefined) {
         const [[ax, ay], [bx, by]] = [along(from / pieces), along(i / pieces)];
-        rims.push({ ax, ay, bx, by, anchor: last, ease: last ? ease() : 0 });
+        rims.push({ ax, ay, bx, by, anchor: last >= 0, reach: Math.max(0, last), ease: last >= 0 ? ease() : 0 });
       }
       from = i;
-      last = anchor;
+      last = left;
     }
     return rims;
   };
@@ -297,65 +327,40 @@ function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, do
     }
     patches.push({ patch, ends, top });
   }
-  // Lowest first: what a bridge carries is known before the patches above it ask.
+  // Lowest first: what an overhang carries is known before the patches above it ask.
   if (layers) patches.sort((a, b) => a.top - b.top);
+  const corners = (list: readonly number[]) => list.flatMap((t) => [0, 1, 2].flatMap((k) => [x(at(t, k)), y(at(t, k))]));
   for (const { patch, ends, top } of patches) {
     const rims = ends.flatMap(([a, b, third, t, other, far]) => rimsOf(a, b, third, () => easeOf(x(far), y(far), x(a), y(a), x(b), y(b), down[t] ?? 0, down[other] ?? 0, sinSupport)));
     if (!rims.some((rim) => rim.anchor)) continue;
     const { held, bridged } = heldTriangles(patch, rims, { x, y, at, down, edges, edgeKey, reach, arch }, layers !== null);
     for (const t of held) small.add(t);
-    if (!layers) continue;
-    // A bridge carries at once; a small overhang once the material on it has risen as far as the
-    // angle needs to reach its tip, so a wall on a small ledge stands and a stair of ledges does not.
-    const corners = (list: readonly number[]) => list.flatMap((t) => [0, 1, 2].flatMap((k) => [x(at(t, k)), y(at(t, k))]));
+    if (!stands || !sound) continue;
     const spanning = new Set(bridged);
-    if (bridged.length > 0) layers.carry(top, corners(bridged));
-    if (held.length > bridged.length) layers.carry(top, corners(held.filter((t) => !spanning.has(t))), reach);
+    const hung = held.filter((t) => !spanning.has(t));
+    if (bridged.length > 0) {
+      stands.carry(top, corners(bridged));
+      sound.carry(top, corners(bridged));
+    }
+    if (hung.length > 0) {
+      stands.carry(top, corners(hung));
+      sound.carry(top, corners(hung), reach);
+    }
   }
-  // Material that begins in the air on faces that only lean: a rib with a pointed edge under a
-  // ceiling, a keel. No face of it hangs over, yet nothing is below its first layer. From each such
-  // beginning the leaning faces are followed as far as the layers below them are not carried.
-  // What hangs together with an overhang that is reported already (over undersides and walls, no
-  // face that looks up between them) is not reported a second time: the drip edge of a shelf.
+  // Material that begins in the air, whatever the angle of its faces: a rib with a pointed edge
+  // under a ceiling, a keel, a blade. No face of it hangs over, yet the layers find nothing carried
+  // below it. Its faces that look down are reported, as far as nothing is carried under them even
+  // with every overhang of the part propped up: the flanks of a tube lying on the bed rest on the
+  // support its underside gets, the drip edge under a shelf needs its own.
   if (layers) {
-    const group = new Int32Array(count).fill(-1);
-    const reported: boolean[] = [];
-    const groupOf = (start: number) => {
-      if ((group[start] ?? 0) >= 0) return group[start] ?? 0;
-      const id = reported.push(false) - 1;
-      const stack = [start];
-      group[start] = id;
-      while (stack.length > 0) {
-        const t = stack.pop() ?? 0;
-        if (isSupport(t) && !small.has(t)) reported[id] = true;
-        for (let k = 0; k < 3; k += 1) {
-          const list = edges.get(edgeKey(at(t, k), at(t, (k + 1) % 3))) ?? [];
-          for (let i = 0; i < list.length; i += 2) {
-            const other = list[i] ?? 0;
-            if ((group[other] ?? 0) >= 0 || (down[other] ?? 0) < -LEAN) continue;
-            group[other] = id;
-            stack.push(other);
-          }
-        }
-      }
-      return id;
-    };
-    const middle = (t: number, axis: (w: number) => number) => (axis(at(t, 0)) + axis(at(t, 1)) + axis(at(t, 2))) / 3;
-    const tried = new Set<number>();
-    // Asked per face, not at the lowest point: the edge of a keel is held at the feet it ends in.
-    for (const around of begins.values()) {
-      const stack = [...around];
-      while (stack.length > 0) {
-        const t = stack.pop() ?? 0;
-        if (tried.has(t)) continue;
-        tried.add(t);
-        if (layers.held(middle(t, x), middle(t, y), middle(t, z)) || reported[groupOf(t)]) continue;
-        hanging.add(t);
-        for (let k = 0; k < 3; k += 1) {
-          const list = edges.get(edgeKey(at(t, k), at(t, (k + 1) % 3))) ?? [];
-          for (let i = 0; i < list.length; i += 2) if (leans(list[i] ?? 0)) stack.push(list[i] ?? 0);
-        }
-      }
+    const propped = layers.track();
+    for (const { patch, top } of patches) propped.carry(top, corners(patch));
+    for (let t = 0; t < count; t += 1) {
+      if (!leans(t)) continue;
+      const [a, b, c] = [at(t, 0), at(t, 1), at(t, 2)];
+      let free = 0;
+      for (const [wa, wb, wc] of PROBES) if (propped.gap(wa * x(a) + wb * x(b) + wc * x(c), wa * y(a) + wb * y(b) + wc * y(c), wa * z(a) + wb * z(b) + wc * z(c)) > 0) free += 1;
+      if (free > 0) hanging.set(t, free / PROBES.length);
     }
   }
   return { small, hanging, layered: layers !== null };
@@ -569,7 +574,7 @@ function heldTriangles(patch: readonly number[], rims: readonly Rim[], { x, y, a
       const dy = rim.by - rim.ay;
       const length = dx * dx + dy * dy;
       const s = length === 0 ? 0 : Math.max(0, Math.min(1, ((px - rim.ax) * dx + (py - rim.ay) * dy) / length));
-      return Math.hypot(px - rim.ax - s * dx, py - rim.ay - s * dy) <= reach;
+      return Math.hypot(px - rim.ax - s * dx, py - rim.ay - s * dy) <= rim.reach;
     });
   // Along a line through the point the patch ends at the nearest rim ahead and behind. A bridge has
   // an anchor at both; a free edge or a hole on the way makes that side an arm.
@@ -736,12 +741,15 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
   }
   // The roof of a lying hole overhangs between the two lines where its wall passes the limit.
   const sinSupport = Math.sin(((limits.support + ANGLE_TOLERANCE) * Math.PI) / 180);
-  const leans = (t: number) => (down[t] ?? 0) > LEAN && (triangles[t]?.kind === Overhang.Fine || triangles[t]?.kind === Overhang.Borderline);
-  const { small, hanging, layered } = reach > 0 ? smallPatches(positions, index, down, (t) => triangles[t]?.kind === Overhang.Support, leans, reach, LYING_HOLE * sinSupport, sinSupport, bedZ) : { small: new Set<number>(), hanging: new Set<number>(), layered: false };
+  const leans = (t: number) => (down[t] ?? 0) > DOWN && (triangles[t]?.kind === Overhang.Fine || triangles[t]?.kind === Overhang.Borderline);
+  const { small, hanging, layered } = reach > 0 ? smallPatches(positions, index, down, (t) => triangles[t]?.kind === Overhang.Support, leans, reach, LYING_HOLE * sinSupport, sinSupport, bedZ) : { small: new Set<number>(), hanging: new Map<number, number>(), layered: false };
   triangles.forEach(({ kind, face, area: size }, t) => {
-    const counted = hanging.has(t) ? Overhang.Support : small.has(t) ? Overhang.Borderline : kind;
-    area[counted] += size;
-    if (counted === Overhang.Support) supportByFace[face] = (supportByFace[face] ?? 0) + size;
+    // A face that begins in the air needs support under the share of it that nothing carries.
+    const free = (hanging.get(t) ?? 0) * size;
+    const counted = small.has(t) ? Overhang.Borderline : kind;
+    area[counted] += size - free;
+    area[Overhang.Support] += free;
+    supportByFace[face] = (supportByFace[face] ?? 0) + free + (counted === Overhang.Support ? size - free : 0);
   });
   return { vertices, area, supportByFace, layered };
 }
