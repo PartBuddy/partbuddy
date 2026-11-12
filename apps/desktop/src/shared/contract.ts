@@ -1144,9 +1144,9 @@ const findingPlacesSchema = z
 const mmValue = finite.nonnegative().max(100_000);
 export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('size'), severity: findingSeveritySchema, body: bodyName, size: z.tuple([mmValue, mmValue, mmValue]), bed: z.tuple([mmValue, mmValue, mmValue]), lying: z.boolean() }).strict(),
-  z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, floor: z.boolean(), thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, floor: z.boolean(), layers: finite.positive().max(1000).optional(), thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('overhang'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
-  z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), bodies: z.number().int().positive().max(500), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
   z.object({ kind: z.literal('open'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(1).max(20) }).strict(),
@@ -1159,6 +1159,8 @@ export const printCheckReportSchema = z
   .object({
     status: z.enum(['ready', 'warn', 'block']),
     findings: z.array(printFindingSchema).max(40),
+    /** How many more findings the check has than the report carries. */
+    omitted: z.number().int().positive().max(100_000).optional(),
     /** The printer's nozzle the check used, for the wording of walls under it. */
     nozzle: range(0.1, 2),
     /** The mirrored revision the check belongs to, so a check of an older revision reads as pending. */

@@ -66,9 +66,10 @@ interface Located {
 export type PrintFinding =
   | { kind: 'size'; severity: FindingSeverity; body: string; size:[number, number, number]; bed: [number, number, number]; lying: boolean }
   /** `floor`: what lies flat (a floor, a lid), measured against layers; else a wall, against lines. */
-  | ({ kind: 'thinWall'; severity: FindingSeverity; floor: boolean; thickness: number; minimum: number; area: number } & Located)
+  | ({ kind: 'thinWall'; severity: FindingSeverity; floor: boolean; /** For a floor: how many layers the minimum is. */ layers?: number; thickness: number; minimum: number; area: number } & Located)
   | ({ kind: 'overhang'; severity: FindingSeverity; area: number; limit: number } & Located)
-  | ({ kind: 'contact'; severity: FindingSeverity; area: number } & Located)
+  /** The bodies with too little on the bed: how many, and the area of the one with the least. */
+  | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
   /** Bodies that are open shells (SolidCraft's surface bodies): no solid to print. */
   | { kind: 'open'; severity: FindingSeverity; bodies: string[] }
@@ -106,7 +107,12 @@ export function minimumWall(nozzle: number): number {
  * assistant designs to the same number (printProfiles.ts).
  */
 export function minimumFloor(layer: number): number {
-  return Math.round(Math.max(0.8, layer * 4) * 100) / 100;
+  return Math.round(Math.max(0.8, layerOf(layer) * 4) * 100) / 100;
+}
+
+/** The layer height to check with: the usual 0.2 mm where the profile names none, so floors are still checked. */
+function layerOf(layer: number): number {
+  return Number.isFinite(layer) && layer > 0 ? layer : 0.2;
 }
 
 /** Below this, an area is noise of the tessellation, not a finding (mm²). */
@@ -226,7 +232,7 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile): { walls: T
     const flat = Math.abs(normal.dot(down)) >= FLAT;
     const thin = flat ? floors : walls;
     const minimum = flat ? minimumFloor(profile.layer) : minimumWall(profile.nozzle);
-    const printable = flat ? profile.layer : profile.nozzle;
+    const printable = flat ? layerOf(profile.layer) : profile.nozzle;
     const count = Math.ceil(area / cell);
     ray.direction.copy(normal).negate();
     const along = (axis: number, [a, b, c]: [number, number, number]) => a * (corners[axis] ?? 0) + b * (corners[axis + 3] ?? 0) + c * (corners[axis + 6] ?? 0);
@@ -436,7 +442,8 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
   const shells = bodies.filter((body) => body.model.table.faces.length > 0);
   const open = shells.filter((body) => body.model.openEdges > 0);
   if (open.length > 0) findings.push({ kind: 'open', severity: 'block', bodies: open.map((body) => body.name) });
-  const parts = shells.filter((body) => body.model.openEdges === 0);
+  // A model that carries no count is taken as closed, not dropped from the check.
+  const parts = shells.filter((body) => !(body.model.openEdges > 0));
   if (parts.length > 0) {
     const meshes = parts.map(laid);
     // Each body against the plate by itself: the slicer places every one, on more plates if need be.
@@ -454,7 +461,8 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       if (found.places.length === 0) continue;
       const unprintable = kind.reduce((sum, body) => sum + body.unprintable, 0);
       const minimum = floor ? minimumFloor(profile.layer) : minimumWall(profile.nozzle);
-      findings.push({ kind: 'thinWall', severity: unprintable >= BLOCK_THIN_AREA ? 'block' : 'warn', floor, thickness: round(found.extreme), minimum, area: round(found.area, 0), places: found.places, box: found.box });
+      const layers = floor ? { layers: round(minimum / layerOf(profile.layer), 1) } : {};
+      findings.push({ kind: 'thinWall', severity: unprintable >= BLOCK_THIN_AREA ? 'block' : 'warn', floor, ...layers, thickness: round(found.extreme), minimum, area: round(found.area, 0), places: found.places, box: found.box });
     }
 
     // Bodies that touch fall apart in the slicer, each laid onto the bed by itself.
@@ -474,7 +482,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
     // Overhangs by angle and the area on the bed, each body on its own bed.
     const limits = overhangLimits(profile.overhang);
     const overhang: FaceTally[] = [];
-    const loose: PrintFinding[] = [];
+    const loose: { body: PrintCheckBody; tally: FaceTally; area: number }[] = [];
     parts.forEach((body, b) => {
       const { model } = body;
       const geometry = model.geometry;
@@ -509,16 +517,18 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       overhang.push(overhangTally);
       // Each body lies on the bed by itself: one with a broad base does not hold another on its edge.
       const onBed = map.area[Overhang.Bed];
-      if (onBed < MIN_CONTACT) {
-        const lying = locate([body], [contactTally], 1e-6);
-        loose.push({ kind: 'contact', severity: 'warn', area: round(onBed, 0), places: lying.places.length > 0 ? lying.places : [{ body: body.name, faces: [] }], box: lying.box });
-      }
+      if (onBed < MIN_CONTACT) loose.push({ body, tally: contactTally, area: onBed });
     });
     const steep = locate(parts, overhang, MIN_AREA);
     if (steep.area >= MIN_AREA) {
       findings.push({ kind: 'overhang', severity: 'warn', area: round(steep.area, 0), limit: profile.overhang, places: steep.places, box: steep.box });
     }
-    findings.push(...loose);
+    // One finding for all of them: fifty pins are one thing to say, and none drops off the end of a list.
+    if (loose.length > 0) {
+      const lying = locate(loose.map((entry) => entry.body), loose.map((entry) => entry.tally), 1e-6);
+      const places = loose.map(({ body }) => lying.places.find((place) => place.body === body.name) ?? { body: body.name, faces: [] });
+      findings.push({ kind: 'contact', severity: 'warn', area: round(Math.min(...loose.map((entry) => entry.area)), 0), bodies: loose.length, places, box: lying.box });
+    }
   }
 
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);

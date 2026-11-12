@@ -109,6 +109,12 @@ describe('the ready-to-print check (M7)', () => {
     const skin = thinOf(box('Plate', [0, 0, 0], [30, 30, 0.3]));
     expect(skin).toMatchObject([{ severity: 'warn', floor: true, thickness: 0.3, minimum: 0.8, area: 1800 }]);
     expect(skin[0]?.places[0]?.faces).toEqual(['F1:-z', 'F1:+z']);
+    // A profile without a layer height is checked as 0.2 mm, not passed (it read ready).
+    expect(thinOf(box('Plate', [0, 0, 0], [30, 30, 0.3]), { ...PLA, layer: undefined as unknown as number })).toMatchObject([{ floor: true, minimum: 0.8, layers: 4 }]);
+    expect(minimumFloor(Number.NaN)).toBe(0.8);
+    // The finding says how many layers its minimum is: four from 0.2 mm on, more below (0.8 mm at 0.12 mm).
+    expect(skin[0]?.layers).toBe(4);
+    expect(thinOf(box('Plate', [0, 0, 0], [30, 30, 0.3]), { ...PLA, layer: 0.12 })).toMatchObject([{ minimum: 0.8, layers: 6.7 }]);
     // Under one layer nothing is laid.
     expect(thinOf(box('Film', [0, 0, 0], [30, 30, 0.1]))).toMatchObject([{ severity: 'block', floor: true }]);
     // The floor follows the layer height, and the way the body lies.
@@ -169,12 +175,28 @@ describe('the ready-to-print check (M7)', () => {
     expect(box('Cube', [0, 0, 0], [20, 20, 20]).model.openEdges).toBe(0);
   });
 
+  it('checks a body whose model carries no count of open edges as a closed one', () => {
+    // It fell out of both the open and the closed bodies: 10 × 10 × 300 mm read ready.
+    const post = box('Post', [0, 0, 0], [10, 10, 300]);
+    const bare = { ...post, model: { ...post.model, openEdges: undefined as unknown as number } };
+    expect(checkPrint([bare], PLA).findings).toMatchObject([{ kind: 'size', severity: 'block', body: 'Post' }]);
+  });
+
+  it('gathers the bodies with little on the bed into one finding that names them all', () => {
+    // Fifty pins 4 × 4 mm made fifty findings, of which the report kept 40 and the note 12.
+    const pins = Array.from({ length: 50 }, (_, i) => box(`Pin${String(i)}`, [i * 6, 0, 0], [i * 6 + 4, 4, 10]));
+    const findings = checkPrint(pins, PLA).findings;
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ kind: 'contact', severity: 'warn', area: 16, bodies: 50 });
+    expect(findings[0]?.kind === 'contact' ? findings[0].places.map((place) => place.body) : []).toEqual(pins.map((pin) => pin.name));
+  });
+
   it('looks at what lies on the bed body by body: a broad one does not hold one standing on an edge', () => {
     // Audit D3: 400 mm² of a cube hid a second body with nothing on the bed.
     const cube = box('Cube', [20, 0, 0], [40, 20, 20]);
     const onEdge = prismBody('Diamond', [[0, 0], [10, 10], [0, 20], [-10, 10]], 20);
     const contact = checkPrint([cube, onEdge], PLA).findings.filter((f) => f.kind === 'contact');
-    expect(contact).toMatchObject([{ severity: 'warn', area: 0, places: [{ body: 'Diamond', faces: [] }] }]);
+    expect(contact).toMatchObject([{ severity: 'warn', area: 0, bodies: 1, places: [{ body: 'Diamond', faces: [] }] }]);
     // Two bodies that both lie flat: nothing.
     expect(checkPrint([cube, box('Second', [50, 0, 0], [70, 20, 20])], PLA)).toEqual({ status: 'ready', findings: [] });
   });

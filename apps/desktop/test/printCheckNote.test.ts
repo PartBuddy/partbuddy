@@ -36,10 +36,12 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
   });
 
   it('tells a thin floor from a thin wall: layers, not lines', () => {
-    const floor = { kind: 'thinWall' as const, floor: true, thickness: 0.3, minimum: 0.8, area: 900, places: [{ body: 'Box', faces: ['F1:-z'] }] };
+    const floor = { kind: 'thinWall' as const, floor: true, layers: 4, thickness: 0.3, minimum: 0.8, area: 900, places: [{ body: 'Box', faces: ['F1:-z'] }] };
     const warned = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ ...floor, severity: 'warn' }] });
-    expect(warned).toContain('warning: floors or lids down to 0.3 mm, under the 0.8 mm a floor needs to print closed (four layers) (faces "F1:-z" of body "Box")');
+    expect(warned).toContain('warning: floors or lids down to 0.3 mm, under the 0.8 mm a floor needs to print closed (4 layers) (faces "F1:-z" of body "Box")');
     expect(warned).not.toContain('nozzle');
+    // At a 0.12 mm layer the 0.8 mm are not four layers, and the note does not say so.
+    expect(printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ ...floor, layers: 6.7, severity: 'warn' }] })).toContain('print closed (6.7 layers)');
     const blocked = printCheckNote({ status: 'block', nozzle: 0.4, revision: 1, findings: [{ ...floor, thickness: 0.1, severity: 'block' }] });
     expect(blocked).toContain('blocks printing: floors or lids down to 0.1 mm, thinner than one layer, so they do not print');
   });
@@ -51,13 +53,30 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
   });
 
   it('names the body that rests on an edge and has no face on the bed', () => {
-    const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'contact', severity: 'warn', area: 0, places: [{ body: 'Ball', faces: [] }] }] });
+    const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'contact', severity: 'warn', area: 0, bodies: 1, places: [{ body: 'Ball', faces: [] }] }] });
     expect(note).toContain('only 0 mm² lie on the bed, the part may come loose or tip over (body "Ball").');
+  });
+
+  it('says how much it leaves out: bodies of a finding, and findings of a long check', () => {
+    // Fifty pins: one finding, of which the report carries 20 places and the note names 4.
+    const places = Array.from({ length: 50 }, (_, i) => ({ body: 'Pin' + String(i), faces: ['F1:-z'] }));
+    const report = reportOf({ status: 'warn', findings: [{ kind: 'contact', severity: 'warn', area: 16, bodies: 50, places, box: null }] }, 0.4, 1);
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    const note = printCheckNote(report);
+    expect(note).toContain('50 bodies have little on the bed, the least 16 mm²');
+    expect(note).toContain('"F1:-z" of body "Pin3"; and 46 more bodies)');
+    // Fifty findings: the report keeps 40 and counts the rest, the note lists 12 and counts the rest.
+    const many = reportOf({ status: 'block', findings: Array.from({ length: 50 }, (_, i) => ({ kind: 'size' as const, severity: 'block' as const, body: 'Rod' + String(i), size: [300, 300, 300] as [number, number, number], bed: [256, 256, 256] as [number, number, number], lying: false })) }, 0.4, 1);
+    expect(many).toMatchObject({ omitted: 10 });
+    expect(many.findings).toHaveLength(40);
+    expect(printCheckReportSchema.safeParse(many).success).toBe(true);
+    expect(printCheckNote(many)).toContain('- and 38 more findings not listed here');
+    expect(printCheckNote(report)).not.toContain('more findings');
   });
 
   it('cuts long face lists short', () => {
     const faces = Array.from({ length: 30 }, (_, i) => `F${String(i)}:+z`);
-    const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'contact', severity: 'warn', area: 3, places: [{ body: 'B', faces }] }] });
+    const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'contact', severity: 'warn', area: 3, bodies: 1, places: [{ body: 'B', faces }] }] });
     expect(note).toContain('and 24 more');
   });
 });
