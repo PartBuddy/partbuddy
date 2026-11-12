@@ -49,6 +49,9 @@ mac:
   hardenedRuntime: false
   # Both builds carry both single-architecture credential stores; they are kept, not merged.
   x64ArchFiles: "**/keyring.darwin-*.node"
+  # Merging the two archives left an empty app.asar (installer run 43276112067); they are the same
+  # JavaScript anyway, so one of them is taken as it is.
+  mergeASARs: false
 dmg:
   artifactName: PartBuddy-${version}-mac-universal.${ext}
 nsis:
