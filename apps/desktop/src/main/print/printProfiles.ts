@@ -301,7 +301,7 @@ export function printNote({ printer, material: used, supportFree, design }: Part
     `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(wall)} (two lines) and details under ${mm(printer.nozzle)} print poorly.`,
     `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter.`,
     `Clearance per side between mating parts, for this nozzle: clamp ${mm(scaleClearance(clamp, printer))}, push ${mm(scaleClearance(push, printer))}, slide ${mm(scaleClearance(slide, printer))}, turn ${mm(scaleClearance(turn, printer))}.`,
-    'It is printed as designed, standing on its lowest point along +Z.',
+    'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed; the check and the slicer then lay it on that face.',
     ...(supportFree ? supportFreeLines(used.overhang) : []),
     ...designLines(design, printer, used),
     'Keep nominal sizes as parameters, add the clearance and the hole allowance as their own parameters, and say which fit you chose.]',

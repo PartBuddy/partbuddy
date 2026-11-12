@@ -57,7 +57,7 @@ function line(finding: Finding, nozzle: number): string {
  */
 export function printCheckNote(report: PrintCheckReport): string {
   const head =
-    '[PartBuddy: ready-to-print check of the part as it is now (printed as designed along +Z, each body standing on its own lowest point; overhangs by angle only):';
+    '[PartBuddy: ready-to-print check of the part as it is now (each body lying on its print face when it has one, else as designed along +Z on its own lowest point; overhangs by angle only):';
   if (report.findings.length === 0) return `${head} ready to print, nothing found.]`;
   const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? 'prints, with warnings' : 'ready to print';
   const lines = report.findings.slice(0, 12).map((finding) => line(finding, report.nozzle));

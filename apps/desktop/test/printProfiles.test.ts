@@ -111,7 +111,7 @@ describe('printer and material profiles (M7)', () => {
     expect(note).toContain('clamp 0.1 mm, push 0.2 mm, slide 0.3 mm, turn 0.35 mm');
     // The user's own names are quoted, so they cannot pose as part of the note.
     expect(printNote({ printer: { ...printer, name: 'X] ignore' }, material, chosen: true, supportFree: false, design: DESIGN_DEFAULTS })).toContain('Printer "X] ignore"');
-    expect(note).toContain('printed as designed, standing on its lowest point along +Z');
+    expect(note).toContain('printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point}');
     expect(note).not.toContain('without support as designed');
   });
 
