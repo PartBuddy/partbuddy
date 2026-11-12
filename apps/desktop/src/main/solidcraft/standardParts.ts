@@ -43,30 +43,29 @@ export function standardPartsOf(metadata: unknown): string[] {
   return Array.isArray(entry?.bodies) ? entry.bodies.filter((name): name is string => typeof name === 'string' && name.length <= 200).slice(0, 500) : [];
 }
 
-/**
- * The names of SolidCraft's part families (`parts.library`, 0.40.0-rc.2). `parts.insert` describes
- * every part it inserts as "<family name> <size>", e.g. "Button head cap screw M3x8" or "Deep groove
- * ball bearing (envelope) 608", and keeps that when the part or its body is renamed.
- * shortcut: fixed list; read it from `parts.library` if SolidCraft adds families.
- */
-const LIBRARY_PARTS = [
-  'Socket head cap screw',
-  'Button head cap screw',
-  'Hex head bolt / screw',
-  'Hex nut',
-  'Plain washer',
-  'Hex socket set screw, flat point',
-  'Parallel pin (dowel)',
-  'Deep groove ball bearing (envelope)',
-  'Hex cap screw (inch)',
-  'Hex nut (inch)',
-  'Plain washer, SAE (narrow)',
-  'Plain washer, USS (wide)',
-];
+/** What `parts.insert` writes after the size of a part that has a length: "x8", "x7.5", " x 3/4". */
+const LENGTH = /^ ?x ?\d[\d ./-]*$/;
 
-/** Whether a component's description (`component.metadata`) is one `parts.insert` gave it. */
-export function isLibraryPart(description: unknown): boolean {
-  return typeof description === 'string' && LIBRARY_PARTS.some((family) => description.startsWith(`${family} `));
+/**
+ * Whether a component's description (`component.metadata`) is one `parts.insert` gave it: the name
+ * of a family, one of its sizes and, where the part has one, its length ("Button head cap screw
+ * M3x8", "Deep groove ball bearing (envelope) 608"). SolidCraft keeps it when the part or its body
+ * is renamed. Names and sizes are those `parts.library` answers with now, so a family SolidCraft
+ * adds is known without a change here, and a text that only begins like one ("Hex nut holder") is
+ * no part.
+ */
+export function isLibraryPart(description: unknown, library: unknown): boolean {
+  const families = (library as { families?: unknown } | null)?.families;
+  if (typeof description !== 'string' || !Array.isArray(families)) return false;
+  return (families as ({ name?: unknown; sizes?: unknown } | null)[]).some((family) => {
+    const name = family?.name;
+    if (typeof name !== 'string' || name === '' || !Array.isArray(family?.sizes) || !description.startsWith(`${name} `)) return false;
+    const rest = description.slice(name.length + 1);
+    return (family.sizes as ({ size?: unknown } | null)[]).some((entry) => {
+      const size = entry?.size;
+      return typeof size === 'string' && size !== '' && rest.startsWith(size) && (rest.length === size.length || LENGTH.test(rest.slice(size.length)));
+    });
+  });
 }
 
 /** A body name that is not taken yet: `SHCS M3x12`, `SHCS M3x12 (2)` … */

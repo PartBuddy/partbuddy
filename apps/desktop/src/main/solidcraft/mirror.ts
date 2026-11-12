@@ -70,9 +70,9 @@ export function componentsWithBodies(listing: unknown): { id: number; bodies: st
     .map((entry) => ({ id: entry.id as number, bodies: (entry.bodies as unknown[]).filter((name): name is string => typeof name === 'string') }));
 }
 
-/** Bodies of the components `parts.insert` made, by their description, among `parts` and their `component.metadata`. */
-export function libraryBodies(parts: readonly { id: number; bodies: string[] }[], metadata: readonly unknown[]): string[] {
-  return parts.filter((_, i) => isLibraryPart((metadata[i] as { description?: unknown } | undefined)?.description)).flatMap((part) => part.bodies);
+/** Bodies of the components `parts.insert` made, by their description, among `parts` and their `component.metadata`; `library` is what `parts.library` answers. */
+export function libraryBodies(parts: readonly { id: number; bodies: string[] }[], metadata: readonly unknown[], library: unknown): string[] {
+  return parts.filter((_, i) => isLibraryPart((metadata[i] as { description?: unknown } | undefined)?.description, library)).flatMap((part) => part.bodies);
 }
 
 /**
@@ -85,10 +85,10 @@ async function withLibraryParts(client: ControlRequester, structure: Structure, 
   try {
     const reply = await client.request<BatchResult>(
       'engine.batch',
-      { commands: parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } })), rollback: false },
+      { commands: [{ command: 'parts.library', params: {} }, ...parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } }))], rollback: false },
       60_000,
     );
-    const found = libraryBodies(parts, reply.results);
+    const found = libraryBodies(parts, reply.results.slice(1), reply.results[0]);
     if (found.length === 0) return structure;
     return { ...structure, standardParts: [...new Set([...(structure.standardParts ?? []), ...found])].slice(0, 500) };
   } catch {

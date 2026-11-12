@@ -28,3 +28,36 @@ describe('mirroring while the design changes', () => {
     }
   });
 });
+
+describe('standard parts in the mirrored structure (audit S-01, G2)', () => {
+  it('takes the countersunk screws of a screw joint for standard parts, by the library SolidCraft answers with', async () => {
+    // As SolidCraft 0.40.1 answers after partbuddy_mechanism {kind: screw, head: countersunk}: two screws, each a component; a bracket of the user's.
+    const descriptions: Record<number, string | null> = { 2: 'Countersunk socket screw M3x10', 9: 'Countersunk socket screw M3x10', 16: 'Hex nut holder' };
+    const answers: Record<string, unknown> = {
+      'document.revision': { document_id: 'doc', revision: 1 },
+      // Hidden bodies are not exported, so the fake needs no mesh.
+      'document.inspect': { name: 'Part', bodies: ['Block', 'Plate', 'Body1', 'Body2', 'Holder'].map((name) => ({ name, visible: false })), sketches: [] },
+      'component.list': {
+        components: [
+          { id: 0, parent: null, bodies: ['Block', 'Plate'] },
+          { id: 2, parent: 0, bodies: ['Body1'] },
+          { id: 9, parent: 0, bodies: ['Body2'] },
+          { id: 16, parent: 0, bodies: ['Holder'] },
+        ],
+      },
+      'parts.library': { families: [{ family: 'countersunk_socket_screw', name: 'Countersunk socket screw', sizes: [{ size: 'M3' }] }, { family: 'hex_nut', name: 'Hex nut', sizes: [{ size: 'M3' }] }] },
+    };
+    const client: ControlRequester = {
+      request: <T,>(_method: string, params?: Record<string, unknown>): Promise<T> => {
+        const commands = (params?.commands ?? []) as { command: string; params: { component?: number } }[];
+        return Promise.resolve({ results: commands.map((step) => (step.command === 'component.metadata' ? { description: descriptions[step.params.component ?? -1] } : (answers[step.command] ?? {}))) } as T);
+      },
+    };
+    const cache = mkdtempSync(join(tmpdir(), 'partbuddy-mirror-'));
+    try {
+      expect((await mirrorActiveDesign(client, cache)).structure.standardParts).toEqual(['Body1', 'Body2']);
+    } finally {
+      rmSync(cache, { recursive: true, force: true });
+    }
+  });
+});

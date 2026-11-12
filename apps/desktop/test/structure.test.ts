@@ -56,7 +56,10 @@ describe('standard parts the assistant inserted itself', () => {
     expect(parts.map((part) => part.id)).toEqual([25, 31, 40]);
     // Their component.metadata: two from parts.insert, one of the user's own.
     const metadata = [{ description: 'Button head cap screw M3x8' }, { description: 'Deep groove ball bearing (envelope) 608' }, { description: 'Bracket for the shelf' }];
-    expect(libraryBodies(parts, metadata)).toEqual(['Screw FR', 'Bearing']);
+    const library = { families: [{ name: 'Button head cap screw', sizes: [{ size: 'M3' }] }, { name: 'Deep groove ball bearing (envelope)', sizes: [{ size: '608' }] }] };
+    expect(libraryBodies(parts, metadata, library)).toEqual(['Screw FR', 'Bearing']);
+    // Without the library nothing is taken for a part: the bodies stay in print check and export.
+    expect(libraryBodies(parts, metadata, undefined)).toEqual([]);
     expect(componentsWithBodies(undefined)).toEqual([]);
   });
 
