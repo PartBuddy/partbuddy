@@ -12,11 +12,11 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
   it('builds knuckles in turn, each clearing its room in the other body first, then bore and pin', () => {
     const all = hingeSteps(spec);
     const steps = all.filter((step) => step.command === 'solid.cylinder');
-    // Lying, the bore gets a roof: flanks at 45° from the bore (radius 1.9 mm) and a flat 1.2 radii up, cut through the flap along the whole line.
+    // Lying, the bore gets a roof: flanks at 45° from the bore (radius 1.9 mm) and a flat 1.05 radii up, cut through the flap along the whole line.
     const roof = all.filter((step) => step.command !== 'solid.cylinder');
     expect(roof.map((step) => step.command)).toEqual(['sketch.create', 'sketch.line', 'solid.extrude']);
     expect(roof[0]?.params.plane).toEqual({ origin: [42, -0.4, 3], x_dir: [-1, 0, 0], y_dir: [0, 0, 1] });
-    expect(roof[1]?.params.points).toEqual([[-1.344, 1.344], [1.344, 1.344], [0.407, 2.28], [-0.407, 2.28]]);
+    expect(roof[1]?.params.points).toEqual([[-1.344, 1.344], [1.344, 1.344], [0.692, 1.995], [-0.692, 1.995]]);
     expect(roof[2]?.params).toMatchObject({ distance: '30.8 mm', operation: 'cut', targets: ['Flap'], name: 'Hinge △' });
     // Upright, a round bore prints as it is.
     expect(hingeSteps({ ...spec, from: [0, 0, 0], to: [0, 0, 30] }).every((step) => step.command === 'solid.cylinder')).toBe(true);
@@ -45,6 +45,9 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(hingeProblem({ ...spec, knuckles: 4 })).toBe('knuckles must be 3, 5, 7 or 9');
     expect(hingeProblem({ ...spec, diameter: 4, gap: 0.5 })).toContain('the barrel wall around the pin would be 0.5 mm');
     expect(hingeProblem({ ...spec, to: [42, 6, 3] })).toContain('use fewer knuckles or a longer hinge line');
+    // Lying, the barrel must keep two lines over the bore's roof; an upright hinge has no roof.
+    expect(hingeProblem({ ...spec, gap: 0.6 })).toContain('the barrel would be 0.795 mm thin over the bore\'s roof');
+    expect(hingeProblem({ ...spec, gap: 0.6, from: [42, 0, 3], to: [42, 0, 33] })).toBeNull();
   });
 
   it('fills in the gap from the nozzle and the knuckles from the length', () => {
