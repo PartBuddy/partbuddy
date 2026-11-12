@@ -5,32 +5,50 @@ type Places = Extract<Finding, { places: unknown }>['places'];
 
 const mm = (value: number) => `${String(Math.round(value * 100) / 100)} mm`;
 
-/** Where, in the face names the model also gets from SolidCraft; long lists are cut short. */
-function where(places: Places): string {
+/**
+ * Where, in the face names the model also gets from SolidCraft; long lists are cut short, and say
+ * by how much. `bodies` is how many bodies the finding is about when the places do not name all.
+ */
+function where(places: Places, bodies = places.length): string {
   if (places.length === 0) return '';
-  const parts = places.slice(0, 4).map(({ body, faces }) => {
-    const shown = faces.slice(0, 6).map((face) => JSON.stringify(face)).join(', ');
-    const more = faces.length > 6 ? ` and ${String(faces.length - 6)} more` : '';
-    return `${shown}${more} of body ${JSON.stringify(body)}`;
+  const shown = places.slice(0, 4);
+  const rest = bodies - shown.length;
+  const more = rest > 0 ? `; and ${String(rest)} more ${rest === 1 ? 'body' : 'bodies'}` : '';
+  // A body that rests on a point or an edge has no face to name.
+  if (shown.every(({ faces }) => faces.length === 0)) return ` (body ${shown.map(({ body }) => JSON.stringify(body)).join(', ')}${more})`;
+  const parts = shown.map(({ body, faces }) => {
+    if (faces.length === 0) return `body ${JSON.stringify(body)}`;
+    const named = faces.slice(0, 6).map((face) => JSON.stringify(face)).join(', ');
+    const further = faces.length > 6 ? ` and ${String(faces.length - 6)} more` : '';
+    return `${named}${further} of body ${JSON.stringify(body)}`;
   });
-  return ` (faces ${parts.join('; ')})`;
+  return ` (faces ${parts.join('; ')}${more})`;
 }
 
 function line(finding: Finding, nozzle: number): string {
   const tag = finding.severity === 'block' ? 'blocks printing' : 'warning';
   switch (finding.kind) {
     case 'size':
-      return `- ${tag}: the part is ${finding.size.map(String).join(' × ')} mm, the printer takes ${finding.bed.map(String).join(' × ')} mm${finding.lying ? '; it would fit lying on another side' : ''}.`;
+      return `- ${tag}: body ${JSON.stringify(finding.body)} is ${finding.size.map(String).join(' × ')} mm, the printer takes ${finding.bed.map(String).join(' × ')} mm${finding.lying ? '; it would fit lying on another side' : ''}.`;
     case 'thinWall':
+      // What lies flat is built of layers: it prints from one layer on, and closes from four.
+      if (finding.floor)
+        return finding.severity === 'block'
+          ? `- ${tag}: floors or lids down to ${mm(finding.thickness)}, thinner than one layer, so they do not print${where(finding.places)}.`
+          : `- ${tag}: floors or lids down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} a floor needs to print closed${finding.layers === undefined ? '' : ` (${String(finding.layers)} layers)`}${where(finding.places)}.`;
       return finding.severity === 'block'
         ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than the ${mm(nozzle)} nozzle, so they do not print${where(finding.places)}.`
         : `- ${tag}: walls down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} of two lines${where(finding.places)}.`;
     case 'overhang':
       return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical${where(finding.places)}; the slicer decides whether they need support.`;
     case 'contact':
-      return `- ${tag}: only ${String(finding.area)} mm² lie on the bed, the part may come loose or tip over${where(finding.places)}.`;
+      return finding.bodies > 1
+        ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed, the least ${String(finding.area)} mm²; they may come loose or tip over${where(finding.places, finding.bodies)}.`
+        : `- ${tag}: only ${String(finding.area)} mm² lie on the bed, the part may come loose or tip over${where(finding.places)}.`;
     case 'separate':
       return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(', ')} touch but are separate; the slicer lays each on the bed by itself. Combine them if they are one part.`;
+    case 'open':
+      return `- ${tag}: ${finding.bodies.map((body) => `body ${JSON.stringify(body)}`).join(', ')} is an open surface, not a closed solid: it has no volume, so nothing of it prints. Close it into a solid, or remove it if it only helped to build.`;
     case 'feature':
       return (
         `- ${tag}: feature ${JSON.stringify(finding.feature)} reports ${JSON.stringify(finding.message.slice(0, 200))}.` +
@@ -61,5 +79,8 @@ export function printCheckNote(report: PrintCheckReport): string {
   if (report.findings.length === 0) return `${head} ready to print, nothing found.]`;
   const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? 'prints, with warnings' : 'ready to print';
   const lines = report.findings.slice(0, 12).map((finding) => line(finding, report.nozzle));
+  // What does not fit the note is counted, never dropped without a word.
+  const rest = report.findings.length - lines.length + (report.omitted ?? 0);
+  if (rest > 0) lines.push(`- and ${String(rest)} more ${rest === 1 ? 'finding' : 'findings'} not listed here; the user sees them in the ready-to-print panel.`);
   return [`${head} ${verdict}.`, ...lines, 'Fix what blocks printing before you call the part done; the user sees the same findings.]'].join('\n');
 }

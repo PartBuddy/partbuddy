@@ -1,16 +1,17 @@
 import { Box3, DoubleSide, Quaternion, Ray, Vector3 } from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
 
-import { Overhang, overhangLimits, overhangOf, smallOverhangReach } from './overhang';
+import { Overhang, overhangLimits, overhangOf, smallOverhangReach, spread } from './overhang';
 import type { ViewerModel } from './viewerModel';
 
 /**
  * The "ready to print" check (M7, ADR 0010 as amended on 2026-11-05 for plan step R1): pure
  * TypeScript on the mirrored render meshes, no sidecar. It checks what only the design decides:
  * whether the part fits the printer, walls the nozzle cannot print, bodies that touch, how much of
- * the part lies on the bed, and features SolidCraft could not build. Overhangs are a hint by angle
+ * the part lies on the bed, bodies that are no closed solid, and features SolidCraft could not build. Overhangs are a hint by angle
  * only (yellow, never red): whether something needs support, and how, is the slicer's job; small
- * ones that hang from the material below, as the slicers ignore them, are left out.
+ * ones that hang from the material below, as the slicers ignore them, and ceilings the printer
+ * bridges are left out.
  * The part is checked as designed, Z up, or lying on its print face where SolidCraft has one for the
  * body (the slicer export lays it down so). Each body stands on its own lowest point: the slicer lays
  * every object of the 3MF onto the bed by itself (seen in Bambu Studio, 2026-11-05), so bodies that
@@ -21,6 +22,8 @@ export interface PrintCheckProfile {
   /** Build volume X, Y, Z in mm. */
   bed: readonly [number, number, number];
   nozzle: number;
+  /** Layer height in mm: what lies flat is built of whole layers. */
+  layer: number;
   /** Degrees from the vertical beyond which a face is an overhang. */
   overhang: number;
 }
@@ -61,11 +64,15 @@ interface Located {
 }
 
 export type PrintFinding =
-  | { kind: 'size'; severity: FindingSeverity; size: [number, number, number]; bed: [number, number, number]; lying: boolean }
-  | ({ kind: 'thinWall'; severity: FindingSeverity; thickness: number; minimum: number; area: number } & Located)
+  | { kind: 'size'; severity: FindingSeverity; body: string; size:[number, number, number]; bed: [number, number, number]; lying: boolean }
+  /** `floor`: what lies flat (a floor, a lid), measured against layers; else a wall, against lines. */
+  | ({ kind: 'thinWall'; severity: FindingSeverity; floor: boolean; /** For a floor: how many layers the minimum is. */ layers?: number; thickness: number; minimum: number; area: number } & Located)
   | ({ kind: 'overhang'; severity: FindingSeverity; area: number; limit: number } & Located)
-  | ({ kind: 'contact'; severity: FindingSeverity; area: number } & Located)
+  /** The bodies with too little on the bed: how many, and the area of the one with the least. */
+  | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
+  /** Bodies that are open shells (SolidCraft's surface bodies): no solid to print. */
+  | { kind: 'open'; severity: FindingSeverity; bodies: string[] }
   | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string }
   /** Two bodies share volume: as separate parts they do not go together (F2, SolidCraft's measure). */
   | ({ kind: 'overlap'; severity: FindingSeverity; bodies: [string, string]; volume: number } & Located)
@@ -92,6 +99,20 @@ export interface PrintCheck {
 /** Two extrusion lines of the nozzle: the thinnest wall that prints solid. */
 export function minimumWall(nozzle: number): number {
   return Math.round(nozzle * 2 * 1.125 * 100) / 100;
+}
+
+/**
+ * Four layers, and at least 0.8 mm: the thinnest floor or lid that prints closed (Stratasys Direct,
+ * FDM Design Guide: four layers; Protolabs Network, key design considerations: over 0.8 mm). The
+ * assistant designs to the same number (printProfiles.ts).
+ */
+export function minimumFloor(layer: number): number {
+  return Math.round(Math.max(0.8, layerOf(layer) * 4) * 100) / 100;
+}
+
+/** The layer height to check with: the usual 0.2 mm where the profile names none, so floors are still checked. */
+function layerOf(layer: number): number {
+  return Number.isFinite(layer) && layer > 0 ? layer : 0.2;
 }
 
 /** Below this, an area is noise of the tessellation, not a finding (mm²). */
@@ -163,35 +184,78 @@ function triangle(positions: ArrayLike<number>, index: ArrayLike<number>, t: num
   };
 }
 
-/** Wall thickness under each triangle: a ray from its middle straight into the material. */
-function thinWalls(body: PrintCheckBody, minimum: number): FaceTally {
+/** The direction that points at the bed as the body lies: the normal of its print face, if it has a flat one. */
+function printDown({ model, printFace }: PrintCheckBody): Vector3 | undefined {
+  const down = printFace ? model.table.faces.find((face) => face.name === printFace)?.planeNormal : undefined;
+  return down ? new Vector3(...down).normalize() : undefined;
+}
+
+/** A face within 45° of lying flat is a floor, a lid or a step: it is built in layers, not in lines. */
+const FLAT = Math.SQRT1_2;
+/** Just inside each corner of a triangle, as weights of its corners. */
+const CORNERS: [number, number, number][] = [[0.998, 0.001, 0.001], [0.001, 0.998, 0.001], [0.001, 0.001, 0.998]];
+
+/** What is too thin in one body: the faces under the minimum, and the area (mm²) that does not print at all. */
+interface Thin {
+  faces: FaceTally;
+  unprintable: number;
+}
+
+/**
+ * Wall thickness under each triangle: rays straight into the material, spread a nozzle width apart
+ * over the triangle, and at its corners (between two flat faces a wall is thinnest at one of them).
+ * Walls stand against two lines and the nozzle; floors and lids, as the body lies, against four
+ * layers and one.
+ * shortcut: a body with more surface than MAX_RAYS nozzle widths squared is sampled more coarsely;
+ * raise MAX_RAYS (or check in a worker) if thin spots of large parts are missed.
+ */
+function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile): { walls: Thin; floors: Thin } {
   const { model } = body;
   const geometry = model.geometry;
   // computeBoundsTree builds a MeshBVH (viewerModel.ts); the augmented type only names its base.
   const bvh = geometry.boundsTree as unknown as MeshBVH | undefined;
-  const tally = new FaceTally(model.table.faces.length);
+  const walls: Thin = { faces: new FaceTally(model.table.faces.length), unprintable: 0 };
+  const floors: Thin = { faces: new FaceTally(model.table.faces.length), unprintable: 0 };
   const index = geometry.index?.array;
   const positions = geometry.getAttribute('position').array;
-  if (!bvh || !index) return tally;
+  if (!bvh || !index) return { walls, floors };
   const triangles = index.length / 3;
   const stride = Math.max(1, Math.ceil(triangles / MAX_RAYS));
+  let surface = 0;
+  for (let t = 0; t < triangles; t += stride) surface += triangle(positions, index, t).area;
+  const cell = Math.max(profile.nozzle ** 2, surface / MAX_RAYS);
+  const down = printDown(body) ?? new Vector3(0, 0, -1);
   const ray = new Ray();
   for (let t = 0; t < triangles; t += stride) {
-    const { corners, area, normal, centroid } = triangle(positions, index, t);
+    const { corners, area, normal } = triangle(positions, index, t);
     if (!normal || area === 0) continue;
-    ray.origin.copy(centroid).addScaledVector(normal, -EPSILON);
+    const flat = Math.abs(normal.dot(down)) >= FLAT;
+    const thin = flat ? floors : walls;
+    const minimum = flat ? minimumFloor(profile.layer) : minimumWall(profile.nozzle);
+    const printable = flat ? layerOf(profile.layer) : profile.nozzle;
+    const count = Math.ceil(area / cell);
     ray.direction.copy(normal).negate();
-    const hit = bvh.raycastFirst(ray, DoubleSide, 0, minimum);
-    if (!hit || hit.faceIndex === t || hit.faceIndex === undefined || hit.faceIndex === null) continue;
-    const opposite = triangle(positions, index, hit.faceIndex).normal;
-    if (!opposite || opposite.dot(normal) > OPPOSITE) continue;
-    tally.add(model.triangleFaces[t] ?? 0, area * stride, hit.distance + EPSILON, corners);
+    const along = (axis: number, [a, b, c]: [number, number, number]) => a * (corners[axis] ?? 0) + b * (corners[axis + 3] ?? 0) + c * (corners[axis + 6] ?? 0);
+    [...spread(count), ...(count > 1 ? CORNERS : [])].forEach((weights, p) => {
+      ray.origin.set(along(0, weights), along(1, weights), along(2, weights)).addScaledVector(normal, -EPSILON);
+      const hit = bvh.raycastFirst(ray, DoubleSide, 0, minimum);
+      if (!hit || hit.faceIndex === t || hit.faceIndex === undefined || hit.faceIndex === null) return;
+      const thickness = hit.distance + EPSILON;
+      // A wall of just the minimum is not under it.
+      if (thickness > minimum - EPSILON) return;
+      const opposite = triangle(positions, index, hit.faceIndex).normal;
+      if (!opposite || opposite.dot(normal) > OPPOSITE) return;
+      // The corners only say how thin the face gets; its area is shared out among the spread points.
+      const share = p < count ? (area * stride) / count : 0;
+      thin.faces.add(model.triangleFaces[t] ?? 0, share, thickness, corners);
+      if (thickness < printable - EPSILON) thin.unprintable += share;
+    });
   }
-  return tally;
+  return { walls, floors };
 }
 
 /** Faces whose tallied area reaches `minArea`, with their names and common bounds. */
-function locate(bodies: readonly PrintCheckBody[], tallies: readonly FaceTally[], minArea: number, accept: (tally: FaceTally, face: number) => boolean = () => true) {
+function locate(bodies: readonly PrintCheckBody[], tallies: readonly FaceTally[], minArea: number) {
   const places: FindingPlace[] = [];
   const min: [number, number, number] = [Infinity, Infinity, Infinity];
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
@@ -202,7 +266,7 @@ function locate(bodies: readonly PrintCheckBody[], tallies: readonly FaceTally[]
     if (!tally) return;
     const faces: string[] = [];
     tally.area.forEach((value, face) => {
-      if (value < minArea || !accept(tally, face)) return;
+      if (value < minArea) return;
       faces.push(body.model.table.faces[face]?.name ?? `F${String(face)}`);
       area += value;
       extreme = Math.min(extreme, tally.extreme[face] ?? Number.POSITIVE_INFINITY);
@@ -257,35 +321,76 @@ function touches(a: PrintCheckBody, b: PrintCheckBody): boolean {
   return false;
 }
 
-/** Width and depth of all bodies together, and the height of the tallest one on its own bed. */
-function printedSize(bodies: readonly { positions: ArrayLike<number> }[]): [number, number, number] | null {
-  const min = [Infinity, Infinity];
-  const max = [-Infinity, -Infinity];
-  let height = 0;
-  for (const { positions } of bodies) {
-    let low = Infinity;
-    let high = -Infinity;
-    for (let i = 0; i < positions.length; i += 3) {
-      for (let k = 0; k < 2; k += 1) {
-        min[k] = Math.min(min[k] ?? Infinity, positions[i + k] ?? 0);
-        max[k] = Math.max(max[k] ?? -Infinity, positions[i + k] ?? 0);
-      }
-      low = Math.min(low, positions[i + 2] ?? 0);
-      high = Math.max(high, positions[i + 2] ?? 0);
+/** Width, depth and height of one body as it lies. */
+function extentOf(positions: ArrayLike<number>): [number, number, number] {
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < positions.length; i += 3) {
+    for (let k = 0; k < 3; k += 1) {
+      min[k] = Math.min(min[k] ?? Infinity, positions[i + k] ?? 0);
+      max[k] = Math.max(max[k] ?? -Infinity, positions[i + k] ?? 0);
     }
-    if (Number.isFinite(low)) height = Math.max(height, high - low);
   }
-  if (!Number.isFinite(min[0])) return null;
-  return [(max[0] ?? 0) - (min[0] ?? 0), (max[1] ?? 0) - (min[1] ?? 0), height];
+  return [(max[0] ?? 0) - (min[0] ?? 0), (max[1] ?? 0) - (min[1] ?? 0), (max[2] ?? 0) - (min[2] ?? 0)];
+}
+
+/** The body seen from above: the convex hull of its points (monotone chain). */
+function outlineOf(positions: ArrayLike<number>): [number, number][] {
+  const points: [number, number][] = [];
+  for (let i = 0; i < positions.length; i += 3) points.push([positions[i] ?? 0, positions[i + 1] ?? 0]);
+  points.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const half = (list: readonly [number, number][]) => {
+    const hull: [number, number][] = [];
+    for (const p of list) {
+      while (hull.length >= 2) {
+        const a = hull[hull.length - 2] ?? p;
+        const b = hull[hull.length - 1] ?? p;
+        if ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) > 0) break;
+        hull.pop();
+      }
+      hull.push(p);
+    }
+    return hull;
+  };
+  return [...half(points), ...half([...points].reverse())];
+}
+
+/** A size counts as fitting up to this much over the plate: sizes are shown to 0.1 mm. */
+const SIZE_SLACK = 0.05;
+
+/**
+ * Whether the body fits the plate turned about Z by some angle: the slicer turns it freely, so a
+ * long bar lies across the diagonal.
+ * shortcut: tried in steps of 0.1°, which is 0.3 mm at the end of a 300 mm bar; solve the angles
+ * exactly if a part that fits by less than that must not be blocked.
+ */
+function fitsTurned(positions: ArrayLike<number>, width: number, depth: number): boolean {
+  const outline = outlineOf(positions);
+  for (let step = 1; step < 1800; step += 1) {
+    const cos = Math.cos((step * Math.PI) / 1800);
+    const sin = Math.sin((step * Math.PI) / 1800);
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const [x, y] of outline) {
+      minX = Math.min(minX, x * cos - y * sin);
+      maxX = Math.max(maxX, x * cos - y * sin);
+      minY = Math.min(minY, x * sin + y * cos);
+      maxY = Math.max(maxY, x * sin + y * cos);
+    }
+    if (maxX - minX <= width + SIZE_SLACK && maxY - minY <= depth + SIZE_SLACK) return true;
+  }
+  return false;
 }
 
 /** The body's mesh as it lies on the bed: turned onto its print face, or as designed. */
-function laid({ model, printFace }: PrintCheckBody): { positions: ArrayLike<number>; normals: ArrayLike<number> } {
-  const positions = model.geometry.getAttribute('position').array;
-  const normals = model.geometry.getAttribute('normal').array;
-  const down = printFace ? model.table.faces.find((face) => face.name === printFace)?.planeNormal : undefined;
+function laid(body: PrintCheckBody): { positions: ArrayLike<number>; normals: ArrayLike<number> } {
+  const positions = body.model.geometry.getAttribute('position').array;
+  const normals = body.model.geometry.getAttribute('normal').array;
+  const down = printDown(body);
   if (!down) return { positions, normals };
-  const turn = new Quaternion().setFromUnitVectors(new Vector3(...down).normalize(), new Vector3(0, 0, -1));
+  const turn = new Quaternion().setFromUnitVectors(down, new Vector3(0, 0, -1));
   const v = new Vector3();
   const turned = (source: ArrayLike<number>) => {
     const out = new Float32Array(source.length);
@@ -307,16 +412,15 @@ function bedOf(positions: ArrayLike<number>): number {
   return Number.isFinite(low) ? low : 0;
 }
 
-function sizeFinding(bodies: readonly { positions: ArrayLike<number> }[], bed: readonly [number, number, number]): PrintFinding | null {
-  const printed = printedSize(bodies);
-  if (!printed) return null;
-  const size = printed.map((value) => round(value, 1)) as [number, number, number];
-  const fits = (x: number, y: number, z: number) => x <= bed[0] && y <= bed[1] && z <= bed[2];
-  const [x, y, z] = size;
+/** A body that fits the build volume in no position on the plate. */
+function sizeFinding(body: string, positions: ArrayLike<number>, bed: readonly [number, number, number]): PrintFinding | null {
+  const [x, y, z] = extentOf(positions);
+  if (!Number.isFinite(x)) return null;
+  const fits = (a: number, b: number, c: number) => a <= bed[0] + SIZE_SLACK && b <= bed[1] + SIZE_SLACK && c <= bed[2] + SIZE_SLACK;
   // Turned on the bed, the slicer places it; that is no finding.
-  if (fits(x, y, z) || fits(y, x, z)) return null;
+  if (fits(x, y, z) || fits(y, x, z) || (z <= bed[2] + SIZE_SLACK && fitsTurned(positions, bed[0], bed[1]))) return null;
   const lying = fits(x, z, y) || fits(z, x, y) || fits(y, z, x) || fits(z, y, x);
-  return { kind: 'size', severity: 'block', size, bed: [...bed], lying };
+  return { kind: 'size', severity: 'block', body, size: [round(x, 1), round(y, 1), round(z, 1)], bed: [...bed], lying };
 }
 
 const SEVERITY_ORDER: Record<FindingSeverity, number> = { block: 0, warn: 1 };
@@ -334,20 +438,31 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
     else if (feature.warning) findings.push({ kind: 'feature', severity: 'warn', feature: feature.name, message: feature.warning });
   }
 
-  const parts = bodies.filter((body) => body.model.table.faces.length > 0);
+  // A surface body has no volume to fill: nothing else about it is worth a finding.
+  const shells = bodies.filter((body) => body.model.table.faces.length > 0);
+  const open = shells.filter((body) => body.model.openEdges > 0);
+  if (open.length > 0) findings.push({ kind: 'open', severity: 'block', bodies: open.map((body) => body.name) });
+  // A model that carries no count is taken as closed, not dropped from the check.
+  const parts = shells.filter((body) => !(body.model.openEdges > 0));
   if (parts.length > 0) {
     const meshes = parts.map(laid);
-    const size = sizeFinding(meshes, profile.bed);
-    if (size) findings.push(size);
+    // Each body against the plate by itself: the slicer places every one, on more plates if need be.
+    parts.forEach((body, b) => {
+      const size = sizeFinding(body.name, meshes[b]?.positions ?? [], profile.bed);
+      if (size) findings.push(size);
+    });
 
-    // Walls: under two lines they print poorly, under the nozzle width not at all.
-    const minimum = minimumWall(profile.nozzle);
-    const walls = parts.map((body) => thinWalls(body, minimum));
-    const tooThin = locate(parts, walls, MIN_AREA, (tally, face) => (tally.extreme[face] ?? Infinity) < profile.nozzle);
-    const thin = locate(parts, walls, MIN_AREA);
-    if (thin.places.length > 0) {
-      const severity: FindingSeverity = tooThin.area >= BLOCK_THIN_AREA ? 'block' : 'warn';
-      findings.push({ kind: 'thinWall', severity, thickness: round(thin.extreme), minimum, area: round(thin.area, 0), places: thin.places, box: thin.box });
+    // Walls: under two lines they print poorly, under the nozzle width not at all. Floors and lids:
+    // under four layers they do not close, under one layer nothing is laid.
+    const thin = parts.map((body) => thinWalls(body, profile));
+    for (const floor of [false, true]) {
+      const kind = thin.map((body) => (floor ? body.floors : body.walls));
+      const found = locate(parts, kind.map((body) => body.faces), MIN_AREA);
+      if (found.places.length === 0) continue;
+      const unprintable = kind.reduce((sum, body) => sum + body.unprintable, 0);
+      const minimum = floor ? minimumFloor(profile.layer) : minimumWall(profile.nozzle);
+      const layers = floor ? { layers: round(minimum / layerOf(profile.layer), 1) } : {};
+      findings.push({ kind: 'thinWall', severity: unprintable >= BLOCK_THIN_AREA ? 'block' : 'warn', floor, ...layers, thickness: round(found.extreme), minimum, area: round(found.area, 0), places: found.places, box: found.box });
     }
 
     // Bodies that touch fall apart in the slicer, each laid onto the bed by itself.
@@ -367,9 +482,9 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
     // Overhangs by angle and the area on the bed, each body on its own bed.
     const limits = overhangLimits(profile.overhang);
     const overhang: FaceTally[] = [];
-    const contact: FaceTally[] = [];
-    let onBed = 0;
-    parts.forEach(({ model }, b) => {
+    const loose: { body: PrintCheckBody; tally: FaceTally; area: number }[] = [];
+    parts.forEach((body, b) => {
+      const { model } = body;
       const geometry = model.geometry;
       const mesh = meshes[b];
       if (!mesh) return;
@@ -386,7 +501,6 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
         limits,
         smallOverhangReach(profile.nozzle),
       );
-      onBed += map.area[Overhang.Bed];
       const faces = model.table.faces.length;
       const overhangTally = new FaceTally(faces);
       const contactTally = new FaceTally(faces);
@@ -401,15 +515,19 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
         overhangTally.area[face] = area;
       });
       overhang.push(overhangTally);
-      contact.push(contactTally);
+      // Each body lies on the bed by itself: one with a broad base does not hold another on its edge.
+      const onBed = map.area[Overhang.Bed];
+      if (onBed < MIN_CONTACT) loose.push({ body, tally: contactTally, area: onBed });
     });
     const steep = locate(parts, overhang, MIN_AREA);
     if (steep.area >= MIN_AREA) {
-      findings.push({ kind: 'overhang', severity: 'warn', area: round(steep.area, 0), limit: profile.overhang, places: steep.places, box: steep.box });
+      findings.push({ kind: 'overhang', severity: 'warn', area: round(steep.area, 0), limit: limits.support, places: steep.places, box: steep.box });
     }
-    if (onBed < MIN_CONTACT) {
-      const lying = locate(parts, contact, 1e-6);
-      findings.push({ kind: 'contact', severity: 'warn', area: round(onBed, 0), places: lying.places, box: lying.box });
+    // One finding for all of them: fifty pins are one thing to say, and none drops off the end of a list.
+    if (loose.length > 0) {
+      const lying = locate(loose.map((entry) => entry.body), loose.map((entry) => entry.tally), 1e-6);
+      const places = loose.map(({ body }) => lying.places.find((place) => place.body === body.name) ?? { body: body.name, faces: [] });
+      findings.push({ kind: 'contact', severity: 'warn', area: round(Math.min(...loose.map((entry) => entry.area)), 0), bodies: loose.length, places, box: lying.box });
     }
   }
 

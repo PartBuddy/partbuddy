@@ -21,17 +21,27 @@ export function useFindingText(): (finding: PrintFinding) => string {
     switch (finding.kind) {
       case 'size':
         return t(finding.lying ? 'check.finding.sizeLying' : 'check.finding.size', {
+          body: finding.body,
           size: finding.size.map((value) => number.format(value)).join(' × '),
           bed: finding.bed.map((value) => number.format(value)).join(' × '),
         });
       case 'thinWall':
+        if (finding.floor) return t(finding.severity === 'block' ? 'check.finding.floorTooThin' : 'check.finding.floorThin', { thickness: number.format(finding.thickness), minimum: number.format(finding.minimum), layers: finding.layers === undefined ? 'none' : number.format(finding.layers) });
         return finding.severity === 'block'
           ? t('check.finding.wallTooThin', { thickness: number.format(finding.thickness), nozzle: number.format(nozzle) })
           : t('check.finding.wallThin', { thickness: number.format(finding.thickness), minimum: number.format(finding.minimum) });
       case 'overhang':
         return t('check.finding.overhang', { area: number.format(finding.area), limit: finding.limit });
       case 'contact':
-        return t('check.finding.contact', { area: number.format(finding.area) });
+      {
+        // Three names, and how many more: fifty pins do not fit a line.
+        const names = finding.places.slice(0, 3).map((place) => place.body);
+        const rest = finding.bodies - names.length;
+        const bodies = new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(rest > 0 ? [...names, t('check.more', { count: rest })] : names);
+        return t('check.finding.contact', { count: finding.bodies, area: number.format(finding.area), bodies });
+      }
+      case 'open':
+        return t('check.finding.open', { count: finding.bodies.length, bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
       case 'separate':
         return t('check.finding.separate', { bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
       case 'feature':

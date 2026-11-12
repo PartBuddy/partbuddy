@@ -15,6 +15,7 @@ import {
   type PrintSettings,
 } from '../../shared/contract';
 import { fitSize, lineWidth, printInPlaceGap, scaleClearance, unitSize, type FitPrinter } from '../../shared/designFit';
+import { BRIDGE_SPAN, LYING_HOLE, minimumFloor } from '@partbuddy/geometry';
 
 /**
  * What is kept next to a design: its material, and the design rule groups the user turned on or off
@@ -228,8 +229,8 @@ function supportFreeLines(overhang: number): string[] {
   return [
     'Design it to print without support as designed, standing on its lowest point (the user\'s setting); where that cannot be done, say so and why:',
     `- Edges that face down towards the bed: chamfer them at 45° instead of filleting (the bottom of a fillet ends flat); fillets that face up or sideways are fine.`,
-    `- Holes lying across the layers: up to about 10 mm wide the slicer bridges them; wider ones get a teardrop roof (45° to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
-    '- Ceilings and ledges: walls at most 10 mm apart are bridged, ledges up to 1.5 mm out from a wall print; anything wider gets a 45° slope underneath, or say which side the part should rather stand on.',
+    `- Holes lying across the layers: up to ${String(LYING_HOLE)} mm across they print round without support; wider ones get a teardrop roof (45° to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
+    `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged, ledges up to 1.5 mm out from a wall print; anything wider gets a 45° slope underneath, or say which side the part should rather stand on.`,
     'Model these as their own features with parameters (layer height, roof angle) and name them when you report.',
   ];
 }
@@ -280,7 +281,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
     );
   if (design.snap)
     lines.push(
-      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(Math.max(0.8, layer * 4))}, print-in-place gaps ${mm(gap)}, radii and details at least ${mm(unitSize('nozzle', printer))}. Mark each such parameter's comment with the multiple, e.g. "Wall [auto 3×line]", "Floor [auto 5×layer]", "Hinge gap [auto 1×nozzle]", so PartBuddy fits it again when the user changes printer or nozzle. Sizes the user named get no mark.`,
+      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(minimumFloor(layer))}, print-in-place gaps ${mm(gap)}, radii and details at least ${mm(unitSize('nozzle', printer))}. Mark each such parameter's comment with the multiple, e.g. "Wall [auto 3×line]", "Floor [auto 5×layer]", "Hinge gap [auto 1×nozzle]", so PartBuddy fits it again when the user changes printer or nozzle. Sizes the user named get no mark.`,
     );
   if (off.length > 0)
     lines.push(`- The user turned off ${off.map((rule) => RULE_NAMES[rule]).join(', ')}: do not add them unless the user asks for them.`);

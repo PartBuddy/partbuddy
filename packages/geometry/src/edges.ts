@@ -60,6 +60,8 @@ export function deriveEdges(
     for (let k = 0; k < 3; k += 1) {
       const a = mesh.indices[t * 3 + k] ?? 0;
       const b = mesh.indices[t * 3 + ((k + 1) % 3)] ?? 0;
+      // A triangle drawn to a line has an edge from a vertex to itself, which no other triangle closes.
+      if (a === b) continue;
       const key = a < b ? `${a}:${b}` : `${b}:${a}`;
       const first = owner.get(key);
       if (first === undefined) {

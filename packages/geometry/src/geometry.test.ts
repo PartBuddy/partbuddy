@@ -119,6 +119,14 @@ function cube(): TaggedMesh {
 }
 
 describe('B-rep edges and vertices', () => {
+  it('does not take a triangle drawn to a line for a hole in the shell', () => {
+    // (a, a, b) has an edge from a to itself, which no other triangle closes: a closed cube read as open.
+    const mesh = cube();
+    const withSliver = { ...mesh, indices: Uint32Array.from([...mesh.indices, 0, 0, 1]), triangleFaces: Uint32Array.from([...mesh.triangleFaces, 0]) };
+    expect(deriveEdges(withSliver).openEdges).toBe(0);
+    expect(deriveEdges(withSliver).edges).toHaveLength(2);
+  });
+
   it('splits the edges between two faces into one chain per connected loop', () => {
     const { edges, openEdges } = deriveEdges(cube());
     expect(openEdges).toBe(0);

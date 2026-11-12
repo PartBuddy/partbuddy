@@ -1612,7 +1612,7 @@ test('the ready-to-print light follows the printer, points at its findings and a
   await light.click();
   const panel = page.getByTestId('print-check-panel');
   await expect(panel.getByTestId('check-finding').first()).toHaveAttribute('data-kind', 'size');
-  await expect(panel).toContainText('Too large for the build volume: 64 × 32 × 20 mm, the printer takes 50 × 50 × 256 mm');
+  await expect(panel).toContainText('Too large for the build volume: CableClip, 64 × 32 × 20 mm, the printer takes 50 × 50 × 256 mm');
   expect(await axeAtRest(page, '[data-testid="print-check-panel"]')).toEqual([]);
   await page.keyboard.press('Escape');
 
