@@ -32,6 +32,7 @@ export interface HeadlessOptions {
   /** Design file to open, or none for a new design. */
   design?: string | undefined;
   env: NodeJS.ProcessEnv;
+  log?: (message: string) => void;
 }
 
 interface BatchBody {
@@ -61,9 +62,16 @@ export class HeadlessEngine {
   private readonly changeListeners = new Set<(revision: Revision) => void>();
   private readonly closeListeners = new Set<(reason: string) => void>();
   private last: Revision | null = null;
+  /** Tool calls of the assistant that have not been checked yet. */
+  private calls = 0;
+  /** A change the listeners have not been told of, although its revision is recorded already. */
+  private untold = false;
   private closed = false;
 
-  private constructor(private readonly client: Client) {}
+  private constructor(
+    private readonly client: Client,
+    private readonly log: (message: string) => void = () => undefined,
+  ) {}
 
   /** Starts the engine and waits for the MCP handshake; rejects when the process exits first. */
   static async start(options: HeadlessOptions): Promise<HeadlessEngine> {
@@ -82,7 +90,7 @@ export class HeadlessEngine {
     });
     const client = new Client({ name: 'partbuddy', version: '0.1.0' });
     await client.connect(transport);
-    const engine = new HeadlessEngine(client);
+    const engine = new HeadlessEngine(client, options.log);
     client.onclose = () => {
       engine.shutdown('SolidCraft (headless) ended');
     };
@@ -117,15 +125,48 @@ export class HeadlessEngine {
   }
 
   /**
-   * Reads the revision after a call that may have changed the design, and tells the listeners
-   * when it moved. `quiet` records it without telling (PartBuddy's own autosave).
+   * After a change PartBuddy made itself: the listeners are told, also when a quiet check that ran
+   * beside the change recorded its revision first (a trial of the print check ending, an autosave).
    */
-  async checkForChange(quiet = false): Promise<void> {
-    if (this.closed) return;
-    const next = await this.revision();
+  async changed(): Promise<void> {
+    this.untold = true;
+    await this.check(false);
+  }
+
+  /**
+   * After work that moves the revision and leaves the design as it was (a trial, PartBuddy's own
+   * save): the revision is recorded and nobody is told, so the next read of the assistant mirrors
+   * nothing.
+   */
+  async unchanged(): Promise<void> {
+    await this.check(true);
+  }
+
+  /**
+   * Reads the revision and tells the listeners when it moved or a change is still untold. A quiet
+   * check tells nobody; what it records while a tool call of the assistant is under way may be
+   * that call's change, so it leaves it for the call's own check to tell.
+   */
+  private async check(quiet: boolean, endsCall = false): Promise<void> {
+    let next: Revision | null = null;
+    try {
+      if (!this.closed) next = await this.revision();
+    } finally {
+      // In one go with the check itself: a quiet check that comes right after it finds no call left.
+      if (endsCall) this.calls -= 1;
+    }
+    if (!next) return;
     const moved = this.last?.documentId !== next.documentId || this.last.revision !== next.revision;
     this.last = next;
-    if (moved && !quiet) for (const listener of this.changeListeners) listener(next);
+    if (quiet) {
+      if (moved && this.calls > 0) this.untold = true;
+      return;
+    }
+    if (!moved && !this.untold) return;
+    // The race this guards against, or a change that left the revision where it was.
+    if (!moved) this.log(`revision ${String(next.revision)} was recorded before its change was told; telling it now`);
+    this.untold = false;
+    for (const listener of this.changeListeners) listener(next);
   }
 
   /** The mirror's view of the engine: the same two requests the control channel answers. */
@@ -150,10 +191,11 @@ export class HeadlessEngine {
     instructions: () => this.client.getInstructions(),
     listTools: async (): Promise<UpstreamTool[]> => (await this.client.listTools()).tools,
     callTool: async (name, args) => {
+      this.calls += 1;
       try {
         return await this.client.callTool({ name, arguments: args }, { timeout: LONG_TIMEOUT_MS });
       } finally {
-        await this.checkForChange().catch(() => undefined);
+        await this.check(false, true).catch(() => undefined);
       }
     },
   };
@@ -164,7 +206,7 @@ export class HeadlessEngine {
     const result = (await this.client.callTool({ name: 'save', arguments: { path } }, { timeout: LONG_TIMEOUT_MS })) as ToolResult;
     if (result.isError) throw new Error(textOf(result).slice(0, 500) || 'save failed');
     // Saving moves the revision; nothing in the design changed, so nobody needs to mirror.
-    await this.checkForChange(true);
+    await this.unchanged();
   }
 
   async close(): Promise<void> {
