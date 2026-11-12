@@ -15,7 +15,7 @@ import {
   type PrintSettings,
 } from '../../shared/contract';
 import { fitSize, lineWidth, printInPlaceGap, scaleClearance, unitSize, type FitPrinter } from '../../shared/designFit';
-import { BRIDGE_SPAN, minimumFloor } from '@partbuddy/geometry';
+import { BRIDGE_SPAN, LYING_HOLE, minimumFloor } from '@partbuddy/geometry';
 
 /**
  * What is kept next to a design: its material, and the design rule groups the user turned on or off
@@ -229,7 +229,7 @@ function supportFreeLines(overhang: number): string[] {
   return [
     'Design it to print without support as designed, standing on its lowest point (the user\'s setting); where that cannot be done, say so and why:',
     `- Edges that face down towards the bed: chamfer them at 45° instead of filleting (the bottom of a fillet ends flat); fillets that face up or sideways are fine.`,
-    `- Holes lying across the layers: up to about 10 mm wide the slicer bridges them; wider ones get a teardrop roof (45° to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
+    `- Holes lying across the layers: up to ${String(LYING_HOLE)} mm across they print round without support; wider ones get a teardrop roof (45° to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
     `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged, ledges up to 1.5 mm out from a wall print; anything wider gets a 45° slope underneath, or say which side the part should rather stand on.`,
     'Model these as their own features with parameters (layer height, roof angle) and name them when you report.',
   ];

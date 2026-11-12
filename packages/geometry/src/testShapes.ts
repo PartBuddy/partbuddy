@@ -125,11 +125,79 @@ export function prismBody(name: string, outline: readonly (readonly [number, num
   const front = built.names.length;
   built.names.push('F1:-y', 'F1:+y');
   built.normals.push([0, -1, 0], [0, 1, 0]);
-  for (let i = 1; i < n - 1; i += 1) {
-    built.indices.push(0, i, i + 1);
+  for (const [a, b, c] of ears(outline)) {
+    built.indices.push(a, b, c);
     built.triangleFaces.push(front);
-    built.indices.push(n, n + i + 1, n + i);
+    built.indices.push(n + a, n + c, n + b);
     built.triangleFaces.push(front + 1);
+  }
+  return finish(name, built);
+}
+
+/** The triangles of a simple polygon given counter-clockwise, by clipping ears: the outline need not be convex. */
+function ears(outline: readonly (readonly [number, number])[]): [number, number, number][] {
+  const turn = (o: number, a: number, b: number) => {
+    const [ox, oz] = outline[o] ?? [0, 0];
+    const [ax, az] = outline[a] ?? [0, 0];
+    const [bx, bz] = outline[b] ?? [0, 0];
+    return (ax - ox) * (bz - oz) - (az - oz) * (bx - ox);
+  };
+  const left = outline.map((_, i) => i);
+  const triangles: [number, number, number][] = [];
+  while (left.length > 3) {
+    const n = left.length;
+    const at = left.findIndex((b, i) => {
+      const a = left[(i + n - 1) % n] ?? 0;
+      const c = left[(i + 1) % n] ?? 0;
+      return turn(a, b, c) > 0 && left.every((p) => p === a || p === b || p === c || turn(a, b, p) < 0 || turn(b, c, p) < 0 || turn(c, a, p) < 0);
+    });
+    if (at < 0) throw new Error('prismBody: the outline is not a simple counter-clockwise polygon');
+    triangles.push([left[(at + n - 1) % n] ?? 0, left[at] ?? 0, left[(at + 1) % n] ?? 0]);
+    left.splice(at, 1);
+  }
+  triangles.push([left[0] ?? 0, left[1] ?? 0, left[2] ?? 0]);
+  return triangles;
+}
+
+/**
+ * A body of blocks on a grid: the cells between the planes `xs`, `ys`, `zs` for which `filled` says
+ * so, as one closed shell with the faces between two filled cells left out. One face per direction
+ * and plane, named like `F1:-z@8` (facing down, at z 8).
+ */
+export function gridBody(name: string, xs: readonly number[], ys: readonly number[], zs: readonly number[], filled: (i: number, j: number, k: number) => boolean) {
+  const built: Built = { positions: [], indices: [], triangleFaces: [], names: [], normals: [] };
+  const vertices = new Map<string, number>();
+  const vertex = (point: Point) => {
+    const key = point.join(',');
+    let v = vertices.get(key);
+    if (v === undefined) {
+      v = built.positions.length / 3;
+      vertices.set(key, v);
+      built.positions.push(...point);
+    }
+    return v;
+  };
+  const inside = (i: number, j: number, k: number) => i >= 0 && j >= 0 && k >= 0 && i < xs.length - 1 && j < ys.length - 1 && k < zs.length - 1 && filled(i, j, k);
+  for (let i = 0; i < xs.length - 1; i += 1) {
+    for (let j = 0; j < ys.length - 1; j += 1) {
+      for (let k = 0; k < zs.length - 1; k += 1) {
+        if (!inside(i, j, k)) continue;
+        const [x0, x1, y0, y1, z0, z1] = [xs[i] ?? 0, xs[i + 1] ?? 0, ys[j] ?? 0, ys[j + 1] ?? 0, zs[k] ?? 0, zs[k + 1] ?? 0];
+        const corners: Point[] = [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]];
+        NORMALS.forEach(([dx, dy, dz], side) => {
+          if (inside(i + dx, j + dy, k + dz)) return;
+          const faceName = `F1:${SIDES[side] ?? ''}@${String([z0, z1, y0, x1, y1, x0][side] ?? 0)}`;
+          let face = built.names.indexOf(faceName);
+          if (face < 0) {
+            face = built.names.push(faceName) - 1;
+            built.normals.push([dx, dy, dz]);
+          }
+          const [p, q, r, s] = (QUADS[side] ?? [0, 0, 0, 0]).map((corner) => vertex(corners[corner] ?? [0, 0, 0]));
+          built.indices.push(p ?? 0, q ?? 0, r ?? 0, p ?? 0, r ?? 0, s ?? 0);
+          built.triangleFaces.push(face, face);
+        });
+      }
+    }
   }
   return finish(name, built);
 }
