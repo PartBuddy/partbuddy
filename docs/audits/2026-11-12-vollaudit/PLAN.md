@@ -55,6 +55,17 @@ zuerst, arbeitet am ersten offenen Punkt weiter und hakt ab, sobald ein Punkt be
 - [ ] Dubletten bei B und C abgleichen (bei A erledigt)
 - [ ] „Nicht geprüft, weil …“ aller Dateien zu einer Restliste zusammenführen und abarbeiten
 
+### SolidCraft 0.40.1 (stabil, seit 12.11.2026) – Maßstab des Audits ab jetzt
+Liegt portabel unter `%USERPROFILE%.partbuddysolidcraft-0.40.1` (Prüfsumme geprüft). Gegenüber rc.4: 634 statt 633
+Befehle, neu `assembly.constraint.edit`, geänderte Parameter bei `solid.hole`, `solid.box`, `solid.sweep`,
+`surface.sweep`, `parts.insert`, `parts.fastener`, `body.rename`, `file.export`, `file.export_view_dxf`,
+`document.inspect`, `sketch.insert_svg`, `sketch.insert_dxf`, `sketch.drawing_bounds`, `sketch.scale`,
+`sketch.move`, `config.*`.
+- [ ] Parameteränderungen der 19 Befehle einzeln lesen und gegen jede Stelle halten, an der PartBuddy sie aufruft
+- [ ] alle Fälle unter `tools/audit/cases/` gegen 0.40.1 wiederholen; Abweichungen zu rc.4 sind Befunde
+- [ ] `02-solidcraft-abgleich.md` auf 0.40.1 nachziehen (neuer Befehl, geänderte Parameter)
+- [ ] App auf 0.40.1 umstellen (`RECOMMENDED_VERSION` in `engineVersion.ts`, Vertragstests, Doku) – eigener PR
+
 ### Phase 4 – Bauen und Messen
 - [ ] Mess-Harness (Werkzeuge direkt gegen echtes SolidCraft, Messung über `packages/geometry`)
 - [ ] je Prüflisten-Datei: alle Zeilen gebaut und gemessen (Status in der Prüfliste)
