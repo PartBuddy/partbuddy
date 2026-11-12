@@ -26,6 +26,7 @@ export function useFindingText(): (finding: PrintFinding) => string {
           bed: finding.bed.map((value) => number.format(value)).join(' × '),
         });
       case 'thinWall':
+        if (finding.floor) return t(finding.severity === 'block' ? 'check.finding.floorTooThin' : 'check.finding.floorThin', { thickness: number.format(finding.thickness), minimum: number.format(finding.minimum) });
         return finding.severity === 'block'
           ? t('check.finding.wallTooThin', { thickness: number.format(finding.thickness), nozzle: number.format(nozzle) })
           : t('check.finding.wallThin', { thickness: number.format(finding.thickness), minimum: number.format(finding.minimum) });

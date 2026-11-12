@@ -1119,6 +1119,8 @@
       "sizeLying": "Zu groß für den Bauraum: {body}, {size} mm, Platz ist {bed} mm. Auf eine andere Seite gelegt würde es passen.",
       "wallTooThin": "Wände nur {thickness} mm, dünner als die Düse ({nozzle} mm): werden nicht gedruckt",
       "wallThin": "Wände nur {thickness} mm, mindestens {minimum} mm (zwei Linien)",
+      "floorTooThin": "Böden oder Deckel nur {thickness} mm, dünner als eine Schicht: werden nicht gedruckt",
+      "floorThin": "Böden oder Deckel nur {thickness} mm, mindestens {minimum} mm (vier Schichten)",
       "overhang": "{area} mm² neigen sich über {limit}°: Ob sie Stütze brauchen, entscheidet der Slicer",
       "contact": "Nur {area} mm² von {body} liegen auf dem Druckbett: kann sich lösen oder kippen",
       "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",

@@ -18,7 +18,7 @@ export function reportOf(result: PrintCheck, nozzle: number, revision: number): 
       const places = finding.places.slice(0, 20).map((place) => ({ body: place.body, faces: place.faces.slice(0, 40) }));
       switch (finding.kind) {
         case 'thinWall':
-          return { kind: finding.kind, severity: finding.severity, thickness: finding.thickness, minimum: finding.minimum, area: finding.area, places };
+          return { kind: finding.kind, severity: finding.severity, floor: finding.floor, thickness: finding.thickness, minimum: finding.minimum, area: finding.area, places };
         case 'overhang':
           return { kind: finding.kind, severity: finding.severity, area: finding.area, limit: finding.limit, places };
         case 'contact':

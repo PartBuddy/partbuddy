@@ -72,6 +72,25 @@ export function smallOverhangReach(nozzle: number): number {
   return Math.round(4 * 1.125 * nozzle * 100) / 100;
 }
 
+/**
+ * `count` points spread evenly over a triangle, each as the weights of its three corners: the middle
+ * first, then the R2 sequence folded into the triangle. A flat face comes as two triangles, so its
+ * middles alone say nothing of what lies between them.
+ */
+export function spread(count: number): [number, number, number][] {
+  const points: [number, number, number][] = [[1 / 3, 1 / 3, 1 / 3]];
+  for (let i = 1; i < count; i += 1) {
+    let u = (0.5 + i * 0.7548776662466927) % 1;
+    let v = (0.5 + i * 0.5698402909980532) % 1;
+    if (u + v > 1) {
+      u = 1 - u;
+      v = 1 - v;
+    }
+    points.push([1 - u - v, u, v]);
+  }
+  return points;
+}
+
 /** Positions closer than this (mm) are one vertex: render buffers repeat corners per face. */
 const WELD = 1e-4;
 

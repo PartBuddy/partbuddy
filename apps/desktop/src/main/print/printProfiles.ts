@@ -15,6 +15,7 @@ import {
   type PrintSettings,
 } from '../../shared/contract';
 import { fitSize, lineWidth, printInPlaceGap, scaleClearance, unitSize, type FitPrinter } from '../../shared/designFit';
+import { minimumFloor } from '@partbuddy/geometry';
 
 /**
  * What is kept next to a design: its material, and the design rule groups the user turned on or off
@@ -280,7 +281,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
     );
   if (design.snap)
     lines.push(
-      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(Math.max(0.8, layer * 4))}, print-in-place gaps ${mm(gap)}, radii and details at least ${mm(unitSize('nozzle', printer))}. Mark each such parameter's comment with the multiple, e.g. "Wall [auto 3×line]", "Floor [auto 5×layer]", "Hinge gap [auto 1×nozzle]", so PartBuddy fits it again when the user changes printer or nozzle. Sizes the user named get no mark.`,
+      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(minimumFloor(layer))}, print-in-place gaps ${mm(gap)}, radii and details at least ${mm(unitSize('nozzle', printer))}. Mark each such parameter's comment with the multiple, e.g. "Wall [auto 3×line]", "Floor [auto 5×layer]", "Hinge gap [auto 1×nozzle]", so PartBuddy fits it again when the user changes printer or nozzle. Sizes the user named get no mark.`,
     );
   if (off.length > 0)
     lines.push(`- The user turned off ${off.map((rule) => RULE_NAMES[rule]).join(', ')}: do not add them unless the user asks for them.`);

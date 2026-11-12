@@ -4,13 +4,13 @@ import { describe, expect, it } from 'vitest';
 
 import type { FaceTable } from './faceTable';
 import { smallOverhangReach } from './overhang';
-import { checkPrint, minimumWall, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
+import { checkPrint, minimumFloor, minimumWall, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
 import { boxesBody, lyingTube, prismBody } from './testShapes';
 import { buildViewerModel } from './viewerModel';
 
-const PLA: PrintCheckProfile = { bed: [256, 256, 256], nozzle: 0.4, overhang: 45 };
+const PLA: PrintCheckProfile = { bed: [256, 256, 256], nozzle: 0.4, layer: 0.2, overhang: 45 };
 
 /** A box as SolidCraft would export it: six faces, outward triangles, named like `F1:+z`. */
 function box(name: string, min: [number, number, number], max: [number, number, number]): PrintCheckBody {
@@ -44,6 +44,8 @@ function box(name: string, min: [number, number, number], max: [number, number, 
   };
   return { name, model: buildViewerModel(buildRenderMesh(mesh, table), table) };
 }
+
+const thinOf = (body: PrintCheckBody, profile = PLA) => checkPrint([body], profile).findings.filter((f) => f.kind === 'thinWall');
 
 describe('the ready-to-print check (M7)', () => {
   it('passes a solid block that lies flat on the bed', () => {
@@ -81,15 +83,44 @@ describe('the ready-to-print check (M7)', () => {
 
   it('warns about walls under two lines and blocks walls under the nozzle width, with their faces', () => {
     expect(minimumWall(0.4)).toBe(0.9);
-    const thin = checkPrint([box('Plate', [0, 0, 0], [20, 20, 0.6])], PLA);
-    expect(thin.status).toBe('warn');
-    const wall = thin.findings.find((f) => f.kind === 'thinWall');
-    expect(wall).toMatchObject({ severity: 'warn', thickness: 0.6, minimum: 0.9 });
-    expect(wall && 'places' in wall ? wall.places[0]?.faces : []).toEqual(expect.arrayContaining(['F1:-z', 'F1:+z']));
+    const thin = thinOf(box('Wall', [0, 0, 0], [30, 0.6, 20]));
+    expect(thin).toMatchObject([{ severity: 'warn', floor: false, thickness: 0.6, minimum: 0.9, area: 1200 }]);
+    expect(thin[0]?.places[0]?.faces).toEqual(expect.arrayContaining(['F1:-y', 'F1:+y']));
+    expect(thinOf(box('Foil', [0, 0, 0], [30, 0.3, 20]))).toMatchObject([{ severity: 'block', floor: false, thickness: 0.3 }]);
+  });
 
-    const foil = checkPrint([box('Foil', [0, 0, 0], [20, 20, 0.3])], PLA);
-    expect(foil.status).toBe('block');
-    expect(foil.findings.find((f) => f.kind === 'thinWall')).toMatchObject({ severity: 'block', thickness: 0.3 });
+  it('does not count a wall of just two lines, only one under them', () => {
+    // Audit MG-04: 0.9 mm, the smallest wall the assistant snaps to, read as "0.9 under the 0.9 of two lines".
+    expect(thinOf(box('Wall', [0, 0, 0], [20, 0.9, 20]))).toEqual([]);
+    expect(thinOf(box('Wall', [0, 0, 0], [20, 0.89, 20]))).toMatchObject([{ severity: 'warn', thickness: 0.89 }]);
+  });
+
+  it('measures what lies flat in layers: a floor of four layers is sound, one layer still prints', () => {
+    expect(minimumFloor(0.2)).toBe(0.8);
+    expect(minimumFloor(0.3)).toBe(1.2);
+    // Audit N-druckpruefung-1: the 0.8 mm floor the design rule asks for read as a wall under two lines.
+    expect(checkPrint([box('Plate', [0, 0, 0], [30, 30, 0.8])], PLA)).toEqual({ status: 'ready', findings: [] });
+    // Audit D4: 0.3 mm flat on the bed is a layer and a half, not "thinner than the nozzle, does not print".
+    const skin = thinOf(box('Plate', [0, 0, 0], [30, 30, 0.3]));
+    expect(skin).toMatchObject([{ severity: 'warn', floor: true, thickness: 0.3, minimum: 0.8, area: 1800 }]);
+    expect(skin[0]?.places[0]?.faces).toEqual(['F1:-z', 'F1:+z']);
+    // Under one layer nothing is laid.
+    expect(thinOf(box('Film', [0, 0, 0], [30, 30, 0.1]))).toMatchObject([{ severity: 'block', floor: true }]);
+    // The floor follows the layer height, and the way the body lies.
+    expect(thinOf(box('Plate', [0, 0, 0], [30, 30, 1]), { ...PLA, layer: 0.3 })).toMatchObject([{ floor: true, minimum: 1.2 }]);
+    const lying = { ...boxesBody('Wall', [[[0, 0, 0], [30, 0.6, 20]]]), printFace: 'F1:-y' };
+    expect(thinOf(lying)).toMatchObject([{ severity: 'warn', floor: true, thickness: 0.6, minimum: 0.8 }]);
+  });
+
+  it('finds a wall that tapers to nothing between the middles of its triangles', () => {
+    // Audit D6: 30 long, 20 high, 0.2 mm at the bed and 2.5 mm on top; both face middles lie above 0.9 mm.
+    const taper = thinOf(prismBody('Taper', [[0, 0], [0.2, 0], [2.5, 20], [0, 20]], 30));
+    expect(taper).toMatchObject([{ severity: 'block', floor: false, thickness: 0.2, places: [{ body: 'Taper', faces: ['F1:s1', 'F1:s3'] }] }]);
+    // 182.6 mm² a side lie under two lines.
+    expect(taper[0]?.area).toBeGreaterThan(340);
+    expect(taper[0]?.area).toBeLessThan(390);
+    // The same wall 2.5 mm all the way up has nothing thin.
+    expect(thinOf(prismBody('Wall', [[0, 0], [2.5, 0], [2.5, 20], [0, 20]], 30))).toEqual([]);
   });
 
   it('marks the ceiling of a table top as an overhang by angle, and the small foot on the bed', () => {

@@ -1119,6 +1119,8 @@
       "sizeLying": "Too large for the build volume: {body}, {size} mm, the printer takes {bed} mm. Laid on another side it would fit.",
       "wallTooThin": "Walls only {thickness} mm, thinner than the nozzle ({nozzle} mm): they do not print",
       "wallThin": "Walls only {thickness} mm, at least {minimum} mm (two lines)",
+      "floorTooThin": "Floors or lids only {thickness} mm, thinner than one layer: they do not print",
+      "floorThin": "Floors or lids only {thickness} mm, at least {minimum} mm (four layers)",
       "overhang": "{area} mm² lean beyond {limit}°: the slicer decides whether they need support",
       "contact": "Only {area} mm² of {body} lie on the bed: may come loose or tip over",
       "separate": "{bodies} touch but are separate bodies: the slicer lays each on the bed by itself. Combine them if they are one part.",

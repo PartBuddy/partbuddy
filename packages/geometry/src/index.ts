@@ -21,6 +21,7 @@ export {
 } from './faceTable';
 export {
   checkPrint,
+  minimumFloor,
   minimumWall,
   withClearance,
   withMotion,
