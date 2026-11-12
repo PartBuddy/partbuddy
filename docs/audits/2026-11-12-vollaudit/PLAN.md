@@ -92,3 +92,4 @@ Befehle, neu `assembly.constraint.edit`, geänderte Parameter bei `solid.hole`, 
 |---|---|---|
 | 12.11.2026 | Workflow Lesephase (7 Prüfer + 2 Gegenprüfer) für Phase 1, 2, 3, 5 statisch | fertig, 9/9 Dateien, 349 Befunde. Alles statisch aus dem Code – nichts gebaut oder gemessen. |
 | 12.11.2026 | Workflow Messung A (Harness unter `tools/audit/`, dann 5 Messgruppen → `04-messung-*.md`) | gestartet. Nach Ende: Urteile in `BEFUNDE.md` als Status eintragen, neue Befunde aufnehmen, Harness-Punkt abhaken. |
+| 12.11.2026 | PR PartBuddy/partbuddy#346: Mindest- und empfohlene Version 0.40.1, Runner auf installiertes SolidCraft | offen. Erst mergen, wenn PR-CI grün UND `contract.yml` auf dem Zweig `feat/solidcraft-0.40.1` grün (von Hand starten, sobald der Messlauf fertig ist: `gh workflow run contract.yml --ref feat/solidcraft-0.40.1`). Worktree: `../partbuddy-wt-sc0401` neben dem Repo. |
