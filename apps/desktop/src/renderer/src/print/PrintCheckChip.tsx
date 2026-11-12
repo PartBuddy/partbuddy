@@ -32,7 +32,7 @@ export function useFindingText(): (finding: PrintFinding) => string {
       case 'overhang':
         return t('check.finding.overhang', { area: number.format(finding.area), limit: finding.limit });
       case 'contact':
-        return t('check.finding.contact', { area: number.format(finding.area) });
+        return t('check.finding.contact', { area: number.format(finding.area), body: finding.places[0]?.body ?? '' });
       case 'separate':
         return t('check.finding.separate', { bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
       case 'feature':

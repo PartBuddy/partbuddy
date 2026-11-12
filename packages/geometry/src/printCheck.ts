@@ -410,9 +410,9 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
     // Overhangs by angle and the area on the bed, each body on its own bed.
     const limits = overhangLimits(profile.overhang);
     const overhang: FaceTally[] = [];
-    const contact: FaceTally[] = [];
-    let onBed = 0;
-    parts.forEach(({ model }, b) => {
+    const loose: PrintFinding[] = [];
+    parts.forEach((body, b) => {
+      const { model } = body;
       const geometry = model.geometry;
       const mesh = meshes[b];
       if (!mesh) return;
@@ -429,7 +429,6 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
         limits,
         smallOverhangReach(profile.nozzle),
       );
-      onBed += map.area[Overhang.Bed];
       const faces = model.table.faces.length;
       const overhangTally = new FaceTally(faces);
       const contactTally = new FaceTally(faces);
@@ -444,16 +443,18 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
         overhangTally.area[face] = area;
       });
       overhang.push(overhangTally);
-      contact.push(contactTally);
+      // Each body lies on the bed by itself: one with a broad base does not hold another on its edge.
+      const onBed = map.area[Overhang.Bed];
+      if (onBed < MIN_CONTACT) {
+        const lying = locate([body], [contactTally], 1e-6);
+        loose.push({ kind: 'contact', severity: 'warn', area: round(onBed, 0), places: lying.places.length > 0 ? lying.places : [{ body: body.name, faces: [] }], box: lying.box });
+      }
     });
     const steep = locate(parts, overhang, MIN_AREA);
     if (steep.area >= MIN_AREA) {
       findings.push({ kind: 'overhang', severity: 'warn', area: round(steep.area, 0), limit: profile.overhang, places: steep.places, box: steep.box });
     }
-    if (onBed < MIN_CONTACT) {
-      const lying = locate(parts, contact, 1e-6);
-      findings.push({ kind: 'contact', severity: 'warn', area: round(onBed, 0), places: lying.places, box: lying.box });
-    }
+    findings.push(...loose);
   }
 
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);

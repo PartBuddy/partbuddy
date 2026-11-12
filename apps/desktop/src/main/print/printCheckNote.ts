@@ -8,6 +8,8 @@ const mm = (value: number) => `${String(Math.round(value * 100) / 100)} mm`;
 /** Where, in the face names the model also gets from SolidCraft; long lists are cut short. */
 function where(places: Places): string {
   if (places.length === 0) return '';
+  // A body that rests on a point or an edge has no face to name.
+  if (places.every(({ faces }) => faces.length === 0)) return ` (body ${places.map(({ body }) => JSON.stringify(body)).join(', ')})`;
   const parts = places.slice(0, 4).map(({ body, faces }) => {
     const shown = faces.slice(0, 6).map((face) => JSON.stringify(face)).join(', ');
     const more = faces.length > 6 ? ` and ${String(faces.length - 6)} more` : '';

@@ -35,6 +35,11 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     expect(note).toContain('feature "Shell1" reports "thin result"');
   });
 
+  it('names the body that rests on an edge and has no face on the bed', () => {
+    const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'contact', severity: 'warn', area: 0, places: [{ body: 'Ball', faces: [] }] }] });
+    expect(note).toContain('only 0 mm² lie on the bed, the part may come loose or tip over (body "Ball").');
+  });
+
   it('cuts long face lists short', () => {
     const faces = Array.from({ length: 30 }, (_, i) => `F${String(i)}:+z`);
     const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'contact', severity: 'warn', area: 3, places: [{ body: 'B', faces }] }] });

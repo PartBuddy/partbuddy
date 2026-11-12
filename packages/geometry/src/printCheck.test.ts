@@ -122,6 +122,16 @@ describe('the ready-to-print check (M7)', () => {
     expect(apart.findings.find((f) => f.kind === 'separate')).toMatchObject({ severity: 'warn', bodies: ['Leg', 'Top'] });
   });
 
+  it('looks at what lies on the bed body by body: a broad one does not hold one standing on an edge', () => {
+    // Audit D3: 400 mm² of a cube hid a second body with nothing on the bed.
+    const cube = box('Cube', [20, 0, 0], [40, 20, 20]);
+    const onEdge = prismBody('Diamond', [[0, 0], [10, 10], [0, 20], [-10, 10]], 20);
+    const contact = checkPrint([cube, onEdge], PLA).findings.filter((f) => f.kind === 'contact');
+    expect(contact).toMatchObject([{ severity: 'warn', area: 0, places: [{ body: 'Diamond', faces: [] }] }]);
+    // Two bodies that both lie flat: nothing.
+    expect(checkPrint([cube, box('Second', [50, 0, 0], [70, 20, 20])], PLA)).toEqual({ status: 'ready', findings: [] });
+  });
+
   it('takes a 45° chamfer facing the bed as printable, a flatter one as an overhang', () => {
     // A bar with its lower edges chamfered: 3 mm at 45°, and 5 mm across, 3 mm up (59° from the vertical).
     const at45 = checkPrint([prismBody('Bar', [[3, 0], [17, 0], [20, 3], [20, 10], [0, 10], [0, 3]], 40)], PLA);
