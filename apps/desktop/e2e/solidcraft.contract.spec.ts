@@ -2336,7 +2336,7 @@ test('a sharing package holds 3MF, STEP, four pictures and a description of the 
     expect(readFileSync(join(exports, folder, 'Housing.step'), 'utf8').startsWith('ISO-10303-21')).toBe(true);
     const description = readFileSync(join(exports, folder, 'description.md'), 'utf8');
     expect(description).toContain('# Housing');
-    expect(description).toContain('- Supports: none needed, it prints as designed');
+    expect(description).toContain("- Supports: the print check found no face that needs them; the slicer decides");
     expect(description).toContain('- Housing: 104 × 60 × 30 mm');
     expect(description).toContain('- `insert_hole` = 4 mm – Hole for an M3 heat-set insert (ruthex: 4 mm)');
     // A second package goes beside the first, never over it.
@@ -3627,7 +3627,8 @@ test('the assistant builds a screw joint with one call: holes on one line in bot
     await expect(page.getByText(/Warning:/)).toHaveCount(0);
     // Block, plate and two screws, which the tree knows as standard parts.
     await expect(page.getByTestId('mesh-summary')).toContainText('4 bodies', { timeout: 30_000 });
-    await expect(page.getByText('standard part', { exact: true })).toHaveCount(2);
+    // The screws count once SolidCraft has built one to hold them against, a mirror after the bodies show.
+    await expect(page.getByText('standard part', { exact: true })).toHaveCount(2, { timeout: 30_000 });
     await expect(page.getByText('Screw joint “Plate screws” between two parts')).toHaveCount(1);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     // The screws overlap nothing: every hole is where its screw is.

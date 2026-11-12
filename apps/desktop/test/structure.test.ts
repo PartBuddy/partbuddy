@@ -5,7 +5,8 @@ import { printCheckNote } from '../src/main/print/printCheckNote';
 import { jointMove, jointPoses, playRange, playStep, rotate, withFollowers } from '../src/renderer/src/viewer/jointPose';
 import { snapSpan, sweepStopOf } from '../src/main/solidcraft/actions';
 
-import { componentsWithBodies, jointsOf, libraryBodies, structureOf, withColours } from '../src/main/solidcraft/mirror';
+import { boughtAmong, componentsWithBodies, hardwareOf, jointsOf, partCandidates, structureOf, withColours } from '../src/main/solidcraft/mirror';
+import type { ReferenceState } from '../src/main/solidcraft/partReference';
 import { describeCommands, describeUserAction } from '../src/shared/stepPhrases';
 import { structureSchema } from '../src/shared/contract';
 
@@ -56,8 +57,123 @@ describe('standard parts the assistant inserted itself', () => {
     expect(parts.map((part) => part.id)).toEqual([25, 31, 40]);
     // Their component.metadata: two from parts.insert, one of the user's own.
     const metadata = [{ description: 'Button head cap screw M3x8' }, { description: 'Deep groove ball bearing (envelope) 608' }, { description: 'Bracket for the shelf' }];
-    expect(libraryBodies(parts, metadata)).toEqual(['Screw FR', 'Bearing']);
+    const library = {
+      families: [
+        { family: 'button_head_cap_screw', name: 'Button head cap screw', sizes: [{ size: 'M3' }] },
+        { family: 'bearing', name: 'Deep groove ball bearing (envelope)', sizes: [{ size: '608' }] },
+      ],
+    };
+    const logs: string[] = [];
+    const log = (message: string) => void logs.push(message);
+    expect(partCandidates(parts, metadata, library, log)).toEqual([
+      { component: 25, body: 'Screw FR', description: 'Button head cap screw M3x8', part: { family: 'button_head_cap_screw', size: 'M3', length: 8 } },
+      { component: 31, body: 'Bearing', description: 'Deep groove ball bearing (envelope) 608', part: { family: 'bearing', size: '608', length: null } },
+    ]);
+    // Without the library nothing is taken for a part: the bodies stay in print check and export.
+    expect(partCandidates(parts, metadata, undefined, log)).toEqual([]);
+    expect(logs).toEqual([]);
     expect(componentsWithBodies(undefined)).toEqual([]);
+  });
+
+  it('counts every body of a library component as printed once it holds more than the part (review 2, stage 1)', () => {
+    // Measured with SolidCraft 0.40.1: component.move_bodies {bodies: ["Deckel"], component: "Nut"}, component.copy_bodies
+    // and component.activate with solid.box each leave the nut's component with two bodies; all 13 families build one.
+    const library = { families: [{ family: 'hex_nut', name: 'Hex nut', sizes: [{ size: 'M3' }] }] };
+    const logs: string[] = [];
+    const moved = partCandidates([{ id: 3, bodies: ['Deckel', 'Body1'] }, { id: 9, bodies: ['Body2'] }], [{ description: 'Hex nut M3' }, { description: 'Hex nut M3' }], library, (message) => void logs.push(message));
+    // The lid stays printed, the nut beside it in the same component too; the untouched nut is still a candidate.
+    expect(moved.map((candidate) => candidate.body)).toEqual(['Body2']);
+    expect(logs).toEqual(['the component described as "Hex nut M3" holds 2 bodies (Deckel, Body1), a standard part has one: they count as printed']);
+  });
+
+  it('takes a body for the part only when it has the shape SolidCraft builds for the description (review 2, stage 2)', () => {
+    // inspect.measure as SolidCraft 0.40.1 answers: an M3 nut, turned (volume and area off by 6e-11), the same nut with a
+    // 0.3 mm plate joined on (solid.combine), and a 0.3 mm lid described as "Hex nut M3".
+    const areas = [2.4, 2.4, 6.6, 6.6, 6.6, 6.6, 6.6, 6.6, 18.1];
+    // Each face as inspect.measure {items: [{type: "face", …}]} answers; the last is the bore.
+    const facesOf = (list: number[]) => list.map((area, i) => ({ items: [{ type: 'face', area_mm2: area, perimeter_mm: area * 2, ...(i === 8 ? { radius: 1.5 } : {}) }] }));
+    const nutFaces = facesOf(areas);
+    const nut = { volume: 45.9088439852507, area: 106.60297841336842, faces: 9, edges: 21, vertices: 14, faceAreas: areas, perimeters: areas.map((area) => area * 2), radii: [1.5] };
+    const references = new Map<string, ReferenceState>([
+      ['Hex nut M3', { shape: nut, partNumber: 'ISO 4032 M3' }],
+      ['Hex nut M4', { building: true }],
+      ['Hex nut M5x5000', { refused: '`length` must be 0…2000 mm' }],
+      ['Hex nut M8', { failed: 'solidcraft-cli ended with code 3221225477' }],
+    ]);
+    const candidate = (component: number, body: string, description = 'Hex nut M3') => ({ component, body, description, part: { family: 'hex_nut', size: 'M3', length: null } });
+    const measured = {
+      bodies: [
+        { name: 'Body1', volume_mm3: 45.90884398802, area_mm2: 106.602978419, faces: 9, edges: 21, vertices: 14 },
+        { name: 'Body2', volume_mm3: 310.17023848330126, area_mm2: 1890.2, faces: 24, edges: 60, vertices: 40 },
+        { name: 'Deckel', volume_mm3: 360.00000000000506, area_mm2: 2442, faces: 6, edges: 12, vertices: 8 },
+        // The same counts as the nut and a volume a thousandth off: not the part either.
+        { name: 'Near', volume_mm3: 45.95, area_mm2: 106.60297841336842, faces: 9, edges: 21, vertices: 14 },
+        { name: 'Open', area_mm2: 106.6, faces: 9, edges: 21, vertices: 14 },
+        // Volume, area and counts of the nut to the last digit, but other faces (second review, point 3).
+        { name: 'Twin', volume_mm3: 45.9088439852507, area_mm2: 106.60297841336842, faces: 9, edges: 21, vertices: 14 },
+      ],
+    };
+    const twinFaces = facesOf([1.4, 3.4, 6.6, 6.6, 6.6, 6.6, 6.6, 6.6, 18.1]);
+    const logs: string[] = [];
+    const candidates = [
+      candidate(3, 'Body1'),
+      candidate(9, 'Body2'),
+      candidate(16, 'Deckel'),
+      candidate(20, 'Near'),
+      candidate(22, 'Open'),
+      candidate(24, 'Gone'),
+      candidate(26, 'Twin'),
+      candidate(30, 'Body1', 'Hex nut M4'),
+      candidate(32, 'Body1', 'Hex nut M5x5000'),
+      candidate(34, 'Body1', 'Hex nut M6'),
+      candidate(36, 'Body9', 'Hex nut M8'),
+    ];
+    const faces = [nutFaces, nutFaces, nutFaces, nutFaces, nutFaces, nutFaces, twinFaces, nutFaces, nutFaces, nutFaces, nutFaces];
+    const told = boughtAmong(candidates, measured, faces, references, (message) => void logs.push(message));
+    expect(told.bought).toEqual([{ component: 3, body: 'Body1', description: 'Hex nut M3', partNumber: 'ISO 4032 M3' }]);
+    // A part still being built is neither printed nor bought; one that could not be built for now is named for the export, which must not go out unchecked.
+    expect(told.pending).toEqual(['Body1']);
+    expect(told.unchecked).toEqual(['"Body1": no answer', '"Body9": solidcraft-cli ended with code 3221225477']);
+    // Every body left printed is named with the reason.
+    expect(logs).toHaveLength(10);
+    expect(logs[1]).toBe('body "Deckel" is described as "Hex nut M3" but is not that part (360.00000000000506 mm³, 6 faces; the part has 45.9088439852507 mm³, 9 faces): it counts as printed');
+    expect(logs[5]).toContain('body "Twin" is described as "Hex nut M3" but is not that part');
+    expect(logs[6]).toBe('body "Body1" is described as "Hex nut M4", which SolidCraft is building to hold it against: it is neither printed nor bought until then');
+    expect(logs[7]).toBe('body "Body1" is described as "Hex nut M5x5000", which SolidCraft does not build (`length` must be 0…2000 mm): it counts as printed');
+    expect(logs[8]).toBe('body "Body1" is described as "Hex nut M6", which could not be built to hold it against (no answer): it counts as printed');
+    expect(logs[9]).toBe('body "Body9" is described as "Hex nut M8", which could not be built to hold it against (solidcraft-cli ended with code 3221225477): it counts as printed');
+    expect(boughtAmong(candidates, undefined, faces, references, () => undefined).bought).toEqual([]);
+    // Without its faces, or with one of them missing, a body is not measured.
+    expect(boughtAmong(candidates.slice(0, 1), measured, [], references, () => undefined).bought).toEqual([]);
+    expect(boughtAmong(candidates.slice(0, 1), measured, [nutFaces.slice(1)], references, () => undefined).bought).toEqual([]);
+  });
+
+  it('lists the parts to buy from the standard parts themselves, each as often as it is placed (review 4)', () => {
+    // component.list as SolidCraft 0.40.1 answers: a nut, a printed lid, and a washer in a subassembly placed twice.
+    const listing = {
+      components: [
+        { id: 0, parent: null, bodies: [], occurrences: [] },
+        { id: 2, parent: 0, bodies: ['Deckel'], occurrences: [{ id: 3, parent: 0 }] },
+        { id: 5, parent: 0, bodies: ['Body1'], occurrences: [{ id: 6, parent: 0 }] },
+        { id: 11, parent: 0, bodies: [], occurrences: [{ id: 12, parent: 0 }, { id: 20, parent: 0 }] },
+        { id: 13, parent: 11, bodies: ['Body2'], occurrences: [{ id: 14, parent: 11 }] },
+        { id: 30, parent: 0, bodies: ['Body3'], occurrences: [{ id: 31, parent: 0 }] },
+      ],
+    };
+    const bought = [
+      { component: 13, body: 'Body2', description: 'Plain washer M3', partNumber: 'ISO 7089 M3' },
+      { component: 5, body: 'Body1', description: 'Hex nut M3', partNumber: 'ISO 4032 M3' },
+      { component: 30, body: 'Body3', description: 'Hex nut M3', partNumber: 'ISO 4032 M3' },
+    ];
+    // assembly.bom put the nut and the lid given part_number "ISO 4032 M3" into one row (components [2, 5], count 2),
+    // dropped the nut with bom_type "reference", and listed the lid alone; this list follows none of that.
+    expect(hardwareOf(bought, listing)).toEqual([
+      { count: 2, name: 'Hex nut M3', standard: 'ISO 4032 M3' },
+      { count: 2, name: 'Plain washer M3', standard: 'ISO 7089 M3' },
+    ]);
+    expect(hardwareOf([], listing)).toEqual([]);
+    // A listing that reads oddly still names the part once.
+    expect(hardwareOf(bought.slice(1, 2), undefined)).toEqual([{ count: 1, name: 'Hex nut M3', standard: 'ISO 4032 M3' }]);
   });
 
   it('gives bodies the colour SolidCraft lists for them, as 0.40 answers appearance.list', () => {

@@ -29,7 +29,8 @@ const TEXT = {
     layer: 'Layer height',
     nozzle: 'Nozzle',
     supports: 'Supports',
-    noSupports: 'none needed, it prints as designed',
+    noSupports: "the print check found no face that needs them; the slicer decides",
+    blocked: "not settled: the print check found problems that keep the part from printing",
     maybeSupports: 'some faces lean more than the material likes; check them in the slicer',
     unchecked: 'not checked',
     parts: 'Parts',
@@ -51,7 +52,8 @@ const TEXT = {
     layer: 'Schichthöhe',
     nozzle: 'Düse',
     supports: 'Stützen',
-    noSupports: 'keine nötig, druckt wie konstruiert',
+    noSupports: 'die Prüfung von PartBuddy fand keine Fläche, die welche braucht; der Slicer entscheidet',
+    blocked: 'offen: die Prüfung von PartBuddy fand Probleme, die den Druck verhindern',
     maybeSupports: 'einige Flächen sind steiler, als das Material mag; im Slicer prüfen',
     unchecked: 'nicht geprüft',
     parts: 'Teile',
@@ -81,7 +83,8 @@ function plain(text: string): string {
 export function shareDescription(facts: ShareFacts): string {
   const text = TEXT[facts.language];
   const mm = (value: number) => `${format(value, facts.language)} mm`;
-  const supports = !facts.check ? text.unchecked : facts.check.overhang ? text.maybeSupports : text.noSupports;
+  // The check leaves small overhangs, bridges and the lay of the part to the slicer, so it promises nothing; a blocked part is no print at all.
+  const supports = !facts.check ? text.unchecked : facts.check.status === 'block' ? text.blocked : facts.check.overhang ? text.maybeSupports : text.noSupports;
   const lines = [
     `# ${plain(facts.name)}`,
     '',
