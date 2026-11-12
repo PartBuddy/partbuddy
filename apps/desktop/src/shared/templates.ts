@@ -96,11 +96,11 @@ function hingedBox(): Step[] {
     ...hingeSteps({ fixed: 'Box', moving: 'Lid', from: [start, between / 2, height], to: [start + hinge, between / 2, height], diameter, gap, knuckles, name: 'Hinge', support: { bed: 0, fixed: { toward: [0, -1, 0], distance: between / 2 }, moving: { toward: [0, 1, 0], distance: between / 2 } } }).map((step, i, steps) => {
       // The profiles (the bore's roof, the webs and their rooms, the pin's flat) are drawn in the world's own y and z and
       // moved along x, so they follow the sizes as the cylinders do. One drawn looking back along x is turned round:
-      // it starts where its extrusion ended.
+      // it starts where its extrusion ended. No web is drawn below the bed, however low the halves are set.
       const drawn = (steps[step.command === 'sketch.create' ? i : i - 1]?.params.plane ?? {}) as { origin?: Vec3; x_dir?: Vec3 };
       const back = (drawn.x_dir?.[1] ?? 1) < 0;
       if (step.command === 'sketch.create') return { ...step, params: { ...step.params, plane: 'YZ', offset: `length / 2 + ${String(Math.round(((drawn.origin?.[0] ?? 0) - (back ? parseFloat(String(steps[i + 2]?.params.distance)) : 0) - length / 2) * 1000) / 1000)} mm` } };
-      if (step.command === 'sketch.line') return { ...step, params: { ...step.params, points: (step.params.points as [number, number][]).map(([across, up]) => [`${String(between / 2 + (back ? -across : across))} mm`, `height + ${String(up)} mm`]) } };
+      if (step.command === 'sketch.line') return { ...step, params: { ...step.params, points: (step.params.points as [number, number][]).map(([across, up]) => [`${String(between / 2 + (back ? -across : across))} mm`, up < 0 && steps[i + 1]?.params.operation === 'join' ? `max(height + ${String(up)} mm, 0 mm)` : `height + ${String(up)} mm`]) } };
       if (step.command !== 'solid.cylinder') return step;
       const [x, y] = step.params.base as Vec3;
       return { ...step, params: { ...step.params, base: [`length / 2 + ${String(x - length / 2)} mm`, y, 'height'] } };

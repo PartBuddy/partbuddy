@@ -26,7 +26,7 @@ describe('templates (F3)', () => {
       for (const step of steps.slice(declared.length)) {
         for (const [key, value] of Object.entries(step.params)) {
           if (!EXPRESSION_FIELDS.has(key)) continue;
-          for (const text of expressions(value)) for (const word of text.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []) if (word !== 'mm') used.add(word);
+          for (const text of expressions(value)) for (const word of text.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []) if (word !== 'mm' && word !== 'max') used.add(word);
         }
       }
       expect([...used].filter((word) => !names.has(word)), id).toEqual([]);
@@ -123,9 +123,12 @@ describe('templates with moving parts', () => {
     // Each is drawn on the world's YZ plane at the knuckle's low end in x, from the rim down, so it follows length and height:
     // the box's from the line (y 0.5) towards -y to 0.5 mm inside its wall, the lid's towards +y.
     const drawn = (name: string) => steps.slice(steps.findIndex((step) => step.command === 'sketch.create' && step.params.name === name)).slice(0, 2).map((step) => step.params);
-    expect(drawn('Hinge 1 ◣')).toEqual([{ plane: 'YZ', offset: 'length / 2 + -20 mm', project_edges: false, name: 'Hinge 1 ◣' }, { points: [['3.328 mm', 'height + 0 mm'], ['3.328 mm', 'height + -2.828 mm'], ['0 mm', 'height + -6.157 mm'], ['-0.5 mm', 'height + -6.157 mm'], ['-0.5 mm', 'height + 0 mm']], closed: true }]);
+    expect(drawn('Hinge 1 ◣')).toEqual([{ plane: 'YZ', offset: 'length / 2 + -20 mm', project_edges: false, name: 'Hinge 1 ◣' }, { points: [['3.328 mm', 'height + 0 mm'], ['3.328 mm', 'max(height + -2.828 mm, 0 mm)'], ['0 mm', 'max(height + -6.157 mm, 0 mm)'], ['-0.5 mm', 'max(height + -6.157 mm, 0 mm)'], ['-0.5 mm', 'height + 0 mm']], closed: true }]);
+    // Review of PR #358: "at least 8 mm" stood only in the parameter's comment, and at 5 mm the webs reached 1.16 mm below the
+    // floor. A web ends on the bed at the latest; its room in the other half is a cut and may go on.
+    expect(JSON.stringify(drawn('Hinge 1 ◤')[1]?.points)).not.toContain('max(');
     expect(drawn('Hinge 2 ◣')[0]).toMatchObject({ plane: 'YZ', offset: 'length / 2 + -11.92 mm' });
-    expect((drawn('Hinge 2 ◣')[1]?.points as string[][])[2]).toEqual(['1 mm', 'height + -6.157 mm']);
+    expect((drawn('Hinge 2 ◣')[1]?.points as string[][])[2]).toEqual(['1 mm', 'max(height + -6.157 mm, 0 mm)']);
     expect(germanFeatureName('Hinge 1 ◣')).toBe('Scharnier 1 ◣');
     expect(germanFeatureName('Hinge 2 ▬')).toBe('Scharnier 2 ▬');
     // The joint is kept on the pin's round top: underneath the pin is flat now.
