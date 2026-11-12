@@ -314,6 +314,16 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a hinged case" (G3): two blocks 16 mm high and 5 mm apart with the hinge line on their rims, so the knuckles start 13 mm above the bed.
+    if (content.includes('a hinged case')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 16, operation: 'new', body_name: 'Base' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 16, corner: [45, 0, 0], operation: 'new', body_name: 'Flap' } } });
+      const built = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42.5, 0, 16], to: [42.5, 30, 16], name: 'Case hinge' } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     if (content.includes('a hinged flap')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, operation: 'new', body_name: 'Base' } } });
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 40, width: 30, height: 4, corner: [44, 0, 0], operation: 'new', body_name: 'Flap' } } });

@@ -112,7 +112,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(batches.map((batch) => batch.map((step) => step.command).join(' '))).toEqual([
       'component.list joint.list',
       // Where the line lies, measured on trial with a rod that is taken back.
-      'solid.cylinder inspect.clearance sketch.inspect',
+      'solid.cylinder inspect.clearance inspect.measure sketch.inspect',
       [...Array.from({ length: 7 }, () => 'solid.cylinder'), 'sketch.create', 'sketch.line', 'solid.extrude', 'solid.cylinder'].join(' '),
       'document.inspect inspect.interference',
       'component.list',
@@ -124,6 +124,23 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(batches[6]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
     expect(batches[8]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
 
+    // Webs: with the line 16 mm above the bed and 2.5 mm from either wall, every knuckle gets a profile from under the barrel (a gap
+    // short of the other wall) at 45° down to its own wall, 0.5 mm into it; on the bed (the line a radius above it) none is needed.
+    const sides = { fixed: { toward: [-1, 0, 0] as [number, number, number], distance: 2.5 }, moving: { toward: [1, 0, 0] as [number, number, number], distance: 2.5 } };
+    const hung = hingeSteps({ ...spec, from: [42, 0, 16], to: [42, 30, 16], support: { bed: 0, ...sides } });
+    const webs = hung.filter((step) => String(step.params.name).endsWith('◣'));
+    expect(webs.map((step) => step.command)).toEqual(Array.from({ length: 3 }, () => ['sketch.create', 'solid.extrude']).flat());
+    const profiles = hung.filter((step) => step.command === 'sketch.line' && (step.params.points as number[][]).length === 5);
+    expect(profiles).toHaveLength(3);
+    expect(profiles[0]?.params.points).toEqual([[-2.1, 0], [-2.1, -2.142], [2.5, -6.742], [3, -6.742], [3, 0]]);
+    expect(webs.filter((step) => step.command === 'solid.extrude').map((step) => (step.params.targets as string[])[0])).toEqual(['Base', 'Flap', 'Base']);
+    // The fixed body lies towards -x: its profile is drawn from the far end of the knuckle, so it is extruded back along the line.
+    expect(webs[0]?.params.plane).toMatchObject({ x_dir: [-1, 0, 0], y_dir: [0, 0, 1] });
+    // The webs come before the bore, which goes through those of the flap.
+    expect(hung.findIndex((step) => step.params.name === 'Hinge ○')).toBeGreaterThan(hung.findIndex((step) => step.params.name === 'Hinge 2 ◣'));
+    // Near the bed the web ends on it instead of going below.
+    expect(hingeSteps({ ...spec, from: [42, 0, 6], to: [42, 30, 6], support: { bed: 0, ...sides } }).find((step) => step.command === 'sketch.line' && (step.params.points as number[][]).length === 5)?.params.points).toEqual([[-2.1, 0], [-2.1, -2.142], [1.758, -6], [3, -6], [3, 0]]);
+    expect(hingeSteps({ ...spec, support: { bed: 0, ...sides } }).some((step) => String(step.params.name).endsWith('◣'))).toBe(false);
     // The rooms of the knuckles: 3.4 mm about a line 2.5 mm from a face go 0.9 mm into it. A 1.8 mm wall keeps two lines, a 1.6 mm wall
     // would keep a skin of 0.7 mm and is refused with what to change; a wall the room goes through is a window, and fine.
     expect(skinProblem({ fixed: 0.9, moving: 0.9 }, { fixed: 'Box', moving: 'Lid' }, 1.8, 0.4)).toBeNull();
