@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { freeBodyName, isLibraryPart, libraryOf, standardPartsOf, STANDARD_PARTS_KEY } from '../src/main/solidcraft/standardParts';
+import { freeBodyName, isLibraryPart, libraryOf, libraryPartOf } from '../src/main/solidcraft/standardParts';
 import { hasLength, suggestLength, suggestSize } from '../src/renderer/src/viewer/partChoice';
 
 // As SolidCraft 0.40's `parts.library` answers, shortened.
@@ -67,6 +67,19 @@ describe("parts of SolidCraft's library, told by what parts.library lists (audit
     }
   });
 
+  it('reads family, size and length in mm from the description, as parts.insert takes them to build the part again', () => {
+    // Descriptions as SolidCraft 0.40.1 writes them: millimetres after "x", inches after " x ".
+    expect(libraryPartOf('Countersunk socket screw M3x10', library)).toEqual({ family: 'countersunk_socket_screw', size: 'M3', length: 10 });
+    expect(libraryPartOf('Socket head cap screw M2.5x7.5', library)).toEqual({ family: 'socket_head_cap_screw', size: 'M2.5', length: 7.5 });
+    expect(libraryPartOf('Hex nut (inch) 1/4-20 UNC', library)).toEqual({ family: 'hex_nut_inch', size: '1/4-20 UNC', length: null });
+    expect(libraryPartOf('Hex cap screw (inch) 1/4-20 UNC x 3/4', library)?.length).toBeCloseTo(19.05, 9);
+    expect(libraryPartOf('Hex cap screw (inch) 1/4-20 UNC x 1-1/4', library)).toEqual({ family: 'hex_cap_screw_inch', size: '1/4-20 UNC', length: 31.75 });
+    expect(libraryPartOf('Hex cap screw (inch) 1/4-20 UNC x 8', library)?.length).toBeCloseTo(203.2, 9);
+    expect(libraryPartOf('Hex cap screw (inch) 1/4-20 UNCx7.5', library)?.length).toBe(7.5);
+    expect(libraryPartOf('Hex cap screw (inch) 1/4-20 UNC x 1/0', library)).toBeNull();
+    expect(libraryPartOf('Hex nut holder', library)).toBeNull();
+  });
+
   it('knows a family SolidCraft adds without a change in PartBuddy', () => {
     expect(isLibraryPart('Square nut M3', library)).toBe(false);
     expect(isLibraryPart('Square nut M3', { families: [...library.families, { family: 'square_nut', name: 'Square nut', sizes: size('M3') }] })).toBe(true);
@@ -101,10 +114,8 @@ describe('standard parts (B7)', () => {
     expect(suggestLength(library, 'bearing', '608')).toBeNull();
   });
 
-  it('names the part\'s body freely and reads the marked bodies back', () => {
+  it('names the part\'s body freely', () => {
     expect(freeBodyName('SHCS M3x12', ['Body1'])).toBe('SHCS M3x12');
     expect(freeBodyName('SHCS M3x12', ['SHCS M3x12', 'SHCS M3x12 (2)'])).toBe('SHCS M3x12 (3)');
-    expect(standardPartsOf({ [STANDARD_PARTS_KEY]: { bodies: ['SHCS M3x12', 3] } })).toEqual(['SHCS M3x12']);
-    expect(standardPartsOf({})).toEqual([]);
   });
 });

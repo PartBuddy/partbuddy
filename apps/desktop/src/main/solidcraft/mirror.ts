@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { faceTableFromModelFaces, sketchFromInspect, tessellateSketch, type SketchLines } from '@partbuddy/geometry';
 
 import type { Joint, MirroredBody, MirroredSketch, MirrorRevision, Structure } from '../../shared/contract';
-import { isLibraryPart, standardPartsOf } from './standardParts';
+import { cliBeside, findExecutable, systemEnvironment } from './discovery';
+import { cliReferences, sameShape, shapeOf, type PartReference, type ReferenceReader } from './partReference';
+import { libraryPartOf, type LibraryPart } from './standardParts';
 
 /** The part of the control client the mirror needs. */
 export interface ControlRequester {
@@ -55,7 +57,8 @@ export function structureOf(inspect: InspectResult): Structure {
     sketches: (inspect.sketches ?? [])
       .filter((sketch) => Number.isInteger(sketch.id))
       .map((sketch) => ({ id: sketch.id as number, name: text(sketch.name, 200) ?? '', visible: sketch.visible !== false })),
-    standardParts: standardPartsOf(inspect.metadata),
+    // Filled by the mirror from what SolidCraft says of each component (`boughtParts`), never from a list of names kept in the design.
+    standardParts: [],
   };
 }
 
@@ -70,51 +73,164 @@ export function componentsWithBodies(listing: unknown): { id: number; bodies: st
     .map((entry) => ({ id: entry.id as number, bodies: (entry.bodies as unknown[]).filter((name): name is string => typeof name === 'string') }));
 }
 
-/** Bodies of the components `parts.insert` made, by their description, among `parts` and their `component.metadata`; `library` is what `parts.library` answers. */
-export function libraryBodies(parts: readonly { id: number; bodies: string[] }[], metadata: readonly unknown[], library: unknown): string[] {
-  return parts.filter((_, i) => isLibraryPart((metadata[i] as { description?: unknown } | undefined)?.description, library)).flatMap((part) => part.bodies);
+/** What telling standard parts needs besides the engine: the log, and SolidCraft's own build of each part. */
+export interface PartChecks {
+  log: (message: string) => void;
+  references: ReferenceReader;
+}
+
+/** A component described as a library part that holds one body: what may be a standard part. */
+export interface PartCandidate {
+  component: number;
+  body: string;
+  description: string;
+  part: LibraryPart;
 }
 
 /**
- * The parts to buy among the rows of `assembly.bom`: those with a part number whose components
- * (`component.list`) hold standard parts only. A printed component the assistant gave a part number
- * stays out, so the list names what print check, plate and export leave out and nothing else.
+ * The components among `parts` whose `component.metadata` describes a part of the library
+ * (`library` is what `parts.library` answers) and that hold the one body the library builds for it.
+ * shortcut: a library component with more than one body counts as printed altogether, the library's
+ * own body too (a nut mirrored inside its own component); tell them apart when SolidCraft marks the
+ * body it built.
  */
-export function hardwareOf(bom: unknown, listing: unknown, standardParts: readonly string[]): { count: number; name: string; standard: string }[] {
-  const rows = (bom as { rows?: unknown } | undefined)?.rows;
-  if (!Array.isArray(rows)) return [];
-  const standard = new Set(standardParts);
-  const bought = new Set(componentsWithBodies(listing).filter((part) => part.bodies.every((body) => standard.has(body))).map((part) => part.id));
-  return (rows as Record<string, unknown>[])
-    .filter((row) => typeof row.part_number === 'string' && row.part_number.trim() !== '' && typeof row.count === 'number' && row.count > 0)
-    .filter((row) => Array.isArray(row.components) && row.components.length > 0 && row.components.every((id) => bought.has(id as number)))
-    .slice(0, 100)
-    .map((row) => ({
-      count: row.count as number,
-      name: (typeof row.description === 'string' && row.description.trim() ? row.description : String(row.definition ?? row.part_number)).slice(0, 200),
-      standard: (row.part_number as string).slice(0, 200),
-    }));
+export function partCandidates(parts: readonly { id: number; bodies: string[] }[], metadata: readonly unknown[], library: unknown, log: (message: string) => void): PartCandidate[] {
+  const candidates: PartCandidate[] = [];
+  for (const [i, entry] of parts.entries()) {
+    const description = (metadata[i] as { description?: unknown } | null | undefined)?.description;
+    const part = libraryPartOf(description, library);
+    if (!part || typeof description !== 'string') continue;
+    const [body] = entry.bodies;
+    if (entry.bodies.length !== 1 || body === undefined) {
+      log(`the component described as "${description}" holds ${String(entry.bodies.length)} bodies (${entry.bodies.join(', ')}), a standard part has one: they count as printed`);
+      continue;
+    }
+    candidates.push({ component: entry.id, body, description, part });
+  }
+  return candidates;
+}
+
+/** A standard part in the design: bought, not printed. The part number is the one SolidCraft gives the part it builds. */
+export interface BoughtPart {
+  component: number;
+  body: string;
+  description: string;
+  partNumber: string;
 }
 
 /**
- * Adds standard parts inserted without PartBuddy to the structure. Only a design with components
- * holding bodies costs a second request; one that cannot be read leaves the structure as it was.
+ * The candidates whose body has the shape SolidCraft builds for their description; `measured` is
+ * `inspect.measure` of their bodies. A body with material joined on, cut away or put in the part's
+ * place differs and counts as printed.
  */
-async function withLibraryParts(client: ControlRequester, structure: Structure, listing: unknown): Promise<Structure> {
+export function boughtAmong(candidates: readonly PartCandidate[], measured: unknown, references: ReadonlyMap<string, PartReference>, log: (message: string) => void): BoughtPart[] {
+  const bodies = (measured as { bodies?: unknown } | null | undefined)?.bodies;
+  const list = Array.isArray(bodies) ? (bodies as ({ name?: unknown } | null)[]) : [];
+  const bought: BoughtPart[] = [];
+  for (const { component, body, description } of candidates) {
+    const reference = references.get(description);
+    const shape = shapeOf(list.find((entry) => entry?.name === body));
+    if (!reference) log(`SolidCraft built no "${description}" to hold body "${body}" against: it counts as printed`);
+    else if (!shape) log(`body "${body}", described as "${description}", could not be measured: it counts as printed`);
+    else if (!sameShape(shape, reference.shape)) {
+      log(`body "${body}" is described as "${description}" but is not that part (${String(shape.volume)} mm³, ${String(shape.faces)} faces; the part has ${String(reference.shape.volume)} mm³, ${String(reference.shape.faces)} faces): it counts as printed`);
+    } else bought.push({ component, body, description, partNumber: reference.partNumber });
+  }
+  return bought;
+}
+
+/** `parts.library` per engine connection: the library does not change while SolidCraft runs. */
+const libraries = new WeakMap<ControlRequester, unknown>();
+
+async function libraryOfEngine(client: ControlRequester, log: (message: string) => void): Promise<unknown> {
+  const known = libraries.get(client);
+  if (known !== undefined) return known;
+  const reply = await client.request<BatchResult>('engine.batch', { commands: [{ command: 'parts.library', params: {} }], rollback: false }, 60_000);
+  const library = reply.failed ? undefined : (reply.results as unknown[] | undefined)?.[0];
+  const families = (library as { families?: unknown } | null | undefined)?.families;
+  if (!Array.isArray(families) || families.length === 0) {
+    log(`standard parts cannot be told from printed bodies: parts.library ${reply.failed ? `failed (${reply.failed.error})` : 'lists no families'}; every body counts as printed`);
+    return null;
+  }
+  libraries.set(client, library);
+  return library;
+}
+
+/**
+ * The standard parts of the design, from `component.list`: the one recognition behind print check,
+ * plate, size list, export and the list of parts to buy. A body is one only when its component is
+ * described as a library part (stage 1: and holds nothing else) and the body has the shape
+ * SolidCraft builds for that description (stage 2). Whatever cannot be read or checked counts as
+ * printed, with a line in the log: a screw in the print check shows, a printed part left out of it
+ * does not. Only a design with components holding bodies costs requests.
+ */
+export async function boughtParts(client: ControlRequester, listing: unknown, checks: PartChecks): Promise<BoughtPart[]> {
   const parts = componentsWithBodies(listing);
-  if (parts.length === 0) return structure;
+  if (parts.length === 0) return [];
   try {
-    const reply = await client.request<BatchResult>(
+    const library = await libraryOfEngine(client, checks.log);
+    if (!library) return [];
+    const described = await client.request<BatchResult>(
       'engine.batch',
-      { commands: [{ command: 'parts.library', params: {} }, ...parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } }))], rollback: false },
+      { commands: parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } })), rollback: false },
       60_000,
     );
-    const found = libraryBodies(parts, reply.results.slice(1), reply.results[0]);
-    if (found.length === 0) return structure;
-    return { ...structure, standardParts: [...new Set([...(structure.standardParts ?? []), ...found])].slice(0, 500) };
-  } catch {
-    return structure;
+    if (described.failed) throw new Error(`${described.failed.command} failed: ${described.failed.error}`);
+    const candidates = partCandidates(parts, described.results, library, checks.log);
+    if (candidates.length === 0) return [];
+    const measured = await client.request<BatchResult>(
+      'engine.batch',
+      { commands: [{ command: 'inspect.measure', params: { bodies: candidates.map((candidate) => candidate.body) } }], rollback: false },
+      60_000,
+    );
+    if (measured.failed) throw new Error(`${measured.failed.command} failed: ${measured.failed.error}`);
+    return boughtAmong(candidates, measured.results[0], await checks.references(candidates), checks.log);
+  } catch (error) {
+    checks.log(`standard parts could not be told from printed bodies (${(error as Error).message}); every body counts as printed`);
+    return [];
   }
+}
+
+/** How often each component is placed in the design, through the subassemblies it lies in (`component.list`). */
+function placements(listing: unknown): (component: number) => number {
+  const components = (listing as { components?: unknown } | undefined)?.components;
+  const byId = new Map<unknown, { parent?: unknown; occurrences?: unknown }>();
+  for (const entry of Array.isArray(components) ? (components as { id?: unknown; parent?: unknown; occurrences?: unknown }[]) : []) byId.set(entry.id, entry);
+  const count = (id: unknown, depth: number): number => {
+    const entry = byId.get(id);
+    if (!entry || entry.parent === null || depth > 50) return entry ? 1 : 0;
+    const occurrences = Array.isArray(entry.occurrences) ? (entry.occurrences as { parent?: unknown }[]) : [];
+    return occurrences.reduce((sum, occurrence) => sum + count(occurrence.parent, depth + 1), 0);
+  };
+  // A standard part is in the design, so it is listed at least once however its placements read.
+  return (component) => Math.max(1, count(component, 0));
+}
+
+/**
+ * The parts to buy, counted, for the sharing package: the standard parts as the mirror tells them,
+ * each as often as it is placed. Not `assembly.bom`: its rows follow part number and BOM type, which
+ * the assistant can write, so a bought part could fall out of it and a printed one get in.
+ */
+export function hardwareOf(parts: readonly BoughtPart[], listing: unknown): { count: number; name: string; standard: string }[] {
+  const placed = placements(listing);
+  const rows = new Map<string, { count: number; name: string; standard: string }>();
+  for (const part of parts) {
+    const row = rows.get(part.description) ?? { count: 0, name: part.description.slice(0, 200), standard: part.partNumber };
+    row.count += placed(part.component);
+    rows.set(part.description, row);
+  }
+  return [...rows.values()].sort((a, b) => a.standard.localeCompare(b.standard)).slice(0, 100);
+}
+
+/** The checks of a caller without a log of its own (the audit harness): the installed SolidCraft's `solidcraft-cli`. */
+function standaloneChecks(cacheDir: string): PartChecks {
+  const log = (message: string) => console.warn(message);
+  const cli = () => {
+    const executable = findExecutable(systemEnvironment);
+    if (!executable) throw new Error('SolidCraft is not installed');
+    return cliBeside(executable);
+  };
+  return { log, references: cliReferences(cli, cacheDir, log) };
 }
 
 /** The joints from `joint.list` (ADR 0027), checked field by field; a joint or value that reads oddly is left out. */
@@ -271,7 +387,7 @@ export function withColours(structure: Structure, listing: unknown): Structure {
  * or active sketch (issue #21). Exports go only into the disposable cache folder; `allow_paths`
  * makes SolidCraft refuse any other path.
  */
-export async function mirrorActiveDesign(client: ControlRequester, cacheDir: string): Promise<MirrorRevision> {
+export async function mirrorActiveDesign(client: ControlRequester, cacheDir: string, checks: PartChecks = standaloneChecks(cacheDir)): Promise<MirrorRevision> {
   const started = performance.now();
   await mkdir(cacheDir, { recursive: true });
   // The revision before anything is read: a change while this runs makes the scheduler mirror once
@@ -301,7 +417,7 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
   });
   const sketches = sketchesToMirror(inspect);
   for (const sketch of sketches) commands.push({ command: 'sketch.inspect', params: { sketch: sketch.id } });
-  // Standard parts the assistant inserted with `parts.insert` carry no PartBuddy mark; their component tells.
+  // Standard parts are told by their components (`boughtParts`).
   commands.push({ command: 'component.list', params: {} });
   // Colours given to bodies (a logo in colours for a multi-colour print), shown in the view.
   commands.push({ command: 'appearance.list', params: {} });
@@ -323,7 +439,8 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
     }
     const tail = 1 + bodies.length * 2 + sketches.length;
     const joints = jointsOf(batch.results[tail + 2], batch.results[tail]);
-    const structure = withColours(await withLibraryParts(client, structureOf(inspect), batch.results[tail]), batch.results[tail + 1]);
+    const standardParts = (await boughtParts(client, batch.results[tail], checks)).map((part) => part.body).slice(0, 500);
+    const structure = withColours({ ...structureOf(inspect), standardParts }, batch.results[tail + 1]);
     const mirrored: MirroredBody[] = [];
     for (const [i, name] of bodies.entries()) {
       const faces = faceTableFromModelFaces(batch.results[1 + i * 2], name, designName);

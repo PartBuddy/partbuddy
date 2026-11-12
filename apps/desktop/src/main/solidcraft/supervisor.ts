@@ -18,12 +18,13 @@ import { logoAt, planLogoMove } from './logoMove';
 import { blockBodies, colourLayers, planeAt, stepsOf, type FeatureBlock } from '../../shared/blocks';
 import { centring, hostFace, movedPlane, TEXT_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
 import { insertCommand, type ImportKind } from '../projects/importFile';
-import { freeBodyName, libraryOf, STANDARD_PARTS_KEY, standardPartsOf } from './standardParts';
+import { freeBodyName, libraryOf } from './standardParts';
+import { cliReferences } from './partReference';
 import { ProjectStore } from '../projects/projectStore';
 import { HeadlessEngine, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
 import type { DesignHistory } from '../agents/workLog';
-import { count, hardwareOf, mirrorActiveDesign, MirrorScheduler, type BatchResult, type ControlRequester } from './mirror';
+import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, type BatchResult, type ControlRequester, type PartChecks } from './mirror';
 
 export interface SupervisorOptions {
   environment: Environment;
@@ -111,6 +112,8 @@ export class SolidCraftSupervisor {
   /** The name the assistant's plan gave a new design (a body like "Base" names a case badly), until it has a project. */
   private plannedName: string | null = null;
   private readonly scheduler: MirrorScheduler;
+  /** How the mirror tells standard parts: the log, and each part as `solidcraft-cli` builds it. */
+  private readonly partChecks: PartChecks;
   private readonly dimensions: DimensionService;
   private readonly actions: ActionService;
   /** Probes run one after another; SolidCraft runs one batch at a time anyway. */
@@ -125,15 +128,17 @@ export class SolidCraftSupervisor {
     // Every path PartBuddy hands SolidCraft is made from the cache folder (exports, scripts, allow_paths).
     this.options = { ...options, cacheDir: longPath(options.cacheDir) };
     const { cacheDir } = this.options;
+    const log = (message: string) => options.log(message);
+    this.partChecks = { log, references: cliReferences(() => this.cli(), cacheDir, log, options.environment.env) };
     this.dimensions = new DimensionService(() => this.requester(), cacheDir);
     this.actions = new ActionService(() => this.requester(), cacheDir);
     this.designs = options.designsDir && options.projectsDir ? new ProjectStore(options.projectsDir, options.designsDir, options.newPartName) : null;
     this.scheduler = new MirrorScheduler(
       () => {
-        if (this.engine?.isOpen) return mirrorActiveDesign(this.engine.requester, cacheDir);
+        if (this.engine?.isOpen) return mirrorActiveDesign(this.engine.requester, cacheDir, this.partChecks);
         const client = this.client;
         if (!client?.isOpen) return Promise.reject(new Error('not connected'));
-        return mirrorActiveDesign(client, cacheDir);
+        return mirrorActiveDesign(client, cacheDir, this.partChecks);
       },
       {
         started: () => {
@@ -322,18 +327,15 @@ export class SolidCraftSupervisor {
   }
 
   /**
-   * The standard parts to buy, counted (`assembly.bom`), for the sharing package. Only rows with a
-   * part number: the library's screws and nuts have one ("ISO 4762 M3x12"), imported counterparts not.
-   * And only the parts the export leaves out, so nothing is listed both to print and to buy.
+   * The standard parts to buy, counted, for the sharing package: the parts the mirror keeps out of
+   * print check and export, read anew by the same recognition, so nothing is listed both to print
+   * and to buy and no bought part is missing.
    */
   async hardware(): Promise<{ count: number; name: string; standard: string }[]> {
-    const reply = await this.requester().request<BatchResult>(
-      'engine.batch',
-      { commands: [{ command: 'assembly.bom', params: {} }, { command: 'component.list', params: {} }], rollback: false },
-      60_000,
-    );
+    const requester = this.requester();
+    const reply = await requester.request<BatchResult>('engine.batch', { commands: [{ command: 'component.list', params: {} }], rollback: false }, 60_000);
     if (reply.failed) throw new Error(reply.failed.error);
-    return hardwareOf(reply.results[0], reply.results[1], this.latest?.structure.standardParts ?? []);
+    return hardwareOf(await boughtParts(requester, reply.results[0], this.partChecks), reply.results[0]);
   }
 
   /** `solidcraft-cli` beside the SolidCraft PartBuddy uses. */
@@ -496,8 +498,8 @@ export class SolidCraftSupervisor {
 
   /**
    * Seats a standard part in the hole at a point of its wall (B7, `parts.insert` with a rigid
-   * joint). Its body gets the part's name (`SHCS M3x12`) and is noted as a standard part in the
-   * design's metadata, so export and the ready-to-print light leave it out. Returns the body name.
+   * joint). Its body gets the part's name (`SHCS M3x12`); that it is a standard part the mirror tells
+   * from the component SolidCraft made, as for a part the assistant put in. Returns the body name.
    */
   async insertPart(part: PartInsert): Promise<string | null> {
     await this.probing;
@@ -511,21 +513,15 @@ export class SolidCraftSupervisor {
     );
     if (reply.failed) throw new Error(reply.failed.error);
     const inserted = reply.results[0] as { name?: unknown } | undefined;
-    const inspect = reply.results[1] as { bodies?: { name?: unknown }[]; metadata?: unknown } | undefined;
+    const inspect = reply.results[1] as { bodies?: { name?: unknown }[] } | undefined;
     const names = (inspect?.bodies ?? []).map((body) => body.name).filter((name): name is string => typeof name === 'string');
     const added = names.filter((name) => !before.has(name));
     let body: string | null = added[0] ?? null;
-    if (body) {
-      const steps: { command: string; params: Record<string, unknown> }[] = [];
-      if (added.length === 1 && typeof inserted?.name === 'string') {
-        const wanted = freeBodyName(inserted.name, names);
-        steps.push({ command: 'body.rename', params: { body, name: wanted } });
-        body = wanted;
-      }
-      const marked = [...standardPartsOf(inspect?.metadata).filter((name) => names.includes(name)), ...(added.length === 1 ? [body] : added)];
-      steps.push({ command: 'document.metadata.set', params: { values: { [STANDARD_PARTS_KEY]: { bodies: marked } } } });
-      const naming = await requester.request<BatchResult>('engine.batch', { commands: steps, rollback: false }, 60_000);
+    if (body && added.length === 1 && typeof inserted?.name === 'string') {
+      const wanted = freeBodyName(inserted.name, names);
+      const naming = await requester.request<BatchResult>('engine.batch', { commands: [{ command: 'body.rename', params: { body, name: wanted } }], rollback: false }, 60_000);
       if (naming.failed) this.options.log(`the standard part was not named: ${naming.failed.error}`);
+      else body = wanted;
     }
     await this.engine?.checkForChange();
     return body;
