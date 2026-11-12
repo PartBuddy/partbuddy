@@ -150,7 +150,7 @@ export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
         { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false, name: sketch ?? uniqueLogoName(block.text, [], TEXT_PREFIX) } },
         // SolidCraft's built-in font has no bold face; Arial comes with every Windows.
         { command: 'sketch.text', params: { text: block.text, at: [0, round(-block.height / 2)], height: block.height, align: 'center', ...textFont(block) } },
-        { command: 'solid.emboss', params: { depth: mm(block.depth), mode: block.mode, face: block.point } },
+        { command: 'solid.emboss', params: { depth: mm(block.depth), mode: block.mode, face: block.point, targets: [block.body] } },
       ];
     case 'nutTrap': {
       const length = Math.hypot(...block.normal) || 1;
@@ -158,8 +158,8 @@ export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
       return [
         { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
         { command: 'sketch.polygon.circumscribed', params: { center: [0, 0], radius: round(block.flats / 2), sides: 6 } },
-        { command: 'solid.extrude', params: { distance: mm(-block.depth), operation: 'cut' } },
-        { command: 'solid.hole', params: { position: bottom, clearance: block.size, fit: 'normal' } },
+        { command: 'solid.extrude', params: { distance: mm(-block.depth), operation: 'cut', targets: [block.body] } },
+        { command: 'solid.hole', params: { position: bottom, clearance: block.size, fit: 'normal', targets: [block.body] } },
       ];
     }
     case 'slot': {
@@ -169,7 +169,7 @@ export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
         { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
         { command: 'sketch.slot.center_to_center', params: { p0, p1, width: block.width } },
         // "Through" cuts far beyond any printable part.
-        { command: 'solid.extrude', params: { distance: mm(-(block.depth ?? 1000)), operation: 'cut' } },
+        { command: 'solid.extrude', params: { distance: mm(-(block.depth ?? 1000)), operation: 'cut', targets: [block.body] } },
       ];
     }
     case 'logo':
@@ -193,11 +193,12 @@ export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
             width: mm(block.width),
             catch_depth: mm(block.catchDepth),
             catch_length: mm(block.catchLength),
+            body: block.body,
           },
         },
       ];
     case 'lip':
-      return [{ command: 'plastic.lip', params: { face: block.point, type: block.type, width: mm(block.width), height: mm(block.height), ...(block.type === 'groove' ? { gap: mm(block.gap) } : {}) } }];
+      return [{ command: 'plastic.lip', params: { face: block.point, type: block.type, width: mm(block.width), height: mm(block.height), ...(block.type === 'groove' ? { gap: mm(block.gap) } : {}), body: block.body } }];
     default:
       // A row of holes: the same hole at each further point.
       return [block.point, ...('more' in block ? (block.more ?? []) : [])].map((point) => stepOf({ ...block, point }));
@@ -210,14 +211,14 @@ function textFont(block: { bold: boolean; font?: string | undefined }): { font?:
   return { ...(font ? { font } : {}), ...(block.bold ? { bold: true } : {}) };
 }
 
-/** The SolidCraft command of a block that is one feature. */
+/** The SolidCraft command of a block that is one feature; it names its body, so a point where two bodies meet cuts only that one. */
 export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | 'nutTrap' | 'slot' | 'lip' | 'snapFit' }>): Step {
   const mm = (value: number) => `${String(round(value))} mm`;
   switch (block.block) {
     case 'tappedHole':
-      return { command: 'solid.hole', params: { position: block.point, thread: block.size, modeled: block.modeled, ...(block.depth ? { depth: mm(block.depth) } : {}) } };
+      return { command: 'solid.hole', params: { position: block.point, thread: block.size, modeled: block.modeled, ...(block.depth ? { depth: mm(block.depth) } : {}), targets: [block.body] } };
     case 'screwHole': {
-      const base = { position: block.point, clearance: block.size, fit: block.fit };
+      const base = { position: block.point, clearance: block.size, fit: block.fit, targets: [block.body] };
       if (block.head === 'cap') {
         const [diameter, height] = CAP_HEAD[block.size];
         return { command: 'solid.hole', params: { ...base, type: 'counterbore', cb_diameter: mm(diameter + 2 * HEAD_ALLOWANCE.diameter), cb_depth: mm(height + HEAD_ALLOWANCE.depth) } };
@@ -229,12 +230,12 @@ export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | '
       return { command: 'solid.hole', params: base };
     }
     case 'insertSeat':
-      return { command: 'solid.hole', params: { position: block.point, diameter: mm(block.diameter), depth: mm(block.depth) } };
+      return { command: 'solid.hole', params: { position: block.point, diameter: mm(block.diameter), depth: mm(block.depth), targets: [block.body] } };
     case 'boss': {
       const insert = INSERT[block.size] ?? { diameter: 4, length: 5.7 };
       return {
         command: 'plastic.boss',
-        params: { position: block.point, diameter: mm(block.diameter), height: mm(block.height), hole_diameter: mm(insert.diameter), hole_depth: mm(insert.length + 1) },
+        params: { position: block.point, diameter: mm(block.diameter), height: mm(block.height), hole_diameter: mm(insert.diameter), hole_depth: mm(insert.length + 1), body: block.body },
       };
     }
   }

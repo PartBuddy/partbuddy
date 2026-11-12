@@ -185,6 +185,18 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   called `Body<n>` until `body.rename`. PartBuddy notes standard part bodies under
   `io.github.manuelstaggl.partbuddy.standard-parts`; export and the light leave them out.
 
+## SolidCraft 0.40.1 (checked 2026-11-12)
+
+- Taking a tool's change back: undo it step by step (`document.inspect` gives the undo depth before and
+  after, then that many `edit.undo`), as the work log does. The two other ways fail on 0.40.1:
+  after a batch with `rollback: true` that built a modelled thread, the same `solid.hole` for real takes
+  50 s and fails ("SMLib boolean … Face has Coincident Edges"); and `edit.restore_checkpoint` answers
+  "no checkpoint n" for a checkpoint taken in an earlier batch, while `forget: true` on it works.
+- `solid.hole`, `solid.extrude` (cut) and `solid.emboss` take `targets`, `plastic.boss`, `plastic.lip` and
+  `plastic.snap_fit` take `body`. Without them the point alone decides which body is cut: on an edge two
+  bodies share, both. With them a point that is not on the body cuts nothing ("the hole removes no
+  material", a warning, not an error) or is refused.
+
 ## SolidCraft 0.40.0-rc.4 (checked 2026-11-11)
 
 - PartBuddy's recommended version since 2026-11-11. The contract suite ran against it and against the

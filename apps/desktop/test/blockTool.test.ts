@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { blockOf, knobOf, magnetOf, wallOf, withBlockTool } from '../src/main/agents/blockTool';
+import { blockOf, knobOf, magnetOf, misplaced, wallOf, withBlockTool } from '../src/main/agents/blockTool';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
 import { KNOB, knobProblem, knobSteps, type KnobSpec } from '../src/shared/knob';
@@ -35,8 +35,11 @@ describe('the function blocks for the assistant (standards)', () => {
       listTools: () => Promise.resolve([]),
       callTool: (_name, args) => {
         const commands = args.commands as { command: string }[];
-        batches.push(commands.map((step) => step.command).join(' '));
-        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'component.list' ? { components: [{ id: 0, parent: null, bodies: [] }, { id: 7, parent: 0, bodies: ['Plate'], occurrences: [{ name: 'Plate:1' }] }] } : {})) }) }] });
+        // Round every block: the plate measured and the undo depth read, then the block with a measurement after it.
+        const block = commands.filter((step) => !['inspect.measure', 'document.inspect'].includes(step.command));
+        if (block.length > 0) batches.push(block.map((step) => step.command).join(' '));
+        const measured = { bodies: [{ name: 'Plate', volume_mm3: commands.length > 2 ? 900 : 1000 }] };
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'component.list' ? { components: [{ id: 0, parent: null, bodies: [] }, { id: 7, parent: 0, bodies: ['Plate'], occurrences: [{ name: 'Plate:1' }] }] } : step.command === 'inspect.measure' ? measured : {})) }) }] });
       },
     };
     const tools = withBlockTool(upstream);
@@ -217,5 +220,45 @@ describe('wall mounting (standards)', () => {
     ]);
     expect(wallOf({ block: 'woodScrew', body: 'Plate', point: [20, 8, 30], screw: 6 })).toBe('screw must be one of 3.5, 4, 4.5, 5 (mm, a wood screw)');
     expect(wallOf({ block: 'screwHole', body: 'Plate', point: [0, 0, 0] })).toBeNull();
+  });
+});
+
+describe('a block lands on the body it names (audit W1)', () => {
+  const before = new Map([['A', 16000], ['B', 48000]]);
+
+  it('refuses a body there is not, a point on another body and a point that changes nothing', () => {
+    expect(misplaced('Ghost', before, before)).toBe('there is no body named Ghost; the design has A, B');
+    expect(misplaced('A', before, new Map([['A', 16000], ['B', 47818.416]]))).toContain('it would change B, not only A');
+    expect(misplaced('A', before, new Map([['A', 15909.208], ['B', 47909.208]]))).toContain('it would change B, not only A');
+    expect(misplaced('A', before, before)).toBe('it would change nothing on A: the point is not on a face of A');
+  });
+
+  it('lets a block through that changes the named body alone, and a body whose volume SolidCraft cannot give', () => {
+    expect(misplaced('A', before, new Map([['A', 15818.416], ['B', 48000]]))).toBeNull();
+    expect(misplaced('Open', new Map([['Open', NaN]]), new Map([['Open', NaN]]))).toBeNull();
+  });
+});
+
+describe('a block that lands on another body is taken back (audit W1)', () => {
+  it('undoes every step the block added and says where it would have landed', async () => {
+    const batches: string[] = [];
+    let built = false;
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (_name, args) => {
+        const commands = args.commands as { command: string }[];
+        batches.push(commands.map((step) => step.command).join(' '));
+        if (commands.some((step) => step.command === 'solid.hole')) built = true;
+        if (commands.some((step) => step.command === 'edit.undo')) built = false;
+        const reply = (step: { command: string }) =>
+          step.command === 'inspect.measure' ? { bodies: [{ name: 'A', volume_mm3: 16000 }, { name: 'B', volume_mm3: built ? 47818 : 48000 }] } : step.command === 'document.inspect' ? { undo: built ? 4 : 2 } : {};
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map(reply) }) }] });
+      },
+    };
+    const answer = await withBlockTool(upstream).callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20], more: [[40, 10, 20]] });
+    expect(answer).toMatchObject({ isError: true, content: [{ text: 'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies' }] });
+    expect(batches).toEqual(['inspect.measure document.inspect', 'solid.hole solid.hole inspect.measure', 'document.inspect', 'edit.undo edit.undo']);
+    expect(String((await withBlockTool(upstream).callTool('partbuddy_block', { block: 'screwHole', body: 'Ghost', point: [30, 10, 20] })).content[0]?.text)).toBe('Not built: there is no body named Ghost; the design has A, B');
   });
 });
