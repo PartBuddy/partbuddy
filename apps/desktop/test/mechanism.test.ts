@@ -292,6 +292,9 @@ describe('the snap closure of a lid (G3)', () => {
     // The bead stands 0.25 mm past the wall's face (0.5 mm proud of the lip), 14 mm long in the wall's middle; its rille sits where it lands.
     expect(steps[9]?.params).toMatchObject({ length: '14 mm', width: '0.5 mm', height: '1 mm', corner: ['(2 mm + 58 mm) / 2 - 7 mm', '2 mm - 0.25 mm', '20 mm - 3 mm'] });
     expect(steps[11]?.params).toMatchObject({ diameter: '1.4 mm', axis: 'X', base: ['(2 mm + 58 mm) / 2 - 7.5 mm', '2 mm + 0.25 mm', '20 mm - 2.5 mm'] });
+    // A flat plate as the lid gets the lip alone on its face: no foot that would come out of its top, no notch in a wall it does not have.
+    expect(lipSteps({ ...lid, flat: true }).map((step) => step.params.name ?? '').filter(Boolean)).toEqual(['Closure', 'Closure', 'Closure ●', 'Closure ◆', 'Closure ○']);
+    expect(lipOf({ fixed: 'Box', moving: 'Lid', from: [2, 2, 20], to: [58, 38, 20], side: 'y-', flat: true })).toMatchObject({ flat: true });
     // Rounded rooms get rounded rings, each radius less its inset.
     expect(lipSteps({ ...lid, radius: 4 })[5]?.params).toMatchObject({ radius: '4 mm - 0.25 mm' });
   });

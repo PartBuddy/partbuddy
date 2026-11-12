@@ -25,6 +25,7 @@ const mechanismTool: UpstreamTool = {
     'closure: a snap closure between a lid and its box, nothing standing out: a lip inside the lid that goes into the box along its wall and centres the lid, a bead that snaps into a rille of the box\'s wall, and a notch for a fingernail. ' +
     'Give from and to as opposite corners of the lid\'s inner room at its rim (both at the rim\'s height), up as the way the lip stands out of the lid (+Z when the lid lies open side up, -Z when it sits on the box), wall and radius of the lid, and the side with the catch (a long wall, opposite the hinge). ' +
     'When the lid is built open beside the box and closes on a hinge, give the hinge line too (hinge_from, hinge_to), so the rille lands where the bead closes. It makes no joint. ' +
+    'When the lid is a flat plate without walls of its own, say flat: from and to are then the corners of the box\'s inner room on the plate\'s face towards the box, and the lip stands on that face. ' +
     'screw: one or more screws that hold the moving body on the fixed one: a clearance hole with the room for the head in the moving body, and on the same line the seat of a heat-set insert (or a modelled thread from M5) in the fixed body; the screws go in as standard parts. ' +
     'Give from where the screw goes in (on the outer face of the moving body) and to where its line passes into the fixed body (on the face the two meet at); more lists where further screws of the same kind go in. ' +
     'snap: cantilever snap hooks standing on the fixed body, each catching in a window cut through a wall of the moving body, for a cover that clips on and comes off by pressing the catches back. Give from as the foot of the hook (on the face of the fixed body it stands on, at the inner face of that wall), up as the way the hook stands, which is the way the parts come apart, to as a point further into the wall (the way the catch points), wall as the wall\'s thickness, and more for further hooks catching the same way; call again for the opposite wall. It makes no joint. ' +
@@ -52,6 +53,7 @@ const mechanismTool: UpstreamTool = {
       thread: { type: 'string', enum: ['insert', 'tapped'], description: 'screw: a heat-set insert (default, M2 to M6) or a thread modelled into the plastic (M5 and larger).' },
       more: { type: 'array', items: vector, maxItems: 40, description: 'screw: where further screws like this one go in; they run the same way through the same thickness. snap: the feet of further hooks catching the same way.' },
       screws: { type: 'boolean', description: 'screw: put the screws in as standard parts; default true.' },
+      flat: { type: 'boolean', description: 'closure: true when the lid is a flat plate without walls; the lip then stands on its face, without a foot inside the lid and without a notch.' },
       hinge_from: { ...vector, description: 'closure: one end of the hinge line the lid closes about, when it is built open.' },
       hinge_to: { ...vector, description: 'closure: the other end of that line; it runs along X or along Y.' },
       diameter: { type: 'number', minimum: 3, maximum: 200, description: 'plug: the diameter of the pegs (3 to 20); default 5. hinge: outer diameter of the barrel in mm (4 to 40); default 6. The pin is half of it. lid: the outer diameter of the neck (16 to 200).' },
@@ -164,6 +166,7 @@ export function lipOf(args: Record<string, unknown>): LipSpec | string {
     wall: typeof args.wall === 'number' ? args.wall : 2,
     side,
     ...(hinge ? { hinge } : {}),
+    ...(args.flat === true ? { flat: true } : {}),
     name: base.name,
   };
   return lipProblem(spec) ?? spec;
@@ -422,7 +425,10 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
   if (args.kind === 'closure') {
     const spec = lipOf(args);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, lipSteps(spec), `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, callId);
+    const warnings = await build(upstream, run, spec, lipSteps(spec), spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, callId);
+    if (spec.flat) {
+      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(LIP.thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up: set the print face of the plate on its outer face. It makes no joint. Keep the box's wall straight and at least 1.6 mm thick where the lip goes in.${warnings}`;
+    }
     return (
       `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(LIP.thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch in the lid's rim to open it. It makes no joint and needs no room outside the box. Keep the box's wall straight and at least 1.6 mm thick where the lip goes in.${warnings}`
     );

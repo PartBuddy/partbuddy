@@ -3594,6 +3594,42 @@ test('the assistant builds a screw joint with one call: holes on one line in bot
   }
 });
 
+test('a flat plate as the lid gets the lip alone: one piece, nothing through its top, no overlap (G3)', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-plate-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7961',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a snap plate');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText(/Built the closure "Plate closure" between Box \(the box\) and Plate \(the flat lid\): a lip 1\.2 mm thick and 4 mm high on the plate/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    // The lip grew onto the plate: a loose piece would have been taken back, with a message instead of "Built".
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    await page.getByTestId('print-check').click();
+    const findings = page.getByTestId('print-check-panel');
+    await expect(findings).toBeVisible();
+    await page.waitForTimeout(1500);
+    await expect(findings.locator('[data-kind="blocked"], [data-kind="overlap"], [data-kind="thinWall"]')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('closure-plate.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('the assistant builds a snap closure with one call: a lip in the lid, its bead in a rille of the box, no overlap (G3)', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
