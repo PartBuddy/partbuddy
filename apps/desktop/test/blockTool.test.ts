@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { blockOf, knobOf, magnetOf, misplaced, wallOf, withBlockTool } from '../src/main/agents/blockTool';
-import type { UpstreamTools } from '../src/main/agents/gateProxy';
+import { blockOf, knobOf, magnetOf, misplaced, shortOf, wallOf, withBlockTool } from '../src/main/agents/blockTool';
+import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
 import { KNOB, knobProblem, knobSteps, type KnobSpec } from '../src/shared/knob';
-import { MAGNET, magnetPocket, magnetSteps } from '../src/shared/magnet';
+import { MAGNET, magnetPocket, magnetSteps, magnetStock } from '../src/shared/magnet';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { KEYHOLE, WALL, keyholeDepth, keyholeProblem, keyholeSteps, woodScrewSteps, type KeyholeSpec } from '../src/shared/wallMount';
+import { KEYHOLE, WALL, keyholeDepth, keyholeProblem, keyholeSteps, keyholeStock, woodScrewSteps, type KeyholeSpec } from '../src/shared/wallMount';
 
 describe('the function blocks for the assistant (standards)', () => {
   it('fills a block in from the standard tables and lays over it only what the model gave', () => {
@@ -48,8 +48,8 @@ describe('the function blocks for the assistant (standards)', () => {
     expect(hole.content[0]).toMatchObject({ text: 'Built 2 × screwHole on Plate at [10, 10, 6]: size M3, head cap, fit normal.' });
     const key = await tools.callTool('partbuddy_block', { block: 'keyhole', body: 'Plate', point: [20, 0, 80], normal: [0, -1, 0] });
     expect(String(key.content[0]?.text)).toContain('Built 1 keyhole slot for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4.5 mm wide running 8 mm up to where the screw rests, and behind its 2 mm lip a pocket 3.5 mm deep for the head. The part must be at least 6.7 mm thick there.');
-    // The holes need no sketch; the keyhole's sketches are drawn with the plate's component active.
-    expect(batches).toEqual(['solid.hole solid.hole', 'component.list', 'component.activate solid.cylinder sketch.create sketch.slot.center_to_center solid.extrude sketch.create sketch.slot.center_to_center solid.extrude component.activate']);
+    // The holes need no sketch; the keyhole's plastic is measured on trial, then its sketches are drawn with the plate's component active.
+    expect(batches).toEqual(['solid.hole solid.hole', 'component.list', 'solid.cylinder inspect.interference solid.cylinder inspect.interference sketch.inspect', 'component.activate solid.cylinder sketch.create sketch.slot.center_to_center solid.extrude sketch.create sketch.slot.center_to_center solid.extrude component.activate']);
     expect(await tools.callTool('partbuddy_block', { block: 'keyhole', body: 'Plate', point: [20, 0, 80] })).toMatchObject({ isError: true, content: [{ text: 'Not built: keyhole needs normal: the way out of the face against the wall, three numbers' }] });
     expect(decide('partbuddy_block', { block: 'screwHole' })).toEqual({ allow: true });
     expect(describeToolCall('partbuddy_block', { block: 'keyhole', screw: 4.5 })).toEqual([{ key: 'keyhole', values: { screw: 4.5 } }]);
@@ -158,7 +158,7 @@ describe('pockets for disc magnets (standards)', () => {
     expect(steps[1]?.params).toMatchObject({ diameter: '7.1 mm', top_diameter: '6.3 mm', height: '0.4 mm', base: [10, 10, 0], axis: [0, 0, 1], operation: 'cut' });
     expect(steps[2]?.params).toMatchObject({ base: [30, 10, 0] });
     expect(magnetPocket({ diameter: 10, height: 3, hold: 'press' })).toEqual({ diameter: 10.1, depth: 3.2 });
-    expect(MAGNET).toEqual({ room: { glue: 0.3, press: 0.1 }, sunk: 0.2, chamfer: 0.4 });
+    expect(MAGNET).toEqual({ room: { glue: 0.3, press: 0.1 }, sunk: 0.2, chamfer: 0.4, around: 1.2, under: 0.6 });
   });
 
   it('fills a pocket in from the standard, says how the magnet is held and refuses what is no magnet', () => {
@@ -260,5 +260,95 @@ describe('a block that lands on another body is taken back (audit W1)', () => {
     expect(answer).toMatchObject({ isError: true, content: [{ text: 'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies' }] });
     expect(batches).toEqual(['inspect.measure document.inspect', 'solid.hole solid.hole inspect.measure', 'document.inspect', 'edit.undo edit.undo']);
     expect(String((await withBlockTool(upstream).callTool('partbuddy_block', { block: 'screwHole', body: 'Ghost', point: [30, 10, 20] })).content[0]?.text)).toBe('Not built: there is no body named Ghost; the design has A, B');
+  });
+});
+
+describe('a block is built only where the part has the plastic for it (audit R54)', () => {
+  /** A plate `thick` mm thick, as SolidCraft 0.40.1 answers: the probe's share in the plate, each loose piece a body of its own. */
+  function plate(thick: number, split = false) {
+    const batches: string[] = [];
+    let built = 0;
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (_name, args) => {
+        const commands = args.commands as { command: string; params: { diameter?: string; height?: string } }[];
+        batches.push(commands.map((step) => step.command).join(' '));
+        const trial = args.rollback === true;
+        let probe = { diameter: 0, height: 0 };
+        const results = commands.map((step) => {
+          if (trial && step.command === 'solid.cylinder') probe = { diameter: parseFloat(step.params.diameter ?? ''), height: parseFloat(step.params.height ?? '') };
+          if (step.command === 'inspect.interference') return { interferences: [{ a: 'Plate', b: 'PartBuddy probe 0', volume_mm3: ((Math.PI * probe.diameter ** 2) / 4) * Math.min(probe.height, thick) }] };
+          if (!trial && (step.command === 'solid.hole' || step.command === 'solid.cylinder')) built += 1;
+          if (step.command === 'edit.undo') built -= 1;
+          // A blind hole of 4 mm takes what plastic there is, the plate's thickness at most.
+          if (step.command === 'inspect.measure') return { bodies: [{ name: 'Plate', volume_mm3: 4800 - built * 4 * Math.PI * Math.min(6.7, thick) }, ...(split && built > 0 ? [{ name: 'Plate (1)', volume_mm3: 100 }] : [])] };
+          if (step.command === 'document.inspect') return { undo: 1 + built };
+          return {};
+        });
+        // The trial ends on a step that must fail; SolidCraft answers it as an error that carries the results before it.
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(trial ? { results: results.slice(0, -1), failed: { command: 'sketch.inspect' } } : { results }) }], ...(trial ? { isError: true } : {}) });
+      },
+    };
+    return { tools: withBlockTool(upstream), upstream, batches };
+  }
+  const text = async (answer: Promise<ToolResult>) => String((await answer).content[0]?.text);
+
+  it('names the plastic a keyhole and a magnet pocket need: as deep as the cut with what must stay behind it', () => {
+    const key: KeyholeSpec = { body: 'Plate', point: [20, 30, 0], normal: [0, 0, -1], up: [0, 1, 0], screw: 4, more: [], name: 'Keyhole' };
+    // Behind where the screw rests and behind the entry 8 mm below it.
+    expect(keyholeStock(key)).toEqual([
+      { at: [20, 30, 0], base: [20, 30, 0], axis: [0, 0, 1], diameter: 9, depth: 6.7 },
+      { at: [20, 30, 0], base: [20, 22, 0], axis: [0, 0, 1], diameter: 9, depth: 6.7 },
+    ]);
+    // A 6 × 2 mm magnet: 6.3 + 2 × 1.2 wide, 2.2 + 0.6 deep.
+    expect(magnetStock({ body: 'Plate', point: [10, 10, 3], normal: [0, 0, 2], more: [[30, 10, 3]], diameter: 6, height: 2, hold: 'glue', name: 'Magnet' })).toEqual([
+      { at: [10, 10, 3], base: [10, 10, 3], axis: [0, 0, -1], diameter: 8.7, depth: 2.8 },
+      { at: [30, 10, 3], base: [30, 10, 3], axis: [0, 0, -1], diameter: 8.7, depth: 2.8 },
+    ]);
+  });
+
+  it('builds no keyhole in a 3 mm plate and no magnet pocket through it, and says what it measured', async () => {
+    const { tools, batches } = plate(3);
+    expect(await text(tools.callTool('partbuddy_block', { block: 'keyhole', body: 'Plate', point: [20, 30, 0], normal: [0, 0, -1], up: [0, 1, 0] }))).toBe(
+      'Not built: at [20, 30, 0] Plate has 3 mm of plastic where 6.7 mm are needed (the mean over a width of 9 mm; the far side, an edge or another cut takes the rest); a keyhole needs the part 6.7 mm thick behind its entry and its slot. Thicken the part there, move the keyhole away from edges and other cuts, or use woodScrew.',
+    );
+    expect(await text(tools.callTool('partbuddy_block', { block: 'magnet', body: 'Plate', point: [20, 10, 3], normal: [0, 0, 1], height: 3 }))).toContain(
+      'Not built: at [20, 10, 3] Plate has 3 mm of plastic where 3.8 mm are needed (the mean over a width of 8.7 mm',
+    );
+    // Nothing but trials reached SolidCraft: no cut, so nothing to undo.
+    expect(batches.filter((batch) => batch.includes('solid.cylinder')).every((batch) => batch.endsWith('sketch.inspect'))).toBe(true);
+    expect(batches.join(' ')).not.toContain('solid.extrude');
+  });
+
+  it('builds them where the plastic is, and says that it measured', async () => {
+    const { tools } = plate(10);
+    expect(await text(tools.callTool('partbuddy_block', { block: 'magnet', body: 'Plate', point: [20, 10, 10], normal: [0, 0, 1] }))).toMatch(/^Built 1 pocket .* PartBuddy measured that plastic before building: it is there\.$/);
+  });
+
+  it('says so when the plastic could not be measured, instead of passing it over', async () => {
+    const silent: UpstreamTools = { instructions: () => undefined, listTools: () => Promise.resolve([]), callTool: () => Promise.resolve({ content: [{ type: 'text', text: 'no' }], isError: true }) };
+    expect(await shortOf(silent, 'Plate', [{ at: [0, 0, 0], base: [0, 0, 0], axis: [0, 0, 1], diameter: 9, depth: 6.7 }], undefined)).toBeUndefined();
+  });
+
+  it('takes back the seat of an insert that comes out of the far side', async () => {
+    const thin = plate(3);
+    expect(await text(thin.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [10, 10, 3] }))).toBe(
+      'Not built: the seat would cut 37.7 mm³ of plastic where a blind hole 6.7 mm deep takes 84.2 mm³: it comes out of the far side or of an edge (3 mm of plastic at the point). Thicken the part there, or use a boss',
+    );
+    expect(thin.batches.at(-1)).toBe('edit.undo');
+    const thick = plate(10);
+    expect(await text(thick.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [10, 10, 10] }))).toBe(
+      'Built insertSeat on Plate at [10, 10, 10]: size M3, diameter 4, depth 6.7. Measured: the seat is a blind hole cut out of solid plastic. Not checked: the plastic left round and under it.',
+    );
+  });
+
+  it('takes back a block that cuts the body into pieces', async () => {
+    expect(misplaced('Strip', new Map([['Strip', 720]]), new Map([['Strip', 300], ['Strip (1)', 300]]))).toBe(
+      'it would leave 2 bodies where Strip was one (Strip (1)): the cut goes right through the part there. Give a point with more plastic round it, or a smaller size',
+    );
+    const { tools, batches } = plate(10, true);
+    expect(await text(tools.callTool('partbuddy_block', { block: 'screwHole', body: 'Plate', point: [10, 10, 10], head: 'none' }))).toContain('Not built: it would leave 2 bodies where Plate was one (Plate (1))');
+    expect(batches.at(-1)).toBe('edit.undo');
   });
 });

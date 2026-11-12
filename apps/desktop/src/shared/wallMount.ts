@@ -55,6 +55,17 @@ export function keyholeDepth(screw: WoodScrew): number {
   return round(KEYHOLE.lip + WALL[screw].pocket + KEYHOLE.behind);
 }
 
+/** The plastic each keyhole needs: as thick as {@link keyholeDepth} behind the entry and behind where the screw rests. */
+export function keyholeStock(spec: KeyholeSpec): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number }[] {
+  const [n, up] = [unit(spec.normal), unit(spec.up)];
+  const axis = n.map((value) => round(-value) + 0) as Vec3;
+  const room = { axis, diameter: WALL[spec.screw].entry, depth: keyholeDepth(spec.screw) };
+  return [spec.point, ...spec.more].flatMap((rest) => [
+    { at: rest, base: rest.map(round) as Vec3, ...room },
+    { at: rest, base: rest.map((value, k) => round(value - (up[k] ?? 0) * KEYHOLE.travel)) as Vec3, ...room },
+  ]);
+}
+
 /** What is wrong with a keyhole before anything is built; null when it can be built. */
 export function keyholeProblem(spec: KeyholeSpec): string | null {
   if (Math.hypot(...spec.normal) < 1e-9 || Math.hypot(...spec.up) < 1e-9) return 'normal and up must not be zero';
