@@ -143,6 +143,9 @@ describe('sizes fitted to nozzle and layer', () => {
       { name: 'Gap', value: 0.6 },
     ]);
     expect(refit([{ name: 'Rim', value: 6, comment: 'Rim [auto 30×layer]' }], large)).toEqual([]);
+    // A fine nozzle does not close a gap under 0.3 mm (audit MG-05: it became 0.2 mm on a 0.2 mm nozzle).
+    expect(refit([{ name: 'Gap', value: 0.3, comment: 'Hinge gap [auto 1×nozzle]' }], { nozzle: 0.2, layer: 0.1 })).toEqual([]);
+    expect(refit([{ name: 'Gap', value: 0.4, comment: 'Hinge gap [auto 1×nozzle]' }], { nozzle: 0.25, layer: 0.1 })).toEqual([{ name: 'Gap', value: 0.3 }]);
     expect(refit([{ name: 'Wall', value: 1.8, comment: 'Wall [auto 4×line]' }], large)).toEqual([{ name: 'Wall', value: 2.025 }]);
     expect(fitMarkOf('Inner width')).toBeNull();
     expect(withoutFitMark('Wall [auto 3×line]')).toBe('Wall');
