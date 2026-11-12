@@ -1,9 +1,17 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { execFileSync } from 'node:child_process';
 
 import { launchApp } from './launch';
+
+/**
+ * The assistant's turn is over. The user's own actions are refused while it works, and since PR 357 its tool's
+ * answer waits for the print check of what it built: the part shows before the turn ends.
+ */
+async function turnEnded(page: Page): Promise<void> {
+  await expect(page.getByTestId('composer-stop')).toBeHidden({ timeout: 30_000 });
+}
 
 /** A renderer element in evaluate callbacks, typed loosely because this file is compiled for Node. */
 interface LooseRect {
@@ -91,6 +99,7 @@ test('an assistant step changes the headless design, and it is back after a rest
       await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
       await page.getByRole('button', { name: 'Send' }).click();
       await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+      await turnEnded(page);
       await expect(page.getByTestId('assistant-text').last()).toHaveText('The design has one body.');
       await page.screenshot({ path: test.info().outputPath('headless-box.png') });
       // The conversation is written next to the design a second after the chat went quiet.
@@ -156,6 +165,7 @@ test('the user undoes, exports and opens the headless design in the SolidCraft w
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
 
     // Undo and redo in the real engine.
     await page.getByRole('button', { name: 'Undo' }).click();
@@ -222,6 +232,7 @@ test('the dimension field changes the driving parameter directly, with a preview
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     // The first save names the new part after its project (B2) and mirrors it once more; picks wait for that.
     await expect(page.getByTestId('design-name')).toHaveText('Part', { timeout: 15_000 });
     await page.waitForTimeout(800);
@@ -352,6 +363,7 @@ test('two edges are selected with Ctrl, measured, and rounded together with a pr
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     await page.waitForTimeout(800);
     const box = await page.getByTestId('viewport').boundingBox();
     if (!box) throw new Error('viewport not visible');
@@ -759,6 +771,7 @@ test('a note on a face stays with the design, out of the assistant\'s reach, and
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     await page.waitForTimeout(800);
 
     const box = await page.getByTestId('viewport').boundingBox();
@@ -849,6 +862,7 @@ test('the dimensions of the box show in the view, and its height changes through
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
 
     await page.getByTestId('dimensions').click();
     const labels = page.getByTestId('mark-label');
@@ -1006,6 +1020,7 @@ test('a part becomes a project folder that is renamed, duplicated, opened, start
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     await expect(name).toHaveText('Part', { timeout: 15_000 });
     await expect.poll(() => existsSync(join(projects, 'Part', 'Part.sc')), { timeout: 15_000 }).toBe(true);
     // The conversation is kept in the project, next to the design.
@@ -1106,6 +1121,7 @@ test('PartBuddy starts on the start page with no project open; a saved part gets
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     await expect(name).toHaveText('Part', { timeout: 15_000 });
     // After the save the project gets its picture and the light it was taken with.
     const preview = join(projects, 'Part', 'preview.png');
@@ -1215,6 +1231,7 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     await pick(join(outside, 'Platine.step'));
     await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.export('step'));
     expect(existsSync(join(outside, 'Platine.step'))).toBe(true);
@@ -1479,6 +1496,7 @@ test('a standard screw is seated in a hole as a counterpart that is neither expo
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     // A 3.4 mm hole through the 20 × 20 × 10 mm box, then an M3 × 12 screw in it.
     // SolidCraft 0.40 (rc.2 and rc.3, 2026-11-08) keeps the bore one cylinder face.
     await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.applyAction({ action: 'hole', body: 'Body1', points: [[10, 10, 10]], size: 3.4 }));
@@ -1529,6 +1547,7 @@ test('the export menu offers the slicers SolidCraft finds, and a print face is s
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     const slicers = await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.slicers());
     // The menu lists exactly what SolidCraft found; nothing is sent here, so no slicer window opens.
     await page.getByTestId('export').click();
@@ -1571,6 +1590,7 @@ test('function blocks are previewed and built at a face: tapped hole, screw hole
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     const top = (x: number, y: number) => ({ body: 'Body1', point: [x, y, 10] });
     const blocks = [
       { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: true, more: [[5, 10, 10]] },
@@ -1627,6 +1647,7 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     // An open case with 3 mm walls: the 20 × 20 × 10 mm box without its top face.
     await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.applyAction({ action: 'shell', body: 'Body1', points: [[10, 10, 10]], size: 3 }));
     await expect(page.getByTestId('timeline-feature')).toHaveCount(2, { timeout: 30_000 });
@@ -1698,6 +1719,7 @@ test('a snap fit stands out of a face, its catch across the arm, with its strain
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     const snap = { block: 'snapFit', body: 'Body1', size: 'M3', length: 10, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5 };
     // Up from the top face, and level out of a side face with the catch pointing up.
     for (const block of [
@@ -1771,6 +1793,7 @@ test('a logo from an SVG file is engraved and built up at a face, a ring keeping
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     const logo = { block: 'logo', body: 'Body1', size: 'M3', name: 'ring', svg, width: 12 };
     for (const block of [
       { ...logo, point: [10, 10, 10], normal: [0, 0, 1], depth: 0.6, mode: 'deboss' },
@@ -1935,6 +1958,7 @@ test('a logo in colours becomes a coloured body per fill, inlaid flush in the fa
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await say('Build a box');
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     // 16 mm wide on the top face of the 20 mm box, centred at (10, 10): the plate 16 × 8, the dot 4 across.
     const block = { block: 'logo', body: 'Body1', size: 'M3', name: 'Badge', svg, width: 16, point: [10, 10, 10], normal: [0, 0, 1], depth: 0.6, mode: 'deboss', colours: true };
     expect(await page.evaluate((b) => (globalThis as unknown as Bridge).partbuddy.design.previewBlock(b).then((r) => ({ ok: r.ok, error: r.error ?? null })), block)).toEqual({ ok: true, error: null });
@@ -2065,6 +2089,7 @@ test('the light measures parts against each other: an overlap and a gap under th
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'ready', { timeout: 30_000 });
 
     // A case, a lid sunk 1 mm into it and a clip 0.1 mm beside it (PLA's push fit is 0.15 mm).
@@ -2723,6 +2748,7 @@ test('an SVG sent along is placed as a logo by partbuddy_place_drawing: engraved
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await say('Build a box');
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     const data = [...readFileSync(join(__dirname, '..', 'test', 'fixtures', 'svg', 'logo-o.svg'))];
     await composer.evaluate((field, bytes) => {
       const view = globalThis as unknown as PictureEvents;
@@ -2960,6 +2986,7 @@ test('a built text is picked as a whole and changed afterwards: words, height an
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     // Raised 0.6 mm on the top face's middle, the sketch named after its words.
     const text = { block: 'text', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', text: 'PB', height: 6, depth: 0.6, mode: 'emboss', bold: false };
     await page.evaluate((b) => (globalThis as unknown as Bridge).partbuddy.design.applyBlock(b), text);
@@ -3045,6 +3072,7 @@ test('a hole is placed on its face before it is drilled: across and up from the 
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
+    await turnEnded(page);
     await page.getByTestId('viewport').hover();
     await page.keyboard.press('7');
     await page.waitForTimeout(1000);
@@ -3400,11 +3428,11 @@ test('the assistant hangs a part on the wall with its blocks: keyhole slots on t
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a wall plate');
     await page.getByRole('button', { name: 'Send' }).click();
     // Each block says that the plastic it needs was measured at the real engine (audit R54): the 8 mm plate has it.
-    await expect(
-      page.getByText(
-        /Built 2 keyhole slots for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4\.5 mm wide running 8 mm up .* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\..* Built 2 countersunk holes for 4 mm wood screws in Plate: 4\.7 mm through, countersink 8\.8 mm at 90°.* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\./,
-      ),
-    ).toBeVisible({ timeout: 60_000 });
+    // In the whole answer, not one element of it: the print check behind each block ends in a list of measures.
+    await expect(page.getByTestId('assistant-text').last()).toContainText(
+      /Built 2 keyhole slots for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4\.5 mm wide running 8 mm up [\s\S]* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\.[\s\S]* Built 2 countersunk holes for 4 mm wood screws in Plate: 4\.7 mm through, countersink 8\.8 mm at 90°[\s\S]* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\./,
+      { timeout: 60_000 },
+    );
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
     // Each block is one line of the work log, and no feature failed.
     await expect(page.getByText('Keyhole slot for a 4 mm screw, to hang on a wall')).toHaveCount(1);
@@ -3547,7 +3575,11 @@ test('the assistant clips a cover onto its base with snap hooks: each hook catch
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a clipped cover');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built 1 snap hook "Back clip" on Base, each with its window through the 2 mm wall of Cover: an arm 12 mm long, 1\.5 mm thick and 5 mm wide, 0\.2 mm off the wall.* Built 1 snap hook "Front clip" on Base/)).toBeVisible({ timeout: 90_000 });
+    // In the whole answer, not one element of it: the print check behind each hook ends in a list of measures.
+    await expect(page.getByTestId('assistant-text').last()).toContainText(
+      /Built 1 snap hook "Back clip" on Base, each with its window through the 2 mm wall of Cover: an arm 12 mm long, 1\.5 mm thick and 5 mm wide, 0\.2 mm off the wall[\s\S]* Built 1 snap hook "Front clip" on Base/,
+      { timeout: 90_000 },
+    );
     await expect(page.getByText(/Warning:/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Snap hooks “Back clip” with their windows')).toHaveCount(1);
