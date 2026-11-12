@@ -258,7 +258,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
   const layer = printer.layer;
   const gap = printInPlaceGap(printer);
   const minWall = fitSize('wall', 0, 'assistant', printer).value;
-  const clearance = (value: number) => mm(scaleClearance(value, printer));
+  const clearance = (value: number) => mm(scaleClearance(value, printer, material.measuredNozzle));
   const off = (Object.keys(RULE_NAMES) as DesignRule[]).filter((rule) => !design[rule]);
   const lines = [
     'Design it well without being asked: apply the rules below on your own, in every design, unless the user says otherwise.',
@@ -300,7 +300,7 @@ export function printNote({ printer, material: used, supportFree, design }: Part
     `[PartBuddy: print profile of this part. Printer ${name(printer.name)}: build volume ${String(x)} × ${String(y)} × ${String(z)} mm,`,
     `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(wall)} (two lines) and details under ${mm(printer.nozzle)} print poorly.`,
     `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter.`,
-    `Clearance per side between mating parts, for this nozzle: clamp ${mm(scaleClearance(clamp, printer))}, push ${mm(scaleClearance(push, printer))}, slide ${mm(scaleClearance(slide, printer))}, turn ${mm(scaleClearance(turn, printer))}.`,
+    `Clearance per side between mating parts, for this nozzle: clamp ${mm(scaleClearance(clamp, printer, used.measuredNozzle))}, push ${mm(scaleClearance(push, printer, used.measuredNozzle))}, slide ${mm(scaleClearance(slide, printer, used.measuredNozzle))}, turn ${mm(scaleClearance(turn, printer, used.measuredNozzle))}.`,
     'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed; the check and the slicer then lay it on that face.',
     ...(supportFree ? supportFreeLines(used.overhang) : []),
     ...designLines(design, printer, used),

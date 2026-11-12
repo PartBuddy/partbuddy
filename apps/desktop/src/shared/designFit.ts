@@ -30,9 +30,16 @@ export function printInPlaceGap(printer: FitPrinter): number {
   return round(Math.max(0.3, printer.nozzle));
 }
 
-/** Clearances of the material profiles are starting values for a 0.4 mm nozzle; a wider nozzle needs more. */
-export function scaleClearance(clearance: number, printer: FitPrinter): number {
-  return round((clearance * printer.nozzle) / 0.4);
+/** The nozzle the clearances of a material profile stand for when none was measured. */
+export const CLEARANCE_NOZZLE = 0.4;
+
+/**
+ * Clearances of the material profiles are starting values for a 0.4 mm nozzle; a wider nozzle needs more.
+ * Clearances read off the tolerance pieces hold for the nozzle they were printed with (`from`): on that
+ * nozzle they are used as read.
+ */
+export function scaleClearance(clearance: number, printer: FitPrinter, from = CLEARANCE_NOZZLE): number {
+  return round((clearance * printer.nozzle) / from);
 }
 
 export type SizeKind = 'wall' | 'height' | 'gap' | 'detail';

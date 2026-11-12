@@ -73,7 +73,7 @@ export function ToleranceAssistant({
   }, [step, printer.nozzle, printer.layer]);
 
   if (!material) return null;
-  const result = applyReadings(material, readings);
+  const result = applyReadings(material, readings, printer.nozzle);
 
   const exportPieces = (slicer: string | null) => {
     setStatus(t('print.tolerance.working'));

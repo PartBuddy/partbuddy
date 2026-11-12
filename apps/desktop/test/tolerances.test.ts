@@ -64,3 +64,27 @@ describe('the test pieces', () => {
     expect(steps.filter((step) => step.params.operation === 'new').map((step) => step.params.body_name)).toEqual(['Fit comb', 'Fit pin', 'Hole plate', 'Overhang']);
   });
 });
+
+describe('fits read on another nozzle than 0.4 mm (audit T2)', () => {
+  const wide = { nozzle: 0.6, layer: 0.3 };
+
+  it('uses a fit on the nozzle it was read on as read, and scales it only for another nozzle', async () => {
+    const { scaleClearance } = await import('../src/shared/designFit');
+    const { material } = applyReadings(pla, { ...none, fits: { clamp: 0.05, push: 0.15, slide: 0.3, turn: 0.35 } }, 0.6);
+    expect(material).toMatchObject({ measuredNozzle: 0.6, clearance: { clamp: 0.05, push: 0.15, slide: 0.3, turn: 0.35 } });
+    expect(materialProfileSchema.parse(material)).toEqual(material);
+    // Before, 0.30 mm read on a 0.6 mm nozzle reached the assistant as 0.45 mm.
+    expect(scaleClearance(material.clearance.slide, wide, material.measuredNozzle)).toBe(0.3);
+    expect(scaleClearance(material.clearance.slide, { nozzle: 0.4, layer: 0.2 }, material.measuredNozzle)).toBe(0.2);
+    // A profile nobody measured still holds starting values for 0.4 mm.
+    expect(scaleClearance(pla.clearance.slide, wide, pla.measuredNozzle)).toBe(0.375);
+  });
+
+  it('brings the fits that were not read over to the nozzle of the reading', () => {
+    const { material } = applyReadings(pla, { ...none, fits: { slide: 0.3 } }, 0.6);
+    // 0.05, 0.15 and 0.3 for 0.4 mm are 0.075, 0.225 and 0.45 on 0.6 mm; the slide is as read.
+    expect(material.clearance).toEqual({ clamp: 0.075, push: 0.225, slide: 0.3, turn: 0.45 });
+    // Readings of holes and overhang alone leave the fits and their nozzle alone.
+    expect(applyReadings(pla, { ...none, overhang: 55 }, 0.6).material).toEqual({ ...pla, overhang: 55 });
+  });
+});
