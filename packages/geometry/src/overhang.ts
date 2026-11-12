@@ -6,6 +6,8 @@
  * print direction from M7's orientation comes later.
  */
 
+import { layersOf } from './layers';
+
 export const Overhang = { Fine: 0, Bed: 1, Borderline: 2, Support: 3 } as const;
 export type Overhang = (typeof Overhang)[keyof typeof Overhang];
 
@@ -139,7 +141,9 @@ interface Rim {
  * Overhang triangles that are small, so that they need no support.
  *
  * A patch (overhang triangles joined by edges) hangs from its anchors: the rims where the surface
- * goes on downwards into material that stands (`standing`). A point of it holds when it lies within
+ * goes on downwards into material that stands. What stands is cut in layers from the bed up
+ * (layers.ts); a surface that is not closed has no layers and is followed along its faces instead
+ * (`standingVertices`). A point of it holds when it lies within
  * `reach` (mm, across the bed) of an anchor, the way a ledge or a thread flank hangs from its wall,
  * or when it is bridged: across the patch, in the one direction the slicer would lay the bridge,
  * the nearest rim on both sides is an anchor and the two are no more than a span apart
@@ -198,14 +202,45 @@ function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, do
     }
   }
 
-  const standing = standingVertices({ count, vertices, x, y, z, at, down, isSupport, edges, reach, bedZ });
+  // What stands: cut in layers where the body is closed, else followed along the surface.
+  const layers = layersOf({ count, vertices, x, y, z, at }, bedZ, Math.min(50, sinSupport / Math.sqrt(Math.max(1e-9, 1 - sinSupport * sinSupport))) + 1e-3);
+  const standing = layers ? undefined : standingVertices({ count, vertices, x, y, z, at, down, isSupport, edges, reach, bedZ });
+  /**
+   * The rim of a patch along one edge, from `a` to `b`: it is an anchor where the neighbour goes on
+   * downwards (`third`) into material that stands, or where the edge lies on the bed. In layers that
+   * is asked along the edge, so a rim that is held at one end only is an anchor there only.
+   */
+  const rimsOf = (a: number, b: number, third: number, ease: () => number): Rim[] => {
+    const whole = (anchor: boolean): Rim[] => [{ ax: x(a), ay: y(a), bx: x(b), by: y(b), anchor, ease: anchor ? ease() : 0 }];
+    if (Math.max(z(a), z(b)) <= bedZ + BED_TOLERANCE) return whole(true);
+    if (!(z(third) < Math.min(z(a), z(b)) - WELD)) return whole(false);
+    if (!layers) return whole(standing?.(third) ?? false);
+    const pieces = Math.max(1, Math.min(64, Math.ceil(Math.hypot(x(b) - x(a), y(b) - y(a), z(b) - z(a)) / (reach / 2))));
+    const along = (s: number): [number, number, number] => [x(a) + s * (x(b) - x(a)), y(a) + s * (y(b) - y(a)), z(a) + s * (z(b) - z(a))];
+    const rims: Rim[] = [];
+    let from = 0;
+    let last: boolean | undefined;
+    for (let i = 0; i <= pieces; i += 1) {
+      const anchor = i < pieces ? layers.held(...along((i + 0.5) / pieces)) : undefined;
+      if (anchor === last) continue;
+      if (last !== undefined) {
+        const [[ax, ay], [bx, by]] = [along(from / pieces), along(i / pieces)];
+        rims.push({ ax, ay, bx, by, anchor: last, ease: last ? ease() : 0 });
+      }
+      from = i;
+      last = anchor;
+    }
+    return rims;
+  };
 
+  // The patches: support triangles joined by edges, each with the edges where it ends.
+  const patches: { patch: number[]; ends: [number, number, number, number, number, number][]; top: number }[] = [];
   const seen = new Uint8Array(count);
   for (let start = 0; start < count; start += 1) {
     if (seen[start] || !isSupport(start)) continue;
-    // One patch: support triangles joined by edges, and the rims where it ends.
     const patch: number[] = [];
-    const rims: Rim[] = [];
+    const ends: [number, number, number, number, number, number][] = [];
+    let top = -Infinity;
     const queue = [start];
     seen[start] = 1;
     while (queue.length > 0) {
@@ -214,6 +249,7 @@ function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, do
       for (let k = 0; k < 3; k += 1) {
         const a = at(t, k);
         const b = at(t, (k + 1) % 3);
+        top = Math.max(top, z(a));
         const list = edges.get(edgeKey(a, b)) ?? [];
         for (let i = 0; i < list.length; i += 2) {
           const other = list[i] ?? 0;
@@ -226,15 +262,20 @@ function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, do
             }
             continue;
           }
-          // The neighbour goes on downwards from this edge to material that stands, or the edge
-          // lies on the bed: the patch hangs from material here.
-          const anchor = (z(third) < Math.min(z(a), z(b)) - WELD && standing(third)) || Math.max(z(a), z(b)) <= bedZ + BED_TOLERANCE;
-          rims.push({ ax: x(a), ay: y(a), bx: x(b), by: y(b), anchor, ease: anchor ? easeOf(x(at(t, (k + 2) % 3)), y(at(t, (k + 2) % 3)), x(a), y(a), x(b), y(b), down[t] ?? 0, down[other] ?? 0, sinSupport) : 0 });
+          ends.push([a, b, third, t, other, at(t, (k + 2) % 3)]);
         }
       }
     }
+    patches.push({ patch, ends, top });
+  }
+  // Lowest first: what a bridge carries is known before the patches above it ask.
+  if (layers) patches.sort((a, b) => a.top - b.top);
+  for (const { patch, ends, top } of patches) {
+    const rims = ends.flatMap(([a, b, third, t, other, far]) => rimsOf(a, b, third, () => easeOf(x(far), y(far), x(a), y(a), x(b), y(b), down[t] ?? 0, down[other] ?? 0, sinSupport)));
     if (!rims.some((rim) => rim.anchor)) continue;
-    for (const t of heldTriangles(patch, rims, { x, y, at, down, edges, edgeKey, reach, arch })) small.add(t);
+    const { held, bridged } = heldTriangles(patch, rims, { x, y, at, down, edges, edgeKey, reach, arch }, layers !== null);
+    for (const t of held) small.add(t);
+    if (layers && bridged.length > 0) layers.bridge(top, bridged.flatMap((t) => [0, 1, 2].flatMap((k) => [x(at(t, k)), y(at(t, k))])));
   }
   return small;
 }
@@ -272,7 +313,7 @@ interface Surface {
 }
 
 /**
- * Which vertices stand on something, found in one flood from the bed: upwards along the surface,
+ * Which vertices stand on something, for a surface that is not closed, found in one flood from the bed: upwards along the surface,
  * never down, and across overhang only as far as a small overhang reaches (a thread flank carries
  * the next turn, a shelf carries neither a lip at its tip nor a wall on it). A face that looks up stands when the
  * underside of the material straight below it does: the floor of a box, the back of a hook not.
@@ -414,7 +455,7 @@ interface PatchSurface {
 }
 
 /** The triangles of one patch that hold: near an anchor, or bridged in the patch's one direction. */
-function heldTriangles(patch: readonly number[], rims: readonly Rim[], { x, y, at, down, edges, edgeKey, reach, arch }: PatchSurface): number[] {
+function heldTriangles(patch: readonly number[], rims: readonly Rim[], { x, y, at, down, edges, edgeKey, reach, arch }: PatchSurface, wantBridged: boolean): { held: number[]; bridged: number[] } {
   // The rims in grids in plan: what a point can hang from lies in the cells around it. The anchors
   // in cells as wide as a small overhang reaches, all rims in cells a bridge span wide.
   const gridOf = (cell: number, wanted: (rim: Rim) => boolean) => {
@@ -538,7 +579,13 @@ function heldTriangles(patch: readonly number[], rims: readonly Rim[], { x, y, a
   const best = lost.indexOf(Math.min(...lost));
   const direction = directions[best];
   const failed = (t: number) => (direction ? (fails.get(t)?.[best] ?? false) : !(nearAll.get(t) ?? false));
-  if (direction ? (lost[best] ?? 0) === 0 : lostNear === 0) return [...patch];
+  // Of what holds, the triangles that are bridged all over: a triangle that only lies near an anchor
+  // is a small overhang, and carries nothing.
+  const result = (held: number[]) => ({
+    held,
+    bridged: wantBridged && direction ? held.filter((t) => !(nearAll.get(t) ?? false) || sampled(t).points.every(([px, py]) => bridged(px, py, direction[0], direction[1], sampled(t).span))) : [],
+  });
+  if (direction ? (lost[best] ?? 0) === 0 : lostNear === 0) return result([...patch]);
 
   // What fails, and the arm it hangs on: the triangles next to it that lie near an anchor but are
   // no part of a bridge themselves.
@@ -559,7 +606,7 @@ function heldTriangles(patch: readonly number[], rims: readonly Rim[], { x, y, a
       }
     }
   }
-  return patch.filter((t) => !hanging.has(t));
+  return result(patch.filter((t) => !hanging.has(t)));
 }
 
 /**

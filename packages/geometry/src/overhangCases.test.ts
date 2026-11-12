@@ -288,20 +288,11 @@ const holes: [number, number, 'free' | 'reported'][] = [
 
 /**
  * The cases the check still gets wrong (third review, measured on the check as committed): they
- * run as expected failures, so that the one that comes right says so. The first ten are overhangs
- * that pass as printable, the rest printable shapes that are reported.
+ * run as expected failures, so that the one that comes right says so. All are printable shapes that
+ * are reported; the overhangs that passed as printable (a lip or an apron held by a cheek only, the
+ * stairs) come right since what stands is cut in layers (layers.ts).
  */
 const OPEN = new Set([
-  'the same with a cheek at one end, 30 long: the lip stands only at the cheek',
-  'the same, 100 long',
-  'the same with a cheek at the back',
-  'an apron 60 long between two cheeks',
-  'stair 1.7 per 1 (60°)',
-  'stair 1.8 per 1 (61°)',
-  'stair 1.7 per 0.2 (83°)',
-  'stair 1.7 per 0.05 (88°), 40 steps',
-  'stair 1 per 0.2 (79°), 40 steps',
-  'stair 1.7 out, then a riser leaning 44°',
   'L channel 8 wide',
   'cross of two channels 8 wide',
   'T of two channels 8 wide',
