@@ -2976,6 +2976,9 @@ test('a built text is picked as a whole and changed afterwards: words, height an
     await expect(async () => {
       const [x, y] = spots[spot++ % spots.length] ?? [0.5, 0.5];
       await page.keyboard.press('Escape');
+      // Again each time: the first key 7 is lost when the view was not ready for it, and every click then misses.
+      await page.keyboard.press('7');
+      await page.waitForTimeout(700);
       await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
       await expect(page.getByTestId('logo-text')).toBeVisible({ timeout: 3000 });
     }, 'the built text under a click').toPass({ timeout: 60_000, intervals: [500] });
@@ -3001,6 +3004,9 @@ test('a built text is picked as a whole and changed afterwards: words, height an
     await expect(async () => {
       const [x, y] = spots[spot++ % spots.length] ?? [0.5, 0.5];
       await page.keyboard.press('Escape');
+      // Again each time: the first key 7 is lost when the view was not ready for it, and every click then misses.
+      await page.keyboard.press('7');
+      await page.waitForTimeout(700);
       await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
       await expect(page.getByTestId('logo-words').getByRole('textbox')).toHaveValue('AB', { timeout: 3000 });
     }, 'the changed text under a click').toPass({ timeout: 60_000, intervals: [500] });
@@ -3119,6 +3125,8 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
         return count;
       });
     expect(await turned()).toBe(0);
+    // Not while a trial still shows "rebuilding": the revision that stands is what the test compares with.
+    await expect(page.getByTestId('connection-status')).toHaveText(/Revision \d+/, { timeout: 30_000 });
     const revision = await page.getByTestId('connection-status').textContent();
     const track = await page.getByTestId('joint-value').locator('.relative').first().boundingBox();
     if (!track) throw new Error('the slider has no track');
@@ -3189,6 +3197,8 @@ test('a hinge plays in the view, stops where SolidCraft found the parts touching
       await page.keyboard.press('Escape');
       await expect(findings).toBeHidden({ timeout: 1000 });
     }).toPass({ timeout: 15_000 });
+    // Not while a trial still shows "rebuilding": the revision that stands is what the test compares with.
+    await expect(page.getByTestId('connection-status')).toHaveText(/Revision \d+/, { timeout: 30_000 });
     const revision = await page.getByTestId('connection-status').textContent();
     // One click plays it: down to its limit first (the longer way), then up until the parts touch.
     await page.getByTestId('joints-play').click();
