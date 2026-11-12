@@ -20,7 +20,7 @@ describe('the standards the assistant looks up', () => {
     const feet = String((await tools.callTool('partbuddy_standard', { topic: 'feet' })).content[0]?.text);
     expect(feet).toContain('Feet and what a part stands on. Design it yourself by these rules');
     expect(feet).toContain('SJ5003 11.1 × 5.0');
-    expect(feet).toContain('None of this has been printed by PartBuddy yet.');
+    expect(feet).toContain('None of this has been printed by PartBuddy yet, and the print check does not test these rules');
     expect(await tools.callTool('partbuddy_standard', { topic: 'gear' })).toMatchObject({ isError: true, content: [{ text: `topic must be one of ${STANDARD_TOPICS.join(', ')}` }] });
     expect(await tools.callTool('inspect_design', {})).toMatchObject({ content: [{ text: 'upstream inspect_design' }] });
     expect(decide('partbuddy_standard', { topic: 'feet' })).toEqual({ allow: true });
