@@ -4,7 +4,7 @@ import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import { activated, hingeOf, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -14,11 +14,17 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     const steps = all.filter((step) => step.command === 'solid.cylinder');
     // Lying, the bore gets a roof: flanks at 45° from the bore (radius 1.9 mm) and a flat 1.05 radii up, cut through the flap along the whole line.
     const roof = all.filter((step) => step.command !== 'solid.cylinder');
-    expect(roof.map((step) => step.command)).toEqual(['sketch.create', 'sketch.line', 'solid.extrude']);
+    expect(roof.map((step) => step.command)).toEqual(['sketch.create', 'sketch.line', 'solid.extrude', 'sketch.create', 'sketch.line', 'solid.extrude']);
     expect(roof[0]?.params.plane).toEqual({ origin: [42, -0.4, 3], x_dir: [-1, 0, 0], y_dir: [0, 0, 1] });
     expect(roof[1]?.params.points).toEqual([[-1.344, 1.344], [1.344, 1.344], [0.692, 1.995], [-0.692, 1.995]]);
     expect(roof[2]?.params).toMatchObject({ distance: '30.8 mm', operation: 'cut', targets: ['Flap'], name: 'Hinge △' });
-    // Upright, a round bore prints as it is.
+    // Lying, the pin is flat underneath inside the flap's knuckle, where it has only the gap below it: cut off where it leans 45°
+    // (1.061 mm under the axis of a 3 mm pin), from one of the base's knuckles to the other, 10.533 mm.
+    expect(roof[3]?.params.plane).toEqual({ origin: [42, 9.733, 3], x_dir: [-1, 0, 0], y_dir: [0, 0, 1] });
+    expect(roof[4]?.params.points).toEqual([[-1.5, -1.061], [1.5, -1.061], [1.5, -1.7], [-1.5, -1.7]]);
+    expect(roof[5]?.params).toMatchObject({ distance: '10.533 mm', operation: 'cut', targets: ['Base'], name: 'Hinge 2 ▬' });
+    expect(pinBridge(spec)).toBe(10.533);
+    // Upright, a round bore prints as it is, and so does the pin.
     expect(hingeSteps({ ...spec, from: [0, 0, 0], to: [0, 0, 30] }).every((step) => step.command === 'solid.cylinder')).toBe(true);
     expect(steps.map((step) => [step.params.operation, (step.params.targets as string[])[0], step.params.diameter, step.params.height])).toEqual([
       // Room for the knuckles: a gap wider all round and a gap longer at both ends, past the ends of the hinge line too.
@@ -54,7 +60,11 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     const args = { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [0, 0, 3], to: [0, 60, 3] };
     // 60 mm of line: seven knuckles, so none is longer than 10 mm.
     expect(hingeOf(args, 0.4)).toMatchObject({ diameter: 6, gap: 0.4, knuckles: 7, name: 'Hinge' });
-    expect(hingeOf({ ...args, to: [0, 30, 3] }, 0.4)).toMatchObject({ knuckles: 3 });
+    // 30 mm of line: three knuckles would have the pin bridge 10.5 mm inside the middle one (9.7 mm and a gap on each side), so five.
+    expect(hingeOf({ ...args, to: [0, 30, 3] }, 0.4)).toMatchObject({ knuckles: 5 });
+    expect(hingeOf({ ...args, to: [0, 28, 3] }, 0.4)).toMatchObject({ knuckles: 3 });
+    // Upright, the pin stands and bridges nothing: three knuckles of 9.7 mm.
+    expect(hingeOf({ ...args, to: [0, 0, 33] }, 0.4)).toMatchObject({ knuckles: 3 });
     expect(hingeOf({ ...args, to: [0, 200, 3] }, 0.4)).toMatchObject({ knuckles: 9 });
     expect(hingeOf(args, 0.2)).toMatchObject({ gap: 0.3 });
     expect(hingeOf({ ...args, to: [0, 0, 3] }, 0.4)).toBe('from and to must be two points');
@@ -107,13 +117,13 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     const built = await tools.callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], name: 'Lid hinge' });
     expect(built.isError).toBeUndefined();
     expect(built.content[0]).toMatchObject({
-      text: expect.stringContaining('Built the hinge "Lid hinge" between Base (stays) and Flap (turns): 3 knuckles, barrel 6 mm, pin 3 mm, gap 0.4 mm everywhere. It turns from -145° to 67° before the bodies meet') as string,
+      text: expect.stringContaining('Built the hinge "Lid hinge" between Base (stays) and Flap (turns): 5 knuckles, barrel 6 mm, pin 3 mm, gap 0.4 mm everywhere. It turns from -145° to 67° before the bodies meet') as string,
     });
     expect(batches.map((batch) => batch.map((step) => step.command).join(' '))).toEqual([
       'component.list joint.list',
       // Where the line lies, measured on trial with a rod that is taken back.
       'solid.cylinder inspect.clearance inspect.measure sketch.inspect',
-      [...Array.from({ length: 7 }, () => 'solid.cylinder'), 'sketch.create', 'sketch.line', 'solid.extrude', 'solid.cylinder'].join(' '),
+      [...Array.from({ length: 11 }, () => 'solid.cylinder'), 'sketch.create', 'sketch.line', 'solid.extrude', 'solid.cylinder', ...Array.from({ length: 2 }, () => ['sketch.create', 'sketch.line', 'solid.extrude']).flat()].join(' '),
       'inspect.interference',
       'component.list',
       'component.from_bodies component.list',
@@ -124,22 +134,33 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(batches[6]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
     expect(batches[8]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
 
-    // Webs: with the line 16 mm above the bed and 2.5 mm from either wall, every knuckle gets a profile from under the barrel (a gap
-    // short of the other wall) at 45° down to its own wall, 0.5 mm into it; on the bed (the line a radius above it) none is needed.
+    // Webs: with the line 16 mm above the bed and 2.5 mm from either wall, every knuckle gets a profile from where the barrel leans
+    // 45° on the far side (2.121 mm from the axis) at 45° down to its own wall, 0.5 mm into it; on the bed (the line a radius above it) none is needed.
     const sides = { fixed: { toward: [-1, 0, 0] as [number, number, number], distance: 2.5 }, moving: { toward: [1, 0, 0] as [number, number, number], distance: 2.5 } };
     const hung = hingeSteps({ ...spec, from: [42, 0, 16], to: [42, 30, 16], support: { bed: 0, ...sides } });
     const webs = hung.filter((step) => String(step.params.name).endsWith('◣'));
     expect(webs.map((step) => step.command)).toEqual(Array.from({ length: 3 }, () => ['sketch.create', 'solid.extrude']).flat());
     const profiles = hung.filter((step) => step.command === 'sketch.line' && (step.params.points as number[][]).length === 5);
     expect(profiles).toHaveLength(3);
-    expect(profiles[0]?.params.points).toEqual([[-2.1, 0], [-2.1, -2.142], [2.5, -6.742], [3, -6.742], [3, 0]]);
+    expect(profiles[0]?.params.points).toEqual([[-2.121, 0], [-2.121, -2.121], [2.5, -6.743], [3, -6.743], [3, 0]]);
+    expect(webFoot(6, 2.5)).toBe(6.743);
+    // Audit 2026-11-12, N-mechanik-4: a web that ended a gap before the other body left the far half of each barrel hanging
+    // (90 mm² of overhang at 6 mm, 619 mm² at 40 mm). It now passes under the whole barrel, and the other body is cut back
+    // for it by the same profile a gap further out, up to a gap before the knuckle's own wall and as long as the knuckle's room.
+    const rooms = hung.filter((step) => String(step.params.name).endsWith('◤'));
+    expect(rooms.filter((step) => step.command === 'solid.extrude').map((step) => [step.params.operation, (step.params.targets as string[])[0], step.params.distance])).toEqual([['cut', 'Flap', '10.533 mm'], ['cut', 'Base', '10.533 mm'], ['cut', 'Flap', '10.533 mm']]);
+    expect(hung[hung.findIndex((step) => step.params.name === 'Hinge 1 ◤') + 1]?.params.points).toEqual([[-2.404, 0], [-2.404, -2.404], [2.1, -6.908], [2.1, 0]]);
+    expect(hung.findIndex((step) => step.params.name === 'Hinge 1 ◤')).toBeLessThan(hung.findIndex((step) => step.params.name === 'Hinge 1 ◣'));
+    // N-mechanik-5: a body whose wall does not reach down to the web's foot is left out of `support`, and gets neither web nor room for one.
+    const half = hingeSteps({ ...spec, from: [42, 0, 16], to: [42, 30, 16], support: { bed: 0, fixed: sides.fixed } });
+    expect(half.filter((step) => step.command === 'solid.extrude' && /[◣◤]$/.test(String(step.params.name))).map((step) => step.params.name)).toEqual(['Hinge 1 ◤', 'Hinge 1 ◣', 'Hinge 3 ◤', 'Hinge 3 ◣']);
     expect(webs.filter((step) => step.command === 'solid.extrude').map((step) => (step.params.targets as string[])[0])).toEqual(['Base', 'Flap', 'Base']);
     // The fixed body lies towards -x: its profile is drawn from the far end of the knuckle, so it is extruded back along the line.
     expect(webs[0]?.params.plane).toMatchObject({ x_dir: [-1, 0, 0], y_dir: [0, 0, 1] });
     // The webs come before the bore, which goes through those of the flap.
     expect(hung.findIndex((step) => step.params.name === 'Hinge ○')).toBeGreaterThan(hung.findIndex((step) => step.params.name === 'Hinge 2 ◣'));
     // Near the bed the web ends on it instead of going below.
-    expect(hingeSteps({ ...spec, from: [42, 0, 6], to: [42, 30, 6], support: { bed: 0, ...sides } }).find((step) => step.command === 'sketch.line' && (step.params.points as number[][]).length === 5)?.params.points).toEqual([[-2.1, 0], [-2.1, -2.142], [1.758, -6], [3, -6], [3, 0]]);
+    expect(hingeSteps({ ...spec, from: [42, 0, 6], to: [42, 30, 6], support: { bed: 0, ...sides } }).find((step) => step.command === 'sketch.line' && (step.params.points as number[][]).length === 5)?.params.points).toEqual([[-2.121, 0], [-2.121, -2.121], [1.757, -6], [3, -6], [3, 0]]);
     expect(hingeSteps({ ...spec, support: { bed: 0, ...sides } }).some((step) => String(step.params.name).endsWith('◣'))).toBe(false);
     // The rooms of the knuckles: 3.4 mm about a line 2.5 mm from a face go 0.9 mm into it. A 1.8 mm wall keeps two lines, a 1.6 mm wall
     // would keep a skin of 0.7 mm and is refused with what to change; a wall the room goes through is a window, and fine.
@@ -162,7 +183,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
       listTools: () => Promise.resolve([]),
       callTool: (name, args) => {
         calls.push(name);
-        // Before: three steps to undo. Of the cylinders the five knuckles (48 mm of hinge line) do not touch their body, as SolidCraft 0.40.0-rc.3 warns.
+        // Before: three steps to undo. Of the cylinders the seven knuckles (48 mm of hinge line) do not touch their body, as SolidCraft 0.40.0-rc.3 warns.
         if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Box' }, { name: 'Lid' }], undo: 3 }) }] });
         const commands = args.commands as { command: string; params: { operation?: string; diameter?: string } }[];
         calls.push(...commands.filter((step) => step.command === 'edit.undo').map((step) => step.command));
@@ -179,7 +200,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Box', moving: 'Lid', from: [0, 43.4, 3], to: [48, 43.4, 3] });
     expect(built.isError).toBe(true);
     expect(built.content[0]).toMatchObject({
-      text: 'Not built: 5 piece(s) did not touch their body and stand apart from it. Put the hinge line within 2.5 mm of both bodies (the barrel is 6 mm, so it must overlap each by at least 0.5 mm). ' +
+      text: 'Not built: 7 piece(s) did not touch their body and stand apart from it. Put the hinge line within 2.5 mm of both bodies (the barrel is 6 mm, so it must overlap each by at least 0.5 mm). ' +
         "PartBuddy cuts each knuckle's room in the other body itself. Everything was taken back.",
     });
     // Every step SolidCraft counted since (11 − 3) is undone in one batch, and no joint was made.
@@ -212,7 +233,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     };
     const taken = tools((depth) => depth);
     expect(await taken.call()).toEqual({ isError: true, content: [{ type: 'text', text: 'Not built: SolidCraft refused joint.as_built: invalid parameters for `joint.create`: a joint needs two different occurrences. Everything was taken back.' }] });
-    expect(taken.sent.at(-1)).toBe(Array.from({ length: 9 }, () => 'edit.undo').join(' '));
+    expect(taken.sent.at(-1)).toBe(Array.from({ length: 10 }, () => 'edit.undo').join(' '));
     expect(taken.depth()).toBe(2);
     // A second call starts from the same design: it does not build on top of the first.
     await taken.call();
@@ -259,13 +280,61 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(guide.content[0]).toMatchObject({ text: expect.not.stringContaining('already joins') as string });
   });
 
+  // Audit 2026-11-12, N-mechanik-4 and -5: "stand on webs …, so they print without support" stood over 90 to 619 mm² of
+  // overhang the print check still found, and over a web that hung 4.6 mm under a lid plate with no wall below it.
+  it('gives a web only to a body whose wall reaches the web\'s foot, and says what prints without support only where it holds', async () => {
+    // Two blocks 16 mm high, 5 mm apart, the line on their rims: the rod on the line is 2.45 mm from either wall.
+    const answer = async (walls: string[], args: Record<string, unknown> = {}) => {
+      const sent: { command: string; params: Record<string, unknown> }[] = [];
+      const upstream: UpstreamTools = {
+        instructions: () => undefined,
+        listTools: () => Promise.resolve([]),
+        callTool: (name, call) => {
+          if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Flap' }], undo: 2 }) }] });
+          const commands = call.commands as { command: string; params: Record<string, unknown> }[];
+          sent.push(...commands);
+          const rods = commands.filter((step) => step.command === 'solid.cylinder' && String(step.params.body_name).startsWith('PartBuddy probe '));
+          const results = commands.map((step) => {
+            if (step.command === 'inspect.measure') return { bodies: [{ bbox: { min: [0, 0, 0] } }, { bbox: { min: [45, 0, 0] } }] };
+            if (step.command === 'component.list') return { components: [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ id: 4, name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ id: 6, name: 'Flap:1' }] }] };
+            if (step.command !== 'inspect.clearance') return {};
+            // The second trial: each rod lies in its body where that body has a wall under the web's foot (a rod 0.2 mm thick and 30 mm long is 0.942 mm³).
+            if (rods.length > 0) return { overlaps: rods.flatMap((rod) => (walls.some((body) => String(rod.params.body_name).endsWith(body === 'Base' ? 'fixed' : 'moving')) ? [{ a: rod.params.body_name, b: String(rod.params.body_name).endsWith('fixed') ? 'Base' : 'Flap', volume_mm3: 0.94 }] : [])), near: [] };
+            return { near: [{ a: 'PartBuddy probe', b: 'Base', distance_mm: 2.45, from: [42.5, 15, 16], to: [40, 15, 16] }, { a: 'PartBuddy probe', b: 'Flap', distance_mm: 2.45, from: [42.5, 15, 16], to: [45, 15, 16] }] };
+          });
+          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
+        },
+      };
+      const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42.5, 0, 16], to: [42.5, 30, 16], ...args });
+      return { text: String(built.content[0]?.text), sent, webs: sent.filter((step) => step.command === 'solid.extrude' && String(step.params.name).endsWith('◣')).map((step) => (step.params.targets as string[])[0]) };
+    };
+    const both = await answer(['Base', 'Flap']);
+    expect(both.webs).toEqual(['Base', 'Flap', 'Base', 'Flap', 'Base']);
+    expect(both.text).toContain(' All 5 knuckles start above the bed and stand on webs at 45° that run from under the barrel down to their own wall, and the pin is flat underneath where it bridges from knuckle to knuckle, so the hinge prints as it stands, without support. ');
+    // Each rod lies 0.25 mm inside its wall and 0.2 mm under the web's foot, 6.743 mm below the line: at z = 9.057.
+    const rods = both.sent.filter((step) => String(step.params.body_name).startsWith('PartBuddy probe '));
+    expect(rods.map((step) => (step.params.base as number[]).map((value) => Math.round(value * 1000) / 1000))).toEqual([[39.75, 0, 9.057], [45.25, 0, 9.057]]);
+    // The flap's wall ends above that: no web is drawn into the air under it, and the answer names what is left.
+    const one = await answer(['Base']);
+    expect(one.webs).toEqual(['Base', 'Base', 'Base']);
+    expect(one.text).not.toContain('without support');
+    expect(one.text).toContain(' The knuckles start above the bed, and the 2 of Flap got no web: a web meets its wall 6.743 mm below the line at the most, and there is no wall there. They need support, or a wall that reaches down that far before the hinge is built. The 3 knuckles of Base stand on webs at 45° that run from under the barrel down to their own wall. ');
+    const none = await answer([]);
+    expect(none.webs).toEqual([]);
+    expect(none.text).toContain('the 3 of Base and the 2 of Flap got no web');
+    // Three knuckles asked for on 30 mm: the pin bridges 10.5 mm inside the middle one, and the answer does not call that clean.
+    const wide = await answer(['Base', 'Flap'], { knuckles: 3 });
+    expect(wide.text).not.toContain('without support');
+    expect(wide.text).toContain('where it bridges from knuckle to knuckle. The pin bridges 10.5 mm inside each knuckle of Flap, more than prints clean (10 mm): use more knuckles.');
+  });
+
   it('builds onto a body that is a component with that component active, so the knuckles move with it', () => {
     // The flap is a component already (a second mechanism, or the assistant made components first); the base is not.
     const listing = { active: 0, components: [{ id: 0, parent: null, bodies: ['Base'] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ name: 'Flap:1' }] }] };
     const steps = activated(hingeSteps(spec), listing);
     const target = (step: { command: string; params: Record<string, unknown> }) => (step.command === 'component.activate' ? `activate ${String(step.params.component)}` : ((step.params.targets as string[] | undefined)?.[0] ?? step.command));
     // The roof's sketch is drawn with the flap active, as the bore before it and the cut after it.
-    expect(steps.map(target)).toEqual(['activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'sketch.create', 'sketch.line', 'Flap', 'activate 0', 'Base']);
+    expect(steps.map(target)).toEqual(['activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'activate 0', 'Base', 'activate 5', 'Flap', 'sketch.create', 'sketch.line', 'Flap', 'activate 0', 'Base', 'sketch.create', 'sketch.line', 'Base']);
     // Nothing is a component: the steps as they are.
     expect(activated(hingeSteps(spec), { components: [{ id: 0, parent: null, bodies: ['Base', 'Flap'] }] })).toEqual(hingeSteps(spec));
     // A guide's sketch belongs to the component of the extrusion that uses it, and the design level is active again at the end.

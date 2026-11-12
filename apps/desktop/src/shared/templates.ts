@@ -90,17 +90,21 @@ function hingedBox(): Step[] {
       name: 'Closure',
     }),
     // The hinge of the mechanism tool, built at the starting sizes, then tied to the parameters.
-    ...hingeSteps({ fixed: 'Box', moving: 'Lid', from: [start, between / 2, height], to: [start + hinge, between / 2, height], diameter, gap, knuckles, name: 'Hinge' }).map((step) => {
-      // The bore's roof is drawn in the world's own y and z and moved along x, so it follows the sizes as the cylinders do.
-      if (step.command === 'sketch.create') return { ...step, params: { ...step.params, plane: 'YZ', offset: `length / 2 + ${String(start - gap - length / 2)} mm` } };
-      if (step.command === 'sketch.line') return { ...step, params: { ...step.params, points: (step.params.points as [number, number][]).map(([across, up]) => [`${String(between / 2 + across)} mm`, `height + ${String(up)} mm`]) } };
+    ...hingeSteps({ fixed: 'Box', moving: 'Lid', from: [start, between / 2, height], to: [start + hinge, between / 2, height], diameter, gap, knuckles, name: 'Hinge' }).map((step, i, steps) => {
+      // The profiles (the bore's roof, the pin's flat, and webs where the hinge has them) are drawn in the world's own y and z and
+      // moved along x, so they follow the sizes as the cylinders do. One drawn looking back along x is turned round:
+      // it starts where its extrusion ended.
+      const drawn = (steps[step.command === 'sketch.create' ? i : i - 1]?.params.plane ?? {}) as { origin?: Vec3; x_dir?: Vec3 };
+      const back = (drawn.x_dir?.[1] ?? 1) < 0;
+      if (step.command === 'sketch.create') return { ...step, params: { ...step.params, plane: 'YZ', offset: `length / 2 + ${String(Math.round(((drawn.origin?.[0] ?? 0) - (back ? parseFloat(String(steps[i + 2]?.params.distance)) : 0) - length / 2) * 1000) / 1000)} mm` } };
+      if (step.command === 'sketch.line') return { ...step, params: { ...step.params, points: (step.params.points as [number, number][]).map(([across, up]) => [`${String(between / 2 + (back ? -across : across))} mm`, `height + ${String(up)} mm`]) } };
       if (step.command !== 'solid.cylinder') return step;
       const [x, y] = step.params.base as Vec3;
       return { ...step, params: { ...step.params, base: [`length / 2 + ${String(x - length / 2)} mm`, y, 'height'] } };
     }),
     components('Box', 'Lid'),
-    // It closes all the way: the bead pressing past the box's rim on the last degrees is the snap. The joint is kept under the pin and on the bore round it, inside the lid's first knuckle: faces no wall or lip cuts, whatever the sizes.
-    joint('revolute', 'Box', 'Lid', { fixed: { circle: [far, between / 2, height - pin / 2], x: [0, 0, 1] }, moving: { circle: [far, between / 2, height - pin / 2 - gap], x: [0, 0, 1] } }, { flip: true, offset: -gap, limits: [[0, 180]] }, 'Hinge'),
+    // It closes all the way: the bead pressing past the box's rim on the last degrees is the snap. The joint is kept on top of the pin (underneath it is flat) and on the bore under it, inside the lid's first knuckle: faces no wall or lip cuts, whatever the sizes.
+    joint('revolute', 'Box', 'Lid', { fixed: { circle: [far, between / 2, height + pin / 2], x: [0, 0, 1] }, moving: { circle: [far, between / 2, height - pin / 2 - gap], x: [0, 0, 1] } }, { flip: true, offset: -gap, limits: [[0, 180]] }, 'Hinge'),
   ];
 }
 
@@ -385,7 +389,7 @@ const GERMAN_FEATURES: Record<string, string> = {
 
 /** "Ear slot 2 end 1" → "Laschenschlitz 2 Ende 1": the base from the list, numbers and a mechanism's mark (·, ○, ● …) kept. */
 export function germanFeatureName(name: string): string {
-  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)((?: [·○●◢◆◠△])?)$/.exec(name);
+  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)((?: [·○●◢◆◠△◣◤▬])?)$/.exec(name);
   const base = match?.[1] ?? name;
   const german = GERMAN_FEATURES[base];
   if (german === undefined) return name;

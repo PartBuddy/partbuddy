@@ -3243,8 +3243,8 @@ test('a hinge whose knuckles start above the bed carries them on webs at 45°: o
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a hinged case');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the hinge "Case hinge" between Base \(stays\) and Flap \(turns\): 3 knuckles/)).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(/3 knuckles start above the bed and stand on webs at 45° down to their own walls/)).toBeVisible();
+    await expect(page.getByText(/Built the hinge "Case hinge" between Base \(stays\) and Flap \(turns\): 5 knuckles/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/All 5 knuckles start above the bed and stand on webs at 45° that run from under the barrel down to their own wall, and the pin is flat underneath where it bridges from knuckle to knuckle, so the hinge prints as it stands, without support./)).toBeVisible();
     // With the webs the flap still folds all the way onto the base.
     await expect(page.getByText(/It turns from -179° to/)).toBeVisible();
     await expect(page.getByText(/Warning:/)).toHaveCount(0);
@@ -3254,8 +3254,8 @@ test('a hinge whose knuckles start above the bed carries them on webs at 45°: o
     const findings = page.getByTestId('print-check-panel');
     await expect(findings).toBeVisible();
     await page.waitForTimeout(1500);
-    // What is left hanging is the pin where it bridges the gaps between the knuckles.
-    await expect(findings.locator('[data-kind="overhang"]')).toContainText('25 mm²');
+    // Nothing is left hanging: the webs pass under the whole barrel, and the pin is flat where it bridges 6.5 mm from knuckle to knuckle.
+    await expect(findings.locator('[data-kind="overhang"]')).toHaveCount(0);
     await expect(findings.locator('[data-kind="blocked"], [data-kind="overlap"], [data-kind="thinWall"]')).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('case-hinge.png') });
   } finally {
@@ -3284,7 +3284,7 @@ test('the assistant builds a print-in-place hinge with one call: one piece per b
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a hinged flap');
     await page.getByRole('button', { name: 'Send' }).click();
     // PartBuddy's answer to the tool: the gap is the nozzle of the printer in use, and the limits are where the plates meet.
-    await expect(page.getByText(/Built the hinge "Flap hinge" between Base \(stays\) and Flap \(turns\): 3 knuckles, barrel 6 mm, pin 3 mm, gap 0\.4 mm everywhere\. It turns from -145° to 67°/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Built the hinge "Flap hinge" between Base \(stays\) and Flap \(turns\): 5 knuckles, barrel 6 mm, pin 3 mm, gap 0\.4 mm everywhere\. It turns from -145° to 67°/)).toBeVisible({ timeout: 60_000 });
     // The line was measured against both plates on trial, and the answer says how deep the knuckles' rooms go into each.
     // The line lies 2 mm from each plate, and a room is 3.4 mm about it.
     const rooms = page.getByText(/The knuckles' rooms go 1\.4 mm into Base and 1\.4 mm into Flap/);
@@ -3733,7 +3733,7 @@ test('a hinge whose line is out of reach of the bodies is taken back, with where
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a flap out of reach');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Not built: 3 piece\(s\) did not touch their body and stand apart from it\. Put the hinge line within 2\.5 mm of both bodies .* Everything was taken back./)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Not built: 5 piece\(s\) did not touch their body and stand apart from it\. Put the hinge line within 2\.5 mm of both bodies .* Everything was taken back./)).toBeVisible({ timeout: 60_000 });
     // The two plates are as they were: no knuckle, no cut, no joint.
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies · 12 faces', { timeout: 30_000 });
     await expect(page.getByTestId('joints')).toHaveCount(0);
