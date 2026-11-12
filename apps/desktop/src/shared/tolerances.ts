@@ -1,4 +1,5 @@
 import { FIT_KINDS, type FitKind, type MaterialProfile } from './contract';
+import { CLEARANCE_NOZZLE } from './designFit';
 
 /**
  * The steps of the test pieces the tolerance assistant makes (decided 2026-11-08): the clearance per
@@ -30,10 +31,16 @@ const isStep = (steps: readonly number[], value: number) => steps.some((step) =>
  * the mean of nominal minus measured over the holes given, on 0.05 mm. Within the profile's limits;
  * a reading that is no step, or a hole more than 1 mm off its size, is a problem and changes nothing.
  * Fits that do not grow from clamp to turn are a problem too: the user read a step wrong.
+ * The fits are read on the pieces printed with `nozzle` and hold for it: the profile remembers that
+ * nozzle, and the fits that were not read are brought over to it, so all four mean the same nozzle.
  */
-export function applyReadings(material: MaterialProfile, readings: ToleranceReadings): { material: MaterialProfile; problems: ReadingProblem[] } {
+export function applyReadings(material: MaterialProfile, readings: ToleranceReadings, nozzle?: number): { material: MaterialProfile; problems: ReadingProblem[] } {
   const problems: ReadingProblem[] = [];
-  const clearance = { ...material.clearance };
+  const from = material.measuredNozzle ?? CLEARANCE_NOZZLE;
+  // Without a nozzle (a reading taken over as it is) nothing is carried and none is remembered.
+  const measured = nozzle !== undefined && FIT_KINDS.some((fit) => readings.fits[fit] !== undefined) ? nozzle : undefined;
+  const carried = (value: number) => (measured === undefined ? value : clamp(Math.round(((value * measured) / from) * 1000) / 1000, -0.5, 2));
+  const clearance = { clamp: carried(material.clearance.clamp), push: carried(material.clearance.push), slide: carried(material.clearance.slide), turn: carried(material.clearance.turn) };
   for (const fit of FIT_KINDS) {
     const value = readings.fits[fit];
     if (value === undefined) continue;
@@ -57,5 +64,5 @@ export function applyReadings(material: MaterialProfile, readings: ToleranceRead
     if (Number.isFinite(readings.overhang) && isStep(OVERHANG_STEPS, readings.overhang)) overhang = clamp(readings.overhang, 20, 70);
     else problems.push({ field: 'overhang' });
   }
-  return { material: { ...material, overhang, holeShrink, clearance }, problems };
+  return { material: { ...material, overhang, holeShrink, clearance, ...(measured === undefined ? {} : { measuredNozzle: measured }) }, problems };
 }

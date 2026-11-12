@@ -1072,6 +1072,8 @@ export const materialProfileSchema = z
     holeShrink: range(0, 1),
     /** Clearance per side between two mating parts, per fit. */
     clearance: z.object({ clamp: range(-0.5, 2), push: range(-0.5, 2), slide: range(-0.5, 2), turn: range(-0.5, 2) }).strict(),
+    /** The nozzle the clearances were read on with the tolerance pieces; without it they are starting values for 0.4 mm. */
+    measuredNozzle: range(0.1, 2).optional(),
   })
   .strict();
 
