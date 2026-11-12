@@ -196,3 +196,17 @@ modelled M20 thread ("walls only 0.01 mm") and yellow on every thread flank and 
   narrow arm that reaches out from its end and a patch that starts in the air stay findings.
 * This is the slicers' own default rule, not the slicer-style reach R1 removed: no bridges, no
   causes, no fix buttons.
+
+## Amendment 2026-11-12: the check follows SolidCraft's print face
+
+Practice runs on 2026-11-11 showed the check warning about 4599 mm² of overhang on a lid that the
+assistant had laid on its top with `body.print_face`: the check looked at the body as designed,
+while the slicer export lays it on that face.
+
+* A body with a print face is checked **lying on that face**: size, overhang and the area on the
+  bed. A body without one is checked as designed, as before. This is SolidCraft's own face, not an
+  orientation PartBuddy works out; nothing of the withdrawn orientation logic comes back.
+* Findings still name faces and bounds where they are in the design.
+* A print face the assistant sets or clears itself is read from SolidCraft's answer and kept in
+  `print-faces.json`, like those of blocks, mechanisms and templates, so the plate view and the
+  check agree. An undo of `body.print_face` is not seen (SolidCraft does not list print faces).

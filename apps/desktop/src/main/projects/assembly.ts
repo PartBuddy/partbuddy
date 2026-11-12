@@ -39,9 +39,9 @@ export function writeAssembly(folder: string, plan: AssemblyPlan): void {
 /**
  * Print faces as PartBuddy set them (B8), by body, kept as `print-faces.json` so the plate view can
  * lay each part on its face; SolidCraft keeps the face itself but does not report it back.
- * A mechanism (a screw lid) and a template say theirs when they are built.
- * shortcut: a print face the assistant sets itself with body.print_face is not seen here; the part
- * then lies as designed. Upgrade when SolidCraft reports print faces.
+ * A mechanism (a screw lid) and a template say theirs when they are built; one the assistant sets
+ * itself is read from SolidCraft's answer (printFaceWatch.ts).
+ * shortcut: an undo of body.print_face leaves the kept face; upgrade when SolidCraft reports print faces.
  */
 export const PRINT_FACES_FILE = 'print-faces.json';
 

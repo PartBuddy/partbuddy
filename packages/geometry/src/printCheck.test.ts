@@ -83,6 +83,19 @@ describe('the ready-to-print check (M7)', () => {
     expect(table.findings.every((f) => f.severity !== 'block')).toBe(true);
   });
 
+  it('checks a body lying on its print face, and as designed when the face is not a flat one of the body', () => {
+    const table = boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]]);
+    // On its top the table has nothing hanging, and the whole top on the bed.
+    // (The test shape is two boxes, so the leg's hidden end face is all that still faces down.)
+    const onTop = checkPrint([{ ...table, printFace: 'F2:+z' }], PLA).findings;
+    expect(onTop.map((f) => f.kind)).toEqual(['overhang']);
+    expect(onTop[0]).toMatchObject({ area: 4, places: [{ body: 'Table', faces: ['F1:+z'] }] });
+    expect(checkPrint([{ ...table, printFace: 'gone' }], PLA).findings.map((f) => f.kind)).toEqual(['overhang', 'contact']);
+    // On its side the finding still names the faces where they are in the design.
+    const side = checkPrint([{ ...table, printFace: 'F2:+x' }], PLA).findings.find((f) => f.kind === 'overhang');
+    expect(side && 'box' in side ? side.box?.max[2] : null).toBeLessThanOrEqual(12);
+  });
+
   it('lays every body on the bed by itself, as the slicer does, and warns when bodies touch', () => {
     // The same table as two bodies: in the slicer the top lies on the bed apart from the leg.
     const apart = checkPrint([box('Leg', [9, 9, 0], [11, 11, 10]), box('Top', [0, 0, 10], [20, 20, 12])], PLA);
