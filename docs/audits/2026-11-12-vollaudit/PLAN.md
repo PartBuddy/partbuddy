@@ -149,6 +149,16 @@ Opus 5.5 · Mittel (PR #354); Claude Codes Eintrag „Default (recommended)“ i
 
 **Zuerst lesen:** Dieser Abschnitt ersetzt alle älteren Zeilen im Verlauf oben, wo sie sich widersprechen.
 
+### Stand 12.11.2026 abends (Folgesitzung) – ersetzt die Tabelle und den Nachtrag unten
+
+- **Gemergt:** #359 (Wettlauf V-1), #353 (Druckprüfung), #356 (Normteile).
+- **#353 – Entscheidung Manuel 12.11.2026:** mit 27 bekannten Fehlfällen von 178 gemergt (Liste `OPEN` in `packages/geometry/src/overhangCases.test.ts`, als erwartete Fehlschläge). Falsches „ready“: Treppen aus niedrigen Stufen, Tropfkante/Schürze mit Wange. Falsches „warn“: L-/T-/Kreuz-/Ringkanäle, Tunnel mit Rundung oder Schnitt, Mutterntaschen M4–M6. **Nächster eigener PR: Prüfung schichtweise neu bauen** (Teil in Schichten schneiden, je Schicht Auflage und Spannweite, `clipper2-ts`), gemessen an den 178 Fällen. Zwei verworfene Umbauten des Flächenansatzes liegen in `wip-353/` (rekursiv: läuft endlos; feste Tiefe: 44 druckbare Formen falsch gemeldet).
+- **#358 Mechanik:** drei Review-Runden eingearbeitet (Dachprobe mit Flankenstäben an der richtigen Stelle, Überlappung zweier Scharniere über die Stifte, ehrliche Texte). In CLI gemessen: SolidCraft 0.40.1 rechnet die Stab-Überlappung exakt (4e-10 bei 300 mm). Bekannte Grenzen als `shortcut:` im Code: schräge Schiene und runde/gefaste Schlitten bekommen kein Dach; umbenannter oder verschobener Stift wird nicht erkannt.
+- **#357 Regeln:** Werkzeugantwort wartet auf die Druckprüfung (bis 3 s je änderndem Aufruf, lokal 150–350 ms). Die Vertragstests warten deshalb jetzt auf das Zugende (`turnEnded`). Punkte 1–7 des 3. Reviews weiter offen (Folge-PR mit der Vereinheitlichung der Rücknahme).
+- **#360:** nur Tests – Text-Test setzt die Draufsicht vor jedem Klick neu (Taste 7 ging verloren, Ursache unbewiesen), Gelenk-Tests lesen die Revision erst, wenn nicht mehr „rebuilding“ steht. Beide Wackler traten erst am 12.11. nachmittags auf; ungeklärt, ob #359 „rebuilding“-Momente häufiger macht.
+- **Mac-Build (Manuel 12.11.2026):** Der erste Mac-Build (unsigniertes dmg) soll mit dem nächsten Update 0.3.1 erscheinen. Einordnung: nach Schritt 6 „Testversion“ unten, vor der Freigabe von Release-PR #310; eigener PR, Schritte im Gedächtnis (`vorhaben\partbuddy\mac-version.md`). Release 0.3.1 erst freigeben, wenn das dmg gebaut ist.
+- **Merke:** Nach einem Squash-Merge der Basis einen abhängigen Zweig so nachziehen: erst den echten Endstand des Basiszweigs hineinholen, dann main; Konfliktdateien, die auf main dem Basis-Endstand gleichen, mit dem Zweigstand auflösen. Konfliktliste vollständig lesen (nicht mit `tail` kürzen) – ein pauschales `checkout --theirs` hat am 12.11. Änderungen von #357 verworfen.
+
 Auf main gemergt am 12.11.2026: #346 (SolidCraft 0.40.1 Mindestversion), #347 (Einschmelz-Einsätze), #348 (Baustein auf dem genannten Körper), #349 (Messdüse), #350 (Stützen-Aussage), #351 (Kernloch-Regel), #352 (Spalt-Marke), #354 (Opus · Mittel als Standard), #355 (Baustein-Grenzen).
 
 ### Fünf offene PRs – Arbeitsverzeichnisse unter `.claude/worktrees/` NICHT aufräumen
