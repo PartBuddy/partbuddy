@@ -68,7 +68,10 @@ Befehle, neu `assembly.constraint.edit`, geänderte Parameter bei `solid.hole`, 
 - [ ] `MINIMUM_VERSION` 0.30.1: lokal gibt es dafür kein Programm mehr – entscheiden, ob die Mindestversion auf 0.40.1 steigt (Dateiformat 50 liest 0.30.1 ohnehin nicht)
 
 ### Phase 4 – Bauen und Messen
-- [ ] Mess-Harness (Werkzeuge direkt gegen echtes SolidCraft, Messung über `packages/geometry`)
+- [x] Mess-Harness `tools/audit/` (README dort; Aufruf aus `apps/desktop`: `pnpm exec vitest run --config ../../tools/audit/vitest.config.mts <fall>`)
+- [x] A-Befunde und ausgewählte B-Befunde gemessen (rc.4): 52 gemessen, 49 bestätigt, 2 teilweise (H-02, T12), 1 widerlegt (G2); 52 neue Befunde, davon 12 A (`04-messung-*.md`, Status in `BEFUNDE.md`)
+- [ ] Harness-Lücken schließen: STL/STEP wieder einlesen, Gelenk über den Weg fahren, dünnste Wand suchen, `withPrintFaces`/`partbuddy_standard`/Baugruppe einhängen, `knob`/`magnet`/`wallMount`/`templates` bauen
+- [ ] Harness auf das installierte SolidCraft 0.40.1 umstellen (statt Pfad der portablen rc.4)
 - [ ] je Prüflisten-Datei: alle Zeilen gebaut und gemessen (Status in der Prüfliste)
 - [ ] Kombinationen
 - [ ] Export wieder eingelesen
