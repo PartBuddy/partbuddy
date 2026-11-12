@@ -6,6 +6,13 @@ import type { AgentKind, AgentStatus, ModelChoice, ModelOption } from '../../sha
  * asks for that. Only what the user's plan offers can be chosen.
  */
 
+/**
+ * What Claude Code runs with until the user chooses: Opus at medium effort (Manuel, 2026-11-12), not
+ * Claude Code's own default, which is the plan's frontier model. Provisional until the models are
+ * compared on PartBuddy's own tasks (audit of 2026-11-12, phase 7).
+ */
+export const CLAUDE_STANDARD: ModelChoice = { model: 'opus', effort: 'medium' };
+
 /** Where the defaults for new chats are kept (the assistant settings file of the installation). */
 export interface ChoiceStore {
   get(route: AgentKind): ModelChoice | null;
