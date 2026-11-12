@@ -1411,7 +1411,7 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await supportFree.press('Space');
   await expect(supportFree).not.toBeChecked();
   // The design rule groups (2026-11-07) are on from the start; each turns off on its own.
-  for (const rule of ['rounding', 'printInPlace', 'details', 'snap']) await expect(assistant.getByTestId(`design-${rule}`).getByRole('switch')).toBeChecked();
+  for (const rule of ['rounding', 'printInPlace', 'details', 'snap', 'economy']) await expect(assistant.getByTestId(`design-${rule}`).getByRole('switch')).toBeChecked();
   const rounding = assistant.getByTestId('design-rounding').getByRole('switch', { name: 'Fillets and chamfers' });
   await rounding.press('Space');
   await expect(rounding).not.toBeChecked();

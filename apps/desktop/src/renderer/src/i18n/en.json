@@ -1032,6 +1032,10 @@
       "snap": {
         "label": "Snap sizes",
         "hint": "Walls it chooses become whole line widths, floors and heights whole layers. When you change printer, PartBuddy adjusts only these sizes."
+      },
+      "economy": {
+        "label": "Design lean",
+        "hint": "Saves material and print time: shells with ribs instead of solid blocks, low build height, no needless support. Function and strength come first; infill and speed stay with your slicer."
       }
     },
     "add": "Add printer",

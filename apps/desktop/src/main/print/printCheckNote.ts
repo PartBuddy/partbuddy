@@ -75,6 +75,26 @@ const CHECKED =
 /** What a clean check says nothing about (audit R3); the model must not pass the verdict on as more. */
 const NOT_CHECKED = 'Not checked: strength and layer direction under load, the fits and hole allowances you chose, details and text too fine to print, bed-edge chamfers. Judge those yourself.';
 
+/** Bodies listed with their measures before the rest is counted. */
+const MAX_BODIES = 6;
+
+/**
+ * What each body costs to print as far as its shape decides it, one line per body: the numbers the model compares
+ * before and after a change. No grams and no minutes: PartBuddy does not know the slicer's infill, walls or speed.
+ */
+function measureLines(report: PrintCheckReport): string[] {
+  const bodies = report.bodies ?? [];
+  if (bodies.length === 0) return [];
+  const rest = bodies.length - MAX_BODIES + (report.bodiesOmitted ?? 0);
+  return [
+    "Per body as it prints (solid volume; the slicer's infill, walls and speed decide grams and time, so promise neither):",
+    ...bodies
+      .slice(0, MAX_BODIES)
+      .map((body) => `- ${JSON.stringify(body.name)}: ${String(body.volume)} cm³, ${mm(body.height)} high (${String(body.layers)} layers), ${String(body.contact)} mm² on the bed, ${String(body.support)} mm² leaning past the overhang limit.`),
+    ...(rest > 0 ? [`- and ${String(rest)} more ${rest === 1 ? 'body' : 'bodies'}.`] : []),
+  ];
+}
+
 /**
  * The ready-to-print check (M7) as the model reads it: PartBuddy checks after every revision, the
  * model reads it behind the answer of each tool that changed the design, and with the next message
@@ -84,13 +104,13 @@ const NOT_CHECKED = 'Not checked: strength and layer direction under load, the f
 export function printCheckNote(report: PrintCheckReport): string {
   const head =
     '[PartBuddy: ready-to-print check of the part as it is now (each body lying on its print face when it has one, else as designed along +Z on its own lowest point; overhangs by angle only):';
-  if (report.findings.length === 0) return `${head} nothing found in what it checks (${CHECKED}). ${NOT_CHECKED}]`;
+  if (report.findings.length === 0) return [`${head} nothing found in what it checks (${CHECKED}).`, ...measureLines(report), `${NOT_CHECKED}]`].join('\n');
   const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? 'prints, with warnings' : 'ready to print';
   const lines = report.findings.slice(0, 12).map((finding) => line(finding, report.nozzle));
   // What does not fit the note is counted, never dropped without a word.
   const rest = report.findings.length - lines.length + (report.omitted ?? 0);
   if (rest > 0) lines.push(`- and ${String(rest)} more ${rest === 1 ? 'finding' : 'findings'} not listed here; the user sees them in the ready-to-print panel.`);
-  return [`${head} ${verdict}.`, ...lines, `Fix what blocks printing before you call the part done; the user sees the same findings. ${NOT_CHECKED}]`].join('\n');
+  return [`${head} ${verdict}.`, ...lines, ...measureLines(report), `Fix what blocks printing before you call the part done; the user sees the same findings. ${NOT_CHECKED}]`].join('\n');
 }
 
 /** Said in place of a check that has not caught up with the design yet. */

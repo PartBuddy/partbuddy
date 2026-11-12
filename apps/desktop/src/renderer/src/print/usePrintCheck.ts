@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
+import { bodyMeasures } from './bodyMeasures';
 import { reportOf } from './report';
 
 /** Quiet time after a revision before the check runs, so a burst of steps is checked once. */
@@ -37,9 +38,11 @@ export function usePrintCheck(): void {
       const parts = printed.filter((body) => !isLogoColourBody(body.name));
       const measuring = parts.length >= 2 || joints.length > 0;
       useStudio.getState().setPrintCheck({ revision: model.revision, result: joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result, ...(measuring ? { measuring } : {}) });
+      // What each closed body costs to print, for the assistant to see what a change saved.
+      const measures = printed.filter((body) => body.model.table.faces.length > 0 && !(body.model.openEdges > 0)).map((body) => bodyMeasures(body, { nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang }));
       const report = (final: typeof result) => {
         void platform()
-          .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision))
+          .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision, measures))
           .catch(() => undefined);
       };
       if (!measuring) {

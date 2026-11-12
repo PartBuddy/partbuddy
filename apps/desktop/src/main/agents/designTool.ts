@@ -16,7 +16,7 @@ const designTool: UpstreamTool = {
   name: DESIGN_TOOL,
   description:
     'Record that the user turned a group of the design rules off or back on for this project, e.g. "no fillets" → ' +
-    'rounding false, "screw the hinge instead" → printInPlace false. Only for what the user said; leave out the groups ' +
+    'rounding false, "screw the hinge instead" → printInPlace false, "make it solid" → economy false. Only for what the user said; leave out the groups ' +
     'they did not mention.',
   inputSchema: {
     type: 'object',
@@ -25,6 +25,7 @@ const designTool: UpstreamTool = {
       printInPlace: choice('Print-in-place hinges, joints and clips'),
       details: choice('Refined details (hole chamfers, sunk screw heads, lead-ins, even walls)'),
       snap: choice('Sizes snapped to nozzle and layer height'),
+      economy: choice('Saving material and print time (shells and ribs instead of solid blocks, low build height, no needless support)'),
     },
     additionalProperties: false,
   },

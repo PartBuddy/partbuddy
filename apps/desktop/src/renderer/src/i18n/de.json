@@ -1032,6 +1032,10 @@
       "snap": {
         "label": "Maße einrasten",
         "hint": "Selbst gewählte Wände auf ganze Linienbreiten, Böden und Höhen auf ganze Schichten. Bei einem Druckerwechsel passt PartBuddy nur diese Maße an."
+      },
+      "economy": {
+        "label": "Sparsam konstruieren",
+        "hint": "Spart Material und Druckzeit: Schalen mit Rippen statt massiver Blöcke, geringe Bauhöhe, keine unnötigen Stützen. Funktion und Festigkeit gehen vor; Füllung und Geschwindigkeit bleiben Sache deines Slicers."
       }
     },
     "add": "Drucker hinzufügen",
