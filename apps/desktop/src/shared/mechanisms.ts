@@ -26,6 +26,18 @@ export interface HingeSpec {
   knuckles: number;
   /** The hinge's name, in the user's language; the features carry it. */
   name: string;
+  /**
+   * Where a lying hinge hangs: the height (z) of the bed, and for each body the level way from the line to its wall
+   * and how far that is. With it every knuckle that starts in the air gets a web at 45° down to its own wall.
+   */
+  support?: { bed: number; fixed: HingeSide; moving: HingeSide };
+}
+
+export interface HingeSide {
+  /** Level, of length 1: from the hinge line to the body's wall. */
+  toward: Vec3;
+  /** From the line to that wall's face in mm. */
+  distance: number;
 }
 
 /** A printed wall around the pin's bore thinner than this breaks when the hinge is freed (mm). */
@@ -87,10 +99,46 @@ export function hingeSteps(spec: HingeSpec): Step[] {
     // (found 2026-11-10: the parts touched there, and SolidCraft's sweep ran out of its collision budget).
     ...spans.map((span) => cylinder(spec.diameter + 2 * spec.gap, span.start - spec.gap, span.end + spec.gap, 'cut', span.other, `${span.label} ·`)),
     ...spans.map((span) => cylinder(spec.diameter, span.start, span.end, 'join', span.owner, span.label)),
+    // Before the bore, which then goes through the webs of the moving body as through its knuckles.
+    ...spans.flatMap((span) => web(spec, axis, at, span)),
     // The bore through the moving knuckles, then the pin through everything.
     cylinder(pin + 2 * spec.gap, -spec.gap, length + spec.gap, 'cut', spec.moving, `${spec.name} ○`),
     ...boreRoof(spec, axis, at(-spec.gap), length + 2 * spec.gap, pin / 2 + spec.gap),
     cylinder(pin, 0, length, 'join', spec.fixed, `${spec.name} ●`),
+  ];
+}
+
+/** A web stands this far in its wall, and one lower than this is left out (mm). */
+const WEB = { into: 0.5, least: 0.3 };
+
+/**
+ * The web under one knuckle of a lying hinge that starts above the bed: the round underside of a barrel begins in the
+ * air (practice runs 2026-11-11 and -12: the assistant added such webs by hand every time). In the plane square to
+ * the line, x towards the knuckle's own wall and y up from the axis: from under the barrel a face at 45° runs down to
+ * the wall, or to the bed where that comes first. Towards the other body it ends a gap before that body's face, at
+ * most where the barrel itself leans 45°; what is left of the round there is a small overhang next to material.
+ */
+function web(spec: HingeSpec, axis: Vec3, at: (distance: number) => Vec3, span: { start: number; end: number; owner: string; label: string }): Step[] {
+  const support = spec.support;
+  if (!support || Math.abs(axis[2]) > 1e-6) return [];
+  const [own, other] = span.owner === spec.fixed ? [support.fixed, support.moving] : [support.moving, support.fixed];
+  const radius = spec.diameter / 2;
+  const x0 = Math.max(-radius / Math.SQRT2, spec.gap - other.distance);
+  if (x0 >= radius || own.distance - x0 < WEB.least) return [];
+  const under = -Math.sqrt(radius * radius - x0 * x0);
+  const bed = support.bed - spec.from[2];
+  // A barrel that lies on the bed is carried by it.
+  if (-radius - bed < WEB.least) return [];
+  const wall = own.distance + WEB.into;
+  const foot = under - (own.distance - x0);
+  const points: [number, number][] = foot < bed ? [[x0, 0], [x0, under], [x0 + (under - bed), bed], [wall, bed], [wall, 0]] : [[x0, 0], [x0, under], [own.distance, foot], [wall, foot], [wall, 0]];
+  // x × y of the sketch is the way the profile is extruded: start at the end of the knuckle from which that runs along it.
+  const forward = cross(own.toward, [0, 0, 1]).reduce((sum, value, i) => sum + value * (axis[i] ?? 0), 0) > 0;
+  const name = `${span.label} ◣`;
+  return [
+    { command: 'sketch.create', params: { plane: { origin: at(forward ? span.start : span.end), x_dir: own.toward.map((value) => round(value) + 0), y_dir: [0, 0, 1] }, project_edges: false, name } },
+    { command: 'sketch.line', params: { points: points.map(([x, y]) => [round(x), round(y)]), closed: true } },
+    { command: 'solid.extrude', params: { distance: `${String(round(span.end - span.start))} mm`, operation: 'join', targets: [span.owner], name } },
   ];
 }
 
