@@ -144,6 +144,21 @@ const engraved = (deep: number, wide: number) => meshOf(gridBody('Engraved', [0,
 const snap = (nose: number) => meshOf(prismBody('Snap', [[0, 0], [20, 0], [20, 2], [12, 2], [12, 10], [12 + nose, 10], [12 + nose, 11], [12, 11 + nose], [12, 14], [10, 14], [10, 2], [0, 2]], 8));
 const tube = (hole: number, segments = 96) => meshOf(lyingTube('Tube', 10, hole / 2, 10, segments));
 
+// A deck 4 wide and 2 thick on a foot at each end, with a keel 5 deep under it whose edge ends 1 mm over the bed.
+const FOOT: [number, number][] = [[0, 0], [4, 0], [4, 6], [4, 8], [0, 8], [0, 6]];
+const KEEL: [number, number][] = [[2, 1], [4, 6], [4, 8], [0, 8], [0, 6]];
+const FOOT_CAP = [at(FOOT, 0, 1, 2), at(FOOT, 0, 2, 3), at(FOOT, 0, 3, 4), at(FOOT, 0, 4, 5)];
+const BESIDE_KEEL: [number, number][][] = [[[0, 0], [4, 0], [2, 1]], [[0, 0], [2, 1], [0, 6]], [[4, 0], [4, 6], [2, 1]]];
+const keel = soup([...cap(FOOT_CAP, 0, false), ...sides(FOOT, 0, 2), ...cap(BESIDE_KEEL, 2, true), ...sides(KEEL, 2, 32), ...cap(BESIDE_KEEL, 32, false), ...sides(FOOT, 32, 34), ...cap(FOOT_CAP, 34, true)]);
+// A box in profile, 30 long: walls 1 mm thick that step 1.8 mm outwards 10 mm up on a floor 0.4 mm thick, under a roof or with a lip 1.5 mm out.
+const steppedBox = meshOf(gridBody('Stepped', [0, 1, 1.8, 2.8, 8.8, 9.8, 10.6, 11.6], [0, 30], [0, 10, 10.4, 14, 15], (i, _j, k) => (k === 0 ? i === 2 || i === 4 : k === 1 ? i <= 2 || i >= 4 : k === 2 ? i === 0 || i === 6 : true)));
+const steppedWall = meshOf(gridBody('Stepped', [-1.5, 0, 1, 1.8, 2.8], [0, 30], [0, 10, 10.4, 14, 15], (i, _j, k) => (k === 0 ? i === 3 : k === 1 ? i >= 1 : k === 2 ? i === 1 : i <= 1)));
+/** A funnel of `n` flat sides at 45° that opens upwards over 5 mm, with a ledge 1.5 mm out round its top. */
+const funnel = (n: number) => {
+  const top = 5 + 5 / Math.cos(Math.PI / n);
+  return revolved([[0, 0], [5, 0], [top, 5], [top + 1.5, 5], [top + 1.5, 7], [0, 7]], [-1, 0, -1, 0, 1], n);
+};
+
 // ---- the cases --------------------------------------------------------------------------------------------------
 
 const cases: [string, () => RawMesh, Want][] = [
@@ -276,6 +291,18 @@ const cases: [string, () => RawMesh, Want][] = [
   ['snap hook, nose 1.5', () => snap(1.5), 'free'],
   ['snap hook, nose 2', () => snap(2), 16],
   ['snap hook, nose 2.5', () => snap(2.5), 20],
+  // Material that begins in the air on faces that only lean (review of pull request 363): no face hangs over, yet nothing is below.
+  ['a V rib along under a bridge of 8: 4.4 wide, 4 deep, its edge free', () => meshOf(prismBody('Rib', [[0, 0], [2, 0], [2, 8], [3.8, 8], [6, 4], [8.2, 8], [10, 8], [10, 0], [12, 0], [12, 10], [0, 10]], 30)), 'reported'],
+  ['the same rib with a flat bottom', () => meshOf(prismBody('Rib', [[0, 0], [2, 0], [2, 8], [3.8, 8], [3.8, 4], [8.2, 4], [8.2, 8], [10, 8], [10, 0], [12, 0], [12, 10], [0, 10]], 30)), 132],
+  ['a V rib under a bridge of 10: 6.4 wide, 6 deep', () => meshOf(prismBody('Rib', [[0, 0], [2, 0], [2, 8], [3.8, 8], [7, 2], [10.2, 8], [12, 8], [12, 0], [14, 0], [14, 10], [0, 10]], 30)), 'reported'],
+  ['a keel 4 wide and 5 deep between two feet, its edge 1 mm over the bed', () => keel, 'reported'],
+  ['a blade 1.5 wide hanging 10 deep, 0.3 beside a wall, pointed at 45°', () => meshOf(prismBody('Blade', [[0, 0], [2, 0], [2, 18], [2.3, 18], [2.3, 8.75], [3.05, 8], [3.8, 8.75], [3.8, 20], [0, 20]], 30)), 'reported'],
+  ['a wedge standing on its edge on the bed', () => meshOf(prismBody('Wedge', [[2, 0], [4, 4], [0, 4]], 30)), 'free'],
+  // A small overhang carries what stands on it (the same review).
+  ['walls 1 mm thick that step 1.8 out on a floor of 0.4, under a roof of 9.6', () => steppedBox, 'free'],
+  ['a wall that steps 1.8 out on a floor of 0.4, with a lip 1.5 out at its top', () => steppedWall, 'free'],
+  // A slope of flat sides: its corners run out faster than its faces (the same review).
+  ...[6, 8, 96].map((n): [string, () => RawMesh, Want] => [`ledge 1.5 over a funnel of ${String(n)} sides at 45°`, () => funnel(n), 'free']),
 ];
 
 /** A hole lying in a tube: what the tube reports beyond its outside alone. */
