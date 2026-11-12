@@ -8,7 +8,7 @@ import type { ViewerModel } from './viewerModel';
  * The "ready to print" check (M7, ADR 0010 as amended on 2026-11-05 for plan step R1): pure
  * TypeScript on the mirrored render meshes, no sidecar. It checks what only the design decides:
  * whether the part fits the printer, walls the nozzle cannot print, bodies that touch, how much of
- * the part lies on the bed, and features SolidCraft could not build. Overhangs are a hint by angle
+ * the part lies on the bed, bodies that are no closed solid, and features SolidCraft could not build. Overhangs are a hint by angle
  * only (yellow, never red): whether something needs support, and how, is the slicer's job; small
  * ones that hang from the material below, as the slicers ignore them, and ceilings the printer
  * bridges are left out.
@@ -70,6 +70,8 @@ export type PrintFinding =
   | ({ kind: 'overhang'; severity: FindingSeverity; area: number; limit: number } & Located)
   | ({ kind: 'contact'; severity: FindingSeverity; area: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
+  /** Bodies that are open shells (SolidCraft's surface bodies): no solid to print. */
+  | { kind: 'open'; severity: FindingSeverity; bodies: string[] }
   | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string }
   /** Two bodies share volume: as separate parts they do not go together (F2, SolidCraft's measure). */
   | ({ kind: 'overlap'; severity: FindingSeverity; bodies: [string, string]; volume: number } & Located)
@@ -430,7 +432,11 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
     else if (feature.warning) findings.push({ kind: 'feature', severity: 'warn', feature: feature.name, message: feature.warning });
   }
 
-  const parts = bodies.filter((body) => body.model.table.faces.length > 0);
+  // A surface body has no volume to fill: nothing else about it is worth a finding.
+  const shells = bodies.filter((body) => body.model.table.faces.length > 0);
+  const open = shells.filter((body) => body.model.openEdges > 0);
+  if (open.length > 0) findings.push({ kind: 'open', severity: 'block', bodies: open.map((body) => body.name) });
+  const parts = shells.filter((body) => body.model.openEdges === 0);
   if (parts.length > 0) {
     const meshes = parts.map(laid);
     // Each body against the plate by itself: the slicer places every one, on more plates if need be.

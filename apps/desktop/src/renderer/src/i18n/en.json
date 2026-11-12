@@ -1123,6 +1123,7 @@
       "floorThin": "Floors or lids only {thickness} mm, at least {minimum} mm (four layers)",
       "overhang": "{area} mm² lean beyond {limit}°: the slicer decides whether they need support",
       "contact": "Only {area} mm² of {body} lie on the bed: may come loose or tip over",
+      "open": "{count, plural, one {{bodies} is no closed solid} other {{bodies} are no closed solids}}: an open surface without volume does not print",
       "separate": "{bodies} touch but are separate bodies: the slicer lays each on the bed by itself. Combine them if they are one part.",
       "feature": "{feature}: {message}",
       "overlap": "{a} and {b} overlap by {volume} mm³ – as separate parts they do not go together; combine them if they are one part",

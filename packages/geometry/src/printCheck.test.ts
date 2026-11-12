@@ -13,7 +13,7 @@ import { buildViewerModel } from './viewerModel';
 const PLA: PrintCheckProfile = { bed: [256, 256, 256], nozzle: 0.4, layer: 0.2, overhang: 45 };
 
 /** A box as SolidCraft would export it: six faces, outward triangles, named like `F1:+z`. */
-function box(name: string, min: [number, number, number], max: [number, number, number]): PrintCheckBody {
+function box(name: string, min: [number, number, number], max: [number, number, number], lid = true): PrintCheckBody {
   const [x0, y0, z0] = min;
   const [x1, y1, z1] = max;
   const corners = [
@@ -23,6 +23,11 @@ function box(name: string, min: [number, number, number], max: [number, number, 
   // Quads counter-clockwise seen from outside: -z, +z, -y, +x, +y, -x.
   const quads = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]];
   const names = ['F1:-z', 'F1:+z', 'F1:-y', 'F1:+x', 'F1:+y', 'F1:-x'];
+  // Without its top face the box is an open shell, as a surface body comes from SolidCraft.
+  if (!lid) {
+    quads.splice(1, 1);
+    names.splice(1, 1);
+  }
   const indices: number[] = [];
   const triangleFaces: number[] = [];
   quads.forEach(([a, b, c, d], face) => {
@@ -31,7 +36,7 @@ function box(name: string, min: [number, number, number], max: [number, number, 
   });
   const mesh: TaggedMesh = {
     name,
-    faceCount: 6,
+    faceCount: names.length,
     positions: Float64Array.from(corners.flat()),
     indices: Uint32Array.from(indices),
     triangleFaces: Uint32Array.from(triangleFaces),
@@ -151,6 +156,17 @@ describe('the ready-to-print check (M7)', () => {
     const apart = checkPrint([box('Leg', [9, 9, 0], [11, 11, 10]), box('Top', [0, 0, 10], [20, 20, 12])], PLA);
     expect(apart.findings.map((f) => f.kind)).not.toContain('overhang');
     expect(apart.findings.find((f) => f.kind === 'separate')).toMatchObject({ severity: 'warn', bodies: ['Leg', 'Top'] });
+  });
+
+  it('blocks a body that is an open shell, and says nothing else about it', () => {
+    // Audit N-druckpruefung-2: a cube without its top face (SolidCraft: closed false, volume 0) read ready.
+    const shell = box('Shell', [0, 0, 0], [20, 20, 20], false);
+    expect(shell.model.openEdges).toBe(4);
+    expect(checkPrint([shell], PLA)).toEqual({ status: 'block', findings: [{ kind: 'open', severity: 'block', bodies: ['Shell'] }] });
+    // The closed bodies beside it are still checked, and a closed one alone has no such finding.
+    const beside = checkPrint([shell, box('Rod', [30, 0, 0], [40, 10, 300])], PLA).findings;
+    expect(beside.map((f) => f.kind)).toEqual(['open', 'size']);
+    expect(box('Cube', [0, 0, 0], [20, 20, 20]).model.openEdges).toBe(0);
   });
 
   it('looks at what lies on the bed body by body: a broad one does not hold one standing on an edge', () => {

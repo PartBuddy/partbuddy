@@ -1123,6 +1123,7 @@
       "floorThin": "Böden oder Deckel nur {thickness} mm, mindestens {minimum} mm (vier Schichten)",
       "overhang": "{area} mm² neigen sich über {limit}°: Ob sie Stütze brauchen, entscheidet der Slicer",
       "contact": "Nur {area} mm² von {body} liegen auf dem Druckbett: kann sich lösen oder kippen",
+      "open": "{count, plural, one {{bodies} ist kein geschlossener Körper} other {{bodies} sind keine geschlossenen Körper}}: eine offene Fläche ohne Volumen wird nicht gedruckt",
       "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",
       "feature": "{feature}: {message}",
       "overlap": "{a} und {b} überschneiden sich um {volume} mm³ – als getrennte Teile passen sie so nicht zusammen; gehören sie zu einem Teil, vereinen",

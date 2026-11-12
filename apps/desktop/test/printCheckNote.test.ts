@@ -44,6 +44,12 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     expect(blocked).toContain('blocks printing: floors or lids down to 0.1 mm, thinner than one layer, so they do not print');
   });
 
+  it('says that an open surface does not print', () => {
+    const report = reportOf({ status: 'block', findings: [{ kind: 'open', severity: 'block', bodies: ['Tube'] }] }, 0.4, 1);
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    expect(printCheckNote(report)).toContain('blocks printing: body "Tube" is an open surface, not a closed solid');
+  });
+
   it('names the body that rests on an edge and has no face on the bed', () => {
     const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'contact', severity: 'warn', area: 0, places: [{ body: 'Ball', faces: [] }] }] });
     expect(note).toContain('only 0 mm² lie on the bed, the part may come loose or tip over (body "Ball").');

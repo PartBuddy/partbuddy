@@ -26,6 +26,8 @@ export interface ViewerModel {
   edgeLengths: Float32Array;
   /** B-rep vertices, xyz per vertex. */
   vertices: Float32Array;
+  /** Mesh edges with a triangle on one side only: above 0 the body is an open shell, not a solid. */
+  openEdges: number;
 }
 
 /** Wraps render buffers into three.js geometry with a BVH (runs once per mirrored revision). */
@@ -61,6 +63,7 @@ export function buildViewerModel(mesh: RenderMesh, table: FaceTable): ViewerMode
     edgeRanges: mesh.edgeRanges,
     edgeLengths: mesh.edgeLengths,
     vertices: mesh.vertices,
+    openEdges: mesh.openEdges,
   };
 }
 

@@ -25,6 +25,8 @@ export interface RenderMesh {
   edgeLengths: Float32Array;
   /** B-rep vertices (ends of open edges, each once), xyz per vertex. */
   vertices: Float32Array;
+  /** Mesh edges with a triangle on one side only: above 0 the body is an open shell, not a solid. */
+  openEdges: number;
 }
 
 export function buildRenderMesh(mesh: TaggedMesh, table: FaceTable): RenderMesh {
@@ -48,7 +50,7 @@ export function buildRenderMesh(mesh: TaggedMesh, table: FaceTable): RenderMesh 
     index[i] = mapped;
   }
 
-  const { edges } = deriveEdges(mesh, (a, b) => {
+  const { edges, openEdges } = deriveEdges(mesh, (a, b) => {
     const fa = table.faces[a];
     const fb = table.faces[b];
     return fa !== undefined && fb !== undefined && sameCylinder(fa, fb);
@@ -80,6 +82,7 @@ export function buildRenderMesh(mesh: TaggedMesh, table: FaceTable): RenderMesh 
     edgeRanges,
     edgeLengths,
     vertices: Float32Array.from([...corners.values()].flat()),
+    openEdges,
   };
 }
 
