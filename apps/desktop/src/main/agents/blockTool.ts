@@ -3,7 +3,7 @@ import { featureBlockSchema } from '../../shared/contract';
 import { KNOB, KNOB_CLEARANCE, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
 import { TAPPED_FROM } from '../../shared/mechanisms';
 import { MAGNET, MAGNET_HOLDS, magnetPocket, magnetProblem, magnetSteps, magnetStock, type MagnetHold } from '../../shared/magnet';
-import { KEYHOLE, WALL, WOOD_SCREWS, keyholeDepth, keyholeProblem, keyholeSteps, keyholeStock, woodScrewSteps, type WoodScrew } from '../../shared/wallMount';
+import { KEYHOLE, WALL, WOOD_SCREWS, WOOD_SCREW_UNDER, countersinkDepth, keyholeDepth, keyholeProblem, keyholeSteps, keyholeStock, woodScrewSteps, woodScrewStock, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
 import { count } from '../solidcraft/mirror';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -125,16 +125,46 @@ type Step = { command: string; params: Record<string, unknown> };
 
 /** Plastic a block needs where it cuts (audit R54): a cylinder from `base` along `axis` that must lie wholly in the body. */
 export interface Stock {
-  /** The point the model gave, for the answer. */
+  /** The point on the face it is measured behind, for the answer. */
   at: Vec3;
   base: Vec3;
   axis: Vec3;
   diameter: number;
   depth: number;
+  /** How far under the face the cylinder starts, in mm. */
+  from: number;
+  /** mm³ of the cylinder the block itself has cut away, when it is measured after the block was built. */
+  hole?: number;
+  /** mm³ more the block may have cut away: on a curved face the hole does not end where it ends on a flat one. */
+  slack?: number;
+}
+
+/** In mm: how much deeper than asked a hole may reach on a curved face (measured 2026-11-12: an M3 seat on a rod of 20 mm radius took 0.02 mm more of the stock than on a flat face). */
+const CURVED_FACE = 0.3;
+
+/** In mm: the plastic that must stay under the seat of an insert (three layers of 0.2 mm, as under a magnet pocket; our own choice). */
+export const SEAT_UNDER = 0.6;
+/** The plastic round an insert: what its maker asks for, and never under 2 mm (as a boss has it). */
+const seatWall = (size: BlockSize) => Math.max(2, INSERT[size]?.wall ?? 2);
+
+/** The plastic the seats of a block need, measured after they are cut: from half their depth on, the seat itself taken off. */
+export function seatStock(block: Extract<FeatureBlock, { block: 'insertSeat' }>, axis: Vec3): Stock[] {
+  const from = Math.round(block.depth * 500) / 1000;
+  const round = (value: number) => Math.round(value * 1000) / 1000;
+  return [block.point, ...(block.more ?? [])].map((point) => ({
+    at: point,
+    base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3,
+    axis,
+    diameter: round(block.diameter + 2 * seatWall(block.size)),
+    depth: round(block.depth - from + SEAT_UNDER),
+    from,
+    hole: ((Math.PI * block.diameter ** 2) / 4) * (block.depth - from),
+    slack: ((Math.PI * block.diameter ** 2) / 4) * CURVED_FACE,
+  }));
 }
 
 /** A wall mounting the model asked for: its steps and what to say; null when the block is none of them; or what is wrong. */
-export function wallOf(args: Record<string, unknown>): { body: string; steps: Step[]; text: string; stock?: Stock[]; need?: string } | string | null {
+export function wallOf(args: Record<string, unknown>): { body: string; steps: Step[]; text: string; stock?: Stock[]; cut?: (axis: Vec3) => Stock[]; need: string } | string | null {
   if (args.block !== 'keyhole' && args.block !== 'woodScrew') return null;
   const body = typeof args.body === 'string' ? args.body.trim() : '';
   const point = vec3(args.point);
@@ -149,7 +179,9 @@ export function wallOf(args: Record<string, unknown>): { body: string; steps: St
     return {
       body,
       steps: woodScrewSteps({ body, point, more: more as Vec3[], screw, name: 'Wall screw' }),
-      text: `Built ${String(count)} countersunk hole${count > 1 ? 's' : ''} for ${String(screw)} mm wood screws in ${body}: ${String(size.clearance)} mm through, countersink ${String(size.countersink)} mm at 90°, so the head lies flush. Not checked: keep at least ${String(screw)} mm of plastic between a hole and an edge, and the plate thicker than the countersink is deep (${String(Math.round(((size.countersink - size.clearance) / 2) * 10) / 10)} mm).`,
+      cut: (axis) => woodScrewStock({ body, point, more: more as Vec3[], screw, name: 'Wall screw' }, axis),
+      need: `a countersunk hole for a ${String(screw)} mm wood screw needs ${String(screw)} mm of plastic round the countersink and a plate at least ${String(Math.round((countersinkDepth(screw) + WOOD_SCREW_UNDER) * 100) / 100)} mm thick. Thicken the plate, or move the hole away from edges and other cuts`,
+      text: `Built ${String(count)} countersunk hole${count > 1 ? 's' : ''} for ${String(screw)} mm wood screws in ${body}: ${String(size.clearance)} mm through, countersink ${String(size.countersink)} mm at 90°, so the head lies flush. Keep at least ${String(screw)} mm of plastic between a hole and an edge, and the plate thicker than the countersink is deep (${String(Math.round(((size.countersink - size.clearance) / 2) * 10) / 10)} mm).`,
     };
   }
   const normal = vec3(args.normal);
@@ -254,6 +286,24 @@ function jsonOf(result: ToolResult): unknown {
   throw new Error(failed ? `SolidCraft refused ${String(failed.command)}: ${String(failed.error).slice(0, 300)}` : text.slice(0, 300));
 }
 
+/**
+ * The way a block's holes went into the body, from what `inspect.measure` says before and after: the plastic they
+ * took lies on their axes, so its centre of mass lies under the middle of their points. SolidCraft's answer to
+ * `solid.hole` names no direction, and these blocks are given none. Null when it cannot be told.
+ */
+export function cutAxis(body: string, before: unknown, after: unknown, points: Vec3[]): Vec3 | null {
+  const of = (measured: unknown) => (measured as { bodies?: { name?: unknown; volume_mm3?: unknown; center_of_mass?: unknown }[] } | undefined)?.bodies?.find((entry) => entry.name === body);
+  const [was, is] = [of(before), of(after)];
+  const [from, to] = [vec3(was?.center_of_mass), vec3(is?.center_of_mass)];
+  const [full, left] = [was?.volume_mm3, is?.volume_mm3];
+  if (typeof full !== 'number' || typeof left !== 'number' || !from || !to) return null;
+  const taken = full - left;
+  if (!(taken > 1e-6)) return null;
+  const way = from.map((value, k) => (value * full - (to[k] ?? 0) * left) / taken - points.reduce((sum, point) => sum + (point[k] ?? 0), 0) / points.length) as Vec3;
+  const length = Math.hypot(...way);
+  return length > 1e-6 ? (way.map((value) => Math.round((value / length) * 1e6) / 1e6 + 0) as Vec3) : null;
+}
+
 /** Volume in mm³ of every body by name as `inspect.measure` answers; NaN for a body that is not closed. */
 function volumesOf(measured: unknown): Map<string, number> {
   const bodies = (measured as { bodies?: { name?: unknown; volume_mm3?: unknown }[] } | undefined)?.bodies ?? [];
@@ -277,10 +327,18 @@ export function misplaced(body: string, before: Map<string, number>, after: Map<
 const PROBE = 'PartBuddy probe';
 
 /**
- * Where the body has less plastic than a block's cuts need, measured before anything is built (audit R54): each
- * stock cylinder is laid in as a body on trial and SolidCraft says how much of it lies in the part. A step that must
- * fail ends the batch, and SolidCraft takes the probes back (as mechanismTool.ts measures a hinge line). Null when
- * all of it is plastic; `undefined` when it could not be measured.
+ * How much of a stock cylinder must be plastic. SolidCraft 0.40.1 measures the shared volume exactly, not on
+ * facets: seven cylinders wholly inside a block, a rod and a ball, along the axes and askew, each gave 1.0000000
+ * of their volume; one with 0.02 mm of its 2.8 mm outside gave 0.99286, one with 0.01 mm of its width over an edge
+ * 0.99993 (tools/audit, r54-shares, 2026-11-12).
+ */
+export const STOCK_FULL = 0.999;
+
+/**
+ * Where the body has less plastic than a block's cuts need (audit R54): each stock cylinder is laid in as a body
+ * on trial and SolidCraft says how much of it lies in the part. A step that must fail ends the batch, and
+ * SolidCraft takes the probes back, leaving revision, undo and redo as they were (as mechanismTool.ts measures a
+ * hinge line). Null when all of it is plastic; `undefined` when it could not be measured.
  */
 export async function shortOf(upstream: UpstreamTools, body: string, stock: Stock[], callId: string | undefined): Promise<string | null | undefined> {
   try {
@@ -305,10 +363,14 @@ export async function shortOf(upstream: UpstreamTools, body: string, stock: Stoc
       const found = (results[i * 2 + 1] as { interferences?: { volume_mm3?: unknown }[] } | undefined)?.interferences;
       if (!Array.isArray(found)) return undefined;
       const area = (Math.PI * room.diameter ** 2) / 4;
+      const hole = room.hole ?? 0;
       const plastic = found.reduce((sum, pair) => sum + (typeof pair.volume_mm3 === 'number' ? pair.volume_mm3 : 0), 0);
-      // A thousandth of the cylinder is the noise of the measure, not a missing wall.
-      if (plastic < area * room.depth * 0.999)
-        return `at [${room.at.join(', ')}] ${body} has ${String(Math.round((plastic / area) * 100) / 100)} mm of plastic where ${String(room.depth)} mm are needed (the mean over a width of ${String(room.diameter)} mm; the far side, an edge or another cut takes the rest)`;
+      const full = area * room.depth - hole;
+      if (plastic < full * STOCK_FULL - (room.slack ?? 0)) {
+        // The cylinder starts under the face: with none of it in the part, all that is known is that the part ends above it.
+        const has = plastic < full * 0.001 ? `less than ${String(room.from)}` : String(Math.round((room.from + (room.depth * plastic) / full) * 100) / 100);
+        return `at [${room.at.join(', ')}] ${body} has ${has} mm of plastic where ${String(Math.round((room.from + room.depth) * 100) / 100)} mm are needed (the mean over a width of ${String(room.diameter)} mm; the far side, an edge or another cut takes the rest)`;
+      }
     }
     return null;
   } catch {
@@ -362,29 +424,37 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         const missing = fresh ? null : misplaced(body, before, before);
         if (missing?.startsWith('there is no body')) return { content: [{ type: 'text', text: `Not built: ${missing}` }], isError: true };
         // A pocket that comes out of the far side or of an edge is not built at all.
-        const { stock, need } = (wall ?? {}) as { stock?: Stock[]; need?: string };
+        const { stock, cut, need } = (wall ?? {}) as { stock?: Stock[]; cut?: (axis: Vec3) => Stock[]; need?: string };
         const short = stock ? await shortOf(upstream, body, stock, callId) : null;
         if (short) return { content: [{ type: 'text', text: `Not built: ${short}; ${need ?? ''}.` }], isError: true };
-        // A seat is a blind hole: cut out of solid plastic it takes its whole cylinder from the body.
-        const seat = block?.block === 'insertSeat' ? { volume: ((Math.PI * block.diameter ** 2) / 4) * block.depth * ((block.more?.length ?? 0) + 1), area: (Math.PI * block.diameter ** 2) / 4, depth: block.depth } : null;
+        // Holes that are given no direction are measured once they are cut, along the way they went in.
+        const holes: { points: Vec3[]; stock: (axis: Vec3) => Stock[]; need: string } | null =
+          block?.block === 'insertSeat'
+            ? {
+                points: [block.point, ...(block.more ?? [])],
+                stock: (axis) => seatStock(block, axis),
+                need: `the seat of an ${block.size} insert needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it. Thicken the part there, move the seat away from edges and other cuts, or use a boss`,
+              }
+            : cut && need
+              ? { points: [vec3(args.point) ?? [0, 0, 0], ...(Array.isArray(args.more) ? args.more.flatMap((entry) => { const point = vec3(entry); return point ? [point] : []; }) : [])], stock: cut, need }
+              : null;
         let results: unknown[];
+        let after: boolean | null = null;
         try {
           results = await run([...sequence, measure]);
           // The point decides what SolidCraft cuts, so the named body is checked before the block stays.
-          const after = volumesOf(results[results.length - 1]);
-          const wrong = fresh ? null : misplaced(body, before, after);
+          const wrong = fresh ? null : misplaced(body, before, volumesOf(results[results.length - 1]));
           if (wrong) throw new Error(wrong);
-          const cut = (before.get(body) ?? NaN) - (after.get(body) ?? NaN);
-          if (seat && cut < seat.volume * 0.999)
-            throw new Error(
-              `the seat${block && 'more' in block && block.more?.length ? 's' : ''} would cut ${String(Math.round(cut * 10) / 10)} mm³ of plastic where a blind hole ${String(seat.depth)} mm deep takes ${String(Math.round(seat.volume * 10) / 10)} mm³: it comes out of the far side or of an edge` +
-                (block && !('more' in block && block.more?.length) ? ` (${String(Math.round((cut / seat.area) * 100) / 100)} mm of plastic at the point)` : '') +
-                '. Thicken the part there, or use a boss',
-            );
+          if (holes) {
+            const axis = cutAxis(body, measured, results[results.length - 1], holes.points);
+            const thin = axis ? await shortOf(upstream, body, holes.stock(axis), callId) : undefined;
+            if (thin) throw new Error(`${thin}; ${holes.need}.`);
+            after = thin === null;
+          }
         } catch (cause) {
-          // Nothing of a block that failed half way or landed on another body stays: undone step by step, as the work
-          // log goes back. (A batch with `rollback` or a checkpoint is no way back in SolidCraft 0.40.1: after the one
-          // the same modelled thread fails for real, and the other is gone once a batch has run.)
+          // Nothing of a block that failed half way, landed on another body or found too little plastic stays: undone
+          // step by step, as the work log goes back. (A batch with `rollback` or a checkpoint is no way back in
+          // SolidCraft 0.40.1: after the one the same modelled thread fails for real, and the other is gone once a batch has run.)
           const steps = depth((await run([inspect]))[0]) - depth(inspected);
           if (steps > 0) await run(Array.from({ length: steps }, () => ({ command: 'edit.undo', params: {} })));
           throw cause;
@@ -397,8 +467,9 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
           return typeof warning === 'string' ? [warning.slice(0, 200)] : [];
         });
         // What was to be measured and was not is said, never passed over.
-        const stockSaid = !stock ? '' : short === null ? ' PartBuddy measured that plastic before building: it is there.' : ' PartBuddy could not measure that plastic this time: check it yourself.';
-        const said = (wall ? wall.text : block ? built(block) : '') + (seat ? ' Measured: the seat is a blind hole cut out of solid plastic. Not checked: the plastic left round and under it.' : '');
+        const unmeasured = ' PartBuddy could not measure that plastic this time: check it yourself.';
+        const stockSaid = stock ? (short === null ? ' PartBuddy measured that plastic before building: it is there.' : unmeasured) : holes ? (after ? ' PartBuddy measured that plastic: it is there.' : unmeasured) : '';
+        const said = (wall ? wall.text : block ? built(block) : '') + (block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');
         return { content: [{ type: 'text', text: `${said}${stockSaid}${warnings.length > 0 ? ` SolidCraft warns: ${warnings.join(' ')}` : ''}` }] };
       } catch (cause) {
         return { content: [{ type: 'text', text: `Not built: ${(cause as Error).message}` }], isError: true };

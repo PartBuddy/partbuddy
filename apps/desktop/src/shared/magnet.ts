@@ -38,12 +38,17 @@ export function magnetPocket(spec: Pick<MagnetSpec, 'diameter' | 'height' | 'hol
   return { diameter: round(spec.diameter + MAGNET.room[spec.hold]), depth: round(spec.height + MAGNET.sunk) };
 }
 
-/** The plastic each pocket needs: itself with what must stay round and under it, as a cylinder into the face. */
-export function magnetStock(spec: MagnetSpec): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number }[] {
+/**
+ * The plastic each pocket needs: itself with what must stay round and under it, as a cylinder into the face. It
+ * starts half the pocket's depth under the face, so a curved face (which falls away from the point) is not read as
+ * missing plastic.
+ */
+export function magnetStock(spec: MagnetSpec): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number }[] {
   const length = Math.hypot(...spec.normal);
   const axis = spec.normal.map((value) => round(-value / length) + 0) as Vec3;
   const pocket = magnetPocket(spec);
-  return [spec.point, ...spec.more].map((point) => ({ at: point, base: point.map(round) as Vec3, axis, diameter: round(pocket.diameter + 2 * MAGNET.around), depth: round(pocket.depth + MAGNET.under) }));
+  const from = round(pocket.depth / 2);
+  return [spec.point, ...spec.more].map((point) => ({ at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3, axis, diameter: round(pocket.diameter + 2 * MAGNET.around), depth: round(pocket.depth - from + MAGNET.under), from }));
 }
 
 /** What is wrong with a magnet pocket before anything is built; null when it can be built. */

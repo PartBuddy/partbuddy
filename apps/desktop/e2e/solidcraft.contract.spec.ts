@@ -3393,12 +3393,17 @@ test('the assistant hangs a part on the wall with its blocks: keyhole slots on t
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a wall plate');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built 2 keyhole slots for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4\.5 mm wide running 8 mm up .* Built 2 countersunk holes for 4 mm wood screws in Plate: 4\.7 mm through, countersink 8\.8 mm at 90°/)).toBeVisible({ timeout: 60_000 });
+    // Each block says that the plastic it needs was measured at the real engine (audit R54): the 8 mm plate has it.
+    await expect(
+      page.getByText(
+        /Built 2 keyhole slots for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4\.5 mm wide running 8 mm up .* PartBuddy measured that plastic before building: it is there\..* Built 2 countersunk holes for 4 mm wood screws in Plate: 4\.7 mm through, countersink 8\.8 mm at 90°.* PartBuddy measured that plastic: it is there\./,
+      ),
+    ).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
     // Each block is one line of the work log, and no feature failed.
     await expect(page.getByText('Keyhole slot for a 4 mm screw, to hang on a wall')).toHaveCount(1);
     await expect(page.getByText('Countersunk hole for a 4 mm wood screw')).toHaveCount(1);
-    await expect(page.getByText(/Built 2 pockets for 6 × 2 mm disc magnets in Plate: 6\.3 mm wide and 2\.2 mm deep/)).toBeVisible();
+    await expect(page.getByText(/Built 2 pockets for 6 × 2 mm disc magnets in Plate: 6\.3 mm wide and 2\.2 mm deep.* PartBuddy measured that plastic before building: it is there\./)).toBeVisible();
     await expect(page.getByText('Pocket for a 6 × 2 mm magnet')).toHaveCount(1);
     await expect(page.getByText(/SolidCraft warns:/)).toHaveCount(0);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);

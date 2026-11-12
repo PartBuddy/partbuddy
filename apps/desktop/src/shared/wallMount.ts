@@ -55,15 +55,37 @@ export function keyholeDepth(screw: WoodScrew): number {
   return round(KEYHOLE.lip + WALL[screw].pocket + KEYHOLE.behind);
 }
 
-/** The plastic each keyhole needs: as thick as {@link keyholeDepth} behind the entry and behind where the screw rests. */
-export function keyholeStock(spec: KeyholeSpec): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number }[] {
+/**
+ * The plastic each keyhole needs: as thick as {@link keyholeDepth} behind the entry and behind where the screw
+ * rests, measured from behind the lip on, so a face that is not quite flat is not read as missing plastic.
+ */
+export function keyholeStock(spec: KeyholeSpec): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number }[] {
   const [n, up] = [unit(spec.normal), unit(spec.up)];
   const axis = n.map((value) => round(-value) + 0) as Vec3;
-  const room = { axis, diameter: WALL[spec.screw].entry, depth: keyholeDepth(spec.screw) };
-  return [spec.point, ...spec.more].flatMap((rest) => [
-    { at: rest, base: rest.map(round) as Vec3, ...room },
-    { at: rest, base: rest.map((value, k) => round(value - (up[k] ?? 0) * KEYHOLE.travel)) as Vec3, ...room },
-  ]);
+  const room = { axis, diameter: WALL[spec.screw].entry, depth: round(keyholeDepth(spec.screw) - KEYHOLE.lip), from: KEYHOLE.lip };
+  const behind = (point: Vec3) => ({ at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * KEYHOLE.lip)) as Vec3, ...room });
+  return [spec.point, ...spec.more].flatMap((rest) => [behind(rest), behind(rest.map((value, k) => round(value - (up[k] ?? 0) * KEYHOLE.travel)) as Vec3)]);
+}
+
+/** In mm: the clearance hole that must stay under a countersink for the screw to hold the plate (three layers of 0.2 mm; our own choice). */
+export const WOOD_SCREW_UNDER = 0.6;
+
+/** How deep the 90° countersink of a wood screw goes. */
+export function countersinkDepth(screw: WoodScrew): number {
+  return round((WALL[screw].countersink - WALL[screw].clearance) / 2);
+}
+
+/**
+ * The plastic each countersunk hole needs: the screw's diameter of plastic round the countersink, and the plate
+ * thicker than the countersink is deep. `axis` is the way the holes go into the part; the hole itself is taken off.
+ */
+export function woodScrewStock(spec: WoodScrewSpec, axis: Vec3): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number; hole: number }[] {
+  const size = WALL[spec.screw];
+  const from = round(countersinkDepth(spec.screw) / 2);
+  const [wide, narrow] = [(size.clearance + size.countersink) / 4, size.clearance / 2];
+  // The lower half of the cone, then the clearance hole.
+  const hole = (Math.PI * from * (wide ** 2 + wide * narrow + narrow ** 2)) / 3 + Math.PI * narrow ** 2 * WOOD_SCREW_UNDER;
+  return [spec.point, ...spec.more].map((point) => ({ at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3, axis, diameter: round(size.countersink + 2 * spec.screw), depth: round(from + WOOD_SCREW_UNDER), from, hole }));
 }
 
 /** What is wrong with a keyhole before anything is built; null when it can be built. */
