@@ -3245,6 +3245,10 @@ test('the assistant builds a print-in-place hinge with one call: one piece per b
     await page.getByRole('button', { name: 'Send' }).click();
     // PartBuddy's answer to the tool: the gap is the nozzle of the printer in use, and the limits are where the plates meet.
     await expect(page.getByText(/Built the hinge "Flap hinge" between Base \(stays\) and Flap \(turns\): 3 knuckles, barrel 6 mm, pin 3 mm, gap 0\.4 mm everywhere\. It turns from -145° to 67°/)).toBeVisible({ timeout: 60_000 });
+    // The line was measured against both plates on trial, and the answer says how deep the knuckles' rooms go into each.
+    // The line lies 2 mm from each plate, and a room is 3.4 mm about it.
+    const rooms = page.getByText(/The knuckles' rooms go 1\.4 mm into Base and 1\.4 mm into Flap/);
+    await expect(rooms).toBeVisible();
     // Knuckles and pin grew onto their bodies: still two bodies, none loose.
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     // The hinge is one step of the work log.

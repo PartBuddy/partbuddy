@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, hingeOf, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, hingeOf, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { describeToolCall } from '../src/shared/stepPhrases';
 import { hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
@@ -111,6 +111,8 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     });
     expect(batches.map((batch) => batch.map((step) => step.command).join(' '))).toEqual([
       'component.list joint.list',
+      // Where the line lies, measured on trial with a rod that is taken back.
+      'solid.cylinder inspect.clearance sketch.inspect',
       [...Array.from({ length: 7 }, () => 'solid.cylinder'), 'sketch.create', 'sketch.line', 'solid.extrude', 'solid.cylinder'].join(' '),
       'document.inspect inspect.interference',
       'component.list',
@@ -119,9 +121,16 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
       'joint.sweep joint.sweep',
       'joint.limits',
     ]);
-    expect(batches[5]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
-    expect(batches[7]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
+    expect(batches[6]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
+    expect(batches[8]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
 
+    // The rooms of the knuckles: 3.4 mm about a line 2.5 mm from a face go 0.9 mm into it. A 1.8 mm wall keeps two lines, a 1.6 mm wall
+    // would keep a skin of 0.7 mm and is refused with what to change; a wall the room goes through is a window, and fine.
+    expect(skinProblem({ fixed: 0.9, moving: 0.9 }, { fixed: 'Box', moving: 'Lid' }, 1.8, 0.4)).toBeNull();
+    expect(skinProblem({ fixed: 0.9, moving: 2.9 }, { fixed: 'Box', moving: 'Lid' }, 1.6, 0.4)).toBe(
+      'the rooms of the knuckles would go 0.9 mm into the 1.6 mm wall of Box and leave a skin of 0.7 mm behind them, under two lines (0.9 mm). Make that wall at least 1.8 mm thick, or move the line 0.2 mm further from Box, or 0.7 mm closer to it so the rooms open through the wall. Nothing was built.',
+    );
+    expect(skinProblem({ fixed: 2.9, moving: 2.9 }, { fixed: 'Box', moving: 'Lid' }, 2.4, 0.4)).toBeNull();
     // A body that does not exist is named with the ones that do; nothing is built.
     const before = batches.length;
     const missing = await tools.callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Lid', from: [42, 0, 3], to: [42, 30, 3] });
@@ -154,10 +163,10 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(built.isError).toBe(true);
     expect(built.content[0]).toMatchObject({
       text: 'Not built: 5 piece(s) did not touch their body and stand apart from it. Put the hinge line within 2.5 mm of both bodies (the barrel is 6 mm, so it must overlap each by at least 0.5 mm). ' +
-        "It needs no distance from their walls: PartBuddy cuts each knuckle's room in the other body itself. Everything was taken back; call again with the line moved.",
+        "PartBuddy cuts each knuckle's room in the other body itself. Everything was taken back; call again with the line moved.",
     });
     // Every step SolidCraft counted since (11 − 3) is undone, and no joint was made.
-    expect(calls).toEqual(['inspect_design', 'batch', 'batch', 'batch', ...Array.from({ length: 8 }, () => 'undo')]);
+    expect(calls).toEqual(['inspect_design', 'batch', 'batch', 'batch', 'batch', ...Array.from({ length: 8 }, () => 'undo')]);
   });
 
   it('builds onto a body that is a component with that component active, so the knuckles move with it', () => {
