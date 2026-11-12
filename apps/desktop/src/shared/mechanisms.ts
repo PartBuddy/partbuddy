@@ -361,6 +361,20 @@ export function lipSteps(spec: LipSpec): Step[] {
     ...(spec.flat ? [] : ring(`${name} ·`, by(spec.rim, up > 0 ? -LIP.foot : 0), -0.2, LIP.foot)),
     ...ring(name, by(spec.rim, up > 0 ? 0 : -LIP.high), LIP.clear, LIP.high),
     ...(spec.flat ? [] : [{ command: 'solid.chamfer', params: { edges: [xyz(middleAt, at(wallAt) - out * inner, at(spec.rim) - up * LIP.foot)], distance: mm(inner - 0.05), body: spec.moving, name: `${name} ◢` } }]),
+    // The notch before the bead: it reaches below the rim, where the bead stands past the wall's plane, and cut after
+    // it took that part away, so the bead ended on the plane and caught nothing (audit 2026-11-12, N-mechanik-2).
+    ...(spec.flat ? [] : [{
+      command: 'solid.cylinder',
+      params: {
+        diameter: mm(LIP.notch),
+        height: ex(spec.wall),
+        base: xyz(middle, out > 0 ? ex(wallAt) : `${ex(wallAt)} - ${ex(spec.wall)}`, by(spec.rim, up * (LIP.notch / 2 - 2.5))),
+        axis: alongX ? 'Y' : 'X',
+        operation: 'cut',
+        targets: [spec.moving],
+        name: `${name} ◠`,
+      },
+    }]),
     {
       command: 'solid.box',
       params: {
@@ -384,18 +398,6 @@ export function lipSteps(spec: LipSpec): Step[] {
         name: `${name} ○`,
       },
     },
-    ...(spec.flat ? [] : [{
-      command: 'solid.cylinder',
-      params: {
-        diameter: mm(LIP.notch),
-        height: ex(spec.wall),
-        base: xyz(middle, out > 0 ? ex(wallAt) : `${ex(wallAt)} - ${ex(spec.wall)}`, by(spec.rim, up * (LIP.notch / 2 - 2.5))),
-        axis: alongX ? 'Y' : 'X',
-        operation: 'cut',
-        targets: [spec.moving],
-        name: `${name} ◠`,
-      },
-    }]),
   ];
 }
 
