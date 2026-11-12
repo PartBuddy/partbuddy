@@ -72,9 +72,14 @@ function line(finding: Finding, nozzle: number): string {
 /** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more. */
 const CHECKED_MESH = 'build volume, wall and floor thickness, overhang angle, area on the bed, open bodies, failed features, bodies that touch';
 /** What SolidCraft measures after it (withClearance, withMotion): it takes longer and comes with the full check. */
-const CHECKED_MEASURED = 'bodies that overlap or come closer than a push fit, joints that stop before a limit';
-/** Said with a check whose measures are still out (two bodies or more, or a joint). */
-const PRELIMINARY = `Preliminary: clearance and joints still being measured (${CHECKED_MEASURED}); call partbuddy_view for the full check before you call the part done.`;
+const MEASURED = { clearance: 'bodies that overlap or come closer than a push fit', joints: 'joints that stop before a limit' };
+const CHECKED_MEASURED = `${MEASURED.clearance}, ${MEASURED.joints}`;
+/** What the model is to do while the measures are out; partbuddy_view itself says only that they are coming, or a small model calls it in circles. */
+const FETCH_FULL = 'call partbuddy_view for the full check before you call the part done';
+const preliminaryLine = (view: boolean) => `Preliminary: clearance and joints still being measured (${CHECKED_MEASURED}); ${view ? 'the full check will be here in a moment' : FETCH_FULL}.`;
+/** A measure that failed is said, never read as "nothing found" (audit H-05). */
+const unmeasuredLine = (failed: readonly ('clearance' | 'joints')[]) =>
+  `NOT measured, because SolidCraft's measure failed: ${failed.map((what) => MEASURED[what]).join(', ')}. Measure it yourself (${failed.map((what) => (what === 'clearance' ? 'inspect.clearance' : 'joint.sweep')).join(', ')}) before you call the part done.`;
 /** What a clean check says nothing about (audit R3); the model must not pass the verdict on as more. */
 const NOT_CHECKED = 'Not checked: strength and layer direction under load, the fits and hole allowances you chose, details and text too fine to print, bed-edge chamfers. Judge those yourself.';
 
@@ -121,12 +126,14 @@ function findingLines(report: PrintCheckReport): string[] {
  * model reads it behind the answer of each tool that changed the design, and with the next message
  * when the result changed. Face and feature names come from the design, so they are quoted.
  */
-export function printCheckNote(report: PrintCheckReport): string {
+export function printCheckNote(report: PrintCheckReport, view = false): string {
   const head =
     '[PartBuddy: ready-to-print check of the part as it is now (each body lying on its print face when it has one, else as designed along +Z on its own lowest point; overhangs by angle only):';
-  const preliminary = report.measuring ? [PRELIMINARY] : [];
+  const failed = report.unmeasured ?? [];
+  const preliminary = [...(report.measuring ? [preliminaryLine(view)] : []), ...(failed.length > 0 ? [unmeasuredLine(failed)] : [])];
+  const measured = (['clearance', 'joints'] as const).filter((what) => !failed.includes(what)).map((what) => `, ${MEASURED[what]}`).join('');
   if (report.findings.length === 0)
-    return [`${head} nothing found ${report.measuring ? `so far (${CHECKED_MESH})` : `in what it checks (${CHECKED_MESH}, ${CHECKED_MEASURED})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}]`].join('\n');
+    return [`${head} nothing found ${report.measuring ? `so far (${CHECKED_MESH})` : `in what it checks (${CHECKED_MESH}${measured})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}]`].join('\n');
   const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? 'prints, with warnings' : 'ready to print';
   return [`${head} ${verdict}.`, ...findingLines(report), ...preliminary, ...measureLines(report), `Fix what blocks printing before you call the part done; the user sees the same findings. ${NOT_CHECKED}]`].join('\n');
 }
@@ -147,7 +154,8 @@ export class CheckTold {
   }
 
   note(report: PrintCheckReport): string {
-    const verdict = JSON.stringify([report.status, report.measuring === true, findingLines(report)]);
+    // Every finding with its faces and numbers, not the lines shown: a change in the thirteenth finding is a change.
+    const verdict = JSON.stringify([report.status, report.measuring === true, report.unmeasured ?? [], report.findings, report.omitted ?? 0]);
     const same = verdict === this.verdict;
     const changed = (body: Body) => this.bodies.get(body.name) !== measureLine(body);
     const short = same
@@ -156,7 +164,7 @@ export class CheckTold {
             report.findings.length === 0
               ? 'nothing found'
               : `${report.status === 'block' ? 'still not ready to print, ' : ''}the same ${String(report.findings.length + (report.omitted ?? 0))} ${report.findings.length + (report.omitted ?? 0) === 1 ? 'finding' : 'findings'} as before`
-          }${report.measuring ? '; clearance and joints still being measured' : ''}.`,
+          }${report.measuring ? `; clearance and joints still being measured: ${FETCH_FULL}` : ''}${(report.unmeasured ?? []).length > 0 ? `; ${unmeasuredLine(report.unmeasured ?? [])}` : '.'}`,
           ...measureLines(report, 'Measures that changed:', changed),
         ].join('\n') + ']'
       : printCheckNote(report);

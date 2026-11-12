@@ -219,8 +219,14 @@ export class WorkLog {
  * The revision alone says nothing: a trial, a save and a block that was taken back move it and leave the design as it was.
  */
 export function designChanged(before: DesignHistory, after: DesignHistory): boolean {
-  return before.documentId !== after.documentId || before.undo !== after.undo || (before.redo > 0 && after.redo === 0);
+  if (before.documentId !== after.documentId || before.undo !== after.undo || (before.redo > 0 && after.redo === 0)) return true;
+  // At the cap a step adds to the history and its depth stays: there a moved revision is all that tells, and it
+  // counts, at the price of a check too many after a trial. Without this no change past the cap got its check.
+  return after.undo >= UNDO_CAP && before.revision !== after.revision;
 }
+
+/** How deep SolidCraft's undo history goes (0.40.1, measured 2026-11-12: 260 steps read as 200). */
+export const UNDO_CAP = 200;
 
 /** True when the history grew or a new change replaced what Redo could have brought back. */
 export function addedToHistory(before: DesignHistory, after: DesignHistory): boolean {

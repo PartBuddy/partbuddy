@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GateProxy, type ToolResult, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { policyToolSet } from '../src/main/agents/loop';
 import { Questions } from '../src/main/agents/questions';
-import { CHANGING_TOOLS, designChanged, WorkLog } from '../src/main/agents/workLog';
+import { CHANGING_TOOLS, UNDO_CAP, designChanged, WorkLog } from '../src/main/agents/workLog';
 import { CHECK_PENDING, CHECK_PENDING_VIEW, CheckTold, printCheckNote, withCheckOfChange, type CheckState } from '../src/main/print/printCheckNote';
 import type { PrintCheckReport } from '../src/shared/contract';
 import { describeToolCall } from '../src/shared/stepPhrases';
@@ -30,8 +30,9 @@ interface Options {
  * The tool chain as index.ts builds it for every route, on a design with SolidCraft's linear history: `solid.extrude`
  * leaves a 0.3 mm wall, a trial moves the revision alone, `fail` changes the design and answers as an error.
  */
-function setup({ checkAfterMs = 100, measureMs = null, waitMs = 1000, fullMs = 500 }: Options = {}) {
-  const design = { revision: 1, undo: 0, redo: 0 };
+function setup({ checkAfterMs = 100, measureMs = null, waitMs = 1000, fullMs = 500, steps = 0 }: Options & { steps?: number } = {}) {
+  // SolidCraft reads the depth of its undo history as 200 at most.
+  const design = { revision: 1, steps, redo: 0, get undo() { return Math.min(UNDO_CAP, this.steps); } };
   const state: CheckState = { mirrored: { documentId: 'doc-1', revision: 1 }, report: { status: 'ready', findings: [], nozzle: 0.4, revision: 1 } };
   const logged: string[] = [];
   let historyFails = false;
@@ -53,12 +54,12 @@ function setup({ checkAfterMs = 100, measureMs = null, waitMs = 1000, fullMs = 5
     listTools: () => Promise.resolve(['execute', 'undo', 'partbuddy_place_drawing', 'partbuddy_move_drawing'].map((name) => ({ name, inputSchema: { type: 'object' as const } }))),
     callTool: (name, args): Promise<ToolResult> => {
       if (args.command === 'solid.extrude' || args.command === 'fail' || name.endsWith('_drawing')) {
-        design.undo += 1;
+        design.steps += 1;
         design.redo = 0;
         changed();
       }
       if (name === 'undo') {
-        design.undo -= 1;
+        design.steps -= 1;
         design.redo += 1;
         changed();
       }
@@ -69,7 +70,7 @@ function setup({ checkAfterMs = 100, measureMs = null, waitMs = 1000, fullMs = 5
   };
   const told = new CheckTold();
   const log = new WorkLog({
-    history: () => (historyFails ? Promise.reject(new Error('no answer')) : Promise.resolve({ documentId: 'doc-1', ...design })),
+    history: () => (historyFails ? Promise.reject(new Error('no answer')) : Promise.resolve({ documentId: 'doc-1', revision: design.revision, undo: design.undo, redo: design.redo })),
     travel: () => Promise.resolve(),
     emit: () => undefined,
     changed: (result, after) => withCheckOfChange(result, after, () => state, (report) => told.note(report), waitMs, fullMs),
@@ -159,6 +160,33 @@ describe('designs of several bodies: the mesh check goes ahead of the measures (
     expect(text).not.toContain(CHECK_PENDING);
   });
 
+  it('never ends on a preliminary check without saying how to get the full one, in full and in short', () => {
+    const told = new CheckTold();
+    const clean: PrintCheckReport = { status: 'ready', findings: [], nozzle: 0.4, revision: 2, measuring: true };
+    expect(told.note(clean)).toContain('call partbuddy_view for the full check before you call the part done');
+    expect(told.note({ ...clean, revision: 3 })).toBe(
+      '[PartBuddy: ready-to-print check after this change: unchanged, nothing found; clearance and joints still being measured: call partbuddy_view for the full check before you call the part done.]',
+    );
+  });
+
+  it('does not send partbuddy_view back to partbuddy_view: from the view a preliminary check says that the rest is coming', () => {
+    const fromView = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 2, measuring: true }, true);
+    expect(fromView).toContain('Preliminary: clearance and joints still being measured (bodies that overlap or come closer than a push fit, joints that stop before a limit); the full check will be here in a moment.');
+    expect(fromView).not.toContain('call partbuddy_view');
+  });
+
+  it('says what SolidCraft could not measure instead of counting it as checked', () => {
+    const failed = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 2, unmeasured: ['clearance'] });
+    expect(failed).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, area on the bed, open bodies, failed features, bodies that touch, joints that stop before a limit).');
+    expect(failed).toContain("NOT measured, because SolidCraft's measure failed: bodies that overlap or come closer than a push fit. Measure it yourself (inspect.clearance) before you call the part done.");
+    const both = printCheckNote({ status: 'warn', findings: [{ kind: 'open', severity: 'warn', bodies: ['A'] }], nozzle: 0.4, revision: 2, unmeasured: ['clearance', 'joints'] });
+    expect(both).toContain('Measure it yourself (inspect.clearance, joint.sweep)');
+    // A check that lost its measures is another check than the one before.
+    const told = new CheckTold();
+    told.note({ status: 'ready', findings: [], nozzle: 0.4, revision: 2 });
+    expect(told.note({ status: 'ready', findings: [], nozzle: 0.4, revision: 3, unmeasured: ['joints'] })).toContain('NOT measured');
+  });
+
   it('does not call a preliminary clean check clean of what is still measured', () => {
     const note = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 1, measuring: true });
     expect(note).toContain('nothing found so far (build volume, wall and floor thickness, overhang angle, area on the bed, open bodies, failed features, bodies that touch).');
@@ -179,6 +207,17 @@ describe('only a call that changed the design gets a check (review of PR 357)', 
     const started = Date.now();
     expect(textOf(await setup({ checkAfterMs: null, waitMs: 1500 }).tools.callTool('execute', { command: 'trial' }))).toBe('ok');
     expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it('still gives the check once the undo history is full: 200 before, 200 after (review 2 of PR 357)', async () => {
+    // Measured at SolidCraft 0.40.1: a step past the cap moves the revision and leaves undo at 200 and redo at 0.
+    expect(designChanged({ documentId: 'a', revision: 300, undo: 200, redo: 0 }, { documentId: 'a', revision: 301, undo: 200, redo: 0 })).toBe(true);
+    // A call that only read moves nothing, at the cap as below it.
+    expect(designChanged({ documentId: 'a', revision: 300, undo: 200, redo: 0 }, { documentId: 'a', revision: 300, undo: 200, redo: 0 })).toBe(false);
+    const { tools } = setup({ steps: 260 });
+    expect(textOf(await tools.callTool('execute', extrude))).toContain(BLOCKED);
+    expect(textOf(await tools.callTool('execute', extrude))).toContain('ready-to-print check after this change: unchanged');
+    expect(textOf(await tools.callTool('execute', { command: 'inspect.measure' }))).toBe('ok');
   });
 
   it('gives the check to a call that failed half way and left the design changed', async () => {
@@ -269,6 +308,23 @@ describe('the same check is not told in full with every step (review of PR 357)'
     expect(told.note(thinner)).toBe(printCheckNote(thinner));
     told.forget();
     expect(told.note(thinner)).toBe(printCheckNote(thinner));
+  });
+
+  it('reads a change in any finding as a change, also past the twelve it lists and the faces it shows (review 2 of PR 357)', () => {
+    const wall = (i: number): PrintCheckReport['findings'][number] => ({ kind: 'feature', severity: 'warn', feature: `Shell${String(i)}`, message: 'thin result' });
+    const many: PrintCheckReport = { status: 'warn', findings: Array.from({ length: 14 }, (_, i) => wall(i)), nozzle: 0.4, revision: 2 };
+    const told = new CheckTold();
+    told.note(many);
+    // The fourteenth finding is another one: the lines shown are the same, the check is not.
+    const other = { ...many, revision: 3, findings: [...many.findings.slice(0, 13), wall(99)] };
+    expect(told.note(other)).toBe(printCheckNote(other));
+    // A fifth body in a finding that names four: the same.
+    const places = (count: number) => Array.from({ length: count }, (_, i) => ({ body: `Pin ${String(i)}`, faces: [] }));
+    const loose = (count: number): PrintCheckReport => ({ status: 'warn', nozzle: 0.4, revision: 4, findings: [{ kind: 'contact', severity: 'warn', area: 2, bodies: 6, places: places(count) }] });
+    told.note(loose(5));
+    const moved = { ...loose(5), findings: [{ kind: 'contact' as const, severity: 'warn' as const, area: 2, bodies: 6, places: [...places(4), { body: 'Peg', faces: [] }] }] };
+    expect(told.note(moved)).toBe(printCheckNote(moved));
+    expect(told.note({ ...moved, revision: 9 })).toContain('unchanged');
   });
 
   it('keeps it short through the tool chain: the second step of a turn gets one line', async () => {

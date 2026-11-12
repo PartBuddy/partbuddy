@@ -372,7 +372,7 @@ if (!app.requestSingleInstanceLock()) {
     const checkForView = () => {
       if (!printCheck) return null;
       if (printCheck.revision !== supervisor.currentRevision()?.revision) return CHECK_PENDING_VIEW;
-      return printCheckNote(printCheck);
+      return printCheckNote(printCheck, true);
     };
     // What the tool answers of this turn already said of the check: the same verdict is not told in full again.
     const checkTold = new CheckTold();
@@ -590,7 +590,7 @@ if (!app.requestSingleInstanceLock()) {
         steps.tools(
           withDesignTool(
             withAssemblyTool(
-              withViewTool(guardNotes(withStandardTool(withPrintFaces(withBlockTool(withMechanismTool(withDrawings(upstream, drawings), () => printProfiles.part().printer.nozzle, keepMechanismFace), keepMechanismFace), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
+              withViewTool(guardNotes(withStandardTool(withPrintFaces(withBlockTool(withMechanismTool(withDrawings(upstream, drawings), () => printProfiles.part().printer.nozzle, keepMechanismFace), keepMechanismFace, log), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
               () => viewState?.bodies.map((body) => body.name) ?? [],
               saveAssembly,
             ),

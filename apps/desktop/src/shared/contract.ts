@@ -1168,6 +1168,8 @@ export const printCheckReportSchema = z
     revision: z.number().int().nonnegative(),
     /** True for the mesh check sent ahead while SolidCraft still measures clearance and joints; the full check follows. */
     measuring: z.boolean().optional(),
+    /** What SolidCraft could not measure for this check (its measure failed): the check then says nothing of it. */
+    unmeasured: z.array(z.enum(['clearance', 'joints'])).max(2).optional(),
     /**
      * Per printed body, as it lies on the bed: solid volume and the shell estimate in mm³ (two wall lines on every
      * surface, 15 % infill inside), height in mm and its layers, mm² of surface, on the bed and leaning past the
