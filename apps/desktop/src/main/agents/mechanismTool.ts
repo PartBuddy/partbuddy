@@ -1,6 +1,9 @@
-import { LID, LIP, hingeProblem, hingeSteps, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { LID, LIP, WEB, hangs, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, INSERT, type BlockSize } from '../../shared/screwSizes';
+import { BRIDGE_SPAN } from '@partbuddy/geometry';
+
 import { componentOf } from '../solidcraft/actions';
+import { markOf, takeBack, type Mark, type Run } from './takeBack';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
 /**
@@ -17,10 +20,10 @@ const vector = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems
 const mechanismTool: UpstreamTool = {
   name: MECHANISM_TOOL,
   description:
-    'Build a print-in-place mechanism between two bodies that exist, printed in one piece without support, with the same gap everywhere. ' +
-    'hinge: knuckles in turn on both bodies and a pin through them. Give the hinge line (from, to) in the gap between the bodies, level with the bed and half the barrel diameter above it when the part prints lying flat; ' +
-    'the line must lie closer to both bodies than the barrel radius less 0.5 mm, so the knuckles grow out of them; PartBuddy cuts each knuckle\'s room in the other body itself, a gap wider than the barrel, and carries knuckles that start above the bed on webs at 45° down to their own walls: add no supports of your own. Give wall, the thickness of the walls along the line: a room that would leave less than two lines of a wall behind it is refused, with how far to move the line. ' +
-    'slide: a dovetail rail on the fixed body and its groove in the moving body, which lies over the rail a gap above the face. Give the middle line of the rail (from, to) on that face and the face normal (up). ' +
+    'Build a mechanism between two bodies that exist, with the same gap everywhere; the answer says how it prints. ' +
+    'hinge: knuckles in turn on both bodies and a pin through them, printed in place as one piece. Give the hinge line (from, to) in the gap between the bodies, level with the bed and half the barrel diameter above it when the part prints lying flat; ' +
+    'the line must lie closer to both bodies than the barrel radius less 0.5 mm, so the knuckles grow out of them; PartBuddy cuts each knuckle\'s room in the other body itself, a gap wider than the barrel, and carries knuckles that start above the bed on webs at 45° down to their own walls, where the wall reaches about one and a quarter barrel diameters below the line (the answer says where it does not, and what then needs support): add no supports of your own. Give wall, the thickness of the walls along the line: a room that would leave less than two lines of a wall behind it is refused, with how far to move the line. ' +
+    'slide: a dovetail rail on the fixed body and its groove in the moving body, which lies over the rail a gap above the face. Give the middle line of the rail (from, to) on that face and the face normal (up). The two print apart and the moving body is pushed onto the rail from an end. Where the moving body stands high enough over that face (the answer names how high) the groove gets a roof at 45° and prints as it stands; otherwise its ceiling is flat and the answer says how to lay the part. ' +
     'PartBuddy also joins the two with a joint, finds how far it moves before the bodies meet (a slide: while the moving body stays on its rail) and sets that as its limits; the user then moves it with a slider in the view. ' +
     'closure: a snap closure between a lid and its box, nothing standing out: a lip inside the lid that goes into the box along its wall and centres the lid, a bead that snaps into a rille of the box\'s wall, and a notch for a fingernail. ' +
     'Give from and to as opposite corners of the lid\'s inner room at its rim (both at the rim\'s height), up as the way the lip stands out of the lid (+Z when the lid lies open side up, -Z when it sits on the box), wall and radius of the lid, and the side with the catch (a long wall, opposite the hinge). ' +
@@ -120,8 +123,9 @@ export function hingeOf(args: Record<string, unknown>, nozzle: number): HingeSpe
   const spec: HingeSpec = {
     ...rest,
     diameter: typeof args.diameter === 'number' ? args.diameter : 6,
-    // Knuckles of at most 10 mm where the line allows: inside each one the pin bridges from neighbour to neighbour.
-    knuckles: typeof args.knuckles === 'number' ? args.knuckles : ([3, 5, 7, 9].find((count) => length / count <= 10) ?? 9),
+    // Knuckles of at most 10 mm where the line allows. Lying, it is the pin's bridge that counts: inside each knuckle of the
+    // moving body it bridges from one fixed knuckle to the next, a gap further on each side than the knuckle is long.
+    knuckles: typeof args.knuckles === 'number' ? args.knuckles : ([3, 5, 7, 9].find((count) => (Math.abs(rest.to[2] - rest.from[2]) < 1e-6 ? (length + (count + 1) * rest.gap) / count : length / count) <= 10) ?? 9),
   };
   return hingeProblem(spec) ?? spec;
 }
@@ -242,12 +246,17 @@ export function screwOf(args: Record<string, unknown>): ScrewSpec | string {
 
 /** The occurrence that places a body, from `component.list`; null while the body is still in the design itself. */
 export function occurrenceOf(listing: unknown, body: string): string | null {
+  return placed(listing, body)?.name ?? null;
+}
+
+/** That occurrence with its id, which is what `joint.list` names a joint's two sides by. */
+function placed(listing: unknown, body: string): { id?: unknown; name: string } | null {
   const components = (listing as { components?: unknown } | undefined)?.components;
   if (!Array.isArray(components)) return null;
   for (const entry of components as { parent?: unknown; bodies?: unknown; occurrences?: unknown }[]) {
     if (entry.parent === null || !Array.isArray(entry.bodies) || !entry.bodies.includes(body)) continue;
-    const name = (Array.isArray(entry.occurrences) ? (entry.occurrences[0] as { name?: unknown } | undefined) : undefined)?.name;
-    if (typeof name === 'string') return name;
+    const occurrence = Array.isArray(entry.occurrences) ? (entry.occurrences[0] as { id?: unknown; name?: unknown } | undefined) : undefined;
+    if (typeof occurrence?.name === 'string') return { id: occurrence.id, name: occurrence.name };
   }
   return null;
 }
@@ -276,7 +285,18 @@ function reach(sweep: unknown, to: number, step: number): number {
   return typeof stopped === 'number' && Number.isFinite(stopped) ? Math.trunc(stopped / step) * step : to;
 }
 
-type Run = (commands: Step[]) => Promise<unknown[]>;
+/**
+ * One call of the tool: how it reaches SolidCraft, and the design as it was before the first step was built (null
+ * when it could not be read, unset while nothing is begun), so a call that fails later is taken back. `shares` is the
+ * joint a second hinge on the same line goes on turning about.
+ */
+interface Site {
+  upstream: UpstreamTools;
+  run: Run;
+  callId: string | undefined;
+  mark: { state?: Mark | null };
+  shares?: { name: string; limits: [number, number] };
+}
 /** Keeps the face a mechanism laid its part on, by the face's name, for the plate view. */
 type KeepFace = (body: string, face: string) => void;
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -307,12 +327,22 @@ export function activated(steps: Step[], listing: unknown): Step[] {
 /**
  * Builds the solids. A joined piece that does not touch its body stays in it as a separate piece,
  * and SolidCraft says so in the step's warning (0.40.0-rc.3: "… is now in 2 separate pieces"); it
- * means the line is not where the bodies are: everything is taken back (practice run 2026-11-10: the model kept a gap between the
+ * means the line is not where the bodies are: the call fails and with that everything is taken back (practice run 2026-11-10: the model kept a gap between the
  * hinge line and the walls, mended the loose knuckles with webs, and their warnings stayed in the
  * timeline), and `where` tells the model where the line goes. Volume the two still share is a warning.
+ *
+ * A cut that leaves a new body behind has cut its body apart (a groove's roof through a plate thinner than it is high:
+ * SolidCraft answers `created_bodies` and no warning): that fails the call too, whatever the mechanism.
+ *
+ * With `joins` the mechanism ends in a joint of that type: a second one between the same two bodies is refused, unless
+ * it is a hinge on the line of the first (two short hinges on a long flap), which shares that joint. A
+ * name another joint has gets a number, in `spec` itself, before the steps are made. SolidCraft takes a name twice, and
+ * sweep and limits by that name then met the first joint (audit 2026-11-12, N-mechanik-3: the answer gave the first
+ * hinge's limits, the second had none, and a third call built a third joint between the same parts).
  */
-async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; moving: string }, steps: Step[] | (() => Step[]), where: string, callId: string | undefined, makes = false, ready: () => Promise<void> = () => Promise.resolve()): Promise<string> {
-  const before = jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { bodies?: { name?: unknown }[]; undo?: unknown };
+async function build(site: Site, spec: { fixed: string; moving: string; name: string; from?: Vec3; to?: Vec3 }, steps: Step[] | (() => Step[]), where: string, makes = false, ready: () => Promise<void> = () => Promise.resolve(), joins?: 'revolute' | 'slider'): Promise<string> {
+  const { upstream, run, callId, mark } = site;
+  const before = jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { bodies?: { name?: unknown }[] };
   const bodies = (before.bodies ?? []).map((body) => body.name);
   // A mechanism that makes its moving body (a lid) needs the name free.
   if (makes && bodies.includes(spec.moving)) throw new Error(`a body ${JSON.stringify(spec.moving)} exists already; give the lid another name, or delete that body first`);
@@ -327,40 +357,99 @@ async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; m
     .filter((joint) => (joint.values ?? []).some((value) => typeof value.value === 'number' && Math.abs(value.value) > 1e-6))
     .map((joint) => String(joint.name));
   if (away.length > 0) throw new Error(`the joint(s) ${away.map((name) => JSON.stringify(name)).join(', ')} stand away from 0; drive them back with joint.drive first, so the bodies are where they were designed`);
+  if (joins) {
+    const list = ((joints as { joints?: unknown } | undefined)?.joints ?? []) as { name?: unknown; type?: unknown; a?: unknown; b?: unknown; frame_a?: { origin?: unknown; z?: unknown }; values?: { limits?: unknown }[] }[];
+    const [a, b] = [placed(listing, spec.fixed), placed(listing, spec.moving)];
+    const side = (occurrence: { id?: unknown; name: string }, value: unknown) => value === occurrence.id || value === occurrence.name;
+    const same = a && b ? list.find((joint) => joint.type === joins && ((side(a, joint.a) && side(b, joint.b)) || (side(b, joint.a) && side(a, joint.b)))) : undefined;
+    const kind = joins === 'revolute' ? 'hinge' : 'guide';
+    if (same) {
+      // On the line of the first hinge the second turns about the same axis: it binds nothing and needs no joint of its own.
+      const [origin, z] = [vec3(same.frame_a?.origin), vec3(same.frame_a?.z)];
+      const line = spec.from && spec.to ? spec.to.map((value, i) => value - (spec.from?.[i] ?? 0)) : null;
+      const off = (vector: number[], along: number[]) => Math.hypot(...[0, 1, 2].map((i) => (vector[(i + 1) % 3] ?? 0) * (along[(i + 2) % 3] ?? 0) - (vector[(i + 2) % 3] ?? 0) * (along[(i + 1) % 3] ?? 0))) / Math.hypot(...along);
+      const onLine = joins === 'revolute' && origin && z && line && spec.from && off(z, line) < 1e-3 * Math.hypot(...z) && off(origin.map((value, i) => value - (spec.from?.[i] ?? 0)), line) < 0.01;
+      // On the stretch of the first itself the new knuckles would be cut into the old ones (audit 2026-11-12, H-02): the
+      // first joint lies in the middle of its hinge, so a line that holds that point lies over it.
+      const at = onLine ? origin.reduce((sum, value, i) => sum + (value - (spec.from?.[i] ?? 0)) * (line[i] ?? 0), 0) / line.reduce((sum, value) => sum + value * value, 0) : -1;
+      // A hinge that reaches only partly over the first, or over a second one that has no joint of its own, holds no
+      // such point (review 3 of PR #358): those are known by their pins.
+      const over = at >= 0 && at <= 1 ? String(same.name) : onLine && spec.from ? await pinOver(run, spec.from, line) : null;
+      if (over !== null) throw new Error(`the hinge ${JSON.stringify(over)} already joins ${spec.fixed} and ${spec.moving} on this stretch of the line, and new knuckles would be cut into its own. Change that one instead: take it back with undo, or delete its features and its joint, then call again. A second hinge goes on the same line beside the first.`);
+      if (!onLine) throw new Error(`the joint ${JSON.stringify(same.name)} already joins ${spec.fixed} and ${spec.moving} as a ${kind}${joins === 'revolute' ? ' on another line' : ''}, and a second ${joins === 'revolute' ? 'axis' : 'guide'} between the same two bodies would bind it. ${joins === 'revolute' ? 'Put this hinge on the line of the first, or change the first' : 'Change that one instead'}: take it back with undo, or delete its features and its joint, then call again.`);
+      const limits = same.values?.[0]?.limits;
+      site.shares = { name: String(same.name), limits: Array.isArray(limits) && typeof limits[0] === 'number' && typeof limits[1] === 'number' ? [limits[0], limits[1]] : [-180, 180] };
+    }
+    const taken = new Set(list.map((joint) => joint.name));
+    const asked = spec.name;
+    for (let n = 2; taken.has(spec.name); n += 1) spec.name = `${asked} (${String(n)})`;
+  }
   // The bodies are there and stand as designed: what must be measured on them before anything is built.
   await ready();
-  const built = await run(activated(typeof steps === 'function' ? steps() : steps, listing));
+  // From here on the design changes: a call that fails later is taken back to this state.
+  mark.state = await markOf(run);
+  const sent = activated(typeof steps === 'function' ? steps() : steps, listing);
+  const built = await run(sent);
+  for (const [i, step] of sent.entries()) {
+    const result = built[i] as { created_bodies?: unknown; removed_bodies?: unknown } | undefined;
+    const made = [result?.created_bodies, result?.removed_bodies].flatMap((names) => (Array.isArray(names) ? (names as unknown[]) : []));
+    // A step that makes its own body (a lid, a screw) says so; every other one works on a body that is there.
+    if (made.length === 0 || step.params.operation === 'new' || step.command === 'parts.insert') continue;
+    throw new Error(`the step ${JSON.stringify(step.params.name ?? step.command)} cut ${JSON.stringify((step.params.targets as unknown[] | undefined)?.[0] ?? step.params.body ?? 'a body')} apart (${made.map((name) => JSON.stringify(name)).join(', ')} came of it): the body is too thin or too small where the mechanism goes.`);
+  }
   const apart = built.filter((result) => {
     const warning = (result as { warning?: unknown } | undefined)?.warning;
     return typeof warning === 'string' && warning.includes('separate pieces');
   }).length;
-  const [after, clash] = await run([
-    { command: 'document.inspect', params: {} },
-    { command: 'inspect.interference', params: { bodies: [spec.fixed, spec.moving] } },
-  ]);
+  if (apart > 0) throw new Error(`${String(apart)} piece(s) did not touch their body and stand apart from it. ${where}`);
+  const [clash] = await run([{ command: 'inspect.interference', params: { bodies: [spec.fixed, spec.moving] } }]);
   const overlaps = ((clash as { count?: unknown } | undefined)?.count as number | undefined) ?? 0;
-  if (apart > 0) {
-    const loose = `${String(apart)} piece(s) did not touch their body and stand apart from it. ${where}`;
-    const undone = (after as { undo?: unknown } | undefined)?.undo;
-    if (typeof before.undo !== 'number' || typeof undone !== 'number' || undone <= before.undo) throw new Error(`${loose} Undo what was built, then call again.`);
-    for (let step = before.undo; step < undone; step += 1) await upstream.callTool('undo', {}, callId);
-    throw new Error(`${loose} Everything was taken back; call again with the line moved.`);
-  }
   return overlaps > 0 ? ' Warning: the two bodies still share volume away from the mechanism; make room between them.' : '';
 }
 
+/**
+ * The name of a hinge whose pin lies on the stretch `from`–`from + line`, or null. Every hinge keeps its pin as the
+ * feature "<name> ●", and `timeline.inspect` says where that cylinder starts and how long it is (SolidCraft 0.40.1).
+ * shortcut: a pin that was renamed, or whose body was moved since, is not found; then only the first joint's point is known.
+ */
+async function pinOver(run: Run, from: Vec3, line: number[]): Promise<string | null> {
+  try {
+    const [design] = await run([{ command: 'document.inspect', params: { timeline: 'summary' } }]);
+    const timeline = (design as { timeline?: unknown } | undefined)?.timeline;
+    const pins = (Array.isArray(timeline) ? (timeline as { id?: unknown; name?: unknown }[]) : []).filter((entry) => typeof entry.name === 'string' && entry.name.endsWith(' ●'));
+    if (pins.length === 0) return null;
+    const read = (await run(pins.map((pin) => ({ command: 'timeline.inspect', params: { feature: pin.id } })))) as ({ suppressed?: unknown; definition?: { base?: unknown; axis?: unknown; height?: unknown } } | undefined)[];
+    const length = Math.hypot(...line);
+    const along = (vector: number[]) => vector.reduce((sum, value, i) => sum + value * ((line[i] ?? 0) / length), 0);
+    for (const [n, pin] of read.entries()) {
+      const [base, axis, height] = [vec3(pin?.definition?.base), vec3(pin?.definition?.axis), Number.parseFloat(String(pin?.definition?.height))];
+      if (!base || !axis || !(height > 0) || pin?.suppressed === true) continue;
+      const rel = base.map((value, i) => value - (from[i] ?? 0));
+      const [start, turn] = [along(rel), along(axis) / Math.hypot(...axis)];
+      // Beside the line, or across it: another hinge.
+      if (Math.sqrt(Math.max(0, rel.reduce((sum, value) => sum + value * value, 0) - start * start)) > 0.01 || Math.abs(turn) < 0.999) continue;
+      const [low, high] = turn > 0 ? [start, start + height] : [start - height, start];
+      if (low < length - 1e-6 && high > 1e-6) return String(pins[n]?.name).slice(0, -2);
+    }
+  } catch {
+    // Not readable: the first joint's point was tried already.
+  }
+  return null;
+}
+
 /** Makes the two bodies components unless they are, joins them where they are and sets the limits: the range clear of contact within `range`. */
-async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3; to: Vec3; name: string }, type: 'revolute' | 'slider', range: [number, number], step: number): Promise<[number, number] | string> {
+async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3; to: Vec3; name: string }, type: 'revolute' | 'slider', range: [number, number], step: number, shares?: string): Promise<[number, number] | string> {
   let [listing] = await run([{ command: 'component.list', params: {} }]);
   const loners = [spec.fixed, spec.moving].filter((name) => occurrenceOf(listing, name) === null);
   if (loners.length > 0) [, listing] = await run([{ command: 'component.from_bodies', params: { bodies: loners } }, { command: 'component.list', params: {} }]);
   const a = occurrenceOf(listing, spec.fixed);
   const b = occurrenceOf(listing, spec.moving);
-  if (!a || !b) throw new Error('the solids are built, but the bodies did not become components; join them with joint.as_built');
+  if (!a || !b) throw new Error(`${spec.fixed} and ${spec.moving} did not become components, so no joint could join them.`);
   const middle = spec.from.map((value, i) => (value + (spec.to[i] ?? value)) / 2);
   const axis = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
-  const sweeps = range.filter((to) => to !== 0).map((to) => ({ command: 'joint.sweep', params: { joint: spec.name, from: 0, to } }));
-  await run([{ command: 'joint.as_built', params: { type, a, b, at: { occurrence: a, point: middle, z: axis }, name: spec.name, quiet: true } }]);
+  const joint = shares ?? spec.name;
+  const sweeps = range.filter((to) => to !== 0).map((to) => ({ command: 'joint.sweep', params: { joint, from: 0, to } }));
+  if (!shares) await run([{ command: 'joint.as_built', params: { type, a, b, at: { occurrence: a, point: middle, z: axis }, name: spec.name, quiet: true } }]);
   // SolidCraft refuses a sweep it cannot afford, such as parts that lie against each other along the way: the joint stays, without limits.
   let results: unknown[];
   try {
@@ -370,7 +459,7 @@ async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3;
   }
   const limit = (to: number) => (to === 0 ? 0 : reach(results[sweeps.findIndex((sweep) => sweep.params.to === to)], to, step));
   const limits: [number, number] = [limit(range[0]), limit(range[1])];
-  await run([{ command: 'joint.limits', params: { joint: spec.name, min: limits[0], max: limits[1] } }]);
+  await run([{ command: 'joint.limits', params: { joint, min: limits[0], max: limits[1] } }]);
   return limits;
 }
 
@@ -382,6 +471,10 @@ const PROBE = 'PartBuddy probe';
  * reach it). A wall thicker than that by less than two lines is left as a skin behind the room (practice run
  * 2026-11-12: 0.8 mm of a 1.8 mm wall). Measured on trial with a thin rod on the line: a step that must fail ends the
  * batch, and SolidCraft takes the rod back. Null when it could not be measured.
+ *
+ * `support` names the bed and, for the webs of a hinge that hangs, each body whose wall reaches down to where its web
+ * would meet it: tried with a second rod inside that wall, just under the web's foot. A web drawn to the wall's plane
+ * where the wall had ended hung 4.6 mm in the air under a lid plate (audit 2026-11-12, N-mechanik-5).
  */
 export async function roomDepths(upstream: UpstreamTools, spec: HingeSpec, callId: string | undefined): Promise<{ fixed: number; moving: number; support?: NonNullable<HingeSpec['support']> } | null> {
   try {
@@ -429,12 +522,69 @@ export async function roomDepths(upstream: UpstreamTools, spec: HingeSpec, callI
       return { toward: [off[0] / level, off[1] / level, 0], distance: Math.round(level * 100) / 100 };
     };
     const lows = (((reply.results?.[2] as { bodies?: { bbox?: { min?: unknown } }[] } | undefined)?.bodies ?? []) as { bbox?: { min?: unknown } }[]).flatMap((body) => vec3(body.bbox?.min)?.[2] ?? []);
-    const [fixed, moving] = [side(spec.fixed), side(spec.moving)];
-    const support = fixed && moving && lows.length > 0 ? { bed: Math.min(...lows), fixed, moving } : undefined;
-    return { fixed: depth(spec.fixed), moving: depth(spec.moving), ...(support ? { support } : {}) };
+    if (lows.length === 0) return { fixed: depth(spec.fixed), moving: depth(spec.moving) };
+    const bed = Math.min(...lows);
+    const sides = hangs(spec, bed) ? await carried(upstream, spec, bed, { fixed: side(spec.fixed), moving: side(spec.moving) }, callId) : {};
+    return { fixed: depth(spec.fixed), moving: depth(spec.moving), support: { bed, ...sides } };
   } catch {
     return null;
   }
+}
+
+/** How thick a trial rod is (mm). */
+const ROD = 0.2;
+
+/**
+ * Thin rods along a line, tried in the design and taken back like the rod of `roomDepths`: for each, the share of it
+ * (0 to 1) that lies inside `body`. A rod wholly in the body says there is material all along that line.
+ */
+async function rodsInside(upstream: UpstreamTools, rods: { name: string; base: number[]; body: string }[], axis: number[], length: number, callId: string | undefined): Promise<Map<string, number>> {
+  const shares = new Map<string, number>();
+  if (rods.length === 0 || length <= 0) return shares;
+  const answer = await upstream.callTool(
+    'batch',
+    {
+      commands: [
+        ...rods.map((rod) => ({ command: 'solid.cylinder', params: { diameter: ROD, height: length, base: rod.base, axis, operation: 'new', body_name: rod.name } })),
+        { command: 'inspect.clearance', params: { bodies: rods.map((rod) => rod.name), against: [...new Set(rods.map((rod) => rod.body))], min_volume: 0 } },
+        { command: 'sketch.inspect', params: { sketch: 2147483647 } },
+      ],
+      rollback: true,
+    },
+    callId,
+  );
+  const text = answer.content.find((part) => part.type === 'text')?.text;
+  const found = ((JSON.parse(typeof text === 'string' ? text : '') as { results?: unknown[] }).results?.[rods.length] as { overlaps?: unknown } | undefined)?.overlaps;
+  // A rod or the comparison that failed ends the batch before its answer: that says nothing about the body.
+  if (!Array.isArray(found)) throw new Error('the trial gave no answer');
+  // Measured on SolidCraft 0.40.1 (2026-11-12): a rod wholly in a body of 30, 100 and 300 mm comes back with this
+  // volume to nine digits, and one through a 1.5 mm gap with 1.500 mm less.
+  const whole = (Math.PI * ROD * ROD * length) / 4;
+  for (const rod of rods) {
+    const inside = (found as { a?: unknown; b?: unknown; volume_mm3?: unknown }[]).find((pair) => [pair.a, pair.b].includes(rod.name) && [pair.a, pair.b].includes(rod.body))?.volume_mm3;
+    shares.set(rod.name, typeof inside === 'number' ? inside / whole : 0);
+  }
+  return shares;
+}
+
+/**
+ * Of the walls beside a hinge line, those that can carry a web: the web ends on the bed, or a rod inside the wall just
+ * under the web's foot lies in the body along the whole line.
+ */
+async function carried(upstream: UpstreamTools, spec: HingeSpec, bed: number, sides: { fixed: HingeSide | null; moving: HingeSide | null }, callId: string | undefined): Promise<{ fixed?: HingeSide; moving?: HingeSide }> {
+  const axis = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
+  const tried = (['fixed', 'moving'] as const).flatMap((key) => {
+    const wall = sides[key];
+    if (!wall) return [];
+    const drop = webFoot(spec.diameter, wall.distance) + ROD;
+    // null: the web ends on the bed before it comes to the wall's foot.
+    const base = spec.from[2] - drop <= bed ? null : spec.from.map((value, i) => value + (wall.toward[i] ?? 0) * (wall.distance + WEB.into / 2) - (i === 2 ? drop : 0));
+    return [{ key, wall, base, name: `${PROBE} ${key}` }];
+  });
+  const shares = await rodsInside(upstream, tried.flatMap((entry) => (entry.base ? [{ name: entry.name, base: entry.base, body: spec[entry.key] }] : [])), axis, Math.hypot(...axis), callId).catch(() => new Map<string, number>());
+  const out: { fixed?: HingeSide; moving?: HingeSide } = {};
+  for (const entry of tried) if (entry.base === null || (shares.get(entry.name) ?? 0) >= 0.9) out[entry.key] = entry.wall;
+  return out;
 }
 
 /** What is wrong with the walls behind the knuckles' rooms, when the model said how thick they are; null when they print. */
@@ -453,72 +603,189 @@ export function skinProblem(depths: { fixed: number; moving: number }, spec: { f
 const MOVE = 'The user moves it with the slider "Moving parts" in the view.';
 
 /** What the model hears when the joint is made but its range could not be found. */
-const unswept = (reason: string) =>
-  `SolidCraft could not run it through its range (${reason.slice(0, 160)}), so no limits are set. The two bodies probably lie against each other somewhere: look with inspect.clearance, make room, then set joint.limits yourself after joint.sweep.`;
+const unswept = (reason: string, shares?: string) =>
+  `SolidCraft could not run it through its range (${reason.slice(0, 160)}), so ${shares ? `the limits of "${shares}" stay as they were, untried with this hinge` : 'no limits are set'}. The two bodies probably lie against each other somewhere: look with inspect.clearance, make room, then set joint.limits yourself after joint.sweep.`;
 
-async function buildMechanism(upstream: UpstreamTools, args: Record<string, unknown>, nozzle: number, callId: string | undefined, keepFace: KeepFace): Promise<string> {
+/** What leans 45° prints without support only in a material that allows it: PETG and the carbon-filled ones stop at 40°. */
+const leans = (what: string, overhang: number) => `${what} lean 45°, more than the ${String(overhang)}° the material in use prints without support: they need support there, or a material that prints 45°.`;
+
+/**
+ * What a lying hinge that hangs above the bed needs to print, from what was measured and built: said only as far as it
+ * holds. "Stand on webs …, so they print without support" stood over 90 to 619 mm² the print check still found
+ * (audit 2026-11-12, N-mechanik-4), and over webs that had no wall under them (N-mechanik-5).
+ */
+function hingePrint(spec: HingeSpec, depths: Awaited<ReturnType<typeof roomDepths>>, overhang: number): string {
+  if (Math.abs(spec.to[2] - spec.from[2]) > 1e-6) return '';
+  const bridge = pinBridge(spec);
+  // Nine knuckles is the most one hinge has: a longer line takes two hinges, which share their joint.
+  const sags = bridge > BRIDGE_SPAN ? ` The pin bridges ${String(Math.round(bridge * 10) / 10)} mm inside each knuckle of ${spec.moving}, more than prints clean (${String(BRIDGE_SPAN)} mm): ${spec.knuckles < 9 ? 'use more knuckles' : 'build two shorter hinges on the same line instead of this one'}.` : '';
+  const support = depths?.support;
+  if (!support) return ` PartBuddy could not measure the bed and the walls beside the line, so no knuckle got a web: those that start above the bed need support.${sags}`;
+  if (!hangs(spec, support.bed)) return sags;
+  const count = { fixed: (spec.knuckles + 1) / 2, moving: (spec.knuckles - 1) / 2 };
+  const bare = (['fixed', 'moving'] as const).filter((key) => !support[key]);
+  const webs = `stand on webs at 45° that run from under the barrel down to their own wall`;
+  if (bare.length === 0) {
+    const all = ` All ${String(spec.knuckles)} knuckles start above the bed and ${webs}, and the pin is flat underneath where it bridges from knuckle to knuckle`;
+    if (overhang < 45) return `${all}. ${leans('Webs, barrels and the bore', overhang)}${sags}`;
+    return `${all}${sags ? '.' : ', so the hinge prints as it stands, without support.'}${sags}`;
+  }
+  const hung = bare.map((key) => `the ${String(count[key])} of ${spec[key]}`).join(' and ');
+  const held = bare.length === 1 ? ` The ${String(count[bare[0] === 'fixed' ? 'moving' : 'fixed'])} knuckles of ${spec[bare[0] === 'fixed' ? 'moving' : 'fixed']} ${webs}.` : '';
+  return ` The knuckles start above the bed, and ${hung} got no web: a web meets its wall ${String(webFoot(spec.diameter, spec.diameter / 2 - 0.5))} mm below the line at the most, and there is no wall there. They need support, or a wall that reaches down that far before the hinge is built.${held}${sags}`;
+}
+
+/**
+ * Builds the rail and the groove of a guide or a dovetail. Whether the moving body is solid where the groove's roof
+ * goes is tried first, with rods along the groove over the ridge and over both flanks, two lines of plastic above
+ * them: only then does the groove get its roof. The body's box does not say it: a plate with a knob on it is high
+ * enough by its box, and the roof cut it in two along the rail under "Neither needs support" (review of PR #358).
+ * Without a roof the ceiling stays flat and `print` says what that means (audit 2026-11-12, T5: "printed in one piece
+ * without support" over a ceiling of 13.9 mm).
+ */
+async function buildGuide(site: Site, spec: SlideSpec, nozzle: number, overhang: number, joins?: 'slider'): Promise<{ warnings: string; measure: unknown; print: string }> {
+  const roof = slideRoof(spec);
+  const skin = nozzle * 2 * 1.125;
+  const needed = Math.round((roof.top + skin) * 10) / 10;
+  let measure: unknown;
+  // Why the groove got no roof, when it is not that the body was found short of material there.
+  // 'partly': every rod lies mostly in the body, and `short` mm of the worst one do not.
+  const roofless: { why: 'failed' | 'askew' | 'partly' | null; short: number } = { why: null, short: 0 };
+  const warnings = await build(
+    site,
+    spec,
+    () => slideSteps(spec),
+    `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`,
+    false,
+    async () => {
+      [measure] = await site.run([{ command: 'inspect.measure', params: { bodies: [spec.moving] } }]);
+      const travel = railTravel(measure, spec.from, spec.to);
+      if (!travel) throw new Error(`${spec.moving} could not be measured, so neither the room for the groove's roof nor how far the guide may travel is known`);
+      const axis = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
+      const length = Math.hypot(...axis);
+      const unit = (vector: number[]) => vector.map((value) => value / Math.hypot(...vector));
+      const [along, up] = [unit(axis), unit(spec.up)];
+      const across = [0, 1, 2].map((i) => (up[(i + 1) % 3] ?? 0) * (along[(i + 2) % 3] ?? 0) - (up[(i + 2) % 3] ?? 0) * (along[(i + 1) % 3] ?? 0));
+      // The stretch of the line the body lies over: its travel either way is what of the rail it leaves free.
+      const [start, covered] = [-travel[0], length + travel[0] - travel[1]];
+      // Over the ridge and its two edges, and over the middle of each flank: each rod's top where the skin over the roof ends.
+      const flank = (roof.ceiling + roof.ridge) / 4;
+      const [ridge, slope] = [roof.top + skin - ROD / 2, (spec.height + spec.gap + roof.top) / 2 + skin * Math.SQRT2 - ROD / 2];
+      const over: [number, number][] = [[0, ridge], [roof.ridge / 2, ridge], [-roof.ridge / 2, ridge], [flank, slope], [-flank, slope]];
+      const rods = over.map(([x, y], n) => ({ name: `${PROBE} ${String(n + 1)}`, body: spec.moving, base: spec.from.map((value, i) => value + (along[i] ?? 0) * start + (across[i] ?? 0) * x + (up[i] ?? 0) * y) }));
+      const shares = await rodsInside(site.upstream, rods, axis, covered, site.callId).catch(() => null);
+      // No more than a rod's width of any rod may lie outside the body: through a cross groove the roof would break out.
+      spec.roof = shares !== null && covered > 0 && rods.every((rod) => (1 - (shares.get(rod.name) ?? 0)) * covered <= ROD);
+      // shortcut: the rods are as long as the body's box along the line, so over a line askew to the axes (or a body
+      // turned on its face) they reach past the body and no roof is built; lay them by the body itself when that turns up.
+      // shortcut: ends that are not flat (a round or chamfered body) leave the rods short there, and the groove gets
+      // no roof though the body is full over it; the answer says so. Try only the stretch each rod can lie in when it turns up.
+      const least = shares === null ? 0 : Math.min(...rods.map((rod) => shares.get(rod.name) ?? 0));
+      roofless.short = Math.round((1 - least) * covered * 10) / 10;
+      roofless.why = spec.roof ? null : shares === null ? 'failed' : along.filter((value) => Math.abs(value) > 1e-6).length > 1 ? 'askew' : least >= 0.5 ? 'partly' : null;
+    },
+    joins,
+  );
+  const untried = roofless.why;
+  const apart = `The two print apart, each with up pointing up, and ${spec.moving} is then pushed onto the rail from an end.`;
+  const wide = String(Math.round(roof.ceiling * 10) / 10);
+  const flanks = spec.roof ? "The rail's flanks and the roof over the groove" : "The rail's flanks";
+  const steep = overhang < 45 ? leans(flanks, overhang) : null;
+  const solid = `solid up to ${String(needed)} mm over the face the rail is on`;
+  const box = "the line runs askew to the axes, where the trial goes by the body's box and can reach past the body";
+  const ends = `material is missing at that height along up to ${String(roofless.short)} mm of it: at ends that are round, chamfered or turned, or in a gap across the groove`;
+  const print = spec.roof
+    ? `${apart} ${steep ?? `Neither needs support: the rail's flanks and the roof over the groove lean 45°, and the roof's ridge is a bridge of ${String(roof.ridge)} mm.`}`
+    : roof.ceiling <= BRIDGE_SPAN
+      ? `${apart} The groove's ceiling is flat and ${wide} mm wide, which prints as a bridge (up to ${String(BRIDGE_SPAN)} mm)${steep ? `. ${steep}` : ", and the rail's flanks lean 45°: neither needs support."} ${untried === 'failed' ? `Whether ${spec.moving} is ${solid} could not be tried (SolidCraft's trial failed)` : untried === 'askew' ? `The trial did not find ${spec.moving} ${solid} all along the groove (${box})` : untried === 'partly' ? `${spec.moving} is ${solid} along most of the groove only (${ends})` : `${spec.moving} is not ${solid} all along the groove`}, so the groove got no roof.`
+      : `${apart} The groove's ceiling is flat and ${wide} mm wide, more than prints as a bridge (${String(BRIDGE_SPAN)} mm): a roof at 45° over it needs ${spec.moving} to be ${solid}, all along the groove, and ${untried === 'failed' ? "whether it is could not be tried (SolidCraft's trial failed)" : untried === 'askew' ? `the trial did not find it so (${box})` : untried === 'partly' ? `it is along most of it only (${ends})` : 'it is not'}. Print ${spec.moving} turned over instead, lying on its top with the groove open upwards (set that face as its print face), or ${untried ? 'make sure it is' : 'make it'} that high there and build this again.${steep ? ` ${steep}` : ''}`;
+  return { warnings, measure, print };
+}
+
+/**
+ * A call ends in one of two states: built, with what is missing said in the answer, or not built and the design as it
+ * was. A failure after the first step (the joint refused, the travel not measurable) left knuckles and cuts behind under
+ * "Not built", and the next call built them twice (audit 2026-11-12, H-02).
+ */
+async function buildMechanism(upstream: UpstreamTools, args: Record<string, unknown>, nozzle: number, callId: string | undefined, keepFace: KeepFace, overhang: number): Promise<string> {
   const run: Run = async (commands) => {
-    const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[]; failed?: { command?: unknown; error?: unknown } };
-    if (reply.failed) throw new Error(`SolidCraft refused ${String(reply.failed.command)}: ${String(reply.failed.error).slice(0, 200)}`);
+    const result = await upstream.callTool('batch', { commands }, callId);
+    const text = result.content.find((part) => part.type === 'text')?.text;
+    let reply: { results?: unknown[]; failed?: { command?: unknown; error?: unknown } } | undefined;
+    try {
+      reply = JSON.parse(typeof text === 'string' ? text : '') as typeof reply;
+    } catch {
+      reply = undefined;
+    }
+    // SolidCraft marks a batch with a failed step as an error and still answers in JSON: only the step and its reason go on.
+    if (reply?.failed) throw new Error(`SolidCraft refused ${String(reply.failed.command)}: ${String(reply.failed.error).slice(0, 200)}`);
+    if (result.isError || !reply) throw new Error(typeof text === 'string' ? text.slice(0, 300) : 'SolidCraft gave no answer');
     return reply.results ?? [];
   };
+  const site: Site = { upstream, run, callId, mark: {} };
+  try {
+    return await mechanism(site, args, nozzle, keepFace, overhang);
+  } catch (cause) {
+    const message = (cause as Error).message;
+    // Unset: the call was refused before anything was built.
+    if (!('state' in site.mark)) throw cause;
+    throw new Error(`${message.replace(/\.?$/, '.')} ${(await takeBack(run, site.mark.state ?? null)) ? 'Everything was taken back.' : 'What was begun could not be taken back: undo it before you call again.'}`, { cause });
+  }
+}
+
+async function mechanism(site: Site, args: Record<string, unknown>, nozzle: number, keepFace: KeepFace, overhang: number): Promise<string> {
+  const { upstream, run, callId } = site;
   if (args.kind === 'hinge') {
     const spec = hingeOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
     const reach = String(Math.round((spec.diameter / 2 - 0.5) * 10) / 10);
     let depths: Awaited<ReturnType<typeof roomDepths>> = null;
-    let webs = 0;
     const least = String(Math.round(nozzle * 2 * 1.125 * 100) / 100);
     const rooms = () => depths ? ` The knuckles' rooms go ${String(depths.fixed)} mm into ${spec.fixed} and ${String(depths.moving)} mm into ${spec.moving}, measured from the face nearest the line: a wall there must be ${least} mm thicker than that, or thinner than it (the room then opens through the wall); anything between is left as a thin skin.` : '';
-    const warnings = await build(
-      upstream,
-      run,
-      spec,
+    const warnings = await build(site, spec,
       // With the walls and the bed measured, knuckles that start in the air get their webs.
-      () => {
-        const steps = hingeSteps(depths?.support ? { ...spec, support: depths.support } : spec);
-        webs = steps.filter((step) => step.command === 'solid.extrude' && String(step.params.name).endsWith('◣')).length;
-        return steps;
-      },
+      () => hingeSteps(depths?.support ? { ...spec, support: depths.support } : spec),
       `Put the hinge line within ${reach} mm of both bodies (the barrel is ${String(spec.diameter)} mm, so it must overlap each by at least 0.5 mm). PartBuddy cuts each knuckle's room in the other body itself.`,
-      callId,
       false,
       async () => {
         depths = await roomDepths(upstream, spec, callId);
         const thin = depths && typeof args.wall === 'number' ? skinProblem(depths, spec, args.wall, nozzle) : null;
         if (thin) throw new Error(thin);
       },
+      'revolute',
     );
-    const range = await join(run, spec, 'revolute', [-180, 180], 1);
-    if (typeof range === 'string') return `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns) and joined them, but ${unswept(range)}${warnings}`;
+    // A hinge on the line of an earlier one only narrows what that joint allows: it is run through its limits again.
+    const range = await join(run, spec, 'revolute', site.shares?.limits ?? [-180, 180], 1, site.shares?.name);
+    const print = `${site.shares ? ` It lies on the line of the hinge "${site.shares.name}" and turns about that hinge's joint, which carries both now.` : ''}${hingePrint(spec, depths, overhang)}`;
+    if (typeof range === 'string') return `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns) and joined them, but ${unswept(range, site.shares?.name)}${print}${warnings}`;
     const [min, max] = range;
     return (
       `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns): ${String(spec.knuckles)} knuckles, barrel ${String(spec.diameter)} mm, pin ${String(pinDiameter(spec.diameter))} mm, ` +
       `gap ${String(spec.gap)} mm everywhere. It turns from ${String(min)}° to ${String(max)}° before the bodies meet, and those are its limits now; 0° is as designed. ` +
-      `${MOVE} If it should open further, make room where the bodies meet and set joint.limits again.${webs > 0 ? ` ${String(webs)} knuckles start above the bed and stand on webs at 45° down to their own walls, so they print without support.` : ''}${rooms()}${warnings}`
+      `${MOVE} If it should open further, make room where the bodies meet and set joint.limits again.${print}${rooms()}${warnings}`
     );
   }
   if (args.kind === 'slide') {
     const spec = slideOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`, callId);
-    const [measure] = await run([{ command: 'inspect.measure', params: { bodies: [spec.moving] } }]);
+    // The box along the line is the same before and after the groove is cut.
+    const { warnings, measure, print } = await buildGuide(site, spec, nozzle, overhang, 'slider');
     const travel = railTravel(measure, spec.from, spec.to);
-    if (!travel) throw new Error('the guide is built, but the moving body could not be measured; join the bodies with joint.as_built {type: slider}');
+    if (!travel) throw new Error(`${spec.moving} could not be measured, so how far the guide may travel is not known.`);
     const range = await join(run, spec, 'slider', travel, 0.1);
-    if (typeof range === 'string') return `Built the guide "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (slides) and joined them, but ${unswept(range)}${warnings}`;
+    if (typeof range === 'string') return `Built the guide "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (slides) and joined them, but ${unswept(range)} ${print}${warnings}`;
     const [min, max] = range;
     const mm = (value: number) => String(Math.round(value * 10) / 10);
     return (
       `Built the guide "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (slides): a dovetail rail ${String(spec.width)} mm wide at its foot and ${String(spec.height)} mm high, ` +
       `gap ${String(spec.gap)} mm everywhere. It slides from ${mm(min)} mm to ${mm(max)} mm while ${spec.moving} stays on the rail and the bodies do not meet, and those are its limits now; 0 mm is as designed. ` +
-      `${MOVE} Nothing holds it at the ends of the rail; add stops if it must not come off.${warnings}`
+      `${MOVE} Nothing holds it at the ends of the rail; add stops if it must not come off. ${print}${warnings}`
     );
   }
   if (args.kind === 'closure') {
     const spec = lipOf(args);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, lipSteps(spec), spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, callId);
+    const warnings = await build(site, spec, lipSteps(spec), spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`);
     if (spec.flat) {
       return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(LIP.thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up: set the print face of the plate on its outer face. It makes no joint. Keep the box's wall straight and at least 1.6 mm thick where the lip goes in.${warnings}`;
     }
@@ -531,7 +798,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     if (typeof spec === 'string') throw new Error(spec);
     const thread = lidThread(spec);
     const skirt = lidSkirt(spec);
-    const warnings = await build(upstream, run, spec, lidSteps(spec), `Give from as the centre of the rim of ${spec.fixed} and diameter as the outer diameter of its neck, which must be a plain upright cylinder over the top ${String(skirt)} mm.`, callId, true);
+    const warnings = await build(site, spec, lidSteps(spec), `Give from as the centre of the rim of ${spec.fixed} and diameter as the outer diameter of its neck, which must be a plain upright cylinder over the top ${String(skirt)} mm.`, true);
     // SolidCraft has the lid's print face from the steps, but does not report it: asked for once more, it names the face,
     // which the plate view needs to lay the lid on its top too.
     const [laid] = await run([{ command: 'body.print_face', params: { body: spec.moving, point: [spec.centre[0], spec.centre[1], round2(spec.centre[2] + LID.top)] } }]).catch(() => []);
@@ -540,14 +807,14 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     return (
       `Built the screw lid "${spec.moving}" for ${spec.fixed}: a thread with 45° flanks on the neck, pitch ${String(thread.pitch)} mm, ${String(thread.depth)} mm deep, ${String(spec.starts)} start${spec.starts > 1 ? 's' : ''}, ` +
       `and the same inside the lid, ${String(spec.gap)} mm clear; it closes in ${String(round2(thread.turns))} turn${thread.turns > 1 ? 's' : ''} and stops with its inner top on the rim. ` +
-      `The lid is ${String(round2(spec.diameter + 2 * (thread.depth + spec.gap + LID.wall)))} mm wide and covers the top ${String(skirt)} mm of the neck, has flutes to grip and prints standing on its top (its print face is set); both parts print without support. ` +
+      `The lid is ${String(round2(spec.diameter + 2 * (thread.depth + spec.gap + LID.wall)))} mm wide and covers the top ${String(skirt)} mm of the neck, has flutes to grip and prints standing on its top (its print face is set); ${overhang < 45 ? leans("the threads' flanks on both parts", overhang).replace(/\.$/, '') : 'both parts print without support'}. ` +
       `Keep the neck a plain cylinder of ${String(spec.diameter)} mm there, with a wall of at least 2 mm.${warnings}`
     );
   }
   if (args.kind === 'screw') {
     const spec = screwOf(args);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, screwSteps(spec), `Give from on the outer face of ${spec.moving} and to on the face where it meets ${spec.fixed}.`, callId);
+    const warnings = await build(site, spec, screwSteps(spec), `Give from on the outer face of ${spec.moving} and to on the face where it meets ${spec.fixed}.`);
     const count = spec.more.length + 1;
     const length = screwLength(spec);
     const insert = INSERT[spec.size];
@@ -563,7 +830,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
   if (args.kind === 'snap') {
     const spec = snapOf(args);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, snapSteps(spec), `Give from as a point on a face of ${spec.fixed} at the inner face of the wall of ${spec.moving}, up as that face's normal and to as a point further into that wall.`, callId);
+    const warnings = await build(site, spec, snapSteps(spec), `Give from as a point on a face of ${spec.fixed} at the inner face of the wall of ${spec.moving}, up as that face's normal and to as a point further into that wall.`);
     const count = spec.more.length + 1;
     return (
       `Built ${String(count)} snap hook${count > 1 ? 's' : ''} "${spec.name}" on ${spec.fixed}, each with its window through the ${String(spec.wall)} mm wall of ${spec.moving}: an arm ${String(SNAP.length)} mm long, ${String(SNAP.thickness)} mm thick and ${String(SNAP.width)} mm wide, ${String(SNAP.gap)} mm off the wall, with a catch of ${String(SNAP.catch)} mm that lies over the window's edge. ` +
@@ -575,28 +842,28 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     const spec = latchOf(args);
     if (typeof spec === 'string') throw new Error(spec);
     const reach = latchReach();
-    const warnings = await build(upstream, run, spec, latchSteps(spec), `Give from on the line where ${spec.moving} and ${spec.fixed} meet, on their outer wall, and to as a point straight out of that wall; both walls must lie in one plane there.`, callId);
+    const warnings = await build(site, spec, latchSteps(spec), `Give from on the line where ${spec.moving} and ${spec.fixed} meet, on their outer wall, and to as a point straight out of that wall; both walls must lie in one plane there.`);
     return (
       `Built the latch "${spec.name}": an arm ${String(spec.width)} mm wide and ${String(LATCH.thick)} mm thick grows out of the wall of ${spec.moving} (the lid), hangs ${String(LATCH.off)} mm off the wall over the joint and snaps with its hook under a bead ${String(LATCH.bead)} mm high on ${spec.fixed} (the box); the two overlap by ${String(LATCH.bead - LATCH.clear)} mm on 45° faces. ` +
       `Pressing the lid down snaps it shut (about 1.3 % strain at the arm's root); pulling the arm's lower end away from the box opens it, and so does a strong pull on the lid. It makes no joint. ` +
-      `It needs ${String(reach.above)} mm of flat wall on the lid above the joint and ${String(reach.below)} mm on the box below it. Print the lid on its top: the arm then grows out of it without support; the box prints standing. The arm stands upright that way and bends across its layers, the weak way: for a lid opened often use PETG or ABS rather than PLA. Not printed yet: how firmly it holds shows on the first print.${warnings}`
+      `It needs ${String(reach.above)} mm of flat wall on the lid above the joint and ${String(reach.below)} mm on the box below it. Print the lid on its top: ${overhang < 45 ? leans("the arm's foot and the bead's faces", overhang).replace(/\.$/, '') : 'the arm then grows out of it without support'}; the box prints standing. The arm stands upright that way and bends across its layers, the weak way: for a lid opened often use PETG or ABS rather than PLA. Not printed yet: how firmly it holds shows on the first print.${warnings}`
     );
   }
   if (args.kind === 'plug' && args.shape === 'dovetail') {
     // The guide's own dovetail as a close fit: 0.2 mm, where guides for printed dovetails run from 0.1 to 0.3.
     const spec = slideOf({ ...args, gap: typeof args.gap === 'number' ? args.gap : 0.2, name: typeof args.name === 'string' && args.name.trim() !== '' ? args.name : 'Dovetail' }, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`, callId);
+    const { warnings, print } = await buildGuide(site, spec, nozzle, overhang);
     return (
       `Built the dovetail "${spec.name}" between ${spec.fixed} (carries the rail) and ${spec.moving} (has the groove): ${String(spec.width)} mm wide at its foot and ${String(spec.height)} mm high with 45° flanks, ${String(spec.gap)} mm clear all round. ` +
-      `It makes no joint: ${spec.moving} is pushed on along the line and stops where the groove ends inside it; where the groove runs through, nothing stops it. Print both with the rail's line level or upright, so the flanks need no support. Not printed yet: when it binds or rattles, build it again with another gap.${warnings}`
+      `It makes no joint: ${spec.moving} is pushed on along the line and stops where the groove ends inside it; where the groove runs through, nothing stops it. ${print} Not printed yet: when it binds or rattles, build it again with another gap.${warnings}`
     );
   }
   if (args.kind === 'plug') {
     if (args.shape !== undefined && args.shape !== 'peg') throw new Error('shape must be peg or dovetail');
     const spec = pegOf(args);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, pegSteps(spec), `Give from as a point on the face where ${spec.fixed} and ${spec.moving} meet, and to as a point further into ${spec.moving}.`, callId);
+    const warnings = await build(site, spec, pegSteps(spec), `Give from as a point on the face where ${spec.fixed} and ${spec.moving} meet, and to as a point further into ${spec.moving}.`);
     const count = spec.more.length + 1;
     const long = pegLength(spec.diameter);
     return (
@@ -608,15 +875,15 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
   throw new Error('kind must be hinge, slide, closure, screw, lid, snap, plug or latch');
 }
 
-/** The upstream tools plus `partbuddy_mechanism`; `nozzle` is the printer's nozzle in use, for the default gap. */
-export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number, keepFace: KeepFace = () => undefined): UpstreamTools {
+/** The upstream tools plus `partbuddy_mechanism`; `nozzle` is the printer's nozzle in use, for the default gap, and `overhang` how far the material in use leans without support (degrees), for what the answers promise. */
+export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number, keepFace: KeepFace = () => undefined, overhang: () => number = () => 45): UpstreamTools {
   return {
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), mechanismTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
       if (name !== MECHANISM_TOOL) return upstream.callTool(name, args, callId);
       try {
-        return { content: [{ type: 'text', text: await buildMechanism(upstream, args, nozzle(), callId, keepFace) }] };
+        return { content: [{ type: 'text', text: await buildMechanism(upstream, args, nozzle(), callId, keepFace, overhang()) }] };
       } catch (cause) {
         return { content: [{ type: 'text', text: `Not built: ${(cause as Error).message}` }], isError: true };
       }
@@ -625,4 +892,4 @@ export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number,
 }
 
 /** Added to the role prompt of every route, after the joint guidance. */
-export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the print-in-place geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through. For parts that are screwed together (a lid on a housing, a bracket on a base, a cover) call it with kind screw instead of drilling the holes yourself: it sizes the clearance hole, the room for the head and the seat of the heat-set insert, and says which screws to buy. For a round container that should screw shut (a jar, a canister, a bottle cap) build the container with a plain cylindrical neck and call it with kind lid: it threads the neck and makes the lid, instead of modelling a thread yourself. For a cover or a housing half that should clip on and come off again by pressing on catches (an electronics housing, a battery cover) call it with kind snap: hooks on one part, their windows through the other part's wall. For a lid that should be held down by a latch one sees and opens with a finger (a tool box, a case with a hinged lid) call it with kind latch: a snap latch outside, on the wall opposite the hinge. For a part split in two to fit the printer, or two parts that are plugged or glued together, call it with kind plug: pegs with their pockets (two or more), or shape dovetail to push one part onto the other.`;
+export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through. For parts that are screwed together (a lid on a housing, a bracket on a base, a cover) call it with kind screw instead of drilling the holes yourself: it sizes the clearance hole, the room for the head and the seat of the heat-set insert, and says which screws to buy. For a round container that should screw shut (a jar, a canister, a bottle cap) build the container with a plain cylindrical neck and call it with kind lid: it threads the neck and makes the lid, instead of modelling a thread yourself. For a cover or a housing half that should clip on and come off again by pressing on catches (an electronics housing, a battery cover) call it with kind snap: hooks on one part, their windows through the other part's wall. For a lid that should be held down by a latch one sees and opens with a finger (a tool box, a case with a hinged lid) call it with kind latch: a snap latch outside, on the wall opposite the hinge. For a part split in two to fit the printer, or two parts that are plugged or glued together, call it with kind plug: pegs with their pockets (two or more), or shape dovetail to push one part onto the other.`;
