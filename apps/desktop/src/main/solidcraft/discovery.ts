@@ -109,10 +109,24 @@ export function locateExecutable(
       if (root) candidates.push(join(root, 'SolidCraft', name));
     }
   }
+  if (platform === 'darwin') {
+    // An app started from the Finder does not get the shell's PATH, so the bundle is looked up directly.
+    for (const root of ['/Applications', join(environment.home, 'Applications')]) {
+      candidates.push(programInBundle(join(root, 'SolidCraft.app')));
+    }
+  }
   for (const dir of (env.PATH ?? env.Path ?? '').split(delimiter)) {
     if (dir) candidates.push(join(dir, name));
   }
   return { path: candidates.find((path) => exists(path)) ?? null, source: 'automatic' };
+}
+
+/**
+ * The program inside a macOS app bundle (seen in solidcraft-0.40.1-macos-universal.dmg:
+ * `Contents/MacOS/SolidCraft` with `solidcraft-cli` beside it); any other path stays as it is.
+ */
+export function programInBundle(path: string): string {
+  return /\.app[\\/]?$/.test(path) ? join(path, 'Contents', 'MacOS', 'SolidCraft') : path;
 }
 
 /** Path of the SolidCraft desktop app, or null when it is not installed. */

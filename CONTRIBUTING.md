@@ -51,6 +51,7 @@ pnpm --filter @partbuddy/desktop dev        # Electron with hot reload
 pnpm --filter @partbuddy/desktop build      # bundle into apps/desktop/out
 pnpm --filter @partbuddy/desktop test:e2e   # Electron flows against a fake SolidCraft
 pnpm --filter @partbuddy/desktop dist       # Windows installer in apps/desktop/dist (B10)
+pnpm --filter @partbuddy/desktop dist:mac   # macOS dmg (universal, signed ad hoc); runs on a Mac only, see installer.yml
 ```
 
 The app finds a running SolidCraft through its control folder, or starts `solidcraft --control 7878`

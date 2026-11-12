@@ -1,5 +1,7 @@
 # Windows installer of PartBuddy (plan step B10): NSIS, per user, with Start menu and desktop
 # shortcuts. Unsigned for now, so SmartScreen warns; signing comes before the public release.
+# macOS: a universal dmg as a test build, signed ad hoc only (no Apple developer account yet), so
+# Gatekeeper asks once and there are no automatic updates on the Mac.
 # Updates come from the GitHub releases of the repository (electron-updater).
 appId: io.github.manuelstaggl.partbuddy
 productName: PartBuddy
@@ -17,6 +19,8 @@ files:
   - "!node_modules/**"
   - node_modules/@napi-rs/keyring/**
   - node_modules/@napi-rs/keyring-win32-x64-msvc/**
+  - node_modules/@napi-rs/keyring-darwin-arm64/**
+  - node_modules/@napi-rs/keyring-darwin-x64/**
 # Licence texts of every bundled library (ADR 0007), written before packing, next to the asar.
 beforePack: ../../tools/licenses/notices.mjs
 extraResources:
@@ -32,6 +36,21 @@ win:
   icon: ../../assets/brand/icon/png/partbuddy-256.png
   # No certificate yet, so nothing is signed; the version and icon are still written into the exe.
   signAndEditExecutable: true
+mac:
+  target:
+    - target: dmg
+      arch: [universal]
+  # electron-builder makes the icns from this PNG (tools/brand/build.mjs renders it).
+  icon: ../../assets/brand/icon/png/partbuddy-1024.png
+  category: public.app-category.graphics-design
+  # Ad hoc: without any signature Apple Silicon refuses to start the app at all. The hardened
+  # runtime would need a real certificate to load the credential store.
+  identity: "-"
+  hardenedRuntime: false
+  # Both builds carry both single-architecture credential stores; they are kept, not merged.
+  x64ArchFiles: "**/keyring.darwin-*.node"
+dmg:
+  artifactName: PartBuddy-${version}-mac-universal.${ext}
 nsis:
   oneClick: false
   perMachine: false
