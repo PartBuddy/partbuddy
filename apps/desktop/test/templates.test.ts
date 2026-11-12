@@ -115,6 +115,21 @@ describe('templates with moving parts', () => {
       for (const step of knuckles) expect(step.params.base).toEqual([expect.stringMatching(/^length \/ 2 \+ -?[\d.]+ mm$/), 0.5, 'height']);
     }
     expect(germanFeatureName('Hinge 2 ·')).toBe('Scharnier 2 ·');
+    // Audit 2026-11-12, T3: the template called the hinge without the webs of the tool, so its knuckles began 12 mm above the
+    // bed in the air (189 mm² of overhang, up to 87°) under a file that promises "without support".
+    const steps = templateSteps('hingedBox');
+    const webs = steps.filter((step) => step.command === 'solid.extrude' && String(step.params.name).endsWith('◣'));
+    expect(webs.map((step) => [step.params.name, (step.params.targets as string[])[0], step.params.distance])).toEqual([['Hinge 1 ◣', 'Box', '7.68 mm'], ['Hinge 2 ◣', 'Lid', '7.68 mm'], ['Hinge 3 ◣', 'Box', '7.68 mm'], ['Hinge 4 ◣', 'Lid', '7.68 mm'], ['Hinge 5 ◣', 'Box', '7.68 mm']]);
+    // Each is drawn on the world's YZ plane at the knuckle's low end in x, from the rim down, so it follows length and height:
+    // the box's from the line (y 0.5) towards -y to 0.5 mm inside its wall, the lid's towards +y.
+    const drawn = (name: string) => steps.slice(steps.findIndex((step) => step.command === 'sketch.create' && step.params.name === name)).slice(0, 2).map((step) => step.params);
+    expect(drawn('Hinge 1 ◣')).toEqual([{ plane: 'YZ', offset: 'length / 2 + -20 mm', project_edges: false, name: 'Hinge 1 ◣' }, { points: [['3.328 mm', 'height + 0 mm'], ['3.328 mm', 'height + -2.828 mm'], ['0 mm', 'height + -6.157 mm'], ['-0.5 mm', 'height + -6.157 mm'], ['-0.5 mm', 'height + 0 mm']], closed: true }]);
+    expect(drawn('Hinge 2 ◣')[0]).toMatchObject({ plane: 'YZ', offset: 'length / 2 + -11.92 mm' });
+    expect((drawn('Hinge 2 ◣')[1]?.points as string[][])[2]).toEqual(['1 mm', 'height + -6.157 mm']);
+    expect(germanFeatureName('Hinge 1 ◣')).toBe('Scharnier 1 ◣');
+    expect(germanFeatureName('Hinge 2 ▬')).toBe('Scharnier 2 ▬');
+    // The joint is kept on the pin's round top: underneath the pin is flat now.
+    expect((steps.find((step) => step.command === 'joint.create')?.params.a as { circle: number[] }).circle.map((value) => Math.round(value * 100) / 100)).toEqual([25.46, 0.5, 18]);
   });
 
   it('joins the stop as a slider, by name in either language', () => {

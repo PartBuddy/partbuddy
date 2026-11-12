@@ -2,7 +2,8 @@
  * Templates (plan step F3): parametric starting points built with SolidCraft's own commands. Every
  * size is a user parameter (`parameters.add`) and the geometry refers to it by expression, so the
  * parameter panel changes a template without the assistant. Each was built and changed with
- * `solidcraft-cli eval` and stays printable as designed, Z up, without support.
+ * `solidcraft-cli eval` and stays printable as designed, Z up, without support (the stop of the slide stop on its top:
+ * its print face is set).
  *
  * `solid.hole` keeps a position given as expressions but does not move with it (0.40.0-rc.2: the
  * hole stays where it was placed and warns), so plain holes are cut cylinders, which follow, and
@@ -43,7 +44,8 @@ const joint = (type: 'revolute' | 'slider', fixed: string, moving: string, on: {
 /**
  * Two halves of one height side by side, open side up, with a print-in-place hinge on the rims
  * between them: the lid turns half a turn onto the box. The hinge keeps its length and stays in the
- * middle of the long side and on the rim when the sizes change.
+ * middle of the long side and on the rim when the sizes change. Its knuckles start 12 mm above the
+ * bed and stand on the webs of the mechanism tool, down to the walls of their halves.
  */
 function hingedBox(): Step[] {
   // The room between the halves; the hinge line runs in its middle, within reach of both walls.
@@ -69,7 +71,7 @@ function hingedBox(): Step[] {
   return [
     parameter('length', '60 mm', 'Outer length of box and lid; at least 54 mm, the hinge is 40 mm long'),
     parameter('width', '40 mm', 'Outer width of box and lid'),
-    parameter('height', '16 mm', 'Height of each half; closed, the box is twice as high'),
+    parameter('height', '16 mm', 'Height of each half; closed, the box is twice as high. At least 8 mm: the webs under the hinge reach 6.2 mm below the rim'),
     parameter('wall', '2.4 mm', 'Wall and floor thickness'),
     parameter('corner', '5 mm', 'Radius of the outer corners of box and lid; at least 2 mm more than the wall'),
     ...shell('Box', '-width', -width, (name) => `Box ${name}`),
@@ -90,8 +92,9 @@ function hingedBox(): Step[] {
       name: 'Closure',
     }),
     // The hinge of the mechanism tool, built at the starting sizes, then tied to the parameters.
-    ...hingeSteps({ fixed: 'Box', moving: 'Lid', from: [start, between / 2, height], to: [start + hinge, between / 2, height], diameter, gap, knuckles, name: 'Hinge' }).map((step, i, steps) => {
-      // The profiles (the bore's roof, the pin's flat, and webs where the hinge has them) are drawn in the world's own y and z and
+    // The walls of both halves stand half the room between them from the line, down to the bed: every knuckle gets its web.
+    ...hingeSteps({ fixed: 'Box', moving: 'Lid', from: [start, between / 2, height], to: [start + hinge, between / 2, height], diameter, gap, knuckles, name: 'Hinge', support: { bed: 0, fixed: { toward: [0, -1, 0], distance: between / 2 }, moving: { toward: [0, 1, 0], distance: between / 2 } } }).map((step, i, steps) => {
+      // The profiles (the bore's roof, the webs and their rooms, the pin's flat) are drawn in the world's own y and z and
       // moved along x, so they follow the sizes as the cylinders do. One drawn looking back along x is turned round:
       // it starts where its extrusion ended.
       const drawn = (steps[step.command === 'sketch.create' ? i : i - 1]?.params.plane ?? {}) as { origin?: Vec3; x_dir?: Vec3 };
@@ -316,7 +319,7 @@ const GERMAN: Record<string, string> = {
   'Thickness of the plate': 'Stärke der Platte',
   'Height of the capital letters': 'Höhe der Großbuchstaben',
   'Holes for M3 screws (ISO 273, normal)': 'Löcher für M3-Schrauben (ISO 273, mittel)',
-  'Height of each half; closed, the box is twice as high': 'Höhe jeder Hälfte; geschlossen ist die Box doppelt so hoch',
+  'Height of each half; closed, the box is twice as high. At least 8 mm: the webs under the hinge reach 6.2 mm below the rim': 'Höhe jeder Hälfte; geschlossen ist die Box doppelt so hoch. Mindestens 8 mm: die Stege unter dem Scharnier reichen 6,2 mm unter den Rand',
   'Wall and floor thickness': 'Stärke von Wand und Boden',
   'Wall, floor and lid thickness': 'Stärke von Wand, Boden und Deckel',
   'Outer length of housing and lid': 'Außenlänge von Gehäuse und Deckel',
