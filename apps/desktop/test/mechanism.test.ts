@@ -603,12 +603,12 @@ describe('a snap latch outside a box (standards)', () => {
     // Sketch x runs out of the wall and y up; the profiles run along the wall from one edge of the latch to the other.
     expect(steps[0]?.params.plane).toEqual({ origin: [26, 0, 20], x_dir: [0, -1, 0], y_dir: [0, 0, 1] });
     expect(steps[2]?.params).toMatchObject({ distance: '12 mm', operation: 'join' });
-    // The bead: a ridge 1.2 mm high with 45° faces, its crest 10 mm under the joint, rooted 0.5 mm in the wall.
-    expect(steps[1]?.params.points).toEqual([[-0.5, -8.8], [0, -8.8], [1.2, -10], [0, -11.2], [-0.5, -11.2]]);
+    // The bead: a ridge 1.2 mm high with 45° faces, its crest 10.2 mm under the joint, rooted 0.5 mm in the wall.
+    expect(steps[1]?.params.points).toEqual([[-0.5, -9], [0, -9], [1.2, -10.2], [0, -11.4], [-0.5, -11.4]]);
     expect(steps[3]?.params.plane).toMatchObject({ origin: [25, 0, 20] });
     expect(steps[5]?.params).toMatchObject({ distance: '10 mm', operation: 'join' });
     // The arm: a 45° slope out of the lid's wall, 1.6 mm thick and 1.5 mm off the wall, the hook's crest 0.4 mm off it
-    // and 1 mm under the bead's, then 2 mm of tab.
+    // and 0.8 mm under the bead's, so its upper face lies on the bead's lower one without play, then 2 mm of tab.
     expect(steps[4]?.params.points).toEqual([[-0.5, 8.1], [0, 8.1], [3.1, 5], [3.1, -14.1], [1.5, -14.1], [1.5, -12.1], [0.4, -11], [1.5, -9.9], [1.5, 1], [-0.5, 1]]);
     expect(latchReach()).toEqual({ above: 8.1, below: 14.1 });
     // The strain at the root as the hook passes the bead: 1.5 · thickness · overlap / lever².
