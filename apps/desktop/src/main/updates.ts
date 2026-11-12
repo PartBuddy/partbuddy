@@ -28,7 +28,8 @@ export class Updates {
 
   /** Whether this build can update itself: the installed app, unless the environment says no. */
   get enabled(): boolean {
-    return app.isPackaged && process.env.PARTBUDDY_UPDATES !== '0';
+    // macOS: the test build is signed ad hoc and no release carries a latest-mac.yml, so it cannot update itself.
+    return app.isPackaged && process.platform !== 'darwin' && process.env.PARTBUDDY_UPDATES !== '0';
   }
 
   current(): UpdateState {

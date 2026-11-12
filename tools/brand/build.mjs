@@ -148,7 +148,8 @@ for (const [name, v] of Object.entries(variants)) {
 }
 files['svg/wordmark.svg'] = wordmarkSvg(colour.ink, 'PartBuddy');
 files['svg/wordmark-light.svg'] = wordmarkSvg(colour.paper, 'PartBuddy');
-const iconSizes = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256];
+// 1024 is the source of the macOS icon; electron-builder makes the icns from it.
+const iconSizes = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256, 1024];
 for (const size of [16, 20, 24, 32, 48, 256]) files[`svg/app-icon-${size}.svg`] = iconSvg(size);
 files['favicon/favicon.svg'] = iconSvg(16);
 files['social/social-preview.svg'] = socialSvg();

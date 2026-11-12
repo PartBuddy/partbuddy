@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { controlDirectory, findExecutable, findRunning, type Environment } from '../src/main/solidcraft/discovery';
+import { cliBeside, controlDirectory, findExecutable, findRunning, programInBundle, type Environment } from '../src/main/solidcraft/discovery';
 
 const token = 'ab'.repeat(32);
 const dirs: string[] = [];
@@ -81,5 +81,24 @@ describe('SolidCraft discovery', () => {
     );
     expect(findExecutable({ ...base, env: {} }, exists)).toBeNull();
     expect(findExecutable({ ...base, env: { PARTBUDDY_SOLIDCRAFT_EXE: override } }, (p) => p === override)).toBe(override);
+  });
+
+  it('finds the app bundle on macOS, for all users or in the user folder, with the CLI beside it', () => {
+    const home = join(tmpdir(), 'partbuddy-home');
+    const base = { platform: 'darwin' as const, home, env: {}, isAlive: () => true };
+    const system = join('/Applications', 'SolidCraft.app', 'Contents', 'MacOS', 'SolidCraft');
+    const own = join(home, 'Applications', 'SolidCraft.app', 'Contents', 'MacOS', 'SolidCraft');
+    expect(findExecutable(base, (p) => p === system)).toBe(system);
+    expect(findExecutable(base, (p) => p === own)).toBe(own);
+    expect(findExecutable(base, () => false)).toBeNull();
+    expect(findExecutable({ ...base, platform: 'linux' }, (p) => p === system)).toBeNull();
+    expect(cliBeside(system, 'darwin')).toBe(join('/Applications', 'SolidCraft.app', 'Contents', 'MacOS', 'solidcraft-cli'));
+  });
+
+  it('takes a chosen app bundle as the program inside it', () => {
+    const bundle = join('/Applications', 'SolidCraft.app');
+    expect(programInBundle(bundle)).toBe(join(bundle, 'Contents', 'MacOS', 'SolidCraft'));
+    expect(programInBundle(`${bundle}/`)).toBe(join(bundle, 'Contents', 'MacOS', 'SolidCraft'));
+    expect(programInBundle(join(bundle, 'Contents', 'MacOS', 'SolidCraft'))).toBe(join(bundle, 'Contents', 'MacOS', 'SolidCraft'));
   });
 });

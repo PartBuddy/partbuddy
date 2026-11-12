@@ -354,6 +354,12 @@ describe('Claude Code adapter', () => {
     expect(findClaudeCode({}, home, (path) => path === expected)).toEqual({ command: expected, prefix: [] });
     expect(findClaudeCode({}, home, () => false)).toBeNull();
   });
+
+  it('finds a Homebrew install on macOS without the shell PATH', () => {
+    const expected = join('/opt/homebrew/bin', 'claude');
+    expect(findClaudeCode({}, tmpdir(), (path) => path === expected, 'darwin')).toEqual({ command: expected, prefix: [] });
+    expect(findClaudeCode({}, tmpdir(), (path) => path === expected, 'linux')).toBeNull();
+  });
 });
 
 describe('agent service with a fake Claude Code', () => {

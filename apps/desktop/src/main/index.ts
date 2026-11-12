@@ -40,7 +40,7 @@ import { SecretStore } from './credentials/secretStore';
 import { loadNoteKey } from './notes/noteRecord';
 import { NotesService } from './notes/notesService';
 import { Bridge, trustedSender } from './bridge';
-import { findExecutable, systemEnvironment } from './solidcraft/discovery';
+import { findExecutable, programInBundle, systemEnvironment } from './solidcraft/discovery';
 import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
 import { checkImportFile, IMPORT_EXTENSIONS, importName, type ImportKind } from './projects/importFile';
@@ -338,13 +338,14 @@ if (!app.requestSingleInstanceLock()) {
       const options: Electron.OpenDialogOptions = {
         title: 'SolidCraft',
         properties: ['openFile'],
-        filters: process.platform === 'win32' ? [{ name: 'SolidCraft', extensions: ['exe'] }] : [],
+        filters: process.platform === 'win32' ? [{ name: 'SolidCraft', extensions: ['exe'] }] : process.platform === 'darwin' ? [{ name: 'SolidCraft', extensions: ['app'] }] : [],
         ...(current ? { defaultPath: current } : {}),
       };
       const picked = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
       const [file] = picked.filePaths;
       if (picked.canceled || !file) return { info: await engineChoice.info(), error: null, cancelled: true };
-      return { ...(await engineChoice.choose(file)), cancelled: false };
+      // On macOS the dialog hands over the bundle "SolidCraft.app"; the program lies inside it.
+      return { ...(await engineChoice.choose(programInBundle(file))), cancelled: false };
     });
     bridge.handle(invokeChannels.appRelaunch, () => {
       app.relaunch();

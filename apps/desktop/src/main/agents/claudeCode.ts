@@ -32,15 +32,22 @@ export interface ClaudeCommand {
   prefix: string[];
 }
 
-export function findClaudeCode(env: NodeJS.ProcessEnv, home: string, exists: (path: string) => boolean = existsSync): ClaudeCommand | null {
+export function findClaudeCode(
+  env: NodeJS.ProcessEnv,
+  home: string,
+  exists: (path: string) => boolean = existsSync,
+  platform: NodeJS.Platform = process.platform,
+): ClaudeCommand | null {
   if (env.PARTBUDDY_CLAUDE_COMMAND) {
     // Test hook: a JSON array, for example ["node", "test/fakeClaude.mjs"].
     const parts = JSON.parse(env.PARTBUDDY_CLAUDE_COMMAND) as string[];
     const [command, ...prefix] = parts;
     return command ? { command, prefix } : null;
   }
-  const name = process.platform === 'win32' ? 'claude.exe' : 'claude';
+  const name = platform === 'win32' ? 'claude.exe' : 'claude';
   const candidates = [join(home, '.local', 'bin', name)];
+  // An app started from the Finder does not get the shell's PATH; Homebrew and npm install here.
+  if (platform === 'darwin') candidates.push(join('/opt/homebrew/bin', name), join('/usr/local/bin', name));
   for (const dir of (env.PATH ?? env.Path ?? '').split(delimiter)) {
     if (dir) candidates.push(join(dir, name));
   }
