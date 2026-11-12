@@ -102,5 +102,5 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
 /** What the assistant reads for a topic. */
 export function standardText(topic: StandardTopic): string {
   const { title, rules } = STANDARDS[topic];
-  return `${title}. Design it yourself by these rules, and tell the user where a figure is a range or our own choice:\n${rules.map((rule) => `- ${rule}`).join('\n')}\nNone of this has been printed by PartBuddy yet. The print check in partbuddy_view still judges what you build.`;
+  return `${title}. Design it yourself by these rules, and tell the user where a figure is a range or our own choice:\n${rules.map((rule) => `- ${rule}`).join('\n')}\nNone of this has been printed by PartBuddy yet, and the print check does not test these rules: measure what you built against them.`;
 }

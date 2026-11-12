@@ -18,10 +18,13 @@ export interface WorkLogOptions {
   /** Runs Undo or Redo `count` times as one request. */
   travel(command: 'edit.undo' | 'edit.redo', count: number): Promise<void>;
   emit(event: AgentEvent): void;
+  /** The answer of a call that moved the design's revision, as the model gets it (the print check goes behind it). */
+  changed?(result: ToolResult, after: DesignHistory): Promise<ToolResult>;
+  log?(line: string): void;
 }
 
 /** Tools that may change the design; every other tool only reads and is not tracked. */
-export const CHANGING_TOOLS = new Set(['execute', 'batch', 'set_parameter', 'undo', 'redo', 'partbuddy_mechanism', 'partbuddy_block']);
+export const CHANGING_TOOLS = new Set(['execute', 'batch', 'set_parameter', 'undo', 'redo', 'partbuddy_mechanism', 'partbuddy_block', 'partbuddy_place_drawing', 'partbuddy_move_drawing']);
 /** Tools that move through the history instead of adding to it. */
 const HISTORY_TOOLS = new Set(['undo', 'redo']);
 
@@ -62,9 +65,9 @@ export class WorkLog {
     return {
       instructions: () => upstream.instructions(),
       listTools: () => upstream.listTools(),
-      callTool: (name, args, callId) => {
+      callTool: async (name, args, callId) => {
         if (!CHANGING_TOOLS.has(name)) return upstream.callTool(name, args, callId);
-        return this.serial(async () => {
+        const { result, moved } = await this.serial(async () => {
           const before = await this.readHistory();
           const result: ToolResult = await upstream.callTool(name, args, callId);
           const after = await this.readHistory();
@@ -73,8 +76,12 @@ export class WorkLog {
           } else {
             this.publish();
           }
-          return result;
+          // Without the history nobody knows whether the design changed: said in the log, since the model then gets no check.
+          if (!before || !after) this.options.log?.(`the design's history could not be read round ${name}; its answer carries no print check`);
+          return { result, moved: before && after && designChanged(before, after) ? after : null };
         });
+        // Outside the queue: the user's own changes do not wait for the check.
+        return moved && this.options.changed ? this.options.changed(result, moved) : result;
       },
     };
   }
@@ -206,6 +213,20 @@ export class WorkLog {
     return run;
   }
 }
+
+/**
+ * True when the call left another design behind: the undo depth moved, or a change took the place of what Redo held.
+ * The revision alone says nothing: a trial, a save and a block that was taken back move it and leave the design as it was.
+ */
+export function designChanged(before: DesignHistory, after: DesignHistory): boolean {
+  if (before.documentId !== after.documentId || before.undo !== after.undo || (before.redo > 0 && after.redo === 0)) return true;
+  // At the cap a step adds to the history and its depth stays: there a moved revision is all that tells, and it
+  // counts, at the price of a check too many after a trial. Without this no change past the cap got its check.
+  return after.undo >= UNDO_CAP && before.revision !== after.revision;
+}
+
+/** How deep SolidCraft's undo history goes (0.40.1, measured 2026-11-12: 260 steps read as 200). */
+export const UNDO_CAP = 200;
 
 /** True when the history grew or a new change replaced what Redo could have brought back. */
 export function addedToHistory(before: DesignHistory, after: DesignHistory): boolean {

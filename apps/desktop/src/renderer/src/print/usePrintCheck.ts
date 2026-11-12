@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
+import { measuresOf } from './bodyMeasures';
 import { reportOf } from './report';
 
 /** Quiet time after a revision before the check runs, so a burst of steps is checked once. */
@@ -38,17 +39,27 @@ export function usePrintCheck(): void {
       const parts = printed.filter((body) => !isLogoColourBody(body.name));
       const measuring = parts.length >= 2 || joints.length > 0;
       useStudio.getState().setPrintCheck({ revision: model.revision, result: joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result, ...(measuring ? { measuring } : {}) });
-      const report = (final: typeof result) => {
+      // What each closed body costs to print, for the assistant to see what a change saved.
+      const measures = measuresOf(printed, { nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang });
+      const report = (final: typeof result, pending = false, unmeasured: ('clearance' | 'joints')[] = []) => {
+        const more = { ...(pending ? { measuring: true } : {}), ...(unmeasured.length > 0 ? { unmeasured } : {}), ...(measures.problem ? { problem: measures.problem } : {}) };
         void platform()
-          .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision))
+          .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision, measures.bodies, more))
+          // A report the main process does not take would leave the assistant waiting for a check that never comes:
+          // the check goes again without the measures, and says why.
+          .catch((error: unknown) => platform().print.reportCheck(reportOf(final, print.printer.nozzle, model.revision, [], { ...more, problem: `report refused, sent again without measures: ${String(error)}` })))
           .catch(() => undefined);
       };
       if (!measuring) {
         report(result);
         return;
       }
+      // The mesh check goes ahead at once: the assistant reads it with its tool's answer, marked as preliminary.
+      report(result, true);
       // What SolidCraft measures exactly. The mesh check shows at once; the light takes the measures
       // when they come, if nothing changed. A measure that fails leaves its findings out.
+      // A measure that fails leaves its findings out, and the check says that it does.
+      const failed: ('clearance' | 'joints')[] = [];
       const measure = async (): Promise<PrintCheck> => {
         let final = result;
         // Several parts (F2): overlaps and gaps under the push fit.
@@ -61,6 +72,7 @@ export function usePrintCheck(): void {
             )
             .catch(() => null);
           if (measured) final = withClearance(final, measured, pushFit);
+          else failed.push('clearance');
         }
         // Parts that move (ADR 0027): every joint value runs from where it stands to its limits.
         if (joints.length > 0) {
@@ -71,7 +83,10 @@ export function usePrintCheck(): void {
           ).slice(0, 40);
           const stopped = await platform()
             .design.sweepJoints(sweeps.map(({ joint, index, from, to }) => ({ joint, index, from, to })))
-            .catch(() => []);
+            .catch(() => {
+              failed.push('joints');
+              return [];
+            });
           const stops = sweeps.flatMap((sweep, i) => {
             const stop = stopped[i];
             return stop ? [{ joint: sweep.name, unit: sweep.unit, to: sweep.to, ...stop }] : [];
@@ -83,7 +98,7 @@ export function usePrintCheck(): void {
       void measure().then((final) => {
         if (stale) return;
         useStudio.getState().setPrintCheck({ revision: model.revision, result: final });
-        report(final);
+        report(final, false, failed);
       });
     }, CHECK_DELAY_MS);
     let stale = false;
