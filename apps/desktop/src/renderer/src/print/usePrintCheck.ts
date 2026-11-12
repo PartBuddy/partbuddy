@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
-import { bodyMeasures } from './bodyMeasures';
+import { measuresOf } from './bodyMeasures';
 import { reportOf } from './report';
 
 /** Quiet time after a revision before the check runs, so a burst of steps is checked once. */
@@ -39,16 +39,22 @@ export function usePrintCheck(): void {
       const measuring = parts.length >= 2 || joints.length > 0;
       useStudio.getState().setPrintCheck({ revision: model.revision, result: joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result, ...(measuring ? { measuring } : {}) });
       // What each closed body costs to print, for the assistant to see what a change saved.
-      const measures = printed.filter((body) => body.model.table.faces.length > 0 && !(body.model.openEdges > 0)).map((body) => bodyMeasures(body, { nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang }));
-      const report = (final: typeof result) => {
+      const measures = measuresOf(printed, { nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang });
+      const report = (final: typeof result, pending = false) => {
+        const more = { ...(pending ? { measuring: true } : {}), ...(measures.problem ? { problem: measures.problem } : {}) };
         void platform()
-          .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision, measures))
+          .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision, measures.bodies, more))
+          // A report the main process does not take would leave the assistant waiting for a check that never comes:
+          // the check goes again without the measures, and says why.
+          .catch((error: unknown) => platform().print.reportCheck(reportOf(final, print.printer.nozzle, model.revision, [], { ...more, problem: `report refused, sent again without measures: ${String(error)}` })))
           .catch(() => undefined);
       };
       if (!measuring) {
         report(result);
         return;
       }
+      // The mesh check goes ahead at once: the assistant reads it with its tool's answer, marked as preliminary.
+      report(result, true);
       // What SolidCraft measures exactly. The mesh check shows at once; the light takes the measures
       // when they come, if nothing changed. A measure that fails leaves its findings out.
       const measure = async (): Promise<PrintCheck> => {

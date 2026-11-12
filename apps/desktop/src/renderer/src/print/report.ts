@@ -3,11 +3,13 @@ import type { PrintCheck } from '@partbuddy/geometry';
 import type { PrintCheckReport } from '../../../shared/contract';
 
 /** The check without the camera boxes, as the main process words it for the assistant; `bodies`: what each body costs to print. */
-export function reportOf(result: PrintCheck, nozzle: number, revision: number, bodies: NonNullable<PrintCheckReport['bodies']> = []): PrintCheckReport {
+export function reportOf(result: PrintCheck, nozzle: number, revision: number, bodies: NonNullable<PrintCheckReport['bodies']> = [], more: Pick<PrintCheckReport, 'measuring' | 'problem'> = {}): PrintCheckReport {
   return {
     status: result.status,
     nozzle,
     revision,
+    ...(more.measuring ? { measuring: true } : {}),
+    ...(more.problem ? { problem: more.problem.slice(0, 300) } : {}),
     ...(bodies.length > 0 ? { bodies: bodies.slice(0, 40) } : {}),
     ...(bodies.length > 40 ? { bodiesOmitted: bodies.length - 40 } : {}),
     ...(result.findings.length > 40 ? { omitted: result.findings.length - 40 } : {}),

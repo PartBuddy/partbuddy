@@ -57,7 +57,7 @@ import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
 import { longPath, SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
-import { CHECK_PENDING, printCheckNote, withCheckOfChange } from './print/printCheckNote';
+import { CHECK_PENDING_VIEW, CheckTold, printCheckNote, withCheckOfChange } from './print/printCheckNote';
 import { templatePrintFaces, templateSteps } from '../shared/templates';
 import { testPieceSteps } from '../shared/testPieces';
 import { sketchNote } from './agents/sketchNote';
@@ -371,10 +371,13 @@ if (!app.requestSingleInstanceLock()) {
     // The check as partbuddy_view shows it: a check of an older revision is still catching up.
     const checkForView = () => {
       if (!printCheck) return null;
-      if (printCheck.revision !== supervisor.currentRevision()?.revision) return CHECK_PENDING;
+      if (printCheck.revision !== supervisor.currentRevision()?.revision) return CHECK_PENDING_VIEW;
       return printCheckNote(printCheck);
     };
+    // What the tool answers of this turn already said of the check: the same verdict is not told in full again.
+    const checkTold = new CheckTold();
     bridge.handle(invokeChannels.printReportCheck, (report) => {
+      if (report.problem) log(`print check of revision ${String(report.revision)}: ${report.problem}`);
       printCheck = report;
       return undefined;
     });
@@ -550,7 +553,8 @@ if (!app.requestSingleInstanceLock()) {
       travel: (command, count) => supervisor.travel(command, count),
       emit: emitEvent,
       // The check of each change goes back with the tool's answer, so no turn ends on a part the model never saw checked.
-      changed: (result, after) => withCheckOfChange(result, after, () => ({ mirrored: supervisor.currentRevision(), report: printCheck })),
+      changed: (result, after) => withCheckOfChange(result, after, () => ({ mirrored: supervisor.currentRevision(), report: printCheck }), (report) => checkTold.note(report)),
+      log,
     });
     workLog = steps;
     // Questions and plans as cards (M2a); changes wait until the user answered.
@@ -730,6 +734,7 @@ if (!app.requestSingleInstanceLock()) {
       });
       const conversation = agent.conversation();
       const sentAt = new Date();
+      checkTold.forget();
       const lines = [
         // Once after a restart: what the earlier conversation about this design was about.
         chats?.takeDigest() ?? null,

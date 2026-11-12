@@ -1166,14 +1166,23 @@ export const printCheckReportSchema = z
     nozzle: range(0.1, 2),
     /** The mirrored revision the check belongs to, so a check of an older revision reads as pending. */
     revision: z.number().int().nonnegative(),
+    /** True for the mesh check sent ahead while SolidCraft still measures clearance and joints; the full check follows. */
+    measuring: z.boolean().optional(),
     /**
-     * Per printed body, as it lies on the bed: solid volume in cm³, height in mm and its layers, mm² on the bed and
-     * mm² leaning past the material's limit. What the shape decides of material and print time; the rest is the slicer's.
+     * Per printed body, as it lies on the bed: solid volume and the shell estimate in mm³ (two wall lines on every
+     * surface, 15 % infill inside), height in mm and its layers, mm² of surface, on the bed and leaning past the
+     * material's limit. What the shape decides of material and print time; the rest is the slicer's.
      */
     bodies: z
-      .array(z.object({ name: z.string().max(200), volume: range(0, 1e9), height: range(0, 1e6), layers: z.number().int().nonnegative(), contact: range(0, 1e9), support: range(0, 1e9) }).strict())
+      .array(
+        z
+          .object({ name: z.string().max(200), volume: range(0, 1e12), shell: range(0, 1e12), height: range(0, 1e6), layers: z.number().int().nonnegative(), surface: range(0, 1e9), contact: range(0, 1e9), support: range(0, 1e9) })
+          .strict(),
+      )
       .max(40)
       .optional(),
+    /** What the renderer could not measure or report, for the log. */
+    problem: z.string().max(300).optional(),
     /** How many more bodies the design has than `bodies` carries. */
     bodiesOmitted: z.number().int().positive().max(100_000).optional(),
   })
