@@ -119,6 +119,18 @@ export interface BoughtPart {
 }
 
 /**
+ * What the recognition makes of a design's bodies: the standard parts; the bodies whose part
+ * SolidCraft is still building (neither printed nor bought until the mirror after, so the print
+ * check leaves them out for that moment); and why a body could not be checked at all, for what
+ * must not leave PartBuddy with a screw in it.
+ */
+export interface ToldParts {
+  bought: BoughtPart[];
+  pending: string[];
+  unchecked: string[];
+}
+
+/**
  * The candidates whose body has the shape SolidCraft builds for their description; `measured` is
  * `inspect.measure` of their bodies, `faces` per candidate the results of its `faceSteps` (none
  * where the count of faces already differs). A body with material joined on, cut away or put in
@@ -131,8 +143,10 @@ export function boughtAmong(
   faces: readonly (readonly unknown[] | undefined)[],
   references: ReadonlyMap<string, ReferenceState>,
   log: (message: string) => void,
-): BoughtPart[] {
+): ToldParts {
   const bought: BoughtPart[] = [];
+  const pending: string[] = [];
+  const unchecked: string[] = [];
   for (const [i, { component, body, description }] of candidates.entries()) {
     const reference = references.get(description);
     const entry = measuredBody(measured, body) as { volume_mm3?: unknown; faces?: unknown } | undefined;
@@ -140,8 +154,15 @@ export function boughtAmong(
       const part = (reference as PartReference).shape;
       log(`body "${body}" is described as "${description}" but is not that part (${String(entry?.volume_mm3)} mm³, ${String(entry?.faces)} faces; the part has ${String(part.volume)} mm³, ${String(part.faces)} faces): it counts as printed`);
     };
-    if (!reference || 'failed' in reference) log(`body "${body}" is described as "${description}", which SolidCraft did not build to hold it against (${reference ? reference.failed : 'no answer'}): it counts as printed`);
-    else if ('building' in reference) log(`body "${body}" is described as "${description}", which SolidCraft is building to hold it against: it counts as printed until then`);
+    if (!reference || 'failed' in reference) {
+      const reason = reference ? reference.failed : 'no answer';
+      unchecked.push(`"${body}": ${reason}`);
+      log(`body "${body}" is described as "${description}", which could not be built to hold it against (${reason}): it counts as printed`);
+    } else if ('refused' in reference) log(`body "${body}" is described as "${description}", which SolidCraft does not build (${reference.refused}): it counts as printed`);
+    else if ('building' in reference) {
+      pending.push(body);
+      log(`body "${body}" is described as "${description}", which SolidCraft is building to hold it against: it is neither printed nor bought until then`);
+    }
     else if (!entry) log(`body "${body}", described as "${description}", could not be measured: it counts as printed`);
     else if (faceCount(entry) !== reference.shape.faces) differs();
     else {
@@ -151,7 +172,7 @@ export function boughtAmong(
       else bought.push({ component, body, description, partNumber: reference.partNumber });
     }
   }
-  return bought;
+  return { bought, pending, unchecked };
 }
 
 /** One body's entry in the result of `inspect.measure`. */
@@ -185,12 +206,13 @@ async function libraryOfEngine(client: ControlRequester, log: (message: string) 
  * printed, with a line in the log: a screw in the print check shows, a printed part left out of it
  * does not. Only a design with components holding bodies costs requests.
  */
-export async function boughtParts(client: ControlRequester, listing: unknown, checks: PartChecks): Promise<BoughtPart[]> {
+export async function boughtParts(client: ControlRequester, listing: unknown, checks: PartChecks): Promise<ToldParts> {
+  const none: ToldParts = { bought: [], pending: [], unchecked: [] };
   const parts = componentsWithBodies(listing);
-  if (parts.length === 0) return [];
+  if (parts.length === 0) return none;
   try {
     const library = await libraryOfEngine(client, checks.log);
-    if (!library) return [];
+    if (!library) return { ...none, unchecked: ['parts.library gave no families'] };
     const described = await client.request<BatchResult>(
       'engine.batch',
       { commands: parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } })), rollback: false },
@@ -198,7 +220,7 @@ export async function boughtParts(client: ControlRequester, listing: unknown, ch
     );
     if (described.failed) throw new Error(`${described.failed.command} failed: ${described.failed.error}`);
     const candidates = partCandidates(parts, described.results, library, checks.log);
-    if (candidates.length === 0) return [];
+    if (candidates.length === 0) return none;
     const references = await checks.references(candidates);
     const measured = await client.request<BatchResult>(
       'engine.batch',
@@ -220,7 +242,7 @@ export async function boughtParts(client: ControlRequester, listing: unknown, ch
     return boughtAmong(candidates, measured.results[0], spans.map((span) => (span && faces ? faces.results.slice(span[0], span[1]) : undefined)), references, checks.log);
   } catch (error) {
     checks.log(`standard parts could not be told from printed bodies (${(error as Error).message}); every body counts as printed`);
-    return [];
+    return { ...none, unchecked: [(error as Error).message] };
   }
 }
 
@@ -473,8 +495,10 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
     }
     const tail = 1 + bodies.length * 2 + sketches.length;
     const joints = jointsOf(batch.results[tail + 2], batch.results[tail]);
-    const standardParts = (await boughtParts(client, batch.results[tail], checks)).map((part) => part.body).slice(0, 500);
-    const structure = withColours({ ...structureOf(inspect), standardParts }, batch.results[tail + 1]);
+    const told = await boughtParts(client, batch.results[tail], checks);
+    const standardParts = told.bought.map((part) => part.body).slice(0, 500);
+    const pendingParts = told.pending.slice(0, 500);
+    const structure = withColours({ ...structureOf(inspect), standardParts, ...(pendingParts.length > 0 ? { pendingParts } : {}) }, batch.results[tail + 1]);
     const mirrored: MirroredBody[] = [];
     for (const [i, name] of bodies.entries()) {
       const faces = faceTableFromModelFaces(batch.results[1 + i * 2], name, designName);
@@ -570,6 +594,11 @@ export class MirrorScheduler {
         if (this.stale as boolean) this.next ??= this.lastDelivered;
       } catch (error) {
         this.callbacks.failed(error instanceof Error ? error : new Error(String(error)));
+        // A reference built while this mirror failed is not lost: the mirror is tried once more.
+        if (this.stale as boolean) {
+          this.next ??= target;
+          continue;
+        }
         if (sameTarget(this.next, target)) this.next = null;
         this.running = false;
         return;

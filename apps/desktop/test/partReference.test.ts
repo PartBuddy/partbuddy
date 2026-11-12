@@ -1,10 +1,10 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { builtParts, cliReferences, faceCount, faceScript, referenceScript, referencesOf, sameShape, shapeOf, TransientCliError, type CliRunner, type PartQuery } from '../src/main/solidcraft/partReference';
+import { builtParts, cliReferences, faceCount, faceScript, referenceScript, referencesOf, RefusedPartError, sameShape, shapeOf, TransientCliError, type CliRunner, type PartQuery } from '../src/main/solidcraft/partReference';
 
 const nut: PartQuery = { description: 'Hex nut M3', part: { family: 'hex_nut', size: 'M3', length: null } };
 const screw: PartQuery = { description: 'Countersunk socket screw M3x10', part: { family: 'countersunk_socket_screw', size: 'M3', length: 10 } };
@@ -131,7 +131,7 @@ describe('references from solidcraft-cli, kept and built in the background (seco
     const scripts: string[] = [];
     const held: (() => void)[] = [];
     const state = { hold: false, version: 'solidcraft-cli 0.40.1' };
-    const run: CliRunner = async (_program, args) => {
+    const answer: CliRunner = async (_program, args) => {
       if (args[0] === '--version') return `${state.version}\n`;
       const script = args[1] ?? '';
       scripts.push(script);
@@ -156,18 +156,34 @@ describe('references from solidcraft-cli, kept and built in the background (seco
         { bodies: inserts.map((part, i) => ({ name: `Body${String(i + 1)}`, ...(part.family === 'hex_nut' ? NUT : SCREW) })) },
       ]);
     };
-    return { run, runs, faceRuns, scripts, state, release: () => held.splice(0).forEach((done) => done()) };
+    return { run: answer, runs, faceRuns, scripts, state, release: () => held.splice(0).forEach((done) => done()) };
   }
 
   function store(cli: ReturnType<typeof fakeCli>, dir = mkdtempSync(join(tmpdir(), 'partbuddy-parts-'))) {
     if (!dirs.includes(dir)) dirs.push(dir);
     const logs: string[] = [];
     const clock = { now: 1_000_000 };
+    const timers: { run: () => void; ms: number }[] = [];
     let built = 0;
     // The program must be a file that exists: its size and date are part of what the references are kept under.
-    const references = cliReferences({ cli: () => process.execPath, dir, log: (message) => void logs.push(message), run: cli.run, now: () => clock.now, built: () => (built += 1) });
-    return { references, logs, clock, dir, built: () => built };
+    const references = cliReferences({
+      cli: () => process.execPath,
+      dir,
+      log: (message) => void logs.push(message),
+      run: cli.run,
+      now: () => clock.now,
+      built: () => (built += 1),
+      later: (run, ms) => void timers.push({ run, ms }),
+    });
+    return { references, logs, clock, dir, timers, built: () => built };
   }
+
+  /** What the file of kept references is kept under for the fake program. */
+  const identity = (version = 'solidcraft-cli 0.40.1') => {
+    const file = statSync(process.execPath);
+    return `2 ${version} ${String(file.size)} ${String(Math.round(file.mtimeMs))}`;
+  };
+  const keptParts = (dir: string) => (JSON.parse(readFileSync(join(dir, 'part-references.json'), 'utf8')) as { parts: Record<string, unknown> }).parts;
 
   it('answers at once, builds in the background and tells once when the references are there', async () => {
     const cli = fakeCli();
@@ -211,19 +227,51 @@ describe('references from solidcraft-cli, kept and built in the background (seco
     expect(cli.runs).toHaveLength(2);
   });
 
-  it('remembers a part SolidCraft does not build, with the reason, and lets the parts beside it stand', async () => {
-    // As 0.40.1 answers a length of 5000 mm: the whole script fails.
-    const cli = fakeCli((parts) => (parts.some((part) => part.length === 5000) ? new Error('invalid parameters for `parts.insert`: `length` must be 0…2000 mm') : null));
+  it('builds anew what a kept file holds in another form, and takes no entry on trust (third review, d)', async () => {
+    const cli = fakeCli();
+    const good = { shape: nutShape, partNumber: 'ISO 4032 M3' };
+    const files: [string, string][] = [
+      // An entry that is no reference: once it made every body of that description a printed one, for good.
+      ['an empty entry', JSON.stringify({ identity: identity(), parts: { 'Hex nut M3': {} } })],
+      ['a shape without its faces', JSON.stringify({ identity: identity(), parts: { 'Hex nut M3': { partNumber: 'ISO 4032 M3', shape: { ...nutShape, faceAreas: undefined } } } })],
+      ['a number that is none', JSON.stringify({ identity: identity(), parts: { 'Hex nut M3': { partNumber: 'ISO 4032 M3', shape: { ...nutShape, volume: null } } } })],
+      ['a face too few', JSON.stringify({ identity: identity(), parts: { 'Hex nut M3': { partNumber: 'ISO 4032 M3', shape: { ...nutShape, faceAreas: [2.4, 6.6] } } } })],
+      ['the format before', JSON.stringify({ identity: identity().slice(2), parts: { 'Hex nut M3': good } })],
+      ['no JSON', '{"identity": '],
+      ['no object', 'null'],
+    ];
+    for (const [what, text] of files) {
+      const dir = mkdtempSync(join(tmpdir(), 'partbuddy-parts-'));
+      writeFileSync(join(dir, 'part-references.json'), text);
+      const before = cli.runs.length;
+      const { references } = store(cli, dir);
+      expect((await references.ready([nut])).get('Hex nut M3'), what).toEqual(good);
+      expect(cli.runs.length - before, what).toBe(1);
+    }
+    // A file in order is read: no run.
+    const dir = mkdtempSync(join(tmpdir(), 'partbuddy-parts-'));
+    writeFileSync(join(dir, 'part-references.json'), JSON.stringify({ identity: identity(), parts: { 'Hex nut M3': good, 'Hex nut M3x5000': 'step 1 (parts.insert): no such length' } }));
+    const before = cli.runs.length;
+    const kept = await store(cli, dir).references.ready([nut, { description: 'Hex nut M3x5000', part: { family: 'hex_nut', size: 'M3', length: 5000 } }]);
+    expect(kept.get('Hex nut M3')).toEqual(good);
+    expect(kept.get('Hex nut M3x5000')).toEqual({ refused: 'step 1 (parts.insert): no such length' });
+    expect(cli.runs.length).toBe(before);
+  });
+
+  it('remembers a part SolidCraft refuses, with its reason, and lets the parts beside it stand', async () => {
+    // As 0.40.1 answers a length of 5000 mm: the step fails and with it the whole script.
+    const refusal = 'step 2 (parts.insert): invalid parameters for `parts.insert (Insert Fastener)`: `length` must be 0…2000 mm';
+    const cli = fakeCli((parts) => (parts.some((part) => part.length === 5000) ? new RefusedPartError(refusal) : null));
     const { references, logs, built, dir } = store(cli);
     const ready = await references.ready([nut, refused, forged]);
     // One run for all, then each by itself, once.
     expect(cli.runs).toEqual([['hex_nut M3', 'socket_head_cap_screw M3x5000', 'washer M3x8'], ['hex_nut M3'], ['socket_head_cap_screw M3x5000'], ['washer M3x8']]);
     expect(ready.get('Hex nut M3')).toEqual({ shape: nutShape, partNumber: 'ISO 4032 M3' });
-    expect(ready.get('Socket head cap screw M3x5000')).toEqual({ failed: 'invalid parameters for `parts.insert`: `length` must be 0…2000 mm' });
-    expect(ready.get('Plain washer M3x8')).toEqual({ failed: 'SolidCraft builds another part for these words' });
-    expect(logs).toEqual(['no reference for the standard part "Socket head cap screw M3x5000": invalid parameters for `parts.insert`: `length` must be 0…2000 mm']);
+    expect(ready.get('Socket head cap screw M3x5000')).toEqual({ refused: refusal });
+    expect(ready.get('Plain washer M3x8')).toEqual({ refused: 'SolidCraft builds "Plain washer M3" for these words' });
+    expect(logs).toEqual([`no reference for the standard part "Socket head cap screw M3x5000": ${refusal}`]);
     expect(built()).toBe(1);
-    // The next mirrors start no process for them, nor does the next run of PartBuddy.
+    // The next mirrors start no process for them, nor does an export, nor the next run of PartBuddy.
     references.known([nut, refused, forged]);
     await references.ready([refused, forged]);
     await store(cli, dir).references.ready([nut, refused, forged]);
@@ -231,22 +279,59 @@ describe('references from solidcraft-cli, kept and built in the background (seco
     expect(cli.scripts.every((script) => !existsSync(script))).toBe(true);
   });
 
-  it('does not try a program that gave no answer again with every mirror, but after a while', async () => {
-    const cli = fakeCli(() => new TransientCliError('no answer within 22 s'));
-    const { references, logs, clock, built, dir } = store(cli);
-    expect((await references.ready([nut, screw])).get('Hex nut M3')).toEqual({ failed: 'no answer within 22 s' });
-    // One process, not one more for each part.
+  it('does not take a crash, or an answer that does not read, for SolidCraft refusing the part (third review, a)', async () => {
+    // The first "Hex nut M3" under load: the program ends with an access violation. Nothing says SolidCraft builds no such nut.
+    let trouble: Error | 'garbage' | null = new Error('solidcraft-cli ended with code 3221225477');
+    const cli = fakeCli(() => (trouble instanceof Error ? trouble : null));
+    const run = cli.run;
+    cli.run = async (...args) => (trouble === 'garbage' && args[1][0] === 'run' ? 'thread main panicked' : run(...args));
+    const first = store(cli);
+    first.references.known([nut]);
+    await expect.poll(first.built).toBe(1);
+    expect(first.references.known([nut]).get('Hex nut M3')).toEqual({ failed: 'solidcraft-cli ended with code 3221225477' });
+    expect(first.logs).toEqual(['no reference for the standard part "Hex nut M3" in this run of PartBuddy: solidcraft-cli ended with code 3221225477']);
+    // Not written down, and no process with the next mirrors.
+    expect(keptParts(first.dir)).toEqual({});
+    first.references.known([nut]);
     expect(cli.runs).toHaveLength(1);
-    expect(logs).toEqual(['no reference for the standard part "Hex nut M3": no answer within 22 s', 'no reference for the standard part "Countersunk socket screw M3x10": no answer within 22 s']);
-    await references.ready([nut, screw]);
+    // An answer that is no JSON is no refusal either.
+    trouble = 'garbage';
+    const odd = store(cli);
+    expect((await odd.references.ready([nut])).get('Hex nut M3')).toHaveProperty('failed');
+    expect(keptParts(odd.dir)).toEqual({});
+    // The next run of PartBuddy tries once more, and so does an export in this one.
+    trouble = null;
+    expect((await store(cli, first.dir).references.ready([nut])).get('Hex nut M3')).toEqual({ shape: nutShape, partNumber: 'ISO 4032 M3' });
+    expect((await odd.references.ready([nut])).get('Hex nut M3')).toEqual({ shape: nutShape, partNumber: 'ISO 4032 M3' });
+  });
+
+  it('tries a program that gave no answer again after a while by itself, not with every mirror (third review, b)', async () => {
+    let answers = false;
+    const cli = fakeCli(() => (answers ? null : new TransientCliError('no answer within 22 s')));
+    const { references, logs, clock, timers, built, dir } = store(cli);
+    references.known([nut, screw]);
+    await expect.poll(built).toBe(1);
+    expect(references.known([nut, screw]).get('Hex nut M3')).toEqual({ failed: 'no answer within 22 s' });
+    // One process, not one more for each part, and none with the mirrors that follow.
+    expect(cli.runs).toHaveLength(1);
+    expect(logs).toEqual(['no reference for the standard part "Hex nut M3" for now: no answer within 22 s', 'no reference for the standard part "Countersunk socket screw M3x10" for now: no answer within 22 s']);
     references.known([nut]);
     expect(cli.runs).toHaveLength(1);
-    expect(built()).toBe(0);
-    // Not kept over a restart either: nothing says the part cannot be built.
-    expect(existsSync(join(dir, 'part-references.json')) ? (JSON.parse(readFileSync(join(dir, 'part-references.json'), 'utf8')) as { parts: object }).parts : {}).toEqual({});
+    // Not kept over a restart: nothing says the part cannot be built.
+    expect(keptParts(dir)).toEqual({});
+    // Nobody would ask again: a timer does, once the wait is over, and the design is mirrored when the parts are built.
+    expect(timers.map((timer) => timer.ms)).toEqual([5 * 60 * 1000]);
     clock.now += 5 * 60 * 1000 + 1;
-    await references.ready([nut, screw]);
+    timers[0]?.run();
+    await expect.poll(built).toBe(2);
     expect(cli.runs).toHaveLength(2);
+    expect(timers).toHaveLength(2);
+    answers = true;
+    clock.now += 5 * 60 * 1000 + 1;
+    timers[1]?.run();
+    await expect.poll(built).toBe(3);
+    expect(references.known([nut, screw]).get('Hex nut M3')).toEqual({ shape: nutShape, partNumber: 'ISO 4032 M3' });
+    expect(timers).toHaveLength(2);
   });
 
   it('builds a part once when the mirror and the list of parts to buy ask for it at the same time', async () => {
@@ -263,5 +348,14 @@ describe('references from solidcraft-cli, kept and built in the background (seco
     // The nut ran once; the screw, asked for while the nut was built, in a run of its own.
     expect(cli.runs.map((parts) => parts.join()).sort()).toEqual(['countersunk_socket_screw M3x10', 'hex_nut M3']);
     expect(first?.get('Hex nut M3')).toEqual(second?.get('Hex nut M3'));
+  });
+
+  it('waits for every part when there are more than one run takes (third review, f)', async () => {
+    const cli = fakeCli();
+    const { references } = store(cli);
+    const many: PartQuery[] = Array.from({ length: 450 }, (_, i) => ({ description: `Hex nut S${String(i)}`, part: { family: 'hex_nut', size: `S${String(i)}`, length: null } }));
+    const ready = await references.ready(many);
+    expect(cli.runs.map((parts) => parts.length)).toEqual([200, 200, 50]);
+    expect([...ready.values()].filter((state) => 'shape' in state)).toHaveLength(450);
   });
 });

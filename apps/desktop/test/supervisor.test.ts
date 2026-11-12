@@ -1,11 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MirrorScheduler } from '../src/main/solidcraft/mirror';
+import type { PartReferences, ReferenceState } from '../src/main/solidcraft/partReference';
 import { SolidCraftSupervisor } from '../src/main/solidcraft/supervisor';
 import type { ConnectionStatus, MirrorRevision } from '../src/shared/contract';
 import { FakeSolidCraft } from './fakeSolidCraft';
@@ -16,7 +17,7 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-function setup(options: { installed?: boolean; autoStart?: boolean; cacheDir?: string } = {}) {
+function setup(options: { installed?: boolean; autoStart?: boolean; cacheDir?: string; partReferences?: () => PartReferences } = {}) {
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-control-'));
   const cacheDir = options.cacheDir ?? realpathSync.native(mkdtempSync(join(tmpdir(), 'partbuddy-cache-')));
   cleanups.push(() => {
@@ -39,6 +40,7 @@ function setup(options: { installed?: boolean; autoStart?: boolean; cacheDir?: s
       },
       launchPort: 65000,
       autoStart: options.autoStart ?? false,
+      ...(options.partReferences ? { partReferences: options.partReferences } : {}),
       cacheDir,
       log: () => undefined,
     },
@@ -154,6 +156,55 @@ describe('SolidCraft supervisor', () => {
     expect(written?.path.startsWith(cacheDir)).toBe(true);
     expect(written?.bodies).toEqual(['CableClip']);
     expect(readdirSync(cacheDir)).toEqual([]);
+  });
+
+  it('exports no standard part, waits for its reference, and says so instead of exporting a body it could not check (third review, b)', async () => {
+    // A nut beside the clip, as SolidCraft lists and measures it; where its reference stands is the test's to say.
+    const shape = { volume: 45.9, area: 106.6, faces: 1, edges: 21, vertices: 14, faceAreas: [18.1], perimeters: [21.3], radii: [1.5] };
+    let state: ReferenceState = { building: true };
+    const waited: ReferenceState[] = [];
+    const { supervisor, revisions, controlDir } = setup({
+      partReferences: () => ({
+        known: (parts) => new Map(parts.map((part) => [part.description, state])),
+        // What an export waits for: by then the part is built, refused or lost.
+        ready: (parts) => Promise.resolve(new Map(parts.map((part) => [part.description, waited.shift() ?? state]))),
+      }),
+    });
+    const fake = await startFake(controlDir);
+    fake.bodies = ['CableClip', 'Nut'];
+    fake.answers['component.list'] = () => ({ components: [{ id: 0, parent: null, bodies: ['CableClip'], occurrences: [] }, { id: 2, parent: 0, bodies: ['Nut'], occurrences: [{ id: 3, parent: 0 }] }] });
+    fake.answers['component.metadata'] = () => ({ description: 'Hex nut M3' });
+    fake.answers['parts.library'] = () => ({ families: [{ family: 'hex_nut', name: 'Hex nut', sizes: [{ size: 'M3' }] }] });
+    fake.answers['inspect.measure'] = (params) =>
+      params.items ? { items: [{ type: 'face', area_mm2: 18.1, perimeter_mm: 21.3, radius: 1.5 }] } : { bodies: [{ name: 'Nut', volume_mm3: 45.9, area_mm2: 106.6, faces: 1, edges: 21, vertices: 14 }] };
+    supervisor.start();
+    await vi.waitFor(() => expect(revisions).toHaveLength(1), { timeout: 5000 });
+    // The mirror did not wait: the nut is neither printed nor bought yet, and the print check leaves it out.
+    expect(revisions[0]?.structure).toMatchObject({ standardParts: [], pendingParts: ['Nut'] });
+    const target = mkdtempSync(join(tmpdir(), 'partbuddy-export-'));
+    cleanups.push(() => {
+      rmSync(target, { recursive: true, force: true });
+    });
+    const exported = () => fake.exports.filter((entry) => entry.format === 'stl').map((entry) => entry.bodies);
+
+    // The export waits; the reference arrives: the nut stays out.
+    waited.push({ shape, partNumber: 'ISO 4032 M3' });
+    await supervisor.exportDesign('stl', join(target, 'a.stl'));
+    expect(exported()).toEqual([['CableClip']]);
+    // The reference could not be built, or is still being built after the wait: nothing is written, and the user reads why.
+    for (const lost of [{ failed: 'no answer within 22 s' }, { building: true as const }]) {
+      waited.push(lost);
+      await expect(supervisor.exportDesign('stl', join(target, 'b.stl'))).rejects.toThrow(/standard parts could not be checked, so nothing was written \("Nut": .*\)\. Try again in a moment\./);
+    }
+    expect(exported()).toEqual([['CableClip']]);
+    expect(existsSync(join(target, 'b.stl'))).toBe(false);
+    // SolidCraft builds no such part: the body is a printed one and is exported.
+    state = { refused: '`length` must be 0…2000 mm' };
+    await supervisor.exportDesign('stl', join(target, 'c.stl'));
+    expect(exported()).toEqual([['CableClip'], ['CableClip', 'Nut']]);
+    // The parts to buy follow the same recognition.
+    state = { shape, partNumber: 'ISO 4032 M3' };
+    expect(await supervisor.hardware()).toEqual([{ count: 1, name: 'Hex nut M3', standard: 'ISO 4032 M3' }]);
   });
 
   it('refuses to export a design without a body', async () => {

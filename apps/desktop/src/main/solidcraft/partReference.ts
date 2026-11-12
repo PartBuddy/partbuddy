@@ -43,8 +43,12 @@ export interface PartQuery {
   part: LibraryPart;
 }
 
-/** Where a description's reference stands: there, being built, or not to be had (and why). */
-export type ReferenceState = PartReference | { building: true } | { failed: string };
+/**
+ * Where a description's reference stands: there; being built; refused by SolidCraft, which does not
+ * build such a part (the body is no standard part); or not to be had for now, which says nothing
+ * about the body.
+ */
+export type ReferenceState = PartReference | { building: true } | { refused: string } | { failed: string };
 
 /** The state of each part's reference, by description. */
 export type ReferenceReader = (parts: readonly PartQuery[]) => Map<string, ReferenceState> | Promise<Map<string, ReferenceState>>;
@@ -175,20 +179,25 @@ export function referencesOf(built: readonly BuiltPart[], results: readonly unkn
   return references;
 }
 
-/** Runs `solidcraft-cli` and gives what it printed; rejects with `transient` set when it did not get to answer. */
+/** Runs `solidcraft-cli` and gives what it printed. */
 export type CliRunner = (program: string, args: string[], timeoutMs: number) => Promise<string>;
 
 /** A run that failed before SolidCraft answered (not started, timed out, killed): worth another try later. */
 export class TransientCliError extends Error {}
+
+/** SolidCraft's own answer that it does not build the part: the step that puts it in failed with its reason. */
+export class RefusedPartError extends Error {}
 
 function runCli(env: NodeJS.ProcessEnv): CliRunner {
   return (program, args, timeoutMs) =>
     new Promise<string>((done, fail) => {
       // Argument array, no shell (architecture: security boundaries).
       execFile(program, args, { env, windowsHide: true, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
+        const said = stderr.trim().replace(/^error:\s*/i, '').slice(0, 500);
         if (!error) done(stdout);
         else if (typeof error.code !== 'number' || error.killed) fail(new TransientCliError(error.killed ? `no answer within ${String(Math.round(timeoutMs / 1000))} s` : error.message));
-        else fail(new Error(stderr.trim().replace(/^error:\s*/i, '').slice(0, 500) || error.message));
+        // "step 2 (parts.insert): invalid parameters …": the part itself is refused. Any other end (a crash, another step) says nothing about the part.
+        else fail(/^step \d+ \(parts\.insert\)/.test(said) ? new RefusedPartError(said) : new Error(said || `solidcraft-cli ended with code ${String(error.code)}`));
       });
     });
 }
@@ -201,14 +210,23 @@ function runCli(env: NodeJS.ProcessEnv): CliRunner {
  */
 const TIMEOUT_BASE_MS = 20_000;
 const TIMEOUT_PER_PART_MS = 2_000;
-/** After a run that did not get to answer, its parts are not tried again for this long. */
+/** After a run that did not get to answer, its parts are tried again after this long. */
 const RETRY_AFTER_MS = 5 * 60 * 1000;
 const STORE_FILE = 'part-references.json';
+/** Raised when what the file holds changes, so an older file is built anew rather than misread. */
+const STORE_FORMAT = 2;
+/** The parts of one run; more wait for the next. */
+const PARTS_PER_RUN = 200;
+/** How often `ready` starts another run for what is still open (20 runs are 4000 descriptions). */
+const READY_ROUNDS = 20;
 
 export interface PartReferences {
   /** Where each part's reference stands now. What is not known yet is built in the background; `built` tells when. */
   known: (parts: readonly PartQuery[]) => Map<string, ReferenceState>;
-  /** The same once every part has been tried: for an export, which must not go out with a screw in it. */
+  /**
+   * The same once every part has been tried, also one that failed before: for an export, which
+   * must not go out with a screw in it and is worth one more run.
+   */
   ready: (parts: readonly PartQuery[]) => Promise<Map<string, ReferenceState>>;
 }
 
@@ -218,27 +236,50 @@ export interface PartReferenceOptions {
   /** Where the script lies while it runs and the references are kept (the app's cache folder). */
   dir: string;
   log: (message: string) => void;
-  /** Called after a background build that brought a reference: the design is to be mirrored once more. */
+  /** Called after every background build, whatever it brought: the design is to be mirrored once more. */
   built?: () => void;
   env?: NodeJS.ProcessEnv;
   run?: CliRunner;
   now?: () => number;
+  /** Calls back after a while (a timer that does not keep the app alive). */
+  later?: (callback: () => void, ms: number) => void;
+}
+
+const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const measures = (value: unknown): value is number[] => Array.isArray(value) && value.every((entry) => finite(entry) && entry > 0);
+
+/** A reference as the file may hold it; anything else in its place is dropped and the part built again. */
+function keptReference(entry: unknown): PartReference | null {
+  const reference = entry as { partNumber?: unknown; shape?: Partial<Record<keyof PartShape, unknown>> | null } | null;
+  const shape = reference?.shape;
+  if (typeof reference?.partNumber !== 'string' || typeof shape !== 'object' || shape === null) return null;
+  const counts = [shape.faces, shape.edges, shape.vertices].every((count) => Number.isInteger(count) && (count as number) >= 0);
+  if (!finite(shape.volume) || shape.volume <= 0 || !finite(shape.area) || shape.area <= 0 || !counts || !measures(shape.faceAreas) || !measures(shape.perimeters) || !measures(shape.radii)) return null;
+  if (shape.faceAreas.length !== shape.faces) return null;
+  return { partNumber: reference.partNumber, shape: shape as PartShape };
 }
 
 /**
  * References from `solidcraft-cli run`, one process for every part not known yet, never the same
  * part in two processes. They are kept in a file per SolidCraft program (its version, size and
- * date), so a part is built once, not with every start. A part SolidCraft does not build is
- * remembered with its reason; a run that did not get to answer is tried again after a while.
+ * date), so a part is built once, not with every start. Kept as well is SolidCraft's own answer
+ * that it does not build a part. Whatever else goes wrong (a crash, an answer that does not read,
+ * a file that cannot be written) says nothing about the part: it is remembered until PartBuddy
+ * ends, and a run that gave no answer is tried again after a while.
  */
 export function cliReferences(options: PartReferenceOptions): PartReferences {
   const { dir, log } = options;
   const run = options.run ?? runCli(options.env ?? process.env);
   const now = options.now ?? Date.now;
-  /** Per program: what its file holds. A description with a text instead of a reference is one SolidCraft does not build. */
-  const stores = new Map<string, Promise<{ identity: string; parts: Map<string, PartReference | string> }>>();
+  const later = options.later ?? ((callback, ms) => void setTimeout(callback, ms).unref());
+  /** Per program: what its file holds. A text in place of a reference is SolidCraft's reason not to build the part. */
+  type Store = { identity: string; parts: Map<string, PartReference | string> };
+  const stores = new Map<string, Promise<Store>>();
+  /** The store of a program once it was opened; undefined before. */
+  const opened = new Map<string, Store['parts']>();
   const building = new Map<string, Promise<void>>();
-  const retryAt = new Map<string, { at: number; reason: string }>();
+  /** What failed without SolidCraft refusing the part: not tried again by a mirror, until `at` where it has one. */
+  const failed = new Map<string, { reason: string; at?: number }>();
   const key = (program: string, description: string) => `${program}\n${description}`;
 
   const open = (program: string) => {
@@ -246,12 +287,15 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
     if (!store) {
       store = (async () => {
         const [version, file] = await Promise.all([run(program, ['--version'], TIMEOUT_BASE_MS), stat(program)]);
-        const identity = `${version.trim()} ${String(file.size)} ${String(Math.round(file.mtimeMs))}`;
-        const parts = new Map<string, PartReference | string>();
+        const identity = `${String(STORE_FORMAT)} ${version.trim()} ${String(file.size)} ${String(Math.round(file.mtimeMs))}`;
+        const parts: Store['parts'] = new Map();
         try {
-          const kept = JSON.parse(await readFile(join(dir, STORE_FILE), 'utf8')) as { identity?: unknown; parts?: unknown };
-          if (kept.identity === identity && typeof kept.parts === 'object' && kept.parts !== null) {
-            for (const [description, entry] of Object.entries(kept.parts as Record<string, PartReference | string>)) parts.set(description, entry);
+          const kept = JSON.parse(await readFile(join(dir, STORE_FILE), 'utf8')) as { identity?: unknown; parts?: unknown } | null;
+          if (kept?.identity === identity && typeof kept.parts === 'object' && kept.parts !== null) {
+            for (const [description, entry] of Object.entries(kept.parts as Record<string, unknown>)) {
+              const reference = typeof entry === 'string' ? entry.slice(0, 500) : keptReference(entry);
+              if (reference !== null && reference !== '') parts.set(description, reference);
+            }
           }
         } catch {
           // No file yet, or one that does not read: every part is built again.
@@ -265,7 +309,8 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
     return store;
   };
 
-  const build = async (program: string, wanted: readonly PartQuery[], parts: Map<string, PartReference | string>): Promise<void> => {
+  /** Builds the parts and keeps what SolidCraft made of each; gives the parts whose results did not read. */
+  const build = async (program: string, wanted: readonly PartQuery[], parts: Store['parts']): Promise<PartQuery[]> => {
     await mkdir(dir, { recursive: true });
     const script = join(dir, `parts-${now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.json`);
     const results = async (steps: unknown[]): Promise<unknown[]> => {
@@ -274,11 +319,21 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
     };
     try {
       // Two runs: how many faces a part has is known only once it is built, and a script cannot ask.
-      const built = builtParts(wanted, await results(referenceScript(wanted)));
+      const first = await results(referenceScript(wanted));
+      const built = builtParts(wanted, first);
       const references = built.length > 0 ? referencesOf(built, await results(faceScript(built))) : new Map<string, PartReference>();
-      for (const { description } of wanted) parts.set(description, references.get(description) ?? 'SolidCraft builds another part for these words');
+      const unread: PartQuery[] = [];
+      for (const [i, part] of wanted.entries()) {
+        const reference = references.get(part.description);
+        const described = (first[wanted.length + 1 + i] as { description?: unknown } | null | undefined)?.description;
+        if (reference) parts.set(part.description, reference);
+        else if (typeof described === 'string' && described !== part.description) parts.set(part.description, `SolidCraft builds "${described.slice(0, 200)}" for these words`);
+        else unread.push(part);
+      }
+      return unread;
     } finally {
-      await rm(script, { force: true });
+      // A script that cannot be removed is no reason to lose the references.
+      await rm(script, { force: true }).catch(() => undefined);
     }
   };
 
@@ -286,26 +341,46 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
     const store = await open(program);
     const missing = wanted.filter((part) => !store.parts.has(part.description));
     if (missing.length === 0) return wanted.some((part) => typeof store.parts.get(part.description) === 'object');
-    const refused = (part: PartQuery, cause: unknown) => {
-      const reason = (cause as Error).message.slice(0, 300);
-      if (cause instanceof TransientCliError) retryAt.set(key(program, part.description), { at: now() + RETRY_AFTER_MS, reason });
-      else store.parts.set(part.description, reason);
-      log(`no reference for the standard part "${part.description}": ${reason}`);
+    const held: PartQuery[] = [];
+    const without = (part: PartQuery, cause: unknown) => {
+      const reason = ((cause as Error).message || String(cause)).slice(0, 300);
+      if (cause instanceof RefusedPartError) store.parts.set(part.description, reason);
+      else if (cause instanceof TransientCliError) {
+        failed.set(key(program, part.description), { reason, at: now() + RETRY_AFTER_MS });
+        held.push(part);
+      } else failed.set(key(program, part.description), { reason });
+      log(`no reference for the standard part "${part.description}"${cause instanceof RefusedPartError ? '' : cause instanceof TransientCliError ? ' for now' : ' in this run of PartBuddy'}: ${reason}`);
     };
+    const unread = new Error('the measures SolidCraft gave did not read');
     try {
-      await build(program, missing, store.parts);
+      for (const part of await build(program, missing, store.parts)) without(part, unread);
     } catch (error) {
       // One description SolidCraft cannot build stops the whole script: the parts are built one by one, once.
-      if (missing.length === 1 || error instanceof TransientCliError) for (const part of missing) refused(part, error);
-      else for (const part of missing) await build(program, [part], store.parts).catch((cause: unknown) => refused(part, cause));
+      if (missing.length === 1 || error instanceof TransientCliError) for (const part of missing) without(part, error);
+      else {
+        for (const part of missing) {
+          await build(program, [part], store.parts).then(
+            (odd) => odd.forEach((entry) => without(entry, unread)),
+            (cause: unknown) => without(part, cause),
+          );
+        }
+      }
+    }
+    if (held.length > 0) {
+      // Nobody asks again by itself after a run without an answer: once the wait is over the parts are built and the design mirrored.
+      later(() => {
+        for (const part of held) failed.delete(key(program, part.description));
+        try {
+          known(held);
+        } catch (error) {
+          log(`no references for standard parts: ${(error as Error).message}`);
+        }
+      }, RETRY_AFTER_MS);
     }
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, STORE_FILE), JSON.stringify({ identity: store.identity, parts: Object.fromEntries(store.parts) })).catch((error: unknown) => log(`the standard part references were not kept: ${(error as Error).message}`));
     return missing.some((part) => typeof store.parts.get(part.description) === 'object');
   };
-
-  /** The store of a program once it was opened; undefined before. */
-  const opened = new Map<string, Map<string, PartReference | string>>();
 
   const known = (parts: readonly PartQuery[]): Map<string, ReferenceState> => {
     const program = options.cli();
@@ -315,30 +390,32 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
     for (const part of parts) {
       if (states.has(part.description)) continue;
       const kept = have?.get(part.description);
-      const held = retryAt.get(key(program, part.description));
+      const lost = failed.get(key(program, part.description));
       if (typeof kept === 'object') states.set(part.description, kept);
-      else if (typeof kept === 'string') states.set(part.description, { failed: kept });
-      else if (held && held.at > now()) states.set(part.description, { failed: held.reason });
+      else if (typeof kept === 'string') states.set(part.description, { refused: kept });
+      else if (lost && (lost.at === undefined || lost.at > now())) states.set(part.description, { failed: lost.reason });
       else {
         states.set(part.description, { building: true });
-        if (!building.has(key(program, part.description))) wanted.push(part);
+        if (!building.has(key(program, part.description)) && wanted.length < PARTS_PER_RUN) wanted.push(part);
       }
     }
     if (wanted.length > 0) {
-      const job = work(program, wanted.slice(0, 200))
+      const job = work(program, wanted)
         .then(
-          async (gained) => {
+          async () => {
             opened.set(program, (await open(program)).parts);
-            if (gained) options.built?.();
           },
           (error: unknown) => {
-            const reason = (error as Error).message.slice(0, 300);
-            for (const part of wanted) retryAt.set(key(program, part.description), { at: now() + RETRY_AFTER_MS, reason });
-            log(`no references for standard parts: ${reason}`);
+            // The program itself could not be asked (its version, its file): nothing says the parts cannot be built.
+            const reason = ((error as Error).message || String(error)).slice(0, 300);
+            for (const part of wanted) failed.set(key(program, part.description), { reason });
+            log(`no references for standard parts in this run of PartBuddy: ${reason}`);
           },
         )
         .finally(() => {
           for (const part of wanted) building.delete(key(program, part.description));
+          // With or without a reference, the parts are no longer "being built": the mirror says once more what each body is.
+          options.built?.();
         });
       for (const part of wanted) building.set(key(program, part.description), job);
     }
@@ -349,9 +426,14 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
     known,
     ready: async (parts) => {
       const program = options.cli();
-      known(parts);
-      await Promise.all(parts.flatMap((part) => building.get(key(program, part.description)) ?? []));
-      return known(parts);
+      // Whoever waits is worth one more run for what failed before; SolidCraft's own refusals stay.
+      for (const part of parts) failed.delete(key(program, part.description));
+      let states = known(parts);
+      for (let round = 0; round < READY_ROUNDS && [...states.values()].some((state) => 'building' in state); round += 1) {
+        await Promise.all(parts.flatMap((part) => building.get(key(program, part.description)) ?? []));
+        states = known(parts);
+      }
+      return states;
     },
   };
 }

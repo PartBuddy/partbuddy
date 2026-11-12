@@ -228,7 +228,12 @@ export class FakeSolidCraft {
     };
   }
 
+  /** What a test has a command answer instead of the fake's own answer. */
+  readonly answers: Record<string, (params: Record<string, unknown>) => unknown> = {};
+
   private execute(command: string, params: Record<string, unknown>, allowed: string[]): unknown {
+    const given = this.answers[command];
+    if (given) return given(params);
     switch (command) {
       case 'document.revision':
         return { document_id: this.documentId, revision: this.revision };

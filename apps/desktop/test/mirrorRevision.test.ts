@@ -88,15 +88,16 @@ function design(answer: (command: string, component: number | undefined, call: n
     },
   };
   const checks: PartChecks = { log: (message) => void logs.push(message), references: (parts) => Promise.resolve(new Map(parts.map((part) => [part.description, SCREW_REFERENCE]))) };
-  const mirror = async (given: PartChecks = checks) => {
+  const structure = async (given: PartChecks = checks) => {
     const cache = mkdtempSync(join(tmpdir(), 'partbuddy-mirror-'));
     try {
-      return (await mirrorActiveDesign(client, cache, given)).structure.standardParts;
+      return (await mirrorActiveDesign(client, cache, given)).structure;
     } finally {
       rmSync(cache, { recursive: true, force: true });
     }
   };
-  return { mirror, logs, calls, checks };
+  const mirror = async (given: PartChecks = checks) => (await structure(given)).standardParts;
+  return { mirror, structure, logs, calls, checks };
 }
 
 describe('standard parts in the mirrored structure (audit S-01, G2 and its review)', () => {
@@ -165,16 +166,25 @@ describe('standard parts in the mirrored structure (audit S-01, G2 and its revie
   });
 
   it('does not wait for a part SolidCraft is still building: its body counts as printed until the mirror after', async () => {
-    const { mirror, logs, checks } = design();
+    const { structure, logs, checks } = design();
     let built = false;
     const references: PartChecks['references'] = (parts) => new Map(parts.map((part) => [part.description, built ? SCREW_REFERENCE : { building: true as const }]));
-    expect(await mirror({ ...checks, references })).toEqual([]);
+    // Neither standard parts nor printed for this moment: the print check leaves the bodies in `pendingParts` out (third review, c).
+    expect(await structure({ ...checks, references })).toMatchObject({ standardParts: [], pendingParts: ['Body1', 'Body2'] });
     expect(logs).toEqual([
-      'body "Body1" is described as "Countersunk socket screw M3x10", which SolidCraft is building to hold it against: it counts as printed until then',
-      'body "Body2" is described as "Countersunk socket screw M3x10", which SolidCraft is building to hold it against: it counts as printed until then',
+      'body "Body1" is described as "Countersunk socket screw M3x10", which SolidCraft is building to hold it against: it is neither printed nor bought until then',
+      'body "Body2" is described as "Countersunk socket screw M3x10", which SolidCraft is building to hold it against: it is neither printed nor bought until then',
     ]);
     built = true;
-    expect(await mirror({ ...checks, references })).toEqual(['Body1', 'Body2']);
+    const after = await structure({ ...checks, references });
+    expect(after.standardParts).toEqual(['Body1', 'Body2']);
+    expect(after.pendingParts).toBeUndefined();
+    // A part that could not be built, or that SolidCraft refuses, is printed again and checked: no body stays out for good.
+    for (const state of [{ failed: 'no answer within 22 s' }, { refused: '`length` must be 0…2000 mm' }]) {
+      const lost = await structure({ ...checks, references: (parts) => new Map(parts.map((part) => [part.description, state])) });
+      expect(lost.standardParts).toEqual([]);
+      expect(lost.pendingParts).toBeUndefined();
+    }
   });
 });
 
@@ -215,6 +225,42 @@ describe('mirroring once more when a reference was built', () => {
     scheduler.refresh();
     await finish(2);
     await finish(3);
+    expect(calls).toBe(3);
+  });
+
+  it('does not lose a reference built while a mirror fails, and mirrors nothing again after a reset (third review, e)', async () => {
+    let calls = 0;
+    const failures: string[] = [];
+    const steps: ((fail: boolean) => void)[] = [];
+    const scheduler = new MirrorScheduler(
+      async () => {
+        calls += 1;
+        const fail = await new Promise<boolean>((done) => steps.push(done));
+        if (fail) throw new Error('engine busy');
+        return revision(1);
+      },
+      { started: () => undefined, delivered: () => undefined, failed: (error) => failures.push(error.message), idle: () => undefined },
+    );
+    const end = async (expected: number, fail: boolean) => {
+      await vi.waitFor(() => expect(calls).toBe(expected));
+      steps.shift()?.(fail);
+      await new Promise((done) => setTimeout(done, 20));
+    };
+    scheduler.request({ documentId: 'd', revision: 1 });
+    await vi.waitFor(() => expect(calls).toBe(1));
+    // The reference arrives while the first mirror runs; that mirror fails.
+    scheduler.refresh();
+    await end(1, true);
+    expect(failures).toEqual(['engine busy']);
+    // It is tried once more for the reference, and only once when that fails too.
+    await end(2, true);
+    expect(calls).toBe(2);
+    scheduler.request({ documentId: 'd', revision: 2 });
+    await end(3, false);
+    // After a reset (another design) an old reference mirrors nothing.
+    scheduler.reset();
+    scheduler.refresh();
+    await new Promise((done) => setTimeout(done, 20));
     expect(calls).toBe(3);
   });
 });

@@ -97,7 +97,8 @@ describe('standard parts the assistant inserted itself', () => {
     const references = new Map<string, ReferenceState>([
       ['Hex nut M3', { shape: nut, partNumber: 'ISO 4032 M3' }],
       ['Hex nut M4', { building: true }],
-      ['Hex nut M5x5000', { failed: '`length` must be 0…2000 mm' }],
+      ['Hex nut M5x5000', { refused: '`length` must be 0…2000 mm' }],
+      ['Hex nut M8', { failed: 'solidcraft-cli ended with code 3221225477' }],
     ]);
     const candidate = (component: number, body: string, description = 'Hex nut M3') => ({ component, body, description, part: { family: 'hex_nut', size: 'M3', length: null } });
     const measured = {
@@ -125,20 +126,26 @@ describe('standard parts the assistant inserted itself', () => {
       candidate(30, 'Body1', 'Hex nut M4'),
       candidate(32, 'Body1', 'Hex nut M5x5000'),
       candidate(34, 'Body1', 'Hex nut M6'),
+      candidate(36, 'Body9', 'Hex nut M8'),
     ];
-    const faces = [nutFaces, nutFaces, nutFaces, nutFaces, nutFaces, nutFaces, twinFaces, nutFaces, nutFaces, nutFaces];
-    expect(boughtAmong(candidates, measured, faces, references, (message) => void logs.push(message))).toEqual([{ component: 3, body: 'Body1', description: 'Hex nut M3', partNumber: 'ISO 4032 M3' }]);
+    const faces = [nutFaces, nutFaces, nutFaces, nutFaces, nutFaces, nutFaces, twinFaces, nutFaces, nutFaces, nutFaces, nutFaces];
+    const told = boughtAmong(candidates, measured, faces, references, (message) => void logs.push(message));
+    expect(told.bought).toEqual([{ component: 3, body: 'Body1', description: 'Hex nut M3', partNumber: 'ISO 4032 M3' }]);
+    // A part still being built is neither printed nor bought; one that could not be built for now is named for the export, which must not go out unchecked.
+    expect(told.pending).toEqual(['Body1']);
+    expect(told.unchecked).toEqual(['"Body1": no answer', '"Body9": solidcraft-cli ended with code 3221225477']);
     // Every body left printed is named with the reason.
-    expect(logs).toHaveLength(9);
+    expect(logs).toHaveLength(10);
     expect(logs[1]).toBe('body "Deckel" is described as "Hex nut M3" but is not that part (360.00000000000506 mm³, 6 faces; the part has 45.9088439852507 mm³, 9 faces): it counts as printed');
     expect(logs[5]).toContain('body "Twin" is described as "Hex nut M3" but is not that part');
-    expect(logs[6]).toBe('body "Body1" is described as "Hex nut M4", which SolidCraft is building to hold it against: it counts as printed until then');
-    expect(logs[7]).toBe('body "Body1" is described as "Hex nut M5x5000", which SolidCraft did not build to hold it against (`length` must be 0…2000 mm): it counts as printed');
-    expect(logs[8]).toBe('body "Body1" is described as "Hex nut M6", which SolidCraft did not build to hold it against (no answer): it counts as printed');
-    expect(boughtAmong(candidates, undefined, faces, references, () => undefined)).toEqual([]);
+    expect(logs[6]).toBe('body "Body1" is described as "Hex nut M4", which SolidCraft is building to hold it against: it is neither printed nor bought until then');
+    expect(logs[7]).toBe('body "Body1" is described as "Hex nut M5x5000", which SolidCraft does not build (`length` must be 0…2000 mm): it counts as printed');
+    expect(logs[8]).toBe('body "Body1" is described as "Hex nut M6", which could not be built to hold it against (no answer): it counts as printed');
+    expect(logs[9]).toBe('body "Body9" is described as "Hex nut M8", which could not be built to hold it against (solidcraft-cli ended with code 3221225477): it counts as printed');
+    expect(boughtAmong(candidates, undefined, faces, references, () => undefined).bought).toEqual([]);
     // Without its faces, or with one of them missing, a body is not measured.
-    expect(boughtAmong(candidates.slice(0, 1), measured, [], references, () => undefined)).toEqual([]);
-    expect(boughtAmong(candidates.slice(0, 1), measured, [nutFaces.slice(1)], references, () => undefined)).toEqual([]);
+    expect(boughtAmong(candidates.slice(0, 1), measured, [], references, () => undefined).bought).toEqual([]);
+    expect(boughtAmong(candidates.slice(0, 1), measured, [nutFaces.slice(1)], references, () => undefined).bought).toEqual([]);
   });
 
   it('lists the parts to buy from the standard parts themselves, each as often as it is placed (review 4)', () => {

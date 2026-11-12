@@ -164,6 +164,8 @@ export const structureSchema = z
     sketches: z.array(z.object({ id: z.number().int().nonnegative(), name: z.string().max(200), visible: z.boolean() }).strict()).max(2000),
     /** Bodies that are standard parts (B7): counterparts, neither exported nor checked for printing. */
     standardParts: z.array(z.string().max(200)).max(500).optional(),
+    /** Bodies whose standard part SolidCraft is still building: neither printed nor bought until the mirror that follows, so the print check leaves them out for that moment. */
+    pendingParts: z.array(z.string().max(200)).max(500).optional(),
     /** The joints of parts that move against each other (ADR 0027); left out when there are none. */
     joints: z.array(jointSchema).max(200).optional(),
   })

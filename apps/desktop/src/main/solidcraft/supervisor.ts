@@ -19,7 +19,7 @@ import { blockBodies, colourLayers, planeAt, stepsOf, type FeatureBlock } from '
 import { centring, hostFace, movedPlane, TEXT_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
 import { insertCommand, type ImportKind } from '../projects/importFile';
 import { freeBodyName, libraryOf } from './standardParts';
-import { cliReferences } from './partReference';
+import { cliReferences, type PartReferences } from './partReference';
 import { ProjectStore } from '../projects/projectStore';
 import { HeadlessEngine, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
@@ -28,6 +28,8 @@ import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, ty
 
 export interface SupervisorOptions {
   environment: Environment;
+  /** For tests: the standard part references instead of `solidcraft-cli`'s; `built` is to be called when one arrives. */
+  partReferences?: (built: () => void) => PartReferences;
   /** Control port used when PartBuddy starts SolidCraft (decided 2026-11-04: 7878). */
   launchPort: number;
   /** Start SolidCraft on the first search when none runs. */
@@ -134,7 +136,7 @@ export class SolidCraftSupervisor {
     this.options = { ...options, cacheDir: longPath(options.cacheDir) };
     const { cacheDir } = this.options;
     const log = (message: string) => options.log(message);
-    const references = cliReferences({ cli: () => this.cli(), dir: cacheDir, log, env: options.environment.env, built: () => this.scheduler.refresh() });
+    const references = options.partReferences?.(() => this.scheduler.refresh()) ?? cliReferences({ cli: () => this.cli(), dir: cacheDir, log, env: options.environment.env, built: () => this.scheduler.refresh() });
     this.partChecks = { log, references: references.known };
     this.settledChecks = { log, references: references.ready };
     this.dimensions = new DimensionService(() => this.requester(), cacheDir);
@@ -340,12 +342,22 @@ export class SolidCraftSupervisor {
     return hardwareOf(parts, listing);
   }
 
-  /** The standard parts as the design stands now, every reference waited for, with the `component.list` they were read from. */
+  /**
+   * The standard parts as the design stands now, every reference waited for, with the
+   * `component.list` they were read from. It fails, in words the user gets to read, when a body
+   * could not be checked: an export must not go out with a screw in it without a word.
+   */
   private async standardParts(): Promise<{ parts: BoughtPart[]; listing: unknown }> {
     const requester = this.requester();
     const reply = await requester.request<BatchResult>('engine.batch', { commands: [{ command: 'component.list', params: {} }], rollback: false }, 60_000);
     if (reply.failed) throw new Error(reply.failed.error);
-    return { parts: await boughtParts(requester, reply.results[0], this.settledChecks), listing: reply.results[0] };
+    const told = await boughtParts(requester, reply.results[0], this.settledChecks);
+    const open = [...told.unchecked, ...told.pending.map((body) => `"${body}": its part is still being built`)];
+    if (open.length > 0) {
+      this.options.log(`not exported: standard parts could not be told from printed bodies (${open.join('; ')})`);
+      throw new Error(`standard parts could not be checked, so nothing was written (${open.slice(0, 2).join('; ').slice(0, 110)}). Try again in a moment.`);
+    }
+    return { parts: told.bought, listing: reply.results[0] };
   }
 
   /**
