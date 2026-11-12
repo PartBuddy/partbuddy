@@ -71,6 +71,8 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     const note = printCheckNote(report);
     expect(note).toContain('50 bodies have little on the bed, the least 16 mm²');
     expect(note).toContain('"F1:-z" of body "Pin3"; and 46 more bodies)');
+    // A design of more bodies than a report names still fits the contract.
+    expect(printCheckReportSchema.safeParse(reportOf({ status: 'warn', findings: [{ kind: 'contact', severity: 'warn', area: 16, bodies: 600, places, box: null }] }, 0.4, 1)).success).toBe(true);
     // Fifty findings: the report keeps 40 and counts the rest, the note lists 12 and counts the rest.
     const many = reportOf({ status: 'block', findings: Array.from({ length: 50 }, (_, i) => ({ kind: 'size' as const, severity: 'block' as const, body: 'Rod' + String(i), size: [300, 300, 300] as [number, number, number], bed: [256, 256, 256] as [number, number, number], lying: false })) }, 0.4, 1);
     expect(many).toMatchObject({ omitted: 10 });

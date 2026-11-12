@@ -20,7 +20,9 @@ export const OVERHANG_LIMITS: OverhangLimits = { borderline: 35, support: 45 };
 
 /** The limits for a material (M7): support beyond its overhang angle, borderline 10° before. */
 export function overhangLimits(support: number): OverhangLimits {
-  return { borderline: Math.max(0, support - 10), support };
+  // A profile without an angle is checked at the usual one, not with a limit nothing passes.
+  const limit = Number.isFinite(support) ? support : OVERHANG_LIMITS.support;
+  return { borderline: Math.max(0, limit - 10), support: limit };
 }
 
 /**
@@ -113,189 +115,451 @@ export const LYING_HOLE = 8;
 const LEVEL = 0.99;
 /** A face that looks up at least this much (z of its unit normal) has material under it. */
 const UP = 0.1;
-const CORNERS: [number, number, number][] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+/** Just inside each corner of a triangle: a point on the rim itself belongs to both sides of it. */
+const CORNERS: [number, number, number][] = [[0.998, 0.001, 0.001], [0.001, 0.998, 0.001], [0.001, 0.001, 0.998]];
+/** Directions a patch is tried to be bridged in, at most: those most of its anchors lie across. */
+const DIRECTIONS = 6;
+/** Two faces that turn less than this (rad) into each other are one curved surface, not an edge. */
+const SMOOTH = Math.PI / 6;
+
+/** A cell of a grid and the eight around it, the cell itself first. */
+const AROUND: [number, number][] = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]];
+
+/** Where a patch of overhang ends: an edge in plan, whether the patch hangs from it, and how far the overhang really runs past it. */
+interface Rim {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  anchor: boolean;
+  ease: number;
+}
 
 /**
- * Overhang triangles that are small: each connected patch whose every point lies within `reach`
- * (mm, across the bed) of an edge where the material goes on below, the way a ledge or a thread
- * flank hangs from its wall, or between two such edges that are the patch's nearest rims on both
- * sides and no more than a span apart: `BRIDGE_SPAN` under a flat ceiling, `arch` under the roof of
- * a lying hole. A patch with no such edge starts in the air, and a patch reaching further (a
- * ceiling, a wide bridge, a cantilevered arm, a lip beside a slot) needs support; both stay.
- * shortcut: point-to-edge distances are compared pairwise per patch; fine for the parts PartBuddy
- * builds, upgrade to a spatial grid if a check of a large mesh gets slow.
+ * Overhang triangles that are small, so that they need no support.
+ *
+ * A patch (overhang triangles joined by edges) hangs from its anchors: the rims where the surface
+ * goes on downwards into material that stands (`standing`). A point of it holds when it lies within
+ * `reach` (mm, across the bed) of an anchor, the way a ledge or a thread flank hangs from its wall,
+ * or when it is bridged: across the patch, in the one direction the slicer would lay the bridge,
+ * the nearest rim on both sides is an anchor and the two are no more than a span apart
+ * (`BRIDGE_SPAN` under a flat ceiling, `arch` under the roof of a lying hole). The direction is taken
+ * from the anchors themselves, so the answer does not turn with the part on the bed.
+ *
+ * What does not hold is reported, with the arm it hangs on back to its anchor: a ceiling, a wide
+ * bridge, an arm, the lips beside a slot or a hole. The rest of the patch stays out, so a hole in a
+ * long bridge reports the stubs beside it, not the bridge. A patch with no anchor starts in the air.
  */
-function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, support: readonly number[], reach: number, arch: number, bedZ: number): Set<number> {
+function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, down: ArrayLike<number>, isSupport: (t: number) => boolean, reach: number, arch: number, sinSupport: number, bedZ: number): Set<number> {
   const small = new Set<number>();
-  if (support.length === 0) return small;
-  const key = (v: number) => `${String(Math.round((positions[v * 3] ?? 0) / WELD))},${String(Math.round((positions[v * 3 + 1] ?? 0) / WELD))},${String(Math.round((positions[v * 3 + 2] ?? 0) / WELD))}`;
-  const keys = new Map<number, string>();
-  const keyOf = (v: number) => {
-    let k = keys.get(v);
-    if (k === undefined) {
-      k = key(v);
-      keys.set(v, k);
+  const count = index.length / 3;
+  let any = false;
+  for (let t = 0; t < count && !any; t += 1) any = isSupport(t);
+  if (!any) return small;
+
+  // Render buffers repeat corners per face: weld them, so edges are shared between faces.
+  const welded = new Map<string, number>();
+  const wx: number[] = [];
+  const wy: number[] = [];
+  const wz: number[] = [];
+  const corner = new Int32Array(index.length);
+  for (let i = 0; i < index.length; i += 1) {
+    const v = index[i] ?? 0;
+    const [px, py, pz] = [positions[v * 3] ?? 0, positions[v * 3 + 1] ?? 0, positions[v * 3 + 2] ?? 0];
+    const key = `${String(Math.round(px / WELD))},${String(Math.round(py / WELD))},${String(Math.round(pz / WELD))}`;
+    let w = welded.get(key);
+    if (w === undefined) {
+      w = wx.length;
+      welded.set(key, w);
+      wx.push(px);
+      wy.push(py);
+      wz.push(pz);
     }
-    return k;
-  };
-  const edgeKey = (a: number, b: number) => {
-    const ka = keyOf(a);
-    const kb = keyOf(b);
-    return ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
-  };
-  const x = (v: number) => positions[v * 3] ?? 0;
-  const y = (v: number) => positions[v * 3 + 1] ?? 0;
-  const z = (v: number) => positions[v * 3 + 2] ?? 0;
-  /** The normal of a triangle, not of unit length. */
-  const normalOf = (t: number): [number, number, number] => {
-    const [a, b, c] = [index[t * 3] ?? 0, index[t * 3 + 1] ?? 0, index[t * 3 + 2] ?? 0];
-    const [ux, uy, uz, vx, vy, vz] = [x(b) - x(a), y(b) - y(a), z(b) - z(a), x(c) - x(a), y(c) - y(a), z(c) - z(a)];
-    return [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
-  };
-  // Every edge of the body with the triangles on it and their third corner; per vertex the vertices
-  // one edge away, and whether a face that looks up meets it.
-  const edges = new Map<string, { triangle: number; third: number }[]>();
-  const links = new Map<string, number[]>();
-  const looksUp = new Set<string>();
-  for (let t = 0; t < index.length / 3; t += 1) {
-    const [nx, ny, nz] = normalOf(t);
-    const up = nz > UP * Math.hypot(nx, ny, nz);
+    corner[i] = w;
+  }
+  const vertices = wx.length;
+  const x = (w: number) => wx[w] ?? 0;
+  const y = (w: number) => wy[w] ?? 0;
+  const z = (w: number) => wz[w] ?? 0;
+  const at = (t: number, k: number) => corner[t * 3 + k] ?? 0;
+
+  // Every edge with the triangles on it and their third corner.
+  const edgeKey = (a: number, b: number) => (a < b ? a * vertices + b : b * vertices + a);
+  const edges = new Map<number, number[]>();
+  for (let t = 0; t < count; t += 1) {
     for (let k = 0; k < 3; k += 1) {
-      const a = index[t * 3 + k] ?? 0;
-      const b = index[t * 3 + ((k + 1) % 3)] ?? 0;
-      const third = index[t * 3 + ((k + 2) % 3)] ?? 0;
+      const a = at(t, k);
+      const b = at(t, (k + 1) % 3);
+      if (a === b) continue;
       const id = edgeKey(a, b);
       const list = edges.get(id);
-      if (list) list.push({ triangle: t, third });
-      else edges.set(id, [{ triangle: t, third }]);
-      const near = links.get(keyOf(a));
-      if (near) near.push(b, third);
-      else links.set(keyOf(a), [b, third]);
-      if (up) looksUp.add(keyOf(a));
+      if (list) list.push(t, at(t, (k + 2) % 3));
+      else edges.set(id, [t, at(t, (k + 2) % 3)]);
     }
   }
-  // Whether the material at a vertex stands on something: going down along the mesh, never up, it
-  // comes to the bed or to a face that looks up (a floor, the flank below). The tip of a drip edge
-  // under a shelf ends in the air instead.
-  // shortcut: a hook whose own back looks up counts as standing; follow the material below the
-  // face that looks up if such a shape must be told apart.
-  const stands = new Map<string, boolean>();
-  const grounded = (start: number): boolean => {
-    const known = stands.get(keyOf(start));
-    if (known !== undefined) return known;
-    const visited = new Set<string>([keyOf(start)]);
-    const stack = [start];
-    let found = false;
-    while (stack.length > 0 && !found) {
-      const v = stack.pop() ?? 0;
-      if (z(v) <= bedZ + BED_TOLERANCE || looksUp.has(keyOf(v))) found = true;
-      else
-        for (const next of links.get(keyOf(v)) ?? []) {
-          if (z(next) > z(v) + WELD || visited.has(keyOf(next))) continue;
-          visited.add(keyOf(next));
-          stack.push(next);
-        }
-    }
-    stands.set(keyOf(start), found);
-    return found;
-  };
-  const isSupport = new Set(support);
-  const seen = new Set<number>();
-  for (const start of support) {
-    if (seen.has(start)) continue;
-    // One patch: support triangles joined by edges.
+
+  const standing = standingVertices({ count, vertices, x, y, z, at, down, isSupport, edges, reach, bedZ });
+
+  const seen = new Uint8Array(count);
+  for (let start = 0; start < count; start += 1) {
+    if (seen[start] || !isSupport(start)) continue;
+    // One patch: support triangles joined by edges, and the rims where it ends.
     const patch: number[] = [];
-    const anchors: [number, number][] = [];
-    // Every edge where the patch ends, and whether it is an anchor.
-    const rim: [number, number, boolean][] = [];
+    const rims: Rim[] = [];
     const queue = [start];
-    seen.add(start);
+    seen[start] = 1;
     while (queue.length > 0) {
       const t = queue.pop() ?? 0;
       patch.push(t);
       for (let k = 0; k < 3; k += 1) {
-        const a = index[t * 3 + k] ?? 0;
-        const b = index[t * 3 + ((k + 1) % 3)] ?? 0;
-        for (const other of edges.get(edgeKey(a, b)) ?? []) {
-          if (other.triangle === t) continue;
-          if (isSupport.has(other.triangle)) {
-            if (!seen.has(other.triangle)) {
-              seen.add(other.triangle);
-              queue.push(other.triangle);
+        const a = at(t, k);
+        const b = at(t, (k + 1) % 3);
+        const list = edges.get(edgeKey(a, b)) ?? [];
+        for (let i = 0; i < list.length; i += 2) {
+          const other = list[i] ?? 0;
+          const third = list[i + 1] ?? 0;
+          if (other === t) continue;
+          if (isSupport(other)) {
+            if (!seen[other]) {
+              seen[other] = 1;
+              queue.push(other);
             }
-          } else {
-            // The neighbour goes on downwards from this edge to where it stands, or the edge lies
-            // on the bed: the patch hangs from material here.
-            const anchor = (z(other.third) < Math.min(z(a), z(b)) - WELD && grounded(other.third)) || Math.max(z(a), z(b)) <= bedZ + BED_TOLERANCE;
-            if (anchor) anchors.push([a, b]);
-            rim.push([a, b, anchor]);
+            continue;
           }
+          // The neighbour goes on downwards from this edge to material that stands, or the edge
+          // lies on the bed: the patch hangs from material here.
+          const anchor = (z(third) < Math.min(z(a), z(b)) - WELD && standing(third)) || Math.max(z(a), z(b)) <= bedZ + BED_TOLERANCE;
+          rims.push({ ax: x(a), ay: y(a), bx: x(b), by: y(b), anchor, ease: anchor ? easeOf(x(at(t, (k + 2) % 3)), y(at(t, (k + 2) % 3)), x(a), y(a), x(b), y(b), down[t] ?? 0, down[other] ?? 0, sinSupport) : 0 });
         }
       }
     }
-    if (anchors.length === 0) continue;
-    const near = (px: number, py: number) => {
-      for (const [a, b] of anchors) {
-        const ax = positions[a * 3] ?? 0;
-        const ay = positions[a * 3 + 1] ?? 0;
-        const dx = (positions[b * 3] ?? 0) - ax;
-        const dy = (positions[b * 3 + 1] ?? 0) - ay;
-        const length = dx * dx + dy * dy;
-        const s = length === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / length));
-        if (Math.hypot(px - ax - s * dx, py - ay - s * dy) <= reach) return true;
-      }
-      return false;
-    };
-    // A point is bridged where a straight line through it leaves the patch over an anchor on both
-    // sides, within the span. A free edge or a hole on the way makes that side an arm, not a bridge.
-    const bridged = (px: number, py: number, span: number) => {
-      for (let turn = 0; turn < 12; turn += 1) {
-        const dx = Math.cos((turn * Math.PI) / 12);
-        const dy = Math.sin((turn * Math.PI) / 12);
-        // Distance to the nearest rim ahead and behind, and whether it is free.
-        const ends = [
-          { at: Infinity, free: false },
-          { at: Infinity, free: false },
-        ];
-        for (const [a, b, anchor] of rim) {
-          const ax = x(a) - px;
-          const ay = y(a) - py;
-          const ex = x(b) - x(a);
-          const ey = y(b) - y(a);
-          const cross = dx * ey - dy * ex;
-          if (Math.abs(cross) < 1e-12) continue;
-          const s = (ax * dy - ay * dx) / cross;
-          if (s < -1e-6 || s > 1 + 1e-6) continue;
-          const along = (ax * ey - ay * ex) / cross;
-          const end = ends[along >= 0 ? 0 : 1];
-          if (!end) continue;
-          const at = Math.abs(along);
-          // Two rims met at one point: a free one among them decides.
-          if (Math.abs(at - end.at) <= WELD) end.free ||= !anchor;
-          else if (at < end.at) {
-            end.at = at;
-            end.free = !anchor;
-          }
-        }
-        if (ends.every((end) => !end.free) && (ends[0]?.at ?? Infinity) + (ends[1]?.at ?? Infinity) <= span + WELD) return true;
-      }
-      return false;
-    };
-    // Every point of the patch, not only its corners: a ceiling has all its corners on its walls.
-    const holds = patch.every((t) => {
-      const [a, b, c] = [index[t * 3] ?? 0, index[t * 3 + 1] ?? 0, index[t * 3 + 2] ?? 0];
-      const [nx, ny, nz] = normalOf(t);
-      const span = -nz > LEVEL * Math.hypot(nx, ny, nz) ? BRIDGE_SPAN : arch;
-      const points = [...spread(Math.ceil(Math.abs(nz) / 2 / (reach / 2) ** 2)), ...CORNERS];
-      return points.every(([wa, wb, wc]) => {
-        const px = wa * x(a) + wb * x(b) + wc * x(c);
-        const py = wa * y(a) + wb * y(b) + wc * y(c);
-        return near(px, py) || bridged(px, py, span);
-      });
-    });
-    if (holds) for (const t of patch) small.add(t);
+    if (!rims.some((rim) => rim.anchor)) continue;
+    for (const t of heldTriangles(patch, rims, { x, y, at, down, edges, edgeKey, reach, arch })) small.add(t);
   }
   return small;
+}
+
+/**
+ * How far (mm) past a rim the overhang really runs on a curved surface. The mesh puts the rim on an
+ * edge between two facets, the limit angle lies somewhere on the curve between their middles: a
+ * hole of 20 segments would read up to a facet narrower than the same hole of 96.
+ */
+function easeOf(tx: number, ty: number, ax: number, ay: number, bx: number, by: number, downIn: number, downOut: number, sinSupport: number): number {
+  const angleIn = Math.asin(Math.max(-1, Math.min(1, downIn)));
+  const angleOut = Math.asin(Math.max(-1, Math.min(1, downOut)));
+  const turn = angleIn - angleOut;
+  if (!(turn > 1e-6) || turn > SMOOTH) return 0;
+  const length = Math.hypot(bx - ax, by - ay);
+  if (length === 0) return 0;
+  // The facet's width in plan: from its far corner to the rim.
+  const width = Math.abs((bx - ax) * (ty - ay) - (by - ay) * (tx - ax)) / length;
+  const ease = (width * ((angleIn + angleOut) / 2 - Math.asin(sinSupport)) * sinSupport) / (turn * Math.max(downIn, 1e-6));
+  return Math.max(-width, Math.min(width, ease));
+}
+
+interface Surface {
+  count: number;
+  vertices: number;
+  x: (w: number) => number;
+  y: (w: number) => number;
+  z: (w: number) => number;
+  at: (t: number, k: number) => number;
+  down: ArrayLike<number>;
+  isSupport: (t: number) => boolean;
+  edges: Map<number, number[]>;
+  reach: number;
+  bedZ: number;
+}
+
+/**
+ * Which vertices stand on something, found in one flood from the bed: upwards along the surface,
+ * never down, and across overhang only as far as a small overhang reaches (a thread flank carries
+ * the next turn, a shelf carries neither a lip at its tip nor a wall on it). A face that looks up stands when the
+ * underside of the material straight below it does: the floor of a box, the back of a hook not.
+ */
+function standingVertices({ count, vertices, x, y, z, at, down, isSupport, edges, reach, bedZ }: Surface): (w: number) => boolean {
+  // Per vertex: the vertices one edge away, and what the way there adds: the run in plan over overhang.
+  const next: number[][] = Array.from({ length: vertices }, () => []);
+  for (const [id, list] of edges) {
+    const a = Math.floor(id / vertices);
+    const b = id % vertices;
+    let hanging = false;
+    for (let i = 0; i < list.length; i += 2) hanging ||= isSupport(list[i] ?? 0);
+    // Over overhang the way adds its run in plan; on sound surface it adds nothing (−1).
+    const run = hanging ? Math.hypot(x(b) - x(a), y(b) - y(a)) : -1;
+    next[a]?.push(b, run);
+    next[b]?.push(a, run);
+  }
+
+  // Undersides in a grid in plan, to find the one straight below a face that looks up.
+  const undersides: number[] = [];
+  let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (let t = 0; t < count; t += 1) {
+    if (!((down[t] ?? 0) > 0)) continue;
+    undersides.push(t);
+    for (let k = 0; k < 3; k += 1) {
+      minX = Math.min(minX, x(at(t, k)));
+      maxX = Math.max(maxX, x(at(t, k)));
+      minY = Math.min(minY, y(at(t, k)));
+      maxY = Math.max(maxY, y(at(t, k)));
+    }
+  }
+  const cell = Math.max(1e-3, Math.sqrt(((maxX - minX) * (maxY - minY)) / Math.max(1, undersides.length)) * 2);
+  const columns = Math.max(1, Math.ceil((maxX - minX) / cell));
+  const grid = new Map<number, number[]>();
+  for (const t of undersides) {
+    const xs = [x(at(t, 0)), x(at(t, 1)), x(at(t, 2))];
+    const ys = [y(at(t, 0)), y(at(t, 1)), y(at(t, 2))];
+    for (let i = Math.floor((Math.min(...xs) - minX) / cell); i <= Math.floor((Math.max(...xs) - minX) / cell); i += 1) {
+      for (let j = Math.floor((Math.min(...ys) - minY) / cell); j <= Math.floor((Math.max(...ys) - minY) / cell); j += 1) {
+        const list = grid.get(j * (columns + 1) + i);
+        if (list) list.push(t);
+        else grid.set(j * (columns + 1) + i, [t]);
+      }
+    }
+  }
+  // Turns of a thread lie over each other in plan: each cell from the top down, so a point finds
+  // the underside below it without passing every turn.
+  const lowest = (t: number) => Math.min(z(at(t, 0)), z(at(t, 1)), z(at(t, 2)));
+  let tallest = 0;
+  for (const t of undersides) tallest = Math.max(tallest, Math.max(z(at(t, 0)), z(at(t, 1)), z(at(t, 2))) - lowest(t));
+  for (const list of grid.values()) list.sort((a, b) => lowest(b) - lowest(a));
+  /** The underside straight below a point, the highest one, or −1. */
+  const below = (px: number, py: number, pz: number): number => {
+    let found = -1;
+    let height = -Infinity;
+    const list = grid.get(Math.floor((py - minY) / cell) * (columns + 1) + Math.floor((px - minX) / cell)) ?? [];
+    // The first that does not begin above the point.
+    let from = 0;
+    for (let to = list.length; from < to; ) {
+      const middle = (from + to) >> 1;
+      if (lowest(list[middle] ?? 0) > pz) from = middle + 1;
+      else to = middle;
+    }
+    for (let i = from; i < list.length; i += 1) {
+      const t = list[i] ?? 0;
+      const [az, bz, cz] = [z(at(t, 0)), z(at(t, 1)), z(at(t, 2))];
+      // Nothing further down reaches up to the best so far.
+      if (Math.min(az, bz, cz) + tallest < height) break;
+      const [ax, ay, bx, by, cx, cy] = [x(at(t, 0)), y(at(t, 0)), x(at(t, 1)), y(at(t, 1)), x(at(t, 2)), y(at(t, 2))];
+      const area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+      if (area === 0) continue;
+      const u = ((px - ax) * (cy - ay) - (py - ay) * (cx - ax)) / area;
+      const v = ((bx - ax) * (py - ay) - (by - ay) * (px - ax)) / area;
+      if (u < 0 || v < 0 || u + v > 1) continue;
+      const pointZ = az + u * (bz - az) + v * (cz - az);
+      if (pointZ < pz - WELD && pointZ > height) {
+        height = pointZ;
+        found = t;
+      }
+    }
+    return found;
+  };
+  // Per underside the faces that look up above it, and per vertex the undersides that wait for it.
+  const above = new Map<number, number[]>();
+  const waiting = new Map<number, number[]>();
+  for (let t = 0; t < count; t += 1) {
+    if (!((down[t] ?? 0) < -UP)) continue;
+    const under = below((x(at(t, 0)) + x(at(t, 1)) + x(at(t, 2))) / 3, (y(at(t, 0)) + y(at(t, 1)) + y(at(t, 2))) / 3, (z(at(t, 0)) + z(at(t, 1)) + z(at(t, 2))) / 3);
+    if (under < 0) continue;
+    const list = above.get(under);
+    if (list) list.push(t);
+    else {
+      above.set(under, [t]);
+      for (let k = 0; k < 3; k += 1) {
+        const watchers = waiting.get(at(under, k));
+        if (watchers) watchers.push(under);
+        else waiting.set(at(under, k), [under]);
+      }
+    }
+  }
+
+  // The flood. `run` is how far over overhang the way from standing material to a vertex leads.
+  const run = new Float64Array(vertices).fill(Infinity);
+  const queue: number[] = [];
+  const reached = (w: number, value: number) => {
+    if (value > reach + WELD || value >= (run[w] ?? Infinity) - 1e-9) return;
+    run[w] = value;
+    queue.push(w);
+  };
+  for (let w = 0; w < vertices; w += 1) if (z(w) <= bedZ + BED_TOLERANCE) reached(w, 0);
+  for (let head = 0; head < queue.length; head += 1) {
+    const w = queue[head] ?? 0;
+    const list = next[w] ?? [];
+    for (let i = 0; i < list.length; i += 2) {
+      const n = list[i] ?? 0;
+      if (z(n) < z(w) - WELD) continue;
+      const over = list[i + 1] ?? 0;
+      // A small overhang that holds carries what rises from it: a step on a step on a step.
+      reached(n, over >= 0 ? (run[w] ?? 0) + over : z(n) > z(w) + WELD ? 0 : (run[w] ?? 0));
+    }
+    for (const under of waiting.get(w) ?? []) {
+      if (!Number.isFinite(run[at(under, 0)]) || !Number.isFinite(run[at(under, 1)]) || !Number.isFinite(run[at(under, 2)])) continue;
+      for (const t of above.get(under) ?? []) for (let k = 0; k < 3; k += 1) reached(at(t, k), 0);
+      above.delete(under);
+    }
+  }
+  return (w) => Number.isFinite(run[w]);
+}
+
+interface PatchSurface {
+  x: (w: number) => number;
+  y: (w: number) => number;
+  at: (t: number, k: number) => number;
+  down: ArrayLike<number>;
+  edges: Map<number, number[]>;
+  edgeKey: (a: number, b: number) => number;
+  reach: number;
+  arch: number;
+}
+
+/** The triangles of one patch that hold: near an anchor, or bridged in the patch's one direction. */
+function heldTriangles(patch: readonly number[], rims: readonly Rim[], { x, y, at, down, edges, edgeKey, reach, arch }: PatchSurface): number[] {
+  // The rims in grids in plan: what a point can hang from lies in the cells around it. The anchors
+  // in cells as wide as a small overhang reaches, all rims in cells a bridge span wide.
+  const gridOf = (cell: number, wanted: (rim: Rim) => boolean) => {
+    const cells = new Map<number, Rim[]>();
+    const cellOf = (value: number) => Math.floor(value / cell) + 32768;
+    for (const rim of rims) {
+      if (!wanted(rim)) continue;
+      for (let i = cellOf(Math.min(rim.ax, rim.bx)); i <= cellOf(Math.max(rim.ax, rim.bx)); i += 1) {
+        for (let j = cellOf(Math.min(rim.ay, rim.by)); j <= cellOf(Math.max(rim.ay, rim.by)); j += 1) {
+          const list = cells.get(i * 65536 + j);
+          if (list) list.push(rim);
+          else cells.set(i * 65536 + j, [rim]);
+        }
+      }
+    }
+    /** The rims in the cells around a point, until `found` says it has what it looked for. */
+    return (px: number, py: number, found: (rim: Rim) => boolean): boolean => {
+      // The point's own cell first: what is nearest is most likely there.
+      for (const [di, dj] of AROUND) {
+        for (const rim of cells.get((cellOf(px) + di) * 65536 + cellOf(py) + dj) ?? []) if (found(rim)) return true;
+      }
+      return false;
+    };
+  };
+  const anchorsAround = gridOf(reach, (rim) => rim.anchor);
+  const rimsAround = gridOf(BRIDGE_SPAN, () => true);
+  const near = (px: number, py: number) =>
+    anchorsAround(px, py, (rim) => {
+      const dx = rim.bx - rim.ax;
+      const dy = rim.by - rim.ay;
+      const length = dx * dx + dy * dy;
+      const s = length === 0 ? 0 : Math.max(0, Math.min(1, ((px - rim.ax) * dx + (py - rim.ay) * dy) / length));
+      return Math.hypot(px - rim.ax - s * dx, py - rim.ay - s * dy) <= reach;
+    });
+  // Along a line through the point the patch ends at the nearest rim ahead and behind. A bridge has
+  // an anchor at both; a free edge or a hole on the way makes that side an arm.
+  const bridged = (px: number, py: number, dx: number, dy: number, span: number) => {
+    const ends = [
+      { at: Infinity, free: false, ease: 0 },
+      { at: Infinity, free: false, ease: 0 },
+    ];
+    rimsAround(px, py, (rim) => {
+      const ex = rim.bx - rim.ax;
+      const ey = rim.by - rim.ay;
+      const cross = dx * ey - dy * ex;
+      if (Math.abs(cross) < 1e-9 * Math.hypot(ex, ey)) return false;
+      const s = ((rim.ax - px) * dy - (rim.ay - py) * dx) / cross;
+      if (s < -1e-6 || s > 1 + 1e-6) return false;
+      const along = ((rim.ax - px) * ey - (rim.ay - py) * ex) / cross;
+      const end = ends[along >= 0 ? 0 : 1];
+      if (!end) return false;
+      const distance = Math.abs(along);
+      // Two rims met at one point: a free one among them decides.
+      if (Math.abs(distance - end.at) <= WELD) end.free ||= !rim.anchor;
+      else if (distance < end.at) {
+        end.at = distance;
+        end.free = !rim.anchor;
+        end.ease = rim.ease;
+      }
+      return false;
+    });
+    const [ahead, behind] = ends;
+    return ahead !== undefined && behind !== undefined && !ahead.free && !behind.free && ahead.at + ahead.ease + behind.at + behind.ease <= span + WELD;
+  };
+
+  // The directions most of the anchors lie across, by their length: a bridge spans from anchor to anchor.
+  const bins = new Map<number, [number, number, number]>();
+  for (const rim of rims) {
+    if (!rim.anchor) continue;
+    const length = Math.hypot(rim.bx - rim.ax, rim.by - rim.ay);
+    if (length === 0) continue;
+    const angle = Math.atan2(rim.by - rim.ay, rim.bx - rim.ax);
+    const turned = ((angle % Math.PI) + Math.PI) % Math.PI;
+    const bin = bins.get(Math.floor((turned * 180) / Math.PI)) ?? [0, 0, 0];
+    bins.set(Math.floor((turned * 180) / Math.PI), [bin[0] + length, bin[1] + length * Math.cos(2 * angle), bin[2] + length * Math.sin(2 * angle)]);
+  }
+  const directions = [...bins.values()]
+    .sort((a, b) => b[0] - a[0])
+    .slice(0, DIRECTIONS)
+    .map(([, cos, sin]): [number, number] => {
+      const along = Math.atan2(sin, cos) / 2;
+      return [-Math.sin(along), Math.cos(along)];
+    });
+
+  // A patch that is flat over a third of its width or more is a ceiling with rounded or chamfered
+  // sides; one that is curved nearly all the way is the roof of a hole, and the few flat facets at
+  // its top (a fifth of a round roof) are part of the arch.
+  const planOf = (t: number) => Math.abs((x(at(t, 1)) - x(at(t, 0))) * (y(at(t, 2)) - y(at(t, 0))) - (y(at(t, 1)) - y(at(t, 0))) * (x(at(t, 2)) - x(at(t, 0)))) / 2;
+  const ceiling = patch.reduce((sum, t) => sum + ((down[t] ?? 0) > LEVEL ? 2 * planOf(t) : -planOf(t)), 0) >= 0;
+  /** The points of a triangle in plan, and the span a bridge under it may have. */
+  const sampled = (t: number) => {
+    const [a, b, c] = [at(t, 0), at(t, 1), at(t, 2)];
+    const plan = planOf(t);
+    const points = [...spread(Math.ceil(plan / (reach / 2) ** 2)), ...CORNERS].map(([wa, wb, wc]): [number, number] => [wa * x(a) + wb * x(b) + wc * x(c), wa * y(a) + wb * y(b) + wc * y(c)]);
+    return { plan, points, span: ceiling && (down[t] ?? 0) > LEVEL ? BRIDGE_SPAN : arch };
+  };
+  // Per triangle: whether all of it lies near an anchor, and in which directions it does not hold.
+  const nearAll = new Map<number, boolean>();
+  const fails = new Map<number, boolean[]>();
+  const lost = directions.map(() => 0);
+  let lostNear = 0;
+  for (const t of patch) {
+    const { plan, points, span } = sampled(t);
+    let allNear = true;
+    const failing = directions.map(() => false);
+    for (const [px, py] of points) {
+      if (near(px, py)) continue;
+      allNear = false;
+      directions.forEach(([dx, dy], d) => {
+        if (!failing[d] && !bridged(px, py, dx, dy, span)) failing[d] = true;
+      });
+    }
+    nearAll.set(t, allNear);
+    fails.set(t, failing);
+    failing.forEach((failed, d) => {
+      if (failed) lost[d] = (lost[d] ?? 0) + plan;
+    });
+    if (!allNear) lostNear += plan;
+  }
+  // The one direction that leaves the least hanging; a patch with no direction holds only near its anchors.
+  const best = lost.indexOf(Math.min(...lost));
+  const direction = directions[best];
+  const failed = (t: number) => (direction ? (fails.get(t)?.[best] ?? false) : !(nearAll.get(t) ?? false));
+  if (direction ? (lost[best] ?? 0) === 0 : lostNear === 0) return [...patch];
+
+  // What fails, and the arm it hangs on: the triangles next to it that lie near an anchor but are
+  // no part of a bridge themselves.
+  const inPatch = new Set(patch);
+  const hanging = new Set(patch.filter(failed));
+  const stack = [...hanging];
+  while (stack.length > 0) {
+    const t = stack.pop() ?? 0;
+    for (let k = 0; k < 3; k += 1) {
+      const list = edges.get(edgeKey(at(t, k), at(t, (k + 1) % 3))) ?? [];
+      for (let i = 0; i < list.length; i += 2) {
+        const other = list[i] ?? 0;
+        if (!inPatch.has(other) || hanging.has(other) || !(nearAll.get(other) ?? false)) continue;
+        const { points, span } = sampled(other);
+        if (direction && points.every(([px, py]) => bridged(px, py, direction[0], direction[1], span))) continue;
+        hanging.add(other);
+        stack.push(other);
+      }
+    }
+  }
+  return patch.filter((t) => !hanging.has(t));
 }
 
 /**
@@ -322,6 +586,8 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
   const area: [number, number, number, number] = [0, 0, 0, 0];
   const supportByFace = new Float64Array(faceCount);
   const triangles: { kind: Overhang; face: number; area: number }[] = [];
+  // How much each triangle points down (−z of its unit normal).
+  const down = new Float64Array(index.length / 3);
   for (let i = 0; i < index.length; i += 3) {
     const a = (index[i] ?? 0) * 3;
     const b = (index[i + 1] ?? 0) * 3;
@@ -337,12 +603,12 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
     const nz = ux * vy - uy * vx;
     const length = Math.hypot(nx, ny, nz);
     const face = vertexFaces[index[i] ?? 0] ?? 0;
+    down[i / 3] = length === 0 ? 0 : -nz / length;
     triangles.push({ kind: length === 0 ? Overhang.Fine : onBed(face) ? Overhang.Bed : classOf(-nz / length), face, area: length / 2 });
   }
-  const support = reach > 0 ? triangles.flatMap((triangle, t) => (triangle.kind === Overhang.Support ? [t] : [])) : [];
   // The roof of a lying hole overhangs between the two lines where its wall passes the limit.
-  const arch = LYING_HOLE * Math.sin(((limits.support + ANGLE_TOLERANCE) * Math.PI) / 180);
-  const small = smallPatches(positions, index, support, reach, arch, bedZ);
+  const sinSupport = Math.sin(((limits.support + ANGLE_TOLERANCE) * Math.PI) / 180);
+  const small = reach > 0 ? smallPatches(positions, index, down, (t) => triangles[t]?.kind === Overhang.Support, reach, LYING_HOLE * sinSupport, sinSupport, bedZ) : new Set<number>();
   triangles.forEach(({ kind, face, area: size }, t) => {
     const counted = small.has(t) ? Overhang.Borderline : kind;
     area[counted] += size;
