@@ -1115,8 +1115,8 @@
     "faces": "{count, plural, one {# face} other {# faces}}",
     "show": "Show the place",
     "finding": {
-      "size": "Too large for the build volume: {size} mm, the printer takes {bed} mm",
-      "sizeLying": "Too large for the build volume: {size} mm, the printer takes {bed} mm. Laid on another side it would fit.",
+      "size": "Too large for the build volume: {body}, {size} mm, the printer takes {bed} mm",
+      "sizeLying": "Too large for the build volume: {body}, {size} mm, the printer takes {bed} mm. Laid on another side it would fit.",
       "wallTooThin": "Walls only {thickness} mm, thinner than the nozzle ({nozzle} mm): they do not print",
       "wallThin": "Walls only {thickness} mm, at least {minimum} mm (two lines)",
       "overhang": "{area} mm² lean beyond {limit}°: the slicer decides whether they need support",

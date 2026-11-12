@@ -14,7 +14,7 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
       {
         status: 'block',
         findings: [
-          { kind: 'size', severity: 'block', size: [300, 20, 20], bed: [256, 256, 256], lying: true },
+          { kind: 'size', severity: 'block', body: 'Rod', size: [300, 20, 20], bed: [256, 256, 256], lying: true },
           { kind: 'thinWall', severity: 'block', thickness: 0.3, minimum: 0.9, area: 400, places: [{ body: 'Plate', faces: ['F1:+z', 'F1:-z'] }], box: { min: [0, 0, 0], max: [20, 20, 0.3] } },
           { kind: 'overhang', severity: 'warn', area: 120, limit: 45, places: [{ body: 'Top', faces: ['F3:-z'] }], box: null },
           { kind: 'feature', severity: 'warn', feature: 'Shell1', message: 'thin result' },
@@ -29,7 +29,7 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
 
     const note = printCheckNote(report);
     expect(note).toContain('not ready to print');
-    expect(note).toContain('the part is 300 × 20 × 20 mm, the printer takes 256 × 256 × 256 mm; it would fit lying on another side');
+    expect(note).toContain('body "Rod" is 300 × 20 × 20 mm, the printer takes 256 × 256 × 256 mm; it would fit lying on another side');
     expect(note).toContain('walls down to 0.3 mm, thinner than the 0.4 mm nozzle, so they do not print (faces "F1:+z", "F1:-z" of body "Plate")');
     expect(note).toContain('120 mm² lean more than 45° from the vertical (faces "F3:-z" of body "Top"); the slicer decides whether they need support');
     expect(note).toContain('feature "Shell1" reports "thin result"');

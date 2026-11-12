@@ -60,6 +60,25 @@ describe('the ready-to-print check (M7)', () => {
     expect(lying.findings[0]).toMatchObject({ kind: 'size', lying: true });
   });
 
+  it('lays a long bar across the diagonal of the plate, as the slicer turns it', () => {
+    // Audit D2, MG-02: 300 × 10 × 5 needs (300 + 10) / √2 = 219.2 mm a side and was blocked as 300 mm.
+    expect(checkPrint([box('Bar', [0, 0, 0], [300, 10, 5])], PLA).status).toBe('ready');
+    expect(checkPrint([box('Bar', [0, 0, 0], [300, 20, 10])], PLA).status).toBe('ready');
+    // 370 mm needs 268.7 mm a side: that one does not fit.
+    expect(checkPrint([box('Bar', [0, 0, 0], [370, 10, 5])], PLA).findings).toEqual([{ kind: 'size', severity: 'block', body: 'Bar', size: [370, 10, 5], bed: [256, 256, 256], lying: false }]);
+    // Turning about Z does not make a part lower.
+    expect(checkPrint([box('Post', [0, 0, 0], [10, 10, 300])], PLA).status).toBe('block');
+  });
+
+  it('holds every body against the plate by itself, wherever it was designed', () => {
+    // Audit D1, MG-03: two bodies apart read as one part of 320 × 20 and 500 × 200 mm.
+    expect(checkPrint([box('A', [0, 0, 0], [20, 20, 20]), box('B', [300, 0, 0], [320, 20, 20])], PLA).status).toBe('ready');
+    expect(checkPrint([box('A', [0, 0, 0], [200, 200, 3]), box('B', [300, 0, 0], [500, 200, 3])], PLA).status).toBe('ready');
+    // The one that is too large is named.
+    const mixed = checkPrint([box('Small', [0, 0, 0], [20, 20, 20]), box('Tall', [300, 0, 0], [320, 20, 300])], PLA);
+    expect(mixed.findings.filter((f) => f.kind === 'size')).toMatchObject([{ body: 'Tall', size: [20, 20, 300] }]);
+  });
+
   it('warns about walls under two lines and blocks walls under the nozzle width, with their faces', () => {
     expect(minimumWall(0.4)).toBe(0.9);
     const thin = checkPrint([box('Plate', [0, 0, 0], [20, 20, 0.6])], PLA);
@@ -162,6 +181,8 @@ describe('the ready-to-print check (M7)', () => {
     expect(result.status).not.toBe('block');
     expect(result.findings.map((f) => f.kind)).not.toContain('size');
     expect(result.findings.map((f) => f.kind)).not.toContain('contact');
+    // 64 × 32 mm does not go onto a 50 mm plate, turned or not.
+    expect(checkPrint([clip], { ...PLA, bed: [50, 50, 256] }).findings.find((f) => f.kind === 'size')).toMatchObject({ body: 'CableClip', size: [64, 32, 20] });
   });
 });
 

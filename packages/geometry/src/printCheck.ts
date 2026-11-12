@@ -61,7 +61,7 @@ interface Located {
 }
 
 export type PrintFinding =
-  | { kind: 'size'; severity: FindingSeverity; size: [number, number, number]; bed: [number, number, number]; lying: boolean }
+  | { kind: 'size'; severity: FindingSeverity; body: string; size:[number, number, number]; bed: [number, number, number]; lying: boolean }
   | ({ kind: 'thinWall'; severity: FindingSeverity; thickness: number; minimum: number; area: number } & Located)
   | ({ kind: 'overhang'; severity: FindingSeverity; area: number; limit: number } & Located)
   | ({ kind: 'contact'; severity: FindingSeverity; area: number } & Located)
@@ -257,26 +257,67 @@ function touches(a: PrintCheckBody, b: PrintCheckBody): boolean {
   return false;
 }
 
-/** Width and depth of all bodies together, and the height of the tallest one on its own bed. */
-function printedSize(bodies: readonly { positions: ArrayLike<number> }[]): [number, number, number] | null {
-  const min = [Infinity, Infinity];
-  const max = [-Infinity, -Infinity];
-  let height = 0;
-  for (const { positions } of bodies) {
-    let low = Infinity;
-    let high = -Infinity;
-    for (let i = 0; i < positions.length; i += 3) {
-      for (let k = 0; k < 2; k += 1) {
-        min[k] = Math.min(min[k] ?? Infinity, positions[i + k] ?? 0);
-        max[k] = Math.max(max[k] ?? -Infinity, positions[i + k] ?? 0);
-      }
-      low = Math.min(low, positions[i + 2] ?? 0);
-      high = Math.max(high, positions[i + 2] ?? 0);
+/** Width, depth and height of one body as it lies. */
+function extentOf(positions: ArrayLike<number>): [number, number, number] {
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < positions.length; i += 3) {
+    for (let k = 0; k < 3; k += 1) {
+      min[k] = Math.min(min[k] ?? Infinity, positions[i + k] ?? 0);
+      max[k] = Math.max(max[k] ?? -Infinity, positions[i + k] ?? 0);
     }
-    if (Number.isFinite(low)) height = Math.max(height, high - low);
   }
-  if (!Number.isFinite(min[0])) return null;
-  return [(max[0] ?? 0) - (min[0] ?? 0), (max[1] ?? 0) - (min[1] ?? 0), height];
+  return [(max[0] ?? 0) - (min[0] ?? 0), (max[1] ?? 0) - (min[1] ?? 0), (max[2] ?? 0) - (min[2] ?? 0)];
+}
+
+/** The body seen from above: the convex hull of its points (monotone chain). */
+function outlineOf(positions: ArrayLike<number>): [number, number][] {
+  const points: [number, number][] = [];
+  for (let i = 0; i < positions.length; i += 3) points.push([positions[i] ?? 0, positions[i + 1] ?? 0]);
+  points.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const half = (list: readonly [number, number][]) => {
+    const hull: [number, number][] = [];
+    for (const p of list) {
+      while (hull.length >= 2) {
+        const a = hull[hull.length - 2] ?? p;
+        const b = hull[hull.length - 1] ?? p;
+        if ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) > 0) break;
+        hull.pop();
+      }
+      hull.push(p);
+    }
+    return hull;
+  };
+  return [...half(points), ...half([...points].reverse())];
+}
+
+/** A size counts as fitting up to this much over the plate: sizes are shown to 0.1 mm. */
+const SIZE_SLACK = 0.05;
+
+/**
+ * Whether the body fits the plate turned about Z by some angle: the slicer turns it freely, so a
+ * long bar lies across the diagonal.
+ * shortcut: tried in steps of 0.1°, which is 0.3 mm at the end of a 300 mm bar; solve the angles
+ * exactly if a part that fits by less than that must not be blocked.
+ */
+function fitsTurned(positions: ArrayLike<number>, width: number, depth: number): boolean {
+  const outline = outlineOf(positions);
+  for (let step = 1; step < 1800; step += 1) {
+    const cos = Math.cos((step * Math.PI) / 1800);
+    const sin = Math.sin((step * Math.PI) / 1800);
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const [x, y] of outline) {
+      minX = Math.min(minX, x * cos - y * sin);
+      maxX = Math.max(maxX, x * cos - y * sin);
+      minY = Math.min(minY, x * sin + y * cos);
+      maxY = Math.max(maxY, x * sin + y * cos);
+    }
+    if (maxX - minX <= width + SIZE_SLACK && maxY - minY <= depth + SIZE_SLACK) return true;
+  }
+  return false;
 }
 
 /** The body's mesh as it lies on the bed: turned onto its print face, or as designed. */
@@ -307,16 +348,15 @@ function bedOf(positions: ArrayLike<number>): number {
   return Number.isFinite(low) ? low : 0;
 }
 
-function sizeFinding(bodies: readonly { positions: ArrayLike<number> }[], bed: readonly [number, number, number]): PrintFinding | null {
-  const printed = printedSize(bodies);
-  if (!printed) return null;
-  const size = printed.map((value) => round(value, 1)) as [number, number, number];
-  const fits = (x: number, y: number, z: number) => x <= bed[0] && y <= bed[1] && z <= bed[2];
-  const [x, y, z] = size;
+/** A body that fits the build volume in no position on the plate. */
+function sizeFinding(body: string, positions: ArrayLike<number>, bed: readonly [number, number, number]): PrintFinding | null {
+  const [x, y, z] = extentOf(positions);
+  if (!Number.isFinite(x)) return null;
+  const fits = (a: number, b: number, c: number) => a <= bed[0] + SIZE_SLACK && b <= bed[1] + SIZE_SLACK && c <= bed[2] + SIZE_SLACK;
   // Turned on the bed, the slicer places it; that is no finding.
-  if (fits(x, y, z) || fits(y, x, z)) return null;
+  if (fits(x, y, z) || fits(y, x, z) || (z <= bed[2] + SIZE_SLACK && fitsTurned(positions, bed[0], bed[1]))) return null;
   const lying = fits(x, z, y) || fits(z, x, y) || fits(y, z, x) || fits(z, y, x);
-  return { kind: 'size', severity: 'block', size, bed: [...bed], lying };
+  return { kind: 'size', severity: 'block', body, size: [round(x, 1), round(y, 1), round(z, 1)], bed: [...bed], lying };
 }
 
 const SEVERITY_ORDER: Record<FindingSeverity, number> = { block: 0, warn: 1 };
@@ -337,8 +377,11 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
   const parts = bodies.filter((body) => body.model.table.faces.length > 0);
   if (parts.length > 0) {
     const meshes = parts.map(laid);
-    const size = sizeFinding(meshes, profile.bed);
-    if (size) findings.push(size);
+    // Each body against the plate by itself: the slicer places every one, on more plates if need be.
+    parts.forEach((body, b) => {
+      const size = sizeFinding(body.name, meshes[b]?.positions ?? [], profile.bed);
+      if (size) findings.push(size);
+    });
 
     // Walls: under two lines they print poorly, under the nozzle width not at all.
     const minimum = minimumWall(profile.nozzle);

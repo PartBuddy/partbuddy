@@ -1115,8 +1115,8 @@
     "faces": "{count, plural, one {# Fläche} other {# Flächen}}",
     "show": "Stelle zeigen",
     "finding": {
-      "size": "Zu groß für den Bauraum: {size} mm, Platz ist {bed} mm",
-      "sizeLying": "Zu groß für den Bauraum: {size} mm, Platz ist {bed} mm. Auf eine andere Seite gelegt würde es passen.",
+      "size": "Zu groß für den Bauraum: {body}, {size} mm, Platz ist {bed} mm",
+      "sizeLying": "Zu groß für den Bauraum: {body}, {size} mm, Platz ist {bed} mm. Auf eine andere Seite gelegt würde es passen.",
       "wallTooThin": "Wände nur {thickness} mm, dünner als die Düse ({nozzle} mm): werden nicht gedruckt",
       "wallThin": "Wände nur {thickness} mm, mindestens {minimum} mm (zwei Linien)",
       "overhang": "{area} mm² neigen sich über {limit}°: Ob sie Stütze brauchen, entscheidet der Slicer",

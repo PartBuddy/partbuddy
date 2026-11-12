@@ -21,6 +21,7 @@ export function useFindingText(): (finding: PrintFinding) => string {
     switch (finding.kind) {
       case 'size':
         return t(finding.lying ? 'check.finding.sizeLying' : 'check.finding.size', {
+          body: finding.body,
           size: finding.size.map((value) => number.format(value)).join(' × '),
           bed: finding.bed.map((value) => number.format(value)).join(' × '),
         });

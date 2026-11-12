@@ -20,7 +20,7 @@ function line(finding: Finding, nozzle: number): string {
   const tag = finding.severity === 'block' ? 'blocks printing' : 'warning';
   switch (finding.kind) {
     case 'size':
-      return `- ${tag}: the part is ${finding.size.map(String).join(' × ')} mm, the printer takes ${finding.bed.map(String).join(' × ')} mm${finding.lying ? '; it would fit lying on another side' : ''}.`;
+      return `- ${tag}: body ${JSON.stringify(finding.body)} is ${finding.size.map(String).join(' × ')} mm, the printer takes ${finding.bed.map(String).join(' × ')} mm${finding.lying ? '; it would fit lying on another side' : ''}.`;
     case 'thinWall':
       return finding.severity === 'block'
         ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than the ${mm(nozzle)} nozzle, so they do not print${where(finding.places)}.`
