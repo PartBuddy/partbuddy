@@ -100,3 +100,13 @@ Befehle, neu `assembly.constraint.edit`, geänderte Parameter bei `solid.hole`, 
 | 12.11.2026 | PR #347 gemergt: Einschmelz-Einsatz M2.5 4,0 mm, Dom-Wand nach Hersteller (T1, MV-01, MV-02) | erledigt; Nachmessung mit Harness auf 0.40.1 offen |
 | 12.11.2026 | PR #348: Baustein nur auf dem genannten Körper, sonst zurückgenommen (W1, N-bloecke-2, Teil von W2/N-bloecke-1) | offen, bei Grün mergen. Arbeits-Worktree für Fixes: `../partbuddy-wt-fix` (Harness dorthin kopieren, nicht committen). |
 | 12.11.2026 | SolidCraft 0.40.1: `rollback`-Stapel und `edit.restore_checkpoint` taugen nicht als Rückweg (steht in `docs/engineering-notes.md`, PR #348) | betrifft auch `mechanismTool` (H-02) – dort denselben Undo-Weg nehmen |
+| 12.11.2026 | PR #348 PR-CI grün; Vertragstests auf dem Zweig laufen (Run 43215281329) | bei Grün mergen, dann `fix/block-limits` (lokal im Worktree, 1 Commit: W3, S-02, N-bloecke-4) auf main umsetzen, pushen, PR |
+| 12.11.2026 | PR #349 (T2 Messdüse), #350 (D5 Stützen-Aussage, Vertragstest-Erwartung angepasst → vor Merge `contract.yml` auf dem Zweig laufen lassen), #351 (R4 Kernloch) | offen, bei Grün mergen |
+| 12.11.2026 | Subagent behebt die A-Befunde der Druckprüfung auf `fix/print-check-audit` (eigener Worktree, eigener PR) | Ergebnis prüfen (Diff lesen, Harness-Fälle `druckpruefung`), dann mergen |
+
+## Noch offene A-Befunde ohne Fix (Stand 12.11.2026)
+
+- Bausteine: W2/T4/N-bloecke-1 Rest (Durchgangsloch/Langloch geht durch beide Wände des eigenen Hohlkörpers)
+- Mechanik: T3 (Vorlage hingedBox ohne Stege), T5 (Nutdecke der Führung), H-02 (Fehler nach dem Bau lässt Geometrie stehen → Undo-Weg wie in #348), N-mechanik-2 (Wulst ohne Überdeckung), N-mechanik-3 (zweites Scharnier ohne Grenzen), N-mechanik-4/-5 (Stege: „without support“ stimmt nicht)
+- Normteile: S-01/G2/H-01, N-normteile-policy-1 (Senkkopfschrauben landen im Export)
+- Regeln: R1 (Druckprüfung vor „fertig“ nur Bitte), R3 („ready to print, nothing found“), R54 (Bedingungen nur im Erfolgstext), MG-05 (Marke 1×nozzle ohne Untergrenze)
