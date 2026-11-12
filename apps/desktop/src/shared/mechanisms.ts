@@ -486,7 +486,7 @@ export interface ScrewSpec {
 /** Lengths screws are sold in, ISO 4762 and ISO 10642, in mm. */
 const SCREW_LENGTHS = [4, 5, 6, 8, 10, 12, 16, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80];
 /** A modelled thread holds from about M5 in print; smaller ones strip. */
-const TAPPED_FROM = 5;
+export const TAPPED_FROM = 5;
 /** Plastic left under a sunk head, in mm: three layers and more. */
 const UNDER_HEAD = 1.2;
 

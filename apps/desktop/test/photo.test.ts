@@ -31,6 +31,9 @@ describe('a photo for the assistant (F6)', () => {
     const project = join(tmpdir(), 'PartBuddy', 'Holder');
     const file = photoFile(project, new Date(2026, 10, 6, 9, 5, 7));
     expect(file).toBe(join(project, 'photos', 'photo-20261106-090507.png'));
+    // The policy knows the photo once PartBuddy has kept it and named it to the assistant.
+    expect(decide('execute', { command: 'canvas.insert', params: { path: file, plane: 'XY', width: 120 } }).allow).toBe(false);
+    photoNote([file]);
     expect(decide('execute', { command: 'canvas.insert', params: { path: file, plane: 'XY', width: 120 } })).toEqual({ allow: true });
     expect(decide('batch', { commands: [{ command: 'canvas.insert', params: { path: file } }] })).toEqual({ allow: true });
   });
@@ -68,8 +71,9 @@ describe('a photo for the assistant (F6)', () => {
     // Up to four photos go along with one message, a fifth is refused.
     expect(agentMessageSchema.safeParse({ text: 'x', photos: [1, 2, 3, 4].map(() => png(100)) }).success).toBe(true);
     expect(agentMessageSchema.safeParse({ text: 'x', photos: [1, 2, 3, 4, 5].map(() => png(100)) }).success).toBe(false);
-    for (const file of files) expect(decide('execute', { command: 'canvas.insert', params: { path: file } })).toEqual({ allow: true });
     const note = photoNote([files[0] ?? null, null, files[2] ?? null]);
+    // The two that were kept are the assistant's to use; the one that could not be kept is not.
+    expect(files.map((file) => decide('execute', { command: 'canvas.insert', params: { path: file } }).allow)).toEqual([true, false, true]);
     expect(note).toContain('the 3 attached pictures are photos');
     expect(note).toContain('The photos are saved at');
     expect(note).not.toContain('-2.png');

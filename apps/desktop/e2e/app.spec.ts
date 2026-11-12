@@ -1273,7 +1273,7 @@ test('the assistant shows the signed-in plan and needs SolidCraft', async () => 
   // The route sits as a small chip beside the composer; its menu holds the full status.
   const chip = page.getByTestId('agent-status');
   // The plan's default model with a named effort; the plan itself is in the menu.
-  await expect(chip).toHaveText('Claude Code · Default · Medium');
+  await expect(chip).toHaveText('Claude Code · Opus 9 · Medium');
   await chip.click();
   await expect(page.getByTestId('agent-detail')).toHaveText('Claude Code 9.9.9 · Claude subscription');
   await expect(page.getByRole('radio', { name: /^Claude Code/ })).toBeChecked();
@@ -1293,17 +1293,13 @@ test('model and effort are chosen at the chip and kept for new chats (B1)', asyn
     await chip.click();
     const menu = page.getByTestId('agent-menu');
     // Only what the plan offers: the aliases, without pinned older versions.
-    await expect(menu.getByTestId('model-option')).toHaveText([/^Default \(recommended\)/, /^Opus 9/, /^Sonnet 9/, /^Haiku 9/]);
+    await expect(menu.getByTestId('model-option')).toHaveText([/^Opus 9/, /^Sonnet 9/, /^Haiku 9/]);
     await menu.getByTestId('model-option').filter({ hasText: 'Sonnet 9' }).click();
     await menu.getByTestId('effort-option').filter({ hasText: /^Low$/ }).click();
     await expect(menu.getByRole('radio', { name: 'Low' })).toBeChecked();
     await expect(chip).toHaveText('Claude Code · Sonnet 9 · Low');
-    // A long model name stays on one line, without the plan's remark in brackets (seen 2026-11-06).
-    await menu.getByTestId('model-option').filter({ hasText: 'Default (recommended)' }).click();
-    await expect(chip).toHaveText('Claude Code · Default · Low');
+    // The chip stays on one line.
     expect((await chip.boundingBox())?.height ?? 99).toBeLessThan(40);
-    await menu.getByTestId('model-option').filter({ hasText: 'Sonnet 9' }).click();
-    await expect(chip).toHaveText('Claude Code · Sonnet 9 · Low');
     await menu.getByTestId('model-keep').click();
     await expect(menu.getByTestId('model-is-default')).toBeVisible();
     expect(await axeAtRest(page, '[data-testid="agent-menu"]')).toEqual([]);
@@ -1340,7 +1336,7 @@ test('Claude Code with an API key runs only when the user allows it', async () =
 
   // Allowed on purpose, the API key is used and clearly labelled; it can be taken back in the menu.
   await page.getByRole('button', { name: 'Use the API key anyway (billed separately)' }).click();
-  await expect(chip).toHaveText('Claude Code · API key · Default · Medium');
+  await expect(chip).toHaveText('Claude Code · API key · Opus 9 · Medium');
   await chip.click();
   await expect(page.getByTestId('agent-detail')).toContainText('API key, billed separately');
   await page.getByRole('button', { name: 'Use the subscription only' }).click();

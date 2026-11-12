@@ -814,12 +814,12 @@ if (!app.requestSingleInstanceLock()) {
       const options = { title: 'Export', defaultPath: join(folder, `${name}.${format}`), filters: [EXPORT_FILTERS[format]] };
       const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
       if (choice.canceled || !choice.filePath) return null;
-      await supervisor.exportDesign(format, choice.filePath);
+      const { unverified } = await supervisor.exportDesign(format, choice.filePath);
       log(`exported the design as ${format}`);
       await keepVersion('export', basename(choice.filePath), true).catch((error: unknown) => {
         log(`no version at the export: ${(error as Error).message}`);
       });
-      return { file: basename(choice.filePath) };
+      return { file: basename(choice.filePath), ...(unverified.length > 0 ? { unverified } : {}) };
     });
     // A recording of the joints playing: the bytes come from the view, the user says where they go.
     bridge.handle(invokeChannels.designSaveVideo, async ({ bytes, format }) => {
@@ -842,10 +842,12 @@ if (!app.requestSingleInstanceLock()) {
       const day = new Date().toISOString().slice(0, 10);
       const folder = freeFolder(join(dirname(design), 'exports'), `${name} ${german ? 'Teilen' : 'share'} ${day}`);
       mkdirSync(folder, { recursive: true });
+      let shared: string[];
       try {
         const model = `${name}.3mf`;
         const step = `${name}.step`;
-        await supervisor.exportDesign('3mf', join(folder, model));
+        const { unverified } = await supervisor.exportDesign('3mf', join(folder, model));
+        shared = unverified;
         await supervisor.exportDesign('step', join(folder, step));
         log('sharing package: 3MF and STEP written');
         // Each picture is its own SolidCraft run that rebuilds the design (about 20 s for a housing), so
@@ -879,7 +881,8 @@ if (!app.requestSingleInstanceLock()) {
           material: print.material.name,
           layer: print.printer.layer,
           nozzle: print.printer.nozzle,
-          check: printCheck ? { status: printCheck.status, overhang: printCheck.findings.some((finding) => finding.kind === 'overhang') } : null,
+          // A check of an older revision says nothing about the design that is shared.
+          check: printCheck && printCheck.revision === supervisor.currentRevision()?.revision ? { status: printCheck.status, overhang: printCheck.findings.some((finding) => finding.kind === 'overhang') } : null,
           files: { model, step, pictures },
         });
         writeFileSync(join(folder, german ? 'Beschreibung.md' : 'description.md'), description, 'utf8');
@@ -891,7 +894,7 @@ if (!app.requestSingleInstanceLock()) {
       log('saved a sharing package');
       // Explorer opens on the folder, except in tests, which run without disturbing the screen.
       if (!testRun) void shell.openPath(folder);
-      return { folder: basename(folder) };
+      return { folder: basename(folder), ...(shared.length > 0 ? { unverified: shared } : {}) };
     });
     bridge.handle(invokeChannels.designProbeDimension, ({ target, current, value }) => {
       assistantIdle();
@@ -1252,9 +1255,9 @@ if (!app.requestSingleInstanceLock()) {
     // To the slicer (B8): through SolidCraft's slicer detection; the print face is SolidCraft's own.
     bridge.handle(invokeChannels.designSlicers, () => supervisor.slicers());
     bridge.handle(invokeChannels.designSendToSlicer, async ({ slicer }) => {
-      const name = await supervisor.sendToSlicer(slicer);
+      const { name, unverified } = await supervisor.sendToSlicer(slicer);
       log(`opened the design in ${name}`);
-      return { name };
+      return { name, ...(unverified.length > 0 ? { unverified } : {}) };
     });
     bridge.handle(invokeChannels.designPrintFaces, () => {
       const folder = assemblyFolder();

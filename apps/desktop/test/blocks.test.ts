@@ -10,7 +10,7 @@ const at: [number, number, number] = [10, 10, 10];
 
 describe('function blocks (F1)', () => {
   it('builds a tapped hole with SolidCraft\'s thread, through or to a depth', () => {
-    expect(stepOf(defaultBlock('tappedHole', 'Body1', at, 'M4'))).toEqual({ command: 'solid.hole', params: { position: at, thread: 'M4', modeled: true } });
+    expect(stepOf(defaultBlock('tappedHole', 'Body1', at, 'M4'))).toEqual({ command: 'solid.hole', params: { position: at, thread: 'M4', modeled: true, targets: ['Body1'] } });
     expect(stepOf({ block: 'tappedHole', body: 'Body1', point: at, size: 'M3', depth: 8, modeled: false }).params).toMatchObject({ depth: '8 mm', modeled: false });
   });
 
@@ -24,15 +24,15 @@ describe('function blocks (F1)', () => {
   });
 
   it('gives a screw hole room for the head after ISO 4762 and ISO 10642 plus the print allowance', () => {
-    expect(stepOf(defaultBlock('screwHole', 'Body1', at, 'M3')).params).toEqual({ position: at, clearance: 'M3', fit: 'normal', type: 'counterbore', cb_diameter: '6.7 mm', cb_depth: '3.4 mm' });
+    expect(stepOf(defaultBlock('screwHole', 'Body1', at, 'M3')).params).toEqual({ position: at, clearance: 'M3', fit: 'normal', type: 'counterbore', cb_diameter: '6.7 mm', cb_depth: '3.4 mm', targets: ['Body1'] });
     expect(stepOf({ block: 'screwHole', body: 'Body1', point: at, size: 'M4', head: 'countersunk', fit: 'close' }).params).toMatchObject({ type: 'countersink', cs_diameter: '9.56 mm', cs_angle: '90 deg', fit: 'close' });
-    expect(stepOf({ block: 'screwHole', body: 'Body1', point: at, size: 'M2', head: 'none', fit: 'loose' }).params).toEqual({ position: at, clearance: 'M2', fit: 'loose' });
+    expect(stepOf({ block: 'screwHole', body: 'Body1', point: at, size: 'M2', head: 'none', fit: 'loose' }).params).toEqual({ position: at, clearance: 'M2', fit: 'loose', targets: ['Body1'] });
     expect(sizesOf('screwHole', 'countersunk')[0]).toBe('M3');
   });
 
   it('seats an insert one millimetre deeper than it is long, and bosses it with 2 mm of wall', () => {
     expect(defaultBlock('insertSeat', 'Body1', at, 'M3')).toMatchObject({ diameter: 4, depth: 6.7 });
-    expect(stepOf(defaultBlock('boss', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '8 mm', height: '8.7 mm', hole_diameter: '4 mm', hole_depth: '6.7 mm' });
+    expect(stepOf(defaultBlock('boss', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '8 mm', height: '8.7 mm', hole_diameter: '4 mm', hole_depth: '6.7 mm', body: 'Body1' });
     expect(sizesOf('insertSeat')).toEqual(['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6']);
     // ruthex RX: the M2.5 insert has the body of the M3 one, and the larger ones ask for more wall than 2 mm.
     expect(defaultBlock('insertSeat', 'Body1', at, 'M2.5')).toMatchObject({ diameter: 4, depth: 6.7 });
@@ -59,7 +59,7 @@ describe('function blocks (F1)', () => {
     const steps = stepsOf(defaultBlock('text', 'Body1', at, 'M3', [0, 0, 1]));
     expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.text', 'solid.emboss']);
     expect(steps[1]?.params).toEqual({ text: 'PartBuddy', at: [0, -2.5], height: 5, align: 'center', font: 'Arial', bold: true });
-    expect(steps[2]?.params).toEqual({ depth: '0.6 mm', mode: 'deboss', face: at });
+    expect(steps[2]?.params).toEqual({ depth: '0.6 mm', mode: 'deboss', face: at, targets: ['Body1'] });
   });
 
   it('sets text in a chosen installed font, bold or not; without one the built-in font, Arial for bold', () => {
@@ -77,22 +77,22 @@ describe('function blocks (F1)', () => {
     const steps = stepsOf(block);
     expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.polygon.circumscribed', 'solid.extrude', 'solid.hole']);
     expect(steps[1]?.params).toEqual({ center: [0, 0], radius: 2.9, sides: 6 });
-    expect(steps[2]?.params).toEqual({ distance: '-2.8 mm', operation: 'cut' });
-    expect(steps[3]?.params).toEqual({ position: [10, 10, 7.2], clearance: 'M3', fit: 'normal' });
+    expect(steps[2]?.params).toEqual({ distance: '-2.8 mm', operation: 'cut', targets: ['Body1'] });
+    expect(steps[3]?.params).toEqual({ position: [10, 10, 7.2], clearance: 'M3', fit: 'normal', targets: ['Body1'] });
   });
 
   it('cuts a slot as wide as the clearance hole, along the chosen direction', () => {
     const block = defaultBlock('slot', 'Body1', at, 'M4', [0, 0, 1]);
     expect(stepsOf(block)[1]?.params).toEqual({ p0: [-5, 0], p1: [5, 0], width: 4.5 });
-    expect(stepsOf(block)[2]?.params).toEqual({ distance: '-1000 mm', operation: 'cut' });
+    expect(stepsOf(block)[2]?.params).toEqual({ distance: '-1000 mm', operation: 'cut', targets: ['Body1'] });
     const upright = stepsOf({ ...block, along: 'y', depth: 3 } as FeatureBlock);
     expect(upright[1]?.params).toMatchObject({ p0: [0, -5], p1: [0, 5] });
-    expect(upright[2]?.params).toEqual({ distance: '-3 mm', operation: 'cut' });
+    expect(upright[2]?.params).toEqual({ distance: '-3 mm', operation: 'cut', targets: ['Body1'] });
   });
 
   it('builds a lip, and a groove with its gap, with SolidCraft\'s plastic.lip', () => {
     const lip = defaultBlock('lip', 'Body1', at, 'M3');
-    expect(stepsOf(lip)).toEqual([{ command: 'plastic.lip', params: { face: at, type: 'lip', width: '1.2 mm', height: '2 mm' } }]);
+    expect(stepsOf(lip)).toEqual([{ command: 'plastic.lip', params: { face: at, type: 'lip', width: '1.2 mm', height: '2 mm', body: 'Body1' } }]);
     expect(stepsOf({ ...lip, type: 'groove' } as FeatureBlock)[0]?.params).toMatchObject({ type: 'groove', gap: '0.2 mm' });
   });
 
@@ -101,7 +101,7 @@ describe('function blocks (F1)', () => {
     expect(stepsOf(block)).toEqual([
       {
         command: 'plastic.snap_fit',
-        params: { position: at, hook: [0, 1, 0], length: '12 mm', thickness: '1.5 mm', width: '5 mm', catch_depth: '0.8 mm', catch_length: '1.5 mm' },
+        params: { position: at, hook: [0, 1, 0], length: '12 mm', thickness: '1.5 mm', width: '5 mm', catch_depth: '0.8 mm', catch_length: '1.5 mm', body: 'Body1' },
       },
     ]);
     // On a side face the catch can point up or down, or level along the face.

@@ -18,15 +18,18 @@ import { logoAt, planLogoMove } from './logoMove';
 import { blockBodies, colourLayers, planeAt, stepsOf, type FeatureBlock } from '../../shared/blocks';
 import { centring, hostFace, movedPlane, TEXT_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
 import { insertCommand, type ImportKind } from '../projects/importFile';
-import { freeBodyName, libraryOf, STANDARD_PARTS_KEY, standardPartsOf } from './standardParts';
+import { freeBodyName, libraryOf } from './standardParts';
+import { cliReferences, type PartReferences } from './partReference';
 import { ProjectStore } from '../projects/projectStore';
 import { HeadlessEngine, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
 import type { DesignHistory } from '../agents/workLog';
-import { count, mirrorActiveDesign, MirrorScheduler, type BatchResult, type ControlRequester } from './mirror';
+import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, type BatchResult, type BoughtPart, type ControlRequester, type PartChecks } from './mirror';
 
 export interface SupervisorOptions {
   environment: Environment;
+  /** For tests: the standard part references instead of `solidcraft-cli`'s; `built` is to be called when one arrives. */
+  partReferences?: (built: () => void) => PartReferences;
   /** Control port used when PartBuddy starts SolidCraft (decided 2026-11-04: 7878). */
   launchPort: number;
   /** Start SolidCraft on the first search when none runs. */
@@ -111,6 +114,14 @@ export class SolidCraftSupervisor {
   /** The name the assistant's plan gave a new design (a body like "Base" names a case badly), until it has a project. */
   private plannedName: string | null = null;
   private readonly scheduler: MirrorScheduler;
+  /**
+   * How the mirror tells standard parts: the log, and each part as `solidcraft-cli` builds it. The
+   * mirror does not wait for a part being built (its body counts as printed until the mirror that
+   * follows); what leaves PartBuddy does (`settledChecks`): an export must not go out with a screw in it.
+   */
+  private readonly partChecks: PartChecks;
+  private readonly settledChecks: PartChecks;
+  private readonly references: PartReferences;
   private readonly dimensions: DimensionService;
   private readonly actions: ActionService;
   /** Probes run one after another; SolidCraft runs one batch at a time anyway. */
@@ -125,15 +136,20 @@ export class SolidCraftSupervisor {
     // Every path PartBuddy hands SolidCraft is made from the cache folder (exports, scripts, allow_paths).
     this.options = { ...options, cacheDir: longPath(options.cacheDir) };
     const { cacheDir } = this.options;
+    const log = (message: string) => options.log(message);
+    const references = options.partReferences?.(() => this.scheduler.refresh()) ?? cliReferences({ cli: () => this.cli(), dir: cacheDir, log, env: options.environment.env, built: () => this.scheduler.refresh() });
+    this.references = references;
+    this.partChecks = { log, references: references.known };
+    this.settledChecks = { log, references: references.ready };
     this.dimensions = new DimensionService(() => this.requester(), cacheDir);
     this.actions = new ActionService(() => this.requester(), cacheDir);
     this.designs = options.designsDir && options.projectsDir ? new ProjectStore(options.projectsDir, options.designsDir, options.newPartName) : null;
     this.scheduler = new MirrorScheduler(
       () => {
-        if (this.engine?.isOpen) return mirrorActiveDesign(this.engine.requester, cacheDir);
+        if (this.engine?.isOpen) return mirrorActiveDesign(this.engine.requester, cacheDir, this.partChecks);
         const client = this.client;
         if (!client?.isOpen) return Promise.reject(new Error('not connected'));
-        return mirrorActiveDesign(client, cacheDir);
+        return mirrorActiveDesign(client, cacheDir, this.partChecks);
       },
       {
         started: () => {
@@ -216,11 +232,9 @@ export class SolidCraftSupervisor {
    * SolidCraft writes into the cache folder only (its allowed folders); PartBuddy copies the file
    * from there, so the user may save anywhere without widening what SolidCraft may write.
    */
-  async exportDesign(format: ExportFormat, destination: string): Promise<void> {
+  async exportDesign(format: ExportFormat, destination: string): Promise<{ unverified: string[] }> {
     const requester = this.requester();
-    // Standard parts (B7) are counterparts: they are not printed, so they are not exported.
-    const standard = new Set(this.latest?.structure.standardParts ?? []);
-    const bodies = this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [];
+    const { bodies, unverified } = await this.printedBodies();
     if (bodies.length === 0) throw new Error('the design has no body to export');
     // The file keeps the name the user chose: STEP and 3MF carry it as the part's name.
     const folder = join(this.options.cacheDir, `export-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
@@ -238,6 +252,7 @@ export class SolidCraftSupervisor {
     } finally {
       await rm(folder, { recursive: true, force: true });
     }
+    return { unverified };
   }
 
   /**
@@ -259,7 +274,7 @@ export class SolidCraftSupervisor {
         10 * 60 * 1000,
       );
       if (batch.failed) throw new Error(batch.failed.error);
-      await this.engine?.checkForChange();
+      await this.engine?.changed();
       const created = (batch.results[0] as { created_bodies?: unknown } | undefined)?.created_bodies;
       return Array.isArray(created) ? created.filter((name): name is string => typeof name === 'string') : [];
     } finally {
@@ -305,8 +320,7 @@ export class SolidCraftSupervisor {
 
   /** The size of each printed body (F5), from `inspect.measure`; null where SolidCraft gave none. */
   async bodySizes(): Promise<{ name: string; size: [number, number, number] | null }[]> {
-    const standard = new Set(this.latest?.structure.standardParts ?? []);
-    const bodies = this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [];
+    const { bodies } = await this.printedBodies();
     if (bodies.length === 0) return [];
     const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'inspect.measure', params: { bodies } }], rollback: false }, 60_000);
     const measured = reply.failed ? [] : ((reply.results[0] as { bodies?: unknown } | undefined)?.bodies ?? []);
@@ -322,22 +336,44 @@ export class SolidCraftSupervisor {
   }
 
   /**
-   * The standard parts to buy, counted (`assembly.bom`), for the sharing package. Only rows with a
-   * part number: the library's screws and nuts have one ("ISO 4762 M3x12"), imported counterparts not.
+   * The standard parts to buy, counted, for the sharing package: the parts the mirror keeps out of
+   * print check and export, read anew by the same recognition, so nothing is listed both to print
+   * and to buy and no bought part is missing.
    */
   async hardware(): Promise<{ count: number; name: string; standard: string }[]> {
-    const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'assembly.bom', params: {} }], rollback: false }, 60_000);
+    const { parts, listing } = await this.standardParts();
+    return hardwareOf(parts, listing);
+  }
+
+  /**
+   * The standard parts as the design stands now, every reference waited for, with the
+   * `component.list` they were read from. It fails, naming the bodies, when one could not be
+   * checked for now: an export must not go out with a screw in it without a word. Where no part can
+   * be checked at all (`solidcraft-cli` is missing) nothing would ever go out, so those bodies count
+   * as printed, are exported, and are named in `unverified` for a word to the user.
+   */
+  private async standardParts(): Promise<{ parts: BoughtPart[]; listing: unknown; unverified: string[] }> {
+    const requester = this.requester();
+    const reply = await requester.request<BatchResult>('engine.batch', { commands: [{ command: 'component.list', params: {} }], rollback: false }, 60_000);
     if (reply.failed) throw new Error(reply.failed.error);
-    const rows = (reply.results[0] as { rows?: unknown } | undefined)?.rows;
-    if (!Array.isArray(rows)) return [];
-    return (rows as Record<string, unknown>[])
-      .filter((row) => typeof row.part_number === 'string' && row.part_number.trim() !== '' && typeof row.count === 'number' && row.count > 0)
-      .slice(0, 100)
-      .map((row) => ({
-        count: row.count as number,
-        name: (typeof row.description === 'string' && row.description.trim() ? row.description : String(row.definition ?? row.part_number)).slice(0, 200),
-        standard: (row.part_number as string).slice(0, 200),
-      }));
+    const told = await boughtParts(requester, reply.results[0], this.settledChecks);
+    const open = [...told.unchecked, ...told.pending.map((body) => `"${body}": its part is still being built`)];
+    if (open.length > 0) {
+      this.options.log(`not exported: standard parts could not be told from printed bodies (${open.join('; ')})`);
+      throw new Error(`nothing was written, because it is not known whether these are bought standard parts: ${open.slice(0, 3).join('; ').slice(0, 130)}`);
+    }
+    if (told.unverified.length > 0) this.options.log(`exported as printed bodies, not checked as standard parts: ${told.unverified.join(', ')}`);
+    return { parts: told.bought, listing: reply.results[0], unverified: told.unverified };
+  }
+
+  /**
+   * The mirrored bodies that are printed: all but the standard parts (B7), which are counterparts.
+   * Read anew rather than from the last mirror, which may still wait for a part's reference.
+   */
+  private async printedBodies(): Promise<{ bodies: string[]; unverified: string[] }> {
+    const { parts, unverified } = await this.standardParts();
+    const standard = new Set(parts.map((part) => part.body));
+    return { bodies: this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [], unverified };
   }
 
   /** `solidcraft-cli` beside the SolidCraft PartBuddy uses. */
@@ -453,11 +489,10 @@ export class SolidCraftSupervisor {
    * Opens the printable bodies in a slicer SolidCraft found (B8, `file.send_to_slicer`): standard
    * parts stay out, each body lies on its print face. The slicer is started without waiting for it.
    */
-  async sendToSlicer(slicer: string): Promise<string> {
+  async sendToSlicer(slicer: string): Promise<{ name: string; unverified: string[] }> {
     const found = (await this.slicers()).find((candidate) => candidate.id === slicer);
     if (!found) throw new Error('this slicer is not installed');
-    const standard = new Set(this.latest?.structure.standardParts ?? []);
-    const bodies = this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [];
+    const { bodies, unverified } = await this.printedBodies();
     if (bodies.length === 0) throw new Error('the design has no body to print');
     const reply = await this.requester().request<BatchResult>(
       'engine.batch',
@@ -465,7 +500,7 @@ export class SolidCraftSupervisor {
       2 * 60 * 1000,
     );
     if (reply.failed) throw new Error(reply.failed.error);
-    return found.name;
+    return { name: found.name, unverified };
   }
 
   /**
@@ -500,8 +535,8 @@ export class SolidCraftSupervisor {
 
   /**
    * Seats a standard part in the hole at a point of its wall (B7, `parts.insert` with a rigid
-   * joint). Its body gets the part's name (`SHCS M3x12`) and is noted as a standard part in the
-   * design's metadata, so export and the ready-to-print light leave it out. Returns the body name.
+   * joint). Its body gets the part's name (`SHCS M3x12`); that it is a standard part the mirror tells
+   * from the component SolidCraft made, as for a part the assistant put in. Returns the body name.
    */
   async insertPart(part: PartInsert): Promise<string | null> {
     await this.probing;
@@ -515,23 +550,17 @@ export class SolidCraftSupervisor {
     );
     if (reply.failed) throw new Error(reply.failed.error);
     const inserted = reply.results[0] as { name?: unknown } | undefined;
-    const inspect = reply.results[1] as { bodies?: { name?: unknown }[]; metadata?: unknown } | undefined;
+    const inspect = reply.results[1] as { bodies?: { name?: unknown }[] } | undefined;
     const names = (inspect?.bodies ?? []).map((body) => body.name).filter((name): name is string => typeof name === 'string');
     const added = names.filter((name) => !before.has(name));
     let body: string | null = added[0] ?? null;
-    if (body) {
-      const steps: { command: string; params: Record<string, unknown> }[] = [];
-      if (added.length === 1 && typeof inserted?.name === 'string') {
-        const wanted = freeBodyName(inserted.name, names);
-        steps.push({ command: 'body.rename', params: { body, name: wanted } });
-        body = wanted;
-      }
-      const marked = [...standardPartsOf(inspect?.metadata).filter((name) => names.includes(name)), ...(added.length === 1 ? [body] : added)];
-      steps.push({ command: 'document.metadata.set', params: { values: { [STANDARD_PARTS_KEY]: { bodies: marked } } } });
-      const naming = await requester.request<BatchResult>('engine.batch', { commands: steps, rollback: false }, 60_000);
+    if (body && added.length === 1 && typeof inserted?.name === 'string') {
+      const wanted = freeBodyName(inserted.name, names);
+      const naming = await requester.request<BatchResult>('engine.batch', { commands: [{ command: 'body.rename', params: { body, name: wanted } }], rollback: false }, 60_000);
       if (naming.failed) this.options.log(`the standard part was not named: ${naming.failed.error}`);
+      else body = wanted;
     }
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
     return body;
   }
 
@@ -550,7 +579,7 @@ export class SolidCraftSupervisor {
       try {
         return await this.dimensions.probe(target, current, value);
       } finally {
-        await this.engine?.checkForChange(true).catch(() => undefined);
+        await this.engine?.unchanged().catch(() => undefined);
       }
     });
     this.probing = run.catch(() => undefined);
@@ -561,7 +590,7 @@ export class SolidCraftSupervisor {
   async applyDimension(parameter: string, value: number, factor: 1 | 2, keepFitMark = false): Promise<void> {
     await this.probing;
     await this.dimensions.apply(parameter, value, factor, keepFitMark);
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   /** The user parameters of the design for the parameter panel; reading changes nothing. */
@@ -581,7 +610,7 @@ export class SolidCraftSupervisor {
       try {
         return await work();
       } finally {
-        await this.engine?.checkForChange(true).catch(() => undefined);
+        await this.engine?.unchanged().catch(() => undefined);
         clearTimeout(slow);
         const took = performance.now() - started;
         if (took > 20_000) this.options.log(`a trial (${what}) took ${String(Math.round(took / 1000))} s`);
@@ -598,7 +627,7 @@ export class SolidCraftSupervisor {
   async applyAction(action: DesignAction): Promise<void> {
     await this.probing;
     await this.actions.apply(action);
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   /**
@@ -676,7 +705,7 @@ export class SolidCraftSupervisor {
       const coloured = await this.actions.colourSplitPieces(layers);
       if (coloured > 0) this.options.log(`coloured the pieces of ${String(coloured)} split logo bodies`);
     }
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   /** The placed logo at a picked point, for the logo controls of the selection dock; reading changes nothing. */
@@ -720,7 +749,7 @@ export class SolidCraftSupervisor {
     // Already where it should be (centred twice): nothing to do.
     if (planned.steps.length === 0) return;
     await this.actions.applySteps(planned.steps);
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   measure(items: MeasureItem[]): Promise<MeasureResult> {
@@ -737,7 +766,7 @@ export class SolidCraftSupervisor {
       () => undefined,
     );
     await run;
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   /** Where parts stop each joint value on its way to a limit (ADR 0027, `joint.sweep`); the design stays as it is. */
@@ -1041,7 +1070,7 @@ export class SolidCraftSupervisor {
     const commands = Array.from({ length: count }, () => ({ command, params: {} }));
     const batch = await this.requester().request<{ failed?: { error: string } }>('engine.batch', { commands, rollback: false }, 10 * 60 * 1000);
     if (batch.failed) throw new Error(`${command} failed: ${batch.failed.error}`);
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   /** One engine command of the user, after any running trial; the change is mirrored as usual. */
@@ -1050,7 +1079,7 @@ export class SolidCraftSupervisor {
     const batch = await this.requester().request<{ failed?: { error: string } }>('engine.batch', { commands: [step], rollback: false }, 10 * 60 * 1000);
     if (batch.failed) throw new Error(`${step.command} failed: ${batch.failed.error}`);
     // The window reports the change with design.changed; the headless engine is asked.
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   private publish(): void {
@@ -1091,7 +1120,7 @@ export class SolidCraftSupervisor {
     if (!this.launchedBefore && this.options.openLastOnStart === false) this.designs?.forget();
     this.launchedBefore = true;
     const design = this.designs?.last();
-    const start = (file: string | undefined) => HeadlessEngine.start({ cli, allowPaths, design: file, env: this.options.environment.env });
+    const start = (file: string | undefined) => HeadlessEngine.start({ cli, allowPaths, design: file, env: this.options.environment.env, log: (message) => this.options.log(message) });
     let engine: HeadlessEngine;
     try {
       engine = await start(design);
@@ -1190,6 +1219,7 @@ export class SolidCraftSupervisor {
       // Only when that fails does the engine end and start again with the next project.
       const engine = this.engine;
       this.scheduler.reset();
+      this.references.forget();
       this.latest = null;
       this.savedAs = null;
       this.plannedName = null;
@@ -1229,6 +1259,7 @@ export class SolidCraftSupervisor {
       const engine = this.engine;
       this.engine = null;
       this.scheduler.reset();
+      this.references.forget();
       await engine?.close();
     } else if ((this.options.launchMode ?? 'window') === 'headless') {
       return this.launchHeadless(executable);
@@ -1308,6 +1339,7 @@ export class SolidCraftSupervisor {
       const offClose = engine.onClose((reason) => {
         this.engine = null;
         this.scheduler.reset();
+        this.references.forget();
         sendBack({ type: 'LOST', reason });
       });
       return () => {
@@ -1333,6 +1365,7 @@ export class SolidCraftSupervisor {
     const offClose = client.onClose((reason) => {
       this.client = null;
       this.scheduler.reset();
+      this.references.forget();
       sendBack({ type: 'LOST', reason });
     });
     return () => {

@@ -1,9 +1,11 @@
-import { BLOCK_SIZES, defaultBlock, needsNormal, sizesOf, stepsOf, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, INSERT, defaultBlock, needsNormal, sizesOf, stepsOf, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import { KNOB, KNOB_CLEARANCE, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
+import { TAPPED_FROM } from '../../shared/mechanisms';
 import { MAGNET, MAGNET_HOLDS, magnetPocket, magnetProblem, magnetSteps, type MagnetHold } from '../../shared/magnet';
 import { KEYHOLE, WALL, WOOD_SCREWS, keyholeDepth, keyholeProblem, keyholeSteps, woodScrewSteps, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
+import { count } from '../solidcraft/mirror';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
 /**
@@ -75,6 +77,24 @@ type Vec3 = [number, number, number];
 const vec3 = (value: unknown): Vec3 | null =>
   Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry)) ? (value as Vec3) : null;
 
+/** Why the sizes of a seat or a boss no longer fit the insert of the table; null when they do. */
+function outOfTable(block: FeatureBlock): string | null {
+  if (block.block !== 'insertSeat' && block.block !== 'boss') return null;
+  const insert = INSERT[block.size];
+  if (!insert) return null;
+  const mm = (value: number) => String(Math.round(value * 100) / 100);
+  if (block.block === 'boss') {
+    const least = insert.diameter + 2 * insert.wall;
+    return block.diameter < least - 1e-9 ? `a boss for an ${block.size} insert is at least ${mm(least)} mm wide: the ${String(insert.diameter)} mm hole and ${String(insert.wall)} mm of wall round it` : null;
+  }
+  // The insert melts into a hole a little narrower than itself: a hole far off the maker's size holds nothing or splits the part.
+  if (block.diameter < insert.diameter * 0.9 - 1e-9 || block.diameter > insert.diameter * 1.1 + 1e-9)
+    return `the hole for an ${block.size} insert is ${String(insert.diameter)} mm wide; diameter may differ by a tenth of that (${mm(insert.diameter * 0.9)} to ${mm(insert.diameter * 1.1)} mm)`;
+  if (block.depth < insert.length - 1e-9 || block.depth > insert.length * 3 + 1e-9)
+    return `the seat of an ${block.size} insert is ${mm(insert.length + 1)} mm deep (the insert is ${String(insert.length)} mm long); depth may be ${String(insert.length)} to ${mm(insert.length * 3)} mm`;
+  return null;
+}
+
 /** The block the model asked for: the standard of its kind and size with what the model gave laid over it; or what is wrong. */
 export function blockOf(args: Record<string, unknown>): FeatureBlock | string {
   const kind = args.block;
@@ -88,13 +108,17 @@ export function blockOf(args: Record<string, unknown>): FeatureBlock | string {
   const head = args.head === 'countersunk' || args.head === 'none' ? args.head : 'cap';
   const sizes = sizesOf(kind as AssistantBlock, head);
   if (!sizes.includes(size)) return `${kind}${kind === 'screwHole' ? ` with head ${head}` : ''} has no size ${String(args.size)}; it has ${sizes.join(', ')}`;
+  // One rule for a printed thread, here and in the screw joint (mechanisms.ts).
+  if (kind === 'tappedHole' && Number(size.slice(1)) < TAPPED_FROM) return `a printed ${size} thread strips; use insertSeat (a heat-set insert) for ${size}, or tappedHole from M${String(TAPPED_FROM)}`;
+  // The form's placeholder word is no text of the user's.
+  if (kind === 'text' && (typeof args.text !== 'string' || !args.text.trim())) return 'text needs text: the words to write';
   const standard = defaultBlock(kind as AssistantBlock, body, point, size, normal ?? [0, 0, 1]);
   // Only the fields this kind has are taken from the model; the schema then checks their values.
   const given = Object.fromEntries(Object.keys(standard).flatMap((key) => (key in args && !['block', 'body', 'point', 'normal', 'size'].includes(key) ? [[key, args[key]]] : [])));
   const more = args.more !== undefined && 'more' in { more: undefined, ...standard } && ['screwHole', 'tappedHole', 'insertSeat'].includes(kind) ? { more: args.more } : {};
   const parsed = featureBlockSchema.safeParse({ ...standard, ...given, ...more });
   if (!parsed.success) return `${parsed.error.issues[0]?.path.join('.') ?? kind}: ${parsed.error.issues[0]?.message ?? 'invalid'}`;
-  return parsed.data;
+  return outOfTable(parsed.data) ?? parsed.data;
 }
 
 type Step = { command: string; params: Record<string, unknown> };
@@ -204,8 +228,32 @@ export function knobOf(args: Record<string, unknown>): { body: string; steps: St
 
 function jsonOf(result: ToolResult): unknown {
   const text = result.content.find((part) => part.type === 'text')?.text;
-  if (result.isError || typeof text !== 'string') throw new Error(typeof text === 'string' ? text.slice(0, 300) : 'SolidCraft gave no answer');
-  return JSON.parse(text) as unknown;
+  if (typeof text !== 'string') throw new Error('SolidCraft gave no answer');
+  if (!result.isError) return JSON.parse(text) as unknown;
+  // A batch that is taken back answers its failure as an error: say which command, not the whole reply.
+  let failed: { command?: unknown; error?: unknown } | undefined;
+  try {
+    failed = (JSON.parse(text) as { failed?: { command?: unknown; error?: unknown } }).failed;
+  } catch {
+    failed = undefined;
+  }
+  throw new Error(failed ? `SolidCraft refused ${String(failed.command)}: ${String(failed.error).slice(0, 300)}` : text.slice(0, 300));
+}
+
+/** Volume in mm³ of every body by name as `inspect.measure` answers; NaN for a body that is not closed. */
+function volumesOf(measured: unknown): Map<string, number> {
+  const bodies = (measured as { bodies?: { name?: unknown; volume_mm3?: unknown }[] } | undefined)?.bodies ?? [];
+  return new Map(bodies.flatMap((entry) => (typeof entry.name === 'string' ? [[entry.name, typeof entry.volume_mm3 === 'number' ? entry.volume_mm3 : NaN] as const] : [])));
+}
+
+/** Why a block would not land on the body it names, from the volumes before and after a trial; null when it does. */
+export function misplaced(body: string, before: Map<string, number>, after: Map<string, number>): string | null {
+  if (!before.has(body)) return `there is no body named ${body}; the design has ${[...before.keys()].join(', ') || 'no body'}`;
+  const changed = (name: string) => Math.abs((after.get(name) ?? 0) - (before.get(name) ?? 0)) > 1e-6;
+  const others = [...new Set([...before.keys(), ...after.keys()])].filter((name) => name !== body && changed(name));
+  if (others.length > 0) return `at this point it would change ${others.join(', ')}, not only ${body}; give a point on a face of ${body} alone, away from other bodies`;
+  if (Number.isFinite(before.get(body)) && !changed(body)) return `it would change nothing on ${body}: the point is not on a face of ${body}`;
+  return null;
 }
 
 /** What was built, with the sizes it took from the tables, for the model to tell the user. */
@@ -231,8 +279,8 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
       const block = wall ? null : blockOf(args);
       if (typeof block === 'string') return { content: [{ type: 'text', text: `Not built: ${block}` }], isError: true };
       try {
-        const run = async (commands: { command: string; params: Record<string, unknown> }[]) => {
-          const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[]; failed?: { command?: unknown; error?: unknown } };
+        const run = async (commands: { command: string; params: Record<string, unknown> }[], rollback = false) => {
+          const reply = jsonOf(await upstream.callTool('batch', { commands, ...(rollback ? { rollback } : {}) }, callId)) as { results?: unknown[]; failed?: { command?: unknown; error?: unknown } };
           if (reply.failed) throw new Error(`SolidCraft refused ${String(reply.failed.command)}: ${String(reply.failed.error).slice(0, 300)}`);
           return reply.results ?? [];
         };
@@ -244,7 +292,29 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         // A new part must not take the name of a body there is: its cuts would go into that one.
         const taken = ((listing as { components?: { bodies?: unknown }[] } | undefined)?.components ?? []).some((entry) => Array.isArray(entry.bodies) && entry.bodies.includes(body));
         if (wall && 'fresh' in wall && taken) return { content: [{ type: 'text', text: `Not built: there is a body named ${body} already; give the knob another name` }], isError: true };
-        const results = await run(component === 0 ? steps : [{ command: 'component.activate', params: { component } }, ...steps, { command: 'component.activate', params: { component: 0 } }]);
+        const sequence = component === 0 ? steps : [{ command: 'component.activate', params: { component } }, ...steps, { command: 'component.activate', params: { component: 0 } }];
+        const fresh = wall !== null && 'fresh' in wall;
+        const measure = { command: 'inspect.measure', params: {} };
+        const inspect = { command: 'document.inspect', params: {} };
+        const depth = (inspected: unknown) => count((inspected as { undo?: unknown } | undefined)?.undo);
+        const [measured, inspected] = await run([measure, inspect]);
+        const before = volumesOf(measured);
+        const missing = fresh ? null : misplaced(body, before, before);
+        if (missing?.startsWith('there is no body')) return { content: [{ type: 'text', text: `Not built: ${missing}` }], isError: true };
+        let results: unknown[];
+        try {
+          results = await run([...sequence, measure]);
+          // The point decides what SolidCraft cuts, so the named body is checked before the block stays.
+          const wrong = fresh ? null : misplaced(body, before, volumesOf(results[results.length - 1]));
+          if (wrong) throw new Error(wrong);
+        } catch (cause) {
+          // Nothing of a block that failed half way or landed on another body stays: undone step by step, as the work
+          // log goes back. (A batch with `rollback` or a checkpoint is no way back in SolidCraft 0.40.1: after the one
+          // the same modelled thread fails for real, and the other is gone once a batch has run.)
+          const steps = depth((await run([inspect]))[0]) - depth(inspected);
+          if (steps > 0) await run(Array.from({ length: steps }, () => ({ command: 'edit.undo', params: {} })));
+          throw cause;
+        }
         // The plate view lays the part on the face SolidCraft names (print-faces.json), as the slicer will.
         const face = results.map((result) => (result as { face?: unknown } | undefined)?.face).find((entry) => typeof entry === 'string');
         if (face) keepFace(body, face);
