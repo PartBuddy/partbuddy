@@ -521,7 +521,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
     });
     const steep = locate(parts, overhang, MIN_AREA);
     if (steep.area >= MIN_AREA) {
-      findings.push({ kind: 'overhang', severity: 'warn', area: round(steep.area, 0), limit: profile.overhang, places: steep.places, box: steep.box });
+      findings.push({ kind: 'overhang', severity: 'warn', area: round(steep.area, 0), limit: limits.support, places: steep.places, box: steep.box });
     }
     // One finding for all of them: fifty pins are one thing to say, and none drops off the end of a list.
     if (loose.length > 0) {

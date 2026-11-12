@@ -229,6 +229,14 @@ describe('the ready-to-print check (M7)', () => {
     expect(drafted.findings.map((f) => f.kind)).toContain('thinWall');
   });
 
+  it('checks overhangs at 45° where the profile names no angle', () => {
+    // With the angle undefined nothing passed the limit: a ceiling 14 mm wide read ready.
+    const table = boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]]);
+    for (const overhang of [undefined as unknown as number, Number.NaN]) {
+      expect(checkPrint([table], { ...PLA, overhang }).findings.find((f) => f.kind === 'overhang')).toMatchObject({ area: 400, limit: 45 });
+    }
+  });
+
   it('follows the overhang angle of the material', () => {
     const tube = lyingTube('Tube', 6, 2.25, 10);
     const faces = (limit: number) => {
