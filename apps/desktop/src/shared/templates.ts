@@ -100,7 +100,10 @@ function hingedBox(): Step[] {
       const drawn = (steps[step.command === 'sketch.create' ? i : i - 1]?.params.plane ?? {}) as { origin?: Vec3; x_dir?: Vec3 };
       const back = (drawn.x_dir?.[1] ?? 1) < 0;
       if (step.command === 'sketch.create') return { ...step, params: { ...step.params, plane: 'YZ', offset: `length / 2 + ${String(Math.round(((drawn.origin?.[0] ?? 0) - (back ? parseFloat(String(steps[i + 2]?.params.distance)) : 0) - length / 2) * 1000) / 1000)} mm` } };
-      if (step.command === 'sketch.line') return { ...step, params: { ...step.params, points: (step.params.points as [number, number][]).map(([across, up]) => [`${String(between / 2 + (back ? -across : across))} mm`, up < 0 && steps[i + 1]?.params.operation === 'join' ? `max(height + ${String(up)} mm, 0 mm)` : `height + ${String(up)} mm`]) } };
+      // A web's third point is the foot of its face at 45°: where the bed cuts the web short, the foot comes in along
+      // that face by as much, so the face keeps its 45° (at height 5 mm it leant 57° with the foot only lifted).
+      const web = String(steps[i + 1]?.params.name).endsWith('◣');
+      if (step.command === 'sketch.line') return { ...step, params: { ...step.params, points: (step.params.points as [number, number][]).map(([across, up], n) => [web && n === 2 ? `${String(between / 2)} mm ${back ? '-' : '+'} min(${String(across)} mm, height + ${String(Math.round((across + up) * 1000) / 1000)} mm)` : `${String(between / 2 + (back ? -across : across))} mm`, up < 0 && steps[i + 1]?.params.operation === 'join' ? `max(height + ${String(up)} mm, 0 mm)` : `height + ${String(up)} mm`]) } };
       if (step.command !== 'solid.cylinder') return step;
       const [x, y] = step.params.base as Vec3;
       return { ...step, params: { ...step.params, base: [`length / 2 + ${String(x - length / 2)} mm`, y, 'height'] } };

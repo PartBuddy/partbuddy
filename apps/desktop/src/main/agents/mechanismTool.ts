@@ -369,6 +369,10 @@ async function build(site: Site, spec: { fixed: string; moving: string; name: st
       const line = spec.from && spec.to ? spec.to.map((value, i) => value - (spec.from?.[i] ?? 0)) : null;
       const off = (vector: number[], along: number[]) => Math.hypot(...[0, 1, 2].map((i) => (vector[(i + 1) % 3] ?? 0) * (along[(i + 2) % 3] ?? 0) - (vector[(i + 2) % 3] ?? 0) * (along[(i + 1) % 3] ?? 0))) / Math.hypot(...along);
       const onLine = joins === 'revolute' && origin && z && line && spec.from && off(z, line) < 1e-3 * Math.hypot(...z) && off(origin.map((value, i) => value - (spec.from?.[i] ?? 0)), line) < 0.01;
+      // On the stretch of the first itself the new knuckles would be cut into the old ones (audit 2026-11-12, H-02): the
+      // first joint lies in the middle of its hinge, so a line that holds that point lies over it.
+      const at = onLine ? origin.reduce((sum, value, i) => sum + (value - (spec.from?.[i] ?? 0)) * (line[i] ?? 0), 0) / line.reduce((sum, value) => sum + value * value, 0) : -1;
+      if (at >= 0 && at <= 1) throw new Error(`the hinge ${JSON.stringify(same.name)} already joins ${spec.fixed} and ${spec.moving} on this stretch of the line, and new knuckles would be cut into its own. Change that one instead: take it back with undo, or delete its features and its joint, then call again. A second hinge goes on the same line beside the first.`);
       if (!onLine) throw new Error(`the joint ${JSON.stringify(same.name)} already joins ${spec.fixed} and ${spec.moving} as a ${kind}${joins === 'revolute' ? ' on another line' : ''}, and a second ${joins === 'revolute' ? 'axis' : 'guide'} between the same two bodies would bind it. ${joins === 'revolute' ? 'Put this hinge on the line of the first, or change the first' : 'Change that one instead'}: take it back with undo, or delete its features and its joint, then call again.`);
       const limits = same.values?.[0]?.limits;
       site.shares = { name: String(same.name), limits: Array.isArray(limits) && typeof limits[0] === 'number' && typeof limits[1] === 'number' ? [limits[0], limits[1]] : [-180, 180] };
@@ -388,7 +392,7 @@ async function build(site: Site, spec: { fixed: string; moving: string; name: st
     const made = [result?.created_bodies, result?.removed_bodies].flatMap((names) => (Array.isArray(names) ? (names as unknown[]) : []));
     // A step that makes its own body (a lid, a screw) says so; every other one works on a body that is there.
     if (made.length === 0 || step.params.operation === 'new' || step.command === 'parts.insert') continue;
-    throw new Error(`the step ${JSON.stringify(step.params.name ?? step.command)} cut ${JSON.stringify((step.params.targets as unknown[] | undefined)?.[0] ?? step.params.body ?? 'a body')} apart (${made.map((name) => JSON.stringify(name)).join(', ')} came of it): the body is too thin or too small where the mechanism goes. ${where}`);
+    throw new Error(`the step ${JSON.stringify(step.params.name ?? step.command)} cut ${JSON.stringify((step.params.targets as unknown[] | undefined)?.[0] ?? step.params.body ?? 'a body')} apart (${made.map((name) => JSON.stringify(name)).join(', ')} came of it): the body is too thin or too small where the mechanism goes.`);
   }
   const apart = built.filter((result) => {
     const warning = (result as { warning?: unknown } | undefined)?.warning;
@@ -562,8 +566,8 @@ export function skinProblem(depths: { fixed: number; moving: number }, spec: { f
 const MOVE = 'The user moves it with the slider "Moving parts" in the view.';
 
 /** What the model hears when the joint is made but its range could not be found. */
-const unswept = (reason: string) =>
-  `SolidCraft could not run it through its range (${reason.slice(0, 160)}), so no limits are set. The two bodies probably lie against each other somewhere: look with inspect.clearance, make room, then set joint.limits yourself after joint.sweep.`;
+const unswept = (reason: string, shares?: string) =>
+  `SolidCraft could not run it through its range (${reason.slice(0, 160)}), so ${shares ? `the limits of "${shares}" stay as they were, untried with this hinge` : 'no limits are set'}. The two bodies probably lie against each other somewhere: look with inspect.clearance, make room, then set joint.limits yourself after joint.sweep.`;
 
 /** What leans 45° prints without support only in a material that allows it: PETG and the carbon-filled ones stop at 40°. */
 const leans = (what: string, overhang: number) => `${what} lean 45°, more than the ${String(overhang)}° the material in use prints without support: they need support there, or a material that prints 45°.`;
@@ -607,6 +611,8 @@ async function buildGuide(site: Site, spec: SlideSpec, nozzle: number, overhang:
   const skin = nozzle * 2 * 1.125;
   const needed = Math.round((roof.top + skin) * 10) / 10;
   let measure: unknown;
+  // Why the groove got no roof, when it is not that the body was found short of material there.
+  const roofless: { why: 'failed' | 'askew' | null } = { why: null };
   const warnings = await build(
     site,
     spec,
@@ -625,24 +631,31 @@ async function buildGuide(site: Site, spec: SlideSpec, nozzle: number, overhang:
       // The stretch of the line the body lies over: its travel either way is what of the rail it leaves free.
       const [start, covered] = [-travel[0], length + travel[0] - travel[1]];
       // Over the ridge and its two edges, and over the middle of each flank: each rod's top where the skin over the roof ends.
-      const flank = (roof.ceiling + 2 * roof.ridge) / 8;
+      const flank = (roof.ceiling + roof.ridge) / 4;
       const [ridge, slope] = [roof.top + skin - ROD / 2, (spec.height + spec.gap + roof.top) / 2 + skin * Math.SQRT2 - ROD / 2];
       const over: [number, number][] = [[0, ridge], [roof.ridge / 2, ridge], [-roof.ridge / 2, ridge], [flank, slope], [-flank, slope]];
       const rods = over.map(([x, y], n) => ({ name: `${PROBE} ${String(n + 1)}`, body: spec.moving, base: spec.from.map((value, i) => value + (along[i] ?? 0) * start + (across[i] ?? 0) * x + (up[i] ?? 0) * y) }));
-      const shares = await rodsInside(site.upstream, rods, axis, covered, site.callId).catch(() => new Map<string, number>());
-      spec.roof = rods.every((rod) => (shares.get(rod.name) ?? 0) >= 0.9);
+      const shares = await rodsInside(site.upstream, rods, axis, covered, site.callId).catch(() => null);
+      // No more than a rod's width of any rod may lie outside the body: through a cross groove the roof would break out.
+      spec.roof = shares !== null && covered > 0 && rods.every((rod) => (1 - (shares.get(rod.name) ?? 0)) * covered <= ROD);
+      // shortcut: the rods are as long as the body's box along the line, so over a line askew to the axes (or a body
+      // turned on its face) they reach past the body and no roof is built; lay them by the body itself when that turns up.
+      roofless.why = spec.roof ? null : shares === null ? 'failed' : along.filter((value) => Math.abs(value) > 1e-6).length > 1 ? 'askew' : null;
     },
     joins,
   );
+  const untried = roofless.why;
   const apart = `The two print apart, each with up pointing up, and ${spec.moving} is then pushed onto the rail from an end.`;
   const wide = String(Math.round(roof.ceiling * 10) / 10);
   const flanks = spec.roof ? "The rail's flanks and the roof over the groove" : "The rail's flanks";
   const steep = overhang < 45 ? leans(flanks, overhang) : null;
+  const solid = `solid up to ${String(needed)} mm over the face the rail is on`;
+  const box = "the line runs askew to the axes, where the trial goes by the body's box and can reach past the body";
   const print = spec.roof
     ? `${apart} ${steep ?? `Neither needs support: the rail's flanks and the roof over the groove lean 45°, and the roof's ridge is a bridge of ${String(roof.ridge)} mm.`}`
     : roof.ceiling <= BRIDGE_SPAN
-      ? `${apart} The groove's ceiling is flat and ${wide} mm wide, which prints as a bridge (up to ${String(BRIDGE_SPAN)} mm)${steep ? `. ${steep}` : ", and the rail's flanks lean 45°: neither needs support."} ${spec.moving} is not solid up to ${String(needed)} mm over the face the rail is on all along the groove, so the groove got no roof.`
-      : `${apart} The groove's ceiling is flat and ${wide} mm wide, more than prints as a bridge (${String(BRIDGE_SPAN)} mm): a roof at 45° over it needs ${spec.moving} to be solid up to ${String(needed)} mm over the face the rail is on, all along the groove, and it is not. Print ${spec.moving} turned over instead, lying on its top with the groove open upwards (set that face as its print face), or make it that high there and build this again.${steep ? ` ${steep}` : ''}`;
+      ? `${apart} The groove's ceiling is flat and ${wide} mm wide, which prints as a bridge (up to ${String(BRIDGE_SPAN)} mm)${steep ? `. ${steep}` : ", and the rail's flanks lean 45°: neither needs support."} ${untried === 'failed' ? `Whether ${spec.moving} is ${solid} could not be tried (SolidCraft's trial failed)` : untried === 'askew' ? `The trial did not find ${spec.moving} ${solid} all along the groove (${box})` : `${spec.moving} is not ${solid} all along the groove`}, so the groove got no roof.`
+      : `${apart} The groove's ceiling is flat and ${wide} mm wide, more than prints as a bridge (${String(BRIDGE_SPAN)} mm): a roof at 45° over it needs ${spec.moving} to be ${solid}, all along the groove, and ${untried === 'failed' ? "whether it is could not be tried (SolidCraft's trial failed)" : untried === 'askew' ? `the trial did not find it so (${box})` : 'it is not'}. Print ${spec.moving} turned over instead, lying on its top with the groove open upwards (set that face as its print face), or ${untried ? 'make sure it is' : 'make it'} that high there and build this again.${steep ? ` ${steep}` : ''}`;
   return { warnings, measure, print };
 }
 
@@ -701,7 +714,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     // A hinge on the line of an earlier one only narrows what that joint allows: it is run through its limits again.
     const range = await join(run, spec, 'revolute', site.shares?.limits ?? [-180, 180], 1, site.shares?.name);
     const print = `${site.shares ? ` It lies on the line of the hinge "${site.shares.name}" and turns about that hinge's joint, which carries both now.` : ''}${hingePrint(spec, depths, overhang)}`;
-    if (typeof range === 'string') return `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns) and joined them, but ${unswept(range)}${print}${warnings}`;
+    if (typeof range === 'string') return `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns) and joined them, but ${unswept(range, site.shares?.name)}${print}${warnings}`;
     const [min, max] = range;
     return (
       `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns): ${String(spec.knuckles)} knuckles, barrel ${String(spec.diameter)} mm, pin ${String(pinDiameter(spec.diameter))} mm, ` +

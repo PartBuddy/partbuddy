@@ -254,6 +254,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
   // had none itself; the same call again built a third joint between the same two parts.
   it('names a second hinge apart from the first, and refuses a second one between the same two bodies before it builds', async () => {
     const batches: { command: string; params: Record<string, unknown> }[][] = [];
+    let stuck = false;
     const upstream: UpstreamTools = {
       instructions: () => undefined,
       listTools: () => Promise.resolve([]),
@@ -261,6 +262,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
         if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Flap' }, { name: 'Flap2' }], undo: 12 }) }] });
         const commands = args.commands as { command: string; params: Record<string, unknown> }[];
         batches.push(commands);
+        if (stuck && commands.some((step) => step.command === 'joint.sweep')) return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: [], failed: { command: 'joint.sweep', error: 'motion exceeds contact sweep collision budget' } }) }] });
         const results = commands.map((step) => {
           // As SolidCraft 0.40.1 lists them: a joint's sides by the ids of their occurrences.
           if (step.command === 'joint.list') return { joints: [{ name: 'Hinge', type: 'revolute', a: 15, b: 17, frame_a: { origin: [42, 15, 3], z: [0, 1, 0] }, values: [{ value: 0, limits: [-145, 67] }] }] };
@@ -275,6 +277,11 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     // Half a millimetre off the first hinge's line it is a second axis, which would bind the first.
     expect(again).toEqual({ isError: true, content: [{ type: 'text', text: 'Not built: the joint "Hinge" already joins Flap and Base as a hinge on another line, and a second axis between the same two bodies would bind it. Put this hinge on the line of the first, or change the first: take it back with undo, or delete its features and its joint, then call again.' }] });
     expect(batches.map((batch) => batch.map((step) => step.command).join(' '))).toEqual(['component.list joint.list']);
+    // Review 2 of PR #358: on the first hinge's own stretch (the joint lies in its middle, y 15) it is the first hinge called again,
+    // with seven knuckles for five: they would be cut into the old ones (H-02). Refused before anything is built.
+    const over = await tools.callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], knuckles: 7 });
+    expect(over).toEqual({ isError: true, content: [{ type: 'text', text: 'Not built: the hinge "Hinge" already joins Base and Flap on this stretch of the line, and new knuckles would be cut into its own. Change that one instead: take it back with undo, or delete its features and its joint, then call again. A second hinge goes on the same line beside the first.' }] });
+    expect(batches).toHaveLength(2);
     // Review of PR #358: on the line of the first it is the usual second hinge of a long flap. It gets its knuckles and no joint of
     // its own: the first joint is run through its limits again, since more knuckles can only narrow them.
     const before = batches.length;
@@ -286,6 +293,12 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(shared.some((step) => step.command === 'joint.as_built')).toBe(false);
     expect(shared.filter((step) => step.command === 'joint.sweep').map((step) => [step.params.joint, step.params.to])).toEqual([['Hinge', -145], ['Hinge', 67]]);
     expect(shared.find((step) => step.command === 'joint.limits')?.params).toEqual({ joint: 'Hinge', min: -145, max: 67 });
+    // When that sweep cannot be run, the first hinge's limits are still set: the answer does not say there are none.
+    stuck = true;
+    const unrun = String((await tools.callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 130, 3], to: [42, 160, 3] })).content[0]?.text);
+    expect(unrun).toContain('so the limits of "Hinge" stay as they were, untried with this hinge.');
+    expect(unrun).not.toContain('no limits are set');
+    stuck = false;
     // Another pair of bodies: built, under a name of its own, which the joint, its sweeps and its limits all carry.
     const second = await tools.callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap2', from: [-2, 0, 3], to: [-2, 30, 3] });
     expect(second.isError).toBeUndefined();
@@ -452,8 +465,9 @@ describe('the dovetail guide (ADR 0027, G3)', () => {
     // The rail is the same.
     expect(roofed.slice(3)).toEqual(slideSteps(guide).slice(3));
     // The tool measures the moving body first: its top lies `top` over the base's face at z = 4.
-    const answer = async (top: number, args: Record<string, unknown> = {}, { solid = top, overhang = 45, split = false } = {}) => {
+    const answer = async (top: number, args: Record<string, unknown> = {}, { solid = top, wide = 0, hole = 0, broken = false, overhang = 45, split = false } = {}) => {
       const sent: { command: string; params: Record<string, unknown> }[] = [];
+      const probes: number[][] = [];
       const upstream: UpstreamTools = {
         instructions: () => undefined,
         listTools: () => Promise.resolve([]),
@@ -463,17 +477,24 @@ describe('the dovetail guide (ADR 0027, G3)', () => {
           sent.push(...commands);
           // The trial rods lie in the carriage where it is solid: up to `solid` over the base's face, along its 20 mm of the line (0.628 mm³ each).
           const rods = commands.filter((step) => step.command === 'solid.cylinder' && String(step.params.body_name).startsWith('PartBuddy probe '));
-          if (rods.length > 0) expect(rods.map((rod) => [(rod.params.base as number[])[0], rod.params.height])).toEqual(Array.from({ length: 5 }, () => [20, 20]));
-          const results = commands.map((step) => (step.command === 'inspect.clearance' ? { overlaps: rods.flatMap((rod) => (((rod.params.base as number[])[2] ?? 0) + 0.1 <= 4 + solid ? [{ a: rod.params.body_name, b: 'Carriage', volume_mm3: 0.628 }] : [])) } : step.command === 'solid.extrude' && step.params.operation === 'cut' && split ? { created_bodies: ['Carriage (1)'], warning: null } : step.command === 'document.inspect' ? { timeline: [{ id: 1 }, { id: 2 }], undo: 2 } : step.command === 'inspect.measure' ? { bodies: [{ name: 'Carriage', bbox: { min: [20, 0, 4.4], max: [40, 30, 4 + top] } }] } : step.command === 'component.list' ? { components: [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ id: 4, name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Carriage'], occurrences: [{ id: 6, name: 'Carriage:1' }] }] } : {}));
+          // Not checked in here: what throws in the trial is taken as a trial that failed.
+          probes.push(...rods.map((rod) => [...(rod.params.base as number[]).map((value) => Math.round(value * 1000) / 1000), rod.params.height as number]));
+          if (rods.length > 0 && broken) return Promise.resolve({ content: [{ type: 'text', text: 'no answer' }], isError: true });
+          // Above `solid` the carriage goes on as a rib `wide` over the line, up to its top; `hole` mm of each rod lie in a gap.
+          const inBody = (base: number[]) => (base[2] ?? 0) + 0.1 <= 4 + solid || (Math.abs((base[1] ?? 0) - 15) <= wide / 2 && (base[2] ?? 0) + 0.1 <= 4 + top);
+          const results = commands.map((step) => (step.command === 'inspect.clearance' ? { overlaps: rods.flatMap((rod) => (inBody(rod.params.base as number[]) ? [{ a: rod.params.body_name, b: 'Carriage', volume_mm3: 0.628 * (1 - hole / 20) }] : [])) } : step.command === 'solid.extrude' && step.params.operation === 'cut' && split ? { created_bodies: ['Carriage (1)'], warning: null } : step.command === 'document.inspect' ? { timeline: [{ id: 1 }, { id: 2 }], undo: 2 } : step.command === 'inspect.measure' ? { bodies: [{ name: 'Carriage', bbox: { min: [20, 0, 4.4], max: [40, 30, 4 + top] } }] } : step.command === 'component.list' ? { components: [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ id: 4, name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Carriage'], occurrences: [{ id: 6, name: 'Carriage:1' }] }] } : {}));
           return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
         },
       };
       const built = await withMechanismTool(upstream, () => 0.4, undefined, () => overhang).callTool('partbuddy_mechanism', { kind: 'slide', fixed: 'Base', moving: 'Carriage', from: [0, 15, 4], to: [60, 15, 4], ...args });
-      return { text: String(built.content[0]?.text), groove: sent.find((step) => step.command === 'sketch.line')?.params.points as number[][], sent: sent.map((step) => step.command) };
+      return { text: String(built.content[0]?.text), groove: sent.find((step) => step.command === 'sketch.line')?.params.points as number[][], sent: sent.map((step) => step.command), probes };
     };
     // 7.866 mm of roof and two lines over its ridge: 8.8 mm.
     const high = await answer(8.8);
     expect(high.groove).toHaveLength(8);
+    // The rods lie along the carriage's 20 mm of the line: over the ridge's middle and edges (±2.5 mm) with their tops two lines
+    // over it, and over the middle of each flank (±4.733 mm, where the roof is 5.633 mm high), not in the groove beside the ridge.
+    expect(high.probes).toEqual([[20, 15, 12.666, 20], [20, 17.5, 12.666, 20], [20, 12.5, 12.666, 20], [20, 19.733, 10.806, 20], [20, 10.267, 10.806, 20]]);
     expect(high.text).toContain("The two print apart, each with up pointing up, and Carriage is then pushed onto the rail from an end. Neither needs support: the rail's flanks and the roof over the groove lean 45°, and the roof's ridge is a bridge of 5 mm.");
     // The body is measured before the first step is built.
     expect(high.sent.indexOf('inspect.measure')).toBeLessThan(high.sent.indexOf('sketch.create'));
@@ -487,9 +508,24 @@ describe('the dovetail guide (ADR 0027, G3)', () => {
     const knob = await answer(16.4, {}, { solid: 6 });
     expect(knob.groove).toHaveLength(6);
     expect(knob.text).not.toContain('Neither needs support');
+    // Review 2 of PR #358: a rib 6.4 mm wide on that plate holds the three rods over the ridge, and nothing lies over the flanks:
+    // with the flank rods in the groove beside the ridge the roof was built and cut the plate along both sides of the rib.
+    const rib = await answer(9, {}, { solid: 6, wide: 6.4 });
+    expect(rib.groove).toHaveLength(6);
+    expect(rib.text).toContain('and it is not. Print Carriage turned over');
+    // A cross groove 1.5 mm wide in the carriage (under the old tenth of its length): the roof would break out into it.
+    expect((await answer(12, {}, { hole: 1.5 })).groove).toHaveLength(6);
+    // A trial that fails says nothing about the body, and a line askew to the axes is tried by the body's box: the answer says which.
+    const failed = await answer(12, {}, { broken: true });
+    expect(failed.groove).toHaveLength(6);
+    expect(failed.text).toContain("all along the groove, and whether it is could not be tried (SolidCraft's trial failed). Print Carriage turned over");
+    expect(failed.text).toContain('or make sure it is that high there and build this again.');
+    const askew = await answer(12, { from: [0, 0, 4], to: [60, 30, 4] }, { hole: 4 });
+    expect(askew.groove).toHaveLength(6);
+    expect(askew.text).toContain("and the trial did not find it so (the line runs askew to the axes, where the trial goes by the body's box and can reach past the body). Print");
     // Whatever cuts a body apart, SolidCraft says so only in created_bodies: that fails the call and takes it back.
     const cut = await answer(12, {}, { split: true });
-    expect(cut.text).toBe('Not built: the step "Guide ·" cut "Carriage" apart ("Carriage (1)" came of it): the body is too thin or too small where the mechanism goes. Put the line from–to on a face of Base, with up as that face\'s normal, so the rail stands on it. Everything was taken back.');
+    expect(cut.text).toBe('Not built: the step "Guide ·" cut "Carriage" apart ("Carriage (1)" came of it): the body is too thin or too small where the mechanism goes. Everything was taken back.');
     // A small rail under a low body: its flat ceiling of 6.9 mm is a bridge that prints, and the answer says that, not "turn it over".
     const small = await answer(2.9, { width: 2, height: 1.5 });
     expect(small.groove).toHaveLength(6);
