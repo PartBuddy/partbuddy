@@ -82,9 +82,17 @@ Befehle, neu `assembly.constraint.edit`, geänderte Parameter bei `solid.hole`, 
 - [ ] alle B behoben und nachgemessen
 - [ ] alle C behoben und nachgemessen
 
-### Phase 7 – Abnahme im echten Chat
-- [ ] Auftragsreihe festgelegt
-- [ ] alle Läufe gemessen, ohne neuen Befund
+### Phase 7 – Abnahme im echten Chat und Modelltest
+Entscheidung Manuel 12.11.2026: Der Modelltest läuft mit Phase 7, erst nach den A-Fixes. Dieselbe feste
+Auftragsreihe je Modell einmal, streng nacheinander, jedes Ergebnis mit dem Harness nachgemessen. Modelle:
+Haiku 5.5, Sonnet 5.5, Opus 5.5, Fable 5.2 (Claude-Code-Route) und die Modelle des ChatGPT-Abos (ChatGPT-Route).
+Ergebnis: eine belegte Empfehlung für den Standard je Route (Modell und Aufwand). Bis dahin gilt vorläufig
+Opus 5.5 · Mittel (PR #354); Claude Codes Eintrag „Default (recommended)“ ist ausgeblendet.
+- [ ] Auftragsreihe festgelegt (je Funktionsbereich ein typischer, ein schwieriger, ein unklarer Auftrag)
+- [ ] Bewertung festgelegt: Messwerte je Lauf (Maße, Druckprüfung, Regelverstöße), Zahl der Werkzeugaufrufe, Dauer, Kontingent
+- [ ] alle Läufe je Modell gemessen
+- [ ] Standard je Route aus den Messwerten festgelegt und in der App gesetzt (`CLAUDE_STANDARD` in `modelChoice.ts`, ChatGPT-Route entsprechend)
+- [ ] Abnahme: Läufe mit dem gewählten Standard ohne neuen Befund
 
 ### Abschluss
 - [ ] Bericht `BERICHT.md`, Audit-Dokumente nach `main`
@@ -117,3 +125,5 @@ Befehle, neu `assembly.constraint.edit`, geänderte Parameter bei `solid.hole`, 
 | 12.11.2026 | #353 Druckprüfung: 8 Review-Funde eingearbeitet (Kragarm als Brücke, hängender Anker, entartetes Dreieck …) | PR-CI abwarten, dann `contract.yml` auf dem Zweig, dann mergen |
 | 12.11.2026 | Vertragstest „a slot built into a hinged flap“ rot auf #348 UND #350 (dort ohne Baustein-Änderung): App meldet „built the function block slot“, Ansicht bleibt 30 s bei „2 bodies · 35 faces“. Mit Harness auf main-Code: Schlitz schneidet richtig. | bei ruhigem Server `contract.yml` für #350 und #348 wiederholen; wieder rot → eigener Befund „Ansicht aktualisiert nach applyBlock auf Scharnierklappe nicht“ (Spiegelung), vor dem Merge beheben |
 | 12.11.2026 | Subagent Mechanik (T3, T5, H-02, N-mechanik-2 bis -5) auf `fix/mechanism-audit`, aufgesetzt auf `fix/print-check-audit`, PR gegen diesen Zweig | Ergebnis unabhängig prüfen lassen (wie bei #353), nach Merge von #353 auf main umhängen |
+| 12.11.2026 | #348 gemergt (Wiederholung der Vertragstests grün – der rote Lauf war Serverlast). `fix/block-limits` (lokal) jetzt auf main umsetzen und als PR öffnen | offen |
+| 12.11.2026 | PR #354: neuer Chat startet mit Opus · Mittel statt mit Claude Codes Vorgabe (Fable); Eintrag „Default (recommended)“ ausgeblendet | bei Grün mergen |
