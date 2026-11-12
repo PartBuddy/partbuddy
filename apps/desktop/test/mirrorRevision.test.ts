@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { mirrorActiveDesign, MirrorScheduler, type ControlRequester, type PartChecks } from '../src/main/solidcraft/mirror';
+import { boughtParts, mirrorActiveDesign, MirrorScheduler, type ControlRequester, type PartChecks } from '../src/main/solidcraft/mirror';
 import type { PartReference } from '../src/main/solidcraft/partReference';
 
 describe('mirroring while the design changes', () => {
@@ -137,12 +137,29 @@ describe('standard parts in the mirrored structure (audit S-01, G2 and its revie
     for (let n = 0; n < failures.length; n += 1) expect(await mirror()).toEqual([]);
     expect(logs).toEqual([
       'standard parts cannot be told from printed bodies: parts.library failed (unknown command `parts.library`); every body counts as printed',
-      'standard parts could not be told from printed bodies (timed out); every body counts as printed',
+      'standard parts cannot be told from printed bodies: parts.library failed (timed out); every body counts as printed',
       'standard parts cannot be told from printed bodies: parts.library lists no families; every body counts as printed',
       'standard parts cannot be told from printed bodies: parts.library lists no families; every body counts as printed',
     ]);
     expect(await mirror()).toEqual(['Body1', 'Body2']);
     expect(calls['parts.library']).toBe(5);
+  });
+
+  it('leaves nothing unchecked when parts.library fails, so an export is not held up by it (last review, 3)', async () => {
+    const listing = { components: [{ id: 0, parent: null, bodies: ['Block'] }, { id: 2, parent: 0, bodies: ['Body1'] }] };
+    const none = { bought: [], pending: [], unchecked: [], unverified: [] };
+    const asked: string[] = [];
+    for (const answer of [() => Promise.resolve({ completed: 0, results: [], failed: { index: 0, command: 'parts.library', error: 'unknown command' } }), () => Promise.reject(new Error('timed out'))]) {
+      const client: ControlRequester = {
+        request: <T,>(_method: string, params?: Record<string, unknown>): Promise<T> => {
+          asked.push(...((params?.commands ?? []) as { command: string }[]).map((step) => step.command));
+          return answer() as Promise<T>;
+        },
+      };
+      expect(await boughtParts(client, listing, { log: () => undefined, references: () => new Map() })).toEqual(none);
+    }
+    // Nothing else is asked of an engine without a library.
+    expect(asked).toEqual(['parts.library', 'parts.library']);
   });
 
   it('counts every body as printed, with a line in the log, when a component cannot be read, measured or held against SolidCraft\'s part', async () => {
@@ -262,5 +279,53 @@ describe('mirroring once more when a reference was built', () => {
     scheduler.refresh();
     await new Promise((done) => setTimeout(done, 20));
     expect(calls).toBe(3);
+  });
+
+  it('hands a body that waited for its part back to the print check when the mirror after fails, and tries that mirror a few times only (last review, 1 and 6)', async () => {
+    const pending = { ...revision(1), structure: { ...revision(1).structure, pendingParts: ['Nut'] } };
+    const outcomes: (ReturnType<typeof revision> | Error)[] = [pending];
+    const delivered: (string[] | undefined)[] = [];
+    const timers: (() => void)[] = [];
+    let called = 0;
+    let calls = 0;
+    const scheduler = new MirrorScheduler(
+      () => {
+        calls += 1;
+        const outcome = outcomes.shift() ?? new Error('engine busy');
+        return outcome instanceof Error ? Promise.reject(outcome) : Promise.resolve(outcome);
+      },
+      { started: () => undefined, delivered: (mirrored) => delivered.push(mirrored.structure.pendingParts), failed: () => undefined, idle: () => undefined },
+      (callback) => {
+        timers.push(callback);
+        return () => (called += 1);
+      },
+    );
+    const settle = () => new Promise((done) => setTimeout(done, 20));
+    scheduler.request({ documentId: 'd', revision: 1 });
+    await settle();
+    expect(delivered).toEqual([['Nut']]);
+    // The part is built, the mirror that would say what the body is fails: the body is checked as a printed one.
+    scheduler.refresh();
+    await settle();
+    expect(delivered).toEqual([['Nut'], undefined]);
+    // That mirror is still owed: it is tried three times, then no timer is left.
+    for (let n = 0; n < 3; n += 1) {
+      expect(timers).toHaveLength(n + 1);
+      timers[n]?.();
+      await settle();
+    }
+    expect(timers).toHaveLength(3);
+    expect(calls).toBe(5);
+    expect(delivered).toHaveLength(2);
+    // A mirror that works ends the debt; a reset calls a waiting timer off.
+    outcomes.push(pending);
+    scheduler.refresh();
+    await settle();
+    scheduler.refresh();
+    await settle();
+    expect(delivered).toEqual([['Nut'], undefined, ['Nut'], undefined]);
+    expect(timers).toHaveLength(4);
+    scheduler.reset();
+    expect(called).toBe(1);
   });
 });

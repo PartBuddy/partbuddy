@@ -128,6 +128,8 @@ export interface ToldParts {
   bought: BoughtPart[];
   pending: string[];
   unchecked: string[];
+  /** Bodies described as library parts that count as printed because no part can be built here at all (`solidcraft-cli` is missing): for a word to the user. */
+  unverified: string[];
 }
 
 /**
@@ -147,6 +149,7 @@ export function boughtAmong(
   const bought: BoughtPart[] = [];
   const pending: string[] = [];
   const unchecked: string[] = [];
+  const unverified: string[] = [];
   for (const [i, { component, body, description }] of candidates.entries()) {
     const reference = references.get(description);
     const entry = measuredBody(measured, body) as { volume_mm3?: unknown; faces?: unknown } | undefined;
@@ -158,6 +161,9 @@ export function boughtAmong(
       const reason = reference ? reference.failed : 'no answer';
       unchecked.push(`"${body}": ${reason}`);
       log(`body "${body}" is described as "${description}", which could not be built to hold it against (${reason}): it counts as printed`);
+    } else if ('unavailable' in reference) {
+      unverified.push(body);
+      log(`body "${body}" is described as "${description}", but no part can be built to hold it against (${reference.unavailable}): it counts as printed`);
     } else if ('refused' in reference) log(`body "${body}" is described as "${description}", which SolidCraft does not build (${reference.refused}): it counts as printed`);
     else if ('building' in reference) {
       pending.push(body);
@@ -172,7 +178,7 @@ export function boughtAmong(
       else bought.push({ component, body, description, partNumber: reference.partNumber });
     }
   }
-  return { bought, pending, unchecked };
+  return { bought, pending, unchecked, unverified };
 }
 
 /** One body's entry in the result of `inspect.measure`. */
@@ -187,7 +193,10 @@ const libraries = new WeakMap<ControlRequester, unknown>();
 async function libraryOfEngine(client: ControlRequester, log: (message: string) => void): Promise<unknown> {
   const known = libraries.get(client);
   if (known !== undefined) return known;
-  const reply = await client.request<BatchResult>('engine.batch', { commands: [{ command: 'parts.library', params: {} }], rollback: false }, 60_000);
+  // A request that is rejected is a library that failed like any other: the bodies count as printed, the export is not held up.
+  const reply = await client
+    .request<BatchResult>('engine.batch', { commands: [{ command: 'parts.library', params: {} }], rollback: false }, 60_000)
+    .catch((error: unknown): BatchResult => ({ completed: 0, results: [], failed: { index: 0, command: 'parts.library', error: (error as Error).message } }));
   const library = reply.failed ? undefined : (reply.results as unknown[] | undefined)?.[0];
   const families = (library as { families?: unknown } | null | undefined)?.families;
   if (!Array.isArray(families) || families.length === 0) {
@@ -207,12 +216,13 @@ async function libraryOfEngine(client: ControlRequester, log: (message: string) 
  * does not. Only a design with components holding bodies costs requests.
  */
 export async function boughtParts(client: ControlRequester, listing: unknown, checks: PartChecks): Promise<ToldParts> {
-  const none: ToldParts = { bought: [], pending: [], unchecked: [] };
+  const none: ToldParts = { bought: [], pending: [], unchecked: [], unverified: [] };
   const parts = componentsWithBodies(listing);
   if (parts.length === 0) return none;
   try {
     const library = await libraryOfEngine(client, checks.log);
-    if (!library) return { ...none, unchecked: ['parts.library gave no families'] };
+    // Without the library no body can be taken for a part, so every body is a printed one: nothing is left unchecked.
+    if (!library) return none;
     const described = await client.request<BatchResult>(
       'engine.batch',
       { commands: parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } })), rollback: false },
@@ -531,10 +541,20 @@ export interface RevisionTarget {
  * requested revision is remembered and mirrored next. Results for revisions that are already
  * outdated are still delivered, because the previous one would be older still.
  */
+/** How long after a failed mirror that left a body waiting for its part the mirror is tried again, and how often. */
+const MIRROR_RETRY_MS = 5000;
+const MIRROR_RETRIES = 3;
+
 export class MirrorScheduler {
   private running = false;
   private next: RevisionTarget | null = null;
   private lastDelivered: RevisionTarget | null = null;
+  /** The revision last delivered, to deliver it again without the bodies that waited for their part. */
+  private last: MirrorRevision | null = null;
+  /** Whether a body was handed back to the print check because a mirror failed: the mirror that says what it is is still owed. */
+  private owed = false;
+  private retries = 0;
+  private cancelRetry: (() => void) | null = null;
 
   constructor(
     private readonly run: () => Promise<MirrorRevision>,
@@ -543,6 +563,13 @@ export class MirrorScheduler {
       delivered(revision: MirrorRevision): void;
       failed(error: Error): void;
       idle(): void;
+    },
+    private readonly later: (callback: () => void, ms: number) => () => void = (callback, ms) => {
+      const timer = setTimeout(callback, ms);
+      timer.unref();
+      return () => {
+        clearTimeout(timer);
+      };
     },
   ) {}
 
@@ -556,6 +583,11 @@ export class MirrorScheduler {
     this.next = null;
     this.lastDelivered = null;
     this.stale = false;
+    this.last = null;
+    this.owed = false;
+    this.retries = 0;
+    this.cancelRetry?.();
+    this.cancelRetry = null;
   }
 
   /**
@@ -583,6 +615,9 @@ export class MirrorScheduler {
       try {
         const revision = await this.run();
         this.lastDelivered = { documentId: revision.documentId, revision: revision.revision };
+        this.last = revision;
+        this.owed = false;
+        this.retries = 0;
         this.callbacks.delivered(revision);
         // The export saw a newer state than the one asked for: nothing older needs mirroring.
         // (`next` may have been set by request() while the export ran.)
@@ -598,6 +633,24 @@ export class MirrorScheduler {
         if (this.stale as boolean) {
           this.next ??= target;
           continue;
+        }
+        // A body that waits for its part is left out of the print check only until the mirror that follows. That
+        // mirror failed: the last revision goes out again with the body as a printed one, so it is checked, and the
+        // mirror is tried again after a while (a request for the same revision would be taken for done).
+        if (this.last?.structure.pendingParts?.length) {
+          const structure = { ...this.last.structure };
+          delete structure.pendingParts;
+          this.last = { ...this.last, structure };
+          this.callbacks.delivered(this.last);
+          this.owed = true;
+          this.retries = 0;
+        }
+        if (this.owed && !this.cancelRetry && this.retries < MIRROR_RETRIES) {
+          this.retries += 1;
+          this.cancelRetry = this.later(() => {
+            this.cancelRetry = null;
+            this.refresh();
+          }, MIRROR_RETRY_MS);
         }
         if (sameTarget(this.next, target)) this.next = null;
         this.running = false;

@@ -555,6 +555,7 @@
     "openedInSolidCraft": "The design is in Documents\\PartBuddy and opens in SolidCraft. PartBuddy shows your changes there live.",
     "failed": "That did not work: {detail}",
     "sentToSlicer": "Opened in {name}.",
+    "uncheckedParts": "Included as printed parts, because PartBuddy could not check here whether they are bought standard parts (SolidCraft's command-line program is missing): {bodies}.",
     "slicer": {
       "title": "Open in the slicer",
       "open": "Open in {name}",

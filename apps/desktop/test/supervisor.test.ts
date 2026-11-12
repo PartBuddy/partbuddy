@@ -168,6 +168,7 @@ describe('SolidCraft supervisor', () => {
         known: (parts) => new Map(parts.map((part) => [part.description, state])),
         // What an export waits for: by then the part is built, refused or lost.
         ready: (parts) => Promise.resolve(new Map(parts.map((part) => [part.description, waited.shift() ?? state]))),
+        forget: () => undefined,
       }),
     });
     const fake = await startFake(controlDir);
@@ -194,7 +195,7 @@ describe('SolidCraft supervisor', () => {
     // The reference could not be built, or is still being built after the wait: nothing is written, and the user reads why.
     for (const lost of [{ failed: 'no answer within 22 s' }, { building: true as const }]) {
       waited.push(lost);
-      await expect(supervisor.exportDesign('stl', join(target, 'b.stl'))).rejects.toThrow(/standard parts could not be checked, so nothing was written \("Nut": .*\)\. Try again in a moment\./);
+      await expect(supervisor.exportDesign('stl', join(target, 'b.stl'))).rejects.toThrow(/nothing was written, because it is not known whether these are bought standard parts: "Nut": ./);
     }
     expect(exported()).toEqual([['CableClip']]);
     expect(existsSync(join(target, 'b.stl'))).toBe(false);
@@ -205,6 +206,11 @@ describe('SolidCraft supervisor', () => {
     // The parts to buy follow the same recognition.
     state = { shape, partNumber: 'ISO 4032 M3' };
     expect(await supervisor.hardware()).toEqual([{ count: 1, name: 'Hex nut M3', standard: 'ISO 4032 M3' }]);
+    // No solidcraft-cli, so no part can ever be checked: the nut goes along as a printed body and is named for the user (last review, 2).
+    state = { unavailable: 'SolidCraft is installed without solidcraft-cli' };
+    expect(await supervisor.exportDesign('stl', join(target, 'd.stl'))).toEqual({ unverified: ['Nut'] });
+    expect(exported().at(-1)).toEqual(['CableClip', 'Nut']);
+    expect(await supervisor.hardware()).toEqual([]);
   });
 
   it('refuses to export a design without a body', async () => {

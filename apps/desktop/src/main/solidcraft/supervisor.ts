@@ -121,6 +121,7 @@ export class SolidCraftSupervisor {
    */
   private readonly partChecks: PartChecks;
   private readonly settledChecks: PartChecks;
+  private readonly references: PartReferences;
   private readonly dimensions: DimensionService;
   private readonly actions: ActionService;
   /** Probes run one after another; SolidCraft runs one batch at a time anyway. */
@@ -137,6 +138,7 @@ export class SolidCraftSupervisor {
     const { cacheDir } = this.options;
     const log = (message: string) => options.log(message);
     const references = options.partReferences?.(() => this.scheduler.refresh()) ?? cliReferences({ cli: () => this.cli(), dir: cacheDir, log, env: options.environment.env, built: () => this.scheduler.refresh() });
+    this.references = references;
     this.partChecks = { log, references: references.known };
     this.settledChecks = { log, references: references.ready };
     this.dimensions = new DimensionService(() => this.requester(), cacheDir);
@@ -230,9 +232,9 @@ export class SolidCraftSupervisor {
    * SolidCraft writes into the cache folder only (its allowed folders); PartBuddy copies the file
    * from there, so the user may save anywhere without widening what SolidCraft may write.
    */
-  async exportDesign(format: ExportFormat, destination: string): Promise<void> {
+  async exportDesign(format: ExportFormat, destination: string): Promise<{ unverified: string[] }> {
     const requester = this.requester();
-    const bodies = await this.printedBodies();
+    const { bodies, unverified } = await this.printedBodies();
     if (bodies.length === 0) throw new Error('the design has no body to export');
     // The file keeps the name the user chose: STEP and 3MF carry it as the part's name.
     const folder = join(this.options.cacheDir, `export-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
@@ -250,6 +252,7 @@ export class SolidCraftSupervisor {
     } finally {
       await rm(folder, { recursive: true, force: true });
     }
+    return { unverified };
   }
 
   /**
@@ -317,7 +320,7 @@ export class SolidCraftSupervisor {
 
   /** The size of each printed body (F5), from `inspect.measure`; null where SolidCraft gave none. */
   async bodySizes(): Promise<{ name: string; size: [number, number, number] | null }[]> {
-    const bodies = await this.printedBodies();
+    const { bodies } = await this.printedBodies();
     if (bodies.length === 0) return [];
     const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'inspect.measure', params: { bodies } }], rollback: false }, 60_000);
     const measured = reply.failed ? [] : ((reply.results[0] as { bodies?: unknown } | undefined)?.bodies ?? []);
@@ -344,10 +347,12 @@ export class SolidCraftSupervisor {
 
   /**
    * The standard parts as the design stands now, every reference waited for, with the
-   * `component.list` they were read from. It fails, in words the user gets to read, when a body
-   * could not be checked: an export must not go out with a screw in it without a word.
+   * `component.list` they were read from. It fails, naming the bodies, when one could not be
+   * checked for now: an export must not go out with a screw in it without a word. Where no part can
+   * be checked at all (`solidcraft-cli` is missing) nothing would ever go out, so those bodies count
+   * as printed, are exported, and are named in `unverified` for a word to the user.
    */
-  private async standardParts(): Promise<{ parts: BoughtPart[]; listing: unknown }> {
+  private async standardParts(): Promise<{ parts: BoughtPart[]; listing: unknown; unverified: string[] }> {
     const requester = this.requester();
     const reply = await requester.request<BatchResult>('engine.batch', { commands: [{ command: 'component.list', params: {} }], rollback: false }, 60_000);
     if (reply.failed) throw new Error(reply.failed.error);
@@ -355,18 +360,20 @@ export class SolidCraftSupervisor {
     const open = [...told.unchecked, ...told.pending.map((body) => `"${body}": its part is still being built`)];
     if (open.length > 0) {
       this.options.log(`not exported: standard parts could not be told from printed bodies (${open.join('; ')})`);
-      throw new Error(`standard parts could not be checked, so nothing was written (${open.slice(0, 2).join('; ').slice(0, 110)}). Try again in a moment.`);
+      throw new Error(`nothing was written, because it is not known whether these are bought standard parts: ${open.slice(0, 3).join('; ').slice(0, 130)}`);
     }
-    return { parts: told.bought, listing: reply.results[0] };
+    if (told.unverified.length > 0) this.options.log(`exported as printed bodies, not checked as standard parts: ${told.unverified.join(', ')}`);
+    return { parts: told.bought, listing: reply.results[0], unverified: told.unverified };
   }
 
   /**
    * The mirrored bodies that are printed: all but the standard parts (B7), which are counterparts.
    * Read anew rather than from the last mirror, which may still wait for a part's reference.
    */
-  private async printedBodies(): Promise<string[]> {
-    const standard = new Set((await this.standardParts()).parts.map((part) => part.body));
-    return this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [];
+  private async printedBodies(): Promise<{ bodies: string[]; unverified: string[] }> {
+    const { parts, unverified } = await this.standardParts();
+    const standard = new Set(parts.map((part) => part.body));
+    return { bodies: this.latest?.bodies.map((body) => body.name).filter((name) => !standard.has(name)) ?? [], unverified };
   }
 
   /** `solidcraft-cli` beside the SolidCraft PartBuddy uses. */
@@ -482,10 +489,10 @@ export class SolidCraftSupervisor {
    * Opens the printable bodies in a slicer SolidCraft found (B8, `file.send_to_slicer`): standard
    * parts stay out, each body lies on its print face. The slicer is started without waiting for it.
    */
-  async sendToSlicer(slicer: string): Promise<string> {
+  async sendToSlicer(slicer: string): Promise<{ name: string; unverified: string[] }> {
     const found = (await this.slicers()).find((candidate) => candidate.id === slicer);
     if (!found) throw new Error('this slicer is not installed');
-    const bodies = await this.printedBodies();
+    const { bodies, unverified } = await this.printedBodies();
     if (bodies.length === 0) throw new Error('the design has no body to print');
     const reply = await this.requester().request<BatchResult>(
       'engine.batch',
@@ -493,7 +500,7 @@ export class SolidCraftSupervisor {
       2 * 60 * 1000,
     );
     if (reply.failed) throw new Error(reply.failed.error);
-    return found.name;
+    return { name: found.name, unverified };
   }
 
   /**
@@ -1212,6 +1219,7 @@ export class SolidCraftSupervisor {
       // Only when that fails does the engine end and start again with the next project.
       const engine = this.engine;
       this.scheduler.reset();
+      this.references.forget();
       this.latest = null;
       this.savedAs = null;
       this.plannedName = null;
@@ -1251,6 +1259,7 @@ export class SolidCraftSupervisor {
       const engine = this.engine;
       this.engine = null;
       this.scheduler.reset();
+      this.references.forget();
       await engine?.close();
     } else if ((this.options.launchMode ?? 'window') === 'headless') {
       return this.launchHeadless(executable);
@@ -1330,6 +1339,7 @@ export class SolidCraftSupervisor {
       const offClose = engine.onClose((reason) => {
         this.engine = null;
         this.scheduler.reset();
+        this.references.forget();
         sendBack({ type: 'LOST', reason });
       });
       return () => {
@@ -1355,6 +1365,7 @@ export class SolidCraftSupervisor {
     const offClose = client.onClose((reason) => {
       this.client = null;
       this.scheduler.reset();
+      this.references.forget();
       sendBack({ type: 'LOST', reason });
     });
     return () => {

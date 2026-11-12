@@ -213,7 +213,7 @@ export interface PartBuddyApi {
     /** The slicers SolidCraft found (B8): Bambu Studio, OrcaSlicer and others. */
     slicers(): Promise<Slicer[]>;
     /** Opens the printable bodies in a slicer, laid on their print face; returns the slicer's name. */
-    sendToSlicer(slicer: string): Promise<{ name: string }>;
+    sendToSlicer(slicer: string): Promise<{ name: string; unverified?: string[] | undefined }>;
     /** Marks the flat face at a point as the body's print face, or clears it (null). */
     setPrintFace(body: string, point: [number, number, number] | null, face?: string): Promise<void>;
     /** The print faces PartBuddy set in the open project, by body (for the plate view). */

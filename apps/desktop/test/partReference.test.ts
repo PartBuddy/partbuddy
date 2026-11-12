@@ -164,6 +164,7 @@ describe('references from solidcraft-cli, kept and built in the background (seco
     const logs: string[] = [];
     const clock = { now: 1_000_000 };
     const timers: { run: () => void; ms: number }[] = [];
+    const called = { off: 0 };
     let built = 0;
     // The program must be a file that exists: its size and date are part of what the references are kept under.
     const references = cliReferences({
@@ -173,9 +174,12 @@ describe('references from solidcraft-cli, kept and built in the background (seco
       run: cli.run,
       now: () => clock.now,
       built: () => (built += 1),
-      later: (run, ms) => void timers.push({ run, ms }),
+      later: (run, ms) => {
+        timers.push({ run, ms });
+        return () => (called.off += 1);
+      },
     });
-    return { references, logs, clock, dir, timers, built: () => built };
+    return { references, logs, clock, dir, timers, called, built: () => built };
   }
 
   /** What the file of kept references is kept under for the fake program. */
@@ -332,6 +336,52 @@ describe('references from solidcraft-cli, kept and built in the background (seco
     await expect.poll(built).toBe(3);
     expect(references.known([nut, screw]).get('Hex nut M3')).toEqual({ shape: nutShape, partNumber: 'ISO 4032 M3' });
     expect(timers).toHaveLength(2);
+  });
+
+  it('gives up a program that never answers after three runs, and waits for nothing once the design is gone (last review, 6)', async () => {
+    const cli = fakeCli(() => new TransientCliError('no answer within 22 s'));
+    const { references, logs, clock, timers, called, built } = store(cli);
+    references.known([nut]);
+    for (let run = 1; run <= 2; run += 1) {
+      await expect.poll(built).toBe(run);
+      expect(timers).toHaveLength(run);
+      clock.now += 5 * 60 * 1000 + 1;
+      timers[run - 1]?.run();
+    }
+    await expect.poll(built).toBe(3);
+    // Three runs, two timers, and no third: the chain ends.
+    expect(cli.runs).toHaveLength(3);
+    expect(timers).toHaveLength(2);
+    expect(logs.at(-1)).toBe('no reference for the standard part "Hex nut M3" after 3 runs; it is not tried again in this run of PartBuddy: no answer within 22 s');
+    clock.now += 60 * 60 * 1000;
+    expect(references.known([nut]).get('Hex nut M3')).toEqual({ failed: 'no answer within 22 s' });
+    expect(cli.runs).toHaveLength(3);
+    // Another part waits for its second run when the design is closed: its timer is called off.
+    references.known([screw]);
+    await expect.poll(built).toBe(4);
+    expect(timers).toHaveLength(3);
+    references.forget();
+    expect(called.off).toBe(1);
+  });
+
+  it('says that no part can be built here when solidcraft-cli is missing, without a run or a timer (last review, 2)', async () => {
+    const logs: string[] = [];
+    const cli = fakeCli();
+    const references = cliReferences({
+      cli: () => {
+        throw new Error('SolidCraft is installed without solidcraft-cli');
+      },
+      dir: tmpdir(),
+      log: (message) => void logs.push(message),
+      run: cli.run,
+      later: () => {
+        throw new Error('no timer');
+      },
+    });
+    const state = { unavailable: 'SolidCraft is installed without solidcraft-cli' };
+    expect(references.known([nut]).get('Hex nut M3')).toEqual(state);
+    expect((await references.ready([nut])).get('Hex nut M3')).toEqual(state);
+    expect(cli.runs).toEqual([]);
   });
 
   it('builds a part once when the mirror and the list of parts to buy ask for it at the same time', async () => {

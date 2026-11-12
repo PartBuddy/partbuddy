@@ -668,9 +668,11 @@ export const exportRequestSchema = z.object({ format: exportFormatSchema }).stri
 export const videoSaveSchema = z
   .object({ bytes: z.instanceof(Uint8Array).refine((bytes) => bytes.length > 0 && bytes.length <= 64 * 1024 * 1024, 'no video, or one over 64 MB'), format: z.enum(['mp4', 'webm']) })
   .strict();
-export const exportResultSchema = z.object({ file: z.string().min(1).max(260) }).strict().nullable();
+/** Bodies described as standard parts that went along as printed ones because none could be checked (`solidcraft-cli` is missing): the user is told. */
+const unverifiedPartsSchema = z.array(z.string().max(200)).max(500).optional();
+export const exportResultSchema = z.object({ file: z.string().min(1).max(260), unverified: unverifiedPartsSchema }).strict().nullable();
 /** The sharing package (F5): its folder's name inside the project's exports, never the full path. */
-export const shareResultSchema = z.object({ folder: z.string().min(1).max(260) }).strict();
+export const shareResultSchema = z.object({ folder: z.string().min(1).max(260), unverified: unverifiedPartsSchema }).strict();
 
 /** The dimension field at a selection (M1b): an edge length or the radius of a cylindrical face. */
 export const dimensionTargetSchema = z.discriminatedUnion('measure', [
@@ -1250,7 +1252,7 @@ export const invokeContract = {
   [invokeChannels.designPreviewLogoMove]: { request: logoMoveSchema, response: actionPreviewSchema },
   [invokeChannels.designMoveLogo]: { request: logoMoveSchema, response: none },
   [invokeChannels.designSlicers]: { request: none, response: slicersSchema },
-  [invokeChannels.designSendToSlicer]: { request: sendToSlicerSchema, response: z.object({ name: z.string().max(120) }).strict() },
+  [invokeChannels.designSendToSlicer]: { request: sendToSlicerSchema, response: z.object({ name: z.string().max(120), unverified: unverifiedPartsSchema }).strict() },
   [invokeChannels.designPrintFace]: { request: printFaceSchema, response: none },
   [invokeChannels.designPrintFaces]: { request: none, response: printFacesSchema },
   [invokeChannels.designInsertPart]: { request: partInsertSchema, response: partInsertResultSchema },
