@@ -56,7 +56,7 @@ zuerst, arbeitet am ersten offenen Punkt weiter und hakt ab, sobald ein Punkt be
 - [ ] „Nicht geprüft, weil …“ aller Dateien zu einer Restliste zusammenführen und abarbeiten
 
 ### SolidCraft 0.40.1 (stabil, seit 12.11.2026) – Maßstab des Audits ab jetzt
-Liegt portabel unter `%USERPROFILE%.partbuddysolidcraft-0.40.1` (Prüfsumme geprüft). Gegenüber rc.4: 634 statt 633
+Fest installiert in `C:Program FilesSolidCraft` (MSI, Prüfsumme geprüft, ersetzt 0.30.1; `solidcraft-cli` auf dem PATH ist damit 0.40.1). Die CI-Runner nutzen weiter ihre portable rc.4 (`contract.yml`, `site-sync.yml`). Gegenüber rc.4: 634 statt 633
 Befehle, neu `assembly.constraint.edit`, geänderte Parameter bei `solid.hole`, `solid.box`, `solid.sweep`,
 `surface.sweep`, `parts.insert`, `parts.fastener`, `body.rename`, `file.export`, `file.export_view_dxf`,
 `document.inspect`, `sketch.insert_svg`, `sketch.insert_dxf`, `sketch.drawing_bounds`, `sketch.scale`,
@@ -64,7 +64,8 @@ Befehle, neu `assembly.constraint.edit`, geänderte Parameter bei `solid.hole`, 
 - [ ] Parameteränderungen der 19 Befehle einzeln lesen und gegen jede Stelle halten, an der PartBuddy sie aufruft
 - [ ] alle Fälle unter `tools/audit/cases/` gegen 0.40.1 wiederholen; Abweichungen zu rc.4 sind Befunde
 - [ ] `02-solidcraft-abgleich.md` auf 0.40.1 nachziehen (neuer Befehl, geänderte Parameter)
-- [ ] App auf 0.40.1 umstellen (`RECOMMENDED_VERSION` in `engineVersion.ts`, Vertragstests, Doku) – eigener PR
+- [ ] App auf 0.40.1 umstellen (`RECOMMENDED_VERSION` in `engineVersion.ts`, Vertragstests, Runner-Pfad in `contract.yml`/`site-sync.yml`, `docs/engineering-notes.md` „PATH ist 0.30.1“) – eigener PR
+- [ ] `MINIMUM_VERSION` 0.30.1: lokal gibt es dafür kein Programm mehr – entscheiden, ob die Mindestversion auf 0.40.1 steigt (Dateiformat 50 liest 0.30.1 ohnehin nicht)
 
 ### Phase 4 – Bauen und Messen
 - [ ] Mess-Harness (Werkzeuge direkt gegen echtes SolidCraft, Messung über `packages/geometry`)
