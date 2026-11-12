@@ -407,6 +407,17 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a snap plate" (G3): a hollow box and a flat plate lying on it as its lid, then the closure without a foot.
+    if (content.includes('a snap plate')) {
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 60, width: 40, height: 20, operation: 'new', body_name: 'Box' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.shell', params: { faces: [[30, 20, 20]], thickness: 2, body: 'Box' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 60, width: 40, height: 1.6, corner: [0, 0, 20], operation: 'new', body_name: 'Plate' } } });
+      const built = await client.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'closure', fixed: 'Box', moving: 'Plate', from: [2, 2, 20], to: [58, 38, 20], up: [0, 0, -1], side: 'y-', flat: true, name: 'Plate closure' } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "a sliding carriage" (G3): a base, a carriage a gap above it, then PartBuddy's own guide between them.
     if (content.includes('a sliding carriage')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 60, width: 30, height: 4, operation: 'new', body_name: 'Base' } } });

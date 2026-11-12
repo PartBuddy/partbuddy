@@ -239,6 +239,11 @@ export interface LipSpec {
    * the line and its height. Without it the lid is built where it closes.
    */
   hinge?: { along: 'x' | 'y'; across: Size; z: Size };
+  /**
+   * The lid is a flat plate without walls: the lip stands on its face, with no foot in the lid and no notch.
+   * The foot is 3 mm high and came out of the top of a thinner plate (practice run 2026-11-11).
+   */
+  flat?: boolean;
   name: string;
 }
 
@@ -305,9 +310,9 @@ export function lipSteps(spec: LipSpec): Step[] {
     return hinge.along === 'x' ? [point[0], turned(point[1], hinge.across), turned(point[2], hinge.z)] : [turned(point[0], hinge.across), point[1], turned(point[2], hinge.z)];
   };
   return [
-    ...ring(`${name} ·`, by(spec.rim, up > 0 ? -LIP.foot : 0), -0.2, LIP.foot),
+    ...(spec.flat ? [] : ring(`${name} ·`, by(spec.rim, up > 0 ? -LIP.foot : 0), -0.2, LIP.foot)),
     ...ring(name, by(spec.rim, up > 0 ? 0 : -LIP.high), LIP.clear, LIP.high),
-    { command: 'solid.chamfer', params: { edges: [xyz(middleAt, at(wallAt) - out * inner, at(spec.rim) - up * LIP.foot)], distance: mm(inner - 0.05), body: spec.moving, name: `${name} ◢` } },
+    ...(spec.flat ? [] : [{ command: 'solid.chamfer', params: { edges: [xyz(middleAt, at(wallAt) - out * inner, at(spec.rim) - up * LIP.foot)], distance: mm(inner - 0.05), body: spec.moving, name: `${name} ◢` } }]),
     {
       command: 'solid.box',
       params: {
@@ -331,7 +336,7 @@ export function lipSteps(spec: LipSpec): Step[] {
         name: `${name} ○`,
       },
     },
-    {
+    ...(spec.flat ? [] : [{
       command: 'solid.cylinder',
       params: {
         diameter: mm(LIP.notch),
@@ -342,7 +347,7 @@ export function lipSteps(spec: LipSpec): Step[] {
         targets: [spec.moving],
         name: `${name} ◠`,
       },
-    },
+    }]),
   ];
 }
 
