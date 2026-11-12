@@ -36,9 +36,9 @@ await audit.finish(result); await audit.close();
 
 ## Pitfalls found
 
-- **Version.** `solidcraft-cli` on PATH is 0.30.1. The harness uses
-  `%USERPROFILE%\.partbuddy\solidcraft-0.40.0-rc.4\solidcraft-0.40.0-rc.4-windows-x64-portable\solidcraft-cli.exe`;
-  `AUDIT_SOLIDCRAFT_CLI` overrides.
+- **Version.** The harness uses the installed SolidCraft (`%ProgramFiles%\SolidCraft\solidcraft-cli.exe`,
+  0.40.1 since 2026-11-12); `AUDIT_SOLIDCRAFT_CLI` names another one. The first run of 2026-11-12 was
+  measured on the portable 0.40.0-rc.4.
 - **TEMP.** The Claude app hands out TEMP as an 8.3 path (`ADMINI~1`); the harness passes the long
   path to SolidCraft. Set TEMP and TMP yourself when calling `solidcraft-cli` by hand.
 - **Paths.** `mcp --headless` writes only below `--allow-path`; the harness allows `out/<case>` only.

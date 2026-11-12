@@ -34,10 +34,8 @@ export type Vec3 = [number, number, number];
 
 /** The Claude app hands out TEMP as an 8.3 short path, which SolidCraft refuses (docs/engineering-notes.md). */
 const LONG_TEMP = join(homedir(), 'AppData', 'Local', 'Temp');
-/** The audit counts 0.40.0-rc.4 (portable), not the 0.30.1 on PATH; AUDIT_SOLIDCRAFT_CLI overrides. */
-const CLI =
-  process.env.AUDIT_SOLIDCRAFT_CLI ??
-  join(homedir(), '.partbuddy', 'solidcraft-0.40.0-rc.4', 'solidcraft-0.40.0-rc.4-windows-x64-portable', 'solidcraft-cli.exe');
+/** The installed SolidCraft (0.40.1 since 2026-11-12); AUDIT_SOLIDCRAFT_CLI names another one. */
+const CLI = process.env.AUDIT_SOLIDCRAFT_CLI ?? join(process.env.ProgramFiles ?? '', 'SolidCraft', 'solidcraft-cli.exe');
 const OUT = join(import.meta.dirname, 'out');
 
 export const PLA_04: PrintCheckProfile = { bed: [256, 256, 256], nozzle: 0.4, overhang: 45 };
