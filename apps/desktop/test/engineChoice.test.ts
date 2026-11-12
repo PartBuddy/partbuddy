@@ -39,13 +39,11 @@ describe('SolidCraft versions', () => {
   });
 
   it('rates a version against what PartBuddy is developed with', () => {
-    expect(supportOf('0.40.0-rc.4')).toBe('recommended');
-    expect(supportOf('0.40.0-rc.3')).toBe('supported');
-    expect(supportOf('0.40.0-rc.2')).toBe('supported');
-    expect(supportOf('0.40.0')).toBe('recommended');
-    expect(supportOf('0.40.0-rc.1')).toBe('supported');
-    expect(supportOf('0.30.1')).toBe('supported');
-    expect(supportOf('0.30.0')).toBe('tooOld');
+    expect(supportOf('0.40.1')).toBe('recommended');
+    expect(supportOf('0.41.0-rc.1')).toBe('recommended');
+    expect(supportOf('0.40.0')).toBe('tooOld');
+    expect(supportOf('0.40.0-rc.4')).toBe('tooOld');
+    expect(supportOf('0.30.1')).toBe('tooOld');
     expect(supportOf(null)).toBe('unknown');
     expect(supportOf('soon')).toBe('unknown');
   });
@@ -75,10 +73,10 @@ describe('Choosing the SolidCraft program', () => {
 
   it('keeps a valid program and reports it after a restart', async () => {
     const exe = install();
-    const { choice, settings } = setup({ [join(exe, '..', 'solidcraft-cli.exe')]: '0.40.0-rc.4' });
+    const { choice, settings } = setup({ [join(exe, '..', 'solidcraft-cli.exe')]: '0.40.1' });
     const result = await choice.choose(exe);
     expect(result.error).toBeNull();
-    expect(result.info).toMatchObject({ path: exe, source: 'setting', version: '0.40.0-rc.4', support: 'recommended', restartNeeded: true });
+    expect(result.info).toMatchObject({ path: exe, source: 'setting', version: '0.40.1', support: 'recommended', restartNeeded: true });
     expect(JSON.parse(readFileSync(settings, 'utf8'))).toEqual({ path: exe });
     // The supervisor's environment follows the choice.
     expect(locateExecutable(choice.environment())).toEqual({ path: exe, source: 'setting' });
@@ -101,7 +99,7 @@ describe('Choosing the SolidCraft program', () => {
 
   it('goes back to the automatic search, and a damaged settings file means automatic', async () => {
     const exe = install();
-    const { choice, settings } = setup({ [join(exe, '..', 'solidcraft-cli.exe')]: '0.30.1' });
+    const { choice, settings } = setup({ [join(exe, '..', 'solidcraft-cli.exe')]: '0.40.1' });
     await choice.choose(exe);
     const back = await choice.choose(null);
     expect(back.info.source).toBe('automatic');

@@ -943,7 +943,7 @@ test('the first start walks through SolidCraft, assistant, printer and project f
     let { page } = launched;
     const setup = page.getByTestId('first-start');
     await expect(setup).toHaveAttribute('data-step', 'solidcraft');
-    await expect(setup.getByTestId('first-start-download')).toHaveAttribute('href', 'https://github.com/tangency-labs/solidcraft/releases/tag/v0.40.0-rc.4');
+    await expect(setup.getByTestId('first-start-download')).toHaveAttribute('href', 'https://github.com/tangency-labs/solidcraft/releases/tag/v0.40.1');
     expect(await axeAtRest(page, '[data-testid="first-start"]')).toEqual([]);
     await page.screenshot({ path: test.info().outputPath('first-start.png') });
     await setup.getByTestId('first-start-next').click();

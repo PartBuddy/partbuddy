@@ -38,6 +38,5 @@ Only what the app does today goes into `site/site-content.json`. Check a change 
   `config.cmd --runasservice` writes the account as `NT-AUTORITÄT\Netzwerkdienst` and the service then fails
   with error 1068; fix: `sc.exe config <service> obj= "NT AUTHORITY\NetworkService" password= ""`.
   Remove it with `config.cmd remove --token <removal token>`.
-  The pictures need the SolidCraft the app is tested on (0.40.0-rc.4), not the installed 0.30.1: a portable
-  copy lies in `Runner\partbuddy-shots\tools\solidcraft-0.40.0-rc.4` and `SOLIDCRAFT_EXE` in `site-sync.yml` names it;
-  locally `pnpm site:shots` takes the copy in `~/.partbuddy`. With 0.30.1 a template opened no project.
+  The pictures need the SolidCraft the app is tested on (0.40.1 or newer): the one installed in
+  `C:\Program Files\SolidCraft`, which `SOLIDCRAFT_EXE` in `site-sync.yml` names and `pnpm site:shots` takes locally.

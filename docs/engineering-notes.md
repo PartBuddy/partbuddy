@@ -224,8 +224,8 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   the design level, also when built at a pose. A sketch with `solid.extrude` does not: cut from the
   design level, a slot is gone from the body once the joint moves it and back at 0. PartBuddy's
   sketched blocks therefore run inside `component.activate` (`ActionService.inComponentOf`).
-- The `solidcraft-cli` on the PATH of the home server is 0.30.1; `solidcraft-cli commands` of the
-  version under test lists every command with its parameters.
+- The `solidcraft-cli` on the PATH of the home server is the installed version (0.40.1 since 2026-11-12);
+  `solidcraft-cli commands` lists every command with its parameters.
 
 ## Slicer (0.40, checked 2026-11-05)
 
