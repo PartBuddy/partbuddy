@@ -23,16 +23,17 @@ export const CAP_HEAD: Record<BlockSize, [number, number]> = {
 export const COUNTERSUNK_HEAD: Partial<Record<BlockSize, number>> = { M3: 6.72, M4: 8.96, M5: 11.2, M6: 13.44, M8: 17.92, M10: 22.4 };
 
 /**
- * Heat-set threaded inserts: typical hole diameter and insert length in mm (values of the common
- * ruthex inserts). The seat is one millimetre deeper than the insert for the displaced plastic.
+ * Heat-set threaded inserts: hole diameter, insert length and the least wall round the hole in mm
+ * (ruthex RX series, data sheet of 2022-08-15: d3, L and W min; M2.5 and M3 share one body). The
+ * seat is one millimetre deeper than the insert for the displaced plastic.
  */
-export const INSERT: Partial<Record<BlockSize, { diameter: number; length: number }>> = {
-  M2: { diameter: 3.2, length: 4 },
-  'M2.5': { diameter: 3.6, length: 5.7 },
-  M3: { diameter: 4, length: 5.7 },
-  M4: { diameter: 5.6, length: 8.1 },
-  M5: { diameter: 6.4, length: 9.5 },
-  M6: { diameter: 8, length: 12.7 },
+export const INSERT: Partial<Record<BlockSize, { diameter: number; length: number; wall: number }>> = {
+  M2: { diameter: 3.2, length: 4, wall: 1.3 },
+  'M2.5': { diameter: 4, length: 5.7, wall: 1.6 },
+  M3: { diameter: 4, length: 5.7, wall: 1.6 },
+  M4: { diameter: 5.6, length: 8.1, wall: 2.1 },
+  M5: { diameter: 6.4, length: 9.5, wall: 2.6 },
+  M6: { diameter: 8, length: 12.7, wall: 3.3 },
 };
 
 /** Hex nuts, ISO 4032: width across flats and height in mm. */

@@ -34,6 +34,9 @@ describe('function blocks (F1)', () => {
     expect(defaultBlock('insertSeat', 'Body1', at, 'M3')).toMatchObject({ diameter: 4, depth: 6.7 });
     expect(stepOf(defaultBlock('boss', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '8 mm', height: '8.7 mm', hole_diameter: '4 mm', hole_depth: '6.7 mm' });
     expect(sizesOf('insertSeat')).toEqual(['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6']);
+    // ruthex RX: the M2.5 insert has the body of the M3 one, and the larger ones ask for more wall than 2 mm.
+    expect(defaultBlock('insertSeat', 'Body1', at, 'M2.5')).toMatchObject({ diameter: 4, depth: 6.7 });
+    expect((['M2', 'M4', 'M5', 'M6'] as const).map((size) => defaultBlock('boss', 'Body1', at, size)).map((boss) => 'diameter' in boss && boss.diameter)).toEqual([7.2, 9.8, 11.6, 14.6]);
   });
 
   it('names each block in the work log', () => {
