@@ -462,3 +462,9 @@ Stand der Erzeugung: 349 Befunde – A 30, B 195, C 124 (vor Dubletten-Abgleich)
 | Kennung | Schwere | Datei | Fundstelle | Ist | Status |
 |---|---|---|---|---|---|
 | X-1 | B | Review 12.11.2026, aus dem Code gelesen; bestand schon vor dem Audit | apps/desktop/src/renderer/src/print/PrintCheckChip.tsx, DesignActions.tsx (Frage vor rotem Export), usePrintCheck.ts | Solange die Abstands- und Gelenkmessung noch läuft, zeigt die Ampel schon das Ergebnis der schnellen Prüfung (Grün ohne Hinweis), und ein Export in dieser Zeit fragt nicht nach, obwohl Durchdringung oder ein blockiertes Gelenk noch gefunden werden können. Scheitert die Abstandsmessung, fällt das still weg. | offen |
+
+## Aus dem dritten Review von PR #356
+
+| Kennung | Schwere | Datei | Fundstelle | Ist | Status |
+|---|---|---|---|---|---|
+| P-6 | A | Review 12.11.2026, an SolidCraft 0.40.1 gemessen; bestand schon vor dem Audit (verwandt mit N-normteile-policy-4) | apps/desktop/src/main/agents/policy.ts (`decideTool` prüft Argumente nur bei `execute` und `batch`) | Der Assistent kann mit `screenshot {path: …}` jede Datei in den für SolidCraft erlaubten Ordnern überschreiben – also auch Dateien im Projekt- und Designordner des Nutzers (Datenverlust). Gemessen: eine JSON-Datei wurde durch ein PNG ersetzt. | in Arbeit: Subagent, Zweig fix/standard-parts-audit (eigener Commit) |
