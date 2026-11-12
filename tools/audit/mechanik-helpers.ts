@@ -15,11 +15,11 @@ export type { Audit, MeasuredBody, Step, Vec3 };
 
 const BED: [number, number, number] = [256, 256, 256];
 export const PROFILES: Record<string, PrintCheckProfile> = {
-  pla04: { bed: BED, nozzle: 0.4, overhang: 45 },
-  petg04: { bed: BED, nozzle: 0.4, overhang: 40 },
-  tpu04: { bed: BED, nozzle: 0.4, overhang: 35 },
-  pla06: { bed: BED, nozzle: 0.6, overhang: 45 },
-  pla08: { bed: BED, nozzle: 0.8, overhang: 45 },
+  pla04: { bed: BED, nozzle: 0.4, layer: 0.2, overhang: 45 },
+  petg04: { bed: BED, nozzle: 0.4, layer: 0.2, overhang: 40 },
+  tpu04: { bed: BED, nozzle: 0.4, layer: 0.2, overhang: 35 },
+  pla06: { bed: BED, nozzle: 0.6, layer: 0.3, overhang: 45 },
+  pla08: { bed: BED, nozzle: 0.8, layer: 0.4, overhang: 45 },
 };
 
 const r3 = (value: number) => Math.round(value * 1000) / 1000;

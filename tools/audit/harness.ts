@@ -38,7 +38,7 @@ const LONG_TEMP = join(homedir(), 'AppData', 'Local', 'Temp');
 const CLI = process.env.AUDIT_SOLIDCRAFT_CLI ?? join(process.env.ProgramFiles ?? '', 'SolidCraft', 'solidcraft-cli.exe');
 const OUT = join(import.meta.dirname, 'out');
 
-export const PLA_04: PrintCheckProfile = { bed: [256, 256, 256], nozzle: 0.4, overhang: 45 };
+export const PLA_04: PrintCheckProfile = { bed: [256, 256, 256], nozzle: 0.4, layer: 0.2, overhang: 45 };
 
 export interface MeasuredBody {
   name: string;
