@@ -65,7 +65,7 @@ export function sizesOf(kind: BlockKind, head: 'none' | 'cap' | 'countersunk' = 
 
 /** A block with its standard values for a size (the form starts from these). */
 export function defaultBlock(kind: BlockKind, body: string, point: [number, number, number], size: BlockSize, normal: Point = [0, 0, 1]): FeatureBlock {
-  const insert = INSERT[size] ?? INSERT.M3 ?? { diameter: 4, length: 5.7 };
+  const insert = INSERT[size] ?? INSERT.M3 ?? { diameter: 4, length: 5.7, wall: 1.6 };
   switch (kind) {
     case 'tappedHole':
       return { block: kind, body, point, size, depth: null, modeled: true };
@@ -74,8 +74,8 @@ export function defaultBlock(kind: BlockKind, body: string, point: [number, numb
     case 'insertSeat':
       return { block: kind, body, point, size, diameter: insert.diameter, depth: round(insert.length + 1) };
     case 'boss':
-      // Wall around the insert of at least 2 mm, as usual for FDM.
-      return { block: kind, body, point, size, diameter: round(insert.diameter + 4), height: round(insert.length + 3) };
+      // Wall round the insert: what its maker asks for, and never under 2 mm.
+      return { block: kind, body, point, size, diameter: round(insert.diameter + 2 * Math.max(2, insert.wall)), height: round(insert.length + 3) };
     case 'text':
       return { block: kind, body, point, normal, size, text: 'PartBuddy', height: 5, depth: 0.6, mode: 'deboss', bold: true };
     case 'nutTrap': {
