@@ -87,7 +87,7 @@ in the [changelog](CHANGELOG.md).
 
 ## Development
 
-Requirements and rules: [CONTRIBUTING.md](CONTRIBUTING.md). Node 26.13.0 and pnpm 12.16.1; the
+Requirements and rules: [CONTRIBUTING.md](CONTRIBUTING.md). Node 26.13.1 and pnpm 12.16.1; the
 contract tests and the website pictures need SolidCraft installed.
 
 ```sh

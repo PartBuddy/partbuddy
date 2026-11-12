@@ -4,7 +4,7 @@
 
 | Tool | Version | Purpose |
 | --- | --- | --- |
-| Node.js | 26.13.0 (LTS) | JavaScript runtime; `.node-version` and `devEngines` pin it |
+| Node.js | 26.13.1 (LTS) | JavaScript runtime; `.node-version` and `devEngines` pin it |
 | pnpm | 12.16.1 | Package manager; `packageManager` in `package.json` pins it |
 | uv | 0.10.3 or newer | Python environments for `tools/` |
 | gitleaks | 8.30.1 | Secret and privacy scan in the pre-commit hook |
