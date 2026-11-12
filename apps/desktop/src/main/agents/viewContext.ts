@@ -194,6 +194,6 @@ export function withViewTool(
 export const VIEW_GUIDANCE =
   'A message may start with a [PartBuddy: …] note naming the face, edge or vertex the user selected in PartBuddy’s view; ' +
   `that is what "this face", "this edge" or "the marked one" means. Call ${VIEW_TOOL} to see what the user looks at. ` +
-  `PartBuddy checks the part for printing after every change and shows the result to the user as a light; ${VIEW_TOOL} ` +
-  'gives you the same findings. Read them after your last change, before you call the part done. ' +
+  'PartBuddy checks the part for printing after every change and shows the result to the user as a light; the findings come ' +
+  `behind the answer of each tool call that changed the design, and ${VIEW_TOOL} gives the latest ones. ` +
   'Take a screenshot only when the look of the part matters: it costs many tokens.';

@@ -1,4 +1,5 @@
 import type { PrintCheckReport } from '../../shared/contract';
+import type { ToolResult } from '../agents/gateProxy';
 
 type Finding = PrintCheckReport['findings'][number];
 type Places = Extract<Finding, { places: unknown }>['places'];
@@ -70,7 +71,8 @@ function line(finding: Finding, nozzle: number): string {
 
 /**
  * The ready-to-print check (M7) as the model reads it: PartBuddy checks after every revision, the
- * model hears of it with the next message when the result changed. Face and feature names come
+ * model reads it behind the answer of each tool that changed the design, and with the next message
+ * when the result changed. Face and feature names come
  * from the design, so they are quoted.
  */
 export function printCheckNote(report: PrintCheckReport): string {
@@ -83,4 +85,34 @@ export function printCheckNote(report: PrintCheckReport): string {
   const rest = report.findings.length - lines.length + (report.omitted ?? 0);
   if (rest > 0) lines.push(`- and ${String(rest)} more ${rest === 1 ? 'finding' : 'findings'} not listed here; the user sees them in the ready-to-print panel.`);
   return [`${head} ${verdict}.`, ...lines, 'Fix what blocks printing before you call the part done; the user sees the same findings.]'].join('\n');
+}
+
+/** Said in place of a check that has not caught up with the design yet. */
+export const CHECK_PENDING =
+  '[PartBuddy: the ready-to-print check of the latest change is still running; call partbuddy_view for it before you call the part done.]';
+
+/** How long a changing tool's answer waits for the check of what it built. */
+export const CHECK_WAIT_MS = 5000;
+
+/** What PartBuddy holds right now: the revision the mirror last delivered and the check last reported. */
+export interface CheckState {
+  mirrored: { documentId: string; revision: number } | null;
+  report: PrintCheckReport | null;
+}
+
+/**
+ * The answer of a tool that changed the design, with the check of that change behind it (audit
+ * R1): the model reads the findings in the turn that caused them, on every route, instead of being
+ * asked to fetch them. The check runs in the renderer after the mirror, so the answer waits for
+ * it, but no longer than `waitMs`; after that it says the check is still running.
+ */
+export async function withCheckOfChange(result: ToolResult, change: { documentId: string; revision: number }, state: () => CheckState, waitMs = CHECK_WAIT_MS): Promise<ToolResult> {
+  const until = Date.now() + waitMs;
+  for (;;) {
+    const { mirrored, report } = state();
+    // SolidCraft's revision also moves without a mirror (a save), so the mirror may be past the change.
+    const checked = mirrored?.documentId === change.documentId && mirrored.revision >= change.revision && report?.revision === mirrored.revision ? report : null;
+    if (checked || Date.now() >= until) return { ...result, content: [...result.content, { type: 'text', text: checked ? printCheckNote(checked) : CHECK_PENDING }] };
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }

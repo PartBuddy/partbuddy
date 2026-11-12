@@ -57,7 +57,7 @@ import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
 import { longPath, SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
-import { printCheckNote } from './print/printCheckNote';
+import { CHECK_PENDING, printCheckNote, withCheckOfChange } from './print/printCheckNote';
 import { templatePrintFaces, templateSteps } from '../shared/templates';
 import { testPieceSteps } from '../shared/testPieces';
 import { sketchNote } from './agents/sketchNote';
@@ -371,8 +371,7 @@ if (!app.requestSingleInstanceLock()) {
     // The check as partbuddy_view shows it: a check of an older revision is still catching up.
     const checkForView = () => {
       if (!printCheck) return null;
-      if (printCheck.revision !== supervisor.currentRevision()?.revision)
-        return '[PartBuddy: the ready-to-print check of the latest change is still running; call partbuddy_view again in a moment.]';
+      if (printCheck.revision !== supervisor.currentRevision()?.revision) return CHECK_PENDING;
       return printCheckNote(printCheck);
     };
     bridge.handle(invokeChannels.printReportCheck, (report) => {
@@ -550,6 +549,8 @@ if (!app.requestSingleInstanceLock()) {
       history: () => supervisor.history(),
       travel: (command, count) => supervisor.travel(command, count),
       emit: emitEvent,
+      // The check of each change goes back with the tool's answer, so no turn ends on a part the model never saw checked.
+      changed: (result, after) => withCheckOfChange(result, after, () => ({ mirrored: supervisor.currentRevision(), report: printCheck })),
     });
     workLog = steps;
     // Questions and plans as cards (M2a); changes wait until the user answered.

@@ -18,6 +18,8 @@ export interface WorkLogOptions {
   /** Runs Undo or Redo `count` times as one request. */
   travel(command: 'edit.undo' | 'edit.redo', count: number): Promise<void>;
   emit(event: AgentEvent): void;
+  /** The answer of a call that moved the design's revision, as the model gets it (the print check goes behind it). */
+  changed?(result: ToolResult, after: DesignHistory): Promise<ToolResult>;
 }
 
 /** Tools that may change the design; every other tool only reads and is not tracked. */
@@ -62,9 +64,9 @@ export class WorkLog {
     return {
       instructions: () => upstream.instructions(),
       listTools: () => upstream.listTools(),
-      callTool: (name, args, callId) => {
+      callTool: async (name, args, callId) => {
         if (!CHANGING_TOOLS.has(name)) return upstream.callTool(name, args, callId);
-        return this.serial(async () => {
+        const { result, moved } = await this.serial(async () => {
           const before = await this.readHistory();
           const result: ToolResult = await upstream.callTool(name, args, callId);
           const after = await this.readHistory();
@@ -73,8 +75,10 @@ export class WorkLog {
           } else {
             this.publish();
           }
-          return result;
+          return { result, moved: before && after && (before.documentId !== after.documentId || before.revision !== after.revision) ? after : null };
         });
+        // Outside the queue: the user's own changes do not wait for the check.
+        return moved && this.options.changed ? this.options.changed(result, moved) : result;
       },
     };
   }
