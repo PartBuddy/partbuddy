@@ -78,7 +78,7 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
     title: 'Holding a circuit board',
     rules: [
       'Standoffs: outer diameter 2 to 2.5 times the hole, at least 5 mm; high enough for what is soldered under the board, 5 mm as a rule and 10 mm over pin headers (guides). Join each to the floor with a 1 mm fillet.',
-      'Screwed straight into plastic: pilot hole 0.25 mm less than the screw for print (Hubs), which is 2.0 mm for M2.5 and 2.5 mm for M3 after print; at least twice the screw\'s diameter deep. For a board taken out often use partbuddy_block insertSeat or boss instead.',
+      'Screwed straight into plastic: draw the pilot hole 0.8 times the screw\'s diameter (2.0 mm for M2.5, 2.4 mm for M3) plus the hole allowance of the print profile, at least twice the screw\'s diameter deep, in a boss three times as wide as the hole. Too tight splits the boss and too loose strips, so tell the user to try it on one boss first. For a board taken out often use partbuddy_block insertSeat or boss instead.',
       'Without screws: two pins 0.3 mm less than the board\'s holes to locate it and two snap hooks over its edge. The board is 1.6 mm thick as a rule; a hook 1 mm thick at its root and 5 mm wide, 0.5 mm of room (Hubs).',
       'A slot the board slides into: 2.0 mm wide for a 1.6 mm board (own choice, 0.2 mm per side), 2 mm deep.',
       'Leave 0.5 mm round the board and 1 mm per side round every plug in the wall (Hubs).',
