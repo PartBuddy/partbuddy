@@ -114,7 +114,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
       // Where the line lies, measured on trial with a rod that is taken back.
       'solid.cylinder inspect.clearance inspect.measure sketch.inspect',
       [...Array.from({ length: 7 }, () => 'solid.cylinder'), 'sketch.create', 'sketch.line', 'solid.extrude', 'solid.cylinder'].join(' '),
-      'document.inspect inspect.interference',
+      'inspect.interference',
       'component.list',
       'component.from_bodies component.list',
       'joint.as_built',
@@ -164,8 +164,8 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
         calls.push(name);
         // Before: three steps to undo. Of the cylinders the five knuckles (48 mm of hinge line) do not touch their body, as SolidCraft 0.40.0-rc.3 warns.
         if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Box' }, { name: 'Lid' }], undo: 3 }) }] });
-        if (name === 'undo') return Promise.resolve({ content: [{ type: 'text', text: '{}' }] });
         const commands = args.commands as { command: string; params: { operation?: string; diameter?: string } }[];
+        calls.push(...commands.filter((step) => step.command === 'edit.undo').map((step) => step.command));
         const results = commands.map((step) =>
           step.command === 'document.inspect'
             ? { bodies: [{ name: 'Box' }, { name: 'Lid' }], undo: 11 }
@@ -180,10 +180,47 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(built.isError).toBe(true);
     expect(built.content[0]).toMatchObject({
       text: 'Not built: 5 piece(s) did not touch their body and stand apart from it. Put the hinge line within 2.5 mm of both bodies (the barrel is 6 mm, so it must overlap each by at least 0.5 mm). ' +
-        "PartBuddy cuts each knuckle's room in the other body itself. Everything was taken back; call again with the line moved.",
+        "PartBuddy cuts each knuckle's room in the other body itself. Everything was taken back.",
     });
-    // Every step SolidCraft counted since (11 − 3) is undone, and no joint was made.
-    expect(calls).toEqual(['inspect_design', 'batch', 'batch', 'batch', 'batch', ...Array.from({ length: 8 }, () => 'undo')]);
+    // Every step SolidCraft counted since (11 − 3) is undone in one batch, and no joint was made.
+    expect(calls).toEqual(['inspect_design', 'batch', 'batch', 'batch', 'batch', 'batch', ...Array.from({ length: 8 }, () => 'edit.undo')]);
+  });
+
+  // Audit 2026-11-12, H-02: the joint was refused after the knuckles were built, the answer said "Not built" with
+  // SolidCraft's JSON, and the knuckles stayed (2 → 11 features; the next call built them again).
+  it('takes the knuckles back when the joint cannot be made, and passes on SolidCraft\'s reason in one sentence', async () => {
+    const refused = { applied: [], completed: 0, failed: { command: 'joint.as_built', error: 'invalid parameters for `joint.create`: a joint needs two different occurrences', index: 0 }, results: [] };
+    const tools = (undo: (depth: number) => unknown) => {
+      const sent: string[] = [];
+      let depth = 2;
+      const upstream: UpstreamTools = {
+        instructions: () => undefined,
+        listTools: () => Promise.resolve([]),
+        callTool: (name, args) => {
+          if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Flap' }], undo: undo(depth) }) }] });
+          const commands = args.commands as { command: string; params: { operation?: string } }[];
+          sent.push(commands.map((step) => step.command).join(' '));
+          // As SolidCraft 0.40.1 answers a batch whose step fails: marked as an error, the reason inside its JSON.
+          if (commands[0]?.command === 'joint.as_built') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(refused, null, 2) }], isError: true });
+          // The probe's batch fails on purpose and SolidCraft rolls it back.
+          if (!commands.some((step) => step.command === 'sketch.inspect')) depth += commands.filter((step) => step.params.operation !== undefined).length - commands.filter((step) => step.command === 'edit.undo').length;
+          const results = commands.map((step) => (step.command === 'document.inspect' ? { undo: undo(depth) } : step.command === 'component.list' ? { components: [{ id: 3, parent: 0, bodies: ['Base', 'Flap'], occurrences: [{ id: 4, name: 'Both:1' }] }] } : {}));
+          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
+        },
+      };
+      return { sent, depth: () => depth, call: () => withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], knuckles: 3 }) };
+    };
+    const taken = tools((depth) => depth);
+    expect(await taken.call()).toEqual({ isError: true, content: [{ type: 'text', text: 'Not built: SolidCraft refused joint.as_built: invalid parameters for `joint.create`: a joint needs two different occurrences. Everything was taken back.' }] });
+    expect(taken.sent.at(-1)).toBe(Array.from({ length: 9 }, () => 'edit.undo').join(' '));
+    expect(taken.depth()).toBe(2);
+    // A second call starts from the same design: it does not build on top of the first.
+    await taken.call();
+    expect(taken.depth()).toBe(2);
+    // Where SolidCraft's undo depth cannot be read nothing is taken back, and the answer says so instead of "as it was".
+    const stuck = tools(() => undefined);
+    expect((await stuck.call()).content[0]).toMatchObject({ text: expect.stringMatching(/^Not built: SolidCraft refused joint\.as_built: .* What was begun could not be taken back: undo it before you call again\.$/) as string });
+    expect(stuck.sent.join(' ')).not.toContain('edit.undo');
   });
 
   it('builds onto a body that is a component with that component active, so the knuckles move with it', () => {

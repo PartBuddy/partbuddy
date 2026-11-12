@@ -3733,7 +3733,7 @@ test('a hinge whose line is out of reach of the bodies is taken back, with where
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a flap out of reach');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Not built: 3 piece\(s\) did not touch their body and stand apart from it\. Put the hinge line within 2\.5 mm of both bodies .* Everything was taken back; call again with the line moved\./)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Not built: 3 piece\(s\) did not touch their body and stand apart from it\. Put the hinge line within 2\.5 mm of both bodies .* Everything was taken back./)).toBeVisible({ timeout: 60_000 });
     // The two plates are as they were: no knuckle, no cut, no joint.
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies · 12 faces', { timeout: 30_000 });
     await expect(page.getByTestId('joints')).toHaveCount(0);

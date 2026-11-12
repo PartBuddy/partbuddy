@@ -277,6 +277,16 @@ function reach(sweep: unknown, to: number, step: number): number {
 }
 
 type Run = (commands: Step[]) => Promise<unknown[]>;
+/**
+ * One call of the tool: how it reaches SolidCraft, and SolidCraft's undo depth before the first step was built
+ * (null when it could not be read, unset while nothing is begun), so a call that fails later is taken back.
+ */
+interface Site {
+  upstream: UpstreamTools;
+  run: Run;
+  callId: string | undefined;
+  mark: { undo?: number | null };
+}
 /** Keeps the face a mechanism laid its part on, by the face's name, for the plate view. */
 type KeepFace = (body: string, face: string) => void;
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -307,11 +317,11 @@ export function activated(steps: Step[], listing: unknown): Step[] {
 /**
  * Builds the solids. A joined piece that does not touch its body stays in it as a separate piece,
  * and SolidCraft says so in the step's warning (0.40.0-rc.3: "… is now in 2 separate pieces"); it
- * means the line is not where the bodies are: everything is taken back (practice run 2026-11-10: the model kept a gap between the
+ * means the line is not where the bodies are: the call fails and with that everything is taken back (practice run 2026-11-10: the model kept a gap between the
  * hinge line and the walls, mended the loose knuckles with webs, and their warnings stayed in the
  * timeline), and `where` tells the model where the line goes. Volume the two still share is a warning.
  */
-async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; moving: string }, steps: Step[] | (() => Step[]), where: string, callId: string | undefined, makes = false, ready: () => Promise<void> = () => Promise.resolve()): Promise<string> {
+async function build({ upstream, run, callId, mark }: Site, spec: { fixed: string; moving: string }, steps: Step[] | (() => Step[]), where: string, makes = false, ready: () => Promise<void> = () => Promise.resolve()): Promise<string> {
   const before = jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { bodies?: { name?: unknown }[]; undo?: unknown };
   const bodies = (before.bodies ?? []).map((body) => body.name);
   // A mechanism that makes its moving body (a lid) needs the name free.
@@ -329,23 +339,16 @@ async function build(upstream: UpstreamTools, run: Run, spec: { fixed: string; m
   if (away.length > 0) throw new Error(`the joint(s) ${away.map((name) => JSON.stringify(name)).join(', ')} stand away from 0; drive them back with joint.drive first, so the bodies are where they were designed`);
   // The bodies are there and stand as designed: what must be measured on them before anything is built.
   await ready();
+  // From here on the design changes: a call that fails later is taken back to this depth.
+  mark.undo = typeof before.undo === 'number' ? before.undo : null;
   const built = await run(activated(typeof steps === 'function' ? steps() : steps, listing));
   const apart = built.filter((result) => {
     const warning = (result as { warning?: unknown } | undefined)?.warning;
     return typeof warning === 'string' && warning.includes('separate pieces');
   }).length;
-  const [after, clash] = await run([
-    { command: 'document.inspect', params: {} },
-    { command: 'inspect.interference', params: { bodies: [spec.fixed, spec.moving] } },
-  ]);
+  if (apart > 0) throw new Error(`${String(apart)} piece(s) did not touch their body and stand apart from it. ${where}`);
+  const [clash] = await run([{ command: 'inspect.interference', params: { bodies: [spec.fixed, spec.moving] } }]);
   const overlaps = ((clash as { count?: unknown } | undefined)?.count as number | undefined) ?? 0;
-  if (apart > 0) {
-    const loose = `${String(apart)} piece(s) did not touch their body and stand apart from it. ${where}`;
-    const undone = (after as { undo?: unknown } | undefined)?.undo;
-    if (typeof before.undo !== 'number' || typeof undone !== 'number' || undone <= before.undo) throw new Error(`${loose} Undo what was built, then call again.`);
-    for (let step = before.undo; step < undone; step += 1) await upstream.callTool('undo', {}, callId);
-    throw new Error(`${loose} Everything was taken back; call again with the line moved.`);
-  }
   return overlaps > 0 ? ' Warning: the two bodies still share volume away from the mechanism; make room between them.' : '';
 }
 
@@ -356,7 +359,7 @@ async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3;
   if (loners.length > 0) [, listing] = await run([{ command: 'component.from_bodies', params: { bodies: loners } }, { command: 'component.list', params: {} }]);
   const a = occurrenceOf(listing, spec.fixed);
   const b = occurrenceOf(listing, spec.moving);
-  if (!a || !b) throw new Error('the solids are built, but the bodies did not become components; join them with joint.as_built');
+  if (!a || !b) throw new Error(`${spec.fixed} and ${spec.moving} did not become components, so no joint could join them.`);
   const middle = spec.from.map((value, i) => (value + (spec.to[i] ?? value)) / 2);
   const axis = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
   const sweeps = range.filter((to) => to !== 0).map((to) => ({ command: 'joint.sweep', params: { joint: spec.name, from: 0, to } }));
@@ -456,12 +459,57 @@ const MOVE = 'The user moves it with the slider "Moving parts" in the view.';
 const unswept = (reason: string) =>
   `SolidCraft could not run it through its range (${reason.slice(0, 160)}), so no limits are set. The two bodies probably lie against each other somewhere: look with inspect.clearance, make room, then set joint.limits yourself after joint.sweep.`;
 
+/**
+ * Takes back what a call built before it failed: every step SolidCraft counted since `before`, in one batch. (A batch
+ * with rollback around the build itself, or a checkpoint from an earlier batch, does not do it: measured on 0.40.1.)
+ * False when the design could not be put back.
+ */
+async function takeBack(run: Run, before: number | null): Promise<boolean> {
+  if (before === null) return false;
+  try {
+    const [now] = await run([{ command: 'document.inspect', params: {} }]);
+    const depth = (now as { undo?: unknown } | undefined)?.undo;
+    if (typeof depth !== 'number') return false;
+    if (depth > before) await run(Array.from({ length: depth - before }, () => ({ command: 'edit.undo', params: {} })));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A call ends in one of two states: built, with what is missing said in the answer, or not built and the design as it
+ * was. A failure after the first step (the joint refused, the travel not measurable) left knuckles and cuts behind under
+ * "Not built", and the next call built them twice (audit 2026-11-12, H-02).
+ */
 async function buildMechanism(upstream: UpstreamTools, args: Record<string, unknown>, nozzle: number, callId: string | undefined, keepFace: KeepFace): Promise<string> {
   const run: Run = async (commands) => {
-    const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[]; failed?: { command?: unknown; error?: unknown } };
-    if (reply.failed) throw new Error(`SolidCraft refused ${String(reply.failed.command)}: ${String(reply.failed.error).slice(0, 200)}`);
+    const result = await upstream.callTool('batch', { commands }, callId);
+    const text = result.content.find((part) => part.type === 'text')?.text;
+    let reply: { results?: unknown[]; failed?: { command?: unknown; error?: unknown } } | undefined;
+    try {
+      reply = JSON.parse(typeof text === 'string' ? text : '') as typeof reply;
+    } catch {
+      reply = undefined;
+    }
+    // SolidCraft marks a batch with a failed step as an error and still answers in JSON: only the step and its reason go on.
+    if (reply?.failed) throw new Error(`SolidCraft refused ${String(reply.failed.command)}: ${String(reply.failed.error).slice(0, 200)}`);
+    if (result.isError || !reply) throw new Error(typeof text === 'string' ? text.slice(0, 300) : 'SolidCraft gave no answer');
     return reply.results ?? [];
   };
+  const site: Site = { upstream, run, callId, mark: {} };
+  try {
+    return await mechanism(site, args, nozzle, keepFace);
+  } catch (cause) {
+    const message = (cause as Error).message;
+    // Unset: the call was refused before anything was built.
+    if (site.mark.undo === undefined) throw cause;
+    throw new Error(`${message.replace(/\.?$/, '.')} ${(await takeBack(run, site.mark.undo)) ? 'Everything was taken back.' : 'What was begun could not be taken back: undo it before you call again.'}`, { cause });
+  }
+}
+
+async function mechanism(site: Site, args: Record<string, unknown>, nozzle: number, keepFace: KeepFace): Promise<string> {
+  const { upstream, run, callId } = site;
   if (args.kind === 'hinge') {
     const spec = hingeOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
@@ -470,10 +518,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     let webs = 0;
     const least = String(Math.round(nozzle * 2 * 1.125 * 100) / 100);
     const rooms = () => depths ? ` The knuckles' rooms go ${String(depths.fixed)} mm into ${spec.fixed} and ${String(depths.moving)} mm into ${spec.moving}, measured from the face nearest the line: a wall there must be ${least} mm thicker than that, or thinner than it (the room then opens through the wall); anything between is left as a thin skin.` : '';
-    const warnings = await build(
-      upstream,
-      run,
-      spec,
+    const warnings = await build(site, spec,
       // With the walls and the bed measured, knuckles that start in the air get their webs.
       () => {
         const steps = hingeSteps(depths?.support ? { ...spec, support: depths.support } : spec);
@@ -481,7 +526,6 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
         return steps;
       },
       `Put the hinge line within ${reach} mm of both bodies (the barrel is ${String(spec.diameter)} mm, so it must overlap each by at least 0.5 mm). PartBuddy cuts each knuckle's room in the other body itself.`,
-      callId,
       false,
       async () => {
         depths = await roomDepths(upstream, spec, callId);
@@ -501,10 +545,10 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
   if (args.kind === 'slide') {
     const spec = slideOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`, callId);
+    const warnings = await build(site, spec, slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`);
     const [measure] = await run([{ command: 'inspect.measure', params: { bodies: [spec.moving] } }]);
     const travel = railTravel(measure, spec.from, spec.to);
-    if (!travel) throw new Error('the guide is built, but the moving body could not be measured; join the bodies with joint.as_built {type: slider}');
+    if (!travel) throw new Error(`${spec.moving} could not be measured, so how far the guide may travel is not known.`);
     const range = await join(run, spec, 'slider', travel, 0.1);
     if (typeof range === 'string') return `Built the guide "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (slides) and joined them, but ${unswept(range)}${warnings}`;
     const [min, max] = range;
@@ -518,7 +562,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
   if (args.kind === 'closure') {
     const spec = lipOf(args);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, lipSteps(spec), spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, callId);
+    const warnings = await build(site, spec, lipSteps(spec), spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`);
     if (spec.flat) {
       return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(LIP.thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up: set the print face of the plate on its outer face. It makes no joint. Keep the box's wall straight and at least 1.6 mm thick where the lip goes in.${warnings}`;
     }
@@ -531,7 +575,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     if (typeof spec === 'string') throw new Error(spec);
     const thread = lidThread(spec);
     const skirt = lidSkirt(spec);
-    const warnings = await build(upstream, run, spec, lidSteps(spec), `Give from as the centre of the rim of ${spec.fixed} and diameter as the outer diameter of its neck, which must be a plain upright cylinder over the top ${String(skirt)} mm.`, callId, true);
+    const warnings = await build(site, spec, lidSteps(spec), `Give from as the centre of the rim of ${spec.fixed} and diameter as the outer diameter of its neck, which must be a plain upright cylinder over the top ${String(skirt)} mm.`, true);
     // SolidCraft has the lid's print face from the steps, but does not report it: asked for once more, it names the face,
     // which the plate view needs to lay the lid on its top too.
     const [laid] = await run([{ command: 'body.print_face', params: { body: spec.moving, point: [spec.centre[0], spec.centre[1], round2(spec.centre[2] + LID.top)] } }]).catch(() => []);
@@ -547,7 +591,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
   if (args.kind === 'screw') {
     const spec = screwOf(args);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, screwSteps(spec), `Give from on the outer face of ${spec.moving} and to on the face where it meets ${spec.fixed}.`, callId);
+    const warnings = await build(site, spec, screwSteps(spec), `Give from on the outer face of ${spec.moving} and to on the face where it meets ${spec.fixed}.`);
     const count = spec.more.length + 1;
     const length = screwLength(spec);
     const insert = INSERT[spec.size];
@@ -563,7 +607,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
   if (args.kind === 'snap') {
     const spec = snapOf(args);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, snapSteps(spec), `Give from as a point on a face of ${spec.fixed} at the inner face of the wall of ${spec.moving}, up as that face's normal and to as a point further into that wall.`, callId);
+    const warnings = await build(site, spec, snapSteps(spec), `Give from as a point on a face of ${spec.fixed} at the inner face of the wall of ${spec.moving}, up as that face's normal and to as a point further into that wall.`);
     const count = spec.more.length + 1;
     return (
       `Built ${String(count)} snap hook${count > 1 ? 's' : ''} "${spec.name}" on ${spec.fixed}, each with its window through the ${String(spec.wall)} mm wall of ${spec.moving}: an arm ${String(SNAP.length)} mm long, ${String(SNAP.thickness)} mm thick and ${String(SNAP.width)} mm wide, ${String(SNAP.gap)} mm off the wall, with a catch of ${String(SNAP.catch)} mm that lies over the window's edge. ` +
@@ -575,7 +619,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     const spec = latchOf(args);
     if (typeof spec === 'string') throw new Error(spec);
     const reach = latchReach();
-    const warnings = await build(upstream, run, spec, latchSteps(spec), `Give from on the line where ${spec.moving} and ${spec.fixed} meet, on their outer wall, and to as a point straight out of that wall; both walls must lie in one plane there.`, callId);
+    const warnings = await build(site, spec, latchSteps(spec), `Give from on the line where ${spec.moving} and ${spec.fixed} meet, on their outer wall, and to as a point straight out of that wall; both walls must lie in one plane there.`);
     return (
       `Built the latch "${spec.name}": an arm ${String(spec.width)} mm wide and ${String(LATCH.thick)} mm thick grows out of the wall of ${spec.moving} (the lid), hangs ${String(LATCH.off)} mm off the wall over the joint and snaps with its hook under a bead ${String(LATCH.bead)} mm high on ${spec.fixed} (the box); the two overlap by ${String(LATCH.bead - LATCH.clear)} mm on 45° faces. ` +
       `Pressing the lid down snaps it shut (about 1.3 % strain at the arm's root); pulling the arm's lower end away from the box opens it, and so does a strong pull on the lid. It makes no joint. ` +
@@ -586,7 +630,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     // The guide's own dovetail as a close fit: 0.2 mm, where guides for printed dovetails run from 0.1 to 0.3.
     const spec = slideOf({ ...args, gap: typeof args.gap === 'number' ? args.gap : 0.2, name: typeof args.name === 'string' && args.name.trim() !== '' ? args.name : 'Dovetail' }, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`, callId);
+    const warnings = await build(site, spec, slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`);
     return (
       `Built the dovetail "${spec.name}" between ${spec.fixed} (carries the rail) and ${spec.moving} (has the groove): ${String(spec.width)} mm wide at its foot and ${String(spec.height)} mm high with 45° flanks, ${String(spec.gap)} mm clear all round. ` +
       `It makes no joint: ${spec.moving} is pushed on along the line and stops where the groove ends inside it; where the groove runs through, nothing stops it. Print both with the rail's line level or upright, so the flanks need no support. Not printed yet: when it binds or rattles, build it again with another gap.${warnings}`
@@ -596,7 +640,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     if (args.shape !== undefined && args.shape !== 'peg') throw new Error('shape must be peg or dovetail');
     const spec = pegOf(args);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(upstream, run, spec, pegSteps(spec), `Give from as a point on the face where ${spec.fixed} and ${spec.moving} meet, and to as a point further into ${spec.moving}.`, callId);
+    const warnings = await build(site, spec, pegSteps(spec), `Give from as a point on the face where ${spec.fixed} and ${spec.moving} meet, and to as a point further into ${spec.moving}.`);
     const count = spec.more.length + 1;
     const long = pegLength(spec.diameter);
     return (
