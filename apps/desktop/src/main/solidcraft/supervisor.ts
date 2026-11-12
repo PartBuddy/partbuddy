@@ -259,7 +259,7 @@ export class SolidCraftSupervisor {
         10 * 60 * 1000,
       );
       if (batch.failed) throw new Error(batch.failed.error);
-      await this.engine?.checkForChange();
+      await this.engine?.changed();
       const created = (batch.results[0] as { created_bodies?: unknown } | undefined)?.created_bodies;
       return Array.isArray(created) ? created.filter((name): name is string => typeof name === 'string') : [];
     } finally {
@@ -531,7 +531,7 @@ export class SolidCraftSupervisor {
       const naming = await requester.request<BatchResult>('engine.batch', { commands: steps, rollback: false }, 60_000);
       if (naming.failed) this.options.log(`the standard part was not named: ${naming.failed.error}`);
     }
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
     return body;
   }
 
@@ -550,7 +550,7 @@ export class SolidCraftSupervisor {
       try {
         return await this.dimensions.probe(target, current, value);
       } finally {
-        await this.engine?.checkForChange(true).catch(() => undefined);
+        await this.engine?.unchanged().catch(() => undefined);
       }
     });
     this.probing = run.catch(() => undefined);
@@ -561,7 +561,7 @@ export class SolidCraftSupervisor {
   async applyDimension(parameter: string, value: number, factor: 1 | 2, keepFitMark = false): Promise<void> {
     await this.probing;
     await this.dimensions.apply(parameter, value, factor, keepFitMark);
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   /** The user parameters of the design for the parameter panel; reading changes nothing. */
@@ -581,7 +581,7 @@ export class SolidCraftSupervisor {
       try {
         return await work();
       } finally {
-        await this.engine?.checkForChange(true).catch(() => undefined);
+        await this.engine?.unchanged().catch(() => undefined);
         clearTimeout(slow);
         const took = performance.now() - started;
         if (took > 20_000) this.options.log(`a trial (${what}) took ${String(Math.round(took / 1000))} s`);
@@ -598,7 +598,7 @@ export class SolidCraftSupervisor {
   async applyAction(action: DesignAction): Promise<void> {
     await this.probing;
     await this.actions.apply(action);
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   /**
@@ -676,7 +676,7 @@ export class SolidCraftSupervisor {
       const coloured = await this.actions.colourSplitPieces(layers);
       if (coloured > 0) this.options.log(`coloured the pieces of ${String(coloured)} split logo bodies`);
     }
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   /** The placed logo at a picked point, for the logo controls of the selection dock; reading changes nothing. */
@@ -720,7 +720,7 @@ export class SolidCraftSupervisor {
     // Already where it should be (centred twice): nothing to do.
     if (planned.steps.length === 0) return;
     await this.actions.applySteps(planned.steps);
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   measure(items: MeasureItem[]): Promise<MeasureResult> {
@@ -737,7 +737,7 @@ export class SolidCraftSupervisor {
       () => undefined,
     );
     await run;
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   /** Where parts stop each joint value on its way to a limit (ADR 0027, `joint.sweep`); the design stays as it is. */
@@ -1041,7 +1041,7 @@ export class SolidCraftSupervisor {
     const commands = Array.from({ length: count }, () => ({ command, params: {} }));
     const batch = await this.requester().request<{ failed?: { error: string } }>('engine.batch', { commands, rollback: false }, 10 * 60 * 1000);
     if (batch.failed) throw new Error(`${command} failed: ${batch.failed.error}`);
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   /** One engine command of the user, after any running trial; the change is mirrored as usual. */
@@ -1050,7 +1050,7 @@ export class SolidCraftSupervisor {
     const batch = await this.requester().request<{ failed?: { error: string } }>('engine.batch', { commands: [step], rollback: false }, 10 * 60 * 1000);
     if (batch.failed) throw new Error(`${step.command} failed: ${batch.failed.error}`);
     // The window reports the change with design.changed; the headless engine is asked.
-    await this.engine?.checkForChange();
+    await this.engine?.changed();
   }
 
   private publish(): void {
@@ -1091,7 +1091,7 @@ export class SolidCraftSupervisor {
     if (!this.launchedBefore && this.options.openLastOnStart === false) this.designs?.forget();
     this.launchedBefore = true;
     const design = this.designs?.last();
-    const start = (file: string | undefined) => HeadlessEngine.start({ cli, allowPaths, design: file, env: this.options.environment.env });
+    const start = (file: string | undefined) => HeadlessEngine.start({ cli, allowPaths, design: file, env: this.options.environment.env, log: (message) => this.options.log(message) });
     let engine: HeadlessEngine;
     try {
       engine = await start(design);
