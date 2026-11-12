@@ -8,7 +8,7 @@
     1. electron-vite build und electron-builder --dir (B10) mit der Version 0.1.0-test.<Datum>.<Nummer>.
     2. Am Server wird sie nach %USERPROFILE%\.partbuddy\test-app\app ausgepackt. Die Verknüpfung
        »PartBuddy (Test)« auf dem Server-Desktop startet sie mit eigenem Profil
-       (test-app\profile, --user-data-dir) auf SolidCraft 0.40.0-rc.4.
+       (test-app\profile, --user-data-dir) auf dem installierten SolidCraft.
     3. Ist der Gaming-PC per SSH erreichbar, geht dasselbe tar dorthin, Verknüpfung dort ohne eigenes
        Profil (Manuels Profil wählt sein SolidCraft selbst).
     Die alte Fassung wird jeweils erst nach dem Auspacken ersetzt. Läuft die Testversion an einem
@@ -90,16 +90,10 @@ $lnkArgs = ''
 if ($local) {
     $prof = Join-Path $t 'profile'
     $lnkArgs = "--user-data-dir=`"$prof`""
-    # rc.4 beim ersten Mal setzen, und wo noch die vorige Vorgabe (rc.3) steht; eine eigene Wahl im
-    # Zahnrad-Menü bleibt erhalten.
+    # Die frühere Vorgabe (portable rc.3/rc.4) ist unter der Mindestversion 0.40.1: entfernen, dann
+    # findet die Suche das installierte SolidCraft. Eine eigene Wahl im Zahnrad-Menü bleibt erhalten.
     $sc = Join-Path $prof 'solidcraft-settings.json'
-    if (-not (Test-Path $sc) -or (Get-Content $sc -Raw) -match 'solidcraft-0\.40\.0-rc\.3') {
-        New-Item -ItemType Directory -Force $prof | Out-Null
-        $exe = Join-Path $env:USERPROFILE '.partbuddy\solidcraft-0.40.0-rc.4\solidcraft-0.40.0-rc.4-windows-x64-portable\solidcraft.exe'
-        if (-not (Test-Path $exe)) { throw "SolidCraft rc.4 fehlt: $exe" }
-        # Ohne BOM: JSON.parse in PartBuddy scheitert an einem BOM und fiele still auf die Suche zurück.
-        [IO.File]::WriteAllText($sc, (@{ path = $exe } | ConvertTo-Json))
-    }
+    if ((Test-Path $sc) -and (Get-Content $sc -Raw) -match 'solidcraft-0\.40\.0-rc\.[34]') { Remove-Item $sc }
 }
 $sh = New-Object -ComObject WScript.Shell
 $lnk = $sh.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'PartBuddy (Test).lnk'))

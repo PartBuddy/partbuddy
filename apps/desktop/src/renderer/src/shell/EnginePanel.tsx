@@ -16,8 +16,8 @@ const supportTone: Record<EngineInfo['support'], Tone> = {
 
 /**
  * Which SolidCraft PartBuddy runs (R0, ADR 0024): the program, its version and whether PartBuddy
- * supports it, with a way to choose another program (such as a portable 0.40 beside an installed
- * 0.30.1). A new choice takes effect after a restart, so the open design never changes kernel. In
+ * supports it, with a way to choose another program (such as a portable copy beside an installed
+ * one). A new choice takes effect after a restart, so the open design never changes kernel. In
  * the first start and in the settings (B6); no Close of its own, the settings close as a whole (audit A-23).
  */
 export function EnginePanel() {

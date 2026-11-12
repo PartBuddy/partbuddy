@@ -5,7 +5,7 @@ name: SolidCraft contract tests
 # broken flow stays unnoticed (colour logo, found 2026-11-10, red since #201). Run by hand when a change
 # touches SolidCraft and before a release (decided 2026-11-10: not every night).
 # Runs on the Windows runner of the website screenshots (labels self-hosted, windows, partbuddy-shots)
-# with its portable SolidCraft 0.40.0-rc.4 beside the _work folder (docs/website.md, Setup).
+# with the SolidCraft installed on that machine (docs/website.md, Setup).
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
         run: pnpm --filter @partbuddy/desktop exec playwright test e2e/solidcraft.contract.spec.ts --reporter=line
         env:
           PARTBUDDY_E2E_SOLIDCRAFT: "1"
-          PARTBUDDY_SOLIDCRAFT_EXE: ${{ github.workspace }}\..\..\..\tools\solidcraft-0.40.0-rc.4\solidcraft.exe
+          PARTBUDDY_SOLIDCRAFT_EXE: C:\Program Files\SolidCraft\solidcraft.exe
 
       # Screenshots, traces and error contexts of the failed tests, to read the cause without a rerun.
       - name: Keep the results of failed tests

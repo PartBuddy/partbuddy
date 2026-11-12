@@ -2,7 +2,8 @@ import { execFile } from 'node:child_process';
 
 /**
  * Which SolidCraft version PartBuddy runs on (R0, ADR 0024). PartBuddy is developed against 0.40
- * with the solidcore kernel; 0.30.1 still works and stays selectable until 0.40.0 is released.
+ * with the solidcore kernel. Since 0.40.1, the first stable release of it, older versions are refused:
+ * every rule and measure of the app is checked on that kernel only.
  */
 
 export type EngineSupport = 'recommended' | 'supported' | 'tooOld' | 'unknown';
@@ -16,9 +17,9 @@ interface Version {
 }
 
 /** The oldest version PartBuddy's contract tests pass on. */
-export const MINIMUM_VERSION = '0.30.1';
+export const MINIMUM_VERSION = '0.40.1';
 /** The version PartBuddy is developed against. */
-export const RECOMMENDED_VERSION = '0.40.0-rc.4';
+export const RECOMMENDED_VERSION = '0.40.1';
 
 /** `solidcraft-cli 0.40.0-rc.2` or `0.40.0-rc.2` → the version text; null when there is none. */
 export function versionFromOutput(output: string): string | null {
