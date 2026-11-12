@@ -456,3 +456,9 @@ Stand der Erzeugung: 349 Befunde – A 30, B 195, C 124 (vor Dubletten-Abgleich)
 |---|---|---|---|---|---|
 | M-1 | A | Review 12.11.2026, an SolidCraft 0.40.1 gemessen (260 Schritte → `undo` = 200) | apps/desktop/src/main/agents/blockTool.ts (seit PR #348 auf main), mechanismTool.ts (`takeBack`, PR #358) | Die Rücknahme rechnet mit der Differenz der Undo-Tiefe aus `document.inspect`; die ist bei 200 gedeckelt. Ab dann wird nichts oder nur ein Teil zurückgenommen, gemeldet wird trotzdem „Not built“/„Everything was taken back“. Ein Scharnier kostet 51–54 Undo-Schritte, der Deckel ist nach rund vier Aufrufen erreicht. Der Fehler steckt auch in dem von mir gemergten Körper-Fix (#348). | in Arbeit: gemeinsame Hilfsfunktion `takeBack.ts` im Mechanik-PR; danach in `blockTool.ts` übernehmen (nach #357, gleiche Datei) |
 | M-2 | A | Review 12.11.2026, gemessen | mechanismTool.ts (`heightOver`, `buildGuide`) – nur im PR #358, nicht auf main | Das neue Dach der Führung zerschneidet einen Schieber mit Knopf/Griff/Wänden längs in zwei Körper; die Antwort meldet Erfolg. | in Arbeit: Subagent, Zweig fix/mechanism-audit |
+
+## Aus dem zweiten Review von PR #357
+
+| Kennung | Schwere | Datei | Fundstelle | Ist | Status |
+|---|---|---|---|---|---|
+| X-1 | B | Review 12.11.2026, aus dem Code gelesen; bestand schon vor dem Audit | apps/desktop/src/renderer/src/print/PrintCheckChip.tsx, DesignActions.tsx (Frage vor rotem Export), usePrintCheck.ts | Solange die Abstands- und Gelenkmessung noch läuft, zeigt die Ampel schon das Ergebnis der schnellen Prüfung (Grün ohne Hinweis), und ein Export in dieser Zeit fragt nicht nach, obwohl Durchdringung oder ein blockiertes Gelenk noch gefunden werden können. Scheitert die Abstandsmessung, fällt das still weg. | offen |
