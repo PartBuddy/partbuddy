@@ -3153,6 +3153,8 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
         return count;
       });
     expect(await turned()).toBe(0);
+    // Not while a trial still shows "rebuilding": the revision that stands is what the test compares with.
+    await expect(page.getByTestId('connection-status')).toHaveText(/Revision \d+/, { timeout: 30_000 });
     const revision = await page.getByTestId('connection-status').textContent();
     const track = await page.getByTestId('joint-value').locator('.relative').first().boundingBox();
     if (!track) throw new Error('the slider has no track');
@@ -3223,6 +3225,8 @@ test('a hinge plays in the view, stops where SolidCraft found the parts touching
       await page.keyboard.press('Escape');
       await expect(findings).toBeHidden({ timeout: 1000 });
     }).toPass({ timeout: 15_000 });
+    // Not while a trial still shows "rebuilding": the revision that stands is what the test compares with.
+    await expect(page.getByTestId('connection-status')).toHaveText(/Revision \d+/, { timeout: 30_000 });
     const revision = await page.getByTestId('connection-status').textContent();
     // One click plays it: down to its limit first (the longer way), then up until the parts touch.
     await page.getByTestId('joints-play').click();
