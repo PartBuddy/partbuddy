@@ -743,9 +743,10 @@ test('one click plays the joints one after the other as the check ran them, toge
   await panel.getByTestId('joint-order-together').click();
   await expect(panel.getByTestId('joint-unchecked')).toBeVisible();
   await expect.poll(shown('Slide'), { timeout: 30_000 }).toBeGreaterThan(0.5);
-  await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joints-playing.png') });
-  // The tool pauses them where they are; SolidCraft was not driven.
+  // The tool pauses them where they are; SolidCraft was not driven. Paused at once: a screenshot in between took so long
+  // on a loaded runner that the slide was back at 0 (2026-11-12).
   await tool.click();
+  await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('joints-playing.png') });
   await expect(all).toHaveAttribute('data-playing', 'false');
   await expect(panel.getByTestId('joint-unchecked')).toHaveCount(0);
   expect(fake.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);

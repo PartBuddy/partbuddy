@@ -3259,6 +3259,9 @@ test('the assistant builds a print-in-place hinge with one call: one piece per b
     await expect(findings).toBeVisible();
     await page.waitForTimeout(1500);
     await expect(findings.locator('[data-kind="blocked"], [data-kind="overlap"], [data-kind="tight"], [data-kind="posed"]')).toHaveCount(0);
+    // The standard barrel keeps two lines over the roof of its bore: no thin wall.
+    await expect(findings.locator('[data-kind="overhang"]')).toHaveCount(1);
+    await expect(findings.locator('[data-kind="thinWall"]')).toHaveCount(0);
     // Escape reaches the findings only once they have the focus: again until they are gone.
     await expect(async () => {
       await page.keyboard.press('Escape');

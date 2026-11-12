@@ -50,8 +50,10 @@ export function hingeProblem(spec: HingeSpec): string | null {
   if (!Number.isInteger(spec.knuckles) || spec.knuckles < 3 || spec.knuckles > 9 || spec.knuckles % 2 === 0) return 'knuckles must be 3, 5, 7 or 9';
   const wall = (spec.diameter - pinDiameter(spec.diameter)) / 2 - spec.gap;
   if (wall < MIN_BARREL_WALL) return `the barrel wall around the pin would be ${String(round(wall))} mm; use a diameter of at least ${String(Math.ceil((MIN_BARREL_WALL + spec.gap) * 4))} mm`;
+  // Only a lying hinge has the roof; under two lines of a 0.4 mm nozzle the print check would warn about it.
+  const level = Math.abs(spec.to[2] - spec.from[2]) < 1e-6;
   const roof = spec.diameter / 2 - (pinDiameter(spec.diameter) / 2 + spec.gap) * ROOF_TOP;
-  if (roof < 0.6) return `the barrel would be ${String(round(roof))} mm thin over the bore's roof; use a larger diameter or a smaller gap`;
+  if (level && roof < 0.9) return `the barrel would be ${String(round(roof))} mm thin over the bore's roof; use a larger diameter or a smaller gap`;
   const knuckle = (length - (spec.knuckles - 1) * spec.gap) / spec.knuckles;
   if (knuckle < MIN_KNUCKLE) return `from and to are ${String(round(length))} mm apart, which leaves ${String(round(knuckle))} mm per knuckle; use fewer knuckles or a longer hinge line (at least ${String(MIN_KNUCKLE)} mm each)`;
   return null;
@@ -92,8 +94,12 @@ export function hingeSteps(spec: HingeSpec): Step[] {
   ];
 }
 
-/** How far above the axis the roof of a bore of radius 1 is cut flat: the bridge left is 0.43 of the radius wide. */
-export const ROOF_TOP = 1.2;
+/**
+ * How far above the axis the roof of a bore of radius 1 is cut flat: the bridge left is 0.73 of the radius wide
+ * (1.4 mm at the standard hinge). At 1.2 the standard barrel of 6 mm kept 0.72 mm over the roof, under two lines
+ * (practice run 2026-11-11: a thin-wall warning on every standard hinge).
+ */
+export const ROOF_TOP = 1.05;
 
 /**
  * The roof of the bore when the hinge prints lying (its line level): the round top of a hole sags, and here only the
