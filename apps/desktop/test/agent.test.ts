@@ -85,6 +85,22 @@ describe('tool policy', () => {
     expect(decide('execute', { command: 'construct.point.along_path', params: { path: 'l1', t: 0.5 } }).allow).toBe(true);
     expect(decide('execute', { command: 'component.activate', params: { component: 1, path: [2, 3] } }).allow).toBe(true);
   });
+
+  it('refuses to write a component\'s description, which tells a bought part from a printed one (audit H-01)', () => {
+    // Measured with SolidCraft 0.40.1: after this call the 0.3 mm lid was a "standard part", out of print check and export.
+    const forged = decide('execute', { command: 'component.metadata.set', params: { component: 'Deckel', description: 'Hex nut M3' } });
+    expect(forged.allow).toBe(false);
+    if (!forged.allow) expect(forged.reason).toContain('parts.insert');
+    // The other form SolidCraft takes, as a batch step, and with an empty text (which removes a real part's description).
+    expect(decide('execute', { command: 'component.metadata.set', params: { component: 'Deckel', values: { description: 'Hex nut M3' } } }).allow).toBe(false);
+    expect(decide('batch', { commands: [{ command: 'component.metadata.set', params: { component: 3, description: 'Plain washer M3' } }] }).allow).toBe(false);
+    expect(decide('batch', { commands: [{ command: 'execute', params: { command: 'component.metadata.set', params: { component: 3, description: '' } } }] }).allow).toBe(false);
+    // What says nothing about bought or printed stays: other properties, the name, reading.
+    expect(decide('execute', { command: 'component.metadata.set', params: { component: 'Deckel', revision: 'B', properties: { description: 'Hex nut M3' } } }).allow).toBe(true);
+    expect(decide('execute', { command: 'component.rename', params: { component: 'Deckel', name: 'Hex nut M3' } }).allow).toBe(true);
+    expect(decide('execute', { command: 'component.metadata', params: { component: 'Deckel' } }).allow).toBe(true);
+    expect(decide('execute', { command: 'parts.insert', params: { family: 'hex_nut', size: 'M3' } }).allow).toBe(true);
+  });
 });
 
 describe('gate proxy', () => {

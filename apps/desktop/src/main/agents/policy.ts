@@ -127,6 +127,15 @@ function decideCommand(command: string, params: Record<string, unknown>): ToolDe
       `${command} would change PartBuddy's notes; only the user writes notes. Read them with partbuddy_view and continue without it.`,
     );
   }
+  // A component's description is how PartBuddy tells a part SolidCraft's library put in (mirror.ts); written by
+  // the assistant it would take a printed body out of print check, plate and export.
+  if (command === 'component.metadata.set' && [...Object.keys(params), ...Object.keys(objectOr(params.values))].some((key) => key.trim().toLowerCase() === 'description')) {
+    return refuse(
+      `${command} with a description is not available in PartBuddy: PartBuddy tells bought standard parts from printed ` +
+        'ones by the description SolidCraft gives the parts it inserts. Put a standard part in with parts.insert, change ' +
+        'it with parts.resize, and continue without a description.',
+    );
+  }
   if (HISTORY_COMMANDS.has(command)) {
     return refuse(
       `${command} is not available in PartBuddy: PartBuddy keeps the history as steps the user can go back to. Use undo ` +
