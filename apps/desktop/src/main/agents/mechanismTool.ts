@@ -242,12 +242,17 @@ export function screwOf(args: Record<string, unknown>): ScrewSpec | string {
 
 /** The occurrence that places a body, from `component.list`; null while the body is still in the design itself. */
 export function occurrenceOf(listing: unknown, body: string): string | null {
+  return placed(listing, body)?.name ?? null;
+}
+
+/** That occurrence with its id, which is what `joint.list` names a joint's two sides by. */
+function placed(listing: unknown, body: string): { id?: unknown; name: string } | null {
   const components = (listing as { components?: unknown } | undefined)?.components;
   if (!Array.isArray(components)) return null;
   for (const entry of components as { parent?: unknown; bodies?: unknown; occurrences?: unknown }[]) {
     if (entry.parent === null || !Array.isArray(entry.bodies) || !entry.bodies.includes(body)) continue;
-    const name = (Array.isArray(entry.occurrences) ? (entry.occurrences[0] as { name?: unknown } | undefined) : undefined)?.name;
-    if (typeof name === 'string') return name;
+    const occurrence = Array.isArray(entry.occurrences) ? (entry.occurrences[0] as { id?: unknown; name?: unknown } | undefined) : undefined;
+    if (typeof occurrence?.name === 'string') return { id: occurrence.id, name: occurrence.name };
   }
   return null;
 }
@@ -320,8 +325,13 @@ export function activated(steps: Step[], listing: unknown): Step[] {
  * means the line is not where the bodies are: the call fails and with that everything is taken back (practice run 2026-11-10: the model kept a gap between the
  * hinge line and the walls, mended the loose knuckles with webs, and their warnings stayed in the
  * timeline), and `where` tells the model where the line goes. Volume the two still share is a warning.
+ *
+ * With `joins` the mechanism ends in a joint of that type: a second one between the same two bodies is refused, and a
+ * name another joint has gets a number, in `spec` itself, before the steps are made. SolidCraft takes a name twice, and
+ * sweep and limits by that name then met the first joint (audit 2026-11-12, N-mechanik-3: the answer gave the first
+ * hinge's limits, the second had none, and a third call built a third joint between the same parts).
  */
-async function build({ upstream, run, callId, mark }: Site, spec: { fixed: string; moving: string }, steps: Step[] | (() => Step[]), where: string, makes = false, ready: () => Promise<void> = () => Promise.resolve()): Promise<string> {
+async function build({ upstream, run, callId, mark }: Site, spec: { fixed: string; moving: string; name: string }, steps: Step[] | (() => Step[]), where: string, makes = false, ready: () => Promise<void> = () => Promise.resolve(), joins?: 'revolute' | 'slider'): Promise<string> {
   const before = jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { bodies?: { name?: unknown }[]; undo?: unknown };
   const bodies = (before.bodies ?? []).map((body) => body.name);
   // A mechanism that makes its moving body (a lid) needs the name free.
@@ -337,6 +347,17 @@ async function build({ upstream, run, callId, mark }: Site, spec: { fixed: strin
     .filter((joint) => (joint.values ?? []).some((value) => typeof value.value === 'number' && Math.abs(value.value) > 1e-6))
     .map((joint) => String(joint.name));
   if (away.length > 0) throw new Error(`the joint(s) ${away.map((name) => JSON.stringify(name)).join(', ')} stand away from 0; drive them back with joint.drive first, so the bodies are where they were designed`);
+  if (joins) {
+    const list = ((joints as { joints?: unknown } | undefined)?.joints ?? []) as { name?: unknown; type?: unknown; a?: unknown; b?: unknown }[];
+    const [a, b] = [placed(listing, spec.fixed), placed(listing, spec.moving)];
+    const side = (occurrence: { id?: unknown; name: string }, value: unknown) => value === occurrence.id || value === occurrence.name;
+    const same = a && b ? list.find((joint) => joint.type === joins && ((side(a, joint.a) && side(b, joint.b)) || (side(b, joint.a) && side(a, joint.b)))) : undefined;
+    const kind = joins === 'revolute' ? 'hinge' : 'guide';
+    if (same) throw new Error(`the joint ${JSON.stringify(same.name)} already joins ${spec.fixed} and ${spec.moving} as a ${kind}, and a second ${kind} between the same two bodies would bind it. Change that one instead: take it back with undo, or delete its features and its joint, then call again`);
+    const taken = new Set(list.map((joint) => joint.name));
+    const asked = spec.name;
+    for (let n = 2; taken.has(spec.name); n += 1) spec.name = `${asked} (${String(n)})`;
+  }
   // The bodies are there and stand as designed: what must be measured on them before anything is built.
   await ready();
   // From here on the design changes: a call that fails later is taken back to this depth.
@@ -532,6 +553,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
         const thin = depths && typeof args.wall === 'number' ? skinProblem(depths, spec, args.wall, nozzle) : null;
         if (thin) throw new Error(thin);
       },
+      'revolute',
     );
     const range = await join(run, spec, 'revolute', [-180, 180], 1);
     if (typeof range === 'string') return `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns) and joined them, but ${unswept(range)}${warnings}`;
@@ -545,7 +567,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
   if (args.kind === 'slide') {
     const spec = slideOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(site, spec, slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`);
+    const warnings = await build(site, spec, () => slideSteps(spec), `Put the line from–to on a face of ${spec.fixed}, with up as that face's normal, so the rail stands on it.`, false, undefined, 'slider');
     const [measure] = await run([{ command: 'inspect.measure', params: { bodies: [spec.moving] } }]);
     const travel = railTravel(measure, spec.from, spec.to);
     if (!travel) throw new Error(`${spec.moving} could not be measured, so how far the guide may travel is not known.`);

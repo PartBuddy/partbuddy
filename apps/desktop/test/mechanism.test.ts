@@ -223,6 +223,42 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(stuck.sent.join(' ')).not.toContain('edit.undo');
   });
 
+  // Audit 2026-11-12, N-mechanik-3: a second hinge with the default name answered with the first joint's limits and
+  // had none itself; the same call again built a third joint between the same two parts.
+  it('names a second hinge apart from the first, and refuses a second one between the same two bodies before it builds', async () => {
+    const batches: { command: string; params: Record<string, unknown> }[][] = [];
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, args) => {
+        if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Flap' }, { name: 'Flap2' }], undo: 12 }) }] });
+        const commands = args.commands as { command: string; params: Record<string, unknown> }[];
+        batches.push(commands);
+        const results = commands.map((step) => {
+          // As SolidCraft 0.40.1 lists them: a joint's sides by the ids of their occurrences.
+          if (step.command === 'joint.list') return { joints: [{ name: 'Hinge', type: 'revolute', a: 15, b: 17, values: [{ value: 0 }] }] };
+          if (step.command === 'component.list') return { components: [{ id: 14, parent: 0, bodies: ['Base'], occurrences: [{ id: 15, name: 'Base:1' }] }, { id: 16, parent: 0, bodies: ['Flap'], occurrences: [{ id: 17, name: 'Flap:1' }] }, { id: 31, parent: 0, bodies: ['Flap2'], occurrences: [{ id: 32, name: 'Flap2:1' }] }] };
+          return step.command === 'joint.sweep' ? { stopped_at: step.params.to === 180 ? 67.4 : -145.8 } : {};
+        });
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
+      },
+    };
+    const tools = withMechanismTool(upstream, () => 0.4);
+    const again = await tools.callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Flap', moving: 'Base', from: [42, 0, 3], to: [42, 30, 3], name: 'Another' });
+    expect(again).toEqual({ isError: true, content: [{ type: 'text', text: 'Not built: the joint "Hinge" already joins Flap and Base as a hinge, and a second hinge between the same two bodies would bind it. Change that one instead: take it back with undo, or delete its features and its joint, then call again' }] });
+    expect(batches.map((batch) => batch.map((step) => step.command).join(' '))).toEqual(['component.list joint.list']);
+    // Another pair of bodies: built, under a name of its own, which the joint, its sweeps and its limits all carry.
+    const second = await tools.callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap2', from: [-2, 0, 3], to: [-2, 30, 3] });
+    expect(second.isError).toBeUndefined();
+    expect(second.content[0]).toMatchObject({ text: expect.stringContaining('Built the hinge "Hinge (2)" between Base (stays) and Flap2 (turns)') as string });
+    const sent = batches.flat();
+    expect(sent.find((step) => step.command === 'joint.as_built')?.params).toMatchObject({ a: 'Base:1', b: 'Flap2:1', name: 'Hinge (2)' });
+    expect(sent.filter((step) => step.command === 'joint.sweep' || step.command === 'joint.limits').map((step) => step.params.joint)).toEqual(['Hinge (2)', 'Hinge (2)', 'Hinge (2)']);
+    // A guide between the two bodies of the hinge is another kind of joint: it is not refused for the hinge.
+    const guide = await tools.callTool('partbuddy_mechanism', { kind: 'slide', fixed: 'Base', moving: 'Flap', from: [0, 15, 4], to: [40, 15, 4] });
+    expect(guide.content[0]).toMatchObject({ text: expect.not.stringContaining('already joins') as string });
+  });
+
   it('builds onto a body that is a component with that component active, so the knuckles move with it', () => {
     // The flap is a component already (a second mechanism, or the assistant made components first); the base is not.
     const listing = { active: 0, components: [{ id: 0, parent: null, bodies: ['Base'] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ name: 'Flap:1' }] }] };
