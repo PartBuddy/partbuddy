@@ -201,3 +201,71 @@ export function gridBody(name: string, xs: readonly number[], ys: readonly numbe
   }
   return finish(name, built);
 }
+
+/** A mesh as the overhang check takes it, without the normals: for shapes that are no body with faces. */
+export interface RawMesh {
+  positions: Float32Array;
+  index: Uint32Array;
+  vertexFaces: Uint32Array;
+  faceCount: number;
+}
+
+export function meshOf(body: { model: ViewerModel }): RawMesh {
+  const geometry = body.model.geometry;
+  return { positions: geometry.getAttribute('position').array as Float32Array, index: geometry.index?.array as Uint32Array, vertexFaces: body.model.vertexFaces, faceCount: body.model.table.faces.length };
+}
+
+/** A mesh from triangles given by their corners, outward counter-clockwise; equal corners become one vertex. */
+export function soup(triangles: readonly (readonly Point[])[]): RawMesh {
+  const seen = new Map<string, number>();
+  const positions: number[] = [];
+  const index: number[] = [];
+  for (const triangle of triangles) {
+    for (const point of triangle) {
+      const key = point.join(',');
+      let v = seen.get(key);
+      if (v === undefined) {
+        v = positions.length / 3;
+        seen.set(key, v);
+        positions.push(...point);
+      }
+      index.push(v);
+    }
+  }
+  return { positions: Float32Array.from(positions), index: Uint32Array.from(index), vertexFaces: new Uint32Array(positions.length / 3), faceCount: 1 };
+}
+
+/** A circle of `n` points round the Z axis. */
+export const circle = (radius: number, z: number, n: number): Point[] => Array.from({ length: n }, (_, i) => [radius * Math.cos((i * 2 * Math.PI) / n), radius * Math.sin((i * 2 * Math.PI) / n), z]);
+
+/**
+ * A surface through rings of points, each joined to the next; `wrap` closes every ring. Triangles
+ * face away from the Z axis, flat rings up or down as `facing` says (1, −1) for the step after them.
+ */
+export function ringSurface(rings: readonly (readonly Point[])[], facing: readonly number[], wrap = true): RawMesh {
+  const positions = rings.flat(2);
+  const per = rings[0]?.length ?? 0;
+  const index: number[] = [];
+  const point = (v: number) => [positions[v * 3] ?? 0, positions[v * 3 + 1] ?? 0, positions[v * 3 + 2] ?? 0] as const;
+  for (let r = 0; r + 1 < rings.length; r += 1) {
+    for (let i = 0; i < (wrap ? per : per - 1); i += 1) {
+      const j = (i + 1) % per;
+      const quad = [r * per + i, r * per + j, (r + 1) * per + j, (r + 1) * per + i] as const;
+      for (const [a, b, c] of [[quad[0], quad[1], quad[2]], [quad[0], quad[2], quad[3]]] as const) {
+        const [pa, pb, pc] = [point(a), point(b), point(c)];
+        const u = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]] as const;
+        const w = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]] as const;
+        const normal = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]] as const;
+        const radial = normal[0] * (pa[0] + pb[0] + pc[0]) + normal[1] * (pa[1] + pb[1] + pc[1]);
+        const flip = Math.abs(radial) > 1e-9 ? radial < 0 : normal[2] * (facing[r] ?? 0) < 0;
+        index.push(a, flip ? c : b, flip ? b : c);
+      }
+    }
+  }
+  return { positions: Float32Array.from(positions), index: Uint32Array.from(index), vertexFaces: new Uint32Array(positions.length / 3), faceCount: 1 };
+}
+
+/** A body of revolution round Z from a profile of [radius, z]; a radius of 0 closes it on the axis. */
+export function revolved(profile: readonly (readonly [number, number])[], facing: readonly number[], n = 96): RawMesh {
+  return ringSurface(profile.map(([radius, z]) => circle(radius, z, n)), facing);
+}
