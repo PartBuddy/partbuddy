@@ -79,3 +79,4 @@ zuerst, arbeitet am ersten offenen Punkt weiter und hakt ab, sobald ein Punkt be
 | Datum | Was | Ergebnis |
 |---|---|---|
 | 12.11.2026 | Workflow Lesephase (7 Prüfer + 2 Gegenprüfer) für Phase 1, 2, 3, 5 statisch | fertig, 9/9 Dateien, 349 Befunde. Alles statisch aus dem Code – nichts gebaut oder gemessen. |
+| 12.11.2026 | Workflow Messung A (Harness unter `tools/audit/`, dann 5 Messgruppen → `04-messung-*.md`) | gestartet. Nach Ende: Urteile in `BEFUNDE.md` als Status eintragen, neue Befunde aufnehmen, Harness-Punkt abhaken. |
