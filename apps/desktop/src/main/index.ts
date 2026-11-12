@@ -25,6 +25,7 @@ import { withViewTool } from './agents/viewContext';
 import { withAssemblyTool } from './agents/assemblyTool';
 import { withDesignTool } from './agents/designTool';
 import { keepPrintFace, readAssembly, readPrintFaces, writeAssembly } from './projects/assembly';
+import { withPrintFaces } from './agents/printFaceWatch';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
 import { withBlockTool } from './agents/blockTool';
@@ -570,7 +571,7 @@ if (!app.requestSingleInstanceLock()) {
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.assemblyChanged, plan);
     };
     // A mechanism that lays its part down (a screw lid on its top) says so here, so the plate view turns it as the slicer will.
-    const keepMechanismFace = (body: string, face: string) => {
+    const keepMechanismFace = (body: string, face: string | null) => {
       const folder = assemblyFolder();
       if (!folder) return;
       keepPrintFace(folder, body, face);
@@ -584,7 +585,7 @@ if (!app.requestSingleInstanceLock()) {
         steps.tools(
           withDesignTool(
             withAssemblyTool(
-              withViewTool(guardNotes(withStandardTool(withBlockTool(withMechanismTool(withDrawings(upstream, drawings), () => printProfiles.part().printer.nozzle, keepMechanismFace), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
+              withViewTool(guardNotes(withStandardTool(withPrintFaces(withBlockTool(withMechanismTool(withDrawings(upstream, drawings), () => printProfiles.part().printer.nozzle, keepMechanismFace), keepMechanismFace), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
               () => viewState?.bodies.map((body) => body.name) ?? [],
               saveAssembly,
             ),

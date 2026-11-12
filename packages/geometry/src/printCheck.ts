@@ -1,4 +1,4 @@
-import { Box3, DoubleSide, Ray, Vector3 } from 'three';
+import { Box3, DoubleSide, Quaternion, Ray, Vector3 } from 'three';
 import type { MeshBVH } from 'three-mesh-bvh';
 
 import { Overhang, overhangLimits, overhangOf, smallOverhangReach } from './overhang';
@@ -11,7 +11,8 @@ import type { ViewerModel } from './viewerModel';
  * the part lies on the bed, and features SolidCraft could not build. Overhangs are a hint by angle
  * only (yellow, never red): whether something needs support, and how, is the slicer's job; small
  * ones that hang from the material below, as the slicers ignore them, are left out.
- * The part is checked as designed, Z up. Each body stands on its own lowest point: the slicer lays
+ * The part is checked as designed, Z up, or lying on its print face where SolidCraft has one for the
+ * body (the slicer export lays it down so). Each body stands on its own lowest point: the slicer lays
  * every object of the 3MF onto the bed by itself (seen in Bambu Studio, 2026-11-05), so bodies that
  * touch fall apart there.
  */
@@ -27,6 +28,8 @@ export interface PrintCheckProfile {
 export interface PrintCheckBody {
   name: string;
   model: ViewerModel;
+  /** SolidCraft's print face of the body, by name: the body is checked lying on it. */
+  printFace?: string | undefined;
 }
 
 export interface PrintCheckFeature {
@@ -276,6 +279,27 @@ function printedSize(bodies: readonly { positions: ArrayLike<number> }[]): [numb
   return [(max[0] ?? 0) - (min[0] ?? 0), (max[1] ?? 0) - (min[1] ?? 0), height];
 }
 
+/** The body's mesh as it lies on the bed: turned onto its print face, or as designed. */
+function laid({ model, printFace }: PrintCheckBody): { positions: ArrayLike<number>; normals: ArrayLike<number> } {
+  const positions = model.geometry.getAttribute('position').array;
+  const normals = model.geometry.getAttribute('normal').array;
+  const down = printFace ? model.table.faces.find((face) => face.name === printFace)?.planeNormal : undefined;
+  if (!down) return { positions, normals };
+  const turn = new Quaternion().setFromUnitVectors(new Vector3(...down).normalize(), new Vector3(0, 0, -1));
+  const v = new Vector3();
+  const turned = (source: ArrayLike<number>) => {
+    const out = new Float32Array(source.length);
+    for (let i = 0; i < source.length; i += 3) {
+      v.set(source[i] ?? 0, source[i + 1] ?? 0, source[i + 2] ?? 0).applyQuaternion(turn);
+      out[i] = v.x;
+      out[i + 1] = v.y;
+      out[i + 2] = v.z;
+    }
+    return out;
+  };
+  return { positions: turned(positions), normals: turned(normals) };
+}
+
 /** The lowest point of one body: the bed it stands on. */
 function bedOf(positions: ArrayLike<number>): number {
   let low = Infinity;
@@ -312,7 +336,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
 
   const parts = bodies.filter((body) => body.model.table.faces.length > 0);
   if (parts.length > 0) {
-    const meshes = parts.map(({ model }) => ({ positions: model.geometry.getAttribute('position').array, normals: model.geometry.getAttribute('normal').array }));
+    const meshes = parts.map(laid);
     const size = sizeFinding(meshes, profile.bed);
     if (size) findings.push(size);
 
@@ -368,7 +392,8 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       const contactTally = new FaceTally(faces);
       for (let t = 0; t < index.length / 3; t += 1) {
         const face = model.triangleFaces[t] ?? 0;
-        const { corners, area } = triangle(mesh.positions, index, t);
+        // The finding points at the faces where they are in the design, not where they lie on the bed.
+        const { corners, area } = triangle(geometry.getAttribute('position').array, index, t);
         if ((map.supportByFace[face] ?? 0) > 0) overhangTally.add(face, 0, 0, corners);
         if (map.vertices[index[t * 3] ?? 0] === Overhang.Bed) contactTally.add(face, area, 0, corners);
       }

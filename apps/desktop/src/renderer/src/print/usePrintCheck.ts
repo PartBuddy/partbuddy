@@ -17,6 +17,7 @@ const CHECK_DELAY_MS = 250;
 export function usePrintCheck(): void {
   const model = useStudio((s) => s.model);
   const print = useStudio((s) => s.print);
+  const printFaces = useStudio((s) => s.printFaces);
   useEffect(() => {
     if (model.status !== 'ready' || !print) {
       useStudio.getState().setPrintCheck(null);
@@ -25,7 +26,7 @@ export function usePrintCheck(): void {
     const timer = setTimeout(() => {
       // Standard parts (B7) are counterparts and are not printed.
       const standard = new Set(model.structure.standardParts ?? []);
-      const printed = model.bodies.filter((body) => !standard.has(body.name));
+      const printed = model.bodies.filter((body) => !standard.has(body.name)).map((body) => ({ ...body, printFace: printFaces[body.name] }));
       const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, overhang: print.material.overhang }, model.structure.features);
       // A value that follows another through a motion link (a gear) is neither swept nor posed on its own: its driver is.
       const joints = (model.structure.joints ?? []).map((joint) => ({ ...joint, values: joint.values.map((value, index) => ({ ...value, index })).filter((value) => !value.follows) })).filter((joint) => joint.values.length > 0);
@@ -89,5 +90,5 @@ export function usePrintCheck(): void {
       stale = true;
       clearTimeout(timer);
     };
-  }, [model, print]);
+  }, [model, print, printFaces]);
 }
