@@ -45,3 +45,17 @@ jobs:
       tag: ${{ needs.release-please.outputs.tag_name }}
     secrets:
       SITE_REPO_TOKEN: ${{ secrets.SITE_REPO_TOKEN }}
+
+  # The macOS dmg cannot be built on the Windows machine that uploads the installer by hand, so the
+  # installer workflow builds it for the new tag and attaches it to the release.
+  dmg:
+    name: Attach the macOS dmg
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      actions: read
+      contents: write
+    uses: ./.github/workflows/installer.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ needs.release-please.outputs.tag_name }}
+      attach: true

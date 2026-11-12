@@ -86,7 +86,10 @@ looks for updates in the GitHub releases (electron-updater) and installs them on
 word. The CI runners are Linux, so a release is built on Windows: after release-please's release
 exists, run `dist` and upload the installer, its `.blockmap` and `latest.yml` to that release
 (`gh release upload v<version> apps/desktop/dist/PartBuddy-Setup-<version>.exe
-apps/desktop/dist/PartBuddy-Setup-<version>.exe.blockmap apps/desktop/dist/latest.yml`).
+apps/desktop/dist/PartBuddy-Setup-<version>.exe.blockmap apps/desktop/dist/latest.yml`). The macOS
+dmg needs no hand: the release workflow calls `installer.yml` for the new tag, which builds the dmg
+and attaches it to the release. If that job found no runner, rerun it, or start `installer.yml` by
+hand with the tag and "attach".
 
 ## Licence of contributions
 
