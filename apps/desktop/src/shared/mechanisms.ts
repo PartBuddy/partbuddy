@@ -710,10 +710,12 @@ export interface LatchSpec {
  * A snap latch outside a box, in mm (decided 2026-11-11: no hinge, whose play is larger than any catch). An arm
  * `thick` stands `off` the wall, rooted in the lid between `foot` and `head` above the joint, where a 45° slope
  * carries it; `lever` below its root a hook reaches to `clear` off the wall, under a bead that stands `bead` out of
- * the box, the two 45° faces `seat` apart; `tab` of arm below the hook is for the finger. Snapping over the bead bends
+ * the box, the two 45° faces `seat` apart: none, so the closed lid cannot lift before the hook holds (at 0.2 it rattled,
+ * practice run 2026-11-11), and a print that comes out fuller only seats the hook a little further out on its slope.
+ * Lid and box print apart, so the faces need no room. `tab` of arm below the hook is for the finger. Snapping over the bead bends
  * the root by 1.5 · thick · (bead − clear) / lever² = 1.3 %.
  */
-export const LATCH = { thick: 1.6, off: 1.5, foot: 1, head: 5, lever: 12, bead: 1.2, clear: 0.4, seat: 0.2, tab: 2, into: 0.5, beside: 1 };
+export const LATCH = { thick: 1.6, off: 1.5, foot: 1, head: 5, lever: 12, bead: 1.2, clear: 0.4, seat: 0, tab: 2, into: 0.5, beside: 1 };
 
 /** How much flat wall the latch needs: on the lid above the joint, and on the box below it. */
 export function latchReach(): { above: number; below: number } {
