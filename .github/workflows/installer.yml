@@ -105,13 +105,15 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app"
           codesign -dv "$app" 2>&1 | grep 'Signature=adhoc'
           test "$(find "$app" -name 'keyring.darwin-*.node' | tee /dev/stderr | wc -l)" -eq 2
-          "$app/Contents/MacOS/PartBuddy" > start.log 2>&1 &
+          ELECTRON_ENABLE_LOGGING=1 "$app/Contents/MacOS/PartBuddy" > start.log 2>&1 &
           pid=$!
           sleep 25
           if ! kill -0 "$pid" 2>/dev/null; then
             wait "$pid" && code=0 || code=$?
             echo "PartBuddy did not stay running (exit code $code)"
             cat start.log
+            ls -la "$app/Contents/Resources"
+            find "$HOME/Library" -newer start.log -type f -not -path '*/Caches/*' 2>/dev/null | head -n 40
             cat "$HOME/Library/Application Support/PartBuddy/logs/partbuddy.log" || true
             for report in "$HOME"/Library/Logs/DiagnosticReports/PartBuddy*; do head -n 80 "$report" || true; done
             exit 1
