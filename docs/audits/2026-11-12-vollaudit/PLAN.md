@@ -29,27 +29,31 @@ zuerst, arbeitet am ersten offenen Punkt weiter und hakt ab, sobald ein Punkt be
 ## Stand
 
 ### Phase 1 – Inventur
-- [ ] Prüfliste Werkzeuge
-- [ ] Prüfliste Fachtabellen
-- [ ] Prüfliste Druck/Export/SolidCraft-Anbindung/Oberfläche
-- [ ] Gegenprüfung Inventur ohne neue Funde
+- [x] Prüfliste Werkzeuge (286 Zeilen)
+- [x] Prüfliste Fachtabellen (594 Zeilen)
+- [x] Prüfliste Druck/Export/SolidCraft-Anbindung/Oberfläche
+- [ ] 62 fehlende Elemente aus `09-gegenpruefung-inventur.md` Tabelle 1 in die Prüflisten nachtragen (22 IPC, 15 SolidCraft-Anbindung, 4 Geometrie, 13 shared, 8 agents); 80 IPC-Kanäle ohne Zeile
+- [ ] Gegenprüfung Inventur ohne neue Funde (1. Durchgang 12.11.: 62 fehlende Elemente, 10 neue Befunde → nach dem Nachtragen wiederholen)
 
 ### Phase 2 – SolidCraft-Abgleich
-- [ ] Tabelle roh/heute/soll
-- [ ] Gegenprüfung ohne neue Funde
+- [x] Tabelle roh/heute/soll (22 MCP-Werkzeuge, 633 Engine-Befehle: 549 ungeprüft durchgereicht)
+- [ ] Gegenprüfung ohne neue Funde (1. Durchgang 12.11.: 33 neue Befunde H-01…H-30 → nach Phase 6 wiederholen)
 
 ### Phase 3 – Maßstab
-- [ ] Geometrie
-- [ ] Verbindungen, Passungen, Mechanik
-- [ ] Jede Zahl aus den Fachtabellen gegen den Maßstab gehalten
+- [x] Geometrie
+- [x] Verbindungen, Passungen, Mechanik
+- [ ] Jede Zahl aus den Fachtabellen gegen den Maßstab gehalten – offen: `printProfiles.ts`, Werkzeugtexte, die in den 03-Dateien unter „Nicht geprüft“ genannten Zeilen von `standards.ts`, Material- und Druckerkatalog gegen Herstellerangaben
 
 ### Phase 5 (statischer Teil) – KI-Regeln
-- [ ] Regeltexte Satz für Satz gegen Code
+- [x] Regeltexte Satz für Satz gegen Code
+- [ ] Texte ohne Zeile aus `09-gegenpruefung-regeln-solidcraft.md` Abschnitt 1 nachtragen
 - [ ] Gegenprüfung ohne neue Funde
 - [ ] Regeltexte gegen Maßstab und Befunde aus Phase 2/4
 
 ### Befunde zusammenführen
-- [ ] `BEFUNDE.md` aus allen Dateien, dedupliziert, nummeriert
+- [x] `BEFUNDE.md` als Index: 349 Befunde (A 30, B 195, C 124), Kennung = Präfix der Quelldatei
+- [ ] Dubletten bei B und C abgleichen (bei A erledigt)
+- [ ] „Nicht geprüft, weil …“ aller Dateien zu einer Restliste zusammenführen und abarbeiten
 
 ### Phase 4 – Bauen und Messen
 - [ ] Mess-Harness (Werkzeuge direkt gegen echtes SolidCraft, Messung über `packages/geometry`)
@@ -74,4 +78,4 @@ zuerst, arbeitet am ersten offenen Punkt weiter und hakt ab, sobald ein Punkt be
 
 | Datum | Was | Ergebnis |
 |---|---|---|
-| 12.11.2026 | Workflow Lesephase (7 Prüfer + 2 Gegenprüfer) für Phase 1, 2, 3, 5 statisch | gestartet; Ergebnisdateien prüfen, dann oben abhaken. Fehlt eine Datei, den betreffenden Prüfer einzeln nachholen. |
+| 12.11.2026 | Workflow Lesephase (7 Prüfer + 2 Gegenprüfer) für Phase 1, 2, 3, 5 statisch | fertig, 9/9 Dateien, 349 Befunde. Alles statisch aus dem Code – nichts gebaut oder gemessen. |
