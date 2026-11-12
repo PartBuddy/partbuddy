@@ -114,8 +114,16 @@ function objectOr(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+/**
+ * A command id as the rules below compare it. SolidCraft reads ids in any case (`File.Export`,
+ * `COMPONENT.METADATA.SET` run; measured with 0.40.1), so every rule sees the lower-case id. Tool
+ * names and parameter keys it takes only as written (`Execute`, `Path`, `Key` are unknown or ignored).
+ */
+const commandId = (value: unknown): string => (typeof value === 'string' ? value.trim().toLowerCase() : '');
+
 /** One engine command, as `execute` or a `batch` step sends it. */
-function decideCommand(command: string, params: Record<string, unknown>): ToolDecision {
+function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecision {
+  const command = commandId(id);
   if (FILE_COMMANDS.test(command)) {
     return refuse(
       `${command} reads or writes files or settings; PartBuddy does not allow it for the assistant. PartBuddy saves the ` +
@@ -156,13 +164,20 @@ function decideCommand(command: string, params: Record<string, unknown>): ToolDe
 }
 
 function decideBatch(args: Record<string, unknown>, depth: number): ToolDecision {
+  // `path` runs the steps of a script file, which no rule here would see.
+  if (args.path !== undefined && args.path !== null) {
+    return refuse('batch with a path runs a script file; PartBuddy does not allow that for the assistant. Give the steps in commands.');
+  }
   const steps = Array.isArray(args.commands) ? (args.commands as unknown[]) : [];
   for (const [index, entry] of steps.entries()) {
     const step = objectOr(entry);
-    const command = typeof step.command === 'string' ? step.command : '';
     const params = objectOr(step.params);
-    const decision = BATCH_TOOL_STEPS.has(command) ? decideTool(command, params, depth + 1) : decideCommand(command, params);
-    if (!decision.allow) return refuse(`batch step ${index} (${command || 'no command'}): ${decision.reason}`);
+    // SolidCraft also takes a step's command as `id`; whichever it reads, both are decided.
+    const named = [step.command, step.id].filter((name) => typeof name === 'string').map(commandId);
+    for (const command of named.length > 0 ? named : ['']) {
+      const decision = BATCH_TOOL_STEPS.has(command) ? decideTool(command, params, depth + 1) : decideCommand(command, params);
+      if (!decision.allow) return refuse(`batch step ${index} (${command || 'no command'}): ${decision.reason}`);
+    }
   }
   return { allow: true };
 }
@@ -176,7 +191,7 @@ function decideTool(name: string, args: Record<string, unknown>, depth: number):
   // SolidCraft refuses nested batches itself; a deeper nesting is refused here rather than walked.
   if (depth > 2) return refuse(`${name} is nested too deeply`);
   if (name === 'execute') {
-    return decideCommand(typeof args.command === 'string' ? args.command : '', objectOr(args.params));
+    return decideCommand(args.command, objectOr(args.params));
   }
   if (name === 'batch') return decideBatch(args, depth);
   return { allow: true };

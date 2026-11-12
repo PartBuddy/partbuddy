@@ -101,6 +101,45 @@ describe('tool policy', () => {
     expect(decide('execute', { command: 'component.metadata', params: { component: 'Deckel' } }).allow).toBe(true);
     expect(decide('execute', { command: 'parts.insert', params: { family: 'hex_nut', size: 'M3' } }).allow).toBe(true);
   });
+
+  it('decides a command id in any spelling SolidCraft runs: every rule holds for mixed case', () => {
+    // Measured with SolidCraft 0.40.1: each of these ran as written and was allowed, because the rules compared the id exactly.
+    const set = { component: 'Deckel', description: 'Hex nut M3' };
+    const key = 'io.github.manuelstaggl.partbuddy.standard-parts';
+    const refused: [string, Record<string, unknown>][] = [
+      ['execute', { command: 'Component.Metadata.Set', params: set }],
+      ['batch', { commands: [{ command: 'COMPONENT.METADATA.SET', params: set }] }],
+      ['batch', { commands: [{ command: 'execute', params: { command: 'COMPONENT.METADATA.SET', params: set } }] }],
+      ['execute', { command: 'Document.Metadata.Set', params: { values: { [key]: { bodies: ['Deckel'] } } } }],
+      ['execute', { command: 'Document.Metadata.Remove', params: { key } }],
+      ['execute', { command: 'Edit.Checkpoint', params: {} }],
+      ['execute', { command: 'EDIT.RESTORE_CHECKPOINT', params: { checkpoint: 1 } }],
+      ['execute', { command: 'File.Export', params: { format: 'stl' } }],
+      ['execute', { command: 'Doc.recovery_list', params: {} }],
+      ['execute', { command: 'Settings.profile.apply', params: { name: 'a' } }],
+      ['execute', { command: 'Diagnostics.Crash_Reports', params: {} }],
+      ['execute', { command: 'Parameters.Export', params: { path: 'out.json' } }],
+      ['execute', { command: ' file.export ', params: {} }],
+      // A batch step's tool in another case is no tool for SolidCraft; decided as the tool, it stays refused.
+      ['batch', { commands: [{ command: 'Save', params: {} }] }],
+      ['batch', { commands: [{ command: 'New_Design', params: {} }] }],
+      // SolidCraft takes a step's command as `id` too, and a batch's steps from a script file.
+      ['batch', { commands: [{ id: 'component.metadata.set', params: set }] }],
+      ['batch', { commands: [{ id: 'execute', params: { command: 'component.metadata.set', params: set } }] }],
+      ['batch', { commands: [{ command: 'document.revision', id: 'file.export', params: {} }] }],
+      ['batch', { path: 'steps.json' }],
+    ];
+    for (const [tool, args] of refused) expect(decide(tool, args).allow, JSON.stringify(args)).toBe(false);
+    // Tool names SolidCraft knows only as written; another case is no tool and stays refused.
+    expect(decide('Execute', { command: 'solid.box', params: {} }).allow).toBe(false);
+    expect(decide('BATCH', { commands: [] }).allow).toBe(false);
+    // What was allowed stays allowed in any case, the photo canvas too.
+    expect(decide('execute', { command: 'Solid.Extrude', params: {} })).toEqual({ allow: true });
+    expect(decide('batch', { commands: [{ command: 'SOLID.BOX', params: {} }, { id: 'document.revision' }] })).toEqual({ allow: true });
+    expect(decide('execute', { command: 'Construct.Point.Along_Path', params: { path: 'l1', t: 0.5 } }).allow).toBe(true);
+    // Parameter keys SolidCraft reads only as written: `Path` writes no file (measured), so it is not taken for one.
+    expect(decide('execute', { command: 'parameters.export', params: { Path: 'out.json' } }).allow).toBe(true);
+  });
 });
 
 describe('gate proxy', () => {
