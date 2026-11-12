@@ -879,7 +879,8 @@ if (!app.requestSingleInstanceLock()) {
           material: print.material.name,
           layer: print.printer.layer,
           nozzle: print.printer.nozzle,
-          check: printCheck ? { status: printCheck.status, overhang: printCheck.findings.some((finding) => finding.kind === 'overhang') } : null,
+          // A check of an older revision says nothing about the design that is shared.
+          check: printCheck && printCheck.revision === supervisor.currentRevision()?.revision ? { status: printCheck.status, overhang: printCheck.findings.some((finding) => finding.kind === 'overhang') } : null,
           files: { model, step, pictures },
         });
         writeFileSync(join(folder, german ? 'Beschreibung.md' : 'description.md'), description, 'utf8');
