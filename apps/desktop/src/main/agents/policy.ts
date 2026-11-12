@@ -5,7 +5,7 @@
  */
 
 import { METADATA_PREFIX } from '../notes/noteRecord';
-import { PHOTO_FILE } from './photoNote';
+import { isKeptPhoto } from './photoNote';
 
 export type ToolDecision = { allow: true } | { allow: false; reason: string };
 
@@ -151,8 +151,16 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
     );
   }
   // A photo the user sent (F6) may be laid out as a canvas; it is read, never written.
-  if (command === 'canvas.insert' && typeof params.path === 'string' && PHOTO_FILE.test(params.path) && !params.path.includes('..')) {
+  if (command === 'canvas.insert' && isKeptPhoto(params.path)) {
     return { allow: true };
+  }
+  // The engine's own command behind the compare_picture tool reads its reference the same way.
+  if (command === 'inspect.compare_picture' && params.reference !== undefined && !isKeptPhoto(params.reference)) {
+    return refuse(`${command} reads its reference from a file; PartBuddy allows only a photo the user sent in this session, at the path PartBuddy gave.`);
+  }
+  // The other parameter that names a file (sketch.replace: a design file to read from).
+  if (typeof params.file === 'string') {
+    return refuse(`${command} with a file reads a file; PartBuddy does not allow that for the assistant. Continue without it.`);
   }
   if (typeof params.path === 'string' && !CURVE_ID.test(params.path)) {
     return refuse(
@@ -190,36 +198,61 @@ function decideTool(name: string, args: Record<string, unknown>, depth: number):
   if (!ALLOWED.has(name)) return refuse(`${name} is not allowed by PartBuddy. Continue with the other tools.`);
   // SolidCraft refuses nested batches itself; a deeper nesting is refused here rather than walked.
   if (depth > 2) return refuse(`${name} is nested too deeply`);
-  if (name === 'execute') {
-    return decideCommand(args.command, objectOr(args.params));
-  }
-  if (name === 'batch') return decideBatch(args, depth);
-  return decideFileArguments(name, args);
+  const own = name === 'execute' ? decideCommand(args.command, objectOr(args.params)) : name === 'batch' ? decideBatch(args, depth) : null;
+  if (own && !own.allow) return own;
+  return decideArguments(name, args);
 }
 
 /**
- * The arguments of SolidCraft's own tools that name a file (tools/list of SolidCraft 0.40.1:
- * `screenshot` path, `compare_picture` reference, `skill_reference` file; the names are kept wider
- * for a tool that gains one). `screenshot {path}` writes its PNG over any file in the folders
- * SolidCraft may use, the project and the design among them (measured).
+ * The arguments each of SolidCraft's tools takes that the policy lets through, from tools/list of
+ * SolidCraft 0.40.1 (which refuses any other with "unknown argument"). An argument that is not
+ * listed is refused here too, so one a later SolidCraft adds, a file to write among them, does
+ * not pass before someone has looked at it. Left out on purpose: `path` of `screenshot`, which
+ * writes its PNG over any file in the folders SolidCraft may use (measured), and `path` of
+ * `batch`, which runs a script file.
  */
-const FILE_ARGUMENTS = ['path', 'file', 'reference', 'output'];
+export const TOOL_ARGUMENTS: Readonly<Record<string, readonly string[]>> = {
+  list_commands: ['compact', 'fields', 'filter', 'limit', 'offset', 'panel', 'prefix'],
+  describe_command: ['id'],
+  execute: ['command', 'expect', 'params', 'verbose'],
+  batch: ['coalesce_parameters', 'commands', 'expect', 'profile', 'rollback', 'timings', 'verbose'],
+  inspect_design: ['bodies', 'joints', 'measure', 'sketches', 'timeline'],
+  measure: ['body', 'items', 'names_only', 'summary'],
+  body_topology: ['body', 'faces'],
+  set_parameter: ['comment', 'expression', 'name', 'unit', 'value'],
+  check_parameters: ['bodies', 'report', 'set', 'summary'],
+  screenshot: ['axes', 'camera', 'grid', 'height', 'source', 'view', 'width'],
+  // `reference` is a file: only a photo PartBuddy kept (below).
+  compare_picture: ['bodies', 'camera', 'crop_fraction', 'crop_px', 'fit', 'reference', 'rows', 'view'],
+  running: [],
+  pending: [],
+  undo: [],
+  redo: [],
+  // `file` is a document of the skill, by its name (below).
+  skill_reference: ['file', 'skill'],
+};
 
-function decideFileArguments(name: string, args: Record<string, unknown>): ToolDecision {
-  // PartBuddy's own tools are answered by PartBuddy and take no file of SolidCraft's.
+function decideArguments(name: string, args: Record<string, unknown>): ToolDecision {
+  // PartBuddy's own tools are answered by PartBuddy and check their arguments themselves.
   if (name.startsWith('partbuddy_')) return { allow: true };
-  for (const argument of FILE_ARGUMENTS) {
-    const value = args[argument];
-    if (value === undefined || value === null) continue;
-    // A photo the user sent (F6) may be compared with the model's outline; it is read, never written.
-    if (name === 'compare_picture' && argument === 'reference' && typeof value === 'string' && PHOTO_FILE.test(value) && !value.includes('..')) continue;
-    // A document of a skill built into SolidCraft, by its name.
-    if (name === 'skill_reference' && argument === 'file' && typeof value === 'string' && /^[\w-]+\.md$/.test(value)) continue;
-    return refuse(
-      name === 'screenshot'
-        ? 'screenshot with a path writes a file; PartBuddy does not allow that for the assistant. Leave out path: the picture comes back in the answer.'
-        : `${name} with ${argument} reads or writes a file; PartBuddy does not allow that for the assistant${name === 'compare_picture' ? ', except a photo the user sent, at the path PartBuddy gave' : ''}. Continue without it.`,
-    );
+  const known = TOOL_ARGUMENTS[name];
+  if (!known) return refuse(`${name} is not allowed by PartBuddy. Continue with the other tools.`);
+  for (const [argument, value] of Object.entries(args)) {
+    if (value === undefined) continue;
+    if (!known.includes(argument)) {
+      return refuse(
+        name === 'screenshot' && argument === 'path'
+          ? 'screenshot with a path writes a file; PartBuddy does not allow that for the assistant. Leave out path: the picture comes back in the answer.'
+          : `${name} takes no argument ${argument} in PartBuddy; its arguments are: ${known.join(', ') || 'none'}.`,
+      );
+    }
+  }
+  // A photo the user sent (F6) may be compared with the model's outline; it is read, never written.
+  if (name === 'compare_picture' && args.reference !== undefined && !isKeptPhoto(args.reference)) {
+    return refuse('compare_picture reads its reference from a file; PartBuddy allows only a photo the user sent in this session, at the path PartBuddy gave. Continue without it.');
+  }
+  if (name === 'skill_reference' && args.file !== undefined && !(typeof args.file === 'string' && /^[\w-]+\.md$/.test(args.file))) {
+    return refuse('skill_reference takes the name of a document of the skill (SKILL.md, reference.md), not a path.');
   }
   return { allow: true };
 }

@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +9,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AgentService } from '../src/main/agents/agentService';
 import { findClaudeCode, parseStreamLine } from '../src/main/agents/claudeCode';
 import { GateProxy, REPEAT_REASON, type ToolCallRecord, type UpstreamTools } from '../src/main/agents/gateProxy';
-import { decide } from '../src/main/agents/policy';
+import { photoFile, photoNote } from '../src/main/agents/photoNote';
+import { decide, TOOL_ARGUMENTS } from '../src/main/agents/policy';
 import { TOOL_NOTES } from '../src/main/agents/toolNotes';
 import { reduce, type ConversationItem } from '../src/renderer/src/assistant/store';
 import type { AgentEvent, AgentStatus, ModelChoice } from '../src/shared/contract';
@@ -102,32 +103,82 @@ describe('tool policy', () => {
     expect(decide('execute', { command: 'parts.insert', params: { family: 'hex_nut', size: 'M3' } }).allow).toBe(true);
   });
 
-  it('refuses a file argument on every tool of SolidCraft it lets through, but for a photo the user sent', () => {
+  it('lets a tool of SolidCraft through only with the arguments it is known to take, and with no file but a photo the user sent', () => {
     // Measured with SolidCraft 0.40.1: screenshot {path} wrote its PNG (442 140 bytes) over a JSON file in the cache folder.
-    const kept = 'Projects/Hook/part-references.json';
-    const screenshot = decide('screenshot', { path: kept });
+    const cache = join(tmpdir(), 'PartBuddy', 'cache', 'part-references.json');
+    const screenshot = decide('screenshot', { path: cache });
     expect(screenshot.allow).toBe(false);
     if (!screenshot.allow) expect(screenshot.reason).toContain('Leave out path');
     expect(decide('screenshot', { path: 'new.png', view: 'iso' }).allow).toBe(false);
     expect(decide('screenshot', { view: 'iso', width: 800 })).toEqual({ allow: true });
-    // compare_picture reads its reference: only the photo PartBuddy kept for the user.
-    const photo = 'Projects/Hook/photos/photo-20261112-101500.png';
-    expect(decide('compare_picture', { reference: photo, view: 'top' })).toEqual({ allow: true });
-    expect(decide('compare_picture', { reference: 'Pictures/passport.png' }).allow).toBe(false);
-    expect(decide('compare_picture', { reference: 'Projects/Hook/photos/../../x/photos/photo-20261112-101500.png' }).allow).toBe(false);
-    expect(decide('compare_picture', { reference: [photo] }).allow).toBe(false);
-    expect(decide('batch', { commands: [{ command: 'compare_picture', params: { reference: kept } }] }).allow).toBe(false);
     // A skill's document goes by its name.
     expect(decide('skill_reference', { skill: 'solidcraft-modeling', file: 'SKILL.md' })).toEqual({ allow: true });
     expect(decide('skill_reference', { skill: 'solidcraft-modeling' })).toEqual({ allow: true });
     expect(decide('skill_reference', { skill: 'solidcraft-modeling', file: '../../secret.md' }).allow).toBe(false);
-    // Every other tool let through, should it gain a file argument (0.40.1 answers "unknown argument").
-    for (const tool of ['list_commands', 'describe_command', 'inspect_design', 'measure', 'body_topology', 'set_parameter', 'check_parameters', 'running', 'pending', 'undo', 'redo']) {
-      for (const argument of ['path', 'file', 'reference', 'output']) expect(decide(tool, { [argument]: kept }).allow, `${tool} ${argument}`).toBe(false);
+    // Every tool let through has its arguments listed, and takes each of them.
+    const tools = ['list_commands', 'describe_command', 'execute', 'batch', 'inspect_design', 'measure', 'body_topology', 'set_parameter', 'check_parameters', 'screenshot', 'compare_picture', 'running', 'pending', 'undo', 'redo', 'skill_reference'];
+    expect(Object.keys(TOOL_ARGUMENTS).sort()).toEqual([...tools].sort());
+    const steps = ['set_parameter', 'list_commands', 'describe_command', 'execute', 'measure', 'compare_picture', 'inspect_design', 'undo', 'redo'];
+    for (const tool of tools) {
       expect(decide(tool, {}), tool).toEqual({ allow: true });
+      for (const argument of TOOL_ARGUMENTS[tool] ?? []) {
+        if (['reference', 'file', 'commands', 'command', 'params'].includes(argument)) continue;
+        expect(decide(tool, { [argument]: 1 }), `${tool} ${argument}`).toEqual({ allow: true });
+      }
+      // An argument that is not listed is refused, whatever it is called: a later SolidCraft may write a file with it.
+      for (const argument of ['path', 'file', 'reference', 'output', 'out', 'filename', 'dest', 'image', 'dir', 'depth']) {
+        if ((TOOL_ARGUMENTS[tool] ?? []).includes(argument)) continue;
+        const decision = decide(tool, { [argument]: cache });
+        expect(decision.allow, `${tool} ${argument}`).toBe(false);
+        // The same as a batch step, for the tools SolidCraft runs as steps.
+        if (steps.includes(tool)) expect(decide('batch', { commands: [{ command: tool, params: { [argument]: cache } }] }).allow, `batch step ${tool} ${argument}`).toBe(false);
+      }
     }
+    const unknown = decide('measure', { dest: 'x' });
+    if (!unknown.allow) expect(unknown.reason).toBe('measure takes no argument dest in PartBuddy; its arguments are: body, items, names_only, summary.');
+    // An engine command reads a file through `file` as well as through `path`.
+    expect(decide('execute', { command: 'sketch.replace', params: { from: 'Sketch1', file: cache } }).allow).toBe(false);
+    expect(decide('batch', { commands: [{ command: 'Sketch.Replace', params: { from: 'Sketch1', file: 'other.sc' } }] }).allow).toBe(false);
+    // A geometry reference is no file.
+    expect(decide('execute', { command: 'construct.plane.tangent', params: { reference: 'XY', face: [0, 0, 1] } })).toEqual({ allow: true });
     // PartBuddy's own tools are not SolidCraft's: a drawing is named, not read from a path the assistant gives.
     expect(decide('partbuddy_place_drawing', { file: 'logo.svg', body: 'Cube' })).toEqual({ allow: true });
+  });
+
+  it('takes for the user\'s photo only the file PartBuddy kept, not a path that looks like one (last review, 4)', () => {
+    const project = join(tmpdir(), 'PartBuddy', 'Hook');
+    const photo = photoFile(project, new Date(2026, 10, 12, 10, 15, 0));
+    const calls = (reference: string): [string, Record<string, unknown>][] => [
+      ['compare_picture', { reference, view: 'top' }],
+      ['execute', { command: 'inspect.compare_picture', params: { reference } }],
+      ['execute', { command: 'canvas.insert', params: { path: reference, plane: 'XY', width: 120 } }],
+      ['batch', { commands: [{ command: 'compare_picture', params: { reference } }] }],
+    ];
+    // Before PartBuddy kept and named it, the path is a path like any other.
+    for (const [tool, args] of calls(photo)) expect(decide(tool, args).allow, `${tool} before`).toBe(false);
+    photoNote([photo]);
+    for (const [tool, args] of calls(photo)) expect(decide(tool, args), tool).toEqual({ allow: true });
+    // The same file as the model copies it: forward slashes, another case.
+    for (const [tool, args] of calls(photo.replaceAll('\\', '/'))) expect(decide(tool, args), tool).toEqual({ allow: true });
+    expect(decide('compare_picture', { reference: photo.toUpperCase().replace('.PNG', '.png').replace('PHOTOS', 'photos').replace('PHOTO-', 'photo-') })).toEqual({ allow: true });
+    const name = 'photo-20261112-101500.png';
+    const others: Record<string, string> = {
+      'another project': join(tmpdir(), 'PartBuddy', 'OTHER', 'photos', name),
+      'a photo not kept': photoFile(project, new Date(2026, 10, 12, 10, 15, 1)),
+      'a network share': `//server/share/photos/${name}`,
+      'a network share with backslashes': `\\\\server\\share\\photos\\${name}`,
+      'a device path': `\\\\.\\${photo}`,
+      'a long path prefix': `\\\\?\\${photo}`,
+      'a relative path': `photos/${name}`,
+      'a path from the working folder': `Hook/photos/${name}`,
+      'a short 8.3 name': photo.replace('PartBuddy', 'PARTBU~1'),
+      'a way round': [project, 'photos', '..', 'photos', name].join(sep),
+      'another file': join(project, 'photos', 'holiday.png'),
+    };
+    for (const [what, reference] of Object.entries(others)) {
+      for (const [tool, args] of calls(reference)) expect(decide(tool, args).allow, `${what}: ${tool}`).toBe(false);
+    }
+    expect(decide('compare_picture', { reference: [photo] }).allow).toBe(false);
   });
 
   it('decides a command id in any spelling SolidCraft runs: every rule holds for mixed case', () => {
@@ -213,7 +264,7 @@ describe('gate proxy', () => {
   it('refuses the third identical call in a row until the next turn', async () => {
     const { proxy, calls, records } = await startProxy();
     const client = await connect(proxy);
-    const inspect = () => client.callTool({ name: 'inspect_design', arguments: { depth: 1 } });
+    const inspect = () => client.callTool({ name: 'inspect_design', arguments: { timeline: true } });
     await inspect();
     await inspect();
     const third = await inspect();
@@ -221,7 +272,7 @@ describe('gate proxy', () => {
     expect(calls).toHaveLength(2);
     expect(records.at(-1)).toMatchObject({ name: 'inspect_design', decision: 'denied', reason: REPEAT_REASON });
     // Other arguments, or a new turn, start the count again.
-    await client.callTool({ name: 'inspect_design', arguments: { depth: 2 } });
+    await client.callTool({ name: 'inspect_design', arguments: { timeline: false } });
     await inspect();
     await inspect();
     proxy.newTurn();
