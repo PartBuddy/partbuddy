@@ -262,3 +262,19 @@ describe('a block that lands on another body is taken back (audit W1)', () => {
     expect(String((await withBlockTool(upstream).callTool('partbuddy_block', { block: 'screwHole', body: 'Ghost', point: [30, 10, 20] })).content[0]?.text)).toBe('Not built: there is no body named Ghost; the design has A, B');
   });
 });
+
+describe('what the assistant may ask of a block (audit W3, S-02, N-bloecke-4)', () => {
+  const at = { body: 'Cube', point: [10, 10, 20] };
+
+  it('refuses text without words, a printed thread under M5 and a seat far off the insert', () => {
+    expect(blockOf({ block: 'text', ...at, normal: [0, 0, 1] })).toBe('text needs text: the words to write');
+    expect(blockOf({ block: 'text', ...at, normal: [0, 0, 1], text: 'Cube' })).toMatchObject({ text: 'Cube' });
+    expect(blockOf({ block: 'tappedHole', ...at, size: 'M4' })).toBe('a printed M4 thread strips; use insertSeat (a heat-set insert) for M4, or tappedHole from M5');
+    expect(blockOf({ block: 'tappedHole', ...at, size: 'M5' })).toMatchObject({ size: 'M5', modeled: true });
+    expect(blockOf({ block: 'insertSeat', ...at, diameter: 500, depth: 500 })).toBe('the hole for an M3 insert is 4 mm wide; diameter may differ by a tenth of that (3.6 to 4.4 mm)');
+    expect(blockOf({ block: 'insertSeat', ...at, diameter: 0.01, depth: 0.01 })).toContain('the hole for an M3 insert is 4 mm wide');
+    expect(blockOf({ block: 'insertSeat', ...at, depth: 3 })).toBe('the seat of an M3 insert is 6.7 mm deep (the insert is 5.7 mm long); depth may be 5.7 to 17.1 mm');
+    expect(blockOf({ block: 'insertSeat', ...at, diameter: 4.2, depth: 8 })).toMatchObject({ diameter: 4.2, depth: 8 });
+    expect(blockOf({ block: 'boss', ...at, size: 'M5', diameter: 8 })).toBe('a boss for an M5 insert is at least 11.6 mm wide: the 6.4 mm hole and 2.6 mm of wall round it');
+  });
+});

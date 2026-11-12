@@ -1,6 +1,7 @@
-import { BLOCK_SIZES, defaultBlock, needsNormal, sizesOf, stepsOf, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, INSERT, defaultBlock, needsNormal, sizesOf, stepsOf, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import { KNOB, KNOB_CLEARANCE, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
+import { TAPPED_FROM } from '../../shared/mechanisms';
 import { MAGNET, MAGNET_HOLDS, magnetPocket, magnetProblem, magnetSteps, type MagnetHold } from '../../shared/magnet';
 import { KEYHOLE, WALL, WOOD_SCREWS, keyholeDepth, keyholeProblem, keyholeSteps, woodScrewSteps, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
@@ -76,6 +77,24 @@ type Vec3 = [number, number, number];
 const vec3 = (value: unknown): Vec3 | null =>
   Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry)) ? (value as Vec3) : null;
 
+/** Why the sizes of a seat or a boss no longer fit the insert of the table; null when they do. */
+function outOfTable(block: FeatureBlock): string | null {
+  if (block.block !== 'insertSeat' && block.block !== 'boss') return null;
+  const insert = INSERT[block.size];
+  if (!insert) return null;
+  const mm = (value: number) => String(Math.round(value * 100) / 100);
+  if (block.block === 'boss') {
+    const least = insert.diameter + 2 * insert.wall;
+    return block.diameter < least - 1e-9 ? `a boss for an ${block.size} insert is at least ${mm(least)} mm wide: the ${String(insert.diameter)} mm hole and ${String(insert.wall)} mm of wall round it` : null;
+  }
+  // The insert melts into a hole a little narrower than itself: a hole far off the maker's size holds nothing or splits the part.
+  if (block.diameter < insert.diameter * 0.9 - 1e-9 || block.diameter > insert.diameter * 1.1 + 1e-9)
+    return `the hole for an ${block.size} insert is ${String(insert.diameter)} mm wide; diameter may differ by a tenth of that (${mm(insert.diameter * 0.9)} to ${mm(insert.diameter * 1.1)} mm)`;
+  if (block.depth < insert.length - 1e-9 || block.depth > insert.length * 3 + 1e-9)
+    return `the seat of an ${block.size} insert is ${mm(insert.length + 1)} mm deep (the insert is ${String(insert.length)} mm long); depth may be ${String(insert.length)} to ${mm(insert.length * 3)} mm`;
+  return null;
+}
+
 /** The block the model asked for: the standard of its kind and size with what the model gave laid over it; or what is wrong. */
 export function blockOf(args: Record<string, unknown>): FeatureBlock | string {
   const kind = args.block;
@@ -89,13 +108,17 @@ export function blockOf(args: Record<string, unknown>): FeatureBlock | string {
   const head = args.head === 'countersunk' || args.head === 'none' ? args.head : 'cap';
   const sizes = sizesOf(kind as AssistantBlock, head);
   if (!sizes.includes(size)) return `${kind}${kind === 'screwHole' ? ` with head ${head}` : ''} has no size ${String(args.size)}; it has ${sizes.join(', ')}`;
+  // One rule for a printed thread, here and in the screw joint (mechanisms.ts).
+  if (kind === 'tappedHole' && Number(size.slice(1)) < TAPPED_FROM) return `a printed ${size} thread strips; use insertSeat (a heat-set insert) for ${size}, or tappedHole from M${String(TAPPED_FROM)}`;
+  // The form's placeholder word is no text of the user's.
+  if (kind === 'text' && (typeof args.text !== 'string' || !args.text.trim())) return 'text needs text: the words to write';
   const standard = defaultBlock(kind as AssistantBlock, body, point, size, normal ?? [0, 0, 1]);
   // Only the fields this kind has are taken from the model; the schema then checks their values.
   const given = Object.fromEntries(Object.keys(standard).flatMap((key) => (key in args && !['block', 'body', 'point', 'normal', 'size'].includes(key) ? [[key, args[key]]] : [])));
   const more = args.more !== undefined && 'more' in { more: undefined, ...standard } && ['screwHole', 'tappedHole', 'insertSeat'].includes(kind) ? { more: args.more } : {};
   const parsed = featureBlockSchema.safeParse({ ...standard, ...given, ...more });
   if (!parsed.success) return `${parsed.error.issues[0]?.path.join('.') ?? kind}: ${parsed.error.issues[0]?.message ?? 'invalid'}`;
-  return parsed.data;
+  return outOfTable(parsed.data) ?? parsed.data;
 }
 
 type Step = { command: string; params: Record<string, unknown> };
