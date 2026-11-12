@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { Overhang, overhangLimits, overhangOf } from './overhang';
+import { BRIDGE_SPAN, Overhang, OVERHANG_LIMITS, overhangLimits, overhangOf, smallOverhangReach } from './overhang';
 
 /** One square face of side 10 per entry, as render buffers: corners, normal and face index. */
 function faces(list: { corners: number[][]; normal: number[] }[]) {
@@ -55,6 +55,33 @@ describe('overhangs for FDM printing (UI upgrade step 12)', () => {
     ]);
     const map = overhangOf(mesh, 0);
     expect([map.vertices[0], map.vertices[4], map.vertices[8]]).toEqual([Overhang.Borderline, Overhang.Support, Overhang.Fine]);
+  });
+
+  it('leaves a bridge of up to 10 mm between two walls out, and keeps a wider one, a ceiling and an arm', () => {
+    // A ceiling at z 8, 30 deep, over the inner faces of the walls named: at x 0, at x `span`, at y 0 and y 30.
+    const roof = (span: number, walls: ('left' | 'right' | 'front' | 'back')[]) => {
+      const inner = {
+        left: { corners: [[0, 0, 0], [0, 30, 0], [0, 30, 8], [0, 0, 8]], normal: [1, 0, 0] },
+        right: { corners: [[span, 0, 0], [span, 0, 8], [span, 30, 8], [span, 30, 0]], normal: [-1, 0, 0] },
+        front: { corners: [[0, 0, 0], [0, 0, 8], [span, 0, 8], [span, 0, 0]], normal: [0, 1, 0] },
+        back: { corners: [[0, 30, 0], [span, 30, 0], [span, 30, 8], [0, 30, 8]], normal: [0, -1, 0] },
+      };
+      const mesh = faces([{ corners: [[0, 0, 8], [0, 30, 8], [span, 30, 8], [span, 0, 8]], normal: [0, 0, -1] }, ...walls.map((wall) => inner[wall])]);
+      return Math.round(overhangOf(mesh, 0, OVERHANG_LIMITS, smallOverhangReach(0.4)).area[Overhang.Support]);
+    };
+    expect(BRIDGE_SPAN).toBe(10);
+    // Within reach of both walls, and bridged.
+    expect(roof(3, ['left', 'right'])).toBe(0);
+    expect(roof(8, ['left', 'right'])).toBe(0);
+    expect(roof(10, ['left', 'right'])).toBe(0);
+    // Audit MG-01, N-mechanik-1: every corner of these lies on a wall, so they counted as small
+    // (a bridge of 40 mm, the 102 mm ceiling of a guide's groove, the ceiling of a box).
+    expect(roof(12, ['left', 'right'])).toBe(360);
+    expect(roof(40, ['left', 'right'])).toBe(1200);
+    expect(roof(102, ['left', 'right'])).toBe(3060);
+    expect(roof(40, ['left', 'right', 'front', 'back'])).toBe(1200);
+    // An arm held on one side only is no bridge, however short.
+    expect(roof(8, ['left'])).toBe(240);
   });
 
   it('moves the limits with the material (M7): PETG at 40° needs support at 45°, borderline from 30°', () => {

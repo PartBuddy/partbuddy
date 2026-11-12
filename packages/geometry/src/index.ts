@@ -1,5 +1,6 @@
 export { meshMetrics, overhangFindings, type MeshMetrics, type OverhangFinding } from './analysis';
 export {
+  BRIDGE_SPAN,
   Overhang,
   OVERHANG_LIMITS,
   overhangLimits,

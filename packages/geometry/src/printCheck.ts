@@ -10,7 +10,8 @@ import type { ViewerModel } from './viewerModel';
  * whether the part fits the printer, walls the nozzle cannot print, bodies that touch, how much of
  * the part lies on the bed, and features SolidCraft could not build. Overhangs are a hint by angle
  * only (yellow, never red): whether something needs support, and how, is the slicer's job; small
- * ones that hang from the material below, as the slicers ignore them, are left out.
+ * ones that hang from the material below, as the slicers ignore them, and ceilings the printer
+ * bridges are left out.
  * The part is checked as designed, Z up, or lying on its print face where SolidCraft has one for the
  * body (the slicer export lays it down so). Each body stands on its own lowest point: the slicer lays
  * every object of the 3MF onto the bed by itself (seen in Bambu Studio, 2026-11-05), so bodies that

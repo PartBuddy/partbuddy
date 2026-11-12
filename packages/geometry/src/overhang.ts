@@ -95,11 +95,24 @@ export function spread(count: number): [number, number, number][] {
 const WELD = 1e-4;
 
 /**
- * Overhang triangles that are small: each connected patch whose every corner lies within `reach`
+ * How far (mm) a flat ceiling may span between the material on both sides and still print as a
+ * bridge without support: UltiMaker, Design for FFF 3D printing (10 mm; Protolabs Network and
+ * Xometry Pro name 5 mm for a bridge that does not sag at all). The assistant designs to the same
+ * number (printProfiles.ts).
+ */
+export const BRIDGE_SPAN = 10;
+
+/** A face that points down this straight (−z of its unit normal) is a ceiling that can be bridged. */
+const LEVEL = 0.99;
+const CORNERS: [number, number, number][] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+
+/**
+ * Overhang triangles that are small: each connected patch whose every point lies within `reach`
  * (mm, across the bed) of an edge where the material goes on below, the way a ledge or a thread
- * flank hangs from its wall. A patch with no such edge starts in the air, and a patch reaching
- * further (a ceiling, a cantilevered arm) needs support; both stay.
- * shortcut: corner-to-edge distances are compared pairwise per patch; fine for the parts PartBuddy
+ * flank hangs from its wall, or, on a flat ceiling, between two such edges no more than
+ * `BRIDGE_SPAN` apart. A patch with no such edge starts in the air, and a patch reaching further
+ * (a ceiling, a wide bridge, a cantilevered arm) needs support; both stay.
+ * shortcut: point-to-edge distances are compared pairwise per patch; fine for the parts PartBuddy
  * builds, upgrade to a spatial grid if a check of a large mesh gets slow.
  */
 function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, support: readonly number[], reach: number, bedZ: number): Set<number> {
@@ -165,9 +178,7 @@ function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, su
       }
     }
     if (anchors.length === 0) continue;
-    const near = (v: number) => {
-      const px = positions[v * 3] ?? 0;
-      const py = positions[v * 3 + 1] ?? 0;
+    const near = (px: number, py: number) => {
       for (const [a, b] of anchors) {
         const ax = positions[a * 3] ?? 0;
         const ay = positions[a * 3 + 1] ?? 0;
@@ -179,7 +190,51 @@ function smallPatches(positions: ArrayLike<number>, index: ArrayLike<number>, su
       }
       return false;
     };
-    const holds = patch.every((t) => near(index[t * 3] ?? 0) && near(index[t * 3 + 1] ?? 0) && near(index[t * 3 + 2] ?? 0));
+    // A flat ceiling is bridged where a straight line through the point meets material on both
+    // sides within the bridge span.
+    const bridged = (px: number, py: number) => {
+      for (let turn = 0; turn < 12; turn += 1) {
+        const dx = Math.cos((turn * Math.PI) / 12);
+        const dy = Math.sin((turn * Math.PI) / 12);
+        let ahead = Infinity;
+        let behind = Infinity;
+        for (const [a, b] of anchors) {
+          const ax = (positions[a * 3] ?? 0) - px;
+          const ay = (positions[a * 3 + 1] ?? 0) - py;
+          const ex = (positions[b * 3] ?? 0) - (positions[a * 3] ?? 0);
+          const ey = (positions[b * 3 + 1] ?? 0) - (positions[a * 3 + 1] ?? 0);
+          const cross = dx * ey - dy * ex;
+          if (Math.abs(cross) < 1e-12) continue;
+          const s = (ax * dy - ay * dx) / cross;
+          if (s < -1e-6 || s > 1 + 1e-6) continue;
+          const along = (ax * ey - ay * ex) / cross;
+          if (along >= 0) ahead = Math.min(ahead, along);
+          else behind = Math.min(behind, -along);
+        }
+        if (ahead + behind <= BRIDGE_SPAN + WELD) return true;
+      }
+      return false;
+    };
+    // Every point of the patch, not only its corners: a ceiling has all its corners on its walls.
+    const holds = patch.every((t) => {
+      const [a, b, c] = [index[t * 3] ?? 0, index[t * 3 + 1] ?? 0, index[t * 3 + 2] ?? 0];
+      const x = (v: number) => positions[v * 3] ?? 0;
+      const y = (v: number) => positions[v * 3 + 1] ?? 0;
+      const ux = x(b) - x(a);
+      const uy = y(b) - y(a);
+      const vx = x(c) - x(a);
+      const vy = y(c) - y(a);
+      const nx = uy * (z(c) - z(a)) - (z(b) - z(a)) * vy;
+      const ny = (z(b) - z(a)) * vx - ux * (z(c) - z(a));
+      const nz = ux * vy - uy * vx;
+      const level = -nz > LEVEL * Math.hypot(nx, ny, nz);
+      const points = [...spread(Math.ceil(Math.abs(nz) / 2 / (reach / 2) ** 2)), ...CORNERS];
+      return points.every(([wa, wb, wc]) => {
+        const px = wa * x(a) + wb * x(b) + wc * x(c);
+        const py = wa * y(a) + wb * y(b) + wc * y(c);
+        return near(px, py) || (level && bridged(px, py));
+      });
+    });
     if (holds) for (const t of patch) small.add(t);
   }
   return small;
