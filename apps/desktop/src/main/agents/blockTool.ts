@@ -590,14 +590,17 @@ function wallTrial(block: FeatureBlock): FeatureBlock | null {
  * `model.edges`: start, mid and end of each edge). The edges in the rim's plane make loops; the smallest loop round the
  * point is the rim's outside, the loops within it its inside, and the rim is as narrow as the two come closest. A mean
  * width let a box with walls of 1.6 mm on three sides and 6 mm on one through as 2.49 mm (review of PR #369).
- * Undefined when it cannot be told: no flat face at the point, or no inside within its outside.
- * shortcut: an edge that is neither straight nor round (a spline) is taken as the circle through its three points; measure
- * along its own points if rims with free curves come.
+ * A round edge is a piece of the circle of the round face it bounds (`cylinder` of model.faces: exact centre and radius),
+ * its pieces ending on the edge's own ends: SolidCraft puts the seam of a circle at one point of the rim, and a polygon whose
+ * ends missed it by 1e-15 counted the seam twice (second review of PR 369).
+ * Undefined when it cannot be told: no flat face at the point, no inside within its outside, or an edge that is neither
+ * straight nor on a round face (an ellipse, a spline: model.edges gives no more than three points of it).
  */
 export function rimNarrowest(point: Vec3, faces: unknown, edges: unknown): number | undefined {
   const dot = (a: readonly number[], b: readonly number[]) => (a[0] ?? 0) * (b[0] ?? 0) + (a[1] ?? 0) * (b[1] ?? 0) + (a[2] ?? 0) * (b[2] ?? 0);
   const sub = (a: readonly number[], b: readonly number[]): Vec3 => [(a[0] ?? 0) - (b[0] ?? 0), (a[1] ?? 0) - (b[1] ?? 0), (a[2] ?? 0) - (b[2] ?? 0)];
-  const plane = ((faces as { faces?: { plane_normal?: unknown; point?: unknown }[] } | undefined)?.faces ?? [])
+  const listed = (faces as { faces?: { name?: unknown; plane_normal?: unknown; point?: unknown; cylinder?: { axis?: unknown; origin?: unknown; radius?: unknown } }[] } | undefined)?.faces ?? [];
+  const plane = listed
     .map((face) => ({ n: vec3(face.plane_normal), at: vec3(face.point) }))
     .find(({ n, at }) => n && at && Math.hypot(...n) > 1e-9 && Math.abs(dot(sub(point, at), n)) / Math.hypot(...n) < 1e-4);
   if (!plane?.n) return undefined;
@@ -610,11 +613,31 @@ export function rimNarrowest(point: Vec3, faces: unknown, edges: unknown): numbe
   const e2: Vec3 = [n[1] * e1[2] - n[2] * e1[1], n[2] * e1[0] - n[0] * e1[2], n[0] * e1[1] - n[1] * e1[0]];
   const flat = (p: Vec3): [number, number] => [dot(sub(p, point), e1), dot(sub(p, point), e2)];
   const inPlane = (p: Vec3 | null): p is Vec3 => p !== null && Math.abs(dot(sub(p, point), n)) < 1e-4;
-  // Each edge in the plane as a polyline: a line as itself, an arc or a circle in pieces of the circle through its points.
+  // Each edge in the plane as a polyline: a line as itself, a round edge in pieces of the circle of its round face.
   type Line = { ends: [string, string]; points: [number, number][] };
   const key = (p: [number, number]) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`;
   const lines: Line[] = [];
-  for (const edge of (edges as { edges?: { start?: unknown; mid?: unknown; end?: unknown }[] } | undefined)?.edges ?? []) {
+  /** The faces an edge lies between, from its name "A|B": a name may hold | inside brackets, as "F4:blend(F3:+y|F3:-x)". */
+  const facesOf = (name: string) => {
+    const parts: string[] = [];
+    let [depth, from] = [0, 0];
+    for (let i = 0; i < name.length; i += 1) {
+      const char = name.charAt(i);
+      depth += char === '(' ? 1 : char === ')' ? -1 : 0;
+      if (char === '|' && depth === 0) [parts[parts.length], from] = [name.slice(from, i), i + 1];
+    }
+    return [...parts, name.slice(from)];
+  };
+  /** The centre (flat) and radius of the round face an edge bounds, its axis square to the rim; null when it bounds none. */
+  const roundOf = (name: unknown): { centre: [number, number]; r: number } | null => {
+    for (const face of typeof name === 'string' ? facesOf(name) : []) {
+      const round = listed.find((entry) => entry.name === face)?.cylinder;
+      const [axis, origin] = [vec3(round?.axis), vec3(round?.origin)];
+      if (axis && origin && typeof round?.radius === 'number' && Math.abs(Math.abs(dot(axis, n)) - Math.hypot(...axis)) < 1e-6 * Math.hypot(...axis)) return { centre: flat(origin), r: round.radius };
+    }
+    return null;
+  };
+  for (const edge of (edges as { edges?: { name?: unknown; start?: unknown; mid?: unknown; end?: unknown }[] } | undefined)?.edges ?? []) {
     const [s, m, e] = [vec3(edge.start), vec3(edge.mid), vec3(edge.end)];
     if (!inPlane(s) || !inPlane(m) || !inPlane(e)) continue;
     const [a, b, c] = [flat(s), flat(m), flat(e)];
@@ -624,15 +647,9 @@ export function rimNarrowest(point: Vec3, faces: unknown, edges: unknown): numbe
       lines.push({ ends: [key(a), key(c)], points: [a, c] });
       continue;
     }
-    // The circle: through start and mid as its diameter when the edge is closed, else through all three.
-    let centre: [number, number];
-    if (closed) centre = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    else {
-      const d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
-      const q = (p: [number, number]) => p[0] ** 2 + p[1] ** 2;
-      centre = [(q(a) * (b[1] - c[1]) + q(b) * (c[1] - a[1]) + q(c) * (a[1] - b[1])) / d, (q(a) * (c[0] - b[0]) + q(b) * (a[0] - c[0]) + q(c) * (b[0] - a[0])) / d];
-    }
-    const r = Math.hypot(a[0] - centre[0], a[1] - centre[1]);
+    const round = roundOf(edge.name);
+    if (!round) return undefined;
+    const { centre, r } = round;
     const angle = (p: [number, number]) => Math.atan2(p[1] - centre[1], p[0] - centre[0]);
     const [from, via] = [angle(a), angle(b)];
     // The way round from start through mid to end.
@@ -640,7 +657,8 @@ export function rimNarrowest(point: Vec3, faces: unknown, edges: unknown): numbe
     const ccw = closed || turn(via) < turn(angle(c));
     const sweep = closed ? 2 * Math.PI : ccw ? turn(angle(c)) : -(2 * Math.PI - turn(angle(c)));
     const pieces = Math.max(8, Math.ceil((Math.abs(sweep) / (2 * Math.PI)) * 256));
-    const points = Array.from({ length: pieces + 1 }, (_, k) => [centre[0] + r * Math.cos(from + (sweep * k) / pieces), centre[1] + r * Math.sin(from + (sweep * k) / pieces)] as [number, number]);
+    // The pieces end exactly on the edge's own ends, so that a loop closes where its neighbour starts.
+    const points = Array.from({ length: pieces + 1 }, (_, k) => (k === 0 ? a : k === pieces ? c : ([centre[0] + r * Math.cos(from + (sweep * k) / pieces), centre[1] + r * Math.sin(from + (sweep * k) / pieces)] as [number, number])));
     lines.push({ ends: closed ? [key(a), key(a)] : [key(a), key(c)], points });
   }
   // Loops: edges joined at their ends.
@@ -652,8 +670,12 @@ export function rimNarrowest(point: Vec3, faces: unknown, edges: unknown): numbe
   for (const line of lines) parent.set(root(line.ends[0]), root(line.ends[1]));
   const loops = [...new Set(lines.map((line) => root(line.ends[0])))].map((id) => lines.filter((line) => root(line.ends[0]) === id).flatMap((line) => line.points.slice(1).map((p, k) => [line.points[k] ?? p, p] as [[number, number], [number, number]])));
   type Segment = [[number, number], [number, number]];
+  // The winding number, each piece counted once with half-open ends: a vertex on the line through p is not counted twice.
   const inside = (p: [number, number], loop: Segment[]) =>
-    loop.filter(([a, b]) => a[1] > p[1] !== b[1] > p[1] && p[0] < a[0] + ((p[1] - a[1]) * (b[0] - a[0])) / (b[1] - a[1])).length % 2 === 1;
+    loop.reduce((winding, [a, b]) => {
+      const left = (b[0] - a[0]) * (p[1] - a[1]) - (p[0] - a[0]) * (b[1] - a[1]);
+      return a[1] <= p[1] && b[1] > p[1] && left > 0 ? winding + 1 : a[1] > p[1] && b[1] <= p[1] && left < 0 ? winding - 1 : winding;
+    }, 0) !== 0;
   const area = (loop: Segment[]) => {
     const xs = loop.flatMap(([a, b]) => [a[0], b[0]]);
     const ys = loop.flatMap(([a, b]) => [a[1], b[1]]);
@@ -671,7 +693,8 @@ export function rimNarrowest(point: Vec3, faces: unknown, edges: unknown): numbe
   // Two loops that do not cross come closest at an end of a piece of one of them.
   const between = (from: Segment[], to: Segment[]) => Math.min(...from.flatMap(([a, b]) => [a, b]).map((p) => Math.min(...to.map((segment) => toSegment(p, segment)))));
   const narrowest = Math.min(...inner.map((loop) => Math.min(between(loop, outer), between(outer, loop))));
-  return Number.isFinite(narrowest) ? Math.round(narrowest * 1000) / 1000 : undefined;
+  // To a hundredth: a round edge in pieces reads up to a thousandth narrow.
+  return Number.isFinite(narrowest) ? Math.round(narrowest * 100) / 100 : undefined;
 }
 
 /**
@@ -831,13 +854,14 @@ function reachSaid(block: FeatureBlock, reach: (number | null)[] | undefined): s
 }
 
 /** What was built, with the sizes it took from the tables and the standard of each size it did not (audit R6), for the model to tell the user. */
-function built(block: FeatureBlock): string {
+function built(block: FeatureBlock, args: Record<string, unknown> = {}, printer: FitPrinter = DEFAULT_PRINTER): string {
   const { block: kind, body, point, ...sizes } = block;
   const standard = defaultBlock(kind, body, point, block.size) as Record<string, unknown>;
   const listed = Object.entries(sizes)
     // A size is no screw's for text, a lip or a snap fit: it is not said.
     .filter(([key, value]) => key !== 'normal' && key !== 'more' && (key !== 'size' || hasSize(kind)) && value !== undefined && value !== null)
-    .map(([key, value]) => `${key} ${String(value)}${typeof value === 'number' && typeof standard[key] === 'number' && standard[key] !== value ? ` (standard ${String(standard[key])})` : ''}`)
+    // A standard size the printer cannot print was raised (blockOf): said so, with why (second review of PR 369).
+    .map(([key, value]) => `${key} ${String(value)}${typeof value === 'number' && typeof standard[key] === 'number' && standard[key] !== value ? (key in args ? ` (standard ${String(standard[key])})` : ` (raised from the standard ${String(standard[key])} for the ${String(printer.nozzle)} mm nozzle)`) : ''}`)
     .join(', ');
   const count = 'more' in block && block.more ? block.more.length + 1 : 1;
   // `length` is SolidCraft's centre to centre (audit T44): the slot itself is its width longer.
@@ -881,13 +905,28 @@ function measuredSaid(block: FeatureBlock, wall: number | null | undefined, rim:
  * The joints that stand away from where they rest and move `body` (audit W34, review of PR #369): a joint rests at 0, or at
  * the end of its limits nearest 0 (SolidCraft 0.40.1 puts a slider limited to [5, 50] at 5 as it joins it, and will not
  * drive it to 0); it moves the side that is not fixed. Said as "name" stands at …, rests at …; empty when none.
- * shortcut: a body moved through a chain of joints (on a part that a joint moves) is not found; follow the chain if it matters.
+ * shortcut: a part joined by a second joint to the part a joint moved is not found (a part inside the moved one is); follow
+ * the joints from part to part if that matters.
  */
 export function jointsMoving(joints: unknown, listing: unknown, body: string): string[] {
   const list = joints as { fixed?: unknown; joints?: { name?: unknown; a?: unknown; b?: unknown; values?: { value?: unknown; limits?: unknown; unit?: unknown }[] }[] } | undefined;
   const fixed = Array.isArray(list?.fixed) ? (list.fixed as unknown[]) : [];
-  const components = ((listing as { components?: { parent?: unknown; bodies?: unknown; occurrences?: { id?: unknown; name?: unknown }[] }[] } | undefined)?.components ?? []).filter((entry) => entry.parent !== null && Array.isArray(entry.bodies) && entry.bodies.includes(body));
-  const holds = (side: unknown) => components.some((entry) => (entry.occurrences ?? []).some((occurrence) => occurrence.id === side || occurrence.name === side));
+  type Listed = { id?: unknown; parent?: unknown; bodies?: unknown; occurrences?: { id?: unknown; name?: unknown; parent?: unknown }[] };
+  const all = (listing as { components?: Listed[] } | undefined)?.components ?? [];
+  // The occurrences that carry the body: its component's, and those of every component above it, as a part on a moved part
+  // moves with it (second review of PR 369: "Tip" in "Flap").
+  const carriers: { id?: unknown; name?: unknown }[] = [];
+  const seen = new Set<unknown>();
+  const queue = all.filter((entry) => entry.parent !== null && Array.isArray(entry.bodies) && entry.bodies.includes(body));
+  for (let entry = queue.shift(); entry; entry = queue.shift()) {
+    if (seen.has(entry.id)) continue;
+    seen.add(entry.id);
+    for (const occurrence of entry.occurrences ?? []) {
+      carriers.push(occurrence);
+      queue.push(...all.filter((above) => above.id === occurrence.parent && above.parent !== null));
+    }
+  }
+  const holds = (side: unknown) => carriers.some((occurrence) => occurrence.id === side || occurrence.name === side);
   return (list?.joints ?? []).flatMap((joint) => {
     if (![joint.a, joint.b].some((side) => side !== undefined && !fixed.includes(side) && holds(side))) return [];
     const away = (joint.values ?? []).flatMap((value) => {
@@ -956,7 +995,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
           const what = block.block === 'nutTrap' ? `the pocket of an ${block.size} nut trap is ${mm(block.depth)} mm deep` : `text engraved ${mm(block.depth)} mm deep`;
           // A smaller nut whose standard pocket fits there.
           const smaller = block.block === 'nutTrap' ? BLOCK_SIZES.filter((size) => Number(size.slice(1)) < Number(block.size.slice(1)) && (defaultBlock('nutTrap', body, block.point, size) as { depth: number }).depth + floor <= thick + 1e-9).at(-1) : undefined;
-          const instead = smaller ? ` An ${smaller} nut trap (pocket ${mm((defaultBlock('nutTrap', body, block.point, smaller) as { depth: number }).depth)} mm deep) fits there.` : '';
+          const instead = smaller ? ` An ${smaller} nut trap (pocket ${mm((defaultBlock('nutTrap', body, block.point, smaller) as { depth: number }).depth)} mm deep) fits there; it takes an ${smaller} screw instead of the ${block.size}.` : '';
           return {
             content: [{ type: 'text', text: `Not built: at [${block.point.join(', ')}] ${body} is ${mm(thick)} mm thick (measured on trial); ${what} and needs ${mm(floor)} mm of plastic under it (two lines or four layers ${on(fit)}, as the part may lie either way), ${mm(block.depth + floor)} mm in all. Put it where the part is thicker, or thicken the part there.${instead}` }],
             isError: true,
@@ -1064,7 +1103,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
               ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder' : ''}: it is there.${fell > 0 ? fallenSaid(fell, lenient) : lenient > 0 ? lenientSaid(lenient) : ''}`
               : unmeasured
             : '';
-        const said = (wall ? wall.text : block ? built(block) + reachSaid(block, reach) + measuredSaid(block, thick, rim) : '') +(block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');
+        const said = (wall ? wall.text : block ? built(block, args, fit) + reachSaid(block, reach) + measuredSaid(block, thick, rim) : '') +(block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');
         return { content: [{ type: 'text', text: `${said}${stockSaid}${warnings.length > 0 ? ` SolidCraft warns: ${warnings.join(' ')}` : ''}` }] };
       } catch (cause) {
         return { content: [{ type: 'text', text: `Not built: ${(cause as Error).message}` }], isError: true };

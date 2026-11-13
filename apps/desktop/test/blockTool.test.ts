@@ -316,7 +316,7 @@ describe('a cut through goes through the wall at its point alone (audit W2, T4, 
     const trap = await thin.tools.callTool('partbuddy_block', { block: 'nutTrap', ...side, normal: [-1, 0, 0] });
     expect(trap).toMatchObject({ isError: true, content: [{ text: 'Not built: at [0, 20, 15] Dose is 2 mm thick (measured on trial); the pocket of an M3 nut trap is 2.8 mm deep and needs 0.9 mm of plastic under it (two lines or four layers on a 0.4 mm nozzle, as the part may lie either way), 3.7 mm in all. Put it where the part is thicker, or thicken the part there.' }] });
     // In a 3.2 mm wall the M3 pocket does not fit, an M2 one does: the answer names it (review of PR #369, K6).
-    expect(String((await box({ wall: 3.2 }).tools.callTool('partbuddy_block', { block: 'nutTrap', ...side, normal: [-1, 0, 0] })).content[0]?.text)).toContain('3.7 mm in all. Put it where the part is thicker, or thicken the part there. An M2 nut trap (pocket 2 mm deep) fits there.');
+    expect(String((await box({ wall: 3.2 }).tools.callTool('partbuddy_block', { block: 'nutTrap', ...side, normal: [-1, 0, 0] })).content[0]?.text)).toContain('3.7 mm in all. Put it where the part is thicker, or thicken the part there. An M2 nut trap (pocket 2 mm deep) fits there; it takes an M2 screw instead of the M3.');
     // The trial drills the hole alone, so a pocket deeper than the wall cannot fail it.
     expect(thin.sent.find((batch) => batch.rollback)?.commands.map((step) => step.command)).toEqual(['solid.box', 'solid.combine', 'solid.move', 'solid.hole', 'solid.move', 'solid.combine', 'inspect.measure', 'sketch.inspect']);
     expect(thin.built('solid.extrude')).toEqual([]);
@@ -803,7 +803,9 @@ describe('the wall round a hole on a curved face and at an edge (review 5 of PR 
     return { stock, hole: (r: number) => (r < clearance / 2 ? Infinity : r < countersink / 2 ? countersink / 2 - r : 0), breaks: [clearance / 2, countersink / 2 - FACE_DROP, countersink / 2] };
   };
 
-  it('lets through on a rod or a ball every seat and wood screw the slack of a curved face let through before', async () => {
+  // About 2 s here, and over the 5 s default on a loaded CI runner: its own timeout. The 60 × 180 grid of the double is kept;
+  // 30 × 90 halved the time, but whether it keeps the radii at which the old check passed was not shown, so it stays.
+  it('lets through on a rod or a ball every seat and wood screw the slack of a curved face let through before', { timeout: 60_000 }, async () => {
     // The smallest radius at which each passed before, by the reviewer's reckoning; around it in steps of 1 mm.
     const cases = [
       ...(['M2', 'M3', 'M4', 'M5', 'M6'] as const).map((size, i) => ({ name: `rod ${size}`, ...seat(size), shape: rod, near: [6, 7, 9, 12.5, 19.5][i] ?? 0 })),
@@ -1025,6 +1027,8 @@ describe('what a block takes and the sizes it builds (audit BC-03)', () => {
 
 });
 
+type Vec3 = [number, number, number];
+
 describe('a block on the printer in use, on a moved part and on an uneven rim (review of PR 369)', () => {
   const at = { body: 'Plate', point: [10, 10, 6] };
   const up = { ...at, normal: [0, 0, 1] };
@@ -1045,7 +1049,8 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     expect(blockOf({ block: 'text', ...up, text: 'Hi', height: 3 })).toContain('give height 4 or more');
     // Through the tool: the printer comes from the profile, and the answer says so.
     const fine = plate(undefined, nozzle(0.8));
-    expect(await said(fine.tools.callTool('partbuddy_block', { block: 'snapFit', ...up }))).toContain('thickness 1.8 (standard 1.5)');
+    // A raised size says why (second review of PR 369, K7); one the model gave names its standard.
+    expect(await said(fine.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 15 }))).toContain('length 15 (standard 12), thickness 1.8 (raised from the standard 1.5 for the 0.8 mm nozzle)');
     expect(fine.built('plastic.snap_fit')[0]).toMatchObject({ thickness: '1.8 mm' });
   });
 
@@ -1067,6 +1072,19 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     // On the grounded side, or between two other parts, the joint does not move Plate.
     expect(jointsMoving(rail(12, 7, 5), { components: [listing.components[0], { ...listing.components[2], occurrences: [{ id: 5, name: 'Plate:1' }] }] }, 'Plate')).toEqual([]);
     expect(await said(scene(rail(12, 5, 9)).tools.callTool('partbuddy_block', { block: 'boss', ...at }))).toMatch(/^Built boss/);
+    // A part inside the moved part moves with it: "Tip" in "Flap" (component.list of SolidCraft 0.40.1: an occurrence's
+    // parent is the component it sits in; second review of PR 369).
+    const nested = {
+      components: [
+        { id: 0, parent: null, bodies: [] },
+        { id: 1, parent: 0, bodies: ['Base'], occurrences: [{ id: 2, name: 'Base:1', parent: 0 }] },
+        { id: 4, parent: 0, bodies: ['Flap'], occurrences: [{ id: 5, name: 'Flap:1', parent: 0 }] },
+        { id: 7, parent: 4, bodies: ['Tip'], occurrences: [{ id: 8, name: 'Tip:1', parent: 4 }] },
+      ],
+    };
+    const slide = { fixed: [0, 2], joints: [{ name: 'Slide', a: 2, b: 5, values: [{ value: 20, limits: [5, 50], unit: 'mm' }] }] };
+    expect(jointsMoving(slide, nested, 'Tip')).toEqual(['"Slide" stands at 20 mm and rests at 5 mm']);
+    expect(jointsMoving(slide, nested, 'Base')).toEqual([]);
     // A hinge without limits rests at 0.
     expect(jointsMoving({ fixed: [0], joints: [{ name: 'Lid hinge', a: 5, b: 7, values: [{ value: 30, unit: 'deg' }] }] }, listing, 'Plate')).toEqual(['"Lid hinge" stands at 30° and rests at 0°']);
   });
@@ -1093,8 +1111,24 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     const even = rimOf(2, 2, 58, 38);
     expect(rimNarrowest([1, 20, 30], even.faces, even.edges)).toBe(2);
     // A round rim: a tube 20 mm across with a bore of 16, each edge a closed circle.
-    const circle = (r: number) => ({ start: [r, 0, 5], mid: [-r, 0, 5], end: [r, 0, 5] });
-    expect(rimNarrowest([9, 0, 5], { faces: [{ plane_normal: [0, 0, 1], point: [9, 0, 5] }] }, { edges: [circle(10), circle(8)] })).toBe(2);
+    // A round rim: a pot 40 mm across shelled to 2 mm, as SolidCraft 0.40.1 gives it (2026-11-13). Each edge is a closed
+    // circle whose seam lies at angle 0 (y = 0) and whose mid misses y = 0 by 1e-14; points on the seam's line once counted it twice.
+    const pot = {
+      faces: { faces: [{ name: 'F2:side:c1', plane_normal: null, cylinder: { axis: [0, 0, 1], origin: [0, 0, 0], radius: 20 } }, { name: 'F2:top', plane_normal: [0, 0, 1], point: [12.673655681709661, -14.656433146017925, 20] }, { name: 'F3:inner(F2:side:c1)', plane_normal: null, cylinder: { axis: [0, 0, 1], origin: [0, 0, 0], radius: 18 } }] },
+      edges: {
+        edges: [
+          { name: 'F2:side:c1|F2:top', start: [20, 0, 20], mid: [-19.999999999999996, -1.9456412573374646e-14, 20], end: [20, 0, 20] },
+          { name: 'F2:top|F3:inner(F2:side:c1)', start: [18, 0, 20], mid: [-17.999999999999996, -2.6098474116521377e-14, 20], end: [18, 0, 20] },
+        ],
+      },
+    };
+    for (const at of [[-19, 0, 20], [19, 0, 20], [-13.4, 13.4, 20], [0, 19, 20], [0, -19, 20]] as Vec3[]) expect(rimNarrowest(at, pot.faces, pot.edges)).toBe(2);
+    // An ellipse: model.edges gives three points of it, too few to know it, and its face is no cylinder: not measured.
+    const oval = {
+      faces: { faces: [{ name: 'F12:side:e1', plane_normal: null }, { name: 'F12:top', plane_normal: [0, 0, 1], point: [439.79, 3.8, 20] }, { name: 'F13:inner(F12:side:e1)', plane_normal: null }] },
+      edges: { edges: [{ name: 'F12:side:e1|F12:top', start: [480, 20, 20], mid: [420, 19.99999999999997, 20], end: [480, 20, 20] }, { name: 'F12:top|F13:inner(F12:side:e1)', start: [478, 20, 20], mid: [422, 20.00000000000002, 20], end: [478, 20, 20] }] },
+    };
+    expect(rimNarrowest([421, 20, 20], oval.faces, oval.edges)).toBeUndefined();
     // No inside within the outside (a flat plate's top): not measured.
     expect(rimNarrowest([1, 20, 30], even.faces, { edges: rimOf(2, 2, 58, 38).edges.edges.slice(0, 4) })).toBeUndefined();
     const answer = (rim: ReturnType<typeof rimOf>) => (step: { command: string }) => (step.command === 'model.faces' ? rim.faces : step.command === 'model.edges' ? rim.edges : undefined);
