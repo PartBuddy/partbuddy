@@ -3,7 +3,8 @@ import { join } from 'node:path';
 
 import { cutsThrough, splitPieceSteps, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../../shared/blocks';
 import type { ClearanceResult, DesignAction, JointSweep, JointSweepResult, MeasureItem, MeasureResult } from '../../shared/contract';
-import { LIP, SNAP } from '../../shared/mechanisms';
+import type { FitPrinter } from '../../shared/designFit';
+import { LIP, snapHold } from '../../shared/mechanisms';
 import type { ControlRequester } from './mirror';
 
 /**
@@ -107,7 +108,7 @@ export class ActionService {
    * alone (audit W2). `unmeasured` when the reach could not be found: then it goes through all of the body on its line,
    * far walls too, and the form must say so. SolidCraft's refusal and an engine error are told apart in the log.
    */
-  async blockSteps(block: FeatureBlock, sketch: string | undefined, log: (line: string) => void): Promise<{ steps: Step[]; unmeasured: boolean }> {
+  async blockSteps(block: FeatureBlock, sketch: string | undefined, log: (line: string) => void, printer?: FitPrinter): Promise<{ steps: Step[]; unmeasured: boolean }> {
     let reach: (number | null)[] | undefined;
     if (cutsThrough(block)) {
       try {
@@ -120,7 +121,7 @@ export class ActionService {
         log(`Warning: ${block.block} on ${block.body}: the trial of its reach failed (${(cause as Error).message.slice(0, 200)}); it goes through all of the body`);
       }
     }
-    const steps = await this.inComponentOf(block.body, stepsOf(block, sketch, reach));
+    const steps = await this.inComponentOf(block.body, stepsOf(block, sketch, reach, printer));
     return { steps, unmeasured: cutsThrough(block) && !reach?.every((value) => value !== null) };
   }
 
@@ -263,7 +264,7 @@ const REACHED = { deg: 0.5, mm: 0.1 };
  * shortcut: a snap-fit block the user gave a deeper catch (`catchDepth` over 0.6 mm) reads as a stop near a limit; take
  * the catches of the design's own blocks into the rule if that turns up.
  */
-export const SNAP_CATCH = Math.max(LIP.bead, Math.round((SNAP.catch - SNAP.gap) * 1000) / 1000);
+export const SNAP_CATCH = Math.max(LIP.bead, snapHold());
 /** How many stops near a limit one call of joint runs (up to 40, report.ts) tries as snap fits; the rest are reported and logged. */
 export const SNAP_TRIES = 8;
 

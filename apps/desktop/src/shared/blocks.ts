@@ -11,8 +11,9 @@ import { drawingColours, drawingPieces, drawingSize, drawingSvg, naturalWidth, p
 
 import { minimumWall, thinnestLine } from '@partbuddy/geometry';
 
-import { CLEARANCE_NOZZLE, type FitPrinter } from './designFit';
-import { CAP_HEAD, CLEARANCE_NORMAL, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, NUT, NUT_ALLOWANCE, BLOCK_SIZES, type BlockSize } from './screwSizes';
+import { CLEARANCE_NOZZLE, snapSize, type FitPrinter } from './designFit';
+import { TAPPED_FROM } from './mechanisms';
+import { CLEARANCE, CLEARANCE_NORMAL, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, HOLE_SHRINK_MOST, INSERT, NUT, NUT_ALLOWANCE, BLOCK_SIZES, TAP_DRILL, clearancePasses, headRoom, printedThread, screwDiameter, type BlockSize } from './screwSizes';
 
 export { BLOCK_SIZES, HEAD_ALLOWANCE, INSERT, NUT_ALLOWANCE, type BlockSize };
 
@@ -72,23 +73,36 @@ export function sizesOf(kind: BlockKind, head: 'none' | 'cap' | 'countersunk' = 
   return [...BLOCK_SIZES];
 }
 
-/** A block with its standard values for a size (the form starts from these). */
-export function defaultBlock(kind: BlockKind, body: string, point: [number, number, number], size: BlockSize, normal: Point = [0, 0, 1]): FeatureBlock {
+/** Text sunk in or standing out: 0.5 mm (Xometry Pro, FDM design tips), in whole layers; the design rules say the same (printProfiles.ts). */
+export const TEXT_DEPTH = 0.5;
+/** A detail that has to hold, and a stroke of text: 1 mm (Xometry Pro, FDM design tips; the UZH guideline asks 1 mm for text). */
+export const STURDY = 1;
+/** The 45° chamfer at the mouth of a hole, in mm (own choice; the design rules' details say the same, printProfiles.ts). */
+export const ENTRY_CHAMFER = 0.5;
+
+/** How deep text and logos go in or stand out on the printer: {@link TEXT_DEPTH} in whole layers (audit T49, S-19, R36). */
+export const textDepth = (printer: FitPrinter) => snapSize('height', TEXT_DEPTH, printer);
+/** The stroke text needs to read well on the printer: {@link STURDY}, and two lines at the least (the design rules' details). */
+export const textStroke = (printer: FitPrinter) => Math.max(STURDY, minimumWall(printer.nozzle));
+
+/** A block with its standard values for a size on the printer (the form starts from these). */
+export function defaultBlock(kind: BlockKind, body: string, point: [number, number, number], size: BlockSize, normal: Point = [0, 0, 1], printer: FitPrinter = DEFAULT_PRINTER): FeatureBlock {
   const insert = INSERT[size] ?? INSERT.M3 ?? { diameter: 4, length: 5.7, wall: 1.6 };
   switch (kind) {
     case 'tappedHole':
-      return { block: kind, body, point, size, depth: null, modeled: true };
+      // Modelled from M5, as a printed thread holds (mechanisms.ts); smaller ones are listed, to be tapped (audit BC-12 S2).
+      return { block: kind, body, point, size, depth: null, modeled: screwDiameter(size) >= TAPPED_FROM };
     case 'screwHole':
       return { block: kind, body, point, size, head: 'cap', fit: 'normal' };
     case 'insertSeat':
       return { block: kind, body, point, size, diameter: insert.diameter, depth: round(insert.length + 1) };
     case 'boss':
-      // Wall round the insert: what its maker asks for, and never under 2 mm.
-      return { block: kind, body, point, size, diameter: round(insert.diameter + 2 * Math.max(2, insert.wall)), height: round(insert.length + 3) };
+      // Wall round the insert: what its maker asks for, never under 2 mm, in whole lines of the printer (audit S-14).
+      return { block: kind, body, point, size, diameter: round(insert.diameter + 2 * snapSize('wall', Math.max(2, insert.wall), printer)), height: round(insert.length + 3) };
     case 'text':
       // 7 mm capitals: engraved, "PartBuddy" left 0.62 mm of plastic between letters at 5 to 6.5 mm and none under the
       // 0.9 mm of two lines at 7 and 8 (PartBuddy's print check, 0.4 mm nozzle, SolidCraft 0.40.1, 2026-11-13).
-      return { block: kind, body, point, normal, size, text: 'PartBuddy', height: 7, depth: 0.6, mode: 'deboss', bold: true };
+      return { block: kind, body, point, normal, size, text: 'PartBuddy', height: 7, depth: textDepth(printer), mode: 'deboss', bold: true };
     case 'nutTrap': {
       const [flats, height] = NUT[size];
       return { block: kind, body, point, normal, size, flats: round(flats + NUT_ALLOWANCE.flats), depth: round(height + NUT_ALLOWANCE.depth) };
@@ -101,7 +115,7 @@ export function defaultBlock(kind: BlockKind, body: string, point: [number, numb
       return { block: kind, body, point, size, type: 'lip', width: 1.2, height: 2, gap: 0.2 };
     case 'logo':
       // No file yet: the form asks for one before anything is built.
-      return { block: kind, body, point, normal, size, name: '', svg: '', width: 20, depth: 0.6, mode: 'deboss' };
+      return { block: kind, body, point, normal, size, name: '', svg: '', width: 20, depth: textDepth(printer), mode: 'deboss' };
     case 'snapFit':
       // About 1.4 % strain when it snaps in: within what printed PLA takes.
       return { block: kind, body, point, normal, size, length: 12, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5, hook: 'y+' };
@@ -167,7 +181,7 @@ type Step = { command: string; params: Record<string, unknown> };
  * The SolidCraft commands of a block, in one batch: one feature, or a sketch and its feature. A
  * logo's sketches are named `sketch` (default `SVG-Logo <name>`), so it can be moved later (drawingPlacement.ts).
  */
-export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly (number | null)[]): Step[] {
+export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly (number | null)[], printer: FitPrinter = DEFAULT_PRINTER): Step[] {
   const mm = (value: number) => `${String(round(value))} mm`;
   switch (block.block) {
     case 'text':
@@ -185,7 +199,7 @@ export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly
         { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
         { command: 'sketch.polygon.circumscribed', params: { center: [0, 0], radius: round(block.flats / 2), sides: 6 } },
         { command: 'solid.extrude', params: { distance: mm(-block.depth), operation: 'cut', targets: [block.body] } },
-        { command: 'solid.hole', params: { position: bottom, clearance: block.size, fit: 'normal', ...(through?.[0] ? { depth: mm(Math.max(through[0] - block.depth, 0.01)) } : {}), targets: [block.body] } },
+        { command: 'solid.hole', params: { position: bottom, diameter: mm(CLEARANCE_NORMAL[block.size]), ...(through?.[0] ? { depth: mm(Math.max(through[0] - block.depth, 0.01)) } : {}), targets: [block.body] } },
       ];
     }
     case 'slot': {
@@ -227,7 +241,7 @@ export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly
       return [{ command: 'plastic.lip', params: { face: block.point, type: block.type, width: mm(block.width), height: mm(block.height), ...(block.type === 'groove' ? { gap: mm(block.gap) } : {}), body: block.body } }];
     default:
       // A row of holes: the same hole at each further point.
-      return [block.point, ...('more' in block ? (block.more ?? []) : [])].map((point, i) => stepOf({ ...block, point }, through?.[i]));
+      return [block.point, ...('more' in block ? (block.more ?? []) : [])].map((point, i) => stepOf({ ...block, point }, through?.[i], printer));
   }
 }
 
@@ -237,36 +251,50 @@ function textFont(block: { bold: boolean; font?: string | undefined }): { font?:
   return { ...(font ? { font } : {}), ...(block.bold ? { bold: true } : {}) };
 }
 
-/** The SolidCraft command of a block that is one feature; it names its body, so a point where two bodies meet cuts only that one. */
-export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | 'nutTrap' | 'slot' | 'lip' | 'snapFit' }>, through?: number | null): Step {
+/** The 45° chamfer at a hole's mouth (audit R36), as SolidCraft's countersink on the hole: {@link ENTRY_CHAMFER} wider on each side. */
+const chamfered = (hole: number) => ({ type: 'countersink', cs_diameter: `${String(round(hole + 2 * ENTRY_CHAMFER))} mm`, cs_angle: '90 deg' });
+
+/** The hole a tapped hole is drilled with: a modelled thread's from its print size, a listed one with ISO's tap drill, to be tapped. */
+export const tapDrill = (block: { size: BlockSize; modeled: boolean }) => (block.modeled ? printedThread(block.size).drill : TAP_DRILL[block.size]);
+
+/** A boss's fillet at its foot (audit S-14): half its wall, and at least 1 mm and two nozzle widths (the design rules' inner corners). */
+export const bossFillet = (block: { size: BlockSize; diameter: number }, printer: FitPrinter) => round(Math.max((block.diameter - (INSERT[block.size]?.diameter ?? 4)) / 4, STURDY, 2 * printer.nozzle));
+
+/**
+ * The SolidCraft command of a block that is one feature; it names its body, so a point where two bodies meet cuts only that one.
+ * Every hole takes its size from PartBuddy's tables (screwSizes.ts), none from SolidCraft's (audit R7, W21, S-09).
+ */
+export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | 'nutTrap' | 'slot' | 'lip' | 'snapFit' }>, through?: number | null, printer: FitPrinter = DEFAULT_PRINTER): Step {
   const mm = (value: number) => `${String(round(value))} mm`;
   switch (block.block) {
     case 'tappedHole': {
       const depth = block.depth ?? through;
-      return { command: 'solid.hole', params: { position: block.point, thread: block.size, modeled: block.modeled, ...(depth ? { depth: mm(depth) } : {}), targets: [block.body] } };
+      // A modelled thread gets room for printing; a listed one stays the size it will be tapped to.
+      const thread = block.modeled ? printedThread(block.size).designation : block.size;
+      return { command: 'solid.hole', params: { position: block.point, thread, modeled: block.modeled, ...(depth ? { depth: mm(depth) } : {}), ...chamfered(tapDrill(block)), targets: [block.body] } };
     }
     case 'screwHole': {
-      const base = { position: block.point, clearance: block.size, fit: block.fit, ...(through ? { depth: mm(through) } : {}), targets: [block.body] };
+      const hole = CLEARANCE[block.fit][block.size];
+      const base = { position: block.point, diameter: mm(hole), ...(through ? { depth: mm(through) } : {}), targets: [block.body] };
       if (block.head === 'cap') {
-        const [diameter, height] = CAP_HEAD[block.size];
-        const room = height + HEAD_ALLOWANCE.depth;
+        const room = headRoom(block.size, 'cap');
         // SolidCraft refuses a counterbore as deep as its hole (0.40.1): in a wall thinner than the head, the hole ends just past it.
-        const depth = through ? { depth: mm(Math.max(through, room + 0.01)) } : {};
-        return { command: 'solid.hole', params: { ...base, ...depth, type: 'counterbore', cb_diameter: mm(diameter + 2 * HEAD_ALLOWANCE.diameter), cb_depth: mm(room) } };
+        const depth = through ? { depth: mm(Math.max(through, room.depth + 0.01)) } : {};
+        // Two bridge layers under its floor (a slot, then a square): facing the bed, the floor prints without support (audit S-11).
+        return { command: 'solid.hole', params: { ...base, ...depth, type: 'counterbore', cb_diameter: mm(room.diameter), cb_depth: mm(room.depth), bridge: mm(printer.layer) } };
       }
-      if (block.head === 'countersunk') {
-        const diameter = COUNTERSUNK_HEAD[block.size] ?? CAP_HEAD[block.size][0];
-        return { command: 'solid.hole', params: { ...base, type: 'countersink', cs_diameter: mm(diameter + HEAD_ALLOWANCE.diameter), cs_angle: '90 deg' } };
-      }
-      return { command: 'solid.hole', params: base };
+      if (block.head === 'countersunk') return { command: 'solid.hole', params: { ...base, type: 'countersink', cs_diameter: mm(headRoom(block.size, 'countersunk', hole).diameter), cs_angle: '90 deg' } };
+      return { command: 'solid.hole', params: { ...base, ...chamfered(hole) } };
     }
     case 'insertSeat':
+      // No chamfer: the insert's tip is narrower than its hole and starts it (ruthex RX: d2 3.9 in 4.0), and a chamfer on a curved
+      // face would hide a rim that breaks into an edge from the seat's measure (blockTool.ts; review of BC-12).
       return { command: 'solid.hole', params: { position: block.point, diameter: mm(block.diameter), depth: mm(block.depth), targets: [block.body] } };
     case 'boss': {
       const insert = INSERT[block.size] ?? { diameter: 4, length: 5.7 };
       return {
         command: 'plastic.boss',
-        params: { position: block.point, diameter: mm(block.diameter), height: mm(block.height), hole_diameter: mm(insert.diameter), hole_depth: mm(insert.length + 1), body: block.body },
+        params: { position: block.point, diameter: mm(block.diameter), height: mm(block.height), hole_diameter: mm(insert.diameter), hole_depth: mm(insert.length + 1), draft: '0 deg', fillet: mm(bossFillet(block, printer)), body: block.body },
       };
     }
   }
@@ -482,6 +510,9 @@ export type BlockLimit = { key: string; value: number; nozzle: number } & (
   | { reason: 'screw'; size: string; thread: number; standard: number }
   | { reason: 'nutFlats' | 'nutHeight'; size: string; least: number; standard: number }
   | { reason: 'nutCorners'; size: string; most: number }
+  | { reason: 'printedThread'; size: string; from: number }
+  /** `value` is the close hole, `shrink` the most a printed hole loses, `standard` the normal hole. */
+  | { reason: 'closeFit'; size: string; thread: number; room: number; shrink: number; standard: number }
 );
 
 /** Whether the strokes of a text's font are known: measured for Arial bold and the built-in Liberation Sans alone (TEXT_STROKE). */
@@ -532,6 +563,12 @@ export function blockLimit(block: FeatureBlock, printer: FitPrinter): BlockLimit
     if (reason === 'stroke' || reason === 'strokeBold') return { key, value, nozzle, reason, least, needed: round(2 * nozzle), stroke: round(value * (reason === 'strokeBold' ? TEXT_STROKE.bold : TEXT_STROKE.regular)) };
     return { key, value, nozzle, reason: reason as 'lipWall', least };
   }
+  // A printed thread under M5 strips, in the form as with the assistant (blockTool.ts, mechanisms.ts).
+  if (block.block === 'tappedHole' && block.modeled && screwDiameter(block.size) < TAPPED_FROM)
+    return { key: 'modeled', value: screwDiameter(block.size), nozzle, reason: 'printedThread', size: block.size, from: TAPPED_FROM };
+  // A close hole (ISO 273 fine) leaves 0.2 to 0.3 mm over screws up to M5, which a printed hole loses (audit T31).
+  if (block.block === 'screwHole' && !clearancePasses(block.size, block.fit))
+    return { key: 'fit', value: CLEARANCE[block.fit][block.size], nozzle, reason: 'closeFit', size: block.size, thread: screwDiameter(block.size), room: round(CLEARANCE[block.fit][block.size] - screwDiameter(block.size)), shrink: HOLE_SHRINK_MOST, standard: CLEARANCE.normal[block.size] };
   if (block.block === 'slot') {
     const thread = Number(block.size.slice(1));
     if (block.width < thread) return { key: 'width', value: block.width, nozzle, reason: 'screw', size: block.size, thread, standard: CLEARANCE_NORMAL[block.size] };
@@ -574,7 +611,11 @@ export function limitSaid(limit: BlockLimit): string {
         return `an ${limit.size} nut is ${String(limit.most)} mm across its corners and would turn in the pocket; give less than that`;
       case 'nutHeight':
         return `an ${limit.size} nut is ${String(limit.least)} mm high and would stand out of the pocket; the standard is ${String(limit.standard)}`;
+      case 'printedThread':
+        return `modeled: a printed ${limit.size} thread strips; give modeled false to drill it for tapping after printing, use insertSeat (a heat-set insert), or a thread from M${String(limit.from)}`;
+      case 'closeFit':
+        return `fit close: the ${limit.size} hole of ISO 273 fine is ${String(limit.value)} mm, ${String(limit.room)} mm over the ${String(limit.thread)} mm screw, and a printed hole comes out up to ${String(limit.shrink)} mm smaller (the largest hole allowance of the material catalogue), so the screw may not pass; give fit normal (${String(limit.standard)} mm)`;
     }
   })();
-  return `${limit.key} ${String(limit.value)}: ${why}`;
+  return limit.reason === 'closeFit' || limit.reason === 'printedThread' ? why : `${limit.key} ${String(limit.value)}: ${why}`;
 }

@@ -5,6 +5,8 @@
  * countersink, with what designers of printed keyholes publish for the rest.
  */
 
+import { BRIDGE_SPAN } from '@partbuddy/geometry';
+
 type Vec3 = [number, number, number];
 type Step = { command: string; params: Record<string, unknown> };
 
@@ -13,8 +15,8 @@ export type WoodScrew = (typeof WOOD_SCREWS)[number];
 
 /**
  * Per wood screw, in mm: the keyhole's entry hole (head plus 0.5 mm per side) and slot (thread plus
- * 0.25 mm per side), the depth of the pocket for the head (a pan head's height plus 0.6 mm), and
- * the countersunk hole of DIN 74 form A with 0.2 mm more for print.
+ * 0.25 mm per side), the depth of the pocket for the head (DIN 7996's pan head, 2.35 / 2.8 / 3.1 / 3.5 mm high, plus 0.65
+ * to 0.7 mm: audit MV-21), and the countersunk hole of DIN 74 form A with 0.2 mm more for print.
  */
 export const WALL: Record<WoodScrew, { entry: number; slot: number; pocket: number; clearance: number; countersink: number }> = {
   3.5: { entry: 8, slot: 4, pocket: 3, clearance: 4.1, countersink: 7.8 },
@@ -44,15 +46,30 @@ export interface KeyholeSpec {
 }
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
+/** A direction to SolidCraft at full precision (audit T40: rounded to 0.001, a skew one was off its line); only a hair from zero is zero. */
+const direction = (vector: Vec3) => vector.map((value) => (Math.abs(value) < 1e-12 ? 0 : value)) as Vec3;
 const unit = (vector: Vec3): Vec3 => {
   const length = Math.hypot(...vector);
   return vector.map((value) => value / length) as Vec3;
 };
 const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
-/** How thick the part must be at a keyhole: lip, pocket and what stays behind the head. */
+/**
+ * How far the sides of a keyhole's pocket lean in above it, {@link ROOF_LEAN} from upright, so that its flat roof, a bridge
+ * with the face on the bed, spans no more than the print check bridges ({@link BRIDGE_SPAN}; audit MV-13); to a hundredth,
+ * up. None where the entry is no wider. At 45° the print check took the slopes into the bridge and found it 11 mm wide
+ * (SolidCraft 0.40.1, 2026-11-13).
+ */
+export function keyholeRoof(screw: WoodScrew): number {
+  return Math.ceil(Math.max(0, (WALL[screw].entry - BRIDGE_SPAN) / 2 / Math.tan((ROOF_LEAN * Math.PI) / 180)) * 100 - 1e-6) / 100;
+}
+
+/** How far from upright the sides under a keyhole's roof lean: under the 35° the least steep material of the catalogue takes (TPU). */
+export const ROOF_LEAN = 30;
+
+/** How thick the part must be at a keyhole: lip, pocket, its roof and what stays behind the head. */
 export function keyholeDepth(screw: WoodScrew): number {
-  return round(KEYHOLE.lip + WALL[screw].pocket + KEYHOLE.behind);
+  return round(KEYHOLE.lip + WALL[screw].pocket + keyholeRoof(screw) + KEYHOLE.behind);
 }
 
 /**
@@ -61,7 +78,7 @@ export function keyholeDepth(screw: WoodScrew): number {
  */
 export function keyholeStock(spec: KeyholeSpec, from: number): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number }[] {
   const [n, up] = [unit(spec.normal), unit(spec.up)];
-  const axis = n.map((value) => round(-value) + 0) as Vec3;
+  const axis = direction(n.map((value) => -value) as Vec3);
   const room = { axis, diameter: WALL[spec.screw].entry, depth: round(keyholeDepth(spec.screw) - from), from };
   const behind = (point: Vec3) => ({ at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3, ...room });
   return [spec.point, ...spec.more].flatMap((rest) => [behind(rest), behind(rest.map((value, k) => round(value - (up[k] ?? 0) * KEYHOLE.travel)) as Vec3)]);
@@ -108,27 +125,31 @@ export function keyholeProblem(spec: KeyholeSpec): string | null {
  * The cuts of a keyhole slot in the face against the wall: the entry hole for the head, a slot of
  * the thread's width above it through the lip, and behind the lip a pocket as wide as the entry,
  * in which the head travels up. Printed with that face on the bed the pocket's roof is a bridge of
- * the entry's width, and nothing needs support.
+ * the entry's width, at most {@link BRIDGE_SPAN} where the pocket's sides lean in above it ({@link keyholeRoof}),
+ * and nothing needs support.
  */
 export function keyholeSteps(spec: KeyholeSpec): Step[] {
   const size = WALL[spec.screw];
   const [n, up] = [unit(spec.normal), unit(spec.up)];
-  const into = n.map((value) => round(-value) + 0) as Vec3;
+  const into = direction(n.map((value) => -value) as Vec3);
   // Sketch x across the slot and y up, so that x × y points into the part: a positive distance cuts.
-  const across = cross(n, up).map((value) => round(value) + 0) as Vec3;
+  const across = direction(cross(n, up));
+  const roof = keyholeRoof(spec.screw);
   const mm = (value: number) => `${String(round(value))} mm`;
   return [spec.point, ...spec.more].flatMap((rest, i): Step[] => {
     const label = `${spec.name} ${String(i + 1)}`;
     const entry = rest.map((value, k) => round(value - (up[k] ?? 0) * KEYHOLE.travel)) as Vec3;
-    const slot = (name: string, depthFrom: number, width: number, distance: number): Step[] => [
-      { command: 'sketch.create', params: { plane: { origin: rest.map((value, k) => round(value - (n[k] ?? 0) * depthFrom)), x_dir: across, y_dir: up.map((value) => round(value) + 0) }, project_edges: false, name } },
+    const slot = (name: string, depthFrom: number, width: number, distance: number, taper?: string): Step[] => [
+      { command: 'sketch.create', params: { plane: { origin: rest.map((value, k) => round(value - (n[k] ?? 0) * depthFrom)), x_dir: across, y_dir: direction(up) }, project_edges: false, name } },
       { command: 'sketch.slot.center_to_center', params: { p0: [0, -KEYHOLE.travel], p1: [0, 0], width } },
-      { command: 'solid.extrude', params: { distance: mm(distance), operation: 'cut', targets: [spec.body], name } },
+      { command: 'solid.extrude', params: { distance: mm(distance), ...(taper ? { taper } : {}), operation: 'cut', targets: [spec.body], name } },
     ];
     return [
       { command: 'solid.cylinder', params: { diameter: mm(size.entry), height: mm(KEYHOLE.lip + size.pocket), base: entry, axis: into, operation: 'cut', targets: [spec.body], name: label } },
       ...slot(`${label} ·`, 0, size.slot, KEYHOLE.lip),
       ...slot(`${label} ○`, KEYHOLE.lip, size.entry, size.pocket),
+      // Its sides lean in above the pocket, so the flat of its roof is a bridge the print check passes.
+      ...(roof > 0 ? slot(`${label} ⌂`, KEYHOLE.lip + size.pocket, size.entry, roof, `-${String(ROOF_LEAN)} deg`) : []),
     ];
   });
 }

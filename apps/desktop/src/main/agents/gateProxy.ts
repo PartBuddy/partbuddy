@@ -6,8 +6,8 @@ import { Readable } from 'node:stream';
 import { Server, WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server';
 
 import { REPEAT_LIMIT } from './loop';
-import { decide, decideParameterNames, type ToolDecision } from './policy';
-import { withToolNotes } from './toolNotes';
+import { decide, decideParameterNames, inputProblem, offeredTool, type ToolDecision } from './policy';
+import { withSkillNote, withToolNotes } from './toolNotes';
 
 /** A tool as the upstream MCP server lists it, passed through unchanged. */
 export interface UpstreamTool {
@@ -48,9 +48,10 @@ export const REPEAT_REASON = `PartBuddy refused this call: it is the same call w
 
 /**
  * MCP server on 127.0.0.1 that an external agent (Claude Code) uses instead of SolidCraft's own
- * MCP server (ADR 0015). It lists SolidCraft's tools unchanged and runs every call through the
- * tool policy before forwarding it, so gates hold whatever the model decides. Each start gets a
- * random bearer token; requests without it, or for another host, are refused.
+ * MCP server (ADR 0015). It lists SolidCraft's tools without those the policy refuses, and runs
+ * every call through the tool policy and the tool's input schema before forwarding it, so gates
+ * hold whatever the model decides. Each start gets a random bearer token; requests without it, or
+ * for another host, are refused.
  */
 export class GateProxy {
   private http: HttpServer | null = null;
@@ -59,6 +60,7 @@ export class GateProxy {
   private sequence = 0;
   private lastCall = '';
   private repeats = 0;
+  private listed = new Map<string, UpstreamTool>();
 
   constructor(
     private readonly upstream: UpstreamTools,
@@ -90,6 +92,12 @@ export class GateProxy {
     if (!http) return;
     http.closeAllConnections();
     await new Promise<void>((done) => http.close(() => done()));
+  }
+
+  /** The upstream tools the model is offered: none the policy refuses whatever the arguments (audit S-04). */
+  private async listTools(): Promise<Map<string, UpstreamTool>> {
+    this.listed = new Map((await this.upstream.listTools()).filter((tool) => offeredTool(tool.name)).map((tool) => [tool.name, tool]));
+    return this.listed;
   }
 
   private authorized(request: IncomingMessage): boolean {
@@ -148,7 +156,7 @@ export class GateProxy {
       { name: 'partbuddy', version: '0.1.0' },
       { capabilities: { tools: {} }, instructions: withToolNotes(this.upstream.instructions()) },
     );
-    server.setRequestHandler('tools/list', async () => ({ tools: await this.upstream.listTools() }));
+    server.setRequestHandler('tools/list', async () => ({ tools: [...(await this.listTools()).values()] }));
     server.setRequestHandler('tools/call', async (request) => {
       const name = request.params.name;
       const args = request.params.arguments ?? {};
@@ -159,6 +167,12 @@ export class GateProxy {
       this.repeats = key === this.lastCall ? this.repeats + 1 : 1;
       this.lastCall = key;
       let decision: ToolDecision = this.repeats >= REPEAT_LIMIT ? { allow: false, reason: REPEAT_REASON } : decide(name, args);
+      if (decision.allow) {
+        // The schema as last listed; a call before any list reads it once. Unreadable, the call goes on and fails as before.
+        const tool = this.listed.get(name) ?? (await this.listTools().catch(() => this.listed)).get(name);
+        const problem = tool ? inputProblem(tool, args) : null;
+        if (problem) decision = { allow: false, reason: problem };
+      }
       // A misspelt parameter name would make a new parameter (audit R17); only the names need the design.
       if (decision.allow) decision = await decideParameterNames((tool, toolArgs) => this.upstream.callTool(tool, toolArgs), name, args);
       if (!decision.allow) {
@@ -169,7 +183,7 @@ export class GateProxy {
       try {
         const result = await this.upstream.callTool(name, args, id);
         this.onCall({ id, name, summary, decision: 'allowed', ok: result.isError !== true });
-        return result as never;
+        return withSkillNote(name, result) as never;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.onCall({ id, name, summary, decision: 'allowed', ok: false });

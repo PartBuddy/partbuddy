@@ -1540,13 +1540,13 @@
       "loose": "Loose"
     },
     "hint": {
-      "tappedHole": "A hole with SolidCraft's thread of this size, drilled with the tap drill.",
-      "screwHole": "Clearance after ISO 273 with room for the head after ISO 4762 or ISO 10642, plus 0.6 mm for printing.",
+      "tappedHole": "A modelled thread of this size with {thread, number} mm more on its diameter for printing, its mouth chamfered; not modelled, it is drilled with the tap drill to be tapped after printing.",
+      "screwHole": "Clearance hole from PartBuddy's ISO 273 table (close from M6 only: a printed hole loses up to {shrink, number} mm), with room for the head after ISO 4762 or ISO 10642 plus {head, number} mm for printing (on each side of a counterbore, once on a countersink's diameter). A counterbore gets two bridge layers of {layer, number} mm under its floor, so it prints facing the bed.",
       "insertSeat": "Typical values for ruthex inserts, one millimetre deeper than the insert. Check your insert's data sheet.",
       "boss": "A boss with a seat for a heat-set insert of this size and at least 2 mm of wall.",
-      "nutTrap": "A hexagonal pocket after ISO 4032 with 0.3 mm of room and 0.4 mm of extra depth, with a clearance hole after ISO 273 below.",
+      "nutTrap": "A hexagonal pocket after ISO 4032 with 0.3 mm of room and 0.4 mm of extra depth, with a clearance hole after ISO 273 below. Older DIN nuts are wider at M10 (17 mm): give flats 17.3 for those.",
       "slot": "A slot as wide as the normal clearance hole, centred on the point, to adjust the screw.",
-      "text": "Text centred on the point, reading level. Engraved from 0.6 mm and embossed from 0.4 mm depth prints cleanly; each stroke at least two nozzle widths: on a 0.4 mm nozzle bold capitals from 4 mm high, plain ones from 6 mm; engraved, 7 mm (the default) leaves enough plastic between the letters.",
+      "text": "Text centred on the point, reading level. Engraved or embossed {depth, number} mm deep reads well on this printer, strokes {stroke, number} mm wide too; under two nozzle widths a stroke does not print. Engraved, 7 mm capitals (the default) leave enough plastic between the letters.",
       "lip": "For a shelled case: pick the face on the rim. The lip goes on the base, the groove with its gap into the lid.",
       "snapFit": "A flexible arm with a catch, standing out of the face. Print it lying down so the layers run along the arm: standing upright it breaks along a layer. The other part needs an opening as deep as the catch.",
       "logo": "An SVG file centred on the point, as wide as given. Filled areas and lines at their stroke width are built; turn text into paths first (in Inkscape: Path › Object to Path)."
@@ -1568,6 +1568,8 @@
     "font": "Font",
     "fontBuiltIn": "Default (Liberation Sans)",
     "limit": {
+      "printedThread": "A printed {size} thread strips: untick the modelled thread to drill it for tapping, use an insert seat, or a thread from M{from, number}.",
+      "closeFit": "A close hole for {size} is {value, number} mm, {room, number} mm over the screw, and a printed hole comes out up to {shrink, number} mm smaller: the screw may not pass. Choose normal ({standard, number} mm).",
       "stroke": "Capitals {value, number} mm high have strokes {stroke, number} mm wide, under the {needed, number} mm (two nozzle widths) a stroke needs on the {nozzle, number} mm nozzle: give a height of {least, number} mm or more.",
       "strokeBold": "Bold capitals {value, number} mm high have strokes {stroke, number} mm wide, under the {needed, number} mm (two nozzle widths) a stroke needs on the {nozzle, number} mm nozzle: give a height of {least, number} mm or more.",
       "lipWall": "A lip {value, number} mm wide does not print solid: two lines on the {nozzle, number} mm nozzle are {least, number} mm – give at least that.",

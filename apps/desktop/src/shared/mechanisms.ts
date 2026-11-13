@@ -848,7 +848,7 @@ export interface LidSpec {
   diameter: number;
   /** How many threads run side by side: 1, or 2 to 3 for a lid that closes in less than a turn. */
   starts: number;
-  /** The room between the two threads, radially; all of it on the lid. */
+  /** The room between the two threads, radially; all of it on the lid. Square to the 45° flanks it is gap / √2 (audit T58). */
   gap: number;
   name: string;
 }
@@ -949,12 +949,31 @@ export interface SnapSpec {
 }
 
 /**
- * One cantilever hook, in mm: an arm 12 long, 1.5 thick and 5 wide (Hubs: no narrower) with a catch of 0.8 on its last
- * 1.5, which bends the root by 1.4 % as it snaps in (Bayer's and BASF's 0.67 · strain · length² / thickness, turned
- * round). The arm stands `gap` off the wall, the window is `side` wider on each side, its edge lies `seat` under the
- * catch and it leaves `air` over the tip. Clearances are those of guides for printed parts, which run from 0.1 to 0.5.
+ * One cantilever hook, in mm: an arm 12 long, 1.5 thick and 5 wide (Hubs: no narrower) with a catch 0.8 deep on its
+ * last 1.5. The arm stands `gap` off the wall, so the catch reaches `catch − gap` (0.6) over the window's edge, and that
+ * is also how far the arm bends as it snaps in ({@link snapHold}; audit T58, W23: 0.8 was said). The window is `side`
+ * wider on each side, its edge lies `seat` under the catch and it leaves `air` over the tip ({@link snapWindow}).
+ * Clearances are those of guides for printed parts, which run from 0.1 to 0.5.
  */
 export const SNAP = { length: 12, thickness: 1.5, width: 5, catch: 0.8, catchLength: 1.5, gap: 0.2, side: 0.3, seat: 0.2, air: 0.5 };
+
+/** How far a hook's catch reaches over its window's edge, and how far the arm bends to pass the wall: the catch less the room between arm and wall (mm). */
+export const snapHold = () => round(SNAP.catch - SNAP.gap);
+
+/** A hook's window in its wall: from `from` to `to` mm above the hook's foot, `half` to each side of the hook's middle. */
+export function snapWindow(): { from: number; to: number; half: number } {
+  const from = round(SNAP.length - SNAP.catchLength - SNAP.seat);
+  return { from, to: round(from + SNAP.catchLength + SNAP.seat + SNAP.air), half: round(SNAP.width / 2 + SNAP.side) };
+}
+
+/** The ways of a snap hook, each of length 1: `up` as it stands, `toward` the wall square to it, `across` the hook. */
+export function snapFrame(spec: Pick<SnapSpec, 'up' | 'toward'>): { up: Vec3; toward: Vec3; across: Vec3 } {
+  const up = spec.up.map((value) => value / Math.hypot(...spec.up)) as Vec3;
+  const along = spec.toward.reduce((sum, value, i) => sum + value * (up[i] ?? 0), 0);
+  const flat = spec.toward.map((value, i) => value - along * (up[i] ?? 0)) as Vec3;
+  const toward = flat.map((value) => value / Math.hypot(...flat)) as Vec3;
+  return { up, toward, across: cross(up, toward) };
+}
 
 /** What is wrong with a snap hook before anything is built; null when it can be built. */
 export function snapProblem(spec: SnapSpec): string | null {
@@ -973,23 +992,21 @@ export function snapProblem(spec: SnapSpec): string | null {
  * cut first and the hook built last, each with its own body's component active.
  */
 export function snapSteps(spec: SnapSpec): Step[] {
-  const length = Math.hypot(...spec.up);
-  const up = spec.up.map((value) => value / length) as Vec3;
-  const along = spec.toward.reduce((sum, value, i) => sum + value * (up[i] ?? 0), 0);
-  const flat = spec.toward.map((value, i) => value - along * (up[i] ?? 0)) as Vec3;
-  const toward = flat.map((value) => value / Math.hypot(...flat)) as Vec3;
+  const { up, toward, across } = snapFrame(spec);
   const tidy = (vector: Vec3) => vector.map((value) => round(value) + 0) as Vec3;
   const mm = (value: number) => `${String(round(value))} mm`;
   const feet = [spec.from, ...spec.more];
-  const half = round(SNAP.width / 2 + SNAP.side);
-  const high = round(SNAP.catchLength + SNAP.seat + SNAP.air);
+  const { from, to, half } = snapWindow();
+  const high = round(to - from);
   const windows = feet.flatMap((foot, i): Step[] => {
     const name = `${spec.name} ${String(i + 1)} □`;
     return [
-      // Sketch x across the hook, y up it: x × y points into the wall, so a positive distance cuts.
-      { command: 'sketch.create', params: { plane: { origin: foot.map((value, k) => round(value + (up[k] ?? 0) * (SNAP.length - SNAP.catchLength - SNAP.seat))), x_dir: tidy(cross(up, toward)), y_dir: tidy(up) }, project_edges: false, name } },
+      // Sketch x across the hook, y up it: x × y points into the wall, so a positive distance cuts. The cut starts at the
+      // arm's face, `gap` before the wall, so a round wall keeps no wedge at the window's sides (practice run BC-11: a
+      // wall of 28 mm radius kept 0.14 mm there, a thin wall to the print check).
+      { command: 'sketch.create', params: { plane: { origin: foot.map((value, k) => round(value + (up[k] ?? 0) * from - (toward[k] ?? 0) * SNAP.gap)), x_dir: tidy(across), y_dir: tidy(up) }, project_edges: false, name } },
       { command: 'sketch.line', params: { points: [[-half, 0], [half, 0], [half, high], [-half, high]], closed: true } },
-      { command: 'solid.extrude', params: { distance: mm(spec.wall), operation: 'cut', targets: [spec.moving], name } },
+      { command: 'solid.extrude', params: { distance: mm(spec.wall + SNAP.gap), operation: 'cut', targets: [spec.moving], name } },
     ];
   });
   const hooks = feet.map((foot): Step => ({
@@ -1098,20 +1115,41 @@ export interface LatchSpec {
 }
 
 /**
- * A snap latch outside a box, in mm (decided 2026-11-11: no hinge, whose play is larger than any catch). An arm
+ * A snap latch outside a box, in mm (decided 2026-11-11: one arm that bends, not a latch turning on a pin of its own,
+ * whose play would be larger than any catch; audit H-24). An arm
  * `thick` stands `off` the wall, rooted in the lid between `foot` and `head` above the joint, where a 45° slope
- * carries it; `lever` below its root a hook reaches to `clear` off the wall, under a bead that stands `bead` out of
+ * carries it, and meets the root's underside in a radius `root`, half its thickness (Bayer, BASF: at least half the
+ * arm's thickness at the root; audit MV-11: a sharp inner corner); `lever` below its root a hook reaches to `clear` off the wall, under a bead that stands `bead` out of
  * the box, the two 45° faces `seat` apart: none, so the closed lid cannot lift before the hook holds (at 0.2 it rattled,
  * practice run 2026-11-11), and a print that comes out fuller only seats the hook a little further out on its slope.
- * Lid and box print apart, so the faces need no room. `tab` of arm below the hook is for the finger. Snapping over the bead bends
- * the root by 1.5 · thick · (bead − clear) / lever² = 1.3 %.
+ * Lid and box print apart, so the faces need no room: a lid on a print-in-place hinge prints with its box, and there
+ * they would fuse (audit R40), so the tool refuses it. `tab` of arm below the hook is for the finger. `into` of each
+ * profile lies in its wall, which the tool measures ({@link latchStrain} for the bend).
  */
-export const LATCH = { thick: 1.6, off: 1.5, foot: 1, head: 5, lever: 12, bead: 1.2, clear: 0.4, seat: 0, tab: 2, into: 0.5, beside: 1 };
+export const LATCH = { thick: 1.6, off: 1.5, foot: 1, head: 5, lever: 12, bead: 1.2, clear: 0.4, seat: 0, tab: 2, into: 0.5, beside: 1, root: 0.8 };
 
 /** How much flat wall the latch needs: on the lid above the joint, and on the box below it. */
 export function latchReach(): { above: number; below: number } {
   const hook = LATCH.off - LATCH.clear;
   return { above: round(LATCH.head + LATCH.off + LATCH.thick), below: round(LATCH.lever - LATCH.foot + hook + LATCH.tab) };
+}
+
+/**
+ * The strain at the arm's root as the hook passes the bead, in per cent: 1.5 · thick · (bead − clear) / lever², the
+ * lever taken from where the root's radius starts, which is the shorter and the stricter (1.3 % from its flat underside).
+ */
+export function latchStrain(): number {
+  return (150 * LATCH.thick * (LATCH.bead - LATCH.clear)) / (LATCH.lever - LATCH.root) ** 2;
+}
+
+/** The ways of a latch, each of length 1: `up` from box to lid, `out` of the wall square to it, `run` along the wall, the way its profiles are extruded. */
+export function latchFrame(spec: Pick<LatchSpec, 'up' | 'out'>): { up: Vec3; out: Vec3; run: Vec3 } {
+  const up = spec.up.map((value) => value / Math.hypot(...spec.up)) as Vec3;
+  const along = spec.out.reduce((sum, value, i) => sum + value * (up[i] ?? 0), 0);
+  const flat = spec.out.map((value, i) => value - along * (up[i] ?? 0)) as Vec3;
+  const out = flat.map((value) => value / Math.hypot(...flat)) as Vec3;
+  // x × y of the sketch: the profiles are extruded this way along the wall.
+  return { up, out, run: cross(out, up) };
 }
 
 /** What is wrong with a latch before anything is built; null when it can be built. */
@@ -1130,50 +1168,72 @@ export function latchProblem(spec: LatchSpec): string | null {
  * it without support, and so does the bead with the box standing.
  */
 export function latchSteps(spec: LatchSpec): Step[] {
-  const length = Math.hypot(...spec.up);
-  const up = spec.up.map((value) => value / length) as Vec3;
-  const along = spec.out.reduce((sum, value, i) => sum + value * (up[i] ?? 0), 0);
-  const flat = spec.out.map((value, i) => value - along * (up[i] ?? 0)) as Vec3;
-  const out = flat.map((value) => value / Math.hypot(...flat)) as Vec3;
-  // x × y of the sketch: the profiles are extruded this way along the wall.
-  const run = cross(out, up);
+  const { up, out, run } = latchFrame(spec);
   const tidy = (vector: Vec3) => vector.map((value) => round(value) + 0) as Vec3;
-  const { thick, off, foot, head, lever, bead, clear, seat, tab, into, beside } = LATCH;
+  const { thick, off, foot, head, lever, bead, clear, seat, tab, into, beside, root } = LATCH;
   const hook = off - clear;
   const crest = foot - lever;
   const outer = off + thick;
   // The bead's crest lies above the hook's so that their faces are `seat` apart, measured upright.
   const ridge = crest + bead - clear + seat;
-  const profile = (points: [number, number][], half: number, target: string, name: string): Step[] => [
+  const at = (points: [number, number][]) => points.map(([x, y]) => [round(x), round(y)]);
+  const profile = (curves: Step[], half: number, target: string, name: string): Step[] => [
     { command: 'sketch.create', params: { plane: { origin: spec.from.map((value, i) => round(value - (run[i] ?? 0) * half)), x_dir: tidy(out), y_dir: tidy(up) }, project_edges: false, name } },
-    { command: 'sketch.line', params: { points: points.map(([x, y]) => [round(x), round(y)]), closed: true } },
+    ...curves,
     { command: 'solid.extrude', params: { distance: `${String(round(2 * half))} mm`, operation: 'join', targets: [target], name } },
   ];
   return [
     ...profile(
       [
-        [-into, ridge + bead],
-        [0, ridge + bead],
-        [bead, ridge],
-        [0, ridge - bead],
-        [-into, ridge - bead],
+        {
+          command: 'sketch.line',
+          params: {
+            points: at([
+              [-into, ridge + bead],
+              [0, ridge + bead],
+              [bead, ridge],
+              [0, ridge - bead],
+              [-into, ridge - bead],
+            ]),
+            closed: true,
+          },
+        },
       ],
       spec.width / 2 + beside,
       spec.fixed,
       `${spec.name} ◁`,
     ),
+    // The arm's outline down to its root's radius, the radius counter-clockwise, and back along the root's underside:
+    // each curve starts where the last ended, so SolidCraft joins them into one closed profile.
     ...profile(
       [
-        [-into, head + outer],
-        [0, head + outer],
-        [outer, head],
-        [outer, crest - hook - tab],
-        [off, crest - hook - tab],
-        [off, crest - hook],
-        [clear, crest],
-        [off, crest + hook],
-        [off, foot],
-        [-into, foot],
+        {
+          command: 'sketch.line',
+          params: {
+            points: at([
+              [-into, head + outer],
+              [0, head + outer],
+              [outer, head],
+              [outer, crest - hook - tab],
+              [off, crest - hook - tab],
+              [off, crest - hook],
+              [clear, crest],
+              [off, crest + hook],
+              [off, foot - root],
+            ]),
+          },
+        },
+        { command: 'sketch.arc.center_point', params: { center: at([[off - root, foot - root]])[0], start: at([[off, foot - root]])[0], end: at([[off - root, foot]])[0] } },
+        {
+          command: 'sketch.line',
+          params: {
+            points: at([
+              [off - root, foot],
+              [-into, foot],
+              [-into, head + outer],
+            ]),
+          },
+        },
       ],
       spec.width / 2,
       spec.moving,

@@ -20,6 +20,7 @@ import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFea
 import type { DesignParameter, DimensionMark, LogoMoveRequest, LogoSpot } from '../../shared/contract';
 import { logoAt, planLogoMove } from './logoMove';
 import { blockBodies, colourLayers, planeAt, type FeatureBlock } from '../../shared/blocks';
+import type { FitPrinter } from '../../shared/designFit';
 import { centring, hostFace, movedPlane, TEXT_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
 import { boxSize, insertCommand, statesNoUnit, type ImportKind, type MeshUnit } from '../projects/importFile';
 import { resolvePrintFaces, savedPrintFaces } from '../projects/assembly';
@@ -825,11 +826,11 @@ export class SolidCraftSupervisor {
   }
 
   /** A function block (F1) on trial for the ghost, like an action. */
-  async previewBlock(given: FeatureBlock): Promise<ActionPreview> {
+  async previewBlock(given: FeatureBlock, printer?: FitPrinter): Promise<ActionPreview> {
     const block = await this.boldBlock(given);
     return this.trial('block preview', async () => {
       const placed = await this.centredBlock(block);
-      const { steps, unmeasured } = await this.actions.blockSteps(placed, undefined, (line) => this.options.log(line));
+      const { steps, unmeasured } = await this.actions.blockSteps(placed, undefined, (line) => this.options.log(line), printer);
       const preview = await this.actions.previewSteps(steps, blockBodies(placed));
       // The panel shows a short reason; the log keeps SolidCraft's own words.
       if (!preview.ok) this.options.log(`${block.block} preview refused: ${preview.error}`);
@@ -852,14 +853,14 @@ export class SolidCraftSupervisor {
     return { ...block, point: movedPlane(plane, du, dv).origin };
   }
 
-  async applyBlock(given: FeatureBlock): Promise<void> {
+  async applyBlock(given: FeatureBlock, printer?: FitPrinter): Promise<void> {
     let block = await this.boldBlock(given);
     await this.probing;
     // A logo's sketches get a name no other logo has, so it can be moved on its own later.
     const sketch =
       block.block === 'logo' ? uniqueLogoName(block.name, await this.actions.sketchNames()) : block.block === 'text' ? uniqueLogoName(block.text, await this.actions.sketchNames(), TEXT_PREFIX) : undefined;
     block = await this.centredBlock(block);
-    await this.actions.applySteps((await this.actions.blockSteps(block, sketch, (line) => this.options.log(line))).steps);
+    await this.actions.applySteps((await this.actions.blockSteps(block, sketch, (line) => this.options.log(line), printer)).steps);
     // A logo in colours: pieces a cut split off get their colour too.
     const layers = block.block === 'logo' ? colourLayers(block) : [];
     if (layers.length > 0) {

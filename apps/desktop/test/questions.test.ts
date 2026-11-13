@@ -4,7 +4,7 @@ import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
 import { ASSEMBLY_TOOL } from '../src/main/agents/assemblyTool';
 import { DESIGN_TOOL } from '../src/main/agents/designTool';
-import { ASK_TOOL, CANCELLED, fitPlan, NOT_GO, PLAN_FIRST, PLAN_TOOL, Questions } from '../src/main/agents/questions';
+import { ASK_TOOL, CANCELLED, fitPlan, NOT_GO, ONE_RECOMMENDED, PLAN_FIRST, PLAN_TOOL, Questions } from '../src/main/agents/questions';
 import { STANDARD_TOOL } from '../src/main/agents/standardTool';
 import { VIEW_TOOL } from '../src/main/agents/viewContext';
 import { CHANGING_TOOLS } from '../src/main/agents/workLog';
@@ -91,6 +91,20 @@ describe('questions and plans (M2a)', () => {
     const { events, tools } = setup();
     expect((await tools.callTool(ASK_TOOL, { question: 'Which wall?', options: [{ label: '2 mm' }, { label: '3 mm' }] })).isError).toBeUndefined();
     expect(events.at(-1)).toMatchObject({ question: { questions: [{ question: 'Which wall?' }] } });
+  });
+
+  it('refuses a single-choice question with more than one recommended answer, not a multiSelect one (R44)', async () => {
+    const options = (marked: number) => [0, 1, 2].map((i) => ({ label: `${String(i + 2)} mm`, ...(i < marked ? { recommended: true } : {}) }));
+    const ask = async (marked: number, multiSelect?: boolean) => {
+      const { tools } = setup();
+      return tools.callTool(ASK_TOOL, { questions: [{ question: 'Which wall?', options: options(marked), ...(multiSelect === undefined ? {} : { multiSelect }) }] });
+    };
+    for (const marked of [0, 1]) expect((await ask(marked)).isError).toBeUndefined();
+    const two = await ask(2);
+    expect(two.isError).toBe(true);
+    expect(two.content[0]?.text).toContain(ONE_RECOMMENDED);
+    expect((await ask(2, false)).isError).toBe(true);
+    for (const marked of [2, 3]) expect((await ask(marked, true)).isError).toBeUndefined();
   });
 
   it('refuses invalid input and a second open question', async () => {

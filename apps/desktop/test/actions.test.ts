@@ -361,8 +361,15 @@ describe('a function block from the form: a cut through goes through the wall at
 
   it('measures the reach on trial and builds that deep', async () => {
     const { service, logged, log } = form('pieces');
-    expect(await service.blockSteps(hole, undefined, log)).toEqual({ steps: [{ command: 'solid.hole', params: { position: [0, 20, 15], clearance: 'M3', fit: 'normal', depth: '3 mm', targets: ['Dose'] } }], unmeasured: false });
+    expect(await service.blockSteps(hole, undefined, log)).toEqual({ steps: [{ command: 'solid.hole', params: { position: [0, 20, 15], diameter: '3.4 mm', depth: '3 mm', type: 'countersink', cs_diameter: '4.4 mm', cs_angle: '90 deg', targets: ['Dose'] } }], unmeasured: false });
     expect(logged).toEqual([]);
+  });
+
+  it('builds for the printer it is given, as the assistant does: bridge layers of its layer (review of BC-12)', async () => {
+    const { service, log } = form('pieces');
+    const { steps } = await service.blockSteps({ ...hole, head: 'cap' }, undefined, log, { nozzle: 0.6, layer: 0.3 });
+    expect(steps[0]?.params).toMatchObject({ type: 'counterbore', bridge: '0.3 mm' });
+    expect((await service.blockSteps({ ...hole, head: 'cap' }, undefined, log)).steps[0]?.params).toMatchObject({ bridge: '0.2 mm' });
   });
 
   it('when SolidCraft refuses the trial or the engine fails, builds through all, logs a warning and says unmeasured for the form', async () => {

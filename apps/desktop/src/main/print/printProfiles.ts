@@ -14,7 +14,8 @@ import {
   type PartPrint,
   type PrintSettings,
 } from '../../shared/contract';
-import { CLEARANCE_NOZZLE, lineWidth, printInPlaceGap, scaleClearance, snapSize, type FitPrinter } from '../../shared/designFit';
+import { ENTRY_CHAMFER, STURDY, textDepth, textStroke } from '../../shared/blocks';
+import { CLEARANCE_NOZZLE, lineWidth, printInPlaceGap, scaleClearance, type FitPrinter } from '../../shared/designFit';
 import { MATERIAL_CATALOG } from '../../shared/materialCatalog';
 import { HOLE_SIZES } from '../../shared/tolerances';
 import { BLOCK_TOOL } from '../agents/blockTool';
@@ -230,10 +231,6 @@ const smallLedge = (nozzle: number) => Math.round(4 * 1.125 * nozzle * 100) / 10
 
 /** The gap printInPlaceGap never goes under, whatever the nozzle: moving parts need at least 0.3 mm (Prusa). */
 const MOVING_GAP = printInPlaceGap({ nozzle: 0, layer: 0 });
-/** A detail that has to hold, and a stroke of text: 1 mm (Xometry Pro, FDM design tips; the UZH guideline asks 1 mm for text). */
-const STURDY = 1;
-/** Text sunk in or standing out: 0.5 mm (Xometry Pro, FDM design tips). */
-const TEXT_DEPTH = 0.5;
 
 /**
  * The profile as the model reads it (English, like every note to the model). It names what the
@@ -301,11 +298,11 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
     );
   if (design.printInPlace)
     lines.push(
-      `- Hinges, joints and clips: first look for a print-in-place solution that prints without support, with ${mm(gap)} gap all round the moving parts (one nozzle, at least ${mm(MOVING_GAP)}: Prusa), the pin lying flat with 45° cones or teardrop holes instead of flat ceilings, and a ${mm(layer * 2)} chamfer on the moving parts' bed edges so they do not fuse. Snap arms at least five times as long as thick, with a 30–45° lead-in (own choice). When print-in-place does not work (load, size, material), choose another joint on purpose and say why in one sentence.`,
+      `- Hinges, guides, snap closures and clips: build them with partbuddy_mechanism (hinges print in place in one piece with this printer's gap; guides, closures and clips print as separate parts). Other joints you model yourself (a wheel on its axle, a lever): first look for a print-in-place solution that prints without support, with ${mm(gap)} gap all round the moving parts (one nozzle, at least ${mm(MOVING_GAP)}: Prusa), the pin lying flat with 45° cones or teardrop holes instead of flat ceilings, and a ${mm(layer * 2)} chamfer on the moving parts' bed edges so they do not fuse. Snap arms at least five times as long as thick, with a 30–45° lead-in (own choice). When print-in-place does not work (load, size, material), choose another joint on purpose and say why in one sentence.`,
     );
   if (design.details)
     lines.push(
-      `- Details: keep walls the same thickness throughout (one wall parameter), chamfer hole and screw entries 0.5 mm × 45° and give mating edges a 0.5 mm lead-in chamfer so parts go together (both own choice), sink screw heads (counterbore or countersink), and blend changes in thickness with a radius or a 45° slope instead of a sharp step. Details that have to hold at least ${mm(Math.max(STURDY, line))} (Xometry). Embossed or engraved text at least ${mm(snapSize('height', TEXT_DEPTH, printer))} deep and ${mm(Math.max(STURDY, minWall))} wide per stroke (Xometry: 0.5 mm and 1 mm).`,
+      `- Details: keep walls the same thickness throughout (one wall parameter), chamfer hole and screw entries ${mm(ENTRY_CHAMFER)} × 45° and give mating edges a 0.5 mm lead-in chamfer so parts go together (both own choice), sink screw heads (counterbore or countersink), and blend changes in thickness with a radius or a 45° slope instead of a sharp step. Details that have to hold at least ${mm(Math.max(STURDY, line))} (Xometry). Embossed or engraved text at least ${mm(textDepth(printer))} deep and ${mm(textStroke(printer))} wide per stroke (Xometry: 0.5 mm and 1 mm).`,
     );
   if (design.snap)
     lines.push(
