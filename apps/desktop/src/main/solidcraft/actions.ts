@@ -176,10 +176,10 @@ export class ActionService {
   /**
    * Runs each joint value to a limit on a copy of the design (`joint.sweep`, ADR 0027); a sweep SolidCraft refuses counts as run through.
    * So does a snap fit: parts that meet a short way before the limit and are free of each other at the limit press past
-   * one another there, as a lid's bead does over the rim of its box. The limit's pose is tried and the joint put back
-   * where it stood (a batch taken back leaves a driven joint where it was driven, 0.40.0-rc.4). The batch ends in the
-   * failing read, so SolidCraft takes back both drives with their undo steps: `rollback` alone took back nothing, and in
-   * the window each check left two undo steps and a new revision, mirrored and checked again without end (audit X-1).
+   * one another there, as a lid's bead does over the rim of its box. The limit's pose is tried in a batch that ends in
+   * the failing read, so SolidCraft takes the drive back with its undo step and the joint stands where it stood
+   * (0.40.1). `rollback` alone took back nothing: in the window each check left undo steps and a new revision, which
+   * was mirrored and checked again without end (audit X-1, contract test "stays quiet").
    */
   async sweepJoints(sweeps: JointSweep[]): Promise<JointSweepResult> {
     if (sweeps.length === 0) return [];
@@ -189,22 +189,9 @@ export class ActionService {
     for (const [i, sweep] of sweeps.entries()) {
       const stop = stops[i];
       if (!stop || sweep.index !== 0 || !snapSpan(stop.stoppedAt, sweep.to, (reply.results?.[i] as { unit?: unknown } | undefined)?.unit)) continue;
-      // Where the joint stands now, read here: the sweep's own start may be older than the user's last move.
-      const listed = await this.batch([{ command: 'joint.list', params: {} }], false);
-      const joints = (listed.results?.[0] as { joints?: { id?: unknown; values?: { value?: unknown }[] }[] } | undefined)?.joints ?? [];
-      const stands = joints.find((joint) => joint.id === sweep.joint)?.values?.[0]?.value;
-      if (listed.failed || typeof stands !== 'number') continue;
-      const posed = await this.batch(
-        [
-          { command: 'joint.drive', params: { joint: sweep.joint, value: sweep.to, quiet: true } },
-          { command: 'inspect.interference', params: {} },
-          { command: 'joint.drive', params: { joint: sweep.joint, value: stands, quiet: true } },
-          UNDO_ALL,
-        ],
-        true,
-      );
+      const posed = await this.batch([{ command: 'joint.drive', params: { joint: sweep.joint, value: sweep.to, quiet: true } }, { command: 'inspect.interference', params: {} }, UNDO_ALL], true);
       // Free at the limit: what stopped the sweep is pressed past on the way there.
-      if (posed.failed?.index === 3 && (posed.results?.[1] as { count?: unknown } | undefined)?.count === 0) stops[i] = null;
+      if (posed.failed?.index === 2 && (posed.results?.[1] as { count?: unknown } | undefined)?.count === 0) stops[i] = null;
     }
     return stops;
   }

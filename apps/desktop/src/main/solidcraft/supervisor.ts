@@ -25,8 +25,7 @@ import { ProjectStore } from '../projects/projectStore';
 import { HeadlessEngine, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
 import type { DesignHistory } from '../agents/workLog';
-import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, type BatchResult, type BoughtPart, type ControlRequester, type PartChecks, type RevisionTarget } from './mirror';
-import { WindowTrials, type WindowState } from './windowTrials';
+import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, type BatchResult, type BoughtPart, type ControlRequester, type PartChecks } from './mirror';
 
 export interface SupervisorOptions {
   environment: Environment;
@@ -128,10 +127,6 @@ export class SolidCraftSupervisor {
   private readonly actions: ActionService;
   /** Probes run one after another; SolidCraft runs one batch at a time anyway. */
   private probing: Promise<unknown> = Promise.resolve();
-  /** What the window reports while PartBuddy's own trials run, and the revisions they left (audit X-1 loop). */
-  private readonly windowTrials = new WindowTrials();
-  /** Tells a change of the window's design and mirrors it; set while connected to a window. */
-  private windowChanged: ((target: RevisionTarget) => void) | null = null;
 
   private readonly options: SupervisorOptions;
 
@@ -628,7 +623,13 @@ export class SolidCraftSupervisor {
    * the headless engine records that quietly, so nothing is mirrored again.
    */
   probeDimension(target: DimensionTarget, current: number, value: number): Promise<ProbeResult> {
-    const run = this.probing.then(() => this.quietly(() => this.dimensions.probe(target, current, value)));
+    const run = this.probing.then(async () => {
+      try {
+        return await this.dimensions.probe(target, current, value);
+      } finally {
+        await this.engine?.unchanged().catch(() => undefined);
+      }
+    });
     this.probing = run.catch(() => undefined);
     return run;
   }
@@ -646,51 +647,7 @@ export class SolidCraftSupervisor {
     return this.dimensions.userParameters();
   }
 
-  /**
-   * Runs one of PartBuddy's own trials so that the revision it moves is not mirrored: the headless engine records it
-   * quietly, the window's reports of it are held and passed over when the design is as before (`WindowTrials`).
-   */
-  private async quietly<T>(work: () => Promise<T>): Promise<T> {
-    const client = this.engine?.isOpen ? null : this.client;
-    if (!client?.isOpen) {
-      try {
-        return await work();
-      } finally {
-        await this.engine?.unchanged().catch(() => undefined);
-      }
-    }
-    const before = await this.windowState(client);
-    this.windowTrials.begin();
-    try {
-      return await work();
-    } finally {
-      const after = await this.windowState(client);
-      const next = this.windowTrials.end(before, after);
-      if (next) {
-        this.options.log(`window changed during a trial (undo ${String(before?.undo)}/${String(before?.redo)} → ${String(after?.undo)}/${String(after?.redo)}): mirrored revision ${String(next.revision)}`);
-        this.windowChanged?.(next);
-      }
-    }
-  }
-
-  /** The window's revision and undo history, or null (logged) when they cannot be read. */
-  private async windowState(client: ControlClient): Promise<WindowState | null> {
-    try {
-      const reply = await client.request<BatchResult>('engine.batch', { commands: [{ command: 'document.revision', params: {} }, { command: 'document.inspect', params: { timeline: false, bodies: false } }], rollback: false }, 10_000);
-      const revision = reply.results[0] as { document_id?: unknown; revision?: unknown } | undefined;
-      const inspect = reply.results[1] as { undo?: unknown; redo?: unknown } | undefined;
-      if (typeof revision?.document_id !== 'string' || typeof revision.revision !== 'number' || typeof inspect?.undo !== 'number' || typeof inspect.redo !== 'number') {
-        this.options.log(`the window's state reads oddly: ${JSON.stringify(reply.failed ?? reply.results).slice(0, 300)}`);
-        return null;
-      }
-      return { target: { documentId: revision.document_id, revision: revision.revision }, undo: inspect.undo, redo: inspect.redo };
-    } catch (error) {
-      this.options.log(`reading the window's state failed: ${(error as Error).message}`);
-      return null;
-    }
-  }
-
-  /** One trial at a time, like the dimension probes; the moved revision is not mirrored (`quietly`). */
+  /** One trial at a time, like the dimension probes; the headless engine records the moved revision quietly. */
   private trial<T>(what: string, work: () => Promise<T>): Promise<T> {
     const run = this.probing.then(async () => {
       // Everything after a trial waits for it: one that hangs is worth a line in the log.
@@ -699,8 +656,9 @@ export class SolidCraftSupervisor {
         this.options.log(`a trial (${what}) is still running after 20 s`);
       }, 20_000);
       try {
-        return await this.quietly(work);
+        return await work();
       } finally {
+        await this.engine?.unchanged().catch(() => undefined);
         clearTimeout(slow);
         const took = performance.now() - started;
         if (took > 20_000) this.options.log(`a trial (${what}) took ${String(Math.round(took / 1000))} s`);
@@ -1447,19 +1405,12 @@ export class SolidCraftSupervisor {
     const { documentId, revision } = this.actor.getSnapshot().context;
     if (documentId !== null && revision !== null) this.scheduler.request({ documentId, revision });
 
-    const changed = (target: RevisionTarget) => {
-      sendBack({ type: 'REVISION', ...target });
-      this.scheduler.request(target);
-    };
-    this.windowTrials.reset();
-    this.windowChanged = changed;
     const offEvent = client.onEvent(({ event, params }) => {
       if (event !== 'design.changed') return;
       const p = params as { document_id?: unknown; revision?: unknown } | null;
       if (typeof p?.document_id !== 'string' || typeof p.revision !== 'number') return;
-      const target = { documentId: p.document_id, revision: p.revision };
-      // What PartBuddy's own trials moved is not the user's change (audit X-1 loop).
-      if (this.windowTrials.changed(target)) changed(target);
+      sendBack({ type: 'REVISION', documentId: p.document_id, revision: p.revision });
+      this.scheduler.request({ documentId: p.document_id, revision: p.revision });
     });
     const offClose = client.onClose((reason) => {
       this.client = null;
@@ -1468,7 +1419,6 @@ export class SolidCraftSupervisor {
       sendBack({ type: 'LOST', reason });
     });
     return () => {
-      this.windowChanged = null;
       offEvent();
       offClose();
     };
