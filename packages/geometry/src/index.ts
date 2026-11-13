@@ -26,6 +26,7 @@ export {
   laidBodies,
   minimumFloor,
   minimumWall,
+  thinnestLine,
   withClearance,
   withMotion,
   type FindingBox,

@@ -1,3 +1,5 @@
+import { thinnestLine } from '@partbuddy/geometry';
+
 import type { PrintCheckReport } from '../../shared/contract';
 import type { ToolResult } from '../agents/gateProxy';
 
@@ -26,6 +28,10 @@ function where(places: Places, bodies = places.length): string {
   return ` (faces ${parts.join('; ')}${more})`;
 }
 
+/** Feature names, quoted, the first eight and how many more. */
+const names = (features: readonly string[]) =>
+  `feature${features.length === 1 ? '' : 's'} ${features.slice(0, 8).map((name) => JSON.stringify(name)).join(', ')}${features.length > 8 ? ` and ${String(features.length - 8)} more` : ''}`;
+
 function line(finding: Finding, nozzle: number): string {
   const tag = finding.severity === 'block' ? 'blocks printing' : 'warning';
   switch (finding.kind) {
@@ -38,14 +44,14 @@ function line(finding: Finding, nozzle: number): string {
           ? `- ${tag}: floors or lids down to ${mm(finding.thickness)}, thinner than one layer, so they do not print${where(finding.places)}.`
           : `- ${tag}: floors or lids down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} a floor needs to print closed${finding.layers === undefined ? '' : ` (${String(finding.layers)} layers)`}${where(finding.places)}.`;
       return finding.severity === 'block'
-        ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than the ${mm(nozzle)} nozzle, so they do not print${where(finding.places)}.`
+        ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than the narrowest line a slicer lays (${mm(thinnestLine(nozzle))} with the ${mm(nozzle)} nozzle), so they do not print${where(finding.places)}.`
         : `- ${tag}: walls down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} of two lines${where(finding.places)}.`;
     case 'overhang':
       return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical${where(finding.places)}; the slicer decides whether they need support.`;
     case 'contact':
       return finding.bodies > 1
-        ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed, the least ${String(finding.area)} mm²; they may come loose or tip over${where(finding.places, finding.bodies)}.`
-        : `- ${tag}: only ${String(finding.area)} mm² lie on the bed, the part may come loose or tip over${where(finding.places)}.`;
+        ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed for their height, the least ${String(finding.area)} mm²; they may come loose or tip over, a brim holds them${where(finding.places, finding.bodies)}.`
+        : `- ${tag}: only ${String(finding.area)} mm² lie on the bed for the part's height, it may come loose or tip over, a brim holds it${where(finding.places)}.`;
     case 'separate':
       return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(', ')} touch but are separate; the slicer lays each on the bed by itself. Combine them if they are one part.`;
     case 'fused':
@@ -66,13 +72,17 @@ function line(finding: Finding, nozzle: number): string {
       return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} come within ${mm(finding.gap)} of each other without touching, under the material's push fit of ${mm(finding.minimum)} per side; they only go together with force. Widen the gap unless that is meant.`;
     case 'blocked':
       return `- ${tag}: joint ${JSON.stringify(finding.joint)} stops at ${String(finding.at)} ${finding.unit}, before its limit of ${String(finding.limit)} ${finding.unit}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} touch there. Make room where they touch, or narrow the limit with joint.limits if that is the stop you mean.`;
+    case 'leftOut':
+      return finding.rolledBack
+        ? `- ${tag}: the timeline is rolled back: ${names(finding.features)} come after its marker, so they are not in the part as checked and exported. Roll it forward (timeline.roll_to) unless that is meant.`
+        : `- ${tag}: ${names(finding.features)} ${finding.features.length === 1 ? 'is' : 'are'} suppressed, so not in the part as checked and exported; a suppressed feature that failed is not fixed. Unsuppress it, or delete it if it is not wanted.`;
     case 'posed':
       return `- ${tag}: joint ${JSON.stringify(finding.joint)} stands at ${String(finding.value)} ${finding.unit}, not at 0 as designed; the design is exported and checked as it stands. Drive it back with joint.drive unless that is meant.`;
   }
 }
 
 /** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more. */
-const CHECKED_MESH = 'build volume, wall and floor thickness, overhang angle, area on the bed, open bodies, failed features, bodies that touch';
+const CHECKED_MESH = 'build volume, wall and floor thickness, overhang angle, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch';
 /** What SolidCraft measures after it (withClearance, withMotion): it takes longer and comes with the full check. */
 const MEASURED = { clearance: 'bodies that overlap or come closer than a push fit', joints: 'joints that stop before a limit' };
 const CHECKED_MEASURED = `${MEASURED.clearance}, ${MEASURED.joints}`;

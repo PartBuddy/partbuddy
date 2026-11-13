@@ -1,0 +1,397 @@
+{
+  "Wandhalter": {
+    "model": "wallholder",
+    "body": "Wandhalter",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/wallholder.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F6:blend(F1:+y|F2:+z)",
+        "exact": true,
+        "area": 153.0734,
+        "centroid": [
+          25,
+          6.7929,
+          6.7929
+        ],
+        "point": [
+          49.8008,
+          6.4434,
+          6.7443
+        ],
+        "cylinder": {
+          "origin": [
+            0,
+            8,
+            8
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ],
+          "radius": 2
+        }
+      },
+      {
+        "index": 1,
+        "name": "F5:csink:side:0",
+        "exact": true,
+        "area": 66.7493,
+        "centroid": [
+          25.0003,
+          1.0031,
+          39.9997
+        ],
+        "point": [
+          22.353,
+          0.2952,
+          43.2671
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F4:csink:side:0",
+        "exact": true,
+        "area": 66.7493,
+        "centroid": [
+          25.0003,
+          1.0031,
+          79.9997
+        ],
+        "point": [
+          22.353,
+          0.2952,
+          83.2671
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F4:bore:side:0",
+        "exact": true,
+        "area": 51.9086,
+        "centroid": [
+          25.0028,
+          4.1224,
+          80.0003
+        ],
+        "point": [
+          25.0489,
+          2.5875,
+          77.7505
+        ],
+        "cylinder": {
+          "origin": [
+            25,
+            247.609,
+            80
+          ],
+          "axis": [
+            0,
+            -1,
+            0
+          ],
+          "radius": 2.25
+        }
+      },
+      {
+        "index": 4,
+        "name": "F5:bore:side:0",
+        "exact": true,
+        "area": 51.9086,
+        "centroid": [
+          25.0028,
+          4.1224,
+          40.0003
+        ],
+        "point": [
+          25.0489,
+          2.5875,
+          37.7505
+        ],
+        "cylinder": {
+          "origin": [
+            25,
+            247.609,
+            40
+          ],
+          "axis": [
+            0,
+            -1,
+            0
+          ],
+          "radius": 2.25
+        }
+      },
+      {
+        "index": 5,
+        "name": "F1:+z",
+        "exact": true,
+        "area": 240,
+        "centroid": [
+          25,
+          3,
+          100
+        ],
+        "point": [
+          42.2237,
+          3.2237,
+          100
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 6,
+        "name": "F2:+z",
+        "exact": true,
+        "area": 1900,
+        "centroid": [
+          25,
+          27,
+          6
+        ],
+        "point": [
+          25,
+          32.5222,
+          6
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 7,
+        "name": "F3:-y",
+        "exact": true,
+        "area": 950,
+        "centroid": [
+          25,
+          46,
+          15.5
+        ],
+        "point": [
+          42.2442,
+          46,
+          13.7558
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 8,
+        "name": "F3:+z",
+        "exact": true,
+        "area": 300,
+        "centroid": [
+          25,
+          49,
+          25
+        ],
+        "point": [
+          2.8206,
+          48.8206,
+          25
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 9,
+        "name": "F2:+y",
+        "exact": true,
+        "area": 1250,
+        "centroid": [
+          25,
+          52,
+          12.5
+        ],
+        "point": [
+          40.4508,
+          52,
+          15.4508
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 10,
+        "name": "F1:-z",
+        "exact": true,
+        "area": 2600,
+        "centroid": [
+          25,
+          26,
+          0
+        ],
+        "point": [
+          14.9306,
+          37.0694,
+          0
+        ],
+        "planeNormal": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "index": 11,
+        "name": "F1:-x",
+        "exact": true,
+        "area": 961.1716,
+        "centroid": [
+          0,
+          15.926,
+          30.8765
+        ],
+        "point": [
+          0,
+          2.9656,
+          8.8967
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 12,
+        "name": "F1:+x",
+        "exact": true,
+        "area": 961.1716,
+        "centroid": [
+          50,
+          15.926,
+          30.8765
+        ],
+        "point": [
+          50,
+          2.9656,
+          8.8967
+        ],
+        "planeNormal": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 13,
+        "name": "F1:-y",
+        "exact": true,
+        "area": 4864.2895,
+        "centroid": [
+          25,
+          0,
+          49.6273
+        ],
+        "point": [
+          25,
+          0,
+          12.9715
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 14,
+        "name": "F1:+y",
+        "exact": true,
+        "area": 4559.6258,
+        "centroid": [
+          25,
+          6,
+          53.8469
+        ],
+        "point": [
+          39.3174,
+          6,
+          41.8355
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 15,
+        "name": "F7:blend(F1:+z|F1:-x)",
+        "exact": true,
+        "area": 46.8202,
+        "centroid": [
+          1.8585,
+          3,
+          98.1415
+        ],
+        "point": [
+          1.8133,
+          0.4711,
+          98.8529
+        ],
+        "cylinder": {
+          "origin": [
+            5,
+            9,
+            95
+          ],
+          "axis": [
+            0,
+            -1,
+            0
+          ],
+          "radius": 5
+        }
+      },
+      {
+        "index": 16,
+        "name": "F7:blend(F1:+x|F1:+z)",
+        "exact": true,
+        "area": 46.8202,
+        "centroid": [
+          48.1415,
+          3,
+          98.1415
+        ],
+        "point": [
+          48.1182,
+          0.4711,
+          98.9086
+        ],
+        "cylinder": {
+          "origin": [
+            45,
+            -3,
+            95
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "radius": 5
+        }
+      }
+    ]
+  }
+}
