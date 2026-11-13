@@ -41,7 +41,9 @@ describe('what stands, cut in layers', () => {
     expect(fastest(column(300))).toBeLessThan(Math.max(5, fastest(column(30))) * 4);
   });
 
-  it('cuts a stair of 740 steps in no more than twelve times the time of one of 185', { timeout: 120_000 }, () => {
+  it('cuts a stair of 740 steps in no more than forty times the time of one of 185', { timeout: 120_000 }, () => {
+    // Linear here (185: 39 ms, 740: 149 ms, 1480: 294 ms); a busy runner took 13-14 times. The fault this guards against
+    // took over a hundred times, so forty still catches it.
     // Every cut goes through every triangle of the stair's flat ends: 4.9 s for 300 mm (second review of pull request 363).
     const stairOf = (steps: number) => {
       const outline: [number, number][] = [[0, 0], [5, 0], [5, 4]];
@@ -51,7 +53,7 @@ describe('what stands, cut in layers', () => {
       const positions = Float32Array.from(mesh.positions, (_, i) => (i % 3 === 0 ? cos * (mesh.positions[i] ?? 0) - sin * (mesh.positions[i + 1] ?? 0) : i % 3 === 1 ? sin * (mesh.positions[i - 1] ?? 0) + cos * (mesh.positions[i] ?? 0) : (mesh.positions[i] ?? 0)));
       return { ...mesh, positions };
     };
-    expect(fastest(stairOf(740))).toBeLessThan(Math.max(5, fastest(stairOf(185))) * 12);
+    expect(fastest(stairOf(740))).toBeLessThan(Math.max(5, fastest(stairOf(185))) * 40);
   });
 
   it('takes a triangle that comes twice, and says so when a mesh with a hole is followed along its faces instead', () => {
