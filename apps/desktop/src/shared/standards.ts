@@ -1,8 +1,8 @@
 import { BRIDGE_SPAN } from '@partbuddy/geometry';
 
-import { DEFAULT_PRINTER, defaultBlock, sizesOf } from './blocks';
+import { DEFAULT_PRINTER, defaultBlock, sizesOf, type FeatureBlock } from './blocks';
 import { lineWidth } from './designFit';
-import { CLEARANCE_NORMAL, NUT, NUT_ALLOWANCE, type BlockSize } from './screwSizes';
+import { CLEARANCE_NORMAL, NUT, NUT_ALLOWANCE, NUT_DIN_FLATS, PILOT_FACTOR, type BlockSize } from './screwSizes';
 
 /**
  * The standards the assistant looks up before it designs a part of a kind itself (decided
@@ -18,22 +18,27 @@ const mm = (value: number) => String(Math.round(value * 100) / 100);
 const BAR_LINES = 3;
 
 /**
- * A pilot hole for a screw cut straight into plastic: 0.8 times its diameter (Machine Design; audit R4).
- * shortcut: BC-12 brings `pilotHole` (screwSizes.ts) with the same 0.8; take one constant for both once it is on main. The
- * bed chamfer's two to three layers are said in words, as `designLines` (printProfiles.ts) holds them as literals.
+ * The bed chamfer in layers, as the design rules' rounding group asks (printProfiles.ts), named for the default layer (audit T50, R45).
+ * shortcut: `designLines` holds the same 2 and 3 as literals; share one constant when lane L5 touches printProfiles.ts again.
  */
-const PILOT = 0.8;
+const BED_CHAMFER_LAYERS = [2, 3] as const;
+const BED_CHAMFER = BED_CHAMFER_LAYERS.map((layers) => mm(layers * DEFAULT_PRINTER.layer)).join(' to ');
 
-/** The snap hook partbuddy_block snapFit builds by default, which holds a board (audit R46, H-33). */
-const HOOK = defaultBlock('snapFit', '', [0, 0, 0], 'M3');
-const HOOK_SIZE = HOOK.block === 'snapFit' ? `${mm(HOOK.thickness)} mm thick at its root and ${mm(HOOK.width)} mm wide` : '';
+/** The snap hook partbuddy_block snapFit builds by default on the default nozzle, which holds a board (audit R46, H-33). */
+const HOOK = defaultBlock('snapFit', '', [0, 0, 0], 'M3') as Extract<FeatureBlock, { block: 'snapFit' }>;
 
 /** Star knobs of DIN 6336 in plastic (Ganter): diameter, hub and height in mm, up to M10, where PartBuddy's screw tables end (audit T50). */
-const STAR_KNOB: Partial<Record<BlockSize, [number, number, number]>> = { M5: [25, 12, 16], M6: [32, 14, 20], M8: [40, 18, 25], M10: [50, 22, 32] };
-const KNOB_SIZES = Object.keys(STAR_KNOB) as BlockSize[];
+type KnobSize = Extract<BlockSize, 'M5' | 'M6' | 'M8' | 'M10'>;
+const STAR_KNOB: Record<KnobSize, [number, number, number]> = { M5: [25, 12, 16], M6: [32, 14, 20], M8: [40, 18, 25], M10: [50, 22, 32] };
+const KNOB_SIZES = Object.keys(STAR_KNOB) as KnobSize[];
 /** Hexagon head screws, ISO 4017: head height in mm; across flats they are as the nuts of ISO 4032 (`NUT`) in these sizes. */
-const HEX_HEAD_HEIGHT: Partial<Record<BlockSize, number>> = { M5: 3.5, M6: 4, M8: 5.3, M10: 6.4 };
-const knobSizes = (say: (size: BlockSize) => string) => KNOB_SIZES.map(say).join(', ');
+export const HEX_HEAD_HEIGHT: Record<KnobSize, number> = { M5: 3.5, M6: 4, M8: 5.3, M10: 6.4 };
+const knobSizes = (say: (size: KnobSize) => string) => KNOB_SIZES.map(say).join(', ');
+/** Where heads of DIN 933 and nuts of DIN 934 are wider than ISO's, with the pocket they need (audit BC-22 review S2). */
+const DIN_POCKETS = KNOB_SIZES.flatMap((size) => {
+  const flats = NUT_DIN_FLATS[size];
+  return flats ? [`${size} heads of DIN 933 and nuts of DIN 934 are ${mm(flats)} mm across flats: pocket ${mm(flats + NUT_ALLOWANCE.flats)}.`] : [];
+}).join(' ');
 const NUT_TRAP = sizesOf('nutTrap');
 
 export const STANDARD_TOPICS = ['slidingLid', 'clamp', 'feet', 'hook', 'cableEntry', 'vent', 'boardMount', 'starKnob'] as const;
@@ -67,7 +72,7 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
       'Stick-on rubber feet hold on a table; printed feet slide. Common ones (3M Bumpon data sheet, ±0.5 mm): SJ5302 7.9 × 2.2 mm, SJ5076 8.0 × 2.8, SJ5306 9.5 × 3.8, SJ5003 11.1 × 5.0, SJ5012 12.7 × 3.5, SJ5744 19.1 × 4.1.',
       'A recess for such a foot is not needed (3M) but keeps it from being sheared off: 0.5 mm wider than the foot, 0.5 to 1 mm deep, never deeper than half the foot, so it still stands proud (own choice from that tolerance).',
       'Four feet near the corners for anything that is pressed on or may tip; three never rock on an uneven table (guides).',
-      'Chamfer every edge that lies on the print bed at 45°, two to three layers high as the design rules say for every edge on the bed: the first layer is squeezed wider (the slicers compensate about 0.2 mm; Hubs asks for a chamfer; Gridfinity uses 0.8 mm).',
+      `Unless chamfers are turned off for the part, chamfer every edge that lies on the print bed at 45°, ${String(BED_CHAMFER_LAYERS[0])} to ${String(BED_CHAMFER_LAYERS[1])} layers high (${BED_CHAMFER} mm on ${mm(DEFAULT_PRINTER.layer)} mm layers): the first layer is squeezed wider (the slicers compensate about 0.2 mm; Hubs asks for a chamfer; Gridfinity uses 0.8 mm).`,
       'Feet printed on: at least 8 mm across and 2 mm high, with a chamfered rim. Feet of TPU cushion more than they grip (guides).',
     ],
   },
@@ -76,7 +81,7 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
     rules: [
       'Print a hook lying on its side, so the load runs along the layers: measured on one test hook (CNC Kitchen), lying held 119 kg in PLA and 106 kg in PETG until it broke, standing 69 kg and 36 kg. These are breaking loads of one shape, not what a hook may carry for years: plastic creeps, so allow a tenth.',
       'Layers of at most 0.2 mm and four or more wall lines; at 0.3 mm the standing hook held half (CNC Kitchen).',
-      'Round the inside corner where the hook leaves its plate, with a radius of at least the hook\'s thickness, more than the half wall the design rules ask for an inner corner under load, as the whole load bends the hook there (Hubs asks for a fillet without a size; the size is our choice), and keep the section at least 6 × 6 mm for anything heavier than a coat.',
+      'Round the inside corner where the hook leaves its plate, with a radius of at least the hook\'s thickness, more than the half wall that is the usual minimum for inner corners under load, as the whole load bends the hook there (Hubs asks for a fillet without a size; the size is our choice), and keep the section at least 6 × 6 mm for anything heavier than a coat.',
       'Hang the plate with partbuddy_block keyhole or woodScrew, two of them level from 60 mm of width.',
       'An eye: hole 4 mm for a key ring (5 mm for a heavy one), 3.5 mm for a ball chain, twice the wire and 1 mm for a carabiner, each plus the hole allowance of the print profile; 2 to 3 mm of plastic round the hole (guides say 1.5 to 3).',
       'A slot for a cable tie: ties are 2.5, 3.5 and 4.6 mm wide (HellermannTyton T18R, T30R, T50R) and about 1 mm thick; make the slot 1 mm wider and 1.5 mm high (own choice), and print it so that it stands upright: a lying slot sags.',
@@ -108,21 +113,22 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
     title: 'Holding a circuit board',
     rules: [
       'Standoffs: outer diameter three times the hole, at least 5 mm (guides name 2 to 3 times: twice the screw, Machine Design; 2.5 to 3 times the pilot hole, TR Fastenings; a wall as thick as the hole, Hubs); high enough for what is soldered under the board, 5 mm as a rule and 10 mm over pin headers (guides). Join each to the floor with a 1 mm fillet.',
-      `Screwed straight into plastic: draw the pilot hole ${String(PILOT)} times the screw's diameter (${mm(PILOT * 2.5)} mm for M2.5, ${mm(PILOT * 3)} mm for M3) plus the hole allowance of the print profile, at least twice the screw's diameter deep, in a boss three times as wide as the hole. Too tight splits the boss and too loose strips, so tell the user to try it on one boss first. For a board taken out often use partbuddy_block insertSeat or boss instead.`,
-      `Without screws: two pins 0.3 mm less than the board's holes, which only locate it (a printed pin under 3 mm breaks easily, guides), and two snap hooks over its edge that hold it, built with partbuddy_block snapFit (by default ${HOOK_SIZE}). The board is 1.6 mm thick as a rule: make the arm long enough for its catch to reach over the board with 0.5 mm of room (Hubs).`,
+      `Screwed straight into plastic: draw the pilot hole ${String(PILOT_FACTOR)} times the screw's diameter (${mm(PILOT_FACTOR * 2.5)} mm for M2.5, ${mm(PILOT_FACTOR * 3)} mm for M3) plus the hole allowance of the print profile, at least twice the screw's diameter deep, in a boss three times as wide as the hole. Too tight splits the boss and too loose strips, so tell the user to try it on one boss first. For a board taken out often use partbuddy_block insertSeat or boss instead.`,
+      // The pins' limit: printed pins hold from 1 mm, 3 mm is the safe size and under 5 mm they are weak (audit MG S28, H-33).
+      `Without screws: two pins 0.3 mm less than the board's holes, which only locate it (guides: a printed pin is reliable from 3 mm and weak under 5 mm), and two snap hooks over its edge that hold it, built with partbuddy_block snapFit (by default ${mm(HOOK.thickness)} mm thick at its root on a ${mm(DEFAULT_PRINTER.nozzle)} mm nozzle, at least two lines, and ${mm(HOOK.width)} mm wide). The board is 1.6 mm thick as a rule: make the arm long enough for its catch to reach over the board with 0.5 mm of room (Hubs).`,
       'A slot the board slides into: 2.0 mm wide for a 1.6 mm board (own choice, 0.2 mm per side), 2 mm deep.',
       'Leave 0.5 mm round the board and 1 mm per side round every plug in the wall (Hubs).',
       'Boards (from the makers\' drawings, to be checked against the board in hand): Raspberry Pi 4 and 5 are 85 × 56 mm with four M2.5 holes of 2.7 mm in a rectangle 58 × 49 mm, 3.5 mm from the edges; Pi Zero 65 × 30 mm, holes 58 × 23 mm; Arduino Uno 68.58 × 53.34 mm with 3.2 mm holes at (13.97, 2.54), (15.24, 50.80), (66.04, 7.62) and (66.04, 35.56). For any other board ask for its drawing or measured holes.',
-      'Plugs of the Raspberry Pi, their centres from the makers\' drawings (approximate there; check against the board in hand). Seen from above with the pin header along the far edge, on the near long edge, from the left short edge: Pi 4 USB-C 11.2 mm, micro HDMI 26.0 and 39.5, audio jack 54.0; Pi 5 USB-C 11.2, micro HDMI 25.8 and 39.2, and no audio jack. On the right short edge, from the near long edge: Pi 4 USB 9 and 27, Ethernet 45.75; Pi 5 Ethernet 10.2, USB 29.1 and 47, so the two changed places. USB and Ethernet stand about 3 mm out over the board\'s edge (Pi 5 drawing). The Pi 4 drawing gives how high the plugs stand (USB 16.0, Ethernet 13.5, USB-C 3.2, micro HDMI 3.0, audio jack 6.0 mm), the Pi 5 drawing only some heights, and neither gives their widths: ask for the measured plugs, and do not place a plug of any board from memory.',
+      'Plugs of the Raspberry Pi, their centres from the makers\' drawings (approximate there; check against the board in hand). Seen from above with the pin header along the far edge, on the near long edge, from the left short edge: Pi 4 USB-C 11.2 mm, micro HDMI 26.0 and 39.5, audio jack 54.0; Pi 5 USB-C 11.2, micro HDMI 25.8 and 39.2, and no audio jack. On the right short edge, from the near long edge: Pi 4 USB 9 and 27, Ethernet 45.75; Pi 5 Ethernet 10.2, USB 29.1 and 47, so the two changed places. USB and Ethernet stand about 3 mm out over the board\'s edge (Pi 5 drawing). The Pi 4 drawing gives how high the plugs stand (USB 16.0, Ethernet 13.5, USB-C 3.2, micro HDMI 3.0, audio jack 6.0 mm), the side view of the Pi 5 drawing 3.2, 3.4, 4.4 and 4.1 mm (match them to the plugs on the board in hand), and neither gives their widths: ask for the measured plugs, and do not place a plug of any board from memory.',
     ],
   },
   starKnob: {
     title: 'A star knob that clamps with a screw or a nut',
     rules: [
-      `Sizes of DIN 6336 in plastic (Ganter), diameter, hub and height: ${KNOB_SIZES.map((size) => `${size} ${(STAR_KNOB[size] ?? []).join(', ')} mm`).join('; ')}. The standard goes on to larger knobs; PartBuddy's screw tables end at M10.`,
+      `Sizes of DIN 6336 in plastic (Ganter), diameter, hub and height: ${KNOB_SIZES.map((size) => `${size} ${STAR_KNOB[size].join(', ')} mm`).join('; ')}. The standard goes on to larger knobs; PartBuddy's screw tables end at M10.`,
       'Five lobes are usual (the standard\'s count could not be confirmed); round them generously, lobe radius about a sixth of the diameter.',
-      `To hold a hexagon screw: a hexagonal pocket from the top, across flats ${mm(NUT_ALLOWANCE.flats)} mm more than the head and as deep as the head, with the normal clearance hole of ISO 273 under it (${knobSizes((size) => `${size} ${mm(CLEARANCE_NORMAL[size])}`)} mm). Heads by ISO 4017, across flats and height: ${knobSizes((size) => `${size} ${mm(NUT[size][0])} and ${mm(HEX_HEAD_HEIGHT[size] ?? 0)}`)} mm.`,
-      `To hold a nut: the same pocket from below the hub; nuts by ISO 4032 are as wide as the heads and ${knobSizes((size) => `${mm(NUT[size][1])} (${size})`)} mm high. For ${NUT_TRAP[0] ?? ''} to ${NUT_TRAP[NUT_TRAP.length - 1] ?? ''} partbuddy_block nutTrap makes the pocket.`,
+      `To hold a hexagon screw: a hexagonal pocket from the top, across flats ${mm(NUT_ALLOWANCE.flats)} mm more than the head and ${mm(NUT_ALLOWANCE.depth)} mm deeper than the head, as partbuddy_block nutTrap makes it, with the normal clearance hole of ISO 273 under it (${knobSizes((size) => `${size} ${mm(CLEARANCE_NORMAL[size])}`)} mm). Heads by ISO 4017, across flats and height: ${knobSizes((size) => `${size} ${mm(NUT[size][0])} and ${mm(HEX_HEAD_HEIGHT[size])}`)} mm. ${DIN_POCKETS}`,
+      `To hold a nut: the same pocket from below the hub; nuts by ISO 4032 are as wide as the heads and ${knobSizes((size) => `${mm(NUT[size][1])} (${size})`)} mm high. For ${String(NUT_TRAP[0])} to ${String(NUT_TRAP.at(-1))} partbuddy_block nutTrap makes the pocket.`,
       'Keep plastic round the pocket as thick as the thread is wide, and glue the screw or nut in with a drop of superglue or close the pocket with a pressed-in cap.',
       'Print it with the pocket opening upwards, flat side down. For a knob on a shaft (potentiometer, encoder) use partbuddy_block knob.',
     ],
