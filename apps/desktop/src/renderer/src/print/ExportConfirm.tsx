@@ -1,10 +1,11 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Heading, Modal, ModalOverlay } from 'react-aria-components';
 
 import { useStudio, type ExportTarget } from '../state/store';
 import { Button } from '../ui/Button';
 import { useFindingText, useUnmeasuredText } from './PrintCheckChip';
-import { asksBeforeExport } from './report';
+import { asksBeforeExport, checkNow } from './report';
 import { modalClass, overlayClass } from '../ui/Dialog';
 
 /**
@@ -18,7 +19,13 @@ export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget)
   const format = useStudio((s) => s.exportConfirm);
   const setFormat = useStudio((s) => s.setExportConfirm);
   // Selected as it is and read after: a fresh `[]` from the selector would re-render forever.
-  const check = useStudio((s) => s.printCheck);
+  const stored = useStudio((s) => s.printCheck);
+  const model = useStudio((s) => s.model);
+  const check = checkNow(stored, model);
+  // Whether it was still measuring when the dialog opened: only then is "finished in the meantime" news.
+  const [openedMeasuring, setOpenedMeasuring] = useState<boolean | null>(null);
+  if (format === null && openedMeasuring !== null) setOpenedMeasuring(null);
+  if (format !== null && openedMeasuring === null) setOpenedMeasuring(check?.measuring === true);
   const findings = check?.result.findings ?? [];
   const text = useFindingText();
   const unmeasured = useUnmeasuredText()(check?.unmeasured ?? []);
@@ -49,10 +56,12 @@ export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget)
                   </ul>
                 </>
               ) : null}
-              {check?.measuring ? <p className="text-sm text-text-muted">{t('check.confirm.measuring')}</p> : null}
-              {unmeasured ? <p className="text-sm text-text-muted">{t('check.confirm.unmeasured', { what: unmeasured })}</p> : null}
-              {/* The measure came in green while the dialog stood open. */}
-              {asksBeforeExport(check) ? null : <p className="text-sm text-text-muted">{t('check.confirm.done')}</p>}
+              <div role="status" className="flex flex-col gap-3 empty:hidden">
+                {check?.measuring ? <p className="text-sm text-text-muted">{t('check.confirm.measuring')}</p> : null}
+                {unmeasured ? <p className="text-sm text-text-muted">{t('check.confirm.unmeasured', { what: unmeasured })}</p> : null}
+                {/* The measure came in green while the dialog stood open. */}
+                {openedMeasuring && !asksBeforeExport(stored, model) ? <p className="text-sm text-text-muted">{t('check.confirm.done')}</p> : null}
+              </div>
               <div className="flex justify-end gap-2">
                 <Button onPress={close} data-testid="export-confirm-cancel" autoFocus>
                   {t('check.confirm.cancel')}

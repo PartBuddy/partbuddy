@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
-import { asksBeforeExport, jointRuns, reportOf } from '../src/renderer/src/print/report';
+import { asksBeforeExport, checkNow, jointRuns, reportOf, sweepInBlocks } from '../src/renderer/src/print/report';
+import type { ModelState, StudioPrintCheck } from '../src/renderer/src/state/store';
 import { printCheckReportSchema } from '../src/shared/contract';
 
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
@@ -120,26 +121,49 @@ describe('what the check could not measure', () => {
     expect(note).not.toContain('Measure it yourself (inspect.clearance)');
   });
 
-  it('asks SolidCraft for 40 joint runs at most and says when there were more', () => {
+  it('measures 200 joint runs at most and says when there were more', () => {
     const joint = (id: number) => ({ id, name: `J${String(id)}`, values: [{ unit: 'deg' as const, value: 0, limits: [-90, 90] as [number, number], index: 0 }] });
-    expect(jointRuns(Array.from({ length: 20 }, (_, i) => joint(i)))).toMatchObject({ more: false });
-    const many = jointRuns(Array.from({ length: 21 }, (_, i) => joint(i)));
-    expect(many.sweeps).toHaveLength(40);
+    expect(jointRuns(Array.from({ length: 100 }, (_, i) => joint(i)))).toMatchObject({ more: false });
+    const many = jointRuns(Array.from({ length: 101 }, (_, i) => joint(i)));
+    expect(many.sweeps).toHaveLength(200);
     expect(many.more).toBe(true);
     expect(many.sweeps[0]).toEqual({ joint: 0, name: 'J0', unit: 'deg', index: 0, from: 0, to: -90 });
     // A limit where the value stands already, or none, is no run.
     expect(jointRuns([{ id: 1, name: 'J', values: [{ unit: 'mm', value: 5, limits: [5, null], index: 2 }] }]).sweeps).toEqual([]);
   });
 
-  it('asks before an export while the light is red, still measuring, or a measure failed (audit X-1)', () => {
-    const light = (status: 'ready' | 'warn' | 'block', more: { measuring?: boolean; unmeasured?: ('clearance' | 'joints')[] } = {}) => ({ result: { status, findings: [] }, ...more });
-    expect(asksBeforeExport(null)).toBe(false);
-    expect(asksBeforeExport(light('ready'))).toBe(false);
-    expect(asksBeforeExport(light('warn'))).toBe(false);
-    expect(asksBeforeExport(light('ready', { unmeasured: [] }))).toBe(false);
-    expect(asksBeforeExport(light('block'))).toBe(true);
+  it('asks before an export while the light is red, still measuring, of another revision or project, or a measure failed (audit X-1)', () => {
+    const model = { status: 'ready', documentId: 'doc-a', revision: 3, designName: 'A', bodies: [], sketches: [], structure: { features: [] } } as unknown as ModelState;
+    const light = (status: 'ready' | 'warn' | 'block', more: Partial<StudioPrintCheck> = {}): StudioPrintCheck => ({ documentId: 'doc-a', revision: 3, result: { status, findings: [] }, ...more });
+    expect(asksBeforeExport(null, model)).toBe(false);
+    expect(asksBeforeExport(light('ready'), model)).toBe(false);
+    expect(asksBeforeExport(light('warn'), model)).toBe(false);
+    expect(asksBeforeExport(light('ready', { unmeasured: [], unchecked: ['Mesh'] }), model)).toBe(false);
+    expect(asksBeforeExport(light('block'), model)).toBe(true);
     // Green from the mesh check alone is no green yet: an overlap or a blocked joint may follow.
-    expect(asksBeforeExport(light('ready', { measuring: true }))).toBe(true);
-    expect(asksBeforeExport(light('warn', { unmeasured: ['joints'] }))).toBe(true);
+    expect(asksBeforeExport(light('ready', { measuring: true }), model)).toBe(true);
+    expect(asksBeforeExport(light('warn', { unmeasured: ['joints'] }), model)).toBe(true);
+    // Green of the revision before, or of another project at the same revision, is no green for this one.
+    expect(asksBeforeExport(light('ready', { revision: 2 }), model)).toBe(true);
+    expect(asksBeforeExport(light('ready', { documentId: 'doc-b' }), model)).toBe(true);
+    expect(checkNow(light('ready', { documentId: 'doc-b' }), model)?.measuring).toBe(true);
+    expect(checkNow(light('ready'), model)?.measuring).toBeUndefined();
+  });
+
+  it('sweeps the joints in blocks of 40, one after the other, and counts a failed block as not measured', async () => {
+    const calls: number[][] = [];
+    let failures = 0;
+    const stops = await sweepInBlocks(
+      Array.from({ length: 95 }, (_, i) => i),
+      (block) => {
+        calls.push(block);
+        return block[0] === 40 ? Promise.reject(new Error('busy')) : Promise.resolve(block.map((run) => (run === 3 ? 'stop' : null)));
+      },
+      () => (failures += 1),
+    );
+    expect(calls.map((block) => [block[0], block.length])).toEqual([[0, 40], [40, 40], [80, 15]]);
+    expect(stops).toHaveLength(95);
+    expect(stops[3]).toBe('stop');
+    expect(failures).toBe(1);
   });
 });

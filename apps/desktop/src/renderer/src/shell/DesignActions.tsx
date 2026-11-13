@@ -123,7 +123,8 @@ export function DesignActions() {
   };
 
   const exportAs = (target: ExportTarget) => {
-    if (asksBeforeExport(useStudio.getState().printCheck)) {
+    const { printCheck, model } = useStudio.getState();
+    if (asksBeforeExport(printCheck, model)) {
       useStudio.getState().setExportConfirm(target);
       return;
     }

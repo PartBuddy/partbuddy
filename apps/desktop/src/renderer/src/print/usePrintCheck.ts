@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { measuresOf } from './bodyMeasures';
-import { jointRuns, reportOf } from './report';
+import { jointRuns, reportOf, sweepInBlocks } from './report';
 
 /** Quiet time after a revision before the check runs, so a burst of steps is checked once. */
 const CHECK_DELAY_MS = 250;
@@ -24,6 +24,8 @@ export function usePrintCheck(): void {
       useStudio.getState().setPrintCheck(null);
       return;
     }
+    // Until the check of this revision and printer is there, the one shown is of something else (audit X-1).
+    useStudio.getState().checkPending();
     const timer = setTimeout(() => {
       // Standard parts (B7) are counterparts and are not printed.
       // A body whose part SolidCraft is still building is neither yet; the mirror that follows says which, and the check runs again.
@@ -40,7 +42,8 @@ export function usePrintCheck(): void {
       // for a logo of many pieces and held up every trial after it.
       const parts = printed.filter((body) => !isLogoColourBody(body.name));
       const measuring = parts.length >= 2 || joints.length > 0;
-      useStudio.getState().setPrintCheck({ revision: model.revision, result: joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result, ...(measuring ? { measuring } : {}) });
+      const preliminary = joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result;
+      useStudio.getState().setPrintCheck({ documentId: model.documentId, revision: model.revision, result: preliminary, ...(measuring ? { measuring } : {}) });
       // What each closed body costs to print, for the assistant to see what a change saved.
       const measures = measuresOf(printed, { nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang });
       const report = (final: typeof result, pending = false, unmeasured: ('clearance' | 'joints')[] = [], unchecked: string[] = []) => {
@@ -83,12 +86,14 @@ export function usePrintCheck(): void {
         if (joints.length > 0) {
           const { sweeps, more } = jointRuns(joints);
           if (more) failed.push('joints');
-          const stopped = await platform()
-            .design.sweepJoints(sweeps.map(({ joint, index, from, to }) => ({ joint, index, from, to })))
-            .catch(() => {
+          // SolidCraft takes a limited number of runs per call: block after block.
+          const stopped = await sweepInBlocks(
+            sweeps,
+            (block) => platform().design.sweepJoints(block.map(({ joint, index, from, to }) => ({ joint, index, from, to }))),
+            () => {
               if (!failed.includes('joints')) failed.push('joints');
-              return [];
-            });
+            },
+          );
           const stops = sweeps.flatMap((sweep, i) => {
             const stop = stopped[i];
             return stop ? [{ joint: sweep.name, unit: sweep.unit, to: sweep.to, ...stop }] : [];
@@ -97,12 +102,20 @@ export function usePrintCheck(): void {
         }
         return final;
       };
-      void measure().then((final) => {
-        if (stale) return;
-        // The light says it too: a measure that failed is no green (audit X-1).
-        useStudio.getState().setPrintCheck({ revision: model.revision, result: final, ...(failed.length > 0 ? { unmeasured: failed } : {}) });
-        report(final, false, failed, unchecked);
-      });
+      // shortcut: a measure overtaken by a newer revision runs on in SolidCraft and is only thrown away here; cancel it there if that ever holds up the next one.
+      void measure()
+        .catch((error: unknown) => {
+          // Whatever went wrong, the light must not stay on "still measuring": nothing measured is said as such.
+          console.warn('PartBuddy: measuring clearance and joints failed', error);
+          failed.splice(0, failed.length, ...(parts.length >= 2 ? (['clearance'] as const) : []), ...(joints.length > 0 ? (['joints'] as const) : []));
+          return preliminary;
+        })
+        .then((final) => {
+          if (stale) return;
+          // The light says it too: a measure that failed is no green (audit X-1).
+          useStudio.getState().setPrintCheck({ documentId: model.documentId, revision: model.revision, result: final, ...(failed.length > 0 ? { unmeasured: failed } : {}), ...(unchecked.length > 0 ? { unchecked } : {}) });
+          report(final, false, failed, unchecked);
+        });
     }, CHECK_DELAY_MS);
     let stale = false;
     return () => {

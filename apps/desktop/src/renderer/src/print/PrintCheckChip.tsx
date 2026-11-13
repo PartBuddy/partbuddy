@@ -6,6 +6,7 @@ import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover } from 'r
 import { useStudio } from '../state/store';
 import { popoverPanelClass } from '../ui/Overlay';
 import { dotTone } from '../ui/Feedback';
+import { checkNow } from './report';
 
 const DOT: Record<PrintStatus, string> = { ready: dotTone.success, warn: dotTone.warning, block: dotTone.danger };
 
@@ -122,8 +123,12 @@ function FindingRow({ finding }: { finding: PrintFinding }) {
  * revision, and on a click the findings, each one pointing at its place on the model.
  */
 export function PrintCheckChip() {
-  const { t } = useTranslation();
-  const check = useStudio((s) => s.printCheck);
+  const { t, i18n } = useTranslation();
+  // A light of another revision or project counts as still measuring (audit X-1).
+  const check = checkNow(
+    useStudio((s) => s.printCheck),
+    useStudio((s) => s.model),
+  );
   const setStepHighlight = useStudio((s) => s.setStepHighlight);
   const unmeasured = useUnmeasuredText()(check?.unmeasured ?? []);
   if (!check) return null;
@@ -148,8 +153,16 @@ export function PrintCheckChip() {
         data-unmeasured={check.unmeasured?.join(' ')}
       >
         <span aria-hidden className={`size-dot rounded-full ${dot}`} />
-        <span>{label}</span>
-        {check.measuring ? <IconLoader2 className="size-icon-sm animate-spin motion-reduce:animate-none" aria-hidden /> : null}
+        <span aria-live="polite" className="inline-flex items-center gap-1">
+          <span>{label}</span>
+          {check.measuring ? (
+            open === 'measuring' ? (
+              <IconLoader2 className="size-icon-sm animate-spin motion-reduce:animate-none" aria-hidden />
+            ) : (
+              <IconLoader2 className="size-icon-sm animate-spin motion-reduce:animate-none" role="img" aria-label={t('check.status.measuring')} />
+            )
+          ) : null}
+        </span>
       </AriaButton>
       <Popover placement="top start" offset={4} className={`${popoverPanelClass} p-2`}>
         <Dialog className="flex flex-col gap-2 outline-none" data-testid="print-check-panel">
@@ -157,7 +170,7 @@ export function PrintCheckChip() {
             {t('check.title')}
           </Heading>
           {findings.length === 0 ? (
-            <p className="px-2 text-sm text-text-muted">{t('check.none')}</p>
+            <p className="px-2 text-sm text-text-muted">{t(check.measuring || unmeasured ? 'check.noneSoFar' : 'check.none')}</p>
           ) : (
             <ul className="flex max-h-menu-max flex-col gap-0 overflow-auto">
               {findings.map((finding, i) => (
@@ -167,6 +180,11 @@ export function PrintCheckChip() {
           )}
           {check.measuring ? <p className="px-2 text-sm text-text-muted" data-testid="print-check-measuring">{t('check.measuring')}</p> : null}
           {unmeasured ? <p className="px-2 text-sm text-text-muted" data-testid="print-check-unmeasured">{t('check.unmeasured', { what: unmeasured })}</p> : null}
+          {check.unchecked && check.unchecked.length > 0 ? (
+            <p className="px-2 text-sm text-text-muted" data-testid="print-check-unchecked">
+              {t('check.unchecked', { bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(check.unchecked) })}
+            </p>
+          ) : null}
           <p className="px-2 text-xs text-text-muted">{t('check.basis')}</p>
         </Dialog>
       </Popover>

@@ -2349,6 +2349,8 @@ test('a sharing package holds 3MF, STEP, four pictures and a description of the 
     await expect(page.getByTestId('mesh-summary')).toContainText('6 bodies', { timeout: 30_000 });
     // The lid lying on the housing is the light's one warning.
     await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'warn', { timeout: 30_000 });
+    // Measured first: until then the export asks (audit X-1).
+    await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-measuring', 'true', { timeout: 60_000 });
     await page.getByTestId('export').click();
     await page.getByTestId('export-share').click();
     await expect(page.getByText(/Sharing package saved in exports\\Housing share \d{4}-\d{2}-\d{2}/)).toBeVisible({ timeout: 60_000 });

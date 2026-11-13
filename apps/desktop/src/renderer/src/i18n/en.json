@@ -1118,9 +1118,11 @@
       "unmeasured": "Not fully checked"
     },
     "none": "No problems found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
+    "noneSoFar": "No problems found so far.",
     "basis": "Checked after every change, as designed (standing on its lowest point), with the printer and material of this part. Supports, bridges and the orientation are up to the slicer.",
-    "measuring": "SolidCraft is still measuring the gaps and joints. Overlaps, gaps that are too tight or a blocked joint may still turn up.",
+    "measuring": "The check is still running. Overlaps, gaps that are too tight or a blocked joint may still turn up.",
     "unmeasured": "Not measured, or not all of it: {what}. Findings there may be missing.",
+    "unchecked": "Not checked for gaps (mesh bodies): {bodies}",
     "measure": {
       "clearance": "the gaps between the parts",
       "joints": "the travel of the joints"
@@ -1151,7 +1153,7 @@
       "body": "The print check is red. As it is, the part will likely not print cleanly:",
       "cancel": "Cancel",
       "go": "Export anyway",
-      "measuring": "The print check is still measuring the gaps and joints. Overlaps or a blocked joint may still be found.",
+      "measuring": "The print check has not finished yet. Findings may still turn up, such as overlaps or a blocked joint.",
       "unmeasured": "The print check did not run in full. Not measured, or not all of it: {what}.",
       "done": "The measuring has finished in the meantime."
     }
