@@ -499,6 +499,7 @@ async function build(site: Site, spec: { fixed: string; moving: string; name: st
     throw new Error(`after the build ${spec.fixed} and ${spec.moving} share volume${volume > 0 ? ` (${String(volume)} mm³)` : ''}: they overlapped before, or the mechanism runs into the other body. Make room between them (inspect.interference shows where), then call again`);
   }
   // Every other warning of SolidCraft's goes on as it said it (audit H-09: all but the loose pieces were dropped).
+  // shortcut: no step is checked to have cut or added anything (H-09); a hinge's web room cuts nothing where the web misses the other body, so a per-step volume check needs to know which steps must hit first.
   const said = [...new Set(warnings)].map((warning) => warning.slice(0, 200));
   const unchecked = Array.isArray(found?.unchecked) && found.unchecked.length > 0 ? ` SolidCraft could not check whether ${spec.fixed} and ${spec.moving} overlap.` : '';
   return `${unchecked}${said.length > 0 ? ` SolidCraft warns: ${said.join(' ')}` : ''}`;
