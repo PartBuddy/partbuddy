@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { IconAlertCircle } from '@tabler/icons-react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Label, TextField, ToggleButton, ToggleButtonGroup } from 'react-aria-components';
 
@@ -7,7 +9,7 @@ import { platform } from '../platform';
 import { Button } from '../ui/Button';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
-import { actionsFor, type ActionKind } from './actionKinds';
+import { actionPlan, actionPrint, actionsFor, bedDown, downEdges, startSize, type ActionKind, type ActionNote } from './actionKinds';
 import { useFacePosition } from './facePosition';
 import { parseLength } from './lengthInput';
 import { edgePoints, lineDirection, localMeasure, type MeasurePick } from './measure';
@@ -17,8 +19,6 @@ import { fieldLabelClass, UnitInput } from '../ui/Field';
 import { chipToggleClass } from '../ui/Choice';
 import { Tip } from '../ui/Tooltip';
 
-/** Starting sizes in mm, typical for FDM parts. */
-const DEFAULT_SIZE: Record<ActionKind, number> = { fillet: 1, chamfer: 0.5, extrude: 5, hole: 3, shell: 1.6 };
 const PREVIEW_DELAY_MS = 250;
 
 const ICONS: Record<ActionKind, ReactNode> = {
@@ -56,22 +56,30 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
   const [state, setState] = useState<{ text: string; ok: boolean; error?: string } | null>(null);
   const latest = useRef(0);
   const body = bodies[picks[0]?.body ?? -1]?.name;
+  // The printer and material of the part: start sizes, the hole's allowance and the wall's lines come from them (audit D25, D26).
+  const print = actionPrint(useStudio((s) => s.print));
+  const printFace = useStudio((s) => (body ? s.printFaces[body] : undefined));
+  const down = bedDown(bodies[picks[0]?.body ?? -1], printFace);
   const decimal = (1.5).toLocaleString(i18n.language).charAt(1);
   // Extrude also takes a negative distance (a cut); the others are positive lengths.
   const size = open === 'extrude' && text.trim().startsWith('-') ? -parseLength(text.trim().slice(1)) : parseLength(text);
   const valid = Number.isFinite(size) && size !== 0;
+  const plan = open && valid ? actionPlan(open, size, bodies, picks, down, print) : null;
+  const refused = plan?.notes.find((note) => 'refuse' in note);
+  // What SolidCraft builds: the hole drilled with the allowance, otherwise the size typed.
+  const built = plan?.size ?? size;
   // A hole is placed on its face before it is drilled (Manuel 2026-11-09), like a block.
   const { centre, controls: position } = useFacePosition({ bodies, picks, active: open === 'hole', busy, testId: 'hole' });
   const mm3 = (value: number) => Math.round(value * 1000) / 1000;
   const at = open === 'hole' && centre ? (centre.map(mm3) as [number, number, number]) : null;
 
   useEffect(() => {
-    if (!open || !body || !valid || busy) return;
+    if (!open || !body || !valid || busy || refused) return;
     const id = ++latest.current;
     const typed = text;
     const timer = setTimeout(() => {
       platform()
-        .design.previewAction(actionOf(open, body, picks, size, at))
+        .design.previewAction(actionOf(open, body, picks, built, at))
         .then((result) => {
           if (latest.current !== id) return;
           setState(result.ok ? { text: typed, ok: true } : { text: typed, ok: false, error: result.error });
@@ -86,7 +94,7 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
     };
     // at is derived from centre; its array is new on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, body, picks, size, valid, busy, text, onGhost, at?.join()]);
+  }, [open, body, picks, built, valid, busy, text, onGhost, Boolean(refused), at?.join()]);
 
   useOneEditor('action', open !== null, () => {
     setOpen(null);
@@ -96,17 +104,18 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
 
   if (kinds.length === 0 || !body) return null;
   const current = state?.text === text ? state : null;
+  const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 3 });
 
   const choose = (kind: ActionKind | null) => {
     setOpen(kind);
     setState(null);
     onGhost(null);
-    setText(kind ? String(DEFAULT_SIZE[kind]).replace('.', decimal) : '');
+    setText(kind ? String(startSize(kind, print.printer, downEdges(bodies, picks, down, print.overhang) > 0)).replace('.', decimal) : '');
   };
 
   const apply = () => {
-    if (!open || !valid || busy || !current?.ok) return;
-    const action = actionOf(open, body, picks, size, at);
+    if (!open || !valid || busy || refused || !current?.ok) return;
+    const action = actionOf(open, body, picks, built, at);
     choose(null);
     void platform()
       .design.applyAction(action)
@@ -155,10 +164,29 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
               }
             }}
           />
-          <ProbeStatus state={!valid ? 'invalid' : !current ? 'probing' : current.ok ? 'ready' : 'refused'} error={current?.error} testId="action-status" />
+          {refused ? (
+            <p className="flex items-start gap-1 text-xs text-danger" role="status" data-testid="action-status" data-ok="false">
+              <IconAlertCircle className="mt-px size-icon-sm shrink-0" aria-hidden />
+              <span>{noteText(t, refused, number)}</span>
+            </p>
+          ) : (
+            <ProbeStatus state={!valid ? 'invalid' : !current ? 'probing' : current.ok ? 'ready' : 'refused'} error={current?.error} testId="action-status" />
+          )}
+          {plan?.notes
+            .filter((note) => !('refuse' in note))
+            .map((note) => (
+              <div key={note.note} className={`flex flex-col items-start gap-1 text-xs ${note.note === 'holeAllowance' ? 'text-text-muted' : 'text-warning'}`} data-testid={`action-note-${note.note}`}>
+                <p>{noteText(t, note, number)}</p>
+                {note.note === 'downFillet' ? (
+                  <Button size="sm" onPress={() => choose('chamfer')} data-testid="action-to-chamfer">
+                    {t('hud.rule.toChamfer')}
+                  </Button>
+                ) : null}
+              </div>
+            ))}
           {/* Enter and Esc do the same; the buttons show that there is a way on and a way back. */}
           <div className="flex gap-2">
-            <Button variant="primary" size="sm" isDisabled={busy || !valid || !current?.ok} onPress={apply} className="flex-1" data-testid="action-apply">
+            <Button variant="primary" size="sm" isDisabled={busy || !valid || Boolean(refused) || !current?.ok} onPress={apply} className="flex-1" data-testid="action-apply">
               {t('hud.apply')}
             </Button>
             <Button size="sm" onPress={() => choose(null)} data-testid="action-cancel">
@@ -169,6 +197,25 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
       ) : null}
     </div>
   );
+}
+
+/** A rule's word under the action field, in the interface language, with its sizes. */
+function noteText(t: TFunction, note: ActionNote, number: Intl.NumberFormat): string {
+  const mm = (value: number) => number.format(value);
+  switch (note.note) {
+    case 'downFillet':
+      return t('hud.rule.downFillet', { count: note.count, chamfer: mm(note.chamfer) });
+    case 'holeAllowance':
+      return t('hud.rule.holeAllowance', { drilled: mm(note.drilled), allowance: mm(note.allowance), material: note.material });
+    case 'lyingHole':
+      return t('hud.rule.lyingHole', { drilled: mm(note.drilled), most: mm(note.most) });
+    case 'wallNoPrint':
+      return t('hud.rule.wallNoPrint', { least: mm(note.least), better: mm(note.better) });
+    case 'wallThin':
+      return t('hud.rule.wallThin', { least: mm(note.least), better: mm(note.better) });
+    case 'wallLines':
+      return t('hud.rule.wallLines', { line: mm(note.line), better: mm(note.better) });
+  }
 }
 
 /** A pick as the local measure sees it: plane normal of a flat face, axis of a cylinder, direction of a straight edge. */

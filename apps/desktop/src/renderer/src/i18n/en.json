@@ -676,6 +676,15 @@
       "radius": "New radius",
       "diameter": "New diameter",
       "spacing": "New distance"
+    },
+    "rule": {
+      "downFillet": "{count, plural, one {The edge faces} other {# of the edges face}} the bed: a fillet there starts flat, so it needs support, and on the bed it curls up. A 45° chamfer of {chamfer} mm prints without support.",
+      "toChamfer": "Chamfer instead",
+      "holeAllowance": "Drilled at {drilled} mm: holes in {material} print about {allowance} mm smaller.",
+      "lyingHole": "The hole lies across the layers: wider than {most} mm, its roof needs support. Ask the assistant for a teardrop roof, or lay the part so the hole stands upright.",
+      "wallNoPrint": "Too thin to print: the narrowest line a slicer lays with this nozzle is {least} mm. {better} mm prints.",
+      "wallThin": "Under two lines ({least} mm) the wall prints poorly; {better} mm prints solid.",
+      "wallLines": "Not a whole number of {line} mm lines; {better} mm prints cleaner."
     }
   },
   "structure": {

@@ -18,23 +18,34 @@ type Step = { command: string; params: Record<string, unknown> };
 const UNDO_ALL: Step = { command: 'sketch.inspect', params: { sketch: 2147483647 } };
 const mm = (value: number) => `${Number(value.toFixed(6))} mm`;
 
-/** The SolidCraft command of an action (checked with SolidCraft 0.30.1 on 2026-11-04). */
+/**
+ * The SolidCraft command of an action (checked with SolidCraft 0.30.1 on 2026-11-04), on the picked body alone (audit G6).
+ * Measured with SolidCraft 0.40.1 on 2026-11-13, two boxes of 20 mm side by side: on the edge they share, `solid.fillet`
+ * and `solid.chamfer` are refused without `body` and round the named one with it; `solid.shell` hollows the first body
+ * at a shared face unless `body` names one; `solid.hole` drills the one `targets` names; `solid.press_pull` takes no
+ * body and cut 25 mm deep through the first box into the second, so an extrusion is `solid.extrude` from the face of the
+ * body (`face_body`) into it alone (`targets`), which on a free face takes and adds what press-pull did (7200 / 8800 mm³).
+ */
 export function commandOf(action: DesignAction): Step {
+  const body = action.body;
   switch (action.action) {
     case 'fillet':
-      return { command: 'solid.fillet', params: { edges: action.points, radius: mm(action.size) } };
+      return { command: 'solid.fillet', params: { edges: action.points, radius: mm(action.size), body } };
     case 'chamfer':
-      return { command: 'solid.chamfer', params: { edges: action.points, distance: mm(action.size) } };
+      return { command: 'solid.chamfer', params: { edges: action.points, distance: mm(action.size), body } };
     case 'extrude':
       // Positive adds material, negative cuts.
-      return { command: 'solid.press_pull', params: { face: action.points[0], distance: mm(action.size) } };
+      return {
+        command: 'solid.extrude',
+        params: { face: action.points[0], face_body: body, distance: mm(action.size), operation: action.size > 0 ? 'join' : 'cut', targets: [body] },
+      };
     case 'hole':
       return {
         command: 'solid.hole',
-        params: { position: action.points[0], diameter: mm(action.size), ...(action.depth ? { depth: mm(action.depth) } : {}) },
+        params: { position: action.points[0], diameter: mm(action.size), ...(action.depth ? { depth: mm(action.depth) } : {}), targets: [body] },
       };
     case 'shell':
-      return { command: 'solid.shell', params: { faces: action.points, thickness: mm(action.size) } };
+      return { command: 'solid.shell', params: { faces: action.points, thickness: mm(action.size), body } };
   }
 }
 

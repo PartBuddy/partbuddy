@@ -676,6 +676,15 @@
       "radius": "Neuer Radius",
       "diameter": "Neuer Durchmesser",
       "spacing": "Neuer Abstand"
+    },
+    "rule": {
+      "downFillet": "{count, plural, one {Die Kante zeigt} other {# der Kanten zeigen}} zum Druckbett: Eine Verrundung beginnt dort flach, braucht deshalb Stützen und biegt sich am Bett hoch. Eine 45°-Fase von {chamfer} mm druckt ohne Stützen.",
+      "toChamfer": "Stattdessen Fase",
+      "holeAllowance": "Gebohrt mit {drilled} mm: Löcher in {material} drucken etwa {allowance} mm kleiner.",
+      "lyingHole": "Das Loch liegt quer zu den Schichten: Breiter als {most} mm braucht seine Decke Stützen. Bitte den Assistenten um eine Tropfenform oder leg das Teil so, dass das Loch senkrecht steht.",
+      "wallNoPrint": "Zu dünn zum Drucken: Die schmalste Linie, die ein Slicer mit dieser Düse legt, ist {least} mm. {better} mm druckt.",
+      "wallThin": "Unter zwei Linien ({least} mm) druckt die Wand schlecht; {better} mm druckt massiv.",
+      "wallLines": "Keine ganze Zahl an Linien von {line} mm; {better} mm druckt sauberer."
     }
   },
   "structure": {
