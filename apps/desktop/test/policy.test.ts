@@ -6,10 +6,13 @@ import { describe, expect, it } from 'vitest';
 
 import { GateProxy, type ToolCallRecord, type ToolResult, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { policyToolSet } from '../src/main/agents/loop';
-import { COMMAND_GROUPS, decide, decideParameterNames, GROUP_EXCEPTIONS, namesToChange, REFUSED_COMMANDS } from '../src/main/agents/policy';
+import { CHECKED_WAYS, COMMAND_GROUPS, decide, decideParameterNames, GROUP_EXCEPTIONS, inputProblem, namesToChange, offeredTool, REFUSED_COMMANDS, TOOL_ARGUMENTS } from '../src/main/agents/policy';
 import { ASK_TOOL, Questions } from '../src/main/agents/questions';
-import { TOOL_NOTES } from '../src/main/agents/toolNotes';
+import { SKILL_NOTE, TOOL_NOTES } from '../src/main/agents/toolNotes';
 import { changesDesign } from '../src/main/agents/workLog';
+import { withMechanismTool } from '../src/main/agents/mechanismTool';
+import { BLOCK_KINDS } from '../src/shared/blocks';
+import { TAPPED_FROM } from '../src/shared/mechanisms';
 import type { AgentEvent } from '../src/shared/contract';
 
 const absolute = (name: string): string => join(tmpdir(), 'PartBuddy', name);
@@ -350,5 +353,141 @@ describe('tool policy: parameter names (audit R17)', () => {
     const held = await tools.callTool('set_parameter', { name: 'wand', value: 3 });
     expect(JSON.stringify(held.content)).toContain('has not answered your question');
     expect(forwarded).toEqual(['execute parameters.list']);
+  });
+});
+
+describe('tool policy: raw commands PartBuddy builds itself are refused with the call to use (BC-13, audit R2)', () => {
+  // From the catalogue of SolidCraft 0.40.1 (`solidcraft-cli commands`): holes, threads, bosses, snap hooks, lips, scaling.
+  const ways: Record<string, string> = {
+    'solid.hole': 'partbuddy_block',
+    'solid.thread': 'tappedHole',
+    'plastic.boss': '{"block": "boss"}',
+    'plastic.snap_fit': '{"block": "snapFit"}',
+    'plastic.lip': '{"block": "lip"}',
+    'solid.scale': 'set_parameter',
+  };
+
+  it('refuses each in every way it can be sent: execute, a batch step, by id, in another case, inside another command', () => {
+    expect(Object.keys(CHECKED_WAYS).sort()).toEqual(Object.keys(ways).sort());
+    for (const [command, use] of Object.entries(ways)) {
+      for (const sent of [command, ` ${command.toUpperCase()} `]) {
+        expect(reasonOf('execute', { command: sent, params: {} }), sent).toContain(use);
+        expect(reasonOf('execute', { command: sent, params: {} }), sent).toContain('tell the user what is missing');
+        expect(step(sent).allow, sent).toBe(false);
+        expect(decide('batch', { commands: [{ id: sent, params: {} }] }).allow, sent).toBe(false);
+        expect(decide('batch', { commands: [{ command: 'execute', params: { command: sent, params: {} } }] }).allow, sent).toBe(false);
+        expect(execute('timeline.redefine', { feature: 'Hole1', command: sent, params: {} }).allow, sent).toBe(false);
+        expect(execute('sketch.draw.dimensioned', { command: sent, params: {}, dimensions: {} }).allow, sent).toBe(false);
+      }
+    }
+    expect(reasonOf('execute', { command: 'solid.hole', params: { position: [10, 10, 20], thread: 'M3', modeled: true } })).toContain('"insertSeat"');
+    expect(reasonOf('execute', { command: 'solid.thread', params: { face: [0, 5, 2] } })).toContain('{"kind": "lid"}');
+  });
+
+  it("refuses SolidCraft's injection-moulding rules, and keeps the plastic commands PartBuddy has no block for (audit S-12)", () => {
+    for (const command of ['plastic.manage_rules', 'plastic.assign_rule']) expect(reasonOf('execute', { command, params: { name: 'ABS (1.5mm)' } }), command).toContain('injection-moulding');
+    expect(execute('plastic.rules')).toEqual({ allow: true });
+    expect(execute('plastic.rest', { position: [0, 0, 5], width: 4, height: 2 })).toEqual({ allow: true });
+  });
+
+  it('refuses an edit that makes a thread or a clearance on a hole, and keeps the other edits (audit S-08)', () => {
+    for (const set of [{ thread: 'M3' }, { Modeled: true }, { 'thread.hand': 'left' }, { designation: 'M8' }, { clearance: 'M4' }]) {
+      expect(reasonOf('execute', { command: 'timeline.edit', params: { feature: 'Hole1', set } }), JSON.stringify(set)).toContain('partbuddy_block');
+    }
+    expect(execute('timeline.edit', { feature: 'Extrude1', set: { extent: { distance: '30' } } })).toEqual({ allow: true });
+    expect(execute('timeline.edit', { feature: 'Hole1', set: { depth: '8 mm' } })).toEqual({ allow: true });
+  });
+
+  it('keeps the other modelling commands, which the check after each change covers (audit S-03, S-17)', () => {
+    for (const command of ['solid.fillet', 'solid.chamfer', 'solid.shell', 'solid.extrude', 'solid.sphere', 'solid.revolve', 'solid.loft', 'solid.combine', 'solid.emboss', 'face.delete', 'surface.thicken', 'sheet.flange', 'joint.as_built', 'joint.gear', 'parts.insert', 'parts.resize']) {
+      expect(execute(command), command).toEqual({ allow: true });
+      expect(changesDesign('execute', { command, params: {} }), command).toBe(true);
+    }
+    // The units of the design are refused with the design document (audit S-22, BC-09).
+    expect(reasonOf('execute', { command: 'document.units', params: { units: 'in' } })).toContain('stays in millimetres');
+  });
+
+  it('names the commands in the notes, and blocks and kinds the tools have, as the code holds them', async () => {
+    for (const command of Object.keys(CHECKED_WAYS)) expect(TOOL_NOTES, command).toContain(`\`${command}\``);
+    expect(TOOL_NOTES).toContain('`partbuddy_block` and `partbuddy_mechanism` build holes');
+    const text = Object.values(CHECKED_WAYS).join(' ');
+    const blocks = [...text.matchAll(/"block": "(\w+)"|"(tappedHole|insertSeat|nutTrap)"/g)].map((found) => found[1] ?? found[2]);
+    const kinds = [...text.matchAll(/"kind": "(\w+)"/g)].map((found) => found[1]);
+    expect(blocks.length).toBeGreaterThan(5);
+    for (const block of blocks) expect(BLOCK_KINDS, block).toContain(block);
+    const [mechanism] = await withMechanismTool({ instructions: () => undefined, listTools: () => Promise.resolve([]), callTool: () => Promise.resolve({ content: [] }) }, () => 0.4).listTools();
+    const enumOf = ((mechanism?.inputSchema.properties as Record<string, { enum?: string[] }> | undefined)?.kind?.enum ?? []);
+    for (const kind of kinds) expect(enumOf, kind).toContain(kind);
+    expect(CHECKED_WAYS['solid.thread']).toContain(`M${String(TAPPED_FROM)} and larger`);
+  });
+});
+
+describe('tool list and input schemas (audit S-04, S-05, W28)', () => {
+  // The 22 tools of SolidCraft 0.40.1 (`solidcraft-cli mcp --headless`, tools/list, 2026-11-13).
+  const SOLIDCRAFT_TOOLS = ['list_commands', 'describe_command', 'execute', 'batch', 'inspect_design', 'measure', 'body_topology', 'set_parameter', 'check_parameters', 'screenshot', 'compare_picture', 'export', 'crash_reports', 'running', 'pending', 'cancel', 'undo', 'redo', 'new_design', 'open', 'save', 'skill_reference'];
+  const schema = { type: 'object' as const, properties: { radius: { type: 'number', maximum: 100 }, name: { type: 'string' } }, required: ['name'], additionalProperties: false };
+  const tool = { name: 'partbuddy_block', inputSchema: schema };
+
+  it('offers none of the tools the policy refuses whatever their arguments', () => {
+    expect(SOLIDCRAFT_TOOLS.filter((name) => !offeredTool(name)).sort()).toEqual(['cancel', 'crash_reports', 'export', 'new_design', 'open', 'save']);
+    for (const name of SOLIDCRAFT_TOOLS.filter(offeredTool)) expect(TOOL_ARGUMENTS, name).toHaveProperty(name);
+    expect(offeredTool('partbuddy_block')).toBe(true);
+    expect(offeredTool('a_new_tool')).toBe(false);
+  });
+
+  it('refuses arguments outside the schema: over a limit, an unknown key, a missing one, a wrong type', () => {
+    expect(inputProblem(tool, { name: 'a', radius: 100 })).toBeNull();
+    expect(inputProblem(tool, { name: 'a' })).toBeNull();
+    for (const args of [{ name: 'a', radius: 100.001 }, { name: 'a', radius: 500 }, { name: 'a', more: [] }, { radius: 5 }, { name: 'a', radius: '5' }]) {
+      expect(inputProblem(tool, args), JSON.stringify(args)).toContain('do not fit the input schema of partbuddy_block');
+    }
+    // A schema that does not compile holds nothing against the call.
+    expect(inputProblem({ name: 'odd', inputSchema: { type: 'object', $schema: 'https://example.com/unknown' } }, { any: 1 })).toBeNull();
+  });
+
+  function upstreamWith(calls: string[]): UpstreamTools {
+    return {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([tool, { name: 'skill_reference', inputSchema: { type: 'object' } }, { name: 'export', inputSchema: { type: 'object' } }]),
+      callTool: (name) => {
+        calls.push(name);
+        return Promise.resolve({ content: [{ type: 'text', text: `${name} ok` }] });
+      },
+    };
+  }
+
+  it('holds in the gate proxy: refused tools are not listed, a call outside the schema never reaches the tool, a guide carries the note', async () => {
+    const calls: string[] = [];
+    const proxy = new GateProxy(upstreamWith(calls), () => undefined);
+    await proxy.start();
+    const client = new Client({ name: 'test', version: '1.0.0' });
+    try {
+      await client.connect(new StreamableHTTPClientTransport(new URL(proxy.url), { requestInit: { headers: { Authorization: `Bearer ${proxy.token}` } } }));
+      // A call before any list reads the schemas itself.
+      const refused = await client.callTool({ name: 'partbuddy_block', arguments: { name: 'a', radius: 500 } });
+      expect(refused.isError).toBe(true);
+      expect(JSON.stringify(refused.content)).toContain('do not fit the input schema');
+      expect(calls).toEqual([]);
+      expect((await client.listTools()).tools.map((entry) => entry.name)).toEqual(['partbuddy_block', 'skill_reference']);
+      await client.callTool({ name: 'partbuddy_block', arguments: { name: 'a', radius: 5 } });
+      const guide = await client.callTool({ name: 'skill_reference', arguments: { skill: 'solidcraft-modeling' } });
+      expect((guide.content as { text: string }[]).map((part) => part.text)).toEqual(['skill_reference ok', SKILL_NOTE]);
+      expect(calls).toEqual(['partbuddy_block', 'skill_reference']);
+    } finally {
+      await client.close();
+      await proxy.stop();
+    }
+  });
+
+  it('holds in the loop of ChatGPT and local models too', async () => {
+    const calls: string[] = [];
+    const events: AgentEvent[] = [];
+    const set = await policyToolSet(upstreamWith(calls), { nextId: () => 'call-1', event: (event) => events.push(event) });
+    expect(Object.keys(set)).toEqual(['partbuddy_block', 'skill_reference']);
+    const run = (name: string, input: unknown) => (set[name]?.execute as (input: unknown, options: unknown) => Promise<string>)(input, { toolCallId: 'call-1', messages: [] });
+    expect(await run('partbuddy_block', { name: 'a', radius: 500 })).toContain('do not fit the input schema');
+    expect(events.at(-1)).toMatchObject({ name: 'partbuddy_block', decision: 'denied' });
+    expect(calls).toEqual([]);
+    expect(await run('skill_reference', { skill: 'solidcraft-modeling' })).toBe(`skill_reference ok\n${SKILL_NOTE}`);
   });
 });

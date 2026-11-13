@@ -4,8 +4,12 @@
  * through PartBuddy's proxy.
  */
 
+import type { JsonSchemaValidator } from '@modelcontextprotocol/server';
+import { AjvJsonSchemaValidator } from '@modelcontextprotocol/server/validators/ajv';
+
+import { TAPPED_FROM } from '../../shared/mechanisms';
 import { METADATA_PREFIX } from '../notes/noteRecord';
-import type { ToolResult, UpstreamTools } from './gateProxy';
+import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 import { isKeptPhoto } from './photoNote';
 
 export type ToolDecision = { allow: true } | { allow: false; reason: string };
@@ -94,13 +98,16 @@ const REORDER_REASON =
 const MOVE_REASON =
   'moves a part away from where it was designed, and PartBuddy checks, lays out and exports the parts as designed (joints ' +
   'count from there too). Move the body itself with solid.move, or make it movable with a joint.';
+const PLASTIC_RULES_REASON =
+  "sets SolidCraft's injection-moulding rules (draft, clearance), which plastic features then take as defaults; PartBuddy " +
+  'sizes for printing from the print profile instead. Continue without it.';
 
 /**
  * The command groups (the id up to its first dot) the assistant may use, from the catalogue of
  * SolidCraft 0.40.1 (`solidcraft-cli commands`, 634 commands): modelling, inspecting and the
  * history. A group that is not listed, one a later SolidCraft adds among them, is refused until
- * someone has looked at it (audit H-30, S-31). Raw modelling commands stay open here; which of
- * them PartBuddy takes over is BC-13's decision.
+ * someone has looked at it (audit H-30, S-31). Of the raw modelling commands, those PartBuddy builds
+ * itself are refused ({@link CHECKED_WAYS}); the others are checked after each change (audit S-03, S-17).
  */
 export const COMMAND_GROUPS = new Set([
   'appearance', 'assembly', 'body', 'browser', 'canvas', 'component', 'construct', 'contact', 'explode', 'expr', 'face',
@@ -154,7 +161,42 @@ export const REFUSED_COMMANDS: Record<string, string> = {
   'occurrence.move': MOVE_REASON,
   'occurrence.drag': MOVE_REASON,
   'occurrence.align': MOVE_REASON,
+  // audit S-12: SolidCraft's plastic rules are injection-moulding rules (draft, clearance) that plastic features take as defaults.
+  'plastic.manage_rules': PLASTIC_RULES_REASON,
+  'plastic.assign_rule': PLASTIC_RULES_REASON,
 };
+
+/**
+ * Raw commands PartBuddy has a checked way for (audit R2, BC-13; decided by Manuel 2026-11-13): each is refused with
+ * the call that builds it, which takes its sizes from PartBuddy's tables and measures where it goes before it builds.
+ * The other modelling commands stay open, and the ready-to-print check of each change goes back with the answer
+ * (workLog.ts, printCheckNote.ts). PartBuddy's own tools send these commands below the policy and stay free. From the
+ * catalogue of SolidCraft 0.40.1; `document.units` is refused with its group (audit S-22).
+ */
+export const CHECKED_WAYS: Record<string, string> = {
+  'solid.hole':
+    'is built by PartBuddy, which takes clearance, head, nut and insert sizes from its tables and measures the wall before it drills (a thread on solid.hole is cosmetic unless modeled). Use partbuddy_block: {"block": "screwHole"} (head cap, countersunk or none), ' +
+    `"tappedHole" (M${String(TAPPED_FROM)} and larger), "insertSeat" (a heat-set insert) or "nutTrap"; or partbuddy_mechanism {"kind": "screw"} for two parts screwed together. ` +
+    'An opening that holds no screw (a cable, a vent) is cut from a sketch with solid.extrude {"operation": "cut"}.',
+  'solid.thread':
+    `is cosmetic unless modeled, and printed threads under M${String(TAPPED_FROM)} strip. Use partbuddy_block {"block": "tappedHole"} (M${String(TAPPED_FROM)} and larger) or {"block": "insertSeat"} for a screw, or partbuddy_mechanism {"kind": "lid"} for a container that screws shut.`,
+  'plastic.boss':
+    'is an injection-moulding boss (draft and wall from SolidCraft\'s plastic rules). Use partbuddy_block {"block": "boss"}, which sizes the boss from its insert.',
+  'plastic.snap_fit':
+    'is an injection-moulding snap hook, and nothing tells its strain. Use partbuddy_block {"block": "snapFit"}, which says the strain at the arm\'s root, or partbuddy_mechanism {"kind": "snap"} for a part that clips onto another.',
+  'plastic.lip':
+    'is an injection-moulding lip (SolidCraft\'s plastic rules). Use partbuddy_block {"block": "lip"} (type lip or groove), or partbuddy_mechanism {"kind": "closure"} for a lid that snaps shut on its box.',
+  // audit S-18: measured with 0.40.1, a screw hole of the block went from 3.4 to 1.7 mm at factor 0.5 without a word.
+  'solid.scale':
+    'scales the screw holes, insert seats, threads and gaps of the body with it, which then fit no screw or insert. Change the sizes with set_parameter, or build the part again at its size; if the user wants it scaled, tell them so.',
+};
+
+/**
+ * Keys of `timeline.edit {set}` that only holes and threads carry: with them an edit makes on an existing hole what
+ * {@link CHECKED_WAYS} refuses raw (a cosmetic thread, SolidCraft's clearance).
+ * shortcut: other edits of a block's feature (its diameter, its depth) and `parameters.change` on its inputs are let through and checked after; track the features a block built if the assistant takes that way.
+ */
+const HOLE_KEYS = new Set(['thread', 'modeled', 'designation', 'clearance']);
 
 /** An engine command id as SolidCraft lists them, after {@link commandId}: ASCII groups and names joined by dots. */
 const COMMAND_ID = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
@@ -242,6 +284,11 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
   if (!COMMAND_ID.test(command)) return refuse(`${JSON.stringify(id)} is not an engine command id; ids look like solid.extrude, as list_commands lists them.`);
   const refused = entryOf(REFUSED_COMMANDS, command);
   if (refused) return refuse(`${command} ${refused}`);
+  const checked = entryOf(CHECKED_WAYS, command);
+  if (checked) return refuse(`${command} ${checked} Call that instead; if it cannot build what you need, tell the user what is missing.`);
+  if (command === 'timeline.edit' && Object.keys(objectOr(params.set)).some((key) => HOLE_KEYS.has(key.split('.')[0]?.trim().toLowerCase() ?? ''))) {
+    return refuse(`${command} with ${[...HOLE_KEYS].join(', ')} makes a thread or a screw's clearance on a hole, which partbuddy_block builds for printing (as solid.hole). Build the hole again with partbuddy_block, or leave those keys out.`);
+  }
   const group = command.slice(0, command.indexOf('.'));
   if (!COMMAND_GROUPS.has(group) && !GROUP_EXCEPTIONS.has(command)) {
     return refuse(`${command} ${entryOf(GROUP_REASONS, group) ?? 'is not available in PartBuddy. Continue with the modelling and inspection commands.'}`);
@@ -396,6 +443,11 @@ function decideArguments(name: string, args: Record<string, unknown>): ToolDecis
   return { allow: true };
 }
 
+/** Whether the assistant is offered a tool at all (audit S-04): one the policy refuses whatever its arguments is left out of its list. */
+export function offeredTool(name: string): boolean {
+  return ALLOWED.has(name);
+}
+
 export function decide(name: string, args: Record<string, unknown>): ToolDecision {
   return decideTool(name, args, 0);
 }
@@ -474,4 +526,31 @@ export async function decideParameterNames(callTool: UpstreamTools['callTool'], 
     `There is no parameter ${JSON.stringify(missing)}: setting it would make a new parameter and change nothing in the design. The parameters are: ` +
       `${list || 'none'}. Take the exact name, or add a new parameter with parameters.add.`,
   );
+}
+
+const validators = new AjvJsonSchemaValidator();
+/** Compiled input schemas by their text: the same few tools come back on every list. */
+const compiled = new Map<string, JsonSchemaValidator<unknown> | null>();
+
+/**
+ * Why a call's arguments do not fit the tool's input schema, or null when they fit (audit W28): neither the MCP
+ * client nor the AI SDK checks them, so a value over a schema's limit or an unknown key reached the tool. A schema
+ * that does not compile is not held against the call.
+ * shortcut: such a schema lets every call through unchecked (none of SolidCraft 0.40.1's 22 does); log it if one turns up.
+ */
+export function inputProblem(tool: UpstreamTool, args: Record<string, unknown>): string | null {
+  const key = JSON.stringify(tool.inputSchema);
+  let check = compiled.get(key);
+  if (check === undefined) {
+    try {
+      check = validators.getValidator(tool.inputSchema);
+    } catch {
+      check = null;
+    }
+    if (compiled.size > 200) compiled.clear();
+    compiled.set(key, check);
+  }
+  const result = check?.(args);
+  if (!result || result.valid) return null;
+  return `PartBuddy refused this call: its arguments do not fit the input schema of ${tool.name} (${result.errorMessage.slice(0, 300)}). Call it again with the arguments that schema describes.`;
 }

@@ -243,11 +243,12 @@ describe('gate proxy', () => {
     return client;
   }
 
-  it('lists SolidCraft tools unchanged and forwards allowed calls', async () => {
+  it('lists the SolidCraft tools the policy offers and forwards allowed calls (audit S-04)', async () => {
     const { proxy, calls, records } = await startProxy();
     const client = await connect(proxy);
     const { tools } = await client.listTools();
-    expect(tools.map((tool) => tool.name)).toEqual(['inspect_design', 'export']);
+    // export is refused whatever its arguments, so it is not offered.
+    expect(tools.map((tool) => tool.name)).toEqual(['inspect_design']);
     expect(client.getInstructions()).toBe(`SolidCraft drives the app.\n\n${TOOL_NOTES}`);
     const result = await client.callTool({ name: 'inspect_design', arguments: {} });
     expect(result.isError).not.toBe(true);

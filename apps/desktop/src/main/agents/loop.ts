@@ -1,11 +1,11 @@
 import { jsonSchema, tool, type StopCondition, type ToolSet } from 'ai';
 
 import type { AgentEvent } from '../../shared/contract';
-import type { ToolResult, UpstreamTools } from './gateProxy';
-import { decide, decideParameterNames, type ToolDecision } from './policy';
+import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
+import { decide, decideParameterNames, inputProblem, offeredTool, type ToolDecision } from './policy';
 import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
 import { RESEARCH_GUIDANCE } from './research';
-import { withToolNotes } from './toolNotes';
+import { withSkillNote, withToolNotes } from './toolNotes';
 import { VIEW_GUIDANCE } from './viewContext';
 import { ASSEMBLY_GUIDANCE, JOINT_GUIDANCE } from './assemblyTool';
 import { BLOCK_GUIDANCE, BLOCK_TOOL } from './blockTool';
@@ -121,24 +121,29 @@ export interface PolicyToolOptions {
   providerOptions?: Parameters<typeof tool>[0]['providerOptions'];
 }
 
-/** SolidCraft's tools for the AI SDK; every call passes PartBuddy's policy first. */
+/** SolidCraft's tools for the AI SDK, without those the policy refuses (audit S-04); every call passes PartBuddy's policy and the tool's schema first. */
 export async function policyToolSet(upstream: UpstreamTools, options: PolicyToolOptions): Promise<ToolSet> {
   const tools: ToolSet = {};
   for (const definition of await upstream.listTools()) {
+    if (!offeredTool(definition.name)) continue;
     tools[definition.name] = tool({
       description: definition.description ?? definition.name,
       inputSchema: jsonSchema(definition.inputSchema as Parameters<typeof jsonSchema>[0]),
       ...(options.providerOptions ? { providerOptions: options.providerOptions } : {}),
-      execute: async (input: unknown) => callTool(upstream, definition.name, (input ?? {}) as Record<string, unknown>, options),
+      execute: async (input: unknown) => callTool(upstream, definition, (input ?? {}) as Record<string, unknown>, options),
     });
   }
   return tools;
 }
 
-async function callTool(upstream: UpstreamTools, name: string, args: Record<string, unknown>, options: PolicyToolOptions): Promise<string> {
+async function callTool(upstream: UpstreamTools, definition: UpstreamTool, args: Record<string, unknown>, options: PolicyToolOptions): Promise<string> {
+  const { name } = definition;
   const id = options.nextId();
   const summary = JSON.stringify(args).slice(0, 2000);
   let decision: ToolDecision = decide(name, args);
+  // The AI SDK's jsonSchema checks nothing without a validator (audit W28), as in the gate proxy.
+  const problem = decision.allow ? inputProblem(definition, args) : null;
+  if (problem) decision = { allow: false, reason: problem };
   // A misspelt parameter name would make a new parameter (audit R17), as in the gate proxy.
   if (decision.allow) decision = await decideParameterNames((tool, toolArgs) => upstream.callTool(tool, toolArgs), name, args);
   if (!decision.allow) {
@@ -149,7 +154,7 @@ async function callTool(upstream: UpstreamTools, name: string, args: Record<stri
   try {
     const result = await upstream.callTool(name, args, id);
     options.event({ type: 'tool', id, name, summary, decision: 'allowed', ok: result.isError !== true });
-    return resultText(result);
+    return resultText(withSkillNote(name, result));
   } catch (error) {
     options.event({ type: 'tool', id, name, summary, decision: 'allowed', ok: false });
     return `SolidCraft tool failed: ${(error as Error).message}`;
