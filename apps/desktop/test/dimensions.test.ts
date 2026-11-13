@@ -21,6 +21,7 @@ const param = (name: string, value: number, expression = String(value), unit = '
 function boxEngine(values: Record<string, number>, extra: Parameter[] = []) {
   const calls: { commands: { command: string; params: Record<string, unknown> }[]; rollback: unknown }[] = [];
   const state = { ...values };
+  const suppressed: Record<string, boolean> = {};
   const edges = (v: Record<string, number>) => {
     // `sym`, when there, moves the x edge as well (a second driver, as a symmetric extrude has).
     const [x, y, z] = [(v.d1 ?? 0) + (v.sym ?? 20) - 20, v.d2 ?? 0, v.d3 ?? 0];
@@ -52,6 +53,9 @@ function boxEngine(values: Record<string, number>, extra: Parameter[] = []) {
           case 'model.edges':
             results.push(edges(working));
             break;
+          case 'document.inspect':
+            results.push({ timeline: [{ id: 1, name: 'Box1', suppressed: suppressed.Box1 === true, rolled_back: false }], marker: 1 });
+            break;
           case 'file.export':
             writeFileSync(String(step.params.path), `ghost ${JSON.stringify(working)}`);
             results.push({ path: step.params.path });
@@ -68,7 +72,7 @@ function boxEngine(values: Record<string, number>, extra: Parameter[] = []) {
   };
   const cache = mkdtempSync(join(tmpdir(), 'partbuddy-dimensions-'));
   dirs.push(cache);
-  return { service: new DimensionService(() => requester, cache), calls, state };
+  return { service: new DimensionService(() => requester, cache), calls, state, suppressed };
 }
 
 describe('dimension field: direct where unambiguous (M1b)', () => {
@@ -103,6 +107,42 @@ describe('dimension field: direct where unambiguous (M1b)', () => {
     expect(await service.probe({ measure: 'length', body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 5, 0] }, 20, 30)).toMatchObject({ mode: 'direct', parameter: 'd1' });
     // The list, ten tries and the preview.
     expect(calls).toHaveLength(12);
+  });
+
+  it('keeps the drivers of a selection for the next value typed, until the design or its size changes (review of BC-08, S3)', async () => {
+    const others = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`p${String(i)}`, 20]));
+    const { service, calls, state, suppressed } = boxEngine({ ...others, d1: 20, d2: 5, d3: 10 });
+    const target = { measure: 'length' as const, body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 5, 0] as [number, number, number] };
+    expect(await service.probe(target, 20, 30)).toMatchObject({ mode: 'direct', parameter: 'd1' });
+    const tries = () => calls.filter((call) => call.commands[0]?.command === 'parameters.change' && call.commands[1]?.command !== 'file.export').length;
+    expect(tries()).toBe(10);
+    // The next value: the design read once and the preview, no try.
+    calls.length = 0;
+    expect(await service.probe(target, 20, 31)).toMatchObject({ mode: 'direct', parameter: 'd1' });
+    expect(tries()).toBe(0);
+    expect(calls).toHaveLength(2);
+    // A feature suppressed in the timeline: the design is another, all are tried again.
+    suppressed.Box1 = true;
+    await service.probe(target, 20, 32);
+    expect(tries()).toBe(10);
+    // Another size of the same selection (after a change): tried again too.
+    suppressed.Box1 = false;
+    state.d1 = 25;
+    calls.length = 0;
+    await service.probe(target, 25, 30);
+    expect(tries()).toBe(1);
+  });
+
+  it('tries a candidate SolidCraft refused at one value again at the next', async () => {
+    // d1 drives, but SolidCraft refuses 40 mm for it (a range of the design): first noDriver, then found at 30.
+    const { service } = boxEngine({ d1: 20, d2: 5, d3: 10 });
+    const refusing = service as unknown as { batch: (commands: { command: string; params: Record<string, unknown> }[], rollback: boolean) => Promise<unknown> };
+    const batch = refusing.batch.bind(service);
+    refusing.batch = (commands, rollback) =>
+      commands[0]?.command === 'parameters.change' && commands[0].params.expression === '40 mm' ? Promise.resolve({ results: [], failed: { index: 0, command: 'parameters.change', error: 'out of range' } }) : batch(commands, rollback);
+    const target = { measure: 'length' as const, body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 5, 0] as [number, number, number] };
+    expect(await service.probe(target, 20, 40)).toEqual({ mode: 'assistant', reason: 'noDriver' });
+    expect(await service.probe(target, 20, 30)).toMatchObject({ mode: 'direct', parameter: 'd1' });
   });
 
   it('lets the user pick when several parameters each move the edge', async () => {

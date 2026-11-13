@@ -66,9 +66,10 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 - `sketch.inspect {sketch}` returns curves in sketch coordinates plus the plane, constraints with
   curve and point indices, dimensions with parameter names; arcs are always counter-clockwise (a
   clockwise arc swaps start and end with their point ids). Used sketches become invisible.
-- Actions by point: `solid.fillet {edges, radius}`, `solid.chamfer {edges, distance}`,
-  `solid.press_pull {face, distance}`, `solid.hole {position, diameter, depth?}`,
-  `solid.shell {faces, thickness}`; `inspect.measure` with two items gives distance and angle.
+- Actions by point: `solid.fillet {edges, radius, body}`, `solid.chamfer {edges, distance, body}`,
+  `solid.extrude {face, face_body, distance, operation, targets}` (`solid.press_pull {face, distance}` names no
+  body, see below), `solid.hole {position, diameter, depth?, targets}`, `solid.shell {faces, thickness, body}`;
+  `inspect.measure` with two items gives distance and angle.
 - Countersunk hole inputs: Diameter, Countersink diameter, Countersink angle.
 
 ### Import (0.40, checked 2026-11-05)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ActionService, overlapDepth, SNAP_CATCH, snapPoses } from '../src/main/solidcraft/actions';
+import { ActionService, overlapDepth, SNAP_CATCH, SNAP_TRIES, snapPoses } from '../src/main/solidcraft/actions';
 
 /** An `inspect.interference` answer as SolidCraft 0.40.1 gives it: one overlap whose box is `thin` deep, or none. */
 const overlap = (thin: number | null) =>
@@ -14,7 +14,7 @@ describe('the snap-fit poses of a joint run are taken back with their undo step'
         const batch = params as (typeof batches)[number];
         batches.push(batch);
         // Stopped short of the limit of 30: a snap fit to try.
-        if (batch.commands[0]?.command === 'joint.sweep') return Promise.resolve({ results: [{ stopped_at: stoppedAt, stopped_by: { a: 'Flap:1', b: 'Base:1', at: [0, 0, 0] }, unit }] } as T);
+        if (batch.commands[0]?.command === 'joint.sweep') return Promise.resolve({ results: batch.commands.map(() => ({ stopped_at: stoppedAt, stopped_by: { a: 'Flap:1', b: 'Base:1', at: [0, 0, 0] }, unit })) } as T);
         return Promise.resolve(posed as T);
       },
     };
@@ -48,6 +48,23 @@ describe('the snap-fit poses of a joint run are taken back with their undo step'
     expect(await service(answered(0.2, SNAP_CATCH, 0.2, 0.2, null)).actions.sweepJoints(sweeps)).toEqual([null]);
     // No pose on the way saw the parts overlap: nothing tells it is a snap fit.
     expect(await service(answered(null, null, null, null, null)).actions.sweepJoints(sweeps)).toMatchObject([{ stoppedAt: 28 }]);
+  });
+
+  it('takes the catch of PartBuddy\'s own snap hook for a snap fit, not only the closure\'s bead (review of BC-08, S1)', async () => {
+    // SNAP.catch 0.8 less the 0.2 mm the arm stands off the wall: 0.6 mm, deeper than the bead's 0.5.
+    expect(SNAP_CATCH).toBe(0.6);
+    expect(await service(answered(0.3, 0.6, 0.6, 0.4, null)).actions.sweepJoints(sweeps)).toEqual([null]);
+    expect(await service(answered(0.3, 0.601, 0.6, 0.4, null)).actions.sweepJoints(sweeps)).toMatchObject([{ stoppedAt: 28 }]);
+  });
+
+  it('tries at most SNAP_TRIES snap fits per call and reports and logs the rest as stops', async () => {
+    const many = service(answered(0.3, 0.3, 0.3, 0.3, null));
+    const runs = Array.from({ length: SNAP_TRIES + 2 }, (_, k) => ({ joint: k, index: 0, from: 0, to: 30 }));
+    const stops = await many.actions.sweepJoints(runs, many.log);
+    expect(stops.filter((stop) => stop === null)).toHaveLength(SNAP_TRIES);
+    expect(stops.slice(SNAP_TRIES)).toMatchObject([{ stoppedAt: 28 }, { stoppedAt: 28 }]);
+    expect(many.batches).toHaveLength(1 + SNAP_TRIES);
+    expect(many.logged).toEqual([`Warning: 2 more stops near a limit were not tried as snap fits (at most ${String(SNAP_TRIES)} per call of joint runs) and are reported: joint/value 8/0, 9/0`]);
   });
 
   it('keeps the stop when the parts overlap at the limit', async () => {

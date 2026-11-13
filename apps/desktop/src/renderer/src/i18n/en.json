@@ -678,7 +678,10 @@
       "spacing": "New distance"
     },
     "rule": {
-      "downFillet": "{count, plural, one {The edge faces} other {# of the edges face}} the bed: a fillet there starts flat, so it needs support, and on the bed it curls up. A 45° chamfer of {chamfer} mm prints without support.",
+      "downFillet": "{count, plural, one {The edge faces} other {# of the edges face}} down: a fillet there starts flat, so it needs support.",
+      "downFilletBed": "On the bed it also curls up.",
+      "chamferFree": "A 45° chamfer of {chamfer} mm prints without support.",
+      "chamferSteep": "A 45° chamfer of {chamfer} mm leans past the {overhang}° that {material} prints without support, but sags less than the fillet.",
       "toChamfer": "Chamfer instead",
       "holeAllowance": "Drilled at {drilled} mm: holes in {material} print about {allowance} mm smaller.",
       "lyingHole": "The hole lies across the layers: wider than {most} mm, its roof needs support. Ask the assistant for a teardrop roof, or lay the part so the hole stands upright.",

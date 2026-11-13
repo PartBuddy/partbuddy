@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { cutsThrough, splitPieceSteps, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../../shared/blocks';
 import type { ClearanceResult, DesignAction, JointSweep, JointSweepResult, MeasureItem, MeasureResult } from '../../shared/contract';
-import { LIP } from '../../shared/mechanisms';
+import { LIP, SNAP } from '../../shared/mechanisms';
 import type { ControlRequester } from './mirror';
 
 /**
@@ -200,10 +200,17 @@ export class ActionService {
     const reply = await this.batch(sweeps.map((sweep) => ({ command: 'joint.sweep', params: { ...sweep } })), false);
     if (reply.failed) throw new Error(reply.failed.error);
     const stops = sweeps.map((_, i) => sweepStopOf(reply.results?.[i]));
+    let tried = 0;
+    const left: string[] = [];
     for (const [i, sweep] of sweeps.entries()) {
       const stop = stops[i];
       const unit = (reply.results?.[i] as { unit?: unknown } | undefined)?.unit;
       if (!stop || !snapSpan(stop.stoppedAt, sweep.to, unit)) continue;
+      // Each try costs five interference reads (about 0.1 s each on the hinged box): past the cap the stop is reported.
+      if (tried++ >= SNAP_TRIES) {
+        left.push(`${String(sweep.joint)}/${String(sweep.index)}`);
+        continue;
+      }
       const poses = snapPoses(stop.stoppedAt, sweep.to, unit);
       const drive = (value: number) => ({ command: 'joint.drive', params: { joint: sweep.joint, index: sweep.index, value, quiet: true } });
       const steps = [...poses.flatMap((value) => [drive(value), { command: 'inspect.interference', params: {} }]), UNDO_ALL];
@@ -226,6 +233,7 @@ export class ActionService {
       const deepest = Math.max(...passing.map((depth) => depth ?? Infinity));
       if (deepest > 0 && deepest <= SNAP_CATCH + 1e-9) stops[i] = null;
     }
+    if (left.length > 0) log(`Warning: ${String(left.length)} more stops near a limit were not tried as snap fits (at most ${String(SNAP_TRIES)} per call of joint runs) and are reported: joint/value ${left.slice(0, 20).join(', ')}`);
     return stops;
   }
 
@@ -248,10 +256,16 @@ export class ActionService {
 const SNAP_SPAN = { deg: 6, mm: 4 };
 const REACHED = { deg: 0.5, mm: 0.1 };
 /**
- * The deepest overlap a snap fit presses past (mm): the bead of PartBuddy's own closure, 0.5 mm proud (`LIP.bead`,
- * mechanisms.ts). The template's hinged box measured 0.22 to 0.33 mm from 176° to 179.5° (SolidCraft 0.40.1, 2026-11-13).
+ * The deepest overlap a snap fit presses past (mm): the deeper catch of PartBuddy's own snaps, the bead of the closure
+ * (`LIP.bead`, 0.5 mm proud) or the snap hook's catch less the room its arm stands off the wall (`SNAP.catch` − `SNAP.gap`,
+ * 0.6 mm; mechanisms.ts). Measured with SolidCraft 0.40.1 on 2026-11-13: the template's hinged box 0.29 to 0.33 mm, a lid
+ * pushed onto its base over a hook of snapSteps 0.600 mm from 10 to 1 mm before closed.
+ * shortcut: a snap-fit block the user gave a deeper catch (`catchDepth` over 0.6 mm) reads as a stop near a limit; take
+ * the catches of the design's own blocks into the rule if that turns up.
  */
-export const SNAP_CATCH = LIP.bead;
+export const SNAP_CATCH = Math.max(LIP.bead, Math.round((SNAP.catch - SNAP.gap) * 1000) / 1000);
+/** How many stops near a limit one call of joint runs (up to 40, report.ts) tries as snap fits; the rest are reported and logged. */
+export const SNAP_TRIES = 8;
 
 /**
  * Where a snap fit is tried: just past the contact, at a quarter, half and three quarters of the way, and at the limit.
@@ -268,7 +282,8 @@ export function snapPoses(stoppedAt: number, to: number, unit: unknown): number[
  * How deep two parts overlap in an `inspect.interference` answer (0.40.1: `{count, interferences: [{a, b, bbox, volume_mm3}]}`):
  * the thinnest side of the deepest overlap's box, 0 when they are free, null when the answer cannot be read.
  * shortcut: the box lies along the world axes, so an overlap that runs at a slant reads thicker than it is and is kept as
- * a stop; measure along the motion if a slanted snap fit reads as a stop.
+ * a stop; and its thinnest side is what is read, so a part thinner than a catch (a web of 0.5 mm, a pin of 0.4 mm) that
+ * goes deep into another reads as a snap fit. Measure the overlap along the motion if either turns up.
  */
 export function overlapDepth(result: unknown): number | null {
   const { count, interferences } = (result ?? {}) as { count?: unknown; interferences?: unknown };

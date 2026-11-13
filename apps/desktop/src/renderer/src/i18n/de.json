@@ -678,7 +678,10 @@
       "spacing": "Neuer Abstand"
     },
     "rule": {
-      "downFillet": "{count, plural, one {Die Kante zeigt} other {# der Kanten zeigen}} zum Druckbett: Eine Verrundung beginnt dort flach, braucht deshalb Stützen und biegt sich am Bett hoch. Eine 45°-Fase von {chamfer} mm druckt ohne Stützen.",
+      "downFillet": "{count, plural, one {Die Kante zeigt} other {# der Kanten zeigen}} nach unten: Eine Verrundung beginnt dort flach und braucht deshalb Stützen.",
+      "downFilletBed": "Am Bett biegt sie sich zudem hoch.",
+      "chamferFree": "Eine 45°-Fase von {chamfer} mm druckt ohne Stützen.",
+      "chamferSteep": "Eine 45°-Fase von {chamfer} mm neigt sich weiter als die {overhang}°, die {material} ohne Stützen druckt, hängt aber weniger durch als die Verrundung.",
       "toChamfer": "Stattdessen Fase",
       "holeAllowance": "Gebohrt mit {drilled} mm: Löcher in {material} drucken etwa {allowance} mm kleiner.",
       "lyingHole": "Das Loch liegt quer zu den Schichten: Breiter als {most} mm braucht seine Decke Stützen. Bitte den Assistenten um eine Tropfenform oder leg das Teil so, dass das Loch senkrecht steht.",

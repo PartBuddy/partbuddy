@@ -29,13 +29,16 @@ result before the user commits to it?
 ## Decision Outcome
 
 Chosen option: "Try every candidate parameter in SolidCraft and measure the result", because it is
-exact for every feature type SolidCraft has, needs no rules per feature and costs a few
-milliseconds per candidate.
+exact for every feature type SolidCraft has and needs no rules per feature. It costs a rebuild of the
+design per candidate and one for its undo: a few milliseconds on a box, 2.3 to 13 s on the housing
+template (SolidCraft 0.40.1, measured 2026-11-13).
 
 * **Candidates:** length parameters (`parameters.list`, unit mm) whose expression is a plain number
   and whose value equals the edge length, or the radius of a cylindrical face (also twice the
   radius: a diameter parameter). All of them are tried: a cap of eight left out the driver of a design
-  with more sizes of the same value (audit D45, 2026-11-13).
+  with more sizes of the same value (audit D45, 2026-11-13). The drivers found are kept per selection,
+  its size and the design (parameters and timeline), so the next value typed tries only the candidates
+  SolidCraft refused before.
 * **Try:** one `engine.batch` per candidate: `parameters.change`, `model.edges` or `model.faces`,
   then `sketch.inspect` of a sketch that does not exist. That last step fails on purpose, and
   SolidCraft undoes the whole batch, undo history included, but still returns the earlier results.

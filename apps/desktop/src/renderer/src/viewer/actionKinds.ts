@@ -45,37 +45,67 @@ const dot = (a: readonly number[], b: readonly number[]) => (a[0] ?? 0) * (b[0] 
 const sub = (a: readonly number[], b: readonly number[]): Vec3 => [(a[0] ?? 0) - (b[0] ?? 0), (a[1] ?? 0) - (b[1] ?? 0), (a[2] ?? 0) - (b[2] ?? 0)];
 const round3 = (value: number) => Math.round(value * 1000) / 1000;
 
-/**
- * The direction to the bed for a body, as the print check lays it: the outward normal of its print face when it has a flat
- * one, otherwise −z, standing as designed (packages/geometry printDown).
- */
-export function bedDown(body: BodyModel | undefined, printFace: string | undefined): Vec3 {
-  const normal = printFace ? body?.model.table.faces.find((face) => face.name === printFace)?.planeNormal : undefined;
-  const length = normal ? Math.hypot(...normal) : 0;
-  return normal && length > 0 ? [normal[0] / length, normal[1] / length, normal[2] / length] : [0, 0, -1];
+/** How a body lies on the bed: the direction to the bed, and how far along it the bed lies (the piece's lowest point). */
+export interface Bed {
+  down: Vec3;
+  level: number;
 }
 
 /**
- * How many of the picked edges are outer edges of a flat face that faces the bed: one that leans more than the material's
- * overhang from the vertical, the bed face itself among them. A fillet there starts flat: it needs support, and on the
- * bed it curls up (printProfiles.ts: "Edges that face down towards the bed: chamfer them at 45°"). Inner edges are left
- * out, as rounding them fills a corner under a ceiling that is no worse for it.
+ * How a body lies as the print check lays it (packages/geometry `laidBodies`): a body printed in one piece with others
+ * (`printGroups`) lies with them, on the flat print face of the first of them that has one (`pieceOf`, `printDown`),
+ * otherwise on −z, standing as designed; the bed is the piece's lowest point that way.
+ */
+export function bedOf(bodies: BodyModel[], index: number, printFaces: Readonly<Record<string, string>>, groups: readonly (readonly string[])[] = []): Bed {
+  const name = bodies[index]?.name;
+  const group = name === undefined ? undefined : groups.find((members) => members.includes(name));
+  const piece = group ? bodies.filter((body) => group.includes(body.name)) : bodies.slice(index, index + 1);
+  let down: Vec3 = [0, 0, -1];
+  for (const body of piece) {
+    const face = printFaces[body.name];
+    const normal = face ? body.model.table.faces.find((entry) => entry.name === face)?.planeNormal : undefined;
+    const length = normal ? Math.hypot(...normal) : 0;
+    if (normal && length > 0) {
+      down = [normal[0] / length, normal[1] / length, normal[2] / length];
+      break;
+    }
+  }
+  let level = -Infinity;
+  for (const { model } of piece) for (let k = 0; k + 2 < model.vertices.length; k += 3) level = Math.max(level, dot(down, [model.vertices[k] ?? 0, model.vertices[k + 1] ?? 0, model.vertices[k + 2] ?? 0]));
+  return { down, level };
+}
+
+/** The lean of the chamfer SolidCraft cuts from one distance (`solid.chamfer {distance}`), from the vertical. */
+const CHAMFER_ANGLE = 45;
+
+/** A flat face lies on the bed: it faces it straight and reaches its level (within 0.01 mm). */
+const onBed = (face: { point: readonly number[]; planeNormal?: readonly number[] | undefined }, bed: Bed) =>
+  face.planeNormal !== undefined && dot(face.planeNormal, bed.down) > 1 - 1e-6 && dot(face.point, bed.down) > bed.level - 0.01;
+
+/**
+ * The picked edges that are outer edges of a flat face facing down: one that leans more than the material's overhang from
+ * the vertical, a ceiling over the bed and the bed face itself among them (`count`), and of those the edges of a face
+ * lying on the bed (`onBed`). A fillet there starts flat, so it needs support, and on the bed it curls up
+ * (printProfiles.ts: "Edges that face down towards the bed: chamfer them at 45°"). Inner edges are left out, as rounding
+ * them fills a corner under a ceiling that is no worse for it.
  * shortcut: only flat faces count, a round face facing down (a lying cylinder's underside) does not; read the triangles
  * along the edge if fillets there turn up.
  */
-export function downEdges(bodies: BodyModel[], picks: Pick[], down: Vec3, overhang: number): number {
+export function downEdges(bodies: BodyModel[], picks: Pick[], bed: Bed, overhang: number): { count: number; onBed: number } {
   // A face leans more than the overhang from the vertical when its normal is within 90° − overhang of the bed.
   const facing = Math.sin((overhang * Math.PI) / 180);
-  return picks.filter((pick) => {
-    if (pick.kind !== 'edge') return false;
+  const found = picks.flatMap((pick) => {
+    if (pick.kind !== 'edge') return [];
     const model = bodies[pick.body]?.model;
     const [a, b] = [model?.edgeFaces[pick.edge * 2], model?.edgeFaces[pick.edge * 2 + 1]].map((index) => (index === undefined ? undefined : model?.table.faces[index]));
-    if (!a || !b) return false;
+    if (!a || !b) return [];
     // Outer edge: each face's other side lies behind the plane of the first; a point on the face that is no point of the edge.
     const behind = (face: typeof a, other: typeof b) => (face.planeNormal ? dot(face.planeNormal, sub(other.point, pick.point)) : 0);
     const convex = behind(a, b) < -1e-6 || behind(b, a) < -1e-6;
-    return convex && [a, b].some((face) => face.planeNormal !== undefined && dot(face.planeNormal, down) > facing + 1e-9);
-  }).length;
+    const down = [a, b].filter((face) => face.planeNormal !== undefined && dot(face.planeNormal, bed.down) > facing + 1e-9);
+    return convex && down.length > 0 ? [down.some((face) => onBed(face, bed))] : [];
+  });
+  return { count: found.length, onBed: found.filter(Boolean).length };
 }
 
 /**
@@ -103,8 +133,11 @@ export function startSize(kind: ActionKind, printer: FitPrinter, facingBed: bool
 
 /** A word on the size typed, said under the field before anything is built; `refuse` keeps it from being built. */
 export type ActionNote =
-  /** Edges facing the bed would be rounded: a chamfer of `chamfer` mm prints there. */
-  | { note: 'downFillet'; count: number; chamfer: number }
+  /**
+   * Edges facing down would be rounded, `onBed` of them on the bed; a 45° chamfer of `chamfer` mm is offered, which prints
+   * without support only where the material takes 45° (`overhang`).
+   */
+  | { note: 'downFillet'; count: number; onBed: number; chamfer: number; free: boolean; overhang: number; material: string }
   /** The hole is drilled `allowance` wider than typed, as holes of the material print smaller. */
   | { note: 'holeAllowance'; drilled: number; allowance: number; material: string }
   /** A hole lying across the layers, wider than prints round without support. */
@@ -129,12 +162,15 @@ export interface ActionPlan {
  * assistant. Sizes the user types stay as typed (printProfiles.ts: "Sizes the user names are fixed"); only a wall that
  * does not print is refused, as the print check would block it.
  */
-export function actionPlan(kind: ActionKind, size: number, bodies: BodyModel[], picks: Pick[], down: Vec3, print: ActionPrint): ActionPlan {
+export function actionPlan(kind: ActionKind, size: number, bodies: BodyModel[], picks: Pick[], bed: Bed, print: ActionPrint): ActionPlan {
   const { printer } = print;
+  const { down } = bed;
   switch (kind) {
     case 'fillet': {
-      const count = downEdges(bodies, picks, down, print.overhang);
-      return { size, notes: count > 0 ? [{ note: 'downFillet', count, chamfer: startSize('chamfer', printer, true) }] : [] };
+      const { count, onBed } = downEdges(bodies, picks, bed, print.overhang);
+      // The radius typed, as a chamfer of whole layers, at least two (the rules' bed chamfer of two to three layers).
+      const chamfer = round3(Math.max(2, Math.round(size / printer.layer)) * printer.layer);
+      return { size, notes: count > 0 ? [{ note: 'downFillet', count, onBed, chamfer, free: print.overhang >= CHAMFER_ANGLE, overhang: print.overhang, material: print.material }] : [] };
     }
     case 'hole': {
       const drilled = round3(size + print.holeShrink);

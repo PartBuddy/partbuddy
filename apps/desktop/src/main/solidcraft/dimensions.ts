@@ -50,6 +50,8 @@ interface BatchReply {
 const SAME = 1e-4;
 /** The failing last step that makes SolidCraft undo the whole batch. */
 const UNDO_ALL = { command: 'sketch.inspect', params: { sketch: 2147483647 } };
+/** How many selections keep their drivers; the oldest is dropped. */
+const KEPT_PROBES = 20;
 /** Plain numbers with an optional length unit; formulas are the designer's intent and stay untouched. */
 const PLAIN_NUMBER = /^\s*-?\d+(?:\.\d+)?\s*(?:mm)?\s*$/;
 /** Names the contract accepts (letters, digits, underscore). */
@@ -63,9 +65,11 @@ function isParameter(entry: unknown): entry is Parameter {
 /**
  * Lengths in mm whose value equals the current one, or twice it for a radius (a diameter parameter). All of them are
  * tried: a cap of eight left out the driver of a design with more sizes of the same value, and the field then sent the
- * user to the assistant (audit D45).
- * shortcut: one rebuild per candidate, in SolidCraft's order; a design with dozens of equal sizes probes as many times
- * longer. Try the parameters of the selected body's features first if that is felt.
+ * user to the assistant (audit D45). Each try rebuilds the design twice (the change and its undo): on the housing
+ * template, 15 sizes of 2 mm, 2.3 to 13 s each (SolidCraft 0.40.1, 2026-11-13), so the answer is kept per selection
+ * (DimensionService.probe) and only the first value typed pays for it.
+ * shortcut: the first probe of a selection still tries every candidate in SolidCraft's order, about a minute on that
+ * template; try the parameters of the features that made the selection first, and answer with those, if that is felt.
  */
 export function candidatesFor(parameters: Parameter[], current: number, measure: DimensionTarget['measure']): { parameter: Parameter; factor: 1 | 2 }[] {
   const found: { parameter: Parameter; factor: 1 | 2 }[] = [];
@@ -126,10 +130,29 @@ export class DimensionService {
   }
 
   private async parameters(): Promise<Parameter[]> {
-    const reply = await this.batch([{ command: 'parameters.list', params: {} }], false);
-    const list = (reply.results?.[0] as { parameters?: unknown[] } | undefined)?.parameters ?? [];
-    return list.filter(isParameter);
+    return (await this.design()).parameters;
   }
+
+  /**
+   * The parameters, and what tells this design from a changed one: the parameters with their expressions and the
+   * timeline with what is suppressed or rolled back (`document.inspect`, read in the same call). A probe's own tries
+   * are undone, so they leave both as they were.
+   */
+  private async design(): Promise<{ parameters: Parameter[]; state: string }> {
+    const reply = await this.batch([{ command: 'parameters.list', params: {} }, { command: 'document.inspect', params: {} }], false);
+    const list = (reply.results?.[0] as { parameters?: unknown[] } | undefined)?.parameters ?? [];
+    const parameters = list.filter(isParameter);
+    const inspected = (reply.results?.[1] ?? {}) as { timeline?: unknown; marker?: unknown };
+    const timeline = Array.isArray(inspected.timeline) ? (inspected.timeline as Record<string, unknown>[]).map((item) => [item.id, item.name, item.suppressed, item.rolled_back]) : null;
+    return { parameters, state: JSON.stringify([parameters.map((p) => [p.name, p.expression, p.value]), timeline, inspected.marker ?? null]) };
+  }
+
+  /**
+   * The drivers found per selection, its current size and the design as it was (audit D45, review of BC-08): which
+   * parameter moves a selection does not hang on the value typed, so the next value of the same selection tries again
+   * only the candidates SolidCraft refused or that lost the selection at the earlier value.
+   */
+  private readonly found = new Map<string, { drivers: string[]; open: string[] }>();
 
   /**
    * Finds the parameter that drives the target and, when there is exactly one, a face-tagged 3MF
@@ -137,9 +160,13 @@ export class DimensionService {
    */
   async probe(target: DimensionTarget, current: number, value: number): Promise<ProbeResult> {
     if (!(value > 0) || !Number.isFinite(value)) return { mode: 'assistant', reason: 'noDriver' };
-    const candidates = candidatesFor(await this.parameters(), current, target.measure);
-    const drivers: { parameter: Parameter; factor: 1 | 2 }[] = [];
-    for (const candidate of candidates) {
+    const { parameters, state } = await this.design();
+    const candidates = candidatesFor(parameters, current, target.measure);
+    const key = JSON.stringify([target, Number(current.toFixed(6)), state]);
+    const known = this.found.get(key);
+    const drivers = candidates.filter((candidate) => known?.drivers.includes(candidate.parameter.name));
+    const open: string[] = [];
+    for (const candidate of known ? candidates.filter((c) => known.open.includes(c.parameter.name)) : candidates) {
       const reply = await this.batch(
         [
           { command: 'parameters.change', params: { name: candidate.parameter.name, expression: mm(value * candidate.factor) } },
@@ -148,11 +175,17 @@ export class DimensionService {
         ],
         true,
       );
-      // A candidate that SolidCraft refuses (out of range, breaks the model) fails at step 0 or 1.
-      if (reply.failed?.index !== 2) continue;
-      const after = measured(target, reply.results?.[1]);
-      if (after !== null && Math.abs(after - value) <= SAME * 10) drivers.push(candidate);
+      // A candidate that SolidCraft refuses (out of range, breaks the model) fails at step 0 or 1; it and one that loses
+      // the selection at this value are tried again at the next.
+      const after = reply.failed?.index === 2 ? measured(target, reply.results?.[1]) : null;
+      if (after === null) open.push(candidate.parameter.name);
+      else if (Math.abs(after - value) <= SAME * 10) drivers.push(candidate);
     }
+    // In SolidCraft's order, as found the first time.
+    drivers.sort((a, b) => candidates.indexOf(a) - candidates.indexOf(b));
+    this.found.delete(key);
+    this.found.set(key, { drivers: drivers.map((d) => d.parameter.name), open });
+    if (this.found.size > KEPT_PROBES) this.found.delete(this.found.keys().next().value as string);
     if (drivers.length === 0) return { mode: 'assistant', reason: 'noDriver' };
     // Several drive it (a symmetric extrude, a mirrored size): the user says which; the preview follows the pick.
     if (drivers.length > 1) return { mode: 'choice', options: drivers.map((d) => ({ parameter: d.parameter.name, factor: d.factor, label: labelOf(d.parameter) })) };

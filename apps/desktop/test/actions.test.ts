@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { ActionService, clearanceOf, commandOf } from '../src/main/solidcraft/actions';
 import type { ControlRequester } from '../src/main/solidcraft/mirror';
-import { actionPlan, actionPrint, actionsFor, bedDown, downEdges, startSize, type ActionPrint } from '../src/renderer/src/viewer/actionKinds';
+import { actionPlan, actionPrint, actionsFor, bedOf, downEdges, startSize, type ActionPrint } from '../src/renderer/src/viewer/actionKinds';
 import { dimensionFor, draggedValue, handleOf } from '../src/renderer/src/viewer/dimensionOf';
 import type { BodyModel, Pick } from '../src/renderer/src/state/store';
 import { designActionSchema } from '../src/shared/contract';
@@ -101,66 +101,90 @@ describe('the actions of the selection follow the print rules (audit D25, S-15, 
     { name: 'F3:46', point: [-2, 10, 12], planeNormal: lean(46) },
     { name: 'F3:44', point: [-2, 10, 12], planeNormal: lean(44) },
     { name: 'F4:round', point: [0, 0, 0] },
+    { name: 'F2:+x', point: [40, 10, 15], planeNormal: [1, 0, 0] },
   ];
-  // Edges as pairs of faces: bed and side (outer), top and side, ledge underside and side below it (inner), the slants.
-  const edgeFaces = Uint32Array.from([0, 2, 1, 2, 2, 3, 2, 4, 2, 5]);
-  const bodies = [{ name: 'B', model: { table: { faces }, edgeFaces } }] as unknown as BodyModel[];
+  // Edges as pairs of faces: bed and side (outer), top and side, ledge underside and side below it (inner), the slants,
+  // the ledge's underside and its end (outer, a ceiling 10 mm over the bed).
+  const edgeFaces = Uint32Array.from([0, 2, 1, 2, 2, 3, 2, 4, 2, 5, 3, 7]);
+  const vertices = Float32Array.from([0, 0, 0, 20, 0, 0, 0, 20, 20, 20, 20, 20, 40, 0, 10, 40, 20, 20]);
+  const bodies = [{ name: 'B', model: { table: { faces }, edgeFaces, vertices } }] as unknown as BodyModel[];
   const edge = (index: number, point: [number, number, number]): Pick => ({ kind: 'edge', body: 0, edge: index, point });
   const bedEdge = edge(0, [20, 10, 0]);
   const topEdge = edge(1, [20, 10, 20]);
   const innerEdge = edge(2, [20, 10, 10]);
+  const ledgeEdge = edge(5, [40, 10, 10]);
   const face = (index: number): Pick => ({ kind: 'face', body: 0, face: index, point: [0, 0, 0], normal: [0, 0, 1] });
   const pla = (nozzle = 0.4, layer = 0.2): ActionPrint => ({ printer: { nozzle, layer }, overhang: 45, holeShrink: 0.15, material: 'PLA' });
-  const down = [0, 0, -1] as [number, number, number];
+  const bed = bedOf(bodies, 0, {});
 
-  it('finds outer edges of faces that face the bed, as the body lies on its print face', () => {
-    expect(downEdges(bodies, [bedEdge], down, 45)).toBe(1);
-    expect(downEdges(bodies, [topEdge, innerEdge], down, 45)).toBe(0);
+  it('finds outer edges of faces that face down, and which of them lie on the bed, as the body lies on its print face', () => {
+    expect(bed).toEqual({ down: [0, 0, -1], level: 0 });
+    expect(downEdges(bodies, [bedEdge], bed, 45)).toEqual({ count: 1, onBed: 1 });
+    expect(downEdges(bodies, [topEdge, innerEdge], bed, 45)).toEqual({ count: 0, onBed: 0 });
+    // The ledge's underside is a ceiling: it faces down, but it is not on the bed.
+    expect(downEdges(bodies, [ledgeEdge, bedEdge], bed, 45)).toEqual({ count: 2, onBed: 1 });
     // Leaning 46° from the vertical is past PLA's 45°, 44° is not; an edge of a round face is not read.
-    expect(downEdges(bodies, [edge(3, [0, 10, 12])], down, 45)).toBe(1);
-    expect(downEdges(bodies, [edge(4, [0, 10, 12])], down, 45)).toBe(0);
-    expect(downEdges(bodies, [edge(3, [0, 10, 12])], down, 50)).toBe(0);
-    // Turned over onto its top: the top's edges face the bed, the bottom's do not.
-    const turned = bedDown(bodies[0], 'F1:+z');
-    expect(turned).toEqual([0, 0, 1]);
-    expect(downEdges(bodies, [topEdge], turned, 45)).toBe(1);
-    expect(downEdges(bodies, [bedEdge], turned, 45)).toBe(0);
+    expect(downEdges(bodies, [edge(3, [0, 10, 12])], bed, 45)).toEqual({ count: 1, onBed: 0 });
+    expect(downEdges(bodies, [edge(4, [0, 10, 12])], bed, 45).count).toBe(0);
+    expect(downEdges(bodies, [edge(3, [0, 10, 12])], bed, 50).count).toBe(0);
+    // Turned over onto its top: the top's edges lie on the bed, the bottom's face up.
+    const turned = bedOf(bodies, 0, { B: 'F1:+z' });
+    expect(turned).toEqual({ down: [0, 0, 1], level: 20 });
+    expect(downEdges(bodies, [topEdge], turned, 45)).toEqual({ count: 1, onBed: 1 });
+    expect(downEdges(bodies, [bedEdge], turned, 45).count).toBe(0);
     // No print face, or one that is gone or round: as designed.
-    expect(bedDown(bodies[0], undefined)).toEqual(down);
-    expect(bedDown(bodies[0], 'F9:gone')).toEqual(down);
-    expect(bedDown(bodies[0], 'F4:round')).toEqual(down);
+    expect(bedOf(bodies, 0, { B: 'F9:gone' })).toEqual(bed);
+    expect(bedOf(bodies, 0, { B: 'F4:round' })).toEqual(bed);
   });
 
-  it('offers a chamfer of two layers for a fillet on edges facing the bed, and says nothing elsewhere', () => {
-    expect(actionPlan('fillet', 1, bodies, [bedEdge, topEdge], down, pla())).toEqual({ size: 1, notes: [{ note: 'downFillet', count: 1, chamfer: 0.4 }] });
-    expect(actionPlan('fillet', 1, bodies, [topEdge, innerEdge], down, pla())).toEqual({ size: 1, notes: [] });
-    expect(actionPlan('chamfer', 0.4, bodies, [bedEdge], down, pla())).toEqual({ size: 0.4, notes: [] });
+  it('lays a body printed in one piece with others on the print face of the piece, as the print check does (review of BC-08)', () => {
+    const lid = { name: 'C', model: { table: { faces: [{ name: 'C1:+y', point: [5, 30, 5], planeNormal: [0, 1, 0] }] }, edgeFaces: new Uint32Array(), vertices: Float32Array.from([0, 30, 0, 10, 25, 10]) } };
+    const piece = [...bodies, lid] as unknown as BodyModel[];
+    // B has no print face of its own: it lies on C's, and the bed is the piece's farthest point that way (y 30).
+    expect(bedOf(piece, 0, { C: 'C1:+y' }, [['B', 'C']])).toEqual({ down: [0, 1, 0], level: 30 });
+    // Not in a group: B stands as designed.
+    expect(bedOf(piece, 0, { C: 'C1:+y' }, [])).toEqual(bed);
+  });
+
+  it('offers the radius as a chamfer of whole layers for a fillet on edges facing down, and says nothing elsewhere', () => {
+    expect(actionPlan('fillet', 1, bodies, [bedEdge, topEdge], bed, pla())).toEqual({
+      size: 1,
+      notes: [{ note: 'downFillet', count: 1, onBed: 1, chamfer: 1, free: true, overhang: 45, material: 'PLA' }],
+    });
+    // Rounded to whole layers, at least two: 0.3 → 0.4 and 0.5 → 0.6 at 0.2 mm, 0.5 → 0.48 at 0.12 mm.
+    expect(actionPlan('fillet', 0.3, bodies, [ledgeEdge], bed, pla()).notes[0]).toMatchObject({ onBed: 0, chamfer: 0.4 });
+    expect(actionPlan('fillet', 0.5, bodies, [ledgeEdge], bed, pla()).notes[0]).toMatchObject({ chamfer: 0.6 });
+    expect(actionPlan('fillet', 0.5, bodies, [ledgeEdge], bed, pla(0.4, 0.12)).notes[0]).toMatchObject({ chamfer: 0.48 });
+    // PETG takes 40°, TPU 35°: the 45° chamfer is no promise of printing without support there.
+    expect(actionPlan('fillet', 1, bodies, [bedEdge], bed, { ...pla(), overhang: 40, material: 'PETG' }).notes[0]).toMatchObject({ free: false, overhang: 40, material: 'PETG' });
+    expect(actionPlan('fillet', 1, bodies, [topEdge, innerEdge], bed, pla())).toEqual({ size: 1, notes: [] });
+    expect(actionPlan('chamfer', 0.4, bodies, [bedEdge], bed, pla())).toEqual({ size: 0.4, notes: [] });
   });
 
   it('drills a hole with the material allowance and says when it lies too wide across the layers', () => {
     // A wall: the hole lies; 7.85 + 0.15 = 8.00 mm prints round (LYING_HOLE), 8.01 does not.
-    expect(actionPlan('hole', 7.85, bodies, [face(2)], down, pla())).toEqual({ size: 8, notes: [{ note: 'holeAllowance', drilled: 8, allowance: 0.15, material: 'PLA' }] });
-    expect(actionPlan('hole', 7.86, bodies, [face(2)], down, pla()).notes).toContainEqual({ note: 'lyingHole', drilled: 8.01, most: 8 });
+    expect(actionPlan('hole', 7.85, bodies, [face(2)], bed, pla())).toEqual({ size: 8, notes: [{ note: 'holeAllowance', drilled: 8, allowance: 0.15, material: 'PLA' }] });
+    expect(actionPlan('hole', 7.86, bodies, [face(2)], bed, pla()).notes).toContainEqual({ note: 'lyingHole', drilled: 8.01, most: 8 });
     // Upright in the top face a wide hole stands. Drilled into a face leaning 46° from the vertical, its axis is 44° from
     // upright and its wall leans 44°: it stands; into one leaning 44°, its wall leans 46° and it lies.
-    expect(actionPlan('hole', 20, bodies, [face(1)], down, pla()).notes.map((note) => note.note)).toEqual(['holeAllowance']);
-    expect(actionPlan('hole', 20, bodies, [face(4)], down, pla()).notes.map((note) => note.note)).toEqual(['holeAllowance']);
-    expect(actionPlan('hole', 20, bodies, [face(5)], down, pla()).notes.map((note) => note.note)).toEqual(['holeAllowance', 'lyingHole']);
+    expect(actionPlan('hole', 20, bodies, [face(1)], bed, pla()).notes.map((note) => note.note)).toEqual(['holeAllowance']);
+    expect(actionPlan('hole', 20, bodies, [face(4)], bed, pla()).notes.map((note) => note.note)).toEqual(['holeAllowance']);
+    expect(actionPlan('hole', 20, bodies, [face(5)], bed, pla()).notes.map((note) => note.note)).toEqual(['holeAllowance', 'lyingHole']);
     // A material that does not shrink: drilled as typed, nothing to say.
-    expect(actionPlan('hole', 3, bodies, [face(1)], down, { ...pla(), holeShrink: 0 })).toEqual({ size: 3, notes: [] });
+    expect(actionPlan('hole', 3, bodies, [face(1)], bed, { ...pla(), holeShrink: 0 })).toEqual({ size: 3, notes: [] });
   });
 
   it('holds a shell wall against the narrowest line, two lines and the line grid of the nozzle in use', () => {
     // 0.4 mm nozzle: lines of 0.45, the narrowest line a slicer lays 0.42.
-    expect(actionPlan('shell', 0.41, bodies, [face(1)], down, pla())).toEqual({ size: 0.41, notes: [{ note: 'wallNoPrint', least: 0.42, better: 0.9, refuse: true }] });
-    expect(actionPlan('shell', 0.42, bodies, [face(1)], down, pla()).notes).toEqual([{ note: 'wallThin', least: 0.9, better: 0.9 }]);
-    expect(actionPlan('shell', 0.89, bodies, [face(1)], down, pla()).notes).toEqual([{ note: 'wallThin', least: 0.9, better: 0.9 }]);
-    expect(actionPlan('shell', 0.9, bodies, [face(1)], down, pla()).notes).toEqual([]);
-    expect(actionPlan('shell', 1.6, bodies, [face(1)], down, pla()).notes).toEqual([{ note: 'wallLines', line: 0.45, better: 1.8 }]);
-    expect(actionPlan('shell', 1.8, bodies, [face(1)], down, pla()).notes).toEqual([]);
+    expect(actionPlan('shell', 0.41, bodies, [face(1)], bed, pla())).toEqual({ size: 0.41, notes: [{ note: 'wallNoPrint', least: 0.42, better: 0.9, refuse: true }] });
+    expect(actionPlan('shell', 0.42, bodies, [face(1)], bed, pla()).notes).toEqual([{ note: 'wallThin', least: 0.9, better: 0.9 }]);
+    expect(actionPlan('shell', 0.89, bodies, [face(1)], bed, pla()).notes).toEqual([{ note: 'wallThin', least: 0.9, better: 0.9 }]);
+    expect(actionPlan('shell', 0.9, bodies, [face(1)], bed, pla()).notes).toEqual([]);
+    expect(actionPlan('shell', 1.6, bodies, [face(1)], bed, pla()).notes).toEqual([{ note: 'wallLines', line: 0.45, better: 1.8 }]);
+    expect(actionPlan('shell', 1.8, bodies, [face(1)], bed, pla()).notes).toEqual([]);
     // 0.6 mm nozzle: 1.35 is two lines of 0.675; 0.62 is its narrowest line.
-    expect(actionPlan('shell', 1.35, bodies, [face(1)], down, pla(0.6, 0.3)).notes).toEqual([]);
-    expect(actionPlan('shell', 0.61, bodies, [face(1)], down, pla(0.6, 0.3)).notes[0]).toMatchObject({ note: 'wallNoPrint', least: 0.62 });
+    expect(actionPlan('shell', 1.35, bodies, [face(1)], bed, pla(0.6, 0.3)).notes).toEqual([]);
+    expect(actionPlan('shell', 0.61, bodies, [face(1)], bed, pla(0.6, 0.3)).notes[0]).toMatchObject({ note: 'wallNoPrint', least: 0.62 });
   });
 
   it('starts each field from the printer in use', () => {

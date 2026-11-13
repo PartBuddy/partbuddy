@@ -9,7 +9,7 @@ import { platform } from '../platform';
 import { Button } from '../ui/Button';
 import { useStudio, type BodyModel, type Pick } from '../state/store';
 import { CadIcon } from '../ui/CadIcon';
-import { actionPlan, actionPrint, actionsFor, bedDown, downEdges, startSize, type ActionKind, type ActionNote } from './actionKinds';
+import { actionPlan, actionPrint, actionsFor, bedOf, downEdges, startSize, type ActionKind, type ActionNote } from './actionKinds';
 import { useFacePosition } from './facePosition';
 import { parseLength } from './lengthInput';
 import { edgePoints, lineDirection, localMeasure, type MeasurePick } from './measure';
@@ -58,13 +58,15 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
   const body = bodies[picks[0]?.body ?? -1]?.name;
   // The printer and material of the part: start sizes, the hole's allowance and the wall's lines come from them (audit D25, D26).
   const print = actionPrint(useStudio((s) => s.print));
-  const printFace = useStudio((s) => (body ? s.printFaces[body] : undefined));
-  const down = bedDown(bodies[picks[0]?.body ?? -1], printFace);
+  // How the body lies on the bed, with the bodies printed in one piece with it, as the print check lays it.
+  const printFaces = useStudio((s) => s.printFaces);
+  const groups = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.printGroups : undefined));
+  const bed = bedOf(bodies, picks[0]?.body ?? -1, printFaces, groups);
   const decimal = (1.5).toLocaleString(i18n.language).charAt(1);
   // Extrude also takes a negative distance (a cut); the others are positive lengths.
   const size = open === 'extrude' && text.trim().startsWith('-') ? -parseLength(text.trim().slice(1)) : parseLength(text);
   const valid = Number.isFinite(size) && size !== 0;
-  const plan = open && valid ? actionPlan(open, size, bodies, picks, down, print) : null;
+  const plan = open && valid ? actionPlan(open, size, bodies, picks, bed, print) : null;
   const refused = plan?.notes.find((note) => 'refuse' in note);
   // What SolidCraft builds: the hole drilled with the allowance, otherwise the size typed.
   const built = plan?.size ?? size;
@@ -74,7 +76,13 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
   const at = open === 'hole' && centre ? (centre.map(mm3) as [number, number, number]) : null;
 
   useEffect(() => {
-    if (!open || !body || !valid || busy || refused) return;
+    if (refused) {
+      // A size that is not built: an answer still on its way is dropped, and the ghost of an earlier size goes.
+      ++latest.current;
+      onGhost(null);
+      return;
+    }
+    if (!open || !body || !valid || busy) return;
     const id = ++latest.current;
     const typed = text;
     const timer = setTimeout(() => {
@@ -106,11 +114,11 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
   const current = state?.text === text ? state : null;
   const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 3 });
 
-  const choose = (kind: ActionKind | null) => {
+  const choose = (kind: ActionKind | null, start?: number) => {
     setOpen(kind);
     setState(null);
     onGhost(null);
-    setText(kind ? String(startSize(kind, print.printer, downEdges(bodies, picks, down, print.overhang) > 0)).replace('.', decimal) : '');
+    setText(kind ? String(start ?? startSize(kind, print.printer, downEdges(bodies, picks, bed, print.overhang).count > 0)).replace('.', decimal) : '');
   };
 
   const apply = () => {
@@ -178,7 +186,7 @@ export function ActionPanel({ bodies, picks, busy, onGhost }: { bodies: BodyMode
               <div key={note.note} className={`flex flex-col items-start gap-1 text-xs ${note.note === 'holeAllowance' ? 'text-text-muted' : 'text-warning'}`} data-testid={`action-note-${note.note}`}>
                 <p>{noteText(t, note, number)}</p>
                 {note.note === 'downFillet' ? (
-                  <Button size="sm" onPress={() => choose('chamfer')} data-testid="action-to-chamfer">
+                  <Button size="sm" onPress={() => choose('chamfer', note.chamfer)} data-testid="action-to-chamfer">
                     {t('hud.rule.toChamfer')}
                   </Button>
                 ) : null}
@@ -204,7 +212,12 @@ function noteText(t: TFunction, note: ActionNote, number: Intl.NumberFormat): st
   const mm = (value: number) => number.format(value);
   switch (note.note) {
     case 'downFillet':
-      return t('hud.rule.downFillet', { count: note.count, chamfer: mm(note.chamfer) });
+      // Support-free only where the material takes the chamfer's 45°; the bed sentence only for edges on the bed.
+      return [
+        t('hud.rule.downFillet', { count: note.count }),
+        ...(note.onBed > 0 ? [t('hud.rule.downFilletBed')] : []),
+        t(note.free ? 'hud.rule.chamferFree' : 'hud.rule.chamferSteep', { chamfer: mm(note.chamfer), overhang: number.format(note.overhang), material: note.material }),
+      ].join(' ');
     case 'holeAllowance':
       return t('hud.rule.holeAllowance', { drilled: mm(note.drilled), allowance: mm(note.allowance), material: note.material });
     case 'lyingHole':
