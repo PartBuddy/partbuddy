@@ -1,4 +1,4 @@
-export { meshMetrics, overhangFindings, type MeshMetrics, type OverhangFinding } from './analysis';
+export { meshMetrics, type MeshMetrics } from './analysis';
 export {
   BRIDGE_SPAN,
   LYING_HOLE,
