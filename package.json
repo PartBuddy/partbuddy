@@ -17,7 +17,7 @@
   "scripts": {
     "lint": "pnpm -r --no-sort --if-present run lint",
     "typecheck": "pnpm -r --no-sort --if-present run typecheck",
-    "test": "pnpm -r --no-sort --if-present run test",
+    "test": "pnpm -r --if-present run test",
     "build": "pnpm -r --if-present run build",
     "privacy:scan": "gitleaks git --no-banner --redact --config .gitleaks.toml .",
     "licenses:check": "node tools/licenses/check-licenses.mjs",
