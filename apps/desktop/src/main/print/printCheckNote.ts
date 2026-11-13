@@ -79,7 +79,7 @@ const FETCH_FULL = 'call partbuddy_view for the full check before you call the p
 const preliminaryLine = (view: boolean) => `Preliminary: clearance and joints still being measured (${CHECKED_MEASURED}); ${view ? 'the full check will be here in a moment' : FETCH_FULL}.`;
 /** A measure that failed is said, never read as "nothing found" (audit H-05). */
 const unmeasuredLine = (failed: readonly ('clearance' | 'joints')[]) =>
-  `NOT measured, because SolidCraft's measure failed: ${failed.map((what) => MEASURED[what]).join(', ')}. Measure it yourself (${failed.map((what) => (what === 'clearance' ? 'inspect.clearance' : 'joint.sweep')).join(', ')}) before you call the part done.`;
+  `NOT measured, or not all of it (SolidCraft's measure failed, left out a mesh body, or there were more than 40 joint runs): ${failed.map((what) => MEASURED[what]).join(', ')}. Measure it yourself (${failed.map((what) => (what === 'clearance' ? 'inspect.clearance' : 'joint.sweep')).join(', ')}) before you call the part done.`;
 /** What a clean check says nothing about (audit R3); the model must not pass the verdict on as more. */
 const NOT_CHECKED = 'Not checked: strength and layer direction under load, the fits and hole allowances you chose, details and text too fine to print, bed-edge chamfers. Judge those yourself.';
 

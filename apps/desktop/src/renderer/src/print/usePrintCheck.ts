@@ -72,19 +72,23 @@ export function usePrintCheck(): void {
             )
             .catch(() => null);
           if (measured) final = withClearance(final, measured, pushFit);
-          else failed.push('clearance');
+          // A mesh body is left out of SolidCraft's measure: nothing found there is nothing known.
+          if (!measured || (measured.unchecked ?? []).length > 0) failed.push('clearance');
         }
         // Parts that move (ADR 0027): every joint value runs from where it stands to its limits.
         if (joints.length > 0) {
-          const sweeps = joints.flatMap((joint) =>
+          const runs = joints.flatMap((joint) =>
             joint.values.flatMap((value) =>
               (value.limits ?? []).flatMap((limit) => (limit !== null && Math.abs(limit - value.value) > 1e-6 ? [{ joint: joint.id, name: joint.name, unit: value.unit, index: value.index, from: value.value, to: limit }] : [])),
             ),
-          ).slice(0, 40);
+          );
+          // SolidCraft is asked for 40 runs at most (the contract's limit): the rest is not measured, and the check says so.
+          const sweeps = runs.slice(0, 40);
+          if (runs.length > sweeps.length) failed.push('joints');
           const stopped = await platform()
             .design.sweepJoints(sweeps.map(({ joint, index, from, to }) => ({ joint, index, from, to })))
             .catch(() => {
-              failed.push('joints');
+              if (!failed.includes('joints')) failed.push('joints');
               return [];
             });
           const stops = sweeps.flatMap((sweep, i) => {

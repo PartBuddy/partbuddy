@@ -1058,9 +1058,9 @@ export class SolidCraftSupervisor {
     );
     if (batch.failed) throw new Error(`${batch.failed.command} failed: ${batch.failed.error}`);
     const head = batch.results[0] as { document_id?: unknown; revision?: unknown } | undefined;
-    const inspect = batch.results[1] as { undo?: unknown; redo?: unknown } | undefined;
+    const inspect = batch.results[1] as { undo?: unknown; redo?: unknown; marker?: unknown } | undefined;
     if (typeof head?.document_id !== 'string' || typeof head.revision !== 'number') throw new Error('document.revision returned no revision');
-    return { documentId: head.document_id, revision: head.revision, undo: count(inspect?.undo), redo: count(inspect?.redo) };
+    return { documentId: head.document_id, revision: head.revision, undo: count(inspect?.undo), redo: count(inspect?.redo), ...(Number.isInteger(inspect?.marker) ? { marker: inspect?.marker as number } : {}) };
   }
 
   /** Undo or Redo `count` times in one request ("go back to this state", M2a). */

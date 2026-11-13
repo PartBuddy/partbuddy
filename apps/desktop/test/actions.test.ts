@@ -96,7 +96,9 @@ describe('the clearance between bodies as SolidCraft measures it (F2)', () => {
       ],
       unchecked: [{ a: 'Mesh', b: null, reason: 'mesh body: not checked' }],
     });
+    // A mesh body is not measured: it is named, so the check can say that its clearance is unknown.
     expect(measured).toEqual({
+      unchecked: ['Mesh'],
       overlaps: [{ a: 'A', b: 'B', volume: 100, box: { min: [9, 0, 0], max: [10, 10, 10] } }],
       near: [{ a: 'A', b: 'C', distance: 0.1, from: [0, 10, 10], to: [0, 10.1, 10] }],
     });
