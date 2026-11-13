@@ -57,7 +57,10 @@ const KEPT_PROBES = 20;
 /**
  * How far a group test moves each candidate (mm): a twentieth of a millimetre, times 1 + √p / 10 for the k-th prime p.
  * Square roots of different primes are no rational multiples of one another, so the moves of several drivers changed
- * together cannot cancel out to nothing as long as each moves the selection by a rational multiple of its own change.
+ * together do not cancel out exactly as long as each moves the selection by a rational multiple of its own change. They
+ * can come close: two opposite drivers at neighbouring primes leave 0.005 × (√q − √p), 0.0009 mm for 29 and 31, 0.0006
+ * for 229 and 233; so the group test counts any move over `SAME` (1e-4).
+ * shortcut: twin primes above about 2500 (some 370 candidates of one size) leave less than `SAME`; split such groups by hand if it ever matters.
  */
 const NUDGE = 0.05;
 /** Plain numbers with an optional length unit; formulas are the designer's intent and stay untouched. */
@@ -129,6 +132,8 @@ interface Search {
   open: Candidate[];
   queue: Group[];
   running: boolean;
+  /** A try found the design changed: the search is of a design that is gone. */
+  stale?: boolean;
 }
 
 function distance(a: readonly number[], b: readonly number[]): number {
@@ -168,6 +173,27 @@ const mm = (value: number) => `${Number(value.toFixed(6))} mm`;
 
 const labelOf = (parameter: Parameter) => [parameter.feature, parameter.input].filter(Boolean).join(' · ') || parameter.name;
 
+/** What tells one design from another, read at the start of a batch (DimensionService.design). */
+const READ_DESIGN = [
+  { command: 'parameters.list', params: {} },
+  { command: 'document.inspect', params: {} },
+];
+
+/**
+ * The parameters, the timeline and the state of a design from the first two results of a batch (`READ_DESIGN`): the
+ * parameters with their expressions and the timeline with what is suppressed or rolled back. A probe's own tries are
+ * undone, so they leave both as they were.
+ */
+function designOf(results: unknown[] | undefined): { parameters: Parameter[]; state: string; timeline: { id: number; name: string }[] } {
+  const list = (results?.[0] as { parameters?: unknown[] } | undefined)?.parameters ?? [];
+  const parameters = list.filter(isParameter);
+  const inspected = (results?.[1] ?? {}) as { timeline?: unknown; marker?: unknown };
+  const items = Array.isArray(inspected.timeline) ? (inspected.timeline as Record<string, unknown>[]) : [];
+  const timeline = items.flatMap((item) => (typeof item.id === 'number' && typeof item.name === 'string' ? [{ id: item.id, name: item.name }] : []));
+  const shape = Array.isArray(inspected.timeline) ? items.map((item) => [item.id, item.name, item.suppressed, item.rolled_back]) : null;
+  return { parameters, timeline, state: JSON.stringify([parameters.map((p) => [p.name, p.expression, p.value]), shape, inspected.marker ?? null]) };
+}
+
 export class DimensionService {
   constructor(
     private readonly engine: () => ControlRequester,
@@ -188,20 +214,29 @@ export class DimensionService {
     return (await this.design()).parameters;
   }
 
-  /**
-   * The parameters, and what tells this design from a changed one: the parameters with their expressions and the
-   * timeline with what is suppressed or rolled back (`document.inspect`, read in the same call). A probe's own tries
-   * are undone, so they leave both as they were.
-   */
+  /** The parameters, and what tells this design from a changed one (`designOf`). */
   private async design(): Promise<{ parameters: Parameter[]; state: string; timeline: { id: number; name: string }[] }> {
-    const reply = await this.batch([{ command: 'parameters.list', params: {} }, { command: 'document.inspect', params: {} }], false);
-    const list = (reply.results?.[0] as { parameters?: unknown[] } | undefined)?.parameters ?? [];
-    const parameters = list.filter(isParameter);
-    const inspected = (reply.results?.[1] ?? {}) as { timeline?: unknown; marker?: unknown };
-    const items = Array.isArray(inspected.timeline) ? (inspected.timeline as Record<string, unknown>[]) : [];
-    const timeline = items.flatMap((item) => (typeof item.id === 'number' && typeof item.name === 'string' ? [{ id: item.id, name: item.name }] : []));
-    const shape = Array.isArray(inspected.timeline) ? items.map((item) => [item.id, item.name, item.suppressed, item.rolled_back]) : null;
-    return { parameters, timeline, state: JSON.stringify([parameters.map((p) => [p.name, p.expression, p.value]), shape, inspected.marker ?? null]) };
+    const reply = await this.batch(READ_DESIGN, false);
+    return designOf(reply.results);
+  }
+
+  /**
+   * A try of a search: the design read and the steps in ONE batch, then undone (`UNDO_ALL`). The assistant's calls do not
+   * wait for the probes (supervisor), so a design read in a batch of its own may already be another when the try runs;
+   * read in the same batch, a try on a changed design is never taken for the selection's (review of BC-08, S2). Gives the
+   * steps' results, `refused` when SolidCraft did not build them, `changed` when the design is no longer the search's.
+   */
+  private async attempt(search: Search, steps: { command: string; params: Record<string, unknown> }[]): Promise<unknown[] | 'refused' | 'changed'> {
+    const reply = await this.batch([...READ_DESIGN, ...steps, UNDO_ALL], true);
+    const results = reply.results ?? [];
+    if (designOf(results).state !== search.state) {
+      // The search is of a design that is gone: it stops and is not kept.
+      search.stale = true;
+      search.queue = [];
+      this.searches.delete(search.key);
+      return 'changed';
+    }
+    return reply.failed?.index === READ_DESIGN.length + steps.length ? results.slice(READ_DESIGN.length) : 'refused';
   }
 
   /** The searches per selection, its current size and the design as it was; the selection probed last is the live one. */
@@ -217,13 +252,16 @@ export class DimensionService {
    * - those of the features the selection lies on come first (`nearFirst`);
    * - a group is tested in one rebuild, each member moved by its own small step: if the selection stays, none of them
    *   drives it; if it moves, the group is halved until one is left, which is tried with the value typed;
-   * - the answer comes with the first driver; the rest is searched afterwards, one rebuild per step behind any other
-   *   trial (`later`), and stops when another selection is probed, a value applied or the design changed. A second
-   *   driver found then turns the next value typed into a choice;
-   * - what was found is kept per selection and design, so the next value typed tries only what SolidCraft refused.
-   * shortcut: a driver whose move is cancelled exactly by another's in the same group is not found (`NUDGE` makes that
-   * need an irrational ratio of their effects); and the first value typed answers "direct" before a second driver is
-   * known. Try every candidate of a group that moved if a driver is ever missed.
+   * - the answer comes with the first driver; the rest is searched afterwards, one try per step (two rebuilds and the
+   *   design read, up to about 26 s on the housing) behind any other trial (`later`), and stops when another selection
+   *   is probed, a value applied or the design changed. A second driver found then turns the next value typed into a choice;
+   * - what was found is kept per selection (its target as picked, for an edge with the exact point), its size and the
+   *   design, so the next value typed tries only what SolidCraft refused. A kept driver is taken as one again without a
+   *   try with the new value: that holds while the parameter moves the selection in proportion (a box, an offset), not
+   *   for a size it drives only over part of its range; the preview still builds the new value.
+   * shortcut: a driver whose move is cancelled by another's in the same group to under `SAME` is not found (`NUDGE` makes
+   * that need an irrational ratio of their effects or twin primes past 2500); and the first value typed answers "direct"
+   * before a second driver is known. Try every candidate of a group that moved if a driver is ever missed.
    */
   async probe(target: DimensionTarget, current: number, value: number): Promise<ProbeResult> {
     if (!(value > 0) || !Number.isFinite(value)) return { mode: 'assistant', reason: 'noDriver' };
@@ -242,6 +280,8 @@ export class DimensionService {
     // What SolidCraft refused or lost the selection with at an earlier value is tried at this one.
     for (const candidate of search.open.splice(0)) await this.tryValue(search, candidate);
     while ((search.drivers.length === 0 || !this.later) && search.queue.length > 0) await this.step(search);
+    // Changed by another call while it was searched: what was found may be of the design before (the field then leaves it to the assistant).
+    if (search.stale) throw new Error('the design changed while its sizes were tried');
     if (search.queue.length > 0) this.searchOn(search);
     const order = search.candidates;
     const drivers = [...search.drivers].sort((a, b) => order.indexOf(a) - order.indexOf(b));
@@ -264,7 +304,8 @@ export class DimensionService {
     search.running = true;
     this.later(async () => {
       try {
-        if (this.live !== search.key || (await this.design()).state !== search.state) return (search.running = false);
+        // Each try reads the design in its own batch and stops the search when it changed (attempt).
+        if (this.live !== search.key) return (search.running = false);
         await this.step(search);
         return (search.running = search.queue.length > 0 && this.live === search.key);
       } catch (error) {
@@ -281,6 +322,7 @@ export class DimensionService {
     const [only] = group.members;
     if (group.members.length === 1 && only) return this.tryValue(search, only);
     const moved = group.moves ? 'moved' : await this.nudged(search, group.members);
+    if (moved === 'changed') return;
     if (moved === 'still') {
       // Its half moves then: the group they were split from did.
       if (group.then) group.then.moves = true;
@@ -293,21 +335,20 @@ export class DimensionService {
   }
 
   /** Moves every member of a group a little at once: does the selection move? `refused` when SolidCraft does not build it. */
-  private async nudged(search: Search, members: Candidate[]): Promise<'moved' | 'still' | 'refused'> {
+  private async nudged(search: Search, members: Candidate[]): Promise<'moved' | 'still' | 'refused' | 'changed'> {
     const changes = Object.fromEntries(members.map((candidate) => [candidate.parameter.name, mm(candidate.parameter.value + NUDGE * (1 + Math.sqrt(prime(search.candidates.indexOf(candidate))) / 10))]));
-    const reply = await this.batch([{ command: 'parameters.change', params: { changes } }, measureStep(search.target), UNDO_ALL], true);
-    if (reply.failed?.index !== 2) return 'refused';
-    const after = measured(search.target, reply.results?.[1]);
-    return after === null || Math.abs(after - search.current) > SAME * 10 ? 'moved' : 'still';
+    const results = await this.attempt(search, [{ command: 'parameters.change', params: { changes } }, measureStep(search.target)]);
+    if (typeof results === 'string') return results;
+    const after = measured(search.target, results[1]);
+    // Against SAME, not a looser bound: two drivers moving it opposite ways can leave under a thousandth (NUDGE).
+    return after === null || Math.abs(after - search.current) > SAME ? 'moved' : 'still';
   }
 
   /** One candidate with the value typed: a driver when it brings the selection there; tried again at the next value when refused or the selection is lost. */
   private async tryValue(search: Search, candidate: Candidate): Promise<void> {
-    const reply = await this.batch(
-      [{ command: 'parameters.change', params: { name: candidate.parameter.name, expression: mm(search.value * candidate.factor) } }, measureStep(search.target), UNDO_ALL],
-      true,
-    );
-    const after = reply.failed?.index === 2 ? measured(search.target, reply.results?.[1]) : null;
+    const results = await this.attempt(search, [{ command: 'parameters.change', params: { name: candidate.parameter.name, expression: mm(search.value * candidate.factor) } }, measureStep(search.target)]);
+    if (results === 'changed') return;
+    const after = results === 'refused' ? null : measured(search.target, results[1]);
     if (after === null) search.open.push(candidate);
     else if (Math.abs(after - search.value) <= SAME * 10) search.drivers.push(candidate);
   }

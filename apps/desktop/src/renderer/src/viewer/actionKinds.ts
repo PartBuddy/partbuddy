@@ -1,4 +1,4 @@
-import { LYING_HOLE, minimumWall, OVERHANG_LIMITS, thinnestLine } from '@partbuddy/geometry';
+import { LYING_HOLE, minimumFloor, minimumWall, OVERHANG_LIMITS, thinnestLine } from '@partbuddy/geometry';
 
 import { DEFAULT_PRINTER } from '../../../shared/blocks';
 import type { DesignAction, PartPrint } from '../../../shared/contract';
@@ -75,6 +75,18 @@ export function bedOf(bodies: BodyModel[], index: number, printFaces: Readonly<R
   return { down, level };
 }
 
+/** How far under a limit a size may be and still meet it: the print check's EPSILON (printCheck.ts). */
+const CHECK_SLACK = 1e-3;
+
+/** The shelled body keeps a flat face square to the bed that is not picked (the face a shell removes): a floor or a lid. */
+function keepsFlat(bodies: BodyModel[], picks: Pick[], down: Vec3): boolean {
+  const removed = new Set(picks.flatMap((pick) => (pick.kind === 'face' ? [`${String(pick.body)}:${String(pick.face)}`] : [])));
+  const shelled = new Set(picks.map((pick) => pick.body));
+  return [...shelled].some((body) =>
+    (bodies[body]?.model.table.faces ?? []).some((face, index) => !removed.has(`${String(body)}:${String(index)}`) && face.planeNormal !== undefined && Math.abs(dot(face.planeNormal, down)) > 1 - 1e-6),
+  );
+}
+
 /** The lean of the chamfer SolidCraft cuts from one distance (`solid.chamfer {distance}`), from the vertical. */
 const CHAMFER_ANGLE = 45;
 
@@ -147,7 +159,9 @@ export type ActionNote =
   /** A wall under two lines: it prints, poorly. */
   | { note: 'wallThin'; least: number; better: number }
   /** A wall that is no whole number of lines. */
-  | { note: 'wallLines'; line: number; better: number };
+  | { note: 'wallLines'; line: number; better: number }
+  /** The shell's flat floor or lid, as thick as its walls, under the print check's floor of `layers` layers. */
+  | { note: 'floorThin'; least: number; layers: number; better: number };
 
 export interface ActionPlan {
   /** The size sent to SolidCraft: the hole's drilled diameter, otherwise the size typed. */
@@ -185,11 +199,18 @@ export function actionPlan(kind: ActionKind, size: number, bodies: BodyModel[], 
     case 'shell': {
       const better = snapSize('wall', size, printer);
       const least = thinnestLine(printer.nozzle);
-      if (size < least - 1e-9) return { size, notes: [{ note: 'wallNoPrint', least, better, refuse: true }] };
+      // Under a limit by more than the print check's own tolerance (CHECK_SLACK), as the check would report it.
+      if (size < least - CHECK_SLACK) return { size, notes: [{ note: 'wallNoPrint', least, better, refuse: true }] };
+      const notes: ActionNote[] = [];
       // On the grid of lines and at least two of them: snapSize leaves it as it is (designFit.ts, the check's minimumWall).
-      if (Math.abs(better - size) <= 1e-6) return { size, notes: [] };
-      const two = minimumWall(printer.nozzle);
-      return { size, notes: [size < two - 1e-6 ? { note: 'wallThin', least: two, better } : { note: 'wallLines', line: lineWidth(printer), better }] };
+      if (Math.abs(better - size) > 1e-6) {
+        const two = minimumWall(printer.nozzle);
+        notes.push(size < two - CHECK_SLACK ? { note: 'wallThin', least: two, better } : { note: 'wallLines', line: lineWidth(printer), better });
+      }
+      // A shell keeps its flat floor and lid at the same thickness; the check holds those to minimumFloor (layers).
+      const floor = minimumFloor(printer.layer);
+      if (size < floor - CHECK_SLACK && keepsFlat(bodies, picks, down)) notes.push({ note: 'floorThin', least: floor, layers: Math.round(floor / printer.layer), better: snapSize('wall', floor, printer) });
+      return { size, notes };
     }
     default:
       return { size, notes: [] };

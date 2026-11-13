@@ -12,6 +12,10 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
+/** The steps of a batch after the design read a try starts with (DimensionService.attempt). */
+const own = (call: { commands: { command: string; params: Record<string, unknown> }[] }) =>
+  call.commands[0]?.command === 'parameters.list' && call.commands[1]?.command === 'document.inspect' && call.commands.length > 2 ? call.commands.slice(2) : call.commands;
+
 const param = (name: string, value: number, expression = String(value), unit = 'mm'): Parameter => ({ name, value, expression, unit, feature: 'Box1', input: name });
 
 /**
@@ -24,7 +28,8 @@ function boxEngine(values: Record<string, number>, extra: Parameter[] = []) {
   const suppressed: Record<string, boolean> = {};
   const edges = (v: Record<string, number>) => {
     // `sym`, when there, moves the x edge as well (a second driver, as a symmetric extrude has).
-    const [x, y, z] = [(v.d1 ?? 0) + (v.sym ?? 20) - 20, v.d2 ?? 0, v.d3 ?? 0];
+    // `opp` moves it the other way (a size subtracted, as a cut from the end has).
+    const [x, y, z] = [(v.d1 ?? 0) + (v.sym ?? 20) - 20 - ((v.opp ?? 20) - 20), v.d2 ?? 0, v.d3 ?? 0];
     return {
       body: 'Body1',
       edges: [
@@ -109,7 +114,7 @@ describe('dimension field: direct where unambiguous (M1b)', () => {
     expect(await service.probe({ measure: 'length', body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 5, 0] }, 20, 30)).toMatchObject({ mode: 'direct', parameter: 'd1' });
     // The design, five rebuilds instead of ten tries, and the preview: all ten moved a little at once (the edge moves),
     // p0–p4 (stays), so p5–p8 and d1 move: p5–p7 (stays), so p8 or d1: each tried with the value, d1 brings it to 30.
-    expect(calls.map((call) => call.commands[0]?.command === 'parameters.change' ? Object.keys((call.commands[0].params.changes as object | undefined) ?? { [String(call.commands[0].params.name)]: 0 }).join(' ') : call.commands[0]?.command)).toEqual([
+    expect(calls.map((call) => own(call)[0]?.command === 'parameters.change' ? Object.keys((own(call)[0]?.params.changes as object | undefined) ?? { [String(own(call)[0]?.params.name)]: 0 }).join(' ') : own(call)[0]?.command)).toEqual([
       'parameters.list',
       'p0 p1 p2 p3 p4 p5 p6 p7 p8 d1',
       'p0 p1 p2 p3 p4',
@@ -124,7 +129,7 @@ describe('dimension field: direct where unambiguous (M1b)', () => {
     const { service, calls } = boxEngine({ d1: 20, d2: 20, d3: 10 }, [{ ...param('vent', 20), feature: 'Vent' }, { name: 'wall', value: 20, expression: '20 mm', unit: 'mm', used_by: ['d9'] }, { ...param('d9', 3), feature: 'Vent' }]);
     // The edge lies on Box1 (F1): its parameters first, then the vent's and the user parameter the vent uses.
     await service.probe({ measure: 'length', body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 20, 0] }, 20, 30);
-    const group = calls[1]?.commands[0]?.params.changes as Record<string, string>;
+    const group = own(calls[1] ?? { commands: [] })[0]?.params.changes as Record<string, string>;
     expect(Object.keys(group)).toEqual(['d1', 'd2']);
     // 20 + 0.05 · (1 + √2 / 10) and 20 + 0.05 · (1 + √3 / 10): no two steps alike.
     expect(group).toEqual({ d1: '20.057071 mm', d2: '20.05866 mm' });
@@ -167,7 +172,7 @@ describe('dimension field: direct where unambiguous (M1b)', () => {
     const { service, calls, state, suppressed } = boxEngine({ ...others, d1: 20, d2: 5, d3: 10 });
     const target = { measure: 'length' as const, body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 5, 0] as [number, number, number] };
     expect(await service.probe(target, 20, 30)).toMatchObject({ mode: 'direct', parameter: 'd1' });
-    const tries = () => calls.filter((call) => call.commands[0]?.command === 'parameters.change' && call.commands[1]?.command !== 'file.export').length;
+    const tries = () => calls.filter((call) => own(call)[0]?.command === 'parameters.change' && own(call)[1]?.command !== 'file.export').length;
     expect(tries()).toBe(5);
     // The next value: the design read once and the preview, no try.
     calls.length = 0;
@@ -191,11 +196,49 @@ describe('dimension field: direct where unambiguous (M1b)', () => {
     const { service } = boxEngine({ d1: 20, d2: 5, d3: 10 });
     const refusing = service as unknown as { batch: (commands: { command: string; params: Record<string, unknown> }[], rollback: boolean) => Promise<unknown> };
     const batch = refusing.batch.bind(service);
-    refusing.batch = (commands, rollback) =>
-      commands[0]?.command === 'parameters.change' && commands[0].params.expression === '40 mm' ? Promise.resolve({ results: [], failed: { index: 0, command: 'parameters.change', error: 'out of range' } }) : batch(commands, rollback);
+    // As SolidCraft answers: the design read before the refused change, then the failure at the change.
+    refusing.batch = async (commands, rollback) =>
+      commands[2]?.command === 'parameters.change' && commands[2].params.expression === '40 mm'
+        ? { results: ((await batch(commands.slice(0, 2), false)) as { results: unknown[] }).results, failed: { index: 2, command: 'parameters.change', error: 'out of range' } }
+        : batch(commands, rollback);
     const target = { measure: 'length' as const, body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 5, 0] as [number, number, number] };
     expect(await service.probe(target, 20, 40)).toEqual({ mode: 'assistant', reason: 'noDriver' });
     expect(await service.probe(target, 20, 30)).toMatchObject({ mode: 'direct', parameter: 'd1' });
+  });
+
+  it('finds a driver in a group whose other member moves the edge the other way by nearly as much (review of BC-08, S1)', async () => {
+    // d1 is the 10th candidate (prime 29), opp the 11th (31): moved together they shorten the edge by 0.005 · (√31 − √29) = 0.00091 mm.
+    const others = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`p${String(i)}`, 20]));
+    const { service } = boxEngine({ ...others, d1: 20, d2: 5, d3: 10, opp: 20 });
+    expect(await service.probe({ measure: 'length', body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 5, 0] }, 20, 30)).toMatchObject({ mode: 'direct', parameter: 'd1' });
+  });
+
+  it('reads the design in the batch of every try and drops a search whose design another call changed (review of BC-08, S2)', async () => {
+    const steps: (() => Promise<boolean>)[] = [];
+    const { calls, requester, state } = boxEngine({ d1: 20, d2: 20, d3: 10, sym: 20 });
+    const service = new DimensionService(() => requester, tmpdir(), (step) => steps.push(step));
+    const target = { measure: 'length' as const, body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 20, 0] as [number, number, number] };
+    expect(await service.probe(target, 20, 30)).toMatchObject({ mode: 'direct', parameter: 'd1' });
+    // The preview, built once the driver is known, is no try.
+    for (const call of calls.filter((entry) => entry.rollback === true && !entry.commands.some((step) => step.command === 'file.export'))) expect(call.commands.slice(0, 2).map((step) => step.command)).toEqual(['parameters.list', 'document.inspect']);
+    // The assistant changes the design before the search goes on: the next step tries nothing it would keep, and stops.
+    state.d3 = 12;
+    expect(await steps[0]?.()).toBe(false);
+    calls.length = 0;
+    state.d3 = 10;
+    // Back to the old design (an undo): the search starts again instead of trusting what the stopped one held.
+    expect(await service.probe(target, 20, 31)).toMatchObject({ mode: 'direct', parameter: 'd1' });
+    expect(calls.filter((call) => call.rollback === true).length).toBeGreaterThan(1);
+    // Changed while the answer is still searched: no answer from a design that is gone.
+    const moving = boxEngine({ d1: 20, d2: 20, d3: 10 });
+    let tries = 0;
+    const changing: ControlRequester = {
+      request: <T>(method: string, params?: Record<string, unknown>) => {
+        if (params?.rollback === true && ++tries === 2) moving.state.d3 = 11;
+        return moving.requester.request<T>(method, params);
+      },
+    };
+    await expect(new DimensionService(() => changing, tmpdir()).probe(target, 20, 30)).rejects.toThrow(/design changed/);
   });
 
   it('lets the user pick when several parameters each move the edge', async () => {

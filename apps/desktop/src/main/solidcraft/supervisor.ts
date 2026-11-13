@@ -723,7 +723,8 @@ export class SolidCraftSupervisor {
   /**
    * One step of a dimension search after its answer (DimensionService.probe), queued behind every trial asked for by
    * then, and queued again at the end while it says there is more: previews, the light and joint runs wait at most one
-   * rebuild for it.
+   * try for it (the change and its undo, two rebuilds, with the design read: up to about 26 s on the housing template).
+   * The assistant's calls do not wait for it; each try reads the design in its own batch (DimensionService.attempt).
    */
   private probeLater(step: () => Promise<boolean>): void {
     const run = this.probing.then(async () => {

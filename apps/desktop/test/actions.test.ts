@@ -177,7 +177,17 @@ describe('the actions of the selection follow the print rules (audit D25, S-15, 
   it('holds a shell wall against the narrowest line, two lines and the line grid of the nozzle in use', () => {
     // 0.4 mm nozzle: lines of 0.45, the narrowest line a slicer lays 0.42.
     expect(actionPlan('shell', 0.41, bodies, [face(1)], bed, pla())).toEqual({ size: 0.41, notes: [{ note: 'wallNoPrint', least: 0.42, better: 0.9, refuse: true }] });
-    expect(actionPlan('shell', 0.42, bodies, [face(1)], bed, pla()).notes).toEqual([{ note: 'wallThin', least: 0.9, better: 0.9 }]);
+    // Floor and lid stay as thick: under four 0.2 mm layers (0.8 mm, the check's minimumFloor) they get a word too.
+    expect(actionPlan('shell', 0.42, bodies, [face(1)], bed, pla()).notes).toEqual([{ note: 'wallThin', least: 0.9, better: 0.9 }, { note: 'floorThin', least: 0.8, layers: 4, better: 0.9 }]);
+    expect(actionPlan('shell', 0.798, bodies, [face(1)], bed, pla()).notes.map((note) => note.note)).toEqual(['wallThin', 'floorThin']);
+    expect(actionPlan('shell', 0.7995, bodies, [face(1)], bed, pla()).notes.map((note) => note.note)).toEqual(['wallThin']);
+    // Within the check's 0.001 mm of a limit: as the check, not refused or called thin.
+    expect(actionPlan('shell', 0.4195, bodies, [face(1)], bed, pla()).notes.map((note) => note.note)).toEqual(['wallThin', 'floorThin']);
+    expect(actionPlan('shell', 0.8995, bodies, [face(1)], bed, pla()).notes.map((note) => note.note)).toEqual(['wallLines']);
+    // 0.3 mm layers: the floor is four of them, 1.2 mm; a body with no flat face left (both picked) has none.
+    expect(actionPlan('shell', 0.9, bodies, [face(1)], bed, pla(0.4, 0.3)).notes).toEqual([{ note: 'floorThin', least: 1.2, layers: 4, better: 1.35 }]);
+    const tube = [{ name: 'T', model: { table: { faces: [faces[0], faces[1], faces[2]] } } }] as unknown as BodyModel[];
+    expect(actionPlan('shell', 0.9, tube, [face(0), face(1)], bed, pla(0.4, 0.3)).notes).toEqual([]);
     expect(actionPlan('shell', 0.89, bodies, [face(1)], bed, pla()).notes).toEqual([{ note: 'wallThin', least: 0.9, better: 0.9 }]);
     expect(actionPlan('shell', 0.9, bodies, [face(1)], bed, pla()).notes).toEqual([]);
     expect(actionPlan('shell', 1.6, bodies, [face(1)], bed, pla()).notes).toEqual([{ note: 'wallLines', line: 0.45, better: 1.8 }]);

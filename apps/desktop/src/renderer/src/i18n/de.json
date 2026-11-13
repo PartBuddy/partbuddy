@@ -687,7 +687,8 @@
       "lyingHole": "Das Loch liegt quer zu den Schichten: Breiter als {most} mm braucht seine Decke Stützen. Bitte den Assistenten um eine Tropfenform oder leg das Teil so, dass das Loch senkrecht steht.",
       "wallNoPrint": "Zu dünn zum Drucken: Die schmalste Linie, die ein Slicer mit dieser Düse legt, ist {least} mm. {better} mm druckt.",
       "wallThin": "Unter zwei Linien ({least} mm) druckt die Wand schlecht; {better} mm druckt massiv.",
-      "wallLines": "Keine ganze Zahl an Linien von {line} mm; {better} mm druckt sauberer."
+      "wallLines": "Keine ganze Zahl an Linien von {line} mm; {better} mm druckt sauberer.",
+      "floorThin": "Boden und Deckel bekommen dieselbe Dicke: unter {least} mm ({layers} Schichten) drucken sie schlecht; {better} mm druckt massiv."
     }
   },
   "structure": {

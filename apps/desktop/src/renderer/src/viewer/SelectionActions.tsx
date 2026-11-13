@@ -228,6 +228,8 @@ function noteText(t: TFunction, note: ActionNote, number: Intl.NumberFormat): st
       return t('hud.rule.wallThin', { least: mm(note.least), better: mm(note.better) });
     case 'wallLines':
       return t('hud.rule.wallLines', { line: mm(note.line), better: mm(note.better) });
+    case 'floorThin':
+      return t('hud.rule.floorThin', { least: mm(note.least), layers: number.format(note.layers), better: mm(note.better) });
   }
 }
 
