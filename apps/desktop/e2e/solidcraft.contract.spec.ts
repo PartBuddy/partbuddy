@@ -2746,17 +2746,18 @@ test('an SVG dropped on the chat goes along exactly: an "O" at 40 mm, 2 mm high,
     await expect(page.getByTestId('composer-drawing-backdrop')).toContainText('Background or frame around the drawing left out');
     await page.getByTestId('composer-drawing-remove').click();
     await expect(page.getByTestId('composer-drawing-backdrop')).toHaveCount(0);
-    // A bar 0.2 mm high at 20 mm wide is narrower than the 0.4 mm nozzle: shown, marked, and widened on a click.
+    // A bar 0.2 mm high at 20 mm wide is under the 0.9 mm of two lines on the 0.4 mm nozzle: shown, marked, and widened on a click.
     await drop('thin-bar.svg', fixture('thin-bar.svg'));
     const detail = page.getByTestId('drawing-detail');
-    await expect(detail).toContainText('One place is narrower than the nozzle (0.4 mm), the narrowest 0.2 mm');
+    await expect(detail).toContainText('One place is too fine for the 0.4 mm nozzle, the narrowest 0.2 mm: a stroke under 0.9 mm (two lines)');
     await page.getByTestId('drawing-detail-show').click();
     await expect(page.getByTestId('photo-large')).toBeVisible();
     await page.screenshot({ path: test.info().outputPath('svg-detail-marked.png') });
     await page.keyboard.press('Escape');
     await page.screenshot({ path: test.info().outputPath('svg-detail.png') });
     await page.getByTestId('drawing-detail-widen').click();
-    await expect(page.getByTestId('composer-drawing-width').getByRole('textbox')).toHaveValue('44');
+    // 0.9 mm and 10 % over for the 0.2 mm bar: 20 × 0.99 / 0.2 = 99 mm (drawingDetail.test.ts).
+    await expect(page.getByTestId('composer-drawing-width').getByRole('textbox')).toHaveValue('99');
     await expect(detail).toHaveCount(0, { timeout: 5_000 });
     await page.getByTestId('composer-drawing-remove').click();
     // The "O" says 20 mm in its file; the user makes it 40.

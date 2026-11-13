@@ -571,7 +571,8 @@
     }
   },
   "drawingDetail": {
-    "fine": "{places, plural, one {One place is} other {# places are}} narrower than the nozzle ({nozzle, number} mm), the narrowest {thinnest, number} mm: they will not print cleanly or will close up. From {fineFrom, number} mm wide everything fits.",
+    "fine": "{places, plural, one {One place is} other {# places are}} too fine for the {nozzle, number} mm nozzle, the narrowest {thinnest, number} mm: a stroke under {stroke, number} mm (two lines) does not print solid, a gap under {gap, number} mm closes up. From {fineFrom, number} mm wide everything fits.",
+    "coarse": "At this size the details are checked on a raster of {mmPerPx, number} mm: a place of about {gap, number} mm can go unseen.",
     "widen": "Make it {width, number} mm wide",
     "show": "Show the places",
     "backdrop": "Background or frame around the drawing left out – it is not part of the logo."

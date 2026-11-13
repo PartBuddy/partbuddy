@@ -571,7 +571,8 @@
     }
   },
   "drawingDetail": {
-    "fine": "{places, plural, one {Eine Stelle ist} other {# Stellen sind}} schmaler als die Düse ({nozzle, number} mm), die schmalste {thinnest, number} mm: Sie drucken nicht sauber oder schließen sich. Ab {fineFrom, number} mm Breite passt alles.",
+    "fine": "{places, plural, one {Eine Stelle ist} other {# Stellen sind}} zu fein für die Düse ({nozzle, number} mm), die schmalste {thinnest, number} mm: Ein Strich unter {stroke, number} mm (zwei Bahnen) druckt nicht fest, ein Spalt unter {gap, number} mm schließt sich. Ab {fineFrom, number} mm Breite passt alles.",
+    "coarse": "Bei dieser Größe werden die Details auf einem Raster von {mmPerPx, number} mm geprüft: Eine Stelle um {gap, number} mm kann dabei übersehen werden.",
     "widen": "Auf {width, number} mm vergrößern",
     "show": "Stellen zeigen",
     "backdrop": "Hintergrund bzw. Rahmen um die Zeichnung weggelassen – er gehört nicht zum Logo."
