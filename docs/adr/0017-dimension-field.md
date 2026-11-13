@@ -34,7 +34,8 @@ milliseconds per candidate.
 
 * **Candidates:** length parameters (`parameters.list`, unit mm) whose expression is a plain number
   and whose value equals the edge length, or the radius of a cylindrical face (also twice the
-  radius: a diameter parameter). At most eight are tried.
+  radius: a diameter parameter). All of them are tried: a cap of eight left out the driver of a design
+  with more sizes of the same value (audit D45, 2026-11-13).
 * **Try:** one `engine.batch` per candidate: `parameters.change`, `model.edges` or `model.faces`,
   then `sketch.inspect` of a sketch that does not exist. That last step fails on purpose, and
   SolidCraft undoes the whole batch, undo history included, but still returns the earlier results.

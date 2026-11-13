@@ -96,6 +96,15 @@ describe('dimension field: direct where unambiguous (M1b)', () => {
     }
   });
 
+  it('tries every parameter of the same value, the driver also when it comes tenth (audit D45)', async () => {
+    // Nine sizes of 20 mm come before the length in SolidCraft's order; a cap of eight left d1 out.
+    const others = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`p${String(i)}`, 20]));
+    const { service, calls } = boxEngine({ ...others, d1: 20, d2: 5, d3: 10 });
+    expect(await service.probe({ measure: 'length', body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 5, 0] }, 20, 30)).toMatchObject({ mode: 'direct', parameter: 'd1' });
+    // The list, ten tries and the preview.
+    expect(calls).toHaveLength(12);
+  });
+
   it('lets the user pick when several parameters each move the edge', async () => {
     const { service, state } = boxEngine({ d1: 20, d2: 20, d3: 10, sym: 20 });
     expect(await service.probe({ measure: 'length', body: 'Body1', edge: 'F1:+y|F1:-z', point: [10, 20, 0] }, 20, 30)).toEqual({

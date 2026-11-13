@@ -48,8 +48,6 @@ interface BatchReply {
 
 /** Values within this distance count as equal (mm); SolidCraft reports lengths to about 1e-9. */
 const SAME = 1e-4;
-/** At most this many candidates are tried, so a probe stays well under 100 ms. */
-const MAX_CANDIDATES = 8;
 /** The failing last step that makes SolidCraft undo the whole batch. */
 const UNDO_ALL = { command: 'sketch.inspect', params: { sketch: 2147483647 } };
 /** Plain numbers with an optional length unit; formulas are the designer's intent and stay untouched. */
@@ -62,7 +60,13 @@ function isParameter(entry: unknown): entry is Parameter {
   return typeof p?.name === 'string' && typeof p.expression === 'string' && typeof p.value === 'number' && typeof p.unit === 'string';
 }
 
-/** Lengths in mm whose value equals the current one, or twice it for a radius (a diameter parameter). */
+/**
+ * Lengths in mm whose value equals the current one, or twice it for a radius (a diameter parameter). All of them are
+ * tried: a cap of eight left out the driver of a design with more sizes of the same value, and the field then sent the
+ * user to the assistant (audit D45).
+ * shortcut: one rebuild per candidate, in SolidCraft's order; a design with dozens of equal sizes probes as many times
+ * longer. Try the parameters of the selected body's features first if that is felt.
+ */
 export function candidatesFor(parameters: Parameter[], current: number, measure: DimensionTarget['measure']): { parameter: Parameter; factor: 1 | 2 }[] {
   const found: { parameter: Parameter; factor: 1 | 2 }[] = [];
   for (const parameter of parameters) {
@@ -70,7 +74,7 @@ export function candidatesFor(parameters: Parameter[], current: number, measure:
     if (Math.abs(parameter.value - current) <= SAME) found.push({ parameter, factor: 1 });
     else if (measure === 'radius' && Math.abs(parameter.value - 2 * current) <= SAME) found.push({ parameter, factor: 2 });
   }
-  return found.slice(0, MAX_CANDIDATES);
+  return found;
 }
 
 function distance(a: readonly number[], b: readonly number[]): number {
