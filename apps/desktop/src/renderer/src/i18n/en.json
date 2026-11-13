@@ -1152,7 +1152,9 @@
       "feature": "{feature}: {message}",
       "overlap": "{a} and {b} overlap by {volume} mm³ – as separate parts they do not go together; combine them if they are one part",
       "tight": "{a} and {b} come within {gap} mm without touching – under the push fit of {minimum} mm per side, they only go together with force",
+      "tightInPlace": "{a} and {b} print as one piece and move against each other, but come within {gap} mm – under the print-in-place gap of {minimum} mm they fuse there in the print. Leave more room there.",
       "blocked": "{joint}: {a} and {b} touch at {at} – the joint does not reach its limit of {limit}",
+      "blockedFree": "{joint}: {a} and {b} touch at {at} – the joint has no limit that way and stops there",
       "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands"
     },
     "confirm": {

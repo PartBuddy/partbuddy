@@ -69,9 +69,13 @@ function line(finding: Finding, nozzle: number): string {
     case 'overlap':
       return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} overlap by ${String(finding.volume)} mm³; as separate parts they do not go together. Combine them if they are one part, otherwise make room.`;
     case 'tight':
-      return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} come within ${mm(finding.gap)} of each other without touching, under the material's push fit of ${mm(finding.minimum)} per side; they only go together with force. Widen the gap unless that is meant.`;
+      return finding.inPlace
+        ? `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} print as one piece and move against each other, but come within ${mm(finding.gap)} of each other, under the print-in-place gap of ${mm(finding.minimum)} for this nozzle: they fuse there in the print and do not move. Widen the gap there.`
+        : `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} come within ${mm(finding.gap)} of each other without touching, under the push fit of ${mm(finding.minimum)} per side for this nozzle (as in the print profile); they only go together with force. Widen the gap unless that is meant.`;
     case 'blocked':
-      return `- ${tag}: joint ${JSON.stringify(finding.joint)} stops at ${String(finding.at)} ${finding.unit}, before its limit of ${String(finding.limit)} ${finding.unit}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} touch there. Make room where they touch, or narrow the limit with joint.limits if that is the stop you mean.`;
+      return finding.free
+        ? `- ${tag}: joint ${JSON.stringify(finding.joint)} has no limit that way and stops at ${String(finding.at)} ${finding.unit}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} touch there. Make room where they touch, or set its limits with joint.limits if that is the stop you mean.`
+        : `- ${tag}: joint ${JSON.stringify(finding.joint)} stops at ${String(finding.at)} ${finding.unit}, before its limit of ${String(finding.limit)} ${finding.unit}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} touch there. Make room where they touch, or narrow the limit with joint.limits if that is the stop you mean.`;
     case 'leftOut':
       return finding.rolledBack
         ? `- ${tag}: the timeline is rolled back: ${names(finding.features)} come after its marker, so they are not in the part as checked and exported. Roll it forward (timeline.roll_to) unless that is meant.`
@@ -84,7 +88,10 @@ function line(finding: Finding, nozzle: number): string {
 /** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more. */
 const CHECKED_MESH = 'build volume, wall and floor thickness, overhang angle, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch';
 /** What SolidCraft measures after it (withClearance, withMotion): it takes longer and comes with the full check. */
-const MEASURED = { clearance: 'bodies that overlap or come closer than a push fit', joints: 'joints that stop before a limit' };
+const MEASURED = {
+  clearance: 'bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move',
+  joints: 'joints that stop before a limit, or within a turn or as far as the parts reach where they have none',
+};
 const CHECKED_MEASURED = `${MEASURED.clearance}, ${MEASURED.joints}`;
 /** What the model is to do while the measures are out; partbuddy_view itself says only that they are coming, or a small model calls it in circles. */
 const FETCH_FULL = 'call partbuddy_view for the full check before you call the part done';

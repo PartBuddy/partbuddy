@@ -87,10 +87,16 @@ export type PrintFinding =
   | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string }
   /** Two bodies share volume: as separate parts they do not go together (F2, SolidCraft's measure). */
   | ({ kind: 'overlap'; severity: FindingSeverity; bodies: [string, string]; volume: number } & Located)
-  /** Two bodies come closer than the material's push fit without touching (F2). */
-  | ({ kind: 'tight'; severity: FindingSeverity; bodies: [string, string]; gap: number; minimum: number } & Located)
-  /** A joint does not reach a limit: two parts touch on the way (ADR 0027, SolidCraft's sweep). */
-  | ({ kind: 'blocked'; severity: FindingSeverity; joint: string; bodies: [string, string]; at: number; limit: number; unit: JointUnit } & Located)
+  /**
+   * Two bodies come closer than the push fit without touching (F2); `inPlace`: they print as one piece and move against
+   * each other, and come closer than the print-in-place gap, so they fuse in the print (audit D10).
+   */
+  | ({ kind: 'tight'; severity: FindingSeverity; bodies: [string, string]; gap: number; minimum: number; inPlace?: true } & Located)
+  /**
+   * A joint does not reach a limit: two parts touch on the way (ADR 0027, SolidCraft's sweep). `free`: the joint has no
+   * limit on that side, and `limit` is only where the run was to end (audit H-04).
+   */
+  | ({ kind: 'blocked'; severity: FindingSeverity; joint: string; bodies: [string, string]; at: number; limit: number; unit: JointUnit; free?: true } & Located)
   /** A joint stands away from the position as designed, and the design is exported as it stands. */
   | { kind: 'posed'; severity: FindingSeverity; joint: string; value: number; unit: JointUnit }
   /** Features that build material but are not in the part as checked and exported: suppressed, or after the timeline's marker. */
@@ -101,7 +107,7 @@ export type JointUnit = 'deg' | 'mm';
 /** A joint value as it stands, and where a sweep towards a limit stopped because two parts touched. */
 export interface MeasuredMotion {
   joints: { name: string; values: { unit: JointUnit; value: number }[] }[];
-  stops: { joint: string; unit: JointUnit; to: number; stoppedAt: number; a: string; b: string; at: [number, number, number] }[];
+  stops: { joint: string; unit: JointUnit; to: number; stoppedAt: number; a: string; b: string; at: [number, number, number]; free?: boolean }[];
 }
 
 export interface PrintCheck {
@@ -815,24 +821,31 @@ const CONTACT = 1e-3;
 /** The box around a narrow gap, padded so the camera has something to frame (mm). */
 const GAP_PAD = 2;
 
+/** Bodies printed as one piece that move against each other (`pair`), and the gap they need not to fuse (audit D10). */
+export interface InPlaceFit {
+  gap: number;
+  pair: (a: string, b: string) => boolean;
+}
+
 /**
- * Adds the clearance between bodies (plan step F2) to the check: overlaps, and gaps narrower than
- * the material's push fit (per side) that are no contact. Both print, so both are warnings; the
- * pair's bodies are named, since SolidCraft measures bodies, not faces.
+ * Adds the clearance between bodies (plan step F2) to the check: overlaps, and gaps that are no contact but narrower
+ * than the push fit (per side), or than `inPlace.gap` between bodies that print as one piece and move. Both print, so
+ * both are warnings; the pair's bodies are named, since SolidCraft measures bodies, not faces. A gap is compared as it
+ * is said (to 0.01 mm), so the warning never reads "0.4 mm, under 0.4 mm".
  */
-export function withClearance(check: PrintCheck, measured: MeasuredClearance, pushFit: number): PrintCheck {
+export function withClearance(check: PrintCheck, measured: MeasuredClearance, pushFit: number, inPlace?: InPlaceFit): PrintCheck {
   const findings: PrintFinding[] = [...check.findings];
   for (const overlap of measured.overlaps) {
     if (overlap.volume < MIN_OVERLAP) continue;
     findings.push({ kind: 'overlap', severity: 'warn', bodies: [overlap.a, overlap.b], volume: round(overlap.volume), places: [], box: overlap.box });
   }
-  if (pushFit > 0) {
-    for (const near of measured.near) {
-      if (near.distance < CONTACT || near.distance >= pushFit) continue;
-      const min = near.from.map((value, i) => round(Math.min(value, near.to[i] ?? value) - GAP_PAD, 3)) as [number, number, number];
-      const max = near.from.map((value, i) => round(Math.max(value, near.to[i] ?? value) + GAP_PAD, 3)) as [number, number, number];
-      findings.push({ kind: 'tight', severity: 'warn', bodies: [near.a, near.b], gap: round(near.distance), minimum: pushFit, places: [], box: { min, max } });
-    }
+  for (const near of measured.near) {
+    const together = inPlace !== undefined && inPlace.pair(near.a, near.b);
+    const minimum = together ? inPlace.gap : pushFit;
+    if (minimum <= 0 || near.distance < CONTACT || round(near.distance) >= minimum) continue;
+    const min = near.from.map((value, i) => round(Math.min(value, near.to[i] ?? value) - GAP_PAD, 3)) as [number, number, number];
+    const max = near.from.map((value, i) => round(Math.max(value, near.to[i] ?? value) + GAP_PAD, 3)) as [number, number, number];
+    findings.push({ kind: 'tight', severity: 'warn', bodies: [near.a, near.b], gap: round(near.distance), minimum, ...(together ? { inPlace: true as const } : {}), places: [], box: { min, max } });
   }
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   return { status: statusOf(findings), findings };
@@ -852,7 +865,7 @@ export function withMotion(check: PrintCheck, measured: MeasuredMotion): PrintCh
     if (Math.abs(stop.to - stop.stoppedAt) <= AT_LIMIT[stop.unit]) continue;
     const min = stop.at.map((value) => round(value - GAP_PAD, 3)) as [number, number, number];
     const max = stop.at.map((value) => round(value + GAP_PAD, 3)) as [number, number, number];
-    findings.push({ kind: 'blocked', severity: 'warn', joint: stop.joint, bodies: [bodyOf(stop.a), bodyOf(stop.b)], at: round(stop.stoppedAt, 1), limit: round(stop.to, 1), unit: stop.unit, places: [], box: { min, max } });
+    findings.push({ kind: 'blocked', severity: 'warn', joint: stop.joint, bodies: [bodyOf(stop.a), bodyOf(stop.b)], at: round(stop.stoppedAt, 1), limit: round(stop.to, 1), unit: stop.unit, ...(stop.free ? { free: true as const } : {}), places: [], box: { min, max } });
   }
   for (const joint of measured.joints) {
     for (const value of joint.values) {

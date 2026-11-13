@@ -32,6 +32,7 @@ export {
   type FindingBox,
   type FindingPlace,
   type FindingSeverity,
+  type InPlaceFit,
   type JointUnit,
   type LaidBody,
   type MeasuredClearance,

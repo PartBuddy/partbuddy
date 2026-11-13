@@ -53,9 +53,9 @@ export function useFindingText(): (finding: PrintFinding) => string {
       case 'overlap':
         return t('check.finding.overlap', { a: finding.bodies[0], b: finding.bodies[1], volume: number.format(finding.volume) });
       case 'tight':
-        return t('check.finding.tight', { a: finding.bodies[0], b: finding.bodies[1], gap: number.format(finding.gap), minimum: number.format(finding.minimum) });
+        return t(finding.inPlace ? 'check.finding.tightInPlace' : 'check.finding.tight', { a: finding.bodies[0], b: finding.bodies[1], gap: number.format(finding.gap), minimum: number.format(finding.minimum) });
       case 'blocked':
-        return t('check.finding.blocked', { joint: finding.joint, a: finding.bodies[0], b: finding.bodies[1], at: amount(finding.at, finding.unit), limit: amount(finding.limit, finding.unit) });
+        return t(finding.free ? 'check.finding.blockedFree' : 'check.finding.blocked', { joint: finding.joint, a: finding.bodies[0], b: finding.bodies[1], at: amount(finding.at, finding.unit), limit: amount(finding.limit, finding.unit) });
       case 'leftOut':
         return t(finding.rolledBack ? 'check.finding.rolledBack' : 'check.finding.suppressed', { count: finding.features.length, features: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.features.slice(0, 3)), more: Math.max(0, finding.features.length - 3) });
       case 'posed':

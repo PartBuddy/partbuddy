@@ -1152,7 +1152,9 @@
       "feature": "{feature}: {message}",
       "overlap": "{a} und {b} überschneiden sich um {volume} mm³ – als getrennte Teile passen sie so nicht zusammen; gehören sie zu einem Teil, vereinen",
       "tight": "{a} und {b} kommen sich bis auf {gap} mm nahe, ohne sich zu berühren – unter der Steckpassung von {minimum} mm je Seite gehen sie nur mit Kraft zusammen",
+      "tightInPlace": "{a} und {b} werden in einem Stück gedruckt und bewegen sich gegeneinander, kommen sich aber bis auf {gap} mm nahe – unter dem Print-in-Place-Spalt von {minimum} mm verschmelzen sie dort im Druck. Lass dort mehr Platz.",
       "blocked": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk erreicht seine Grenze von {limit} nicht",
+      "blockedFree": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk hat in diese Richtung keine Grenze und bleibt dort stehen",
       "posed": "{joint} steht auf {value}, nicht wie konstruiert – exportiert und geprüft wird diese Stellung"
     },
     "confirm": {
