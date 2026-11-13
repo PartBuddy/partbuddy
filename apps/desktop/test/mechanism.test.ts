@@ -1554,13 +1554,27 @@ function boxWorld(bodies: Record<string, Box[]>, { sent = [], together = false, 
       const share = (rod: string, body: string) => {
         const params = rods.get(rod);
         if (!params) return 0;
-        const pieces = 1000;
+        // Over the rod's whole cross-section, as SolidCraft's overlap volume is (review of BC-11: the axis alone was 0.1 mm too kind at a wall's end).
+        const [ax = 0, ay = 0, az = 0] = params.axis;
+        const other = Math.abs(ax) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+        const cross = (a: number[], b: number[]) => [(a[1] ?? 0) * (b[2] ?? 0) - (a[2] ?? 0) * (b[1] ?? 0), (a[2] ?? 0) * (b[0] ?? 0) - (a[0] ?? 0) * (b[2] ?? 0), (a[0] ?? 0) * (b[1] ?? 0) - (a[1] ?? 0) * (b[0] ?? 0)];
+        const u0 = cross([ax, ay, az], other);
+        const length = Math.hypot(...u0);
+        const u = u0.map((value) => value / length);
+        const v = cross([ax, ay, az], u);
+        // Equal areas: rings at r·√((k + ½) / 3), eight points each.
+        const spots = [0, 1, 2].flatMap((k) => Array.from({ length: 8 }, (_, j) => {
+          const r = (params.diameter / 2) * Math.sqrt((k + 0.5) / 3);
+          const angle = (j / 8) * 2 * Math.PI + k * 0.4;
+          return u.map((value, i) => r * (Math.cos(angle) * value + Math.sin(angle) * (v[i] ?? 0)));
+        }));
+        const pieces = 400;
         let count = 0;
         for (let n = 0; n < pieces; n += 1) {
           const t = ((n + 0.5) / pieces) * params.height;
-          if (inside(body, params.base.map((value, i) => value + (params.axis[i] ?? 0) * t))) count += 1;
+          for (const spot of spots) if (inside(body, params.base.map((value, i) => value + (params.axis[i] ?? 0) * t + (spot[i] ?? 0)))) count += 1;
         }
-        return count / pieces;
+        return count / (pieces * spots.length);
       };
       const results = commands.map((step) => {
         if (step.command === 'inspect.clearance' && rods.size > 0) {
@@ -1659,7 +1673,7 @@ describe('snap hooks with their windows (standards)', () => {
     expect(low.text).toContain("Cover's wall at hook 1 (from [20,20,4]) does not stand whole round the window, which goes from 10.3 to 12.5 mm above the foot: it needs 0.8 mm of wall under and over it (from 9.5 to 13.3 mm above the foot) and 0.9 mm beside it (7.4 mm wide in all), its face at most 0.1 mm behind from; over the window only 0 of 7.4 mm are plastic.");
     // As high as the bar needs passes; ending short of the rod, which lies half its width inside the bar's edge, does not.
     expect((await built(cover({ top: 4 + 13.3 }))).isError).toBe(false);
-    expect((await built(cover({ top: 4 + 13.2 - 0.01 }))).text).toContain('over the window only');
+    expect((await built(cover({ top: 4 + 13.29 }))).text).toContain('over the window only');
     // The face standing in the arm's way, and the second hook at the end of a wall too short for its window's posts.
     expect((await built(cover({ face: 19.8 }))).text).toContain('Cover stands in front of from at hook 1 (from [20,20,4]): in the 0.2 mm the arm keeps off the wall, up to 12 mm above the foot,');
     expect((await built(cover({ long: 35 }))).text).toContain("Cover's wall at hook 2 (from [32,20,4]) does not stand whole round the window");
@@ -1670,7 +1684,8 @@ describe('snap hooks with their windows (standards)', () => {
     // A wall that comes further towards the hook than the cut starts, at the window's side (a round wall of small radius).
     const wedge = cover();
     wedge.Cover?.push([[22.5, 19.6, 14], [23, 20, 16]]);
-    expect((await built(wedge)).text).toContain("Cover's wall at hook 1 (from [20,20,4]) curves towards the hook by more than the 0.2 mm the arm keeps off it, across the window's 5.6 mm (0.3 mm of a line there are plastic)");
+    // The plastic share is the fake's sample of the rod (0.29–0.3 mm).
+    expect((await built(wedge)).text).toMatch(/Cover's wall at hook 1 \(from \[20,20,4\]\) curves towards the hook by more than the 0\.2 mm the arm keeps off it, across the window's 5\.6 mm \(0\.(29|3) mm of a line there are plastic\)/);
   });
 
   it('takes the bars and posts round the window from the nozzle and the layer of the profile', async () => {
@@ -1878,7 +1893,9 @@ describe('a snap latch outside a box (standards)', () => {
   const latched = async (world: Record<string, Box[]>, extra: Record<string, unknown> = {}, together = false) => {
     const sent: string[][] = [];
     const answer = await withMechanismTool(boxWorld(world, { sent, together }), () => 0.4).callTool(MECHANISM_TOOL, { ...args, ...extra }, undefined);
-    return { text: answer.content[0]?.type === 'text' ? answer.content[0].text : '', isError: answer.isError === true, built: sent.some((batch) => batch.includes('sketch.arc.center_point')) };
+    // The fake samples each probe rod's cross-section, so a depth it finds may read a hundredth over the box's (5.01 for 5).
+    const text = answer.content[0]?.type === 'text' ? String(answer.content[0].text).replace(/least found is (\d+)\.0\d /g, 'least found is $1 ') : '';
+    return { text, isError: answer.isError === true, built: sent.some((batch) => batch.includes('sketch.arc.center_point')) };
   };
 
   it('measures both walls before it builds, and says what it measured and the root\'s radius (audit N-mechanik-10, R50, MV-11)', async () => {
@@ -1899,8 +1916,9 @@ describe('a snap latch outside a box (standards)', () => {
     expect((await latched(closed({ joint: 14.1 }), { from: [20, 0, 14.1], to: [20, -5, 14.1] })).isError).toBe(false);
     // A lid that stands 1 mm out over the box, and one narrower than the latch.
     expect((await latched(closed({ lidFront: -1 }))).text).toContain("Not built: Lid stands out of the wall's plane at from: 0.15 mm in front of it, from 14.1 mm below the joint to 8.1 mm above it, up to 8.1 mm of the way are plastic");
-    expect((await latched(closed({ lidLong: 24.85 }))).text).toContain('Not built: Lid (the lid) is not plastic 0.5 mm deep');
-    expect((await latched(closed({ lidLong: 24.95 }))).isError).toBe(false);
+    // The latch's edge rod (0.2 mm across) reaches 25 mm: the wall must reach it whole (review of BC-11: 24.95 passed only on the rod's axis).
+    expect((await latched(closed({ lidLong: 24.95 }))).text).toContain('Not built: Lid (the lid) is not plastic 0.5 mm deep');
+    expect((await latched(closed({ lidLong: 25.01 }))).isError).toBe(false);
     // Given from 2 mm above the joint, the box's wall ends short of the stretch it is tried on.
     expect((await latched(closed({ lid: 12 }), { from: [20, 0, 22], to: [20, -5, 22] })).text).toContain('Not built: Box (the box) is not plastic 0.5 mm deep');
   });
@@ -1908,7 +1926,7 @@ describe('a snap latch outside a box (standards)', () => {
   it('refuses a lid that prints with its box on a hinge, where hook and bead would fuse (audit R40, H-24)', async () => {
     const hinged = await latched(closed(), {}, true);
     expect(hinged).toMatchObject({ isError: true, built: false });
-    expect(hinged.text).toBe("Not built: Lid and Box print as one piece, joined by a print-in-place hinge, and the latch's hook lies on its bead without room: printed together they would fuse. A latch is for a lid that lifts off and prints apart; for a lid on a hinge use kind closure, which takes the hinge line");
+    expect(hinged.text).toBe("Not built: Lid and Box print as one piece, joined by a print-in-place hinge. A latch needs the lid closed on its box: built open beside it (as a hinged box prints), the two walls share no seam for arm and bead; built closed, the hook lies on its bead without room and printed together they would fuse. A latch is for a lid that lifts off and prints apart; for a lid on a hinge use kind closure, which takes the hinge line");
     expect(MECHANISM_GUIDANCE).not.toContain('opposite the hinge');
     expect(MECHANISM_GUIDANCE).toContain('a lid on a hinge prints with its box and is held by kind closure instead');
     const [tool] = (await withMechanismTool(boxWorld({}), () => 0.4).listTools()).filter((entry) => entry.name === MECHANISM_TOOL);
