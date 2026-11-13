@@ -178,6 +178,8 @@ test('the user undoes, exports and opens the headless design in the SolidCraft w
     await app.evaluate(({ dialog }, filePath) => {
       dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath });
     }, target);
+    // Checked first: until then the export asks (audit X-1).
+    await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-measuring', 'true', { timeout: 30_000 });
     await page.getByRole('button', { name: 'Export' }).click();
     await page.getByRole('menuitem', { name: /STL/ }).click();
     await expect(page.getByTestId('notice')).toHaveText('Saved as box.stl', { timeout: 30_000 });
@@ -189,7 +191,8 @@ test('the user undoes, exports and opens the headless design in the SolidCraft w
     // Open in SolidCraft: saved to the project folder, opened in the window, followed live.
     await page.getByRole('button', { name: 'Open in SolidCraft' }).click();
     await expect(status).toHaveAttribute('data-engine', 'window', { timeout: 90_000 });
-    expect(existsSync(join(projects, 'Untitled.sc'))).toBe(true);
+    // Saved as the project the first body named (B2).
+    expect(existsSync(join(projects, 'Part', 'Part.sc'))).toBe(true);
     expect(countProcesses('solidcraft.exe')).toBe(windows + 1);
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
     await page.screenshot({ path: test.info().outputPath('handoff-window.png') });
@@ -3265,14 +3268,21 @@ test('in the SolidCraft window the light measures a hinge once and then stays qu
       const hinge = listed.results?.[0]?.joints?.find((joint) => joint.name === 'Hinge');
       if (!hinge) throw new Error('no joint "Hinge" in the window');
       const checked = Number(await light.getAttribute('data-revision'));
+      const inspected = await client.request<{ results?: unknown[] }>('engine.batch', { commands: [{ command: 'document.inspect', params: { timeline: false, bodies: false } }], rollback: false });
+      const undoBefore = Number((inspected.results?.[0] as { undo?: unknown } | undefined)?.undo);
       const limited = await client.request<{ failed?: unknown }>('engine.batch', { commands: [{ command: 'joint.limits', params: { joint: hinge.id, min: -180, max: 30 } }], rollback: false });
       expect(limited.failed).toBeUndefined();
       // The new limit is mirrored and checked.
       await expect.poll(async () => Number(await light.getAttribute('data-revision')), { timeout: 30_000 }).toBeGreaterThan(checked);
+      await staysQuiet('a snap fit tried');
+      // The pose tried is taken back: the hinge stands as designed, and the undo history holds only the new limit.
+      const after = await client.request<{ results?: unknown[] }>('engine.batch', { commands: [{ command: 'joint.list', params: {} }, { command: 'document.inspect', params: { timeline: false, bodies: false } }], rollback: false });
+      const joints = (after.results?.[0] as { joints?: { id: number; values: { value: number }[] }[] } | undefined)?.joints;
+      expect(joints?.find((joint) => joint.id === hinge.id)?.values[0]?.value).toBeCloseTo(0, 6);
+      expect((after.results?.[1] as { undo?: unknown } | undefined)?.undo).toBe(undoBefore + 1);
     } finally {
       client.close();
     }
-    await staysQuiet('a snap fit tried');
     await page.screenshot({ path: test.info().outputPath('window-light-quiet.png') });
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('window-light-failed.png') }).catch(() => undefined);
