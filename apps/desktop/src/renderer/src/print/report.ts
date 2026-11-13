@@ -38,8 +38,9 @@ export function jointRuns(joints: readonly (Pick<Joint, 'id' | 'name'> & { value
 }
 
 /**
- * How far a joint without limits slides (audit H-04): the diagonal of the box round all bodies and 1 mm more. A part
- * moved further than that lies outside the box, clear of every other, so nothing can stop it beyond.
+ * How far a joint without limits slides (audit H-04): the diagonal of the box round all bodies and 5 mm more. A part
+ * moved further than the diagonal lies outside the box, clear of every other, so nothing can stop it beyond; the 5 mm
+ * keep a real stop out of the last 4 mm of the run, where the main process takes it for a snap fit (`SNAP_SPAN`).
  */
 export function reachOf(bodies: readonly { model: { geometry: BufferGeometry } }[]): number {
   const box = new Box3();
@@ -47,7 +48,7 @@ export function reachOf(bodies: readonly { model: { geometry: BufferGeometry } }
     const position = body.model.geometry.getAttribute('position') as BufferAttribute | undefined;
     if (position) box.union(new Box3().setFromBufferAttribute(position));
   }
-  return box.isEmpty() ? 0 : Math.ceil(box.getSize(new Vector3()).length()) + 1;
+  return box.isEmpty() ? 0 : Math.ceil(box.getSize(new Vector3()).length()) + 5;
 }
 
 /**

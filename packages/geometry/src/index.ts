@@ -29,6 +29,7 @@ export {
   thinnestLine,
   withClearance,
   withMotion,
+  withinTurn,
   type FindingBox,
   type FindingPlace,
   type FindingSeverity,

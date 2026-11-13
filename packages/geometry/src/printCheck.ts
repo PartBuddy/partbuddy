@@ -831,7 +831,7 @@ export interface InPlaceFit {
  * Adds the clearance between bodies (plan step F2) to the check: overlaps, and gaps that are no contact but narrower
  * than the push fit (per side), or than `inPlace.gap` between bodies that print as one piece and move. Both print, so
  * both are warnings; the pair's bodies are named, since SolidCraft measures bodies, not faces. A gap is compared as it
- * is said (to 0.01 mm), so the warning never reads "0.4 mm, under 0.4 mm".
+ * is said, to 0.001 mm like the scaled fits: SolidCraft measures a gap of 0.4 mm as 0.39999999999998.
  */
 export function withClearance(check: PrintCheck, measured: MeasuredClearance, pushFit: number, inPlace?: InPlaceFit): PrintCheck {
   const findings: PrintFinding[] = [...check.findings];
@@ -842,14 +842,16 @@ export function withClearance(check: PrintCheck, measured: MeasuredClearance, pu
   for (const near of measured.near) {
     const together = inPlace !== undefined && inPlace.pair(near.a, near.b);
     const minimum = together ? inPlace.gap : pushFit;
-    if (minimum <= 0 || near.distance < CONTACT || round(near.distance) >= minimum) continue;
+    if (minimum <= 0 || near.distance < CONTACT || round(near.distance, 3) >= minimum) continue;
     const min = near.from.map((value, i) => round(Math.min(value, near.to[i] ?? value) - GAP_PAD, 3)) as [number, number, number];
     const max = near.from.map((value, i) => round(Math.max(value, near.to[i] ?? value) + GAP_PAD, 3)) as [number, number, number];
-    findings.push({ kind: 'tight', severity: 'warn', bodies: [near.a, near.b], gap: round(near.distance), minimum, ...(together ? { inPlace: true as const } : {}), places: [], box: { min, max } });
+    findings.push({ kind: 'tight', severity: 'warn', bodies: [near.a, near.b], gap: round(near.distance, 3), minimum, ...(together ? { inPlace: true as const } : {}), places: [], box: { min, max } });
   }
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   return { status: statusOf(findings), findings };
 }
+/** A free joint's angle within one turn (-180° to 180°): a run of a whole turn stops at -300°, which is 60°. */
+export const withinTurn = (deg: number) => Math.round((deg - 360 * Math.round(deg / 360)) * 10) / 10;
 /** A sweep that stops this close to its limit reached it: a flap folding flat onto its base (deg, mm). */
 const AT_LIMIT: Record<JointUnit, number> = { deg: 0.5, mm: 0.1 };
 /** SolidCraft names an occurrence "<component>:<n>"; the component of a body carries the body's name. */

@@ -1,4 +1,4 @@
-import { thinnestLine } from '@partbuddy/geometry';
+import { thinnestLine, withinTurn } from '@partbuddy/geometry';
 
 import type { PrintCheckReport } from '../../shared/contract';
 import type { ToolResult } from '../agents/gateProxy';
@@ -6,7 +6,8 @@ import type { ToolResult } from '../agents/gateProxy';
 type Finding = PrintCheckReport['findings'][number];
 type Places = Extract<Finding, { places: unknown }>['places'];
 
-const mm = (value: number) => `${String(Math.round(value * 100) / 100)} mm`;
+// To 0.001 mm like the scaled fits of the print profile (printProfiles.ts), so a push fit of 0.075 does not read 0.08.
+const mm = (value: number) => `${String(Math.round(value * 1000) / 1000)} mm`;
 
 /**
  * Where, in the face names the model also gets from SolidCraft; long lists are cut short, and say
@@ -74,7 +75,7 @@ function line(finding: Finding, nozzle: number): string {
         : `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} come within ${mm(finding.gap)} of each other without touching, under the push fit of ${mm(finding.minimum)} per side for this nozzle (as in the print profile); they only go together with force. Widen the gap unless that is meant.`;
     case 'blocked':
       return finding.free
-        ? `- ${tag}: joint ${JSON.stringify(finding.joint)} has no limit that way and stops at ${String(finding.at)} ${finding.unit}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} touch there. Make room where they touch, or set its limits with joint.limits if that is the stop you mean.`
+        ? `- ${tag}: joint ${JSON.stringify(finding.joint)} has no limit that way and stops at ${String(finding.unit === 'deg' ? withinTurn(finding.at) : finding.at)} ${finding.unit}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} touch there. Make room where they touch, or set its limits with joint.limits if that is the stop you mean.`
         : `- ${tag}: joint ${JSON.stringify(finding.joint)} stops at ${String(finding.at)} ${finding.unit}, before its limit of ${String(finding.limit)} ${finding.unit}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} touch there. Make room where they touch, or narrow the limit with joint.limits if that is the stop you mean.`;
     case 'leftOut':
       return finding.rolledBack

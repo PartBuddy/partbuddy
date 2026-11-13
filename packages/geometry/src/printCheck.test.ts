@@ -378,12 +378,19 @@ describe('clearance between parts (F2)', () => {
 
   it('compares a gap as it is said: on the minimum is enough, just under is not (audit D9)', () => {
     const gaps = (distance: number, minimum: number) => withClearance(ready, { overlaps: [], near: [{ a: 'A', b: 'C', distance, from: [0, 0, 0], to: [0, distance, 0] }] }, minimum).findings.map((finding) => finding.kind === 'tight' && finding.gap);
-    // The push fit of PLA for a 0.6 mm nozzle, 0.225 mm: the assistant builds it, and it is no warning.
+    // The push fits of PLA for a 0.6, 0.25 and 0.2 mm nozzle (0.225, 0.094, 0.075 mm): built as the profile says, and
+    // measured a hair under as SolidCraft does, they are no warning; a thousandth under is.
     expect(gaps(0.225, 0.225)).toEqual([]);
-    expect(gaps(0.22, 0.225)).toEqual([0.22]);
-    expect(gaps(0.23, 0.225)).toEqual([]);
-    // Exactly the minimum, as SolidCraft measures it a hair under, is no "0.4 mm, under 0.4 mm".
-    expect(gaps(0.39999999, 0.4)).toEqual([]);
+    expect(gaps(0.22499999999998, 0.225)).toEqual([]);
+    expect(gaps(0.224, 0.225)).toEqual([0.224]);
+    expect(gaps(0.226, 0.225)).toEqual([]);
+    expect(gaps(0.094, 0.094)).toEqual([]);
+    expect(gaps(0.093, 0.094)).toEqual([0.093]);
+    expect(gaps(0.07499999, 0.075)).toEqual([]);
+    expect(gaps(0.074, 0.075)).toEqual([0.074]);
+    // Exactly the minimum, as SolidCraft measures it a hair under, is no "0.4 mm, under 0.4 mm"; 0.395 mm is.
+    expect(gaps(0.39999999999998, 0.4)).toEqual([]);
+    expect(gaps(0.395, 0.4)).toEqual([0.395]);
     expect(gaps(0.39, 0.4)).toEqual([0.39]);
   });
 

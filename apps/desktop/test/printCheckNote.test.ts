@@ -131,18 +131,22 @@ describe('clearance between parts as the assistant reads it (F2)', () => {
         findings: [
           { kind: 'tight', severity: 'warn', bodies: ['Box', 'Lid'], gap: 0.2, minimum: 0.4, inPlace: true, places: [], box },
           { kind: 'blocked', severity: 'warn', joint: 'Hinge', bodies: ['Lid', 'Box'], at: 120, limit: 190, unit: 'deg', free: true, places: [], box },
+          { kind: 'blocked', severity: 'warn', joint: 'Wheel', bodies: ['Lid', 'Box'], at: -300, limit: -370, unit: 'deg', free: true, places: [], box },
         ],
       },
       0.4,
       7,
     );
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
-    expect(report.findings).toMatchObject([{ inPlace: true }, { free: true }]);
+    expect(report.findings).toMatchObject([{ inPlace: true }, { free: true }, { free: true }]);
     const note = printCheckNote(report);
     expect(note).toContain('bodies "Box" and "Lid" print as one piece and move against each other, but come within 0.2 mm of each other, under the print-in-place gap of 0.4 mm for this nozzle: they fuse there in the print and do not move.');
     expect(note).toContain('joint "Hinge" has no limit that way and stops at 120 deg: bodies "Lid" and "Box" touch there. Make room where they touch, or set its limits with joint.limits if that is the stop you mean.');
     // The end of the run is no limit of the joint's, and is not named as one.
+    // An angle past half a turn is said within one turn (-180° to 180°), as the joint stands then.
+    expect(note).toContain('joint "Wheel" has no limit that way and stops at 60 deg');
     expect(note).not.toContain('190');
+    expect(note).not.toContain('300');
   });
 });
 
@@ -159,7 +163,10 @@ describe('the gaps the check holds the parts to (audit D9, D10)', () => {
       [0.8, 0.3],
     ] as const) {
       expect(fitsOf(printer(nozzle), {}).push).toBe(push);
-      expect(printNote(printer(nozzle))).toContain(`push ${String(Math.round(push * 100) / 100)} mm`);
+      // The same number, to the thousandth, in the profile and in the check's words (review of BC-06, B1).
+      expect(printNote(printer(nozzle))).toContain(`push ${String(push)} mm`);
+      const tight = reportOf({ status: 'warn', findings: [{ kind: 'tight', severity: 'warn', bodies: ['A', 'B'], gap: 0.05, minimum: fitsOf(printer(nozzle), {}).push, places: [], box: { min: [0, 0, 0], max: [1, 1, 1] } }] }, nozzle, 1);
+      expect(printCheckNote(tight)).toContain(`under the push fit of ${String(push)} mm per side for this nozzle (as in the print profile)`);
     }
     // Read off tolerance pieces printed with a 0.6 mm nozzle, the fit holds as read on that nozzle.
     expect(fitsOf({ ...printer(0.6), material: { ...pla, measuredNozzle: 0.6 } }, {}).push).toBe(0.15);
@@ -233,10 +240,10 @@ describe('what the check could not measure', () => {
       return { model: { geometry } };
     };
     expect(reachOf([])).toBe(0);
-    // 0..30 × 0..40 × 0..0: a diagonal of 50 mm, and 1 mm more.
-    expect(reachOf([body([0, 0, 0], [30, 0, 0]), body([0, 40, 0], [0, 40, 0])])).toBe(51);
+    // 0..30 × 0..40 × 0..0: a diagonal of 50 mm, and 5 mm more.
+    expect(reachOf([body([0, 0, 0], [30, 0, 0]), body([0, 40, 0], [0, 40, 0])])).toBe(55);
     // A body without positions adds nothing.
-    expect(reachOf([{ model: { geometry: new BufferGeometry() } }, body([0, 0, 0], [3, 4, 0])])).toBe(6);
+    expect(reachOf([{ model: { geometry: new BufferGeometry() } }, body([0, 0, 0], [3, 4, 0])])).toBe(10);
   });
 
   it('asks before an export while the light is red, still measuring, of another revision or project, or a measure failed (audit X-1)', () => {
