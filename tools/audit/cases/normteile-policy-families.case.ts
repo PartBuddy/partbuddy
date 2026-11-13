@@ -12,7 +12,7 @@ test('every family of parts.library through isLibraryPart and the mirror', async
   const audit = await openAudit(NAME);
   try {
     const [library] = (await audit.batch([{ command: 'parts.library', params: {} }])) as [{ families: { family: string; name: string; sizes: { size: string }[] }[] }];
-    const inserted = [];
+    const inserted: { family: string; libraryName: string; size: string; policy: unknown; reply: unknown }[] = [];
     for (const [i, family] of library.families.entries()) {
       const size = family.sizes.find((entry) => entry.size === 'M3')?.size ?? family.sizes[0]!.size;
       const step = { command: 'parts.insert', params: { family: family.family, size, point: [i * 60, 0, 20] } };
@@ -29,7 +29,7 @@ test('every family of parts.library through isLibraryPart and the mirror', async
         component: metadata[i]?.name,
         description,
         bodies: part.bodies,
-        isLibraryPart: isLibraryPart(description),
+        isLibraryPart: isLibraryPart(description, library),
         inStandardParts: part.bodies.every((body) => state.standardParts.includes(body)),
         family: inserted.find((entry) => typeof description === 'string' && description.startsWith(`${entry.libraryName} `))?.family ?? null,
       };

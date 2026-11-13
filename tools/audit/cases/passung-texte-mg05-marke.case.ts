@@ -26,6 +26,7 @@ test('MG-05: the mark 1×nozzle on small nozzles', () => {
     };
   });
   save('mg05-marke', { comment, mark, rows });
-  expect(rows[0]?.fittedValueFrom04).toBe(0.2);
+  // MG-05 fixed (PR #352): the gap marked in nozzles stays at 0.3 mm on a 0.2 mm nozzle.
+  expect(rows[0]?.fittedValueFrom04).toBe(0.3);
   expect(rows[0]?.printInPlaceGap).toBe(0.3);
 });

@@ -178,7 +178,9 @@ export async function openAudit(name: string, nozzle = 0.4): Promise<Audit> {
           model: buildViewerModel(buildRenderMesh(mesh, body.faces), body.faces),
         };
       });
-      return { bodies, check: (profile) => checkPrint(bodies.map((body) => ({ name: body.name, model: body.model })), profile, mirror.structure.features) };
+      // Bodies printed as one piece (PR #366) stand on one bed, as usePrintCheck.ts groups them.
+      const groupOf = (name: string) => mirror.structure.printGroups?.find((group) => group.includes(name))?.[0];
+      return { bodies, check: (profile) => checkPrint(bodies.map((body) => ({ name: body.name, model: body.model, group: groupOf(body.name) })), profile, mirror.structure.features) };
     },
     finish: async (result) => {
       writeFileSync(join(dir, 'result.json'), JSON.stringify(result, null, 2));

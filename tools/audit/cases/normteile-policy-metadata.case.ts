@@ -1,6 +1,8 @@
 import { decide } from '../../../apps/desktop/src/main/agents/policy';
-import { STANDARD_PARTS_KEY } from '../../../apps/desktop/src/main/solidcraft/standardParts';
 import { openAudit, PLA_04 } from '../harness';
+
+// PartBuddy no longer reads or writes this key (review point 3); the policy still refuses it by its prefix.
+const STANDARD_PARTS_KEY = 'io.github.manuelstaggl.partbuddy.standard-parts';
 import { appState, attempt, finish, text } from '../normteile-policy-helpers';
 
 const NAME = 'normteile-policy/metadata';

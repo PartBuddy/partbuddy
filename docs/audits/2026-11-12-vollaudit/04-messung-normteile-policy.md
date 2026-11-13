@@ -156,3 +156,24 @@ seinem Schlusssatz zu sehen bekommt, ist hier nicht messbar (R1, kein Chat-Lauf)
   `out/normteile-policy/<fall>/normteile-policy/`.
 - Das Harness legt die Policy (`decide`) nicht vor die Werkzeuge; die Fälle rufen sie selbst auf und senden
   nur, was sie erlaubt.
+
+## Nachmessung 13.11.2026 (main `a6e52eb`, SolidCraft 0.40.1)
+
+Harness auf dem Audit-Zweig nach dem Merge von `origin/main` (`a6e52eb`, alle PRs bis #367), installiertes
+SolidCraft 0.40.1, ein Worker, ohne Fenster. Erster Lauf: 28 Dateien, 108 Tests, 13 rot (Erwartungen am
+alten Stand bzw. 0,3-mm-Deckel jetzt `warn`); nach dem Anpassen 29 Dateien, 109 Tests grün. Werte in `tools/audit/out/…` (nicht im Repo).
+
+| Kennung | behoben in | Urteil | gemessen am heutigen main | Fall |
+|---|---|---|---|---|
+| S-01 | #356 | behoben bestätigt | 13 von 13 Familien: `isLibraryPart(description, library)` = true und Körper in `structure.standardParts` (auch „Countersunk socket screw M3x8“) | `… normteile-policy-families` |
+| G2 / N-normteile-policy-1 | #356 | behoben bestätigt | `kind: screw, head: countersunk`: beide Schrauben in `standardParts`, gedruckt nur Block und Platte | `… normteile-policy-screw` |
+| H-01 / P-1 | #356 | behoben bestätigt | `component.metadata.set` mit `description` (direkt, als `values`, im Batch, als `Component.Metadata.Set`): deny; der Deckel bleibt gedruckt | `… normteile-policy-metadata`, `-library` "description" |
+| P-2 | #356 | behoben bestätigt | `move_bodies`, `copy_bodies`, `activate` + Box, `combine` und Box mit `join`, Normteil entfernt + Deckel hineingeschoben: der Deckel (bzw. `Sneak`) bleibt in der Prüfung; die Normteilkomponente mit fremdem Körper gilt ganz als gedruckt | `… normteile-policy-library` |
+| P-3 | #356 | behoben bestätigt | `document.metadata.set` auf den alten Schlüssel: deny; der in „SHCS M3x12“ umbenannte Deckel bleibt gedruckt | `… normteile-policy-library` "rename-into-key" |
+| P-4 | #356 | behoben bestätigt | Kaufliste 1 × Mutter M3, 2 × Scheibe M3 bei gleicher Teilenummer am Deckel, `bom_type: reference` und leerer Teilenummer | `… normteile-policy-library` "parts to buy" |
+| P-6 / W42 (b) | #356 | behoben bestätigt | `screenshot {path}`, als Batch-Schritt, `compare_picture {reference}`: deny | `… normteile-policy-decide` |
+| N-normteile-policy-2 | #365 | behoben bestätigt | Loch 3,4 mm 1 mm neben der Außenwand: `block`, `thinWall` 0 mm, 17 mm² | `… normteile-policy-raw` |
+| W42 (a) | – | weiter offen | `execute` in `execute`, `batch` als Befehl, `batch` als Batch-Schritt: allow | `… normteile-policy-decide` |
+| N-normteile-policy-4 | #356 | teilweise | `path` als Liste und als Kurven-Id lesbarer Pfad: weiter allow; `screenshot`, `compare_picture`, `sketch.replace {file}` deny | `… normteile-policy-decide` |
+| N-normteile-policy-6 / -7, S-18, X3, W14, R2 | – | weiter offen | Körper verstecken → `ready`; Gewinde M2/M3 modelliert → `ready`; `solid.scale` 0,5 → `ready`; `timeline.suppress` → `ready`; `set_parameter wnad` legt neuen Parameter an; rohe `solid.*`/`plastic.*` allow | `… normteile-policy-raw` |
+| neu | – | neu | Erste Erkennung aller Größen (185 Teile): 66,5 s, beim ersten Spiegeln alle 185 „ausstehend“; zweiter Lauf aus dem Speicher 0,19 s → N-nach-4 | `… normteile-policy-library` "every size" |

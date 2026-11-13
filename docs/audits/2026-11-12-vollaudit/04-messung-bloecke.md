@@ -104,3 +104,25 @@ bzw. auf 0,001 mm aus den Flächengrenzen). Befehl je Zeile: `V bloecke-sizes -t
 - **Export** (STL/3MF/STEP wieder einlesen): vom Harness nicht abgedeckt.
 
 Lücke im Harness: `openAudit('bloecke/<fall>')` scheitert in `finish()` am Export (`…\bloecke\w1\bloecke\w1.stl: its folder does not exist`), weil STL und `.sc` nach dem ganzen Fallnamen benannt werden. `openBlockAudit` in `tools/audit/bloecke-helpers.ts` legt den Unterordner an; die Dateien liegen deshalb unter `out/bloecke/<fall>/bloecke/<fall>.stl`.
+
+## Nachmessung 13.11.2026 (main `a6e52eb`, SolidCraft 0.40.1)
+
+Harness auf dem Audit-Zweig nach dem Merge von `origin/main` (`a6e52eb`, alle PRs bis #367), installiertes
+SolidCraft 0.40.1, ein Worker, ohne Fenster. Erster Lauf: 28 Dateien, 108 Tests, 13 rot (Erwartungen am
+alten Stand bzw. 0,3-mm-Deckel jetzt `warn`); nach dem Anpassen 29 Dateien, 109 Tests grün. Werte in `tools/audit/out/…` (nicht im Repo).
+
+| Kennung | behoben in | Urteil | gemessen am heutigen main | Fall |
+|---|---|---|---|---|
+| W1 | #348 | behoben bestätigt | `body: "A"`, Punkt auf B: alle Bausteine „Not built: it would change nothing on A …“ oder SolidCrafts Ablehnung als Satz, A und B je 0 mm³; `body: "Ghost"`: „there is no body named Ghost; the design has A, B“; Loch auf der gemeinsamen Kante: nur A −90,792 mm³, B 0 | `bloecke-w1` |
+| N-bloecke-2 | #348 | behoben bestätigt | `magnet`/`woodScrew` mit `body: "A"`, Punkt auf B: abgelehnt, 0 mm³ | `bloecke-w1` |
+| W2 / T4 / N-bloecke-1 | #365 | behoben bestätigt | Langloch ohne `depth` in der Dosenwand: Dose −86,158 mm³ (eine Wand), Gegenwand 2,000 mm heil, `Behind`/`Far`/`Beyond` 0. `screwHole` −18,158, `tappedHole` M5 −32,395 mm³, je nur die getroffene Wand. Antwort: „… not on through a far wall; give through body to go through all of Dose“ | `bloecke-w2` |
+| W3 | #355 | behoben bestätigt | `text` ohne Text, `""`, `"   "`: „Not built: text needs text: the words to write“, 0 mm³ | `bloecke-findings -t "W3:"` |
+| S-02 / T8 | #355 | behoben bestätigt | `tappedHole` M2, M2.5, M3, M4: „Not built: a printed M2 thread strips; use insertSeat … or tappedHole from M5“, 0 mm³ | `bloecke-findings -t "S-02"` |
+| N-bloecke-4 | #355 | behoben bestätigt | `insertSeat diameter: 0.01` und `500`: „Not built: the hole for an M3 insert is 4 mm wide; diameter may differ by a tenth of that (3.6 to 4.4 mm)“; `boss diameter: 1`: „at least 7.2 mm wide“ | `bloecke-findings -t "W31"` |
+| T1 / MV-01 | #347 | behoben bestätigt | Loch Ø 4,0 mm (`model.faces`) bei `insertSeat` M2.5, `boss` M2.5 und `kind: screw` M2.5 | `bloecke-sizes -t "insertseat"`, `-t "screw-m2_5"` |
+| MV-02 | #347 | behoben bestätigt | Dom-Wand M2 … M6: 2,0 / 2,0 / 2,0 / 2,1 / 2,6 / 3,3 mm (Dom Ø 7,2 / 8 / 8 / 9,8 / 11,6 / 14,6, Loch 3,2 / 4 / 4 / 5,6 / 6,4 / 8) | `bloecke-sizes -t "insertseat"` |
+| R54 | #357, #364, #365 | behoben bestätigt | Alle neun Fälle vom 12.11. abgelehnt mit dem gemessenen Material („Plate has 3 mm of plastic where 6.7 mm are needed …“), 0 mm³ entfernt, auch `kind: screw` am Rand („the counterbore … must lie wholly inside Cover“). Neue Fälle `r54-probe`: 8 von 8 guten (eben, 45°-Schräge, Stab Ø 40) gebaut, 10 von 10 schlechten abgelehnt; `r54-review2`: 6 von 6 wie verlangt (Fase, Stufe, Lasche, Tasche von unten) | `bloecke-findings -t "R54"`, `r54-probe`, `r54-review2` |
+| N-bloecke-3 | – | teilweise | SolidCrafts Ablehnung kommt als Satz („Not built: SolidCraft refused solid.hole: invalid parameters …“), nicht mehr als JSON | `bloecke-w1`, `bloecke-w2` |
+| N-bloecke-6 | – | weiter offen | `nutTrap` M3 in 2-mm-Wand: „Not built: SolidCraft refused solid.hole: … `position` [2.8, 20, 15] is not on a face …“ – die Ursache (Tasche tiefer als die Wand) wird nicht genannt | `bloecke-w2` |
+| N-bloecke-7 | – | weiter offen | M5 Senkkopf, Deckel 4,2 mm: „leaves 1.2 mm under the countersink; make it at least 4.2 mm thick“ | `bloecke-findings -t "T7"` |
+| W31 | – | weiter offen | `text height: 0.5` (−0,097 mm³), `slot` 0,05 × 0,05, `text depth: 500` (−321,8 mm³, durch den ganzen Würfel), `nutTrap flats: 0.1` – alle „Built“ | `bloecke-findings -t "W31"` |

@@ -80,3 +80,20 @@ Fälle unter `tools/audit/cases/`, Hilfsdatei `tools/audit/passung-texte-helpers
 haben keinen Ergebnisweg; `tools/audit/passung-texte-helpers.ts` ergänzt `save()` (nach
 `out/passung-texte/`), `source()` (Quelltext zum Zählen) und ein `PartPrint` für `printNote`.
 `tools/audit/out/` ist über `.gitignore:17` (`out/`) bereits ausgenommen.
+
+## Nachmessung 13.11.2026 (main `a6e52eb`, SolidCraft 0.40.1)
+
+Harness auf dem Audit-Zweig nach dem Merge von `origin/main` (`a6e52eb`, alle PRs bis #367), installiertes
+SolidCraft 0.40.1, ein Worker, ohne Fenster. Erster Lauf: 28 Dateien, 108 Tests, 13 rot (Erwartungen am
+alten Stand bzw. 0,3-mm-Deckel jetzt `warn`); nach dem Anpassen 29 Dateien, 109 Tests grün. Werte in `tools/audit/out/…` (nicht im Repo). Die Fälle T2, D5, MG-05 und R1/R3 prüfen jetzt den behobenen Stand; R1 bildet den Weg seit #357 nach (`withCheckOfChange`, `CheckTold`).
+
+| Kennung | behoben in | Urteil | gemessen am heutigen main | Fall |
+|---|---|---|---|---|
+| T2 | #349 | behoben bestätigt | Lesung bei Düse 0,6 (`applyReadings(…, 0.6)`, `measuredNozzle`): Notiz bei 0,6 „slide 0.3 mm“; bei 0,2 / 0,4 / 0,8: 0,1 / 0,2 / 0,4 mm | `passung-texte-t2` |
+| MG-05 | #352 | behoben bestätigt | `[auto 1×nozzle]` bei Düse 0,2 und 0,25: 0,3 mm | `passung-texte-mg05` |
+| D5 | #350 | behoben bestätigt | Bericht `block` ohne Überhang: „Supports: not settled: the print check found problems …“; keine Prüfung: „not checked“; `ready`/`warn` ohne Überhang: „… found no face that needs them; the slicer decides“ (de entsprechend) | `passung-texte-d5` |
+| R1 | #357 | behoben bestätigt | Werkzeugantwort einer Änderung trägt die Prüfung: Sperrmeldung im selben Zug; noch nicht da: „… still running; call partbuddy_view for it before you call the part done“; gleiche Lage nach weiterer Änderung: „unchanged, still not ready to print, the same 1 finding as before“ | `passung-texte-r1-r3` |
+| R3 | #357 | behoben bestätigt | „nothing found in what it checks (build volume, wall and floor thickness, …)“ und „Not checked: strength and layer direction under load, the fits and hole allowances you chose, details and text too fine to print, bed-edge chamfers“ | `passung-texte-r1-r3` |
+| R4 | #351 | behoben bestätigt | Satz: „draw the pilot hole 0.8 times the screw's diameter (2.0 mm for M2.5, 2.4 mm for M3) plus the hole allowance of the print profile“ | `passung-texte-standards` |
+| N-passung-texte-4 | #357 | behoben bestätigt | siehe R1: die Werkzeugantwort sagt „unchanged …“ auch bei gleichem Wortlaut | `passung-texte-r1-r3` |
+| N-passung-texte-1 | – | weiter offen | `usePrintCheck.ts` nimmt `clearance.push` ungeskaliert (`scaleClearance` kommt nicht vor) | `passung-texte-t2` |

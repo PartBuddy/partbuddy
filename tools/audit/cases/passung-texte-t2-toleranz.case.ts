@@ -9,7 +9,9 @@ import { partPrint, save, source, startingMaterial } from '../passung-texte-help
 test('T2: a clearance read off the test pieces, as the assistant gets it', () => {
   const pla = startingMaterial('pla');
   const readings = { fits: { clamp: 0.05, push: 0.15, slide: 0.3, turn: 0.35 }, holes: [null, null, null, null], overhang: null };
-  const applied = applyReadings(pla, readings);
+  // Read on pieces printed with a 0.6 mm nozzle; since PR #349 the profile remembers that nozzle (ToleranceAssistant.tsx).
+  const applied = applyReadings(pla, readings, 0.6);
+  const from = applied.material.measuredNozzle;
   const perNozzle = [0.2, 0.25, 0.4, 0.6, 0.8].map((nozzle) => {
     const layer = nozzle / 2;
     // The comb hole the user reads "0.3" off: built for this nozzle (ToleranceAssistant.tsx:58,79).
@@ -21,10 +23,10 @@ test('T2: a clearance read off the test pieces, as the assistant gets it', () =>
       combClearancePerSide: (Number(hole?.params.diameter) - PIN) / 2,
       storedSlide: applied.material.clearance.slide,
       scaled: {
-        clamp: scaleClearance(applied.material.clearance.clamp, { nozzle, layer }),
-        push: scaleClearance(applied.material.clearance.push, { nozzle, layer }),
-        slide: scaleClearance(applied.material.clearance.slide, { nozzle, layer }),
-        turn: scaleClearance(applied.material.clearance.turn, { nozzle, layer }),
+        clamp: scaleClearance(applied.material.clearance.clamp, { nozzle, layer }, from),
+        push: scaleClearance(applied.material.clearance.push, { nozzle, layer }, from),
+        slide: scaleClearance(applied.material.clearance.slide, { nozzle, layer }, from),
+        turn: scaleClearance(applied.material.clearance.turn, { nozzle, layer }, from),
       },
       noteClearanceLine: note.split('\n').find((line) => line.startsWith('Clearance per side')),
       noteFitsLine: /press fit [^(]+\(the material's values, scaled for this nozzle\)/.exec(note)?.[0],
@@ -35,7 +37,7 @@ test('T2: a clearance read off the test pieces, as the assistant gets it', () =>
     status: 'warn',
     nozzle: 0.2,
     revision: 1,
-    findings: [{ kind: 'tight', severity: 'warn', bodies: ['Pin', 'Hole'], gap: scaleClearance(applied.material.clearance.push, { nozzle: 0.2, layer: 0.1 }), minimum: applied.material.clearance.push, places: [] }],
+    findings: [{ kind: 'tight', severity: 'warn', bodies: ['Pin', 'Hole'], gap: scaleClearance(applied.material.clearance.push, { nozzle: 0.2, layer: 0.1 }, from), minimum: applied.material.clearance.push, places: [] }],
   });
   const result = {
     readings,
@@ -51,6 +53,7 @@ test('T2: a clearance read off the test pieces, as the assistant gets it', () =>
   const at06 = perNozzle.find((row) => row.nozzle === 0.6);
   expect(at06?.combClearancePerSide).toBeCloseTo(0.3, 9);
   expect(at06?.storedSlide).toBe(0.3);
-  expect(at06?.scaled.slide).toBe(0.45);
-  expect(at06?.noteClearanceLine).toContain('slide 0.45 mm');
+  // T2 fixed (PR #349): on the nozzle of the reading the fit is used as read.
+  expect(at06?.scaled.slide).toBe(0.3);
+  expect(at06?.noteClearanceLine).toContain('slide 0.3 mm');
 });

@@ -158,6 +158,7 @@ export async function summarize(audit: Audit, pair: [string, string] | null, opt
     interference: interference === null ? null : { count: (interference as { count?: unknown }).count, error: (interference as { error?: unknown }).error },
     joints: ((joints as { joints?: { name?: unknown; type?: unknown; values?: unknown }[] } | undefined)?.joints ?? []).map((joint) => ({ name: joint.name, type: joint.type, values: joint.values })),
     down: Object.fromEntries(bodies.map((body) => [body.name, { ownBed: downFaces(body, options.up?.[body.name] ?? 1), ...(options.up ? {} : { commonBed: downFaces(body, 1, commonBed) }) }])),
+    checkMs: (() => { const s = performance.now(); (options.profiles ?? ['pla04', 'petg04', 'pla06']).forEach((name) => check(PROFILES[name]!)); return Math.round(performance.now() - s); })(),
     check: Object.fromEntries((options.profiles ?? ['pla04', 'petg04', 'pla06']).map((name) => [name, check(PROFILES[name]!)])),
     measured: bodies,
   };

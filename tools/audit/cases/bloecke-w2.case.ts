@@ -30,7 +30,7 @@ for (const [name, args] of [
       const along = spans(bodies, [-5, 20, 15], [1, 0, 0]);
       // Beside the cut (z = 25), where every wall is whole: the reference.
       const beside = spans(bodies, [-5, 20, 25], [1, 0, 0]);
-      await audit.finish({ args, reply, before, removed_mm3: removed(before, after), along: along.walls, alongHits: along.hits, beside: beside.walls, bodies: bodies.map(summary), printCheck: check({ bed: [256, 256, 256], nozzle: 0.4, overhang: 45 }) });
+      await audit.finish({ args, reply, before, removed_mm3: removed(before, after), along: along.walls, alongHits: along.hits, beside: beside.walls, bodies: bodies.map(summary), printCheck: check({ bed: [256, 256, 256], nozzle: 0.4, layer: 0.2, overhang: 45 }) });
       expect(reply.text).not.toBe('');
     } finally {
       await audit.close();

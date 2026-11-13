@@ -64,7 +64,8 @@ await audit.finish(result); await audit.close();
 - No STL/3MF/STEP re-import (phase 4, step 4): `packages/geometry` parses only SolidCraft's
   face-tagged 3MF.
 - The print check runs as `checkPrint` on the bodies as designed, with the timeline's features; the
-  app's additions `withClearance` and `withMotion` and SolidCraft's print faces are not fed in.
+  app's additions `withClearance` and `withMotion` and SolidCraft's print faces are not fed in. Print-in-place
+  groups (`structure.printGroups`, PR #366) are, as `usePrintCheck.ts` does.
 - Only `partbuddy_block` and `partbuddy_mechanism` are stacked on SolidCraft's tools; the other
   PartBuddy tools (standard, assembly, design, drawing, view) and the note guard are not.
 - `ray()` measures along one line the case gives; it does not search the thinnest wall or the

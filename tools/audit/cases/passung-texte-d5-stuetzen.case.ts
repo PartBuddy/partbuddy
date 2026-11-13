@@ -26,9 +26,9 @@ test('D5: "Supports" in the sharing description', () => {
     nozzle: 0.4,
     revision: 7,
     findings: [
-      { kind: 'thinWall', severity: 'block', thickness: 0.3, minimum: 0.9, area: 50, places: [{ body: 'Body', faces: ['F1:side:0'] }] },
-      { kind: 'size', severity: 'block', size: [300, 40, 10], bed: [256, 256, 256], lying: false },
-      { kind: 'contact', severity: 'warn', area: 4, places: [] },
+      { kind: 'thinWall', severity: 'block', floor: false, thickness: 0.3, minimum: 0.9, area: 50, places: [{ body: 'Body', faces: ['F1:side:0'] }] },
+      { kind: 'size', severity: 'block', body: 'Body', size: [300, 40, 10], bed: [256, 256, 256], lying: false },
+      { kind: 'contact', severity: 'warn', area: 4, bodies: 1, places: [] },
     ],
   });
   const rows = (['en', 'de'] as const).flatMap((language) => [
@@ -50,5 +50,6 @@ test('D5: "Supports" in the sharing description', () => {
     revisionComparedAt: index.split('\n').flatMap((line, i) => (line.includes('printCheck.revision') ? [i + 1] : [])),
   };
   save('d5-stuetzen', result);
-  expect(rows[1]?.line).toBe('- Supports: none needed, it prints as designed');
+  // D5 fixed (PR #350): a blocked check settles nothing about supports.
+  expect(rows[1]?.line).toBe('- Supports: not settled: the print check found problems that keep the part from printing');
 });

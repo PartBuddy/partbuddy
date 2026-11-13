@@ -121,3 +121,25 @@ D41 (Stäbe über Kreuz ohne `separate`).
 - `check()` des Harness enthält weder `withClearance` noch Druckflächen; die Durchdringungsfälle
   rufen `inspect.clearance` selbst und geben das Ergebnis durch `clearanceOf` (App) und
   `withClearance`, Presspassung 0,15 mm (PLA, `printProfiles.ts:53`).
+
+## Nachmessung 13.11.2026 (main `a6e52eb`, SolidCraft 0.40.1)
+
+Harness auf dem Audit-Zweig nach dem Merge von `origin/main` (`a6e52eb`, alle PRs bis #367), installiertes
+SolidCraft 0.40.1, ein Worker, ohne Fenster. Erster Lauf: 28 Dateien, 108 Tests, 13 rot (Erwartungen am
+alten Stand bzw. 0,3-mm-Deckel jetzt `warn`); nach dem Anpassen 29 Dateien, 109 Tests grün. Werte in `tools/audit/out/…` (nicht im Repo). Die Harness reicht seit dieser Messung die Druckgruppen (`structure.printGroups`, PR #366) an `checkPrint` weiter wie `usePrintCheck.ts`.
+
+| Kennung | behoben in | Urteil | gemessen am heutigen main | Fall |
+|---|---|---|---|---|
+| D1 / MG-03 | #353 | behoben bestätigt | zwei Würfel 300 mm auseinander und zwei Platten 200 mm: `ready` | B |
+| D2 / MG-02 | #353 | behoben bestätigt | Stab 300 × 10 × 5 und 300 × 20 × 10: `ready`; Kontrolle 370 × 10 × 5: `block` `size` | B |
+| D3 | #353 | behoben bestätigt | Würfel + Kugel: `contact` 0 mm² an der Kugel; Würfel + Kegel auf der Spitze: `contact` 1 mm² am Kegel | B |
+| D4 | #353 | behoben bestätigt | Boden 0,2 / 0,3 / 0,4 / 0,6 mm flach: `warn`, `thinWall` mit `floor: true`, Minimum 0,8 mm (4 Schichten); 0,8 und 1,0: `ready`. Stehende Wand 0,3: `block`, 0,6: `warn` (Minimum 0,9) | B |
+| D6 | #353 | behoben bestätigt | alle drei Keile 0,2 ↔ 2,5 mm: `block`, `thinWall` 0,2 mm auf 363–364 mm² | B |
+| MG-01 | #353, #363 | behoben bestätigt | Decke 40 × 40: `overhang` 1600 mm²; Brücke 40 mm: 800 mm²; Decke 100 × 100: 10 000 mm²; Kontrolle Brücke 3 mm: `ready` | B |
+| MG-04 | #353 | behoben bestätigt | Wand und Platte 0,9 mm: kein `thinWall`; Wand 0,89: `thinWall` 0,89; Platte 0,89 flach: `ready` (Boden ≥ 0,8) | B |
+| N-druckpruefung-1 | #353 | behoben bestätigt | Dose Boden 0,8 / Wand 1,35: `ready` | B |
+| N-druckpruefung-2 | #353 | behoben bestätigt | Rohr aus Flächen, Würfel mit gelöster Fläche, gelöste Flächen, offenes Netz: jeweils `block`, `open` | G |
+| G1 | #366 | behoben bestätigt | Dose und Deckel mit Scharnier (`g1-scharnier-dose-deckel`): Deckel `overhang` 1253 mm² inkl. Unterseite `F2:-z` (gemeinsames Bett). Ohne Gelenk (`g1-dose-und-deckel-auf-27`) weiter `ready` – gewollt, gruppiert werden nur die Paare der Mechanik-Werkzeuge | B |
+| D19 | – | weiter offen | Prisma 46°: `ready` (287,9 mm² grenzwertig) | G |
+| N-druckpruefung-4 | – | weiter offen | Würfel 10 mm über dem Bett, eigener Körper: `ready` | G |
+| N-druckpruefung-3 / D41 | – | weiter offen | Stäbe über Kreuz (gestapelt und durchdrungen): `checkPrint` allein `ready` | G |

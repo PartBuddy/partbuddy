@@ -133,3 +133,25 @@ Lücken des Harness, in `mechanik-helpers.ts` umgangen: keine Auswertung nach Wi
 exportieren kein STL und kein `.sc`; `audit.batch` trägt nichts in `sent` ein (bei den Vorlagen bleibt `sent.json` leer);
 ein Strahl, der im Material beginnt oder genau auf einer Dreieckskante läuft, liefert vertauschte bzw. fehlende
 Strecken (die Strahlen der Szenen sind deshalb leicht aus der Symmetrie gerückt).
+
+## Nachmessung 13.11.2026 (main `a6e52eb`, SolidCraft 0.40.1)
+
+Harness auf dem Audit-Zweig nach dem Merge von `origin/main` (`a6e52eb`, alle PRs bis #367), installiertes
+SolidCraft 0.40.1, ein Worker, ohne Fenster. Erster Lauf: 28 Dateien, 108 Tests, 13 rot (Erwartungen am
+alten Stand bzw. 0,3-mm-Deckel jetzt `warn`); nach dem Anpassen 29 Dateien, 109 Tests grün. Werte in `tools/audit/out/…` (nicht im Repo).
+
+| Kennung | behoben in | Urteil | gemessen am heutigen main | Fall |
+|---|---|---|---|---|
+| T5 | #358 | behoben bestätigt | Vorgabe: Dach 45° über der Nut, Firstbrücke 5 mm, PLA `ready`, Antwort „The two print apart …“. Breite 20 bzw. 60: Antwort „The groove's ceiling is flat and 27.9 / 101.9 mm wide, more than prints as a bridge … Print Stop turned over“, Prüfung meldet die Decke | O "T5" |
+| N-mechanik-1 | #353 | behoben bestätigt | `slide-max`: `overhang` 3058 mm² (nach Winkel 3057,96 = wie geprüft) | O "T5" |
+| N-mechanik-2 | #358 | behoben bestätigt | Wulst bis y 38,25 mm, über die Länge (x −6,5 … 6,5) gleich: 0,25 mm in der Rille | O "T13" |
+| N-mechanik-3 | #358 | behoben bestätigt | zweites Scharnier heißt „Hinge (2)“; auf derselben Linie teilt es das Gelenk („turns about that hinge's joint“), auf einer anderen Linie „Not built: the joint "Hinge" already joins Base and Flap … on another line“ | H "H-02", `mechanik-review` "review 3" |
+| N-mechanik-4 | #358 | behoben bestätigt | Scharnier mit Stegen Ø 8 / Ø 40 und auf den Schalen der Vorlage: PLA `ready` | H "hinge with support", H "T3" |
+| N-mechanik-5 | #358 | behoben bestätigt | Deckelplatte ohne Wand darunter: „the 2 of Lid got no web: … there is no wall …“; die Prüfung meldet die Deckelunterseite (1253 mm²) | H "G1" |
+| H-02 | #358, #364 | behoben bestätigt | beide Körper in einer Komponente: „Not built: SolidCraft refused joint.as_built: … Everything was taken back.“, Körper unverändert | H "H-02" |
+| G1 | #366 | behoben bestätigt | Deckelblock z 22…31,5 (`g1-lid-underside-lowest`): `overhang` 1265 mm² inkl. Unterseite `F2:-z` (vorher als Bett gezählt) | H "G1" |
+| M-1 | #364 | behoben bestätigt | 185 Körper vorab, Scharnier scheitert: alles zurückgenommen, Zeitleiste 187 Schritte vorher und nachher, Körper unverändert, aktive Komponente 0 | `mechanik-review` "review 2" |
+| M-2 | #358 | behoben bestätigt | Schieber mit Knopf, Schublade, Fase: bleibt ein Körper (1 Schale), kein Dach, Antwort sagt warum; Prüfung meldet die Nutdecke 418 mm² | `mechanik-review` "review 1" |
+| T3 | #358 | weiter offen (Rest) | Vorlage `hingedBox` unverändert: `warn`, `overhang` 63 mm² am Deckel (Seiten `F18`/`F20` am Verschluss `F10`/`F12`), vorher 134,86 mm² an den Augen. Dasselbe Scharnier über das Werkzeug auf den Schalen: `ready` | H "T3", `mechanik-fix` |
+| N-mechanik-6 | #358 | erledigt (Text) | Antwort sagt jetzt „The two print apart, each with up pointing up“ | O "T5" |
+| neu | – | neu falsch | Vorlage nach Änderung im Parameterfeld (height 24, length 80, wall 3): `block`, `thinWall` 0,26 mm auf 93 mm² am Deckel → N-nach-1. Vorlage mit height 5: `block`, „Closure ◢: the reference … no longer exists“ → N-nach-2. `joint.sweep` 0 → 180° der Vorlage stoppt bei 175,6° → N-nach-3 | `mechanik-fix`, `mechanik-review` "review 6" |
