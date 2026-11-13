@@ -123,6 +123,33 @@ export function lyingTube(name: string, outer: number, inner: number, length: nu
   return finish(name, built);
 }
 
+/** A solid rod lying along X on the bed, `radius` round, `length` long: faces `F1:side` (a cylinder), `F1:-x`, `F1:+x`. */
+export function lyingRod(name: string, radius: number, length: number, segments = 24) {
+  const built: Built = {
+    positions: [0, 0, radius, length, 0, radius],
+    indices: [],
+    triangleFaces: [],
+    names: ['F1:side', 'F1:-x', 'F1:+x'],
+    normals: [undefined, [-1, 0, 0], [1, 0, 0]],
+    cylinders: [{ origin: [0, 0, radius], axis: [1, 0, 0], radius }],
+  };
+  for (const x of [0, length]) {
+    for (let i = 0; i < segments; i += 1) {
+      const angle = (i * 2 * Math.PI) / segments;
+      built.positions.push(x, radius * Math.sin(angle), radius - radius * Math.cos(angle));
+    }
+  }
+  const [r0, r1] = [2, 2 + segments];
+  for (let i = 0; i < segments; i += 1) {
+    const j = (i + 1) % segments;
+    built.indices.push(r0 + i, r0 + j, r1 + j, r0 + i, r1 + j, r1 + i);
+    built.triangleFaces.push(0, 0);
+    built.indices.push(0, r0 + j, r0 + i, 1, r1 + i, r1 + j);
+    built.triangleFaces.push(1, 2);
+  }
+  return finish(name, built);
+}
+
 /**
  * A prism along Y: the convex outline in the XZ plane (counter-clockwise seen from -y, i.e. with
  * X right and Z up), `length` deep. Faces `F1:s0`, `F1:s1` … per outline edge, then `F1:-y`, `F1:+y`;

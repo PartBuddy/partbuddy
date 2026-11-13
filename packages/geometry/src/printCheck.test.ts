@@ -7,7 +7,7 @@ import { smallOverhangReach } from './overhang';
 import { checkPrint, laidBodies, minimumFloor, minimumWall, thinnestLine, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
-import { boxesBody, gridBody, lathe, lyingTube, posed, prismBody, rawBody, revolved } from './testShapes';
+import { boxesBody, gridBody, lathe, lyingRod, lyingTube, posed, prismBody, rawBody, revolved } from './testShapes';
 import { buildViewerModel } from './viewerModel';
 
 const PLA: PrintCheckProfile = { bed: [256, 256, 256], nozzle: 0.4, layer: 0.2, overhang: 45 };
@@ -449,11 +449,35 @@ describe('bodies that touch (audit N-druckpruefung-3, MG-19, D41)', () => {
 
 describe('thin walls, wherever they are (audit MG-16, D7, D39, MG-18, D40)', () => {
   const wall = (thickness: number) => boxesBody('Wall', [[[0, 0, 0], [20, thickness, 20]]]);
-  const thinIn = (bodies: PrintCheckBody[], place: (typeof PLACES)[number]) => checkPrint(placed(bodies, place), PLA).findings.find((f) => f.kind === 'thinWall' && !f.floor);
+  const thinIn = (bodies: PrintCheckBody[], place: (typeof PLACES)[number], profile = PLA) => checkPrint(placed(bodies, place), profile).findings.find((f) => f.kind === 'thinWall' && !f.floor);
+
+  it('takes Bambu Studio\'s outer wall line for every nozzle: the nozzle and 0.02 mm (second review of PR 371, S4)', () => {
+    // 1.05 times the nozzle put 0.62 at the 0.6 mm nozzle, 0.82 at 0.8 and 0.26 at 0.25 under the line: red for walls Bambu lays.
+    for (const nozzle of [0.2, 0.25, 0.4, 0.6, 0.8]) {
+      expect(thinnestLine(nozzle)).toBe(Math.round((nozzle + 0.02) * 1000) / 1000);
+      for (const place of [PLACES[0]!, { turn: 30, mirrored: true, lift: 10 }]) {
+        const where = `${String(nozzle)} ${JSON.stringify(place)}`;
+        expect(thinIn([wall(nozzle + 0.02)], place, { ...PLA, nozzle }), where).toMatchObject({ severity: 'warn' });
+        expect(thinIn([wall(nozzle + 0.01)], place, { ...PLA, nozzle }), where).toMatchObject({ severity: 'block' });
+      }
+    }
+  }, PATIENCE);
+
+  it('measures a solid round rod across itself, not as a wall of nothing (second review of PR 371, B2)', () => {
+    // Both sides of a rod are its one round face: the same radius read as 0 mm and blocked a rod of 0.8 mm.
+    for (const [diameter, severity] of [[0.8, 'warn'], [0.6, 'warn'], [0.4, 'block']] as const) {
+      for (const place of PLACES) {
+        const found = thinIn([lyingRod('Rod', diameter / 2, 20)], place);
+        const where = `${String(diameter)} ${JSON.stringify(place)}`;
+        expect(found, where).toMatchObject({ severity });
+        expect(found && 'thickness' in found ? found.thickness : 0, where).toBeGreaterThan(diameter - 0.05);
+      }
+    }
+  }, PATIENCE);
 
   it('blocks a wall under the narrowest line a slicer lays (0.42 mm for the 0.4 mm nozzle), not first under the nozzle', () => {
     expect(thinnestLine(0.4)).toBe(0.42);
-    expect(thinnestLine(0.6)).toBe(0.63);
+    expect(thinnestLine(0.6)).toBe(0.62);
     for (const place of PLACES) {
       const where = JSON.stringify(place);
       // A plate standing 0.41 mm thin is under Bambu Studio's outer wall line of 0.42 (it read as a warning, audit MG-16).
@@ -536,6 +560,12 @@ describe('what stands tall on too little (audit D17, MG-20)', () => {
     ['a cube 20', boxesBody('Cube', [[[0, 0, 0], [20, 20, 20]]]), false],
     ['a post 10 × 10 × 40', boxesBody('Post', [[[0, 0, 0], [10, 10, 40]]]), false],
     ['a plate 60 × 2 × 10, on its edge', boxesBody('Fin', [[[0, 0, 0], [60, 2, 10]]]), false],
+    // Slender plates on edge, just under and over Bambu's 5 mm brim along their main axes; the worst of all directions
+    // read them 1.6 and 1.2 times higher, at an angle no slicer reads (second review of PR 371, S5).
+    ['a sign 100 × 4 × 60 on its edge (Bambu: 4.2 mm, no brim)', boxesBody('Sign', [[[0, 0, 0], [100, 4, 60]]]), false],
+    ['a sign 100 × 4 × 66 on its edge (Bambu: 5.1 mm)', boxesBody('Sign', [[[0, 0, 0], [100, 4, 66]]]), true],
+    ['a small part 10 × 3 × 15 (Bambu: 4.7 mm, no brim)', boxesBody('Clip', [[[0, 0, 0], [10, 3, 15]]]), false],
+    ['a small part 10 × 3 × 16 (Bambu: 5.3 mm)', boxesBody('Clip', [[[0, 0, 0], [10, 3, 16]]]), true],
     // Round: Bambu lays a brim of 5.1 mm round a pin of 10 mm, 40 high (review of PR #371, S1); not at 20 high.
     ['a round pin 10 × 40', rawBody('Pin', lathe([[0, 0], [5, 0], [5, 40], [0, 40]], 64)), true],
     ['a round pin 10 × 20', rawBody('Pin', lathe([[0, 0], [5, 0], [5, 20], [0, 20]], 64)), false],

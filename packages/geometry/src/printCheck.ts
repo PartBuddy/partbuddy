@@ -110,13 +110,18 @@ export interface PrintCheck {
 }
 
 /**
- * The narrowest line a slicer lays by default: Bambu Studio's outer wall, 0.42 mm for a 0.4 mm nozzle
- * (fdm_process_common.json `outer_wall_line_width`; PrusaSlicer 0.45, Arachne narrower still). A wall under it does not
- * print as a wall: under the nozzle alone was too late (audit MG-16, yardstick S1/S3), under Prusa's 0.45 too early, as a
- * wall of just one line drawn at 0.45 mm reads a little under it on a mesh (review of PR #371, B1).
+ * The narrowest line a slicer lays by default: Bambu Studio's outer wall, the nozzle and 0.02 mm (0.22, 0.42, 0.62 and
+ * 0.82 mm for its 0.2, 0.4, 0.6 and 0.8 mm nozzles: `outer_wall_line_width` of fdm_process_common.json and of
+ * fdm_process_single_0.10_nozzle_0.2, …_0.30_nozzle_0.6, …_0.40_nozzle_0.8; PrusaSlicer 0.45 at 0.4, Arachne narrower
+ * still). A wall under it does not print as a wall: under the nozzle alone was too late (audit MG-16, yardstick S1/S3),
+ * under Prusa's 0.45 too early, as a wall of just one line drawn at 0.45 mm reads a little under it on a mesh (review of
+ * PR #371, B1), and 1.05 times the nozzle was over Bambu's line for every nozzle but 0.4 (second review, S4).
+ * shortcut: PrusaSlicer's profiles lay 0.25 mm outer walls on its 0.25 mm nozzle and 0.61 mm on 0.6 (PrusaResearch
+ * 2.3.2.ini), so walls of 0.25–0.27 and 0.61 mm read red there though Prusa prints them; take the slicer of the
+ * profile into the rule if those turn up.
  */
 export function thinnestLine(nozzle: number): number {
-  return Math.round(nozzle * 1.05 * 1000) / 1000;
+  return Math.round((nozzle + 0.02) * 1000) / 1000;
 }
 
 /** Two extrusion lines of the nozzle: the thinnest wall that prints solid. */
@@ -237,7 +242,8 @@ function hollowAt(model: PrintCheckBody['model'], t: number, normal: Vector3, ce
 const ALONG = Math.sin((15 * Math.PI) / 180);
 
 /**
- * The wall between two cylinders round one axis: the difference of their radii; null when they are no such pair.
+ * The wall between two cylinders round one axis: the difference of their radii; null when they are no such pair, or of one
+ * radius: the far side of the same round face is across a solid rod, measured on the mesh (second review of PR #371, B2).
  * shortcut: other curved walls (a sphere, a fillet, a cone) are measured on the mesh, a little under their true size;
  * measure them on SolidCraft's surfaces if walls of just one line drawn round such faces turn red.
  */
@@ -248,7 +254,8 @@ function coaxial(a: FaceInfo | undefined, b: FaceInfo | undefined): number | nul
   if (Math.abs(Math.abs(axis.dot(new Vector3(...q.axis).normalize())) - 1) > 1e-6) return null;
   const off = new Vector3(...q.origin).sub(new Vector3(...p.origin));
   if (off.sub(axis.multiplyScalar(off.dot(axis))).length() > 1e-3) return null;
-  return Math.abs(p.radius - q.radius);
+  const gap = Math.abs(p.radius - q.radius);
+  return gap < 1e-6 ? null : gap;
 }
 
 /** What is too thin in one body: the faces under the minimum, and the area (mm²) that does not print at all. */
@@ -513,8 +520,11 @@ function addToFootprint(foot: Footprint, [ax, ay, , bx, by, , cx, cy]: readonly 
  * under 5 mm, or under 1.5 times the footprint's diagonal, is left out. The adhesion factor is 1, that of PLA.
  * A piece that would get one has too little on the bed for its height: it may come loose or tip over (audit D17, MG-20;
  * no source names a fixed area, the 25 mm² before had none). A 5 × 5 × 200 mm tower gets one, a 4 × 4 × 10 mm pin not.
- * Bambu reads X and Y as the part lies in the slicer; the check takes the worst direction instead, so turning a fin on
- * the plate does not change the answer (a square post reads up to √2 more than Bambu's along its sides).
+ * Bambu reads X and Y as the part lies in the slicer; the check reads the footprint's two main axes instead, where its
+ * second moment is least and most, so turning a fin on the plate does not change the answer, and a part exported along
+ * its axes reads as Bambu reads it. A footprint alike all round (a square, a circle) has no main axes: it is read across
+ * its narrowest width, as Bambu reads a square along its sides. The worst of all directions read slender plates up to
+ * 1.6 times Bambu's (second review of PR #371, S5).
  * shortcut: PETG (factor 2) and TPU (0.5) are taken as PLA, the speed is Bambu's standard, and the footprint is the
  * faces on the bed, not the first layer the slicer cuts: a chamfer or a round at the foot leaves the footprint smaller
  * than that layer, so such a part reads a little less steady than Bambu takes it, and a round footprint's extent is its
@@ -528,22 +538,23 @@ function tipsOver(foot: Footprint, bed: number): boolean {
   const cy = foot.y / foot.area;
   const [xx, yy, xy] = [foot.xx - foot.area * cx * cx, foot.yy - foot.area * cy * cy, foot.xy - foot.area * cx * cy];
   const hull = outlineOf(foot.corners);
-  // Every degree, and the two main axes of the footprint, where its second moment is least and most.
-  const main = 0.5 * Math.atan2(2 * xy, xx - yy);
-  const angles = [main, main + Math.PI / 2, ...Array.from({ length: 180 }, (_, i) => (i * Math.PI) / 180)];
-  let worst = 0;
-  let diagonal = 0;
-  for (const angle of angles) {
+  const extent = (angle: number) => {
     const [c, s] = [Math.cos(angle), Math.sin(angle)];
-    const spread = c * c * xx + 2 * c * s * xy + s * s * yy;
     let [low, high] = [Infinity, -Infinity];
     for (const [x, y] of hull) {
       low = Math.min(low, x * c + y * s);
       high = Math.max(high, x * c + y * s);
     }
-    diagonal = Math.max(diagonal, high - low);
-    worst = Math.max(worst, (high - low) / Math.max(spread, 1e-9));
-  }
+    return high - low;
+  };
+  const spread = (angle: number) => Math.cos(angle) ** 2 * xx + 2 * Math.cos(angle) * Math.sin(angle) * xy + Math.sin(angle) ** 2 * yy;
+  const degrees = Array.from({ length: 180 }, (_, i) => (i * Math.PI) / 180);
+  const widths = degrees.map(extent);
+  const diagonal = Math.max(...widths);
+  const main = 0.5 * Math.atan2(2 * xy, xx - yy);
+  const [least, most] = [spread(main), spread(main + Math.PI / 2)];
+  const alike = Math.abs(least - most) <= 1e-3 * (least + most);
+  const worst = alike ? Math.min(...widths) / Math.max(least, 1e-9) : Math.max(extent(main) / Math.max(least, 1e-9), extent(main + Math.PI / 2) / Math.max(most, 1e-9));
   const brim = ((height * height) / 1920) * worst * BRIM_SPEED;
   return brim >= Math.min(BRIM_LEAST, 1.5 * diagonal);
 }
