@@ -720,6 +720,64 @@ describe('the screw joint (standards)', () => {
     expect(text).toContain('Built 2 screw joints "Plate screws" that hold Plate on Block: in Plate a clearance hole for M3 (ISO 273, normal) with a counterbore for the head, in Block the seat of a heat-set insert (4 mm wide, 6.7 mm deep).');
     expect(text).toContain('To buy: 2 × M3×8 socket head cap screws (ISO 4762) and 2 M3 heat-set inserts 5.7 mm long; the screws are in the design as standard parts.');
   });
+
+  describe('is built only where the plastic is: 2 mm round each insert, and the room for each head inside the moving body (audit R54)', () => {
+    /**
+     * Base 40 × 40 × 10 with Cover 40 × 40 × 5 on it, as boxes. A probe cylinder along Z finds plastic over its height
+     * within a box, all of it where its disc lies in the box from above, a tenth less where the disc reaches over an edge.
+     */
+    function boxes() {
+      const sent: string[] = [];
+      const box: Record<string, [number, number, number, number, number, number]> = { Base: [0, 0, 0, 40, 40, 10], Cover: [0, 0, 10, 40, 40, 15] };
+      const upstream: UpstreamTools = {
+        instructions: () => undefined,
+        listTools: () => Promise.resolve([]),
+        callTool: (name, args) => {
+          if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Cover' }] }) }] });
+          const commands = args.commands as { command: string; params: Record<string, unknown> }[];
+          sent.push(commands.map((step) => step.command).join(' '));
+          let probe = { x: 0, y: 0, r: 0, low: 0, high: 0 };
+          const results = commands.map((step) => {
+            if (step.command === 'solid.cylinder') {
+              const [base, height, way] = [step.params.base as number[], parseFloat(String(step.params.height)), (step.params.axis as number[])[2] ?? 0];
+              const z = base[2] ?? 0;
+              probe = { x: base[0] ?? 0, y: base[1] ?? 0, r: parseFloat(String(step.params.diameter)) / 2, low: Math.min(z, z + way * height), high: Math.max(z, z + way * height) };
+            }
+            if (step.command === 'inspect.interference') {
+              const [x0, y0, z0, x1, y1, z1] = box[(step.params.bodies as string[])[0] ?? ''] ?? [0, 0, 0, 0, 0, 0];
+              const inside = probe.x - probe.r >= x0 && probe.x + probe.r <= x1 && probe.y - probe.r >= y0 && probe.y + probe.r <= y1;
+              const volume = Math.PI * probe.r ** 2 * Math.max(0, Math.min(z1, probe.high) - Math.max(z0, probe.low)) * (inside ? 1 : 0.9);
+              return { interferences: [{ volume_mm3: volume }] };
+            }
+            return step.command === 'inspect.interference' ? { count: 0 } : step.command === 'component.list' ? { components: [] } : step.command === 'document.inspect' ? { undo: 1, timeline: [], sketches: [] } : {};
+          });
+          const trial = args.rollback === true;
+          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(trial ? { results: results.slice(0, -1), failed: { command: 'sketch.inspect' } } : { results }) }], ...(trial ? { isError: true } : {}) });
+        },
+      };
+      return { tools: withMechanismTool(upstream, () => 0.4), sent };
+    }
+    const joint = { kind: 'screw', fixed: 'Base', moving: 'Cover', from: [20, 20, 15], to: [20, 20, 10], screws: false };
+
+    it('measures it before building and says so', async () => {
+      const { tools, sent } = boxes();
+      const built = await tools.callTool('partbuddy_mechanism', joint);
+      expect(String(built.content[0]?.text)).toContain("Each insert's seat needs 2 mm of plastic round it and 0.6 mm under it, and the counterbore for each head lies inside Cover. PartBuddy measured that plastic, from 0.5 mm under the faces on: it is there.");
+      expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(true);
+    });
+
+    it('refuses a screw 2.5 mm from the edge, whose counterbore breaks out of the cover and whose seat has 0.5 mm of wall, and builds nothing', async () => {
+      const { tools, sent } = boxes();
+      const edge = await tools.callTool('partbuddy_mechanism', { ...joint, from: [2.5, 20, 15], to: [2.5, 20, 10] });
+      expect(edge.isError).toBe(true);
+      expect(String(edge.content[0]?.text)).toContain('at [2.5, 20, 15] Cover has 3.11 mm of plastic where 3.4 mm are needed (the mean over a width of 6.7 mm; the far side, an edge or another cut takes the rest); the counterbore for the head is 6.7 mm wide and must lie wholly inside Cover: move the screw at least 3.35 mm away from its edges and other cuts, or use head none.');
+      expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(false);
+      // A head lying on the face: the seat is measured, and its wall is short.
+      const flat = await tools.callTool('partbuddy_mechanism', { ...joint, head: 'none', from: [2.5, 20, 15], to: [2.5, 20, 10] });
+      expect(String(flat.content[0]?.text)).toMatch(/at \[2\.5, 20, 10\] Base has [\d.]+ mm of plastic where [\d.]+ mm are needed \(the mean over a ring from 4\.02 to 8 mm wide.*the seat of an M3 insert needs 2 mm of plastic round it and 0\.6 mm under it/);
+      expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(false);
+    });
+  });
 });
 
 describe('the screw lid (standards)', () => {

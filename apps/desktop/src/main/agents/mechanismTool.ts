@@ -1,8 +1,9 @@
-import { LID, LIP, WEB, hangs, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { LID, LIP, WEB, hangs, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { BRIDGE_SPAN } from '@partbuddy/geometry';
 
 import { componentOf } from '../solidcraft/actions';
+import { FACE_DROP, SEAT_UNDER, seatStock, seatWall, shortOf, type Stock } from './blockTool';
 import { markOf, TAKEN_BACK_SAID, takeBack, type Mark, type Run } from './takeBack';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
@@ -733,6 +734,33 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
   }
 }
 
+/**
+ * The plastic a screw joint needs (audit R54): the room for each head wholly inside the moving body (a countersink by
+ * its width half a millimetre down, where its 90° cone is a millimetre narrower than at the face), and round and under
+ * each insert's seat what the seat block needs ({@link seatStock}).
+ */
+export function screwStock(spec: ScrewSpec): { moving: Stock[]; fixed: Stock[] } {
+  const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
+  const length = Math.hypot(...delta);
+  const axis = delta.map((value) => Math.round((value / length) * 1e6) / 1e6) as Vec3;
+  const recess = headRecess(spec);
+  const insert = INSERT[spec.size];
+  const r3 = (value: number) => Math.round(value * 1000) / 1000;
+  const entries = [spec.from, ...spec.more];
+  return {
+    moving: recess
+      ? entries.map((at) => ({ at, base: at.map((value, k) => r3(value + (axis[k] ?? 0) * FACE_DROP)) as Vec3, axis, diameter: r3(recess.diameter - (spec.head === 'countersunk' ? 2 * FACE_DROP : 0)), depth: r3(recess.depth - FACE_DROP), from: FACE_DROP }))
+      : [],
+    fixed:
+      spec.thread === 'insert' && insert
+        ? entries.map((at) => {
+            const meet = at.map((value, k) => r3(value + (delta[k] ?? 0))) as Vec3;
+            return seatStock({ block: 'insertSeat', body: spec.fixed, point: meet, size: spec.size, diameter: insert.diameter, depth: insert.length + 1 }, meet, axis);
+          })
+        : [],
+  };
+}
+
 async function mechanism(site: Site, args: Record<string, unknown>, nozzle: number, keepFace: KeepFace, overhang: number): Promise<string> {
   const { upstream, run, callId } = site;
   if (args.kind === 'hinge') {
@@ -814,7 +842,22 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
   if (args.kind === 'screw') {
     const spec = screwOf(args);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(site, spec, screwSteps(spec), `Give from on the outer face of ${spec.moving} and to on the face where it meets ${spec.fixed}.`);
+    // The plastic round the holes is measured before anything is built (audit R54): nothing of a joint that lacks it is built.
+    const stock = screwStock(spec);
+    const recess = headRecess(spec);
+    const room = spec.head === 'cap' ? 'counterbore' : 'countersink';
+    const measured = { all: true };
+    const warnings = await build(site, spec, screwSteps(spec), `Give from on the outer face of ${spec.moving} and to on the face where it meets ${spec.fixed}.`, false, async () => {
+      for (const [body, rooms, need] of [
+        [spec.moving, stock.moving, `the ${room} for the head is ${String(recess?.diameter)} mm wide and must lie wholly inside ${spec.moving}: move the screw at least ${String(round2((recess?.diameter ?? 0) / 2))} mm away from its edges and other cuts, or use head none`],
+        [spec.fixed, stock.fixed, `the seat of an ${spec.size} insert needs ${String(seatWall(spec.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it. Thicken ${spec.fixed} there, move the screw away from edges and other cuts, or put a boss there`],
+      ] as const) {
+        if (rooms.length === 0) continue;
+        const short = await shortOf(upstream, body, rooms, callId);
+        if (short) throw new Error(`${short}; ${need}.`);
+        measured.all &&= short === null;
+      }
+    });
     const count = spec.more.length + 1;
     const length = screwLength(spec);
     const insert = INSERT[spec.size];
@@ -824,7 +867,8 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
       `${spec.head === 'cap' ? ' with a counterbore for the head' : spec.head === 'countersunk' ? ' with a 90° countersink' : ''}, in ${spec.fixed} ` +
       `${spec.thread === 'insert' && insert ? `the seat of a heat-set insert (${String(insert.diameter)} mm wide, ${String(insert.length + 1)} mm deep)` : 'a modelled thread'}. ` +
       `${length === null ? 'No standard screw length ends inside the thread at this thickness, so no screws were put in: choose the length yourself.' : `To buy: ${String(count)} × ${spec.size}×${String(length)} ${screw}${spec.thread === 'insert' && insert ? ` and ${String(count)} ${spec.size} heat-set inserts ${String(insert.length)} mm long` : ''}${spec.screws ? '; the screws are in the design as standard parts' : ''}.`} ` +
-      `${spec.thread === 'insert' ? 'Leave at least 2 mm of plastic around each insert (a boss where the wall is thinner).' : ''}${warnings}`
+      (spec.thread === 'insert' ? `Each insert's seat needs ${String(seatWall(spec.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it${recess ? `, and the ${room} for each head lies inside ${spec.moving}` : ''}. ` : recess ? `The ${room} for each head lies inside ${spec.moving}. ` : '') +
+      `${stock.moving.length + stock.fixed.length === 0 ? '' : measured.all ? `PartBuddy measured that plastic, from ${String(FACE_DROP)} mm under the faces on: it is there.` : 'PartBuddy could not measure that plastic this time: check it yourself.'}${warnings}`
     );
   }
   if (args.kind === 'snap') {
