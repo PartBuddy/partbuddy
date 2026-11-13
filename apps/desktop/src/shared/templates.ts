@@ -15,6 +15,8 @@
  */
 
 import { hingeSteps, lipSteps, pinDiameter, printTogether, slideSteps } from './mechanisms';
+import { CLEARANCE_NORMAL } from './screwSizes';
+import { WALL } from './wallMount';
 
 export const TEMPLATE_IDS = ['hingedBox', 'slideStop', 'housing', 'sign', 'wallHolder'] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
@@ -135,8 +137,9 @@ function slideStop(): Step[] {
     parameter('base_width', '40 mm', 'Width of the base; the stop is 24 mm wide'),
     parameter('stop_length', '30 mm', 'Length of the stop along the rail'),
     parameter('stop_height', '20 mm', 'Height of the stop above the base'),
-    parameter('screw_hole', '4.5 mm', 'Holes in the base for 4 mm wood screws'),
-    parameter('screw_head', '9 mm', 'Diameter of the counterbore for their heads, so the stop passes over them'),
+    // The 4 mm wood screw of the wall mountings (audit T43: 4.5 and 9 here, 4.7 and 8.8 there): its hole, and its head with 0.5 mm per side.
+    parameter('screw_hole', `${String(WALL[4].clearance)} mm`, 'Holes in the base for 4 mm wood screws'),
+    parameter('screw_head', `${String(WALL[4].entry)} mm`, 'Diameter of the counterbore for their heads, so the stop passes over them'),
     parameter('clamp_hole', '5.6 mm', 'Hole in the stop for an M4 heat-set insert; its screw clamps the stop on the rail'),
     { command: 'solid.box', params: { length: 'length', width: 'base_width', height: `${String(thick)} mm`, corner: [0, '-base_width / 2', 0], operation: 'new', body_name: 'Base', name: 'Base' } },
     // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
@@ -172,12 +175,17 @@ function slideStop(): Step[] {
 function sign(): Step[] {
   const [length, width] = [80, 25];
   return [
-    { command: 'parameters.add', params: { name: 'label', expression: 'PartBuddy', unit: 'text', comment: 'The words on the sign' } },
+    // Measured on SolidCraft 0.40.1 (2026-11-13), Arial bold at 9 mm capitals: "PartBuddy" 62.5 mm, 30 capitals 260.6 mm,
+    // "Werkzeug Schublade 3" 136.4 mm, ten W 118.7 mm. Between the screw holes and 1 mm clear of them the words have
+    // length - 17.4 mm.
+    // shortcut: SolidCraft's expressions cannot measure a text, so nothing refuses words too long; the print check finds
+    // letters past the plate or over a hole as an overhang. Fit the height to the words when SolidCraft can measure them.
+    { command: 'parameters.add', params: { name: 'label', expression: 'PartBuddy', unit: 'text', comment: 'The words on the sign; they must fit between the screw holes, the length less 18 mm: a letter takes about 0.8 times the text height, a capital about 1, a W 1.3' } },
     parameter('length', '80 mm', 'Length of the sign'),
     parameter('width', '25 mm', 'Width of the sign'),
     parameter('thickness', '3 mm', 'Thickness of the plate'),
-    parameter('text_height', '9 mm', 'Height of the capital letters'),
-    parameter('screw_hole', '3.4 mm', 'Holes for M3 screws (ISO 273, normal)'),
+    parameter('text_height', '9 mm', 'Height of the capital letters; from 4 mm their strokes are two lines of a 0.4 mm nozzle, and with descenders the words are 1.3 times as high [4..18]'),
+    parameter('screw_hole', `${String(CLEARANCE_NORMAL.M3)} mm`, 'Holes for M3 screws (ISO 273, normal)'),
     { command: 'solid.box', params: { length: 'length', width: 'width', height: 'thickness', operation: 'new', body_name: 'Sign', name: 'Plate' } },
     // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
     { command: 'solid.fillet', params: { edges: [[0, 0, 1.5], [length, 0, 1.5], [0, width, 1.5], [length, width, 1.5]], radius: '4 mm', name: 'Outer corners' } },
@@ -222,7 +230,7 @@ function housing(): Step[] {
     parameter('boss', '8 mm', 'Diameter of the screw bosses in the corners'),
     parameter('insert_hole', '4 mm', 'Hole for an M3 heat-set insert (ruthex: 4 mm)'),
     parameter('insert_depth', '6.7 mm', 'Depth of that hole: insert length plus 1 mm'),
-    parameter('screw_hole', '3.4 mm', 'Hole in the lid for the M3 screws (ISO 273, normal)'),
+    parameter('screw_hole', `${String(CLEARANCE_NORMAL.M3)} mm`, 'Hole in the lid for the M3 screws (ISO 273, normal)'),
     parameter('corner', '6 mm', 'Radius of the outer corners of housing and lid'),
     parameter('ear', '12 mm', 'How far the screw ears reach out on the short sides'),
     { command: 'solid.box', params: { length: 'length', width: 'width', height: 'height', operation: 'new', body_name: 'Housing', name: 'Housing' } },
@@ -279,8 +287,8 @@ function wallHolder(): Step[] {
     parameter('wall', '6 mm', 'Thickness of plate, floor and lip'),
     parameter('hook_width', '40 mm', 'Room between plate and lip'),
     parameter('lip_height', '25 mm', 'Height of the front lip'),
-    parameter('screw_hole', '4.5 mm', 'Hole for the wall screws (4 mm wood screws)'),
-    parameter('screw_head', '9 mm', 'Diameter of the countersink for their heads'),
+    parameter('screw_hole', `${String(WALL[4].clearance)} mm`, 'Hole for the wall screws (4 mm wood screws)'),
+    parameter('screw_head', `${String(WALL[4].countersink)} mm`, 'Diameter of the countersink for their heads'),
     { command: 'solid.box', params: { length: 'plate_width', width: 'wall', height: 'plate_height', operation: 'new', body_name: 'Wall holder', name: 'Plate' } },
     {
       command: 'solid.box',
@@ -293,16 +301,21 @@ function wallHolder(): Step[] {
     { command: 'sketch.point', params: { point: ['-plate_width / 2', 'plate_height * 0.8'] } },
     { command: 'sketch.point', params: { point: ['-plate_width / 2', 'plate_height * 0.4'] } },
     { command: 'solid.hole', params: { sketch: 'Screw points', diameter: 'screw_hole', type: 'countersink', cs_diameter: 'screw_head', cs_angle: '90 deg', name: 'Countersunk holes' } },
-    // Edges by a point on them; SolidCraft follows them when the sizes change.
-    { command: 'solid.fillet', params: { edges: [[25, 6, 6]], radius: '2 mm', name: 'Inner radius' } },
-    { command: 'solid.fillet', params: { edges: [[0, 3, 100], [50, 3, 100]], radius: '5 mm', name: 'Outer corners' } },
-    { command: 'solid.fillet', params: { edges: [[0, 49, 25], [50, 49, 25]], radius: '3 mm', name: 'Lip corners' } },
+    // Edges by a point on them; SolidCraft follows them when the sizes change. Both inner corners of the hook as round as
+    // its wall is thick, as the hook rule asks (audit T29: 2 mm at a wall of 6). The holder prints lying on its side, so the
+    // corners of plate and lip that touch the bed there are chamfered at 45°: a round would start in the air.
+    { command: 'solid.fillet', params: { edges: [[25, 6, 6], [25, 46, 6]], radius: 'wall', name: 'Inner radius' } },
+    { command: 'solid.chamfer', params: { edges: [[0, 3, 100], [50, 3, 100]], distance: '5 mm', name: 'Outer corners' } },
+    { command: 'solid.chamfer', params: { edges: [[0, 49, 25], [50, 49, 25]], distance: '3 mm', name: 'Lip corners' } },
     { command: 'solid.fillet', params: { edges: [[25, 52, 0]], radius: '5 mm', name: 'Outer bend' } },
     { command: 'solid.fillet', params: { edges: [[25, 46, 25], [25, 52, 25], [25, 6, 100]], radius: '1.2 mm', name: 'Soft edges' } },
     // A slot in the floor: water runs out, a cable can pass.
     { command: 'solid.box', params: { length: 'plate_width * 0.4', width: '6 mm', height: 'wall + 2 mm', corner: ['plate_width * 0.3', 'wall + hook_width / 2 - 3 mm', '-1 mm'], operation: 'cut', name: 'Floor slot' } },
     { command: 'solid.cylinder', params: { diameter: '6 mm', height: 'wall + 2 mm', base: ['plate_width * 0.3', 'wall + hook_width / 2', '-1 mm'], operation: 'cut', name: 'Floor slot end 1' } },
     { command: 'solid.cylinder', params: { diameter: '6 mm', height: 'wall + 2 mm', base: ['plate_width * 0.7', 'wall + hook_width / 2', '-1 mm'], operation: 'cut', name: 'Floor slot end 2' } },
+    // On its side, as the hook rule asks: the load then runs along the layers round both bends (audit T29: it stood as
+    // drawn, the layers across the bend at the plate).
+    { command: 'body.print_face', params: { body: 'Wall holder', point: [0, 3, 50] } },
   ];
 }
 
@@ -319,11 +332,13 @@ const GERMAN: Record<string, string> = {
   'Holes in the base for 4 mm wood screws': 'Löcher in der Grundplatte für 4-mm-Holzschrauben',
   'Diameter of the counterbore for their heads, so the stop passes over them': 'Durchmesser der Senkung für ihre Köpfe, damit der Anschlag darüber fährt',
   'Hole in the stop for an M4 heat-set insert; its screw clamps the stop on the rail': 'Loch im Anschlag für eine M4-Einschmelzmutter; ihre Schraube klemmt den Anschlag auf der Schiene',
-  'The words on the sign': 'Der Text auf dem Schild',
+  'The words on the sign; they must fit between the screw holes, the length less 18 mm: a letter takes about 0.8 times the text height, a capital about 1, a W 1.3':
+    'Der Text auf dem Schild; er muss zwischen die Schraublöcher passen, die Länge weniger 18 mm: ein Buchstabe braucht etwa das 0,8-Fache der Schrifthöhe, ein Großbuchstabe etwa das 1-Fache, ein W das 1,3-Fache',
   'Length of the sign': 'Länge des Schilds',
   'Width of the sign': 'Breite des Schilds',
   'Thickness of the plate': 'Stärke der Platte',
-  'Height of the capital letters': 'Höhe der Großbuchstaben',
+  'Height of the capital letters; from 4 mm their strokes are two lines of a 0.4 mm nozzle, and with descenders the words are 1.3 times as high [4..18]':
+    'Höhe der Großbuchstaben; ab 4 mm sind ihre Striche zwei Bahnen einer 0,4-mm-Düse, und mit Unterlängen ist der Text 1,3-mal so hoch [4..18]',
   'Holes for M3 screws (ISO 273, normal)': 'Löcher für M3-Schrauben (ISO 273, mittel)',
   'Height of each half; closed, the box is twice as high, and the lip of the lid reaches 4 mm into the box above its floor [8..60]': 'Höhe jeder Hälfte; geschlossen ist die Box doppelt so hoch, und die Lippe des Deckels reicht 4 mm in die Box über ihrem Boden [8..60]',
   'Wall and floor thickness; the rille of the closure goes 0.45 mm into the wall of the box, and the rooms of the knuckles open through a wall up to 3 mm [1.6..3]': 'Stärke von Wand und Boden; die Rille des Verschlusses geht 0,45 mm in die Wand der Box, und die Räume der Scharnieraugen gehen durch eine Wand bis 3 mm [1,6..3]',

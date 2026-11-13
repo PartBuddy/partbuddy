@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { templateRequestSchema } from '../src/shared/contract';
 import { commentText, rangeOf } from '../src/renderer/src/shell/parameterRange';
+import { TEXT_STROKE } from '../src/shared/blocks';
 import { TEMPLATE_IDS, germanFeatureName, templatePrintFaces, templateSteps } from '../src/shared/templates';
+import { WALL } from '../src/shared/wallMount';
 
 /** The geometry fields whose text is an expression over the design's parameters. */
 const EXPRESSION_FIELDS = new Set(['length', 'width', 'height', 'diameter', 'thickness', 'depth', 'corner', 'base', 'position', 'center', 'points', 'point', 'distance', 'cs_diameter', 'radius', 'text_expression', 'offset']);
@@ -196,5 +198,30 @@ describe('templates with moving parts', () => {
     expect(templateSteps('housing', true).filter((step) => step.command === 'body.rename').map((step) => step.params.name)).toEqual([1, 2, 3, 4].map((n) => `M3-Schraube ${String(n)}`));
     expect(templateSteps('sign').find((step) => step.command === 'sketch.text')?.params.text_expression).toBe('label');
     expect(germanFeatureName('Hinge ●')).toBe('Scharnier ●');
+  });
+
+  it('lays the wall holder on its side with its inner corners as round as its wall, and takes the wood screw from the table (audit T29, T43)', () => {
+    // T29: the hook rule asks for printing on its side and inner radii of at least the thickness.
+    expect(templatePrintFaces('wallHolder')).toEqual([{ body: 'Wall holder', point: [0, 3, 50] }]);
+    expect(templatePrintFaces('wallHolder', true)).toEqual([{ body: 'Wandhalter', point: [0, 3, 50] }]);
+    const holder = templateSteps('wallHolder');
+    expect(holder.find((step) => step.params.name === 'Inner radius')?.params).toEqual({ edges: [[25, 6, 6], [25, 46, 6]], radius: 'wall', name: 'Inner radius' });
+    // Lying on its side, the corners that touch the bed are chamfered: a round there starts in the air.
+    expect(holder.filter((step) => ['Outer corners', 'Lip corners'].includes(String(step.params.name))).map((step) => step.command)).toEqual(['solid.chamfer', 'solid.chamfer']);
+    // T43: 4.5 and 9 mm stood here, the table says 4.7 and 8.8 for a 4 mm wood screw.
+    const value = (id: 'wallHolder' | 'slideStop', name: string) => templateSteps(id).find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.expression;
+    expect([value('wallHolder', 'screw_hole'), value('wallHolder', 'screw_head')]).toEqual([`${String(WALL[4].clearance)} mm`, `${String(WALL[4].countersink)} mm`]);
+    expect([value('slideStop', 'screw_hole'), value('slideStop', 'screw_head')]).toEqual(['4.7 mm', '9 mm']);
+  });
+
+  it('says how much room the sign\'s words have and how small its letters may be (audit T56)', () => {
+    const comment = (name: string, german = false) => String(templateSteps('sign', german).find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.comment);
+    // Between the holes (6 mm in, 3.4 mm wide) and 1 mm clear of them: the length less 17.4 mm.
+    expect(comment('label')).toContain('the length less 18 mm');
+    expect(comment('label', true)).toContain('die Länge weniger 18 mm');
+    // From 4 mm the strokes of bold capitals are two lines of a 0.4 mm nozzle (blocks.ts, TEXT_STROKE).
+    expect(Math.ceil((2 * 0.4) / TEXT_STROKE.bold)).toBe(4);
+    expect(rangeOf(comment('text_height'))).toEqual({ min: 4, max: 18 });
+    expect(rangeOf(comment('text_height', true))).toEqual({ min: 4, max: 18 });
   });
 });
