@@ -3,10 +3,11 @@ import { jsonSchema, tool, type StopCondition, type ToolSet } from 'ai';
 import type { AgentEvent } from '../../shared/contract';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 import { decide, decideParameterNames, inputProblem, offeredTool, type ToolDecision } from './policy';
-import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
-import { RESEARCH_GUIDANCE } from './research';
+import { PHOTO_COMPARE } from './photoNote';
+import { ANSWER_GUIDANCE, questionGuidance } from './questions';
+import { NO_RESEARCH_GUIDANCE, RESEARCH_GUIDANCE } from './research';
 import { withSkillNote, withToolNotes } from './toolNotes';
-import { VIEW_GUIDANCE } from './viewContext';
+import { SCREENSHOT_GUIDANCE, VIEW_GUIDANCE } from './viewContext';
 import { ASSEMBLY_GUIDANCE, JOINT_GUIDANCE } from './assemblyTool';
 import { BLOCK_GUIDANCE, BLOCK_TOOL } from './blockTool';
 import { STANDARD_GUIDANCE } from './standardTool';
@@ -29,24 +30,55 @@ export const REFUSAL_GUIDANCE =
   `When ${BLOCK_TOOL} or ${MECHANISM_TOOL} answers "Not built", correct what it names and call it again; never model that feature yourself instead. ` +
   'If it still cannot be built, stop and tell the user.';
 
-const INSTRUCTIONS = [
-  'You are the design assistant inside PartBuddy, a desktop app for 3D-printable parts.',
-  'SolidCraft is open and the user watches every step live, mirrored in PartBuddy.',
-  'Use the solidcraft tools to inspect and change the design. Work in small visible steps:',
-  'one sketch or one feature group per call. Units are millimetres.',
-  REFUSAL_GUIDANCE,
-  // The own loop stops after MAX_STEPS rounds (audit R57); Claude Code has no such limit.
-  `You have ${String(MAX_STEPS)} tool rounds per turn: plan them, and say when you stop unfinished.`,
-  'Answer in the language the user writes in, and name bodies, features and sketches in it too: the structure tree and the timeline show these names.',
-  VIEW_GUIDANCE,
-  ASSEMBLY_GUIDANCE,
-  JOINT_GUIDANCE,
-  MECHANISM_GUIDANCE,
-  BLOCK_GUIDANCE,
-  STANDARD_GUIDANCE,
-  QUESTION_GUIDANCE,
-  ANSWER_GUIDANCE,
-].join(' ');
+/** How every route starts its role (audit R21): SolidCraft runs headless (ADR 0016), and the tools have no common prefix. */
+export const ROLE_INTRO =
+  'You are the design assistant inside PartBuddy, a desktop app for 3D-printable parts. ' +
+  "SolidCraft runs in the background and the user watches every step live in PartBuddy's 3D view. " +
+  'Use the tools you are given to inspect and change the design. Work in small visible steps: ' +
+  'one sketch or one feature group per call. Units are millimetres.';
+
+/** What the assistant owes the user about its limits, on every route (audit R27). */
+export const LIMITS_GUIDANCE =
+  'Say plainly what you did not check, what you estimated and what PartBuddy has not printed; never call a part safe ' +
+  "for mains voltage, food, load over a person or heat without the user's own test. Call a part done only when it is " +
+  'built, measured and you have read its ready-to-print check.';
+
+/**
+ * The role prompt of a route. `ownLoop`: this loop (ChatGPT, local models), which has a round limit and passes no picture
+ * from a tool answer; otherwise Claude Code. `research`: the conversation may search the web.
+ */
+export function rolePrompt(ownLoop: boolean, research: boolean): string {
+  return [
+    ROLE_INTRO,
+    REFUSAL_GUIDANCE,
+    // The own loop stops after MAX_STEPS rounds (audit R57); Claude Code has no such limit.
+    ...(ownLoop ? [`You have ${String(MAX_STEPS)} tool rounds per turn: plan them, and say when you stop unfinished.`] : []),
+    'Answer in the language the user writes in, and name bodies, features and sketches in it too: the structure tree and the timeline show these names.',
+    LIMITS_GUIDANCE,
+    VIEW_GUIDANCE,
+    ...(ownLoop ? [] : [SCREENSHOT_GUIDANCE]),
+    ASSEMBLY_GUIDANCE,
+    JOINT_GUIDANCE,
+    MECHANISM_GUIDANCE,
+    BLOCK_GUIDANCE,
+    STANDARD_GUIDANCE,
+    questionGuidance(research),
+    ANSWER_GUIDANCE,
+    research ? RESEARCH_GUIDANCE : NO_RESEARCH_GUIDANCE,
+  ].join(' ');
+}
+
+/**
+ * SolidCraft's tools whose answer is a picture: this loop hands the model only text (`[image omitted]`), so it does not
+ * offer them (audit R24). shortcut: `execute` with `inspect.compare_picture` still reaches one and answers without the
+ * picture; forward tool pictures as image parts once the routes' servers are shown to take them.
+ */
+export const PICTURE_TOOLS: ReadonlySet<string> = new Set(['screenshot', 'compare_picture']);
+
+/** PartBuddy's note for this loop: without {@link PICTURE_TOOLS} the photo note's compare step goes (audit R24). */
+export function ownLoopNote(note: string | null): string | null {
+  return note?.replaceAll(PHOTO_COMPARE, '') ?? null;
+}
 
 /** Rounds in a row with the same tool calls after which the loop stops: small models can circle. */
 export const REPEAT_LIMIT = 3;
@@ -103,7 +135,7 @@ export function contextAfter(steps: { usage: { inputTokens?: number | undefined;
  * proxy hands those to Claude Code as MCP instructions, this loop has to pass them itself.
  */
 export function instructionsFor(upstream: UpstreamTools, research: boolean): string {
-  return `${INSTRUCTIONS}${research ? ` ${RESEARCH_GUIDANCE}` : ''}\n\n${withToolNotes(upstream.instructions())}`;
+  return `${rolePrompt(true, research)}\n\n${withToolNotes(upstream.instructions())}`;
 }
 
 /** Text of an MCP tool result for the model; images are summarised, not forwarded. */
@@ -125,7 +157,8 @@ export interface PolicyToolOptions {
 export async function policyToolSet(upstream: UpstreamTools, options: PolicyToolOptions): Promise<ToolSet> {
   const tools: ToolSet = {};
   for (const definition of await upstream.listTools()) {
-    if (!offeredTool(definition.name)) continue;
+    // Refused by the policy (BC-13), or a picture this route cannot see (BC-21).
+    if (!offeredTool(definition.name) || PICTURE_TOOLS.has(definition.name)) continue;
     tools[definition.name] = tool({
       description: definition.description ?? definition.name,
       inputSchema: jsonSchema(definition.inputSchema as Parameters<typeof jsonSchema>[0]),

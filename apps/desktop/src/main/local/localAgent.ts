@@ -5,8 +5,9 @@ import { createOllama } from 'ollama-ai-provider-v2';
 import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
+import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, ownLoopNote, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
+import { SKETCH_LIST } from '../agents/sketchNote';
 import { composeMessage } from '../agents/viewContext';
 import { contextFor, findOllama, LOCAL_CONTEXT, MIN_CONTEXT, OLLAMA_URL, type OllamaFound } from './ollama';
 import { findOpenAiServers, loadInLmStudio, OPENAI_SERVERS, type OpenAiServer } from './openaiServers';
@@ -31,6 +32,33 @@ export interface LocalAgentOptions {
   url?: string;
   strataUrl?: string;
   openAiServers?: { name: OpenAiServer['name']; url: string }[];
+}
+
+/** Where PartBuddy's picture notes start (sketchNote, photoNote, drawingNote): "the attached picture" or "the 3 attached pictures". */
+const PICTURE_NOTE = /\[PartBuddy: the (?:\d+ )?attached picture/;
+
+/** In place of a picture note for a model that cannot see the picture (audit R58). */
+export const UNSEEN_PICTURE = '[PartBuddy: the user attached a picture you cannot see. Do not describe or build from it; ask for the sizes and the shape in words.]';
+export const UNSEEN_SKETCH =
+  '[PartBuddy: the user attached a sketch you cannot see; only the list below of what it holds reached you. Sizes are what the user ' +
+  'wrote, in the list or in the message, in mm unless they say otherwise. Do not describe or build more than the list and the message ' +
+  'give; ask for the sizes and the shape in words where they give none.';
+export const UNSEEN_DRAWING = '[PartBuddy: you cannot see the attached picture; the next note holds all PartBuddy read from the drawing. Do not describe it beyond that.]';
+
+/**
+ * PartBuddy's note for a model that got none of the attached pictures (audit R58). The picture notes come last (index.ts),
+ * so everything from the first one on is replaced: a photo, or a sketch without its list, by {@link UNSEEN_PICTURE}; a
+ * sketch keeps its list of elements; a drawing keeps PartBuddy's exact reading of it, which needs no picture.
+ */
+export function blindNote(note: string | null, kind: PictureKind): string {
+  const text = note ?? '';
+  const at = text.search(PICTURE_NOTE);
+  const before = at >= 0 ? text.slice(0, at) : text ? `${text}\n` : '';
+  const picture = at >= 0 ? text.slice(at) : '';
+  if (kind === 'drawing' && picture) return `${before}${UNSEEN_DRAWING}\n${picture}`;
+  const list = picture.indexOf(SKETCH_LIST);
+  if (kind === 'sketch' && list >= 0) return `${before}${UNSEEN_SKETCH}${picture.slice(list)}`;
+  return `${before}${UNSEEN_PICTURE}`;
 }
 
 /** A model the route can run, with the server that runs it. */
@@ -259,12 +287,13 @@ export class LocalAgent implements AgentBackend {
       this.options.event({ type: 'error', message: 'SolidCraft is not connected' });
       return;
     }
-    const message = composeMessage(text, selections, withRoundsNote(this.cutShort, note));
+    // A model without vision gets the words only, and the user learns why the picture went nowhere; the model, that it got none (audit R58).
+    const pictures = model.vision ? images : [];
+    const blind = images.length > 0 && pictures.length === 0;
+    const message = composeMessage(text, selections, withRoundsNote(this.cutShort, blind ? blindNote(ownLoopNote(note), kind) : ownLoopNote(note)));
     this.cutShort = false;
     this.options.event(userEvent(text, message.label, message.summary, images.length > 0 ? kind : undefined));
-    // A model without vision gets the words only, and the user learns why the picture went nowhere.
-    const pictures = model.vision ? images : [];
-    if (images.length > 0 && pictures.length === 0) this.options.event({ type: 'error', message: `${model.option.name} cannot see pictures; it got your words only.` });
+    if (blind) this.options.event({ type: 'error', message: `${model.option.name} cannot see pictures; it got your words only.` });
     const turn: ModelMessage = pictures.length > 0
       ? { role: 'user', content: [{ type: 'text', text: message.prompt }, ...pictures.map((image) => ({ type: 'image' as const, image, mediaType: 'image/png' }))] }
       : { role: 'user', content: message.prompt };

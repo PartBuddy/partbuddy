@@ -1,10 +1,14 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
+import { photoFile, photoNote } from '../src/main/agents/photoNote';
 import type { AgentEvent } from '../src/shared/contract';
 import { strataFromHealth } from '../src/main/local/strata';
 
-import { LocalAgent, usableModels } from '../src/main/local/localAgent';
+import { LocalAgent, UNSEEN_PICTURE, usableModels } from '../src/main/local/localAgent';
 import { contextFor, findOllama, modelFromShow, modelNames } from '../src/main/local/ollama';
 
 // Answers as Ollama 0.34.0 gives them (shortened), recorded on the home server on 2026-11-06.
@@ -118,6 +122,41 @@ describe('local models through Strata (F8)', () => {
     // How full the 128K window is after the turn.
     expect(local.status().context).toEqual({ used: 10000, size: 131072 });
     expect(events.find((e) => e.type === 'done')).toMatchObject({ ok: true });
+  });
+
+  it('tells a model without vision that it got no picture, and one with vision the photo note (R58, R24)', async () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]);
+    const photo = photoNote([photoFile(join(tmpdir(), 'P'), new Date(2026, 10, 13, 9, 5, 7))]);
+    const run = async (images: boolean) => {
+      const strata = fakeStrata({ ...HEALTH, images });
+      const events: AgentEvent[] = [];
+      const upstream: UpstreamTools = {
+        instructions: () => undefined,
+        listTools: () => Promise.resolve(['measure', 'screenshot'].map((name) => ({ name, inputSchema: { type: 'object', properties: {} } }))),
+        callTool: () => Promise.resolve({ content: [{ type: 'text', text: 'ok' }] }),
+      };
+      const local = new LocalAgent({ tools: () => Promise.resolve(upstream), event: (event) => events.push(event), changed: () => undefined, log: () => undefined, choices: noChoices, fetch: strata.fetchFn });
+      await local.refresh();
+      await local.send('Hold this', [], `[PartBuddy: printer note]\n${photo}`, [png], 'photo');
+      await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
+      const body = strata.bodies[0] ?? {};
+      const user = (body.messages as { role: string }[] | undefined)?.filter((message) => message.role === 'user');
+      return { messages: JSON.stringify(user), tools: JSON.stringify(body.tools), events };
+    };
+    const blind = await run(false);
+    expect(blind.messages).toContain(UNSEEN_PICTURE);
+    expect(blind.messages).toContain('printer note');
+    expect(blind.messages).not.toContain('is a photo');
+    expect(blind.messages).not.toContain('image_url');
+    expect(blind.events).toContainEqual({ type: 'error', message: 'qwen3.8-flash-next-iq3_xxs · Strata cannot see pictures; it got your words only.' });
+    const seeing = await run(true);
+    expect(seeing.messages).toContain('is a photo');
+    expect(seeing.messages).toContain('image_url');
+    expect(seeing.messages).not.toContain(UNSEEN_PICTURE);
+    // The own loop hands back no tool picture: no screenshot, and no compare step in the photo note (toolNotes.ts still names it, lane L6).
+    expect(seeing.messages).not.toContain('compare_picture');
+    expect(seeing.tools).toContain('measure');
+    expect(seeing.tools).not.toContain('screenshot');
   });
 
   it('says so when Strata wants an API key', async () => {
