@@ -105,7 +105,7 @@ describe('material and print time as a rule group of its own (2026-11-12)', () =
     const { profiles } = setup();
     const note = printNote(profiles.part());
     // 0.4 mm nozzle, 0.2 mm layer: lines of 0.45 mm.
-    expect(note).toContain('Slicers print 0.9, 1.35, 1.8 mm (two to four lines) as wall and fill anything thicker with sparse infill');
+    expect(note).toContain('Slicers print two to four lines (0.9 mm to 1.8 mm) as wall and fill anything thicker with sparse infill');
     // Ribs are no thinner than the thinnest wall that prints (review of PR 357: half a 0.9 mm wall is one line).
     expect(note).toContain('stiffen with ribs as thick as the wall, at least two lines (0.9 mm), instead of thickening the wall');
     expect(note).not.toContain('three quarters');
@@ -118,7 +118,7 @@ describe('material and print time as a rule group of its own (2026-11-12)', () =
     const settings = profiles.settings();
     profiles.save({ ...settings, printers: settings.printers.map((printer) => ({ ...printer, nozzle: 0.6, layer: 0.3 })) });
     const wide = printNote(profiles.part());
-    expect(wide).toContain('Slicers print 1.35, 2.025, 2.7 mm (two to four lines) as wall');
+    expect(wide).toContain('Slicers print two to four lines (1.35 mm to 2.7 mm) as wall');
     expect(wide).toContain('at least two lines (1.35 mm)');
     expect(wide).toContain('every 0.3 mm of height is one more layer');
   });

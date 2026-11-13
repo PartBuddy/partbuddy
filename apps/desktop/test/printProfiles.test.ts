@@ -9,6 +9,7 @@ import { BRIDGE_SPAN, checkPrint, LYING_HOLE, minimumFloor, minimumWall, thinnes
 
 import { smallOverhangReach } from '../../../packages/geometry/src/overhang';
 import { boxesBody } from '../../../packages/geometry/src/testShapes';
+import { BLOCK_TOOL } from '../src/main/agents/blockTool';
 import { ASK_TOOL } from '../src/main/agents/questions';
 import { DESIGN_DEFAULTS, printSettingsSchema, type MaterialProfile, type PrintSettings } from '../src/shared/contract';
 import { lineWidth } from '../src/shared/designFit';
@@ -206,9 +207,14 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
       expect(blocks(floor(layer - 0.02), nozzle, layer)).toBe(true);
       expect(blocks(floor(layer), nozzle, layer)).toBe(false);
       const note = noteFor(nozzle, layer);
-      expect(note).toContain(`a wall or detail thinner than ${String(thinnestLine(nozzle))} mm, the narrowest line a slicer lays with this nozzle, a floor or lid thinner than one ${String(layer)} mm layer`);
+      expect(note).toContain(`a wall or detail thinner than ${String(thinnestLine(nozzle))} mm, the narrowest line a slicer lays with this nozzle; a floor or lid thinner than one ${String(layer)} mm layer; such walls and floors are what the print check blocks`);
       expect(note).toContain(`a wall under two lines, ${String(minimumWall(nozzle))} mm, or not a whole number of ${String(lineWidth({ nozzle, layer }))} mm lines; a detail under one line; a floor under ${String(minimumFloor(layer))} mm) is built as given`);
     }
+    // "Blocks such walls where they cover more than a few square millimetres": a 0.3 mm fin of 2 × 2.4 mm² only warns,
+    // of 2 × 2.6 mm² it blocks (the check's 5 mm², BLOCK_THIN_AREA in printCheck.ts, not exported).
+    const fin = (length: number) => checkPrint([boxesBody('Fin', [[[0, 0, 0], [length, 0.3, 2]]])], { bed: [256, 256, 256], nozzle: 0.4, layer: 0.2, overhang: 45 }).findings.find((f) => f.kind === 'thinWall' && !f.floor);
+    expect(fin(1.2)?.severity).toBe('warn');
+    expect(fin(1.3)?.severity).toBe('block');
     const note = noteFor(0.4, 0.2);
     expect(note).toContain(`do not build it: ask with ${ASK_TOOL}, offering the value as given and the nearest one that prints`);
     expect(note).not.toContain('build it as given anyway');
@@ -219,6 +225,10 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
     expect(fine).toContain('walls thinner than 0.56 mm (two lines)');
     expect(fine).toContain('a wall under two lines, 0.56 mm,');
     expect(fine).toContain('at least two lines (0.56 mm)');
+    expect(fine).toContain('Slicers print two to four lines (0.56 mm to 1.124 mm) as wall');
+    expect(fine).not.toContain('0.562, 0.843, 1.124 mm (two to four lines)');
+    // Lips and snap arms are the exception the block tool refuses under two lines.
+    expect(fine).toContain(`Working parts are the exception: lips and snap arms under two lines do not hold, and ${BLOCK_TOOL} refuses them, so ask for those too.`);
     expect(fine).not.toMatch(/two lines,? \(?0\.562/);
   });
 
@@ -255,7 +265,7 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
 
   it('gives details, text and floors the sizes of their sources (D29, H-18, H-22, H-23)', () => {
     const note = noteFor(0.4, 0.2);
-    expect(note).toContain('walls or details thinner than 0.42 mm, the narrowest line a slicer lays, do not print (the print check blocks them)');
+    expect(note).toContain('walls or details thinner than 0.42 mm, the narrowest line a slicer lays, do not print. The print check blocks such walls where they cover more than a few square millimetres and only warns about smaller spots; fine details and text it does not check.');
     expect(note).toContain('text at least 0.6 mm deep and 1 mm wide per stroke (Xometry: 0.5 mm and 1 mm)');
     expect(noteFor(0.6, 0.3)).toContain('text at least 0.6 mm deep and 1.35 mm wide per stroke');
     expect(noteFor(0.4, 0.12)).toContain('text at least 0.6 mm deep');

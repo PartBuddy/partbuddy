@@ -1549,7 +1549,7 @@
       "lipWall": "A lip {value, number} mm wide does not print solid: two lines on the {nozzle, number} mm nozzle are {least, number} mm – give at least that.",
       "grooveWall": "A groove {value, number} mm wide takes no lip that prints solid: two lines on the {nozzle, number} mm nozzle are {least, number} mm – give at least that.",
       "armWall": "An arm {value, number} mm thick or wide does not print solid: two lines on the {nozzle, number} mm nozzle are {least, number} mm – give at least that.",
-      "catch": "A catch {value, number} mm deep does not print and holds nothing: give at least {least, number} mm, one width of the {nozzle, number} mm nozzle.",
+      "catch": "A catch {value, number} mm deep does not print and holds nothing: give at least {least, number} mm, the narrowest line a slicer lays with the {nozzle, number} mm nozzle.",
       "layer": "{value, number} mm is under one layer ({least, number} mm): nothing prints – give at least that.",
       "screw": "A slot {value, number} mm wide does not let an {size} screw ({thread, number} mm) pass: the standard is {standard, number} mm.",
       "nutFlats": "An {size} nut is {least, number} mm across its flats and does not go into {value, number} mm: the standard pocket is {standard, number} mm.",

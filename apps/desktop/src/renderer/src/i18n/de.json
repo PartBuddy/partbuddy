@@ -1549,7 +1549,7 @@
       "lipWall": "Eine Lippe mit {value, number} mm Breite druckt nicht massiv: zwei Linien der {nozzle, number}-mm-Düse sind {least, number} mm – mindestens das angeben.",
       "grooveWall": "Eine Nut mit {value, number} mm Breite nimmt keine Lippe auf, die massiv druckt: zwei Linien der {nozzle, number}-mm-Düse sind {least, number} mm – mindestens das angeben.",
       "armWall": "Ein Arm mit {value, number} mm Dicke oder Breite druckt nicht massiv: zwei Linien der {nozzle, number}-mm-Düse sind {least, number} mm – mindestens das angeben.",
-      "catch": "Eine Rastnase mit {value, number} mm Tiefe druckt nicht und hält nichts: mindestens {least, number} mm angeben, eine Breite der {nozzle, number}-mm-Düse.",
+      "catch": "Eine Rastnase mit {value, number} mm Tiefe druckt nicht und hält nichts: mindestens {least, number} mm angeben, die schmalste Linie, die ein Slicer mit der {nozzle, number}-mm-Düse legt.",
       "layer": "{value, number} mm sind weniger als eine Schicht ({least, number} mm): das druckt nicht – mindestens das angeben.",
       "screw": "Ein Langloch mit {value, number} mm Breite lässt keine {size}-Schraube ({thread, number} mm) durch: Standard sind {standard, number} mm.",
       "nutFlats": "Eine {size}-Mutter ist {least, number} mm breit über die Flächen und passt nicht in {value, number} mm: die Standardtasche hat {standard, number} mm.",
