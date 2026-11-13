@@ -178,10 +178,9 @@ export const questionGuidance = (research: boolean): string => [
   'on and taken off, buttons, ports, cables, viewing angle), where, and the real sizes of the user\'s own items' +
     (research ? '; look up product data instead of asking for it.' : ' and of the products it is for.'),
   'One round per turn, up to four questions, until nothing that matters is open.',
-  // audit R41: the material comes with the print profile and need not be PLA.
+  // audit R41: the material need not be PLA; how far an arm may bend is FLEX_GUIDANCE's (loop.ts).
   '3. Function check: before the plan, go through the part in use. Is it held securely under those loads, can it be put in',
-  'and taken out, does it flex where it must (the material of the print profile decides how far an arm may bend: a snap',
-  'or a lip needs a thin, long arm; otherwise use a band,',
+  'and taken out, does it flex where it must (a snap or a lip needs a thin, long arm; otherwise use a band,',
   'spring, screw or clamp), are levers short and walls strong enough, does it print without supports. If the check fails,',
   'change the concept and tell the user why.',
   `Then call ${PLAN_TOOL}, with the function check as its last step, and build only after the user said Go. For several`,

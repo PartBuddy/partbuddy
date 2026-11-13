@@ -5,7 +5,7 @@ import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } fro
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, ownLoopNote, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
+import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { sourceOfUrl } from '../agents/research';
 import { composeMessage } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
@@ -145,7 +145,7 @@ export class ChatGptAgent implements AgentBackend {
       return;
     }
     if (!this.choice) await this.readModels();
-    const message = composeMessage(text, selections, withRoundsNote(this.cutShort, ownLoopNote(note)));
+    const message = composeMessage(text, selections, withRoundsNote(this.cutShort, note));
     this.cutShort = false;
     this.options.event(userEvent(text, message.label, message.summary, images.length > 0 ? kind : undefined));
     this.history.push(

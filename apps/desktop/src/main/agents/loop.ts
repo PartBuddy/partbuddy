@@ -3,7 +3,6 @@ import { jsonSchema, tool, type StopCondition, type ToolSet } from 'ai';
 import type { AgentEvent } from '../../shared/contract';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 import { decide, decideParameterNames, inputProblem, offeredTool, type ToolDecision } from './policy';
-import { PHOTO_COMPARE } from './photoNote';
 import { ANSWER_GUIDANCE, questionGuidance } from './questions';
 import { NO_RESEARCH_GUIDANCE, RESEARCH_GUIDANCE } from './research';
 import { withSkillNote, withToolNotes } from './toolNotes';
@@ -39,9 +38,17 @@ export const ROLE_INTRO =
 
 /** What the assistant owes the user about its limits, on every route (audit R27). */
 export const LIMITS_GUIDANCE =
-  'Say plainly what you did not check, what you estimated and what PartBuddy has not printed; never call a part safe ' +
+  'Say plainly what you did not check, what you estimated and what has not been test-printed; never call a part safe ' +
   "for mains voltage, food, load over a person or heat without the user's own test. Call a part done only when it is " +
   'built, measured and you have read its ready-to-print check.';
+
+/**
+ * How far an arm may bend (audit R41): no value reaches the model, so it does not judge it; the snap hook block computes
+ * the strain at the arm's root and says it in its answer (blockTool.ts `strainSaid`).
+ */
+export const FLEX_GUIDANCE =
+  `How far an arm may bend depends on the material; never judge it from memory: build a snap hook with ${BLOCK_TOOL} ` +
+  '(snapFit), whose answer gives the strain at the arm\'s root, and follow its warning.';
 
 /**
  * The role prompt of a route. `ownLoop`: this loop (ChatGPT, local models), which has a round limit and passes no picture
@@ -63,22 +70,19 @@ export function rolePrompt(ownLoop: boolean, research: boolean): string {
     BLOCK_GUIDANCE,
     STANDARD_GUIDANCE,
     questionGuidance(research),
+    FLEX_GUIDANCE,
     ANSWER_GUIDANCE,
     research ? RESEARCH_GUIDANCE : NO_RESEARCH_GUIDANCE,
   ].join(' ');
 }
 
 /**
- * SolidCraft's tools whose answer is a picture: this loop hands the model only text (`[image omitted]`), so it does not
- * offer them (audit R24). shortcut: `execute` with `inspect.compare_picture` still reaches one and answers without the
- * picture; forward tool pictures as image parts once the routes' servers are shown to take them.
+ * SolidCraft's tools whose whole answer is a picture: this loop hands the model only the text parts (`[image omitted]`),
+ * so it does not offer them (audit R24). `compare_picture` stays: it answers its overlap and edges as text, only its
+ * overlay is a picture (`tools/list` of solidcraft-cli 0.40.1). shortcut: other image parts of tool answers are still
+ * dropped; forward them as image parts once the routes' servers are shown to take pictures in tool results.
  */
-export const PICTURE_TOOLS: ReadonlySet<string> = new Set(['screenshot', 'compare_picture']);
-
-/** PartBuddy's note for this loop: without {@link PICTURE_TOOLS} the photo note's compare step goes (audit R24). */
-export function ownLoopNote(note: string | null): string | null {
-  return note?.replaceAll(PHOTO_COMPARE, '') ?? null;
-}
+export const PICTURE_TOOLS: ReadonlySet<string> = new Set(['screenshot']);
 
 /** Rounds in a row with the same tool calls after which the loop stops: small models can circle. */
 export const REPEAT_LIMIT = 3;

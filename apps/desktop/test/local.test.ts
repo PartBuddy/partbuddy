@@ -132,7 +132,7 @@ describe('local models through Strata (F8)', () => {
       const events: AgentEvent[] = [];
       const upstream: UpstreamTools = {
         instructions: () => undefined,
-        listTools: () => Promise.resolve(['measure', 'screenshot'].map((name) => ({ name, inputSchema: { type: 'object', properties: {} } }))),
+        listTools: () => Promise.resolve(['measure', 'screenshot', 'compare_picture'].map((name) => ({ name, inputSchema: { type: 'object', properties: {} } }))),
         callTool: () => Promise.resolve({ content: [{ type: 'text', text: 'ok' }] }),
       };
       const local = new LocalAgent({ tools: () => Promise.resolve(upstream), event: (event) => events.push(event), changed: () => undefined, log: () => undefined, choices: noChoices, fetch: strata.fetchFn });
@@ -153,9 +153,10 @@ describe('local models through Strata (F8)', () => {
     expect(seeing.messages).toContain('is a photo');
     expect(seeing.messages).toContain('image_url');
     expect(seeing.messages).not.toContain(UNSEEN_PICTURE);
-    // The own loop hands back no tool picture: no screenshot, and no compare step in the photo note (toolNotes.ts still names it, lane L6).
-    expect(seeing.messages).not.toContain('compare_picture');
+    // No screenshot on the own loop; compare_picture stays, as its measures come as text, and so does the photo note's step.
+    expect(seeing.messages).toContain('check the outline with `compare_picture`');
     expect(seeing.tools).toContain('measure');
+    expect(seeing.tools).toContain('compare_picture');
     expect(seeing.tools).not.toContain('screenshot');
   });
 

@@ -32,9 +32,6 @@ export function photoFile(project: string, when: Date, index = 0): string {
   return join(project, 'photos', `photo-${day}-${time}${index > 0 ? `-${String(index + 1)}` : ''}.png`);
 }
 
-/** The photo note's step with `compare_picture`, which the own loops leave out: they pass no picture from a tool answer (audit R24). */
-export const PHOTO_COMPARE = ', then check the outline with `compare_picture` {reference: that path}';
-
 /**
  * What the model hears with one or more photos. A photo has perspective and no scale, so the model
  * asks for the few dimensions that decide the part; tracing and comparing only pay off for a
@@ -54,8 +51,8 @@ export function photoNote(files: readonly (string | null)[]): string {
     'a hole spacing or a wall it clamps), then go on as for any new part (plan, Go, build).' +
     (saved.length > 0
       ? ` ${saved.length > 1 ? 'The photos are saved at' : 'The photo is saved at'} ${paths}. Only if the outline matters and a photo looks straight onto the object, after the user pressed Go on your plan: ` +
-        'lay it out with `canvas.insert` {path, plane, width}, scale it with `canvas.calibrate` from a dimension the user gave and model on it' +
-        `${PHOTO_COMPARE}. Skip this for a photo taken at an angle.]`
+        'lay it out with `canvas.insert` {path, plane, width}, scale it with `canvas.calibrate` from a dimension the user gave, model on it, ' +
+        'and check the outline with `compare_picture` {reference: that path}. Skip this for a photo taken at an angle.]'
       : ']')
   );
 }

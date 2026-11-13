@@ -9,9 +9,9 @@ import { BLOCK_GUIDANCE } from '../src/main/agents/blockTool';
 import { roleOf } from '../src/main/agents/claudeCode';
 import { drawingNote } from '../src/main/agents/drawingTool';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { instructionsFor, LIMITS_GUIDANCE, ownLoopNote, PICTURE_TOOLS, policyToolSet, ROLE_INTRO, rolePrompt } from '../src/main/agents/loop';
+import { FLEX_GUIDANCE, instructionsFor, LIMITS_GUIDANCE, PICTURE_TOOLS, policyToolSet, ROLE_INTRO, rolePrompt } from '../src/main/agents/loop';
 import { MECHANISM_GUIDANCE } from '../src/main/agents/mechanismTool';
-import { PHOTO_COMPARE, photoFile, photoNote } from '../src/main/agents/photoNote';
+import { photoFile, photoNote } from '../src/main/agents/photoNote';
 import { ANSWER_GUIDANCE } from '../src/main/agents/questions';
 import { NO_RESEARCH_GUIDANCE, RESEARCH_GUIDANCE } from '../src/main/agents/research';
 import { SKETCH_LIST, sketchNote } from '../src/main/agents/sketchNote';
@@ -68,28 +68,16 @@ describe('role prompts per route (BC-21)', () => {
     for (const prompt of [ROUTES.ChatGPT, ROUTES['ChatGPT, research'], ROUTES.local]) expect(prompt).not.toMatch(/screenshot/i);
   });
 
-  it('offers the own loops no tool whose answer is a picture (R24)', async () => {
+  it('offers the own loops no screenshot, but compare_picture, whose measures are text (R24)', async () => {
     const names = ['measure', 'screenshot', 'compare_picture', 'execute'];
     const listing: UpstreamTools = { ...upstream, listTools: () => Promise.resolve(names.map((name) => ({ name, inputSchema: { type: 'object', properties: {} } }))) };
     const tools = await policyToolSet(listing, { nextId: () => 'id', event: () => undefined });
-    expect(Object.keys(tools)).toEqual(['measure', 'execute']);
-    expect([...PICTURE_TOOLS]).toEqual(['screenshot', 'compare_picture']);
+    expect(Object.keys(tools)).toEqual(['measure', 'compare_picture', 'execute']);
+    expect([...PICTURE_TOOLS]).toEqual(['screenshot']);
     // partbuddy_view says what the user looks at in words and no longer points to a screenshot or counts tokens (R43).
     const view = (await withViewTool(upstream, () => null).listTools()).find((tool) => tool.name === VIEW_TOOL);
     expect(view?.description).not.toMatch(/screenshot|tokens/);
     expect(view?.description).toContain('as text');
-  });
-
-  it('drops the photo note\'s compare step on the own loops only (R24)', () => {
-    const file = photoFile(join(tmpdir(), 'P'), new Date(2026, 10, 13, 9, 5, 7));
-    const note = photoNote([file]);
-    expect(note).toContain(PHOTO_COMPARE);
-    expect(note).toContain('scale it with `canvas.calibrate` from a dimension the user gave and model on it, then check the outline with `compare_picture`');
-    const own = ownLoopNote(`[PartBuddy: profile]\n${note}`);
-    expect(own).not.toContain('compare_picture');
-    expect(own).toContain('scale it with `canvas.calibrate` from a dimension the user gave and model on it. Skip this for a photo taken at an angle.]');
-    expect(own?.startsWith('[PartBuddy: profile]\n')).toBe(true);
-    expect(ownLoopNote(null)).toBeNull();
   });
 
   it('tells research from none: look up only where the route may search (R25)', () => {
@@ -107,12 +95,13 @@ describe('role prompts per route (BC-21)', () => {
     expect(NO_RESEARCH_GUIDANCE).toContain('partbuddy_standard');
   });
 
-  it('keeps answers short without leaving out limits, and takes the material from the profile (R26, R41)', () => {
+  it("keeps answers short without leaving out limits, and leaves the bending to the snap hook's strain check (R26, R41)", () => {
     for (const prompt of Object.values(ROUTES)) {
       expect(prompt).toContain(ANSWER_GUIDANCE);
       expect(prompt).not.toContain('PLA is stiff');
-      expect(prompt).toContain('the material of the print profile decides how far an arm may bend');
+      expect(prompt).toContain(FLEX_GUIDANCE);
     }
+    expect(FLEX_GUIDANCE).toContain('build a snap hook with partbuddy_block (snapFit), whose answer gives the strain');
     expect(ANSWER_GUIDANCE).toContain('Never leave out, for the sake of brevity: what does not print or was not checked');
   });
 });

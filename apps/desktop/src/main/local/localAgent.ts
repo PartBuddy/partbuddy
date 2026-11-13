@@ -5,7 +5,7 @@ import { createOllama } from 'ollama-ai-provider-v2';
 import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, ownLoopNote, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
+import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import { SKETCH_LIST } from '../agents/sketchNote';
 import { composeMessage } from '../agents/viewContext';
@@ -290,7 +290,7 @@ export class LocalAgent implements AgentBackend {
     // A model without vision gets the words only, and the user learns why the picture went nowhere; the model, that it got none (audit R58).
     const pictures = model.vision ? images : [];
     const blind = images.length > 0 && pictures.length === 0;
-    const message = composeMessage(text, selections, withRoundsNote(this.cutShort, blind ? blindNote(ownLoopNote(note), kind) : ownLoopNote(note)));
+    const message = composeMessage(text, selections, withRoundsNote(this.cutShort, blind ? blindNote(note, kind) : note));
     this.cutShort = false;
     this.options.event(userEvent(text, message.label, message.summary, images.length > 0 ? kind : undefined));
     if (blind) this.options.event({ type: 'error', message: `${model.option.name} cannot see pictures; it got your words only.` });

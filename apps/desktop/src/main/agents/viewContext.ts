@@ -4,8 +4,8 @@ import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 /**
  * What the assistant learns about PartBuddy's 3D view (decided 2026-11-04): the selected face,
  * edge or vertex goes with each message as one line of text, and the `partbuddy_view` tool answers what the user
- * is looking at in about a hundred tokens. Both replace screenshots, which cost far more and show
- * SolidCraft's window instead of PartBuddy's view.
+ * is looking at as text (no token count: the body and sketch lists grow with the design, audit R43). Both replace
+ * screenshots, which cost far more, show SolidCraft's window instead of PartBuddy's view and reach only Claude Code (R24).
  */
 
 export const VIEW_TOOL = 'partbuddy_view';
