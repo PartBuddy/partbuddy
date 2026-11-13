@@ -3372,9 +3372,13 @@ test('a hinge plays in the view, stops where SolidCraft found the parts touching
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     // The light swept the joint in SolidCraft: upwards the flap's edge meets the base at 28.1°.
+    // The hinge comes in steps: the revision between joint.as_built and joint.limits has a joint without limits, whose
+    // free runs (BC-06) stop at 28.1° and at -180°, where the flap lies on the base. Its light may show for a moment;
+    // with the limits (-180° to 90°) one stop is left, -180° being the limit itself.
     await page.getByTestId('print-check').click({ timeout: 30_000 });
     const findings = page.getByTestId('print-check-panel');
-    await expect(findings.locator('[data-kind="blocked"]')).toContainText('Hinge: Flap and Base touch at 28.1°', { timeout: 30_000 });
+    await expect(findings.locator('[data-kind="blocked"]')).toHaveCount(1, { timeout: 30_000 });
+    await expect(findings.locator('[data-kind="blocked"]')).toContainText('Hinge: Flap and Base touch at 28.1° – the joint does not reach its limit of 90°', { timeout: 30_000 });
     await expect(async () => {
       await page.keyboard.press('Escape');
       await expect(findings).toBeHidden({ timeout: 1000 });
