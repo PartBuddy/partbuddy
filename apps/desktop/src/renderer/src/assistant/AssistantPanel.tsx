@@ -40,7 +40,7 @@ import { AgentChip } from './AgentChip';
 import { sendToAssistant } from './send';
 import { QuestionCard } from './QuestionCard';
 import { Answer } from './Answer';
-import { rowsOf, sameEntries, sameList } from './rows';
+import { retryMessage, ROUNDS, rowsOf, sameEntries, sameList } from './rows';
 import { StepCard } from './StepCard';
 import { Queries, WorkGroup } from './WorkGroup';
 import { selectedStatus, useAssistant, type Attachment, type ConversationItem } from './store';
@@ -199,7 +199,7 @@ function selectionSummary(t: TFunction, selected: { faces: number; edges: number
 }
 
 /** How a turn can end without an answer, as Claude Code and PartBuddy's own loop report it. */
-const FAILURE_REASONS = new Set(['failed', 'error_during_execution', 'error_max_turns', 'signedOut']);
+const FAILURE_REASONS = new Set(['failed', 'error_during_execution', 'error_max_turns', ROUNDS, 'signedOut']);
 
 /** Requests an empty chat offers as a start: a holder, a housing, a part after a photo. */
 const EXAMPLES = ['holder', 'housing', 'photo'] as const;
@@ -328,7 +328,7 @@ function Item({
             {retry ? (
               <Button onPress={retry} data-testid="turn-retry">
                 <IconRefresh className="size-icon-sm" aria-hidden />
-                {t('assistant.failed.retry')}
+                {t(item.detail === ROUNDS ? 'assistant.failed.continue' : 'assistant.failed.retry')}
               </Button>
             ) : null}
             {/* The details are one click away, not a path to look up (audit C-04). */}
@@ -572,7 +572,7 @@ export function AssistantPanel() {
   }, [setPadStart, setSketching, setShownPhoto]);
   // After a failed turn: the last message once more, as text (shortcut: a sketch or photo that went with it does not go again).
   const lastUser = items.findLast((item) => item.kind === 'user');
-  const retryLast = ready && lastUser?.kind === 'user' ? () => void sendToAssistant(lastUser.text) : null;
+  const retryLast = ready && lastUser?.kind === 'user' ? () => void sendToAssistant(retryMessage(items.at(-1), lastUser.text, t('assistant.failed.continue'))) : null;
   // The newest finished answer of this session (not of a restored chat), for screen readers.
   const sessionStart = items.findLastIndex((item) => item.kind === 'session');
   const lastAnswer = items.findLast((item, i) => i > sessionStart && item.kind === 'assistant' && !item.open);

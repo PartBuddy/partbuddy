@@ -18,6 +18,7 @@ import { lineWidth, printInPlaceGap, scaleClearance, snapSize, type FitPrinter }
 import { MATERIAL_CATALOG } from '../../shared/materialCatalog';
 import { HOLE_SIZES } from '../../shared/tolerances';
 import { BLOCK_TOOL } from '../agents/blockTool';
+import { DESIGN_TOOL } from '../agents/designTool';
 import { ASK_TOOL } from '../agents/questions';
 import { BRIDGE_SPAN, LYING_HOLE, minimumFloor, minimumWall, thinnestLine } from '@partbuddy/geometry';
 
@@ -317,7 +318,8 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
       `- Material and print time, from the first shape on and not as a clean-up: build a shell, not a block. Slicers print two to four lines (${mm(minWall)} to ${mm(4 * line)}) as wall and fill anything thicker with sparse infill, so stiffen with ribs as thick as the wall, at least two lines (${mm(minWall)}), instead of thickening the wall. Keep the part low as it prints: every ${mm(layer)} of height is one more layer, and print time grows with the layers. Shape it so it needs no support, which costs more time and material than any other choice. Leave out whole regions that do nothing (an open frame instead of a plate, a shorter body); small pockets and holes in a filled region add walls and save little or nothing. Split a part only when that saves support or much height and a joint is acceptable. Loaded regions, sizes the user names and what the user wants solid stay as they are. Infill, speed and layer height are set in the slicer: never promise grams or minutes. The print check lists each body's solid volume, height, layers and support area: compare them before and after a change.`,
     );
   if (off.length > 0)
-    lines.push(`- The user turned off ${off.map((rule) => RULE_NAMES[rule]).join(', ')}: do not add them unless the user asks for them.`);
+    // audit H-28: the groups may have been turned off by the assistant with partbuddy_design_rules, so the note does not say "the user".
+    lines.push(`- Turned off for this part, in PartBuddy's settings or with ${DESIGN_TOOL} in the chat: ${off.map((rule) => RULE_NAMES[rule]).join(', ')}. Do not add them unless the user asks for them.`);
   lines.push(
     `- After each design step, name what you added on your own${design.economy ? ', what you did for material and print time' : ''} and the sizes you snapped in one short line, e.g. "Outer edges 2 mm rounded, hinge print-in-place with ${mm(gap)} gap, lid slide fit ${clearance('slide')}${design.economy ? `, shell ${mm(line * 3)} with two ribs instead of a solid block` : ''}", so the user can turn it off or change it.`,
     `- When the user turns one of these off or back on ("no fillets", "screw the hinge instead", "make it solid"), call partbuddy_design_rules, so it holds for the rest of the project, also after a restart.`,

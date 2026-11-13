@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { LOOP_NOTICE } from '../src/main/agents/loop';
+import { LOOP_NOTICE, MAX_STEPS, ROUNDS_DETAIL, ROUNDS_NOTE } from '../src/main/agents/loop';
 import { LocalAgent, serverReason } from '../src/main/local/localAgent';
 import { findOpenAiServers, llamaProps, modelsFromList, modelsFromLmStudio } from '../src/main/local/openaiServers';
 import type { AgentEvent } from '../src/shared/contract';
@@ -130,6 +130,50 @@ describe('LM Studio, llama.cpp and vLLM (F8)', () => {
     await local.send('Again');
     await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2));
     expect(server.bodies.length - before).toBe(1);
+  });
+
+  it('says when a turn used all its tool rounds, and tells the model with the next message (audit R57)', async () => {
+    // A model that calls a tool with new input in each of its first `calls` rounds, then answers.
+    const busy = (calls: number) => {
+      let round = 0;
+      return machine({
+        '1234': (path, body) => {
+          if (path === '/api/v0/models') return Response.json({ object: 'list', data: [{ id: 'qwen3-4b', type: 'llm', state: 'loaded', max_context_length: 32768, loaded_context_length: 32768, capabilities: ['tool_use'] }] });
+          if (path !== '/v1/chat/completions') return null;
+          round += 1;
+          if (round > calls) return completion(body, { content: 'Built it.' });
+          const call = { index: 0, id: `call_${String(round)}`, type: 'function', function: { name: 'measure', arguments: JSON.stringify({ round }) } };
+          const chunk = (delta: object, finish: string | null) => `data: ${JSON.stringify({ id: 'c', object: 'chat.completion.chunk', created: 1, model: 'm', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
+          return new Response(chunk({ role: 'assistant', content: '', tool_calls: [call] }, null) + chunk({}, 'tool_calls') + 'data: [DONE]\n\n', { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+        },
+      });
+    };
+    // One round short of the limit the model still finishes: no notice.
+    const enough = busy(MAX_STEPS - 1);
+    const done = agent(enough.fetchFn);
+    await done.local.refresh();
+    await done.local.send('Make a box');
+    await vi.waitFor(() => expect(done.events.some((e) => e.type === 'done')).toBe(true), { timeout: 10_000 });
+    expect(done.events.find((e) => e.type === 'done')).toMatchObject({ ok: true });
+    expect(enough.bodies).toHaveLength(MAX_STEPS);
+
+    // Cut after MAX_STEPS rounds; the turn after it ends with one more tool round and the answer.
+    const server = busy(MAX_STEPS + 1);
+    const { local, events } = agent(server.fetchFn);
+    await local.refresh();
+    await local.send('Make a box');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 10_000 });
+    expect(server.bodies).toHaveLength(MAX_STEPS);
+    expect(events.find((e) => e.type === 'done')).toMatchObject({ ok: false, detail: ROUNDS_DETAIL });
+    expect(JSON.stringify(server.bodies[0])).toContain(`You have ${String(MAX_STEPS)} tool rounds per turn`);
+    await local.send('continue');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 10_000 });
+    expect(JSON.stringify(server.bodies[MAX_STEPS])).toContain(ROUNDS_NOTE.slice(0, 60));
+    expect(events.filter((e) => e.type === 'done').at(-1)).toMatchObject({ ok: true });
+    await local.send('and again');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(3), { timeout: 10_000 });
+    // Once only: the note went with the message after the cut and stays in the history, not in the next message.
+    expect(JSON.stringify(server.bodies.at(-1)).split(ROUNDS_NOTE.slice(0, 60))).toHaveLength(2);
   });
 
   it('stops a model that repeats the same tool call, known or unknown, after three rounds', async () => {

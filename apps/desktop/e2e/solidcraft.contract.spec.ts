@@ -570,6 +570,8 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
     // The test double shows a plan for "plan" and then tries to build anyway (test/fakeClaude.mjs).
     PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+    // The plan before a new part (audit R14) end to end: the design is empty, so only Go lets the box through.
+    PARTBUDDY_PLAN_FIRST: '1',
   };
   const launched = await launchApp({ isolated: false, work, env });
   const { page } = launched;
@@ -579,6 +581,11 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     await page.getByTestId('chat-example').first().click();
     await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toHaveValue(/^A wall holder for a cordless drill/);
     await expect(page.getByTestId('chat-start')).toBeVisible();
+    // A box straight away in the empty design is refused: a new part waits for a plan with Go (audit R14).
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('assistant-text').last()).toHaveText('Refused: This is a new part: show a plan with partbuddy_plan first and build after the user pressed Go.', { timeout: 30_000 });
+    await expect(page.getByTestId('step-card')).toHaveCount(0);
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make a plan first');
     await page.getByRole('button', { name: 'Send' }).click();
     const card = page.getByTestId('question-card');
@@ -718,7 +725,8 @@ test('the user\'s Claude Code builds a part in SolidCraft through the gate proxy
   const { ControlClient } = await import('../src/main/solidcraft/controlClient');
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-spike-'));
   const port = '7882';
-  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port } });
+  // The test asks for a box straight away; the plan before a new part (questions.ts) is tested on its own.
+  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port, PARTBUDDY_PLAN_FIRST: '0' } });
   try {
     const { page } = launched;
     await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
@@ -760,7 +768,8 @@ test('ChatGPT builds a part in SolidCraft with the user\'s plan', async () => {
   const { ControlClient } = await import('../src/main/solidcraft/controlClient');
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-spike-'));
   const port = '7883';
-  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port } });
+  // The test asks for a box straight away; the plan before a new part (questions.ts) is tested on its own.
+  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port, PARTBUDDY_PLAN_FIRST: '0' } });
   try {
     const { page } = launched;
     await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });

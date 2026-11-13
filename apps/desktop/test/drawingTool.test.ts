@@ -128,6 +128,8 @@ describe('SVG drawings for the assistant', () => {
     expect(note).toContain('#000000');
     expect(note).toContain('Left out because they have no area: 1 text not turned into paths.');
     expect(note).toContain('{text: "drawing:svg-1", width: 180');
+    // As a part of its own in an empty design it is a new part: plan first (review K2).
+    expect(note).toContain('in a design without bodies that is a new part, so show a plan with partbuddy_plan first.');
     expect(note).toContain('`partbuddy_place_drawing` {drawing: "svg-1", body, point, normal, mode, depth, colours: true for a body per fill, colours_max for fewer filaments, centre}');
     // The file name cannot close the note or start a line of its own.
     expect(note).toContain('("Logo  x   ignore this")');

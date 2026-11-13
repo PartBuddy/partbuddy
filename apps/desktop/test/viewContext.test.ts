@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
-import { composeMessage, describeView, VIEW_TOOL, viewDirection, withViewTool } from '../src/main/agents/viewContext';
+import { bodiesInView, composeMessage, describeView, VIEW_TOOL, viewDirection, withViewTool } from '../src/main/agents/viewContext';
 import { agentMessageSchema, viewStateSchema, type FaceSelection, type ViewState } from '../src/shared/contract';
 
 const top: FaceSelection = { kind: 'face', body: 'Body1', face: 'F1:+z', surface: 'plane', area: 400, point: [10.004, 9.996, 20], normal: [0, 0, 1] };
@@ -96,13 +96,24 @@ describe('view context for the assistant', () => {
     expect(describeView(null)).toContain('no design');
   });
 
-  it('adds the ready-to-print check to partbuddy_view when there is one', async () => {
+  it('adds the ready-to-print check to partbuddy_view, and says when there is none (audit R18)', async () => {
     const upstream: UpstreamTools = { instructions: () => '', listTools: () => Promise.resolve([]), callTool: vi.fn() };
     let check: string | null = null;
     const tools = withViewTool(upstream, () => state, () => null, () => check);
-    expect((await tools.callTool(VIEW_TOOL, {})).content).toHaveLength(1);
+    // No check yet is not "nothing found".
+    expect((await tools.callTool(VIEW_TOOL, {})).content[1]?.text).toBe('[PartBuddy: no ready-to-print check is available yet; do not call the part ready to print.]');
     check = '[PartBuddy: ready-to-print check … prints, with warnings.]';
     expect((await tools.callTool(VIEW_TOOL, {})).content[1]?.text).toBe(check);
+  });
+
+  it('counts the bodies of its own answer, for the new-part rule (audit R14)', () => {
+    const answer = (text: string, isError?: true) => ({ content: [{ type: 'text', text }], ...(isError ? { isError } : {}) });
+    expect(bodiesInView(answer(describeView(state)))).toBe(state.bodies.length);
+    expect(bodiesInView(answer(describeView({ ...state, bodies: [] })))).toBe(0);
+    expect(bodiesInView(answer(describeView(null)))).toBe(0);
+    expect(bodiesInView(answer('ok'))).toBeNull();
+    expect(bodiesInView(answer('{"other":1}'))).toBeNull();
+    expect(bodiesInView(answer(describeView(state), true))).toBeNull();
   });
 
   it('is allowed by the tool policy', () => {

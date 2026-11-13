@@ -67,6 +67,8 @@ export async function launchApp(
       : {}),
     ...options.env,
   };
+  // The test doubles of Claude Code build in an empty design at once; a real assistant keeps "a plan with Go before a new part" (questions.ts).
+  if (env.PARTBUDDY_CLAUDE_COMMAND && env.PARTBUDDY_PLAN_FIRST === undefined) env.PARTBUDDY_PLAN_FIRST = '0';
   const app = await electron.launch({
     args: [appDir, '--lang=en-US', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', `--user-data-dir=${join(work, 'profile')}`, HOVER, ...(options.args ?? [])],
     cwd: appDir,

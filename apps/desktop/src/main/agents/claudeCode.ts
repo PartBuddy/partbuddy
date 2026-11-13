@@ -11,6 +11,7 @@ import { ASSEMBLY_GUIDANCE, JOINT_GUIDANCE } from './assemblyTool';
 import { BLOCK_GUIDANCE } from './blockTool';
 import { STANDARD_GUIDANCE } from './standardTool';
 import { MECHANISM_GUIDANCE } from './mechanismTool';
+import { REFUSAL_GUIDANCE } from './loop';
 
 /**
  * Adapter for the user's own, unmodified Claude Code (ADR 0015). PartBuddy starts the official
@@ -196,7 +197,9 @@ export type ClaudeEvent =
   | { type: 'done'; ok: boolean; durationMs: number | null; detail: string | null; reason?: string }
   | { type: 'exited'; code: number | null }
   | { type: 'usage'; windows: NonNullable<AgentStatus['usage']> }
-  | { type: 'context'; used?: number; size?: number };
+  | { type: 'context'; used?: number; size?: number }
+  /** Claude Code compacted its context: what earlier messages carried, such as the print profile, may be gone. */
+  | { type: 'compacted'; tokens: number | null };
 
 /** Maps one stream-json line of Claude Code to the events PartBuddy shows. */
 export function parseStreamLine(line: string): ClaudeEvent[] {
@@ -207,8 +210,14 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
     return [];
   }
   switch (message.type) {
-    case 'system':
-      return message.subtype === 'init' ? [{ type: 'started', model: typeof message.model === 'string' ? message.model : null }] : [];
+    case 'system': {
+      if (message.subtype === 'init') return [{ type: 'started', model: typeof message.model === 'string' ? message.model : null }];
+      // After compacting, Claude Code reports {"type":"system","subtype":"compact_boundary","compact_metadata":{"trigger":"auto","pre_tokens":…}}
+      // (named in the 2.1.x binary, not seen in a real run here; audit H-11).
+      if (message.subtype !== 'compact_boundary') return [];
+      const before = (message.compact_metadata as { pre_tokens?: unknown } | undefined)?.pre_tokens;
+      return [{ type: 'compacted', tokens: typeof before === 'number' && Number.isInteger(before) && before >= 0 ? before : null }];
+    }
     case 'stream_event': {
       const event = message.event as { type?: string; index?: number; content_block?: { type?: string }; delta?: { type?: string; text?: string } } | undefined;
       // A further text block of the same message starts a new paragraph, as the final text has it.
@@ -294,20 +303,21 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
   }
 }
 
-function roleOf(research: boolean): string {
+/** The role Claude Code gets as `--append-system-prompt`. */
+export function roleOf(research: boolean): string {
   return [
     'You are the design assistant inside PartBuddy, a desktop app for 3D-printable parts.',
     'SolidCraft runs in the background and the user watches every step live in PartBuddy\'s 3D view.',
     'Use only the partbuddy tools to inspect and change the design. Work in small visible steps:',
     'one sketch or one feature group per call. Units are millimetres.',
-    'If PartBuddy refuses a tool, tell the user why and continue without it.',
+    REFUSAL_GUIDANCE,
     'Answer in the language the user writes in, and name bodies, features and sketches in it too: the structure tree and the timeline show these names.',
     VIEW_GUIDANCE,
     ASSEMBLY_GUIDANCE,
     JOINT_GUIDANCE,
     MECHANISM_GUIDANCE,
-  BLOCK_GUIDANCE,
-  STANDARD_GUIDANCE,
+    BLOCK_GUIDANCE,
+    STANDARD_GUIDANCE,
     QUESTION_GUIDANCE,
     ANSWER_GUIDANCE,
     ...(research ? [RESEARCH_GUIDANCE] : []),

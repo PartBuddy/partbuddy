@@ -32,7 +32,7 @@ export interface AgentBackend {
   newConversation(): Promise<void>;
   /** Model and effort from the next turn on; with `asDefault` also kept for new chats (B1). */
   chooseModel(choice: ModelChoice, asDefault: boolean): Promise<void>;
-  /** True when the next message starts a new conversation that knows nothing of earlier ones. */
+  /** True when the next message starts a new conversation, or one that kept only a summary of earlier messages (compacted). */
   freshConversation(): boolean;
   signIn(): void;
   signOut(): Promise<void>;

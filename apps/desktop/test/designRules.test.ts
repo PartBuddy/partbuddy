@@ -45,7 +45,7 @@ describe('design rules in the print note (decided 2026-11-07)', () => {
     expect(note).toContain('to whole layers of 0.2 mm (0.6, 0.8, 1, 1.2 mm)');
     expect(note).toContain('print-in-place gaps 0.4 mm');
     expect(note).toContain(DESIGN_TOOL);
-    expect(note).not.toContain('The user turned off');
+    expect(note).not.toContain('Turned off for this part');
   });
 
   it('takes out exactly the group a setting turns off', () => {
@@ -54,7 +54,7 @@ describe('design rules in the print note (decided 2026-11-07)', () => {
       profiles.save({ ...profiles.settings(), design: { ...DESIGN_DEFAULTS, [rule]: false } });
       const note = printNote(profiles.part());
       for (const [other, marker] of Object.entries(MARKERS)) expect(note.includes(marker)).toBe(other !== rule);
-      expect(note).toContain('The user turned off');
+      expect(note).toContain("Turned off for this part, in PartBuddy's settings or with partbuddy_design_rules in the chat");
       rmSync(folder ?? '', { recursive: true, force: true });
     }
   });
@@ -132,7 +132,7 @@ describe('material and print time as a rule group of its own (2026-11-12)', () =
     make().setDesign({ rounding: false });
     const note = printNote(make().part());
     expect(note).not.toContain(MARKERS.economy);
-    expect(note).toContain('The user turned off rounded and chamfered edges, saving material and print time');
+    expect(note).toContain('in the chat: rounded and chamfered edges, saving material and print time. Do not add them unless the user asks for them.');
     expect(note).toContain('name what you added on your own and the sizes you snapped in one short line');
     expect(note).not.toContain('instead of a solid block');
   });

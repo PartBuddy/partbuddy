@@ -48,9 +48,9 @@ export function photoNote(files: readonly (string | null)[]): string {
       : '[PartBuddy: the attached picture is a photo of a real object. It has perspective and no scale: never read sizes off its pixels. ') +
     'Say in one sentence what you see and what part you take the user to want (often a holder for the object or a part that fits it); ' +
     'ask with a clarification card for the two or three critical dimensions the message does not give (such as the width and depth where it sits, ' +
-    'a hole spacing or a wall it clamps), then build it printable as designed.' +
+    'a hole spacing or a wall it clamps), then go on as for any new part (plan, Go, build).' +
     (saved.length > 0
-      ? ` ${saved.length > 1 ? 'The photos are saved at' : 'The photo is saved at'} ${paths}. Only if the outline matters and a photo looks straight onto the object: ` +
+      ? ` ${saved.length > 1 ? 'The photos are saved at' : 'The photo is saved at'} ${paths}. Only if the outline matters and a photo looks straight onto the object, after the user pressed Go on your plan: ` +
         'lay it out with `canvas.insert` {path, plane, width}, scale it with `canvas.calibrate` from a dimension the user gave, model on it, ' +
         'and check the outline with `compare_picture` {reference: that path}. Skip this for a photo taken at an angle.]'
       : ']')

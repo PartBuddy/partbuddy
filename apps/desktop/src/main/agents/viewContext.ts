@@ -159,6 +159,25 @@ export function describeView(state: ViewState | null, notes?: ViewNotes | null):
   });
 }
 
+/**
+ * How many bodies a `partbuddy_view` answer shows: 0 when PartBuddy shows no design yet, null when the answer is not
+ * one of {@link describeView}'s.
+ */
+export function bodiesInView(result: ToolResult): number | null {
+  const text = result.content[0]?.text;
+  if (result.isError === true || typeof text !== 'string') return null;
+  try {
+    const view = JSON.parse(text) as { view?: unknown; bodies?: unknown };
+    if (Array.isArray(view.bodies)) return view.bodies.length;
+    return typeof view.view === 'string' ? 0 : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `partbuddy_view` without a check (audit R18): not checked is not the same as nothing found. */
+export const NO_CHECK_VIEW = '[PartBuddy: no ready-to-print check is available yet; do not call the part ready to print.]';
+
 const viewTool: UpstreamTool = {
   name: VIEW_TOOL,
   description:
@@ -182,8 +201,7 @@ export function withViewTool(
     listTools: async () => [...(await upstream.listTools()), viewTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
       if (name === VIEW_TOOL) {
-        const findings = check();
-        return { content: [{ type: 'text', text: describeView(state(), notes()) }, ...(findings ? [{ type: 'text', text: findings }] : [])] };
+        return { content: [{ type: 'text', text: describeView(state(), notes()) }, { type: 'text', text: check() ?? NO_CHECK_VIEW }] };
       }
       return upstream.callTool(name, args, callId);
     },
