@@ -4,7 +4,7 @@ import { Dialog, Heading, Modal, ModalOverlay } from 'react-aria-components';
 
 import { useStudio, type ExportTarget } from '../state/store';
 import { Button } from '../ui/Button';
-import { useFindingText, useUnmeasuredText } from './PrintCheckChip';
+import { useFindingText, useLackingLines } from './PrintCheckChip';
 import { asksBeforeExport, checkNow } from './report';
 import { modalClass, overlayClass } from '../ui/Dialog';
 
@@ -29,7 +29,7 @@ export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget)
   if (format !== null && openedMeasuring === null) setOpenedMeasuring(check?.measuring === true);
   const findings = check?.result.findings ?? [];
   const text = useFindingText();
-  const unmeasured = useUnmeasuredText()(check?.unmeasured ?? []);
+  const lacking = useLackingLines()(check?.unmeasured ?? [], true);
   const blocking = findings.filter((finding) => finding.severity === 'block');
   return (
     <ModalOverlay
@@ -59,7 +59,11 @@ export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget)
               ) : null}
               <div role="status" className="flex flex-col gap-3 empty:hidden">
                 {check?.measuring ? <p className="text-sm text-text-muted">{t('check.confirm.measuring')}</p> : null}
-                {unmeasured ? <p className="text-sm text-text-muted">{t('check.confirm.unmeasured', { what: unmeasured })}</p> : null}
+                {lacking.map((line) => (
+                  <p key={line} className="text-sm text-text-muted">
+                    {line}
+                  </p>
+                ))}
                 {/* The measure came in green while the dialog stood open. */}
                 {openedMeasuring && !asksBeforeExport(stored, model, connection) ? <p className="text-sm text-text-muted">{t('check.confirm.done')}</p> : null}
               </div>

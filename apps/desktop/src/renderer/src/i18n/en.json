@@ -1114,7 +1114,7 @@
       "ready": "Ready to print",
       "warn": "{count, plural, one {# warning} other {# warnings}}",
       "block": "Not ready to print",
-      "measuring": "Still measuring",
+      "measuring": "Checking",
       "unmeasured": "Not fully checked"
     },
     "none": "No problems found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
@@ -1125,8 +1125,11 @@
     "unchecked": "Not checked for gaps (mesh bodies): {bodies}",
     "measure": {
       "clearance": "the gaps between the parts",
-      "joints": "the travel of the joints",
-      "mirror": "the newest state of the design, which the view could not read"
+      "joints": "the travel of the joints"
+    },
+    "lacking": {
+      "mirror": "The view could not read the newest state; it is not checked.",
+      "check": "The print check broke off with an error; this state is not checked."
     },
     "faces": "{count, plural, one {# face} other {# faces}}",
     "more": "{count} more",

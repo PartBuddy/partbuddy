@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
-import { asksBeforeExport, checkNow, jointRuns, reportOf, sweepInBlocks } from '../src/renderer/src/print/report';
+import { asksBeforeExport, checkNow, jointRuns, lateOn, reportOf, sweepInBlocks } from '../src/renderer/src/print/report';
 import type { ModelState, StudioPrintCheck } from '../src/renderer/src/state/store';
 import { printCheckReportSchema } from '../src/shared/contract';
 
@@ -155,6 +155,31 @@ describe('what the check could not measure', () => {
     // A mirror that failed leaves SolidCraft further on than the check: not measured, so it asks.
     expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'failed' })).toBe(true);
     expect(checkNow(light('ready', { unmeasured: ['joints'] }), model, { state: 'connected', mirror: 'failed' })?.unmeasured).toEqual(['joints', 'mirror']);
+    // A mirror of the revision on screen once more that failed: SolidCraft is not further on, nothing lacks.
+    expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'failed', documentId: 'doc-a', revision: 3 })).toBe(false);
+    expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'failed', documentId: 'doc-a', revision: 4 })).toBe(true);
+  });
+
+  it('shows a passing state only once it lasted, and its end at once', () => {
+    vi.useFakeTimers();
+    try {
+      const shown: boolean[] = [];
+      const follow = lateOn(500, (on) => shown.push(on));
+      // A step checked within the time never shows "checking".
+      follow(true);
+      vi.advanceTimersByTime(400);
+      follow(false);
+      vi.advanceTimersByTime(1000);
+      expect(shown).toEqual([false]);
+      // One that lasts does, and its end shows at once.
+      follow(true);
+      vi.advanceTimersByTime(500);
+      expect(shown).toEqual([false, true]);
+      follow(false);
+      expect(shown).toEqual([false, true, false]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('sweeps the joints in blocks of 40, one after the other, and counts a failed block as not measured', async () => {

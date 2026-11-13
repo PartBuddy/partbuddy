@@ -26,7 +26,7 @@ export function usePrintCheck(): void {
     }
     // Until the check of this revision and printer is there, the one shown is of something else (audit X-1).
     useStudio.getState().checkPending();
-    const timer = setTimeout(() => {
+    const run = () => {
       // Standard parts (B7) are counterparts and are not printed.
       // A body whose part SolidCraft is still building is neither yet; the mirror that follows says which, and the check runs again.
       const standard = new Set([...(model.structure.standardParts ?? []), ...(model.structure.pendingParts ?? [])]);
@@ -116,6 +116,15 @@ export function usePrintCheck(): void {
           useStudio.getState().setPrintCheck({ documentId: model.documentId, revision: model.revision, result: final, ...(failed.length > 0 ? { unmeasured: failed } : {}), ...(unchecked.length > 0 ? { unchecked } : {}) });
           report(final, false, failed, unchecked);
         });
+    };
+    const timer = setTimeout(() => {
+      try {
+        run();
+      } catch (error) {
+        // A check that throws must not leave the light on "checking" until the next change: not checked, and said so.
+        console.warn('PartBuddy: the ready-to-print check failed', error);
+        useStudio.getState().setPrintCheck({ documentId: model.documentId, revision: model.revision, result: { status: 'ready', findings: [] }, unmeasured: ['check'] });
+      }
     }, CHECK_DELAY_MS);
     let stale = false;
     return () => {

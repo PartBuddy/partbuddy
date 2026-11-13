@@ -1,12 +1,13 @@
 import type { PrintFinding, PrintStatus } from '@partbuddy/geometry';
 import { IconCrosshair, IconLoader2 } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover } from 'react-aria-components';
 
-import { useStudio } from '../state/store';
+import { useStudio, type Unmeasured } from '../state/store';
 import { popoverPanelClass } from '../ui/Overlay';
 import { dotTone } from '../ui/Feedback';
-import { checkNow } from './report';
+import { checkNow, lateOn, PENDING_SHOWN_MS } from './report';
 
 const DOT: Record<PrintStatus, string> = { ready: dotTone.success, warn: dotTone.warning, block: dotTone.danger };
 
@@ -61,10 +62,44 @@ export function useFindingText(): (finding: PrintFinding) => string {
   };
 }
 
-/** What SolidCraft did not measure, in words; empty when it measured all. */
-export function useUnmeasuredText(): (unmeasured: readonly ('clearance' | 'joints' | 'mirror')[]) => string {
+/**
+ * What the check could not do, as sentences: the measures SolidCraft left out in one, a view that could not read the
+ * newest state and a check that broke off each in its own. `confirm`: worded for the question before an export.
+ */
+export function useLackingLines(): (unmeasured: readonly Unmeasured[], confirm?: boolean) => string[] {
   const { t, i18n } = useTranslation();
-  return (unmeasured) => new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(unmeasured.map((what) => t(`check.measure.${what}`)));
+  return (unmeasured, confirm = false) => {
+    const measures = unmeasured.filter((what) => what === 'clearance' || what === 'joints');
+    const what = new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(measures.map((measure) => t(`check.measure.${measure}`)));
+    const own = unmeasured.filter((item) => item === 'mirror' || item === 'check').map((item) => t(`check.lacking.${item}`));
+    return [...(measures.length > 0 ? [t(confirm ? 'check.confirm.unmeasured' : 'check.unmeasured', { what })] : []), ...own];
+  };
+}
+
+/** Bodies by name, five at most and how many more. */
+function useBodyList(): (bodies: readonly string[]) => string {
+  const { t, i18n } = useTranslation();
+  return (bodies) => {
+    const names = bodies.slice(0, 5);
+    const rest = bodies.length - names.length;
+    return new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(rest > 0 ? [...names, t('check.more', { count: rest })] : names);
+  };
+}
+
+/** `on` once it held for {@link PENDING_SHOWN_MS}; false at once when it ends. */
+function useLate(on: boolean): boolean {
+  const [late, setLate] = useState(false);
+  const [follow] = useState(() => lateOn(PENDING_SHOWN_MS, setLate));
+  useEffect(() => {
+    follow(on);
+  }, [follow, on]);
+  useEffect(
+    () => () => {
+      follow(false);
+    },
+    [follow],
+  );
+  return on && late;
 }
 
 function FindingRow({ finding }: { finding: PrintFinding }) {
@@ -123,7 +158,7 @@ function FindingRow({ finding }: { finding: PrintFinding }) {
  * revision, and on a click the findings, each one pointing at its place on the model.
  */
 export function PrintCheckChip() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   // A light of another revision or project counts as still measuring (audit X-1).
   const check = checkNow(
     useStudio((s) => s.printCheck),
@@ -131,64 +166,84 @@ export function PrintCheckChip() {
     useStudio((s) => s.connection),
   );
   const setStepHighlight = useStudio((s) => s.setStepHighlight);
-  const unmeasured = useUnmeasuredText()(check?.unmeasured ?? []);
-  if (!check) return null;
-  const { status, findings } = check.result;
+  const lacking = useLackingLines()(check?.unmeasured ?? []);
+  const bodyList = useBodyList();
+  // "Checking" shows only when it lasts; the export asks all the same (review of #367).
+  const checking = useLate(check?.measuring === true);
+  const status = check?.result.status ?? 'ready';
+  const findings = check?.result.findings ?? [];
   // Green only once all is measured (audit X-1): until then, or when a measure failed, the light says so.
-  const open = status !== 'ready' ? null : check.measuring ? 'measuring' : unmeasured ? 'unmeasured' : null;
+  const open = status !== 'ready' ? null : checking ? 'measuring' : lacking.length > 0 ? 'unmeasured' : null;
   const label = open ? t(`check.status.${open}`) : t(`check.status.${status}`, { count: findings.length });
+  // Read out are the states it ends in, not "checking" after every step.
+  const [said, setSaid] = useState('');
+  if (check && !check.measuring && said !== label) setSaid(label);
+  if (!check) return null;
   const dot = open === 'measuring' ? dotTone.neutral : open === 'unmeasured' ? dotTone.warning : DOT[status];
 
   return (
-    <DialogTrigger
-      onOpenChange={(open) => {
-        if (!open) setStepHighlight(null);
-      }}
-    >
-      <AriaButton
-        className="inline-flex h-full items-center gap-1 rounded-sm px-1 text-xs text-text-muted outline-none hover:bg-surface-hover hover:text-text pressed:bg-surface-pressed focus-visible:focus-ring"
-        data-testid="print-check"
-        data-status={status}
-        data-revision={check.revision}
-        data-measuring={check.measuring ? 'true' : undefined}
-        data-unmeasured={check.unmeasured?.join(' ')}
+    <>
+      <span className="sr-only" aria-live="polite">
+        {said}
+      </span>
+      <DialogTrigger
+        onOpenChange={(open) => {
+          if (!open) setStepHighlight(null);
+        }}
       >
-        <span aria-hidden className={`size-dot rounded-full ${dot}`} />
-        <span aria-live="polite" className="inline-flex items-center gap-1">
-          <span>{label}</span>
-          {check.measuring ? (
-            open === 'measuring' ? (
-              <IconLoader2 className="size-icon-sm animate-spin motion-reduce:animate-none" aria-hidden />
+        <AriaButton
+          className="inline-flex h-full items-center gap-1 rounded-sm px-1 text-xs text-text-muted outline-none hover:bg-surface-hover hover:text-text pressed:bg-surface-pressed focus-visible:focus-ring"
+          data-testid="print-check"
+          data-status={status}
+          data-revision={check.revision}
+          data-measuring={check.measuring ? 'true' : undefined}
+          data-unmeasured={check.unmeasured?.join(' ')}
+        >
+          <span aria-hidden className={`size-dot rounded-full ${dot}`} />
+          <span className="inline-flex items-center gap-1">
+            <span>{label}</span>
+            {checking ? (
+              open === 'measuring' ? (
+                <IconLoader2 className="size-icon-sm animate-spin motion-reduce:animate-none" aria-hidden />
+              ) : (
+                <IconLoader2 className="size-icon-sm animate-spin motion-reduce:animate-none" role="img" aria-label={t('check.status.measuring')} />
+              )
+            ) : null}
+          </span>
+        </AriaButton>
+        <Popover placement="top start" offset={4} className={`${popoverPanelClass} p-2`}>
+          <Dialog className="flex flex-col gap-2 outline-none" data-testid="print-check-panel">
+            <Heading slot="title" className="px-2 text-sm font-semibold text-text">
+              {t('check.title')}
+            </Heading>
+            {findings.length === 0 ? (
+              <p className="px-2 text-sm text-text-muted">{t(check.measuring || lacking.length > 0 ? 'check.noneSoFar' : 'check.none')}</p>
             ) : (
-              <IconLoader2 className="size-icon-sm animate-spin motion-reduce:animate-none" role="img" aria-label={t('check.status.measuring')} />
-            )
-          ) : null}
-        </span>
-      </AriaButton>
-      <Popover placement="top start" offset={4} className={`${popoverPanelClass} p-2`}>
-        <Dialog className="flex flex-col gap-2 outline-none" data-testid="print-check-panel">
-          <Heading slot="title" className="px-2 text-sm font-semibold text-text">
-            {t('check.title')}
-          </Heading>
-          {findings.length === 0 ? (
-            <p className="px-2 text-sm text-text-muted">{t(check.measuring || unmeasured ? 'check.noneSoFar' : 'check.none')}</p>
-          ) : (
-            <ul className="flex max-h-menu-max flex-col gap-0 overflow-auto">
-              {findings.map((finding, i) => (
-                <FindingRow key={`${finding.kind}-${String(i)}`} finding={finding} />
-              ))}
-            </ul>
-          )}
-          {check.measuring ? <p className="px-2 text-sm text-text-muted" data-testid="print-check-measuring">{t('check.measuring')}</p> : null}
-          {unmeasured ? <p className="px-2 text-sm text-text-muted" data-testid="print-check-unmeasured">{t('check.unmeasured', { what: unmeasured })}</p> : null}
-          {check.unchecked && check.unchecked.length > 0 ? (
-            <p className="px-2 text-sm text-text-muted" data-testid="print-check-unchecked">
-              {t('check.unchecked', { bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(check.unchecked) })}
-            </p>
-          ) : null}
-          <p className="px-2 text-xs text-text-muted">{t('check.basis')}</p>
-        </Dialog>
-      </Popover>
-    </DialogTrigger>
+              <ul className="flex max-h-menu-max flex-col gap-0 overflow-auto">
+                {findings.map((finding, i) => (
+                  <FindingRow key={`${finding.kind}-${String(i)}`} finding={finding} />
+                ))}
+              </ul>
+            )}
+            {check.measuring ? <p className="px-2 text-sm text-text-muted" data-testid="print-check-measuring">{t('check.measuring')}</p> : null}
+            {lacking.length > 0 ? (
+              <div className="flex flex-col gap-2" data-testid="print-check-unmeasured">
+                {lacking.map((line) => (
+                  <p key={line} className="px-2 text-sm text-text-muted">
+                    {line}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+            {check.unchecked && check.unchecked.length > 0 ? (
+              <p className="px-2 text-sm text-text-muted" data-testid="print-check-unchecked">
+                {t('check.unchecked', { bodies: bodyList(check.unchecked) })}
+              </p>
+            ) : null}
+            <p className="px-2 text-xs text-text-muted">{t('check.basis')}</p>
+          </Dialog>
+        </Popover>
+      </DialogTrigger>
+    </>
   );
 }

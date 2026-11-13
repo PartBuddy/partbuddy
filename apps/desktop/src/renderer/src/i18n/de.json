@@ -1114,7 +1114,7 @@
       "ready": "Druckbereit",
       "warn": "{count, plural, one {# Hinweis} other {# Hinweise}}",
       "block": "Nicht druckbereit",
-      "measuring": "Misst noch",
+      "measuring": "Prüft noch",
       "unmeasured": "Nicht vollständig geprüft"
     },
     "none": "Keine Probleme gefunden: Das Teil passt in den Bauraum, die Wände sind dick genug, nichts neigt sich über den Überhangwinkel.",
@@ -1125,8 +1125,11 @@
     "unchecked": "Nicht auf Abstände geprüft (Netzkörper): {bodies}",
     "measure": {
       "clearance": "die Abstände zwischen den Teilen",
-      "joints": "die Wege der Gelenke",
-      "mirror": "der neueste Stand der Konstruktion, den die Ansicht nicht lesen konnte"
+      "joints": "die Wege der Gelenke"
+    },
+    "lacking": {
+      "mirror": "Die Ansicht konnte den neuesten Stand nicht lesen; er ist nicht geprüft.",
+      "check": "Die Druckprüfung ist mit einem Fehler abgebrochen; dieser Stand ist nicht geprüft."
     },
     "faces": "{count, plural, one {# Fläche} other {# Flächen}}",
     "more": "{count, plural, one {# weiterer} other {# weitere}}",

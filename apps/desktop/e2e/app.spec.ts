@@ -1651,7 +1651,7 @@ test('the light says when it still measures or a measure failed, and an export a
   const light = page.getByTestId('print-check');
   const confirm = page.getByTestId('export-confirm');
   await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
-  await expect(light).toHaveText('Still measuring');
+  await expect(light).toHaveText('Checking');
 
   // An export now asks: a blocked joint may still turn up.
   await page.getByTestId('export').click();
@@ -1728,7 +1728,7 @@ test('the light says when it still measures or a measure failed, and an export a
   await expect(light).toHaveText('Not fully checked');
   await page.getByTestId('export').click();
   await page.getByTestId('export-3mf').click();
-  await expect(confirm).toContainText('Not measured, or not all of it: the newest state of the design, which the view could not read.');
+  await expect(confirm).toContainText('The view could not read the newest state; it is not checked.');
   await confirm.getByTestId('export-confirm-cancel').click();
   await expect(confirm).toHaveCount(0);
   // The next change that comes through lets it go.
