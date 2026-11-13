@@ -10,6 +10,7 @@ import { actionsFor } from '../src/renderer/src/viewer/actionKinds';
 import { dimensionFor, draggedValue, handleOf } from '../src/renderer/src/viewer/dimensionOf';
 import type { BodyModel, Pick } from '../src/renderer/src/state/store';
 import { designActionSchema } from '../src/shared/contract';
+import type { FeatureBlock } from '../src/shared/blocks';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -94,9 +95,16 @@ describe('the clearance between bodies as SolidCraft measures it (F2)', () => {
         { a: 'A', b: 'C', distance_mm: 0.1, from: [0, 10, 10], to: [0, 10.1, 10] },
         { a: 'A', b: null, distance_mm: 0.1, from: [0, 0, 0], to: [0, 0, 0] },
       ],
-      unchecked: [{ a: 'Mesh', b: null, reason: 'mesh body: not checked' }],
+      unchecked: [
+        { a: 'Mesh', b: null, reason: 'mesh body: not checked' },
+        { a: 'Mesh', b: 'Lid', reason: 'not checked: the time budget of 240 s ran out' },
+      ],
     });
+    // A mesh body is not measured: it is named, so the check can say that its clearance is unknown.
     expect(measured).toEqual({
+      // Only the mesh body is named as one; the pair that was not finished makes the measure incomplete (review 4 of PR 357).
+      unchecked: ['Mesh'],
+      incomplete: true,
       overlaps: [{ a: 'A', b: 'B', volume: 100, box: { min: [9, 0, 0], max: [10, 10, 10] } }],
       near: [{ a: 'A', b: 'C', distance: 0.1, from: [0, 10, 10], to: [0, 10.1, 10] }],
     });
@@ -191,5 +199,56 @@ describe('function blocks on a body that moves with a joint (ADR 0027)', () => {
     const hole = [{ command: 'solid.hole', params: { position: [62, 15, 4], diameter: '3 mm' } }];
     expect(await picked.actions.inComponentOf('Flap', hole)).toEqual(hole);
     expect(picked.asked).toEqual([]);
+  });
+});
+
+describe('a function block from the form: a cut through goes through the wall at its point, or says that it could not tell (audit W2)', () => {
+  // The box 60 × 40 × 30 with walls of 2 mm; the trial of a cut at [0, 20, 15] leaves one piece in each side wall.
+  const pieces = [58, 0].map((x, k) => ({ name: `PartBuddy through${k ? ' (1)' : ''}`, bbox: { min: [x, 18.3, 13.3], max: [x + 2, 21.7, 16.7] }, center_of_mass: [x + 1, 20, 15] }));
+  function form(answer: 'pieces' | 'refused' | 'throws') {
+    const sent: { commands: string[]; rollback: boolean }[] = [];
+    const requester: ControlRequester = {
+      request: <T>(_method: string, params: Record<string, unknown> = {}) => {
+        const commands = params.commands as { command: string }[];
+        sent.push({ commands: commands.map((step) => step.command), rollback: params.rollback === true });
+        if (params.rollback === true && commands.some((step) => step.command === 'solid.box')) {
+          if (answer === 'throws') return Promise.reject(new Error('engine gone'));
+          const at = answer === 'refused' ? commands.findIndex((step) => step.command === 'solid.hole') : commands.length - 1;
+          const results = commands.slice(0, at).map((step) => (step.command === 'inspect.measure' ? { bodies: pieces } : {}));
+          return Promise.resolve({ results, failed: { index: at, command: commands[at]?.command, error: 'no' } } as T);
+        }
+        return Promise.resolve({ results: commands.map(() => ({ components: [] })) } as T);
+      },
+    };
+    const logged: string[] = [];
+    return { service: new ActionService(() => requester, tmpdir()), sent, logged, log: (line: string) => logged.push(line) };
+  }
+  const hole: FeatureBlock = { block: 'screwHole', body: 'Dose', point: [0, 20, 15], size: 'M3', head: 'none', fit: 'normal' };
+
+  it('measures the reach on trial and builds that deep', async () => {
+    const { service, logged, log } = form('pieces');
+    expect(await service.blockSteps(hole, undefined, log)).toEqual({ steps: [{ command: 'solid.hole', params: { position: [0, 20, 15], clearance: 'M3', fit: 'normal', depth: '3 mm', targets: ['Dose'] } }], unmeasured: false });
+    expect(logged).toEqual([]);
+  });
+
+  it('when SolidCraft refuses the trial or the engine fails, builds through all, logs a warning and says unmeasured for the form', async () => {
+    for (const answer of ['refused', 'throws'] as const) {
+      const { service, logged, log } = form(answer);
+      const { steps, unmeasured } = await service.blockSteps(hole, undefined, log);
+      expect(unmeasured, answer).toBe(true);
+      expect(steps[0]?.params, answer).not.toHaveProperty('depth');
+      expect(logged, answer).toEqual([answer === 'refused' ? 'Warning: screwHole on Dose: SolidCraft refused the trial of its reach; it goes through all of the body' : 'Warning: screwHole on Dose: the trial of its reach failed (engine gone); it goes through all of the body']);
+    }
+    // A point no piece holds.
+    const off = form('pieces');
+    expect((await off.service.blockSteps({ ...hole, point: [-1, 20, 15] }, undefined, off.log)).unmeasured).toBe(true);
+    expect(off.logged[0]).toContain('no wall of the body at a point');
+  });
+
+  it('tries nothing for a block with a depth, or one asked to go through all of its body', async () => {
+    const { service, sent, log } = form('pieces');
+    expect((await service.blockSteps({ ...hole, through: 'body' }, undefined, log)).unmeasured).toBe(false);
+    expect((await service.blockSteps({ block: 'insertSeat', body: 'Dose', point: [0, 20, 15], size: 'M3', diameter: 4, depth: 6.7 }, undefined, log)).unmeasured).toBe(false);
+    expect(sent.some((batch) => batch.rollback)).toBe(false);
   });
 });

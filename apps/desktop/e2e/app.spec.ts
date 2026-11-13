@@ -88,6 +88,9 @@ test('the user undoes, redoes and exports without the assistant (ADR 0016)', asy
   await page.keyboard.press('Control+y');
   await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 3', { timeout: 15_000 });
   await expect(undo).toBeEnabled();
+  // The light of revision 3 first: until it is there an export asks (audit X-1).
+  await expect(page.getByTestId('print-check')).toHaveAttribute('data-revision', '3', { timeout: 15_000 });
+  await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-measuring');
 
   // The save dialog is the system's; the test answers it with a file in its own folder.
   const target = join(mkdtempSync(join(tmpdir(), 'partbuddy-e2e-export-')), 'clip.3mf');
@@ -943,7 +946,7 @@ test('the first start walks through SolidCraft, assistant, printer and project f
     let { page } = launched;
     const setup = page.getByTestId('first-start');
     await expect(setup).toHaveAttribute('data-step', 'solidcraft');
-    await expect(setup.getByTestId('first-start-download')).toHaveAttribute('href', 'https://github.com/tangency-labs/solidcraft/releases/tag/v0.40.0-rc.4');
+    await expect(setup.getByTestId('first-start-download')).toHaveAttribute('href', 'https://github.com/tangency-labs/solidcraft/releases/tag/v0.40.1');
     expect(await axeAtRest(page, '[data-testid="first-start"]')).toEqual([]);
     await page.screenshot({ path: test.info().outputPath('first-start.png') });
     await setup.getByTestId('first-start-next').click();
@@ -1273,7 +1276,7 @@ test('the assistant shows the signed-in plan and needs SolidCraft', async () => 
   // The route sits as a small chip beside the composer; its menu holds the full status.
   const chip = page.getByTestId('agent-status');
   // The plan's default model with a named effort; the plan itself is in the menu.
-  await expect(chip).toHaveText('Claude Code · Default · Medium');
+  await expect(chip).toHaveText('Claude Code · Opus 9 · Medium');
   await chip.click();
   await expect(page.getByTestId('agent-detail')).toHaveText('Claude Code 9.9.9 · Claude subscription');
   await expect(page.getByRole('radio', { name: /^Claude Code/ })).toBeChecked();
@@ -1293,17 +1296,13 @@ test('model and effort are chosen at the chip and kept for new chats (B1)', asyn
     await chip.click();
     const menu = page.getByTestId('agent-menu');
     // Only what the plan offers: the aliases, without pinned older versions.
-    await expect(menu.getByTestId('model-option')).toHaveText([/^Default \(recommended\)/, /^Opus 9/, /^Sonnet 9/, /^Haiku 9/]);
+    await expect(menu.getByTestId('model-option')).toHaveText([/^Opus 9/, /^Sonnet 9/, /^Haiku 9/]);
     await menu.getByTestId('model-option').filter({ hasText: 'Sonnet 9' }).click();
     await menu.getByTestId('effort-option').filter({ hasText: /^Low$/ }).click();
     await expect(menu.getByRole('radio', { name: 'Low' })).toBeChecked();
     await expect(chip).toHaveText('Claude Code · Sonnet 9 · Low');
-    // A long model name stays on one line, without the plan's remark in brackets (seen 2026-11-06).
-    await menu.getByTestId('model-option').filter({ hasText: 'Default (recommended)' }).click();
-    await expect(chip).toHaveText('Claude Code · Default · Low');
+    // The chip stays on one line.
     expect((await chip.boundingBox())?.height ?? 99).toBeLessThan(40);
-    await menu.getByTestId('model-option').filter({ hasText: 'Sonnet 9' }).click();
-    await expect(chip).toHaveText('Claude Code · Sonnet 9 · Low');
     await menu.getByTestId('model-keep').click();
     await expect(menu.getByTestId('model-is-default')).toBeVisible();
     expect(await axeAtRest(page, '[data-testid="agent-menu"]')).toEqual([]);
@@ -1340,7 +1339,7 @@ test('Claude Code with an API key runs only when the user allows it', async () =
 
   // Allowed on purpose, the API key is used and clearly labelled; it can be taken back in the menu.
   await page.getByRole('button', { name: 'Use the API key anyway (billed separately)' }).click();
-  await expect(chip).toHaveText('Claude Code · API key · Default · Medium');
+  await expect(chip).toHaveText('Claude Code · API key · Opus 9 · Medium');
   await chip.click();
   await expect(page.getByTestId('agent-detail')).toContainText('API key, billed separately');
   await page.getByRole('button', { name: 'Use the subscription only' }).click();
@@ -1411,7 +1410,7 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await supportFree.press('Space');
   await expect(supportFree).not.toBeChecked();
   // The design rule groups (2026-11-07) are on from the start; each turns off on its own.
-  for (const rule of ['rounding', 'printInPlace', 'details', 'snap']) await expect(assistant.getByTestId(`design-${rule}`).getByRole('switch')).toBeChecked();
+  for (const rule of ['rounding', 'printInPlace', 'details', 'snap', 'economy']) await expect(assistant.getByTestId(`design-${rule}`).getByRole('switch')).toBeChecked();
   const rounding = assistant.getByTestId('design-rounding').getByRole('switch', { name: 'Fillets and chamfers' });
   await rounding.press('Space');
   await expect(rounding).not.toBeChecked();
@@ -1616,7 +1615,7 @@ test('the ready-to-print light follows the printer, points at its findings and a
   await light.click();
   const panel = page.getByTestId('print-check-panel');
   await expect(panel.getByTestId('check-finding').first()).toHaveAttribute('data-kind', 'size');
-  await expect(panel).toContainText('Too large for the build volume: 64 × 32 × 20 mm, the printer takes 50 × 50 × 256 mm');
+  await expect(panel).toContainText('Too large for the build volume: CableClip, 64 × 32 × 20 mm, the printer takes 50 × 50 × 256 mm');
   expect(await axeAtRest(page, '[data-testid="print-check-panel"]')).toEqual([]);
   await page.keyboard.press('Escape');
 
@@ -1626,6 +1625,127 @@ test('the ready-to-print light follows the printer, points at its findings and a
   const confirm = page.getByTestId('export-confirm');
   await expect(confirm).toContainText('Too large for the build volume');
   await page.screenshot({ path: test.info().outputPath('export-confirm.png') });
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+});
+
+test('the light says when it still measures or a measure failed, and an export asks then (audit X-1)', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+  const solidcraft = fake;
+  // SolidCraft takes its time over a command (the joint's way, the mirror's export), until the test lets it go.
+  const hold = (command = 'joint.sweep') => {
+    let release: () => void = () => undefined;
+    solidcraft.held[command] = new Promise<void>((done) => {
+      release = done;
+    });
+    return () => {
+      release();
+    };
+  };
+  let measured = hold();
+  await solidcraft.start();
+  const { page } = launched;
+  await lookAgain(page);
+  const light = page.getByTestId('print-check');
+  const confirm = page.getByTestId('export-confirm');
+  await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
+  await expect(light).toHaveText('Checking');
+
+  // An export now asks: a blocked joint may still turn up.
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  await expect(confirm).toContainText('The print check has not finished yet.');
+  // The dialog follows the light: the measure comes in while it stands open.
+  measured();
+  await expect(confirm).toContainText('The measuring has finished in the meantime.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+  await expect(light).toHaveText('Ready to print');
+  await expect(light).not.toHaveAttribute('data-measuring');
+
+  // After a change the green of the revision before no longer holds: an export at once asks, and the measure
+  // that comes in while the dialog is open brings a finding.
+  measured = hold();
+  solidcraft.sweepStops.set(-180, { stopped_at: -28.07, stopped_by: { a: 'CableClip:1', b: 'CableClip:1', at: [10, 5, 2] } });
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  await expect(confirm).toContainText('The print check has not finished yet.');
+  measured();
+  await expect(light).toHaveText('1 warning');
+  await expect(confirm).toContainText('The measuring has finished in the meantime.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+  solidcraft.sweepStops.clear();
+
+  // A measure that fails is no green: the light says what is missing, and sharing asks as well.
+  solidcraft.answers['joint.sweep'] = () => {
+    throw new Error('the measure ran out of time');
+  };
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-unmeasured', 'joints', { timeout: 15_000 });
+  await expect(light).toHaveText('Not fully checked');
+  await light.click();
+  await expect(page.getByTestId('print-check-unmeasured')).toHaveText('Not measured, or not all of it: the travel of the joints. Findings there may be missing.');
+  await expect(page.getByTestId('print-check-panel')).toContainText('No problems found so far.');
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('print-check-panel')).toBeHidden({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-share').click();
+  await expect(confirm).toContainText('The print check did not run in full. Not measured, or not all of it: the travel of the joints.');
+  await expect(confirm).not.toContainText('finished in the meantime');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+
+  // Measured again, the light is green again.
+  delete solidcraft.answers['joint.sweep'];
+  solidcraft.change();
+  await expect(light).toHaveText('Ready to print', { timeout: 15_000 });
+  await expect(light).not.toHaveAttribute('data-unmeasured');
+
+  // While the main process still mirrors a change the light of the revision before does not hold either; nor after a
+  // mirror that failed.
+  const mirrored = hold('file.export');
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  await expect(confirm).toContainText('The print check has not finished yet.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+  solidcraft.answers['file.export'] = () => {
+    throw new Error('the export failed');
+  };
+  mirrored();
+  // SolidCraft is further on than the light now: not fully checked, and an export asks.
+  await expect(light).toHaveAttribute('data-unmeasured', 'mirror', { timeout: 15_000 });
+  await expect(light).not.toHaveAttribute('data-measuring');
+  await expect(light).toHaveText('Not fully checked');
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  await expect(confirm).toContainText('The view could not read the newest state; it is not checked.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+  // The next change that comes through lets it go.
+  delete solidcraft.answers['file.export'];
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-revision', String(solidcraft.revision), { timeout: 15_000 });
+  await expect(light).toHaveText('Ready to print');
+  await expect(light).not.toHaveAttribute('data-unmeasured');
+
+  // Two parts whose gaps SolidCraft fails to measure (the fake does not measure them at all): said the same way.
+  solidcraft.bodies = ['CableClip', 'Second clip'];
+  solidcraft.joints = [];
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-unmeasured', 'clearance', { timeout: 15_000 });
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-stl').click();
+  await expect(confirm).toContainText('Not measured, or not all of it: the gaps between the parts.');
   await confirm.getByTestId('export-confirm-cancel').click();
   await expect(confirm).toHaveCount(0);
 });

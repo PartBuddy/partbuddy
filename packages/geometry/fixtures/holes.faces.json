@@ -1,0 +1,1478 @@
+{
+  "Edge": {
+    "model": "holes",
+    "body": "Edge",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/holes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F1:+y",
+        "exact": true,
+        "area": 400,
+        "centroid": [
+          10,
+          20,
+          10
+        ],
+        "point": [
+          14.1421,
+          20,
+          5.8579
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 1,
+        "name": "F1:-x#[F1:+y]",
+        "exact": true,
+        "area": 172.5045,
+        "centroid": [
+          0,
+          15.6874,
+          10
+        ],
+        "point": [
+          0,
+          16.2853,
+          9.3123
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F1:-y",
+        "exact": true,
+        "area": 400,
+        "centroid": [
+          10,
+          0,
+          10
+        ],
+        "point": [
+          5.8579,
+          0,
+          5.8579
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F1:+x",
+        "exact": true,
+        "area": 400,
+        "centroid": [
+          20,
+          10,
+          10
+        ],
+        "point": [
+          20,
+          5.8579,
+          5.8579
+        ],
+        "planeNormal": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 4,
+        "name": "F1:-z",
+        "exact": true,
+        "area": 392.4118,
+        "centroid": [
+          10.1698,
+          10,
+          0
+        ],
+        "point": [
+          14.229,
+          9.9308,
+          0
+        ],
+        "planeNormal": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "index": 5,
+        "name": "F1:+z",
+        "exact": true,
+        "area": 392.4118,
+        "centroid": [
+          10.1698,
+          10,
+          20
+        ],
+        "point": [
+          14.229,
+          9.9308,
+          20
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 6,
+        "name": "F1:-x#[F1:-y]",
+        "exact": true,
+        "area": 172.5045,
+        "centroid": [
+          0,
+          4.3126,
+          10
+        ],
+        "point": [
+          0,
+          3.7147,
+          9.3123
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 7,
+        "name": "F2:bore:side:0#1",
+        "exact": false,
+        "area": 95.1365,
+        "centroid": [
+          1.8281,
+          9.1591,
+          10
+        ],
+        "point": [
+          2.5518,
+          10.6943,
+          17.9424
+        ],
+        "cylinder": {
+          "origin": [
+            1,
+            10,
+            -50.282
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "radius": 1.7
+        }
+      },
+      {
+        "index": 8,
+        "name": "F2:bore:side:0#2",
+        "exact": false,
+        "area": 53.5921,
+        "centroid": [
+          1.2467,
+          11.4865,
+          10
+        ],
+        "point": [
+          1.4659,
+          11.6349,
+          10.7491
+        ],
+        "cylinder": {
+          "origin": [
+            1,
+            10,
+            -50.282
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "radius": 1.7
+        }
+      }
+    ]
+  },
+  "Groove": {
+    "model": "holes",
+    "body": "Groove",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/holes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F3:+y",
+        "exact": true,
+        "area": 400,
+        "centroid": [
+          50,
+          20,
+          10
+        ],
+        "point": [
+          54.1421,
+          20,
+          5.8579
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 1,
+        "name": "F3:-x#[F3:+y]",
+        "exact": true,
+        "area": 172.5045,
+        "centroid": [
+          40,
+          15.6874,
+          10
+        ],
+        "point": [
+          40,
+          16.2853,
+          10.6877
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F3:-y",
+        "exact": true,
+        "area": 400,
+        "centroid": [
+          50,
+          0,
+          10
+        ],
+        "point": [
+          45.8579,
+          0,
+          5.8579
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F3:+x",
+        "exact": true,
+        "area": 400,
+        "centroid": [
+          60,
+          10,
+          10
+        ],
+        "point": [
+          60,
+          5.8579,
+          5.8579
+        ],
+        "planeNormal": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 4,
+        "name": "F3:-z",
+        "exact": true,
+        "area": 392.4118,
+        "centroid": [
+          50.1698,
+          10,
+          0
+        ],
+        "point": [
+          54.229,
+          9.9308,
+          0
+        ],
+        "planeNormal": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "index": 5,
+        "name": "F3:+z",
+        "exact": true,
+        "area": 392.4118,
+        "centroid": [
+          50.1698,
+          10,
+          20
+        ],
+        "point": [
+          54.229,
+          9.9308,
+          20
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 6,
+        "name": "F3:-x#[F3:-y]",
+        "exact": true,
+        "area": 172.5045,
+        "centroid": [
+          40,
+          4.3126,
+          10
+        ],
+        "point": [
+          40,
+          3.7147,
+          10.6877
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 7,
+        "name": "F4:side#1",
+        "exact": false,
+        "area": 95.1399,
+        "centroid": [
+          41.8281,
+          9.1592,
+          10
+        ],
+        "point": [
+          42.5142,
+          10.7727,
+          16.6031
+        ],
+        "cylinder": {
+          "origin": [
+            41,
+            10,
+            0
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "radius": 1.7
+        }
+      },
+      {
+        "index": 8,
+        "name": "F4:side#2",
+        "exact": false,
+        "area": 53.5887,
+        "centroid": [
+          41.2466,
+          11.4865,
+          10
+        ],
+        "point": [
+          41.4658,
+          11.6349,
+          7.1127
+        ],
+        "cylinder": {
+          "origin": [
+            41,
+            10,
+            0
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "radius": 1.7
+        }
+      }
+    ]
+  },
+  "Rod8M5": {
+    "model": "holes",
+    "body": "Rod8M5",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/holes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F5:side",
+        "exact": true,
+        "area": 200.4247,
+        "centroid": [
+          79.9989,
+          5,
+          3.999
+        ],
+        "point": [
+          83.482,
+          1.4744,
+          2.0314
+        ],
+        "cylinder": {
+          "origin": [
+            80,
+            0,
+            4
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "radius": 4
+        }
+      },
+      {
+        "index": 1,
+        "name": "F5:top",
+        "exact": true,
+        "area": 49.9412,
+        "centroid": [
+          80,
+          10,
+          4
+        ],
+        "point": [
+          79.6952,
+          10,
+          2.2457
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F5:bottom",
+        "exact": true,
+        "area": 49.9412,
+        "centroid": [
+          80,
+          0,
+          4
+        ],
+        "point": [
+          78.7172,
+          0,
+          3.9015
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F6:bore:side:0",
+        "exact": true,
+        "area": 119.8637,
+        "centroid": [
+          80,
+          5,
+          4
+        ],
+        "point": [
+          78.3564,
+          2.7952,
+          7.4566
+        ],
+        "cylinder": {
+          "origin": [
+            80,
+            5,
+            -20.2532
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "radius": 2.75
+        }
+      }
+    ]
+  },
+  "Rod10M5": {
+    "model": "holes",
+    "body": "Rod10M5",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/holes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F7:side",
+        "exact": true,
+        "area": 264.5933,
+        "centroid": [
+          99.9995,
+          5,
+          5.0001
+        ],
+        "point": [
+          95.7953,
+          0.7051,
+          7.7057
+        ],
+        "cylinder": {
+          "origin": [
+            100,
+            0,
+            5
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "radius": 5
+        }
+      },
+      {
+        "index": 1,
+        "name": "F7:top",
+        "exact": true,
+        "area": 78.0331,
+        "centroid": [
+          100,
+          10,
+          5
+        ],
+        "point": [
+          101.492,
+          10,
+          6.4121
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F7:bottom",
+        "exact": true,
+        "area": 78.0331,
+        "centroid": [
+          100,
+          0,
+          5
+        ],
+        "point": [
+          100.8279,
+          0,
+          7.1596
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F8:bore:side:0",
+        "exact": true,
+        "area": 158.6115,
+        "centroid": [
+          100,
+          5,
+          5
+        ],
+        "point": [
+          100.7027,
+          7.6587,
+          0.2784
+        ],
+        "cylinder": {
+          "origin": [
+            100,
+            5,
+            -21.5857
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "radius": 2.75
+        }
+      }
+    ]
+  },
+  "Rod6M3": {
+    "model": "holes",
+    "body": "Rod6M3",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/holes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F9:side",
+        "exact": true,
+        "area": 169.4324,
+        "centroid": [
+          119.9998,
+          5,
+          2.9993
+        ],
+        "point": [
+          117.09,
+          2,
+          2.2708
+        ],
+        "cylinder": {
+          "origin": [
+            120,
+            0,
+            3
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "radius": 3
+        }
+      },
+      {
+        "index": 1,
+        "name": "F9:top",
+        "exact": true,
+        "area": 28.0919,
+        "centroid": [
+          120,
+          10,
+          3
+        ],
+        "point": [
+          120.807,
+          10,
+          2.6511
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F9:bottom",
+        "exact": true,
+        "area": 28.0919,
+        "centroid": [
+          120,
+          0,
+          3
+        ],
+        "point": [
+          120.6372,
+          0,
+          4.4374
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F10:bore:side:0",
+        "exact": true,
+        "area": 58.4891,
+        "centroid": [
+          120,
+          5,
+          3
+        ],
+        "point": [
+          120.4381,
+          6.6426,
+          5.8228
+        ],
+        "cylinder": {
+          "origin": [
+            120,
+            5,
+            -19.3478
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "radius": 1.7
+        }
+      }
+    ]
+  },
+  "Rod20M8": {
+    "model": "holes",
+    "body": "Rod20M8",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/holes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F11:side",
+        "exact": true,
+        "area": 624.0592,
+        "centroid": [
+          149.9956,
+          5.9993,
+          10.0013
+        ],
+        "point": [
+          143.5123,
+          1.4792,
+          17.6099
+        ],
+        "cylinder": {
+          "origin": [
+            150,
+            0,
+            10
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "radius": 10
+        }
+      },
+      {
+        "index": 1,
+        "name": "F11:top",
+        "exact": true,
+        "area": 312.1322,
+        "centroid": [
+          150,
+          12,
+          10
+        ],
+        "point": [
+          151.9456,
+          12,
+          6.5221
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F11:bottom",
+        "exact": true,
+        "area": 312.1322,
+        "centroid": [
+          150,
+          0,
+          10
+        ],
+        "point": [
+          153.9762,
+          0,
+          9.7241
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F12:bore:side:0",
+        "exact": true,
+        "area": 534.8082,
+        "centroid": [
+          150,
+          6,
+          10
+        ],
+        "point": [
+          151.3316,
+          1.7015,
+          19.5438
+        ],
+        "cylinder": {
+          "origin": [
+            150,
+            6,
+            -33.1318
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "radius": 4.5
+        }
+      }
+    ]
+  },
+  "Chamfer": {
+    "model": "holes",
+    "body": "Chamfer",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/holes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F13:+z",
+        "exact": true,
+        "area": 200,
+        "centroid": [
+          185,
+          10,
+          20
+        ],
+        "point": [
+          186.1803,
+          16.1803,
+          20
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 1,
+        "name": "F13:-y",
+        "exact": true,
+        "area": 350,
+        "centroid": [
+          189.0476,
+          0,
+          9.0476
+        ],
+        "point": [
+          191.3962,
+          0,
+          11.3962
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F13:+x",
+        "exact": true,
+        "area": 200,
+        "centroid": [
+          200,
+          10,
+          5
+        ],
+        "point": [
+          200,
+          16.1803,
+          3.8197
+        ],
+        "planeNormal": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F13:+y",
+        "exact": true,
+        "area": 350,
+        "centroid": [
+          189.0476,
+          20,
+          9.0476
+        ],
+        "point": [
+          191.3962,
+          20,
+          11.3962
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 4,
+        "name": "F13:-x",
+        "exact": true,
+        "area": 393.7562,
+        "centroid": [
+          180,
+          10,
+          10.1427
+        ],
+        "point": [
+          180,
+          10,
+          14.1811
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 5,
+        "name": "F13:-z",
+        "exact": true,
+        "area": 393.7445,
+        "centroid": [
+          190.1429,
+          10,
+          0
+        ],
+        "point": [
+          194.1811,
+          10,
+          0
+        ],
+        "planeNormal": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "index": 6,
+        "name": "F14:blend(F13:+x|F13:+z)",
+        "exact": true,
+        "area": 273.9962,
+        "centroid": [
+          195,
+          10,
+          15
+        ],
+        "point": [
+          195.0265,
+          3.2654,
+          14.9735
+        ],
+        "planeNormal": [
+          0.7071,
+          0,
+          0.7071
+        ]
+      },
+      {
+        "index": 7,
+        "name": "F15:bore:side:0",
+        "exact": true,
+        "area": 214.2118,
+        "centroid": [
+          187.8703,
+          9.9986,
+          7.8688
+        ],
+        "point": [
+          180.77,
+          8.35,
+          0.1909
+        ],
+        "cylinder": {
+          "origin": [
+            145.3031,
+            10,
+            -34.6969
+          ],
+          "axis": [
+            0.7071,
+            0,
+            0.7071
+          ],
+          "radius": 1.7
+        }
+      }
+    ]
+  },
+  "Slant": {
+    "model": "holes",
+    "body": "Slant",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/holes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F16:+z",
+        "exact": true,
+        "area": 392.9037,
+        "centroid": [
+          229.9908,
+          9.9999,
+          10
+        ],
+        "point": [
+          223.9547,
+          11.1755,
+          10
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 1,
+        "name": "F16:+y",
+        "exact": true,
+        "area": 200,
+        "centroid": [
+          230,
+          20,
+          5
+        ],
+        "point": [
+          236.1803,
+          20,
+          3.8197
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F16:-x",
+        "exact": true,
+        "area": 200,
+        "centroid": [
+          220,
+          10,
+          5
+        ],
+        "point": [
+          220,
+          16.1803,
+          3.8197
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F16:-y",
+        "exact": true,
+        "area": 200,
+        "centroid": [
+          230,
+          0,
+          5
+        ],
+        "point": [
+          223.8197,
+          0,
+          3.8197
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 4,
+        "name": "F16:+x",
+        "exact": true,
+        "area": 200,
+        "centroid": [
+          240,
+          10,
+          5
+        ],
+        "point": [
+          240,
+          3.8197,
+          3.8197
+        ],
+        "planeNormal": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 5,
+        "name": "F16:-z",
+        "exact": true,
+        "area": 389.7669,
+        "centroid": [
+          229.8484,
+          10.0001,
+          0
+        ],
+        "point": [
+          225.1054,
+          10,
+          0
+        ],
+        "planeNormal": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "index": 6,
+        "name": "F17:bore:top",
+        "exact": true,
+        "area": 2.7406,
+        "centroid": [
+          228.9812,
+          10.0003,
+          9.7582
+        ],
+        "point": [
+          228.921,
+          9.1506,
+          9.7234
+        ],
+        "planeNormal": [
+          0.5,
+          0,
+          -0.866
+        ]
+      },
+      {
+        "index": 7,
+        "name": "F17:bore:side:0",
+        "exact": true,
+        "area": 120.9745,
+        "centroid": [
+          232.9541,
+          10,
+          4.9272
+        ],
+        "point": [
+          231.2104,
+          11.4227,
+          9.7646
+        ],
+        "cylinder": {
+          "origin": [
+            240.0002,
+            10,
+            -7.3204
+          ],
+          "axis": [
+            -0.5,
+            0,
+            0.866
+          ],
+          "radius": 1.7
+        }
+      }
+    ]
+  },
+  "Cross": {
+    "model": "holes",
+    "body": "Cross",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/holes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F18:+z",
+        "exact": true,
+        "area": 391.1535,
+        "centroid": [
+          270,
+          10,
+          20
+        ],
+        "point": [
+          269.9556,
+          16.3903,
+          20
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 1,
+        "name": "F18:+y",
+        "exact": true,
+        "area": 400,
+        "centroid": [
+          270,
+          20,
+          10
+        ],
+        "point": [
+          274.1421,
+          20,
+          5.8579
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F18:-x",
+        "exact": true,
+        "area": 391.1535,
+        "centroid": [
+          260,
+          10,
+          10
+        ],
+        "point": [
+          260,
+          9.9556,
+          16.3903
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F18:-y",
+        "exact": true,
+        "area": 400,
+        "centroid": [
+          270,
+          0,
+          10
+        ],
+        "point": [
+          265.8579,
+          0,
+          5.8579
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 4,
+        "name": "F18:+x",
+        "exact": true,
+        "area": 391.1535,
+        "centroid": [
+          280,
+          10,
+          10
+        ],
+        "point": [
+          280,
+          9.9556,
+          16.3903
+        ],
+        "planeNormal": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 5,
+        "name": "F18:-z",
+        "exact": true,
+        "area": 391.1535,
+        "centroid": [
+          270,
+          10,
+          0
+        ],
+        "point": [
+          269.9556,
+          16.3903,
+          0
+        ],
+        "planeNormal": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "index": 6,
+        "name": "F19:bore:side:0#[F18:+z]",
+        "exact": true,
+        "area": 94.8868,
+        "centroid": [
+          270.0016,
+          9.9994,
+          15.5198
+        ],
+        "point": [
+          271.2233,
+          11.1805,
+          11.4835
+        ],
+        "cylinder": {
+          "origin": [
+            270,
+            10,
+            -50.282
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "radius": 1.7
+        }
+      },
+      {
+        "index": 7,
+        "name": "F19:bore:side:0#[F18:-z]",
+        "exact": true,
+        "area": 94.9195,
+        "centroid": [
+          269.9986,
+          10.0015,
+          4.4817
+        ],
+        "point": [
+          271.4177,
+          9.0618,
+          8.382
+        ],
+        "cylinder": {
+          "origin": [
+            270,
+            10,
+            -50.282
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ],
+          "radius": 1.7
+        }
+      },
+      {
+        "index": 8,
+        "name": "F20:bore:side:0#[F18:-x]",
+        "exact": true,
+        "area": 94.8981,
+        "centroid": [
+          264.4809,
+          9.9987,
+          9.9986
+        ],
+        "point": [
+          268.5226,
+          8.8201,
+          11.2238
+        ],
+        "cylinder": {
+          "origin": [
+            209.718,
+            10,
+            10
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ],
+          "radius": 1.7
+        }
+      },
+      {
+        "index": 9,
+        "name": "F20:bore:side:0#[F18:+x]",
+        "exact": true,
+        "area": 94.8632,
+        "centroid": [
+          275.5197,
+          9.998,
+          9.9984
+        ],
+        "point": [
+          271.4846,
+          11.174,
+          11.2295
+        ],
+        "cylinder": {
+          "origin": [
+            209.718,
+            10,
+            10
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ],
+          "radius": 1.7
+        }
+      }
+    ]
+  }
+}

@@ -30,9 +30,16 @@ export function printInPlaceGap(printer: FitPrinter): number {
   return round(Math.max(0.3, printer.nozzle));
 }
 
-/** Clearances of the material profiles are starting values for a 0.4 mm nozzle; a wider nozzle needs more. */
-export function scaleClearance(clearance: number, printer: FitPrinter): number {
-  return round((clearance * printer.nozzle) / 0.4);
+/** The nozzle the clearances of a material profile stand for when none was measured. */
+export const CLEARANCE_NOZZLE = 0.4;
+
+/**
+ * Clearances of the material profiles are starting values for a 0.4 mm nozzle; a wider nozzle needs more.
+ * Clearances read off the tolerance pieces hold for the nozzle they were printed with (`from`): on that
+ * nozzle they are used as read.
+ */
+export function scaleClearance(clearance: number, printer: FitPrinter, from = CLEARANCE_NOZZLE): number {
+  return round((clearance * printer.nozzle) / from);
 }
 
 export type SizeKind = 'wall' | 'height' | 'gap' | 'detail';
@@ -97,12 +104,13 @@ export function withoutFitMark(comment: string): string {
 /**
  * The value a marked size has on this printer. Walls and heights keep their size, rounded up to the
  * new grid of lines or layers (counting layers made a 6 mm rim 9 mm on a 0.3 mm layer, live run
- * 2026-11-07); gaps and other nozzle sizes grow with the nozzle.
+ * 2026-11-07); gaps and other nozzle sizes grow with the nozzle and stop shrinking at 0.3 mm a nozzle.
  */
 export function fittedValue(mark: FitMark, value: number, printer: FitPrinter): number {
   if (mark.unit === 'line') return snapSize('wall', value, printer);
   if (mark.unit === 'layer') return snapSize('height', value, printer);
-  return round(mark.count * unitSize('nozzle', printer));
+  // A gap marked in nozzles never goes under what keeps moving parts apart (0.3 mm), however fine the nozzle.
+  return round(mark.count * printInPlaceGap(printer));
 }
 
 /** The assistant's marked sizes whose value changes on this printer; the user's sizes are never in it. */

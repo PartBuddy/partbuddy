@@ -1,7 +1,7 @@
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { splitPieceSteps } from '../../shared/blocks';
+import { cutsThrough, splitPieceSteps, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../../shared/blocks';
 import type { ClearanceResult, DesignAction, JointSweep, JointSweepResult, MeasureItem, MeasureResult } from '../../shared/contract';
 import type { ControlRequester } from './mirror';
 
@@ -51,7 +51,8 @@ interface BatchReply {
   failed?: { index: number; command: string; error: string };
 }
 
-export type ActionPreview = { ok: true; preview: Uint8Array<ArrayBuffer> | null } | { ok: false; error: string };
+/** `unmeasured`: a function block's cut goes through all of its body, as its reach could not be measured (audit W2). */
+export type ActionPreview = { ok: true; preview: Uint8Array<ArrayBuffer> | null; unmeasured?: true } | { ok: false; error: string };
 
 export class ActionService {
   constructor(
@@ -81,6 +82,34 @@ export class ActionService {
     } finally {
       await rm(file, { force: true });
     }
+  }
+
+  /** Steps on trial: SolidCraft takes them back and gives what they answered; null when one of them failed. */
+  async trial(steps: Step[]): Promise<unknown[] | null> {
+    const reply = await this.batch([...steps, UNDO_ALL], true);
+    return reply.failed?.index === steps.length ? (reply.results ?? []).slice(0, steps.length) : null;
+  }
+
+  /**
+   * A block's steps in its body's component; a cut "through" with its reach found on trial, through the wall at its point
+   * alone (audit W2). `unmeasured` when the reach could not be found: then it goes through all of the body on its line,
+   * far walls too, and the form must say so. SolidCraft's refusal and an engine error are told apart in the log.
+   */
+  async blockSteps(block: FeatureBlock, sketch: string | undefined, log: (line: string) => void): Promise<{ steps: Step[]; unmeasured: boolean }> {
+    let reach: (number | null)[] | undefined;
+    if (cutsThrough(block)) {
+      try {
+        const tried = await this.trial(await this.inComponentOf(block.body, throughTrial(block)));
+        const measured = tried?.findLast((result) => Array.isArray((result as { bodies?: unknown } | undefined)?.bodies));
+        reach = measured ? throughReach(block, measured) : undefined;
+        if (!tried) log(`Warning: ${block.block} on ${block.body}: SolidCraft refused the trial of its reach; it goes through all of the body`);
+        else if (!reach?.every((value) => value !== null)) log(`Warning: ${block.block} on ${block.body}: no wall of the body at a point (within 0.05 mm); it goes through all of the body there`);
+      } catch (cause) {
+        log(`Warning: ${block.block} on ${block.body}: the trial of its reach failed (${(cause as Error).message.slice(0, 200)}); it goes through all of the body`);
+      }
+    }
+    const steps = await this.inComponentOf(block.body, stepsOf(block, sketch, reach));
+    return { steps, unmeasured: cutsThrough(block) && !reach?.every((value) => value !== null) };
   }
 
   apply(action: DesignAction): Promise<void> {
@@ -179,7 +208,7 @@ export class ActionService {
 
   /**
    * Overlaps and gaps narrower than `gap` between bodies (`inspect.clearance`, plan step F2). Mesh
-   * bodies are not measured; SolidCraft lists them as unchecked, which the light leaves out.
+   * bodies are not measured; SolidCraft lists them as unchecked, and the check says so.
    */
   async clearance(bodies: string[], gap: number): Promise<ClearanceResult> {
     const reply = await this.batch([{ command: 'inspect.clearance', params: { bodies, clearance: gap } }], false);
@@ -217,9 +246,16 @@ const name = (value: unknown): string | null => (typeof value === 'string' && va
 
 /** SolidCraft's answer of `inspect.clearance`, checked field by field; anything odd is left out. */
 export function clearanceOf(result: unknown): ClearanceResult {
-  const { overlaps, near } = (result ?? {}) as { overlaps?: unknown; near?: unknown };
+  const { overlaps, near, unchecked } = (result ?? {}) as { overlaps?: unknown; near?: unknown; unchecked?: unknown };
   const list = (value: unknown) => (Array.isArray(value) ? (value as Record<string, unknown>[]).slice(0, 100) : []);
+  // SolidCraft lists a mesh body as {a: name, b: null, reason: "mesh body: not checked"}; any other entry is a pair it
+  // did not finish (its time budget ran out), so the measure is not whole (inspect.interference/clearance, 0.40.1).
+  const entries = Array.isArray(unchecked) ? (unchecked as Record<string, unknown>[]) : [];
+  const mesh = (item: Record<string, unknown>) => item.b === null && typeof item.reason === 'string' && item.reason.startsWith('mesh body');
+  const left = [...new Set(entries.filter(mesh).flatMap((item) => name(item.a) ?? []))].slice(0, 200);
   return {
+    ...(left.length > 0 ? { unchecked: left } : {}),
+    ...(entries.some((item) => !mesh(item)) ? { incomplete: true as const } : {}),
     overlaps: list(overlaps).flatMap((item) => {
       const a = name(item.a);
       const b = name(item.b);

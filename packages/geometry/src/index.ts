@@ -1,5 +1,7 @@
 export { meshMetrics, overhangFindings, type MeshMetrics, type OverhangFinding } from './analysis';
 export {
+  BRIDGE_SPAN,
+  LYING_HOLE,
   Overhang,
   OVERHANG_LIMITS,
   overhangLimits,
@@ -21,6 +23,8 @@ export {
 } from './faceTable';
 export {
   checkPrint,
+  laidBodies,
+  minimumFloor,
   minimumWall,
   withClearance,
   withMotion,
@@ -28,6 +32,7 @@ export {
   type FindingPlace,
   type FindingSeverity,
   type JointUnit,
+  type LaidBody,
   type MeasuredClearance,
   type MeasuredMotion,
   type PrintCheck,

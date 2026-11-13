@@ -16,7 +16,7 @@ export interface EngineChoiceOptions {
 
 /**
  * Which SolidCraft program PartBuddy runs (R0, ADR 0024): the automatic search or a program the
- * user chose, such as a portable 0.40 next to an installed 0.30.1. The choice takes effect when
+ * user chose, such as a portable copy next to an installed one. The choice takes effect when
  * PartBuddy starts again, so a running design is never moved between kernels.
  */
 export class EngineChoice {

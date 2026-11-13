@@ -2,10 +2,10 @@ import type { PartFamily, PartsLibrary } from '../../shared/contract';
 
 /**
  * Standard parts (plan step B7): screws, nuts, washers, pins and bearings from SolidCraft's library
- * (`parts.insert`), seated in a hole as counterparts. They are not printed: PartBuddy keeps their
- * body names in the design's metadata, and export and the ready-to-print light leave them out.
+ * (`parts.insert`), seated in a hole as counterparts. They are not printed: the mirror tells them by
+ * what SolidCraft itself says of them (mirror.ts), and export and the ready-to-print light leave
+ * them out.
  */
-export const STANDARD_PARTS_KEY = 'io.github.manuelstaggl.partbuddy.standard-parts';
 
 /** The metric families PartBuddy offers, in the order of the menu. */
 export const PART_FAMILIES: PartFamily[] = ['socket_head_cap_screw', 'button_head_cap_screw', 'hex_bolt', 'set_screw', 'hex_nut', 'washer', 'dowel_pin', 'bearing'];
@@ -37,36 +37,56 @@ export function libraryOf(raw: unknown): PartsLibrary {
   return library;
 }
 
-/** The body names of standard parts kept in the design's metadata. */
-export function standardPartsOf(metadata: unknown): string[] {
-  const entry = (metadata as Record<string, unknown> | null)?.[STANDARD_PARTS_KEY] as { bodies?: unknown } | undefined;
-  return Array.isArray(entry?.bodies) ? entry.bodies.filter((name): name is string => typeof name === 'string' && name.length <= 200).slice(0, 500) : [];
+/** A part of the library, as `parts.insert` takes it; the length in mm, null for a part without one. */
+export interface LibraryPart {
+  family: string;
+  size: string;
+  length: number | null;
 }
 
 /**
- * The names of SolidCraft's part families (`parts.library`, 0.40.0-rc.2). `parts.insert` describes
- * every part it inserts as "<family name> <size>", e.g. "Button head cap screw M3x8" or "Deep groove
- * ball bearing (envelope) 608", and keeps that when the part or its body is renamed.
- * shortcut: fixed list; read it from `parts.library` if SolidCraft adds families.
+ * The length `parts.insert` writes after the size, in mm: "x8" and "x7.5" are millimetres (an inch
+ * part at a length off its list too), " x 3/4", " x 1-1/4" and " x 8" are inches. Undefined for
+ * any other text.
  */
-const LIBRARY_PARTS = [
-  'Socket head cap screw',
-  'Button head cap screw',
-  'Hex head bolt / screw',
-  'Hex nut',
-  'Plain washer',
-  'Hex socket set screw, flat point',
-  'Parallel pin (dowel)',
-  'Deep groove ball bearing (envelope)',
-  'Hex cap screw (inch)',
-  'Hex nut (inch)',
-  'Plain washer, SAE (narrow)',
-  'Plain washer, USS (wide)',
-];
+function lengthOf(text: string): number | null | undefined {
+  if (text === '') return null;
+  const metric = /^x(\d+(?:\.\d+)?)$/.exec(text);
+  if (metric) return Number(metric[1]);
+  const inch = /^ x (?:(\d+)|(?:(\d+)-)?(\d+)\/(\d+))$/.exec(text);
+  if (!inch) return undefined;
+  const inches = inch[1] !== undefined ? Number(inch[1]) : Number(inch[2] ?? 0) + Number(inch[3]) / Number(inch[4]);
+  return Number.isFinite(inches) ? inches * 25.4 : undefined;
+}
 
-/** Whether a component's description (`component.metadata`) is one `parts.insert` gave it. */
-export function isLibraryPart(description: unknown): boolean {
-  return typeof description === 'string' && LIBRARY_PARTS.some((family) => description.startsWith(`${family} `));
+/**
+ * The library part a component's description (`component.metadata`) names, as `parts.insert` wrote
+ * it: the name of a family, one of its sizes and, where the part has one, its length ("Button head
+ * cap screw M3x8", "Deep groove ball bearing (envelope) 608"). SolidCraft keeps it when the part or
+ * its body is renamed. Names and sizes are those `parts.library` answers with now, so a family
+ * SolidCraft adds is known without a change here, and a text that only begins like one ("Hex nut
+ * holder") names no part. The description alone proves nothing: the mirror holds the body against it.
+ */
+export function libraryPartOf(description: unknown, library: unknown): LibraryPart | null {
+  const families = (library as { families?: unknown } | null)?.families;
+  if (typeof description !== 'string' || !Array.isArray(families)) return null;
+  for (const family of families as ({ family?: unknown; name?: unknown; sizes?: unknown } | null)[]) {
+    const name = family?.name;
+    if (typeof family?.family !== 'string' || typeof name !== 'string' || name === '' || !Array.isArray(family.sizes) || !description.startsWith(`${name} `)) continue;
+    const rest = description.slice(name.length + 1);
+    for (const entry of family.sizes as ({ size?: unknown } | null)[]) {
+      const size = entry?.size;
+      if (typeof size !== 'string' || size === '' || !rest.startsWith(size)) continue;
+      const length = lengthOf(rest.slice(size.length));
+      if (length !== undefined) return { family: family.family, size, length };
+    }
+  }
+  return null;
+}
+
+/** Whether a description is one `parts.insert` writes for a part of the library. */
+export function isLibraryPart(description: unknown, library: unknown): boolean {
+  return libraryPartOf(description, library) !== null;
 }
 
 /** A body name that is not taken yet: `SHCS M3x12`, `SHCS M3x12 (2)` … */

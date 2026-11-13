@@ -164,8 +164,12 @@ export const structureSchema = z
     sketches: z.array(z.object({ id: z.number().int().nonnegative(), name: z.string().max(200), visible: z.boolean() }).strict()).max(2000),
     /** Bodies that are standard parts (B7): counterparts, neither exported nor checked for printing. */
     standardParts: z.array(z.string().max(200)).max(500).optional(),
+    /** Bodies whose standard part SolidCraft is still building: neither printed nor bought until the mirror that follows, so the print check leaves them out for that moment. */
+    pendingParts: z.array(z.string().max(200)).max(500).optional(),
     /** The joints of parts that move against each other (ADR 0027); left out when there are none. */
     joints: z.array(jointSchema).max(200).optional(),
+    /** Bodies printed as one piece, as they lie to each other (a print-in-place hinge, audit G1); left out when there are none. */
+    printGroups: z.array(z.array(z.string().max(200)).max(500)).max(200).optional(),
   })
   .strict();
 
@@ -666,9 +670,11 @@ export const exportRequestSchema = z.object({ format: exportFormatSchema }).stri
 export const videoSaveSchema = z
   .object({ bytes: z.instanceof(Uint8Array).refine((bytes) => bytes.length > 0 && bytes.length <= 64 * 1024 * 1024, 'no video, or one over 64 MB'), format: z.enum(['mp4', 'webm']) })
   .strict();
-export const exportResultSchema = z.object({ file: z.string().min(1).max(260) }).strict().nullable();
+/** Bodies described as standard parts that went along as printed ones because none could be checked (`solidcraft-cli` is missing): the user is told. */
+const unverifiedPartsSchema = z.array(z.string().max(200)).max(500).optional();
+export const exportResultSchema = z.object({ file: z.string().min(1).max(260), unverified: unverifiedPartsSchema }).strict().nullable();
 /** The sharing package (F5): its folder's name inside the project's exports, never the full path. */
-export const shareResultSchema = z.object({ folder: z.string().min(1).max(260) }).strict();
+export const shareResultSchema = z.object({ folder: z.string().min(1).max(260), unverified: unverifiedPartsSchema }).strict();
 
 /** The dimension field at a selection (M1b): an edge length or the radius of a cylindrical face. */
 export const dimensionTargetSchema = z.discriminatedUnion('measure', [
@@ -804,10 +810,12 @@ const blockSize = z.enum(['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10']);
 const blockLength = finite.positive().max(500);
 /** Further points of a row of the same hole (the first is `point`). */
 const morePoints = z.array(point3).max(99).optional();
+/** A cut without depth: through the wall at its point, or through all of its body (shared/blocks.ts). */
+const through = z.enum(['wall', 'body']).optional();
 export const featureBlockSchema = z.discriminatedUnion('block', [
-  z.object({ block: z.literal('tappedHole'), body: bodyName, point: point3, size: blockSize, depth: blockLength.nullable(), modeled: z.boolean(), more: morePoints }).strict(),
+  z.object({ block: z.literal('tappedHole'), body: bodyName, point: point3, size: blockSize, depth: blockLength.nullable(), modeled: z.boolean(), more: morePoints, through }).strict(),
   z
-    .object({ block: z.literal('screwHole'), body: bodyName, point: point3, size: blockSize, head: z.enum(['none', 'cap', 'countersunk']), fit: z.enum(['close', 'normal', 'loose']), more: morePoints })
+    .object({ block: z.literal('screwHole'), body: bodyName, point: point3, size: blockSize, head: z.enum(['none', 'cap', 'countersunk']), fit: z.enum(['close', 'normal', 'loose']), more: morePoints, through })
     .strict(),
   z.object({ block: z.literal('insertSeat'), body: bodyName, point: point3, size: blockSize, diameter: blockLength, depth: blockLength, more: morePoints }).strict(),
   z.object({ block: z.literal('boss'), body: bodyName, point: point3, size: blockSize, diameter: blockLength, height: blockLength }).strict(),
@@ -827,9 +835,9 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       boldFace: z.string().trim().min(1).max(100).optional(),
     })
     .strict(),
-  z.object({ block: z.literal('nutTrap'), body: bodyName, point: point3, normal: point3, size: blockSize, flats: blockLength, depth: blockLength }).strict(),
+  z.object({ block: z.literal('nutTrap'), body: bodyName, point: point3, normal: point3, size: blockSize, flats: blockLength, depth: blockLength, through }).strict(),
   z
-    .object({ block: z.literal('slot'), body: bodyName, point: point3, normal: point3, size: blockSize, length: blockLength, width: blockLength, depth: blockLength.nullable(), along: z.enum(['x', 'y']) })
+    .object({ block: z.literal('slot'), body: bodyName, point: point3, normal: point3, size: blockSize, length: blockLength, width: blockLength, depth: blockLength.nullable(), along: z.enum(['x', 'y']), through })
     .strict(),
   z
     .object({ block: z.literal('lip'), body: bodyName, point: point3, size: blockSize, type: z.enum(['lip', 'groove']), width: blockLength, height: blockLength, gap: finite.min(0).max(5) })
@@ -879,7 +887,8 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
     .strict(),
 ]);
 export const actionPreviewSchema = z.discriminatedUnion('ok', [
-  z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable() }).strict(),
+  // `unmeasured`: a function block's cut goes through all of its body, as its reach could not be measured (audit W2).
+  z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable(), unmeasured: z.literal(true).optional() }).strict(),
   z.object({ ok: z.literal(false), error: z.string().max(300) }).strict(),
 ]);
 /** A placed logo at a picked point (sketches named "SVG-Logo <name>"), and where it sits from its face's middle. */
@@ -930,6 +939,10 @@ export const clearanceResultSchema = z
   .object({
     overlaps: z.array(z.object({ a: bodyName, b: bodyName, volume: finite.nonnegative(), box: boxSchema }).strict()).max(100),
     near: z.array(z.object({ a: bodyName, b: bodyName, distance: finite.nonnegative(), from: point3, to: point3 }).strict()).max(100),
+    /** Bodies SolidCraft left out of the measure (a mesh body): nothing is known of their clearance. */
+    unchecked: z.array(bodyName).max(200).optional(),
+    /** Pairs SolidCraft did not finish measuring (its time budget ran out): the measure is not whole. */
+    incomplete: z.literal(true).optional(),
   })
   .strict();
 
@@ -1072,6 +1085,8 @@ export const materialProfileSchema = z
     holeShrink: range(0, 1),
     /** Clearance per side between two mating parts, per fit. */
     clearance: z.object({ clamp: range(-0.5, 2), push: range(-0.5, 2), slide: range(-0.5, 2), turn: range(-0.5, 2) }).strict(),
+    /** The nozzle the clearances were read on with the tolerance pieces; without it they are starting values for 0.4 mm. */
+    measuredNozzle: range(0.1, 2).optional(),
   })
   .strict();
 
@@ -1079,16 +1094,17 @@ const uniqueIds = (items: readonly { id: string }[]) => new Set(items.map((item)
 
 /**
  * The groups of design rules the assistant applies without being asked (decided 2026-11-07):
- * rounded and chamfered edges, print-in-place joints, clean details and sizes snapped to nozzle and
- * layer. The user turns a group off in the settings, or for one project in the chat.
+ * rounded and chamfered edges, print-in-place joints, clean details, sizes snapped to nozzle and
+ * layer, and (2026-11-12) material and print time. The user turns a group off in the settings, or
+ * for one project in the chat.
  */
-export const DESIGN_RULES = ['rounding', 'printInPlace', 'details', 'snap'] as const;
+export const DESIGN_RULES = ['rounding', 'printInPlace', 'details', 'snap', 'economy'] as const;
 export type DesignRule = (typeof DESIGN_RULES)[number];
 export const designRulesSchema = z
-  .object({ rounding: z.boolean().default(true), printInPlace: z.boolean().default(true), details: z.boolean().default(true), snap: z.boolean().default(true) })
+  .object({ rounding: z.boolean().default(true), printInPlace: z.boolean().default(true), details: z.boolean().default(true), snap: z.boolean().default(true), economy: z.boolean().default(true) })
   .strict();
 export type DesignRules = z.infer<typeof designRulesSchema>;
-export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true, details: true, snap: true };
+export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true, details: true, snap: true, economy: true };
 
 export const printSettingsSchema = z
   .object({
@@ -1141,12 +1157,14 @@ const findingPlacesSchema = z
   .max(20);
 const mmValue = finite.nonnegative().max(100_000);
 export const printFindingSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('size'), severity: findingSeveritySchema, size: z.tuple([mmValue, mmValue, mmValue]), bed: z.tuple([mmValue, mmValue, mmValue]), lying: z.boolean() }).strict(),
-  z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('size'), severity: findingSeveritySchema, body: bodyName, size: z.tuple([mmValue, mmValue, mmValue]), bed: z.tuple([mmValue, mmValue, mmValue]), lying: z.boolean() }).strict(),
+  z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, floor: z.boolean(), layers: finite.positive().max(1000).optional(), thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('overhang'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
-  z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), bodies: z.number().int().positive().max(100_000), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
+  z.object({ kind: z.literal('fused'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
+  z.object({ kind: z.literal('open'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(1).max(20) }).strict(),
   z.object({ kind: z.literal('overlap'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), volume: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('tight'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), gap: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('blocked'), severity: findingSeveritySchema, joint: z.string().max(200), bodies: z.tuple([bodyName, bodyName]), at: finite, limit: finite, unit: z.enum(['deg', 'mm']), places: findingPlacesSchema }).strict(),
@@ -1156,10 +1174,35 @@ export const printCheckReportSchema = z
   .object({
     status: z.enum(['ready', 'warn', 'block']),
     findings: z.array(printFindingSchema).max(40),
+    /** How many more findings the check has than the report carries. */
+    omitted: z.number().int().positive().max(100_000).optional(),
     /** The printer's nozzle the check used, for the wording of walls under it. */
     nozzle: range(0.1, 2),
     /** The mirrored revision the check belongs to, so a check of an older revision reads as pending. */
     revision: z.number().int().nonnegative(),
+    /** True for the mesh check sent ahead while SolidCraft still measures clearance and joints; the full check follows. */
+    measuring: z.boolean().optional(),
+    /** What SolidCraft could not measure for this check, or not all of (its measure failed, joint runs past 40): the check then says nothing of it. */
+    unmeasured: z.array(z.enum(['clearance', 'joints'])).max(2).optional(),
+    /** Mesh bodies whose clearance SolidCraft does not measure: the check says nothing of them until they are converted to faces. */
+    unchecked: z.array(bodyName).max(40).optional(),
+    /**
+     * Per printed body, as it lies on the bed: solid volume and the shell estimate in mm³ (two wall lines on every
+     * surface, 15 % infill inside), height in mm and its layers, mm² of surface, on the bed and leaning past the
+     * material's limit. What the shape decides of material and print time; the rest is the slicer's.
+     */
+    bodies: z
+      .array(
+        z
+          .object({ name: z.string().max(200), volume: range(0, 1e12), shell: range(0, 1e12), height: range(0, 1e6), layers: z.number().int().nonnegative(), surface: range(0, 1e9), contact: range(0, 1e9), support: range(0, 1e9) })
+          .strict(),
+      )
+      .max(40)
+      .optional(),
+    /** What the renderer could not measure or report, for the log. */
+    problem: z.string().max(300).optional(),
+    /** How many more bodies the design has than `bodies` carries. */
+    bodiesOmitted: z.number().int().positive().max(100_000).optional(),
   })
   .strict();
 
@@ -1246,7 +1289,7 @@ export const invokeContract = {
   [invokeChannels.designPreviewLogoMove]: { request: logoMoveSchema, response: actionPreviewSchema },
   [invokeChannels.designMoveLogo]: { request: logoMoveSchema, response: none },
   [invokeChannels.designSlicers]: { request: none, response: slicersSchema },
-  [invokeChannels.designSendToSlicer]: { request: sendToSlicerSchema, response: z.object({ name: z.string().max(120) }).strict() },
+  [invokeChannels.designSendToSlicer]: { request: sendToSlicerSchema, response: z.object({ name: z.string().max(120), unverified: unverifiedPartsSchema }).strict() },
   [invokeChannels.designPrintFace]: { request: printFaceSchema, response: none },
   [invokeChannels.designPrintFaces]: { request: none, response: printFacesSchema },
   [invokeChannels.designInsertPart]: { request: partInsertSchema, response: partInsertResultSchema },

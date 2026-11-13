@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
@@ -95,9 +95,8 @@ test('website pictures', async () => {
   const board = join(work, 'Circuit board.step');
   writeFileSync(join(work, 'board.json'), JSON.stringify({ commands: [...BOARD, { command: 'file.export', params: { path: board, format: 'step' } }] }));
   execFileSync(CLI, ['run', join(work, 'board.json'), '--quiet'], { stdio: ['ignore', 'ignore', 'inherit'] });
-  // The SolidCraft the app is tested on (0.40.0-rc.4, see the release notes), not the installed 0.30.1:
-  // the templates need it. SOLIDCRAFT_EXE names it, else the portable copy in ~/.partbuddy.
-  const solidcraft = process.env.SOLIDCRAFT_EXE ?? join(homedir(), '.partbuddy', 'solidcraft-0.40.0-rc.4', 'solidcraft-0.40.0-rc.4-windows-x64-portable', 'solidcraft.exe');
+  // The SolidCraft the app is tested on: SOLIDCRAFT_EXE names it, else the installed one.
+  const solidcraft = process.env.SOLIDCRAFT_EXE ?? String.raw`C:\Program Files\SolidCraft\solidcraft.exe`;
   if (existsSync(solidcraft)) {
     mkdirSync(join(work, 'profile'), { recursive: true });
     writeFileSync(join(work, 'profile', 'solidcraft-settings.json'), JSON.stringify({ path: solidcraft }));
@@ -295,6 +294,8 @@ test('website pictures', async () => {
     });
     // The package itself: its description goes beside the pictures, the notice is the picture.
     await step('share', async () => {
+      // Measured first: until then the export asks (audit X-1).
+      await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-measuring', 'true', { timeout: 60_000 });
       await page.getByTestId('export').click();
       await page.getByTestId('export-share').click();
       await expect(page.getByText(/Sharing package saved in exports/)).toBeVisible({ timeout: 60_000 });

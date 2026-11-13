@@ -21,7 +21,9 @@ export function useProjectPreview(): void {
     // Also a design that was only opened or just made from a template, which is never saved: it got no
     // picture before (polish round 3). Only a save under way or a failed one waits.
     if (model.status !== 'ready' || save === 'saving' || save === 'failed' || model.bodies.length === 0) return;
-    const light = check && check.revision === model.revision ? check.result.status : null;
+    // Green only once all is measured (audit X-1): still measuring is no light yet, a measure that failed is yellow.
+    const current = check && check.documentId === model.documentId && check.revision === model.revision && !check.measuring ? check : null;
+    const light = !current ? null : current.result.status === 'ready' && (current.unmeasured?.length ?? 0) > 0 ? 'warn' : current.result.status;
     const key = `${model.documentId}:${String(model.revision)}:${light ?? ''}`;
     if (sent.current === key) return;
     const timer = setTimeout(() => {

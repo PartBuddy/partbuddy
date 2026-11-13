@@ -555,6 +555,7 @@
     "openedInSolidCraft": "The design is in Documents\\PartBuddy and opens in SolidCraft. PartBuddy shows your changes there live.",
     "failed": "That did not work: {detail}",
     "sentToSlicer": "Opened in {name}.",
+    "uncheckedParts": "Included as printed parts, because PartBuddy could not check here whether they are bought standard parts (SolidCraft's command-line program is missing): {bodies}.",
     "slicer": {
       "title": "Open in the slicer",
       "open": "Open in {name}",
@@ -1032,6 +1033,10 @@
       "snap": {
         "label": "Snap sizes",
         "hint": "Walls it chooses become whole line widths, floors and heights whole layers. When you change printer, PartBuddy adjusts only these sizes."
+      },
+      "economy": {
+        "label": "Design lean",
+        "hint": "Saves material and print time: shells with ribs instead of solid blocks, low build height, no needless support. Function and strength come first; infill and speed stay with your slicer."
       }
     },
     "add": "Add printer",
@@ -1108,20 +1113,39 @@
     "status": {
       "ready": "Ready to print",
       "warn": "{count, plural, one {# warning} other {# warnings}}",
-      "block": "Not ready to print"
+      "block": "Not ready to print",
+      "measuring": "Checking",
+      "unmeasured": "Not fully checked"
     },
     "none": "No problems found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
+    "noneSoFar": "No problems found so far.",
     "basis": "Checked after every change, as designed (standing on its lowest point), with the printer and material of this part. Supports, bridges and the orientation are up to the slicer.",
+    "measuring": "The check is still running. Overlaps, gaps that are too tight or a blocked joint may still turn up.",
+    "unmeasured": "Not measured, or not all of it: {what}. Findings there may be missing.",
+    "unchecked": "Not checked for gaps (mesh bodies): {bodies}",
+    "measure": {
+      "clearance": "the gaps between the parts",
+      "joints": "the travel of the joints"
+    },
+    "lacking": {
+      "mirror": "The view could not read the newest state; it is not checked.",
+      "check": "The print check broke off with an error; this state is not checked."
+    },
     "faces": "{count, plural, one {# face} other {# faces}}",
+    "more": "{count} more",
     "show": "Show the place",
     "finding": {
-      "size": "Too large for the build volume: {size} mm, the printer takes {bed} mm",
-      "sizeLying": "Too large for the build volume: {size} mm, the printer takes {bed} mm. Laid on another side it would fit.",
+      "size": "Too large for the build volume: {body}, {size} mm, the printer takes {bed} mm",
+      "sizeLying": "Too large for the build volume: {body}, {size} mm, the printer takes {bed} mm. Laid on another side it would fit.",
       "wallTooThin": "Walls only {thickness} mm, thinner than the nozzle ({nozzle} mm): they do not print",
       "wallThin": "Walls only {thickness} mm, at least {minimum} mm (two lines)",
+      "floorTooThin": "Floors or lids only {thickness} mm, thinner than one layer: they do not print",
+      "floorThin": "Floors or lids only {thickness} mm, at least {minimum} mm{layers, select, none {} other { ({layers} layers)}}",
       "overhang": "{area} mm² lean beyond {limit}°: the slicer decides whether they need support",
-      "contact": "Only {area} mm² lie on the bed: may come loose or tip over",
+      "contact": "{count, plural, one {Only {area} mm² of {bodies} lie on the bed: may come loose or tip over} other {# bodies have little on the bed ({bodies}), the least {area} mm²: they may come loose or tip over}}",
+      "open": "{count, plural, one {{bodies} is no closed solid} other {{bodies} are no closed solids}}: an open surface without volume does not print",
       "separate": "{bodies} touch but are separate bodies: the slicer lays each on the bed by itself. Combine them if they are one part.",
+      "fused": "{bodies} print as one piece and touch: they fuse there, and the mechanism between them does not move. Leave a gap there.",
       "feature": "{feature}: {message}",
       "overlap": "{a} and {b} overlap by {volume} mm³ – as separate parts they do not go together; combine them if they are one part",
       "tight": "{a} and {b} come within {gap} mm without touching – under the push fit of {minimum} mm per side, they only go together with force",
@@ -1132,7 +1156,10 @@
       "title": "Export anyway?",
       "body": "The print check is red. As it is, the part will likely not print cleanly:",
       "cancel": "Cancel",
-      "go": "Export anyway"
+      "go": "Export anyway",
+      "measuring": "The print check has not finished yet. Findings may still turn up, such as overlaps or a blocked joint.",
+      "unmeasured": "The print check did not run in full. Not measured, or not all of it: {what}.",
+      "done": "The measuring has finished in the meantime."
     }
   },
   "engine": {
@@ -1463,6 +1490,7 @@
       "empty": "The drawing has neither filled areas nor lines. Text cannot be built – convert it to paths in the drawing program."
     },
     "ready": "Shown in the view – Build makes it",
+    "unmeasured": "Shown in the view – the wall here could not be measured, so this cut goes through the whole part, far walls too",
     "kinds": {
       "tappedHole": "Tapped hole",
       "screwHole": "Screw hole",

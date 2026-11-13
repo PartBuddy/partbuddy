@@ -6,7 +6,7 @@ import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } fro
 import { ClaudeSession, findClaudeCode, listModels, readAuth, readVersion, startSignIn, type ClaudeAuth, type ClaudeCommand } from './claudeCode';
 import { userEvent, type AgentBackend, type PictureKind } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
-import { allowedChoice, choiceStatus, withoutChoice, type ChoiceStore } from './modelChoice';
+import { allowedChoice, choiceStatus, CLAUDE_STANDARD, withoutChoice, type ChoiceStore } from './modelChoice';
 import { composeMessage } from './viewContext';
 
 /**
@@ -264,8 +264,9 @@ export class AgentService implements AgentBackend {
       mkdirSync(this.options.workDir, { recursive: true });
       const models = await (this.options.listModels ?? ((command) => listModels(command, this.options.env, this.options.workDir)))(claude);
       this.models = models;
-      // Like the other routes: without a kept choice the plan's first model (Claude Code's default) with its fallback effort.
-      this.choice = allowedChoice(models, this.choice ?? this.options.choices.get('claude-code')) ?? allowedChoice(models, models[0] ? { model: models[0].id, effort: null } : null);
+      // Without a kept choice PartBuddy's own standard, and where the plan has no such model its first one with its fallback effort.
+      this.choice =
+        allowedChoice(models, this.choice ?? this.options.choices.get('claude-code')) ?? allowedChoice(models, CLAUDE_STANDARD) ?? allowedChoice(models, models[0] ? { model: models[0].id, effort: null } : null);
       this.setStatus(this.current);
     } catch (error) {
       this.options.log(`Claude Code models could not be listed: ${(error as Error).message}`);

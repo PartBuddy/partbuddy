@@ -27,10 +27,11 @@ export interface HingeSpec {
   /** The hinge's name, in the user's language; the features carry it. */
   name: string;
   /**
-   * Where a lying hinge hangs: the height (z) of the bed, and for each body the level way from the line to its wall
-   * and how far that is. With it every knuckle that starts in the air gets a web at 45° down to its own wall.
+   * Where a lying hinge hangs: the height (z) of the bed, and for each body whose wall can carry a web (it reaches down
+   * to `webFoot`, or the web ends on the bed) the level way from the line to that wall and how far that is. With it
+   * every knuckle of such a body that starts in the air gets a web at 45° down to its own wall.
    */
-  support?: { bed: number; fixed: HingeSide; moving: HingeSide };
+  support?: { bed: number; fixed?: HingeSide; moving?: HingeSide };
 }
 
 export interface HingeSide {
@@ -105,40 +106,96 @@ export function hingeSteps(spec: HingeSpec): Step[] {
     cylinder(pin + 2 * spec.gap, -spec.gap, length + spec.gap, 'cut', spec.moving, `${spec.name} ○`),
     ...boreRoof(spec, axis, at(-spec.gap), length + 2 * spec.gap, pin / 2 + spec.gap),
     cylinder(pin, 0, length, 'join', spec.fixed, `${spec.name} ●`),
+    ...spans.flatMap((span) => (span.owner === spec.moving ? pinFlat(spec, axis, at, span, pin / 2) : [])),
+  ];
+}
+
+/** How far the pin of a lying hinge bridges inside a knuckle of the moving body, from one fixed knuckle to the next (mm). */
+export function pinBridge(spec: Pick<HingeSpec, 'from' | 'to' | 'gap' | 'knuckles'>): number {
+  const length = Math.hypot(...spec.to.map((value, i) => value - (spec.from[i] ?? 0)));
+  return round((length + (spec.knuckles + 1) * spec.gap) / spec.knuckles);
+}
+
+/**
+ * The flat under the pin of a lying hinge, inside one knuckle of the moving body: there the pin has nothing below it
+ * but the gap, and its round underside starts in the air (audit 2026-11-12: 25 mm² of overhang per knuckle left on every
+ * hinge). Cut off where it leans 45°, what is left below is a level strip from one fixed knuckle to the next, a bridge.
+ */
+function pinFlat(spec: HingeSpec, axis: Vec3, at: (distance: number) => Vec3, span: { start: number; end: number; label: string }, radius: number): Step[] {
+  if (Math.abs(axis[2]) > 1e-6) return [];
+  const top = -radius / Math.SQRT2;
+  // Down to inside the bore's gap: below the pin the fixed body has nothing there.
+  const points: [number, number][] = [[-radius, top], [radius, top], [radius, -radius - spec.gap / 2], [-radius, -radius - spec.gap / 2]];
+  const name = `${span.label} ▬`;
+  return [
+    { command: 'sketch.create', params: { plane: { origin: at(span.start - spec.gap), x_dir: cross([0, 0, 1], axis).map(round), y_dir: [0, 0, 1] }, project_edges: false, name } },
+    { command: 'sketch.line', params: { points: points.map(([x, y]) => [round(x), round(y)]), closed: true } },
+    { command: 'solid.extrude', params: { distance: `${String(round(span.end - span.start + 2 * spec.gap))} mm`, operation: 'cut', targets: [spec.fixed], name } },
   ];
 }
 
 /** A web stands this far in its wall, and one lower than this is left out (mm). */
-const WEB = { into: 0.5, least: 0.3 };
+export const WEB = { into: 0.5, least: 0.3 };
+
+/** How far below the hinge line the web of a knuckle meets its wall, `distance` from the line (mm): the wall must reach down there. */
+export function webFoot(diameter: number, distance: number): number {
+  return round((diameter / 2) * Math.SQRT2 + distance);
+}
+
+/**
+ * Parts printed as one piece (audit 2026-11-12, G1: a print-in-place hinge): each of their components carries a key of
+ * PartBuddy's (`METADATA_PREFIX` of notes/noteRecord.ts, which the assistant may not write) with the same label, and
+ * the mirror groups the bodies of components that share one (`printGroups`), so print check and plate view stand them
+ * on one bed and the 3MF export and "send to slicer" write them as one object (main/print/pieces3mf.ts). One key per
+ * label: a component in two hinges keeps both, and nothing is read before it is written. The marks are part of the
+ * design, so they come back with undo, redo and a design opened again.
+ */
+export const TOGETHER_KEY = 'io.github.manuelstaggl.partbuddy.together.';
+
+export function printTogether(components: readonly (string | number)[], label: string, joint: string): Step[] {
+  return components.map((component) => ({ command: 'component.metadata.set', params: { component, values: { [`${TOGETHER_KEY}${label}`]: { joint } } } }));
+}
+
+/** Whether the knuckles of a lying hinge start above the bed, so that each needs a web under it. */
+export function hangs(spec: Pick<HingeSpec, 'from' | 'to' | 'diameter'>, bed: number): boolean {
+  return Math.abs(spec.to[2] - spec.from[2]) < 1e-6 && spec.from[2] - spec.diameter / 2 - bed >= WEB.least;
+}
 
 /**
  * The web under one knuckle of a lying hinge that starts above the bed: the round underside of a barrel begins in the
  * air (practice runs 2026-11-11 and -12: the assistant added such webs by hand every time). In the plane square to
- * the line, x towards the knuckle's own wall and y up from the axis: from under the barrel a face at 45° runs down to
- * the wall, or to the bed where that comes first. Towards the other body it ends a gap before that body's face, at
- * most where the barrel itself leans 45°; what is left of the round there is a small overhang next to material.
+ * the line, x towards the knuckle's own wall and y up from the axis: from where the barrel leans 45° on the far side,
+ * over the other body, a face at 45° runs down under the barrel to the knuckle's own wall, or to the bed where that
+ * comes first. So nothing of the round is left hanging: a web that ended a gap before the other body left the far half
+ * of every knuckle as an overhang of up to 89° (audit 2026-11-12, N-mechanik-4). Where the web passes through the
+ * other body, that body is cut back by the same profile a gap further out, as it is for the barrel itself.
+ * shortcut: a wall that ends above the web's foot gets no web at all, though a shorter one from further under the
+ * barrel would carry most of it; add that when hinges on shallow walls turn up.
  */
-function web(spec: HingeSpec, axis: Vec3, at: (distance: number) => Vec3, span: { start: number; end: number; owner: string; label: string }): Step[] {
+function web(spec: HingeSpec, axis: Vec3, at: (distance: number) => Vec3, span: { start: number; end: number; owner: string; other: string; label: string }): Step[] {
   const support = spec.support;
-  if (!support || Math.abs(axis[2]) > 1e-6) return [];
-  const [own, other] = span.owner === spec.fixed ? [support.fixed, support.moving] : [support.moving, support.fixed];
-  const radius = spec.diameter / 2;
-  const x0 = Math.max(-radius / Math.SQRT2, spec.gap - other.distance);
-  if (x0 >= radius || own.distance - x0 < WEB.least) return [];
-  const under = -Math.sqrt(radius * radius - x0 * x0);
+  const own = span.owner === spec.fixed ? support?.fixed : support?.moving;
+  if (!support || !own || !hangs(spec, support.bed)) return [];
   const bed = support.bed - spec.from[2];
-  // A barrel that lies on the bed is carried by it.
-  if (-radius - bed < WEB.least) return [];
   const wall = own.distance + WEB.into;
-  const foot = under - (own.distance - x0);
-  const points: [number, number][] = foot < bed ? [[x0, 0], [x0, under], [x0 + (under - bed), bed], [wall, bed], [wall, 0]] : [[x0, 0], [x0, under], [own.distance, foot], [wall, foot], [wall, 0]];
+  const room = Math.max(0, own.distance - spec.gap);
+  // The face at 45° that touches a barrel of this radius, from where it touches down to x.
+  const slope = (radius: number, x: number): [number, number][] => [[-radius / Math.SQRT2, 0], [-radius / Math.SQRT2, -radius / Math.SQRT2], [x, -radius * Math.SQRT2 - x]];
+  const radius = spec.diameter / 2;
+  const foot = -webFoot(spec.diameter, own.distance);
+  const points: [number, number][] = foot < bed ? [...slope(radius, -radius * Math.SQRT2 - bed), [wall, bed], [wall, 0]] : [...slope(radius, own.distance), [wall, foot], [wall, 0]];
   // x × y of the sketch is the way the profile is extruded: start at the end of the knuckle from which that runs along it.
   const forward = cross(own.toward, [0, 0, 1]).reduce((sum, value, i) => sum + value * (axis[i] ?? 0), 0) > 0;
-  const name = `${span.label} ◣`;
+  const profile = (outline: [number, number][], start: number, end: number, operation: 'cut' | 'join', target: string, name: string): Step[] => [
+    { command: 'sketch.create', params: { plane: { origin: at(forward ? start : end), x_dir: own.toward.map((value) => round(value) + 0), y_dir: [0, 0, 1] }, project_edges: false, name } },
+    { command: 'sketch.line', params: { points: outline.map(([x, y]) => [round(x), round(y)]), closed: true } },
+    { command: 'solid.extrude', params: { distance: `${String(round(end - start))} mm`, operation, targets: [target], name } },
+  ];
   return [
-    { command: 'sketch.create', params: { plane: { origin: at(forward ? span.start : span.end), x_dir: own.toward.map((value) => round(value) + 0), y_dir: [0, 0, 1] }, project_edges: false, name } },
-    { command: 'sketch.line', params: { points: points.map(([x, y]) => [round(x), round(y)]), closed: true } },
-    { command: 'solid.extrude', params: { distance: `${String(round(span.end - span.start))} mm`, operation: 'join', targets: [span.owner], name } },
+    // As long as the knuckle's room, and up to a gap before the knuckle's own wall: a line that lies inside the other
+    // body's wall has that wall on both sides of it.
+    ...profile([...slope(radius + spec.gap, room), [room, 0]], span.start - spec.gap, span.end + spec.gap, 'cut', span.other, `${span.label} ◤`),
+    ...profile(points, span.start, span.end, 'join', span.owner, `${span.label} ◣`),
   ];
 }
 
@@ -189,9 +246,24 @@ export interface SlideSpec {
   height: number;
   /** The gap between rail and groove in mm. */
   gap: number;
+  /** The moving body is high enough over the rail's face for the roof over the groove (`slideRoof`); without it the groove's ceiling is flat. */
+  roof?: boolean;
   name: string;
 }
 
+/** The flat ridge of the roof over a groove, in mm: a bridge that short does not sag (Protolabs Network, Xometry Pro; overhang.ts). */
+const RIDGE = 5;
+
+/**
+ * The ceiling of a guide's groove and the roof that takes its place, in mm. The ceiling is flat, as wide as the rail's
+ * head and a gap more on each side, and lies only a gap over the head: 13.9 mm at the defaults and up to 102 mm, where
+ * a bridge prints up to 10 mm (audit 2026-11-12, T5). The roof rises at 45° from both edges of the ceiling to a ridge
+ * `ridge` wide, `top` above the face the rail stands on.
+ */
+export function slideRoof(spec: Pick<SlideSpec, 'width' | 'height' | 'gap'>): { ceiling: number; ridge: number; top: number } {
+  const half = spec.width / 2 + spec.gap * Math.SQRT2 + spec.height + spec.gap;
+  return { ceiling: round(2 * half), ridge: RIDGE, top: round(spec.height + spec.gap + half - RIDGE / 2) };
+}
 
 /** What is wrong with a guide before anything is built; null when it can be built. */
 export function slideProblem(spec: SlideSpec): string | null {
@@ -210,8 +282,9 @@ export function slideProblem(spec: SlideSpec): string | null {
 
 /**
  * The solids of a dovetail guide along the line `from`–`to`: a rail on the fixed body that widens
- * upwards at 45°, and its groove in the moving body, a gap wider all round. Both are a sketch at
- * `from`, square to the line, extruded along it.
+ * upwards at 45°, and its groove in the moving body, a gap wider all round, with a roof instead of
+ * a flat ceiling where the body is high enough. Both are a sketch at `from`, square to the line,
+ * extruded along it.
  */
 export function slideSteps(spec: SlideSpec): Step[] {
   const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
@@ -225,6 +298,7 @@ export function slideSteps(spec: SlideSpec): Step[] {
   const { height, gap } = spec;
   // The flank moved out by the gap, measured square to it.
   const out = gap * Math.SQRT2;
+  const roof = slideRoof(spec);
   const profile = (points: [number, number][], operation: 'cut' | 'join', target: string, name: string): Step[] => [
     { command: 'sketch.create', params: { plane, project_edges: false, name } },
     { command: 'sketch.line', params: { points: points.map(([x, y]) => [round(x), round(y)]), closed: true } },
@@ -238,6 +312,7 @@ export function slideSteps(spec: SlideSpec): Step[] {
         [half + out, -gap],
         [half + out, 0],
         [half + out + height + gap, height + gap],
+        ...(spec.roof ? ([[roof.ridge / 2, roof.top], [-roof.ridge / 2, roof.top]] as [number, number][]) : []),
         [-(half + out + height + gap), height + gap],
         [-(half + out), 0],
       ],
@@ -361,6 +436,20 @@ export function lipSteps(spec: LipSpec): Step[] {
     ...(spec.flat ? [] : ring(`${name} ·`, by(spec.rim, up > 0 ? -LIP.foot : 0), -0.2, LIP.foot)),
     ...ring(name, by(spec.rim, up > 0 ? 0 : -LIP.high), LIP.clear, LIP.high),
     ...(spec.flat ? [] : [{ command: 'solid.chamfer', params: { edges: [xyz(middleAt, at(wallAt) - out * inner, at(spec.rim) - up * LIP.foot)], distance: mm(inner - 0.05), body: spec.moving, name: `${name} ◢` } }]),
+    // The notch before the bead: it reaches below the rim, where the bead stands past the wall's plane, and cut after
+    // it took that part away, so the bead ended on the plane and caught nothing (audit 2026-11-12, N-mechanik-2).
+    ...(spec.flat ? [] : [{
+      command: 'solid.cylinder',
+      params: {
+        diameter: mm(LIP.notch),
+        height: ex(spec.wall),
+        base: xyz(middle, out > 0 ? ex(wallAt) : `${ex(wallAt)} - ${ex(spec.wall)}`, by(spec.rim, up * (LIP.notch / 2 - 2.5))),
+        axis: alongX ? 'Y' : 'X',
+        operation: 'cut',
+        targets: [spec.moving],
+        name: `${name} ◠`,
+      },
+    }]),
     {
       command: 'solid.box',
       params: {
@@ -384,18 +473,6 @@ export function lipSteps(spec: LipSpec): Step[] {
         name: `${name} ○`,
       },
     },
-    ...(spec.flat ? [] : [{
-      command: 'solid.cylinder',
-      params: {
-        diameter: mm(LIP.notch),
-        height: ex(spec.wall),
-        base: xyz(middle, out > 0 ? ex(wallAt) : `${ex(wallAt)} - ${ex(spec.wall)}`, by(spec.rim, up * (LIP.notch / 2 - 2.5))),
-        axis: alongX ? 'Y' : 'X',
-        operation: 'cut',
-        targets: [spec.moving],
-        name: `${name} ◠`,
-      },
-    }]),
   ];
 }
 
@@ -423,7 +500,7 @@ export interface ScrewSpec {
 /** Lengths screws are sold in, ISO 4762 and ISO 10642, in mm. */
 const SCREW_LENGTHS = [4, 5, 6, 8, 10, 12, 16, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80];
 /** A modelled thread holds from about M5 in print; smaller ones strip. */
-const TAPPED_FROM = 5;
+export const TAPPED_FROM = 5;
 /** Plastic left under a sunk head, in mm: three layers and more. */
 const UNDER_HEAD = 1.2;
 
@@ -498,12 +575,19 @@ export function screwSteps(spec: ScrewSpec): Step[] {
   ];
 }
 
+/** The room for the head in the moving body: its width at the face and how deep the head sits; null for a head lying on the face. */
+export function headRecess(spec: ScrewSpec): { diameter: number; depth: number } | null {
+  if (spec.head === 'cap') return { diameter: CAP_HEAD[spec.size][0] + 2 * HEAD_ALLOWANCE.diameter, depth: headDepth(spec) };
+  if (spec.head === 'countersunk') return { diameter: (COUNTERSUNK_HEAD[spec.size] ?? CAP_HEAD[spec.size][0]) + HEAD_ALLOWANCE.diameter, depth: headDepth(spec) };
+  return null;
+}
+
 /** The room for the head, as the function block for a screw hole makes it: a counterbore or a countersink with the allowance of a printed hole. */
 function headRoom(spec: ScrewSpec): Record<string, unknown> {
   const mm = (value: number) => `${String(round(value))} mm`;
-  if (spec.head === 'cap') return { type: 'counterbore', cb_diameter: mm(CAP_HEAD[spec.size][0] + 2 * HEAD_ALLOWANCE.diameter), cb_depth: mm(CAP_HEAD[spec.size][1] + HEAD_ALLOWANCE.depth) };
-  if (spec.head === 'countersunk') return { type: 'countersink', cs_diameter: mm((COUNTERSUNK_HEAD[spec.size] ?? CAP_HEAD[spec.size][0]) + HEAD_ALLOWANCE.diameter), cs_angle: '90 deg' };
-  return {};
+  const room = headRecess(spec);
+  if (!room) return {};
+  return spec.head === 'cap' ? { type: 'counterbore', cb_diameter: mm(room.diameter), cb_depth: mm(room.depth) } : { type: 'countersink', cs_diameter: mm(room.diameter), cs_angle: '90 deg' };
 }
 
 

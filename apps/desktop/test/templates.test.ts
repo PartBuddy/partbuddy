@@ -26,7 +26,7 @@ describe('templates (F3)', () => {
       for (const step of steps.slice(declared.length)) {
         for (const [key, value] of Object.entries(step.params)) {
           if (!EXPRESSION_FIELDS.has(key)) continue;
-          for (const text of expressions(value)) for (const word of text.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []) if (word !== 'mm') used.add(word);
+          for (const text of expressions(value)) for (const word of text.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []) if (!['mm', 'max', 'min'].includes(word)) used.add(word);
         }
       }
       expect([...used].filter((word) => !names.has(word)), id).toEqual([]);
@@ -77,6 +77,15 @@ describe('templates (F3)', () => {
     expect(templateSteps('housing').some((step) => step.params.body_name === 'Housing')).toBe(true);
   });
 
+  it('marks box and lid of the hinged box as printed together by their components, in both languages (review of PR 366, B1)', () => {
+    for (const [german, names] of [[false, ['Box', 'Lid']], [true, ['Box', 'Deckel']]] as const) {
+      const steps = templateSteps('hingedBox', german);
+      // The components are made of the bodies and named after them: the marks must name those.
+      expect(steps.find((step) => step.command === 'component.from_bodies')?.params.bodies).toEqual(names);
+      expect(steps.filter((step) => step.command === 'component.metadata.set').map((step) => step.params.component)).toEqual(names);
+    }
+  });
+
   it('names every feature and sketch in German on request, and a sketch reference follows (audit B-03)', () => {
     for (const id of TEMPLATE_IDS) {
       const english = templateSteps(id);
@@ -115,6 +124,26 @@ describe('templates with moving parts', () => {
       for (const step of knuckles) expect(step.params.base).toEqual([expect.stringMatching(/^length \/ 2 \+ -?[\d.]+ mm$/), 0.5, 'height']);
     }
     expect(germanFeatureName('Hinge 2 ·')).toBe('Scharnier 2 ·');
+    // Audit 2026-11-12, T3: the template called the hinge without the webs of the tool, so its knuckles began 12 mm above the
+    // bed in the air (189 mm² of overhang, up to 87°) under a file that promises "without support".
+    const steps = templateSteps('hingedBox');
+    const webs = steps.filter((step) => step.command === 'solid.extrude' && String(step.params.name).endsWith('◣'));
+    expect(webs.map((step) => [step.params.name, (step.params.targets as string[])[0], step.params.distance])).toEqual([['Hinge 1 ◣', 'Box', '7.68 mm'], ['Hinge 2 ◣', 'Lid', '7.68 mm'], ['Hinge 3 ◣', 'Box', '7.68 mm'], ['Hinge 4 ◣', 'Lid', '7.68 mm'], ['Hinge 5 ◣', 'Box', '7.68 mm']]);
+    // Each is drawn on the world's YZ plane at the knuckle's low end in x, from the rim down, so it follows length and height:
+    // the box's from the line (y 0.5) towards -y to 0.5 mm inside its wall, the lid's towards +y.
+    const drawn = (name: string) => steps.slice(steps.findIndex((step) => step.command === 'sketch.create' && step.params.name === name)).slice(0, 2).map((step) => step.params);
+    expect(drawn('Hinge 1 ◣')).toEqual([{ plane: 'YZ', offset: 'length / 2 + -20 mm', project_edges: false, name: 'Hinge 1 ◣' }, { points: [['3.328 mm', 'height + 0 mm'], ['3.328 mm', 'max(height + -2.828 mm, 0 mm)'], ['0.5 mm - min(0.5 mm, height + -5.657 mm)', 'max(height + -6.157 mm, 0 mm)'], ['-0.5 mm', 'max(height + -6.157 mm, 0 mm)'], ['-0.5 mm', 'height + 0 mm']], closed: true }]);
+    // Review of PR #358: "at least 8 mm" stood only in the parameter's comment, and at 5 mm the webs reached 1.16 mm below the
+    // floor. A web ends on the bed at the latest; its room in the other half is a cut and may go on.
+    expect(JSON.stringify(drawn('Hinge 1 ◤')[1]?.points)).not.toContain('max(');
+    expect(drawn('Hinge 2 ◣')[0]).toMatchObject({ plane: 'YZ', offset: 'length / 2 + -11.92 mm' });
+    // Review 2 of PR #358: with the foot only lifted to the bed the web's face leant 57° at 5 mm. The foot comes in along the face
+    // (to height - 5.657 mm from the line where that is less than the 0.5 mm to the wall), so the face keeps 45°.
+    expect((drawn('Hinge 2 ◣')[1]?.points as string[][])[2]).toEqual(['0.5 mm + min(0.5 mm, height + -5.657 mm)', 'max(height + -6.157 mm, 0 mm)']);
+    expect(germanFeatureName('Hinge 1 ◣')).toBe('Scharnier 1 ◣');
+    expect(germanFeatureName('Hinge 2 ▬')).toBe('Scharnier 2 ▬');
+    // The joint is kept on the pin's round top: underneath the pin is flat now.
+    expect((steps.find((step) => step.command === 'joint.create')?.params.a as { circle: number[] }).circle.map((value) => Math.round(value * 100) / 100)).toEqual([25.46, 0.5, 18]);
   });
 
   it('joins the stop as a slider, by name in either language', () => {

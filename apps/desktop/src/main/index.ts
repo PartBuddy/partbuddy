@@ -40,7 +40,7 @@ import { SecretStore } from './credentials/secretStore';
 import { loadNoteKey } from './notes/noteRecord';
 import { NotesService } from './notes/notesService';
 import { Bridge, trustedSender } from './bridge';
-import { findExecutable, systemEnvironment } from './solidcraft/discovery';
+import { findExecutable, programInBundle, systemEnvironment } from './solidcraft/discovery';
 import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
 import { checkImportFile, IMPORT_EXTENSIONS, importName, type ImportKind } from './projects/importFile';
@@ -57,7 +57,7 @@ import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
 import { longPath, SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
-import { printCheckNote } from './print/printCheckNote';
+import { CHECK_PENDING_VIEW, CheckTold, printCheckNote, withCheckOfChange } from './print/printCheckNote';
 import { templatePrintFaces, templateSteps } from '../shared/templates';
 import { testPieceSteps } from '../shared/testPieces';
 import { sketchNote } from './agents/sketchNote';
@@ -338,13 +338,14 @@ if (!app.requestSingleInstanceLock()) {
       const options: Electron.OpenDialogOptions = {
         title: 'SolidCraft',
         properties: ['openFile'],
-        filters: process.platform === 'win32' ? [{ name: 'SolidCraft', extensions: ['exe'] }] : [],
+        filters: process.platform === 'win32' ? [{ name: 'SolidCraft', extensions: ['exe'] }] : process.platform === 'darwin' ? [{ name: 'SolidCraft', extensions: ['app'] }] : [],
         ...(current ? { defaultPath: current } : {}),
       };
       const picked = mainWindow ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
       const [file] = picked.filePaths;
       if (picked.canceled || !file) return { info: await engineChoice.info(), error: null, cancelled: true };
-      return { ...(await engineChoice.choose(file)), cancelled: false };
+      // On macOS the dialog hands over the bundle "SolidCraft.app"; the program lies inside it.
+      return { ...(await engineChoice.choose(programInBundle(file))), cancelled: false };
     });
     bridge.handle(invokeChannels.appRelaunch, () => {
       app.relaunch();
@@ -371,11 +372,13 @@ if (!app.requestSingleInstanceLock()) {
     // The check as partbuddy_view shows it: a check of an older revision is still catching up.
     const checkForView = () => {
       if (!printCheck) return null;
-      if (printCheck.revision !== supervisor.currentRevision()?.revision)
-        return '[PartBuddy: the ready-to-print check of the latest change is still running; call partbuddy_view again in a moment.]';
-      return printCheckNote(printCheck);
+      if (printCheck.revision !== supervisor.currentRevision()?.revision) return CHECK_PENDING_VIEW;
+      return printCheckNote(printCheck, true);
     };
+    // What the tool answers of this turn already said of the check: the same verdict is not told in full again.
+    const checkTold = new CheckTold();
     bridge.handle(invokeChannels.printReportCheck, (report) => {
+      if (report.problem) log(`print check of revision ${String(report.revision)}: ${report.problem}`);
       printCheck = report;
       return undefined;
     });
@@ -550,6 +553,9 @@ if (!app.requestSingleInstanceLock()) {
       history: () => supervisor.history(),
       travel: (command, count) => supervisor.travel(command, count),
       emit: emitEvent,
+      // The check of each change goes back with the tool's answer, so no turn ends on a part the model never saw checked.
+      changed: (result, after) => withCheckOfChange(result, after, () => ({ mirrored: supervisor.currentRevision(), report: printCheck }), (report) => checkTold.note(report)),
+      log,
     });
     workLog = steps;
     // Questions and plans as cards (M2a); changes wait until the user answered.
@@ -585,7 +591,7 @@ if (!app.requestSingleInstanceLock()) {
         steps.tools(
           withDesignTool(
             withAssemblyTool(
-              withViewTool(guardNotes(withStandardTool(withPrintFaces(withBlockTool(withMechanismTool(withDrawings(upstream, drawings), () => printProfiles.part().printer.nozzle, keepMechanismFace), keepMechanismFace), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
+              withViewTool(guardNotes(withStandardTool(withPrintFaces(withBlockTool(withMechanismTool(withDrawings(upstream, drawings), () => printProfiles.part().printer.nozzle, keepMechanismFace, () => printProfiles.part().material.overhang), keepMechanismFace, log), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
               () => viewState?.bodies.map((body) => body.name) ?? [],
               saveAssembly,
             ),
@@ -729,6 +735,7 @@ if (!app.requestSingleInstanceLock()) {
       });
       const conversation = agent.conversation();
       const sentAt = new Date();
+      checkTold.forget();
       const lines = [
         // Once after a restart: what the earlier conversation about this design was about.
         chats?.takeDigest() ?? null,
@@ -814,12 +821,12 @@ if (!app.requestSingleInstanceLock()) {
       const options = { title: 'Export', defaultPath: join(folder, `${name}.${format}`), filters: [EXPORT_FILTERS[format]] };
       const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
       if (choice.canceled || !choice.filePath) return null;
-      await supervisor.exportDesign(format, choice.filePath);
+      const { unverified } = await supervisor.exportDesign(format, choice.filePath);
       log(`exported the design as ${format}`);
       await keepVersion('export', basename(choice.filePath), true).catch((error: unknown) => {
         log(`no version at the export: ${(error as Error).message}`);
       });
-      return { file: basename(choice.filePath) };
+      return { file: basename(choice.filePath), ...(unverified.length > 0 ? { unverified } : {}) };
     });
     // A recording of the joints playing: the bytes come from the view, the user says where they go.
     bridge.handle(invokeChannels.designSaveVideo, async ({ bytes, format }) => {
@@ -842,10 +849,12 @@ if (!app.requestSingleInstanceLock()) {
       const day = new Date().toISOString().slice(0, 10);
       const folder = freeFolder(join(dirname(design), 'exports'), `${name} ${german ? 'Teilen' : 'share'} ${day}`);
       mkdirSync(folder, { recursive: true });
+      let shared: string[];
       try {
         const model = `${name}.3mf`;
         const step = `${name}.step`;
-        await supervisor.exportDesign('3mf', join(folder, model));
+        const { unverified } = await supervisor.exportDesign('3mf', join(folder, model));
+        shared = unverified;
         await supervisor.exportDesign('step', join(folder, step));
         log('sharing package: 3MF and STEP written');
         // Each picture is its own SolidCraft run that rebuilds the design (about 20 s for a housing), so
@@ -879,7 +888,8 @@ if (!app.requestSingleInstanceLock()) {
           material: print.material.name,
           layer: print.printer.layer,
           nozzle: print.printer.nozzle,
-          check: printCheck ? { status: printCheck.status, overhang: printCheck.findings.some((finding) => finding.kind === 'overhang') } : null,
+          // A check of an older revision says nothing about the design that is shared.
+          check: printCheck && printCheck.revision === supervisor.currentRevision()?.revision ? { status: printCheck.status, overhang: printCheck.findings.some((finding) => finding.kind === 'overhang') } : null,
           files: { model, step, pictures },
         });
         writeFileSync(join(folder, german ? 'Beschreibung.md' : 'description.md'), description, 'utf8');
@@ -891,7 +901,7 @@ if (!app.requestSingleInstanceLock()) {
       log('saved a sharing package');
       // Explorer opens on the folder, except in tests, which run without disturbing the screen.
       if (!testRun) void shell.openPath(folder);
-      return { folder: basename(folder) };
+      return { folder: basename(folder), ...(shared.length > 0 ? { unverified: shared } : {}) };
     });
     bridge.handle(invokeChannels.designProbeDimension, ({ target, current, value }) => {
       assistantIdle();
@@ -1249,12 +1259,14 @@ if (!app.requestSingleInstanceLock()) {
       log('moved a logo');
       return undefined;
     });
-    // To the slicer (B8): through SolidCraft's slicer detection; the print face is SolidCraft's own.
+    // To the slicer (B8): through SolidCraft's slicer detection. Bodies lie on their print faces, which PartBuddy keeps
+    // too: with parts printed as one piece PartBuddy writes the file and lays them itself (audit G1).
     bridge.handle(invokeChannels.designSlicers, () => supervisor.slicers());
     bridge.handle(invokeChannels.designSendToSlicer, async ({ slicer }) => {
-      const name = await supervisor.sendToSlicer(slicer);
+      const folder = assemblyFolder();
+      const { name, unverified } = await supervisor.sendToSlicer(slicer, folder ? readPrintFaces(folder) : {});
       log(`opened the design in ${name}`);
-      return { name };
+      return { name, ...(unverified.length > 0 ? { unverified } : {}) };
     });
     bridge.handle(invokeChannels.designPrintFaces, () => {
       const folder = assemblyFolder();

@@ -17,6 +17,15 @@ import { create } from 'zustand';
 import type { AssemblyPlan } from '../../../shared/assembly';
 import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, NotesState, PartPrint, Structure } from '../../../shared/contract';
 
+/**
+ * The ready-to-print check of one revision of one design (M7). `measuring`: SolidCraft still measures gaps and the
+ * joints' ways, or a newer revision is on its way; those findings follow. `unmeasured`: what SolidCraft's measure left
+ * out, failed or not all of it, `mirror` when the view could not read the newest state, `check` when the check itself
+ * broke off: findings may be missing. `unchecked`: mesh bodies it does not measure for gaps.
+ */
+export type StudioPrintCheck = { documentId: string; revision: number; result: PrintCheck; measuring?: boolean; unmeasured?: Unmeasured[]; unchecked?: string[] };
+export type Unmeasured = 'clearance' | 'joints' | 'mirror' | 'check';
+
 /** What goes out: a file format, or a slicer by its id (B8). */
 export type ExportTarget = ExportFormat | `slicer:${string}` | 'share';
 
@@ -189,9 +198,10 @@ interface StudioState {
   profilesTab: ProfilesTab;
   setProfilesTab: (tab: ProfilesTab) => void;
   /** The ready-to-print check of the bodies on screen (M7); null until it ran. */
-  /** `measuring`: SolidCraft still measures gaps and the joints' ways; those findings follow. */
-  printCheck: { revision: number; result: PrintCheck; measuring?: boolean } | null;
-  setPrintCheck: (check: { revision: number; result: PrintCheck; measuring?: boolean } | null) => void;
+  printCheck: StudioPrintCheck | null;
+  setPrintCheck: (check: StudioPrintCheck | null) => void;
+  /** A newer check is on its way (a revision being read, another printer): the one there counts as still measuring (audit X-1). */
+  checkPending: () => void;
   /** A place the camera should move to (a finding of the check), with a serial to repeat it. */
   focusRequest: { box: FindingBox; serial: number } | null;
   requestFocus: (box: FindingBox) => void;
@@ -270,7 +280,7 @@ const MAX_SELECTIONS = 20;
 /** The moving-parts panel closed: nothing plays, and the parts stand where the mirror has them. */
 const JOINTS_CLOSED = { jointsOpen: false, jointPlay: null, jointPreview: null };
 
-export const useStudio = create<StudioState>()((set) => ({
+export const useStudio = create<StudioState>()((set, get) => ({
   connection: { state: 'searching', owned: false, mirror: 'idle' },
   model: { status: 'waiting' },
   projection: 'perspective',
@@ -354,6 +364,10 @@ export const useStudio = create<StudioState>()((set) => ({
   printCheck: null,
   setPrintCheck: (printCheck) => {
     set({ printCheck });
+  },
+  checkPending: () => {
+    const check = get().printCheck;
+    if (check && !check.measuring) set({ printCheck: { ...check, measuring: true } });
   },
   focusRequest: null,
   requestFocus: (box) => {

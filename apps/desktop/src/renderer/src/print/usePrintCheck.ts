@@ -4,7 +4,8 @@ import { useEffect } from 'react';
 
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
-import { reportOf } from './report';
+import { measuresOf } from './bodyMeasures';
+import { jointRuns, reportOf, sweepInBlocks } from './report';
 
 /** Quiet time after a revision before the check runs, so a burst of steps is checked once. */
 const CHECK_DELAY_MS = 250;
@@ -23,11 +24,16 @@ export function usePrintCheck(): void {
       useStudio.getState().setPrintCheck(null);
       return;
     }
-    const timer = setTimeout(() => {
+    // Until the check of this revision and printer is there, the one shown is of something else (audit X-1).
+    useStudio.getState().checkPending();
+    const run = () => {
       // Standard parts (B7) are counterparts and are not printed.
-      const standard = new Set(model.structure.standardParts ?? []);
-      const printed = model.bodies.filter((body) => !standard.has(body.name)).map((body) => ({ ...body, printFace: printFaces[body.name] }));
-      const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, overhang: print.material.overhang }, model.structure.features);
+      // A body whose part SolidCraft is still building is neither yet; the mirror that follows says which, and the check runs again.
+      const standard = new Set([...(model.structure.standardParts ?? []), ...(model.structure.pendingParts ?? [])]);
+      // Bodies printed as one piece (a print-in-place hinge) stand on one bed: the first body's name names the group.
+      const groupOf = (name: string) => model.structure.printGroups?.find((group) => group.includes(name))?.[0];
+      const printed = model.bodies.filter((body) => !standard.has(body.name)).map((body) => ({ ...body, printFace: printFaces[body.name], group: groupOf(body.name) }));
+      const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang }, model.structure.features);
       // A value that follows another through a motion link (a gear) is neither swept nor posed on its own: its driver is.
       const joints = (model.structure.joints ?? []).map((joint) => ({ ...joint, values: joint.values.map((value, index) => ({ ...value, index })).filter((value) => !value.follows) })).filter((joint) => joint.values.length > 0);
       // A joint left away from "as designed" needs no measuring, so it shows at once: with a lid closed onto its
@@ -36,18 +42,31 @@ export function usePrintCheck(): void {
       // for a logo of many pieces and held up every trial after it.
       const parts = printed.filter((body) => !isLogoColourBody(body.name));
       const measuring = parts.length >= 2 || joints.length > 0;
-      useStudio.getState().setPrintCheck({ revision: model.revision, result: joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result, ...(measuring ? { measuring } : {}) });
-      const report = (final: typeof result) => {
+      const preliminary = joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result;
+      useStudio.getState().setPrintCheck({ documentId: model.documentId, revision: model.revision, result: preliminary, ...(measuring ? { measuring } : {}) });
+      // What each closed body costs to print, for the assistant to see what a change saved.
+      const measures = measuresOf(printed, { nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang });
+      const report = (final: typeof result, pending = false, unmeasured: ('clearance' | 'joints')[] = [], unchecked: string[] = []) => {
+        const more = { ...(pending ? { measuring: true } : {}), ...(unmeasured.length > 0 ? { unmeasured } : {}), ...(unchecked.length > 0 ? { unchecked } : {}), ...(measures.problem ? { problem: measures.problem } : {}) };
         void platform()
-          .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision))
+          .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision, measures.bodies, more))
+          // A report the main process does not take would leave the assistant waiting for a check that never comes:
+          // the check goes again without the measures, and says why.
+          .catch((error: unknown) => platform().print.reportCheck(reportOf(final, print.printer.nozzle, model.revision, [], { ...more, problem: `report refused, sent again without measures: ${String(error)}` })))
           .catch(() => undefined);
       };
       if (!measuring) {
         report(result);
         return;
       }
+      // The mesh check goes ahead at once: the assistant reads it with its tool's answer, marked as preliminary.
+      report(result, true);
       // What SolidCraft measures exactly. The mesh check shows at once; the light takes the measures
       // when they come, if nothing changed. A measure that fails leaves its findings out.
+      // A measure that fails leaves its findings out, and the check says that it does.
+      const failed: ('clearance' | 'joints')[] = [];
+      // Mesh bodies SolidCraft leaves out of the clearance: named, as nothing is known of them.
+      let unchecked: string[] = [];
       const measure = async (): Promise<PrintCheck> => {
         let final = result;
         // Several parts (F2): overlaps and gaps under the push fit.
@@ -60,17 +79,21 @@ export function usePrintCheck(): void {
             )
             .catch(() => null);
           if (measured) final = withClearance(final, measured, pushFit);
+          if (!measured || measured.incomplete) failed.push('clearance');
+          unchecked = measured?.unchecked ?? [];
         }
         // Parts that move (ADR 0027): every joint value runs from where it stands to its limits.
         if (joints.length > 0) {
-          const sweeps = joints.flatMap((joint) =>
-            joint.values.flatMap((value) =>
-              (value.limits ?? []).flatMap((limit) => (limit !== null && Math.abs(limit - value.value) > 1e-6 ? [{ joint: joint.id, name: joint.name, unit: value.unit, index: value.index, from: value.value, to: limit }] : [])),
-            ),
-          ).slice(0, 40);
-          const stopped = await platform()
-            .design.sweepJoints(sweeps.map(({ joint, index, from, to }) => ({ joint, index, from, to })))
-            .catch(() => []);
+          const { sweeps, more } = jointRuns(joints);
+          if (more) failed.push('joints');
+          // SolidCraft takes a limited number of runs per call: block after block.
+          const stopped = await sweepInBlocks(
+            sweeps,
+            (block) => platform().design.sweepJoints(block.map(({ joint, index, from, to }) => ({ joint, index, from, to }))),
+            () => {
+              if (!failed.includes('joints')) failed.push('joints');
+            },
+          );
           const stops = sweeps.flatMap((sweep, i) => {
             const stop = stopped[i];
             return stop ? [{ joint: sweep.name, unit: sweep.unit, to: sweep.to, ...stop }] : [];
@@ -79,11 +102,29 @@ export function usePrintCheck(): void {
         }
         return final;
       };
-      void measure().then((final) => {
-        if (stale) return;
-        useStudio.getState().setPrintCheck({ revision: model.revision, result: final });
-        report(final);
-      });
+      // shortcut: a measure overtaken by a newer revision runs on in SolidCraft and is only thrown away here; cancel it there if that ever holds up the next one.
+      void measure()
+        .catch((error: unknown) => {
+          // Whatever went wrong, the light must not stay on "still measuring": nothing measured is said as such.
+          console.warn('PartBuddy: measuring clearance and joints failed', error);
+          failed.splice(0, failed.length, ...(parts.length >= 2 ? (['clearance'] as const) : []), ...(joints.length > 0 ? (['joints'] as const) : []));
+          return preliminary;
+        })
+        .then((final) => {
+          if (stale) return;
+          // The light says it too: a measure that failed is no green (audit X-1).
+          useStudio.getState().setPrintCheck({ documentId: model.documentId, revision: model.revision, result: final, ...(failed.length > 0 ? { unmeasured: failed } : {}), ...(unchecked.length > 0 ? { unchecked } : {}) });
+          report(final, false, failed, unchecked);
+        });
+    };
+    const timer = setTimeout(() => {
+      try {
+        run();
+      } catch (error) {
+        // A check that throws must not leave the light on "checking" until the next change: not checked, and said so.
+        console.warn('PartBuddy: the ready-to-print check failed', error);
+        useStudio.getState().setPrintCheck({ documentId: model.documentId, revision: model.revision, result: { status: 'ready', findings: [] }, unmeasured: ['check'] });
+      }
     }, CHECK_DELAY_MS);
     let stale = false;
     return () => {

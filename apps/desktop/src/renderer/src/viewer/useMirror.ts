@@ -122,6 +122,8 @@ export function useMirror(): void {
     const requests = new Map<number, MirrorRevision>();
     const show = (revision: MirrorRevision) => {
       useStudio.getState().setHistory(revision.history);
+      // The light of the revision on screen no longer holds for this one while it is read (audit X-1).
+      useStudio.getState().checkPending();
       const id = nextId;
       nextId += 1;
       newest = id;

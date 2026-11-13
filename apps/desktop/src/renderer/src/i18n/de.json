@@ -555,6 +555,7 @@
     "openedInSolidCraft": "Das Design liegt in Dokumente\\PartBuddy und öffnet sich in SolidCraft. PartBuddy zeigt deine Änderungen dort live.",
     "failed": "Das hat nicht geklappt: {detail}",
     "sentToSlicer": "In {name} geöffnet.",
+    "uncheckedParts": "Als Druckteile enthalten, weil PartBuddy hier nicht prüfen konnte, ob es gekaufte Normteile sind (das Kommandozeilenprogramm von SolidCraft fehlt): {bodies}.",
     "slicer": {
       "title": "Im Slicer öffnen",
       "open": "In {name} öffnen",
@@ -1032,6 +1033,10 @@
       "snap": {
         "label": "Maße einrasten",
         "hint": "Selbst gewählte Wände auf ganze Linienbreiten, Böden und Höhen auf ganze Schichten. Bei einem Druckerwechsel passt PartBuddy nur diese Maße an."
+      },
+      "economy": {
+        "label": "Sparsam konstruieren",
+        "hint": "Spart Material und Druckzeit: Schalen mit Rippen statt massiver Blöcke, geringe Bauhöhe, keine unnötigen Stützen. Funktion und Festigkeit gehen vor; Füllung und Geschwindigkeit bleiben Sache deines Slicers."
       }
     },
     "add": "Drucker hinzufügen",
@@ -1108,20 +1113,39 @@
     "status": {
       "ready": "Druckbereit",
       "warn": "{count, plural, one {# Hinweis} other {# Hinweise}}",
-      "block": "Nicht druckbereit"
+      "block": "Nicht druckbereit",
+      "measuring": "Prüft noch",
+      "unmeasured": "Nicht vollständig geprüft"
     },
     "none": "Keine Probleme gefunden: Das Teil passt in den Bauraum, die Wände sind dick genug, nichts neigt sich über den Überhangwinkel.",
+    "noneSoFar": "Bisher keine Probleme gefunden.",
     "basis": "Geprüft nach jeder Änderung, wie konstruiert (auf der untersten Stelle stehend), mit Drucker und Material dieses Teils. Stützen, Brücken und die Lage entscheidet der Slicer.",
+    "measuring": "Die Prüfung läuft noch. Überschneidungen, zu enge Spalte oder ein blockiertes Gelenk können noch dazukommen.",
+    "unmeasured": "Nicht oder nicht vollständig gemessen: {what}. Befunde dazu können fehlen.",
+    "unchecked": "Nicht auf Abstände geprüft (Netzkörper): {bodies}",
+    "measure": {
+      "clearance": "die Abstände zwischen den Teilen",
+      "joints": "die Wege der Gelenke"
+    },
+    "lacking": {
+      "mirror": "Die Ansicht konnte den neuesten Stand nicht lesen; er ist nicht geprüft.",
+      "check": "Die Druckprüfung ist mit einem Fehler abgebrochen; dieser Stand ist nicht geprüft."
+    },
     "faces": "{count, plural, one {# Fläche} other {# Flächen}}",
+    "more": "{count, plural, one {# weiterer} other {# weitere}}",
     "show": "Stelle zeigen",
     "finding": {
-      "size": "Zu groß für den Bauraum: {size} mm, Platz ist {bed} mm",
-      "sizeLying": "Zu groß für den Bauraum: {size} mm, Platz ist {bed} mm. Auf eine andere Seite gelegt würde es passen.",
+      "size": "Zu groß für den Bauraum: {body}, {size} mm, Platz ist {bed} mm",
+      "sizeLying": "Zu groß für den Bauraum: {body}, {size} mm, Platz ist {bed} mm. Auf eine andere Seite gelegt würde es passen.",
       "wallTooThin": "Wände nur {thickness} mm, dünner als die Düse ({nozzle} mm): werden nicht gedruckt",
       "wallThin": "Wände nur {thickness} mm, mindestens {minimum} mm (zwei Linien)",
+      "floorTooThin": "Böden oder Deckel nur {thickness} mm, dünner als eine Schicht: werden nicht gedruckt",
+      "floorThin": "Böden oder Deckel nur {thickness} mm, mindestens {minimum} mm{layers, select, none {} other { ({layers} Schichten)}}",
       "overhang": "{area} mm² neigen sich über {limit}°: Ob sie Stütze brauchen, entscheidet der Slicer",
-      "contact": "Nur {area} mm² liegen auf dem Druckbett: kann sich lösen oder kippen",
+      "contact": "{count, plural, one {Nur {area} mm² von {bodies} liegen auf dem Druckbett: kann sich lösen oder kippen} other {# Körper liegen kaum auf dem Druckbett ({bodies}), am wenigsten {area} mm²: können sich lösen oder kippen}}",
+      "open": "{count, plural, one {{bodies} ist kein geschlossener Körper} other {{bodies} sind keine geschlossenen Körper}}: eine offene Fläche ohne Volumen wird nicht gedruckt",
       "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",
+      "fused": "{bodies} werden in einem Stück gedruckt und berühren sich: Dort verschmelzen sie, und der Mechanismus zwischen ihnen bewegt sich nicht. Lass dort einen Spalt.",
       "feature": "{feature}: {message}",
       "overlap": "{a} und {b} überschneiden sich um {volume} mm³ – als getrennte Teile passen sie so nicht zusammen; gehören sie zu einem Teil, vereinen",
       "tight": "{a} und {b} kommen sich bis auf {gap} mm nahe, ohne sich zu berühren – unter der Steckpassung von {minimum} mm je Seite gehen sie nur mit Kraft zusammen",
@@ -1132,7 +1156,10 @@
       "title": "Trotzdem exportieren?",
       "body": "Die Druckprüfung ist rot. So wird das Teil voraussichtlich nicht sauber gedruckt:",
       "cancel": "Abbrechen",
-      "go": "Trotzdem exportieren"
+      "go": "Trotzdem exportieren",
+      "measuring": "Die Druckprüfung ist noch nicht fertig. Es können noch Befunde dazukommen, etwa Überschneidungen oder ein blockiertes Gelenk.",
+      "unmeasured": "Die Druckprüfung ist nicht vollständig gelaufen. Nicht oder nicht vollständig gemessen: {what}.",
+      "done": "Die Messung ist inzwischen fertig."
     }
   },
   "engine": {
@@ -1463,6 +1490,7 @@
       "empty": "Die Zeichnung hat weder gefüllte Flächen noch Linien. Text lässt sich nicht bauen – im Zeichenprogramm in Pfade umwandeln."
     },
     "ready": "In der Ansicht gezeigt – Bauen übernimmt es",
+    "unmeasured": "In der Ansicht gezeigt – die Wand hier ließ sich nicht messen, darum geht der Schnitt durch das ganze Teil, auch durch gegenüberliegende Wände",
     "kinds": {
       "tappedHole": "Gewindebohrung",
       "screwHole": "Schraubenloch",

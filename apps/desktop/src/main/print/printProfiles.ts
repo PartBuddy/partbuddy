@@ -15,6 +15,7 @@ import {
   type PrintSettings,
 } from '../../shared/contract';
 import { fitSize, lineWidth, printInPlaceGap, scaleClearance, unitSize, type FitPrinter } from '../../shared/designFit';
+import { BRIDGE_SPAN, LYING_HOLE, minimumFloor } from '@partbuddy/geometry';
 
 /**
  * What is kept next to a design: its material, and the design rule groups the user turned on or off
@@ -228,8 +229,8 @@ function supportFreeLines(overhang: number): string[] {
   return [
     'Design it to print without support as designed, standing on its lowest point (the user\'s setting); where that cannot be done, say so and why:',
     `- Edges that face down towards the bed: chamfer them at 45° instead of filleting (the bottom of a fillet ends flat); fillets that face up or sideways are fine.`,
-    `- Holes lying across the layers: up to about 10 mm wide the slicer bridges them; wider ones get a teardrop roof (45° to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
-    '- Ceilings and ledges: walls at most 10 mm apart are bridged, ledges up to 1.5 mm out from a wall print; anything wider gets a 45° slope underneath, or say which side the part should rather stand on.',
+    `- Holes lying across the layers: up to ${String(LYING_HOLE)} mm across they print round without support; wider ones get a teardrop roof (45° to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
+    `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged, ledges up to 1.5 mm out from a wall print; anything wider gets a 45° slope underneath, or say which side the part should rather stand on.`,
     'Model these as their own features with parameters (layer height, roof angle) and name them when you report.',
   ];
 }
@@ -246,10 +247,11 @@ const RULE_NAMES: Record<DesignRule, string> = {
   printInPlace: 'print-in-place joints',
   details: 'refined details',
   snap: 'sizes snapped to nozzle and layer',
+  economy: 'saving material and print time',
 };
 
 /**
- * What a careful FDM designer does without being asked (decided 2026-11-07), in four groups the user
+ * What a careful FDM designer does without being asked (decided 2026-11-07), in five groups the user
  * can turn off: in the settings for every project, in the chat for one. The sizes come from the
  * printer in use, so they fit its nozzle and layer height. Sizes the user names are above all of it.
  */
@@ -258,7 +260,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
   const layer = printer.layer;
   const gap = printInPlaceGap(printer);
   const minWall = fitSize('wall', 0, 'assistant', printer).value;
-  const clearance = (value: number) => mm(scaleClearance(value, printer));
+  const clearance = (value: number) => mm(scaleClearance(value, printer, material.measuredNozzle));
   const off = (Object.keys(RULE_NAMES) as DesignRule[]).filter((rule) => !design[rule]);
   const lines = [
     'Design it well without being asked: apply the rules below on your own, in every design, unless the user says otherwise.',
@@ -280,13 +282,19 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
     );
   if (design.snap)
     lines.push(
-      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(Math.max(0.8, layer * 4))}, print-in-place gaps ${mm(gap)}, radii and details at least ${mm(unitSize('nozzle', printer))}. Mark each such parameter's comment with the multiple, e.g. "Wall [auto 3×line]", "Floor [auto 5×layer]", "Hinge gap [auto 1×nozzle]", so PartBuddy fits it again when the user changes printer or nozzle. Sizes the user named get no mark.`,
+      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(minimumFloor(layer))}, print-in-place gaps ${mm(gap)}, radii and details at least ${mm(unitSize('nozzle', printer))}. Mark each such parameter's comment with the multiple, e.g. "Wall [auto 3×line]", "Floor [auto 5×layer]", "Hinge gap [auto 1×nozzle]", so PartBuddy fits it again when the user changes printer or nozzle. Sizes the user named get no mark.`,
+    );
+  // Material and print time (2026-11-12): what the shape decides of them, by the makers' design guides (Prusa, Protolabs
+  // Network, Markforged, Stratasys Direct); what the slicer decides is named as not the assistant's to promise.
+  if (design.economy)
+    lines.push(
+      `- Material and print time, from the first shape on and not as a clean-up: build a shell, not a block. Slicers print ${series(line, 2, 4)} (two to four lines) as wall and fill anything thicker with sparse infill, so stiffen with ribs as thick as the wall, at least two lines (${mm(line * 2)}), instead of thickening the wall. Keep the part low as it prints: every ${mm(layer)} of height is one more layer, and print time grows with the layers. Shape it so it needs no support, which costs more time and material than any other choice. Leave out whole regions that do nothing (an open frame instead of a plate, a shorter body); small pockets and holes in a filled region add walls and save little or nothing. Split a part only when that saves support or much height and a joint is acceptable. Loaded regions, sizes the user names and what the user wants solid stay as they are. Infill, speed and layer height are set in the slicer: never promise grams or minutes. The print check lists each body's solid volume, height, layers and support area: compare them before and after a change.`,
     );
   if (off.length > 0)
     lines.push(`- The user turned off ${off.map((rule) => RULE_NAMES[rule]).join(', ')}: do not add them unless the user asks for them.`);
   lines.push(
-    '- After each design step, name what you added on your own and the sizes you snapped in one short line, e.g. "Outer edges 2 mm rounded, hinge print-in-place with 0.4 mm gap, lid sliding fit 0.3 mm", so the user can turn it off or change it.',
-    `- When the user turns one of these off or back on ("no fillets", "screw the hinge instead"), call partbuddy_design_rules, so it holds for the rest of the project, also after a restart.`,
+    `- After each design step, name what you added on your own${design.economy ? ', what you did for material and print time' : ''} and the sizes you snapped in one short line, e.g. "Outer edges 2 mm rounded, hinge print-in-place with 0.4 mm gap, lid sliding fit 0.3 mm${design.economy ? `, shell ${mm(line * 3)} with two ribs instead of a solid block` : ''}", so the user can turn it off or change it.`,
+    `- When the user turns one of these off or back on ("no fillets", "screw the hinge instead", "make it solid"), call partbuddy_design_rules, so it holds for the rest of the project, also after a restart.`,
   );
   return lines;
 }
@@ -300,7 +308,7 @@ export function printNote({ printer, material: used, supportFree, design }: Part
     `[PartBuddy: print profile of this part. Printer ${name(printer.name)}: build volume ${String(x)} × ${String(y)} × ${String(z)} mm,`,
     `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(wall)} (two lines) and details under ${mm(printer.nozzle)} print poorly.`,
     `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter.`,
-    `Clearance per side between mating parts, for this nozzle: clamp ${mm(scaleClearance(clamp, printer))}, push ${mm(scaleClearance(push, printer))}, slide ${mm(scaleClearance(slide, printer))}, turn ${mm(scaleClearance(turn, printer))}.`,
+    `Clearance per side between mating parts, for this nozzle: clamp ${mm(scaleClearance(clamp, printer, used.measuredNozzle))}, push ${mm(scaleClearance(push, printer, used.measuredNozzle))}, slide ${mm(scaleClearance(slide, printer, used.measuredNozzle))}, turn ${mm(scaleClearance(turn, printer, used.measuredNozzle))}.`,
     'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed; the check and the slicer then lay it on that face.',
     ...(supportFree ? supportFreeLines(used.overhang) : []),
     ...designLines(design, printer, used),

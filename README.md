@@ -27,11 +27,10 @@ PartBuddy 0.1.0 is the first preview, for Windows 10 and 11.
    [latest release](https://github.com/PartBuddy/partbuddy/releases/latest) and run it. It installs
    for your user only and checks for updates through the releases page. The installer is not
    code-signed yet, so Windows SmartScreen warns once: choose "More info", then "Run anyway".
-2. **SolidCraft 0.40.0-rc.4:** PartBuddy designs in the free SolidCraft CAD kernel. Install the
-   pre-release [SolidCraft 0.40.0-rc.4](https://github.com/tangency-labs/solidcraft/releases/tag/v0.40.0-rc.4)
-   (`SolidCraft-0.40.0-rc.4-windows-x64.exe`). SolidCraft's release list still marks 0.30.1 as
-   "Latest"; PartBuddy starts with 0.30.1 too, but it is tested on 0.40. Designs saved by
-   0.40.0-rc.4 cannot be opened by 0.30.1.
+2. **SolidCraft 0.40.1:** PartBuddy designs in the free SolidCraft CAD kernel. Install
+   [SolidCraft 0.40.1](https://github.com/tangency-labs/solidcraft/releases/tag/v0.40.1)
+   (`SolidCraft-0.40.1-windows-x64.exe`). PartBuddy needs 0.40.1 or newer; older versions,
+   the 0.40.0 pre-releases included, are refused.
 3. **An assistant:** your Claude subscription through [Claude Code](https://claude.com/claude-code),
    your ChatGPT subscription, or a local model. The first start walks you through all three steps.
 
@@ -75,7 +74,6 @@ PartBuddy is a preview (0.x): everything above works and is covered by automated
 young. Known limits:
 
 - Windows only for now; the installer is not code-signed.
-- It relies on a pre-release of SolidCraft (0.40.0-rc.4) until SolidCraft 0.40.0 is final.
 - The ready-to-print light checks the part as designed, standing on its lowest point; supports,
   bridges and the orientation in detail stay with your slicer.
 - Hinges and guides the assistant builds are designed to print in one piece and are checked through

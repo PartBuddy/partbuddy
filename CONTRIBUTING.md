@@ -51,6 +51,7 @@ pnpm --filter @partbuddy/desktop dev        # Electron with hot reload
 pnpm --filter @partbuddy/desktop build      # bundle into apps/desktop/out
 pnpm --filter @partbuddy/desktop test:e2e   # Electron flows against a fake SolidCraft
 pnpm --filter @partbuddy/desktop dist       # Windows installer in apps/desktop/dist (B10)
+pnpm --filter @partbuddy/desktop dist:mac   # macOS dmg (universal, signed ad hoc); runs on a Mac only, see installer.yml
 ```
 
 The app finds a running SolidCraft through its control folder, or starts `solidcraft --control 7878`
@@ -85,7 +86,10 @@ looks for updates in the GitHub releases (electron-updater) and installs them on
 word. The CI runners are Linux, so a release is built on Windows: after release-please's release
 exists, run `dist` and upload the installer, its `.blockmap` and `latest.yml` to that release
 (`gh release upload v<version> apps/desktop/dist/PartBuddy-Setup-<version>.exe
-apps/desktop/dist/PartBuddy-Setup-<version>.exe.blockmap apps/desktop/dist/latest.yml`).
+apps/desktop/dist/PartBuddy-Setup-<version>.exe.blockmap apps/desktop/dist/latest.yml`). The macOS
+dmg needs no hand: the release workflow calls `installer.yml` for the new tag, which builds the dmg
+and attaches it to the release. If that job found no runner, rerun it, or start `installer.yml` by
+hand with the tag and "attach".
 
 ## Licence of contributions
 
