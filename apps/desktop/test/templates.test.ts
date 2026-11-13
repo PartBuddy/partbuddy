@@ -113,9 +113,10 @@ describe('templates with moving parts', () => {
       // Every knuckle sits on the rim and keeps its place from the middle of the box.
       const knuckles = steps.filter((step) => step.command === 'solid.cylinder' && /^(Hinge|Scharnier)/.test(String(step.params.name)));
       expect(knuckles).toHaveLength(12);
-      // The closure follows the sizes too: lip, bead and rille are placed by the parameters, and nothing cuts through a wall.
+      // The closure follows the sizes too: its four rings, the room its cut at the hinge is drawn in, bead and rille are placed by the
+      // parameters, and nothing cuts through a wall.
       const rings = steps.filter((step) => step.command === 'sketch.rectangle.rounded');
-      expect(rings).toHaveLength(4);
+      expect(rings).toHaveLength(5);
       for (const step of rings) expect(JSON.stringify([step.params.p0, step.params.p1, step.params.radius])).toMatch(/wall.*length.*width.*corner/);
       // Bead and rille of the mechanism's closure, in the lid and in the box.
       const catches = steps.filter((step) => /^(Closure|Verschluss) [●○]$/.test(String(step.params.name)));
@@ -144,15 +145,23 @@ describe('templates with moving parts', () => {
     expect(germanFeatureName('Hinge 2 ▬')).toBe('Scharnier 2 ▬');
     // Audit T3 (63 mm² of overhang left at the lid) and N-nach-1 (0.26 mm at height 24, length 80, wall 3): the knuckles bit
     // the closure's lip and foot along the wall at the hinge. That wall keeps no lip, at every size.
-    expect(steps.find((step) => step.params.name === 'Closure ▭')?.params).toMatchObject({
-      length: '(length - wall) - (wall) - 2 * (corner - wall)',
-      corner: ['(wall) + (corner - wall)', '(1 mm + wall)', '(height) - (min(3 mm, (height) - (wall) - 0.6 mm)) - 0.1 mm'],
-      operation: 'cut',
-      targets: ['Lid'],
-    });
+    // The lid's room within a band from that wall to past the corners' arcs, cut from the foot's underside up: it follows the
+    // sizes, a large corner too (review of PR #370: at a corner of 15 mm the arcs of the lip stayed where the knuckles turn).
+    const cut = steps.findIndex((step) => step.params.name === 'Closure ▭');
+    expect(steps.slice(cut, cut + 4).map((step) => step.params)).toEqual([
+      { plane: 'XY', offset: '(height) - (min(3 mm, (height) - (wall) - 0.6 mm))', project_edges: false, name: 'Closure ▭' },
+      { p0: ['(wall)', '(1 mm + wall)'], p1: ['(length - wall)', '(width + 1 mm - wall)'], radius: '(corner - wall)' },
+      { p0: ['(wall) - 1 mm', '(1 mm + wall) - 1 mm'], p1: ['(length - wall) + 1 mm', '(1 mm + wall) + (max((corner - wall), 1.7 mm) + 0.5 mm)'] },
+      { distance: 'min(3 mm, (height) - (wall) - 0.6 mm) + 4.1 mm', operation: 'cut', targets: ['Lid'], profiles: [{ point: [30, 4.25] }], exact_regions: true, name: 'Closure ▭' },
+    ]);
+    // Review of PR #370: the limits of width and wall that keep the box printable and closing stand in the parameters.
+    const comment = (name: string) => steps.find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.comment;
+    expect(comment('width')).toContain('at least 32 mm');
+    expect(comment('wall')).toContain('1.6 to 3 mm');
     // N-nach-2: at a height of 5 mm the foot ran into the lid's floor and its chamfer lost its edge; it stops short of the floor.
     expect(steps.find((step) => step.command === 'solid.extrude' && step.params.name === 'Closure ·')?.params.distance).toBe('min(3 mm, (height) - (wall) - 0.6 mm)');
     expect(germanFeatureName('Closure ▭')).toBe('Verschluss ▭');
+    expect(germanFeatureName('Closure ◥')).toBe('Verschluss ◥');
     // The joint is kept on the pin's round top: underneath the pin is flat now.
     expect((steps.find((step) => step.command === 'joint.create')?.params.a as { circle: number[] }).circle.map((value) => Math.round(value * 100) / 100)).toEqual([25.46, 0.5, 18]);
   });

@@ -604,6 +604,7 @@ describe('the snap closure of a lid (G3)', () => {
       ['sketch.rectangle.two_point', ''],
       ['solid.extrude', 'Closure'],
       ['solid.chamfer', 'Closure ◢'],
+      ['solid.chamfer', 'Closure ◥'],
       ['solid.cylinder', 'Closure ◠'],
       ['solid.box', 'Closure ●'],
       ['solid.chamfer', 'Closure ◆'],
@@ -611,26 +612,34 @@ describe('the snap closure of a lid (G3)', () => {
     ]);
     // The notch is cut before the bead is built: its cylinder (16 mm wide, from the wall's plane outwards, 2.5 mm into the lid
     // above the rim) also covers the bead's height below the rim, and would take the 0.25 mm of bead past that plane with it.
-    expect(steps[9]?.params).toMatchObject({ diameter: '16 mm', base: ['(2 mm + 58 mm) / 2', '2 mm - 2 mm', '20 mm - 5.5 mm'], axis: 'Y', operation: 'cut', targets: ['Lid'] });
+    expect(steps[10]?.params).toMatchObject({ diameter: '16 mm', base: ['(2 mm + 58 mm) / 2', '2 mm - 2 mm', '20 mm - 5.5 mm'], axis: 'Y', operation: 'cut', targets: ['Lid'] });
     const [notch, bead] = [steps.findIndex((step) => step.params.name === 'Closure ◠'), steps.findIndex((step) => step.params.name === 'Closure ●')];
     expect(notch).toBeLessThan(bead);
-    // The foot lies above the rim in the lid, 0.2 mm into its wall; the lip hangs 4 mm below the rim, 0.25 mm clear, 1.35 mm thick
-    // (three lines of a 0.4 mm nozzle).
+    // The foot lies above the rim in the lid, 0.2 mm into its wall; the lip hangs 4 mm below the rim, 0.25 mm clear, 1.4 mm thick
+    // (three lines of a 0.4 mm nozzle and 0.05 mm).
     expect(steps[0]?.params.offset).toBe('20 mm');
     expect(steps[1]?.params).toEqual({ p0: ['2 mm - 0.2 mm', '2 mm - 0.2 mm'], p1: ['58 mm + 0.2 mm', '38 mm + 0.2 mm'] });
     expect(steps[4]?.params.offset).toBe('20 mm - 4 mm');
     expect(steps[5]?.params).toEqual({ p0: ['2 mm + 0.25 mm', '2 mm + 0.25 mm'], p1: ['58 mm - 0.25 mm', '38 mm - 0.25 mm'] });
-    expect(steps[6]?.params).toEqual({ p0: ['2 mm + 1.6 mm', '2 mm + 1.6 mm'], p1: ['58 mm - 1.6 mm', '38 mm - 1.6 mm'] });
+    expect(steps[6]?.params).toEqual({ p0: ['2 mm + 1.65 mm', '2 mm + 1.65 mm'], p1: ['58 mm - 1.65 mm', '38 mm - 1.65 mm'] });
+    // A lead-in of 0.8 mm on the outside of the lip's tip, on all four edges of a sharp ring (review of PR #370: a narrow lid's
+    // tip swung through the box's rim on the way shut).
+    expect(steps[9]?.params).toEqual({ edges: [[30, 2.25, 16], [30, 37.75, 16], [2.25, 20, 16], [57.75, 20, 16]], distance: '0.8 mm', body: 'Lid', name: 'Closure ◥' });
     // Only the rille is cut from the box; everything else belongs to the lid.
     expect(steps.filter((step) => JSON.stringify(step.params.targets ?? step.params.body ?? '').includes('Box')).map((step) => step.params.name)).toEqual(['Closure ○']);
     // The bead stands 0.25 mm past the wall's face (0.5 mm proud of the lip), 14 mm long in the wall's middle; its rille sits where it lands.
-    expect(steps[10]?.params).toMatchObject({ length: '14 mm', width: '0.5 mm', height: '1 mm', corner: ['(2 mm + 58 mm) / 2 - 7 mm', '2 mm - 0.25 mm', '20 mm - 3 mm'] });
-    expect(steps[12]?.params).toMatchObject({ diameter: '1.4 mm', axis: 'X', base: ['(2 mm + 58 mm) / 2 - 7.5 mm', '2 mm + 0.25 mm', '20 mm - 2.5 mm'] });
+    expect(steps[11]?.params).toMatchObject({ length: '14 mm', width: '0.5 mm', height: '1 mm', corner: ['(2 mm + 58 mm) / 2 - 7 mm', '2 mm - 0.25 mm', '20 mm - 3 mm'] });
+    expect(steps[13]?.params).toMatchObject({ diameter: '1.4 mm', axis: 'X', base: ['(2 mm + 58 mm) / 2 - 7.5 mm', '2 mm + 0.25 mm', '20 mm - 2.5 mm'] });
     // A flat plate as the lid gets the lip alone on its face: no foot that would come out of its top, no notch in a wall it does not have.
-    expect(lipSteps({ ...lid, flat: true }).map((step) => step.params.name ?? '').filter(Boolean)).toEqual(['Closure', 'Closure', 'Closure ●', 'Closure ◆', 'Closure ○']);
+    expect(lipSteps({ ...lid, flat: true }).map((step) => step.params.name ?? '').filter(Boolean)).toEqual(['Closure', 'Closure', 'Closure ◥', 'Closure ●', 'Closure ◆', 'Closure ○']);
     expect(lipOf({ fixed: 'Box', moving: 'Lid', from: [2, 2, 20], to: [58, 38, 20], side: 'y-', flat: true })).toMatchObject({ flat: true });
-    // Rounded rooms get rounded rings, each radius less its inset.
-    expect(lipSteps({ ...lid, radius: 4 })[5]?.params).toMatchObject({ radius: '4 mm - 0.25 mm' });
+    // Rounded rooms get rounded rings, each radius less its inset, never under 0.5 mm: also a small radius, where a sharp ring
+    // ran its slope into the room's round corner and SolidCraft refused the chamfer (review of PR #370, radius 1); the lip's
+    // outside keeps at least 1 mm, round which the 0.8 mm lead-in rolls.
+    expect(lipSteps({ ...lid, radius: 4 })[5]?.params).toMatchObject({ radius: '3.75 mm' });
+    expect([1, 2, 5, 6].map((i) => lipSteps({ ...lid, radius: 1 })[i]?.params.radius)).toEqual(['1.2 mm', '0.5 mm', '1 mm', '0.5 mm']);
+    expect(lipSteps({ ...lid, radius: 1 })[1]?.command).toBe('sketch.rectangle.rounded');
+    expect(lipSteps({ ...lid, radius: { at: 1, expr: 'r' } })[2]?.params.radius).toBe('max((r) - 1.65 mm, 0.5 mm)');
   });
 
   it('puts the rille where the bead lands when the lid is built open and closes on a hinge, and follows a template\'s parameters', () => {
@@ -645,18 +654,17 @@ describe('the snap closure of a lid (G3)', () => {
     const open: LipSpec = { ...unhinged, hinge: { along: 'x', across: 0.5, z: 16 } };
     const steps = lipSteps(open);
     const names = steps.map((step) => step.params.name ?? '');
-    // Taken off after the slope was set on the whole ring, so the chamfer's edge stays the one it was picked as.
-    expect(names.indexOf('Closure ▭')).toBe(names.indexOf('Closure ◢') + 1);
-    // Along the straight stretch of the wall at the hinge (y 3.4, between the corners' arcs), from its face to past the lip,
-    // from under the foot to over the lip.
-    expect(steps.find((step) => step.params.name === 'Closure ▭')?.params).toMatchObject({
-      length: '57.6 mm - 2.4 mm - 2 * 2.6 mm',
-      width: '1.65 mm',
-      height: '3 mm + 4.2 mm',
-      corner: ['2.4 mm + 2.6 mm', '3.4 mm', '16 mm - 3 mm - 0.1 mm'],
-      operation: 'cut',
-      targets: ['Lid'],
-    });
+    // Taken off after both slopes were set on the whole ring, so their edges stay the ones they were picked as.
+    const cut = names.indexOf('Closure ▭');
+    expect(cut).toBe(names.indexOf('Closure ◥') + 1);
+    // The lid's room (its own outline) where it lies within the band from the hinge's wall to past the corners' arcs (y 3.4
+    // to 3.4 + 2.6 + 0.5), from the foot's underside to over the lip: no wall is cut, and the side lips end square.
+    expect(steps.slice(cut, cut + 4).map((step) => step.params)).toEqual([
+      { plane: 'XY', offset: '16 mm - 3 mm', project_edges: false, name: 'Closure ▭' },
+      { p0: ['2.4 mm', '3.4 mm'], p1: ['57.6 mm', '38.6 mm'], radius: '2.6 mm' },
+      { p0: ['2.4 mm - 1 mm', '3.4 mm - 1 mm'], p1: ['57.6 mm + 1 mm', '3.4 mm + 3.1 mm'] },
+      { distance: '3 mm + 4.1 mm', operation: 'cut', targets: ['Lid'], profiles: [{ point: [30, 4.25] }], exact_regions: true, name: 'Closure ▭' },
+    ]);
     // Without a hinge every wall keeps its lip.
     expect(lipSteps(unhinged).some((step) => step.params.name === 'Closure ▭')).toBe(false);
     expect(lipProblem({ ...open, side: 'y-' })).toBe('with a hinge the catch goes on the wall opposite it: side y+');
@@ -667,18 +675,18 @@ describe('the snap closure of a lid (G3)', () => {
   it('slopes the foot on all four edges of a sharp ring, and stops it short of a shallow floor (audit T15, N-mechanik-14, N-nach-2)', () => {
     const chamfer = (spec: LipSpec) => lipSteps(spec).find((step) => step.params.name === 'Closure ◢')?.params.edges;
     // Sharp: one point per wall, in the middle of each inner edge of the foot's underside (above the rim, the lid hangs down).
-    expect(chamfer(lid)).toEqual([[30, 3.6, 23], [30, 36.4, 23], [3.6, 20, 23], [56.4, 20, 23]]);
+    expect(chamfer(lid)).toEqual([[30, 3.65, 23], [30, 36.35, 23], [3.65, 20, 23], [56.35, 20, 23]]);
     // Rounded: the four are one chain from any point of it.
-    expect(chamfer({ ...lid, radius: 4 })).toEqual([[30, 3.6, 23]]);
+    expect(chamfer({ ...lid, radius: 4 })).toEqual([[30, 3.65, 23]]);
     // A template's floor: the foot stops 0.6 mm short of it, however low the lid is made.
     const low = lipSteps({ ...lid, up: 1, side: 'y+', rim: { at: 16, expr: 'height' }, floor: { at: 2.4, expr: 'wall' } });
     expect(low[0]?.params.offset).toBe('(height) - (min(3 mm, (height) - (wall) - 0.6 mm))');
     expect(low[3]?.params.distance).toBe('min(3 mm, (height) - (wall) - 0.6 mm)');
   });
 
-  it('sizes the lip in whole lines of the nozzle, at least two (audit T13, MV-19)', () => {
-    expect([0.25, 0.4, 0.6, 0.8].map((nozzle) => lipThick(nozzle))).toEqual([1.405, 1.35, 1.35, 1.8]);
-    expect(lipSteps({ ...lid, nozzle: 0.8 })[6]?.params).toEqual({ p0: ['2 mm + 2.05 mm', '2 mm + 2.05 mm'], p1: ['58 mm - 2.05 mm', '38 mm - 2.05 mm'] });
+  it('sizes the lip in whole lines of the nozzle, at least two, with 0.05 mm over them (audit T13, MV-19)', () => {
+    expect([0.25, 0.4, 0.6, 0.8].map((nozzle) => lipThick(nozzle))).toEqual([1.455, 1.4, 1.4, 1.85]);
+    expect(lipSteps({ ...lid, nozzle: 0.8 })[6]?.params).toEqual({ p0: ['2 mm + 2.1 mm', '2 mm + 2.1 mm'], p1: ['58 mm - 2.1 mm', '38 mm - 2.1 mm'] });
     expect(lipOf({ fixed: 'Box', moving: 'Lid', from: [2, 2, 20], to: [58, 38, 20], up: [0, 0, -1], side: 'y-' }, 0.6)).toMatchObject({ nozzle: 0.6 });
   });
 
@@ -696,17 +704,22 @@ describe('the snap closure of a lid (G3)', () => {
           const commands = args.commands as { command: string; params: { body_name: string; base: number[]; height: number } }[];
           const made = commands.filter((step) => step.command === 'solid.cylinder').map((step) => ({ name: step.params.body_name, base: step.params.base, height: step.params.height }));
           rods.splice(0, rods.length, ...made);
-          const overlaps = made.map((rod) => ({ a: rod.name, b: 'Box', volume_mm3: ((Math.PI * 0.04) / 4) * rod.height * inside(rod.name) }));
+          const overlaps = made.map((rod) => ({ a: rod.name, b: rod.name.includes('under') ? 'Lid' : 'Box', volume_mm3: ((Math.PI * 0.04) / 4) * rod.height * inside(rod.name) }));
           return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: [...made.map(() => ({})), { overlaps }] }) }] });
         },
       };
       return closureTrial(upstream, spec, 0.4, undefined);
     };
-    const fits = (name: string) => (name.includes('room') ? 0 : 1);
+    const fits = (name: string) => (/room|tip|under/.test(name) ? 0 : 1);
     expect(await trial(fits)).toEqual({ problem: null, back: [] });
     // No rod at the hinge's wall (y-), which keeps no lip; the one behind the rille lies 1.25 mm into the box's wall
     // (0.45 mm of rille and two lines, less the rod's half), at the rille's height, along the bead.
-    expect(rods.map((rod) => rod.name.replace('PartBuddy probe ', ''))).toEqual(['room x-', 'wall x-', 'room x+', 'wall x+', 'room y+', 'wall y+', 'behind y+']);
+    // A rod just past the lip's tip on each wall, and one in the lid under the foot (in the lid, so this box never holds it).
+    expect(rods.map((rod) => rod.name.replace('PartBuddy probe ', ''))).toEqual(['room x-', 'tip x-', 'wall x-', 'room x+', 'tip x+', 'wall x+', 'room y+', 'tip y+', 'wall y+', 'behind y+', 'under y+']);
+    // From 0.1 mm behind the lid's wall plane (y 79, turned to y 2), as far as the bead may stand back and still catch 0.15 mm.
+    expect(rods.find((rod) => rod.name.endsWith('wall y+'))?.base[1]).toBeCloseTo(2 * 40.5 - 79.2);
+    expect((await trial((name) => (name.endsWith('tip y+') ? 0.5 : fits(name)))).problem).toContain("closed, the lip's tip would stand in Box at the lid's y+ wall");
+    expect((await trial((name) => (name.endsWith('under y+') ? 1 : fits(name)))).problem).toContain('Lid is not hollow 3.3 mm below its rim inside its y+ wall');
     const behind = rods.find((rod) => rod.name.endsWith('behind y+'));
     expect(behind?.base.map((value) => Math.round(value * 1000) / 1000)).toEqual([22.5, 2 * 40.5 - (79 + 1.25), 2 * 20 - 22.5]);
     expect(behind?.height).toBeCloseTo(15);
@@ -724,7 +737,7 @@ describe('the snap closure of a lid (G3)', () => {
     expect(lipProblem({ ...lid, moving: 'Box' })).toBe('fixed and moving must be two bodies');
     expect(lipProblem({ ...lid, side: 'x-', max: [58, 20] })).toContain('Put the catch on a longer wall');
     expect(lipProblem({ ...lid, wall: 1 })).toContain('wall must be 1.6–10 mm');
-    expect(lipProblem({ ...lid, radius: 18.5 })).toBe("radius must be at most half the room's shorter side (18 mm)");
+    expect(lipProblem({ ...lid, radius: 18 })).toBe("radius must be less than half the room's shorter side (18 mm)");
     const args = { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [58, 2, 20], to: [2, 38, 20], up: [0, 0, -1], side: 'y-' };
     expect(lipOf(args)).toMatchObject({ min: [2, 2], max: [58, 38], rim: 20, up: -1, wall: 2, radius: 0, name: 'Closure' });
     expect(lipOf({ ...args, to: [2, 38, 25] })).toBe("from and to must both lie at the height of the lid's rim");
@@ -751,7 +764,7 @@ describe('the snap closure of a lid (G3)', () => {
     };
     const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [2, 2, 20], to: [58, 38, 20], up: [0, 0, -1], side: 'y-' });
     expect(built.isError).toBeUndefined();
-    expect(built.content[0]).toMatchObject({ text: expect.stringContaining('Built the closure "Closure" between Box (the box) and Lid (the lid): a lip 1.35 mm thick and 4 mm high inside the lid, 0.25 mm clear') as string });
+    expect(built.content[0]).toMatchObject({ text: expect.stringContaining('Built the closure "Closure" between Box (the box) and Lid (the lid): a lip 1.4 mm thick and 4 mm high inside the lid, 0.25 mm clear') as string });
     // The trial of the box gave no answer here: the answer says what to keep instead.
     expect(built.content[0]).toMatchObject({ text: expect.stringContaining("PartBuddy could not try Box's wall: keep it straight where the lip goes in, and at least 1.35 mm thick behind the rille.") as string });
     expect(batches).toHaveLength(5);

@@ -388,13 +388,17 @@ export const LIP = { thick: 1.2, high: 4, clear: 0.25, foot: 3, bead: 0.5, beadL
 
 /**
  * The lip's thickness: whole extrusion lines, as many as reach 1.2 mm, at least two (audit T13, MV-19: 1.2 mm is no
- * whole number of lines on a 0.4 mm nozzle and under two on a 0.6 mm one). 1.35 mm on 0.4 and on 0.6, 1.8 mm on 0.8: the
- * snap keeps about the same spring.
+ * whole number of lines on a 0.4 mm nozzle and under two on a 0.6 mm one), and 0.05 mm over them, since the print check
+ * reads the round corners of a ring from its mesh and found 1.34 mm in a lip of 1.35 (review of PR #370). 1.4 mm on 0.4
+ * and on 0.6, 1.85 mm on 0.8: the snap keeps about the same spring.
  */
 export function lipThick(nozzle = 0.4): number {
   const line = round(nozzle * 1.125);
-  return round(Math.max(2, Math.ceil(LIP.thick / line - 1e-9)) * line);
+  return round(Math.max(2, Math.ceil(LIP.thick / line - 1e-9)) * line + 0.05);
 }
+
+/** How far the lip's tip is bevelled on its outside, a lead-in that swings clear of the box's rim as the lid closes (mm). */
+export const LEAD_IN = 0.8;
 
 /** How far the rille goes into the box's wall past the lid's inner room: its axis stands 0.25 mm in front of that plane. */
 export const RILLE_DEPTH = round(LIP.rille / 2 - LIP.clear);
@@ -409,7 +413,7 @@ export function lipProblem(spec: LipSpec): string | null {
   if (!(at(spec.wall) >= 1.6 && at(spec.wall) <= 10)) return 'wall must be 1.6–10 mm (the lid\'s wall thickness)';
   if (at(spec.radius) < 0) return 'radius must not be negative';
   // Audit W17: a corner wider than half the room is no room of rounded corners any more.
-  if (at(spec.radius) > short / 2) return `radius must be at most half the room's shorter side (${String(round(short / 2))} mm)`;
+  if (at(spec.radius) >= short / 2) return `radius must be less than half the room's shorter side (${String(round(short / 2))} mm)`;
   // The rille is placed by turning the catch about the hinge, and the hinge's wall keeps no lip: both need the catch opposite.
   const hinge = spec.hinge;
   if (hinge) {
@@ -433,13 +437,21 @@ export function lipSteps(spec: LipSpec): Step[] {
   // An expression moved by a number of mm.
   const by = (size: Size, value: number) => (value === 0 ? ex(size) : `${ex(size)} ${value < 0 ? '-' : '+'} ${mm(value)}`);
   const inner = round(LIP.clear + lipThick(spec.nozzle));
-  const round_ = at(spec.radius) >= 2;
+  // A room with round corners gets round rings, however small the radius: a sharp ring in a round room ran its slope into
+  // the corner's round and SolidCraft refused the chamfer (review of PR #370: radius 1). Each outline's radius is the
+  // room's less its inset, never under 0.5 mm, and the lip's outside never under the lead-in and 0.2 mm, which SolidCraft
+  // cannot roll round a smaller corner; a rounder corner only stands further from the walls.
+  const round_ = at(spec.radius) > 0;
+  const ringRadius = (inset: number) => {
+    const least = inset === LIP.clear ? LEAD_IN + 0.2 : 0.5;
+    return typeof spec.radius === 'number' ? mm(Math.max(spec.radius - inset, least)) : `max(${by(spec.radius, -inset)}, ${mm(least)})`;
+  };
   // A ring between two outlines of the lid's room, each moved in by an inset, from the height `z` upwards.
   const ring = (label: string, z: string, outside: number, distance: string): Step[] => [
     { command: 'sketch.create', params: { plane: 'XY', offset: z, project_edges: false, name: label } },
     ...[outside, inner].map((inset) => ({
       command: round_ ? 'sketch.rectangle.rounded' : 'sketch.rectangle.two_point',
-      params: { p0: [by(x0, inset), by(y0, inset)], p1: [by(x1, -inset), by(y1, -inset)], ...(round_ ? { radius: by(spec.radius, -inset) } : {}) },
+      params: { p0: [by(x0, inset), by(y0, inset)], p1: [by(x1, -inset), by(y1, -inset)], ...(round_ ? { radius: ringRadius(inset) } : {}) },
     })),
     { command: 'solid.extrude', params: { distance, operation: 'join', targets: [spec.moving], name: label } },
   ];
@@ -475,27 +487,47 @@ export function lipSteps(spec: LipSpec): Step[] {
   const footEdges: [number, number, number][] = round_
     ? [xyz(middleAt, at(wallAt) - out * inner, footEdge)]
     : [[(at(x0) + at(x1)) / 2, at(y0) + inner, footEdge], [(at(x0) + at(x1)) / 2, at(y1) - inner, footEdge], [at(x0) + inner, (at(y0) + at(y1)) / 2, footEdge], [at(x1) - inner, (at(y0) + at(y1)) / 2, footEdge]];
+  // The lead-in on the outside of the lip's tip, all round: with a narrow lid the tip swung through the box's rim on the
+  // way shut (review of PR #370: width 30 stopped at 171.6°). A round ring is one chain, a sharp one four edges.
+  const tip = at(spec.rim) + up * LIP.high;
+  const tipEdges: [number, number, number][] = round_
+    ? [xyz(middleAt, at(wallAt) + face, tip)]
+    : [[(at(x0) + at(x1)) / 2, at(y0) + LIP.clear, tip], [(at(x0) + at(x1)) / 2, at(y1) - LIP.clear, tip], [at(x0) + LIP.clear, (at(y0) + at(y1)) / 2, tip], [at(x1) - LIP.clear, (at(y0) + at(y1)) / 2, tip]];
   // With a hinge, its wall keeps no lip: the hinge holds the lid on that side, and the knuckles turning there bit the lip
   // and the foot into faces that hung (audit 2026-11-12, T3: 63 mm² at the template; N-nach-1: 0.26 mm left at other sizes).
-  // Taken off along the straight stretch, from the wall's face into the room, after the slope was set on the whole ring.
+  // Cut after the slopes were set on the whole ring: the lid's room near that wall, out to past the corners' arcs, so the
+  // rings' arcs go too (review of PR #370: at a corner of 15 mm they stayed where the knuckles turn, and a cut through
+  // them left wedges of no thickness) and the side lips end square; no wall is touched. The region is picked by a point
+  // and kept by its curves, so it follows the sizes.
   const hingeWall = alongX ? (out > 0 ? y0 : y1) : out > 0 ? x0 : x1;
   const reach = round(inner + 0.05);
+  const inward = out;
+  const past = typeof spec.radius === 'number' ? mm(Math.max(spec.radius, reach) + 0.5) : `(max(${ex(spec.radius)}, ${mm(reach)}) + 0.5 mm)`;
+  const band = [by(hingeWall, -inward), `${ex(hingeWall)} ${inward > 0 ? '+' : '-'} ${past}`];
+  const flat2 = (point: [string, string, string]) => [point[0], point[1]];
   const unhinged: Step[] = spec.hinge && !spec.flat
-    ? [{
-        command: 'solid.box',
-        params: {
-          ...size(`${ex(a1)} - ${ex(a0)} - 2 * ${ex(spec.radius)}`, mm(reach), `${foot} + ${mm(LIP.high + 0.2)}`),
-          corner: xyz(`${ex(a0)} + ${ex(spec.radius)}`, out > 0 ? ex(hingeWall) : by(hingeWall, -reach), up > 0 ? `${footZ} - 0.1 mm` : by(spec.rim, -LIP.high - 0.1)),
-          operation: 'cut',
-          targets: [spec.moving],
-          name: `${name} ▭`,
+    ? [
+        { command: 'sketch.create', params: { plane: 'XY', offset: up > 0 ? footZ : by(spec.rim, -LIP.high - 0.1), project_edges: false, name: `${name} ▭` } },
+        { command: round_ ? 'sketch.rectangle.rounded' : 'sketch.rectangle.two_point', params: { p0: [ex(x0), ex(y0)], p1: [ex(x1), ex(y1)], ...(round_ ? { radius: ex(spec.radius) } : {}) } },
+        { command: 'sketch.rectangle.two_point', params: { p0: flat2(xyz(by(a0, -1), band[0] ?? '', '')), p1: flat2(xyz(by(a1, 1), band[1] ?? '', '')) } },
+        {
+          command: 'solid.extrude',
+          params: {
+            distance: `${foot} + ${mm(LIP.high + 0.1)}`,
+            operation: 'cut',
+            targets: [spec.moving],
+            profiles: [{ point: xyz(middleAt, round(at(hingeWall) + (inward * reach) / 2), 0).slice(0, 2) }],
+            exact_regions: true,
+            name: `${name} ▭`,
+          },
         },
-      }]
+      ]
     : [];
   return [
     ...(spec.flat ? [] : ring(`${name} ·`, footZ, -0.2, foot)),
     ...ring(name, by(spec.rim, up > 0 ? 0 : -LIP.high), LIP.clear, mm(LIP.high)),
     ...(spec.flat ? [] : [{ command: 'solid.chamfer', params: { edges: footEdges, distance: mm(inner - 0.05), body: spec.moving, name: `${name} ◢` } }]),
+    { command: 'solid.chamfer', params: { edges: tipEdges, distance: mm(LEAD_IN), body: spec.moving, name: `${name} ◥` } },
     ...unhinged,
     // The notch before the bead: it reaches below the rim, where the bead stands past the wall's plane, and cut after
     // it took that part away, so the bead ended on the plane and caught nothing (audit 2026-11-12, N-mechanik-2).

@@ -51,7 +51,7 @@ const mechanismTool: UpstreamTool = {
       to: { ...vector, description: 'The other end of the line in mm. closure: the opposite corner, at the same height. lid: not needed. snap: a point further into the wall the catch goes into. latch: a point straight out of the wall.' },
       up: { ...vector, description: 'slide: the normal of the face of the fixed body the rail stands on; default +Z. closure: the way the lip stands out of the lid, +Z or -Z; default +Z. snap: the way the hook stands out of the fixed body; default +Z. latch: the way from the box to the lid; default +Z.' },
       shape: { type: 'string', enum: ['peg', 'dovetail'], description: 'plug: pegs in pockets, or a dovetail to push together; default peg.' },
-      side: { type: 'string', enum: ['x-', 'x+', 'y-', 'y+'], description: 'closure: the wall of the lid\'s inner room with the catch and the notch.' },
+      side: { type: 'string', enum: ['x-', 'x+', 'y-', 'y+'], description: 'closure: the wall of the lid\'s inner room with the catch and the notch; with a hinge line, the wall opposite it.' },
       wall: { type: 'number', minimum: 1.6, maximum: 10, description: 'closure: the lid\'s wall thickness in mm; default 2. snap: the thickness of the wall the window goes through; default 2. hinge: the thickness of the walls the hinge line runs along; no default.' },
       radius: { type: 'number', minimum: 0, maximum: 100, description: 'closure: the radius of the inner room\'s corners in mm; default 0 (sharp).' },
       size: { type: 'string', enum: [...BLOCK_SIZES], description: 'screw: the screw; default M3.' },
@@ -597,16 +597,19 @@ async function carried(upstream: UpstreamTools, spec: HingeSpec, bed: number, si
  * A closure tried where the lid closes, before anything is built (audit W17, T14, H-10): `lipSteps` places the lip and
  * the rille by the lid's room alone, so the box was never looked at, and a lid built open beside its box was never
  * looked at closed. Rods along each wall the lip goes in by, turned about the hinge line where there is one: one just
- * in front of the lid's wall plane, where the lip's outside comes, must find no box; along the wall with the catch one
- * just behind that plane must lie in the box's wall (or the bead catches nothing), and one behind the rille, two lines
- * further, must too (the rille goes RILLE_DEPTH into that wall). A wall the box stands back from is said, not refused.
- * Returns what is wrong, or the walls that stand back; throws when the trial gave no answer.
+ * in front of the lid's wall plane, where the lip's outside comes, and one just past the lip's tip must find no box; along
+ * the wall with the catch one from 0.1 mm behind that plane must lie in the box's wall (standing back further, the bead
+ * would catch under 0.15 mm), and one behind the rille, two lines further, must too (the rille goes RILLE_DEPTH into
+ * that wall). A wall the box stands back from is said, not refused. A lid with walls is tried too: under the foot it
+ * must be hollow (review of PR #370: a shallow lid or box passed). Returns what is wrong, or the walls that stand back;
+ * throws when the trial gave no answer.
  */
 export async function closureTrial(upstream: UpstreamTools, spec: LipSpec, nozzle: number, callId: string | undefined): Promise<{ problem: string | null; back: string[] }> {
   const [x0, y0, x1, y1] = [spec.min[0], spec.min[1], spec.max[0], spec.max[1]].map((size) => (typeof size === 'number' ? size : size.at)) as [number, number, number, number];
   const [rim, radius] = [spec.rim, spec.radius].map((size) => (typeof size === 'number' ? size : size.at)) as [number, number];
   const least = Math.round(nozzle * 2 * 1.125 * 100) / 100;
   const behind = Math.round((RILLE_DEPTH + least) * 100) / 100;
+  const thick = lipThick(nozzle);
   // Half a turn about the hinge line takes a point of the open lid to where it is closed.
   const closed = (point: Vec3): Vec3 => {
     const hinge = spec.hinge;
@@ -622,18 +625,22 @@ export async function closureTrial(upstream: UpstreamTools, spec: LipSpec, nozzl
     const plane = alongX ? (out > 0 ? y1 : y0) : out > 0 ? x1 : x0;
     const [a0, a1] = alongX ? [x0, x1] : [y0, y1];
     const r = Math.max(0, radius) + 0.5;
-    const rod = (name: string, across: number, from: number, to: number, high: number) => {
+    // In the box, where the lid has it closed; or in the lid itself, as it is built.
+    const rod = (name: string, across: number, from: number, to: number, high: number, inLid = false) => {
       const z = rim + spec.up * high;
-      const [start, end] = [from, to].map((along) => closed(alongX ? [along, across, z] : [across, along, z]));
+      const [start, end] = [from, to].map((along) => (inLid ? (point: Vec3) => point : closed)(alongX ? [along, across, z] : [across, along, z]));
       const delta = (end as Vec3).map((value, i) => value - ((start as Vec3)[i] ?? 0));
       const length = Math.hypot(...delta);
-      return { name: `${PROBE} ${name} ${side}`, base: start as Vec3, body: spec.fixed, axis: delta.map((value) => value / length), length };
+      return { name: `${PROBE} ${name} ${side}`, base: start as Vec3, body: inLid ? spec.moving : spec.fixed, axis: delta.map((value) => value / length), length };
     };
     const middle = (a0 + a1) / 2;
+    const lip = plane - out * (LIP.clear + thick / 2);
     return [
       { side, kind: 'room', ...rod('room', plane - out * 0.15, a0 + r, a1 - r, LIP.high / 2) },
-      { side, kind: 'wall', ...rod('wall', plane + out * 0.15, a0 + r, a1 - r, LIP.high / 2) },
+      { side, kind: 'tip', ...rod('tip', lip, a0 + r, a1 - r, LIP.high + 0.15) },
+      { side, kind: 'wall', ...rod('wall', plane + out * (0.1 + ROD / 2), a0 + r, a1 - r, LIP.high / 2) },
       ...(side === spec.side ? [{ side, kind: 'behind', ...rod('behind', plane + out * (behind - ROD / 2), middle - LIP.beadLong / 2 - 0.5, middle + LIP.beadLong / 2 + 0.5, 2.5) }] : []),
+      ...(side === spec.side && !spec.flat ? [{ side, kind: 'under', ...rod('under', lip, middle - LIP.beadLong / 2, middle + LIP.beadLong / 2, -(LIP.foot + 0.3), true) }] : []),
     ];
   });
   const shares = await rodsInside(upstream, rods, [1, 0, 0], 1, callId);
@@ -641,8 +648,11 @@ export async function closureTrial(upstream: UpstreamTools, spec: LipSpec, nozzl
   const hint = !spec.hinge && spec.up > 0 ? ' If the lid is built open beside the box, give the hinge line it closes about (hinge_from, hinge_to).' : '';
   const narrow = sides.filter((side) => share(side, 'room') > 0.02);
   if (narrow.length > 0) return { problem: `closed, the lip would run into ${spec.fixed}'s wall at the lid's ${narrow.join(', ')} wall${narrow.length > 1 ? 's' : ''}: ${spec.fixed}'s inner room is narrower there than the lid's.${hint} Give from and to as the corners of the lid's inner room where ${spec.fixed}'s inner wall is, or make both rooms the same. Nothing was built.`, back: [] };
-  if (share(spec.side, 'wall') < 0.98) return { problem: `closed, ${spec.fixed}'s wall with the catch (${spec.side}) does not stand where the lid's wall does, so the bead would catch nothing.${hint} Make ${spec.fixed}'s inner room the same as the lid's there. Nothing was built.`, back: [] };
+  const shallow = sides.filter((side) => share(side, 'tip') > 0.02);
+  if (shallow.length > 0) return { problem: `closed, the lip's tip would stand in ${spec.fixed} at the lid's ${shallow.join(', ')} wall${shallow.length > 1 ? 's' : ''}: the lip goes ${String(LIP.high)} mm into ${spec.fixed}, which must be open that deep along its walls.${hint} Make ${spec.fixed} deeper there, or take away what stands in the way. Nothing was built.`, back: [] };
+  if (share(spec.side, 'wall') < 0.98) return { problem: `closed, ${spec.fixed}'s wall with the catch (${spec.side}) does not stand where the lid's wall does (it may stand back 0.1 mm at most), so the bead would catch too little or nothing.${hint} Make ${spec.fixed}'s inner room the same as the lid's there. Nothing was built.`, back: [] };
   if (share(spec.side, 'behind') < 0.98) return { problem: `${spec.fixed}'s wall with the catch (${spec.side}) is under ${String(behind)} mm thick behind the middle of the lid's wall, or not straight there: the rille goes ${String(RILLE_DEPTH)} mm into it and two lines (${String(least)} mm) must stay behind it. Make that wall at least ${String(behind)} mm thick there. Nothing was built.`, back: [] };
+  if (!spec.flat && share(spec.side, 'under') > 0.02) return { problem: `${spec.moving} is not hollow ${String(LIP.foot + 0.3)} mm below its rim inside its ${spec.side} wall: the lip's foot lies ${String(LIP.foot)} mm down the lid's wall, with its slope under it. Make the lid that deep inside, or use flat for a lid without walls. Nothing was built.`, back: [] };
   return { problem: null, back: sides.filter((side) => side !== spec.side && share(side, 'wall') < 0.5) };
 }
 
