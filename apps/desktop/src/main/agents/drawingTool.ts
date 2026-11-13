@@ -235,6 +235,7 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
   const before = part ? null : volumesOf((await run([measure]))[0]);
   if (before && !before.has(body)) throw new Error(misplaced(body, before, before) ?? `there is no body named ${body}`);
   // Engraved or inlaid, it must leave plastic under it: the wall at its middle, measured on trial as for engraved text.
+  // shortcut: one point, the logo's middle; a logo reaching over a thinner part of the wall passes. Measure under each piece if that turns up.
   const probe = part ? null : wallTrial(block);
   const tried = probe ? await reachOf(upstream, probe, (inner) => inner, callId) : undefined;
   const thick = tried?.wall[0];
@@ -284,7 +285,10 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
   return placed + centred + wallSaid + detailSaid(shown, width, fit.nozzle);
 }
 
-/** What the answer says of details too fine at the width (drawingDetail.ts), as the composer shows it; empty when all print. */
+/**
+ * What the answer says of details too fine at the width (drawingDetail.ts), as the composer shows it; empty when all print.
+ * shortcut: runs in the main process, a few hundred ms for a large drawing (measured up to about 1 s at 400 mm under load); move it to a worker if it holds up other calls.
+ */
 function detailSaid(drawing: Drawing, width: number, nozzle: number): string {
   const detail = drawingDetail(drawing, width, nozzle);
   const coarse = detailCoarse(drawing, width, nozzle);
