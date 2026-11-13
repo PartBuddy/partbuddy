@@ -280,6 +280,16 @@ describe('the ready-to-print check (M7)', () => {
     for (const name of ['Groove', 'Rod8M5', 'Rod10M5', 'Rod6M3', 'Rod20M8', 'Chamfer', 'Slant', 'Cross']) expect(thin(name), name).toEqual([]);
   }, 60_000);
 
+  it('on SolidCraft\'s own mesh: the contract test\'s wall holder is ready to print (contract test run 43445239910)', () => {
+    // Plate, hook and lip with two lying countersunk holes and fillets (tools/fixtures/wallholder.script.json, as test/fakeClaude.mjs builds it).
+    const fixture = new URL('../fixtures/', import.meta.url);
+    const table = (JSON.parse(readFileSync(new URL('wallholder.faces.json', fixture), 'utf8')) as Record<string, FaceTable>)['Wandhalter'];
+    if (!table) throw new Error('no fixture Wandhalter');
+    const mesh = parseTagged3mf(new Uint8Array(readFileSync(new URL('wallholder-Wandhalter.3mf', fixture))));
+    const holder = { name: 'Wandhalter', model: buildViewerModel(buildRenderMesh(mesh, table), table) };
+    for (const place of [PLACES[0]!, { turn: 30, mirrored: true, lift: 10 }]) expect(checkPrint(placed([holder], place), PLA), JSON.stringify(place)).toEqual({ status: 'ready', findings: [] });
+  }, 120_000);
+
   it('checks overhangs at 45° where the profile names no angle', () => {
     // With the angle undefined nothing passed the limit: a ceiling 14 mm wide read ready.
     const table = boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]]);
@@ -513,13 +523,13 @@ describe('thin walls, wherever they are (audit MG-16, D7, D39, MG-18, D40)', () 
     for (const place of PLACES) expect(thinIn([boxesBody('Plate', [[[0, 0, 0], [50, 10, 2]]])], place)).toBeUndefined();
   }, PATIENCE);
 
-  it('adds up small overhangs too: twenty teeth 0.3 wide reaching 3 mm out of a wall (review of PR #371, K1)', () => {
-    // Each underside is 0.9 mm²; together 18 mm² hang in the air, as one tooth 6 mm wide would. Decided: said, as a warning.
+  it('does not add up small overhangs: each under 1 mm² is left to the slicer (review of PR #371, K1, contract test run 43445239910)', () => {
+    // Twenty teeth 0.3 wide reaching 3 mm out: each underside 0.9 mm². Added up, they warned; so did two cone faces of a
+    // countersink under 1 mm² each on the wall holder below, which the slicers print. Overhangs are a hint by angle only.
     const comb = boxesBody('Comb', [[[0, 0, 0], [60, 3, 10]], ...Array.from({ length: 20 }, (_, i): [[number, number, number], [number, number, number]] => [[2 + i * 2.8, 3, 6], [2.3 + i * 2.8, 6, 7]])]);
-    for (const place of PLACES) {
-      const found = checkPrint(placed([comb], place), PLA).findings.find((f) => f.kind === 'overhang');
-      expect(found && 'area' in found ? found.area : 0, JSON.stringify(place)).toBeGreaterThanOrEqual(17);
-    }
+    for (const place of PLACES) expect(checkPrint(placed([comb], place), PLA).findings.find((f) => f.kind === 'overhang'), JSON.stringify(place)).toBeUndefined();
+    // Their thin walls still add up.
+    expect(checkPrint([comb], PLA).findings.find((f) => f.kind === 'thinWall')).toMatchObject({ severity: 'block', thickness: 0.3 });
   }, PATIENCE);
 
   it('counts only the part of a face that is under one line: a wall of 0.8 mm with a spot of 0.3 mm warns (audit D39)', () => {

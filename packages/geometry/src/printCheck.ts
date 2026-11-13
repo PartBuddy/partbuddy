@@ -329,10 +329,13 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new 
 }
 
 /**
- * Faces whose tallied area reaches `minArea`, with their names and common bounds. Smaller faces of a body count when
- * together they reach it: twenty ribs of 0.9 mm² a side are 36 mm² of thin wall, not twenty times noise (audit D7).
+ * Faces whose tallied area reaches `minArea`, with their names and common bounds. With `together`, smaller faces of a
+ * body count when together they reach it: twenty ribs of 0.9 mm² a side are 36 mm² of thin wall, not twenty times noise
+ * (audit D7). Overhangs do not add up so: the lying countersinks of the contract test's wall holder leave under 1 mm²
+ * on each of two cone faces, which the slicers print, and together they turned a ready part yellow (contract test run
+ * 43445239910, `wallholder` fixture).
  */
-function locate(bodies: readonly PrintCheckBody[], tallies: readonly FaceTally[], minArea: number) {
+function locate(bodies: readonly PrintCheckBody[], tallies: readonly FaceTally[], minArea: number, together = false) {
   const places: FindingPlace[] = [];
   const min: [number, number, number] = [Infinity, Infinity, Infinity];
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
@@ -344,7 +347,7 @@ function locate(bodies: readonly PrintCheckBody[], tallies: readonly FaceTally[]
     const faces: string[] = [];
     const small = tally.area.reduce((sum, value) => (value < minArea ? sum + value : sum), 0);
     tally.area.forEach((value, face) => {
-      if (value <= 0 || (value < minArea && small < minArea)) return;
+      if (value <= 0 || (value < minArea && !(together && small >= minArea))) return;
       faces.push(body.model.table.faces[face]?.name ?? `F${String(face)}`);
       area += value;
       extreme = Math.min(extreme, tally.extreme[face] ?? Number.POSITIVE_INFINITY);
@@ -703,7 +706,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
     const thin = parts.map((body, b) => thinWalls(body, profile, meshes[b]?.down));
     for (const floor of [false, true]) {
       const kind = thin.map((body) => (floor ? body.floors : body.walls));
-      const found = locate(parts, kind.map((body) => body.faces), MIN_AREA);
+      const found = locate(parts, kind.map((body) => body.faces), MIN_AREA, true);
       if (found.places.length === 0) continue;
       const unprintable = kind.reduce((sum, body) => sum + body.unprintable, 0);
       const minimum = floor ? minimumFloor(profile.layer) : minimumWall(profile.nozzle);
