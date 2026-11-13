@@ -5,8 +5,9 @@
  * in the tool (`mechanismTool.ts`).
  */
 
-import { minimumFloor, minimumWall } from '@partbuddy/geometry';
+import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 
+import { printInPlaceGap, type FitPrinter } from './designFit';
 import { CAP_HEAD, CLEARANCE_NORMAL, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, type BlockSize } from './screwSizes';
 
 type Vec3 = [number, number, number];
@@ -43,34 +44,93 @@ export interface HingeSide {
   distance: number;
 }
 
-/** A printed wall around the pin's bore thinner than this breaks when the hinge is freed (mm). */
-const MIN_BARREL_WALL = 0.8;
 /** A knuckle shorter than this is too weak to hold the pin (mm). */
 const MIN_KNUCKLE = 2.5;
+/** The printer a hinge is checked for where none is given: a 0.4 mm nozzle and 0.2 mm layers. */
+const PRINTER: FitPrinter = { nozzle: 0.4, layer: 0.2 };
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
-/** The pin's diameter: half the barrel, never under 2 mm. */
+/**
+ * The pin's diameter: half the barrel. How thin it may get follows from the walls the barrel keeps round its bore
+ * (`hingeDiameter`): 3 mm at 0.4 mm lying, 2.75 mm standing; a pin under PEG.least printed standing is weak, and the
+ * tool says so (audit MV-05).
+ */
 export function pinDiameter(diameter: number): number {
   return round(Math.max(2, diameter / 2));
 }
 
+/**
+ * How a hinge prints: lying (its line level), standing (its line straight up), or null for a line at a slant, which
+ * gets neither the bore's roof nor webs (audit H-07). The one test every part of the hinge goes by (audit T41: the roof
+ * was checked under 1e-6 of height and built under a slant that rounded to level).
+ */
+export function hingeLies(spec: Pick<HingeSpec, 'from' | 'to'>): 'lying' | 'standing' | null {
+  const [dx, dy, dz] = spec.to.map((value, i) => Math.abs(value - (spec.from[i] ?? 0)));
+  if ((dz ?? 0) < 1e-6) return 'lying';
+  return (dx ?? 0) < 1e-6 && (dy ?? 0) < 1e-6 ? 'standing' : null;
+}
+
+/**
+ * The thinnest plastic round the bore, in mm: the barrel's wall beside the pin and, lying, over the bore's roof at the
+ * edges of its flat, where the round top of the barrel has fallen already. Over the middle of the flat it is thicker:
+ * taken from there, the roof of a barrel of 8 mm at 0.6 mm read 1.27 mm where the print check found 1.23 (audit W6).
+ */
+export function barrelWalls(diameter: number, gap: number, lying: boolean): { wall: number; roof: number | null } {
+  const bore = pinDiameter(diameter) / 2 + gap;
+  const flat = bore * (Math.SQRT2 - ROOF_TOP);
+  return { wall: round(diameter / 2 - bore), roof: lying ? round(Math.sqrt((diameter / 2) ** 2 - flat ** 2) - bore * ROOF_TOP) : null };
+}
+
+/**
+ * The least the barrel keeps round the bore, in mm: two lines of the nozzle in use, as the print check measures walls
+ * (audit MV-04, T12: 0.8 and 0.9 mm were fixed for a 0.4 mm nozzle); lying also four layers, since over the roof and
+ * under the bore it is a floor to the print check.
+ */
+export function barrelLeast(printer: FitPrinter, lying: boolean): number {
+  return lying ? Math.max(minimumWall(printer.nozzle), minimumFloor(printer.layer)) : minimumWall(printer.nozzle);
+}
+
+/** The thinnest barrel, in half millimetres from 4 to 40, that keeps `barrelLeast` round its bore with this gap; null when none does. */
+export function hingeDiameter(gap: number, lying: boolean, printer: FitPrinter = PRINTER): number | null {
+  const least = barrelLeast(printer, lying);
+  for (let diameter = 4; diameter <= 40; diameter += 0.5) {
+    const { wall, roof } = barrelWalls(diameter, gap, lying);
+    if (wall >= least && (roof === null || roof >= least)) return diameter;
+  }
+  return null;
+}
+
 /** What is wrong with a hinge before anything is built, in words the model can act on; null when it can be built. */
-export function hingeProblem(spec: HingeSpec): string | null {
+export function hingeProblem(spec: HingeSpec, printer: FitPrinter = PRINTER): string | null {
   const length = Math.hypot(...spec.to.map((value, i) => value - (spec.from[i] ?? 0)));
   if (spec.fixed === spec.moving) return 'fixed and moving must be two bodies';
+  const lies = hingeLies(spec);
+  if (!lies) return 'the hinge line must be level (from and to at one height: the hinge prints lying) or straight up (only z differs: it prints standing). A line at a slant gets no roof over its bore and no webs, and its knuckles would hang in the air';
   if (!(spec.diameter >= 4 && spec.diameter <= 40)) return 'diameter must be 4–40 mm';
-  if (!(spec.gap >= 0.2 && spec.gap <= 1)) return 'gap must be 0.2–1 mm';
+  // Parts printed in place fuse under a nozzle's width, as the print check measures them (designFit.ts, audit MV-03, W10).
+  const [fewest, most] = [printInPlaceGap(printer), Math.max(1, printInPlaceGap(printer))];
+  if (!(spec.gap >= fewest - 1e-9 && spec.gap <= most + 1e-9)) return `gap must be ${String(fewest)}–${String(most)} mm with a ${String(printer.nozzle)} mm nozzle: closer, parts printed in place fuse`;
+  if (spec.gap <= printer.layer) return `gap must be more than a layer (${String(printer.layer)} mm): the slicer closes a gap of one layer`;
   if (!Number.isInteger(spec.knuckles) || spec.knuckles < 3 || spec.knuckles > 9 || spec.knuckles % 2 === 0) return 'knuckles must be 3, 5, 7 or 9';
-  const wall = (spec.diameter - pinDiameter(spec.diameter)) / 2 - spec.gap;
-  if (wall < MIN_BARREL_WALL) return `the barrel wall around the pin would be ${String(round(wall))} mm; use a diameter of at least ${String(Math.ceil((MIN_BARREL_WALL + spec.gap) * 4))} mm`;
-  // Only a lying hinge has the roof; under two lines of a 0.4 mm nozzle the print check would warn about it.
-  const level = Math.abs(spec.to[2] - spec.from[2]) < 1e-6;
-  const roof = spec.diameter / 2 - (pinDiameter(spec.diameter) / 2 + spec.gap) * ROOF_TOP;
-  if (level && roof < 0.9) return `the barrel would be ${String(round(roof))} mm thin over the bore's roof; use a larger diameter or a smaller gap`;
+  const lying = lies === 'lying';
+  const least = barrelLeast(printer, lying);
+  const lines = least === minimumWall(printer.nozzle) ? `two lines of the ${String(printer.nozzle)} mm nozzle` : `four layers of ${String(printer.layer)} mm`;
+  const { wall, roof } = barrelWalls(spec.diameter, spec.gap, lying);
+  const fits = hingeDiameter(spec.gap, lying, printer);
+  // The diameter that passes every check, so the advice does not lead into the next refusal (audit W5, R20), never a gap under the nozzle (W4).
+  const instead = fits === null ? `no barrel up to 40 mm keeps that round a bore with a gap of ${String(spec.gap)} mm` : `use a diameter of at least ${String(fits)} mm`;
+  if (wall < least) return `the barrel wall around the pin would be ${String(wall)} mm, under the ${String(least)} mm that print solid (${lines}); ${instead}`;
+  if (roof !== null && roof < least) return `the barrel would be ${String(roof)} mm thin over the bore's roof, under the ${String(least)} mm that print solid (${lines}); ${instead}`;
   const knuckle = (length - (spec.knuckles - 1) * spec.gap) / spec.knuckles;
   if (knuckle < MIN_KNUCKLE) return `from and to are ${String(round(length))} mm apart, which leaves ${String(round(knuckle))} mm per knuckle; use fewer knuckles or a longer hinge line (at least ${String(MIN_KNUCKLE)} mm each)`;
+  // Lying, the pin bridges each knuckle of the moving body; past BRIDGE_SPAN that sags (audit W11, N-passung-texte-3).
+  if (lying && pinBridge(spec) > BRIDGE_SPAN) {
+    const enough = [3, 5, 7, 9].find((count) => pinBridge({ ...spec, knuckles: count }) <= BRIDGE_SPAN && (length - (count - 1) * spec.gap) / count >= MIN_KNUCKLE);
+    const longest = Math.floor((9 * BRIDGE_SPAN - 10 * spec.gap) * 10) / 10;
+    return `with ${String(spec.knuckles)} knuckles the pin would bridge ${String(pinBridge(spec))} mm inside each knuckle of ${spec.moving}, more than prints clean (${String(BRIDGE_SPAN)} mm); ${enough ? `use ${String(enough)} knuckles` : `the line is longer than one hinge prints clean: build two or more hinges on the same line, each at most ${String(longest)} mm long, which turn about one joint`}`;
+  }
   return null;
 }
 
@@ -83,10 +143,14 @@ export function hingeProblem(spec: HingeSpec): string | null {
 export function hingeSteps(spec: HingeSpec): Step[] {
   const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
   const length = Math.hypot(...delta);
-  const axis = delta.map((value) => round(value / length)) as Vec3;
-  const at = (distance: number) => spec.from.map((value, i) => round(value + (axis[i] ?? 0) * distance)) as Vec3;
+  // The direction in full and the points to a micrometre: rounded to 0.001, a slanted direction put the last knuckles of
+  // a 200 mm hinge 0.1 mm off (audit T40).
+  const axis = delta.map((value) => value / length + 0) as Vec3;
+  const at = (distance: number) => spec.from.map((value, i) => Math.round((value + (axis[i] ?? 0) * distance) * 1e6) / 1e6 + 0) as Vec3;
   const mm = (value: number) => `${String(round(value))} mm`;
-  const knuckle = (length - (spec.knuckles - 1) * spec.gap) / spec.knuckles;
+  // Whole micrometres down, so knuckles and gaps are what they say: rounded each on its own, a gap of 0.2 came out
+  // 0.199 mm (audit N-mechanik-15). The last knuckle ends at most 9 µm before `to`.
+  const knuckle = Math.floor(((length - (spec.knuckles - 1) * spec.gap) / spec.knuckles) * 1000 + 1e-6) / 1000;
   const pin = pinDiameter(spec.diameter);
   const cylinder = (diameter: number, start: number, end: number, operation: 'cut' | 'join', target: string, name: string): Step => ({
     command: 'solid.cylinder',
@@ -124,13 +188,13 @@ export function pinBridge(spec: Pick<HingeSpec, 'from' | 'to' | 'gap' | 'knuckle
  * hinge). Cut off where it leans 45°, what is left below is a level strip from one fixed knuckle to the next, a bridge.
  */
 function pinFlat(spec: HingeSpec, axis: Vec3, at: (distance: number) => Vec3, span: { start: number; end: number; label: string }, radius: number): Step[] {
-  if (Math.abs(axis[2]) > 1e-6) return [];
+  if (hingeLies(spec) !== 'lying') return [];
   const top = -radius / Math.SQRT2;
   // Down to inside the bore's gap: below the pin the fixed body has nothing there.
   const points: [number, number][] = [[-radius, top], [radius, top], [radius, -radius - spec.gap / 2], [-radius, -radius - spec.gap / 2]];
   const name = `${span.label} ▬`;
   return [
-    { command: 'sketch.create', params: { plane: { origin: at(span.start - spec.gap), x_dir: cross([0, 0, 1], axis).map(round), y_dir: [0, 0, 1] }, project_edges: false, name } },
+    { command: 'sketch.create', params: { plane: { origin: at(span.start - spec.gap), x_dir: cross([0, 0, 1], axis).map((value) => value + 0), y_dir: [0, 0, 1] }, project_edges: false, name } },
     { command: 'sketch.line', params: { points: points.map(([x, y]) => [round(x), round(y)]), closed: true } },
     { command: 'solid.extrude', params: { distance: `${String(round(span.end - span.start + 2 * spec.gap))} mm`, operation: 'cut', targets: [spec.fixed], name } },
   ];
@@ -160,7 +224,7 @@ export function printTogether(components: readonly (string | number)[], label: s
 
 /** Whether the knuckles of a lying hinge start above the bed, so that each needs a web under it. */
 export function hangs(spec: Pick<HingeSpec, 'from' | 'to' | 'diameter'>, bed: number): boolean {
-  return Math.abs(spec.to[2] - spec.from[2]) < 1e-6 && spec.from[2] - spec.diameter / 2 - bed >= WEB.least;
+  return hingeLies(spec) === 'lying' && spec.from[2] - spec.diameter / 2 - bed >= WEB.least;
 }
 
 /**
@@ -189,7 +253,7 @@ function web(spec: HingeSpec, axis: Vec3, at: (distance: number) => Vec3, span: 
   // x × y of the sketch is the way the profile is extruded: start at the end of the knuckle from which that runs along it.
   const forward = cross(own.toward, [0, 0, 1]).reduce((sum, value, i) => sum + value * (axis[i] ?? 0), 0) > 0;
   const profile = (outline: [number, number][], start: number, end: number, operation: 'cut' | 'join', target: string, name: string): Step[] => [
-    { command: 'sketch.create', params: { plane: { origin: at(forward ? start : end), x_dir: own.toward.map((value) => round(value) + 0), y_dir: [0, 0, 1] }, project_edges: false, name } },
+    { command: 'sketch.create', params: { plane: { origin: at(forward ? start : end), x_dir: own.toward.map((value) => value + 0), y_dir: [0, 0, 1] }, project_edges: false, name } },
     { command: 'sketch.line', params: { points: outline.map(([x, y]) => [round(x), round(y)]), closed: true } },
     { command: 'solid.extrude', params: { distance: `${String(round(end - start))} mm`, operation, targets: [target], name } },
   ];
@@ -214,7 +278,7 @@ export const ROOF_TOP = 1.05;
  * so the bore prints as drawn. An upright hinge needs none.
  */
 function boreRoof(spec: HingeSpec, axis: Vec3, origin: Vec3, distance: number, radius: number): Step[] {
-  if (Math.abs(axis[2]) > 1e-6) return [];
+  if (hingeLies(spec) !== 'lying') return [];
   const side = radius / Math.SQRT2;
   const flat = radius * (Math.SQRT2 - ROOF_TOP);
   const points: [number, number][] = [
@@ -226,7 +290,7 @@ function boreRoof(spec: HingeSpec, axis: Vec3, origin: Vec3, distance: number, r
   const name = `${spec.name} △`;
   return [
     // Sketch x across the line, y up: x × y is the line's direction.
-    { command: 'sketch.create', params: { plane: { origin: origin.map(round), x_dir: cross([0, 0, 1], axis).map(round), y_dir: [0, 0, 1] }, project_edges: false, name } },
+    { command: 'sketch.create', params: { plane: { origin, x_dir: cross([0, 0, 1], axis).map((value) => value + 0), y_dir: [0, 0, 1] }, project_edges: false, name } },
     { command: 'sketch.line', params: { points: points.map(([x, y]) => [round(x), round(y)]), closed: true } },
     { command: 'solid.extrude', params: { distance: `${String(round(distance))} mm`, operation: 'cut', targets: [spec.moving], name } },
   ];
@@ -298,7 +362,7 @@ export function slideSteps(spec: SlideSpec): Step[] {
   const upLength = Math.hypot(...spec.up);
   const up = spec.up.map((value) => value / upLength) as Vec3;
   // Sketch x across the rail, y up: x × y is the line's direction, so a positive distance runs along it.
-  const plane = { origin: spec.from.map(round), x_dir: cross(up, axis).map(round), y_dir: up.map(round) };
+  const plane = { origin: spec.from.map(round), x_dir: cross(up, axis).map((value) => value + 0), y_dir: up.map((value) => value + 0) };
   const half = spec.width / 2;
   const { height, gap } = spec;
   // The flank moved out by the gap, measured square to it.
@@ -708,7 +772,7 @@ export function screwProblem(spec: ScrewSpec): string | null {
  */
 export function screwSteps(spec: ScrewSpec): Step[] {
   const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
-  const direction = delta.map((value) => round(value / grip(spec))) as Vec3;
+  const direction = delta.map((value) => value / grip(spec) + 0) as Vec3;
   const mm = (value: number) => `${String(round(value))} mm`;
   const insert = INSERT[spec.size];
   const fit = screwFit(spec);
@@ -997,7 +1061,7 @@ export function pegProblem(spec: PegSpec): string | null {
  */
 export function pegSteps(spec: PegSpec): Step[] {
   const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
-  const axis = delta.map((value) => round(value / Math.hypot(...delta)) + 0) as Vec3;
+  const axis = delta.map((value) => value / Math.hypot(...delta) + 0) as Vec3;
   const mm = (value: number) => `${String(round(value))} mm`;
   const long = pegLength(spec.diameter);
   const bore = spec.diameter + 2 * spec.gap;

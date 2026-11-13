@@ -3929,7 +3929,7 @@ test('the assistant builds a snap closure with one call: a lip in the lid, its b
   }
 });
 
-test('a hinge whose line is out of reach of the bodies is taken back, with where the line goes (G3)', async () => {
+test('a hinge whose line is out of reach of the bodies is refused before anything is built, with where the line goes (G3)', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
@@ -3948,7 +3948,8 @@ test('a hinge whose line is out of reach of the bodies is taken back, with where
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a flap out of reach');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Not built: 5 piece\(s\) did not touch their body and stand apart from it\. Put the hinge line within 2\.5 mm of both bodies .* Everything was taken back./)).toBeVisible({ timeout: 60_000 });
+    // Audit W8: measured on trial before anything is built, the line 5 mm from either plate.
+    await expect(page.getByText(/Not built: the hinge line lies 5 mm from Base, outside the barrel's radius of 3 mm, so its knuckles would not touch it\. Put the hinge line within 2\.5 mm of both bodies /)).toBeVisible({ timeout: 60_000 });
     // The two plates are as they were: no knuckle, no cut, no joint.
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies · 12 faces', { timeout: 30_000 });
     await expect(page.getByTestId('joints')).toHaveCount(0);

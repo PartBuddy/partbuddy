@@ -1,13 +1,31 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, closureTrial, MECHANISM_GUIDANCE, pegStock, screwStock, hingeOf, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, closureTrial, MECHANISM_GUIDANCE, pegStock, screwStock, hingeOf, lineProblem, reach, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { METADATA_PREFIX } from '../src/main/notes/noteRecord';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, TOGETHER_KEY, screwFit, screwLengths, screwSink, screwWindow, sinkMost, underHead, pegFloor, pegProblem, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { barrelLeast, barrelWalls, hingeDiameter, hingeLies, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, TOGETHER_KEY, screwFit, screwLengths, screwSink, screwWindow, sinkMost, underHead, pegFloor, pegProblem, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
+
+/**
+ * SolidCraft's answers to a hinge's trials, as 0.40.1 gives them, for a line at x `x` between two plates `distance` mm off
+ * on either side (the fixed one towards -x): the rod on the line is near both, and the rods behind the knuckles' rooms lie
+ * in their bodies, or, with `skin`, stand that far off the wall that ends before them. Undefined for any other step.
+ */
+function trial(step: { command: string; params: Record<string, unknown> }, { x = 42, distance = 2, skin }: { x?: number; distance?: number; skin?: { fixed?: number; moving?: number } } = {}): unknown {
+  if (step.command !== 'inspect.clearance') return undefined;
+  const [fixed, moving] = (step.params.against as string[] | undefined) ?? ['Base', 'Flap'];
+  const bodies = step.params.bodies as string[];
+  if (bodies[0] === 'PartBuddy probe') return { overlaps: [], near: [{ a: 'PartBuddy probe', b: fixed, distance_mm: distance - 0.05, from: [x - 0.05, 15, 3], to: [x - distance, 15, 3] }, { a: 'PartBuddy probe', b: moving, distance_mm: distance - 0.05, from: [x + 0.05, 15, 3], to: [x + distance, 15, 3] }] };
+  if (!('clearance' in step.params)) return undefined;
+  const of = (rod: string) => (rod.endsWith('fixed') ? 'fixed' : 'moving');
+  return {
+    overlaps: bodies.filter((rod) => skin?.[of(rod)] === undefined).map((rod) => ({ a: rod, b: of(rod) === 'fixed' ? fixed : moving, volume_mm3: 0.2 })),
+    near: bodies.flatMap((rod) => (skin?.[of(rod)] === undefined ? [] : [{ a: rod, b: of(rod) === 'fixed' ? fixed : moving, distance_mm: skin[of(rod)] }])),
+  };
+}
 
 describe('the print-in-place hinge (ADR 0027, G3)', () => {
   it('builds knuckles in turn, each clearing its room in the other body first, then bore and pin', () => {
@@ -47,29 +65,141 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
   });
 
   it('says what is wrong before anything is built', () => {
-    expect(hingeProblem(spec)).toBeNull();
+    const five = { ...spec, knuckles: 5 };
+    expect(hingeProblem(five)).toBeNull();
     expect(hingeProblem({ ...spec, moving: 'Base' })).toBe('fixed and moving must be two bodies');
     expect(hingeProblem({ ...spec, knuckles: 4 })).toBe('knuckles must be 3, 5, 7 or 9');
-    expect(hingeProblem({ ...spec, diameter: 4, gap: 0.5 })).toContain('the barrel wall around the pin would be 0.5 mm');
-    expect(hingeProblem({ ...spec, to: [42, 6, 3] })).toContain('use fewer knuckles or a longer hinge line');
-    // Lying, the barrel must keep two lines over the bore's roof; an upright hinge has no roof.
-    expect(hingeProblem({ ...spec, gap: 0.6 })).toContain('the barrel would be 0.795 mm thin over the bore\'s roof');
-    expect(hingeProblem({ ...spec, gap: 0.6, from: [42, 0, 3], to: [42, 0, 33] })).toBeNull();
+    expect(hingeProblem({ ...five, to: [42, 6, 3] })).toContain('use fewer knuckles or a longer hinge line');
+    // Audit H-07, T41: level or straight up, one test for roof, flat and webs alike; a slant is refused, however slight.
+    expect(hingeLies(five)).toBe('lying');
+    expect(hingeLies({ from: [0, 0, 0], to: [0, 0, 30] })).toBe('standing');
+    expect(hingeLies({ from: [0, 0, 3], to: [0, 30, 3.0000005] })).toBe('lying');
+    expect(hingeLies({ from: [0, 0, 3], to: [0, 30, 3.00001] })).toBeNull();
+    expect(hingeLies({ from: [0, 0, 0], to: [0.00001, 0, 30] })).toBeNull();
+    expect(hingeProblem({ ...five, to: [42, 30, 3.01] })).toContain('the hinge line must be level (from and to at one height: the hinge prints lying) or straight up');
+    expect(hingeProblem({ ...five, to: [52, 0, 33] })).toContain('A line at a slant gets no roof over its bore and no webs');
+    expect(hingeSteps({ ...five, to: [42, 30, 3.00001] }).some((step) => step.command === 'sketch.create')).toBe(false);
+    // Audit MV-03, W10: parts printed in place keep a nozzle and at least 0.3 mm apart (designFit.ts), and more than a layer.
+    expect(hingeProblem({ ...five, gap: 0.39 })).toBe('gap must be 0.4–1 mm with a 0.4 mm nozzle: closer, parts printed in place fuse');
+    expect(hingeProblem({ ...five, gap: 0.2 })).toContain('gap must be 0.4–1 mm');
+    expect(hingeProblem({ ...five, diameter: 9, gap: 0.6 }, { nozzle: 0.6, layer: 0.2 })).toBeNull();
+    expect(hingeProblem({ ...five, diameter: 9, gap: 0.59 }, { nozzle: 0.6, layer: 0.2 })).toBe('gap must be 0.6–1 mm with a 0.6 mm nozzle: closer, parts printed in place fuse');
+    expect(hingeProblem({ ...five, diameter: 12, gap: 0.79 }, { nozzle: 0.8, layer: 0.2 })).toContain('gap must be 0.8–1 mm');
+    expect(hingeProblem({ ...five, gap: 0.3 }, { nozzle: 0.25, layer: 0.12 })).toBeNull();
+    expect(hingeProblem({ ...five, gap: 0.29 }, { nozzle: 0.25, layer: 0.12 })).toContain('gap must be 0.3–1 mm');
+    expect(hingeProblem({ ...five, gap: 1.01 })).toContain('gap must be 0.4–1 mm');
+    const standing: HingeSpec = { ...five, from: [42, 0, 0], to: [42, 0, 30] };
+    expect(hingeProblem({ ...standing, gap: 0.4 }, { nozzle: 0.4, layer: 0.4 })).toBe('gap must be more than a layer (0.4 mm): the slicer closes a gap of one layer');
+    expect(hingeProblem({ ...standing, gap: 0.4 }, { nozzle: 0.4, layer: 0.39 })).toBeNull();
+    // Audit MV-04, T12, W6: two lines of the nozzle in use round the bore, lying also four layers; exactly at it passes (N-mechanik-16).
+    expect(barrelLeast({ nozzle: 0.4, layer: 0.2 }, true)).toBe(0.9);
+    expect(barrelLeast({ nozzle: 0.6, layer: 0.2 }, true)).toBe(1.35);
+    expect(barrelLeast({ nozzle: 0.4, layer: 0.28 }, true)).toBe(1.12);
+    expect(barrelLeast({ nozzle: 0.4, layer: 0.28 }, false)).toBe(0.9);
+    expect(barrelWalls(6, 0.6, false)).toEqual({ wall: 0.9, roof: null });
+    expect(hingeProblem({ ...standing, gap: 0.6 })).toBeNull();
+    expect(hingeProblem({ ...standing, gap: 0.601 })).toBe('the barrel wall around the pin would be 0.899 mm, under the 0.9 mm that print solid (two lines of the 0.4 mm nozzle); use a diameter of at least 6.5 mm');
+    expect(hingeProblem({ ...standing, diameter: 6.5, gap: 0.601 })).toBeNull();
+    // The roof is thinnest at the edges of its flat: 0.924 mm on the standard barrel, not the 1.005 over its middle.
+    expect(barrelWalls(6, 0.4, true)).toEqual({ wall: 1.1, roof: 0.924 });
+    expect(hingeProblem({ ...five, gap: 0.6 }, { nozzle: 0.6, layer: 0.2 })).toBe('the barrel wall around the pin would be 0.9 mm, under the 1.35 mm that print solid (two lines of the 0.6 mm nozzle); use a diameter of at least 9 mm');
+    expect(hingeProblem({ ...five, diameter: 8.5, gap: 0.6 }, { nozzle: 0.6, layer: 0.2 })).toBe("the barrel would be 1.271 mm thin over the bore's roof, under the 1.35 mm that print solid (two lines of the 0.6 mm nozzle); use a diameter of at least 9 mm");
+    expect(hingeProblem({ ...five, diameter: 6.5, gap: 0.4 }, { nozzle: 0.4, layer: 0.28 })).toBe("the barrel would be 1.039 mm thin over the bore's roof, under the 1.12 mm that print solid (four layers of 0.28 mm); use a diameter of at least 7 mm");
+    // Audit W5, R20: the advice is the smallest barrel that passes every check, never a gap under the nozzle (W4).
+    expect(hingeProblem({ ...five, diameter: 4, gap: 0.4 })).toBe('the barrel wall around the pin would be 0.6 mm, under the 0.9 mm that print solid (two lines of the 0.4 mm nozzle); use a diameter of at least 6 mm');
+    expect(hingeProblem({ ...five, diameter: 5.5, gap: 0.4 })).toContain('use a diameter of at least 6 mm');
+    for (const [nozzle, gap] of [[0.2, 0.3], [0.25, 0.3], [0.4, 0.4], [0.5, 0.5], [0.6, 0.6], [0.8, 0.8], [0.8, 1]] as const) {
+      for (const lies of [true, false]) {
+        const printer = { nozzle, layer: 0.2 };
+        const least = hingeDiameter(gap, lies, printer);
+        const at = lies ? five : standing;
+        expect(least).not.toBeNull();
+        expect(hingeProblem({ ...at, diameter: least ?? 0, gap }, printer)).toBeNull();
+        if ((least ?? 0) > 4) expect(hingeProblem({ ...at, diameter: (least ?? 0) - 0.5, gap }, printer)).toContain(`use a diameter of at least ${String(least)} mm`);
+      }
+    }
+    expect([hingeDiameter(0.4, true), hingeDiameter(0.6, true, { nozzle: 0.6, layer: 0.2 }), hingeDiameter(0.8, true, { nozzle: 0.8, layer: 0.2 }), hingeDiameter(0.4, false)]).toEqual([6, 9, 12, 5.5]);
+    // Audit W11, N-passung-texte-3: lying, the pin bridges each knuckle of the moving body, at most 10 mm; past nine knuckles, two hinges.
+    expect(hingeProblem(spec)).toBe('with 3 knuckles the pin would bridge 10.533 mm inside each knuckle of Flap, more than prints clean (10 mm); use 5 knuckles');
+    expect(hingeProblem({ ...spec, to: [42, 86, 3], knuckles: 9 })).toBeNull();
+    expect(hingeProblem({ ...spec, to: [42, 86.1, 3], knuckles: 9 })).toBe('with 9 knuckles the pin would bridge 10.011 mm inside each knuckle of Flap, more than prints clean (10 mm); the line is longer than one hinge prints clean: build two or more hinges on the same line, each at most 86 mm long, which turn about one joint');
+    expect(hingeProblem({ ...standing, to: [42, 0, 200], knuckles: 9 })).toBeNull();
   });
 
-  it('fills in the gap from the nozzle and the knuckles from the length', () => {
+  it('fills in the gap from the nozzle, the barrel from both, and the knuckles from the length', () => {
     const args = { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [0, 0, 3], to: [0, 60, 3] };
     // 60 mm of line: seven knuckles, so none is longer than 10 mm.
     expect(hingeOf(args, 0.4)).toMatchObject({ diameter: 6, gap: 0.4, knuckles: 7, name: 'Hinge' });
     // 30 mm of line: three knuckles would have the pin bridge 10.5 mm inside the middle one (9.7 mm and a gap on each side), so five.
     expect(hingeOf({ ...args, to: [0, 30, 3] }, 0.4)).toMatchObject({ knuckles: 5 });
     expect(hingeOf({ ...args, to: [0, 28, 3] }, 0.4)).toMatchObject({ knuckles: 3 });
-    // Upright, the pin stands and bridges nothing: three knuckles of 9.7 mm.
+    // Upright, the pin stands and bridges nothing: three knuckles of 9.7 mm, nine on a long line.
     expect(hingeOf({ ...args, to: [0, 0, 33] }, 0.4)).toMatchObject({ knuckles: 3 });
-    expect(hingeOf({ ...args, to: [0, 200, 3] }, 0.4)).toMatchObject({ knuckles: 9 });
-    expect(hingeOf(args, 0.2)).toMatchObject({ gap: 0.3 });
+    expect(hingeOf({ ...args, to: [0, 0, 200] }, 0.4)).toMatchObject({ knuckles: 9 });
+    expect(hingeOf({ ...args, to: [0, 200, 3] }, 0.4)).toContain('build two or more hinges on the same line, each at most 86 mm long');
+    expect(hingeOf(args, 0.2)).toMatchObject({ gap: 0.3, diameter: 6 });
+    // Audit N-passung-texte-2, W4, T12: with nothing but the line given, the hinge builds on every nozzle.
+    expect([0.2, 0.25, 0.4, 0.5, 0.6, 0.8].map((nozzle) => { const made = hingeOf(args, nozzle); return typeof made === 'string' ? made : [made.gap, made.diameter]; })).toEqual([[0.3, 6], [0.3, 6], [0.4, 6], [0.5, 7.5], [0.6, 9], [0.8, 12]]);
+    expect(hingeOf({ ...args, to: [0, 0, 33] }, 0.8)).toMatchObject({ gap: 0.8, diameter: 10.5 });
+    expect(hingeOf(args, 0.4, 0.28)).toMatchObject({ diameter: 7 });
+    // A gap given to the micrometre and more is laid out in whole micrometres, up.
+    expect(hingeOf({ ...args, gap: 0.4444 }, 0.4)).toMatchObject({ gap: 0.445 });
     expect(hingeOf({ ...args, to: [0, 0, 3] }, 0.4)).toBe('from and to must be two points');
     expect(hingeOf({ ...args, fixed: '' }, 0.4)).toBe('fixed, moving, from and to are needed');
+  });
+
+  // Audit N-mechanik-15, T40: rounded each on its own, a gap of 0.2 came out 0.199 mm; a slanted direction rounded to
+  // 0.001 put the last knuckles of a 200 mm hinge 0.1 mm off.
+  it('lays knuckles and gaps out exactly, also along a line askew to the axes', () => {
+    const along = (steps: ReturnType<typeof hingeSteps>, axis: number[], from: number[]) =>
+      steps.filter((step) => step.command === 'solid.cylinder' && step.params.operation === 'join' && String(step.params.name).match(/ \d$/)).map((step) => {
+        const start = (step.params.base as number[]).reduce((sum, value, i) => sum + (value - (from[i] ?? 0)) * (axis[i] ?? 0), 0);
+        return [start, start + Number.parseFloat(String(step.params.height))];
+      });
+    const gaps = (spans: number[][]) => spans.slice(1).map(([start], i) => (start ?? 0) - (spans[i]?.[1] ?? 0));
+    const straight = along(hingeSteps({ ...spec, from: [0.123, 0, 3], to: [0.123, 31.7, 3], knuckles: 7, gap: 0.3 }), [0, 1, 0], [0.123, 0, 3]);
+    expect(gaps(straight).every((gap) => gap >= 0.3 - 1e-9 && gap <= 0.3 + 1e-9)).toBe(true);
+    const length = 86;
+    const unit = [1, 0.3337, 0].map((value) => value / Math.hypot(1, 0.3337));
+    const askew = { ...spec, from: [10, 20, 3] as [number, number, number], to: [10 + (unit[0] ?? 0) * length, 20 + (unit[1] ?? 0) * length, 3] as [number, number, number], knuckles: 9, gap: 0.3 };
+    const spans = along(hingeSteps(askew), unit, askew.from);
+    expect(gaps(spans).every((gap) => gap > 0.3 - 2e-6)).toBe(true);
+    // The last knuckle ends on the line, at most 9 µm before `to`.
+    expect(length - (spans.at(-1)?.[1] ?? 0)).toBeGreaterThanOrEqual(-1e-6);
+    expect(length - (spans.at(-1)?.[1] ?? 0)).toBeLessThan(0.01);
+    const last = hingeSteps(askew).filter((step) => step.command === 'solid.cylinder' && step.params.operation === 'join').at(-2)?.params.base as number[];
+    const back = last.map((value, i) => value - (askew.from[i] ?? 0));
+    const off = Math.hypot(...back.map((value, i) => value - (unit[i] ?? 0) * back.reduce((sum, v, k) => sum + v * (unit[k] ?? 0), 0)));
+    expect(off).toBeLessThan(2e-6);
+  });
+
+  // Audit W12: `Math.trunc(stopped / 0.1) * 0.1` made 0.2 of 0.3 and 12.200000000000001 of 12.2.
+  it('cuts a sweep\'s stop to whole steps towards zero, without float noise', () => {
+    expect([0.3, 5.1, 33.3, 12.2, 12.25, -5.15, -0.05].map((stopped) => reach({ stopped_at: stopped }, 99, 0.1))).toEqual([0.3, 5.1, 33.3, 12.2, 12.2, -5.1, 0]);
+    expect(Object.is(reach({ stopped_at: -0.05 }, 99, 0.1), 0)).toBe(true);
+    expect([67.375, -145.789, 180].map((stopped) => reach({ stopped_at: stopped }, 0, 1))).toEqual([67, -145, 180]);
+    expect(reach({}, 42, 0.1)).toBe(42);
+  });
+
+  // Audit W8, W9: the reach of the line was a sentence of the description, and a line inside a wall read as out of reach.
+  it('measures where the line lies before it builds: each knuckle overlaps its body by half a millimetre', () => {
+    const where = 'Put the hinge line within 2.5 mm of both bodies.';
+    const near = (distance: number) => ({ inside: false, distance, toward: [-1, 0, 0] as [number, number, number] });
+    expect(lineProblem({ fixed: near(2.5), moving: near(2) }, spec, where)).toBeNull();
+    expect(lineProblem({ fixed: near(2.501), moving: near(2) }, spec, where)).toBe('the hinge line lies 2.501 mm from Base, so the barrel overlaps it by 0.499 mm, under 0.5 mm: its knuckles would hang on a sliver. Put the hinge line within 2.5 mm of both bodies.');
+    expect(lineProblem({ fixed: near(2), moving: near(2.9) }, spec, where)).toContain('lies 2.9 mm from Flap, so the barrel overlaps it by 0.1 mm');
+    expect(lineProblem({ fixed: near(3), moving: near(2) }, spec, where)).toBe("the hinge line lies 3 mm from Base, outside the barrel's radius of 3 mm, so its knuckles would not touch it. Put the hinge line within 2.5 mm of both bodies.");
+    expect(lineProblem({ fixed: near(2), moving: null }, spec, where)).toBe('Flap is further from the hinge line than the barrel is wide (6 mm), so its knuckles would not touch it. Put the hinge line within 2.5 mm of both bodies.');
+    expect(lineProblem({ fixed: { inside: true, distance: 0, toward: null }, moving: near(2) }, spec, where)).toBeNull();
+    expect(lineProblem({ fixed: { inside: true, distance: 0, toward: null }, moving: { inside: true, distance: 0, toward: null } }, spec, where)).toContain('the hinge line runs inside both Base and Flap');
+  });
+
+  it('says what skin a room would leave, measured, and how to change it', () => {
+    expect(skinProblem({ fixed: null, moving: null }, { fixed: 'Box', moving: 'Lid' }, 0.4)).toBeNull();
+    expect(skinProblem({ fixed: null, moving: { mm: 0.8, least: 0.9, floor: false } }, { fixed: 'Box', moving: 'Lid' }, 0.4)).toBe(
+      "the rooms of the knuckles would leave a skin of 0.8 mm of Lid's wall behind them, under two lines of the 0.4 mm nozzle (0.9 mm). Move the line 0.1 mm back from that wall, or 0.8 mm towards it so the rooms open through it, or make the wall 0.1 mm thicker. Nothing was built.",
+    );
+    expect(skinProblem({ fixed: { mm: 0.5, least: 0.8, floor: true }, moving: null }, { fixed: 'Box', moving: 'Lid' }, 0.4)).toContain('a skin of 0.5 mm of Box\'s wall behind them, under the 0.8 mm a floor needs to print closed. Move the line 0.3 mm back');
   });
 
   it('finds the occurrence of a body once it is a component', () => {
@@ -100,7 +230,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
         case 'joint.sweep':
           return step.params.to === 180 ? { stopped_at: 67.375, stopped_by: { a: 'Flap:1', b: 'Base:1', at: [40, 0, 0] } } : { stopped_at: -145.789, stopped_by: { a: 'Flap:1', b: 'Base:1', at: [38, 0, 4] } };
         default:
-          return {};
+          return trial(step) ?? {};
       }
     };
     const upstream: UpstreamTools = {
@@ -124,6 +254,8 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
       'component.list joint.list',
       // Where the line lies, measured on trial with a rod that is taken back.
       'solid.cylinder inspect.clearance inspect.measure sketch.inspect',
+      // Audit W7, R11: the walls behind the knuckles' rooms, measured on trial with a rod behind each.
+      'solid.cylinder solid.cylinder inspect.clearance sketch.inspect',
       // The design as it is, to come back to should a later step fail.
       'document.inspect joint.list',
       [...Array.from({ length: 11 }, () => 'solid.cylinder'), 'sketch.create', 'sketch.line', 'solid.extrude', 'solid.cylinder', ...Array.from({ length: 2 }, () => ['sketch.create', 'sketch.line', 'solid.extrude']).flat()].join(' '),
@@ -134,15 +266,18 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
       'joint.sweep joint.sweep',
       'joint.limits',
     ]);
-    expect(batches[7]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
+    // The rods behind the rooms lie two lines (0.9 mm) past the room of 3.4 mm about the line, each the way to its body.
+    expect(batches[2]?.slice(0, 2).map((step) => step.params.base)).toEqual([[37.65, 0, 3], [46.35, 0, 3]]);
+    expect(String(built.content[0]?.text)).toContain(" The knuckles' rooms go 1.4 mm into Base and 1.4 mm into Flap, measured from the face nearest the line, and PartBuddy measured the walls behind them: each room opens through its wall or leaves at least 0.9 mm of Base and 0.9 mm of Flap.");
+    expect(batches[8]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
     // Audit 2026-11-12, G1: the hinge prints in place, so both components carry one mark (a label of their own) that the
     // print check and the plate view stand them on one bed by.
-    const [base, flap] = [batches[7]?.[1]?.params, batches[7]?.[2]?.params] as { component: number; values: Record<string, unknown> }[];
+    const [base, flap] = [batches[8]?.[1]?.params, batches[8]?.[2]?.params] as { component: number; values: Record<string, unknown> }[];
     expect([base?.component, flap?.component]).toEqual([3, 5]);
     expect(Object.keys(base?.values ?? {})).toEqual(Object.keys(flap?.values ?? {}));
     expect(Object.entries(base?.values ?? {})).toEqual([[expect.stringMatching(/^io.github.manuelstaggl.partbuddy.together.[0-9a-f]{8}$/), { joint: 'Lid hinge' }]]);
     expect(TOGETHER_KEY.startsWith(METADATA_PREFIX)).toBe(true);
-    expect(batches[9]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
+    expect(batches[10]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
 
     // Webs: with the line 16 mm above the bed and 2.5 mm from either wall, every knuckle gets a profile from where the barrel leans
     // 45° on the far side (2.121 mm from the axis) at 45° down to its own wall, 0.5 mm into it; on the bed (the line a radius above it) none is needed.
@@ -172,13 +307,6 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     // Near the bed the web ends on it instead of going below.
     expect(hingeSteps({ ...spec, from: [42, 0, 6], to: [42, 30, 6], support: { bed: 0, ...sides } }).find((step) => step.command === 'sketch.line' && (step.params.points as number[][]).length === 5)?.params.points).toEqual([[-2.121, 0], [-2.121, -2.121], [1.757, -6], [3, -6], [3, 0]]);
     expect(hingeSteps({ ...spec, support: { bed: 0, ...sides } }).some((step) => String(step.params.name).endsWith('◣'))).toBe(false);
-    // The rooms of the knuckles: 3.4 mm about a line 2.5 mm from a face go 0.9 mm into it. A 1.8 mm wall keeps two lines, a 1.6 mm wall
-    // would keep a skin of 0.7 mm and is refused with what to change; a wall the room goes through is a window, and fine.
-    expect(skinProblem({ fixed: 0.9, moving: 0.9 }, { fixed: 'Box', moving: 'Lid' }, 1.8, 0.4)).toBeNull();
-    expect(skinProblem({ fixed: 0.9, moving: 2.9 }, { fixed: 'Box', moving: 'Lid' }, 1.6, 0.4)).toBe(
-      'the rooms of the knuckles would go 0.9 mm into the 1.6 mm wall of Box and leave a skin of 0.7 mm behind them, under two lines (0.9 mm). Make that wall at least 1.8 mm thick, or move the line 0.2 mm further from Box, or 0.7 mm closer to it so the rooms open through the wall. Nothing was built.',
-    );
-    expect(skinProblem({ fixed: 2.9, moving: 2.9 }, { fixed: 'Box', moving: 'Lid' }, 2.4, 0.4)).toBeNull();
     // A body that does not exist is named with the ones that do; nothing is built.
     const before = batches.length;
     const missing = await tools.callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Lid', from: [42, 0, 3], to: [42, 30, 3] });
@@ -203,6 +331,8 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
         const results = commands.map((step) =>
           step.command === 'document.inspect'
             ? { bodies: ['Box', 'Lid'], timeline: Array.from({ length: depth }, (_, i) => ({ id: i + 1 })), undo: depth }
+            : step.command === 'inspect.clearance'
+              ? trial(step, { x: 0 })
             : step.params.operation === 'join' && step.params.diameter === '6 mm'
               ? { warning: "the joined piece doesn't touch `Box`, so `Box` is now in 2 separate pieces (New Body makes it a body of its own)" }
               : { count: 0, warning: null },
@@ -239,11 +369,11 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
           if (commands[0]?.command === 'joint.as_built') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(refused, null, 2) }], isError: true });
           // The probe's batch fails on purpose and SolidCraft rolls it back.
           if (!commands.some((step) => step.command === 'sketch.inspect')) depth += commands.filter((step) => step.params.operation !== undefined).length - commands.filter((step) => step.command === 'edit.undo').length;
-          const results = commands.map((step) => (step.command === 'document.inspect' ? (readable ? { timeline: Array.from({ length: depth }, (_, i) => ({ id: i + 1 })), undo: depth } : {}) : step.command === 'component.list' ? { components: [{ id: 3, parent: 0, bodies: ['Base', 'Flap'], occurrences: [{ id: 4, name: 'Both:1' }] }] } : {}));
+          const results = commands.map((step) => (step.command === 'document.inspect' ? (readable ? { timeline: Array.from({ length: depth }, (_, i) => ({ id: i + 1 })), undo: depth } : {}) : step.command === 'component.list' ? { components: [{ id: 3, parent: 0, bodies: ['Base', 'Flap'], occurrences: [{ id: 4, name: 'Both:1' }] }] } : (trial(step) ?? {})));
           return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
         },
       };
-      return { sent, depth: () => depth, call: () => withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], knuckles: 3 }) };
+      return { sent, depth: () => depth, call: () => withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 28, 3], knuckles: 3 }) };
     };
     const taken = tools(true);
     expect(await taken.call()).toEqual({ isError: true, content: [{ type: 'text', text: 'Not built: SolidCraft refused joint.as_built: invalid parameters for `joint.create`: a joint needs two different occurrences. Everything was taken back.' }] });
@@ -278,7 +408,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
           // As SolidCraft 0.40.1 answers: the first hinge's pin from y 0 to 30, and that of a second one, which has no joint, from 40 to 70.
           if (step.command === 'document.inspect') return { timeline: [{ id: 9, name: 'Hinge ●', type: 'CylinderFeature' }, { id: 30, name: 'Hinge (2) ●', type: 'CylinderFeature' }], undo: 12 };
           if (step.command === 'timeline.inspect') return { definition: { axis: [0, 1, 0], base: [42, step.params.feature === 9 ? 0 : 40, 3], height: '30 mm', operation: 'join', participants: ['Base'], radius: '(3 mm) / 2' }, suppressed: false };
-          return step.command === 'joint.sweep' ? { stopped_at: Number(step.params.to) > 0 ? 67.4 : -145.8 } : {};
+          return step.command === 'joint.sweep' ? { stopped_at: Number(step.params.to) > 0 ? 67.4 : -145.8 } : (trial(step) ?? {});
         });
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
       },
@@ -332,7 +462,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
   // overhang the print check still found, and over a web that hung 4.6 mm under a lid plate with no wall below it.
   it('gives a web only to a body whose wall reaches the web\'s foot, and says what prints without support only where it holds', async () => {
     // Two blocks 16 mm high, 5 mm apart, the line on their rims: the rod on the line is 2.45 mm from either wall.
-    const answer = async (walls: string[], args: Record<string, unknown> = {}, overhang = 45) => {
+    const answer = async (walls: string[] | null, args: Record<string, unknown> = {}, overhang = 45) => {
       const sent: { command: string; params: Record<string, unknown> }[] = [];
       const upstream: UpstreamTools = {
         instructions: () => undefined,
@@ -347,8 +477,11 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
             if (step.command === 'component.list') return { components: [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ id: 4, name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ id: 6, name: 'Flap:1' }] }] };
             if (step.command !== 'inspect.clearance') return {};
             // The second trial: each rod lies in its body where that body has a wall under the web's foot (a rod 0.2 mm thick and 30 mm long is 0.942 mm³).
-            if (rods.length > 0) return { overlaps: rods.flatMap((rod) => (walls.some((body) => String(rod.params.body_name).endsWith(body === 'Base' ? 'fixed' : 'moving')) ? [{ a: rod.params.body_name, b: String(rod.params.body_name).endsWith('fixed') ? 'Base' : 'Flap', volume_mm3: 0.94 }] : [])), near: [] };
-            return { near: [{ a: 'PartBuddy probe', b: 'Base', distance_mm: 2.45, from: [42.5, 15, 16], to: [40, 15, 16] }, { a: 'PartBuddy probe', b: 'Flap', distance_mm: 2.45, from: [42.5, 15, 16], to: [45, 15, 16] }] };
+            // Without walls (null) SolidCraft gives no answer to it. The rods behind the knuckles' rooms lie in their blocks.
+            if (rods.length > 0 && 'clearance' in step.params) return trial(step);
+            if (rods.length > 0 && walls === null) return {};
+            if (rods.length > 0 && walls) return { overlaps: rods.flatMap((rod) => (walls.some((body) => String(rod.params.body_name).endsWith(body === 'Base' ? 'fixed' : 'moving')) ? [{ a: rod.params.body_name, b: String(rod.params.body_name).endsWith('fixed') ? 'Base' : 'Flap', volume_mm3: 0.94 }] : [])), near: [] };
+            return { overlaps: [], near: [{ a: 'PartBuddy probe', b: 'Base', distance_mm: 2.45, from: [42.5, 15, 16], to: [40, 15, 16] }, { a: 'PartBuddy probe', b: 'Flap', distance_mm: 2.45, from: [42.5, 15, 16], to: [45, 15, 16] }] };
           });
           return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
         },
@@ -360,28 +493,104 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(both.webs).toEqual(['Base', 'Flap', 'Base', 'Flap', 'Base']);
     expect(both.text).toContain(' All 5 knuckles start above the bed and stand on webs at 45° that run from under the barrel down to their own wall, and the pin is flat underneath where it bridges from knuckle to knuckle, so the hinge prints as it stands, without support. ');
     // Each rod lies 0.25 mm inside its wall and 0.2 mm under the web's foot, 6.743 mm below the line: at z = 9.057.
-    const rods = both.sent.filter((step) => String(step.params.body_name).startsWith('PartBuddy probe '));
+    const rods = both.sent.filter((step) => String(step.params.body_name).startsWith('PartBuddy probe ') && (step.params.base as number[])[2] !== 16);
     expect(rods.map((step) => (step.params.base as number[]).map((value) => Math.round(value * 1000) / 1000))).toEqual([[39.75, 0, 9.057], [45.25, 0, 9.057]]);
     // The flap's wall ends above that: no web is drawn into the air under it, and the answer names what is left.
     const one = await answer(['Base']);
     expect(one.webs).toEqual(['Base', 'Base', 'Base']);
     expect(one.text).not.toContain('without support');
-    expect(one.text).toContain(' The knuckles start above the bed, and the 2 of Flap got no web: a web meets its wall 6.743 mm below the line at the most, and there is no wall there. They need support, or a wall that reaches down that far before the hinge is built. The 3 knuckles of Base stand on webs at 45° that run from under the barrel down to their own wall. ');
+    expect(one.text).toContain(' The knuckles start above the bed, and the 2 of Flap got no web: a web meets its wall 6.743 mm below the line at the most, and PartBuddy found no wall beside the line that reaches down there. They need support, or a wall that reaches down that far before the hinge is built. The 3 knuckles of Base stand on webs at 45° that run from under the barrel down to their own wall. ');
     const none = await answer([]);
     expect(none.webs).toEqual([]);
     expect(none.text).toContain('the 3 of Base and the 2 of Flap got no web');
-    // Three knuckles asked for on 30 mm: the pin bridges 10.5 mm inside the middle one, and the answer does not call that clean.
+    // Audit W11: three knuckles asked for on 30 mm would have the pin bridge 10.5 mm inside the middle one: refused before anything is built.
     const wide = await answer(['Base', 'Flap'], { knuckles: 3 });
-    expect(wide.text).not.toContain('without support');
-    expect(wide.text).toContain('where it bridges from knuckle to knuckle. The pin bridges 10.5 mm inside each knuckle of Flap, more than prints clean (10 mm): use more knuckles.');
-    // Nine knuckles is the most: from there the way on is a second hinge on the same line, which is not refused.
+    expect(wide.text).toBe('Not built: with 3 knuckles the pin would bridge 10.533 mm inside each knuckle of Flap, more than prints clean (10 mm); use 5 knuckles');
+    expect(wide.sent).toHaveLength(0);
+    // Nine knuckles is the most: from there the way on is a second hinge on the same line.
     const long = await answer(['Base', 'Flap'], { to: [42.5, 100, 16] });
-    expect(long.text).toContain('The pin bridges 11.6 mm inside each knuckle of Flap, more than prints clean (10 mm): build two shorter hinges on the same line instead of this one.');
+    expect(long.text).toBe('Not built: with 9 knuckles the pin would bridge 11.556 mm inside each knuckle of Flap, more than prints clean (10 mm); the line is longer than one hinge prints clean: build two or more hinges on the same line, each at most 86 mm long, which turn about one joint');
+    // Audit H-08: the walls under the line could not be tried; no web, and the answer says why, not that there is no wall.
+    const untried = await answer(null);
+    expect(untried.webs).toEqual([]);
+    expect(untried.text).toContain(' The knuckles start above the bed, and PartBuddy could not try the walls under the line this time, so no knuckle got a web: they need support, or build the hinge again.');
+    expect(untried.text).not.toContain('found no wall');
+    // Lying, the answer says which way the roof and the webs are laid.
+    expect(both.text).toContain(' The roof over the bore and the flat under the pin are laid for printing as designed, -z down: a print face that lays the parts otherwise turns them away from the bed.');
     // A material that prints 40° (PETG): the webs are there, but they lean 45°, and the answer does not promise them to it.
     const petg = await answer(['Base', 'Flap'], {}, 40);
     expect(petg.webs).toHaveLength(5);
     expect(petg.text).not.toContain('without support.');
     expect(petg.text).toContain('where it bridges from knuckle to knuckle. Webs, barrels and the bore lean 45°, more than the 40° the material in use prints without support: they need support there, or a material that prints 45°.');
+  });
+
+  // Audit W7, W8, W9, R11, H-08: the skin behind the rooms was checked only with the model's `wall`, a knuckle hanging on a
+  // sliver was built, a line inside a wall read as out of reach, and a failed trial built everything unchecked and unsaid.
+  it('refuses before building what it could not measure, a knuckle on a sliver, and a thin skin, with or without wall', async () => {
+    const call = async (answers: (step: { command: string; params: Record<string, unknown> }) => unknown, args: Record<string, unknown> = {}) => {
+      const sent: { command: string; params: Record<string, unknown> }[] = [];
+      const upstream: UpstreamTools = {
+        instructions: () => undefined,
+        listTools: () => Promise.resolve([]),
+        callTool: (name, call) => {
+          if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Flap' }], undo: 2 }) }] });
+          const commands = call.commands as { command: string; params: Record<string, unknown> }[];
+          sent.push(...commands);
+          const results = commands.map((step) => (step.command === 'component.list' ? { components: [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ id: 4, name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ id: 6, name: 'Flap:1' }] }] } : (answers(step) ?? {})));
+          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
+        },
+      };
+      const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], ...args });
+      return { text: String(built.content[0]?.text), error: built.isError === true, built: sent.some((step) => step.params.operation === 'join') };
+    };
+    // The trial gave no answer.
+    const blind = await call(() => undefined);
+    expect(blind).toEqual({ error: true, built: false, text: "Not built: PartBuddy could not measure where the hinge line lies against Base and Flap (SolidCraft's trial gave no answer), so it could not check that the knuckles hold and leave no thin skin; nothing was built. Call again" });
+    // The rods behind the rooms gave no answer.
+    const behind = await call((step) => ('clearance' in step.params && (step.params.bodies as string[])[0] !== 'PartBuddy probe' ? {} : trial(step)));
+    expect(behind).toMatchObject({ error: true, built: false, text: expect.stringContaining("Not built: PartBuddy could not measure the walls behind the knuckles' rooms") as string });
+    // 2.9 mm from a 6 mm barrel's line: 0.1 mm of hold (audit W8 measured a knuckle tied on by 1.6 mm of height).
+    const sliver = await call((step) => trial(step, { distance: 2.9 }));
+    expect(sliver).toEqual({ error: true, built: false, text: 'Not built: the hinge line lies 2.9 mm from Base, so the barrel overlaps it by 0.1 mm, under 0.5 mm: its knuckles would hang on a sliver. Put the hinge line within 2.5 mm of both bodies (the barrel is 6 mm, so it must overlap each by at least 0.5 mm). PartBuddy cuts each knuckle\'s room in the other body itself.' });
+    expect((await call((step) => trial(step, { distance: 2.5 }))).error).toBe(false);
+    // A 1.8 mm wall 2.4 mm from the line, no `wall` given (audit W7: 0.8 mm left, the print check found it at 0.802): the rod
+    // behind the room stands 0.1 mm off the wall's back.
+    const skin = await call((step) => trial(step, { distance: 2.4, skin: { moving: 0.1 } }));
+    expect(skin).toEqual({ error: true, built: false, text: "Not built: the rooms of the knuckles would leave a skin of 0.8 mm of Flap's wall behind them, under two lines of the 0.4 mm nozzle (0.9 mm). Move the line 0.1 mm back from that wall, or 0.8 mm towards it so the rooms open through it, or make the wall 0.1 mm thicker. Nothing was built." });
+    expect((await call((step) => trial(step, { distance: 2.4, skin: { moving: 0.1 } }), { wall: 5 })).text).toContain('a skin of 0.8 mm');
+    // The wall ends right behind the room, or the room opens through it: no skin to speak of.
+    expect((await call((step) => trial(step, { skin: { fixed: 0, moving: 0.9 } }))).error).toBe(false);
+    // Audit W9: the line 0.5 mm inside the base's wall. The rod on the line overlaps it; the rod behind its rooms goes the
+    // other way from the flap, and finds the base's back 0.3 mm short of it: a skin of 0.6 mm (the print check found 0.603).
+    const sent: { command: string; params: Record<string, unknown> }[] = [];
+    const inside = await call((step) => {
+      sent.push(step);
+      if (step.command === 'inspect.clearance' && (step.params.bodies as string[])[0] === 'PartBuddy probe') return { overlaps: [{ a: 'PartBuddy probe', b: 'Base', volume_mm3: 0.2 }], near: [{ a: 'PartBuddy probe', b: 'Flap', distance_mm: 2.45, from: [42.05, 15, 3], to: [44.5, 15, 3] }] };
+      return trial(step, { skin: { fixed: 0.3 } });
+    });
+    expect(inside.text).toContain("Not built: the rooms of the knuckles would leave a skin of 0.6 mm of Base's wall behind them");
+    const rods = sent.filter((step) => step.command === 'inspect.clearance').at(-1);
+    expect(rods?.params.bodies).toEqual(['PartBuddy probe fixed', 'PartBuddy probe moving']);
+    expect((await call((step) => (step.command === 'inspect.clearance' && (step.params.bodies as string[])[0] === 'PartBuddy probe' ? { overlaps: [{ a: 'PartBuddy probe', b: 'Base' }], near: [{ a: 'PartBuddy probe', b: 'Flap', distance_mm: 2.45, from: [42.05, 15, 3], to: [44.5, 15, 3] }] } : trial(step)))).text).toContain("The knuckles' rooms go 3.4 mm and more into Base (the line runs inside it) and 0.9 mm into Flap");
+  });
+
+  // Audit H-07, N-mechanik-7, MV-05: a standing hinge was built with its knuckle ends flat over the gap and nothing said.
+  it('says what a standing hinge leaves hanging, and that a thin pin standing is weak', async () => {
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, call) => {
+        if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Flap' }], undo: 2 }) }] });
+        const commands = call.commands as { command: string; params: Record<string, unknown> }[];
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'component.list' ? { components: [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ id: 4, name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ id: 6, name: 'Flap:1' }] }] } : (trial(step) ?? {}))) }) }] });
+      },
+    };
+    const standing = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 3, 0], to: [42, 3, 30] });
+    expect(String(standing.content[0]?.text)).toContain(' Standing, the lower end of each knuckle is flat and hangs over the gap to the knuckle below it, which the print check reports as overhang: the slicer bridges it from the walls, and where it sags into the gap the knuckles stick together. Print a test piece first, or lay the hinge with its line level, where no end hangs. A pin under 5 mm printed standing breaks along its layers sooner than one lying.');
+    const thick = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 3, 0], to: [42, 3, 30], diameter: 10 });
+    expect(String(thick.content[0]?.text)).not.toContain('A pin under');
+    const slant = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 13] });
+    expect(slant).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('Not built: the hinge line must be level') as string }] });
   });
 
   it('builds onto a body that is a component with that component active, so the knuckles move with it', () => {
@@ -428,7 +637,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
         const results = commands.map((step) => {
           if (step.command === 'component.from_bodies') components = true;
           if (step.command === 'component.list') return { components: components ? [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ name: 'Flap:1' }] }] : [] };
-          return step.command === 'document.inspect' ? { bodies: [{ name: 'Base' }, { name: 'Flap' }], undo: 8 } : {};
+          return step.command === 'document.inspect' ? { bodies: [{ name: 'Base' }, { name: 'Flap' }], undo: 8 } : (trial(step as { command: string; params: Record<string, unknown> }) ?? {});
         });
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
       },
