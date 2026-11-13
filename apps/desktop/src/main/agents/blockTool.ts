@@ -188,9 +188,9 @@ export function seatStock(block: Extract<FeatureBlock, { block: 'insertSeat' }>,
   };
 }
 
-/** What a block says when a curved face took some of the wall round a hole, and how much was allowed. */
+/** What a block says when a curved face took some of the wall round its holes: the most at one hole, and the most allowed at one. */
 const fallenSaid = (wall: number, slack: number) =>
-  ` Round the hole the face falls away evenly, as a curved face does: PartBuddy allowed the ${String(Math.round(wall * 10) / 10)} mm³ of wall at the top that this takes, and no more than ${String(Math.round(slack * 10) / 10)} mm³ missing round and under the hole in all. A face that falls away to one side, an edge or a chamfer, is not allowed.`;
+  ` Round the hole the face falls away all round, as a curved face does: PartBuddy allowed up to ${String(Math.round(wall * 10) / 10)} mm³ of wall at the top of a hole that this takes, and no more than ${String(Math.round(slack * 10) / 10)} mm³ missing round and under any one hole. A face that falls away to one side is not allowed.`;
 
 /** What a block says when its measure allowed for a curved face: how much, and that it covers the plastic under the hole alone. */
 const lenientSaid = (slack: number) =>
@@ -438,15 +438,15 @@ export async function shortOf(upstream: UpstreamTools, body: string, stock: Stoc
       // The wall round the hole (all of the cylinder where nothing is cut yet), then what lies under the hole.
       const parts = room.core
         ? [
-            { plastic: whole - core, full: (area(room.diameter) - area(room.core)) * room.depth, slack: 0, over: `a ring from ${String(room.core)} to ${String(room.diameter)} mm wide` },
+            { plastic: whole - core, full: (area(room.diameter) - area(room.core)) * room.depth, slack: 0, over: `a ring from ${String(room.core)} to ${String(room.diameter)} mm wide`, by: 'the far side, an edge, a face that falls away to one side or another cut' },
             { plastic: core, full: area(room.core) * room.depth - (room.hole ?? 0), slack: room.slack ?? 0, over: `a width of ${String(room.core)} mm, under the hole` },
           ]
         : [{ plastic: whole, full: area(room.diameter) * room.depth - (room.hole ?? 0), slack: room.slack ?? 0, over: `a width of ${String(room.diameter)} mm` }];
-      for (const { plastic, full, slack, over } of parts) {
+      for (const { plastic, full, slack, over, by = 'the far side, an edge or another cut' } of parts as { plastic: number; full: number; slack: number; over: string; by?: string }[]) {
         if (plastic >= full * STOCK_FULL - slack) continue;
         // The cylinder starts under the face: with none of it in the part, all that is known is that the part ends above it.
         const has = plastic < full * 0.001 ? `less than ${String(room.from)}` : String(Math.round((room.from + (room.depth * plastic) / full) * 100) / 100);
-        return `at [${room.at.join(', ')}] ${body} has ${has} mm of plastic where ${String(Math.round((room.from + room.depth) * 100) / 100)} mm are needed (the mean over ${over}; the far side, an edge or another cut takes the rest)`;
+        return `at [${room.at.join(', ')}] ${body} has ${has} mm of plastic where ${String(Math.round((room.from + room.depth) * 100) / 100)} mm are needed (the mean over ${over}; ${by} takes the rest)`;
       }
     }
     return null;
@@ -492,12 +492,14 @@ function curvedLoss(k: number, inner: number, outer: number, depth: number, rod:
 
 /**
  * Whether `missing` mm³ of the wall round a hole, centred `off` the axis and `down` under the start of the stock, are what
- * a curved face takes: one that falls away evenly round the point, as a rod or a ball does, takes the top of the ring all
- * round. An edge or a chamfer takes one side (off the axis); a rib too narrow on both sides takes the ring all the way
- * down (deeper than a curved face that takes as much).
+ * a curved face takes: one that falls away all round the point, as a rod, a ball, a cone or a torus does, takes the top
+ * of the ring all round, and the centre of that lies within the hole's width of the axis (on a cone it leans towards the
+ * apex: 0.65 mm for M3 at 45°, 1.2 mm at 60°; review 6 of PR #357). An edge or a chamfer that leaves the hole whole takes
+ * the ring beyond the hole's rim on one side, so the centre of that lies further out. A rib too narrow on both sides takes
+ * the ring all the way down (deeper than a curved face that takes as much).
  */
 export function curvedWall(missing: number, off: number, down: number, inner: number, outer: number, depth: number): boolean {
-  if (off > 0.1 * outer) return false;
+  if (off > inner) return false;
   return [true, false].some((rod) => {
     let [low, high] = [0, (FACE_DROP + depth) / inner ** 2];
     for (let step = 0; step < 20 && curvedLoss(high, inner, outer, depth, rod).volume < missing; step += 1) high *= 2;
@@ -598,7 +600,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
               const axis = cutAxis(body, was, is, point);
               if (axis) stocks.push(holes.stock(point, axis, holes.whole !== undefined && taken < holes.whole - cutNoise(holes.whole, volumesOf(was).get(body) ?? 0)));
             }
-            const thin = stocks.length === holes.points.length ? await shortOf(upstream, body, stocks, callId, (mm3) => (fell += mm3)) : undefined;
+            const thin = stocks.length === holes.points.length ? await shortOf(upstream, body, stocks, callId, (mm3) => (fell = Math.max(fell, mm3))) : undefined;
             if (thin) throw new Error(`${thin}; ${holes.need}.`);
             after = thin === null;
             lenient = Math.max(0, ...stocks.map((room) => room.slack ?? 0));

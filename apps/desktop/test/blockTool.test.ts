@@ -448,7 +448,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
       },
     });
     expect(await shortOf(probed({ ring: 4, core: 0 }), 'Plate', [seat], undefined)).toBe(
-      'at [10, 10, 10] Plate has 7.19 mm of plastic where 7.3 mm are needed (the mean over a ring from 4.02 to 8 mm wide; the far side, an edge or another cut takes the rest)',
+      'at [10, 10, 10] Plate has 7.19 mm of plastic where 7.3 mm are needed (the mean over a ring from 4.02 to 8 mm wide; the far side, an edge, a face that falls away to one side or another cut takes the rest)',
     );
     // As much missing right under the seat as a curved face takes passes; the answer says so (the stepped wood screws above).
     expect(await shortOf(probed({ ring: 0, core: 3.5 }), 'Plate', [seat], undefined)).toBeNull();
@@ -469,7 +469,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     // A plate just as thick as the seat is deep: the hole is whole, and has no floor (review of PR 357).
     const flush = plate(6.7);
     expect(await text(flush.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 6.7] }))).toBe(
-      `Not built: at [20, 20, 6.7] Plate has 6.7 mm of plastic where 7.3 mm are needed (the mean over a ring from 4.02 to 8 mm wide; the far side, an edge or another cut takes the rest); ${seatNeed}`,
+      `Not built: at [20, 20, 6.7] Plate has 6.7 mm of plastic where 7.3 mm are needed (the mean over a ring from 4.02 to 8 mm wide; the far side, an edge, a face that falls away to one side or another cut takes the rest); ${seatNeed}`,
     );
     expect(flush.holes).toEqual([]);
     const thick = plate(10);
@@ -499,7 +499,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     const thin = plate(2);
     // (The double drills a plain hole, so the figure it "has" is not the engine's; that one is in the audit harness.)
     expect(await text(thin.tools.callTool('partbuddy_block', { block: 'woodScrew', body: 'Plate', point: [20, 20, 2] }))).toMatch(
-      /^Not built: at \[20, 20, 2\] Plate has [\d.]+ mm of plastic where 2\.65 mm are needed \(the mean over a ring from 7\.82 to 12\.7 mm wide; the far side, an edge or another cut takes the rest\); a countersunk hole for a 4 mm wood screw needs 4 mm of plastic round its 4\.7 mm hole and a plate at least 2\.65 mm thick\. Thicken the plate, or move the hole away from edges and other cuts\.$/,
+      /^Not built: at \[20, 20, 2\] Plate has [\d.]+ mm of plastic where 2\.65 mm are needed \(the mean over a ring from 7\.82 to 12\.7 mm wide; the far side, an edge, a face that falls away to one side or another cut takes the rest\); a countersunk hole for a 4 mm wood screw needs 4 mm of plastic round its 4\.7 mm hole and a plate at least 2\.65 mm thick\. Thicken the plate, or move the hole away from edges and other cuts\.$/,
     );
     expect(thin.holes).toEqual([]);
   });
@@ -720,6 +720,47 @@ describe('the wall round a hole on a curved face and at an edge (review 5 of PR 
     expect(await shortOf(part(rod(30), seat('M6').hole, seat('M6').breaks), 'Part', [seat('M6').stock], undefined)).toBeNull();
   });
 
+  // Review 6 of PR #357: on a cone what is missing leans towards the apex, on a torus away from its middle: the centre
+  // left the axis by more than a tenth of the stock, and seats main built there were refused.
+  it('lets through on a cone and off the middle of a torus what the slack of a curved face let through before', async () => {
+    /** A cone of half angle `angle` whose face at the point is curved with `radius`, its apex towards -y (the reviewer's model). */
+    const cone = (radius: number, angle: number): Drop => (x, y) => {
+      const r = radius * (1 + (y * Math.tan(angle)) / radius);
+      return r <= 0 || Math.abs(x) >= r ? Infinity : r - Math.sqrt(r ** 2 - x ** 2);
+    };
+    /** A torus round the z axis, its tube `tube` mm thick round a circle of `ring` mm, the point `at` radians up the tube from its outer middle. */
+    const torus = (ring: number, tube: number, at: number): Drop => {
+      const [n, along] = [[Math.cos(at), 0, Math.sin(at)], [-Math.sin(at), 0, Math.cos(at)]];
+      const p = [ring + tube * Math.cos(at), 0, tube * Math.sin(at)];
+      const inside = (q: number[]) => (Math.hypot(q[0] ?? 0, q[1] ?? 0) - ring) ** 2 + (q[2] ?? 0) ** 2 <= tube ** 2;
+      return (x, y) => {
+        const at0 = [0, 1, 2].map((i) => (p[i] ?? 0) + x * (along[i] ?? 0) + (i === 1 ? y : 0));
+        const down = (s: number) => at0.map((value, i) => value - s * (n[i] ?? 0));
+        if (inside(down(0))) return 0;
+        let [low, high] = [0, 2 * tube];
+        if (!inside(down(high)) && !inside(down(tube))) return Infinity;
+        if (!inside(down(high))) high = tube;
+        for (let step = 0; step < 40; step += 1) {
+          const mid = (low + high) / 2;
+          if (inside(down(mid))) high = mid;
+          else low = mid;
+        }
+        return high;
+      };
+    };
+    const cases = [
+      ...([['M3', 10], ['M5', 20], ['M6', 30]] as const).flatMap(([size, radius]) => [45, 60].map((degrees) => ({ name: `${size} cone R${String(radius)} ${String(degrees)}°`, ...seat(size), drop: cone(radius, (degrees * Math.PI) / 180) }))),
+      // The M5 seat in a conical knob of 28 mm at 45° of the review, built on main.
+      { name: 'M5 knob 28 mm 45°', ...seat('M5'), drop: cone(14, Math.PI / 4) },
+      ...([['M3', 10], ['M5', 15]] as const).map(([size, tube]) => ({ name: `${size} torus off its middle`, ...seat(size), drop: torus(40, tube, Math.PI / 5) })),
+      { name: 'wood screw 4 cone R25 45°', ...screw(4), drop: cone(25, Math.PI / 4) },
+    ];
+    for (const { name, stock, hole, breaks, drop } of cases) {
+      expect(before(stock, drop, hole, breaks), name).toBe(true);
+      expect(await shortOf(part(drop, hole, breaks), 'Part', [stock], undefined), name).toBeNull();
+    }
+  });
+
   it('still refuses a wall that an edge or a chamfer takes to one side, slack or not', async () => {
     // The seat 5 mm from an edge with a 3 mm chamfer: before, it passed with 0.5 mm of wall at the top.
     const m3 = seat('M3');
@@ -732,6 +773,10 @@ describe('the wall round a hole on a curved face and at an edge (review 5 of PR 
       expect(before(wood.stock, drop, wood.hole, wood.breaks)).toBe(true);
       expect(String(await shortOf(part(drop, wood.hole, wood.breaks), "Part", [wood.stock], undefined))).toContain('(the mean over a ring from 7.82 to 12.7 mm wide;');
     }
+    // An edge rounded with 3 mm, 4.5 mm from the seat's point: one side, refused.
+    const rounded: Drop = (x) => (x <= 1.5 ? 0 : x <= 4.5 ? 3 - Math.sqrt(9 - (x - 1.5) ** 2) : Infinity);
+    expect(before(m3.stock, rounded, m3.hole, m3.breaks)).toBe(true);
+    expect(String(await shortOf(part(rounded, m3.hole, m3.breaks), 'Part', [m3.stock], undefined))).toContain('a face that falls away to one side');
     // A rib too narrow on both sides takes the wall all the way down, not at the top: refused though it is even.
     const rib: Drop = (x) => (Math.abs(x) <= 3.95 ? 0 : Infinity);
     expect(String(await shortOf(part(rib, m3.hole, m3.breaks), "Part", [m3.stock], undefined))).toContain('a ring from 4.02 to 8 mm wide');

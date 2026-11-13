@@ -79,7 +79,7 @@ const FETCH_FULL = 'call partbuddy_view for the full check before you call the p
 const preliminaryLine = (view: boolean) => `Preliminary: clearance and joints still being measured (${CHECKED_MEASURED}); ${view ? 'the full check will be here in a moment' : FETCH_FULL}.`;
 /** A measure that failed is said, never read as "nothing found" (audit H-05). */
 const unmeasuredLine = (failed: readonly ('clearance' | 'joints')[]) =>
-  `NOT measured, or not all of it (SolidCraft's measure failed, or there were more than 40 joint runs): ${failed.map((what) => MEASURED[what]).join(', ')}. Measure it yourself (${failed.map((what) => (what === 'clearance' ? 'inspect.clearance' : 'joint.sweep')).join(', ')}) before you call the part done.`;
+  `NOT measured, or not all of it (SolidCraft's measure failed or did not finish every pair in its time, or there were more than 40 joint runs): ${failed.map((what) => MEASURED[what]).join(', ')}. Measure it yourself (${failed.map((what) => (what === 'clearance' ? 'inspect.clearance' : 'joint.sweep')).join(', ')}) before you call the part done.`;
 /** Mesh bodies have no faces to measure: `inspect.clearance` leaves them out however it is called, so the way is to convert them. */
 const uncheckedLine = (bodies: readonly string[]) =>
   `NOT measured for overlaps and gaps: ${bodies.map((name) => `"${name}"`).join(', ')}, mesh bod${bodies.length === 1 ? 'y' : 'ies'} SolidCraft does not measure. Convert ${bodies.length === 1 ? 'it' : 'them'} to faces (mesh.convert, closed meshes only) to have ${bodies.length === 1 ? 'it' : 'them'} measured; until then judge ${bodies.length === 1 ? 'its' : 'their'} fit yourself.`;
