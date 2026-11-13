@@ -49,6 +49,31 @@ describe('details too fine to print', () => {
     expect(drawingDetail(slit(0.7), 20, 0.6)).toBeNull();
   });
 
+  it('finds the thinnest and shortest bars at every nozzle, and no corner of a square ring (review B1 of BC-23)', () => {
+    // Held to a disc of two lines, the least place grew with it about five times and these fell through.
+    const short = drawing('<path d="M0 0H9V10H0Z M11 0H20V10H11Z M9 4.9H11V5.1H9Z"/>');
+    expect(drawingDetail(short, 20, 0.4)?.places).toBe(1);
+    for (const nozzle of [0.2, 0.25, 0.4, 0.6, 0.8]) expect(drawingDetail(bar(0.2), 20, nozzle)?.places, `0.2 x 4 mm bar, nozzle ${String(nozzle)}`).toBe(1);
+    expect(drawingDetail(bar(0.4), 20, 0.8)?.places).toBe(1);
+    // The fixture of the composer's contract test, at 0.6 too.
+    expect(drawingDetail(drawing('<path d="M0 0H8V10H0Z M12 0H20V10H12Z M8 2.9H12V3.1H8Z"/>'), 20, 0.6)?.places).toBe(1);
+    // A square ring 2 and 3 mm wide is no detail: its corners are found at no nozzle.
+    const ring = drawing('<path d="M2 2H18V8H2Z M5 4V6H15V4Z"/>');
+    for (const nozzle of [0.2, 0.4, 0.6, 0.8]) expect(drawingDetail(ring, 20, nozzle), `ring, nozzle ${String(nozzle)}`).toBeNull();
+  });
+
+  it('swaps what a stroke and a gap need when the drawing is engraved or inlaid (review S2 of BC-23)', () => {
+    // Engraved a stroke is a groove (0.42 mm at 0.4), a gap a rib left standing (0.9 mm).
+    expect(drawingDetail(bar(0.6), 20, 0.4, 'engraved')).toBeNull();
+    expect(drawingDetail(bar(0.3), 20, 0.4, 'engraved')?.stroke).toBe(thinnestLine(0.4));
+    expect(drawingDetail(slit(0.5), 20, 0.4, 'engraved')?.gap).toBe(minimumWall(0.4));
+    expect(drawingDetail(slit(1), 20, 0.4, 'engraved')).toBeNull();
+    // Inlaid both are walls.
+    expect(drawingDetail(bar(0.6), 20, 0.4, 'inlaid')?.places).toBe(1);
+    expect(drawingDetail(slit(0.5), 20, 0.4, 'inlaid')?.places).toBe(1);
+    expect(drawingDetail(slit(1), 20, 0.4, 'inlaid')).toBeNull();
+  });
+
   it('finds a 0.45 mm stroke in a logo 400 mm wide, and says when the raster is too coarse to tell', () => {
     // The finding's case: the drawing at 400 mm, a bar 0.45 mm high (0.0225 units of the 20-unit drawing).
     expect(drawingDetail(bar(0.0225), 400, 0.4)?.places).toBe(1);

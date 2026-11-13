@@ -7,14 +7,17 @@ import { drawingSize, flatten, type Drawing, type Pt } from './svgDrawing';
  * print solid, lost or broken in the slicer) and gaps narrower than the narrowest line a slicer lays (`thinnestLine`: they
  * close up), the design rules' wall and detail (audit T52: before, both against one nozzle width). The drawing is
  * rasterised, and a part counts as too fine where no disc of that width fits (a morphological opening through exact
- * distance transforms). Rounded-off corners are no detail: only places larger than a few such discs count.
+ * distance transforms). Rounded-off corners are no detail: only places larger than a few nozzle discs count.
+ * Built into a face it swaps: engraved, a stroke is a groove (the narrowest line) and a gap a rib left standing (two lines);
+ * inlaid, both are walls of the pocket or of the piece in it (two lines). Unknown how it is built (the composer), as built up.
+ * Text is held to STURDY for legibility (blocks.ts textStroke); a drawing to two lines, for printability alone.
  */
 
 /** Finer rasters give little for a warning and cost time on every change of the width. */
 const MAX_EDGE_PX = 1600;
 /** Pixels across the narrowest gap that is still told: below that the raster is too coarse, and it is said ({@link detailCoarse}). */
 const TOLD_PX = 4;
-/** A place counts from this many nozzle-radius squares; a square corner loses about 0.2 of one. */
+/** A place counts from this many nozzle-radius squares (of the nozzle, not of the disc it is held to: two lines made it ~5 times more and the thinnest strokes fell through, review of BC-23); a square corner loses about 0.2 of a disc's. */
 const MIN_PLACE = 3;
 
 export interface DrawingDetail {
@@ -24,7 +27,7 @@ export interface DrawingDetail {
   thinnest: number;
   /** The width from which every place is a little over what it needs, in mm. */
   fineFrom: number;
-  /** What a stroke needs (two lines) and a gap (the narrowest line), in mm, for the nozzle. */
+  /** What a stroke and a gap need, in mm, for the nozzle and how it is built ({@link detailNeeds}). */
   stroke: number;
   gap: number;
   /** Where they are, for a marked picture: 1 per too-fine pixel; the drawing's top left at (pad, pad). */
@@ -110,8 +113,8 @@ function rasterise(drawing: Drawing, pxPerUnit: number, pad: number) {
   return { mask, width, height };
 }
 
-/** The too-fine places of `inside`: where no disc of radius `r` px fits; each place with its thinnest width in px. */
-function finePlaces(inside: Uint8Array, width: number, height: number, r: number, into: Uint8Array): number[] {
+/** The too-fine places of `inside`: where no disc of radius `r` px fits, each of at least `least` pixels; each place with its thinnest width in px. */
+function finePlaces(inside: Uint8Array, width: number, height: number, r: number, least: number, into: Uint8Array): number[] {
   const n = width * height;
   const outside = new Uint8Array(n);
   for (let i = 0; i < n; i += 1) outside[i] = inside[i] ? 0 : 1;
@@ -145,7 +148,7 @@ function finePlaces(inside: Uint8Array, width: number, height: number, r: number
         stack.push(j);
       }
     }
-    if (place.length < MIN_PLACE * r * r) continue;
+    if (place.length < least) continue;
     for (const i of place) into[i] = 1;
     ridge.sort((a, b) => a - b);
     // The centre pixel of a stroke w px wide lies w / 2 + 0.5 from the nearest pixel outside.
@@ -160,19 +163,29 @@ function rasterOf(drawing: Drawing, width: number, nozzle: number): number {
   return Math.max(nozzle / 10, Math.max(width, (size.height / size.width) * width) / MAX_EDGE_PX);
 }
 
-/** The details of a drawing too fine for `nozzle` mm at `width` mm, or null when all print. */
-export function drawingDetail(drawing: Drawing, width: number, nozzle: number): DrawingDetail | null {
+/** How a drawing is built: standing on a face or on its own, cut into a face, or inlaid flush in a pocket of its shape. */
+export type DetailBuild = 'raised' | 'engraved' | 'inlaid';
+
+/** What a stroke and a gap of the drawing need, in mm, built so (see the file head). */
+export function detailNeeds(nozzle: number, build: DetailBuild = 'raised'): { stroke: number; gap: number } {
+  const [wall, line] = [minimumWall(nozzle), thinnestLine(nozzle)];
+  return build === 'engraved' ? { stroke: line, gap: wall } : build === 'inlaid' ? { stroke: wall, gap: wall } : { stroke: wall, gap: line };
+}
+
+/** The details of a drawing too fine for `nozzle` mm at `width` mm, built as `build`, or null when all print. */
+export function drawingDetail(drawing: Drawing, width: number, nozzle: number, build: DetailBuild = 'raised'): DrawingDetail | null {
   const size = drawingSize(drawing);
   if (!(size.width > 0) || !(width > 0) || !(nozzle > 0)) return null;
   const mmPerPx = rasterOf(drawing, width, nozzle);
-  const [stroke, gap] = [minimumWall(nozzle), thinnestLine(nozzle)];
-  // Outside the drawing is open ground, wider than any stroke needs.
-  const pad = Math.ceil(stroke / mmPerPx) + 2;
+  const { stroke, gap } = detailNeeds(nozzle, build);
+  const least = MIN_PLACE * (nozzle / 2 / mmPerPx) ** 2;
+  // Outside the drawing is open ground, wider than any stroke or gap needs.
+  const pad = Math.ceil(Math.max(stroke, gap) / mmPerPx) + 2;
   const { mask, width: w, height: h } = rasterise(drawing, width / size.width / mmPerPx, pad);
   const fine = new Uint8Array(w * h);
   const gaps = new Uint8Array(w * h);
   for (let i = 0; i < mask.length; i += 1) gaps[i] = mask[i] ? 0 : 1;
-  const places = [...finePlaces(mask, w, h, stroke / 2 / mmPerPx, fine).map((px) => ({ mm: px * mmPerPx, need: stroke })), ...finePlaces(gaps, w, h, gap / 2 / mmPerPx, fine).map((px) => ({ mm: px * mmPerPx, need: gap }))];
+  const places = [...finePlaces(mask, w, h, stroke / 2 / mmPerPx, least, fine).map((px) => ({ mm: px * mmPerPx, need: stroke })), ...finePlaces(gaps, w, h, gap / 2 / mmPerPx, least, fine).map((px) => ({ mm: px * mmPerPx, need: gap }))];
   if (places.length === 0) return null;
   return {
     places: places.length,
