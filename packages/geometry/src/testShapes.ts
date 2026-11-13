@@ -135,7 +135,7 @@ export function prismBody(name: string, outline: readonly (readonly [number, num
 }
 
 /** The triangles of a simple polygon given counter-clockwise, by clipping ears: the outline need not be convex. */
-function ears(outline: readonly (readonly [number, number])[]): [number, number, number][] {
+export function ears(outline: readonly (readonly [number, number])[]): [number, number, number][] {
   const turn = (o: number, a: number, b: number) => {
     const [ox, oz] = outline[o] ?? [0, 0];
     const [ax, az] = outline[a] ?? [0, 0];
@@ -268,4 +268,21 @@ export function ringSurface(rings: readonly (readonly Point[])[], facing: readon
 /** A body of revolution round Z from a profile of [radius, z]; a radius of 0 closes it on the axis. */
 export function revolved(profile: readonly (readonly [number, number])[], facing: readonly number[], n = 96): RawMesh {
   return ringSurface(profile.map(([radius, z]) => circle(radius, z, n)), facing);
+}
+
+/**
+ * A body of revolution round Z from a closed profile of [radius, z], counter-clockwise with the radius to the right:
+ * unlike `revolved` its faces may look towards the axis, as the wall of a pocket does. Corners on the axis close it.
+ */
+export function lathe(profile: readonly (readonly [number, number])[], n = 48): RawMesh {
+  const triangles: Point[][] = [];
+  const at = ([r, z]: readonly [number, number], k: number): Point => (r === 0 ? [0, 0, z] : [r * Math.cos((k * 2 * Math.PI) / n), r * Math.sin((k * 2 * Math.PI) / n), z]);
+  profile.forEach((p, i) => {
+    const q = profile[(i + 1) % profile.length] ?? p;
+    for (let k = 0; k < n; k += 1) {
+      if (p[0] !== 0) triangles.push([at(p, k), at(p, k + 1), at(q, k + 1)]);
+      if (q[0] !== 0) triangles.push([at(p, k), at(q, k + 1), at(q, k)]);
+    }
+  });
+  return soup(triangles);
 }
