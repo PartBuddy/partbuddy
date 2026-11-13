@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { availableParallelism } from 'node:os';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -180,7 +181,7 @@ export function referencesOf(built: readonly BuiltPart[], results: readonly unkn
 }
 
 /** Runs `solidcraft-cli` and gives what it printed. */
-export type CliRunner = (program: string, args: string[], timeoutMs: number) => Promise<string>;
+export type CliRunner = (program: string, args: string[], timeoutMs: number, signal?: AbortSignal) => Promise<string>;
 
 /** A run that failed before SolidCraft answered (not started, timed out, killed): worth another try later. */
 export class TransientCliError extends Error {}
@@ -189,10 +190,10 @@ export class TransientCliError extends Error {}
 export class RefusedPartError extends Error {}
 
 function runCli(env: NodeJS.ProcessEnv): CliRunner {
-  return (program, args, timeoutMs) =>
+  return (program, args, timeoutMs, signal) =>
     new Promise<string>((done, fail) => {
       // Argument array, no shell (architecture: security boundaries).
-      execFile(program, args, { env, windowsHide: true, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
+      execFile(program, args, { env, windowsHide: true, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024, ...(signal ? { signal } : {}) }, (error, stdout, stderr) => {
         const said = stderr.trim().replace(/^error:\s*/i, '').slice(0, 500);
         if (!error) done(stdout);
         else if (typeof error.code !== 'number' || error.killed) fail(new TransientCliError(error.killed ? `no answer within ${String(Math.round(timeoutMs / 1000))} s` : error.message));
@@ -220,18 +221,18 @@ const STORE_FORMAT = 2;
 /** The parts one look starts building; more wait for the next look. */
 const PARTS_PER_RUN = 200;
 /**
- * They are built in up to this many runs side by side, each of at least MIN_PARTS_PER_RUN parts (audit N-nach-4):
- * 80 parts took 14.5 to 14.9 s in one run and 4.1 to 4.7 s in four of 20 (SolidCraft 0.40.1, 28 cores). Each run
- * tells `built` when it ends, so the parts it brought show before the slowest run is done. A design with up to
- * MIN_PARTS_PER_RUN new parts starts one process, as before.
+ * They are built in up to four runs side by side, one per four cores the computer has, each of at least
+ * MIN_PARTS_PER_RUN parts (audit N-nach-4): 80 parts took 14.5 to 14.9 s in one run and 4.1 to 4.7 s in four of 20
+ * (SolidCraft 0.40.1, 28 cores). Each run tells `built` when it ends, so the parts it brought show before the slowest
+ * run is done. A design with up to 2 × MIN_PARTS_PER_RUN − 1 new parts starts one process, as before.
  */
-const RUNS_AT_ONCE = 4;
+export const RUNS_AT_ONCE = Math.min(4, Math.max(1, Math.floor(availableParallelism() / 4)));
 const MIN_PARTS_PER_RUN = 8;
 
-/** `parts` cut into at most RUNS_AT_ONCE runs of at least MIN_PARTS_PER_RUN parts, as even as they come. */
-export function runsOf<T>(parts: readonly T[]): T[][] {
+/** `parts` cut into at most `runs` runs of at least MIN_PARTS_PER_RUN parts, as even as they come. */
+export function runsOf<T>(parts: readonly T[], runs = RUNS_AT_ONCE): T[][] {
   if (parts.length === 0) return [];
-  const count = Math.max(1, Math.min(RUNS_AT_ONCE, Math.floor(parts.length / MIN_PARTS_PER_RUN)));
+  const count = Math.max(1, Math.min(runs, Math.floor(parts.length / MIN_PARTS_PER_RUN)));
   const size = Math.ceil(parts.length / count);
   return Array.from({ length: Math.ceil(parts.length / size) }, (_, i) => parts.slice(i * size, (i + 1) * size));
 }
@@ -248,6 +249,8 @@ export interface PartReferences {
   ready: (parts: readonly PartQuery[]) => Promise<Map<string, ReferenceState>>;
   /** Another design or the engine's end: nothing waits to be built again for the design that is gone. */
   forget: () => void;
+  /** PartBuddy ends: runs under way are stopped and none is started. */
+  stop?: () => void;
 }
 
 export interface PartReferenceOptions {
@@ -313,6 +316,8 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
   /** The parts one timer builds again once their wait is over; a part is in here once. */
   const waiting = new Map<string, { program: string; part: PartQuery }>();
   let cancelTimer: (() => void) | null = null;
+  /** Stops every run under way when PartBuddy ends. */
+  const ending = new AbortController();
   /** Runs side by side write the same file: one after the other, each with all that is known by then. */
   let keeping: Promise<void> = Promise.resolve();
   const key = (program: string, description: string) => `${program}\n${description}`;
@@ -350,7 +355,7 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
     const script = join(dir, `parts-${now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.json`);
     const results = async (steps: unknown[]): Promise<unknown[]> => {
       await writeFile(script, JSON.stringify(steps));
-      return JSON.parse(await run(program, ['run', script, '--results', '--quiet'], TIMEOUT_BASE_MS + TIMEOUT_PER_PART_MS * wanted.length)) as unknown[];
+      return JSON.parse(await run(program, ['run', script, '--results', '--quiet'], TIMEOUT_BASE_MS + TIMEOUT_PER_PART_MS * wanted.length, ending.signal)) as unknown[];
     };
     try {
       // Two runs: how many faces a part has is known only once it is built, and a script cannot ask.
@@ -374,7 +379,7 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
 
   /** One timer for all that wait: it builds what is due and goes on for the rest. It never lifts a wait itself. */
   const arm = () => {
-    if (cancelTimer || waiting.size === 0) return;
+    if (cancelTimer || waiting.size === 0 || ending.signal.aborted) return;
     const next = Math.min(...[...waiting.keys()].map((entry) => failed.get(entry)?.at ?? 0));
     cancelTimer = later(
       () => {
@@ -468,6 +473,7 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
   };
 
   const known = (parts: readonly PartQuery[]): Map<string, ReferenceState> => {
+    if (ending.signal.aborted) return new Map(parts.map((part) => [part.description, { failed: 'PartBuddy is ending' }]));
     const cli = program();
     if (typeof cli !== 'string') return new Map(parts.map((part) => [part.description, cli]));
     const have = opened.get(cli);
@@ -524,6 +530,12 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
         states = known(parts);
       }
       return states;
+    },
+    stop: () => {
+      ending.abort();
+      cancelTimer?.();
+      cancelTimer = null;
+      waiting.clear();
     },
     forget: () => {
       cancelTimer?.();
