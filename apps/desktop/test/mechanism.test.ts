@@ -1827,6 +1827,15 @@ describe('a plugged connection (standards)', () => {
     const one = String((await tools.callTool('partbuddy_mechanism', { ...args, more: undefined, diameter: 4, gap: 0.1 })).content[0]?.text);
     expect(one).toContain('One round peg lets the parts turn about it');
     expect(one).toContain('A peg under 5 mm printed standing is weak.');
+    // A gap the model gave is not the profile's: nothing said of the fit's source.
+    expect(one).not.toContain("The fit is the profile's");
+    // A measured push fit over what a peg takes is held at 0.5 and said, in the answer and the log (BC-16 review S2).
+    const lines: string[] = [];
+    const wide = { holeShrink: 0.15, clearance: { clamp: 0.3, push: 0.6, slide: 0.7, turn: 0.8 }, measuredNozzle: 0.4, fitsAfterPrint: true as const };
+    const held = String((await withMechanismTool(upstream([]), () => 0.4, undefined, undefined, undefined, () => wide, (line) => lines.push(line)).callTool('partbuddy_mechanism', args)).content[0]?.text);
+    expect(held).toContain("0.5 mm clear per side as printed");
+    expect(held).toContain(" The profile's push fit makes it 0.6 mm, outside what a peg takes (0.05 to 0.5 mm a side); 0.5 mm used.");
+    expect(lines).toEqual(["partbuddy_mechanism plug: The profile's push fit makes it 0.6 mm, outside what a peg takes (0.05 to 0.5 mm a side); 0.5 mm used."]);
     expect(await tools.callTool('partbuddy_mechanism', { ...args, shape: 'star' })).toMatchObject({ isError: true, content: [{ text: 'Not built: shape must be peg or dovetail' }] });
     expect(describeToolCall('partbuddy_mechanism', { kind: 'plug' })).toEqual([{ key: 'plug', values: { name: 'Peg' } }]);
     expect(describeToolCall('partbuddy_mechanism', { kind: 'plug', shape: 'dovetail' })).toEqual([{ key: 'plug', values: { name: 'Dovetail' } }]);
@@ -2284,8 +2293,10 @@ describe('the print profile in the mechanism tool (audit BC-16)', () => {
     const { knobClearance } = await import('../src/shared/knob');
     expect([-0.1, 0, 0.35].map((clamp) => knobClearance('d', { nozzle: 0.4, layer: 0.2, material: { holeShrink: 0.15, clearance: { clamp, push: 0.4, slide: 0.5, turn: 0.6 } } }))).toEqual([0, 0, 0.6]);
     const { unmeasuredSaid } = await import('../src/shared/toolFit');
-    expect(unmeasuredSaid(fit(0.15))).toContain("The fit is the material's starting value, not measured on this printer");
-    expect(unmeasuredSaid(fit(0.15, 0.4))).toBe('');
+    // Not read with this version's pieces, read off the older comb (the allowance counted twice), or read off the new one.
+    expect(unmeasuredSaid(fit(0.15))).toBe(" The fit is the profile's, not read off this version's tolerance pieces: if it binds or rattles, read them (Settings › Print profiles) and build it again.");
+    expect(unmeasuredSaid(fit(0.15, 0.4))).toContain("The profile's fits were read off the older fit comb, drilled without the hole allowance, so the allowance is counted twice here: read the fits again");
+    expect(unmeasuredSaid({ ...fit(0.15, 0.4), material: { ...fit(0.15, 0.4).material, fitsAfterPrint: true } })).toBe('');
   });
 
   it('writes a refusal to the log as well as to the model (BC-15 rest)', async () => {

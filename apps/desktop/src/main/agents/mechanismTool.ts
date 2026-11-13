@@ -5,7 +5,7 @@ import { snapStrain } from '../../shared/blocks';
 import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { BRIDGE_SPAN, minimumFloor, minimumWall, thinnestLine } from '@partbuddy/geometry';
 import { printInPlaceGap, type FitPrinter } from '../../shared/designFit';
-import { DEFAULT_MATERIAL, DEFAULT_PRINTER, drawnHole, fitClearance, unmeasuredSaid, type ToolMaterial, type ToolPrinter } from '../../shared/toolFit';
+import { DEFAULT_MATERIAL, DEFAULT_PRINTER, drawnHole, fitClearance, heldSaid, unmeasuredSaid, type ToolMaterial, type ToolPrinter } from '../../shared/toolFit';
 
 import { componentOf } from '../solidcraft/actions';
 import { componentsWithBodies, printGroupsOf } from '../solidcraft/mirror';
@@ -406,6 +406,8 @@ interface Site {
   callId: string | undefined;
   mark: { state?: Mark | null };
   shares?: { name: string; limits: [number, number] };
+  /** Where a fit held within its range is written (BC-16 review S2). */
+  log?: (line: string) => void;
 }
 /** Keeps the face a mechanism laid its part on, by the face's name, for the plate view. */
 type KeepFace = (body: string, face: string) => void;
@@ -1404,7 +1406,7 @@ async function buildGuide(site: Site, spec: SlideSpec, nozzle: number, overhang:
  * was. A failure after the first step (the joint refused, the travel not measurable) left knuckles and cuts behind under
  * "Not built", and the next call built them twice (audit 2026-11-12, H-02).
  */
-async function buildMechanism(upstream: UpstreamTools, args: Record<string, unknown>, printer: ToolPrinter, callId: string | undefined, keepFace: KeepFace, overhang: number): Promise<string> {
+async function buildMechanism(upstream: UpstreamTools, args: Record<string, unknown>, printer: ToolPrinter, callId: string | undefined, keepFace: KeepFace, overhang: number, log: (line: string) => void): Promise<string> {
   const run: Run = async (commands) => {
     const result = await upstream.callTool('batch', { commands }, callId);
     const text = result.content.find((part) => part.type === 'text')?.text;
@@ -1418,7 +1420,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     if (reply?.failed || result.isError || !reply) throw new Error(refusal(text));
     return reply.results ?? [];
   };
-  const site: Site = { upstream, run, callId, mark: {} };
+  const site: Site = { upstream, run, callId, mark: {}, log };
   try {
     const unused = unusedSaid(args);
     return `${await mechanism(site, args, printer, keepFace, overhang)}${unused}`;
@@ -1706,16 +1708,20 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     // for every material before), within the 0.1 to 0.3 mm guides for printed dovetails give.
     const spec = slideOf({ ...args, gap: typeof args.gap === 'number' ? args.gap : within(fitClearance('push', printer), DOVETAIL_GAP), name: typeof args.name === 'string' && args.name.trim() !== '' ? args.name : 'Dovetail' }, nozzle, 0.1, layer);
     if (typeof spec === 'string') throw new Error(spec);
+    const held = typeof args.gap === 'number' ? '' : heldSaid('a dovetail plug', 'push', fitClearance('push', printer), spec.gap, `${String(DOVETAIL_GAP[0])} to ${String(DOVETAIL_GAP[1])} mm all round`);
+    if (held) site.log?.(`partbuddy_mechanism dovetail:${held}`);
     const { warnings, print } = await buildGuide(site, spec, nozzle, overhang);
     return (
       `Built the dovetail "${spec.name}" between ${spec.fixed} (carries the rail) and ${spec.moving} (has the groove): ${String(spec.width)} mm wide at its foot and ${String(spec.height)} mm high with 45° flanks, ${gapSaid(spec, layer, 'clear all round')}. ` +
-      `It makes no joint: ${spec.moving} is pushed on along the line and stops where the groove ends inside it; where the groove runs through, nothing stops it. ${print} Not printed yet: when it binds or rattles, build it again with another gap.${typeof args.gap === 'number' ? '' : unmeasuredSaid(printer)}${warnings}`
+      `It makes no joint: ${spec.moving} is pushed on along the line and stops where the groove ends inside it; where the groove runs through, nothing stops it. ${print} Not printed yet: when it binds or rattles, build it again with another gap.${held}${typeof args.gap === 'number' ? '' : unmeasuredSaid(printer)}${warnings}`
     );
   }
   if (args.kind === 'plug') {
     if (args.shape !== undefined && args.shape !== 'peg') throw new Error('shape must be peg or dovetail');
     const spec = pegOf(args, printer);
     if (typeof spec === 'string') throw new Error(spec);
+    const held = typeof args.gap === 'number' ? '' : heldSaid('a peg', 'push', fitClearance('push', printer), spec.gap, `${String(PEG_GAP[0])} to ${String(PEG_GAP[1])} mm a side`);
+    if (held) site.log?.(`partbuddy_mechanism plug:${held}`);
     const long = pegLength(spec.diameter);
     const floor = pegFloor(nozzle, layer);
     const stock = pegStock(spec, nozzle, layer);
@@ -1730,7 +1736,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     return (
       `Built ${String(count)} peg${count > 1 ? 's' : ''} "${spec.name}" on ${spec.fixed} with ${count > 1 ? 'their pockets' : 'its pocket'} in ${spec.moving}: ${String(spec.diameter)} mm thick and ${String(long)} mm long, ${String(spec.gap)} mm clear per side as printed (the pocket drawn ${String(pegBore(spec))} mm wide, the material's hole allowance wider), the pocket ${String(PEG.deeper)} mm deeper for air and glue, tip and mouth chamfered. It makes no joint. ` +
       `${count === 1 ? 'One round peg lets the parts turn about it: add a second one far from it (more). ' : ''}${spec.diameter < PEG.least ? `A peg under ${String(PEG.least)} mm printed standing is weak. ` : ''}` +
-      `A peg printed standing breaks along its layers sooner than one lying. ${pockets.measured ? `PartBuddy measured ${spec.moving}: each pocket has ${String(PEG.wall)} mm of plastic round it and ${String(floor)} mm under it.` : `PartBuddy could not measure ${spec.moving} this time: keep ${String(PEG.wall)} mm of plastic round each pocket and ${String(floor)} mm under it, ${String(deep)} mm from the face.`} Not printed yet: when it binds or rattles, build it again with another gap.${typeof args.gap === 'number' ? '' : unmeasuredSaid(printer)}${warnings}`
+      `A peg printed standing breaks along its layers sooner than one lying. ${pockets.measured ? `PartBuddy measured ${spec.moving}: each pocket has ${String(PEG.wall)} mm of plastic round it and ${String(floor)} mm under it.` : `PartBuddy could not measure ${spec.moving} this time: keep ${String(PEG.wall)} mm of plastic round each pocket and ${String(floor)} mm under it, ${String(deep)} mm from the face.`} Not printed yet: when it binds or rattles, build it again with another gap.${held}${typeof args.gap === 'number' ? '' : unmeasuredSaid(printer)}${warnings}`
     );
   }
   throw new Error('kind must be hinge, slide, closure, screw, lid, snap, plug or latch');
@@ -1757,7 +1763,7 @@ export function withMechanismTool(
     callTool: async (name, args, callId): Promise<ToolResult> => {
       if (name !== MECHANISM_TOOL) return upstream.callTool(name, args, callId);
       try {
-        return { content: [{ type: 'text', text: await buildMechanism(upstream, args, { nozzle: nozzle(), layer: layer(), material: material() }, callId, keepFace, overhang()) }] };
+        return { content: [{ type: 'text', text: await buildMechanism(upstream, args, { nozzle: nozzle(), layer: layer(), material: material() }, callId, keepFace, overhang(), log) }] };
       } catch (cause) {
         // The refusal reaches the model; the log keeps which kind and why, for a report (audit BC-15 rest).
         log(`partbuddy_mechanism ${String(args.kind)} not built: ${(cause as Error).message.slice(0, 300)}`);

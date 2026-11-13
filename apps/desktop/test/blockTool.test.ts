@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_GUIDANCE, FACE_DROP, jointsMoving, printLimit, STOCK_FULL, blockOf, cutAxis, knobOf, magnetOf, misplaced, named, rimNarrowest, seatStock, shortOf, wallOf, withBlockTool, type Stock } from '../src/main/agents/blockTool';
+import { BLOCK_GUIDANCE, FACE_DROP, heldOf, jointsMoving, printLimit, STOCK_FULL, blockOf, cutAxis, knobOf, magnetOf, misplaced, named, rimNarrowest, seatStock, shortOf, wallOf, withBlockTool, type Stock } from '../src/main/agents/blockTool';
 import { INSERT, blockLimit, defaultBlock, raisedBlock, stepsOf, type FeatureBlock } from '../src/shared/blocks';
 import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
@@ -107,7 +107,7 @@ describe('a knob for a shaft (standards)', () => {
     expect(steps[11]?.params).toMatchObject({ distance: '0.6 mm', operation: 'cut' });
     expect(steps[12]?.params).toEqual({ body: 'Knob', point: [0, 0, 16] });
     // The flat 6 mm long, the shortest sold (Alps RK09, audit MV-15); the set screw's pilot 0.8 × 3 + PLA's 0.15 (audit MV-26).
-    expect(KNOB).toMatchObject({ roof: 3, wall: 2.4, insert: 11, flat: 6, mouth: 0.5, setScrew: 2.55 });
+    expect(KNOB).toMatchObject({ roof: 3, wall: 2.4, insert: 11, flat: 6, mouth: 0.5 });
   });
 
   it('gives a round shaft a set screw from the side away from the pointer, and a knurled one a plain bore', () => {
@@ -119,6 +119,27 @@ describe('a knob for a shaft (standards)', () => {
     expect(knurl.map((step) => step.command)).not.toContain('sketch.line');
     expect(knurl[4]?.params).toMatchObject({ diameter: '6.15 mm' });
     expect(knurl[5]?.params).toMatchObject({ diameter: '7.15 mm', top_diameter: '6.15 mm' });
+  });
+
+  it('says where a fit from the profile was held within what the block takes, and where it comes from (BC-16 review S2)', () => {
+    const profile = (clearance: { clamp: number; push: number; slide: number; turn: number }, measured = true) => ({ nozzle: 0.4, layer: 0.2, material: { holeShrink: 0.15, clearance, ...(measured ? { measuredNozzle: 0.4, fitsAfterPrint: true as const } : {}) } });
+    // A clamp fit below zero: the knob takes 0, and says so; a clearance given says nothing of the profile.
+    const tight = knobOf({ block: 'knob', ...shaft6 }, profile({ clamp: -0.05, push: 0.1, slide: 0.2, turn: 0.3 }));
+    expect(tight).toMatchObject({ held: " The profile's clamp fit makes it -0.1 mm, outside what a knob takes (0 to 0.6 mm on the diameter); 0 mm used." });
+    expect((tight as { text: string }).text).toContain('the bore is 6 mm wide');
+    const given = knobOf({ block: 'knob', ...shaft6, clearance: 0.2 }, profile({ clamp: -0.05, push: 0.1, slide: 0.2, turn: 0.3 }, false)) as { text: string; held: string };
+    expect([given.held, given.text.includes("The fit is the profile's")]).toEqual(['', false]);
+    expect((knobOf({ block: 'knob', ...shaft6 }, profile({ clamp: 0.05, push: 0.15, slide: 0.25, turn: 0.3 }, false)) as { text: string }).text).toContain("The fit is the profile's, not read off this version's tolerance pieces");
+    // The nut pocket and the groove, in the answer.
+    const wide = profile({ clamp: 0.3, push: 0.5, slide: 0.6, turn: 0.7 });
+    const nut = blockOf({ block: 'nutTrap', body: 'Plate', point: [10, 10, 6], normal: [0, 0, 1], size: 'M3' }, wide) as FeatureBlock;
+    expect(heldOf(nut, {}, wide)).toBe(" The profile's push fit makes it 6.5 mm, outside what an M3 nut pocket takes (5.5 mm to under the nut's 6.35 mm across corners); 6.34 mm used.");
+    expect(heldOf(nut, { flats: 6 }, wide)).toBe('');
+    const loose = profile({ clamp: -0.2, push: -0.15, slide: -0.1, turn: 0 });
+    const groove = blockOf({ block: 'lip', body: 'Plate', point: [1.5, 20, 30], type: 'groove' }, loose) as FeatureBlock;
+    expect(heldOf(groove, { type: 'groove' }, loose)).toBe(" The profile's slide fit makes it -0.1 mm, outside what a groove takes (no gap under 0); 0 mm used.");
+    // A pressed magnet's pocket is no fit of the profile: nothing said of its source.
+    expect((magnetOf({ block: 'magnet', body: 'Lid', point: [10, 10, 0], normal: [0, 0, -1], diameter: 6, height: 2, hold: 'press' }, profile({ clamp: 0.05, push: 0.15, slide: 0.25, turn: 0.3 }, false)) as { text: string }).text).not.toContain("The fit is the profile's");
   });
 
   it('fills a knob in from the standard and refuses what cannot hold a shaft', () => {

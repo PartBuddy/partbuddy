@@ -1037,6 +1037,7 @@
     "layerOverNozzle": "Thicker than the nozzle: slicers do not print that. Make it at most the nozzle.",
     "layerUnsaved": "The layer height of {name} is thicker than its nozzle. Until it is fixed the last saved profiles stay.",
     "fitOrder": "The clearances have to grow from clamp to turn.",
+    "fitsOlderComb": "These clearances were read off the older fit comb, drilled without the hole allowance: PartBuddy's blocks and mechanisms now add the allowance on top, so they come out too loose. Read the fits again with the tolerance assistant.",
     "fitOrderUnsaved": "The clearances of {name} do not grow from clamp to turn. Until they do the last saved profiles stay.",
     "saveFailed": "The profiles could not be saved.",
     "supportFree": "Design without support",

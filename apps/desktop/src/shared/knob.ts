@@ -18,10 +18,9 @@ export type KnobShaft = (typeof KNOB_SHAFTS)[number];
  * In mm: the plastic over the shaft's end, the wall left round the bore under the flutes, how far
  * the shaft goes in at the most, how much of that is flat on a D shaft (the shortest flat sold),
  * the flutes (as a screw lid's), the plain band and its chamfer at the top, the chamfer at the bore's
- * mouth, the pointer's groove,
- * and the pilot hole an M3 set screw cuts its own thread in (screwSizes.ts, as standards.ts: audit MV-26).
+ * mouth and the pointer's groove. The set screw's pilot hole is `pilotHole(3, material)` (screwSizes.ts, as standards.ts: audit MV-26).
  */
-export const KNOB = { roof: 3, wall: 2.4, insert: 11, flat: 6, flute: 3, band: 2, chamfer: 0.6, mouth: 0.5, pointer: { width: 1.2, depth: 0.6 }, setScrew: pilotHole(3) };
+export const KNOB = { roof: 3, wall: 2.4, insert: 11, flat: 6, flute: 3, band: 2, chamfer: 0.6, mouth: 0.5, pointer: { width: 1.2, depth: 0.6 } };
 
 /** In mm: the M3 set screw holds in plastic at least twice its diameter long (TR Fastenings: engagement ≥ 2 d; audit MV-26). */
 export const SET_SCREW_HOLD = 6;
@@ -34,7 +33,7 @@ export const SET_SCREW_HOLD = 6;
 export const knobClearance = (shaft: KnobShaft, printer: ToolPrinter) => (shaft === 'knurl' ? 0 : round(Math.min(KNOB_CLEARANCE_MOST, Math.max(0, 2 * fitClearance('clamp', printer)))));
 
 /** The most clearance a knob takes (knobProblem); a measured clamp fit is kept within 0 and this. */
-const KNOB_CLEARANCE_MOST = 0.6;
+export const KNOB_CLEARANCE_MOST = 0.6;
 
 export interface KnobSpec {
   /** The new body's name. */

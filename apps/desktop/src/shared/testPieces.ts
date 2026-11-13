@@ -35,8 +35,7 @@ const round = (value: number) => Math.round(value * 1000) / 1000;
  * A hole of the fit comb as drawn: pin and clearance, plus the material's hole allowance, so the clearance read off the comb is the
  * room left after printing, as the tools add the allowance on top of it (BC-16 review B1, audit N-nach-6: undrawn, the shrink went
  * into the reading, and the tools counted it twice). `holeShrink` is the profile's before the reading, PLA's when none is given.
- * shortcut: the comb takes the allowance the profile has before the hole plate printed beside it measures the real one; where the
- * two differ, the reading is off by half the difference per side. Correct it in applyReadings if users report it.
+ * The plate printed beside it measures the real allowance; applyReadings takes the difference off each reading (review S3).
  */
 export const combHole = (clearance: number, holeShrink = DEFAULT_MATERIAL.holeShrink) => drawnHole(PIN + 2 * clearance, { ...DEFAULT_MATERIAL, holeShrink });
 

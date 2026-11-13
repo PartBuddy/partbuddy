@@ -24,6 +24,7 @@ import { FieldMessage, fieldLabelClass, inputClass, UnitInput } from '../ui/Fiel
 import { CheckMark, choiceInlineClass } from '../ui/Choice';
 import { MATERIAL_CATALOG } from '../../../shared/materialCatalog';
 import { PRINTER_CATALOG } from '../../../shared/printerCatalog';
+import { fitsSource } from '../../../shared/toolFit';
 import { CatalogPicker, type CatalogSection } from './CatalogPicker';
 import { ToleranceAssistant } from './ToleranceAssistant';
 import { listRowClass, tabClass, tabListClass } from '../ui/Navigation';
@@ -263,6 +264,11 @@ function MaterialForm({
             />
           ))}
         </div>
+        {fitsSource(material) === 'olderComb' ? (
+          <p className="text-xs text-text-subtle" data-testid="material-fits-older-comb">
+            {t('print.fitsOlderComb')}
+          </p>
+        ) : null}
         {fitsInOrder(material.clearance) ? null : (
           <p role="alert" className="text-xs text-danger" data-testid="material-fit-order">
             {t('print.fitOrder')}

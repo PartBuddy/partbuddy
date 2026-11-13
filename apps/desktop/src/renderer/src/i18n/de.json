@@ -1037,6 +1037,7 @@
     "layerOverNozzle": "Dicker als die Düse: das drucken Slicer nicht. Höchstens die Düse angeben.",
     "layerUnsaved": "Die Schichthöhe von {name} ist dicker als ihre Düse. Bis das behoben ist, bleibt der zuletzt gespeicherte Stand.",
     "fitOrder": "Die Spiele müssen von Klemmen bis Drehen wachsen.",
+    "fitsOlderComb": "Diese Spiele wurden am älteren Passungskamm abgelesen, der ohne Lochaufmaß gebohrt war: PartBuddys Bausteine und Mechaniken geben das Aufmaß jetzt dazu, sie fallen so zu locker aus. Lies die Passungen mit dem Toleranz-Assistenten neu ab.",
     "fitOrderUnsaved": "Bei {name} wachsen die Spiele nicht von Klemmen bis Drehen. Bis dahin bleibt der zuletzt gespeicherte Stand.",
     "supportFree": "Stützfrei konstruieren",
     "supportFreeHint": "Der Assistent gibt Kanten zum Druckbett eine Fase statt einer Rundung, gibt breiten liegenden Bohrungen ein Tropfendach und überbrückt Senkungen, die nach unten zeigen. So braucht der Slicer keine Stützen.",

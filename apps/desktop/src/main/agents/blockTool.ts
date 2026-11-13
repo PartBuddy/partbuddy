@@ -1,13 +1,13 @@
 import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 
-import { BLOCK_SIZES, DEFAULT_PRINTER, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, limitSaid, raisedBlock, SNAP_STRAIN_LIMIT, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, DEFAULT_PRINTER, nutCorners, nutFlatsOfFit, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, limitSaid, raisedBlock, SNAP_STRAIN_LIMIT, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import type { FitPrinter } from '../../shared/designFit';
 import { CLEARANCE, NUT, NUT_DIN_FLATS, THREAD_ALLOWANCE, headRoom, pilotHole, printedThread, screwDiameter } from '../../shared/screwSizes';
-import { drawnHole, fitClearance, holeRoom, unmeasuredSaid, type ToolPrinter } from '../../shared/toolFit';
-import { KNOB, knobClearance, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
+import { drawnHole, fitClearance, heldSaid, holeRoom, unmeasuredSaid, type ToolPrinter } from '../../shared/toolFit';
+import { KNOB, knobClearance, KNOB_CLEARANCE_MOST, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
 import { TAPPED_FROM } from '../../shared/mechanisms';
-import { MAGNET, MAGNET_HOLDS, MAGNET_MORE, PRESS_INTERFERENCE, magnetPocket, magnetRoom, magnetProblem, magnetSteps, magnetStock, type MagnetHold } from '../../shared/magnet';
+import { MAGNET, MAGNET_HOLDS, MAGNET_MORE, PRESS_INTERFERENCE, PRESS_RANGE, magnetPocket, magnetRoom, magnetProblem, magnetSteps, magnetStock, type MagnetHold } from '../../shared/magnet';
 import { KEYHOLE, WALL, WALL_MORE, WOOD_SCREWS, WOOD_SCREW_UNDER, countersinkDepth, keyholeDepth, keyholeProblem, keyholeRoof, ROOF_LEAN, keyholeSteps, keyholeStock, wallSizes, woodScrewSteps, woodScrewStock, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -393,13 +393,13 @@ export function magnetOf(args: Record<string, unknown>, printer: ToolPrinter = D
       `Built ${String(count)} pocket${count > 1 ? 's' : ''} for ${String(spec.diameter)} × ${String(spec.height)} mm disc magnets in ${body}: ${String(pocket.diameter)} mm wide as printed (drawn ${String(pocket.drawn)} mm, the material's hole allowance wider) and ${String(pocket.depth)} mm deep, so the magnet lies ${String(MAGNET.sunk)} mm under the face, with a chamfered mouth. ` +
       (hold === 'glue'
         ? `The magnet drops in, with ${String(magnetRoom('glue', printer))} mm of room on the diameter (the material's push fit), and is held by a drop of superglue. `
-        : `The magnet is pressed in: the pocket comes out ${String(PRESS_INTERFERENCE)} mm under it on the diameter (a press fit takes 0.05 to 0.15 mm); with more than that missing the plastic splits along its layers, so try one pocket first. `) +
-      `Keep at least ${String(MAGNET.around)} mm of plastic round a pocket and ${mm(under)} mm under it. Mark the poles before gluing a pair: the two parts must attract. Neodymium magnets lose strength above 80 °C. No pocket of these sizes has been printed yet.${unmeasuredSaid(printer)}`,
+        : `The magnet is pressed in: the pocket comes out ${String(PRESS_INTERFERENCE)} mm under it on the diameter (a press fit takes ${String(PRESS_RANGE[0])} to ${String(PRESS_RANGE[1])} mm); with more than that missing the plastic splits along its layers, so try one pocket first. `) +
+      `Keep at least ${String(MAGNET.around)} mm of plastic round a pocket and ${mm(under)} mm under it. Mark the poles before gluing a pair: the two parts must attract. Neodymium magnets lose strength above 80 °C. No pocket of these sizes has been printed yet.${hold === 'glue' ? unmeasuredSaid(printer) : ''}`,
   };
 }
 
 /** A knob the model asked for: its steps and what to say; null when the block is none; or what is wrong. */
-export function knobOf(args: Record<string, unknown>, printer: ToolPrinter = DEFAULT_PRINTER): { body: string; steps: Step[]; text: string; fresh: true } | string | null {
+export function knobOf(args: Record<string, unknown>, printer: ToolPrinter = DEFAULT_PRINTER): { body: string; steps: Step[]; text: string; fresh: true; held: string } | string | null {
   if (args.block !== 'knob') return null;
   const unused = unusedOf(args, TAKES.knob ?? []);
   if (unused) return unused;
@@ -423,6 +423,9 @@ export function knobOf(args: Record<string, unknown>, printer: ToolPrinter = DEF
   const spec = { body, point, axis, toward, shaft, shaftDiameter, flat, diameter: number(args.diameter, 25), height: number(args.height, 16), clearance: number(args.clearance, knobClearance(shaft, printer)) };
   const problem = knobProblem(spec);
   if (problem) return problem;
+  // A clearance from the profile, said where it was held within what a knob takes (BC-16 review S2) and where it is not read off the pieces.
+  const fromProfile = args.clearance === undefined && shaft !== 'knurl';
+  const held = fromProfile ? heldSaid('a knob', 'clamp', 2 * fitClearance('clamp', printer), spec.clearance, `0 to ${String(KNOB_CLEARANCE_MOST)} mm on the diameter`) : '';
   const bore = Math.round((shaftDiameter + spec.clearance) * 100) / 100;
   // As printed; knobSteps draws it wider by the material's hole allowance.
   const drawn = ` (drawn ${mm(drawnHole(bore, printer.material))} mm)`;
@@ -439,7 +442,8 @@ export function knobOf(args: Record<string, unknown>, printer: ToolPrinter = DEF
     steps: knobSteps(spec, printer),
     text:
       `Built the knob "${body}" ${hold}. It is ${String(spec.diameter)} mm wide and ${String(spec.height)} mm high, with ${String(knobFlutes(spec.diameter))} flutes to grip and a groove on its top as the pointer. ` +
-      `It prints standing on its top, the bore open upwards, without support (its print face is set). No knob of these sizes has been printed yet: when it sits too tight or too loose, build it again with another clearance.${spec.shaft === 'knurl' ? '' : unmeasuredSaid(printer)}`,
+      `It prints standing on its top, the bore open upwards, without support (its print face is set). No knob of these sizes has been printed yet: when it sits too tight or too loose, build it again with another clearance.${held}${fromProfile ? unmeasuredSaid(printer) : ''}`,
+    held,
   };
 }
 
@@ -815,6 +819,16 @@ function reachSaid(block: FeatureBlock, reach: (number | null)[] | undefined): s
   return ` ${why.charAt(0).toUpperCase()}${why.slice(1)}: it went${all}, far walls too; check it, and give depth where it must stop sooner.`;
 }
 
+/**
+ * A default fit of a block that was held within what the block takes, said (BC-16 review S2): the nut pocket's flats from the push
+ * fit, the groove's gap from the slide fit. Empty where the model gave the size or nothing was held.
+ */
+export function heldOf(block: FeatureBlock, args: Record<string, unknown>, printer: ToolPrinter): string {
+  if (block.block === 'nutTrap' && args.flats === undefined) return heldSaid(`an ${block.size} nut pocket`, 'push', nutFlatsOfFit(block.size, printer), block.flats, `${String(NUT[block.size][0])} mm to under the nut's ${String(nutCorners(block.size))} mm across corners`);
+  if (block.block === 'lip' && block.type === 'groove' && args.gap === undefined) return heldSaid('a groove', 'slide', fitClearance('slide', printer), block.gap, 'no gap under 0');
+  return '';
+}
+
 /** What was built, with the sizes it took from the tables and the standard of each size it did not (audit R6), for the model to tell the user. */
 function built(block: FeatureBlock, args: Record<string, unknown> = {}, printer: ToolPrinter = DEFAULT_PRINTER): string {
   const { block: kind, body, point, ...sizes } = block;
@@ -828,7 +842,7 @@ function built(block: FeatureBlock, args: Record<string, unknown> = {}, printer:
   const count = 'more' in block && block.more ? block.more.length + 1 : 1;
   // `length` is SolidCraft's centre to centre (audit T44): the slot itself is its width longer.
   const slot = block.block === 'slot' ? ` The length is centre to centre, how far the screw can travel: the slot is ${mm(block.length + block.width)} mm long.` : '';
-  return `Built ${count > 1 ? `${String(count)} × ` : ''}${kind} on ${body} at [${point.join(', ')}]: ${listed}.${slot}${holeSaid(block, printer)}`;
+  return `Built ${count > 1 ? `${String(count)} × ` : ''}${kind} on ${body} at [${point.join(', ')}]: ${listed}.${slot}${holeSaid(block, printer)}${heldOf(block, args, printer)}`;
 }
 
 
@@ -1110,6 +1124,9 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
               ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder' : ''}: it is there.${fell > 0 ? fallenSaid(fell, lenient) : lenient > 0 ? lenientSaid(lenient) : ''}`
               : unmeasured
             : '';
+        // A default fit held within what the block takes goes to the log as well as to the answer (BC-16 review S2).
+        const held = wall ? ('held' in wall ? wall.held : '') : block ? heldOf(block, args, fit) : '';
+        if (held) log(`partbuddy_block ${String(args.block)}:${held}`);
         const said = (wall ? wall.text : block ? built(block, args, fit) + reachSaid(block, reach) + measuredSaid(block, thick, rim, fit) : '') +(block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');
         return { content: [{ type: 'text', text: `${said}${stockSaid}${warnings.length > 0 ? ` SolidCraft warns: ${warnings.join(' ')}` : ''}` }] };
       } catch (cause) {

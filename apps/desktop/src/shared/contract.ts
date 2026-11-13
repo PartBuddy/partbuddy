@@ -1104,6 +1104,11 @@ export const materialProfileSchema = z
     clearance: z.object({ clamp: range(-0.5, 2), push: range(-0.5, 2), slide: range(-0.5, 2), turn: range(-0.5, 2) }).strict(),
     /** The nozzle the clearances were read on with the tolerance pieces; without it they are starting values for 0.4 mm. */
     measuredNozzle: range(0.1, 2).optional(),
+    /**
+     * The fits were read off a fit comb drilled with the hole allowance (BC-16), so they are the room after printing. Missing on
+     * fits read before, where the comb's shrink is in them: the tools would count it twice. Optional, so older files load.
+     */
+    fitsAfterPrint: z.literal(true).optional(),
   })
   .strict();
 

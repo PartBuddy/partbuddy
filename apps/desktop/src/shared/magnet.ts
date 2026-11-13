@@ -19,12 +19,15 @@ export type MagnetHold = (typeof MAGNET_HOLDS)[number];
  */
 export const MAGNET = { sunk: 0.2, chamfer: 0.4, around: 1.2 };
 
+/** The interference on the diameter a press fit takes, in mm (QI 0.05 to 0.15; audit MV-17). */
+export const PRESS_RANGE = [0.05, 0.15] as const;
+
 /**
  * A pressed magnet's interference on the diameter, in mm: the pocket comes out this much under the magnet, the middle of
- * the 0.05 to 0.15 mm a press fit takes (audit MV-17), on every nozzle and material. The profile's clamp fit is room, not
- * interference (PLA 0.05 mm a side), and grows with the nozzle: a pocket of it held nothing (BC-16 review B2).
+ * {@link PRESS_RANGE}, on every nozzle and material. The profile's clamp fit is room, not interference (PLA 0.05 mm a side),
+ * and grows with the nozzle: a pocket of it held nothing (BC-16 review B2).
  */
-export const PRESS_INTERFERENCE = 0.1;
+export const PRESS_INTERFERENCE = (PRESS_RANGE[0] + PRESS_RANGE[1]) / 2;
 
 /**
  * The room on the diameter the pocket leaves round the magnet as printed, in mm (audit MV-17, W16): dropped in on glue, the

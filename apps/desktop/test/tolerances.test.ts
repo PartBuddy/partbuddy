@@ -16,8 +16,22 @@ describe('applying the readings of the test pieces', () => {
   it('takes the fit steps and the overhang as read and keeps the rest', () => {
     const { material, problems } = applyReadings(pla, { ...none, fits: { clamp: -0.05, push: 0.1, turn: 0.4 }, overhang: 55 });
     expect(problems).toEqual([]);
-    expect(material).toEqual({ ...pla, overhang: 55, clearance: { clamp: -0.05, push: 0.1, slide: 0.25, turn: 0.4 } });
+    // Read off the comb drilled with the allowance (BC-16): the profile says so, and older files without the mark still load.
+    expect(material).toEqual({ ...pla, overhang: 55, clearance: { clamp: -0.05, push: 0.1, slide: 0.25, turn: 0.4 }, fitsAfterPrint: true });
     expect(materialProfileSchema.safeParse(material).success).toBe(true);
+    expect(materialProfileSchema.safeParse({ ...pla, measuredNozzle: 0.4 }).success).toBe(true);
+    expect(applyReadings(pla, { ...none, overhang: 50 }).material).not.toHaveProperty('fitsAfterPrint');
+  });
+
+  it('takes off each fit read what the comb was drilled wider than the plate measures now (BC-16 review S3)', () => {
+    // Drilled with PLA's 0.15; the plate reads PP-like 0.3: the comb's holes came out 0.15 smaller on the diameter, so each step
+    // read is 0.075 a side less room than its label. The same allowance both times changes nothing; a smaller one adds.
+    const holes = (shrink: number) => HOLE_SIZES.map((size) => size - shrink);
+    expect(applyReadings(pla, { ...none, fits: { push: 0.15, slide: 0.25, turn: 0.3 }, holes: holes(0.3) }).material.clearance).toMatchObject({ push: 0.075, slide: 0.175, turn: 0.225 });
+    expect(applyReadings(pla, { ...none, fits: { push: 0.15 }, holes: holes(0.15) }).material.clearance.push).toBe(0.15);
+    expect(applyReadings(pla, { ...none, fits: { push: 0.15 }, holes: holes(0.05) }).material.clearance.push).toBe(0.2);
+    // Without the plate read, the comb's allowance stands.
+    expect(applyReadings(pla, { ...none, fits: { push: 0.15 } }).material.clearance.push).toBe(0.15);
   });
 
   it('averages the holes given and rounds to 0.05 mm', () => {

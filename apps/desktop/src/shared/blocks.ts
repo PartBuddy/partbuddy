@@ -137,8 +137,14 @@ export const PRINT_LIMIT = 'PartBuddy print limit: ';
  */
 export function nutFlats(size: BlockSize, printer: ToolPrinter): number {
   const [flats] = NUT[size];
-  return round(Math.min(Math.max(flats, flats + 2 * fitClearance('push', printer)), (flats * 2) / Math.sqrt(3) - 0.01));
+  return round(Math.min(Math.max(flats, nutFlatsOfFit(size, printer)), nutCorners(size) - 0.01));
 }
+
+/** A nut pocket's flats from the push fit alone, before they are kept within the nut ({@link nutFlats}). */
+export const nutFlatsOfFit = (size: BlockSize, printer: ToolPrinter) => round(NUT[size][0] + 2 * fitClearance('push', printer));
+
+/** Across a nut's corners, in mm: a pocket that wide lets it turn (blockLimit). */
+export const nutCorners = (size: BlockSize) => round((NUT[size][0] * 2) / Math.sqrt(3));
 
 /** A {@link BlockLimit} as the form's refusal: the panel reads it back and says it in the interface language (refusal.ts). */
 export const limitRefusal = (limit: BlockLimit) => `${PRINT_LIMIT}${JSON.stringify(limit)}`;
