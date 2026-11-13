@@ -75,7 +75,8 @@ describe('function blocks (F1)', () => {
 
   it('seats an insert one millimetre deeper than it is long, and bosses it with 2 mm of wall in whole lines and a fillet at its foot (audit S-14)', () => {
     expect(defaultBlock('insertSeat', 'Body1', at, 'M3')).toMatchObject({ diameter: 4, depth: 6.7 });
-    expect(stepOf(defaultBlock('insertSeat', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '4 mm', depth: '6.7 mm', type: 'countersink', cs_diameter: '5 mm', cs_angle: '90 deg', targets: ['Body1'] });
+    // No chamfer on a seat: the insert's tip starts it, and the seat's measure needs its plain cylinder.
+    expect(stepOf(defaultBlock('insertSeat', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '4 mm', depth: '6.7 mm', targets: ['Body1'] });
     // 2 mm of wall is five lines of 0.45 mm, 2.25 mm; the fillet half of that, at least 1 mm and two nozzles.
     expect(stepOf(defaultBlock('boss', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '8.5 mm', height: '8.7 mm', hole_diameter: '4 mm', hole_depth: '6.7 mm', draft: '0 deg', fillet: '1.13 mm', body: 'Body1' });
     expect(defaultBlock('boss', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 0.6, layer: 0.3 })).toMatchObject({ diameter: 8.05 });
@@ -86,11 +87,27 @@ describe('function blocks (F1)', () => {
     expect((['M2', 'M4', 'M5', 'M6'] as const).map((size) => defaultBlock('boss', 'Body1', at, size)).map((boss) => 'diameter' in boss && boss.diameter)).toEqual([7.7, 10.1, 11.8, 15.2]);
   });
 
-  it('names each block in the work log', () => {
-    const phrases = describeCommands(['tappedHole', 'screwHole', 'insertSeat', 'boss'].map((kind) => stepOf(defaultBlock(kind as 'boss', 'Body1', at, 'M3'))));
-    // The screw hole is drilled by its diameter now, as the screw joint's (audit W21): the log names it a hole of that size.
-    expect(phrases.map((phrase) => phrase.key)).toEqual(['tappedHole', 'hole', 'hole', 'boss']);
-    expect(phrases[0]?.values).toEqual({ thread: 'M3.3x0.5' });
+  it('names each block in the work log by its screw, not by the diameter or print size it drills', () => {
+    const phrases = (['tappedHole', 'screwHole', 'insertSeat', 'boss'] as const).map((kind) => blockPhrase(defaultBlock(kind, 'Body1', at, 'M5')));
+    expect(phrases.map((phrase) => phrase.key)).toEqual(['tappedHole', 'screwHole', 'hole', 'boss']);
+    // The modelled M5 is drilled as M5.3x0.8; the log says M5 (review of BC-12).
+    expect(stepOf(defaultBlock('tappedHole', 'Body1', at, 'M5')).params).toMatchObject({ thread: 'M5.3x0.8' });
+    expect(phrases[0]?.values).toEqual({ thread: 'M5' });
+    expect(phrases[1]?.values).toEqual({ size: 'M5' });
+    // A raw step still reads as what it is.
+    expect(describeCommands([stepOf(defaultBlock('screwHole', 'Body1', at, 'M3'))])[0]?.key).toBe('hole');
+  });
+
+  it('models a thread from M5 and lists a smaller one, in the form as with the assistant (review of BC-12)', () => {
+    expect((['M3', 'M4', 'M5', 'M10'] as const).map((size) => (defaultBlock('tappedHole', 'Body1', at, size) as { modeled: boolean }).modeled)).toEqual([false, false, true, true]);
+    const tapped = (size: 'M4' | 'M5', modeled: boolean): FeatureBlock => ({ block: 'tappedHole', body: 'Body1', point: at, size, depth: null, modeled });
+    const limit = blockLimit(tapped('M4', true), DEFAULT_PRINTER);
+    expect(limit).toEqual({ key: 'modeled', value: 4, nozzle: 0.4, reason: 'printedThread', size: 'M4', from: 5 });
+    expect(limit && limitSaid(limit)).toBe('modeled: a printed M4 thread strips; give modeled false to drill it for tapping after printing, use insertSeat (a heat-set insert), or a thread from M5');
+    expect(blockLimit(tapped('M4', false), DEFAULT_PRINTER)).toBeNull();
+    expect(blockLimit(tapped('M5', true), DEFAULT_PRINTER)).toBeNull();
+    // A listed M8 is drilled with ISO's 6.8 mm tap drill, chamfered from there.
+    expect(stepOf({ block: 'tappedHole', body: 'Body1', point: at, size: 'M8', depth: null, modeled: false }).params).toMatchObject({ thread: 'M8', cs_diameter: '7.8 mm' });
   });
 
   it('lays the sketch plane flat on the face with x level where it can', () => {

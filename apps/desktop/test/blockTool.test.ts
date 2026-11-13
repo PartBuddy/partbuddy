@@ -315,7 +315,7 @@ describe('a cut through goes through the wall at its point alone (audit W2, T4, 
     const thin = box();
     // An M3 nut trap's pocket is 2.8 mm deep: in the 2 mm wall its hole was left on no face and SolidCraft refused it.
     const trap = await thin.tools.callTool('partbuddy_block', { block: 'nutTrap', ...side, normal: [-1, 0, 0] });
-    expect(trap).toMatchObject({ isError: true, content: [{ text: 'Not built: at [0, 20, 15] Dose is 2 mm thick (measured on trial); the pocket of an M3 nut trap is 2.8 mm deep and needs 0.9 mm of plastic under it (two lines or four layers on a 0.4 mm nozzle, as the part may lie either way), 3.7 mm in all. Put it where the part is thicker, or thicken the part there.' }] });
+    expect(trap).toMatchObject({ isError: true, content: [{ text: 'Not built: at [0, 20, 15] Dose is 2 mm thick (measured on trial); the pocket of an M3 nut trap is 2.8 mm deep and needs 0.9 mm of plastic under it (two lines on a 0.4 mm nozzle, as the part may lie either way), 3.7 mm in all. Put it where the part is thicker, or thicken the part there.' }] });
     // In a 3.2 mm wall the M3 pocket does not fit, an M2 one does: the answer names it (review of PR #369, K6).
     expect(String((await box({ wall: 3.2 }).tools.callTool('partbuddy_block', { block: 'nutTrap', ...side, normal: [-1, 0, 0] })).content[0]?.text)).toContain('3.7 mm in all. Put it where the part is thicker, or thicken the part there. An M2 nut trap (pocket 2 mm deep) fits there; it takes an M2 screw instead of the M3.');
     // The trial drills the hole alone, so a pocket deeper than the wall cannot fail it.
@@ -575,7 +575,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
   it('takes back the seat of an insert that comes out of the far side, and one that leaves no floor', async () => {
     const thin = plate(3);
     expect(await text(thin.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 3] }))).toBe(
-      `Not built: at [20, 20, 3] the seat would cut 39.4 mm³ of plastic where its cylinder and the chamfer at its mouth are 85.9 mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${seatNeed} ${pilot}`,
+      `Not built: at [20, 20, 3] the seat would cut 37.7 mm³ of plastic where its whole cylinder is 84.2 mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${seatNeed} ${pilot}`,
     );
     expect(thin.holes).toEqual([]);
     // A plate just as thick as the seat is deep: the hole is whole, and has no floor (review of PR 357).
@@ -586,7 +586,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     expect(flush.holes).toEqual([]);
     const thick = plate(10);
     expect(await text(thick.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 10] }))).toBe(
-      'Built insertSeat on Plate at [20, 20, 10]: size M3, diameter 4, depth 6.7. Its mouth is chamfered 0.5 mm at 45° to start the insert. Each seat needs 2 mm of plastic round it and 0.6 mm under it. PartBuddy measured that plastic, from 0.5 mm under the face on, and that each seat cut its whole cylinder and the chamfer at its mouth: it is there.',
+      'Built insertSeat on Plate at [20, 20, 10]: size M3, diameter 4, depth 6.7. Each seat needs 2 mm of plastic round it and 0.6 mm under it. PartBuddy measured that plastic, from 0.5 mm under the face on, and that each seat cut its whole cylinder: it is there.',
     );
   });
 
@@ -594,7 +594,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     // At a 3 mm chamfer the seat of an M3 insert took 1.3 % less than its cylinder; the plastic lower down is all there.
     const chamfer = plate(20, { rim: 0.987 });
     expect(await text(chamfer.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 20] }))).toContain(
-      'Not built: at [20, 20, 20] the seat would cut 84.8 mm³ of plastic where its cylinder and the chamfer at its mouth are 85.9 mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut',
+      'Not built: at [20, 20, 20] the seat would cut 83.1 mm³ of plastic where its whole cylinder is 84.2 mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut',
     );
     expect(chamfer.holes).toEqual([]);
     // A curved face takes a little off the rim as well, and passes: 0.03 % on a rod of 20 mm radius, as measured. Only
@@ -1074,7 +1074,8 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     const top = (x: number, y: number) => ({ body: 'Body1', point: [x, y, 10] });
     form.push(
       ...([
-        { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: true, more: [[5, 10, 10]] },
+        // Listed, to be tapped: a printed M4 strips, and the form refuses it modelled (review of BC-12).
+      { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: false, more: [[5, 10, 10]] },
         { block: 'screwHole', ...top(15, 5), size: 'M3', head: 'countersunk', fit: 'normal' },
         { block: 'insertSeat', ...top(5, 15), size: 'M3', diameter: 4, depth: 6.7 },
         { block: 'boss', ...top(15, 15), size: 'M2', diameter: 7.2, height: 6 },
@@ -1253,7 +1254,12 @@ describe("holes, threads and standard sizes from PartBuddy's tables (audit BC-12
     expect(coarse && typeof coarse !== 'string' && coarse.stock[0]?.depth).toBe(3.05);
     expect(coarse && typeof coarse !== 'string' && coarse.text).toContain('Keep at least 1.2 mm of plastic round a pocket and 1.35 mm under it.');
     const standard = magnetOf(magnet);
-    expect(standard && typeof standard !== 'string' && standard.need).toContain('0.9 mm under it (two lines or four layers on a 0.4 mm nozzle)');
+    expect(standard && typeof standard !== 'string' && standard.need).toContain('0.9 mm under it (two lines on a 0.4 mm nozzle, as the part may lie either way)');
+    // On 0.3 mm layers the floor decides: four layers, 1.2 mm (review of BC-12: "four layers" of 0.12 mm are no floor).
+    const fine = magnetOf(magnet, { nozzle: 0.4, layer: 0.3 });
+    expect(fine && typeof fine !== 'string' && fine.need).toContain('1.2 mm under it (a floor of four 0.3 mm layers, at least 0.8 mm, as the part may lie either way)');
+    const thin = magnetOf(magnet, { nozzle: 0.4, layer: 0.12 });
+    expect(thin && typeof thin !== 'string' && thin.need).toContain('0.9 mm under it (two lines on a 0.4 mm nozzle, as the part may lie either way)');
   });
 
   it('gives the keyhole of a 5 mm screw a roof the print check bridges, and the wood screw its countersink to a hundredth (MV-13, N-bloecke-10)', () => {

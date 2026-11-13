@@ -1644,7 +1644,8 @@ test('function blocks are previewed and built at a face: tapped hole, screw hole
     await turnEnded(page);
     const top = (x: number, y: number) => ({ body: 'Body1', point: [x, y, 10] });
     const blocks = [
-      { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: true, more: [[5, 10, 10]] },
+      // Listed, to be tapped: a printed M4 strips, and the form refuses it modelled (review of BC-12).
+      { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: false, more: [[5, 10, 10]] },
       { block: 'screwHole', ...top(15, 5), size: 'M3', head: 'countersunk', fit: 'normal' },
       { block: 'insertSeat', ...top(5, 15), size: 'M3', diameter: 4, depth: 6.7 },
       { block: 'boss', ...top(15, 15), size: 'M2', diameter: 7.2, height: 6 },
@@ -1653,8 +1654,7 @@ test('function blocks are previewed and built at a face: tapped hole, screw hole
       expect(await preview(block)).toEqual({ ok: true, error: null });
       await apply(block);
     }
-    // The thread with its room for printing and the screw hole by its diameter from PartBuddy's table (audit S-09, W21).
-    for (const line of ['Tapped hole M4.3x0.7', 'Hole ⌀ 3.4 mm', 'Hole ⌀ 4 mm, 6.7 mm deep', 'Screw boss ⌀ 7.2 mm']) {
+    for (const line of ['Tapped hole M4', 'Screw hole M3', 'Hole ⌀ 4 mm, 6.7 mm deep', 'Screw boss ⌀ 7.2 mm']) {
       await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
     }
     // The design changed only through the four blocks, the tapped hole twice (`more`): previews leave nothing

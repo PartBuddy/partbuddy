@@ -136,6 +136,9 @@ function outOfTable(block: FeatureBlock): string | null {
 const leastFloor = (printer: FitPrinter) => Math.max(minimumWall(printer.nozzle), minimumFloor(printer.layer));
 const mm = (value: number) => String(Math.round(value * 100) / 100);
 const on = (printer: FitPrinter) => `on a ${String(printer.nozzle)} mm nozzle`;
+/** Which of the two {@link leastFloor} takes, said: two lines of wall, or a floor of four layers and at least 0.8 mm. */
+const floorWhy = (printer: FitPrinter) =>
+  minimumWall(printer.nozzle) >= minimumFloor(printer.layer) ? `two lines ${on(printer)}` : `a floor of four ${String(printer.layer)} mm layers, at least 0.8 mm`;
 
 /** Why a size of a block does not print on the printer, in English; null when all do. The form checks the same (index.ts, BlockPanel.tsx). */
 export const printLimit = (block: FeatureBlock, printer: FitPrinter): string | null => {
@@ -271,6 +274,7 @@ export const FACE_DROP = 0.5;
 /** mm³ a hole `width` wide may take less than its cylinder on a face that falls away {@link FACE_DROP} at the rim of its stock (the cap of a ball). */
 const rimDrop = (width: number, stock: number) => (Math.PI * FACE_DROP * width ** 4) / (8 * stock ** 2);
 
+
 /**
  * The plastic the seat of an insert needs, measured after it is cut: {@link FACE_DROP} under the face on, the seat itself
  * taken off. `curved` when the seat cut less than its cylinder: only then is the slack of a curved face allowed, and
@@ -377,7 +381,7 @@ export function magnetOf(args: Record<string, unknown>, printer: FitPrinter = DE
     body,
     steps: magnetSteps(spec),
     stock: magnetStock(spec, FACE_DROP, under),
-    need: `a pocket needs ${String(MAGNET.around)} mm of plastic round it and ${mm(under)} mm under it (two lines or four layers ${on(printer)}). Thicken the part there, move the pocket away from edges and other cuts, or take a thinner magnet`,
+    need: `a pocket needs ${String(MAGNET.around)} mm of plastic round it and ${mm(under)} mm under it (${floorWhy(printer)}, as the part may lie either way). Thicken the part there, move the pocket away from edges and other cuts, or take a thinner magnet`,
     text:
       `Built ${String(count)} pocket${count > 1 ? 's' : ''} for ${String(spec.diameter)} × ${String(spec.height)} mm disc magnets in ${body}: ${String(pocket.diameter)} mm wide and ${String(pocket.depth)} mm deep, so the magnet lies ${String(MAGNET.sunk)} mm under the face, with a chamfered mouth. ` +
       (hold === 'glue' ? 'The magnet drops in and is held by a drop of superglue. ' : `The magnet is pressed in (${String(MAGNET.room.press)} mm of room on the diameter); with more than that missing the plastic splits along its layers, so try one pocket first. `) +
@@ -815,11 +819,6 @@ function built(block: FeatureBlock, args: Record<string, unknown> = {}, printer:
   return `Built ${count > 1 ? `${String(count)} × ` : ''}${kind} on ${body} at [${point.join(', ')}]: ${listed}.${slot}${holeSaid(block, printer)}`;
 }
 
-/** mm³ the 45° chamfer at a hole's mouth takes beyond the hole itself (a frustum less its cylinder). */
-export const mouthRing = (hole: number) => {
-  const [r, h] = [hole / 2, ENTRY_CHAMFER];
-  return (Math.PI * h * ((r + h) ** 2 + (r + h) * r + r ** 2)) / 3 - Math.PI * r ** 2 * h;
-};
 
 /** The sizes of a block's holes from PartBuddy's tables, said (audit W21, R7, S-09, S-11, S-14, MV-09). */
 function holeSaid(block: FeatureBlock, printer: FitPrinter): string {
@@ -840,8 +839,6 @@ function holeSaid(block: FeatureBlock, printer: FitPrinter): string {
       return block.modeled
         ? ` The thread is ${printedThread(block.size).designation}: the ISO profile of ${block.size} with ${String(THREAD_ALLOWANCE)} mm more on every diameter for printing (${String(THREAD_ALLOWANCE / 2)} mm a side; Sovol and SelfCAD name 0.1 to 0.2), drilled ${String(tapDrill(block))} mm, ${chamfer}. No such thread has been printed here yet: try one before a part depends on it.`
         : ` It is drilled ${String(tapDrill(block))} mm, the tap drill of ${block.size}, to be tapped after printing, ${chamfer}.`;
-    case 'insertSeat':
-      return ` Its mouth is chamfered ${String(ENTRY_CHAMFER)} mm at 45° to start the insert.`;
     case 'boss':
       return ` It stands straight, without draft, with a ${mm(bossFillet(block, printer))} mm fillet at its foot.`;
     case 'nutTrap': {
@@ -985,7 +982,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
           const smaller = block.block === 'nutTrap' ? BLOCK_SIZES.filter((size) => Number(size.slice(1)) < Number(block.size.slice(1)) && (defaultBlock('nutTrap', body, block.point, size) as { depth: number }).depth + floor <= thick + 1e-9).at(-1) : undefined;
           const instead = smaller ? ` An ${smaller} nut trap (pocket ${mm((defaultBlock('nutTrap', body, block.point, smaller) as { depth: number }).depth)} mm deep) fits there; it takes an ${smaller} screw instead of the ${block.size}.` : '';
           return {
-            content: [{ type: 'text', text: `Not built: at [${block.point.join(', ')}] ${body} is ${mm(thick)} mm thick (measured on trial); ${what} and needs ${mm(floor)} mm of plastic under it (two lines or four layers ${on(fit)}, as the part may lie either way), ${mm(block.depth + floor)} mm in all. Put it where the part is thicker, or thicken the part there.${instead}` }],
+            content: [{ type: 'text', text: `Not built: at [${block.point.join(', ')}] ${body} is ${mm(thick)} mm thick (measured on trial); ${what} and needs ${mm(floor)} mm of plastic under it (${floorWhy(fit)}, as the part may lie either way), ${mm(block.depth + floor)} mm in all. Put it where the part is thicker, or thicken the part there.${instead}` }],
             isError: true,
           };
         }
@@ -1019,7 +1016,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
             ? {
                 points: [block.point, ...(block.more ?? [])],
                 stock: (point, axis, curved) => seatStock(block, point, axis, curved),
-                whole: ((Math.PI * block.diameter ** 2) / 4) * block.depth + mouthRing(block.diameter),
+                whole: ((Math.PI * block.diameter ** 2) / 4) * block.depth,
                 drop: rimDrop(block.diameter, block.diameter + 2 * seatWall(block.size)),
                 need: `the seat of an ${block.size} insert needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it. Thicken the part there, move the seat away from edges and other cuts, or use a boss`,
               }
@@ -1050,7 +1047,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
               // A seat is cut out of solid plastic: where its rim breaks out of the face it takes less than its cylinder.
               if (holes.whole && taken < holes.whole * STOCK_FULL - (holes.drop ?? 0))
                 throw new Error(
-                  `at [${point.join(', ')}] the seat would cut ${String(Math.round(taken * 10) / 10)} mm³ of plastic where its cylinder and the chamfer at its mouth are ${String(Math.round(holes.whole * 10) / 10)} mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${holes.need}. If a hole is there already at that point (a pilot hole), it counts as missing plastic too: delete that hole's feature and build the seat in its place.`,
+                  `at [${point.join(', ')}] the seat would cut ${String(Math.round(taken * 10) / 10)} mm³ of plastic where its whole cylinder is ${String(Math.round(holes.whole * 10) / 10)} mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${holes.need}. If a hole is there already at that point (a pilot hole), it counts as missing plastic too: delete that hole's feature and build the seat in its place.`,
                 );
               const axis = cutAxis(body, was, is, point);
               if (axis) stocks.push(holes.stock(point, axis, holes.whole !== undefined && taken < holes.whole - cutNoise(holes.whole, volumesOf(was).get(body) ?? 0)));
@@ -1088,7 +1085,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
             : unmeasured
           : holes
             ? after
-              ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder and the chamfer at its mouth' : ''}: it is there.${fell > 0 ? fallenSaid(fell, lenient) : lenient > 0 ? lenientSaid(lenient) : ''}`
+              ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder' : ''}: it is there.${fell > 0 ? fallenSaid(fell, lenient) : lenient > 0 ? lenientSaid(lenient) : ''}`
               : unmeasured
             : '';
         const said = (wall ? wall.text : block ? built(block, args, fit) + reachSaid(block, reach) + measuredSaid(block, thick, rim, fit) : '') +(block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');

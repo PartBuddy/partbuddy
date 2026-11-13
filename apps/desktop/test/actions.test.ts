@@ -231,6 +231,13 @@ describe('a function block from the form: a cut through goes through the wall at
     expect(logged).toEqual([]);
   });
 
+  it('builds for the printer it is given, as the assistant does: bridge layers of its layer (review of BC-12)', async () => {
+    const { service, log } = form('pieces');
+    const { steps } = await service.blockSteps({ ...hole, head: 'cap' }, undefined, log, { nozzle: 0.6, layer: 0.3 });
+    expect(steps[0]?.params).toMatchObject({ type: 'counterbore', bridge: '0.3 mm' });
+    expect((await service.blockSteps({ ...hole, head: 'cap' }, undefined, log)).steps[0]?.params).toMatchObject({ bridge: '0.2 mm' });
+  });
+
   it('when SolidCraft refuses the trial or the engine fails, builds through all, logs a warning and says unmeasured for the form', async () => {
     for (const answer of ['refused', 'throws'] as const) {
       const { service, logged, log } = form(answer);

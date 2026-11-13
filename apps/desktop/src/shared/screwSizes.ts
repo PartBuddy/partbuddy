@@ -114,6 +114,9 @@ export const screwDiameter = (size: BlockSize) => Number(size.slice(1));
 /** Whether a printed clearance hole of the fit still lets the screw pass after the largest hole shrink: ISO 273 fine leaves 0.2 to 0.3 mm up to M5. */
 export const clearancePasses = (size: BlockSize, fit: Fit) => CLEARANCE[fit][size] - screwDiameter(size) > HOLE_SHRINK_MOST + 1e-9;
 
+/** Tap drills of the coarse threads, ISO 2306 (Optimas), in mm: what SolidCraft drills a listed thread with. */
+export const TAP_DRILL: Record<BlockSize, number> = { M2: 1.6, 'M2.5': 2.05, M3: 2.5, M4: 3.3, M5: 4.2, M6: 5, M8: 6.8, M10: 8.5 };
+
 /** Coarse thread pitch, ISO 261, in mm. */
 export const THREAD_PITCH: Record<BlockSize, number> = { M2: 0.4, 'M2.5': 0.45, M3: 0.5, M4: 0.7, M5: 0.8, M6: 1, M8: 1.25, M10: 1.5 };
 

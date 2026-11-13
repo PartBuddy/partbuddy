@@ -386,6 +386,11 @@ export function blockPhrase(block: FeatureBlock): StepPhrase {
       return { key: 'textBlock', values: { text: block.text.slice(0, 40) } };
     case 'nutTrap':
       return { key: 'nutTrap', values: { size: block.size } };
+    // By the screw, not by the diameter or the print size of the thread the step drills (audit BC-12).
+    case 'tappedHole':
+      return { key: 'tappedHole', values: { thread: block.size } };
+    case 'screwHole':
+      return { key: 'screwHole', values: { size: block.size } };
     case 'slot':
       return { key: 'slot', values: { length: round(block.length) } };
     case 'lip':
