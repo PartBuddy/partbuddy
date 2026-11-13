@@ -34,6 +34,9 @@ export function lineWidth(printer: FitPrinter): number {
   return round(minimumWall(printer.nozzle) / 2);
 }
 
+/** The most a first layer is squeezed wider, which a bed chamfer takes up: 0.1 to 0.25 mm (Prusa about 0.2, Bambu Lab 0.1 to 0.2, OrcaSlicer up to 0.25). */
+export const ELEPHANT_FOOT = 0.25;
+
 /** The gap between moving print-in-place parts: one nozzle width, never under 0.3 mm. */
 export function printInPlaceGap(printer: FitPrinter): number {
   return round(Math.max(0.3, printer.nozzle));

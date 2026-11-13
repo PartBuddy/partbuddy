@@ -1097,6 +1097,8 @@
       "notRead": "not read",
       "holesTitle": "Hole plate",
       "holes": "Measure each hole with a caliper. Leave empty what you do not measure.",
+      "piecesTooLarge": "A test piece is {length} × {width} mm and does not fit this printer's bed of {x} × {y} mm, not even turned. Print it on a larger printer with the same nozzle, or check the bed in the printer profile.",
+      "holesSmall": "Where the caliper does not fit in (such as at {size} mm), find the thickest drill bit whose shank goes in and measure the shank. Always measure above the chamfer at the bottom edge.",
       "hole": "Ø {size} mm",
       "overhangTitle": "Overhang staircase",
       "overhang": "Steepest step with a clean underside",
@@ -1383,6 +1385,7 @@
     "families": {
       "socket_head_cap_screw": "Socket head cap screw",
       "button_head_cap_screw": "Button head screw",
+      "countersunk_socket_screw": "Countersunk screw",
       "hex_bolt": "Hex bolt",
       "set_screw": "Set screw",
       "hex_nut": "Hex nut",

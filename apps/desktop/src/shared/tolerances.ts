@@ -1,5 +1,8 @@
 import { FIT_KINDS, fitsInOrder, type FitKind, type MaterialProfile } from './contract';
 import { CLEARANCE_NOZZLE, scaleClearance } from './designFit';
+import { HOLE_SIZES, toStep } from './holePlate';
+
+export { COMPENSATED_CIRCLE, holeAllowance, HOLE_SIZES, LARGEST_HOLE, PRINT_UNDERSIZE, toStep } from './holePlate';
 
 /**
  * The steps of the test pieces the tolerance assistant makes (decided 2026-11-08): the clearance per
@@ -7,7 +10,6 @@ import { CLEARANCE_NOZZLE, scaleClearance } from './designFit';
  * user reads off the printed pieces becomes the material's values; nothing else of the profile.
  */
 export const FIT_STEPS = [-0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5] as const;
-export const HOLE_SIZES = [3, 5, 8, 10] as const;
 export const OVERHANG_STEPS = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70] as const;
 
 /** What the user read off the prints; a value left out keeps the material's own. */
@@ -26,11 +28,6 @@ export interface ToleranceReadings {
  */
 export type ReadingProblem = { field: 'fit'; fit: FitKind } | { field: 'hole'; size: number } | { field: 'overhang' } | { field: 'order' } | { field: 'oversize'; by: number };
 
-/**
- * On 0.05 mm, halves away from zero, so −0.075 rounds like 0.075; smoothed to 0.000001 first, so 10 − 9.925 rounds like
- * 3 − 2.925 (audit T53).
- */
-const toStep = (value: number) => (Math.sign(value) * Math.round(Math.round(Math.abs(value) * 20 * 1e6) / 1e6)) / 20;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const isStep = (steps: readonly number[], value: number) => steps.some((step) => Math.abs(step - value) < 1e-9);
 

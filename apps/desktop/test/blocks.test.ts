@@ -50,8 +50,8 @@ describe('function blocks (F1)', () => {
   });
 
   it('refuses a close hole that a printed hole would close on its screw, at the boundary (audit T31)', () => {
-    // The largest hole allowance of the material catalogue: PP, 0.3 mm.
-    expect(HOLE_SHRINK_MOST).toBe(0.3);
+    // The largest hole allowance of the material catalogue: PP's (0.3 mm), taken from the catalogue (BC-20).
+    expect(HOLE_SHRINK_MOST).toBe(MATERIAL_CATALOG.find((material) => material.name === 'PP')?.holeShrink);
     expect(HOLE_SHRINK_MOST).toBe(Math.max(...MATERIAL_CATALOG.map((material) => material.holeShrink)));
     // M4 leaves exactly 0.3 mm: refused; M6 0.4 mm: built. Normal and loose leave more than 0.3 mm at every size.
     expect((['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10'] as const).filter((size) => clearancePasses(size, 'close'))).toEqual(['M6', 'M8', 'M10']);

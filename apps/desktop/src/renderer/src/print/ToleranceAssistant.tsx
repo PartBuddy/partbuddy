@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Heading, Label, NumberField } from 'react-aria-components';
 
 import { FIT_KINDS, layerFitsNozzle, type FitKind, type MaterialProfile, type PrinterProfile, type Slicer } from '../../../shared/contract';
+import { testPieceSizes } from '../../../shared/testPieces';
 import { applyReadings, FIT_STEPS, HOLE_SIZES, OVERHANG_STEPS, type ToleranceReadings } from '../../../shared/tolerances';
 import { platform } from '../platform';
 import { Button } from '../ui/Button';
@@ -53,6 +54,9 @@ export function ToleranceAssistant({
   // The picture and the slicers are read when the step with the test pieces comes up.
   // A printer saved before BC-14 may have a layer over its nozzle: no test pieces for it, and the step says why.
   const layerFits = layerFitsNozzle(printer);
+  // A piece larger than the bed either way round (BC-20 review): said, not blocked, since the bed in the profile may be the user's guess.
+  const [bedX, bedY] = printer.bed;
+  const tooLarge = useMemo(() => Object.values(testPieceSizes(printer)).find(([x, y]) => !((x <= bedX && y <= bedY) || (x <= bedY && y <= bedX))) ?? null, [printer, bedX, bedY]);
   useEffect(() => {
     if (step !== 'pieces') return;
     let live = true;
@@ -161,6 +165,11 @@ export function ToleranceAssistant({
                     {t('print.tolerance.layerOverNozzle', { nozzle: number.format(printer.nozzle), layer: number.format(printer.layer) })}
                   </p>
                 )}
+                {tooLarge ? (
+                  <p className="text-sm text-warning" data-testid="tolerance-too-large">
+                    {t('print.tolerance.piecesTooLarge', { length: number.format(tooLarge[0]), width: number.format(tooLarge[1]), x: number.format(bedX), y: number.format(bedY) })}
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <Button isDisabled={!layerFits} onPress={() => exportPieces(null)} data-testid="tolerance-save">
                     {t('print.tolerance.save3mf')}
@@ -198,6 +207,7 @@ export function ToleranceAssistant({
                 <fieldset className="flex flex-col gap-2">
                   <legend className="text-sm font-medium text-text">{t('print.tolerance.holesTitle')}</legend>
                   <p className="text-xs text-text-subtle">{t('print.tolerance.holes')}</p>
+                  <p className="text-xs text-text-subtle">{t('print.tolerance.holesSmall', { size: number.format(HOLE_SIZES[0]) })}</p>
                   <div className="grid grid-cols-4 gap-2">
                     {HOLE_SIZES.map((size, i) => (
                       <NumberField
