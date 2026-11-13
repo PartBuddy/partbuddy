@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { Overhang, overhangLimits, overhangOf, smallOverhangReach, type OverhangInput } from './overhang';
+import { growth } from './testTiming';
 
 type Ring = [number, number, number][];
 
@@ -53,16 +54,13 @@ function stem(rings: number, n: number, from: number): OverhangInput {
   return surface([...all, circle(6.5, from + rings * 0.2, n)], [...Array.from({ length: rings }, () => 0), -1], true);
 }
 
-/** The check on a mesh, with the fastest of three runs: one run alone says more about the runner than about the check. */
-function timed(mesh: OverhangInput, bed: number) {
-  let ms = Infinity;
-  let map = overhangOf(mesh, bed, overhangLimits(45), smallOverhangReach(0.4));
-  for (let run = 0; run < 3; run += 1) {
-    const start = performance.now();
-    map = overhangOf(mesh, bed, overhangLimits(45), smallOverhangReach(0.4));
-    ms = Math.min(ms, performance.now() - start);
-  }
-  return { ms, triangles: mesh.index.length / 3, support: Math.round(map.area[Overhang.Support]), small: Math.round(map.area[Overhang.Borderline]) };
+/** The check of a mesh on a bed at `bed`. */
+const checkOn = (bed: number) => (mesh: OverhangInput) => overhangOf(mesh, bed, overhangLimits(45), smallOverhangReach(0.4));
+
+/** What the check finds on a mesh. */
+function found(mesh: OverhangInput, bed: number) {
+  const map = checkOn(bed)(mesh);
+  return { triangles: mesh.index.length / 3, support: Math.round(map.area[Overhang.Support]), small: Math.round(map.area[Overhang.Borderline]) };
 }
 
 /**
@@ -77,31 +75,29 @@ const PATIENCE = 120_000;
 describe('what stands and what hangs on large meshes, in one pass', () => {
   // Searching anew from every rim took 14 s on 24 000 triangles of the funnel and 56 s on 48 000.
   it('finds every step of a stepped funnel small: each ledge stands on the riser below', { timeout: PATIENCE }, () => {
-    const small = timed(funnel(60, 100), 0);
-    expect(small).toMatchObject({ triangles: 24_000, support: 0, small: 13_186 });
-    const large = timed(funnel(250, 100), 0);
-    expect(large).toMatchObject({ triangles: 100_000, support: 0 });
-    expect(large.ms).toBeLessThan(small.ms * GROWTH);
+    const [small, large] = [funnel(60, 100), funnel(250, 100)];
+    expect(found(small, 0)).toMatchObject({ triangles: 24_000, support: 0, small: 13_186 });
+    expect(found(large, 0)).toMatchObject({ triangles: 100_000, support: 0 });
+    expect(growth(checkOn(0), small, large)).toBeLessThan(GROWTH);
   });
 
   it('finds the flanks of a long thread small, turn over turn', { timeout: PATIENCE }, () => {
-    const short = timed(thread(65, 96), -1);
-    expect(short).toMatchObject({ triangles: 37_440, support: 0 });
-    const bolt = timed(thread(260, 96), -1);
+    const [short, long] = [thread(65, 96), thread(260, 96)];
+    expect(found(short, -1)).toMatchObject({ triangles: 37_440, support: 0 });
+    const bolt = found(long, -1);
     expect(bolt.triangles).toBe(149_760);
     expect(bolt.support).toBe(0);
     expect(bolt.small).toBeGreaterThan(4700);
-    expect(bolt.ms).toBeLessThan(short.ms * GROWTH);
+    expect(growth(checkOn(-1), short, long)).toBeLessThan(GROWTH);
   });
 
   it('holds a ledge on a finely meshed stem that stands on the bed, and reports it on one that floats', { timeout: PATIENCE }, () => {
-    const short = timed(stem(62, 200, 0), 0);
-    expect(short).toMatchObject({ triangles: 25_200, support: 0, small: 54 });
-    const standing = timed(stem(250, 200, 0), 0);
-    expect(standing).toMatchObject({ triangles: 100_400, support: 0, small: 54 });
-    expect(standing.ms).toBeLessThan(short.ms * GROWTH);
-    const floating = timed(stem(250, 200, 1), 0);
-    expect(floating).toMatchObject({ support: 54, small: 0 });
-    expect(floating.ms).toBeLessThan(timed(stem(62, 200, 1), 0).ms * GROWTH);
+    const [short, standing] = [stem(62, 200, 0), stem(250, 200, 0)];
+    expect(found(short, 0)).toMatchObject({ triangles: 25_200, support: 0, small: 54 });
+    expect(found(standing, 0)).toMatchObject({ triangles: 100_400, support: 0, small: 54 });
+    expect(growth(checkOn(0), short, standing)).toBeLessThan(GROWTH);
+    const floating = stem(250, 200, 1);
+    expect(found(floating, 0)).toMatchObject({ support: 54, small: 0 });
+    expect(growth(checkOn(0), stem(62, 200, 1), floating)).toBeLessThan(GROWTH);
   });
 });

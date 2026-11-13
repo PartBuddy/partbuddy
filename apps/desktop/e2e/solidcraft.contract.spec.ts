@@ -59,20 +59,57 @@ test('starts SolidCraft without a window when none runs, and ends it on quit (AD
   const { mkdtempSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
+  /**
+   * The SolidCraft processes below the app's main process. Only those count: other SolidCraft runs on the
+   * machine (an audit, another session, a second test worker) turned the old machine-wide count red.
+   */
+  const startedBy = (root: number): { pid: number; image: string }[] => {
+    const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId),$($_.ParentProcessId),$($_.Name)" }'], {
+      encoding: 'utf8',
+      windowsHide: true,
+    });
+    const rows = out
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => {
+        const [pid = '', parent = '', ...name] = line.split(',');
+        return { pid: Number(pid), parent: Number(parent), image: name.join(',').toLowerCase() };
+      });
+    const tree = new Set([root]);
+    // The list is in no particular order: repeat until no further descendant turns up.
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const row of rows) {
+        if (tree.has(row.parent) && !tree.has(row.pid)) {
+          tree.add(row.pid);
+          grew = true;
+        }
+      }
+    }
+    return rows.filter((row) => row.pid !== root && tree.has(row.pid) && row.image.startsWith('solidcraft'));
+  };
+  const running = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === 'EPERM';
+    }
+  };
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-owned-'));
-  const windows = countProcesses('solidcraft.exe');
-  const engines = countProcesses('solidcraft-cli.exe');
   const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: '7881' } });
   try {
-    const { page } = launched;
+    const { page, app } = launched;
     await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 30_000 });
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless');
     await expect(page.getByText('Tell the assistant what you need.')).toBeVisible();
-    // No SolidCraft window was opened; the engine runs as solidcraft-cli.
-    expect(countProcesses('solidcraft.exe')).toBe(windows);
-    expect(countProcesses('solidcraft-cli.exe')).toBeGreaterThan(engines);
+    // No SolidCraft window was opened; the engine runs as solidcraft-cli, started by the app.
+    const started = startedBy(app.process().pid ?? 0);
+    expect(started.map((p) => p.image)).not.toContain('solidcraft.exe');
+    expect(started.map((p) => p.image)).toContain('solidcraft-cli.exe');
     await launched.close();
-    await expect.poll(() => countProcesses('solidcraft-cli.exe'), { timeout: 15_000 }).toBe(engines);
+    // On quit every SolidCraft the app started ends.
+    await expect.poll(() => started.filter((p) => running(p.pid)), { timeout: 15_000 }).toEqual([]);
   } finally {
     rmSync(controlDir, { recursive: true, force: true });
   }

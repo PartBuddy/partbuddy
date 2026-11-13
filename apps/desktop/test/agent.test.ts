@@ -362,7 +362,9 @@ describe('Claude Code adapter', () => {
   });
 });
 
-describe('agent service with a fake Claude Code', () => {
+// Every test starts the fake Claude Code as a real process and waits up to 15 s for it (vi.waitFor below); the
+// default 5 s cut that short on a loaded runner (CI of pull request 376).
+describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
   function setup(env: Record<string, string> = {}) {
     const workDir = mkdtempSync(join(tmpdir(), 'partbuddy-agent-'));
     cleanups.push(() => {
