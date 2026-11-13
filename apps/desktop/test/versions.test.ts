@@ -88,12 +88,27 @@ describe('version comparison (B5)', () => {
       only_in_b: { volume_mm3: 0 },
       regions: [{ side: 'only_in_a', volume_mm3: 196.35, center: [15, 10, 5] }],
     };
-    const moved = { identical: false, a: { volume_mm3: 125 }, b: { volume_mm3: 125 }, difference: { volume_percent: 0, center_of_mass_distance_mm: 3 }, regions: [] };
+    // As SolidCraft 0.40.1 compares a plate moved by [3, 4, 0]: centre and box move alike.
+    const moved = { identical: false, a: { volume_mm3: 125 }, b: { volume_mm3: 125 }, difference: { volume_percent: 0, center_of_mass_distance_mm: 5, center_of_mass: [3, 4, 0], bbox_min: [3, 4, 0], bbox_max: [3, 4, 0] }, regions: [] };
+    // A hole moved 5 mm inside the plate: same volume, the centre 0.18 mm away, the box where it was (audit D31).
+    const hole = {
+      identical: false,
+      a: { volume_mm3: 3858.6 },
+      b: { volume_mm3: 3858.6 },
+      difference: { volume_percent: -4.2e-11, center_of_mass_distance_mm: 0.183, center_of_mass: [-0.183, 0, 0], bbox_min: [0, 0, 0], bbox_max: [0, 0, 8.9e-16] },
+      only_in_a: { volume_mm3: 141.4 },
+      only_in_b: { volume_mm3: 141.4 },
+      regions: [
+        { side: 'only_in_a', volume_mm3: 141.4, center: [15, 10, 2.5] },
+        { side: 'only_in_b', volume_mm3: 141.4, center: [10, 10, 2.5] },
+      ],
+    };
     const result = summarizeComparison({
       pairs: [
         { body: 'Halter', result: changed },
         { body: 'Deckel', result: moved },
         { body: 'Fuß', result: { identical: true } },
+        { body: 'Platte', result: hole },
       ],
       onlyInVersion: ['Clip (2)'],
       onlyNow: ['Zusatz'],
@@ -102,11 +117,18 @@ describe('version comparison (B5)', () => {
       ['Halter', 'changed'],
       ['Deckel', 'moved'],
       ['Fuß', 'same'],
+      ['Platte', 'changed'],
       ['Clip', 'removed'],
       ['Zusatz', 'added'],
     ]);
     expect(result.bodies[0]).toMatchObject({ removedMm3: 196.35, addedMm3: 0, regions: [{ side: 'removed', volume: 196.35, center: [15, 10, 5] }] });
-    expect(result.bodies[1]?.movedMm).toBe(3);
+    expect(result.bodies[1]?.movedMm).toBe(5);
+    // Box and centre one move within 0.01 mm, on either side of it; a reply without the box is no move.
+    const shifted = (corner: number[]) => summarizeComparison({ pairs: [{ body: 'P', result: { ...moved, difference: { ...moved.difference, bbox_min: corner, bbox_max: [3, 4, 0] } } }], onlyInVersion: [], onlyNow: [] }).bodies[0]?.status;
+    expect(shifted([3.009, 4, 0])).toBe('moved');
+    expect(shifted([3.012, 4, 0])).toBe('changed');
+    expect(summarizeComparison({ pairs: [{ body: 'P', result: { ...moved, difference: { volume_percent: 0, center_of_mass_distance_mm: 5, center_of_mass: [3, 4, 0] } } }], onlyInVersion: [], onlyNow: [] }).bodies[0]?.status).toBe('changed');
+    expect(result.bodies[3]).toMatchObject({ movedMm: 0, regions: [{ side: 'removed', center: [15, 10, 2.5] }, { side: 'added', center: [10, 10, 2.5] }] });
   });
 });
 
