@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { FaceTable } from './faceTable';
 import { smallOverhangReach } from './overhang';
-import { checkPrint, laidBodies, minimumFloor, minimumWall, thinnestLine, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
+import { blocksOnlyForSupport, checkPrint, laidBodies, minimumFloor, minimumWall, thinnestLine, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
 import { boxesBody, gridBody, lathe, lyingRod, lyingTube, posed, prismBody, rawBody, revolved } from './testShapes';
@@ -162,6 +162,29 @@ describe('the ready-to-print check (M7)', () => {
     expect(bar(45.2)).toMatchObject({ limit: 45, places: [{ body: 'Bar', faces: ['F1:s1', 'F1:s5'] }] });
     // 45.9° passed with the 1° before.
     expect(bar(45.9)).toMatchObject({ limit: 45 });
+    // The same either side of the limit however the bar lies: turned on the plate, mirrored, lifted (review S3).
+    const placed = (deg: number, turn: number, mirrored: boolean, lift: number) => {
+      const run = 3 * Math.tan((deg * Math.PI) / 180);
+      const body = posed(prismBody('Bar', [[run, 0], [20 - run, 0], [20, 3], [20, 10], [0, 10], [0, 3]], 40), turn, mirrored, lift);
+      return checkPrint([body], PLA).findings.find((f) => f.kind === 'overhang');
+    };
+    for (const turn of [1, 7.5, 15, 30, 45, 60, 75, 90]) {
+      for (const [mirrored, lift] of [[false, 0], [true, 0], [false, 7.3]] as const) {
+        const how = `turned ${String(turn)}°${mirrored ? ', mirrored' : ''}, ${String(lift)} mm up`;
+        expect(placed(45.05, turn, mirrored, lift), how).toBeUndefined();
+        expect(placed(45.2, turn, mirrored, lift), how).toMatchObject({ limit: 45 });
+      }
+    }
+  });
+
+  it('tells a part red only for support from one that does not print (review S2, K2)', () => {
+    const overhang = { kind: 'overhang', severity: 'block' as const };
+    expect(blocksOnlyForSupport([overhang, { kind: 'contact', severity: 'warn' }])).toBe(true);
+    expect(blocksOnlyForSupport([overhang, { kind: 'size', severity: 'block' }])).toBe(false);
+    expect(blocksOnlyForSupport([{ kind: 'overhang', severity: 'warn' }])).toBe(false);
+    expect(blocksOnlyForSupport([])).toBe(false);
+    // Findings left out of a report may block for another reason.
+    expect(blocksOnlyForSupport([overhang], 1)).toBe(false);
   });
 
   it('checks a body lying on its print face, and as designed when the face is not a flat one of the body', () => {

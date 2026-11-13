@@ -172,6 +172,7 @@ export function PrintCheckChip() {
     useStudio((s) => s.connection),
   );
   const setStepHighlight = useStudio((s) => s.setStepHighlight);
+  const supportFree = useStudio((s) => s.print?.supportFree === true);
   const lacking = useLackingLines()(check?.unmeasured ?? []);
   const bodyList = useBodyList();
   // "Checking" shows only when it lasts; the export asks all the same (review of #367).
@@ -246,7 +247,7 @@ export function PrintCheckChip() {
                 {t('check.unchecked', { bodies: bodyList(check.unchecked) })}
               </p>
             ) : null}
-            <p className="px-2 text-xs text-text-muted">{t('check.basis', { setting: t('print.supportFree') })}</p>
+            <p className="px-2 text-xs text-text-muted">{t(supportFree ? 'check.basisSupportFree' : 'check.basis', { setting: t('print.supportFree') })}</p>
           </Dialog>
         </Popover>
       </DialogTrigger>

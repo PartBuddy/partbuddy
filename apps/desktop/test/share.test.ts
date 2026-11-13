@@ -39,7 +39,8 @@ describe('the sharing package (F5)', () => {
     const overhang = { kind: 'overhang', severity: 'block' as const };
     expect(shareCheck({ status: 'block', findings: [overhang] })).toEqual({ status: 'warn', overhang: true });
     expect(shareDescription({ ...facts, check: shareCheck({ status: 'block', findings: [overhang] }) })).toContain('check them in the slicer');
-    // Anything else that blocks still blocks.
+    // Anything else that blocks still blocks, and so does a report that leaves findings out (review K2).
+    expect(shareCheck({ status: 'block', findings: [overhang], omitted: 2 })).toEqual({ status: 'block', overhang: true });
     expect(shareCheck({ status: 'block', findings: [{ kind: 'size', severity: 'block' }, overhang] })).toEqual({ status: 'block', overhang: true });
     expect(shareCheck({ status: 'warn', findings: [{ kind: 'overhang', severity: 'warn' }] })).toEqual({ status: 'warn', overhang: true });
     expect(shareCheck({ status: 'ready', findings: [] })).toEqual({ status: 'ready', overhang: false });

@@ -1,4 +1,4 @@
-import { thinnestLine, withinTurn } from '@partbuddy/geometry';
+import { blocksOnlyForSupport, thinnestLine, withinTurn } from '@partbuddy/geometry';
 
 import type { PrintCheckReport } from '../../shared/contract';
 import type { ToolResult } from '../agents/gateProxy';
@@ -34,7 +34,8 @@ const names = (features: readonly string[]) =>
   `feature${features.length === 1 ? '' : 's'} ${features.slice(0, 8).map((name) => JSON.stringify(name)).join(', ')}${features.length > 8 ? ` and ${String(features.length - 8)} more` : ''}`;
 
 function line(finding: Finding, nozzle: number): string {
-  const tag = finding.severity === 'block' ? 'blocks printing' : 'warning';
+  // An overhang red only by "Design without support" prints with support: it is not said to block printing (review S2).
+  const tag = finding.severity === 'block' ? (finding.kind === 'overhang' ? 'needs support the user does not want' : 'blocks printing') : 'warning';
   switch (finding.kind) {
     case 'size':
       return `- ${tag}: body ${JSON.stringify(finding.body)} is ${finding.size.map(String).join(' × ')} mm, the printer takes ${finding.bed.map(String).join(' × ')} mm${finding.lying ? '; it would fit lying on another side' : ''}.`;
@@ -65,7 +66,9 @@ function line(finding: Finding, nozzle: number): string {
     case 'open':
       return `- ${tag}: ${finding.bodies.map((body) => `body ${JSON.stringify(body)}`).join(', ')} is an open surface, not a closed solid: it has no volume, so nothing of it prints. Close it into a solid, or remove it if it only helped to build.`;
     case 'faceLost':
-      return `- ${tag}: the print face of ${finding.bodies.map((body) => `body ${JSON.stringify(body)}`).join(', ')} is no flat face of it any more (renamed or changed since it was set), so it is not checked lying on it (but as designed, or on the print face of a body it prints in one piece with). Set it again (body.print_face) where it should lie.`;
+      return finding.bodies.length === 1
+        ? `- ${tag}: the print face of body ${JSON.stringify(finding.bodies[0])} is no flat face of it any more (renamed or changed since it was set), so it is not checked lying on it (but as designed, or on the print face of a body it prints in one piece with). Set it again (body.print_face) where it should lie.`
+        : `- ${tag}: the print faces of bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(', ')} are no flat faces of them any more (renamed or changed since they were set), so they are not checked lying on them (but as designed, or on the print face of a body they print in one piece with). Set them again (body.print_face) where they should lie.`;
     case 'feature':
       return (
         `- ${tag}: feature ${JSON.stringify(finding.feature)} reports ${JSON.stringify(finding.message.slice(0, 200))}.` +
@@ -117,7 +120,7 @@ const NOT_CHECKED = 'Not checked: strength and layer direction under load, the f
 const FIT_KINDS = new Set<Finding['kind']>(['overlap', 'tight', 'fused', 'blocked']);
 /** What the model must do before "done" (audit H-12): a warning about how the parts go together is fixed or told, never passed over. */
 const FIX_BEFORE_DONE =
-  'Fix what blocks printing, and either fix or name to the user every warning about parts that overlap, are too tight, fuse or stop a joint, before you call the part done; the user sees the same findings.';
+  'Fix what blocks printing or needs support the user does not want, and either fix or name to the user every warning about parts that overlap, are too tight, fuse or stop a joint, before you call the part done; the user sees the same findings.';
 
 /** Bodies listed with their measures before the rest is counted. */
 const MAX_BODIES = 6;
@@ -172,7 +175,7 @@ export function printCheckNote(report: PrintCheckReport, view = false): string {
     return [`${head} nothing found ${report.measuring ? `so far (${CHECKED_MESH})` : `in what it checks (${CHECKED_MESH}${measured})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}]`].join('\n');
   // An assembly whose parts do not go together or move is no finished part, though each piece prints (audit H-12).
   const fitting = report.findings.some((finding) => FIT_KINDS.has(finding.kind));
-  const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? (fitting ? 'prints, but its parts do not go together or move as designed' : 'prints, with warnings') : 'ready to print';
+  const verdict = report.status === 'block' ? (blocksOnlyForSupport(report.findings, report.omitted ?? 0) ? 'prints only with support, and the user designs without' : 'not ready to print') : report.status === 'warn' ? (fitting ? 'prints, but its parts do not go together or move as designed' : 'prints, with warnings') : 'ready to print';
   return [`${head} ${verdict}.`, ...findingLines(report), ...preliminary, ...measureLines(report), `${FIX_BEFORE_DONE} ${NOT_CHECKED}]`].join('\n');
 }
 
@@ -201,7 +204,7 @@ export class CheckTold {
           `[PartBuddy: ready-to-print check after this change: unchanged, ${
             report.findings.length === 0
               ? 'nothing found'
-              : `${report.status === 'block' ? 'still not ready to print, ' : ''}the same ${String(report.findings.length + (report.omitted ?? 0))} ${report.findings.length + (report.omitted ?? 0) === 1 ? 'finding' : 'findings'} as before`
+              : `${report.status === 'block' ? (blocksOnlyForSupport(report.findings, report.omitted ?? 0) ? 'still needs support the user does not want, ' : 'still not ready to print, ') : ''}the same ${String(report.findings.length + (report.omitted ?? 0))} ${report.findings.length + (report.omitted ?? 0) === 1 ? 'finding' : 'findings'} as before`
           }${report.measuring ? `; clearance and joints still being measured: ${FETCH_FULL}` : ''}${(report.unmeasured ?? []).length > 0 ? `; ${unmeasuredLine(report.unmeasured ?? [])}` : '.'}`,
           ...measureLines(report, 'Measures that changed:', changed),
         ].join('\n') + ']'

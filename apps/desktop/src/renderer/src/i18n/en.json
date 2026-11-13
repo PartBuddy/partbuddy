@@ -1151,7 +1151,8 @@
     },
     "none": "No problems found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
     "noneSoFar": "No problems found so far.",
-    "basis": "Checked after every change, each body on its print face, else as designed (standing on its lowest point), with the printer and material of this part. Hidden bodies are not checked. Supports and bridges are up to the slicer; with \"{setting}\" on, an overhang is red.",
+    "basis": "Checked after every change, each body on its print face, else as designed (standing on its lowest point), with the printer and material of this part. Hidden bodies are not checked. Supports and bridges are up to the slicer.",
+    "basisSupportFree": "Checked after every change, each body on its print face, else as designed (standing on its lowest point), with the printer and material of this part. Hidden bodies are not checked. You design without support (\"{setting}\"), so an overhang past the angle is red; bridges are up to the slicer.",
     "measuring": "The check is still running. Overlaps, gaps that are too tight or a blocked joint may still turn up.",
     "unmeasured": "Not measured, or not all of it: {what}. Findings there may be missing.",
     "unchecked": "Not checked for gaps (mesh bodies): {bodies}",
@@ -1193,6 +1194,7 @@
     "confirm": {
       "title": "Export anyway?",
       "body": "The print check is red. As it is, the part will likely not print cleanly:",
+      "bodySupportFree": "You design this part without support (\"{setting}\"), and these faces would need support in the slicer. With support it prints:",
       "cancel": "Cancel",
       "go": "Export anyway",
       "measuring": "The print check has not finished yet. Findings may still turn up, such as overlaps or a blocked joint.",

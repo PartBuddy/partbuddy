@@ -1,3 +1,4 @@
+import { blocksOnlyForSupport } from '@partbuddy/geometry';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Heading, Modal, ModalOverlay } from 'react-aria-components';
@@ -49,7 +50,8 @@ export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget)
               </Heading>
               {blocking.length > 0 ? (
                 <>
-                  <p className="text-sm text-text-muted">{t('check.confirm.body')}</p>
+                  {/* Red only by "Design without support": the part prints, with support (review S2). */}
+                  <p className="text-sm text-text-muted">{blocksOnlyForSupport(findings) ? t('check.confirm.bodySupportFree', { setting: t('print.supportFree') }) : t('check.confirm.body')}</p>
                   <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-text">
                     {blocking.map((finding, i) => (
                       <li key={`${finding.kind}-${String(i)}`}>{text(finding)}</li>

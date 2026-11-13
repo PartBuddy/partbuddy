@@ -778,11 +778,6 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
   }
   const onBed = (face: number) => (top[face] ?? Number.POSITIVE_INFINITY) <= bedZ + BED_TOLERANCE;
 
-  const vertices = new Uint8Array(vertexFaces.length);
-  for (let v = 0; v < vertexFaces.length; v += 1) {
-    vertices[v] = onBed(vertexFaces[v] ?? 0) ? Overhang.Bed : classOf(-(normals[v * 3 + 2] ?? 0));
-  }
-
   const area: [number, number, number, number] = [0, 0, 0, 0];
   const supportByFace = new Float64Array(faceCount);
   const triangles: { kind: Overhang; face: number; area: number }[] = [];
@@ -820,6 +815,12 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
   triangles.forEach((triangle, t) => {
     if (triangle.area > 0 && !onBed(triangle.face)) triangle.kind = (curved[triangle.face] ? curvedClassOf : classOf)(down[t] ?? 0);
   });
+  // The shading by vertex takes the same tolerance as its face's area, so a face is not coloured past the limit it is not counted past (review K5).
+  const vertices = new Uint8Array(vertexFaces.length);
+  for (let v = 0; v < vertexFaces.length; v += 1) {
+    const face = vertexFaces[v] ?? 0;
+    vertices[v] = onBed(face) ? Overhang.Bed : (curved[face] ? curvedClassOf : classOf)(-(normals[v * 3 + 2] ?? 0));
+  }
   // The roof of a lying hole overhangs between the two lines where its wall passes the limit. That line is read
   // between the facets of a curved face, so it takes the curved tolerance: with 0.1° the 90° countersinks of the wall
   // holder template, no facet past 44.97°, read 2 mm² (BC-19 harness `druckpruefung-bc19-csink`).

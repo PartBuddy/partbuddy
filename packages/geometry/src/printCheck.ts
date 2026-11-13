@@ -671,6 +671,14 @@ function sizeFinding(body: string, positions: ArrayLike<number>, bed: readonly [
   return { kind: 'size', severity: 'block', body, size: [round(x, 1), round(y, 1), round(z, 1)], bed: [...bed], lying };
 }
 
+/**
+ * Whether what blocks is only an overhang the user wants designed away ("Design without support", audit R55): the part
+ * prints with support then, so it is no part that does not print. `omitted` findings not listed are taken to block.
+ */
+export function blocksOnlyForSupport(findings: readonly { kind: string; severity: FindingSeverity }[], omitted = 0): boolean {
+  return omitted === 0 && findings.some((finding) => finding.severity === 'block') && findings.every((finding) => finding.severity !== 'block' || finding.kind === 'overhang');
+}
+
 const SEVERITY_ORDER: Record<FindingSeverity, number> = { block: 0, warn: 1 };
 
 const statusOf = (findings: readonly PrintFinding[]): PrintStatus =>

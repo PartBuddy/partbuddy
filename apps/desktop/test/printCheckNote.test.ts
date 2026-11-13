@@ -64,23 +64,35 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
   it('says a print face that is gone, and how to set it again (audit H-29)', () => {
     const report = reportOf({ status: 'warn', findings: [{ kind: 'faceLost', severity: 'warn', bodies: ['Lid', 'Box'] }] }, 0.4, 1);
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
-    expect(printCheckNote(report)).toContain('- warning: the print face of body "Lid", body "Box" is no flat face of it any more (renamed or changed since it was set), so it is not checked lying on it');
-    expect(printCheckNote(report)).toContain('Set it again (body.print_face) where it should lie.');
+    expect(printCheckNote(report)).toContain('- warning: the print faces of bodies "Lid", "Box" are no flat faces of them any more (renamed or changed since they were set), so they are not checked lying on them');
+    expect(printCheckNote(report)).toContain('Set them again (body.print_face) where they should lie.');
+    // One body, in the singular (review K1).
+    const one = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'faceLost', severity: 'warn', bodies: ['Lid'] }] });
+    expect(one).toContain('- warning: the print face of body "Lid" is no flat face of it any more (renamed or changed since it was set), so it is not checked lying on it');
+    expect(one).toContain('Set it again (body.print_face) where it should lie.');
   });
 
   it('asks to reshape an overhang when the user designs without support, and leaves it to the slicer otherwise (audit R55)', () => {
     const overhang = { kind: 'overhang' as const, area: 400, limit: 45, places: [{ body: 'Table', faces: ['F2:-z'] }] };
     const red = printCheckNote({ status: 'block', nozzle: 0.4, revision: 1, findings: [{ ...overhang, severity: 'block' }] });
-    expect(red).toContain('not ready to print.');
-    expect(red).toContain('- blocks printing: 400 mm² lean more than 45° from the vertical (faces "F2:-z" of body "Table"); the user wants this part to print without support: reshape it (a slope within that angle, a teardrop roof, a chamfer) or set another print face, or tell the user why it cannot be done.');
+    // It prints with support: not said to block printing (review S2).
+    expect(red).toContain('prints only with support, and the user designs without.');
+    expect(red).not.toContain('not ready to print');
+    expect(red).not.toContain('blocks printing:');
+    expect(red).toContain('Fix what blocks printing or needs support the user does not want, and either fix or name');
+    expect(red).toContain('- needs support the user does not want: 400 mm² lean more than 45° from the vertical (faces "F2:-z" of body "Table"); the user wants this part to print without support: reshape it (a slope within that angle, a teardrop roof, a chamfer) or set another print face, or tell the user why it cannot be done.');
     expect(red).not.toContain('the slicer decides');
     const yellow = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ ...overhang, severity: 'warn' }] });
     expect(yellow).toContain('; the slicer decides whether they need support.');
     expect(yellow).not.toContain('without support');
+    // With anything else that blocks, or findings left out of the report, the part is not ready to print.
+    const size = { kind: 'size' as const, severity: 'block' as const, body: 'Table', size: [300, 20, 20] as [number, number, number], bed: [256, 256, 256] as [number, number, number], lying: false };
+    expect(printCheckNote({ status: 'block', nozzle: 0.4, revision: 1, findings: [size, { ...overhang, severity: 'block' }] })).toContain('not ready to print.');
+    expect(printCheckNote({ status: 'block', nozzle: 0.4, revision: 1, omitted: 3, findings: [{ ...overhang, severity: 'block' }] })).toContain('not ready to print.');
   });
 
   it('holds the model to fix or name parts that do not go together or move, not only what blocks (audit H-12)', () => {
-    const closing = 'Fix what blocks printing, and either fix or name to the user every warning about parts that overlap, are too tight, fuse or stop a joint, before you call the part done';
+    const closing = 'Fix what blocks printing or needs support the user does not want, and either fix or name to the user every warning about parts that overlap, are too tight, fuse or stop a joint, before you call the part done';
     const fits = [
       { kind: 'overlap' as const, severity: 'warn' as const, bodies: ['Case', 'Lid'] as [string, string], volume: 1, places: [] },
       { kind: 'tight' as const, severity: 'warn' as const, bodies: ['Case', 'Clip'] as [string, string], gap: 0.1, minimum: 0.15, places: [] },
