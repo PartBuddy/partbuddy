@@ -64,6 +64,9 @@ describe('moving a placed logo', () => {
     expect(await logoAt(run, [16, 21, 10 - 1.1])).not.toBeNull();
     expect(await logoAt(run, [16, 21, 10 - 1.2])).toBeNull();
     expect(await logoAt(run, [16, 21, 0])).toBeNull();
+    // Above the face an engraved logo is not: within the slack yes, over it no.
+    expect(await logoAt(run, [16, 21, 10.5])).not.toBeNull();
+    expect(await logoAt(run, [16, 21, 10.6])).toBeNull();
   });
 
   it('finds the top of a logo built up 30 mm, as high as a logo may be (audit G8)', async () => {
@@ -83,6 +86,9 @@ describe('moving a placed logo', () => {
     expect(await logoAt(tall(30), [16, 21, 40])).toMatchObject({ logo: 'SVG-Logo Badge', depth: { value: 30, raised: true } });
     expect(await logoAt(tall(50), [16, 21, 60.5])).toMatchObject({ depth: { value: 50 } });
     expect(await logoAt(tall(50), [16, 21, 60.6])).toBeNull();
+    // On the other side of a 1 mm plate under a raised logo: the plate's underside, not the logo (review K3 of BC-23).
+    expect(await logoAt(tall(30), [16, 21, 10 - 0.5])).not.toBeNull();
+    expect(await logoAt(tall(30), [16, 21, 10 - 1])).toBeNull();
   });
 
   it('plans centring and an exact move as one redefine per sketch, with the bodies for the ghost', async () => {

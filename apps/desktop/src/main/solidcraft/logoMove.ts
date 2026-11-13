@@ -299,7 +299,7 @@ export interface LogoSpot {
 export async function logoAt(run: Run, point: Vec3): Promise<LogoSpot | null> {
   const design = await inspect(run);
   const { logos, read } = await readLogos(run, design);
-  let best: { sketch: PlacedSketch; distance: number; box: [number, number, number, number] } | null = null;
+  let best: { sketch: PlacedSketch; distance: number; height: number; box: [number, number, number, number] } | null = null;
   for (const group of logos.values()) {
     const sketch = group[0];
     const box = boxOf(group, read);
@@ -308,15 +308,18 @@ export async function logoAt(run: Run, point: Vec3): Promise<LogoSpot | null> {
     const [minU, minV, maxU, maxV] = box;
     const { x_dir: x, y_dir: y, origin } = sketch.plane;
     const normal: Vec3 = [x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]];
-    const distance = Math.abs(normal.reduce((sum, n, k) => sum + n * ((point[k] ?? 0) - (origin[k] ?? 0)), 0));
+    // Along the face's outward normal (planeAt): built up above it, cut in below.
+    const height = normal.reduce((sum, n, k) => sum + n * ((point[k] ?? 0) - (origin[k] ?? 0)), 0);
+    const distance = Math.abs(height);
     const inside = u >= minU - SLACK_MM && u <= maxU + SLACK_MM && v >= minV - SLACK_MM && v <= maxV + SLACK_MM;
-    if (inside && distance <= REACH_MM && (!best || distance < best.distance)) best = { sketch, distance, box: [minU, minV, maxU, maxV] };
+    if (inside && distance <= REACH_MM && (!best || distance < best.distance)) best = { sketch, distance, height, box: [minU, minV, maxU, maxV] };
   }
   if (!best) return null;
   const first = best.sketch;
   const depth = await depthOf(run, design, logos.get(first.name) ?? [first]);
-  // Farther from its plane than the logo is deep or high: a face behind or under it (the far side of the part), not the logo.
-  if (depth && best.distance > depth.depth + SLACK_MM) return null;
+  // On the side the logo is not, or farther than it is deep or high: a face behind or under it (the far side of the part).
+  const [low, high] = depth ? (depth.raised ? [-SLACK_MM, depth.depth + SLACK_MM] : [-(depth.depth + SLACK_MM), SLACK_MM]) : [-REACH_MM, REACH_MM];
+  if (best.height < low || best.height > high) return null;
   const host = await hostOf(run, design, first.plane);
   const middle = host ? centring(host.extent, 'both') : null;
   const tidy = (value: number) => Math.round(value * 1000) / 1000 || 0;
