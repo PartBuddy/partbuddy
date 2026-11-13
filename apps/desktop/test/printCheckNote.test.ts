@@ -37,7 +37,7 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     const note = printCheckNote(report);
     expect(note).toContain('not ready to print');
     expect(note).toContain('body "Rod" is 300 × 20 × 20 mm, the printer takes 256 × 256 × 256 mm; it would fit lying on another side');
-    expect(note).toContain('walls down to 0.3 mm, thinner than one line (0.45 mm with the 0.4 mm nozzle), so they do not print (faces "F1:+z", "F1:-z" of body "Plate")');
+    expect(note).toContain('walls down to 0.3 mm, thinner than the narrowest line a slicer lays (0.42 mm with the 0.4 mm nozzle), so they do not print (faces "F1:+z", "F1:-z" of body "Plate")');
     expect(note).toContain('120 mm² lean more than 45° from the vertical (faces "F3:-z" of body "Top"); the slicer decides whether they need support');
     expect(note).toContain('feature "Shell1" reports "thin result"');
   });
@@ -57,6 +57,17 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     const report = reportOf({ status: 'block', findings: [{ kind: 'open', severity: 'block', bodies: ['Tube'] }] }, 0.4, 1);
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
     expect(printCheckNote(report)).toContain('blocks printing: body "Tube" is an open surface, not a closed solid');
+  });
+
+  it('says which features are left out of the part, not that they report something (review of PR 371, S3)', () => {
+    const many = Array.from({ length: 50 }, (_, i) => 'Fillet' + String(i));
+    const report = reportOf({ status: 'warn', findings: [{ kind: 'leftOut', severity: 'warn', rolledBack: false, features: ['Chamfer1'] }, { kind: 'leftOut', severity: 'warn', rolledBack: true, features: many }] }, 0.4, 1);
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    const note = printCheckNote(report);
+    expect(note).toContain('warning: feature "Chamfer1" is suppressed, so not in the part as checked and exported; a suppressed feature that failed is not fixed.');
+    expect(note).toContain('warning: the timeline is rolled back: features "Fillet0", "Fillet1"');
+    expect(note).toContain('and 32 more come after its marker');
+    expect(note).not.toContain('reports');
   });
 
   it('names the body that rests on an edge and has no face on the bed', () => {

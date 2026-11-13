@@ -85,6 +85,10 @@ describe('face-tagged 3MF fixture', () => {
     expect(() => parseTagged3mf(packed(xml.replace(/ ft:face="\d+"\/>/, '/>')))).toThrow(/triangle 0 has no valid ft:face/);
     expect(() => parseTagged3mf(packed(xml.replace('unit="millimeter"', 'unit="inch"')))).toThrow(/unit is inch/);
     expect(() => parseTagged3mf(packed(xml.replace('<item objectid="2"/>', '<item objectid="2" transform="1 0 0 0 1 0 0 0 1 10 0 0"/>')))).toThrow(/transform/);
+    // One that leaves it where it is reads as none (review of PR #371, K3).
+    expect(parseTagged3mf(packed(xml.replace('<item objectid="2"/>', '<item objectid="2" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>')))).toEqual(mesh);
+    // A broken number in the usual order falls back to the attributes and is named.
+    expect(() => parseTagged3mf(packed(xml.replace(/<vertex x="[^"]+"/, '<vertex x="?"')))).toThrow(/vertex 0 has no valid x/);
   });
 });
 

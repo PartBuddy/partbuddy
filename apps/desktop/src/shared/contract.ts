@@ -1169,6 +1169,7 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('tight'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), gap: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('blocked'), severity: findingSeveritySchema, joint: z.string().max(200), bodies: z.tuple([bodyName, bodyName]), at: finite, limit: finite, unit: z.enum(['deg', 'mm']), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('posed'), severity: findingSeveritySchema, joint: z.string().max(200), value: finite, unit: z.enum(['deg', 'mm']) }).strict(),
+  z.object({ kind: z.literal('leftOut'), severity: findingSeveritySchema, rolledBack: z.boolean(), features: z.array(z.string().max(200)).min(1).max(40) }).strict(),
 ]);
 export const printCheckReportSchema = z
   .object({

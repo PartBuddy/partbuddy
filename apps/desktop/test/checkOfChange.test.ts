@@ -80,7 +80,7 @@ function setup({ checkAfterMs = 100, measureMs = null, waitMs = 1000, fullMs = 5
 }
 
 const extrude = { command: 'solid.extrude', params: { distance: 5 } };
-const BLOCKED = 'not ready to print.\n- blocks printing: walls down to 0.3 mm, thinner than one line (0.45 mm with the 0.4 mm nozzle)';
+const BLOCKED = 'not ready to print.\n- blocks printing: walls down to 0.3 mm, thinner than the narrowest line a slicer lays (0.42 mm with the 0.4 mm nozzle)';
 const textOf = (result: ToolResult) => result.content.map((part) => String(part.text)).join('\n');
 
 /** What Claude Code reads: the tool result through the gate proxy. */

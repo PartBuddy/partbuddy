@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { FaceTable } from './faceTable';
 import { smallOverhangReach } from './overhang';
-import { checkPrint, laidBodies, lineWidth, minimumFloor, minimumWall, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
+import { checkPrint, laidBodies, minimumFloor, minimumWall, thinnestLine, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
 import { boxesBody, gridBody, lathe, lyingTube, posed, prismBody, rawBody, revolved } from './testShapes';
@@ -308,7 +308,7 @@ describe('the ready-to-print check (M7)', () => {
     const result = checkPrint([box('Block', [0, 0, 0], [40, 30, 10])], PLA, features);
     expect(result.status).toBe('block');
     // Rolled back, it is not in the part: that is said (audit H-03), its error is not.
-    expect(result.findings.map((f) => (f.kind === 'feature' ? `${f.severity}:${f.feature}` : f.kind))).toEqual(['block:Fillet1', 'warn:Hole1', 'warn:Shell1']);
+    expect(result.findings.map((f) => (f.kind === 'feature' ? `${f.severity}:${f.feature}` : f.kind))).toEqual(['block:Fillet1', 'leftOut', 'warn:Shell1']);
   });
 
   it('says which features are left out of the part: suppressed, or rolled back (audit H-03)', () => {
@@ -317,12 +317,21 @@ describe('the ready-to-print check (M7)', () => {
     // A chamfer larger than the wall blocked; suppressed, it read ready, with the chamfer missing from the part.
     expect(checkPrint([block], PLA, [feature('Box'), feature('Chamfer1', { error: 'chamfer larger than the wall' })]).status).toBe('block');
     const suppressed = checkPrint([block], PLA, [feature('Box'), feature('Chamfer1', { error: 'chamfer larger than the wall', suppressed: true })]);
-    expect(suppressed).toEqual({ status: 'warn', findings: [{ kind: 'feature', severity: 'warn', feature: 'Chamfer1', message: 'suppressed: not in the part as checked and exported' }] });
+    expect(suppressed).toEqual({ status: 'warn', findings: [{ kind: 'leftOut', severity: 'warn', rolledBack: false, features: ['Chamfer1'] }] });
     // Rolled back to the first of four: one finding for the three after the marker.
     const rolled = checkPrint([block], PLA, [feature('Box'), feature('Hole1', { rolledBack: true }), feature('Fillet1', { rolledBack: true }), feature('Shell1', { rolledBack: true })]);
-    expect(rolled).toEqual({ status: 'warn', findings: [{ kind: 'feature', severity: 'warn', feature: 'Hole1', message: 'rolled back with the 2 after it: not in the part as checked and exported' }] });
+    expect(rolled).toEqual({ status: 'warn', findings: [{ kind: 'leftOut', severity: 'warn', rolledBack: true, features: ['Hole1', 'Fillet1', 'Shell1'] }] });
     // All in: nothing.
     expect(checkPrint([block], PLA, [feature('Box'), feature('Hole1')])).toEqual({ status: 'ready', findings: [] });
+  });
+
+  it('says nothing of a suppressed or rolled back sketch or plane: they build no material (review of PR #371, K5)', () => {
+    const block = box('Block', [0, 0, 0], [40, 30, 10]);
+    const entry = (name: string, type: string, more: { suppressed?: boolean; rolledBack?: boolean }) => ({ name, type, error: null, warning: null, suppressed: more.suppressed ?? false, rolledBack: more.rolledBack ?? false });
+    const quiet = [entry('S1', 'Sketch', { suppressed: true }), entry('Plane1', 'ConstructionPlane', { suppressed: true }), entry('Axis1', 'ConstructionAxis', { rolledBack: true }), entry('S2', 'Sketch', { rolledBack: true })];
+    expect(checkPrint([block], PLA, [entry('E1', 'ExtrudeFeature', {}), ...quiet])).toEqual({ status: 'ready', findings: [] });
+    // The fillet after them is said.
+    expect(checkPrint([block], PLA, [entry('E1', 'ExtrudeFeature', {}), ...quiet, entry('Fillet1', 'FilletFeature', { rolledBack: true })]).findings).toEqual([{ kind: 'leftOut', severity: 'warn', rolledBack: true, features: ['Fillet1'] }]);
   });
 
   it('checks the real cable clip: it fits, stands on its base and has no wall the nozzle cannot print', () => {
@@ -424,6 +433,8 @@ describe('bodies that touch (audit N-druckpruefung-3, MG-19, D41)', () => {
     ['bars across, 0.04 mm apart', [bar('A', [0, 25, 0], [60, 35, 10]), bar('B', [25, 0, 10.04], [35, 60, 20])], true],
     ['a cube wholly inside another', [bar('A', [0, 0, 0], [30, 30, 30]), bar('B', [10, 10, 10], [20, 20, 20])], true],
     ['a bar through a cube, no corner inside', [bar('A', [0, 0, 0], [20, 20, 20]), bar('B', [-10, 5, 5], [30, 15, 15])], true],
+    // Held in a closed hollow 1 mm clear all round: neither touches; a ray from it meets the cage's inside, facing it (review of PR #371).
+    ['a cube caught in a closed hollow', [gridBody('Cage', [0, 2, 12, 14], [0, 2, 12, 14], [0, 2, 12, 14], (i, j, k) => !(i === 1 && j === 1 && k === 1)), bar('Caught', [3, 3, 3], [11, 11, 11])], false],
     ['bars across, 0.1 mm apart', [bar('A', [0, 25, 0], [60, 35, 10]), bar('B', [25, 0, 10.1], [35, 60, 20])], false],
     ['two cubes 10 mm apart', [bar('A', [0, 0, 0], [20, 20, 20]), bar('B', [30, 0, 0], [50, 20, 20])], false],
     ['a cube in a ring around it, apart', [boxesBody('Ring', [[[0, 0, 0], [40, 5, 10]], [[0, 35, 0], [40, 40, 10]], [[0, 5, 0], [5, 35, 10]], [[35, 5, 0], [40, 35, 10]]]), bar('Core', [10, 10, 0], [30, 30, 10])], false],
@@ -440,14 +451,28 @@ describe('thin walls, wherever they are (audit MG-16, D7, D39, MG-18, D40)', () 
   const wall = (thickness: number) => boxesBody('Wall', [[[0, 0, 0], [20, thickness, 20]]]);
   const thinIn = (bodies: PrintCheckBody[], place: (typeof PLACES)[number]) => checkPrint(placed(bodies, place), PLA).findings.find((f) => f.kind === 'thinWall' && !f.floor);
 
-  it('blocks a wall under one line (0.45 mm for the 0.4 mm nozzle), not first under the nozzle', () => {
-    expect(lineWidth(0.4)).toBe(0.45);
-    expect(lineWidth(0.6)).toBe(0.68);
+  it('blocks a wall under the narrowest line a slicer lays (0.42 mm for the 0.4 mm nozzle), not first under the nozzle', () => {
+    expect(thinnestLine(0.4)).toBe(0.42);
+    expect(thinnestLine(0.6)).toBe(0.63);
     for (const place of PLACES) {
       const where = JSON.stringify(place);
-      // A plate 20 × 20 × 0.42 standing: under the 0.45 of one line it does not print (it read as a warning).
-      expect(thinIn([wall(0.42)], place), where).toMatchObject({ severity: 'block', thickness: 0.42 });
-      expect(thinIn([wall(0.46)], place), where).toMatchObject({ severity: 'warn', thickness: 0.46 });
+      // A plate standing 0.41 mm thin is under Bambu Studio's outer wall line of 0.42 (it read as a warning, audit MG-16).
+      expect(thinIn([wall(0.41)], place), where).toMatchObject({ severity: 'block', thickness: 0.41 });
+      // 0.42 and 0.44 are a line, as Bambu lays them: a warning, not red (review of PR #371, B1).
+      expect(thinIn([wall(0.42)], place), where).toMatchObject({ severity: 'warn', thickness: 0.42 });
+      expect(thinIn([wall(0.44)], place), where).toMatchObject({ severity: 'warn', thickness: 0.44 });
+    }
+  }, PATIENCE);
+
+  it('measures a round wall by its radii, however finely outside and hole are meshed (review of PR #371, B1)', () => {
+    // A tube of 0.45 mm wall, round 5 mm, its outside and its hole meshed alike and not: 36/72 read 0.43, 24/48 0.41 and blocked.
+    for (const [outer, inner] of [[96, 96], [36, 72], [24, 48], [72, 36]] as const) {
+      for (const place of PLACES) {
+        const where = `${String(outer)}/${String(inner)} ${JSON.stringify(place)}`;
+        expect(thinIn([lyingTube('Tube', 5, 4.55, 20, outer, inner)], place), where).toMatchObject({ severity: 'warn', thickness: 0.45 });
+        // 0.4 mm round is under the line, however meshed.
+        expect(thinIn([lyingTube('Tube', 5, 4.6, 20, outer, inner)], place), where).toMatchObject({ severity: 'block', thickness: 0.4 });
+      }
     }
   }, PATIENCE);
 
@@ -462,6 +487,15 @@ describe('thin walls, wherever they are (audit MG-16, D7, D39, MG-18, D40)', () 
     }
     // A plate without them has nothing thin.
     for (const place of PLACES) expect(thinIn([boxesBody('Plate', [[[0, 0, 0], [50, 10, 2]]])], place)).toBeUndefined();
+  }, PATIENCE);
+
+  it('adds up small overhangs too: twenty teeth 0.3 wide reaching 3 mm out of a wall (review of PR #371, K1)', () => {
+    // Each underside is 0.9 mm²; together 18 mm² hang in the air, as one tooth 6 mm wide would. Decided: said, as a warning.
+    const comb = boxesBody('Comb', [[[0, 0, 0], [60, 3, 10]], ...Array.from({ length: 20 }, (_, i): [[number, number, number], [number, number, number]] => [[2 + i * 2.8, 3, 6], [2.3 + i * 2.8, 6, 7]])]);
+    for (const place of PLACES) {
+      const found = checkPrint(placed([comb], place), PLA).findings.find((f) => f.kind === 'overhang');
+      expect(found && 'area' in found ? found.area : 0, JSON.stringify(place)).toBeGreaterThanOrEqual(17);
+    }
   }, PATIENCE);
 
   it('counts only the part of a face that is under one line: a wall of 0.8 mm with a spot of 0.3 mm warns (audit D39)', () => {
@@ -502,6 +536,11 @@ describe('what stands tall on too little (audit D17, MG-20)', () => {
     ['a cube 20', boxesBody('Cube', [[[0, 0, 0], [20, 20, 20]]]), false],
     ['a post 10 × 10 × 40', boxesBody('Post', [[[0, 0, 0], [10, 10, 40]]]), false],
     ['a plate 60 × 2 × 10, on its edge', boxesBody('Fin', [[[0, 0, 0], [60, 2, 10]]]), false],
+    // Round: Bambu lays a brim of 5.1 mm round a pin of 10 mm, 40 high (review of PR #371, S1); not at 20 high.
+    ['a round pin 10 × 40', rawBody('Pin', lathe([[0, 0], [5, 0], [5, 40], [0, 40]], 64)), true],
+    ['a round pin 10 × 20', rawBody('Pin', lathe([[0, 0], [5, 0], [5, 20], [0, 20]], 64)), false],
+    // A post with a 1 mm chamfer round its foot stands on less than its first layer; short, it still stands (shortcut in tipsOver).
+    ['a post 10 × 10 × 20 chamfered at the foot', rawBody('Post', lathe([[0, 0], [6.07, 0], [7.07, 1], [7.07, 20], [0, 20]], 4)), false],
     ['a tube 40 high round 20 on a ring 2 mm wide', gridBody('Tube', [0, 2, 18, 20], [0, 2, 18, 20], [0, 40], (i, j) => i !== 1 || j !== 1), false],
   ];
   it.each(cases)('%s', (_name, body, tall) => {

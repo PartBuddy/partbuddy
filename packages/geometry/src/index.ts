@@ -24,9 +24,9 @@ export {
 export {
   checkPrint,
   laidBodies,
-  lineWidth,
   minimumFloor,
   minimumWall,
+  thinnestLine,
   withClearance,
   withMotion,
   type FindingBox,

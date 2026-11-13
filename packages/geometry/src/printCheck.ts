@@ -2,6 +2,7 @@ import { Box3, DoubleSide, Quaternion, Ray, Vector3 } from 'three';
 import { ExtendedTriangle, type MeshBVH } from 'three-mesh-bvh';
 
 import { Overhang, overhangLimits, overhangOf, smallOverhangReach, spread } from './overhang';
+import type { FaceInfo } from './faceTable';
 import type { ViewerModel } from './viewerModel';
 
 /**
@@ -43,6 +44,8 @@ export interface PrintCheckBody {
 
 export interface PrintCheckFeature {
   name: string;
+  /** SolidCraft's type of the timeline entry: `Sketch` and `Construction…` build no material. */
+  type?: string | undefined;
   error: string | null;
   warning: string | null;
   suppressed: boolean;
@@ -89,7 +92,9 @@ export type PrintFinding =
   /** A joint does not reach a limit: two parts touch on the way (ADR 0027, SolidCraft's sweep). */
   | ({ kind: 'blocked'; severity: FindingSeverity; joint: string; bodies: [string, string]; at: number; limit: number; unit: JointUnit } & Located)
   /** A joint stands away from the position as designed, and the design is exported as it stands. */
-  | { kind: 'posed'; severity: FindingSeverity; joint: string; value: number; unit: JointUnit };
+  | { kind: 'posed'; severity: FindingSeverity; joint: string; value: number; unit: JointUnit }
+  /** Features that build material but are not in the part as checked and exported: suppressed, or after the timeline's marker. */
+  | { kind: 'leftOut'; severity: FindingSeverity; rolledBack: boolean; features: string[] };
 
 export type JointUnit = 'deg' | 'mm';
 
@@ -105,12 +110,13 @@ export interface PrintCheck {
 }
 
 /**
- * One extrusion line: 0.45 mm for a 0.4 mm nozzle (Prusa Research, Modeling with 3D printing in mind: walls thinner than
- * one nozzle perimeter are not printable, extrusion width 0.45 mm; audit MG-16, yardstick S1/S3). Below it a wall does
- * not print, not first below the nozzle.
+ * The narrowest line a slicer lays by default: Bambu Studio's outer wall, 0.42 mm for a 0.4 mm nozzle
+ * (fdm_process_common.json `outer_wall_line_width`; PrusaSlicer 0.45, Arachne narrower still). A wall under it does not
+ * print as a wall: under the nozzle alone was too late (audit MG-16, yardstick S1/S3), under Prusa's 0.45 too early, as a
+ * wall of just one line drawn at 0.45 mm reads a little under it on a mesh (review of PR #371, B1).
  */
-export function lineWidth(nozzle: number): number {
-  return Math.round(nozzle * 1.125 * 100) / 100;
+export function thinnestLine(nozzle: number): number {
+  return Math.round(nozzle * 1.05 * 1000) / 1000;
 }
 
 /** Two extrusion lines of the nozzle: the thinnest wall that prints solid. */
@@ -230,6 +236,21 @@ function hollowAt(model: PrintCheckBody['model'], t: number, normal: Vector3, ce
  */
 const ALONG = Math.sin((15 * Math.PI) / 180);
 
+/**
+ * The wall between two cylinders round one axis: the difference of their radii; null when they are no such pair.
+ * shortcut: other curved walls (a sphere, a fillet, a cone) are measured on the mesh, a little under their true size;
+ * measure them on SolidCraft's surfaces if walls of just one line drawn round such faces turn red.
+ */
+function coaxial(a: FaceInfo | undefined, b: FaceInfo | undefined): number | null {
+  const [p, q] = [a?.cylinder, b?.cylinder];
+  if (!p || !q) return null;
+  const axis = new Vector3(...p.axis).normalize();
+  if (Math.abs(Math.abs(axis.dot(new Vector3(...q.axis).normalize())) - 1) > 1e-6) return null;
+  const off = new Vector3(...q.origin).sub(new Vector3(...p.origin));
+  if (off.sub(axis.multiplyScalar(off.dot(axis))).length() > 1e-3) return null;
+  return Math.abs(p.radius - q.radius);
+}
+
 /** What is too thin in one body: the faces under the minimum, and the area (mm²) that does not print at all. */
 interface Thin {
   faces: FaceTally;
@@ -275,7 +296,7 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new 
     const flat = Math.abs(normal.dot(down)) >= FLAT;
     const thin = flat ? floors : walls;
     const minimum = flat ? minimumFloor(profile.layer) : minimumWall(profile.nozzle);
-    const printable = flat ? layerOf(profile.layer) : lineWidth(profile.nozzle);
+    const printable = flat ? layerOf(profile.layer) : thinnestLine(profile.nozzle);
     const count = Math.ceil(area / cell);
     ray.direction.copy(normal).negate();
     const along = (axis: number, [a, b, c]: [number, number, number]) => a * (corners[axis] ?? 0) + b * (corners[axis + 3] ?? 0) + c * (corners[axis + 6] ?? 0);
@@ -283,7 +304,9 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new 
       ray.origin.set(along(0, weights), along(1, weights), along(2, weights)).addScaledVector(normal, -EPSILON);
       const hit = bvh.raycastFirst(ray, DoubleSide, 0, minimum);
       if (!hit || hit.faceIndex === t || hit.faceIndex === undefined || hit.faceIndex === null) return;
-      const thickness = hit.distance + EPSILON;
+      // Between two faces round one axis the wall is the difference of their radii, however coarse their meshes are: a tube
+      // of 0.45 mm meshed 24 round outside and 48 inside read 0.41 mm and blocked (review of PR #371, B1).
+      const thickness = coaxial(face, model.table.faces[model.triangleFaces[hit.faceIndex] ?? 0]) ?? hit.distance + EPSILON;
       // A wall of just the minimum is not under it.
       if (thickness > minimum - EPSILON) return;
       const met = triangle(positions, index, hit.faceIndex);
@@ -486,14 +509,17 @@ function addToFootprint(foot: Footprint, [ax, ay, , bx, by, , cx, cy]: readonly 
 /**
  * Bambu Studio's auto brim (Brim.cpp, configBrimWidthByVolumeGroups, read 2026-11-13): a piece standing tall on a small
  * footprint gets a brim of h² / 1920 · max(Y extent / Ixx, X extent / Iyy) · v mm, Ixx and Iyy the second moments of
- * its first layer about its centre, v the fastest print speed (250 mm/s where an object sets none, Model.cpp); a brim
+ * its first layer about its centre, v the fastest of the process's print speeds (Model.cpp `findMaxSpeed`); a brim
  * under 5 mm, or under 1.5 times the footprint's diagonal, is left out. The adhesion factor is 1, that of PLA.
  * A piece that would get one has too little on the bed for its height: it may come loose or tip over (audit D17, MG-20;
  * no source names a fixed area, the 25 mm² before had none). A 5 × 5 × 200 mm tower gets one, a 4 × 4 × 10 mm pin not.
  * Bambu reads X and Y as the part lies in the slicer; the check takes the worst direction instead, so turning a fin on
  * the plate does not change the answer (a square post reads up to √2 more than Bambu's along its sides).
- * shortcut: PETG (factor 2) and TPU (0.5) are taken as PLA, and the footprint is the faces on the bed, not the first
- * layer the slicer cuts; pass the material to the check if parts of those materials are misjudged.
+ * shortcut: PETG (factor 2) and TPU (0.5) are taken as PLA, the speed is Bambu's standard, and the footprint is the
+ * faces on the bed, not the first layer the slicer cuts: a chamfer or a round at the foot leaves the footprint smaller
+ * than that layer, so such a part reads a little less steady than Bambu takes it, and a round footprint's extent is its
+ * diameter, not the diagonal of its box. Pass material and speed to the check, and cut the first layer, if parts are
+ * misjudged so.
  */
 function tipsOver(foot: Footprint, bed: number): boolean {
   if (foot.area < 1e-6) return true;
@@ -522,8 +548,12 @@ function tipsOver(foot: Footprint, bed: number): boolean {
   return brim >= Math.min(BRIM_LEAST, 1.5 * diagonal);
 }
 
-/** Bambu Studio's print speed for the auto brim where an object sets none (mm/s), and the narrowest brim it lays (mm). */
-const BRIM_SPEED = 250;
+/**
+ * The speed of the auto brim: the fastest of Bambu Studio's standard process for the X1C, inner walls at 300 mm/s
+ * (`0.20mm Standard @BBL X1C`, read 2026-11-13; 250 is only Bambu's fallback when a process names none), so the check
+ * asks for a brim where the slicer lays one. And the narrowest brim it lays (mm).
+ */
+const BRIM_SPEED = 300;
 const BRIM_LEAST = 5;
 
 /** A size counts as fitting up to this much over the plate: sizes are shown to 0.1 mm. */
@@ -624,19 +654,16 @@ const statusOf = (findings: readonly PrintFinding[]): PrintStatus =>
 export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintCheckProfile, features: readonly PrintCheckFeature[] = []): PrintCheck {
   const findings: PrintFinding[] = [];
 
-  // A suppressed or rolled back feature is not in the part as checked: said, so leaving out a failing feature does not
-  // read as a fix, nor a rolled back timeline as the whole part (audit H-03).
-  const rolledBack = features.filter((feature) => feature.rolledBack);
-  const [first] = rolledBack;
-  if (first) {
-    findings.push({ kind: 'feature', severity: 'warn', feature: first.name, message: `rolled back${rolledBack.length > 1 ? ` with the ${String(rolledBack.length - 1)} after it` : ''}: not in the part as checked and exported` });
+  // A suppressed or rolled back feature that builds material is not in the part as checked: said, so leaving out a failing
+  // feature does not read as a fix, nor a rolled back timeline as the whole part (audit H-03). Sketches and construction
+  // geometry build nothing (review of PR #371, K5).
+  const builds = (feature: PrintCheckFeature) => !/^(Sketch|Construction)/.test(feature.type ?? '');
+  for (const rolledBack of [false, true]) {
+    const left = features.filter((feature) => builds(feature) && (rolledBack ? feature.rolledBack : feature.suppressed && !feature.rolledBack));
+    if (left.length > 0) findings.push({ kind: 'leftOut', severity: 'warn', rolledBack, features: left.map((feature) => feature.name) });
   }
   for (const feature of features) {
-    if (feature.rolledBack) continue;
-    if (feature.suppressed) {
-      findings.push({ kind: 'feature', severity: 'warn', feature: feature.name, message: 'suppressed: not in the part as checked and exported' });
-      continue;
-    }
+    if (feature.rolledBack || feature.suppressed) continue;
     if (feature.error) findings.push({ kind: 'feature', severity: 'block', feature: feature.name, message: feature.error });
     else if (feature.warning) findings.push({ kind: 'feature', severity: 'warn', feature: feature.name, message: feature.warning });
   }
