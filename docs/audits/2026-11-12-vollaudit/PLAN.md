@@ -145,7 +145,20 @@ Opus 5.5 · Mittel (PR #354); Claude Codes Eintrag „Default (recommended)“ i
 | 12.11.2026 | #353: 3. Runde gepusht (Brückenrichtung aus den Auflagern, Flutung vom Bett, Laufzeit 56 s → 0,4 s); 3. Review läuft, Vertragstests in der Schlange. #356: 3. Review „merge-reif“, letzte kleine Runde (Absturz nicht dauerhaft merken, Cache validieren, Zeitfenster der Druckprüfung) plus neuer Befund P-6 (`screenshot {path}` überschreibt Nutzerdateien) | je nach Push: Vertragstests, mergen |
 | 12.11.2026 | Merke: `contract.yml` hat nur EINEN wartenden Platz – ein neu angestoßener Lauf bricht den wartenden ab. Vertragstests immer einzeln anstoßen, erst wenn kein Lauf mehr läuft oder wartet; `cancelled` zählt nicht. Der Test „starts SolidCraft without a window“ zählt `solidcraft-cli`-Prozesse auf dem Rechner und kippt, wenn nebenher ein Harness-Lauf endet | gilt |
 
-## Übergabe 13.11.2026 nachts – ZUERST LESEN, ersetzt ältere Übergaben
+## Stand Nacht 13./14.11.2026 (neue Sitzung, laufend fortgeschrieben) – ZUERST LESEN
+
+- **Gemergt in der Nacht:** BC-11 #389, BC-13 #390 (vor BC-12, Text zum Lochspiel stimmt seit #387), BC-21 #388, BC-12 #387,
+  BC-20 #392, BC-08 #385, E2E-Wackler #393 (Shader je Revision neu kompiliert: drei-Patch `<Line>` + `thumbnail.ts`; Kamera-Flow
+  ein Screenshot je Versuch; `partReference` startete nach dem Stopp noch einen Lauf). BEFUNDE.md je Paket nachgezogen, neu N-nach-6.
+- **Offen:** BC-15 #395 (Vertragstest), BC-22 #394 (PR-CI), BC-19 #391 Entwurf – **nicht mergen vor Manuels Entscheidung**
+  (Überhang mit „stützfrei“ wird Sperre; eigenes Scharnier, Gewinde, Wandhalter werden rot); BC-23 lokal in Nachbesserung
+  (`../partbuddy-wt-bc-23`); BC-25 lokal im Bau (`../partbuddy-wt-bc-25`). Danach BC-16 → BC-17 (nach BC-15), BC-24 (nach BC-19).
+- **Fragen für Manuel:** im Notizordner der Sitzungen `MORGEN-FRAGEN.md` (Überhang-Standard, Lochzugabe-Richtung,
+  Folgepakete Erlaubnisliste je Befehl und rohe fillet/chamfer/shell in der Druckprüfung, Drucklage Zapfen/Schnapphaken).
+- **Merke:** Die Testattrappe `fakeClaude.mjs` wählt ihre Szene nach Wörtern im ganzen Nachrichtentext samt Notizen
+  (`content.includes('a hinge')`) – ein neuer Regeltext mit „a hinge“ ließ den Wandhalter-Vertragstest das Scharnier bauen.
+
+## Übergabe 13.11.2026 nachts – ersetzt ältere Übergaben
 
 Die Nacht wird autonom durchgearbeitet (Manuel 13.11.2026: „die nacht durch arbeiten ohne mich“). Kein Release, keine
 Rückfragen außer bei echten Entscheidungen; die stehen dann als Frage am Ende für den Morgen.
