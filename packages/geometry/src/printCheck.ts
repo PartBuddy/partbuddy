@@ -77,6 +77,8 @@ export type PrintFinding =
   /** The bodies with too little on the bed: how many, and the area of the one with the least. */
   | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
+  /** Bodies printed as one piece (a print-in-place hinge) that touch: they fuse in the print and do not move (review of PR 366). */
+  | { kind: 'fused'; severity: FindingSeverity; bodies: string[] }
   /** Bodies that are open shells (SolidCraft's surface bodies): no solid to print. */
   | { kind: 'open'; severity: FindingSeverity; bodies: string[] }
   | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string }
@@ -523,20 +525,22 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       findings.push({ kind: 'thinWall', severity: unprintable >= BLOCK_THIN_AREA ? 'block' : 'warn', floor, ...layers, thickness: round(found.extreme), minimum, area: round(found.area, 0), places: found.places, box: found.box });
     }
 
-    // Bodies that touch fall apart in the slicer, each laid onto the bed by itself.
+    // Bodies that touch fall apart in the slicer, each laid onto the bed by itself. Bodies printed as one piece stay
+    // together there (audit G1), and where they touch they fuse: a hinge whose lid touches its box does not turn.
     const separate = new Set<string>();
+    const fused = new Set<string>();
     for (let i = 0; i < parts.length; i += 1) {
       for (let j = i + 1; j < parts.length; j += 1) {
         const a = parts[i];
         const b = parts[j];
-        // Bodies printed as one piece stay together in the slicer (audit G1).
-        if (a && b && (a.group === undefined || a.group !== b.group) && (touches(a, b) || touches(b, a))) {
-          separate.add(a.name);
-          separate.add(b.name);
-        }
+        if (!a || !b || !(touches(a, b) || touches(b, a))) continue;
+        const found = a.group !== undefined && a.group === b.group ? fused : separate;
+        found.add(a.name);
+        found.add(b.name);
       }
     }
     if (separate.size > 0) findings.push({ kind: 'separate', severity: 'warn', bodies: [...separate] });
+    if (fused.size > 0) findings.push({ kind: 'fused', severity: 'warn', bodies: [...fused] });
 
     // Overhangs by angle and the area on the bed, each body on the bed of its piece.
     const limits = overhangLimits(profile.overhang);

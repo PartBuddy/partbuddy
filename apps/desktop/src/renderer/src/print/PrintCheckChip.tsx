@@ -44,6 +44,8 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.open', { count: finding.bodies.length, bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
       case 'separate':
         return t('check.finding.separate', { bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
+      case 'fused':
+        return t('check.finding.fused', { bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
       case 'feature':
         return t('check.finding.feature', { feature: finding.feature, message: finding.message });
       case 'overlap':

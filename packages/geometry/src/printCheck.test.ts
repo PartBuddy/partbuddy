@@ -164,7 +164,14 @@ describe('the ready-to-print check (M7)', () => {
     expect(apart.findings.find((f) => f.kind === 'separate')).toMatchObject({ severity: 'warn', bodies: ['Leg', 'Top'] });
     // Printed as one piece they stay together in the slicer (audit G1, review of PR #366 K7): the top hangs over the leg, which alone stands on the bed.
     const together = checkPrint([{ ...box('Leg', [9, 9, 0], [11, 11, 10]), group: 'Leg' }, { ...box('Top', [0, 0, 10], [20, 20, 12]), group: 'Leg' }], PLA);
-    expect(together.findings.map((f) => f.kind)).toEqual(['overhang', 'contact']);
+    expect(together.findings.map((f) => f.kind)).toEqual(['fused', 'overhang', 'contact']);
+    expect(together.findings.find((f) => f.kind === 'fused')).toEqual({ kind: 'fused', severity: 'warn', bodies: ['Leg', 'Top'] });
+  });
+
+  it('says where bodies printed as one piece touch, as they fuse there, and not where a gap parts them (review of PR 366)', () => {
+    const pair = (gap: number) => checkPrint([{ ...box('Box', [0, 0, 0], [40, 30, 30]), group: 'Box' }, { ...box('Lid', [40 + gap, 0, 0], [80 + gap, 30, 30]), group: 'Box' }], PLA);
+    expect(pair(0).findings).toEqual([{ kind: 'fused', severity: 'warn', bodies: ['Box', 'Lid'] }]);
+    expect(pair(0.4).findings).toEqual([]);
   });
 
   it('blocks a body that is an open shell, and says nothing else about it', () => {

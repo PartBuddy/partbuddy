@@ -1131,6 +1131,7 @@
       "contact": "{count, plural, one {Only {area} mm² of {bodies} lie on the bed: may come loose or tip over} other {# bodies have little on the bed ({bodies}), the least {area} mm²: they may come loose or tip over}}",
       "open": "{count, plural, one {{bodies} is no closed solid} other {{bodies} are no closed solids}}: an open surface without volume does not print",
       "separate": "{bodies} touch but are separate bodies: the slicer lays each on the bed by itself. Combine them if they are one part.",
+      "fused": "{bodies} print as one piece and touch: they fuse there, and the mechanism between them does not move. Leave a gap there.",
       "feature": "{feature}: {message}",
       "overlap": "{a} and {b} overlap by {volume} mm³ – as separate parts they do not go together; combine them if they are one part",
       "tight": "{a} and {b} come within {gap} mm without touching – under the push fit of {minimum} mm per side, they only go together with force",

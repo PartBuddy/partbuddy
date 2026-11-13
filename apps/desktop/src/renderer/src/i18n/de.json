@@ -1131,6 +1131,7 @@
       "contact": "{count, plural, one {Nur {area} mm² von {bodies} liegen auf dem Druckbett: kann sich lösen oder kippen} other {# Körper liegen kaum auf dem Druckbett ({bodies}), am wenigsten {area} mm²: können sich lösen oder kippen}}",
       "open": "{count, plural, one {{bodies} ist kein geschlossener Körper} other {{bodies} sind keine geschlossenen Körper}}: eine offene Fläche ohne Volumen wird nicht gedruckt",
       "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",
+      "fused": "{bodies} werden in einem Stück gedruckt und berühren sich: Dort verschmelzen sie, und der Mechanismus zwischen ihnen bewegt sich nicht. Lass dort einen Spalt.",
       "feature": "{feature}: {message}",
       "overlap": "{a} und {b} überschneiden sich um {volume} mm³ – als getrennte Teile passen sie so nicht zusammen; gehören sie zu einem Teil, vereinen",
       "tight": "{a} und {b} kommen sich bis auf {gap} mm nahe, ohne sich zu berühren – unter der Steckpassung von {minimum} mm je Seite gehen sie nur mit Kraft zusammen",
