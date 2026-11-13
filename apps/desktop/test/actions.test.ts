@@ -361,7 +361,7 @@ describe('a function block from the form: a cut through goes through the wall at
 
   it('measures the reach on trial and builds that deep', async () => {
     const { service, logged, log } = form('pieces');
-    expect(await service.blockSteps(hole, undefined, log)).toEqual({ steps: [{ command: 'solid.hole', params: { position: [0, 20, 15], diameter: '3.4 mm', depth: '3 mm', type: 'countersink', cs_diameter: '4.4 mm', cs_angle: '90 deg', targets: ['Dose'] } }], unmeasured: false });
+    expect(await service.blockSteps(hole, undefined, log)).toEqual({ steps: [{ command: 'solid.hole', params: { position: [0, 20, 15], diameter: '3.55 mm', depth: '3 mm', type: 'countersink', cs_diameter: '4.55 mm', cs_angle: '90 deg', targets: ['Dose'] } }], unmeasured: false });
     expect(logged).toEqual([]);
   });
 
@@ -370,6 +370,8 @@ describe('a function block from the form: a cut through goes through the wall at
     const { steps } = await service.blockSteps({ ...hole, head: 'cap' }, undefined, log, { nozzle: 0.6, layer: 0.3 });
     expect(steps[0]?.params).toMatchObject({ type: 'counterbore', bridge: '0.3 mm' });
     expect((await service.blockSteps({ ...hole, head: 'cap' }, undefined, log)).steps[0]?.params).toMatchObject({ bridge: '0.2 mm' });
+    // The form's material too (index.ts toolPrinter): PP's hole allowance of 0.3 mm draws the M3 hole 3.7 mm (audit S-10).
+    expect((await service.blockSteps(hole, undefined, log, { nozzle: 0.4, layer: 0.2, material: { holeShrink: 0.3, clearance: { clamp: 0.1, push: 0.2, slide: 0.3, turn: 0.35 } } })).steps[0]?.params).toMatchObject({ diameter: '3.7 mm' });
   });
 
   it('when SolidCraft refuses the trial or the engine fails, builds through all, logs a warning and says unmeasured for the form', async () => {

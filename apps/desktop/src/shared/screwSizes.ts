@@ -101,18 +101,8 @@ export const CLEARANCE: Record<Fit, Record<BlockSize, number>> = {
 /** Normal clearance holes, ISO 273 medium series, in mm. */
 export const CLEARANCE_NORMAL: Record<BlockSize, number> = CLEARANCE.normal;
 
-/**
- * In mm on the diameter: the most a printed hole comes out smaller than drawn, the largest hole allowance of the material
- * catalogue (PP). A clearance hole must leave more than this over its screw, or the screw may not pass (audit T31).
- * shortcut: the block does not know the material (BC-16 brings the profile); take the profile's allowance then.
- */
-export const HOLE_SHRINK_MOST = Math.max(...MATERIAL_CATALOG.map((material) => material.holeShrink));
-
 /** The screw's own diameter, M3 → 3. */
 export const screwDiameter = (size: BlockSize) => Number(size.slice(1));
-
-/** Whether a printed clearance hole of the fit still lets the screw pass after the largest hole shrink: ISO 273 fine leaves 0.2 to 0.3 mm up to M5. */
-export const clearancePasses = (size: BlockSize, fit: Fit) => CLEARANCE[fit][size] - screwDiameter(size) > HOLE_SHRINK_MOST + 1e-9;
 
 /** Tap drills of the coarse threads, ISO 2306 (Optimas), in mm: what SolidCraft drills a listed thread with. */
 export const TAP_DRILL: Record<BlockSize, number> = { M2: 1.6, 'M2.5': 2.05, M3: 2.5, M4: 3.3, M5: 4.2, M6: 5, M8: 6.8, M10: 8.5 };

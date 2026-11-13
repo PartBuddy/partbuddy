@@ -6,6 +6,7 @@
  */
 
 import { pilotHole } from './screwSizes';
+import { fitClearance, holeRoom, type ToolPrinter } from './toolFit';
 
 type Vec3 = [number, number, number];
 type Step = { command: string; params: Record<string, unknown> };
@@ -25,8 +26,12 @@ export const KNOB = { roof: 3, wall: 2.4, insert: 11, flat: 6, flute: 3, band: 2
 /** In mm: the M3 set screw holds in plastic at least twice its diameter long (TR Fastenings: engagement ≥ 2 d; audit MV-26). */
 export const SET_SCREW_HOLD = 6;
 
-/** The room added to the shaft's diameter: a D and a round shaft push in snugly; a split knurled shaft springs into a plain bore of its own size. */
-export const KNOB_CLEARANCE: Record<KnobShaft, number> = { d: 0.2, round: 0.2, knurl: 0 };
+/**
+ * The room added to the shaft's diameter as printed: a D and a round shaft go in snugly, the material's clamp fit on each
+ * side (audit W16, T10: 0.2 mm fixed, which PP's hole allowance of 0.3 mm took); a split knurled shaft springs into a
+ * plain bore of its own size.
+ */
+export const knobClearance = (shaft: KnobShaft, printer: ToolPrinter) => (shaft === 'knurl' ? 0 : round(2 * fitClearance('clamp', printer)));
 
 export interface KnobSpec {
   /** The new body's name. */
@@ -43,7 +48,7 @@ export interface KnobSpec {
   flat: number;
   diameter: number;
   height: number;
-  /** Added to the shaft's diameter and to its flat. */
+  /** Added to the shaft's diameter and to its flat, as printed; the bore is drawn wider by the material's hole allowance. */
   clearance: number;
 }
 
@@ -97,7 +102,7 @@ export function knobProblem(spec: KnobSpec): string | null {
  * D shaft or beside it the pilot hole of a set screw, and a groove on the top as the pointer. It
  * prints on its top, the bore open upwards, without support; the print face is set so.
  */
-export function knobSteps(spec: KnobSpec): Step[] {
+export function knobSteps(spec: KnobSpec, printer: ToolPrinter = { nozzle: 0.4, layer: 0.2 }): Step[] {
   const axis = unit(spec.axis);
   const along = dot(spec.toward, axis);
   const toward = unit(spec.toward.map((value, i) => value - along * (axis[i] ?? 0)) as Vec3);
@@ -107,7 +112,9 @@ export function knobSteps(spec: KnobSpec): Step[] {
   /** A point `up` above the underside, `out` towards the pointer and `across` square to both. */
   const at = (up: number, out = 0, across = 0) => spec.point.map((value, i) => round(value + (axis[i] ?? 0) * up + (toward[i] ?? 0) * out + (side[i] ?? 0) * across)) as Vec3;
   const radius = spec.diameter / 2;
-  const bore = spec.shaftDiameter + spec.clearance;
+  // The bore as it comes out, drawn wider by the material's hole allowance (audit S-10); the flat moves out by half of it.
+  const allowance = holeRoom(spec.shaftDiameter + spec.clearance, printer.material);
+  const bore = spec.shaftDiameter + spec.clearance + allowance;
   const insert = knobInsert(spec);
   const flutes = knobFlutes(spec.diameter);
   const half = Math.PI / flutes;
@@ -125,7 +132,7 @@ export function knobSteps(spec: KnobSpec): Step[] {
   if (spec.shaft === 'd') {
     // The flat fills the bore's end again, on the side away from the pointer; the entry stays round, as the shaft is below its flat.
     const length = Math.min(KNOB.flat, insert);
-    const edge = spec.flat - spec.shaftDiameter / 2 + spec.clearance / 2;
+    const edge = spec.flat - spec.shaftDiameter / 2 + (spec.clearance + allowance) / 2;
     const [near, far, wide] = [round(-edge), round(-(bore / 2 + 0.5)), round(bore / 2)];
     steps.push(
       // Sketch x towards the pointer, y across: x × y is the shaft's direction, so the flat grows into the bore.

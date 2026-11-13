@@ -30,6 +30,7 @@ import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
 import { withBlockTool } from './agents/blockTool';
 import { DEFAULT_PRINTER, blockLimit, limitRefusal, limitSaid } from './../shared/blocks';
+import { DEFAULT_MATERIAL, DEFAULT_OVERHANG, type ToolPrinter } from '../shared/toolFit';
 import { withStandardTool } from './agents/standardTool';
 import { withMechanismTool } from './agents/mechanismTool';
 import { blockPhrase, describeUserAction } from '../shared/stepPhrases';
@@ -589,6 +590,17 @@ if (!app.requestSingleInstanceLock()) {
       log(`kept the assembly order: ${String(plan.steps.length)} steps`);
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.assemblyChanged, plan);
     };
+    // The printer in use with the part's material, for the blocks of the assistant and of the form and for templates
+    // (audit BC-16: holes drawn with the material's hole allowance, fits from its profile, gaps from the nozzle).
+    const toolPrinter = (): ToolPrinter => {
+      try {
+        const { printer, material } = printProfiles.part();
+        return { ...printer, material };
+      } catch (cause) {
+        log(`no print profile: blocks and templates are built for a ${String(DEFAULT_PRINTER.nozzle)} mm nozzle in PLA (${(cause as Error).message.slice(0, 200)})`);
+        return DEFAULT_PRINTER;
+      }
+    };
     // The print faces, kept for the plate view, the check, the export and the slicer (audit D20, H-13).
     const printFaces = new PrintFaceKeeper({
       folder: assemblyFolder,
@@ -623,7 +635,7 @@ if (!app.requestSingleInstanceLock()) {
         steps.tools(
           withDesignTool(
             withAssemblyTool(
-              withViewTool(guardNotes(withStandardTool(withPrintFaces(withBlockTool(withMechanismTool(withDrawings(upstream, drawings, () => printProfiles.part().printer, log), () => printProfiles.part().printer.nozzle, keepMechanismFace, () => printProfiles.part().material.overhang, () => printProfiles.part().printer.layer), keepMechanismFace, log, () => printProfiles.part().printer), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
+              withViewTool(guardNotes(withStandardTool(withPrintFaces(withBlockTool(withMechanismTool(withDrawings(upstream, drawings, () => printProfiles.part().printer, log), () => toolPrinter().nozzle, keepMechanismFace, () => toolPrinter().material?.overhang ?? DEFAULT_OVERHANG, () => toolPrinter().layer, () => toolPrinter().material ?? DEFAULT_MATERIAL, log), keepMechanismFace, log, toolPrinter), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
               () => viewState?.bodies.map((body) => body.name) ?? [],
               saveAssembly,
             ),
@@ -1274,14 +1286,14 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.projectFromTemplate, async ({ template, name }) => {
       const target = projectStore.newDesignFile(name);
       try {
-        await supervisor.designFromSteps(templateSteps(template, german), target);
+        await supervisor.designFromSteps(templateSteps(template, german, toolPrinter()), target);
       } catch (error) {
         rmSync(dirname(target), { recursive: true, force: true });
         throw error;
       }
       await switchProject(() => Promise.resolve(target));
       // A part the template lays down for printing (the stop on its top) lies so on the plate as well.
-      for (const { body, point } of templatePrintFaces(template, german)) {
+      for (const { body, point } of templatePrintFaces(template, german, toolPrinter())) {
         const face = await supervisor.printFaceName(body, point).catch((error: unknown) => {
           log(`print face of ${body} not read: ${(error as Error).message}`);
           return null;
@@ -1328,23 +1340,15 @@ if (!app.requestSingleInstanceLock()) {
     // The same limits for the nozzle in use as the assistant's blocks; the form says which size and why (refusal.ts).
     // The panel checks first with the printer it shows; this is the same check with the profile as it is now.
     // The form's blocks are built for the printer in use, as the assistant's (bridge layers, a boss's fillet: audit BC-12).
-    const formPrinter = () => {
-      try {
-        return printProfiles.part().printer;
-      } catch (cause) {
-        log(`block form: no printer profile, checked for a ${String(DEFAULT_PRINTER.nozzle)} mm nozzle (${(cause as Error).message.slice(0, 200)})`);
-        return DEFAULT_PRINTER;
-      }
-    };
     bridge.handle(invokeChannels.designPreviewBlock, (block) => {
       assistantIdle();
-      const printer = formPrinter();
+      const printer = toolPrinter();
       const limit = blockLimit(block, printer);
       return limit ? { ok: false as const, error: limitRefusal(limit).slice(0, 300) } : supervisor.previewBlock(block, printer);
     });
     bridge.handle(invokeChannels.designApplyBlock, async (block) => {
       assistantIdle();
-      const printer = formPrinter();
+      const printer = toolPrinter();
       const limit = blockLimit(block, printer);
       if (limit) throw new Error(limitSaid(limit));
       await steps.recordUser(blockPhrase(block), () => supervisor.applyBlock(block, printer));

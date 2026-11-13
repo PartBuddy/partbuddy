@@ -1551,10 +1551,10 @@
     },
     "hint": {
       "tappedHole": "A modelled thread of this size with {thread, number} mm more on its diameter for printing, its mouth chamfered; not modelled, it is drilled with the tap drill to be tapped after printing.",
-      "screwHole": "Clearance hole from PartBuddy's ISO 273 table (close from M6 only: a printed hole loses up to {shrink, number} mm), with room for the head after ISO 4762 or ISO 10642 plus {head, number} mm for printing (on each side of a counterbore, once on a countersink's diameter). A counterbore gets two bridge layers of {layer, number} mm under its floor, so it prints facing the bed.",
-      "insertSeat": "Typical values for ruthex inserts, one millimetre deeper than the insert. Check your insert's data sheet.",
+      "screwHole": "Clearance hole from PartBuddy's ISO 273 table (drawn {shrink, number} mm wider, the hole allowance of the part's material, so that it comes out at its size), with room for the head after ISO 4762 or ISO 10642 plus {head, number} mm for printing (on each side of a counterbore, once on a countersink's diameter). A counterbore gets two bridge layers of {layer, number} mm under its floor, so it prints facing the bed.",
+      "insertSeat": "Typical values for ruthex inserts, one millimetre deeper than the insert. Check your insert's data sheet. Drawn {shrink, number} mm wider, the hole allowance of the part's material.",
       "boss": "A boss with a seat for a heat-set insert of this size and at least 2 mm of wall.",
-      "nutTrap": "A hexagonal pocket after ISO 4032 with 0.3 mm of room and 0.4 mm of extra depth, with a clearance hole after ISO 273 below. Older DIN nuts are wider at M10 (17 mm): give flats 17.3 for those.",
+      "nutTrap": "A hexagonal pocket after ISO 4032 with {room, number} mm of room (the push fit of the part's material) and 0.4 mm of extra depth, with a clearance hole after ISO 273 below. Older DIN nuts are wider at M10 (17 mm): give flats {din, number} for those.",
       "slot": "A slot as wide as the normal clearance hole, centred on the point, to adjust the screw.",
       "text": "Text centred on the point, reading level. Engraved or embossed {depth, number} mm deep reads well on this printer, strokes {stroke, number} mm wide too; under two nozzle widths a stroke does not print. Engraved, 7 mm capitals (the default) leave enough plastic between the letters.",
       "lip": "For a shelled case: pick the face on the rim. The lip goes on the base, the groove with its gap into the lid.",
@@ -1579,7 +1579,6 @@
     "fontBuiltIn": "Default (Liberation Sans)",
     "limit": {
       "printedThread": "A printed {size} thread strips: untick the modelled thread to drill it for tapping, use an insert seat, or a thread from M{from, number}.",
-      "closeFit": "A close hole for {size} is {value, number} mm, {room, number} mm over the screw, and a printed hole comes out up to {shrink, number} mm smaller: the screw may not pass. Choose normal ({standard, number} mm).",
       "stroke": "Capitals {value, number} mm high have strokes {stroke, number} mm wide, under the {needed, number} mm (two nozzle widths) a stroke needs on the {nozzle, number} mm nozzle: give a height of {least, number} mm or more.",
       "strokeBold": "Bold capitals {value, number} mm high have strokes {stroke, number} mm wide, under the {needed, number} mm (two nozzle widths) a stroke needs on the {nozzle, number} mm nozzle: give a height of {least, number} mm or more.",
       "lipWall": "A lip {value, number} mm wide does not print solid: two lines on the {nozzle, number} mm nozzle are {least, number} mm – give at least that.",

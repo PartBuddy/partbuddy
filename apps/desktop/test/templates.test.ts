@@ -192,6 +192,31 @@ describe('templates with moving parts', () => {
     expect(templateSteps('slideStop').filter((step) => step.command === 'solid.extrude').map((step) => step.params.distance)).toEqual(['length', 'length']);
   });
 
+  it('builds its moving parts for the printer in use: gaps of its nozzle, a barrel two lines round the bore (audit T28, BC-10 open)', () => {
+    const hinged = (nozzle: number, layer = 0.2) => {
+      const steps = templateSteps('hingedBox', false, { nozzle, layer });
+      const offset = steps.find((step) => step.command === 'joint.create')?.params.offset;
+      // The barrel and the bore: the largest cylinder that is not the knuckles' room, and the pin.
+      const sizes = [...new Set(steps.filter((step) => step.command === 'solid.cylinder' && String(step.params.name).startsWith('Hinge')).map((step) => step.params.diameter))];
+      return { offset, sizes };
+    };
+    // On 0.4 mm as before: gap 0.4, barrel 8, pin 4 (the template's preview pictures stay true).
+    expect(hinged(0.4)).toEqual(hinged(0.4, 0.12));
+    expect(hinged(0.4).offset).toBe(-0.4);
+    expect(hinged(0.4).sizes).toEqual(expect.arrayContaining(['8 mm', '4 mm']));
+    // Finer nozzles take the least print-in-place gap, 0.3 mm; coarser ones their own, and a wider barrel where two lines need it.
+    expect([0.2, 0.25, 0.6, 0.8].map((nozzle) => hinged(nozzle).offset)).toEqual([-0.3, -0.3, -0.6, -0.8]);
+    expect(hinged(0.6).sizes).toEqual(expect.arrayContaining(['9 mm', '4.5 mm']));
+    expect(hinged(0.8).sizes).toEqual(expect.arrayContaining(['12 mm', '6 mm']));
+    // What the mechanism tool refuses, the template does not build: layers as high as the 0.3 mm gap close it.
+    expect(() => templateSteps('hingedBox', false, { nozzle: 0.25, layer: 0.3 })).toThrow("the hinged box's hinge does not print on a 0.25 mm nozzle with 0.3 mm layers: gap must be more than a layer (0.3 mm)");
+    // The closure's lip follows the nozzle as well (lipThick): 1.4 mm on 0.4, 1.85 mm on 0.8, with its 0.25 mm of clearance.
+    const ring = (nozzle: number) => templateSteps('hingedBox', false, { nozzle, layer: 0.2 }).filter((step) => step.command === 'sketch.rectangle.rounded').map((step) => step.params.p0)[1];
+    expect([ring(0.4), ring(0.8)]).toEqual([['(wall) + 1.65 mm', '(1 mm + wall) + 1.65 mm'], ['(wall) + 2.1 mm', '(1 mm + wall) + 2.1 mm']]);
+    // The guide of the stop: its gap is the nozzle's, so the stop's print face moves up with it.
+    expect([0.2, 0.4, 0.8].map((nozzle) => templatePrintFaces('slideStop', false, { nozzle, layer: 0.2 })[0]?.point)).toEqual([[60, 8, 26.3], [60, 8, 26.4], [60, 8, 26.8]]);
+  });
+
   it('seats the housing\'s screws as standard parts on the lid, and words the sign from its text parameter', () => {
     // One part per hole, each body named, so the view shows all four.
     expect(templateSteps('housing').filter((step) => step.command === 'parts.insert')).toHaveLength(4);

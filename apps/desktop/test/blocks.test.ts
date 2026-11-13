@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import { BLOCK_KINDS, blockBodies, blockLimit, cutsThrough, defaultBlock, DEFAULT_PRINTER, hasSize, hookVector, limitSaid, logoFrom, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, textDepth, textStroke, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
-import { CLEARANCE, CLEARANCE_NORMAL, clearancePasses, HOLE_SHRINK_MOST, headRoom, pilotHole, printedThread } from '../src/shared/screwSizes';
+import { CLEARANCE, CLEARANCE_NORMAL, headRoom, pilotHole, printedThread } from '../src/shared/screwSizes';
 import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
+import { DEFAULT_MATERIAL, drawnHole, fitClearance, type ToolMaterial } from '../src/shared/toolFit';
+
+/** A catalogue material as the tools take it. */
+const material = (name: string): ToolMaterial => {
+  const entry = MATERIAL_CATALOG.find((item) => item.name === name);
+  if (!entry) throw new Error(name);
+  return { holeShrink: entry.holeShrink, clearance: entry.clearance };
+};
 import { featureBlockSchema } from '../src/shared/contract';
 import { blockPhrase, describeCommands } from '../src/shared/stepPhrases';
 
@@ -31,11 +39,12 @@ describe('function blocks (F1)', () => {
 
   it('gives a screw hole its clearance from PartBuddy\'s table and room for the head after ISO 4762 and ISO 10642 plus the print allowance (audit R7, W21, S-11)', () => {
     // The hole as a diameter of our own ISO 273 table, the counterbore with two bridge layers of the printer's layer under its floor.
-    expect(stepOf(defaultBlock('screwHole', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '3.4 mm', type: 'counterbore', cb_diameter: '6.7 mm', cb_depth: '3.4 mm', bridge: '0.2 mm', targets: ['Body1'] });
+    // Drawn with PLA's hole allowance (0.15 mm), the default profile's material (audit S-10).
+    expect(stepOf(defaultBlock('screwHole', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '3.55 mm', type: 'counterbore', cb_diameter: '6.7 mm', cb_depth: '3.4 mm', bridge: '0.2 mm', targets: ['Body1'] });
     expect(stepsOf(defaultBlock('screwHole', 'Body1', at, 'M3'), undefined, undefined, { nozzle: 0.6, layer: 0.3 })[0]?.params).toMatchObject({ bridge: '0.3 mm' });
-    expect(stepOf({ block: 'screwHole', body: 'Body1', point: at, size: 'M8', head: 'countersunk', fit: 'close' }).params).toMatchObject({ diameter: '8.4 mm', type: 'countersink', cs_diameter: '18.52 mm', cs_angle: '90 deg' });
+    expect(stepOf({ block: 'screwHole', body: 'Body1', point: at, size: 'M8', head: 'countersunk', fit: 'close' }).params).toMatchObject({ diameter: '8.55 mm', type: 'countersink', cs_diameter: '18.52 mm', cs_angle: '90 deg' });
     // Without a head the mouth gets the details' 0.5 mm chamfer.
-    expect(stepOf({ block: 'screwHole', body: 'Body1', point: at, size: 'M2', head: 'none', fit: 'loose' }).params).toEqual({ position: at, diameter: '2.6 mm', type: 'countersink', cs_diameter: '3.6 mm', cs_angle: '90 deg', targets: ['Body1'] });
+    expect(stepOf({ block: 'screwHole', body: 'Body1', point: at, size: 'M2', head: 'none', fit: 'loose' }).params).toEqual({ position: at, diameter: '2.75 mm', type: 'countersink', cs_diameter: '3.75 mm', cs_angle: '90 deg', targets: ['Body1'] });
     expect(sizesOf('screwHole', 'countersunk')[0]).toBe('M3');
     // ISO 273 fine, medium and coarse (Wikipedia, Ifanger); the screw joint takes the same normal row.
     expect(CLEARANCE).toEqual({
@@ -49,18 +58,30 @@ describe('function blocks (F1)', () => {
     expect(headRoom('M3', 'countersunk')).toEqual({ diameter: 7.32, depth: 1.96 });
   });
 
-  it('refuses a close hole that a printed hole would close on its screw, at the boundary (audit T31)', () => {
-    // The largest hole allowance of the material catalogue: PP's (0.3 mm), taken from the catalogue (BC-20).
-    expect(HOLE_SHRINK_MOST).toBe(MATERIAL_CATALOG.find((material) => material.name === 'PP')?.holeShrink);
-    expect(HOLE_SHRINK_MOST).toBe(Math.max(...MATERIAL_CATALOG.map((material) => material.holeShrink)));
-    // M4 leaves exactly 0.3 mm: refused; M6 0.4 mm: built. Normal and loose leave more than 0.3 mm at every size.
-    expect((['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10'] as const).filter((size) => clearancePasses(size, 'close'))).toEqual(['M6', 'M8', 'M10']);
-    expect((['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10'] as const).every((size) => clearancePasses(size, 'normal') && clearancePasses(size, 'loose'))).toBe(true);
-    const close = (size: 'M4' | 'M6'): FeatureBlock => ({ block: 'screwHole', body: 'Body1', point: at, size, head: 'none', fit: 'close' });
-    const limit = blockLimit(close('M4'), DEFAULT_PRINTER);
-    expect(limit).toEqual({ key: 'fit', value: 4.3, nozzle: 0.4, reason: 'closeFit', size: 'M4', thread: 4, room: 0.3, shrink: 0.3, standard: 4.5 });
-    expect(limit && limitSaid(limit)).toBe('fit close: the M4 hole of ISO 273 fine is 4.3 mm, 0.3 mm over the 4 mm screw, and a printed hole comes out up to 0.3 mm smaller (the largest hole allowance of the material catalogue), so the screw may not pass; give fit normal (4.5 mm)');
-    expect(blockLimit(close('M6'), DEFAULT_PRINTER)).toBeNull();
+  it('draws every hole, seat and pocket wider by the hole allowance of the part\'s material, so that it comes out at its size (audit S-10, W16, T10)', () => {
+    const hole: FeatureBlock = { block: 'screwHole', body: 'Body1', point: at, size: 'M3', head: 'none', fit: 'normal' };
+    // ISO 273 medium M3 is 3.4 mm: PLA (0.15) 3.55, PP (0.3) 3.7, a measured 0 stays 3.4; without a material, PLA's.
+    expect([material('PLA'), material('PP'), { ...DEFAULT_MATERIAL, holeShrink: 0 }].map((stuff) => stepsOf(hole, undefined, undefined, { nozzle: 0.4, layer: 0.2, material: stuff })[0]?.params.diameter)).toEqual(['3.55 mm', '3.7 mm', '3.4 mm']);
+    expect(DEFAULT_MATERIAL).toEqual(material('PLA'));
+    // Above the hole plate's 10 mm the allowance grows with the diameter (holeAllowance): ABS 0.25 on 10 mm, 0.265 on 11.
+    expect([drawnHole(10, material('ABS')), drawnHole(11, material('ABS'))]).toEqual([10.25, 11.265]);
+    // A close hole is no longer refused: drawn wider, it comes out at ISO 273 fine (audit T31 came from undrawn holes).
+    expect(blockLimit({ ...hole, size: 'M4', fit: 'close' }, DEFAULT_PRINTER)).toBeNull();
+    expect(stepsOf({ ...hole, size: 'M4', fit: 'close' }, undefined, undefined, { nozzle: 0.4, layer: 0.2, material: material('PP') })[0]?.params.diameter).toBe('4.6 mm');
+  });
+
+  it('takes the room of nut pockets and lips from the fits of the part\'s material, scaled to the nozzle (audit W16, T10, T42, W36)', () => {
+    // Push fit on both sides of the nut: PLA 0.15 → 5.8 (as the fixed 0.3 before), PETG 0.2 → 5.9; on 0.8 mm PLA's doubles.
+    const flats = (stuff: ToolMaterial, nozzle = 0.4) => (defaultBlock('nutTrap', 'Body1', at, 'M3', [0, 0, 1], { nozzle, layer: 0.2, material: stuff }) as { flats: number }).flats;
+    expect([flats(material('PLA')), flats(material('PETG')), flats(material('PLA'), 0.8), flats(material('PLA'), 0.2)]).toEqual([5.8, 5.9, 6.1, 5.8]);
+    expect(fitClearance('push', { nozzle: 0.6, layer: 0.2 })).toBe(0.225);
+    // A profile read on a 0.6 mm nozzle is used as read there.
+    expect(fitClearance('push', { nozzle: 0.6, layer: 0.2, material: { ...material('PLA'), measuredNozzle: 0.6 } })).toBe(0.15);
+    // The lip of a lid: the closure's thickness and the material's slide fit, one measure in both tools.
+    const lip = (stuff: ToolMaterial, nozzle: number) => defaultBlock('lip', 'Body1', at, 'M3', [0, 0, 1], { nozzle, layer: 0.2, material: stuff });
+    expect(lip(material('PLA'), 0.4)).toMatchObject({ width: 1.4, gap: 0.25 });
+    expect(lip(material('PETG'), 0.4)).toMatchObject({ width: 1.4, gap: 0.3 });
+    expect(lip(material('PLA'), 0.8)).toMatchObject({ width: 1.85, gap: 0.5 });
   });
 
   it('takes the depth of text from the printer\'s layers, the pilot hole from the rule (audit T49, S-19, MV-26)', () => {
@@ -76,9 +97,9 @@ describe('function blocks (F1)', () => {
   it('seats an insert one millimetre deeper than it is long, and bosses it with 2 mm of wall in whole lines and a fillet at its foot (audit S-14)', () => {
     expect(defaultBlock('insertSeat', 'Body1', at, 'M3')).toMatchObject({ diameter: 4, depth: 6.7 });
     // No chamfer on a seat: the insert's tip starts it, and the seat's measure needs its plain cylinder.
-    expect(stepOf(defaultBlock('insertSeat', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '4 mm', depth: '6.7 mm', targets: ['Body1'] });
+    expect(stepOf(defaultBlock('insertSeat', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '4.15 mm', depth: '6.7 mm', targets: ['Body1'] });
     // 2 mm of wall is five lines of 0.45 mm, 2.25 mm; the fillet half of that, at least 1 mm and two nozzles.
-    expect(stepOf(defaultBlock('boss', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '8.5 mm', height: '8.7 mm', hole_diameter: '4 mm', hole_depth: '6.7 mm', draft: '0 deg', fillet: '1.13 mm', body: 'Body1' });
+    expect(stepOf(defaultBlock('boss', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '8.5 mm', height: '8.7 mm', hole_diameter: '4.15 mm', hole_depth: '6.7 mm', draft: '0 deg', fillet: '1.13 mm', body: 'Body1' });
     expect(defaultBlock('boss', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 0.6, layer: 0.3 })).toMatchObject({ diameter: 8.05 });
     expect(stepsOf(defaultBlock('boss', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 0.6, layer: 0.3 }), undefined, undefined, { nozzle: 0.6, layer: 0.3 })[0]?.params).toMatchObject({ fillet: '1.2 mm' });
     expect(sizesOf('insertSeat')).toEqual(['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6']);
@@ -141,14 +162,15 @@ describe('function blocks (F1)', () => {
     expect(block).toMatchObject({ flats: 5.8, depth: 2.8 });
     const steps = stepsOf(block);
     expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.polygon.circumscribed', 'solid.extrude', 'solid.hole']);
-    expect(steps[1]?.params).toEqual({ center: [0, 0], radius: 2.9, sides: 6 });
+    // Drawn with PLA's hole allowance on the flats: 5.95 mm.
+    expect(steps[1]?.params).toEqual({ center: [0, 0], radius: 2.975, sides: 6 });
     expect(steps[2]?.params).toEqual({ distance: '-2.8 mm', operation: 'cut', targets: ['Body1'] });
-    expect(steps[3]?.params).toEqual({ position: [10, 10, 7.2], diameter: '3.4 mm', targets: ['Body1'] });
+    expect(steps[3]?.params).toEqual({ position: [10, 10, 7.2], diameter: '3.55 mm', targets: ['Body1'] });
   });
 
   it('cuts a slot as wide as the clearance hole, along the chosen direction', () => {
     const block = defaultBlock('slot', 'Body1', at, 'M4', [0, 0, 1]);
-    expect(stepsOf(block)[1]?.params).toEqual({ p0: [-5, 0], p1: [5, 0], width: 4.5 });
+    expect(stepsOf(block)[1]?.params).toEqual({ p0: [-5, 0], p1: [5, 0], width: 4.65 });
     expect(stepsOf(block)[2]?.params).toEqual({ distance: '-1000 mm', operation: 'cut', targets: ['Body1'] });
     const upright = stepsOf({ ...block, along: 'y', depth: 3 } as FeatureBlock);
     expect(upright[1]?.params).toMatchObject({ p0: [0, -5], p1: [0, 5] });
@@ -198,7 +220,7 @@ describe('function blocks (F1)', () => {
       expect(throughWall({ ...slot, point: [-0.1, 20, 15] }, measured)).toEqual([null]);
       // A nut trap is tried by its hole alone: its pocket, deeper than a thin wall, would leave the hole on no face.
       expect(throughTrial(defaultBlock('nutTrap', 'Dose', wall, 'M3', [-1, 0, 0])).filter((step) => step.command !== 'solid.box' && step.command !== 'solid.combine' && step.command !== 'solid.move' && step.command !== 'inspect.measure')).toEqual([
-        { command: 'solid.hole', params: { position: wall, diameter: '3.4 mm', type: 'countersink', cs_diameter: '4.4 mm', cs_angle: '90 deg', targets: ['Dose'] } },
+        { command: 'solid.hole', params: { position: wall, diameter: '3.55 mm', type: 'countersink', cs_diameter: '4.55 mm', cs_angle: '90 deg', targets: ['Dose'] } },
       ]);
       // A point a little off its face (rounded) still finds its wall; one further off finds none.
       expect(throughReach({ ...slot, point: [-0.04, 20, 15] }, measured)).toEqual([3.04]);
@@ -228,8 +250,8 @@ describe('function blocks (F1)', () => {
 
   it('builds a lip, and a groove with its gap, with SolidCraft\'s plastic.lip', () => {
     const lip = defaultBlock('lip', 'Body1', at, 'M3');
-    expect(stepsOf(lip)).toEqual([{ command: 'plastic.lip', params: { face: at, type: 'lip', width: '1.2 mm', height: '2 mm', body: 'Body1' } }]);
-    expect(stepsOf({ ...lip, type: 'groove' } as FeatureBlock)[0]?.params).toMatchObject({ type: 'groove', gap: '0.2 mm' });
+    expect(stepsOf(lip)).toEqual([{ command: 'plastic.lip', params: { face: at, type: 'lip', width: '1.4 mm', height: '2 mm', body: 'Body1' } }]);
+    expect(stepsOf({ ...lip, type: 'groove' } as FeatureBlock)[0]?.params).toMatchObject({ type: 'groove', gap: '0.25 mm' });
   });
 
   it('stands a snap fit out of the face with its catch across the arm', () => {

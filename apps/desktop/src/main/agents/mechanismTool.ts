@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-import { LID, LIP, WEB, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapProblem, snapSteps, snapWindow, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { LID, LIP, WEB, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapProblem, snapSteps, snapWindow, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, pegBore, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { snapStrain } from '../../shared/blocks';
 import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../shared/screwSizes';
-import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
+import { BRIDGE_SPAN, minimumFloor, minimumWall, thinnestLine } from '@partbuddy/geometry';
 import { printInPlaceGap, type FitPrinter } from '../../shared/designFit';
+import { DEFAULT_MATERIAL, drawnHole, fitClearance, type ToolMaterial, type ToolPrinter } from '../../shared/toolFit';
 
 import { componentOf } from '../solidcraft/actions';
 import { componentsWithBodies, printGroupsOf } from '../solidcraft/mirror';
@@ -31,6 +32,9 @@ const NECK_SLACK = 0.01;
 /** How far a knuckle's barrel reaches into its own body at least (mm): less, and it hangs on a sliver (audit W8). */
 const HOLD = 0.5;
 
+/** The printer the tool's description gives its numbers for: the default profile's, PLA on a 0.4 mm nozzle. */
+const PLA_04: ToolPrinter = { nozzle: 0.4, layer: 0.2 };
+
 const mechanismTool: UpstreamTool = {
   name: MECHANISM_TOOL,
   description:
@@ -47,13 +51,14 @@ const mechanismTool: UpstreamTool = {
     'Give from where the screw goes in (on the outer face of the moving body) and to where its line passes into the fixed body (on the face the two meet at); more lists where further screws of the same kind go in. ' +
     'snap: cantilever snap hooks standing on the fixed body, each catching in a window cut through a wall of the moving body, for a cover that clips on and comes off by pressing the catches back. Give from as the foot of the hook (on the face of the fixed body it stands on, at the inner face of that wall), up as the way the hook stands, which is the way the parts come apart, to as a point further into the wall (the way the catch points), wall as the wall\'s thickness, and more for further hooks catching the same way; call again for the opposite wall. ' +
     'PartBuddy measures that wall at each hook before it builds and says what is wrong: as thick as wall, its inner face at from, and whole round the window, which goes from ' + String(snapWindow().from) + ' to ' + String(snapWindow().to) + ' mm above the foot and is ' + String(2 * snapWindow().half) + ' mm wide, by two lines of the nozzle (over and under the window in a standing wall four layers, at least ' + String(minimumFloor(0.001)) + ' mm). It makes no joint. ' +
-    'plug: a plugged connection that makes no joint, to align and glue the halves of a split part or to push one part onto another. With shape peg (the default): round pegs on the fixed body and their pockets in the moving one; give from as the foot of the peg on the face the two meet at, to as a point further into the moving body, more for further pegs (two or more, far apart, keep the parts from turning), diameter (default 5) and gap per side (default 0.2 to slide and glue, 0.1 to press). ' +
-    'With shape dovetail: a dovetail rail on the fixed body and its groove in the moving one, given as for slide (from, to, up, width, height) but a close fit (gap default 0.2, 0.1 to press) and without a joint; the moving body is pushed on from the end at from and stops at to where the groove ends inside it. ' +
+    'plug: a plugged connection that makes no joint, to align and glue the halves of a split part or to push one part onto another. With shape peg (the default): round pegs on the fixed body and their pockets in the moving one; give from as the foot of the peg on the face the two meet at, to as a point further into the moving body, more for further pegs (two or more, far apart, keep the parts from turning), diameter (default 5) and gap per side (default the material\'s push fit to slide and glue, ' + String(fitClearance('push', PLA_04)) + ' in PLA; its clamp fit to press, ' + String(fitClearance('clamp', PLA_04)) + ' in PLA). ' +
+    'With shape dovetail: a dovetail rail on the fixed body and its groove in the moving one, given as for slide (from, to, up, width, height) but a close fit (gap default the material\'s push fit, ' + String(fitClearance('push', PLA_04)) + ' in PLA; less to press) and without a joint; the moving body is pushed on from the end at from and stops at to where the groove ends inside it. ' +
     'latch: a snap latch on the outside of a box, where the outer walls of lid and box lie in one plane: an arm grows out of the lid\'s wall, hangs down over the joint and snaps with a hook under a bead on the box; pulled at its lower end it lets go. Give fixed as the box and moving as the lid, from as the middle of the latch on the line where the two meet on that wall, to as a point straight out of the wall, up as the way from box to lid, and width. ' +
     'PartBuddy measures before it builds that both walls are flat there and plastic ' + String(LATCH.into) + ' mm deep, across the latch: the lid\'s from ' + String(LATCH.foot) + ' to ' + String(latchReach().above) + ' mm above the joint, the box\'s from ' + String(LATCH.foot) + ' to ' + String(latchReach().below) + ' mm below it. ' +
     'It is for a lid that lifts off and prints apart from its box: one in the middle of a long wall, or one on each of two opposite walls. A lid on a print-in-place hinge prints with its box, where hook and bead would fuse: use closure there. It makes no joint. ' +
     'lid: a screw lid for a round container. It coils a thread with 45° flanks onto the container\'s neck and makes the lid itself, with the matching thread, flutes to grip and its top as print face; the two mesh as built. ' +
     'Give the container as fixed, the name the lid shall have as moving (no such body yet), from as the centre of the rim at its height, and diameter as the neck\'s outer diameter; the neck must be a plain upright cylinder of that diameter below the rim, with a wall of at least ' + String(NECK_WALL) + ' mm, as far down as the lid covers it: PartBuddy measures that before it builds and says what is wrong. ' +
+    'Holes, seats and pockets are drawn wider by the hole allowance of the material in use, and the default fits are its profile\'s: give sizes as they shall come out. ' +
     'Use this instead of modelling a hinge, a guide, a snap lid, a threaded lid or the holes of a screw joint yourself.',
   inputSchema: {
     type: 'object',
@@ -81,7 +86,7 @@ const mechanismTool: UpstreamTool = {
       knuckles: { type: 'integer', enum: [3, 5, 7, 9], description: `hinge: how many knuckles; default by the length of the line. Lying, the pin bridges each knuckle of the moving body and may bridge at most ${String(BRIDGE_SPAN)} mm.` },
       width: { type: 'number', minimum: 2, maximum: 60, description: 'slide: width of the rail at its foot in mm; default 6. It widens by its height on each side. latch: its width along the wall (5 to 40); default 10.' },
       height: { type: 'number', minimum: 1.5, maximum: 20, description: 'slide: height of the rail in mm; default 3, at most width.' },
-      gap: { type: 'number', minimum: 0.05, maximum: 1, description: "The gap between the parts in mm. hinge: default and least the printer's nozzle, at least 0.3 (up to 1). slide: default the printer's nozzle, at least 0.3 (allowed 0.2 to 1). lid: radial, default three quarters of the nozzle, 0.3 to 0.6 (allowed 0.2 to 0.6). plug with pegs: per side, default 0.2 to slide and glue, 0.1 to press (allowed 0.05 to 0.5); plug dovetail: all round, default 0.2, 0.1 to press (allowed 0.1 to 1). Not used by closure, snap, latch and screw." },
+      gap: { type: 'number', minimum: 0.05, maximum: 1, description: "The gap between the parts in mm. hinge: default and least the printer's nozzle, at least 0.3 (up to 1). slide: default the printer's nozzle, at least 0.3 (allowed 0.2 to 1). lid: radial, default three quarters of the nozzle, 0.3 to 0.6 (allowed 0.2 to 0.6). plug with pegs: per side, default the material's push fit to slide and glue (" + String(fitClearance('push', PLA_04)) + " in PLA), its clamp fit to press (allowed 0.05 to 0.5); plug dovetail: all round, default the push fit (allowed 0.1 to 1). Not used by closure, snap, latch and screw." },
       name: { type: 'string', maxLength: 60, description: "The mechanism's name in the user's language, e.g. \"Lid hinge\"." },
     },
     required: ['kind', 'fixed', 'moving', 'from'],
@@ -234,27 +239,66 @@ export function lipOf(args: Record<string, unknown>, nozzle = 0.4): LipSpec | st
 }
 
 /** The pegs the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
-export function pegOf(args: Record<string, unknown>): PegSpec | string {
+export function pegOf(args: Record<string, unknown>, printer: ToolPrinter = { nozzle: 0.4, layer: 0.2 }): PegSpec | string {
   const base = common(args, 0.4, 'Peg');
   if (typeof base === 'string') return base;
   const more = args.more === undefined ? [] : Array.isArray(args.more) ? args.more.map(vec3) : null;
   if (!more || more.some((point) => point === null)) return 'more must be a list of points, each three numbers';
-  const spec: PegSpec = { fixed: base.fixed, moving: base.moving, from: base.from, to: base.to, more: more as Vec3[], diameter: typeof args.diameter === 'number' ? args.diameter : PEG.least, gap: typeof args.gap === 'number' ? args.gap : 0.2, name: base.name };
+  const spec: PegSpec = { fixed: base.fixed, moving: base.moving, from: base.from, to: base.to, more: more as Vec3[], diameter: typeof args.diameter === 'number' ? args.diameter : PEG.least, gap: typeof args.gap === 'number' ? args.gap : fitClearance('push', printer), ...(printer.material ? { material: printer.material } : {}), name: base.name };
   return pegProblem(spec) ?? spec;
 }
 
 /** The latch the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
-export function latchOf(args: Record<string, unknown>): LatchSpec | string {
+export function latchOf(args: Record<string, unknown>, nozzle = 0.4): LatchSpec | string {
   const base = common(args, 0.4, 'Latch');
   if (typeof base === 'string') return base;
   const up = args.up === undefined ? ([0, 0, 1] as Vec3) : vec3(args.up);
   if (!up) return 'up must be three numbers';
   const spec: LatchSpec = { fixed: base.fixed, moving: base.moving, from: base.from, up, out: base.to.map((value, i) => value - (base.from[i] ?? 0)) as Vec3, width: typeof args.width === 'number' ? args.width : 10, name: base.name };
-  return latchProblem(spec) ?? spec;
+  return latchProblem(spec) ?? armProblem('latch', LATCH.thick, null, nozzle) ?? spec;
+}
+
+/**
+ * Snap hooks and the latch have fixed sizes (SNAP, LATCH): on a coarse nozzle their arm is under the two lines that print
+ * solid, the hook's catch under the narrowest line a slicer lays (audit W15: arms of 1.5 and 1.6 mm, two lines of a 0.8 mm
+ * nozzle are 1.8). Refused there, with what to use instead; null where they print.
+ * shortcut: refused, not sized to the nozzle: hooks per material and nozzle are audit BC-17's.
+ */
+export function armProblem(kind: 'snap' | 'latch', thick: number, hook: number | null, nozzle: number): string | null {
+  const [wall, line] = [minimumWall(nozzle), thinnestLine(nozzle)];
+  const why = [
+    thick < wall - 1e-9 ? `the arm of ${String(thick)} mm is under the ${String(wall)} mm of two lines that print solid` : null,
+    hook !== null && hook < line - 1e-9 ? `the catch of ${String(hook)} mm is under the ${String(line)} mm of the narrowest line a slicer lays` : null,
+  ].filter((part) => part !== null);
+  if (why.length === 0) return null;
+  const instead = kind === 'snap' ? 'Use partbuddy_block snapFit, whose sizes are raised to the nozzle, or print with a finer nozzle' : 'Use kind closure, whose lip follows the nozzle, or print with a finer nozzle';
+  return `${kind === 'snap' ? "PartBuddy's snap hooks" : "PartBuddy's latch"} ${kind === 'snap' ? 'are' : 'is'} sized for finer nozzles: on a ${String(nozzle)} mm nozzle ${why.join(' and ')}. ${instead}`;
+}
+
+/** What each kind reads besides kind, fixed, moving, from and name; a plug by its shape. */
+const TAKES: Record<string, readonly string[]> = {
+  hinge: ['to', 'gap', 'diameter', 'knuckles'],
+  slide: ['to', 'up', 'gap', 'width', 'height'],
+  closure: ['to', 'up', 'side', 'wall', 'radius', 'hinge_from', 'hinge_to', 'flat'],
+  screw: ['to', 'size', 'head', 'thread', 'more', 'screws'],
+  lid: ['diameter', 'starts', 'gap'],
+  snap: ['to', 'up', 'more', 'wall'],
+  latch: ['to', 'up', 'width'],
+  peg: ['shape', 'to', 'more', 'diameter', 'gap'],
+  dovetail: ['shape', 'to', 'up', 'width', 'height', 'gap'],
+};
+
+/** What the model gave that the kind does not read, said after the answer (audit W15: `gap` passed silently by closure, snap, latch and screw); empty when nothing. */
+export function unusedSaid(args: Record<string, unknown>): string {
+  const kind = args.kind === 'plug' ? (args.shape === 'dovetail' ? 'dovetail' : 'peg') : String(args.kind);
+  const takes = TAKES[kind];
+  if (!takes) return '';
+  const unused = Object.keys(args).filter((key) => args[key] !== undefined && !['kind', 'fixed', 'moving', 'from', 'name', ...takes].includes(key));
+  return unused.length > 0 ? ` ${kind} takes no ${unused.join(', ')}: ${unused.length > 1 ? 'they were' : 'it was'} not used.` : '';
 }
 
 /** The snap hooks the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
-export function snapOf(args: Record<string, unknown>): SnapSpec | string {
+export function snapOf(args: Record<string, unknown>, nozzle = 0.4): SnapSpec | string {
   const base = common(args, 0.4, 'Snap hook');
   if (typeof base === 'string') return base;
   const up = args.up === undefined ? ([0, 0, 1] as Vec3) : vec3(args.up);
@@ -263,7 +307,7 @@ export function snapOf(args: Record<string, unknown>): SnapSpec | string {
   if (!more || more.some((point) => point === null)) return 'more must be a list of points, each three numbers';
   const toward = base.to.map((value, i) => value - (base.from[i] ?? 0)) as Vec3;
   const spec: SnapSpec = { fixed: base.fixed, moving: base.moving, from: base.from, up, toward, more: more as Vec3[], wall: typeof args.wall === 'number' ? args.wall : 2, name: base.name };
-  return snapProblem(spec) ?? spec;
+  return snapProblem(spec) ?? armProblem('snap', SNAP.thickness, SNAP.catch, nozzle) ?? spec;
 }
 
 /** The screw lid the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
@@ -286,7 +330,7 @@ export function lidOf(args: Record<string, unknown>, nozzle: number): LidSpec | 
 }
 
 /** The screw joint the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
-export function screwOf(args: Record<string, unknown>, nozzle = 0.4): ScrewSpec | string {
+export function screwOf(args: Record<string, unknown>, nozzle = 0.4, material?: ToolMaterial): ScrewSpec | string {
   const base = common(args, 0.4, 'Screw');
   if (typeof base === 'string') return base;
   const size = args.size === undefined ? 'M3' : args.size;
@@ -297,7 +341,7 @@ export function screwOf(args: Record<string, unknown>, nozzle = 0.4): ScrewSpec 
   if (thread !== 'insert' && thread !== 'tapped') return 'thread must be insert or tapped';
   const more = args.more === undefined ? [] : Array.isArray(args.more) ? args.more.map(vec3) : null;
   if (!more || more.some((point) => point === null)) return 'more must be a list of points, each three numbers';
-  const spec: ScrewSpec = { fixed: base.fixed, moving: base.moving, from: base.from, to: base.to, more: more as Vec3[], size: size as BlockSize, head, thread, screws: args.screws !== false, nozzle, name: base.name };
+  const spec: ScrewSpec = { fixed: base.fixed, moving: base.moving, from: base.from, to: base.to, more: more as Vec3[], size: size as BlockSize, head, thread, screws: args.screws !== false, nozzle, ...(material ? { material } : {}), name: base.name };
   return screwProblem(spec) ?? spec;
 }
 
@@ -1357,7 +1401,7 @@ async function buildGuide(site: Site, spec: SlideSpec, nozzle: number, overhang:
  * was. A failure after the first step (the joint refused, the travel not measurable) left knuckles and cuts behind under
  * "Not built", and the next call built them twice (audit 2026-11-12, H-02).
  */
-async function buildMechanism(upstream: UpstreamTools, args: Record<string, unknown>, nozzle: number, callId: string | undefined, keepFace: KeepFace, overhang: number, layer: number): Promise<string> {
+async function buildMechanism(upstream: UpstreamTools, args: Record<string, unknown>, printer: ToolPrinter, callId: string | undefined, keepFace: KeepFace, overhang: number): Promise<string> {
   const run: Run = async (commands) => {
     const result = await upstream.callTool('batch', { commands }, callId);
     const text = result.content.find((part) => part.type === 'text')?.text;
@@ -1373,7 +1417,8 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
   };
   const site: Site = { upstream, run, callId, mark: {} };
   try {
-    return await mechanism(site, args, nozzle, keepFace, overhang, layer);
+    const unused = unusedSaid(args);
+    return `${await mechanism(site, args, printer, keepFace, overhang)}${unused}`;
   } catch (cause) {
     const message = (cause as Error).message;
     // Unset: the call was refused before anything was built.
@@ -1404,14 +1449,14 @@ export function screwStock(spec: ScrewSpec): { moving: Stock[]; fixed: Stock[] }
           // A countersink sunk deeper (screwFit) is as wide as its mouth down to where its cone starts.
           const diameter = r3(recess.diameter - (spec.head === 'countersunk' ? 2 * Math.max(0, FACE_DROP - (screwFit(spec)?.sink ?? 0)) : 0));
           // The clearance hole is the ring's inside: a curved face is told from an edge by where round it the plastic is missing.
-          return { at, base: at.map((value, k) => r3(value + (axis[k] ?? 0) * FACE_DROP)) as Vec3, axis, diameter, depth: r3(recess.depth - FACE_DROP), from: FACE_DROP, hole: 0, core: CLEARANCE_NORMAL[spec.size], slack: ((Math.PI * diameter ** 2) / 4) * CURVED_FACE };
+          return { at, base: at.map((value, k) => r3(value + (axis[k] ?? 0) * FACE_DROP)) as Vec3, axis, diameter, depth: r3(recess.depth - FACE_DROP), from: FACE_DROP, hole: 0, core: drawnHole(CLEARANCE_NORMAL[spec.size], spec.material), slack: ((Math.PI * diameter ** 2) / 4) * CURVED_FACE };
         })
       : [],
     fixed:
       spec.thread === 'insert' && insert
         ? entries.map((at) => {
             const meet = at.map((value, k) => r3(value + (delta[k] ?? 0))) as Vec3;
-            return { ...seatStock({ block: 'insertSeat', body: spec.fixed, point: meet, size: spec.size, diameter: insert.diameter, depth: insert.length + 1 }, meet, axis), hole: 0 };
+            return { ...seatStock({ block: 'insertSeat', body: spec.fixed, point: meet, size: spec.size, diameter: insert.diameter, depth: insert.length + 1 }, meet, axis, false, { nozzle: spec.nozzle ?? 0.4, layer: 0.2, material: spec.material }), hole: 0 };
           })
         : [],
   };
@@ -1431,7 +1476,7 @@ function unfit(spec: ScrewSpec): string {
 }
 
 /** The plastic each pocket of a peg needs in the moving body (audit W24, N-mechanik-12: a pocket deeper than the body went through it unsaid), measured before anything is cut. */
-export function pegStock(spec: PegSpec, nozzle = 0.4): Stock[] {
+export function pegStock(spec: PegSpec, nozzle = 0.4, layer = 0.2): Stock[] {
   const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
   const length = Math.hypot(...delta);
   const axis = delta.map((value) => Math.round((value / length) * 1e6) / 1e6) as Vec3;
@@ -1440,15 +1485,16 @@ export function pegStock(spec: PegSpec, nozzle = 0.4): Stock[] {
     at,
     base: at.map((value, k) => r3(value + (axis[k] ?? 0) * FACE_DROP)) as Vec3,
     axis,
-    diameter: r3(spec.diameter + 2 * spec.gap + 2 * PEG.wall),
-    depth: r3(pegLength(spec.diameter) + PEG.deeper + pegFloor(nozzle) - FACE_DROP),
+    diameter: r3(pegBore(spec) + 2 * PEG.wall),
+    depth: r3(pegLength(spec.diameter) + PEG.deeper + pegFloor(nozzle, layer) - FACE_DROP),
     from: FACE_DROP,
     hole: 0,
   }));
 }
 
-async function mechanism(site: Site, args: Record<string, unknown>, nozzle: number, keepFace: KeepFace, overhang: number, layer: number): Promise<string> {
+async function mechanism(site: Site, args: Record<string, unknown>, printer: ToolPrinter, keepFace: KeepFace, overhang: number): Promise<string> {
   const { upstream, run, callId } = site;
+  const { nozzle, layer } = printer;
   if (args.kind === 'hinge') {
     const spec = hingeOf(args, nozzle, layer);
     if (typeof spec === 'string') throw new Error(spec);
@@ -1528,13 +1574,15 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
       ? ` PartBuddy tried ${spec.fixed}'s wall where the lid closes: the lip goes in, and the wall with the catch is at least ${String(behind)} mm thick behind the rille.${tried.back.length > 0 ? ` At the lid's ${tried.back.join(', ')} wall${tried.back.length > 1 ? 's' : ''} ${spec.fixed}'s wall stands back from the lid's, so the lip does not centre the lid there.` : ''}`
       : ` PartBuddy could not try ${spec.fixed}'s wall: keep it straight where the lip goes in, and at least ${String(behind)} mm thick behind the rille.`;
     const unhinged = spec.hinge && !spec.flat ? ' The wall at the hinge keeps no lip: the hinge holds the lid there, and its knuckles turn where the lip would stand.' : '';
+    // Audit T11: the lip's foot and the bead's flanks are 45°, more than some materials print without support.
+    const steep = overhang < 45 ? ` ${leans(spec.flat ? "The bead's flanks" : "The slope under the lip's foot and the bead's flanks", overhang)}` : '';
     if (spec.flat) {
       // The lip stands along up: the plate prints on its face the other way.
       const laid = await layOn(run, spec.moving, [0, 0, -spec.up], keepFace);
-      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up, lying on the plate's outer face, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}. It makes no joint.${box}${warnings}`;
+      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up, lying on the plate's outer face, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}. It makes no joint.${steep}${box}${warnings}`;
     }
     return (
-      `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch through the lid's rim to open it. It makes no joint and needs no room outside the box.${unhinged}${box}${warnings}`
+      `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch through the lid's rim to open it. It makes no joint and needs no room outside the box.${unhinged}${steep}${box}${warnings}`
     );
   }
   if (args.kind === 'lid') {
@@ -1568,7 +1616,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     );
   }
   if (args.kind === 'screw') {
-    const spec = screwOf(args, nozzle);
+    const spec = screwOf(args, nozzle, printer.material);
     if (typeof spec === 'string') throw new Error(spec);
     // The plastic round the holes is measured before anything is built (audit R54): nothing of a joint that lacks it is built.
     const stock = screwStock(spec);
@@ -1594,9 +1642,9 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     const clearance = CLEARANCE_NORMAL[spec.size];
     const sunk = fit && fit.sink > 0 ? `, sunk ${String(fit.sink)} mm deeper than the head needs so that a standard length ends in the ${spec.thread === 'insert' ? 'insert' : 'thread'}` : '';
     return (
-      `Built ${String(count)} screw joint${count > 1 ? 's' : ''} "${spec.name}" that hold${count > 1 ? '' : 's'} ${spec.moving} on ${spec.fixed}: in ${spec.moving} a clearance hole of ${String(clearance)} mm for ${spec.size} (ISO 273, normal: ${String(round2(clearance - Number(spec.size.slice(1))))} mm over the screw, more than a printed hole shrinks)` +
+      `Built ${String(count)} screw joint${count > 1 ? 's' : ''} "${spec.name}" that hold${count > 1 ? '' : 's'} ${spec.moving} on ${spec.fixed}: in ${spec.moving} a clearance hole of ${String(clearance)} mm for ${spec.size} (ISO 273, normal: ${String(round2(clearance - Number(spec.size.slice(1))))} mm over the screw; drawn ${String(drawnHole(clearance, spec.material))} mm, the material's hole allowance wider, so that it comes out at that size)` +
       `${spec.head === 'cap' ? ` with a counterbore for the head${sunk}` : spec.head === 'countersunk' ? ` with a 90° countersink${sunk}` : ''}, in ${spec.fixed} ` +
-      `${spec.thread === 'insert' && insert ? `the seat of a heat-set insert (${String(insert.diameter)} mm wide, ${String(insert.length + 1)} mm deep)` : `a modelled ${spec.size} thread`}. ` +
+      `${spec.thread === 'insert' && insert ? `the seat of a heat-set insert (${String(insert.diameter)} mm wide as printed, drawn ${String(drawnHole(insert.diameter, spec.material))} mm; ${String(insert.length + 1)} mm deep)` : `a modelled ${spec.size} thread`}. ` +
       `${fit === null ? `${unfit(spec)}, so no screws were put in: change the thickness or the size.` : `To buy: ${String(count)} × ${spec.size}×${String(fit.length)} ${screw}${spec.thread === 'insert' && insert ? ` and ${String(count)} ${spec.size} heat-set inserts ${String(insert.length)} mm long` : ''}${spec.screws ? '; the screws are in the design as standard parts' : ''}.`} ` +
       // Audit N-mechanik-20: the modelled thread is ISO's, and the print check does not see its flanks.
       (spec.thread === 'tapped' ? `The thread has ISO's 60° flanks: printed with its axis upright, their undersides lean 60°, more than prints clean, so run an ${spec.size} tap through it after printing, or use an insert where the part allows. ` : '') +
@@ -1605,7 +1653,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     );
   }
   if (args.kind === 'snap') {
-    const spec = snapOf(args);
+    const spec = snapOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
     const printer: FitPrinter = { nozzle, layer };
     const warnings = await build(site, spec, snapSteps(spec), `Give from as a point on a face of ${spec.fixed} at the inner face of the wall of ${spec.moving}, up as that face's normal and to as a point further into that wall.`, false, async () => {
@@ -1627,7 +1675,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     );
   }
   if (args.kind === 'latch') {
-    const spec = latchOf(args);
+    const spec = latchOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
     const { deep, lid, box } = latchNeeds();
     const warnings = await build(site, spec, latchSteps(spec), `Give from on the line where ${spec.moving} and ${spec.fixed} meet, on their outer wall, and to as a point straight out of that wall; both walls must lie in one plane there.`, false, async () => {
@@ -1651,8 +1699,9 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     );
   }
   if (args.kind === 'plug' && args.shape === 'dovetail') {
-    // The guide's own dovetail as a close fit: 0.2 mm, where guides for printed dovetails run from 0.1 to 0.3.
-    const spec = slideOf({ ...args, gap: typeof args.gap === 'number' ? args.gap : 0.2, name: typeof args.name === 'string' && args.name.trim() !== '' ? args.name : 'Dovetail' }, nozzle, 0.1, layer);
+    // The guide's own dovetail as a close fit, pushed together: the material's push fit, as round a peg (audit W16: 0.2 mm
+    // for every material before), within the 0.1 to 0.3 mm guides for printed dovetails give.
+    const spec = slideOf({ ...args, gap: typeof args.gap === 'number' ? args.gap : fitClearance('push', printer), name: typeof args.name === 'string' && args.name.trim() !== '' ? args.name : 'Dovetail' }, nozzle, 0.1, layer);
     if (typeof spec === 'string') throw new Error(spec);
     const { warnings, print } = await buildGuide(site, spec, nozzle, overhang);
     return (
@@ -1662,11 +1711,11 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
   }
   if (args.kind === 'plug') {
     if (args.shape !== undefined && args.shape !== 'peg') throw new Error('shape must be peg or dovetail');
-    const spec = pegOf(args);
+    const spec = pegOf(args, printer);
     if (typeof spec === 'string') throw new Error(spec);
     const long = pegLength(spec.diameter);
-    const floor = pegFloor(nozzle);
-    const stock = pegStock(spec, nozzle);
+    const floor = pegFloor(nozzle, layer);
+    const stock = pegStock(spec, nozzle, layer);
     const deep = round2(long + PEG.deeper + floor);
     const pockets = { measured: false };
     const warnings = await build(site, spec, pegSteps(spec), `Give from as a point on the face where ${spec.fixed} and ${spec.moving} meet, and to as a point further into ${spec.moving}.`, false, async () => {
@@ -1676,7 +1725,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     });
     const count = spec.more.length + 1;
     return (
-      `Built ${String(count)} peg${count > 1 ? 's' : ''} "${spec.name}" on ${spec.fixed} with ${count > 1 ? 'their pockets' : 'its pocket'} in ${spec.moving}: ${String(spec.diameter)} mm thick and ${String(long)} mm long, ${String(spec.gap)} mm clear per side, the pocket ${String(PEG.deeper)} mm deeper for air and glue, tip and mouth chamfered. It makes no joint. ` +
+      `Built ${String(count)} peg${count > 1 ? 's' : ''} "${spec.name}" on ${spec.fixed} with ${count > 1 ? 'their pockets' : 'its pocket'} in ${spec.moving}: ${String(spec.diameter)} mm thick and ${String(long)} mm long, ${String(spec.gap)} mm clear per side as printed (the pocket drawn ${String(pegBore(spec))} mm wide, the material's hole allowance wider), the pocket ${String(PEG.deeper)} mm deeper for air and glue, tip and mouth chamfered. It makes no joint. ` +
       `${count === 1 ? 'One round peg lets the parts turn about it: add a second one far from it (more). ' : ''}${spec.diameter < PEG.least ? `A peg under ${String(PEG.least)} mm printed standing is weak. ` : ''}` +
       `A peg printed standing breaks along its layers sooner than one lying. ${pockets.measured ? `PartBuddy measured ${spec.moving}: each pocket has ${String(PEG.wall)} mm of plastic round it and ${String(floor)} mm under it.` : `PartBuddy could not measure ${spec.moving} this time: keep ${String(PEG.wall)} mm of plastic round each pocket and ${String(floor)} mm under it, ${String(deep)} mm from the face.`} Not printed yet: when it binds or rattles, build it again with another gap.${warnings}`
     );
@@ -1686,18 +1735,29 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
 
 /**
  * The upstream tools plus `partbuddy_mechanism`; `nozzle` is the printer's nozzle in use, for the default gap, `overhang`
- * how far the material in use leans without support (degrees), for what the answers promise, and `layer` its layer
- * height, for the hinge's gap and floors (0.2 mm where none is given).
+ * how far the material in use leans without support (degrees), for what the answers promise, `layer` its layer
+ * height, for the hinge's gap and floors (0.2 mm where none is given), `material` the part's material, for the fits of
+ * pegs and the hole allowance of drilled holes and pockets, and `log` where a refusal is written.
  */
-export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number, keepFace: KeepFace = () => undefined, overhang: () => number = () => 45, layer: () => number = () => 0.2): UpstreamTools {
+export function withMechanismTool(
+  upstream: UpstreamTools,
+  nozzle: () => number,
+  keepFace: KeepFace = () => undefined,
+  overhang: () => number = () => 45,
+  layer: () => number = () => 0.2,
+  material: () => ToolMaterial = () => DEFAULT_MATERIAL,
+  log: (line: string) => void = () => undefined,
+): UpstreamTools {
   return {
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), mechanismTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
       if (name !== MECHANISM_TOOL) return upstream.callTool(name, args, callId);
       try {
-        return { content: [{ type: 'text', text: await buildMechanism(upstream, args, nozzle(), callId, keepFace, overhang(), layer()) }] };
+        return { content: [{ type: 'text', text: await buildMechanism(upstream, args, { nozzle: nozzle(), layer: layer(), material: material() }, callId, keepFace, overhang()) }] };
       } catch (cause) {
+        // The refusal reaches the model; the log keeps which kind and why, for a report (audit BC-15 rest).
+        log(`partbuddy_mechanism ${String(args.kind)} not built: ${(cause as Error).message.slice(0, 300)}`);
         return { content: [{ type: 'text', text: `Not built: ${(cause as Error).message}` }], isError: true };
       }
     },

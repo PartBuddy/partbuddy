@@ -1551,10 +1551,10 @@
     },
     "hint": {
       "tappedHole": "Ein modelliertes Gewinde dieser Größe, im Durchmesser {thread, number} mm größer für den Druck, mit angefaster Mündung; nicht modelliert wird mit dem Kernlochdurchmesser gebohrt, um nach dem Druck nachzuschneiden.",
-      "screwHole": "Durchgangsloch aus PartBuddys Tabelle nach ISO 273 (fein erst ab M6: ein gedrucktes Loch verliert bis zu {shrink, number} mm), mit Platz für den Kopf nach ISO 4762 oder ISO 10642 plus {head, number} mm für den Druck (je Seite bei der Flachsenkung, einmal auf den Durchmesser der Kegelsenkung). Eine Flachsenkung bekommt zwei Brückenschichten von {layer, number} mm unter ihrem Boden und druckt so auch zum Bett hin.",
-      "insertSeat": "Typische Werte für ruthex-Einsätze, einen Millimeter tiefer als der Einsatz. Prüf das Datenblatt deines Einsatzes.",
+      "screwHole": "Durchgangsloch aus PartBuddys Tabelle nach ISO 273 (um {shrink, number} mm größer gezeichnet, das Lochaufmaß des Materials, damit es in seiner Größe herauskommt), mit Platz für den Kopf nach ISO 4762 oder ISO 10642 plus {head, number} mm für den Druck (je Seite bei der Flachsenkung, einmal auf den Durchmesser der Kegelsenkung). Eine Flachsenkung bekommt zwei Brückenschichten von {layer, number} mm unter ihrem Boden und druckt so auch zum Bett hin.",
+      "insertSeat": "Typische Werte für ruthex-Einsätze, einen Millimeter tiefer als der Einsatz. Prüf das Datenblatt deines Einsatzes. Um {shrink, number} mm größer gezeichnet, das Lochaufmaß des Materials.",
       "boss": "Ein Dom mit Sitz für eine Einschmelzmutter dieser Größe und mindestens 2 mm Wand.",
-      "nutTrap": "Sechskanttasche nach ISO 4032 mit 0,3 mm Luft und 0,4 mm Tiefenzugabe, darunter ein Durchgangsloch nach ISO 273. Ältere DIN-Muttern sind bei M10 breiter (17 mm): dafür 17,3 als Schlüsselweite angeben.",
+      "nutTrap": "Sechskanttasche nach ISO 4032 mit {room, number} mm Luft (die Steckpassung des Materials) und 0,4 mm Tiefenzugabe, darunter ein Durchgangsloch nach ISO 273. Ältere DIN-Muttern sind bei M10 breiter (17 mm): dafür {din, number} als Schlüsselweite angeben.",
       "slot": "Ein Langloch mit der Breite des mittleren Durchgangslochs, mittig am Punkt, zum Verstellen der Schraube.",
       "text": "Text mittig am Punkt, waagrecht lesbar. Vertieft oder erhaben {depth, number} mm tief ist auf diesem Drucker gut lesbar, ebenso Striche ab {stroke, number} mm Breite; unter zwei Düsenbreiten druckt ein Strich nicht. Vertieft lassen 7 mm hohe Großbuchstaben (die Vorgabe) genug Kunststoff zwischen den Buchstaben.",
       "lip": "Für ein ausgehöhltes Gehäuse: Fläche am Rand wählen. Die Lippe kommt aufs Unterteil, die Nut mit Spalt in den Deckel.",
@@ -1579,7 +1579,6 @@
     "fontBuiltIn": "Standard (Liberation Sans)",
     "limit": {
       "printedThread": "Ein gedrucktes {size}-Gewinde reißt aus: Haken bei „Gewinde modellieren“ weg, dann wird zum Nachschneiden gebohrt, oder einen Einsatz-Sitz nehmen, oder ein Gewinde ab M{from, number}.",
-      "closeFit": "Ein enges Loch für {size} ist {value, number} mm, {room, number} mm über der Schraube, und ein gedrucktes Loch fällt bis zu {shrink, number} mm kleiner aus: die Schraube passt womöglich nicht durch. Wähle normal ({standard, number} mm).",
       "stroke": "Großbuchstaben mit {value, number} mm Höhe haben {stroke, number} mm breite Striche, weniger als die {needed, number} mm (zwei Düsenbreiten), die ein Strich mit der {nozzle, number}-mm-Düse braucht: Höhe {least, number} mm oder mehr angeben.",
       "strokeBold": "Fette Großbuchstaben mit {value, number} mm Höhe haben {stroke, number} mm breite Striche, weniger als die {needed, number} mm (zwei Düsenbreiten), die ein Strich mit der {nozzle, number}-mm-Düse braucht: Höhe {least, number} mm oder mehr angeben.",
       "lipWall": "Eine Lippe mit {value, number} mm Breite druckt nicht massiv: zwei Linien der {nozzle, number}-mm-Düse sind {least, number} mm – mindestens das angeben.",

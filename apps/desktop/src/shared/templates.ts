@@ -14,7 +14,8 @@
  * (0.40.0-rc.4), so no occurrence id has to be read first.
  */
 
-import { hingeSteps, lipSteps, pinDiameter, printTogether, slideSteps } from './mechanisms';
+import { printInPlaceGap, type FitPrinter } from './designFit';
+import { hingeDiameter, hingeProblem, hingeSteps, lipSteps, pinDiameter, printTogether, slideSteps, type HingeSpec } from './mechanisms';
 import { CLEARANCE_NORMAL } from './screwSizes';
 import { WALL } from './wallMount';
 
@@ -49,11 +50,14 @@ const joint = (type: 'revolute' | 'slider', fixed: string, moving: string, on: {
  * middle of the long side and on the rim when the sizes change. Its knuckles start 12 mm above the
  * bed and stand on the webs of the mechanism tool, down to the walls of their halves.
  */
-function hingedBox(): Step[] {
+function hingedBox(printer: FitPrinter): Step[] {
   // The room between the halves; the hinge line runs in its middle, within reach of both walls.
   const between = 1;
   const [length, width, height, hinge] = [60, 40, 16, 40];
-  const [diameter, gap, knuckles] = [8, 0.4, 5];
+  // The hinge for the printer in use, as the mechanism tool builds it (audit T28, BC-10 open 5): the print-in-place gap of
+  // its nozzle (0.4 mm on 0.4) and a barrel of 8 mm, wider where two lines round the bore and four layers over its roof need it.
+  const gap = printInPlaceGap(printer);
+  const [diameter, knuckles] = [Math.max(8, hingeDiameter(gap, true, printer) ?? 8), 5];
   const start = (length - hinge) / 2;
   const knuckle = (hinge - (knuckles - 1) * gap) / knuckles;
   const pin = pinDiameter(diameter);
@@ -63,6 +67,10 @@ function hingedBox(): Step[] {
   const front = between + width;
   // The wall at the start.
   const wall0 = 2.4;
+  const spec: HingeSpec = { fixed: 'Box', moving: 'Lid', from: [start, between / 2, height], to: [start + hinge, between / 2, height], diameter, gap, knuckles, name: 'Hinge', support: { bed: 0, fixed: { toward: [0, -1, 0], distance: between / 2 }, moving: { toward: [0, 1, 0], distance: between / 2 } } };
+  // What the mechanism tool refuses, the template does not build either.
+  const problem = hingeProblem(spec, printer);
+  if (problem) throw new Error(`the hinged box's hinge does not print on a ${String(printer.nozzle)} mm nozzle with ${String(printer.layer)} mm layers: ${problem}`);
   const shell = (body: string, y: Expr, y0: number, feature: (name: string) => string): Step[] => [
     { command: 'solid.box', params: { length: 'length', width: 'width', height: 'height', corner: [0, y, 0], operation: 'new', body_name: body, name: body } },
     // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
@@ -92,11 +100,12 @@ function hingedBox(): Step[] {
       floor: { at: wall0, expr: 'wall' },
       side: 'y+',
       hinge: { along: 'x', across: between / 2, z: { at: height, expr: 'height' } },
+      nozzle: printer.nozzle,
       name: 'Closure',
     }),
     // The hinge of the mechanism tool, built at the starting sizes, then tied to the parameters.
     // The walls of both halves stand half the room between them from the line, down to the bed: every knuckle gets its web.
-    ...hingeSteps({ fixed: 'Box', moving: 'Lid', from: [start, between / 2, height], to: [start + hinge, between / 2, height], diameter, gap, knuckles, name: 'Hinge', support: { bed: 0, fixed: { toward: [0, -1, 0], distance: between / 2 }, moving: { toward: [0, 1, 0], distance: between / 2 } } }).map((step, i, steps) => {
+    ...hingeSteps(spec).map((step, i, steps) => {
       // The profiles (the bore's roof, the webs and their rooms, the pin's flat) are drawn in the world's own y and z and
       // moved along x, so they follow the sizes as the cylinders do. One drawn looking back along x is turned round:
       // it starts where its extrusion ended. No web is drawn below the bed, however low the halves are set.
@@ -124,9 +133,10 @@ function hingedBox(): Step[] {
  * the mechanism tool, and a stop that slides on it and is clamped by a screw in a heat-set insert.
  * The stop prints beside the base (plate view) and is pushed onto the rail from an end.
  */
-function slideStop(): Step[] {
-  // The base is 6 mm thick: the rail's sketch stands on its top, and a sketch plane takes no expression.
-  const [length, baseWidth, thick, gap] = [120, 40, 6, 0.4];
+function slideStop(printer: FitPrinter): Step[] {
+  // The base is 6 mm thick: the rail's sketch stands on its top, and a sketch plane takes no expression. The guide's gap is
+  // the mechanism tool's for a slide: the nozzle's print-in-place gap (audit T28: 0.4 mm on every nozzle before).
+  const [length, baseWidth, thick, gap] = [120, 40, 6, printInPlaceGap(printer)];
   const screws: [Expr, Expr][] = [
     ['length * 0.15', '-(base_width / 2 - 7 mm)'],
     ['length * 0.85', 'base_width / 2 - 7 mm'],
@@ -328,7 +338,7 @@ function wallHolder(): Step[] {
   ];
 }
 
-const BUILDERS: Record<TemplateId, () => Step[]> = { hingedBox, slideStop, housing, sign, wallHolder };
+const BUILDERS: Record<TemplateId, (printer: FitPrinter) => Step[]> = { hingedBox, slideStop, housing, sign, wallHolder };
 
 /** The parameter comments in German (polish round 2); names stay the same, so expressions and the assistant find them. */
 const GERMAN: Record<string, string> = {
@@ -448,13 +458,21 @@ function inGerman(step: Step): Step {
   return { ...step, params };
 }
 
-/** The SolidCraft script of a template: its parameters first, then the geometry over them; in German on request. */
-export function templateSteps(id: TemplateId, german = false): Step[] {
-  const steps = BUILDERS[id]();
+/** The printer a template is built for when none is given: a 0.4 mm nozzle with 0.2 mm layers, as the starting profile. */
+const PRINTER: FitPrinter = { nozzle: 0.4, layer: 0.2 };
+
+/**
+ * The SolidCraft script of a template for the printer in use: its parameters first, then the geometry over them; in German
+ * on request. Gaps of its mechanisms follow the printer (audit T28); a hinge that does not print on it throws.
+ * shortcut: walls (2.4 and 2 mm) stay as they are, not on the printer's grid of lines and without an [auto] mark, so a
+ * change of printer does not refit them; mark them once the templates' preview pictures are rendered again.
+ */
+export function templateSteps(id: TemplateId, german = false, printer: FitPrinter = PRINTER): Step[] {
+  const steps = BUILDERS[id](printer);
   return german ? steps.map(inGerman) : steps;
 }
 
 /** The print faces a template's script sets, by body and a point on the face: PartBuddy keeps them for its plate view as well. */
-export function templatePrintFaces(id: TemplateId, german = false): { body: string; point: [number, number, number] }[] {
-  return templateSteps(id, german).flatMap((step) => (step.command === 'body.print_face' ? [{ body: step.params.body as string, point: step.params.point as [number, number, number] }] : []));
+export function templatePrintFaces(id: TemplateId, german = false, printer: FitPrinter = PRINTER): { body: string; point: [number, number, number] }[] {
+  return templateSteps(id, german, printer).flatMap((step) => (step.command === 'body.print_face' ? [{ body: step.params.body as string, point: step.params.point as [number, number, number] }] : []));
 }
