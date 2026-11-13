@@ -271,6 +271,9 @@ describe('SolidCraft supervisor', () => {
       const written = model(join(target, 'hinge.3mf'));
       expect(written).toContain('<object id="5" type="model" name="Box + Lid"><components><component objectid="2"/><component objectid="3"/></components></object>');
       expect(written).toContain('<build>\n<item objectid="5"/>\n<item objectid="4"/>\n</build>');
+      // With print faces the exported 3MF lies as the check lays it: the hinge on the lid's top, the loose body on its own (audit D21).
+      await supervisor.exportDesign('3mf', join(target, 'laid.3mf'), { Lid: 'F1:+z', Loose: 'F1:+z' });
+      expect(model(join(target, 'laid.3mf'))).toContain('<item objectid="5" transform="-1 0 0 0 1 0 0 0 -1 0 0 15"/>\n<item objectid="4" transform="-1 0 0 0 1 0 0 0 -1 0 0 25"/>');
     });
 
     it('writes the file for the slicer itself, the hinge as one piece laid on its print face, and starts the slicer on it', async () => {
@@ -296,6 +299,80 @@ describe('SolidCraft supervisor', () => {
       vi.mocked(spawn).mockImplementationOnce(() => child('error'));
       await expect(failing.supervisor.sendToSlicer('bambu')).rejects.toThrow('the slicer did not start: spawn EACCES');
     });
+  });
+
+  describe('the export lays each body on its print face and meshes round faces fine (audit D21, D22, S-23)', () => {
+    /** A binary STL of one upward and one downward triangle, as `file.export` writes it, the part 2 … 12 mm high. */
+    const binary = () => {
+      const data = Buffer.alloc(84 + 2 * 50);
+      data.writeUInt32LE(2, 80);
+      [[0, 0, 1, 0, 0, 12, 10, 0, 12, 0, 10, 12], [0, 0, -1, 0, 0, 2, 0, 10, 2, 10, 0, 2]].forEach((values, t) => values.forEach((value, i) => data.writeFloatLE(value, 84 + t * 50 + i * 4)));
+      return data;
+    };
+    const exporting = async (bodies: string[]) => {
+      const { supervisor, revisions, controlDir } = setup();
+      const fake = await startFake(controlDir);
+      fake.bodies = bodies;
+      const asked: Record<string, unknown>[] = [];
+      fake.answers['file.export'] = (params) => {
+        if (params.format === '3mf-tagged') copyFileSync(new URL('../../../packages/geometry/fixtures/cable-clip.3mf', import.meta.url), String(params.path));
+        else if (params.format === 'stl') writeFileSync(String(params.path), binary());
+        else writeFileSync(String(params.path), 'fake step');
+        asked.push(params);
+        return { path: params.path };
+      };
+      supervisor.start();
+      await vi.waitFor(() => expect(revisions).toHaveLength(1), { timeout: 5000 });
+      fake.answers['model.faces'] = () => ({ faces: [{ name: 'F1:+z', plane_normal: [0, 0, 1] }] });
+      const target = mkdtempSync(join(tmpdir(), 'partbuddy-export-'));
+      cleanups.push(() => {
+        rmSync(target, { recursive: true, force: true });
+      });
+      return { supervisor, asked, target };
+    };
+    const heights = (file: string) => {
+      const data = readFileSync(file);
+      return [0, 1].flatMap((t) => [1, 2, 3].map((corner) => Math.round(data.readFloatLE(84 + t * 50 + corner * 12 + 8) * 1000) / 1000));
+    };
+
+    it('turns a single body of an STL onto its print face and asks for fine quality', async () => {
+      const { supervisor, asked, target } = await exporting(['Lid']);
+      await supervisor.exportDesign('stl', join(target, 'lid.stl'), { Lid: 'F1:+z' });
+      expect(asked.at(-1)).toMatchObject({ format: 'stl', bodies: ['Lid'], quality: 'fine' });
+      // The top (z 12) is on the bed, the bottom (z 2) 10 mm above it.
+      expect(heights(join(target, 'lid.stl'))).toEqual([0, 0, 0, 10, 10, 10]);
+      // Without a print face it lies as designed.
+      await supervisor.exportDesign('stl', join(target, 'as-designed.stl'));
+      expect(heights(join(target, 'as-designed.stl'))).toEqual([12, 12, 12, 2, 2, 2]);
+    });
+
+    it('leaves an STL of several pieces as designed, and STEP always, without a quality', async () => {
+      const { supervisor, asked, target } = await exporting(['Lid', 'Box']);
+      await supervisor.exportDesign('stl', join(target, 'two.stl'), { Lid: 'F1:+z' });
+      expect(heights(join(target, 'two.stl'))).toEqual([12, 12, 12, 2, 2, 2]);
+      await supervisor.exportDesign('step', join(target, 'two.step'), { Lid: 'F1:+z' });
+      expect(asked.at(-1)).toEqual({ path: expect.any(String) as string, format: 'step', bodies: ['Lid', 'Box'] });
+    });
+  });
+
+  it('reads the print faces SolidCraft saved with the design and matches them to the mirrored faces (audit D20)', async () => {
+    const { supervisor, revisions, controlDir, cacheDir } = setup();
+    await startFake(controlDir);
+    supervisor.start();
+    await vi.waitFor(() => expect(revisions).toHaveLength(1), { timeout: 5000 });
+    expect(await supervisor.savedPrintFaces()).toBeNull();
+    const [body] = revisions[0]?.bodies ?? [];
+    const top = body?.faces.faces.find((face) => face.planeNormal?.[2] === 1);
+    if (!body || !top) throw new Error('the fixture has no flat top');
+    // A design file as SolidCraft saves it: a zip whose document.json lists the print faces; one names a face long gone.
+    const design = join(cacheDir, 'Clip.sc');
+    const document = { print_faces: { [body.name]: { name: 'F9:old', point: top.centroid }, Gone: { name: 'F1:+z', point: [0, 0, 0] } } };
+    writeFileSync(design, zipSync({ 'document.json': strToU8(JSON.stringify(document)), 'cache/bodies.bin': new Uint8Array(8) }));
+    (supervisor as unknown as { designFile: string }).designFile = design;
+    expect(await supervisor.savedPrintFaces()).toEqual({ faces: { [body.name]: expect.any(String) as string, Gone: 'F1:+z' }, lost: [] });
+    const faces = (await supervisor.savedPrintFaces())?.faces ?? {};
+    const laid = body.faces.faces.find((face) => face.name === faces[body.name]);
+    expect(laid?.planeNormal).toEqual(top.planeNormal);
   });
 
   it('refuses to export a design without a body', async () => {

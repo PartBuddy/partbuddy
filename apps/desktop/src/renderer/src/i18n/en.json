@@ -539,18 +539,20 @@
     "format": {
       "3mf": {
         "name": "3MF",
-        "hint": "For the slicer, such as OrcaSlicer or Bambu Studio"
+        "hint": "For the slicer: the visible printed parts, each on its print face where one is set, round faces fine (off by 0.005 mm per 100 mm of part size at most)"
       },
       "stl": {
         "name": "STL",
-        "hint": "For any slicer and older programs"
+        "hint": "One mesh for any slicer: the visible printed parts, finely meshed; laid on its print face only a single part, several as designed"
       },
       "step": {
         "name": "STEP",
-        "hint": "For other CAD programs"
+        "hint": "The visible printed parts as designed, for other CAD programs"
       }
     },
     "exported": "Saved as {file}",
+    "hiddenLeftOut": "Hidden, so left out: {bodies}.",
+    "printFaceGone": "{bodies} {count, plural, one {has} other {have}} no print face any more and {count, plural, one {lies} other {lie}} as designed in the check and the export.",
     "openInSolidCraft": "Open in SolidCraft",
     "openedInSolidCraft": "The design is in Documents\\PartBuddy and opens in SolidCraft. PartBuddy shows your changes there live.",
     "failed": "That did not work: {detail}",
@@ -563,7 +565,7 @@
     },
     "share": {
       "name": "Sharing package …",
-      "hint": "3MF, STEP, four pictures and a description for Printables or MakerWorld",
+      "hint": "3MF (each part on its print face where one is set), STEP, four pictures and a description for Printables or MakerWorld; hidden bodies stay out",
       "done": "Sharing package saved in exports\\{folder}"
     }
   },
@@ -686,8 +688,8 @@
     "show": "Show {name}",
     "mesh": "mesh",
     "convert": "Convert {name} to faces",
-    "convertHint": "Turns the mesh into faces you can edit. Works for closed meshes of mechanical parts.",
-    "convertDone": "{name} now has faces you can edit.",
+    "convertHint": "Rebuilds the mesh within 0.05 mm as faces you can edit: flat and round faces SolidCraft recognises as real faces, everything else as facets. Works for closed meshes.",
+    "convertDone": "{name} now has faces you can edit, within 0.05 mm of the mesh; what SolidCraft does not recognise as flat or round stays faceted.",
     "openMesh": "{name} is not closed, so SolidCraft cannot turn it into faces. It can still be exported; the slicer repairs small holes itself.",
     "standardPart": "standard part",
     "bodiesTitle": "Bodies",
@@ -1119,7 +1121,7 @@
     },
     "none": "No problems found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
     "noneSoFar": "No problems found so far.",
-    "basis": "Checked after every change, as designed (standing on its lowest point), with the printer and material of this part. Supports, bridges and the orientation are up to the slicer.",
+    "basis": "Checked after every change, each body on its print face, else as designed (standing on its lowest point), with the printer and material of this part. Hidden bodies are not checked. Supports and bridges are up to the slicer.",
     "measuring": "The check is still running. Overlaps, gaps that are too tight or a blocked joint may still turn up.",
     "unmeasured": "Not measured, or not all of it: {what}. Findings there may be missing.",
     "unchecked": "Not checked for gaps (mesh bodies): {bodies}",
@@ -1382,8 +1384,8 @@
   },
   "printFace": {
     "action": "Print on this face",
-    "hint": "The slicer lays the body on this face. One face per body; choosing another replaces it.",
-    "done": "{name} lies on this face in the slicer."
+    "hint": "The check, the 3MF export and the slicer lay the body on this face. One face per body; choosing another replaces it.",
+    "done": "{name} lies on this face when printed."
   },
   "firstStart": {
     "title": "Welcome to PartBuddy",

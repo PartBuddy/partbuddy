@@ -10,6 +10,7 @@ import { asksBeforeExport } from '../print/report';
 import { platform } from '../platform';
 import { useStudio, type ExportTarget } from '../state/store';
 import { buttonClass, IconButton } from '../ui/Button';
+import { goneFaces } from './printFaceChanges';
 import { VersionsDialog } from './VersionsDialog';
 import { POPOVER_OFFSET, menuClass, menuHeaderClass, menuItemTwoLineClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
 
@@ -100,8 +101,27 @@ export function DesignActions() {
     };
   }, [canUndo, canRedo, undo, redo]);
 
+  // A print face SolidCraft no longer holds (undone, or on no flat face after a change) is said, not dropped silently (audit D20).
+  const printFaces = useStudio((s) => s.printFaces);
+  const seenFaces = useRef<{ documentId: string | null; faces: Record<string, string> }>({ documentId: null, faces: {} });
+  useEffect(() => {
+    const documentId = model.status === 'ready' ? model.documentId : null;
+    const before = seenFaces.current;
+    seenFaces.current = { documentId, faces: printFaces };
+    if (documentId === null || before.documentId !== documentId || model.status !== 'ready') return;
+    const gone = goneFaces(before.faces, printFaces, model.bodies.map((entry) => entry.name));
+    if (gone.length > 0) setNotice({ tone: 'danger', text: t('actions.printFaceGone', { bodies: gone.slice(0, 5).join(', '), count: gone.length }) });
+  }, [printFaces, model, setNotice, t]);
+
   // Bodies that look like bought standard parts but could not be checked went along as printed ones: the user hears it with the result.
   const unchecked = (bodies: string[] | undefined) => (bodies && bodies.length > 0 ? ` ${t('actions.uncheckedParts', { bodies: bodies.slice(0, 5).join(', '), count: bodies.length })}` : '');
+  // Hidden bodies are not mirrored, so neither checked nor exported: the result names them (audit D24).
+  const hidden = () => {
+    const { model: now } = useStudio.getState();
+    if (now.status !== 'ready') return '';
+    const left = now.structure.bodies.filter((body) => !body.visible && !now.structure.standardParts?.includes(body.name)).map((body) => body.name);
+    return left.length > 0 ? ` ${t('actions.hiddenLeftOut', { bodies: left.slice(0, 5).join(', ') + (left.length > 5 ? ' …' : '') })}` : '';
+  };
 
   // A red ready-to-print check, or one still measuring or not fully measured, asks once before the export (M7, X-1); it does not stop it.
   const exportNow = (target: ExportTarget) => {
@@ -109,16 +129,16 @@ export function DesignActions() {
       if (target.startsWith('slicer:')) {
         // To the slicer (B8): SolidCraft starts it with the printable bodies on their print faces.
         const { name, unverified } = await platform().design.sendToSlicer(target.slice('slicer:'.length));
-        return `${t('actions.sentToSlicer', { name })}${unchecked(unverified)}`;
+        return `${t('actions.sentToSlicer', { name })}${unchecked(unverified)}${hidden()}`;
       }
       if (target === 'share') {
         // The sharing package (F5): the main process opens its folder in Explorer.
         const { folder, unverified } = await platform().design.share();
-        return `${t('actions.share.done', { folder })}${unchecked(unverified)}`;
+        return `${t('actions.share.done', { folder })}${unchecked(unverified)}${hidden()}`;
       }
       const result = await platform().design.export(target as ExportFormat);
       if (!result) return null;
-      return `${t('actions.exported', { file: result.file })}${unchecked(result.unverified)}`;
+      return `${t('actions.exported', { file: result.file })}${unchecked(result.unverified)}${hidden()}`;
     });
   };
 

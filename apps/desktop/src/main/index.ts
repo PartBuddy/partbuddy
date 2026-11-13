@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { copyFileSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -24,7 +24,7 @@ import { guardNotes } from './agents/noteGuard';
 import { withViewTool } from './agents/viewContext';
 import { withAssemblyTool } from './agents/assemblyTool';
 import { withDesignTool } from './agents/designTool';
-import { keepPrintFace, readAssembly, readPrintFaces, writeAssembly } from './projects/assembly';
+import { readAssembly, readPrintFaces, withPrintFace, writeAssembly, writePrintFaces } from './projects/assembly';
 import { withPrintFaces } from './agents/printFaceWatch';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
@@ -44,7 +44,7 @@ import { Bridge, trustedSender } from './bridge';
 import { findExecutable, programInBundle, systemEnvironment } from './solidcraft/discovery';
 import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
-import { checkImportFile, IMPORT_EXTENSIONS, importName, type ImportKind } from './projects/importFile';
+import { asksForUnit, checkImportFile, IMPORT_EXTENSIONS, importName, MESH_UNITS, type ImportKind, type MeshUnit } from './projects/importFile';
 import { migrateDesigns, ProjectStore, whenFree } from './projects/projectStore';
 import { readParts, writePart } from './projects/parts';
 import { writeMeta } from './projects/projectMeta';
@@ -277,6 +277,8 @@ if (!app.requestSingleInstanceLock()) {
     let notes: NotesService | null = null;
     let chats: ChatArchive | null = null;
     let prints: PrintProfiles | null = null;
+    // Reads the print faces SolidCraft saved with the design (audit D20); set once the supervisor exists.
+    let syncPrintFaces: (() => void) | null = null;
     // Which SolidCraft runs (R0, ADR 0024): the automatic search or the program the user chose.
     const engineChoice = new EngineChoice({
       file: join(app.getPath('userData'), 'solidcraft-settings.json'),
@@ -312,6 +314,7 @@ if (!app.requestSingleInstanceLock()) {
           if (status.state === 'connected' && status.save === 'saved') {
             chats?.flush();
             prints?.flush();
+            syncPrintFaces?.();
           }
         },
         revision: (revision) => {
@@ -370,11 +373,18 @@ if (!app.requestSingleInstanceLock()) {
     // The ready-to-print check (M7), as the renderer last reported it.
     const checkNote = new ProfileNote();
     let printCheck: PrintCheckReport | null = null;
+    // Hidden bodies are not mirrored, so neither checked nor exported: the check says so (audit D24, N-normteile-policy-6).
+    const withHidden = (note: string) => {
+      const structure = supervisor.currentRevision()?.structure;
+      const hidden = (structure?.bodies ?? []).filter((body) => !body.visible && !structure?.standardParts?.includes(body.name)).map((body) => `"${body.name}"`);
+      if (hidden.length === 0) return note;
+      return `${note}\n[PartBuddy: hidden, so not checked, not exported and not sent to the slicer: ${hidden.slice(0, 20).join(', ')}${hidden.length > 20 ? ` and ${String(hidden.length - 20)} more` : ''}. Show a body (browser.visibility) to have it checked and printed.]`;
+    };
     // The check as partbuddy_view shows it: a check of an older revision is still catching up.
     const checkForView = () => {
       if (!printCheck) return null;
       if (printCheck.revision !== supervisor.currentRevision()?.revision) return CHECK_PENDING_VIEW;
-      return printCheckNote(printCheck, true);
+      return withHidden(printCheckNote(printCheck, true));
     };
     // What the tool answers of this turn already said of the check: the same verdict is not told in full again.
     const checkTold = new CheckTold();
@@ -555,7 +565,7 @@ if (!app.requestSingleInstanceLock()) {
       travel: (command, count) => supervisor.travel(command, count),
       emit: emitEvent,
       // The check of each change goes back with the tool's answer, so no turn ends on a part the model never saw checked.
-      changed: (result, after) => withCheckOfChange(result, after, () => ({ mirrored: supervisor.currentRevision(), report: printCheck }), (report) => checkTold.note(report)),
+      changed: (result, after) => withCheckOfChange(result, after, () => ({ mirrored: supervisor.currentRevision(), report: printCheck }), (report) => withHidden(checkTold.note(report))),
       log,
     });
     workLog = steps;
@@ -577,12 +587,39 @@ if (!app.requestSingleInstanceLock()) {
       log(`kept the assembly order: ${String(plan.steps.length)} steps`);
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.assemblyChanged, plan);
     };
+    // Print faces of a design without a project folder stay here until it has one (audit H-13); SolidCraft keeps them
+    // in the design, so the first save brings them into the folder (syncPrintFaces).
+    let looseFaces: { documentId: string | null; faces: Record<string, string> } = { documentId: null, faces: {} };
+    const printFacesNow = (): Record<string, string> => {
+      const folder = assemblyFolder();
+      if (folder) return readPrintFaces(folder);
+      return looseFaces.documentId === (supervisor.currentRevision()?.documentId ?? null) ? looseFaces.faces : {};
+    };
+    const setPrintFaces = (faces: Record<string, string>) => {
+      const folder = assemblyFolder();
+      if (folder) writePrintFaces(folder, faces);
+      else looseFaces = { documentId: supervisor.currentRevision()?.documentId ?? null, faces };
+      bridge.emit(mainWindow?.webContents ?? null, eventChannels.printFacesChanged, faces);
+    };
     // A mechanism that lays its part down (a screw lid on its top) says so here, so the plate view turns it as the slicer will.
     const keepMechanismFace = (body: string, face: string | null) => {
-      const folder = assemblyFolder();
-      if (!folder) return;
-      keepPrintFace(folder, body, face);
-      bridge.emit(mainWindow?.webContents ?? null, eventChannels.printFacesChanged, readPrintFaces(folder));
+      setPrintFaces(withPrintFace(printFacesNow(), body, face));
+    };
+    // After each save the kept faces follow SolidCraft's: an undone, renamed or rebuilt print face reads as SolidCraft holds it.
+    const readSavedFaces = async () => {
+      const saved = await supervisor.savedPrintFaces();
+      if (!saved || !assemblyFolder()) return;
+      if (saved.lost.length > 0) log(`print faces on no flat face of their body any more, laid as designed: ${saved.lost.join(', ')}`);
+      const kept = printFacesNow();
+      const same = Object.keys(kept).length === Object.keys(saved.faces).length && Object.entries(saved.faces).every(([body, face]) => kept[body] === face);
+      if (same) return;
+      setPrintFaces(saved.faces);
+      log(`print faces read from the saved design: ${String(Object.keys(saved.faces).length)}`);
+    };
+    syncPrintFaces = () => {
+      void readSavedFaces().catch((error: unknown) => {
+        log(`print faces not read from the saved design: ${(error as Error).message}`);
+      });
     };
     // SVG drawings sent along; the model names them and PartBuddy puts the exact contours in (drawingTool.ts).
     const drawings = new Drawings();
@@ -822,7 +859,11 @@ if (!app.requestSingleInstanceLock()) {
       const options = { title: 'Export', defaultPath: join(folder, `${name}.${format}`), filters: [EXPORT_FILTERS[format]] };
       const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
       if (choice.canceled || !choice.filePath) return null;
-      const { unverified } = await supervisor.exportDesign(format, choice.filePath);
+      await supervisor.saveNow();
+      await readSavedFaces().catch((error: unknown) => {
+        log(`print faces not read from the saved design before the export: ${(error as Error).message}`);
+      });
+      const { unverified } = await supervisor.exportDesign(format, choice.filePath, printFacesNow());
       log(`exported the design as ${format}`);
       await keepVersion('export', basename(choice.filePath), true).catch((error: unknown) => {
         log(`no version at the export: ${(error as Error).message}`);
@@ -854,7 +895,10 @@ if (!app.requestSingleInstanceLock()) {
       try {
         const model = `${name}.3mf`;
         const step = `${name}.step`;
-        const { unverified } = await supervisor.exportDesign('3mf', join(folder, model));
+        await readSavedFaces().catch((error: unknown) => {
+          log(`print faces not read from the saved design before sharing: ${(error as Error).message}`);
+        });
+        const { unverified } = await supervisor.exportDesign('3mf', join(folder, model), printFacesNow());
         shared = unverified;
         await supervisor.exportDesign('step', join(folder, step));
         log('sharing package: 3MF and STEP written');
@@ -1135,6 +1179,33 @@ if (!app.requestSingleInstanceLock()) {
       const [file] = picked.filePaths;
       return picked.canceled || !file ? null : file;
     };
+    // An STL or OBJ states no unit and SolidCraft reads millimetres: one of an unlikely size is asked about (audit D44).
+    const askUnit = async (file: string, size: [number, number, number] | null): Promise<MeshUnit | null> => {
+      let bed: [number, number, number] = [256, 256, 256];
+      try {
+        bed = printProfiles.part().printer.bed;
+      } catch (error) {
+        log(`unit of an import checked against a 256 mm bed: ${(error as Error).message}`);
+      }
+      if (!size || !asksForUnit(file, size, bed)) return null;
+      const shown = size.map((value) => new Intl.NumberFormat(german ? 'de' : 'en', { maximumFractionDigits: 3 }).format(value)).join(' × ');
+      const options: Electron.MessageBoxOptions = {
+        type: 'question',
+        title: german ? 'Einheit der Datei' : 'Unit of the file',
+        message: german ? `„${basename(file)}“ ist in Millimetern gelesen ${shown} mm groß.` : `Read in millimetres, "${basename(file)}" is ${shown} mm.`,
+        detail: german
+          ? 'STL- und OBJ-Dateien sagen nicht, in welcher Einheit sie gezeichnet sind, und diese Größe wirkt für ein Druckteil zu klein oder zu groß. In welcher Einheit sind die Maße?'
+          : 'STL and OBJ files do not say which unit they were drawn in, and this size looks too small or too large for a printed part. Which unit are its sizes in?',
+        buttons: german ? ['Millimeter (so lassen)', 'Zoll', 'Zentimeter', 'Meter'] : ['Millimetres (keep)', 'Inches', 'Centimetres', 'Metres'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      };
+      const { response } = mainWindow ? await dialog.showMessageBox(mainWindow, options) : await dialog.showMessageBox(options);
+      const unit = MESH_UNITS[response] ?? 'mm';
+      log(`an imported mesh measured ${shown} mm; the user said it is in ${unit}`);
+      return unit === 'mm' ? null : unit;
+    };
     bridge.handle(invokeChannels.projectImport, async ({ path }) => {
       const file = path ?? (await pickImport(false));
       if (!file) return { opened: false, imported: false };
@@ -1147,7 +1218,9 @@ if (!app.requestSingleInstanceLock()) {
         // The new design is made before the switch, so a file SolidCraft cannot read leaves the open project as it is.
         target = projectStore.newDesignFile(importName(file));
         try {
-          await supervisor.designFromFile(file, kind, target);
+          const size = await supervisor.designFromFile(file, kind, target);
+          const unit = kind === 'mesh' ? await askUnit(file, size) : null;
+          if (unit) await supervisor.designFromFile(file, kind, target, unit);
         } catch (error) {
           rmSync(dirname(target), { recursive: true, force: true });
           throw error;
@@ -1159,8 +1232,11 @@ if (!app.requestSingleInstanceLock()) {
     });
     // Tolerance assistant: test pieces for the printer in the settings draft, built beside the open design.
     const testPiecesDesign = async ({ nozzle, layer }: { nozzle: number; layer: number }) => {
-      const design = join(cacheDirectory(), 'test-pieces', `test-pieces-${String(nozzle)}-${String(layer)}.sc`);
-      if (!existsSync(design)) await supervisor.designFromSteps(testPieceSteps({ nozzle, layer }), design);
+      const steps = testPieceSteps({ nozzle, layer });
+      // Named after the steps as well, so pieces changed by an update are built and pictured anew (audit D43).
+      const made = createHash('sha256').update(JSON.stringify(steps)).digest('hex').slice(0, 12);
+      const design = join(cacheDirectory(), 'test-pieces', `test-pieces-${String(nozzle)}-${String(layer)}-${made}.sc`);
+      if (!existsSync(design)) await supervisor.designFromSteps(steps, design);
       return design;
     };
     bridge.handle(invokeChannels.printTestPiecesPicture, async (printer) => {
@@ -1222,7 +1298,14 @@ if (!app.requestSingleInstanceLock()) {
       const name = basename(file).slice(0, 255);
       let bodies: string[] = [];
       await steps.recordUser(describeUserAction({ kind: 'insertFile', name }), async () => {
-        bodies = await supervisor.insertFile(file, kind);
+        let inserted = await supervisor.insertFile(file, kind);
+        const unit = kind === 'mesh' ? await askUnit(file, inserted.size) : null;
+        if (unit) {
+          // The design keeps the millimetre mesh and not the unit, so the file goes in again in the unit the user named.
+          await supervisor.undo();
+          inserted = await supervisor.insertFile(file, kind, unit);
+        }
+        bodies = inserted.bodies;
       });
       log(`inserted a ${kind} file into the design`);
       return { inserted: true, name, bodies: bodies.slice(0, 500) };
@@ -1278,25 +1361,18 @@ if (!app.requestSingleInstanceLock()) {
     // too: with parts printed as one piece PartBuddy writes the file and lays them itself (audit G1).
     bridge.handle(invokeChannels.designSlicers, () => supervisor.slicers());
     bridge.handle(invokeChannels.designSendToSlicer, async ({ slicer }) => {
-      const folder = assemblyFolder();
-      const { name, unverified } = await supervisor.sendToSlicer(slicer, folder ? readPrintFaces(folder) : {});
+      const { name, unverified } = await supervisor.sendToSlicer(slicer, printFacesNow());
       log(`opened the design in ${name}`);
       return { name, ...(unverified.length > 0 ? { unverified } : {}) };
     });
-    bridge.handle(invokeChannels.designPrintFaces, () => {
-      const folder = assemblyFolder();
-      return folder ? readPrintFaces(folder) : {};
-    });
+    bridge.handle(invokeChannels.designPrintFaces, () => printFacesNow());
     bridge.handle(invokeChannels.designPrintFace, async ({ body, point, face }) => {
       assistantIdle();
       await steps.recordUser(describeUserAction({ kind: 'printFace', cleared: point === null }), () => supervisor.setPrintFace(body, point));
-      const folder = assemblyFolder();
-      if (folder) {
-        try {
-          keepPrintFace(folder, body, point === null ? null : (face ?? null));
-        } catch (error) {
-          log(`print face not kept for the plate view: ${(error as Error).message}`);
-        }
+      try {
+        keepMechanismFace(body, point === null ? null : (face ?? null));
+      } catch (error) {
+        log(`print face not kept for the plate view: ${(error as Error).message}`);
       }
       log(point ? 'set a print face' : 'cleared a print face');
       return undefined;
