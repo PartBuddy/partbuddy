@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, hingeOf, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, screwStock, hingeOf, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { describeToolCall } from '../src/shared/stepPhrases';
 import { hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
@@ -725,8 +725,9 @@ describe('the screw joint (standards)', () => {
     /**
      * Base 40 × 40 × 10 with Cover 40 × 40 × 5 on it, as boxes. A probe cylinder along Z finds plastic over its height
      * within a box, all of it where its disc lies in the box from above, a tenth less where the disc reaches over an edge.
+     * `pilot`: a hole of that diameter, 5 mm deep, drilled into Base at (20, 20) already.
      */
-    function boxes() {
+    function boxes({ pilot = 0 } = {}) {
       const sent: string[] = [];
       const box: Record<string, [number, number, number, number, number, number]> = { Base: [0, 0, 0, 40, 40, 10], Cover: [0, 0, 10, 40, 40, 15] };
       const upstream: UpstreamTools = {
@@ -746,7 +747,8 @@ describe('the screw joint (standards)', () => {
             if (step.command === 'inspect.interference') {
               const [x0, y0, z0, x1, y1, z1] = box[(step.params.bodies as string[])[0] ?? ''] ?? [0, 0, 0, 0, 0, 0];
               const inside = probe.x - probe.r >= x0 && probe.x + probe.r <= x1 && probe.y - probe.r >= y0 && probe.y + probe.r <= y1;
-              const volume = Math.PI * probe.r ** 2 * Math.max(0, Math.min(z1, probe.high) - Math.max(z0, probe.low)) * (inside ? 1 : 0.9);
+              const drilled = (step.params.bodies as string[])[0] === 'Base' && Math.hypot(probe.x - 20, probe.y - 20) < 1e-6 ? Math.PI * Math.min(pilot / 2, probe.r) ** 2 * Math.max(0, Math.min(10, probe.high) - Math.max(5, probe.low)) : 0;
+              const volume = Math.PI * probe.r ** 2 * Math.max(0, Math.min(z1, probe.high) - Math.max(z0, probe.low)) * (inside ? 1 : 0.9) - drilled;
               return { interferences: [{ volume_mm3: volume }] };
             }
             return step.command === 'inspect.interference' ? { count: 0 } : step.command === 'component.list' ? { components: [] } : step.command === 'document.inspect' ? { undo: 1, timeline: [], sketches: [] } : {};
@@ -770,12 +772,20 @@ describe('the screw joint (standards)', () => {
       const { tools, sent } = boxes();
       const edge = await tools.callTool('partbuddy_mechanism', { ...joint, from: [2.5, 20, 15], to: [2.5, 20, 10] });
       expect(edge.isError).toBe(true);
-      expect(String(edge.content[0]?.text)).toContain('at [2.5, 20, 15] Cover has 3.11 mm of plastic where 3.4 mm are needed (the mean over a width of 6.7 mm; the far side, an edge or another cut takes the rest); the counterbore for the head is 6.7 mm wide and must lie wholly inside Cover: move the screw at least 3.35 mm away from its edges and other cuts, or use head none.');
+      expect(String(edge.content[0]?.text)).toContain('at [2.5, 20, 15] Cover has 3.01 mm of plastic where 3.4 mm are needed (the mean over a ring from 3.4 to 6.7 mm wide; the far side, an edge, a face that falls away to one side or another cut takes the rest); the counterbore for the head is 6.7 mm wide and must lie wholly inside Cover: move the screw at least 3.35 mm away from its edges and other cuts, or use head none.');
       expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(false);
       // A head lying on the face: the seat is measured, and its wall is short.
       const flat = await tools.callTool('partbuddy_mechanism', { ...joint, head: 'none', from: [2.5, 20, 15], to: [2.5, 20, 10] });
       expect(String(flat.content[0]?.text)).toMatch(/at \[2\.5, 20, 10\] Base has [\d.]+ mm of plastic where [\d.]+ mm are needed \(the mean over a ring from 4\.02 to 8 mm wide.*the seat of an M3 insert needs 2 mm of plastic round it and 0\.6 mm under it/);
       expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(false);
+    });
+
+    it('counts a hole drilled where the seat goes as missing plastic: nothing is drilled yet when it measures (review of PR 365)', async () => {
+      const { tools, sent } = boxes({ pilot: 3 });
+      const piloted = await tools.callTool('partbuddy_mechanism', joint);
+      expect(String(piloted.content[0]?.text)).toMatch(/at \[20, 20, 10\] Base has [\d.]+ mm of plastic where 7\.3 mm are needed \(the mean over a width of 4\.02 mm, under the hole/);
+      expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(false);
+      expect(screwStock(screwOf(joint) as ScrewSpec).fixed[0]).toMatchObject({ hole: 0, diameter: 8, core: 4.02, depth: 6.8 });
     });
   });
 });

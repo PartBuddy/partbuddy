@@ -1,9 +1,9 @@
 import { LID, LIP, WEB, hangs, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
-import { BLOCK_SIZES, INSERT, type BlockSize } from '../../shared/screwSizes';
+import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { BRIDGE_SPAN } from '@partbuddy/geometry';
 
 import { componentOf } from '../solidcraft/actions';
-import { FACE_DROP, SEAT_UNDER, seatStock, seatWall, shortOf, type Stock } from './blockTool';
+import { CURVED_FACE, FACE_DROP, SEAT_UNDER, seatStock, seatWall, shortOf, type Stock } from './blockTool';
 import { markOf, TAKEN_BACK_SAID, takeBack, type Mark, type Run } from './takeBack';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
@@ -735,9 +735,12 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
 }
 
 /**
- * The plastic a screw joint needs (audit R54): the room for each head wholly inside the moving body (a countersink by
- * its width half a millimetre down, where its 90° cone is a millimetre narrower than at the face), and round and under
- * each insert's seat what the seat block needs ({@link seatStock}).
+ * The plastic a screw joint needs (audit R54), measured before anything is drilled: the room for each head wholly inside
+ * the moving body (a countersink by its width half a millimetre down, where its 90° cone is a millimetre narrower than at
+ * the face), and round and under each insert's seat what the seat block needs ({@link seatStock}), the seat itself
+ * plastic too, as nothing is drilled yet (a pilot hole there counts as missing; review of PR #365).
+ * A curved face may take the top of the head's room all round, as it may round a seat (`curvedWall` in blockTool.ts):
+ * the head still lies on the floor of its room. One that falls away to one side, an edge, may not.
  */
 export function screwStock(spec: ScrewSpec): { moving: Stock[]; fixed: Stock[] } {
   const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
@@ -749,13 +752,17 @@ export function screwStock(spec: ScrewSpec): { moving: Stock[]; fixed: Stock[] }
   const entries = [spec.from, ...spec.more];
   return {
     moving: recess
-      ? entries.map((at) => ({ at, base: at.map((value, k) => r3(value + (axis[k] ?? 0) * FACE_DROP)) as Vec3, axis, diameter: r3(recess.diameter - (spec.head === 'countersunk' ? 2 * FACE_DROP : 0)), depth: r3(recess.depth - FACE_DROP), from: FACE_DROP }))
+      ? entries.map((at) => {
+          const diameter = r3(recess.diameter - (spec.head === 'countersunk' ? 2 * FACE_DROP : 0));
+          // The clearance hole is the ring's inside: a curved face is told from an edge by where round it the plastic is missing.
+          return { at, base: at.map((value, k) => r3(value + (axis[k] ?? 0) * FACE_DROP)) as Vec3, axis, diameter, depth: r3(recess.depth - FACE_DROP), from: FACE_DROP, hole: 0, core: CLEARANCE_NORMAL[spec.size], slack: ((Math.PI * diameter ** 2) / 4) * CURVED_FACE };
+        })
       : [],
     fixed:
       spec.thread === 'insert' && insert
         ? entries.map((at) => {
             const meet = at.map((value, k) => r3(value + (delta[k] ?? 0))) as Vec3;
-            return seatStock({ block: 'insertSeat', body: spec.fixed, point: meet, size: spec.size, diameter: insert.diameter, depth: insert.length + 1 }, meet, axis);
+            return { ...seatStock({ block: 'insertSeat', body: spec.fixed, point: meet, size: spec.size, diameter: insert.diameter, depth: insert.length + 1 }, meet, axis), hole: 0 };
           })
         : [],
   };
