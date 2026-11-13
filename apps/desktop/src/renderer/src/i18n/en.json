@@ -1137,7 +1137,7 @@
     "finding": {
       "size": "Too large for the build volume: {body}, {size} mm, the printer takes {bed} mm",
       "sizeLying": "Too large for the build volume: {body}, {size} mm, the printer takes {bed} mm. Laid on another side it would fit.",
-      "wallTooThin": "Walls only {thickness} mm, thinner than the nozzle ({nozzle} mm): they do not print",
+      "wallTooThin": "Walls only {thickness} mm, thinner than one line of the {nozzle} mm nozzle: they do not print",
       "wallThin": "Walls only {thickness} mm, at least {minimum} mm (two lines)",
       "floorTooThin": "Floors or lids only {thickness} mm, thinner than one layer: they do not print",
       "floorThin": "Floors or lids only {thickness} mm, at least {minimum} mm{layers, select, none {} other { ({layers} layers)}}",

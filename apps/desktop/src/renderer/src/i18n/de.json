@@ -1137,7 +1137,7 @@
     "finding": {
       "size": "Zu groß für den Bauraum: {body}, {size} mm, Platz ist {bed} mm",
       "sizeLying": "Zu groß für den Bauraum: {body}, {size} mm, Platz ist {bed} mm. Auf eine andere Seite gelegt würde es passen.",
-      "wallTooThin": "Wände nur {thickness} mm, dünner als die Düse ({nozzle} mm): werden nicht gedruckt",
+      "wallTooThin": "Wände nur {thickness} mm, dünner als eine Linie der {nozzle}-mm-Düse: werden nicht gedruckt",
       "wallThin": "Wände nur {thickness} mm, mindestens {minimum} mm (zwei Linien)",
       "floorTooThin": "Böden oder Deckel nur {thickness} mm, dünner als eine Schicht: werden nicht gedruckt",
       "floorThin": "Böden oder Deckel nur {thickness} mm, mindestens {minimum} mm{layers, select, none {} other { ({layers} Schichten)}}",

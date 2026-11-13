@@ -8,7 +8,7 @@ import { printCheckReportSchema } from '../src/shared/contract';
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
   it('says what it looked at when nothing was found, and what it did not (audit R3)', () => {
     const clean = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 1 });
-    expect(clean).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, area on the bed,');
+    expect(clean).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, area on the bed for the height,');
     expect(clean).toContain('Not checked: strength and layer direction under load, the fits and hole allowances you chose,');
     // No verdict the model could hand on as "ready to print".
     expect(clean).not.toMatch(/ready to print[,.]/);
@@ -37,7 +37,7 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     const note = printCheckNote(report);
     expect(note).toContain('not ready to print');
     expect(note).toContain('body "Rod" is 300 × 20 × 20 mm, the printer takes 256 × 256 × 256 mm; it would fit lying on another side');
-    expect(note).toContain('walls down to 0.3 mm, thinner than the 0.4 mm nozzle, so they do not print (faces "F1:+z", "F1:-z" of body "Plate")');
+    expect(note).toContain('walls down to 0.3 mm, thinner than one line (0.45 mm with the 0.4 mm nozzle), so they do not print (faces "F1:+z", "F1:-z" of body "Plate")');
     expect(note).toContain('120 mm² lean more than 45° from the vertical (faces "F3:-z" of body "Top"); the slicer decides whether they need support');
     expect(note).toContain('feature "Shell1" reports "thin result"');
   });
@@ -61,7 +61,7 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
 
   it('names the body that rests on an edge and has no face on the bed', () => {
     const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'contact', severity: 'warn', area: 0, bodies: 1, places: [{ body: 'Ball', faces: [] }] }] });
-    expect(note).toContain('only 0 mm² lie on the bed, the part may come loose or tip over (body "Ball").');
+    expect(note).toContain(`only 0 mm² lie on the bed for the part's height, it may come loose or tip over, a brim holds it (body "Ball").`);
   });
 
   it('says how much it leaves out: bodies of a finding, and findings of a long check', () => {
@@ -70,7 +70,7 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     const report = reportOf({ status: 'warn', findings: [{ kind: 'contact', severity: 'warn', area: 16, bodies: 50, places, box: null }] }, 0.4, 1);
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
     const note = printCheckNote(report);
-    expect(note).toContain('50 bodies have little on the bed, the least 16 mm²');
+    expect(note).toContain('50 bodies have little on the bed for their height, the least 16 mm²');
     expect(note).toContain('"F1:-z" of body "Pin3"; and 46 more bodies)');
     // A design of more bodies than a report names still fits the contract.
     expect(printCheckReportSchema.safeParse(reportOf({ status: 'warn', findings: [{ kind: 'contact', severity: 'warn', area: 16, bodies: 600, places, box: null }] }, 0.4, 1)).success).toBe(true);

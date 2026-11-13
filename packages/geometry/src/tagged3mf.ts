@@ -18,8 +18,22 @@ export interface TaggedMesh {
 
 const MODEL_PATH = '3D/3dmodel.model';
 const objectPattern = /<object\b[^>]*\bname="([^"]*)"[^>]*\bft:faces="(\d+)"[^>]*>/;
-const vertexPattern = /<vertex\s+x="([^"]+)"\s+y="([^"]+)"\s+z="([^"]+)"\s*\/>/g;
-const trianglePattern = /<triangle\s+v1="(\d+)"\s+v2="(\d+)"\s+v3="(\d+)"\s+ft:face="(\d+)"\s*\/>/g;
+const vertexPattern = /<vertex\b([^>]*)>/g;
+const trianglePattern = /<triangle\b([^>]*)>/g;
+const attributePattern = /([\w:]+)\s*=\s*"([^"]*)"/g;
+
+/** The attributes of one element, in whatever order they are written. */
+function attributesOf(text: string): Map<string, string> {
+  return new Map([...text.matchAll(attributePattern)].map((match) => [match[1] ?? '', match[2] ?? '']));
+}
+
+/** A number the element must carry: a missing or broken one fails the parse instead of leaving a hole in the mesh (audit D30). */
+function numberOf(attributes: Map<string, string>, name: string, element: string, n: number): number {
+  const text = attributes.get(name);
+  const value = Number(text);
+  if (text === undefined || text.trim() === '' || !Number.isFinite(value)) throw new Error(`${element} ${String(n)} has no valid ${name}`);
+  return value;
+}
 
 /**
  * Parses a face-tagged 3MF written by SolidCraft (`file.export {format: "3mf-tagged"}`).
@@ -37,25 +51,33 @@ export function parseTagged3mf(data: Uint8Array): TaggedMesh {
   }
   const object = objectPattern.exec(xml);
   if (!object) throw new Error('3MF has no face-tagged mesh object');
+  // The checks measure in millimetres, in the design's frame: another unit or a moved build item fails (audit D30).
+  const unit = attributesOf(/<model\b([^>]*)>/.exec(xml)?.[1] ?? '').get('unit') ?? 'millimeter';
+  if (unit !== 'millimeter') throw new Error(`3MF unit is ${unit}, not millimeter`);
+  if (/<item\b[^>]*\btransform\s*=/.test(xml)) throw new Error('3MF build item carries a transform');
 
   const coordinates: number[] = [];
   for (const match of xml.matchAll(vertexPattern)) {
-    coordinates.push(Number(match[1]), Number(match[2]), Number(match[3]));
+    const attributes = attributesOf(match[1] ?? '');
+    const n = coordinates.length / 3;
+    coordinates.push(numberOf(attributes, 'x', 'vertex', n), numberOf(attributes, 'y', 'vertex', n), numberOf(attributes, 'z', 'vertex', n));
   }
   const corners: number[] = [];
   const faces: number[] = [];
   for (const match of xml.matchAll(trianglePattern)) {
-    corners.push(Number(match[1]), Number(match[2]), Number(match[3]));
-    faces.push(Number(match[4]));
+    const attributes = attributesOf(match[1] ?? '');
+    const n = faces.length;
+    corners.push(numberOf(attributes, 'v1', 'triangle', n), numberOf(attributes, 'v2', 'triangle', n), numberOf(attributes, 'v3', 'triangle', n));
+    faces.push(numberOf(attributes, 'ft:face', 'triangle', n));
   }
 
   const faceCount = Number(object[2]);
   const vertexCount = coordinates.length / 3;
   for (const index of corners) {
-    if (index >= vertexCount) throw new Error(`triangle references missing vertex ${index}`);
+    if (!Number.isInteger(index) || index < 0 || index >= vertexCount) throw new Error(`triangle references missing vertex ${index}`);
   }
   for (const face of faces) {
-    if (face >= faceCount) throw new Error(`triangle references face ${face} of ${faceCount}`);
+    if (!Number.isInteger(face) || face < 0 || face >= faceCount) throw new Error(`triangle references face ${face} of ${faceCount}`);
   }
 
   return {

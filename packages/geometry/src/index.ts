@@ -24,6 +24,7 @@ export {
 export {
   checkPrint,
   laidBodies,
+  lineWidth,
   minimumFloor,
   minimumWall,
   withClearance,

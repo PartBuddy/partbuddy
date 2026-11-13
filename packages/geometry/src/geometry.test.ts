@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import { readFileSync } from 'node:fs';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { BufferAttribute, BufferGeometry, Vector3 } from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { describe, expect, it } from 'vitest';
@@ -69,6 +70,21 @@ describe('face-tagged 3MF fixture', () => {
     const names = overhangFindings(flipped, 60).map((f) => table.faces[f.face]!.name);
     expect(names).toContain('F1:+z');
     expect(names).not.toContain('F1:-z');
+  });
+
+  it('reads attributes in any order and fails on a triangle it cannot read, another unit or a moved item (audit D30)', () => {
+    const xml = strFromU8(unzipSync(new Uint8Array(readFileSync(new URL('cable-clip.3mf', fixture))))['3D/3dmodel.model']!);
+    const packed = (text: string) => zipSync({ '3D/3dmodel.model': strToU8(text) });
+    // Written the other way round, the mesh is the same.
+    const turned = xml
+      .replace(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"\/>/g, '<vertex z="$3" y="$2" x="$1" />')
+      .replace(/<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)" ft:face="(\d+)"\/>/g, '<triangle ft:face="$4" v3="$3" v1="$1" v2="$2"/>');
+    expect(turned).not.toBe(xml);
+    expect(parseTagged3mf(packed(turned))).toEqual(mesh);
+    // One triangle without its face tag left a hole in the mesh, and the check and the view went on with it.
+    expect(() => parseTagged3mf(packed(xml.replace(/ ft:face="\d+"\/>/, '/>')))).toThrow(/triangle 0 has no valid ft:face/);
+    expect(() => parseTagged3mf(packed(xml.replace('unit="millimeter"', 'unit="inch"')))).toThrow(/unit is inch/);
+    expect(() => parseTagged3mf(packed(xml.replace('<item objectid="2"/>', '<item objectid="2" transform="1 0 0 0 1 0 0 0 1 10 0 0"/>')))).toThrow(/transform/);
   });
 });
 

@@ -1,3 +1,5 @@
+import { lineWidth } from '@partbuddy/geometry';
+
 import type { PrintCheckReport } from '../../shared/contract';
 import type { ToolResult } from '../agents/gateProxy';
 
@@ -38,14 +40,14 @@ function line(finding: Finding, nozzle: number): string {
           ? `- ${tag}: floors or lids down to ${mm(finding.thickness)}, thinner than one layer, so they do not print${where(finding.places)}.`
           : `- ${tag}: floors or lids down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} a floor needs to print closed${finding.layers === undefined ? '' : ` (${String(finding.layers)} layers)`}${where(finding.places)}.`;
       return finding.severity === 'block'
-        ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than the ${mm(nozzle)} nozzle, so they do not print${where(finding.places)}.`
+        ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than one line (${mm(lineWidth(nozzle))} with the ${mm(nozzle)} nozzle), so they do not print${where(finding.places)}.`
         : `- ${tag}: walls down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} of two lines${where(finding.places)}.`;
     case 'overhang':
       return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical${where(finding.places)}; the slicer decides whether they need support.`;
     case 'contact':
       return finding.bodies > 1
-        ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed, the least ${String(finding.area)} mm²; they may come loose or tip over${where(finding.places, finding.bodies)}.`
-        : `- ${tag}: only ${String(finding.area)} mm² lie on the bed, the part may come loose or tip over${where(finding.places)}.`;
+        ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed for their height, the least ${String(finding.area)} mm²; they may come loose or tip over, a brim holds them${where(finding.places, finding.bodies)}.`
+        : `- ${tag}: only ${String(finding.area)} mm² lie on the bed for the part's height, it may come loose or tip over, a brim holds it${where(finding.places)}.`;
     case 'separate':
       return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(', ')} touch but are separate; the slicer lays each on the bed by itself. Combine them if they are one part.`;
     case 'fused':
@@ -72,7 +74,7 @@ function line(finding: Finding, nozzle: number): string {
 }
 
 /** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more. */
-const CHECKED_MESH = 'build volume, wall and floor thickness, overhang angle, area on the bed, open bodies, failed features, bodies that touch';
+const CHECKED_MESH = 'build volume, wall and floor thickness, overhang angle, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch';
 /** What SolidCraft measures after it (withClearance, withMotion): it takes longer and comes with the full check. */
 const MEASURED = { clearance: 'bodies that overlap or come closer than a push fit', joints: 'joints that stop before a limit' };
 const CHECKED_MEASURED = `${MEASURED.clearance}, ${MEASURED.joints}`;

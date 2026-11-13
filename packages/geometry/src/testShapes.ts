@@ -288,3 +288,72 @@ export function lathe(profile: readonly (readonly [number, number])[], n = 48): 
   });
   return soup(triangles);
 }
+
+/**
+ * The same body placed otherwise: mirrored in X if asked, turned about Z by `degrees` and lifted by `lift` mm. The
+ * corners of its faces are joined again by position, so the body stays a closed shell; planes and cylinders turn with it.
+ */
+export function posed<T extends { name: string; model: ViewerModel }>(body: T, degrees: number, mirrored = false, lift = 0): T {
+  const cos = Math.cos((degrees * Math.PI) / 180);
+  const sin = Math.sin((degrees * Math.PI) / 180);
+  const turn = ([x, y, z]: Point, shift: number): Point => {
+    const mx = mirrored ? -x : x;
+    return [cos * mx - sin * y, sin * mx + cos * y, z + shift];
+  };
+  const source = body.model.geometry.getAttribute('position').array;
+  const index = body.model.geometry.index?.array ?? [];
+  const welded = new Map<string, number>();
+  const positions: number[] = [];
+  const of = (v: number) => {
+    const point: Point = [source[v * 3] ?? 0, source[v * 3 + 1] ?? 0, source[v * 3 + 2] ?? 0];
+    const key = point.join(',');
+    let at = welded.get(key);
+    if (at === undefined) {
+      at = positions.length / 3;
+      welded.set(key, at);
+      positions.push(...turn(point, lift));
+    }
+    return at;
+  };
+  const indices: number[] = [];
+  for (let t = 0; t < index.length; t += 3) {
+    const [a, b, c] = [of(index[t] ?? 0), of(index[t + 1] ?? 0), of(index[t + 2] ?? 0)];
+    // Mirrored, the triangles turn the other way round.
+    indices.push(...(mirrored ? [a, c, b] : [a, b, c]));
+  }
+  const table: FaceTable = {
+    ...body.model.table,
+    faces: body.model.table.faces.map((face) => ({
+      ...face,
+      ...(face.planeNormal ? { planeNormal: turn(face.planeNormal, 0) } : {}),
+      ...(face.cylinder ? { cylinder: { ...face.cylinder, origin: turn(face.cylinder.origin, lift), axis: turn(face.cylinder.axis, 0) } } : {}),
+    })),
+  };
+  const mesh: TaggedMesh = { name: body.name, faceCount: table.faces.length, positions: Float64Array.from(positions), indices: Uint32Array.from(indices), triangleFaces: Uint32Array.from(body.model.triangleFaces) };
+  return { ...body, model: buildViewerModel(buildRenderMesh(mesh, table), table) };
+}
+
+/** A closed mesh as one body with a single face `F1:skin`, for shapes that come as triangles; corners that meet are joined. */
+export function rawBody(name: string, mesh: RawMesh) {
+  const built: Built = { positions: [], indices: [], triangleFaces: [], names: ['F1:skin'], normals: [undefined] };
+  const seen = new Map<string, number>();
+  const at = (v: number) => {
+    const point = [0, 1, 2].map((k) => Math.round((mesh.positions[v * 3 + k] ?? 0) * 1e6) / 1e6);
+    const key = point.join(',');
+    let w = seen.get(key);
+    if (w === undefined) {
+      w = built.positions.length / 3;
+      seen.set(key, w);
+      built.positions.push(...point);
+    }
+    return w;
+  };
+  for (let t = 0; t < mesh.index.length; t += 3) {
+    const [a, b, c] = [at(mesh.index[t] ?? 0), at(mesh.index[t + 1] ?? 0), at(mesh.index[t + 2] ?? 0)];
+    // Triangles drawn to a point on the axis are dropped: they have no area and no edge to share.
+    if (a === b || b === c || a === c) continue;
+    built.indices.push(a, b, c);
+    built.triangleFaces.push(0);
+  }
+  return finish(name, built);
+}

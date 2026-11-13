@@ -4,10 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { FaceTable } from './faceTable';
 import { smallOverhangReach } from './overhang';
-import { checkPrint, laidBodies, minimumFloor, minimumWall, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
+import { checkPrint, laidBodies, lineWidth, minimumFloor, minimumWall, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
-import { boxesBody, lyingTube, prismBody } from './testShapes';
+import { boxesBody, gridBody, lathe, lyingTube, posed, prismBody, rawBody, revolved } from './testShapes';
 import { buildViewerModel } from './viewerModel';
 
 const PLA: PrintCheckProfile = { bed: [256, 256, 256], nozzle: 0.4, layer: 0.2, overhang: 45 };
@@ -61,8 +61,9 @@ describe('the ready-to-print check (M7)', () => {
     const tall = checkPrint([box('Rod', [0, 0, 0], [20, 20, 300])], PLA);
     expect(tall.status).toBe('block');
     expect(tall.findings[0]).toMatchObject({ kind: 'size', size: [20, 20, 300], lying: false });
+    // It fits; 200 mm high on 20 × 20 it wants a brim (audit D17), which is no matter of size.
     const small = checkPrint([box('Rod', [0, 0, 0], [20, 20, 200])], { ...PLA, bed: [180, 180, 250] });
-    expect(small.status).toBe('ready');
+    expect(small.findings.map((f) => f.kind)).toEqual(['contact']);
     const lying = checkPrint([box('Plank', [0, 0, 0], [20, 200, 100])], { ...PLA, bed: [220, 220, 50] });
     expect(lying.findings[0]).toMatchObject({ kind: 'size', lying: true });
   });
@@ -181,7 +182,7 @@ describe('the ready-to-print check (M7)', () => {
     expect(checkPrint([shell], PLA)).toEqual({ status: 'block', findings: [{ kind: 'open', severity: 'block', bodies: ['Shell'] }] });
     // The closed bodies beside it are still checked, and a closed one alone has no such finding.
     const beside = checkPrint([shell, box('Rod', [30, 0, 0], [40, 10, 300])], PLA).findings;
-    expect(beside.map((f) => f.kind)).toEqual(['open', 'size']);
+    expect(beside.map((f) => f.kind)).toEqual(['open', 'size', 'contact']);
     expect(box('Cube', [0, 0, 0], [20, 20, 20]).model.openEdges).toBe(0);
   });
 
@@ -189,12 +190,13 @@ describe('the ready-to-print check (M7)', () => {
     // It fell out of both the open and the closed bodies: 10 × 10 × 300 mm read ready.
     const post = box('Post', [0, 0, 0], [10, 10, 300]);
     const bare = { ...post, model: { ...post.model, openEdges: undefined as unknown as number } };
-    expect(checkPrint([bare], PLA).findings).toMatchObject([{ kind: 'size', severity: 'block', body: 'Post' }]);
+    expect(checkPrint([bare], PLA).findings).toMatchObject([{ kind: 'size', severity: 'block', body: 'Post' }, { kind: 'contact' }]);
   });
 
   it('gathers the bodies with little on the bed into one finding that names them all', () => {
     // Fifty pins 4 × 4 mm made fifty findings, of which the report kept 40 and the note 12.
-    const pins = Array.from({ length: 50 }, (_, i) => box(`Pin${String(i)}`, [i * 6, 0, 0], [i * 6 + 4, 4, 10]));
+    // 20 mm high, as at 10 mm a pin stands (Bambu Studio lays no brim for it, audit D17).
+    const pins = Array.from({ length: 50 }, (_, i) => box(`Pin${String(i)}`, [i * 6, 0, 0], [i * 6 + 4, 4, 20]));
     const findings = checkPrint(pins, PLA).findings;
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ kind: 'contact', severity: 'warn', area: 16, bodies: 50 });
@@ -297,7 +299,7 @@ describe('the ready-to-print check (M7)', () => {
     expect(faces(45)).toBeGreaterThan(0);
   });
 
-  it('blocks on a feature SolidCraft could not build and warns on its warnings; rolled back ones do not count', () => {
+  it('blocks on a feature SolidCraft could not build and warns on its warnings; the error of a rolled back one does not count', () => {
     const features = [
       { name: 'Fillet1', error: 'radius too large', warning: null, suppressed: false, rolledBack: false },
       { name: 'Shell1', error: null, warning: 'thin result', suppressed: false, rolledBack: false },
@@ -305,7 +307,22 @@ describe('the ready-to-print check (M7)', () => {
     ];
     const result = checkPrint([box('Block', [0, 0, 0], [40, 30, 10])], PLA, features);
     expect(result.status).toBe('block');
-    expect(result.findings.map((f) => (f.kind === 'feature' ? `${f.severity}:${f.feature}` : f.kind))).toEqual(['block:Fillet1', 'warn:Shell1']);
+    // Rolled back, it is not in the part: that is said (audit H-03), its error is not.
+    expect(result.findings.map((f) => (f.kind === 'feature' ? `${f.severity}:${f.feature}` : f.kind))).toEqual(['block:Fillet1', 'warn:Hole1', 'warn:Shell1']);
+  });
+
+  it('says which features are left out of the part: suppressed, or rolled back (audit H-03)', () => {
+    const feature = (name: string, more: { error?: string; suppressed?: boolean; rolledBack?: boolean } = {}) => ({ name, error: more.error ?? null, warning: null, suppressed: more.suppressed ?? false, rolledBack: more.rolledBack ?? false });
+    const block = box('Block', [0, 0, 0], [40, 30, 10]);
+    // A chamfer larger than the wall blocked; suppressed, it read ready, with the chamfer missing from the part.
+    expect(checkPrint([block], PLA, [feature('Box'), feature('Chamfer1', { error: 'chamfer larger than the wall' })]).status).toBe('block');
+    const suppressed = checkPrint([block], PLA, [feature('Box'), feature('Chamfer1', { error: 'chamfer larger than the wall', suppressed: true })]);
+    expect(suppressed).toEqual({ status: 'warn', findings: [{ kind: 'feature', severity: 'warn', feature: 'Chamfer1', message: 'suppressed: not in the part as checked and exported' }] });
+    // Rolled back to the first of four: one finding for the three after the marker.
+    const rolled = checkPrint([block], PLA, [feature('Box'), feature('Hole1', { rolledBack: true }), feature('Fillet1', { rolledBack: true }), feature('Shell1', { rolledBack: true })]);
+    expect(rolled).toEqual({ status: 'warn', findings: [{ kind: 'feature', severity: 'warn', feature: 'Hole1', message: 'rolled back with the 2 after it: not in the part as checked and exported' }] });
+    // All in: nothing.
+    expect(checkPrint([block], PLA, [feature('Box'), feature('Hole1')])).toEqual({ status: 'ready', findings: [] });
   });
 
   it('checks the real cable clip: it fits, stands on its base and has no wall the nozzle cannot print', () => {
@@ -389,4 +406,163 @@ describe('parts printed together (audit 2026-11-12, G1)', () => {
     expect(lidFaces(turned)).not.toContain('F2:-z');
     expect(turned.findings.find((f) => f.kind === 'contact')).toMatchObject({ bodies: 2 });
   }, 60_000);
+});
+
+/** Each placement a case is checked in: turned about Z, mirrored, and lifted off the bed. */
+/** Time for a test of many placements to finish at all on a busy runner; no measure of the check. */
+const PATIENCE = 120_000;
+const PLACES = [0, 1, 7.5, 15, 30, 45, 60, 75, 90].flatMap((turn) => [false, true].flatMap((mirrored) => [0, 10].map((lift) => ({ turn, mirrored, lift }))));
+const placed = (bodies: PrintCheckBody[], { turn, mirrored, lift }: (typeof PLACES)[number]) => bodies.map((body) => posed(body, turn, mirrored, lift));
+
+describe('bodies that touch (audit N-druckpruefung-3, MG-19, D41)', () => {
+  const bar = (name: string, min: [number, number, number], max: [number, number, number]) => boxesBody(name, [[min, max]]);
+  const touching = (bodies: PrintCheckBody[]) => checkPrint(bodies, PLA).findings.find((f) => f.kind === 'separate');
+  const cases: [string, PrintCheckBody[], boolean][] = [
+    // Two bars across each other, no corner of one near the other: 100 mm² of contact read ready.
+    ['bars laid across each other', [bar('A', [0, 25, 0], [60, 35, 10]), bar('B', [25, 0, 10], [35, 60, 20])], true],
+    ['bars run into each other across', [bar('A', [0, 25, 0], [60, 35, 10]), bar('B', [25, 0, 0], [35, 60, 10])], true],
+    ['bars across, 0.04 mm apart', [bar('A', [0, 25, 0], [60, 35, 10]), bar('B', [25, 0, 10.04], [35, 60, 20])], true],
+    ['a cube wholly inside another', [bar('A', [0, 0, 0], [30, 30, 30]), bar('B', [10, 10, 10], [20, 20, 20])], true],
+    ['a bar through a cube, no corner inside', [bar('A', [0, 0, 0], [20, 20, 20]), bar('B', [-10, 5, 5], [30, 15, 15])], true],
+    ['bars across, 0.1 mm apart', [bar('A', [0, 25, 0], [60, 35, 10]), bar('B', [25, 0, 10.1], [35, 60, 20])], false],
+    ['two cubes 10 mm apart', [bar('A', [0, 0, 0], [20, 20, 20]), bar('B', [30, 0, 0], [50, 20, 20])], false],
+    ['a cube in a ring around it, apart', [boxesBody('Ring', [[[0, 0, 0], [40, 5, 10]], [[0, 35, 0], [40, 40, 10]], [[0, 5, 0], [5, 35, 10]], [[35, 5, 0], [40, 35, 10]]]), bar('Core', [10, 10, 0], [30, 30, 10])], false],
+  ];
+  it.each(cases)('%s', (_name, bodies, touch) => {
+    for (const place of PLACES) {
+      const found = touching(placed(bodies, place));
+      expect(found ? found.bodies.length : 0, JSON.stringify(place)).toBe(touch ? 2 : 0);
+    }
+  }, PATIENCE);
+});
+
+describe('thin walls, wherever they are (audit MG-16, D7, D39, MG-18, D40)', () => {
+  const wall = (thickness: number) => boxesBody('Wall', [[[0, 0, 0], [20, thickness, 20]]]);
+  const thinIn = (bodies: PrintCheckBody[], place: (typeof PLACES)[number]) => checkPrint(placed(bodies, place), PLA).findings.find((f) => f.kind === 'thinWall' && !f.floor);
+
+  it('blocks a wall under one line (0.45 mm for the 0.4 mm nozzle), not first under the nozzle', () => {
+    expect(lineWidth(0.4)).toBe(0.45);
+    expect(lineWidth(0.6)).toBe(0.68);
+    for (const place of PLACES) {
+      const where = JSON.stringify(place);
+      // A plate 20 × 20 × 0.42 standing: under the 0.45 of one line it does not print (it read as a warning).
+      expect(thinIn([wall(0.42)], place), where).toMatchObject({ severity: 'block', thickness: 0.42 });
+      expect(thinIn([wall(0.46)], place), where).toMatchObject({ severity: 'warn', thickness: 0.46 });
+    }
+  }, PATIENCE);
+
+  it('adds up small thin faces: twenty ribs of 0.9 mm² a side on a plate', () => {
+    // 0.3 × 0.9 × 1 mm each, 2 mm apart: no face reached 1 mm², and the plate read ready.
+    const ribs = boxesBody('Grille', [[[0, 0, 0], [50, 10, 2]], ...Array.from({ length: 20 }, (_, i): [[number, number, number], [number, number, number]] => [[2 + i * 2.4, 4, 2], [2.3 + i * 2.4, 4.9, 3]])]);
+    for (const place of PLACES) {
+      const found = thinIn([ribs], place);
+      expect(found, JSON.stringify(place)).toMatchObject({ severity: 'block', thickness: 0.3 });
+      expect(found && 'area' in found ? found.area : 0).toBeGreaterThanOrEqual(35);
+      expect(found && 'places' in found ? found.places[0]?.faces.length : 0).toBe(40);
+    }
+    // A plate without them has nothing thin.
+    for (const place of PLACES) expect(thinIn([boxesBody('Plate', [[[0, 0, 0], [50, 10, 2]]])], place)).toBeUndefined();
+  }, PATIENCE);
+
+  it('counts only the part of a face that is under one line: a wall of 0.8 mm with a spot of 0.3 mm warns (audit D39)', () => {
+    // A pocket 0.7 × 0.7 mm, 0.5 deep, in the middle of a standing wall 20 × 0.8 × 20.
+    const spot = gridBody('Wall', [0, 9.65, 10.35, 20], [0, 0.5, 0.8], [0, 9.65, 10.35, 20], (i, j, k) => !(i === 1 && j === 0 && k === 1));
+    for (const place of PLACES) {
+      const found = thinIn([spot], place);
+      expect(found, JSON.stringify(place)).toMatchObject({ severity: 'warn', thickness: 0.3 });
+    }
+  }, PATIENCE);
+
+  it('looks at every triangle of a fine mesh: a rib of a few triangles on a plate of 138 000 (audit MG-18, D40)', () => {
+    const xs = Array.from({ length: 201 }, (_, i) => Math.round(i * 10) / 100);
+    // The rib 0.3 × 3 × 2 mm on the plate 20 × 20 × 2, the plate meshed in squares of 0.1 mm, the rib a cell of its own.
+    const ys = [...xs.filter((y) => y <= 10 || y >= 13)];
+    const rib = ys.indexOf(10);
+    const plate = gridBody('Plate', xs, ys, [0, 2, 4], (i, j, k) => k === 0 || (i >= 100 && i < 103 && j === rib));
+    expect(plate.model.geometry.index!.count / 3).toBeGreaterThan(138_000);
+    for (const place of [PLACES[0]!, { turn: 30, mirrored: true, lift: 10 }]) {
+      const found = thinIn([plate], place);
+      // Both sides, 3 × 2 mm each, all of them under one line: no estimate from every fourth triangle.
+      expect(found, JSON.stringify(place)).toMatchObject({ severity: 'block', thickness: 0.3, area: 12 });
+    }
+  }, PATIENCE);
+});
+
+describe('what stands tall on too little (audit D17, MG-20)', () => {
+  const tips = (body: PrintCheckBody, place: (typeof PLACES)[number]) => checkPrint(placed([body], place), PLA).findings.find((f) => f.kind === 'contact');
+  const cases: [string, PrintCheckBody, boolean][] = [
+    // 25 mm² and 36 mm² on the bed passed the fixed 25 mm²; Bambu Studio lays a brim of 18 mm round both.
+    ['a tower 5 × 5 × 200', boxesBody('Tower', [[[0, 0, 0], [5, 5, 200]]]), true],
+    ['a rod 6 × 6 × 200', boxesBody('Rod', [[[0, 0, 0], [6, 6, 200]]]), true],
+    ['a wall 60 × 2 × 40, on its edge', boxesBody('Fin', [[[0, 0, 0], [60, 2, 40]]]), true],
+    ['a post 10 × 10 × 80', boxesBody('Post', [[[0, 0, 0], [10, 10, 80]]]), true],
+    ['a T on a narrow foot', boxesBody('T', [[[9, 9, 0], [11, 11, 30]], [[0, 0, 30], [20, 20, 32]]]), true],
+    // Short or broad, nothing: under 25 mm² a pin 4 × 4 × 10 read as loose.
+    ['a pin 4 × 4 × 10', boxesBody('Pin', [[[0, 0, 0], [4, 4, 10]]]), false],
+    ['a cube 20', boxesBody('Cube', [[[0, 0, 0], [20, 20, 20]]]), false],
+    ['a post 10 × 10 × 40', boxesBody('Post', [[[0, 0, 0], [10, 10, 40]]]), false],
+    ['a plate 60 × 2 × 10, on its edge', boxesBody('Fin', [[[0, 0, 0], [60, 2, 10]]]), false],
+    ['a tube 40 high round 20 on a ring 2 mm wide', gridBody('Tube', [0, 2, 18, 20], [0, 2, 18, 20], [0, 40], (i, j) => i !== 1 || j !== 1), false],
+  ];
+  it.each(cases)('%s', (_name, body, tall) => {
+    for (const place of PLACES) expect(tips(body, place) !== undefined, JSON.stringify(place)).toBe(tall);
+  }, PATIENCE);
+
+  it('holds a piece printed as one by what all its bodies have on the bed', () => {
+    // Two towers 5 × 5 × 200 joined at the top by a hinge's pair stand on 50 mm² 40 mm apart: no brim for that.
+    const left = { ...boxesBody('Left', [[[0, 0, 0], [5, 5, 200]]]), group: 'Pair' };
+    const right = { ...boxesBody('Right', [[[40, 0, 0], [45, 5, 200]]]), group: 'Pair' };
+    expect(checkPrint([left, right], PLA).findings.find((f) => f.kind === 'contact')).toMatchObject({ bodies: 2 });
+    // Printed apart, each tower is one on its own.
+    expect(checkPrint([{ ...left, group: undefined }, { ...right, group: undefined }], PLA).findings.find((f) => f.kind === 'contact')).toMatchObject({ bodies: 2 });
+  }, PATIENCE);
+});
+
+describe('a body that starts above the bed (audit N-druckpruefung-4)', () => {
+  const cube = (name: string, x: number, z: number) => boxesBody(name, [[[x, 0, z], [x + 20, 20, z + 20]]]);
+  it('lays a body of its own onto the bed, as the slicer drops every object of the 3MF, and holds one printed with another in the air', () => {
+    for (const place of PLACES) {
+      const where = JSON.stringify(place);
+      // A cube 10 mm up, alone or beside one on the bed: each is an object of its own in the export, dropped onto the bed.
+      expect(checkPrint(placed([cube('Floats', 0, 10)], place), PLA), where).toEqual({ status: 'ready', findings: [] });
+      expect(checkPrint(placed([cube('Down', 0, 0), cube('Floats', 30, 10)], place), PLA), where).toEqual({ status: 'ready', findings: [] });
+      // Printed as one piece (a print-in-place group, #366): its underside hangs 10 mm over the common bed.
+      const together = checkPrint(placed([{ ...cube('Down', 0, 0), group: 'Pair' }, { ...cube('Floats', 30, 10), group: 'Pair' }], place), PLA);
+      expect(together.findings.find((f) => f.kind === 'overhang'), where).toMatchObject({ area: 400, places: [{ body: 'Floats', faces: ['F1:-z'] }] });
+    }
+  }, PATIENCE);
+});
+
+describe('the check on large meshes', () => {
+  // Ribs like the turns of a thread, 0.6 out over 0.3 and back over 0.7, in a nut 0.2 mm clear of them: every triangle
+  // of the bolt is looked at for walls, and comes close to the nut without touching it.
+  const boltOf = (count: number) => {
+    const ribs = Array.from({ length: count }, (_, k): [number, number][] => [[4.6, k + 0.3], [4, k + 1]]).flat();
+    return rawBody('Bolt', revolved([[0, 0], [4, 0], ...ribs, [0, count]], [-1, ...ribs.map(() => 0), 1]));
+  };
+  const nutOf = (count: number) => rawBody('Nut', lathe([[4.8, 0], [8, 0], [8, count], ...Array.from({ length: count - 1 }, (_, k): [number, number] => [4.8, count - k - 0.5])], 96));
+  /** The fastest of three runs: one run alone says more about the runner than about the check. */
+  const timed = (bodies: PrintCheckBody[]) => {
+    let ms = Infinity;
+    let check = checkPrint(bodies, PLA);
+    for (let run = 0; run < 3; run += 1) {
+      const start = performance.now();
+      check = checkPrint(bodies, PLA);
+      ms = Math.min(ms, performance.now() - start);
+    }
+    return { ms, check };
+  };
+
+  it('checks a bolt of 100 000 triangles in its nut in time that grows with the mesh, not with its square', () => {
+    const quarter = timed([boltOf(65), nutOf(65)]);
+    const bolt = boltOf(250);
+    const full = timed([bolt, nutOf(250)]);
+    expect(bolt.model.geometry.index!.count / 3).toBeGreaterThan(95_000);
+    // Apart by 0.2 mm, nothing thin: they neither touch nor have a wall under two lines.
+    expect(full.check.findings.map((f) => f.kind)).not.toContain('open');
+    expect(full.check.findings.map((f) => f.kind)).not.toContain('separate');
+    expect(full.check.findings.map((f) => f.kind)).not.toContain('thinWall');
+    // Held by its growth, not in seconds: four times the mesh may take twelve times as long; quadratic would be sixteen.
+    expect(full.ms / quarter.ms).toBeLessThan(12);
+  }, PATIENCE);
 });
