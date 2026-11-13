@@ -145,6 +145,14 @@ Opus 5.5 · Mittel (PR #354); Claude Codes Eintrag „Default (recommended)“ i
 | 12.11.2026 | #353: 3. Runde gepusht (Brückenrichtung aus den Auflagern, Flutung vom Bett, Laufzeit 56 s → 0,4 s); 3. Review läuft, Vertragstests in der Schlange. #356: 3. Review „merge-reif“, letzte kleine Runde (Absturz nicht dauerhaft merken, Cache validieren, Zeitfenster der Druckprüfung) plus neuer Befund P-6 (`screenshot {path}` überschreibt Nutzerdateien) | je nach Push: Vertragstests, mergen |
 | 12.11.2026 | Merke: `contract.yml` hat nur EINEN wartenden Platz – ein neu angestoßener Lauf bricht den wartenden ab. Vertragstests immer einzeln anstoßen, erst wenn kein Lauf mehr läuft oder wartet; `cancelled` zählt nicht. Der Test „starts SolidCraft without a window“ zählt `solidcraft-cli`-Prozesse auf dem Rechner und kippt, wenn nebenher ein Harness-Lauf endet | gilt |
 
+## Übergabe 13.11.2026 abends – ZUERST LESEN, ersetzt ältere Übergaben
+
+- **Gemergt heute:** #363–#368 (alle A-Befunde, Fensterschleife), #370 BC-01 Klappbox (`f87f020`), #372 (CI lädt Ergebnisse roter Desktop-Flows hoch; Erwartungen 15 s, Pixel 45 s), #373 (X-1-E2E robust). Harness am main nachgemessen (Audit-Zweig `44f6e08`).
+- **Offen, fertig bis auf Vertragstest:** #369 BC-03 (Kopf `f99f167`, Lauf 43455173515) und #371 BC-02 (Kopf `5e0e48c`, Lauf 43458712691, wartet). Beide nach mehreren Reviews merge-reif; bei grünem Vertragstest + grünen PR-Checks mergen. Rot → Artefakt `contract-test-results` lesen (`gh run download <id> -n contract-test-results`). Test „starts SolidCraft without a window“ zählt `solidcraft-cli`-Prozesse: rot, wenn parallel CLI-Läufe liefen → neu anstoßen.
+- **Danach:** Status in BEFUNDE.md für BC-01/02/03 nachziehen (Kennungen in BC-PAKETE.md, offene Reste in den PR-Texten), dann nächste Welle aus `BC-PAKETE.md` (je Spur ein Paket, höchstens 3 parallel, jede in eigenem Worktree `../partbuddy-wt-bc-NN`, Ablauf: Subagent baut → unabhängiges Review → Nachbesserung bis merge-reif → `contract.yml` (nur EIN Lauf + ein wartender) → mergen). Entscheidungen BC-13 (gemischt) und BC-24 (alle sieben als Hinweis) stehen in BC-PAKETE.md.
+- **Neue Befunde heute:** N-nach-1…5 (BEFUNDE.md unten); offene Reste aus den PRs: Formular misst Wand/Rand nicht (#369), Vorlage kennt Düse nicht (BC-16), Kugel/Rundung-Wand am Netz (#371 `shortcut:`), 0,25-Düse-Wand rot (#371 `shortcut:`), rohe SolidCraft-Ablehnung bei Parameter außerhalb des Bereichs (`ParametersSection.tsx`, #370 PR-Text).
+- **Regeln:** Subagenten keine CLI-/E2E-Läufe während `contract.yml` läuft; Release 0.3.1 erst nach dem ganzen Audit.
+
 ## Übergabe an die nächste Sitzung (12.11.2026 spät, Kontext der Sitzung voll)
 
 **Zuerst lesen:** Dieser Abschnitt ersetzt alle älteren Zeilen im Verlauf oben, wo sie sich widersprechen.
