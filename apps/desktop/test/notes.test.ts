@@ -149,7 +149,9 @@ describe('note guard', () => {
     expect(decide('execute', { command: 'document.metadata.set', params: { key: noteKey('abc123'), value: {} } }).allow).toBe(false);
     expect(decide('execute', { command: 'document.metadata.set', params: { values: { [noteKey('abc123')]: null } } }).allow).toBe(false);
     expect(decide('batch', { commands: [{ command: 'document.metadata.remove', params: { keys: ['IO.GITHUB.MANUELSTAGGL.PARTBUDDY.note.a'] } }] }).allow).toBe(false);
-    expect(decide('execute', { command: 'document.metadata.set', params: { key: 'description', value: 'Clip' } }).allow).toBe(true);
+    // The design document is refused as a whole since audit N-normteile-policy-3; another tool's key on a component stays.
+    expect(decide('execute', { command: 'document.metadata.set', params: { key: 'description', value: 'Clip' } }).allow).toBe(false);
+    expect(decide('execute', { command: 'component.metadata.set', params: { component: 'Clip', values: { 'com.example.tool': {} } } }).allow).toBe(true);
   });
 });
 

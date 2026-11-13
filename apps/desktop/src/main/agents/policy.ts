@@ -5,6 +5,7 @@
  */
 
 import { METADATA_PREFIX } from '../notes/noteRecord';
+import type { ToolResult, UpstreamTools } from './gateProxy';
 import { isKeptPhoto } from './photoNote';
 
 export type ToolDecision = { allow: true } | { allow: false; reason: string };
@@ -81,16 +82,116 @@ const BATCH_TOOL_STEPS = new Set([
   'crash_reports',
 ]);
 
+const FILES_REASON =
+  'reads or writes files or settings; PartBuddy does not allow it for the assistant. PartBuddy saves the design by itself, ' +
+  'and the user exports with the Export button. Continue without it.';
+const WINDOW_REASON =
+  "works on SolidCraft's window, which the user does not see: PartBuddy shows the model in its own view. Look at the model " +
+  'with screenshot (view or camera), and name bodies, faces and edges in the commands themselves.';
+const MOVE_REASON =
+  'moves a part away from where it was designed, and PartBuddy checks, lays out and exports the parts as designed (joints ' +
+  'count from there too). Move the body itself with solid.move, or make it movable with a joint.';
+
 /**
- * Engine commands that open, save, export, upload or hand files to other programs, change app
- * settings or read crash reports.
+ * The command groups (the id up to its first dot) the assistant may use, from the catalogue of
+ * SolidCraft 0.40.1 (`solidcraft-cli commands`, 634 commands): modelling, inspecting and the
+ * history. A group that is not listed, one a later SolidCraft adds among them, is refused until
+ * someone has looked at it (audit H-30, S-31). Raw modelling commands stay open here; which of
+ * them PartBuddy takes over is BC-13's decision.
  */
-const FILE_COMMANDS = /^(file|doc|settings|diagnostics)\./;
+export const COMMAND_GROUPS = new Set([
+  'appearance', 'assembly', 'body', 'browser', 'canvas', 'component', 'construct', 'contact', 'explode', 'expr', 'face',
+  'frame', 'inspect', 'joint', 'mesh', 'model', 'motion', 'note', 'occurrence', 'parameters', 'parts', 'plastic', 'sheet',
+  'sketch', 'solid', 'surface', 'timeline',
+]);
+
+/** Single commands of a group that is not listed: undo and redo, and the saved views `screenshot {view}` shows. */
+export const GROUP_EXCEPTIONS = new Set(['edit.undo', 'edit.redo', 'view.save', 'view.apply', 'view.list']);
+
+/** Why a group is refused, where the general sentence would not tell the assistant what to do instead. */
+const GROUP_REASONS: Record<string, string> = {
+  file: FILES_REASON,
+  doc: FILES_REASON,
+  settings: FILES_REASON,
+  diagnostics: FILES_REASON,
+  library: FILES_REASON,
+  pointcloud: FILES_REASON,
+  render: 'renders pictures and reads and writes their files; PartBuddy does not use renderings. Look at the model with screenshot.',
+  // audit N-normteile-policy-3: units, metadata and revision of the design document.
+  document:
+    "works on the design document itself (its units, metadata and revision): the design stays in millimetres, and PartBuddy keeps its own data there. Read the design with inspect_design and continue without it.",
+  // audit S-27: SolidCraft's material is not the one the part is printed in.
+  material:
+    "sets SolidCraft's physical material, which is not the material the part is printed in: PartBuddy takes that from the print profile the user chose. Continue without it.",
+  // audit S-26: PartBuddy's parameter list, print check and export know one design, not configurations.
+  config: 'works on configurations, which PartBuddy does not show: its parameters, print check and export see one design. Change sizes with set_parameter instead.',
+  // audit S-31.
+  layout: WINDOW_REASON,
+  panel: WINDOW_REASON,
+  ui: WINDOW_REASON,
+  view: WINDOW_REASON,
+  select: WINDOW_REASON,
+  selection: WINDOW_REASON,
+};
+
+/** Commands of a listed group (or an exception's group) that are refused, each with its reason. */
+export const REFUSED_COMMANDS: Record<string, string> = {
+  // Checkpoints restore around PartBuddy's undo-based work log (ADR 0018) and drop its later steps.
+  'edit.checkpoint': 'is not available in PartBuddy: PartBuddy keeps the history as steps the user can go back to. Use undo and redo instead.',
+  'edit.restore_checkpoint': 'is not available in PartBuddy: PartBuddy keeps the history as steps the user can go back to. Use undo and redo instead.',
+  'edit.repeat': WINDOW_REASON,
+  // audit S-26: state PartBuddy does not show.
+  'timeline.add': 'puts in a recorded feature as raw data, which PartBuddy cannot check (it may hold a file to import). Build the feature with its own command instead.',
+  'timeline.reorder': 'moves features in the history, where later features can then drop out without an error; PartBuddy shows the history as steps in order. Build in the order you need, or undo and build again.',
+  'timeline.reorder_many': 'moves features in the history, where later features can then drop out without an error; PartBuddy shows the history as steps in order. Build in the order you need, or undo and build again.',
+  'parameters.import': 'sets many parameters at once from a table, past the check PartBuddy makes for each name. Change each with set_parameter, or add a new one with parameters.add.',
+  // Moving a placement takes a part away from where it was designed; drag and align do the same as move.
+  'occurrence.move': MOVE_REASON,
+  'occurrence.drag': MOVE_REASON,
+  'occurrence.align': MOVE_REASON,
+};
+
+/** An engine command id as SolidCraft lists them, after {@link commandId}: ASCII groups and names joined by dots. */
+const COMMAND_ID = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
+
+/**
+ * The arguments through which an engine command reads or writes a file, from the catalogue of
+ * SolidCraft 0.40.1, for the groups above (audit N-normteile-policy-4): such an argument is refused
+ * in any form, a list or a short text included, except the user's photo. `font` of a text takes an
+ * installed font by its family too, which stays allowed.
+ */
+const FILE_ARGUMENTS: Record<string, readonly string[]> = {
+  'sketch.insert_dxf': ['path'],
+  'sketch.insert_svg': ['path'],
+  'sketch.drawing_bounds': ['path'],
+  'sketch.export_dxf': ['path'],
+  'sketch.replace': ['file'],
+  'sketch.text': ['font'],
+  'sketch.edit_text': ['font'],
+  'canvas.insert': ['path'],
+  'canvas.decal': ['path'],
+  'component.insert_design': ['path'],
+  'component.relink': ['path'],
+  'component.extract': ['path'],
+  'component.replace_with_link': ['path'],
+  'motion.export': ['path'],
+  'motion.export_animation': ['path'],
+  'sheet.export_dxf': ['path'],
+  'sheet.export_bend_table': ['path'],
+  'assembly.bom': ['path'],
+  'timeline.export_script': ['path'],
+  'parameters.export': ['path'],
+  'inspect.compare_picture': ['reference'],
+};
+
+/** A font family such as "Segoe UI", not a file: no dot, slash, colon or other sign a file name needs. */
+const FONT_FAMILY = /^[\p{L}\p{N} _-]{0,64}$/u;
 
 /**
  * The only text a geometry `path` holds: a sketch curve id such as "l1". SolidCraft also uses
  * `path` for curve lists, occurrence paths and edge refs (arrays and objects); any other text in
- * `path` is taken as a file name, so an unknown form is refused rather than written.
+ * `path` is taken as a file name, so an unknown form is refused rather than written. This is the
+ * net under {@link FILE_ARGUMENTS} for a command it does not list.
  */
 const CURVE_ID = /^[a-z]{1,3}\d{1,6}$/;
 
@@ -101,17 +202,19 @@ function metadataKeys(params: Record<string, unknown>): string[] {
   const keys: string[] = [];
   if (typeof params.key === 'string') keys.push(params.key);
   if (Array.isArray(params.keys)) keys.push(...params.keys.filter((key): key is string => typeof key === 'string'));
-  if (typeof params.values === 'object' && params.values !== null) keys.push(...Object.keys(params.values));
+  // audit N-normteile-policy-5: `properties` is a map of keys as well.
+  for (const map of [params.values, params.properties]) {
+    if (typeof map === 'object' && map !== null) keys.push(...Object.keys(map));
+  }
   return keys;
 }
 
-/** Checkpoints restore around PartBuddy's undo-based work log (ADR 0018) and drop its later steps. */
-const HISTORY_COMMANDS = new Set(['edit.checkpoint', 'edit.restore_checkpoint']);
-
 const refuse = (reason: string): ToolDecision => ({ allow: false, reason });
 
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
 function objectOr(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  return isObject(value) ? value : {};
 }
 
 /**
@@ -123,12 +226,17 @@ const commandId = (value: unknown): string => (typeof value === 'string' ? value
 
 /** One engine command, as `execute` or a `batch` step sends it. */
 function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecision {
+  if (typeof id !== 'string') return refuse('Each engine command is named by its id as text, such as {"command": "solid.extrude", "params": {…}}.');
   const command = commandId(id);
-  if (FILE_COMMANDS.test(command)) {
-    return refuse(
-      `${command} reads or writes files or settings; PartBuddy does not allow it for the assistant. PartBuddy saves the ` +
-        'design by itself, and the user exports with the Export button. Continue without it.',
-    );
+  // audit W42 (a): SolidCraft refuses these too, but the policy decides what it can read, not what SolidCraft might run.
+  if (command === 'execute') return refuse('execute is a tool, not an engine command: give the engine command itself, such as {"command": "solid.extrude", "params": {…}}.');
+  if (command === 'batch') return refuse('batches do not nest: put these steps into this batch, or send them as a batch of their own.');
+  if (!COMMAND_ID.test(command)) return refuse(`${JSON.stringify(id)} is not an engine command id; ids look like solid.extrude, as list_commands lists them.`);
+  const refused = REFUSED_COMMANDS[command];
+  if (refused) return refuse(`${command} ${refused}`);
+  const group = command.slice(0, command.indexOf('.'));
+  if (!COMMAND_GROUPS.has(group) && !GROUP_EXCEPTIONS.has(command)) {
+    return refuse(`${command} ${GROUP_REASONS[group] ?? 'is not available in PartBuddy. Continue with the modelling and inspection commands.'}`);
   }
   if (METADATA_WRITES.has(command) && metadataKeys(params).some((key) => key.toLowerCase().startsWith(METADATA_PREFIX))) {
     return refuse(
@@ -144,25 +252,27 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
         'it with parts.resize, and continue without a description.',
     );
   }
-  if (HISTORY_COMMANDS.has(command)) {
+  const fileArguments = FILE_ARGUMENTS[command] ?? [];
+  for (const argument of fileArguments) {
+    const value = params[argument];
+    if (value === undefined) continue;
+    // A photo the user sent (F6) may be laid out as a canvas or compared with the model; it is read, never written.
+    if ((command === 'canvas.insert' || command === 'inspect.compare_picture') && isKeptPhoto(value)) continue;
+    if (argument === 'font' && typeof value === 'string' && FONT_FAMILY.test(value)) continue;
+    if (argument === 'reference') {
+      return refuse(`${command} reads its reference from a file; PartBuddy allows only a photo the user sent in this session, at the path PartBuddy gave.`);
+    }
+    if (argument === 'font') return refuse(`${command} takes an installed font by its family name, such as "Arial"; PartBuddy does not let the assistant read a font file.`);
     return refuse(
-      `${command} is not available in PartBuddy: PartBuddy keeps the history as steps the user can go back to. Use undo ` +
-        'and redo instead.',
+      `${command} with ${argument} reads or writes a file; PartBuddy does not allow that for the assistant. Leave out ${argument} ` +
+        'if the command can answer with its content, or continue without it.',
     );
   }
-  // A photo the user sent (F6) may be laid out as a canvas; it is read, never written.
-  if (command === 'canvas.insert' && isKeptPhoto(params.path)) {
-    return { allow: true };
-  }
-  // The engine's own command behind the compare_picture tool reads its reference the same way.
-  if (command === 'inspect.compare_picture' && params.reference !== undefined && !isKeptPhoto(params.reference)) {
-    return refuse(`${command} reads its reference from a file; PartBuddy allows only a photo the user sent in this session, at the path PartBuddy gave.`);
-  }
-  // The other parameter that names a file (sketch.replace: a design file to read from).
-  if (typeof params.file === 'string') {
+  // The net for a command FILE_ARGUMENTS does not list: a text in `file` or a `path` that is no curve id names a file.
+  if (!fileArguments.includes('file') && typeof params.file === 'string') {
     return refuse(`${command} with a file reads a file; PartBuddy does not allow that for the assistant. Continue without it.`);
   }
-  if (typeof params.path === 'string' && !CURVE_ID.test(params.path)) {
+  if (!fileArguments.includes('path') && typeof params.path === 'string' && !CURVE_ID.test(params.path)) {
     return refuse(
       `${command} with a path reads or writes a file; PartBuddy does not allow that for the assistant. Leave out path ` +
         'if the command can answer with its content, or continue without it.',
@@ -171,23 +281,37 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
   return { allow: true };
 }
 
+const STEP_FORM = '{"command": "sketch.create", "params": {…}}';
+const STEP_KEYS = new Set(['command', 'id', 'params']);
+
 function decideBatch(args: Record<string, unknown>, depth: number): ToolDecision {
   // `path` runs the steps of a script file, which no rule here would see.
   if (args.path !== undefined && args.path !== null) {
     return refuse('batch with a path runs a script file; PartBuddy does not allow that for the assistant. Give the steps in commands.');
   }
-  const steps = Array.isArray(args.commands) ? (args.commands as unknown[]) : [];
-  for (const [index, entry] of steps.entries()) {
-    const step = objectOr(entry);
-    const params = objectOr(step.params);
+  // audit H-30: what the policy cannot read is refused, not read as empty. SolidCraft parses a step's params given as
+  // text (measured with 0.40.1: `params: "{}"` ran), so such a step would run what no rule here saw.
+  if (!Array.isArray(args.commands)) return refuse(`batch takes its steps as a list in commands: ${STEP_FORM}.`);
+  for (const [index, entry] of (args.commands as unknown[]).entries()) {
+    if (!isObject(entry) || Object.keys(entry).some((key) => !STEP_KEYS.has(key))) return refuse(`batch step ${index}: a step is ${STEP_FORM}, with nothing else in it.`);
+    if (entry.params !== undefined && !isObject(entry.params)) return refuse(`batch step ${index}: params must be a JSON object, not text or a list.`);
+    const params = objectOr(entry.params);
     // SolidCraft also takes a step's command as `id`; whichever it reads, both are decided.
-    const named = [step.command, step.id].filter((name) => typeof name === 'string').map(commandId);
-    for (const command of named.length > 0 ? named : ['']) {
+    const named = [entry.command, entry.id].filter((name) => name !== undefined);
+    if (named.length === 0 || named.some((name) => typeof name !== 'string')) return refuse(`batch step ${index}: name its command by its id as text, ${STEP_FORM}.`);
+    for (const command of named.map(commandId)) {
       const decision = BATCH_TOOL_STEPS.has(command) ? decideTool(command, params, depth + 1) : decideCommand(command, params);
-      if (!decision.allow) return refuse(`batch step ${index} (${command || 'no command'}): ${decision.reason}`);
+      if (!decision.allow) return refuse(`batch step ${index} (${command}): ${decision.reason}`);
     }
   }
   return { allow: true };
+}
+
+function decideExecute(args: Record<string, unknown>): ToolDecision {
+  if (args.params !== undefined && !isObject(args.params)) {
+    return refuse('execute takes params as a JSON object, such as {"command": "solid.extrude", "params": {"distance": "5 mm"}}, not as text or a list.');
+  }
+  return decideCommand(args.command, objectOr(args.params));
 }
 
 function decideTool(name: string, args: Record<string, unknown>, depth: number): ToolDecision {
@@ -198,7 +322,7 @@ function decideTool(name: string, args: Record<string, unknown>, depth: number):
   if (!ALLOWED.has(name)) return refuse(`${name} is not allowed by PartBuddy. Continue with the other tools.`);
   // SolidCraft refuses nested batches itself; a deeper nesting is refused here rather than walked.
   if (depth > 2) return refuse(`${name} is nested too deeply`);
-  const own = name === 'execute' ? decideCommand(args.command, objectOr(args.params)) : name === 'batch' ? decideBatch(args, depth) : null;
+  const own = name === 'execute' ? decideExecute(args) : name === 'batch' ? decideBatch(args, depth) : null;
   if (own && !own.allow) return own;
   return decideArguments(name, args);
 }
@@ -259,4 +383,64 @@ function decideArguments(name: string, args: Record<string, unknown>): ToolDecis
 
 export function decide(name: string, args: Record<string, unknown>): ToolDecision {
   return decideTool(name, args, 0);
+}
+
+/**
+ * The parameter names a call sets that must exist already (audit R17): `set_parameter` and
+ * `parameters.change {name}` create a parameter of a name that does not exist, without an error
+ * (measured with SolidCraft 0.40.1: `wnad` for `wand`, `recomputed: 0`), so a misspelt name
+ * changes nothing. A name a `parameters.add` step makes earlier in the same batch counts as
+ * existing. `parameters.change {changes}` is left out: SolidCraft refuses an unknown name there.
+ */
+// shortcut: a parameters.rename step earlier in the same batch is not followed, so its new name is refused; follow it when the assistant batches renames.
+export function namesToChange(name: string, args: Record<string, unknown>): string[] {
+  const added = new Set<string>();
+  const names: string[] = [];
+  const visit = (tool: string, params: Record<string, unknown>): void => {
+    const command = tool === 'execute' ? commandId(params.command) : tool;
+    const inner = tool === 'execute' ? objectOr(params.params) : params;
+    if (command === 'batch') {
+      for (const step of Array.isArray(params.commands) ? (params.commands as unknown[]) : []) {
+        const { command: stepCommand, id, params: stepParams } = objectOr(step);
+        visit(commandId(stepCommand ?? id), objectOr(stepParams));
+      }
+    } else if (command === 'execute') {
+      visit('execute', inner);
+    } else if (typeof inner.name === 'string' && command === 'parameters.add') {
+      added.add(inner.name);
+    } else if (typeof inner.name === 'string' && (command === 'set_parameter' || command === 'parameters.change') && !added.has(inner.name)) {
+      names.push(inner.name);
+    }
+  };
+  visit(name, args);
+  return names;
+}
+
+/**
+ * Refuses a call that would set a parameter of a name the design does not have ({@link namesToChange}),
+ * with the names it has. It reads them with `parameters.list`, which changes nothing and, unlike
+ * `inspect_design`, lists the features' own inputs (`d1`) too (measured with 0.40.1). When that read
+ * fails, the call is refused with the reason rather than let through unchecked.
+ */
+export async function decideParameterNames(callTool: UpstreamTools['callTool'], name: string, args: Record<string, unknown>): Promise<ToolDecision> {
+  const names = namesToChange(name, args);
+  if (names.length === 0) return { allow: true };
+  let known: string[];
+  try {
+    const result: ToolResult = await callTool('execute', { command: 'parameters.list', params: {} });
+    const text = result.content.find((part) => part.type === 'text')?.text;
+    if (result.isError || typeof text !== 'string') throw new Error(typeof text === 'string' ? text.slice(0, 300) : 'SolidCraft gave no answer');
+    const list = objectOr(JSON.parse(text)).parameters;
+    if (!Array.isArray(list)) throw new Error('the answer names no parameters');
+    known = list.map((entry) => objectOr(entry).name).filter((entry): entry is string => typeof entry === 'string');
+  } catch (error) {
+    return refuse(`PartBuddy could not read the design's parameters to check the name ${JSON.stringify(names[0])}: ${(error as Error).message}`);
+  }
+  const missing = names.find((entry) => !known.includes(entry));
+  if (missing === undefined) return { allow: true };
+  const list = known.slice(0, 60).join(', ') + (known.length > 60 ? ', …' : '');
+  return refuse(
+    `There is no parameter ${JSON.stringify(missing)}: setting it would make a new parameter and change nothing in the design. The parameters are: ` +
+      `${list || 'none'}. Take the exact name, or add a new parameter with parameters.add.`,
+  );
 }

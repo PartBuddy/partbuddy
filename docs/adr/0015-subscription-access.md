@@ -114,7 +114,13 @@ decides the tools SolidCraft runs as `batch` steps (`save`, `export`, `open`, `n
 nested `execute`) like the tools themselves, and refuses `settings.*` and `diagnostics.*`
 commands, `edit.checkpoint`/`edit.restore_checkpoint` (they would drop the work log's later
 steps, ADR 0018) and any command whose `path` is text other than a sketch curve id (SolidCraft
-uses `path` for files and for geometry alike). Every refusal names what to do instead.
+uses `path` for files and for geometry alike). Every refusal names what to do instead. Since
+2026-11-13 (audit BC-09) engine commands are an allow list of command groups (modelling,
+inspecting, the history; `document`, `material`, `config`, the window groups and every group not
+listed are refused), file arguments are known per command and refused in any form, a form the
+policy cannot read (`params` or a step as text, `execute` or `batch` named as an engine command) is
+refused, and the gate proxy refuses `set_parameter`/`parameters.change` for a name the design does
+not have.
 
 **Tool notes.** Both routes add PartBuddy's notes after SolidCraft's server instructions
 (`apps/desktop/src/main/agents/toolNotes.ts`): the proxy as its MCP `instructions`, the ChatGPT

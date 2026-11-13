@@ -40,9 +40,16 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 ### Policy
 
 - `batch` accepts tools as steps (save, export, open, new_design, crash_reports, nested execute).
-  `path` is sometimes a file and sometimes geometry (curve lists, occurrence paths, `"l1"`), so only
-  text other than a curve id counts as a file. Also dangerous: `file.open_in_easyprint` (uploads to
-  Printables), `file.send_to_slicer` (starts a program), `settings.*`.
+  `path` is sometimes a file and sometimes geometry (curve lists, occurrence paths, `"l1"`), so the
+  policy knows the file arguments per command (`FILE_ARGUMENTS` in `policy.ts`, from the 0.40.1
+  catalogue) and, for any other command, takes text other than a curve id as a file. Also
+  dangerous: `file.open_in_easyprint` (uploads to Printables), `file.send_to_slicer` (starts a
+  program), `settings.*`.
+- 0.40.1 parses a `batch` step's `params` given as text (`"{}"` ran); `execute {params}` and
+  `batch {commands}` as text are refused by its schema. `set_parameter` and `parameters.change
+  {name}` make a new parameter for an unknown name without an error; `parameters.change {changes}`
+  refuses one. `inspect_design` lists only user parameters, `parameters.list` the features' inputs
+  (`d1`) too.
 
 ### Geometry and references
 
