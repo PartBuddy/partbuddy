@@ -29,6 +29,7 @@ import { withPrintFaces } from './agents/printFaceWatch';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
 import { withBlockTool } from './agents/blockTool';
+import { DEFAULT_PRINTER, blockLimit, limitRefusal, limitSaid } from './../shared/blocks';
 import { withStandardTool } from './agents/standardTool';
 import { withMechanismTool } from './agents/mechanismTool';
 import { blockPhrase, describeUserAction } from '../shared/stepPhrases';
@@ -591,7 +592,7 @@ if (!app.requestSingleInstanceLock()) {
         steps.tools(
           withDesignTool(
             withAssemblyTool(
-              withViewTool(guardNotes(withStandardTool(withPrintFaces(withBlockTool(withMechanismTool(withDrawings(upstream, drawings), () => printProfiles.part().printer.nozzle, keepMechanismFace, () => printProfiles.part().material.overhang), keepMechanismFace, log), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
+              withViewTool(guardNotes(withStandardTool(withPrintFaces(withBlockTool(withMechanismTool(withDrawings(upstream, drawings), () => printProfiles.part().printer.nozzle, keepMechanismFace, () => printProfiles.part().material.overhang), keepMechanismFace, log, () => printProfiles.part().printer), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
               () => viewState?.bodies.map((body) => body.name) ?? [],
               saveAssembly,
             ),
@@ -1227,12 +1228,26 @@ if (!app.requestSingleInstanceLock()) {
       return { inserted: true, name, bodies: bodies.slice(0, 500) };
     });
     // Function blocks (F1): previewed like actions, built as one step of the work log.
+    // The same limits for the nozzle in use as the assistant's blocks; the form says which size and why (refusal.ts).
+    // The panel checks first with the printer it shows; this is the same check with the profile as it is now.
+    const formLimit = (block: Parameters<typeof blockLimit>[0]) => {
+      let printer = DEFAULT_PRINTER;
+      try {
+        printer = printProfiles.part().printer;
+      } catch (cause) {
+        log(`block form: no printer profile, checked for a ${String(DEFAULT_PRINTER.nozzle)} mm nozzle (${(cause as Error).message.slice(0, 200)})`);
+      }
+      return blockLimit(block, printer);
+    };
     bridge.handle(invokeChannels.designPreviewBlock, (block) => {
       assistantIdle();
-      return supervisor.previewBlock(block);
+      const limit = formLimit(block);
+      return limit ? { ok: false as const, error: limitRefusal(limit).slice(0, 300) } : supervisor.previewBlock(block);
     });
     bridge.handle(invokeChannels.designApplyBlock, async (block) => {
       assistantIdle();
+      const limit = formLimit(block);
+      if (limit) throw new Error(limitSaid(limit));
       await steps.recordUser(blockPhrase(block), () => supervisor.applyBlock(block));
       log(`built the function block ${block.block}`);
       return undefined;

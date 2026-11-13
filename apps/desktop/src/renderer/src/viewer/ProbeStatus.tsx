@@ -1,7 +1,7 @@
 import { IconAlertCircle, IconLoader2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 
-import { refusalText } from './refusal';
+import { refusalKind, refusalText } from './refusal';
 
 /**
  * The line under a field that SolidCraft checks: a spinner while it checks (B-07), the ready hint, or
@@ -17,7 +17,7 @@ export function ProbeStatus({ state, error, ready, testId }: { state: 'invalid' 
         {state === 'refused' ? <IconAlertCircle className="mt-px size-icon-sm shrink-0" aria-hidden /> : null}
         <span>{state === 'invalid' ? t('hud.invalid') : state === 'probing' ? t('hud.probing') : state === 'ready' ? (ready ?? t('hud.actionReady')) : refusalText(t, raw)}</span>
       </p>
-      {state === 'refused' && raw ? (
+      {state === 'refused' && raw && refusalKind(raw) !== 'limit' ? (
         <details className="text-text-subtle">
           <summary className="cursor-default">{t('hud.refused.details')}</summary>
           <p className="break-words">{raw}</p>

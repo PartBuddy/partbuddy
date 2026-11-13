@@ -1520,7 +1520,7 @@
       "boss": "A boss with a seat for a heat-set insert of this size and at least 2 mm of wall.",
       "nutTrap": "A hexagonal pocket after ISO 4032 with 0.3 mm of room and 0.4 mm of extra depth, with a clearance hole after ISO 273 below.",
       "slot": "A slot as wide as the normal clearance hole, centred on the point, to adjust the screw.",
-      "text": "Text centred on the point, reading level. Engraved from 0.6 mm and embossed from 0.4 mm depth prints cleanly; letters from about 5 mm high.",
+      "text": "Text centred on the point, reading level. Engraved from 0.6 mm and embossed from 0.4 mm depth prints cleanly; each stroke at least two nozzle widths: on a 0.4 mm nozzle bold capitals from 4 mm high, plain ones from 6 mm; engraved, 7 mm (the default) leaves enough plastic between the letters.",
       "lip": "For a shelled case: pick the face on the rim. The lip goes on the base, the groove with its gap into the lid.",
       "snapFit": "A flexible arm with a catch, standing out of the face. Print it lying down so the layers run along the arm: standing upright it breaks along a layer. The other part needs an opening as deep as the catch.",
       "logo": "An SVG file centred on the point, as wide as given. Filled areas and lines at their stroke width are built; turn text into paths first (in Inkscape: Path › Object to Path)."
@@ -1540,7 +1540,21 @@
       "insertSeat": "A hole for a heat-set insert, also as a row"
     },
     "font": "Font",
-    "fontBuiltIn": "Default (Liberation Sans)"
+    "fontBuiltIn": "Default (Liberation Sans)",
+    "limit": {
+      "stroke": "Capitals {value, number} mm high have strokes {stroke, number} mm wide, under the {needed, number} mm (two nozzle widths) a stroke needs on the {nozzle, number} mm nozzle: give a height of {least, number} mm or more.",
+      "strokeBold": "Bold capitals {value, number} mm high have strokes {stroke, number} mm wide, under the {needed, number} mm (two nozzle widths) a stroke needs on the {nozzle, number} mm nozzle: give a height of {least, number} mm or more.",
+      "lipWall": "A lip {value, number} mm wide does not print solid: two lines on the {nozzle, number} mm nozzle are {least, number} mm – give at least that.",
+      "grooveWall": "A groove {value, number} mm wide takes no lip that prints solid: two lines on the {nozzle, number} mm nozzle are {least, number} mm – give at least that.",
+      "armWall": "An arm {value, number} mm thick or wide does not print solid: two lines on the {nozzle, number} mm nozzle are {least, number} mm – give at least that.",
+      "catch": "A catch {value, number} mm deep does not print and holds nothing: give at least {least, number} mm, one width of the {nozzle, number} mm nozzle.",
+      "layer": "{value, number} mm is under one layer ({least, number} mm): nothing prints – give at least that.",
+      "screw": "A slot {value, number} mm wide does not let an {size} screw ({thread, number} mm) pass: the standard is {standard, number} mm.",
+      "nutFlats": "An {size} nut is {least, number} mm across its flats and does not go into {value, number} mm: the standard pocket is {standard, number} mm.",
+      "nutCorners": "An {size} nut is {most, number} mm across its corners and would turn in a pocket {value, number} mm wide: give less than that.",
+      "nutHeight": "An {size} nut is {least, number} mm high and would stand out of a pocket {value, number} mm deep: the standard is {standard, number} mm."
+    },
+    "strokeUnchecked": "The strokes of this font were not checked: PartBuddy knows them for Arial and its built-in font alone."
   },
   "assembly": {
     "title": "Assembly",

@@ -1688,8 +1688,13 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     await page.getByTestId('block-tile-text').click();
     await expect(page.getByTestId('block-size')).toHaveCount(0);
     await page.getByTestId('block-text').getByRole('textbox').fill('UI');
+    // Bold capitals 3 mm high have strokes of 0.61 mm, under the two nozzle widths (0.8 mm) a stroke needs on the 0.4 mm
+    // nozzle (printProfiles.ts; stroke share of Arial bold measured 2026-11-13): the form refuses them and says why.
     await page.getByTestId('block-height').getByRole('textbox').fill('3');
-    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'false', { timeout: 60_000 });
+    await expect(page.getByTestId('block-status')).toContainText('Bold capitals 3 mm high have strokes 0.61 mm wide, under the 0.8 mm (two nozzle widths) a stroke needs on the 0.4 mm nozzle: give a height of 4 mm or more.');
+    await page.getByTestId('block-height').getByRole('textbox').fill('4');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
     await page.screenshot({ path: test.info().outputPath('block-form-text.png') });
     await page.getByTestId('block-apply').click();
     await expect(page.getByText('Text “UI”')).toBeVisible({ timeout: 30_000 });
@@ -1755,14 +1760,20 @@ test('a snap fit stands out of a face, its catch across the arm, with its strain
     await expect(page.getByTestId('block-strain')).toHaveText('About 1.4 % strain when it snaps in');
     await page.getByTestId('block-length').getByRole('textbox').fill('6');
     await expect(page.getByTestId('block-strain')).toContainText('About 6.5 % strain when it snaps in – more than printed PLA takes');
+    // A catch of 0.3 mm is under one nozzle width (designFit.ts) and under the 0.5 to 1.2 mm undercut of the standard
+    // (audit Maßstab, Schnapphaken): the form refuses it and says why. 0.5 mm prints and holds.
     await page.getByTestId('block-catch-depth').getByRole('textbox').fill('0.3');
-    await expect(page.getByTestId('block-strain')).toContainText('About 2.4 % strain');
-    await page.getByTestId('block-length').getByRole('textbox').fill('8');
-    await expect(page.getByTestId('block-strain')).toHaveText('About 1.3 % strain when it snaps in');
-    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'false', { timeout: 60_000 });
+    await expect(page.getByTestId('block-status')).toContainText('A catch 0.3 mm deep does not print and holds nothing: give at least 0.4 mm, one width of the 0.4 mm nozzle.');
+    await page.getByTestId('block-catch-depth').getByRole('textbox').fill('0.5');
+    // 150 · 1.5 · 0.5 / (6 − 0.75)² = 4.08 %; on an arm of 9 mm, / (9 − 0.75)² = 1.65 %.
+    await expect(page.getByTestId('block-strain')).toContainText('About 4.1 % strain when it snaps in – more than printed PLA takes');
+    await page.getByTestId('block-length').getByRole('textbox').fill('9');
+    await expect(page.getByTestId('block-strain')).toHaveText('About 1.7 % strain when it snaps in');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
     await page.screenshot({ path: test.info().outputPath('block-form-snap-fit.png') });
     await page.getByTestId('block-apply').click();
-    await expect(page.getByText('Snap fit 8 mm')).toHaveCount(2, { timeout: 30_000 });
+    await expect(page.getByText('Snap fit 9 mm')).toHaveCount(1, { timeout: 30_000 });
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });

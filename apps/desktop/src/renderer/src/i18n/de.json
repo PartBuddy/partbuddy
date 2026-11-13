@@ -1520,7 +1520,7 @@
       "boss": "Ein Dom mit Sitz für eine Einschmelzmutter dieser Größe und mindestens 2 mm Wand.",
       "nutTrap": "Sechskanttasche nach ISO 4032 mit 0,3 mm Luft und 0,4 mm Tiefenzugabe, darunter ein Durchgangsloch nach ISO 273.",
       "slot": "Ein Langloch mit der Breite des mittleren Durchgangslochs, mittig am Punkt, zum Verstellen der Schraube.",
-      "text": "Text mittig am Punkt, waagrecht lesbar. Vertieft ab 0,6 mm und erhaben ab 0,4 mm Tiefe druckt sauber; Schrift ab etwa 5 mm Höhe.",
+      "text": "Text mittig am Punkt, waagrecht lesbar. Vertieft ab 0,6 mm und erhaben ab 0,4 mm Tiefe druckt sauber; jeder Strich mindestens zwei Düsenbreiten: bei 0,4-mm-Düse fette Großbuchstaben ab 4 mm Höhe, normale ab 6 mm; vertieft lassen 7 mm (die Vorgabe) genug Kunststoff zwischen den Buchstaben.",
       "lip": "Für ein ausgehöhltes Gehäuse: Fläche am Rand wählen. Die Lippe kommt aufs Unterteil, die Nut mit Spalt in den Deckel.",
       "snapFit": "Ein federnder Arm mit Rastnase, der aus der Fläche ragt. Liegend drucken, damit die Schichten längs des Arms laufen: stehend bricht er an einer Schicht. Das Gegenstück braucht eine Öffnung so tief wie die Nase.",
       "logo": "Eine SVG-Datei mittig am Punkt, so breit wie angegeben. Gebaut werden gefüllte Flächen und Linien in ihrer Strichstärke; Text vorher in Pfade umwandeln (in Inkscape: Pfad › Objekt in Pfad)."
@@ -1540,7 +1540,21 @@
       "insertSeat": "Loch für eine Einschmelzmutter, auch als Reihe"
     },
     "font": "Schrift",
-    "fontBuiltIn": "Standard (Liberation Sans)"
+    "fontBuiltIn": "Standard (Liberation Sans)",
+    "limit": {
+      "stroke": "Großbuchstaben mit {value, number} mm Höhe haben {stroke, number} mm breite Striche, weniger als die {needed, number} mm (zwei Düsenbreiten), die ein Strich mit der {nozzle, number}-mm-Düse braucht: Höhe {least, number} mm oder mehr angeben.",
+      "strokeBold": "Fette Großbuchstaben mit {value, number} mm Höhe haben {stroke, number} mm breite Striche, weniger als die {needed, number} mm (zwei Düsenbreiten), die ein Strich mit der {nozzle, number}-mm-Düse braucht: Höhe {least, number} mm oder mehr angeben.",
+      "lipWall": "Eine Lippe mit {value, number} mm Breite druckt nicht massiv: zwei Linien der {nozzle, number}-mm-Düse sind {least, number} mm – mindestens das angeben.",
+      "grooveWall": "Eine Nut mit {value, number} mm Breite nimmt keine Lippe auf, die massiv druckt: zwei Linien der {nozzle, number}-mm-Düse sind {least, number} mm – mindestens das angeben.",
+      "armWall": "Ein Arm mit {value, number} mm Dicke oder Breite druckt nicht massiv: zwei Linien der {nozzle, number}-mm-Düse sind {least, number} mm – mindestens das angeben.",
+      "catch": "Eine Rastnase mit {value, number} mm Tiefe druckt nicht und hält nichts: mindestens {least, number} mm angeben, eine Breite der {nozzle, number}-mm-Düse.",
+      "layer": "{value, number} mm sind weniger als eine Schicht ({least, number} mm): das druckt nicht – mindestens das angeben.",
+      "screw": "Ein Langloch mit {value, number} mm Breite lässt keine {size}-Schraube ({thread, number} mm) durch: Standard sind {standard, number} mm.",
+      "nutFlats": "Eine {size}-Mutter ist {least, number} mm breit über die Flächen und passt nicht in {value, number} mm: die Standardtasche hat {standard, number} mm.",
+      "nutCorners": "Eine {size}-Mutter ist {most, number} mm breit über die Ecken und würde sich in einer Tasche mit {value, number} mm drehen: weniger angeben.",
+      "nutHeight": "Eine {size}-Mutter ist {least, number} mm hoch und stünde aus einer Tasche mit {value, number} mm Tiefe heraus: Standard sind {standard, number} mm."
+    },
+    "strokeUnchecked": "Die Striche dieser Schrift sind nicht geprüft: PartBuddy kennt sie nur für Arial und die eingebaute Schrift."
   },
   "assembly": {
     "title": "Zusammenbau",

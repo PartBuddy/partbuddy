@@ -335,7 +335,7 @@ if (args[0] === '--version') {
     }
     // "a volume knob": a knob for a 6 mm D shaft, a part of its own, through PartBuddy's own block.
     if (content.includes('a volume knob')) {
-      const built = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'knob', body: 'Volume', point: [0, 0, 0] } });
+      const built = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'knob', body: 'Volume', point: [0, 0, 0], shaft: 'd', shaftDiameter: 6 } });
       await client.close();
       out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
@@ -344,9 +344,9 @@ if (args[0] === '--version') {
     // "a wall plate": a plate standing upright, two keyholes on its back and two countersunk holes on its front, through PartBuddy's own blocks.
     if (content.includes('a wall plate')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 80, width: 8, height: 100, operation: 'new', body_name: 'Plate' } } });
-      const hung = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'keyhole', body: 'Plate', point: [20, 0, 80], normal: [0, -1, 0], up: [0, 0, 1], more: [[60, 0, 80]] } });
-      const screwed = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'woodScrew', body: 'Plate', point: [20, 8, 30], more: [[60, 8, 30]] } });
-      const magnets = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'magnet', body: 'Plate', point: [20, 8, 55], normal: [0, 1, 0], more: [[60, 8, 55]] } });
+      const hung = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'keyhole', body: 'Plate', point: [20, 0, 80], normal: [0, -1, 0], up: [0, 0, 1], more: [[60, 0, 80]], screw: 4 } });
+      const screwed = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'woodScrew', body: 'Plate', point: [20, 8, 30], more: [[60, 8, 30]], screw: 4 } });
+      const magnets = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'magnet', body: 'Plate', point: [20, 8, 55], normal: [0, 1, 0], more: [[60, 8, 55]], diameter: 6, height: 2 } });
       await client.close();
       out({ type: 'assistant', message: { content: [{ type: 'text', text: [hung, screwed, magnets].flatMap((built) => (built.content ?? []).map((block) => block.text ?? '')).join(' ') }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
