@@ -1,6 +1,6 @@
 import { sketchFromInspect, tessellateSketch } from '@partbuddy/geometry';
 
-import { centring, hostFace, inPlane, isPlacedName, LOGO_PREFIX, movedPlane, placedLogos, planeAngle, rotatedPlane, type CentreAxis, type PlacedSketch, type SketchPlane, type Vec3 } from '../../shared/drawingPlacement';
+import { centring, hostFace, inPlane, isPlacedName, LOGO_DEPTH_MAX, LOGO_PREFIX, movedPlane, placedLogos, planeAngle, rotatedPlane, type CentreAxis, type PlacedSketch, type SketchPlane, type Vec3 } from '../../shared/drawingPlacement';
 
 /**
  * Moving a placed logo, shared by the assistant's `partbuddy_move_drawing` and the logo controls
@@ -15,8 +15,10 @@ export type Run = (commands: Step[]) => Promise<unknown[]>;
 type Body = { name?: unknown; bbox?: { min?: number[]; max?: number[] } };
 type Design = { bodies?: Body[]; sketches?: unknown; timeline?: unknown };
 
-/** How far from the logo's sketch plane a picked point may lie and still belong to it: deeper than any logo. */
-const REACH_MM = 20;
+/** How far off its drawing or its own depth a picked point may lie, in mm: a click on an edge of it, rounding in the view. */
+const SLACK_MM = 0.5;
+/** How far from the logo's sketch plane a picked point may lie and still belong to it: as deep or high as a logo may be (audit G8: 20 mm missed the top of a 30 mm emboss). */
+const REACH_MM = LOGO_DEPTH_MAX + SLACK_MM;
 
 const bodiesOf = (design: Design) => (Array.isArray(design.bodies) ? design.bodies : []);
 
@@ -307,15 +309,17 @@ export async function logoAt(run: Run, point: Vec3): Promise<LogoSpot | null> {
     const { x_dir: x, y_dir: y, origin } = sketch.plane;
     const normal: Vec3 = [x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]];
     const distance = Math.abs(normal.reduce((sum, n, k) => sum + n * ((point[k] ?? 0) - (origin[k] ?? 0)), 0));
-    const inside = u >= minU - 0.5 && u <= maxU + 0.5 && v >= minV - 0.5 && v <= maxV + 0.5;
+    const inside = u >= minU - SLACK_MM && u <= maxU + SLACK_MM && v >= minV - SLACK_MM && v <= maxV + SLACK_MM;
     if (inside && distance <= REACH_MM && (!best || distance < best.distance)) best = { sketch, distance, box: [minU, minV, maxU, maxV] };
   }
   if (!best) return null;
   const first = best.sketch;
+  const depth = await depthOf(run, design, logos.get(first.name) ?? [first]);
+  // Farther from its plane than the logo is deep or high: a face behind or under it (the far side of the part), not the logo.
+  if (depth && best.distance > depth.depth + SLACK_MM) return null;
   const host = await hostOf(run, design, first.plane);
   const middle = host ? centring(host.extent, 'both') : null;
   const tidy = (value: number) => Math.round(value * 1000) / 1000 || 0;
-  const depth = await depthOf(run, design, logos.get(first.name) ?? [first]);
   return {
     logo: first.name,
     offset: middle ? [tidy(-middle[0]), tidy(-middle[1])] : null,

@@ -77,10 +77,18 @@ describe('placing a logo', () => {
 describe('logo colour bodies', () => {
   it('tells a colour piece of a logo from other bodies', async () => {
     const { isLogoColourBody } = await import('../src/shared/drawingPlacement');
-    expect(isLogoColourBody('Badge 1d71b8 1')).toBe(true);
-    expect(isLogoColourBody('twemoji-fox ff8b00 12 (2)')).toBe(true);
-    expect(isLogoColourBody('Body1')).toBe(false);
-    expect(isLogoColourBody('Lid 2')).toBe(false);
+    const sketches = ['Sketch1', 'SVG-Logo Badge', 'SVG-Logo twemoji-fox 2', 'SVG-Logo Badge 2', 'Text facade'];
+    expect(isLogoColourBody('Badge 1d71b8 1', sketches)).toBe(true);
+    expect(isLogoColourBody('twemoji-fox ff8b00 12 (2)', sketches)).toBe(true);
+    // A file named "Badge 2" names its bodies so, and its sketch is "SVG-Logo Badge 2" as a second "Badge" would be.
+    expect(isLogoColourBody('Badge 2 1d71b8 1', sketches)).toBe(true);
+    expect(isLogoColourBody('Body1', sketches)).toBe(false);
+    expect(isLogoColourBody('Lid 2', sketches)).toBe(false);
+    // Audit H-27: a body named like a colour piece without a logo of that name is a part, measured like any other.
+    expect(isLogoColourBody('Front facade 1', sketches)).toBe(false);
+    expect(isLogoColourBody('Teil decade 1', ['SVG-Logo Haus'])).toBe(false);
+    expect(isLogoColourBody('Badge 1d71b8 1', [])).toBe(false);
+    expect(isLogoColourBody('Badge 1d71b8 1', ['Text Badge'])).toBe(false);
   });
 });
 
