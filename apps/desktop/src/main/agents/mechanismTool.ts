@@ -1,4 +1,6 @@
-import { LID, LIP, WEB, hangs, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { randomUUID } from 'node:crypto';
+
+import { LID, LIP, WEB, hangs, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { BRIDGE_SPAN } from '@partbuddy/geometry';
 
@@ -450,7 +452,9 @@ async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3;
   const axis = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
   const joint = shares ?? spec.name;
   const sweeps = range.filter((to) => to !== 0).map((to) => ({ command: 'joint.sweep', params: { joint, from: 0, to } }));
-  if (!shares) await run([{ command: 'joint.as_built', params: { type, a, b, at: { occurrence: a, point: middle, z: axis }, name: spec.name, quiet: true } }]);
+  // A hinge prints in place, as one piece; the parts of a guide print apart.
+  const together = type === 'revolute' ? printTogether([componentOf(listing, spec.fixed), componentOf(listing, spec.moving)], randomUUID().slice(0, 8), spec.name) : [];
+  if (!shares) await run([{ command: 'joint.as_built', params: { type, a, b, at: { occurrence: a, point: middle, z: axis }, name: spec.name, quiet: true } }, ...together]);
   // SolidCraft refuses a sweep it cannot afford, such as parts that lie against each other along the way: the joint stays, without limits.
   let results: unknown[];
   try {
@@ -791,7 +795,8 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     );
     // A hinge on the line of an earlier one only narrows what that joint allows: it is run through its limits again.
     const range = await join(run, spec, 'revolute', site.shares?.limits ?? [-180, 180], 1, site.shares?.name);
-    const print = `${site.shares ? ` It lies on the line of the hinge "${site.shares.name}" and turns about that hinge's joint, which carries both now.` : ''}${hingePrint(spec, depths, overhang)}`;
+    // Review of PR #366, K1: which print face lays the hinge, said where it is decided.
+    const print = `${site.shares ? ` It lies on the line of the hinge "${site.shares.name}" and turns about that hinge's joint, which carries both now.` : ''}${hingePrint(spec, depths, overhang)} ${spec.fixed} and ${spec.moving} print as one piece, as they lie to each other: the print check, the plate view and "send to slicer" lay both on the print face of whichever of them comes first in the design and has one (the exported 3MF keeps them as designed), so give only one of them a print face.`;
     if (typeof range === 'string') return `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns) and joined them, but ${unswept(range, site.shares?.name)}${print}${warnings}`;
     const [min, max] = range;
     return (

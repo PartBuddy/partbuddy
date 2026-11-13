@@ -14,7 +14,7 @@
  * (0.40.0-rc.4), so no occurrence id has to be read first.
  */
 
-import { hingeSteps, lipSteps, pinDiameter, slideSteps } from './mechanisms';
+import { hingeSteps, lipSteps, pinDiameter, printTogether, slideSteps } from './mechanisms';
 
 export const TEMPLATE_IDS = ['hingedBox', 'slideStop', 'housing', 'sign', 'wallHolder'] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
@@ -111,6 +111,8 @@ function hingedBox(): Step[] {
     components('Box', 'Lid'),
     // It closes all the way: the bead pressing past the box's rim on the last degrees is the snap. The joint is kept on top of the pin (underneath it is flat) and on the bore under it, inside the lid's first knuckle: faces no wall or lip cuts, whatever the sizes.
     joint('revolute', 'Box', 'Lid', { fixed: { circle: [far, between / 2, height + pin / 2], x: [0, 0, 1] }, moving: { circle: [far, between / 2, height - pin / 2 - gap], x: [0, 0, 1] } }, { flip: true, offset: -gap, limits: [[0, 180]] }, 'Hinge'),
+    // Box and lid print as one piece, side by side as they are built.
+    ...printTogether(['Box', 'Lid'], 'hinge', 'Hinge'),
   ];
 }
 
@@ -408,7 +410,8 @@ function inGerman(step: Step): Step {
   const comment = step.command === 'parameters.add' ? params.comment : undefined;
   if (typeof comment === 'string' && GERMAN[comment]) params.comment = GERMAN[comment];
   const body = (name: unknown) => (typeof name === 'string' ? (GERMAN_BODIES[name] ?? name) : name);
-  for (const key of ['body_name', 'body'] as const) if (key in params) params[key] = body(params[key]);
+  // A component made of a body (`component.from_bodies`) carries the body's name.
+  for (const key of ['body_name', 'body', 'component'] as const) if (key in params) params[key] = body(params[key]);
   for (const key of ['targets', 'bodies'] as const) if (Array.isArray(params[key])) params[key] = params[key].map(body);
   // A joint names its two components, which carry their bodies' names.
   for (const key of ['a', 'b', 'at'] as const) {

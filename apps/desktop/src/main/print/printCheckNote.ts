@@ -48,6 +48,8 @@ function line(finding: Finding, nozzle: number): string {
         : `- ${tag}: only ${String(finding.area)} mm² lie on the bed, the part may come loose or tip over${where(finding.places)}.`;
     case 'separate':
       return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(', ')} touch but are separate; the slicer lays each on the bed by itself. Combine them if they are one part.`;
+    case 'fused':
+      return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(', ')} print as one piece and touch: they fuse where they touch, so the mechanism between them does not move. Leave a gap between them there.`;
     case 'open':
       return `- ${tag}: ${finding.bodies.map((body) => `body ${JSON.stringify(body)}`).join(', ')} is an open surface, not a closed solid: it has no volume, so nothing of it prints. Close it into a solid, or remove it if it only helped to build.`;
     case 'feature':

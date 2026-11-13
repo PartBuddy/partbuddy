@@ -168,6 +168,8 @@ export const structureSchema = z
     pendingParts: z.array(z.string().max(200)).max(500).optional(),
     /** The joints of parts that move against each other (ADR 0027); left out when there are none. */
     joints: z.array(jointSchema).max(200).optional(),
+    /** Bodies printed as one piece, as they lie to each other (a print-in-place hinge, audit G1); left out when there are none. */
+    printGroups: z.array(z.array(z.string().max(200)).max(500)).max(200).optional(),
   })
   .strict();
 
@@ -1161,6 +1163,7 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), bodies: z.number().int().positive().max(100_000), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
+  z.object({ kind: z.literal('fused'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
   z.object({ kind: z.literal('open'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(1).max(20) }).strict(),
   z.object({ kind: z.literal('overlap'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), volume: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('tight'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), gap: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),

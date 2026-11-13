@@ -1,5 +1,4 @@
-import { Overhang, meshMetrics, overhangLimits, overhangOf, type PrintCheckBody, type PrintCheckProfile } from '@partbuddy/geometry';
-import { Quaternion, Vector3 } from 'three';
+import { Overhang, laidBodies, meshMetrics, overhangLimits, overhangOf, type LaidBody, type PrintCheckBody, type PrintCheckProfile } from '@partbuddy/geometry';
 
 import type { PrintCheckReport } from '../../../shared/contract';
 
@@ -18,31 +17,21 @@ const INFILL = 0.15;
  * measure. Grams and minutes are not among them: infill, walls and speed are the slicer's. The shell
  * estimate comes nearer to filament than the solid volume: two wall lines on every surface and
  * sparse infill in what is left, never more than the solid.
- * shortcut: the pose (print face down) and the reach of small overhangs repeat what printCheck.ts
- * and overhang.ts of packages/geometry keep to themselves (`laid`, `smallOverhangReach`); take them
- * from there once the package exports them.
+ * A body printed with others as one piece (a print-in-place hinge) lies as their piece does (`laidBodies`), its height
+ * counted from their bed.
+ * shortcut: the reach of small overhangs repeats what overhang.ts of packages/geometry keeps to itself
+ * (`smallOverhangReach`); take it from there once the package exports it.
  */
-export function bodyMeasures(body: PrintCheckBody, profile: Profile): BodyMeasures {
+export function bodyMeasures(body: PrintCheckBody, profile: Profile, lying: LaidBody | undefined = laidBodies([body])[0]): BodyMeasures {
   const { model } = body;
-  const down = body.printFace ? model.table.faces.find((face) => face.name === body.printFace)?.planeNormal : undefined;
-  const turn = down ? new Quaternion().setFromUnitVectors(new Vector3(...down).normalize(), new Vector3(0, 0, -1)) : null;
-  const v = new Vector3();
-  const laid = (source: ArrayLike<number>) => {
-    const out = new Float32Array(source.length);
-    for (let i = 0; i < source.length; i += 3) {
-      v.set(source[i] ?? 0, source[i + 1] ?? 0, source[i + 2] ?? 0);
-      if (turn) v.applyQuaternion(turn);
-      out.set([v.x, v.y, v.z], i);
-    }
-    return out;
-  };
-  const positions = laid(model.geometry.getAttribute('position').array);
+  const positions = Float32Array.from(lying?.positions ?? model.geometry.getAttribute('position').array);
   const index = (model.geometry.index?.array ?? new Uint32Array()) as Uint32Array;
   const { volumeMm3, bbox } = meshMetrics({ name: body.name, faceCount: model.table.faces.length, positions: Float64Array.from(positions), indices: index, triangleFaces: model.triangleFaces });
-  const height = Math.max(0, bbox.max[2] - bbox.min[2]);
+  const bed = lying?.bed ?? bbox.min[2];
+  const height = Math.max(0, bbox.max[2] - bed);
   const map = overhangOf(
-    { positions, normals: laid(model.geometry.getAttribute('normal').array), index, vertexFaces: model.vertexFaces, faceCount: model.table.faces.length },
-    bbox.min[2],
+    { positions, normals: Float32Array.from(lying?.normals ?? model.geometry.getAttribute('normal').array), index, vertexFaces: model.vertexFaces, faceCount: model.table.faces.length },
+    bed,
     overhangLimits(profile.overhang),
     Math.round(4 * 1.125 * profile.nozzle * 100) / 100,
   );
@@ -72,10 +61,11 @@ export function bodyMeasures(body: PrintCheckBody, profile: Profile): BodyMeasur
 export function measuresOf(bodies: readonly PrintCheckBody[], profile: Profile): { bodies: BodyMeasures[]; problem?: string } {
   const measured: BodyMeasures[] = [];
   const problems: string[] = [];
-  for (const body of bodies) {
-    if (body.model.table.faces.length === 0 || body.model.openEdges > 0) continue;
+  const closed = bodies.filter((body) => body.model.table.faces.length > 0 && !(body.model.openEdges > 0));
+  const lying = laidBodies(closed);
+  for (const [b, body] of closed.entries()) {
     try {
-      measured.push(bodyMeasures(body, profile));
+      measured.push(bodyMeasures(body, profile, lying[b]));
     } catch (error) {
       problems.push(`${body.name.slice(0, 40)}: ${error instanceof Error ? error.message : String(error)}`);
     }

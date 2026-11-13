@@ -142,6 +142,20 @@ export function webFoot(diameter: number, distance: number): number {
   return round((diameter / 2) * Math.SQRT2 + distance);
 }
 
+/**
+ * Parts printed as one piece (audit 2026-11-12, G1: a print-in-place hinge): each of their components carries a key of
+ * PartBuddy's (`METADATA_PREFIX` of notes/noteRecord.ts, which the assistant may not write) with the same label, and
+ * the mirror groups the bodies of components that share one (`printGroups`), so print check and plate view stand them
+ * on one bed and the 3MF export and "send to slicer" write them as one object (main/print/pieces3mf.ts). One key per
+ * label: a component in two hinges keeps both, and nothing is read before it is written. The marks are part of the
+ * design, so they come back with undo, redo and a design opened again.
+ */
+export const TOGETHER_KEY = 'io.github.manuelstaggl.partbuddy.together.';
+
+export function printTogether(components: readonly (string | number)[], label: string, joint: string): Step[] {
+  return components.map((component) => ({ command: 'component.metadata.set', params: { component, values: { [`${TOGETHER_KEY}${label}`]: { joint } } } }));
+}
+
 /** Whether the knuckles of a lying hinge start above the bed, so that each needs a web under it. */
 export function hangs(spec: Pick<HingeSpec, 'from' | 'to' | 'diameter'>, bed: number): boolean {
   return Math.abs(spec.to[2] - spec.from[2]) < 1e-6 && spec.from[2] - spec.diameter / 2 - bed >= WEB.least;

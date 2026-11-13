@@ -15,7 +15,8 @@ import type { ViewerModel } from './viewerModel';
  * The part is checked as designed, Z up, or lying on its print face where SolidCraft has one for the
  * body (the slicer export lays it down so). Each body stands on its own lowest point: the slicer lays
  * every object of the 3MF onto the bed by itself (seen in Bambu Studio, 2026-11-05), so bodies that
- * touch fall apart there.
+ * touch fall apart there. Bodies printed as one piece (a print-in-place hinge, `group`) stand on
+ * their common lowest point and turn together (audit 2026-11-12, G1).
  */
 
 export interface PrintCheckProfile {
@@ -33,6 +34,11 @@ export interface PrintCheckBody {
   model: ViewerModel;
   /** SolidCraft's print face of the body, by name: the body is checked lying on it. */
   printFace?: string | undefined;
+  /**
+   * Bodies with the same group print as one piece, as they lie to each other (a print-in-place hinge): they stand on
+   * their common lowest point, turned onto the print face of the first of them that has one.
+   */
+  group?: string | undefined;
 }
 
 export interface PrintCheckFeature {
@@ -71,6 +77,8 @@ export type PrintFinding =
   /** The bodies with too little on the bed: how many, and the area of the one with the least. */
   | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
+  /** Bodies printed as one piece (a print-in-place hinge) that touch: they fuse in the print and do not move (review of PR 366). */
+  | { kind: 'fused'; severity: FindingSeverity; bodies: string[] }
   /** Bodies that are open shells (SolidCraft's surface bodies): no solid to print. */
   | { kind: 'open'; severity: FindingSeverity; bodies: string[] }
   | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string }
@@ -229,7 +237,7 @@ interface Thin {
  * shortcut: a body with more surface than MAX_RAYS nozzle widths squared is sampled more coarsely;
  * raise MAX_RAYS (or check in a worker) if thin spots of large parts are missed.
  */
-function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile): { walls: Thin; floors: Thin } {
+function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new Vector3(0, 0, -1)): { walls: Thin; floors: Thin } {
   const { model } = body;
   const geometry = model.geometry;
   // computeBoundsTree builds a MeshBVH (viewerModel.ts); the augmented type only names its base.
@@ -244,7 +252,6 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile): { walls: T
   let surface = 0;
   for (let t = 0; t < triangles; t += stride) surface += triangle(positions, index, t).area;
   const cell = Math.max(profile.nozzle ** 2, surface / MAX_RAYS);
-  const down = printDown(body) ?? new Vector3(0, 0, -1);
   const ray = new Ray();
   for (let t = 0; t < triangles; t += stride) {
     const { corners, area, normal, centroid } = triangle(positions, index, t);
@@ -413,11 +420,10 @@ function fitsTurned(positions: ArrayLike<number>, width: number, depth: number):
   return false;
 }
 
-/** The body's mesh as it lies on the bed: turned onto its print face, or as designed. */
-function laid(body: PrintCheckBody): { positions: ArrayLike<number>; normals: ArrayLike<number> } {
+/** The body's mesh as it lies on the bed: turned so `down` points at it, or as designed. */
+function laid(body: PrintCheckBody, down: Vector3 | undefined): { positions: ArrayLike<number>; normals: ArrayLike<number> } {
   const positions = body.model.geometry.getAttribute('position').array;
   const normals = body.model.geometry.getAttribute('normal').array;
-  const down = printDown(body);
   if (!down) return { positions, normals };
   const turn = new Quaternion().setFromUnitVectors(down, new Vector3(0, 0, -1));
   const v = new Vector3();
@@ -439,6 +445,28 @@ function bedOf(positions: ArrayLike<number>): number {
   let low = Infinity;
   for (let i = 2; i < positions.length; i += 3) low = Math.min(low, positions[i] ?? Infinity);
   return Number.isFinite(low) ? low : 0;
+}
+
+/** Each body as it lies on the bed, the direction that points at it, and the height of the bed it stands on. */
+export interface LaidBody {
+  positions: ArrayLike<number>;
+  normals: ArrayLike<number>;
+  down: Vector3 | undefined;
+  bed: number;
+}
+
+/** The bodies of one piece: the body itself, or every body of its group. */
+const pieceOf = (bodies: readonly PrintCheckBody[], b: number): number[] => {
+  const group = bodies[b]?.group;
+  return group === undefined ? [b] : bodies.flatMap((other, i) => (other.group === group ? [i] : []));
+};
+
+/** The bodies as they lie on the bed: each on its own lowest point and print face, a group as one piece (`group`). */
+export function laidBodies(bodies: readonly PrintCheckBody[]): LaidBody[] {
+  const downs = bodies.map((_, b) => pieceOf(bodies, b).map((i) => (bodies[i] ? printDown(bodies[i]) : undefined)).find(Boolean));
+  const meshes = bodies.map((body, b) => laid(body, downs[b]));
+  const lows = meshes.map((mesh) => bedOf(mesh.positions));
+  return meshes.map((mesh, b) => ({ ...mesh, down: downs[b], bed: Math.min(...pieceOf(bodies, b).map((i) => lows[i] ?? Infinity)) }));
 }
 
 /** A body that fits the build volume in no position on the plate. */
@@ -474,16 +502,19 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
   // A model that carries no count is taken as closed, not dropped from the check.
   const parts = shells.filter((body) => !(body.model.openEdges > 0));
   if (parts.length > 0) {
-    const meshes = parts.map(laid);
-    // Each body against the plate by itself: the slicer places every one, on more plates if need be.
-    parts.forEach((body, b) => {
-      const size = sizeFinding(body.name, meshes[b]?.positions ?? [], profile.bed);
+    const meshes = laidBodies(parts);
+    // Each piece against the plate by itself: the slicer places every one, on more plates if need be.
+    parts.forEach((_, b) => {
+      const piece = pieceOf(parts, b);
+      if (piece[0] !== b) return;
+      const positions = piece.length === 1 ? (meshes[b]?.positions ?? []) : piece.flatMap((i) => Array.from(meshes[i]?.positions ?? []));
+      const size = sizeFinding(piece.map((i) => parts[i]?.name).join(' + ').slice(0, 200), positions, profile.bed);
       if (size) findings.push(size);
     });
 
     // Walls: under two lines they print poorly, under the nozzle width not at all. Floors and lids:
     // under four layers they do not close, under one layer nothing is laid.
-    const thin = parts.map((body) => thinWalls(body, profile));
+    const thin = parts.map((body, b) => thinWalls(body, profile, meshes[b]?.down));
     for (const floor of [false, true]) {
       const kind = thin.map((body) => (floor ? body.floors : body.walls));
       const found = locate(parts, kind.map((body) => body.faces), MIN_AREA);
@@ -494,24 +525,27 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       findings.push({ kind: 'thinWall', severity: unprintable >= BLOCK_THIN_AREA ? 'block' : 'warn', floor, ...layers, thickness: round(found.extreme), minimum, area: round(found.area, 0), places: found.places, box: found.box });
     }
 
-    // Bodies that touch fall apart in the slicer, each laid onto the bed by itself.
+    // Bodies that touch fall apart in the slicer, each laid onto the bed by itself. Bodies printed as one piece stay
+    // together there (audit G1), and where they touch they fuse: a hinge whose lid touches its box does not turn.
     const separate = new Set<string>();
+    const fused = new Set<string>();
     for (let i = 0; i < parts.length; i += 1) {
       for (let j = i + 1; j < parts.length; j += 1) {
         const a = parts[i];
         const b = parts[j];
-        if (a && b && (touches(a, b) || touches(b, a))) {
-          separate.add(a.name);
-          separate.add(b.name);
-        }
+        if (!a || !b || !(touches(a, b) || touches(b, a))) continue;
+        const found = a.group !== undefined && a.group === b.group ? fused : separate;
+        found.add(a.name);
+        found.add(b.name);
       }
     }
     if (separate.size > 0) findings.push({ kind: 'separate', severity: 'warn', bodies: [...separate] });
+    if (fused.size > 0) findings.push({ kind: 'fused', severity: 'warn', bodies: [...fused] });
 
-    // Overhangs by angle and the area on the bed, each body on its own bed.
+    // Overhangs by angle and the area on the bed, each body on the bed of its piece.
     const limits = overhangLimits(profile.overhang);
     const overhang: FaceTally[] = [];
-    const loose: { body: PrintCheckBody; tally: FaceTally; area: number }[] = [];
+    const standing: { tally: FaceTally; area: number }[] = [];
     parts.forEach((body, b) => {
       const { model } = body;
       const geometry = model.geometry;
@@ -526,7 +560,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
           vertexFaces: model.vertexFaces,
           faceCount: model.table.faces.length,
         },
-        bedOf(mesh.positions),
+        mesh.bed,
         limits,
         smallOverhangReach(profile.nozzle),
       );
@@ -544,9 +578,14 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
         overhangTally.area[face] = area;
       });
       overhang.push(overhangTally);
-      // Each body lies on the bed by itself: one with a broad base does not hold another on its edge.
-      const onBed = map.area[Overhang.Bed];
-      if (onBed < MIN_CONTACT) loose.push({ body, tally: contactTally, area: onBed });
+      standing[b] = { tally: contactTally, area: map.area[Overhang.Bed] };
+    });
+    // Each piece lies on the bed by itself: one with a broad base does not hold another on its edge. A group holds as one.
+    const loose: { body: PrintCheckBody; tally: FaceTally; area: number }[] = [];
+    parts.forEach((body, b) => {
+      const tally = standing[b]?.tally;
+      const onBed = pieceOf(parts, b).reduce((sum, i) => sum + (standing[i]?.area ?? 0), 0);
+      if (tally && onBed < MIN_CONTACT) loose.push({ body, tally, area: onBed });
     });
     const steep = locate(parts, overhang, MIN_AREA);
     if (steep.area >= MIN_AREA) {

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { faceTableFromModelFaces, sketchFromInspect, tessellateSketch, type SketchLines } from '@partbuddy/geometry';
 
 import type { Joint, MirroredBody, MirroredSketch, MirrorRevision, Structure } from '../../shared/contract';
+import { TOGETHER_KEY } from '../../shared/mechanisms';
 import { cliBeside, findExecutable, systemEnvironment } from './discovery';
 import { cliReferences, faceCount, faceSteps, sameShape, shapeOf, type PartReference, type ReferenceReader, type ReferenceState } from './partReference';
 import { libraryPartOf, type LibraryPart } from './standardParts';
@@ -71,6 +72,56 @@ export function componentsWithBodies(listing: unknown): { id: number; bodies: st
     .filter((entry) => Number.isInteger(entry.id) && entry.parent !== null && Array.isArray(entry.bodies) && entry.bodies.length > 0)
     .slice(0, 500)
     .map((entry) => ({ id: entry.id as number, bodies: (entry.bodies as unknown[]).filter((name): name is string => typeof name === 'string') }));
+}
+
+/**
+ * The bodies printed as one piece (audit G1): those of two components that a joint of `joint.list` joins and that carry
+ * the same mark of `printTogether` (mechanisms.ts) in their `component.metadata` (`described`, in the order of
+ * `parts`). A mark alone is not enough: a component copied with its metadata, a hinge whose joint was deleted, or one
+ * of the two marks taken back by undo leaves no such joint (review of PR #366, S1, S2, K2). Chains of hinges make one
+ * group. Each group lists its bodies in `order`, the order of the design's bodies, which every consumer keeps.
+ */
+export function printGroupsOf(parts: readonly { id: number; bodies: string[] }[], described: readonly unknown[], listing: unknown, jointListing: unknown, order: readonly string[]): string[][] {
+  const marks = new Map<number, Set<string>>();
+  parts.forEach((part, i) => {
+    const metadata = (described[i] as { metadata?: unknown } | undefined)?.metadata;
+    const keys = typeof metadata === 'object' && metadata !== null ? Object.keys(metadata).filter((key) => key.startsWith(TOGETHER_KEY)) : [];
+    if (keys.length > 0) marks.set(part.id, new Set(keys));
+  });
+  const componentOf = new Map<number, number>();
+  const entries = (listing as { components?: unknown } | undefined)?.components;
+  for (const entry of Array.isArray(entries) ? (entries as { id?: unknown; occurrences?: unknown }[]) : []) {
+    for (const occurrence of Array.isArray(entry.occurrences) ? (entry.occurrences as { id?: unknown }[]) : []) {
+      if (Number.isInteger(occurrence.id) && Number.isInteger(entry.id)) componentOf.set(occurrence.id as number, entry.id as number);
+    }
+  }
+  const bodiesOf = new Map(parts.map((part) => [part.id, part.bodies]));
+  const joints = (jointListing as { joints?: unknown } | undefined)?.joints;
+  let groups: Set<string>[] = [];
+  for (const joint of Array.isArray(joints) ? (joints as { a?: unknown; b?: unknown; suppressed?: unknown }[]) : []) {
+    if (joint.suppressed === true) continue;
+    const [a, b] = [componentOf.get(joint.a as number), componentOf.get(joint.b as number)];
+    if (a === undefined || b === undefined || a === b || ![...(marks.get(a) ?? [])].some((key) => marks.get(b)?.has(key))) continue;
+    const merged = new Set([...(bodiesOf.get(a) ?? []), ...(bodiesOf.get(b) ?? [])]);
+    groups = groups.filter((group) => {
+      if (![...group].some((body) => merged.has(body))) return true;
+      for (const body of group) merged.add(body);
+      return false;
+    });
+    groups.push(merged);
+  }
+  const rank = (body: string) => (order.includes(body) ? order.indexOf(body) : order.length);
+  return groups
+    .filter((group) => group.size > 1)
+    .map((group) => [...group].sort((x, y) => rank(x) - rank(y)).slice(0, 500))
+    .slice(0, 200);
+}
+
+/** `component.metadata` of each component, in the order of `parts`. */
+async function metadataOf(client: ControlRequester, parts: readonly { id: number }[]): Promise<unknown[]> {
+  const described = await client.request<BatchResult>('engine.batch', { commands: parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } })), rollback: false }, 60_000);
+  if (described.failed) throw new Error(`${described.failed.command} failed: ${described.failed.error}`);
+  return described.results;
 }
 
 /** What telling standard parts needs besides the engine: the log, and SolidCraft's own build of each part. */
@@ -215,7 +266,7 @@ async function libraryOfEngine(client: ControlRequester, log: (message: string) 
  * printed, with a line in the log: a screw in the print check shows, a printed part left out of it
  * does not. Only a design with components holding bodies costs requests.
  */
-export async function boughtParts(client: ControlRequester, listing: unknown, checks: PartChecks): Promise<ToldParts> {
+export async function boughtParts(client: ControlRequester, listing: unknown, checks: PartChecks, read?: readonly unknown[]): Promise<ToldParts> {
   const none: ToldParts = { bought: [], pending: [], unchecked: [], unverified: [] };
   const parts = componentsWithBodies(listing);
   if (parts.length === 0) return none;
@@ -223,13 +274,9 @@ export async function boughtParts(client: ControlRequester, listing: unknown, ch
     const library = await libraryOfEngine(client, checks.log);
     // Without the library no body can be taken for a part, so every body is a printed one: nothing is left unchecked.
     if (!library) return none;
-    const described = await client.request<BatchResult>(
-      'engine.batch',
-      { commands: parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } })), rollback: false },
-      60_000,
-    );
-    if (described.failed) throw new Error(`${described.failed.command} failed: ${described.failed.error}`);
-    const candidates = partCandidates(parts, described.results, library, checks.log);
+    // The metadata the mirror read already for the marks of parts printed together, or read here.
+    const described = read ?? (await metadataOf(client, parts));
+    const candidates = partCandidates(parts, described, library, checks.log);
     if (candidates.length === 0) return none;
     const references = await checks.references(candidates);
     const measured = await client.request<BatchResult>(
@@ -505,7 +552,17 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
     }
     const tail = 1 + bodies.length * 2 + sketches.length;
     const joints = jointsOf(batch.results[tail + 2], batch.results[tail]);
-    const told = await boughtParts(client, batch.results[tail], checks);
+    // Parts are printed together only where a hinge joins them, so the marks are read only in a design with joints, and
+    // that one read serves the standard parts too (review of PR #366, K8). A read that fails leaves every body on its own bed.
+    const parts = componentsWithBodies(batch.results[tail]);
+    const described = joints.length > 0 && parts.length > 1
+      ? await metadataOf(client, parts).catch((error: unknown) => {
+          checks.log(`parts printed together could not be read (${(error as Error).message}); each body is checked on its own bed`);
+          return undefined;
+        })
+      : undefined;
+    const told = await boughtParts(client, batch.results[tail], checks, described);
+    const printGroups = described ? printGroupsOf(parts, described, batch.results[tail], batch.results[tail + 2], bodies) : [];
     const standardParts = told.bought.map((part) => part.body).slice(0, 500);
     const pendingParts = told.pending.slice(0, 500);
     const structure = withColours({ ...structureOf(inspect), standardParts, ...(pendingParts.length > 0 ? { pendingParts } : {}) }, batch.results[tail + 1]);
@@ -522,7 +579,7 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
       designName,
       bodies: mirrored,
       sketches: mirrorSketches(batch.results.slice(1 + bodies.length * 2), sketches),
-      structure: joints.length > 0 ? { ...structure, joints } : structure,
+      structure: { ...structure, ...(joints.length > 0 ? { joints } : {}), ...(printGroups.length > 0 ? { printGroups } : {}) },
       history: { undo: count(inspect.undo), redo: count(inspect.redo) },
       mirrorMs: Math.round(performance.now() - started),
     };

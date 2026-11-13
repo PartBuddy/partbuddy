@@ -132,7 +132,7 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
   }
   if (METADATA_WRITES.has(command) && metadataKeys(params).some((key) => key.toLowerCase().startsWith(METADATA_PREFIX))) {
     return refuse(
-      `${command} would change PartBuddy's notes; only the user writes notes. Read them with partbuddy_view and continue without it.`,
+      `${command} would change PartBuddy's own data in the design: the user's notes, or which parts print as one piece, which partbuddy_mechanism marks. Only the user writes notes; read them with partbuddy_view and continue without it.`,
     );
   }
   // A component's description is how PartBuddy tells a part SolidCraft's library put in (mirror.ts); written by

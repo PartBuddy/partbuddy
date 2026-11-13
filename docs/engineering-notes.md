@@ -210,6 +210,22 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   the hole and shallower than it"); a countersink deeper than the hole is built.
 - `model.faces` names the wall of a `solid.hole` `F<n>:bore:side:0`; a hole that breaks out of a side
   leaves `…#1`, `…#2`. A `solid.cylinder` cut is `F<n>:side`.
+- Checked 2026-11-13 (audit G1): `component.metadata.set {component, values: {"<reverse-DNS key>": {…}}}`
+  keeps the object on the component, one undo step (undo and redo take it away and back), and it is in the
+  saved `.sc` when the design is opened again. `component.list` does not show it; `component.metadata` does.
+- `file.export` 3MF with `objects: component` makes one object of the bodies of one component only. Two
+  components joined by a joint stay two objects, side by side under the root or both under a parent
+  component; a joint needs two occurrences, so a print-in-place hinge always leaves as two objects.
+- Bambu Studio (`bambu-studio.exe --outputdir <dir> --export-3mf out.3mf <file>`, no window when started hidden,
+  `result.json` beside it) loads such a 3MF as two objects, each dropped onto the bed and placed apart: the lid of the
+  audit's hinge came down 22 mm into the box's knuckles. One object whose `components` point at the two mesh objects
+  (identity transforms) it loads as one object with two parts, their offsets equal to the design to 1e-7 mm, the lowest
+  point of the two on the bed; an item `transform` on it (a print face laid down) is kept. An STL of both bodies is
+  one object with one part, as designed.
+- It names those parts `<object name> + _2` unless `Metadata/model_settings.config` names them:
+  `<config><object id="<the components object>"><metadata key="name" value="…"/><part id="<mesh object id>"
+  subtype="normal_part"><metadata key="name" value="Box"/></part>…</object></config>` is read from a 3MF of
+  another application too (checked 2026-11-13 with the German hinged box: parts "Box" and "Deckel").
 
 ## SolidCraft 0.40.0-rc.4 (checked 2026-11-11)
 

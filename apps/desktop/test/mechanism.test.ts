@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import { activated, screwStock, hingeOf, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
+import { METADATA_PREFIX } from '../src/main/notes/noteRecord';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, TOGETHER_KEY, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -129,11 +130,18 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
       'inspect.interference',
       'component.list',
       'component.from_bodies component.list',
-      'joint.as_built',
+      'joint.as_built component.metadata.set component.metadata.set',
       'joint.sweep joint.sweep',
       'joint.limits',
     ]);
     expect(batches[7]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
+    // Audit 2026-11-12, G1: the hinge prints in place, so both components carry one mark (a label of their own) that the
+    // print check and the plate view stand them on one bed by.
+    const [base, flap] = [batches[7]?.[1]?.params, batches[7]?.[2]?.params] as { component: number; values: Record<string, unknown> }[];
+    expect([base?.component, flap?.component]).toEqual([3, 5]);
+    expect(Object.keys(base?.values ?? {})).toEqual(Object.keys(flap?.values ?? {}));
+    expect(Object.entries(base?.values ?? {})).toEqual([[expect.stringMatching(/^io.github.manuelstaggl.partbuddy.together.[0-9a-f]{8}$/), { joint: 'Lid hinge' }]]);
+    expect(TOGETHER_KEY.startsWith(METADATA_PREFIX)).toBe(true);
     expect(batches[9]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
 
     // Webs: with the line 16 mm above the bed and 2.5 mm from either wall, every knuckle gets a profile from where the barrel leans
@@ -509,6 +517,9 @@ describe('the dovetail guide (ADR 0027, G3)', () => {
     expect(high.text).toContain("The two print apart, each with up pointing up, and Carriage is then pushed onto the rail from an end. Neither needs support: the rail's flanks and the roof over the groove lean 45°, and the roof's ridge is a bridge of 5 mm.");
     // The body is measured before the first step is built.
     expect(high.sent.indexOf('inspect.measure')).toBeLessThan(high.sent.indexOf('sketch.create'));
+    // The two print apart (audit G1, counter-check): no mark that would stand them on one bed.
+    expect(high.sent).toContain('joint.as_built');
+    expect(high.sent).not.toContain('component.metadata.set');
     // Lower than that the ceiling stays flat, and the answer says what that means instead of "without support".
     const low = await answer(8.5);
     expect(low.groove).toHaveLength(6);

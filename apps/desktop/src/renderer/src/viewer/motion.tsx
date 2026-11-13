@@ -12,7 +12,8 @@ import type { NestRequest, NestResponse } from '../workers/nest.worker';
 import { suggestAssembly, type PartBox } from './assemblyOrder';
 import { activeStep, explodeAlong, playbackPoses, type Box } from './explode';
 import { jointPoses } from './jointPose';
-import type { NestResult, Vec2 } from './nesting';
+import type { NestResult } from './nesting';
+import { platePieces } from './platePieces';
 import type { ViewerColors } from './useTokenColors';
 import { requestShadow } from './SceneLook';
 
@@ -39,7 +40,7 @@ export const REST: Pose = { position: [0, 0, 0], quaternion: [0, 0, 0, 1], visib
 /** Seconds per assembly step in the playback. */
 export const STEP_SECONDS = 1.6;
 /** Plate layout: gap between parts and to the bed edge (mm), turns tried per part. */
-const PLATE = { spacing: 5, margin: 6, rotations: 24, maxPoints: 4000 };
+const PLATE = { spacing: 5, margin: 6, rotations: 24 };
 
 function boxOf(body: BodyModel): Box {
   const box = new Box3().setFromBufferAttribute(body.model.geometry.getAttribute('position') as BufferAttribute);
@@ -113,26 +114,6 @@ export function useProjectViewData(): void {
   );
 }
 
-/** How each body is turned to lie on its print face (or as designed), with its footprint and height that way. */
-function plateInput(body: BodyModel, face: string | undefined): { quaternion: Quaternion; points: Vec2[]; floor: number; height: number } {
-  const normal = face ? body.model.table.faces.find((entry) => entry.name === face)?.planeNormal : undefined;
-  const quaternion = normal ? new Quaternion().setFromUnitVectors(new Vector3(...normal).normalize(), new Vector3(0, 0, -1)) : new Quaternion();
-  const positions = (body.model.geometry.getAttribute('position') as BufferAttribute).array;
-  const count = positions.length / 3;
-  const stride = Math.max(1, Math.floor(count / PLATE.maxPoints));
-  const points: Vec2[] = [];
-  let floor = Infinity;
-  let top = -Infinity;
-  const v = new Vector3();
-  for (let i = 0; i < count; i += 1) {
-    v.set(positions[i * 3] ?? 0, positions[i * 3 + 1] ?? 0, positions[i * 3 + 2] ?? 0).applyQuaternion(quaternion);
-    floor = Math.min(floor, v.z);
-    top = Math.max(top, v.z);
-    if (i % stride === 0) points.push([v.x, v.y]);
-  }
-  return { quaternion, points, floor, height: top - floor };
-}
-
 export interface PlateLayout {
   status: 'computing' | 'ready' | 'error';
   /** The input the layout was worked out for; another input means a new one is on its way. */
@@ -147,12 +128,9 @@ const COMPUTING: PlateLayout = { status: 'computing', result: null, poses: new M
 export function usePlateLayout(bodies: BodyModel[], open: boolean, bed: [number, number, number] | null): PlateLayout {
   const faces = useStudio((s) => s.printFaces);
   const standard = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.standardParts : undefined));
+  const groups = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.printGroups : undefined));
   const [layout, setLayout] = useState<PlateLayout>({ status: 'computing', result: null, poses: new Map() });
-  // Standard parts (screws, nuts) are bought, not printed: they stay off the plate.
-  const inputs = useMemo(
-    () => (open ? bodies.filter((body) => !standard?.includes(body.name)).map((body) => ({ name: body.name, ...plateInput(body, faces[body.name]) })) : []),
-    [bodies, faces, open, standard],
-  );
+  const inputs = useMemo(() => (open ? platePieces(bodies, groups ?? [], faces, standard) : []), [bodies, faces, groups, open, standard]);
   useEffect(() => {
     if (!open || !bed || inputs.length === 0) return;
     const worker = new Worker(new URL('../workers/nest.worker.ts', import.meta.url), { type: 'module' });
@@ -168,10 +146,12 @@ export function usePlateLayout(bodies: BodyModel[], open: boolean, bed: [number,
       for (const placement of response.result.placements) {
         const input = inputs.find((entry) => entry.name === placement.id);
         if (!input) continue;
-        const turn = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), placement.angle);
-        poses.set(placement.id, { position: [placement.x, placement.y, -input.floor], quaternion: turn.multiply(input.quaternion), plate: placement.plate });
+        const turn = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), placement.angle).multiply(input.quaternion);
+        for (const member of input.members) poses.set(member, { position: [placement.x, placement.y, -input.floor], quaternion: turn.clone(), plate: placement.plate });
       }
-      setLayout({ status: 'ready', result: response.result, poses, input: inputs });
+      // A part that does not fit is each of its bodies, so the view marks them all.
+      const misfits = response.result.misfits.flatMap((misfit) => (inputs.find((entry) => entry.name === misfit.id)?.members ?? [misfit.id]).map((id) => ({ ...misfit, id })));
+      setLayout({ status: 'ready', result: { ...response.result, misfits }, poses, input: inputs });
     };
     worker.onerror = (event) => {
       console.warn(`plate layout failed: ${event.message}`);
