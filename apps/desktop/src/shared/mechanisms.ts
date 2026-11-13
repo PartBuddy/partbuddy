@@ -658,19 +658,30 @@ export function screwWindow(spec: ScrewSpec): { least: number; most: number; thr
  * The screw to buy and how much deeper its head sits than the counterbore or countersink would put it (audit T17, W20:
  * at many thicknesses no standard length ended in the insert, and no screw went in). The longest standard length that
  * ends inside the insert or thread and holds at least `engage` of it; where none does, the next shorter one, with the
- * head sunk deeper by what it lacks, as long as the plastic under the head stays. Null when neither fits: a head lying on
- * the face cannot sink.
+ * head sunk deeper by what it lacks (`screwSink`), at most `sinkMost` and as long as the plastic under the head stays.
+ * Null when neither fits: a head lying on the face cannot sink.
  */
 export function screwFit(spec: ScrewSpec): { length: number; sink: number } | null {
   const { least, most } = screwWindow(spec);
-  const lengths = screwLengths(spec);
-  const fits = lengths.filter((length) => length >= least - 1e-9 && length <= most + 1e-9);
+  const fits = screwLengths(spec).filter((length) => length >= least - 1e-9 && length <= most + 1e-9);
   const longest = fits.at(-1);
   if (longest !== undefined) return { length: longest, sink: 0 };
-  const shorter = lengths.filter((length) => length < least).at(-1);
-  if (spec.head === 'none' || shorter === undefined) return null;
-  const sink = Math.ceil((least - shorter) * 100 - 1e-6) / 100;
-  return round(grip(spec) - headDepth(spec) - sink) >= underHead(spec.nozzle) ? { length: shorter, sink } : null;
+  const sunk = spec.head === 'none' ? null : screwSink(spec);
+  if (!sunk || sunk.sink > sinkMost(spec.size) + 1e-9) return null;
+  return round(grip(spec) - headDepth(spec) - sunk.sink) >= underHead(spec.nozzle) ? sunk : null;
+}
+
+/**
+ * How much deeper a head may sink for a standard length: one diameter, so a counterbore stays within twice the head's
+ * height (ISO 4762: k = d) and the key still reaches the head (review of BC-07: M2 through 60 mm sank 40.27 mm).
+ */
+export const sinkMost = (size: BlockSize) => metric(size);
+
+/** The next standard length shorter than the screw must reach, and how much deeper the head must sink for it; null where there is none. */
+export function screwSink(spec: ScrewSpec): { length: number; sink: number } | null {
+  const { least } = screwWindow(spec);
+  const shorter = screwLengths(spec).filter((length) => length < least).at(-1);
+  return shorter === undefined ? null : { length: shorter, sink: Math.ceil((least - shorter) * 100 - 1e-6) / 100 };
 }
 
 /** What is wrong with a screw joint before anything is built; null when it can be built. */

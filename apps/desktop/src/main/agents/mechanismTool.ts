@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { LID, LIP, WEB, hangs, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSteps, screwWindow, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { LID, LIP, WEB, hangs, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { BRIDGE_SPAN } from '@partbuddy/geometry';
 
@@ -23,6 +23,8 @@ const vector = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems
 /** The wall a screw lid's neck keeps at least, under the thread (mm); `neckTrial` measures it at `NECK_POINTS` points round the axis. */
 export const NECK_WALL = 2;
 const NECK_POINTS = 8;
+/** mm³ the lid's room may hold beside the neck: SolidCraft gives these volumes to nine digits (rodsInside), so more is plastic. */
+const NECK_SLACK = 0.01;
 
 const mechanismTool: UpstreamTool = {
   name: MECHANISM_TOOL,
@@ -543,20 +545,28 @@ export async function roomDepths(upstream: UpstreamTools, spec: HingeSpec, callI
 
 /** How thick a trial rod is (mm). */
 const ROD = 0.2;
+/**
+ * `inspect.clearance` answers at most 25 overlaps and says nothing of the rest (SolidCraft 0.40.1, measured 2026-11-13:
+ * 34 probes against one body gave 25, `truncated: false`; review of BC-07). The rods are compared in groups that stay under it.
+ */
+const OVERLAPS_MOST = 25;
 
 /**
  * Thin rods along a line, tried in the design and taken back like the rod of `roomDepths`: for each, the share of it
  * (0 to 1) that lies inside `body`. A rod wholly in the body says there is material all along that line.
  */
-async function rodsInside(upstream: UpstreamTools, rods: { name: string; base: number[]; body: string; axis?: number[]; length?: number }[], axis: number[], length: number, callId: string | undefined): Promise<Map<string, number>> {
+async function rodsInside(upstream: UpstreamTools, rods: { name: string; base: number[]; body: string; axis?: number[]; length?: number; diameter?: number }[], axis: number[], length: number, callId: string | undefined): Promise<Map<string, number>> {
   const shares = new Map<string, number>();
   if (rods.length === 0 || rods.some((rod) => (rod.length ?? length) <= 0)) return shares;
+  const against = [...new Set(rods.map((rod) => rod.body))];
+  const size = Math.max(1, Math.floor((OVERLAPS_MOST - 1) / against.length));
+  const groups = Array.from({ length: Math.ceil(rods.length / size) }, (_, g) => rods.slice(g * size, (g + 1) * size));
   const answer = await upstream.callTool(
     'batch',
     {
       commands: [
-        ...rods.map((rod) => ({ command: 'solid.cylinder', params: { diameter: ROD, height: rod.length ?? length, base: rod.base, axis: rod.axis ?? axis, operation: 'new', body_name: rod.name } })),
-        { command: 'inspect.clearance', params: { bodies: rods.map((rod) => rod.name), against: [...new Set(rods.map((rod) => rod.body))], min_volume: 0 } },
+        ...rods.map((rod) => ({ command: 'solid.cylinder', params: { diameter: rod.diameter ?? ROD, height: rod.length ?? length, base: rod.base, axis: rod.axis ?? axis, operation: 'new', body_name: rod.name } })),
+        ...groups.map((group) => ({ command: 'inspect.clearance', params: { bodies: group.map((rod) => rod.name), against, min_volume: 0 } })),
         { command: 'sketch.inspect', params: { sketch: 2147483647 } },
       ],
       rollback: true,
@@ -564,13 +574,16 @@ async function rodsInside(upstream: UpstreamTools, rods: { name: string; base: n
     callId,
   );
   const text = answer.content.find((part) => part.type === 'text')?.text;
-  const found = ((JSON.parse(typeof text === 'string' ? text : '') as { results?: unknown[] }).results?.[rods.length] as { overlaps?: unknown } | undefined)?.overlaps;
-  // A rod or the comparison that failed ends the batch before its answer: that says nothing about the body.
-  if (!Array.isArray(found)) throw new Error('the trial gave no answer');
+  const results = (JSON.parse(typeof text === 'string' ? text : '') as { results?: unknown[] }).results ?? [];
+  const answers = groups.map((_, g) => (results[rods.length + g] as { overlaps?: unknown } | undefined)?.overlaps);
+  // A rod or the comparison that failed ends the batch before its answer: that says nothing about the body. Nor does a
+  // group whose answer stops at the cap.
+  if (answers.some((overlaps) => !Array.isArray(overlaps) || overlaps.length >= OVERLAPS_MOST)) throw new Error('the trial gave no answer');
+  const found = answers.flat<unknown[]>();
   // Measured on SolidCraft 0.40.1 (2026-11-12): a rod wholly in a body of 30, 100 and 300 mm comes back with this
   // volume to nine digits, and one through a 1.5 mm gap with 1.500 mm less.
   for (const rod of rods) {
-    const whole = (Math.PI * ROD * ROD * (rod.length ?? length)) / 4;
+    const whole = (Math.PI * (rod.diameter ?? ROD) ** 2 * (rod.length ?? length)) / 4;
     const inside = (found as { a?: unknown; b?: unknown; volume_mm3?: unknown }[]).find((pair) => [pair.a, pair.b].includes(rod.name) && [pair.a, pair.b].includes(rod.body))?.volume_mm3;
     shares.set(rod.name, typeof inside === 'number' ? inside / whole : 0);
   }
@@ -664,39 +677,59 @@ export async function closureTrial(upstream: UpstreamTools, spec: LipSpec, nozzl
  * The neck of a screw lid tried before anything is built (audit W22, N-mechanik-9): the thread is coiled onto the
  * diameter given, so a neck that is narrower left it in the air, a wider one or one off the centre stood in the lid, and
  * a jar shorter than the lid's skirt took the thread below its floor, all built and called fine. Upright rods at
- * `NECK_POINTS` points round the axis, over the top `lidSkirt` mm: one 0.15 mm inside the diameter and one at the depth of the
- * least wall must lie in the container, one 0.15 mm outside it must find none, and one over the rim, where the lid's
- * top comes, none either. So the neck is round and centred within 0.05 mm and its diameter within 0.1 mm. Returns what is
- * wrong, or null; throws when the trial gave no answer.
+ * `NECK_POINTS` points round the axis, from the lid's mouth up to the plain band at the top (`LID.plain`), so a
+ * chamfer or a round on the rim's edges passes (review of BC-07): one 0.15 mm inside the diameter and one at the depth of
+ * the least wall must lie in the container, one 0.15 mm outside it must find none. So the neck is round and centred
+ * within 0.05 mm and its diameter within 0.1 mm. The rim's height is tried in the middle of the least wall, which such an
+ * edge does not reach; and the room the lid takes, as wide as the lid from its mouth to its top, must hold nothing of
+ * the container but the neck: no collar, no handle, no rim higher than `from`. Returns what is wrong, or null; throws
+ * when the trial gave no answer.
  */
 export async function neckTrial(upstream: UpstreamTools, spec: LidSpec, callId: string | undefined): Promise<string | null> {
   const skirt = lidSkirt(spec);
+  const thread = lidThread(spec);
   const radius = spec.diameter / 2;
+  const outer = radius + thread.depth + spec.gap + LID.wall;
   const [cx, cy, rim] = spec.centre;
-  const rings = { inside: radius - 0.15, wall: radius - NECK_WALL + ROD / 2, outside: radius + 0.15, over: radius - NECK_WALL / 2 };
-  const rods = Object.entries(rings).flatMap(([ring, at]) =>
+  const mouth = rim - skirt;
+  const rings = [
+    { ring: 'inside', at: radius - 0.15, z: mouth, length: skirt - LID.plain },
+    { ring: 'wall', at: radius - NECK_WALL + ROD / 2, z: mouth, length: skirt - LID.plain },
+    { ring: 'outside', at: radius + 0.15, z: mouth, length: skirt - LID.plain },
+    { ring: 'rim', at: radius - NECK_WALL / 2, z: rim - LID.plain, length: LID.plain },
+  ];
+  const rods = rings.flatMap(({ ring, at, z, length }) =>
     Array.from({ length: NECK_POINTS }, (_, k) => {
-      const angle = (2 * k * Math.PI) / NECK_POINTS;
-      const over = ring === 'over';
-      return { name: `${PROBE} ${ring} ${String(k)}`, base: [round2(cx + at * Math.cos(angle)), round2(cy + at * Math.sin(angle)), over ? rim + 0.05 : rim - skirt], body: spec.fixed, length: over ? LID.top : skirt, ring };
+      // Half a step off the axes: a rod wholly inside the wall on the seam of the jar's cylinder (at +Y) came back with no
+      // plastic at all (SolidCraft 0.40.1, measured 2026-11-13: inspect.clearance and inspect.interference both said 0).
+      // shortcut: a seam elsewhere, as a revolved neck may have, can still hide one rod; report it to SolidCraft and drop this then.
+      const angle = ((2 * k + 1) * Math.PI) / NECK_POINTS;
+      return { name: `${PROBE} ${ring} ${String(k)}`, base: [round2(cx + at * Math.cos(angle)), round2(cy + at * Math.sin(angle)), round2(z)], body: spec.fixed, length: round2(length), ring };
     }),
   );
-  const shares = await rodsInside(upstream, rods, [0, 0, 1], skirt, callId);
+  // The lid's room and the neck's, on the axis: what lies in the first and not in the second stands where the lid comes.
+  const room = { name: `${PROBE} lid`, base: [cx, cy, round2(mouth)], body: spec.fixed, length: round2(skirt + LID.top), diameter: round2(2 * outer) };
+  const neck = { name: `${PROBE} neck`, base: [cx, cy, round2(mouth)], body: spec.fixed, length: round2(skirt), diameter: round2(2 * (radius + 0.15)) };
+  const shares = await rodsInside(upstream, [...rods, room, neck], [0, 0, 1], skirt, callId);
   // Of each ring: at how many of its points it found what it must not, and the plastic in the worst rod, in mm.
   const worst = (ring: string, want: 'in' | 'out') => {
-    const found = rods.filter((rod) => rod.ring === ring).map((rod) => (shares.get(rod.name) ?? 0) * rod.length);
-    const bad = found.filter((mm) => (want === 'in' ? mm < skirt - 0.05 : mm > 0.05));
-    return { count: bad.length, mm: round2(want === 'in' ? Math.min(...found) : Math.max(...found)) };
+    const found = rods.filter((rod) => rod.ring === ring).map((rod) => ({ mm: (shares.get(rod.name) ?? 0) * rod.length, length: rod.length }));
+    const bad = found.filter(({ mm, length }) => (want === 'in' ? mm < length - 0.05 : mm > 0.05));
+    return { count: bad.length, mm: round2(want === 'in' ? Math.min(...found.map(({ mm }) => mm)) : Math.max(...found.map(({ mm }) => mm))) };
   };
-  const where = `round [${String(round2(cx))}, ${String(round2(cy))}] over the top ${String(skirt)} mm below the rim at z ${String(round2(rim))}`;
+  const points = String(NECK_POINTS);
+  const where = `round [${String(round2(cx))}, ${String(round2(cy))}] from ${String(skirt)} to ${String(LID.plain)} mm below the rim at z ${String(round2(rim))}`;
   const inside = worst('inside', 'in');
-  if (inside.count > 0) return `the neck of ${spec.fixed} is not a cylinder of ${String(spec.diameter)} mm ${where}: just inside that diameter ${String(inside.count)} of ${String(NECK_POINTS)} points round it have no plastic all the way down (the least ${String(inside.mm)} mm). The neck is narrower, off centre, shorter than the lid's skirt or not upright, or its rim lies lower than from; give from as the centre of the rim at its height and diameter as the neck's outer diameter, or make the neck plain and ${String(skirt)} mm long`;
+  if (inside.count > 0) return `the neck of ${spec.fixed} is not a cylinder of ${String(spec.diameter)} mm ${where}: just inside that diameter ${String(inside.count)} of ${points} points round it have no plastic all the way (the least ${String(inside.mm)} of ${String(round2(skirt - LID.plain))} mm). The neck is narrower, off centre, shorter than the lid's skirt or not upright, or its rim lies lower than from; give from as the centre of the rim at its height and diameter as the neck's outer diameter, or make the neck plain and ${String(skirt)} mm long`;
   const outside = worst('outside', 'out');
-  if (outside.count > 0) return `the neck of ${spec.fixed} is not a cylinder of ${String(spec.diameter)} mm ${where}: just outside that diameter ${String(outside.count)} of ${String(NECK_POINTS)} points round it meet plastic of ${spec.fixed} (up to ${String(outside.mm)} mm), where the lid's thread would stand. The neck is wider or off centre, or something stands beside it within the lid's reach`;
+  if (outside.count > 0) return `the neck of ${spec.fixed} is not a cylinder of ${String(spec.diameter)} mm ${where}: just outside that diameter ${String(outside.count)} of ${points} points round it meet plastic of ${spec.fixed} (up to ${String(outside.mm)} mm), where the lid's thread would stand. The neck is wider or off centre, or something joins it there: a collar or a shoulder`;
   const wall = worst('wall', 'in');
-  if (wall.count > 0) return `the neck of ${spec.fixed} is under ${String(NECK_WALL)} mm thick ${where} at ${String(wall.count)} of ${String(NECK_POINTS)} points round it; make its wall at least ${String(NECK_WALL)} mm, so it carries the thread`;
-  const over = worst('over', 'out');
-  if (over.count > 0) return `${spec.fixed} reaches above its rim at z ${String(round2(rim))} at ${String(over.count)} of ${String(NECK_POINTS)} points (up to ${String(over.mm)} mm), where the lid's top comes; give from as the centre of the rim at its height`;
+  if (wall.count > 0) return `the neck of ${spec.fixed} is under ${String(NECK_WALL)} mm thick ${where} at ${String(wall.count)} of ${points} points round it; make its wall at least ${String(NECK_WALL)} mm, so it carries the thread`;
+  const low = worst('rim', 'in');
+  if (low.count > 0) return `the rim of ${spec.fixed} lies lower than z ${String(round2(rim))} at ${String(low.count)} of ${points} points round it (the least ${String(low.mm)} of the top ${String(LID.plain)} mm are plastic); give from as the centre of the rim at its height`;
+  const volume = (probe: { name: string; length: number; diameter: number }) => (shares.get(probe.name) ?? 0) * ((Math.PI * probe.diameter ** 2) / 4) * probe.length;
+  const extra = round2(volume(room) - volume(neck));
+  if (extra > NECK_SLACK) return `${spec.fixed} has ${String(extra)} mm³ of plastic beside its neck where the lid comes, within ${String(round2(2 * outer))} mm from ${String(skirt)} mm below the rim to ${String(LID.top)} mm above it: a collar, a handle or a shoulder stands there, or the rim lies higher than from. Keep that room free, or give from as the centre of the rim at its height`;
   return null;
 }
 
@@ -885,10 +918,10 @@ export function screwStock(spec: ScrewSpec): { moving: Stock[]; fixed: Stock[] }
 function unfit(spec: ScrewSpec): string {
   const { least, most, through } = screwWindow(spec);
   const lengths = screwLengths(spec);
-  const [shorter, longer] = [lengths.filter((length) => length < least).at(-1), lengths.find((length) => length > most)];
+  const [shorter, longer] = [screwSink(spec), lengths.find((length) => length > most)];
   const held = spec.thread === 'insert' ? 'insert' : 'thread';
   const said = [
-    shorter === undefined ? null : `${spec.size}×${String(shorter)} holds only ${String(round2(Math.max(0, shorter - through)))} mm of the ${held}, where ${String(round2(least - through))} are needed${spec.head === 'none' ? '' : `, and sinking the head ${String(round2(least - shorter))} mm deeper would leave too little plastic under it`}`,
+    shorter === null ? null : `${spec.size}×${String(shorter.length)} holds only ${String(round2(Math.max(0, shorter.length - through)))} mm of the ${held}, where ${String(round2(least - through))} are needed${spec.head === 'none' ? '' : shorter.sink > sinkMost(spec.size) ? `, and its head would have to sink ${String(shorter.sink)} mm deeper, more than the ${String(sinkMost(spec.size))} mm (one diameter) a head may` : `, and sinking the head ${String(shorter.sink)} mm deeper would leave too little plastic under it`}`,
     longer === undefined ? null : `${spec.size}×${String(longer)} reaches ${String(round2(longer - most))} mm past the ${held}`,
   ].filter((part) => part !== null);
   return `No standard ${spec.size} screw length (${lengths.length > 0 ? `${String(lengths[0])} to ${String(lengths.at(-1))} mm` : 'none in the table'}) ends inside the ${held} at this thickness${said.length > 0 ? `: ${said.join('; ')}` : ''}`;
@@ -1015,10 +1048,11 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     const stock = screwStock(spec);
     const recess = headRecess(spec);
     const room = spec.head === 'cap' ? 'counterbore' : 'countersink';
+    const sink = screwFit(spec)?.sink ?? 0;
     const measured = { all: true, fell: 0 };
     const warnings = await build(site, spec, screwSteps(spec), `Give from on the outer face of ${spec.moving} and to on the face where it meets ${spec.fixed}.`, false, async () => {
       for (const [body, rooms, need] of [
-        [spec.moving, stock.moving, `the ${room} for the head is ${String(recess?.diameter)} mm wide and must lie wholly inside ${spec.moving}: move the screw at least ${String(round2((recess?.diameter ?? 0) / 2))} mm away from its edges and other cuts, or use head none`],
+        [spec.moving, stock.moving, `the ${room} for the head is ${String(recess?.diameter)} mm wide${sink > 0 ? ` and ${String(recess?.depth)} mm deep, sunk ${String(sink)} mm deeper so that a standard length fits,` : ''} and must lie wholly inside ${spec.moving}: move the screw at least ${String(round2((recess?.diameter ?? 0) / 2))} mm away from its edges and other cuts, or use head none`],
         [spec.fixed, stock.fixed, `the seat of an ${spec.size} insert needs ${String(seatWall(spec.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it. Thicken ${spec.fixed} there, move the screw away from edges and other cuts, or put a boss there`],
       ] as const) {
         if (rooms.length === 0) continue;

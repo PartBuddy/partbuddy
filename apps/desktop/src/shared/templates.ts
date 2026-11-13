@@ -168,6 +168,12 @@ function slideStop(): Step[] {
   ];
 }
 
+/** How far in from its ends the sign's screw holes stand (mm); its words keep 1 mm clear of them. */
+const SIGN_HOLE_IN = 6;
+/** What of the sign's length its words may not take: both holes and 1 mm beside each (audit T56). */
+const SIGN_ROOM = Math.round(2 * (SIGN_HOLE_IN + CLEARANCE_NORMAL.M3 / 2 + 1) * 10) / 10;
+const SIGN_LABEL = `The words on the sign; they must fit between the screw holes, the length less ${String(SIGN_ROOM)} mm: a letter takes about 0.8 times the text height, a capital about 1, a W 1.3`;
+
 /**
  * A sign to screw on: a door, a drawer, a shelf. Its words are a text parameter, so the parameter
  * panel relabels it; the raised letters stay in the middle of the plate.
@@ -177,10 +183,10 @@ function sign(): Step[] {
   return [
     // Measured on SolidCraft 0.40.1 (2026-11-13), Arial bold at 9 mm capitals: "PartBuddy" 62.5 mm, 30 capitals 260.6 mm,
     // "Werkzeug Schublade 3" 136.4 mm, ten W 118.7 mm. Between the screw holes and 1 mm clear of them the words have
-    // length - 17.4 mm.
+    // the length less SIGN_ROOM.
     // shortcut: SolidCraft's expressions cannot measure a text, so nothing refuses words too long; the print check finds
     // letters past the plate or over a hole as an overhang. Fit the height to the words when SolidCraft can measure them.
-    { command: 'parameters.add', params: { name: 'label', expression: 'PartBuddy', unit: 'text', comment: 'The words on the sign; they must fit between the screw holes, the length less 18 mm: a letter takes about 0.8 times the text height, a capital about 1, a W 1.3' } },
+    { command: 'parameters.add', params: { name: 'label', expression: 'PartBuddy', unit: 'text', comment: SIGN_LABEL } },
     parameter('length', '80 mm', 'Length of the sign'),
     parameter('width', '25 mm', 'Width of the sign'),
     parameter('thickness', '3 mm', 'Thickness of the plate'),
@@ -190,7 +196,7 @@ function sign(): Step[] {
     // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
     { command: 'solid.fillet', params: { edges: [[0, 0, 1.5], [length, 0, 1.5], [0, width, 1.5], [length, width, 1.5]], radius: '4 mm', name: 'Outer corners' } },
     { command: 'solid.chamfer', params: { edges: [[length / 2, 0, 0]], distance: '0.6 mm', name: 'Bed chamfer' } },
-    ...(['6 mm', 'length - 6 mm'] as const).map((x, i) => ({
+    ...[`${String(SIGN_HOLE_IN)} mm`, `length - ${String(SIGN_HOLE_IN)} mm`].map((x, i) => ({
       command: 'solid.cylinder',
       params: { diameter: 'screw_hole', height: 'thickness', base: [x, 'width / 2', 0], operation: 'cut', name: `Screw hole ${String(i + 1)}` },
     })),
@@ -282,11 +288,13 @@ function housing(): Step[] {
 
 function wallHolder(): Step[] {
   return [
-    parameter('plate_height', '100 mm', 'Height of the plate on the wall'),
-    parameter('plate_width', '50 mm', 'Width of the holder'),
-    parameter('wall', '6 mm', 'Thickness of plate, floor and lip'),
-    parameter('hook_width', '40 mm', 'Room between plate and lip'),
-    parameter('lip_height', '25 mm', 'Height of the front lip'),
+    // The ranges keep the inner rounds, as large as the wall, inside the floor, the lip and the plate, with the floor's slot
+    // between them (review of BC-07: hook_width 10 and lip_height 10 at a wall of 6 did not build), and both screws above them.
+    parameter('plate_height', '100 mm', 'Height of the plate on the wall [60..200]'),
+    parameter('plate_width', '50 mm', 'Width of the holder [30..150]'),
+    parameter('wall', '6 mm', 'Thickness of plate, floor and lip; the inner corners are rounded by as much [4..8]'),
+    parameter('hook_width', '40 mm', 'Room between plate and lip [30..120]'),
+    parameter('lip_height', '25 mm', 'Height of the front lip [20..60]'),
     parameter('screw_hole', `${String(WALL[4].clearance)} mm`, 'Hole for the wall screws (4 mm wood screws)'),
     parameter('screw_head', `${String(WALL[4].countersink)} mm`, 'Diameter of the countersink for their heads'),
     { command: 'solid.box', params: { length: 'plate_width', width: 'wall', height: 'plate_height', operation: 'new', body_name: 'Wall holder', name: 'Plate' } },
@@ -303,7 +311,8 @@ function wallHolder(): Step[] {
     { command: 'solid.hole', params: { sketch: 'Screw points', diameter: 'screw_hole', type: 'countersink', cs_diameter: 'screw_head', cs_angle: '90 deg', name: 'Countersunk holes' } },
     // Edges by a point on them; SolidCraft follows them when the sizes change. Both inner corners of the hook as round as
     // its wall is thick, as the hook rule asks (audit T29: 2 mm at a wall of 6). The holder prints lying on its side, so the
-    // corners of plate and lip that touch the bed there are chamfered at 45°: a round would start in the air.
+    // corners of plate and lip on that side are chamfered at 45°, where a round would start in the air; those on the far
+    // side (x = plate_width, on top as it prints) are chamfered alike, so both sides look the same.
     { command: 'solid.fillet', params: { edges: [[25, 6, 6], [25, 46, 6]], radius: 'wall', name: 'Inner radius' } },
     { command: 'solid.chamfer', params: { edges: [[0, 3, 100], [50, 3, 100]], distance: '5 mm', name: 'Outer corners' } },
     { command: 'solid.chamfer', params: { edges: [[0, 49, 25], [50, 49, 25]], distance: '3 mm', name: 'Lip corners' } },
@@ -332,8 +341,7 @@ const GERMAN: Record<string, string> = {
   'Holes in the base for 4 mm wood screws': 'Löcher in der Grundplatte für 4-mm-Holzschrauben',
   'Diameter of the counterbore for their heads, so the stop passes over them': 'Durchmesser der Senkung für ihre Köpfe, damit der Anschlag darüber fährt',
   'Hole in the stop for an M4 heat-set insert; its screw clamps the stop on the rail': 'Loch im Anschlag für eine M4-Einschmelzmutter; ihre Schraube klemmt den Anschlag auf der Schiene',
-  'The words on the sign; they must fit between the screw holes, the length less 18 mm: a letter takes about 0.8 times the text height, a capital about 1, a W 1.3':
-    'Der Text auf dem Schild; er muss zwischen die Schraublöcher passen, die Länge weniger 18 mm: ein Buchstabe braucht etwa das 0,8-Fache der Schrifthöhe, ein Großbuchstabe etwa das 1-Fache, ein W das 1,3-Fache',
+  [SIGN_LABEL]: `Der Text auf dem Schild; er muss zwischen die Schraublöcher passen, die Länge weniger ${String(SIGN_ROOM).replace('.', ',')} mm: ein Buchstabe braucht etwa das 0,8-Fache der Schrifthöhe, ein Großbuchstabe etwa das 1-Fache, ein W das 1,3-Fache`,
   'Length of the sign': 'Länge des Schilds',
   'Width of the sign': 'Breite des Schilds',
   'Thickness of the plate': 'Stärke der Platte',
@@ -353,11 +361,11 @@ const GERMAN: Record<string, string> = {
   'Radius of the outer corners of box and lid; rounder, the corners reach the knuckles of the hinge [4..7]': 'Radius der Außenecken von Box und Deckel; runder reichen die Ecken an die Augen des Scharniers [4..7]',
   'Radius of the outer corners of housing and lid': 'Radius der Außenecken von Gehäuse und Deckel',
   'How far the screw ears reach out on the short sides': 'Wie weit die Schraublaschen an den Schmalseiten abstehen',
-  'Height of the plate on the wall': 'Höhe der Platte an der Wand',
-  'Width of the holder': 'Breite des Halters',
-  'Thickness of plate, floor and lip': 'Stärke von Platte, Boden und Rand',
-  'Room between plate and lip': 'Platz zwischen Platte und Rand',
-  'Height of the front lip': 'Höhe des vorderen Rands',
+  'Height of the plate on the wall [60..200]': 'Höhe der Platte an der Wand [60..200]',
+  'Width of the holder [30..150]': 'Breite des Halters [30..150]',
+  'Thickness of plate, floor and lip; the inner corners are rounded by as much [4..8]': 'Stärke von Platte, Boden und Rand; die Innenecken sind ebenso stark gerundet [4..8]',
+  'Room between plate and lip [30..120]': 'Platz zwischen Platte und Rand [30..120]',
+  'Height of the front lip [20..60]': 'Höhe des vorderen Rands [20..60]',
   'Hole for the wall screws (4 mm wood screws)': 'Loch für die Wandschrauben (4-mm-Holzschrauben)',
   'Diameter of the countersink for their heads': 'Durchmesser der Senkung für ihre Köpfe',
 };

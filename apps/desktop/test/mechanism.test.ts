@@ -5,7 +5,7 @@ import { activated, closureTrial, MECHANISM_GUIDANCE, pegStock, screwStock, hing
 import { decide } from '../src/main/agents/policy';
 import { METADATA_PREFIX } from '../src/main/notes/noteRecord';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, TOGETHER_KEY, screwFit, screwLengths, screwWindow, underHead, pegFloor, pegProblem, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, TOGETHER_KEY, screwFit, screwLengths, screwSink, screwWindow, sinkMost, underHead, pegFloor, pegProblem, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -701,11 +701,13 @@ describe('the snap closure of a lid (G3)', () => {
         instructions: () => undefined,
         listTools: () => Promise.resolve([]),
         callTool: (_name, args) => {
-          const commands = args.commands as { command: string; params: { body_name: string; base: number[]; height: number } }[];
+          const commands = args.commands as { command: string; params: { body_name: string; base: number[]; height: number; bodies?: string[] } }[];
           const made = commands.filter((step) => step.command === 'solid.cylinder').map((step) => ({ name: step.params.body_name, base: step.params.base, height: step.params.height }));
           rods.splice(0, rods.length, ...made);
-          const overlaps = made.map((rod) => ({ a: rod.name, b: rod.name.includes('under') ? 'Lid' : 'Box', volume_mm3: ((Math.PI * 0.04) / 4) * rod.height * inside(rod.name) }));
-          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: [...made.map(() => ({})), { overlaps }] }) }] });
+          // Each comparison answers for the rods it names, as SolidCraft does (at most 25 overlaps each).
+          const overlaps = (names: string[]) => made.filter((rod) => names.includes(rod.name)).map((rod) => ({ a: rod.name, b: rod.name.includes('under') ? 'Lid' : 'Box', volume_mm3: ((Math.PI * 0.04) / 4) * rod.height * inside(rod.name) }));
+          const results = commands.filter((step) => step.command !== 'sketch.inspect').map((step) => (step.command === 'inspect.clearance' ? { overlaps: overlaps(step.params.bodies ?? []) } : {}));
+          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
         },
       };
       return closureTrial(upstream, spec, 0.4, undefined);
@@ -837,6 +839,16 @@ describe('the screw joint (standards)', () => {
     expect(screwWindow({ ...joint, size: 'M6', thread: 'tapped', head: 'none', to: [10, 10, 12] })).toMatchObject({ least: 26, most: 29 });
     expect(screwFit({ ...joint, size: 'M6', thread: 'tapped', head: 'none', to: [10, 10, 12] })).toBeNull();
     expect(screwFit({ ...joint, size: 'M6', thread: 'tapped', head: 'none', to: [10, 10, 16] })).toEqual({ length: 25, sink: 0 });
+    // Review of BC-07, S3: a head sinks one diameter at most. M3 through 22.6 mm sinks 3 mm for an M3×20; through 22.65 it
+    // would sink 3.05, and no screw goes in. M2 through 60 mm would have sunk 40.27 mm.
+    expect(sinkMost('M3')).toBe(3);
+    expect(screwFit({ ...joint, to: [10, 10, 3.4] })).toEqual({ length: 20, sink: 3 });
+    expect(screwFit({ ...joint, to: [10, 10, 3.35] })).toBeNull();
+    expect(screwSink({ ...joint, to: [10, 10, 3.35] })).toEqual({ length: 20, sink: 3.05 });
+    expect(screwFit({ ...joint, size: 'M2', to: [10, 10, -34] })).toBeNull();
+    // Where sinking is short of the plastic under the head: M6 tapped through 7 mm would sink 0.6 mm and leave none.
+    expect(screwSink({ ...joint, size: 'M6', thread: 'tapped', to: [10, 10, 19] })).toEqual({ length: 12, sink: 0.6 });
+    expect(screwFit({ ...joint, size: 'M6', thread: 'tapped', to: [10, 10, 19] })).toBeNull();
   });
 
   it('sinks a countersink as deep as its cone is cut, and keeps two lines of the nozzle under the head (audit T7, MV-07, W19, N-bloecke-7, N-mechanik-18, T61)', () => {
@@ -848,6 +860,7 @@ describe('the screw joint (standards)', () => {
     expect(screwProblem({ ...flat, to: plate(3) })).toContain('leaves 1.04 mm under the countersink');
     // N-bloecke-7: M5 at 4.2 mm said it left 1.2 mm and asked for 4.2; exactly at the bound it is built, and the message agrees.
     expect(screwProblem({ ...flat, size: 'M5', to: plate(4.35) })).toBeNull();
+    expect(screwProblem({ ...flat, size: 'M5', to: plate(4.34) })).toBe('the moving body is 4.34 mm thick there, which leaves 1.19 mm under the countersink; make it at least 4.35 mm thick, or use head none');
     expect(screwProblem({ ...flat, size: 'M5', to: plate(4.2) })).toBe('the moving body is 4.2 mm thick there, which leaves 1.05 mm under the countersink; make it at least 4.35 mm thick, or use head none');
     // N-mechanik-18: 1.2 mm, and two lines from a 0.6 mm nozzle on (1.35 mm), 1.8 on 0.8.
     expect([0.2, 0.25, 0.4, 0.6, 0.8].map((nozzle) => underHead(nozzle))).toEqual([1.2, 1.2, 1.2, 1.35, 1.8]);
@@ -898,6 +911,9 @@ describe('the screw joint (standards)', () => {
     expect(none).toContain('a modelled M6 thread. No standard M6 screw length (10 to 60 mm) ends inside the thread at this thickness: M6×25 holds only 11 mm of the thread, where 12 are needed; M6×30 reaches 1 mm past the thread, so no screws were put in: change the thickness or the size.');
     // N-mechanik-20: the modelled thread's flanks lean 60°, which the print check does not see.
     expect(none).toContain("The thread has ISO's 60° flanks: printed with its axis upright, their undersides lean 60°, more than prints clean, so run an M6 tap through it after printing, or use an insert where the part allows.");
+    // S3: M2 through 60 mm would have sunk its head 40.27 mm; it is said instead.
+    const deep = String((await tools.callTool('partbuddy_mechanism', { kind: 'screw', fixed: 'Block', moving: 'Plate', from: [10, 10, 26], to: [10, 10, -34], size: 'M2' })).content[0]?.text);
+    expect(deep).toContain('No standard M2 screw length (3 to 20 mm) ends inside the insert at this thickness: M2×20 holds only 0 mm of the insert, where 2.67 are needed, and its head would have to sink 40.27 mm deeper, more than the 2 mm (one diameter) a head may, so no screws were put in: change the thickness or the size.');
   });
 
   describe('is built only where the plastic is: 2 mm round each insert, and the room for each head inside the moving body (audit R54)', () => {
@@ -1028,6 +1044,8 @@ describe('the screw joint (standards)', () => {
       const edge = await tools.callTool('partbuddy_mechanism', { ...joint, from: [2.5, 20, 25 - (17.5 * 17.5) / 120] });
       // No standard length ends in the insert along this line, so the counterbore sinks 1.88 mm deeper, and is measured so.
       expect(String(edge.content[0]?.text)).toMatch(/^Not built: at \[2\.5, 20, [\d.]+\] Cover has [\d.]+ mm of plastic where 5\.28 mm are needed \(the mean over a ring from 3\.4 to 6\.7 mm wide/);
+      // Review of BC-07, S3: the refusal names how deep the room for the head has become.
+      expect(String(edge.content[0]?.text)).toContain('the counterbore for the head is 6.7 mm wide and 5.28 mm deep, sunk 1.88 mm deeper so that a standard length fits, and must lie wholly inside Cover');
       expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(false);
     });
   });
@@ -1102,11 +1120,38 @@ describe('the screw lid (standards)', () => {
   });
 
   /**
-   * A jar as SolidCraft answers the neck's trial rods: an upright tube round (cx, cy) from z 0 to `high`, `outer` and
-   * `inner` its radii, and the rods' share in it by where their axis stands (a rod is 0.2 mm thick).
+   * A jar as SolidCraft answers the neck's trial probes: an upright tube round (cx, cy) from z 0 to `high`, `outer` and
+   * `inner` its radii, its rim's outer edge chamfered by `chamfer` and its inner edge rounded by `round` (taken as 45°
+   * too), and a `collar` ring round it. A probe's plastic is summed over its disc: rods on a fine grid, the probes on the
+   * axis ring by ring, with the same rings for both, as SolidCraft's exact volumes would agree.
    */
-  function jar({ outer = 30, inner = 27.6, high = 50, cx = 10, cy = 20 } = {}): { tools: ReturnType<typeof withMechanismTool>; sent: string[] } {
+  function jar({ outer = 30, inner = 27.6, high = 50, cx = 10, cy = 20, chamfer = 0, round = 0, collar }: { outer?: number; inner?: number; high?: number; cx?: number; cy?: number; chamfer?: number; round?: number; collar?: { from: number; to: number; low: number; high: number } } = {}): { tools: ReturnType<typeof withMechanismTool>; sent: string[] } {
     const sent: string[] = [];
+    // The plastic over (x, y) between z0 and z1.
+    const column = (d: number, z0: number, z1: number) => {
+      const top = high - Math.max(0, d - (outer - chamfer)) - Math.max(0, inner + round - d);
+      const tube = d >= inner && d <= outer ? Math.max(0, Math.min(z1, top) - Math.max(z0, 0)) : 0;
+      const ring = collar && d >= collar.from && d <= collar.to ? Math.max(0, Math.min(z1, collar.high) - Math.max(z0, collar.low)) : 0;
+      return tube + ring;
+    };
+    const probe = (params: Record<string, unknown>) => {
+      const [x, y, z] = params.base as number[];
+      const [r, z0] = [Number(params.diameter) / 2, z ?? 0];
+      const z1 = z0 + Number(params.height);
+      if (Math.hypot((x ?? 0) - cx, (y ?? 0) - cy) < 1e-9) {
+        let volume = 0;
+        for (let q = 0.0005; q < r; q += 0.001) volume += 2 * Math.PI * q * 0.001 * column(q, z0, z1);
+        return volume;
+      }
+      let volume = 0;
+      const n = 20;
+      for (let i = 0; i < n; i += 1) for (let j = 0; j < n; j += 1) {
+        const [u, v] = [((i + 0.5) / n) * 2 - 1, ((j + 0.5) / n) * 2 - 1];
+        if (u * u + v * v > 1) continue;
+        volume += ((2 * r) / n) ** 2 * column(Math.hypot((x ?? 0) + u * r - cx, (y ?? 0) + v * r - cy), z0, z1);
+      }
+      return volume * ((Math.PI / 4) / (Array.from({ length: n * n }, (_, k) => [((Math.floor(k / n) + 0.5) / n) * 2 - 1, (((k % n) + 0.5) / n) * 2 - 1]).filter(([u, v]) => (u ?? 0) ** 2 + (v ?? 0) ** 2 <= 1).length / (n * n)));
+    };
     const upstream: UpstreamTools = {
       instructions: () => undefined,
       listTools: () => Promise.resolve([]),
@@ -1114,17 +1159,12 @@ describe('the screw lid (standards)', () => {
         if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Jar' }] }) }] });
         const commands = args.commands as { command: string; params: Record<string, unknown> }[];
         sent.push(commands.map((step) => step.command).join(' '));
-        const rods = commands.filter((step) => step.command === 'solid.cylinder' && step.params.operation === 'new').map((step) => step.params);
+        const probes = commands.filter((step) => step.command === 'solid.cylinder' && step.params.operation === 'new').map((step) => step.params);
         const results = commands.map((step) => {
           if (step.command !== 'inspect.clearance') return step.command === 'inspect.interference' ? { count: 0 } : step.command === 'component.list' ? { components: [] } : step.command === 'document.inspect' ? { undo: 1, timeline: [], sketches: [] } : {};
-          return {
-            overlaps: rods.map((rod) => {
-              const [x, y, z] = rod.base as number[];
-              const d = Math.hypot((x ?? 0) - cx, (y ?? 0) - cy);
-              const along = Math.max(0, Math.min(high, (z ?? 0) + Number(rod.height)) - Math.max(0, z ?? 0));
-              return { a: rod.body_name, b: 'Jar', volume_mm3: d - 0.1 >= inner - 1e-9 && d + 0.1 <= outer + 1e-9 ? (Math.PI * 0.01 * along) : 0 };
-            }),
-          };
+          const named = (step.params.bodies as string[] | undefined) ?? [];
+          // SolidCraft 0.40.1 answers at most 25 overlaps per comparison and drops the rest unsaid (review of BC-07).
+          return { overlaps: probes.filter((params) => named.includes(String(params.body_name))).map((params) => ({ a: params.body_name, b: 'Jar', volume_mm3: probe(params) })).slice(0, 25) };
         });
         const trial = args.rollback === true;
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(trial ? { results: results.slice(0, -1), failed: { command: 'sketch.inspect' } } : { results }) }], ...(trial ? { isError: true } : {}) });
@@ -1133,27 +1173,48 @@ describe('the screw lid (standards)', () => {
     return { tools: withMechanismTool(upstream, () => 0.4), sent };
   }
   const neck = { kind: 'lid', fixed: 'Jar', moving: 'Lid', from: [10, 20, 50], diameter: 60 };
+  const said = async (made: ReturnType<typeof jar>, args: Record<string, unknown> = neck) => String((await made.tools.callTool('partbuddy_mechanism', args)).content[0]?.text);
 
-  it('measures the neck before it builds: diameter, centre, length and wall (audit W22, N-mechanik-9)', async () => {
+  it('measures the neck before it builds: diameter, centre, length, wall, rim and the lid\'s room (audit W22, N-mechanik-9)', async () => {
     const good = jar();
-    const built = String((await good.tools.callTool('partbuddy_mechanism', neck)).content[0]?.text);
-    expect(built).toContain('PartBuddy measured the neck: a plain cylinder of 60 mm there, centred on from, with a wall of at least 2 mm.');
+    expect(await said(good)).toContain('PartBuddy measured the neck: a plain cylinder of 60 mm there, centred on from, with a wall of at least 2 mm.');
     expect(good.sent.some((batch) => batch.includes('solid.coil'))).toBe(true);
     // N-mechanik-9: a jar 8 mm high, where the lid covers 14.2 mm, took the thread below its floor.
-    const short = jar({ high: 8, outer: 30 });
-    const low = String((await short.tools.callTool('partbuddy_mechanism', { ...neck, from: [10, 20, 8] })).content[0]?.text);
-    expect(low).toBe("Not built: the neck of Jar is not a cylinder of 60 mm round [10, 20] over the top 14.2 mm below the rim at z 8: just inside that diameter 8 of 8 points round it have no plastic all the way down (the least 8 mm). The neck is narrower, off centre, shorter than the lid's skirt or not upright, or its rim lies lower than from; give from as the centre of the rim at its height and diameter as the neck's outer diameter, or make the neck plain and 14.2 mm long");
+    const short = jar({ high: 8 });
+    expect(await said(short, { ...neck, from: [10, 20, 8] })).toBe("Not built: the neck of Jar is not a cylinder of 60 mm round [10, 20] from 14.2 to 1 mm below the rim at z 8: just inside that diameter 8 of 8 points round it have no plastic all the way (the least 7 of 13.2 mm). The neck is narrower, off centre, shorter than the lid's skirt or not upright, or its rim lies lower than from; give from as the centre of the rim at its height and diameter as the neck's outer diameter, or make the neck plain and 14.2 mm long");
     expect(short.sent.some((batch) => batch.includes('solid.coil'))).toBe(false);
     // N-mechanik-9: a neck of 44 given as 40 stood in the lid; one of 38 left the thread in the air; 0.1 mm off centre too.
-    expect(String((await jar({ outer: 22, inner: 19.6 }).tools.callTool('partbuddy_mechanism', { ...neck, diameter: 40 })).content[0]?.text)).toContain('just outside that diameter 8 of 8 points round it meet plastic of Jar');
-    expect(String((await jar({ outer: 19, inner: 16.6 }).tools.callTool('partbuddy_mechanism', { ...neck, diameter: 40 })).content[0]?.text)).toContain('just inside that diameter 8 of 8 points round it have no plastic');
-    expect(String((await jar({ cx: 10.1 }).tools.callTool('partbuddy_mechanism', neck)).content[0]?.text)).toMatch(/^Not built: the neck of Jar is not a cylinder of 60 mm .* just inside that diameter [1-7] of 8 points/);
-    expect(String((await jar({ cx: 10.05 }).tools.callTool('partbuddy_mechanism', neck)).content[0]?.text)).toContain('PartBuddy measured the neck');
+    expect(await said(jar({ outer: 22, inner: 19.6 }), { ...neck, diameter: 40 })).toContain('just outside that diameter 8 of 8 points round it meet plastic of Jar');
+    expect(await said(jar({ outer: 19, inner: 16.6 }), { ...neck, diameter: 40 })).toContain('just inside that diameter 8 of 8 points round it have no plastic');
+    expect(await said(jar({ cx: 10.1 }))).toMatch(/^Not built: the neck of Jar is not a cylinder of 60 mm .* just inside that diameter [1-7] of 8 points/);
+    expect(await said(jar({ cx: 10.05 }))).toContain('PartBuddy measured the neck');
     // The wall: 2 mm builds, 1.9 mm does not.
-    expect(String((await jar({ inner: 28 }).tools.callTool('partbuddy_mechanism', neck)).content[0]?.text)).toContain('PartBuddy measured the neck');
-    expect(String((await jar({ inner: 28.1 }).tools.callTool('partbuddy_mechanism', neck)).content[0]?.text)).toContain('Not built: the neck of Jar is under 2 mm thick round [10, 20] over the top 14.2 mm below the rim at z 50 at 8 of 8 points round it');
-    // A rim given too low: the jar stands where the lid's top comes.
-    expect(String((await jar().tools.callTool('partbuddy_mechanism', { ...neck, from: [10, 20, 49] })).content[0]?.text)).toContain('Not built: Jar reaches above its rim at z 49 at 8 of 8 points');
+    expect(await said(jar({ inner: 28 }))).toContain('PartBuddy measured the neck');
+    expect(await said(jar({ inner: 28.1 }))).toContain('Not built: the neck of Jar is under 2 mm thick round [10, 20] from 14.2 to 1 mm below the rim at z 50 at 8 of 8 points round it');
+    // Review of BC-07: a chamfer or a round on the rim's edges is no other neck, up to the plain band at its top; deeper it is.
+    expect(await said(jar({ chamfer: 0.5, round: 0.5 }))).toContain('PartBuddy measured the neck');
+    expect(await said(jar({ chamfer: 0.95, round: 0.95, inner: 28 }))).toContain('PartBuddy measured the neck');
+    expect(await said(jar({ chamfer: 2 }))).toContain('just inside that diameter 8 of 8 points round it have no plastic');
+    // A rim lower than from by 0.2 mm: the middle of the wall is short at the top.
+    expect(await said(jar(), { ...neck, from: [10, 20, 50.2] })).toBe('Not built: the rim of Jar lies lower than z 50.2 at 8 of 8 points round it (the least 0.8 of the top 1 mm are plastic); give from as the centre of the rim at its height');
+    // A rim higher than from, and a collar or a handle where the lid comes (review of BC-07, K4): the lid's room is not free.
+    expect(await said(jar(), { ...neck, from: [10, 20, 49] })).toMatch(/^Not built: Jar has [\d.]+ mm³ of plastic beside its neck where the lid comes, within 67\.8 mm from 14\.2 mm below the rim to 2\.4 mm above it: a collar, a handle or a shoulder stands there, or the rim lies higher than from/);
+    expect(await said(jar({ collar: { from: 31, to: 33, low: 40, high: 42 } }))).toMatch(/^Not built: Jar has [\d.]+ mm³ of plastic beside its neck where the lid comes/);
+    expect(await said(jar({ collar: { from: 31, to: 33, low: 20, high: 35.7 } }))).toContain('PartBuddy measured the neck');
+  });
+
+  it('says so when the neck could not be measured (review of BC-07, K3)', async () => {
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, args) => {
+        if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Jar' }] }) }] });
+        const commands = args.commands as { command: string }[];
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'inspect.interference' ? { count: 0 } : step.command === 'component.list' ? { components: [] } : {})) }) }] });
+      },
+    };
+    const text = String((await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', neck)).content[0]?.text);
+    expect(text).toContain('PartBuddy could not measure the neck this time: keep it a plain cylinder of 60 mm there, with a wall of at least 2 mm.');
   });
 
   it('is built by the tool with one call that makes the lid, and refuses a name that is taken', async () => {

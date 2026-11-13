@@ -212,13 +212,19 @@ describe('templates with moving parts', () => {
     const value = (id: 'wallHolder' | 'slideStop', name: string) => templateSteps(id).find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.expression;
     expect([value('wallHolder', 'screw_hole'), value('wallHolder', 'screw_head')]).toEqual([`${String(WALL[4].clearance)} mm`, `${String(WALL[4].countersink)} mm`]);
     expect([value('slideStop', 'screw_hole'), value('slideStop', 'screw_head')]).toEqual(['4.7 mm', '9 mm']);
+    // Review of BC-07, S2: within these ranges the rounds of one wall fit floor, lip and plate (measured at both ends).
+    const range = (name: string, german = false) => rangeOf(String(templateSteps('wallHolder', german).find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.comment));
+    expect(['plate_height', 'plate_width', 'wall', 'hook_width', 'lip_height'].map((name) => range(name))).toEqual([{ min: 60, max: 200 }, { min: 30, max: 150 }, { min: 4, max: 8 }, { min: 30, max: 120 }, { min: 20, max: 60 }]);
+    expect(['plate_height', 'plate_width', 'wall', 'hook_width', 'lip_height'].map((name) => range(name, true))).toEqual(['plate_height', 'plate_width', 'wall', 'hook_width', 'lip_height'].map((name) => range(name)));
   });
 
   it('says how much room the sign\'s words have and how small its letters may be (audit T56)', () => {
     const comment = (name: string, german = false) => String(templateSteps('sign', german).find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.comment);
     // Between the holes (6 mm in, 3.4 mm wide) and 1 mm clear of them: the length less 17.4 mm.
-    expect(comment('label')).toContain('the length less 18 mm');
-    expect(comment('label', true)).toContain('die Länge weniger 18 mm');
+    expect(comment('label')).toContain('the length less 17.4 mm');
+    expect(comment('label', true)).toContain('die Länge weniger 17,4 mm');
+    // Review of BC-07, K1: the holes are where the comment says.
+    expect(templateSteps('sign').filter((step) => String(step.params.name).startsWith('Screw hole')).map((step) => (step.params.base as string[])[0])).toEqual(['6 mm', 'length - 6 mm']);
     // From 4 mm the strokes of bold capitals are two lines of a 0.4 mm nozzle (blocks.ts, TEXT_STROKE).
     expect(Math.ceil((2 * 0.4) / TEXT_STROKE.bold)).toBe(4);
     expect(rangeOf(comment('text_height'))).toEqual({ min: 4, max: 18 });
