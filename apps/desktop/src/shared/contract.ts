@@ -4,6 +4,7 @@ import { eventChannels, invokeChannels, type EventChannel, type InvokeChannel } 
 import { keptSketchSchema, sketchStateSchema } from './sketch';
 import { drawingSvg, naturalWidth, parseDrawing } from './svgDrawing';
 import { assemblyPlanSchema } from './assembly';
+import { LOGO_DEPTH_MAX, LOGO_WIDTH_MAX } from './drawingPlacement';
 import { BLOCK_SIZES } from './screwSizes';
 import { MAX_PHRASES_PER_STEP, STEP_PHRASE_KEYS } from './stepPhrases';
 import { TEMPLATE_IDS } from './templates';
@@ -905,11 +906,11 @@ export const logoMoveSchema = z
     by: z.tuple([finite, finite]).nullable(),
     centre: z.enum(['x', 'y', 'both']).nullable(),
     /** How deep or high, in mm; every extrusion of the logo gets it. */
-    depth: finite.positive().max(50).nullable().optional(),
+    depth: finite.positive().max(LOGO_DEPTH_MAX).nullable().optional(),
     /** Degrees to turn it counter-clockwise (looking at the face) about its middle. */
     rotate: finite.min(-360).max(360).nullable().optional(),
     /** How wide in mm, aspect kept, about its middle. */
-    width: finite.positive().max(1000).nullable().optional(),
+    width: finite.positive().max(LOGO_WIDTH_MAX).nullable().optional(),
     /** A placed text's words, capital height, font ("" the built-in one) and boldness; left out keeps each. */
     text: z
       .object({ words: z.string().trim().min(1).max(80).optional(), height: finite.positive().max(500).optional(), font: z.string().max(100).optional(), bold: z.boolean().optional(), boldFace: z.string().max(100).optional() })
