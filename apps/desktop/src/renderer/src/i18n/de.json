@@ -1113,10 +1113,18 @@
     "status": {
       "ready": "Druckbereit",
       "warn": "{count, plural, one {# Hinweis} other {# Hinweise}}",
-      "block": "Nicht druckbereit"
+      "block": "Nicht druckbereit",
+      "measuring": "Misst noch",
+      "unmeasured": "Nicht vollständig geprüft"
     },
     "none": "Keine Probleme gefunden: Das Teil passt in den Bauraum, die Wände sind dick genug, nichts neigt sich über den Überhangwinkel.",
     "basis": "Geprüft nach jeder Änderung, wie konstruiert (auf der untersten Stelle stehend), mit Drucker und Material dieses Teils. Stützen, Brücken und die Lage entscheidet der Slicer.",
+    "measuring": "SolidCraft misst noch die Abstände und Gelenke. Überschneidungen, zu enge Spalte oder ein blockiertes Gelenk können noch dazukommen.",
+    "unmeasured": "Nicht oder nicht vollständig gemessen: {what}. Befunde dazu können fehlen.",
+    "measure": {
+      "clearance": "die Abstände zwischen den Teilen",
+      "joints": "die Wege der Gelenke"
+    },
     "faces": "{count, plural, one {# Fläche} other {# Flächen}}",
     "more": "{count, plural, one {# weiterer} other {# weitere}}",
     "show": "Stelle zeigen",
@@ -1142,7 +1150,10 @@
       "title": "Trotzdem exportieren?",
       "body": "Die Druckprüfung ist rot. So wird das Teil voraussichtlich nicht sauber gedruckt:",
       "cancel": "Abbrechen",
-      "go": "Trotzdem exportieren"
+      "go": "Trotzdem exportieren",
+      "measuring": "Die Druckprüfung misst noch die Abstände und Gelenke. Überschneidungen oder ein blockiertes Gelenk können noch gefunden werden.",
+      "unmeasured": "Die Druckprüfung ist nicht vollständig gelaufen. Nicht oder nicht vollständig gemessen: {what}.",
+      "done": "Die Messung ist inzwischen fertig."
     }
   },
   "engine": {

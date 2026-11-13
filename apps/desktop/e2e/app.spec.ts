@@ -1626,6 +1626,56 @@ test('the ready-to-print light follows the printer, points at its findings and a
   await expect(confirm).toHaveCount(0);
 });
 
+test('the light says when it still measures or a measure failed, and an export asks then (audit X-1)', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+  // SolidCraft takes its time over the joint's way.
+  let measured: () => void = () => undefined;
+  fake.held['joint.sweep'] = new Promise<void>((done) => {
+    measured = done;
+  });
+  await fake.start();
+  const solidcraft = fake;
+  const { page } = launched;
+  await lookAgain(page);
+  const light = page.getByTestId('print-check');
+  await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
+  await expect(light).toHaveText('Still measuring');
+
+  // An export now asks: a blocked joint may still turn up.
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  const confirm = page.getByTestId('export-confirm');
+  await expect(confirm).toContainText('The print check is still measuring the gaps and joints.');
+  // The dialog follows the light: the measure comes in while it stands open.
+  measured();
+  await expect(confirm).toContainText('The measuring has finished in the meantime.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+  await expect(light).toHaveText('Ready to print');
+  await expect(light).not.toHaveAttribute('data-measuring');
+
+  // A measure that fails is no green: the light says what is missing, and sharing asks as well.
+  solidcraft.answers['joint.sweep'] = () => {
+    throw new Error('the measure ran out of time');
+  };
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-unmeasured', 'joints', { timeout: 15_000 });
+  await expect(light).toHaveText('Not fully checked');
+  await light.click();
+  await expect(page.getByTestId('print-check-unmeasured')).toHaveText('Not measured, or not all of it: the travel of the joints. Findings there may be missing.');
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('print-check-panel')).toBeHidden({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-share').click();
+  await expect(confirm).toContainText('The print check did not run in full. Not measured, or not all of it: the travel of the joints.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+});
+
 test('a file dragged over the window says where it goes, and one without a place on disk is refused (B4)', async () => {
   launched = await launchApp();
   const { page } = launched;

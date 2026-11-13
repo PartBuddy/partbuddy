@@ -18,6 +18,7 @@ import type { AssemblyPlan } from '../../../shared/assembly';
 import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, NotesState, PartPrint, Structure } from '../../../shared/contract';
 
 /** What goes out: a file format, or a slicer by its id (B8). */
+export type StudioPrintCheck = { revision: number; result: PrintCheck; measuring?: boolean; unmeasured?: ('clearance' | 'joints')[] };
 export type ExportTarget = ExportFormat | `slicer:${string}` | 'share';
 
 /** A section of the settings (B6). */
@@ -190,8 +191,9 @@ interface StudioState {
   setProfilesTab: (tab: ProfilesTab) => void;
   /** The ready-to-print check of the bodies on screen (M7); null until it ran. */
   /** `measuring`: SolidCraft still measures gaps and the joints' ways; those findings follow. */
-  printCheck: { revision: number; result: PrintCheck; measuring?: boolean } | null;
-  setPrintCheck: (check: { revision: number; result: PrintCheck; measuring?: boolean } | null) => void;
+  /** `unmeasured`: what SolidCraft's measure left out, failed or not all of it: its findings may be missing. */
+  printCheck: StudioPrintCheck | null;
+  setPrintCheck: (check: StudioPrintCheck | null) => void;
   /** A place the camera should move to (a finding of the check), with a serial to repeat it. */
   focusRequest: { box: FindingBox; serial: number } | null;
   requestFocus: (box: FindingBox) => void;

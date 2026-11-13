@@ -99,7 +99,8 @@ export function usePrintCheck(): void {
       };
       void measure().then((final) => {
         if (stale) return;
-        useStudio.getState().setPrintCheck({ revision: model.revision, result: final });
+        // The light says it too: a measure that failed is no green (audit X-1).
+        useStudio.getState().setPrintCheck({ revision: model.revision, result: final, ...(failed.length > 0 ? { unmeasured: failed } : {}) });
         report(final, false, failed, unchecked);
       });
     }, CHECK_DELAY_MS);

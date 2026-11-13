@@ -1,5 +1,5 @@
 import type { PrintFinding, PrintStatus } from '@partbuddy/geometry';
-import { IconCrosshair } from '@tabler/icons-react';
+import { IconCrosshair, IconLoader2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Dialog, DialogTrigger, Heading, Popover } from 'react-aria-components';
 
@@ -58,6 +58,12 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.posed', { joint: finding.joint, value: amount(finding.value, finding.unit) });
     }
   };
+}
+
+/** What SolidCraft did not measure, in words; empty when it measured all. */
+export function useUnmeasuredText(): (unmeasured: readonly ('clearance' | 'joints')[]) => string {
+  const { t, i18n } = useTranslation();
+  return (unmeasured) => new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(unmeasured.map((what) => t(`check.measure.${what}`)));
 }
 
 function FindingRow({ finding }: { finding: PrintFinding }) {
@@ -119,9 +125,13 @@ export function PrintCheckChip() {
   const { t } = useTranslation();
   const check = useStudio((s) => s.printCheck);
   const setStepHighlight = useStudio((s) => s.setStepHighlight);
+  const unmeasured = useUnmeasuredText()(check?.unmeasured ?? []);
   if (!check) return null;
   const { status, findings } = check.result;
-  const label = t(`check.status.${status}`, { count: findings.length });
+  // Green only once all is measured (audit X-1): until then, or when a measure failed, the light says so.
+  const open = status !== 'ready' ? null : check.measuring ? 'measuring' : unmeasured ? 'unmeasured' : null;
+  const label = open ? t(`check.status.${open}`) : t(`check.status.${status}`, { count: findings.length });
+  const dot = open === 'measuring' ? dotTone.neutral : open === 'unmeasured' ? dotTone.warning : DOT[status];
 
   return (
     <DialogTrigger
@@ -134,9 +144,12 @@ export function PrintCheckChip() {
         data-testid="print-check"
         data-status={status}
         data-revision={check.revision}
+        data-measuring={check.measuring ? 'true' : undefined}
+        data-unmeasured={check.unmeasured?.join(' ')}
       >
-        <span aria-hidden className={`size-dot rounded-full ${DOT[status]}`} />
+        <span aria-hidden className={`size-dot rounded-full ${dot}`} />
         <span>{label}</span>
+        {check.measuring ? <IconLoader2 className="size-icon-sm animate-spin motion-reduce:animate-none" aria-hidden /> : null}
       </AriaButton>
       <Popover placement="top start" offset={4} className={`${popoverPanelClass} p-2`}>
         <Dialog className="flex flex-col gap-2 outline-none" data-testid="print-check-panel">
@@ -152,6 +165,8 @@ export function PrintCheckChip() {
               ))}
             </ul>
           )}
+          {check.measuring ? <p className="px-2 text-sm text-text-muted" data-testid="print-check-measuring">{t('check.measuring')}</p> : null}
+          {unmeasured ? <p className="px-2 text-sm text-text-muted" data-testid="print-check-unmeasured">{t('check.unmeasured', { what: unmeasured })}</p> : null}
           <p className="px-2 text-xs text-text-muted">{t('check.basis')}</p>
         </Dialog>
       </Popover>

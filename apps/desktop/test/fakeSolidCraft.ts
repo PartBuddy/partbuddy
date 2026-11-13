@@ -187,8 +187,9 @@ export class FakeSolidCraft {
         return this.inspect();
       case 'engine.batch': {
         if (this.options.batchDelayMs) await new Promise((done) => setTimeout(done, this.options.batchDelayMs));
-        const allowed = (params.allow_paths as string[] | undefined) ?? [];
         const commands = params.commands as { command: string; params: Record<string, unknown> }[];
+        await Promise.all(commands.flatMap((step) => this.held[step.command] ?? []));
+        const allowed = (params.allow_paths as string[] | undefined) ?? [];
         const before = this.parameters.map((entry) => ({ ...entry }));
         const results: unknown[] = [];
         for (const [index, step] of commands.entries()) {
@@ -230,6 +231,8 @@ export class FakeSolidCraft {
 
   /** What a test has a command answer instead of the fake's own answer. */
   readonly answers: Record<string, (params: Record<string, unknown>) => unknown> = {};
+  /** A batch with one of these commands waits for its promise: a measure SolidCraft takes its time over. */
+  readonly held: Record<string, Promise<unknown>> = {};
 
   private execute(command: string, params: Record<string, unknown>, allowed: string[]): unknown {
     const given = this.answers[command];

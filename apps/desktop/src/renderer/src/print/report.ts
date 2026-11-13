@@ -1,6 +1,7 @@
 import type { PrintCheck } from '@partbuddy/geometry';
 
 import type { Joint, PrintCheckReport } from '../../../shared/contract';
+import type { StudioPrintCheck } from '../state/store';
 
 /** How many joint runs SolidCraft is asked for at most (the contract's limit of `joint.sweep`). */
 const MOST_RUNS = 40;
@@ -16,6 +17,14 @@ export function jointRuns(joints: readonly (Pick<Joint, 'id' | 'name'> & { value
     ),
   );
   return { sweeps: runs.slice(0, MOST_RUNS), more: runs.length > MOST_RUNS };
+}
+
+/**
+ * Whether an export asks first (M7, audit X-1): the light is red, or what SolidCraft measures is still out or did not
+ * all run, so an overlap or a blocked joint may be missing. It only asks; the user may know better (decided 2026-11-05).
+ */
+export function asksBeforeExport(check: Pick<StudioPrintCheck, 'result' | 'measuring' | 'unmeasured'> | null): boolean {
+  return check !== null && (check.result.status === 'block' || check.measuring === true || (check.unmeasured?.length ?? 0) > 0);
 }
 
 /** The check without the camera boxes, as the main process words it for the assistant; `bodies`: what each body costs to print. */

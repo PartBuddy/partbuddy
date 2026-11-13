@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
-import { jointRuns, reportOf } from '../src/renderer/src/print/report';
+import { asksBeforeExport, jointRuns, reportOf } from '../src/renderer/src/print/report';
 import { printCheckReportSchema } from '../src/shared/contract';
 
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
@@ -129,5 +129,17 @@ describe('what the check could not measure', () => {
     expect(many.sweeps[0]).toEqual({ joint: 0, name: 'J0', unit: 'deg', index: 0, from: 0, to: -90 });
     // A limit where the value stands already, or none, is no run.
     expect(jointRuns([{ id: 1, name: 'J', values: [{ unit: 'mm', value: 5, limits: [5, null], index: 2 }] }]).sweeps).toEqual([]);
+  });
+
+  it('asks before an export while the light is red, still measuring, or a measure failed (audit X-1)', () => {
+    const light = (status: 'ready' | 'warn' | 'block', more: { measuring?: boolean; unmeasured?: ('clearance' | 'joints')[] } = {}) => ({ result: { status, findings: [] }, ...more });
+    expect(asksBeforeExport(null)).toBe(false);
+    expect(asksBeforeExport(light('ready'))).toBe(false);
+    expect(asksBeforeExport(light('warn'))).toBe(false);
+    expect(asksBeforeExport(light('ready', { unmeasured: [] }))).toBe(false);
+    expect(asksBeforeExport(light('block'))).toBe(true);
+    // Green from the mesh check alone is no green yet: an overlap or a blocked joint may follow.
+    expect(asksBeforeExport(light('ready', { measuring: true }))).toBe(true);
+    expect(asksBeforeExport(light('warn', { unmeasured: ['joints'] }))).toBe(true);
   });
 });

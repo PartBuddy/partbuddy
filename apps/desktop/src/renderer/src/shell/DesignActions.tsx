@@ -6,6 +6,7 @@ import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger,
 import type { ExportFormat, Slicer } from '../../../shared/contract';
 import { useAssistant, selectedStatus } from '../assistant/store';
 import { ExportConfirm } from '../print/ExportConfirm';
+import { asksBeforeExport } from '../print/report';
 import { platform } from '../platform';
 import { useStudio, type ExportTarget } from '../state/store';
 import { buttonClass, IconButton } from '../ui/Button';
@@ -102,7 +103,7 @@ export function DesignActions() {
   // Bodies that look like bought standard parts but could not be checked went along as printed ones: the user hears it with the result.
   const unchecked = (bodies: string[] | undefined) => (bodies && bodies.length > 0 ? ` ${t('actions.uncheckedParts', { bodies: bodies.slice(0, 5).join(', '), count: bodies.length })}` : '');
 
-  // A red ready-to-print check asks once before the export (M7); it does not stop it.
+  // A red ready-to-print check, or one still measuring or not fully measured, asks once before the export (M7, X-1); it does not stop it.
   const exportNow = (target: ExportTarget) => {
     void run(async () => {
       if (target.startsWith('slicer:')) {
@@ -122,7 +123,7 @@ export function DesignActions() {
   };
 
   const exportAs = (target: ExportTarget) => {
-    if (useStudio.getState().printCheck?.result.status === 'block') {
+    if (asksBeforeExport(useStudio.getState().printCheck)) {
       useStudio.getState().setExportConfirm(target);
       return;
     }

@@ -3,12 +3,15 @@ import { Dialog, Heading, Modal, ModalOverlay } from 'react-aria-components';
 
 import { useStudio, type ExportTarget } from '../state/store';
 import { Button } from '../ui/Button';
-import { useFindingText } from './PrintCheckChip';
+import { useFindingText, useUnmeasuredText } from './PrintCheckChip';
+import { asksBeforeExport } from './report';
 import { modalClass, overlayClass } from '../ui/Dialog';
 
 /**
  * Asks once before an export while the ready-to-print check is red (decided 2026-11-05): the user
- * may know better, so it only asks, it does not stop the export.
+ * may know better, so it only asks, it does not stop the export. It asks the same while SolidCraft still measures
+ * gaps and joints, or when that measure failed (audit X-1): one pattern, and the dialog follows the light, so the user
+ * sees the measure come in and decides then. Waiting instead would need a progress and a cancel of its own.
  */
 export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget) => void }) {
   const { t } = useTranslation();
@@ -18,6 +21,7 @@ export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget)
   const check = useStudio((s) => s.printCheck);
   const findings = check?.result.findings ?? [];
   const text = useFindingText();
+  const unmeasured = useUnmeasuredText()(check?.unmeasured ?? []);
   const blocking = findings.filter((finding) => finding.severity === 'block');
   return (
     <ModalOverlay
@@ -35,12 +39,20 @@ export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget)
               <Heading slot="title" className="text-lg font-semibold text-text">
                 {t('check.confirm.title')}
               </Heading>
-              <p className="text-sm text-text-muted">{t('check.confirm.body')}</p>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-text">
-                {blocking.map((finding, i) => (
-                  <li key={`${finding.kind}-${String(i)}`}>{text(finding)}</li>
-                ))}
-              </ul>
+              {blocking.length > 0 ? (
+                <>
+                  <p className="text-sm text-text-muted">{t('check.confirm.body')}</p>
+                  <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-text">
+                    {blocking.map((finding, i) => (
+                      <li key={`${finding.kind}-${String(i)}`}>{text(finding)}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+              {check?.measuring ? <p className="text-sm text-text-muted">{t('check.confirm.measuring')}</p> : null}
+              {unmeasured ? <p className="text-sm text-text-muted">{t('check.confirm.unmeasured', { what: unmeasured })}</p> : null}
+              {/* The measure came in green while the dialog stood open. */}
+              {asksBeforeExport(check) ? null : <p className="text-sm text-text-muted">{t('check.confirm.done')}</p>}
               <div className="flex justify-end gap-2">
                 <Button onPress={close} data-testid="export-confirm-cancel" autoFocus>
                   {t('check.confirm.cancel')}
