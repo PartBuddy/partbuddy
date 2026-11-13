@@ -133,7 +133,7 @@ function outOfTable(block: FeatureBlock): string | null {
  * The block cannot know which way the part will lie: under a pocket that opens upwards it is a floor, under one that opens
  * sideways a wall (printCheck.ts).
  */
-const leastFloor = (printer: FitPrinter) => Math.max(minimumWall(printer.nozzle), minimumFloor(printer.layer));
+export const leastFloor = (printer: FitPrinter) => Math.max(minimumWall(printer.nozzle), minimumFloor(printer.layer));
 const mm = (value: number) => String(Math.round(value * 100) / 100);
 const on = (printer: FitPrinter) => `on a ${String(printer.nozzle)} mm nozzle`;
 /** Which of the two {@link leastFloor} takes, said: two lines of wall, or a floor of four layers and at least 0.8 mm. */
@@ -469,7 +469,7 @@ export function cutAxis(body: string, before: unknown, after: unknown, point: Ve
 }
 
 /** Volume in mm³ of every body by name as `inspect.measure` answers; NaN for a body that is not closed. */
-function volumesOf(measured: unknown): Map<string, number> {
+export function volumesOf(measured: unknown): Map<string, number> {
   const bodies = (measured as { bodies?: { name?: unknown; volume_mm3?: unknown }[] } | undefined)?.bodies ?? [];
   return new Map(bodies.flatMap((entry) => (typeof entry.name === 'string' ? [[entry.name, typeof entry.volume_mm3 === 'number' ? entry.volume_mm3 : NaN] as const] : [])));
 }
@@ -527,11 +527,12 @@ export async function reachOf(upstream: UpstreamTools, block: FeatureBlock, wrap
 
 /**
  * The block whose trial finds the wall under a block that must not go through it (audit N-bloecke-6, W31): a nut trap
- * (its own trial drills the hole alone) and engraved text (a plain M3 hole at its middle). Null for every other block.
+ * (its own trial drills the hole alone), engraved text and an engraved or inlaid logo (a plain M3 hole at its middle;
+ * drawingTool.ts, audit W39). Null for every other block.
  */
-function wallTrial(block: FeatureBlock): FeatureBlock | null {
+export function wallTrial(block: FeatureBlock): FeatureBlock | null {
   if (block.block === 'nutTrap') return block;
-  if (block.block === 'text' && block.mode === 'deboss') return { block: 'screwHole', body: block.body, point: block.point, size: 'M3', head: 'none', fit: 'normal' };
+  if ((block.block === 'text' || block.block === 'logo') && block.mode === 'deboss') return { block: 'screwHole', body: block.body, point: block.point, size: 'M3', head: 'none', fit: 'normal' };
   return null;
 }
 
