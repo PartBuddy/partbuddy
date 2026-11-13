@@ -3810,7 +3810,7 @@ test('a flat plate as the lid gets the lip alone: one piece, nothing through its
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a snap plate');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the closure "Plate closure" between Box \(the box\) and Plate \(the flat lid\): a lip 1\.2 mm thick and 4 mm high on the plate/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Built the closure "Plate closure" between Box \(the box\) and Plate \(the flat lid\): a lip 1\.4 mm thick and 4 mm high on the plate/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/Warning:/)).toHaveCount(0);
     // The lip grew onto the plate: a loose piece would have been taken back, with a message instead of "Built".
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
@@ -3846,7 +3846,7 @@ test('the assistant builds a snap closure with one call: a lip in the lid, its b
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a snap lid');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the closure "Lid closure" between Box \(the box\) and Lid \(the lid\): a lip 1\.2 mm thick and 4 mm high inside the lid, 0\.25 mm clear of the box's wall, a bead that snaps 0\.25 mm into a rille/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Built the closure "Lid closure" between Box \(the box\) and Lid \(the lid\): a lip 1\.4 mm thick and 4 mm high inside the lid, 0\.25 mm clear of the box's wall, a bead that snaps 0\.25 mm into a rille/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/Warning:/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     // The closure is one step of the work log, and no feature of it failed.

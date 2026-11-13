@@ -69,11 +69,11 @@ function hingedBox(): Step[] {
     { command: 'solid.chamfer', params: { edges: [[length / 2, y0, 0]], distance: '0.6 mm', body, name: feature('bed chamfer') } },
   ];
   return [
-    parameter('length', '60 mm', 'Outer length of box and lid; at least 54 mm, the hinge is 40 mm long'),
-    parameter('width', '40 mm', 'Outer width of box and lid'),
-    parameter('height', '16 mm', 'Height of each half; closed, the box is twice as high. At least 8 mm: the webs under the hinge reach 6.2 mm below the rim'),
-    parameter('wall', '2.4 mm', 'Wall and floor thickness'),
-    parameter('corner', '5 mm', 'Radius of the outer corners of box and lid; at least 2 mm more than the wall'),
+    parameter('length', '60 mm', 'Outer length of box and lid; the hinge is 40 mm long [54..200]'),
+    parameter('width', '40 mm', 'Outer width of box and lid; narrower, the bead meets the rim of the box more than 6° before the lid is shut [32..150]'),
+    parameter('height', '16 mm', 'Height of each half; closed, the box is twice as high, and the lip of the lid reaches 4 mm into the box above its floor [8..60]'),
+    parameter('wall', '2.4 mm', 'Wall and floor thickness; the rille of the closure goes 0.45 mm into the wall of the box, and the rooms of the knuckles open through a wall up to 3 mm [1.6..3]'),
+    parameter('corner', '5 mm', 'Radius of the outer corners of box and lid; rounder, the corners reach the knuckles of the hinge [4..7]'),
     ...shell('Box', '-width', -width, (name) => `Box ${name}`),
     ...shell('Lid', between, between, (name) => `Lid ${name}`),
     // The snap closure of the mechanism tool on the lid's inner room, the catch on the front, away from the hinge:
@@ -87,6 +87,7 @@ function hingedBox(): Step[] {
       up: 1,
       radius: { at: 5 - wall0, expr: 'corner - wall' },
       wall: { at: wall0, expr: 'wall' },
+      floor: { at: wall0, expr: 'wall' },
       side: 'y+',
       hinge: { along: 'x', across: between / 2, z: { at: height, expr: 'height' } },
       name: 'Closure',
@@ -309,8 +310,8 @@ const BUILDERS: Record<TemplateId, () => Step[]> = { hingedBox, slideStop, housi
 
 /** The parameter comments in German (polish round 2); names stay the same, so expressions and the assistant find them. */
 const GERMAN: Record<string, string> = {
-  'Outer length of box and lid; at least 54 mm, the hinge is 40 mm long': 'Außenlänge von Box und Deckel; mindestens 54 mm, das Scharnier ist 40 mm lang',
-  'Outer width of box and lid': 'Außenbreite von Box und Deckel',
+  'Outer length of box and lid; the hinge is 40 mm long [54..200]': 'Außenlänge von Box und Deckel; das Scharnier ist 40 mm lang [54..200]',
+  'Outer width of box and lid; narrower, the bead meets the rim of the box more than 6° before the lid is shut [32..150]': 'Außenbreite von Box und Deckel; schmaler trifft der Wulst den Rand der Box mehr als 6° vor dem Schließen [32..150]',
   'Length of base and rail': 'Länge von Grundplatte und Schiene',
   'Width of the base; the stop is 24 mm wide': 'Breite der Grundplatte; der Anschlag ist 24 mm breit',
   'Length of the stop along the rail': 'Länge des Anschlags entlang der Schiene',
@@ -324,8 +325,8 @@ const GERMAN: Record<string, string> = {
   'Thickness of the plate': 'Stärke der Platte',
   'Height of the capital letters': 'Höhe der Großbuchstaben',
   'Holes for M3 screws (ISO 273, normal)': 'Löcher für M3-Schrauben (ISO 273, mittel)',
-  'Height of each half; closed, the box is twice as high. At least 8 mm: the webs under the hinge reach 6.2 mm below the rim': 'Höhe jeder Hälfte; geschlossen ist die Box doppelt so hoch. Mindestens 8 mm: die Stege unter dem Scharnier reichen 6,2 mm unter den Rand',
-  'Wall and floor thickness': 'Stärke von Wand und Boden',
+  'Height of each half; closed, the box is twice as high, and the lip of the lid reaches 4 mm into the box above its floor [8..60]': 'Höhe jeder Hälfte; geschlossen ist die Box doppelt so hoch, und die Lippe des Deckels reicht 4 mm in die Box über ihrem Boden [8..60]',
+  'Wall and floor thickness; the rille of the closure goes 0.45 mm into the wall of the box, and the rooms of the knuckles open through a wall up to 3 mm [1.6..3]': 'Stärke von Wand und Boden; die Rille des Verschlusses geht 0,45 mm in die Wand der Box, und die Räume der Scharnieraugen gehen durch eine Wand bis 3 mm [1,6..3]',
   'Wall, floor and lid thickness': 'Stärke von Wand, Boden und Deckel',
   'Outer length of housing and lid': 'Außenlänge von Gehäuse und Deckel',
   'Outer width of housing and lid': 'Außenbreite von Gehäuse und Deckel',
@@ -334,7 +335,7 @@ const GERMAN: Record<string, string> = {
   'Hole for an M3 heat-set insert (ruthex: 4 mm)': 'Loch für eine M3-Einschmelzmutter (ruthex: 4 mm)',
   'Depth of that hole: insert length plus 1 mm': 'Tiefe dieses Lochs: Länge der Mutter plus 1 mm',
   'Hole in the lid for the M3 screws (ISO 273, normal)': 'Loch im Deckel für die M3-Schrauben (ISO 273, mittel)',
-  'Radius of the outer corners of box and lid; at least 2 mm more than the wall': 'Radius der Außenecken von Box und Deckel; mindestens 2 mm mehr als die Wand',
+  'Radius of the outer corners of box and lid; rounder, the corners reach the knuckles of the hinge [4..7]': 'Radius der Außenecken von Box und Deckel; runder reichen die Ecken an die Augen des Scharniers [4..7]',
   'Radius of the outer corners of housing and lid': 'Radius der Außenecken von Gehäuse und Deckel',
   'How far the screw ears reach out on the short sides': 'Wie weit die Schraublaschen an den Schmalseiten abstehen',
   'Height of the plate on the wall': 'Höhe der Platte an der Wand',
@@ -397,7 +398,7 @@ const GERMAN_FEATURES: Record<string, string> = {
 
 /** "Ear slot 2 end 1" → "Laschenschlitz 2 Ende 1": the base from the list, numbers and a mechanism's mark (·, ○, ● …) kept. */
 export function germanFeatureName(name: string): string {
-  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)((?: [·○●◢◆◠△◣◤▬])?)$/.exec(name);
+  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)((?: [·○●◢◆◠△◣◤▬▭◥])?)$/.exec(name);
   const base = match?.[1] ?? name;
   const german = GERMAN_FEATURES[base];
   if (german === undefined) return name;

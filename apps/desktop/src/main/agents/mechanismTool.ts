@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { LID, LIP, WEB, hangs, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { LID, LIP, WEB, hangs, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchProblem, latchReach, latchSteps, LATCH, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { BRIDGE_SPAN } from '@partbuddy/geometry';
 
@@ -51,7 +51,7 @@ const mechanismTool: UpstreamTool = {
       to: { ...vector, description: 'The other end of the line in mm. closure: the opposite corner, at the same height. lid: not needed. snap: a point further into the wall the catch goes into. latch: a point straight out of the wall.' },
       up: { ...vector, description: 'slide: the normal of the face of the fixed body the rail stands on; default +Z. closure: the way the lip stands out of the lid, +Z or -Z; default +Z. snap: the way the hook stands out of the fixed body; default +Z. latch: the way from the box to the lid; default +Z.' },
       shape: { type: 'string', enum: ['peg', 'dovetail'], description: 'plug: pegs in pockets, or a dovetail to push together; default peg.' },
-      side: { type: 'string', enum: ['x-', 'x+', 'y-', 'y+'], description: 'closure: the wall of the lid\'s inner room with the catch and the notch.' },
+      side: { type: 'string', enum: ['x-', 'x+', 'y-', 'y+'], description: 'closure: the wall of the lid\'s inner room with the catch and the notch; with a hinge line, the wall opposite it.' },
       wall: { type: 'number', minimum: 1.6, maximum: 10, description: 'closure: the lid\'s wall thickness in mm; default 2. snap: the thickness of the wall the window goes through; default 2. hinge: the thickness of the walls the hinge line runs along; no default.' },
       radius: { type: 'number', minimum: 0, maximum: 100, description: 'closure: the radius of the inner room\'s corners in mm; default 0 (sharp).' },
       size: { type: 'string', enum: [...BLOCK_SIZES], description: 'screw: the screw; default M3.' },
@@ -144,7 +144,7 @@ export function slideOf(args: Record<string, unknown>, nozzle: number): SlideSpe
 }
 
 /** The closure the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
-export function lipOf(args: Record<string, unknown>): LipSpec | string {
+export function lipOf(args: Record<string, unknown>, nozzle = 0.4): LipSpec | string {
   const base = common(args, 0.4, 'Closure');
   if (typeof base === 'string') return base;
   const { from, to } = base;
@@ -174,6 +174,7 @@ export function lipOf(args: Record<string, unknown>): LipSpec | string {
     side,
     ...(hinge ? { hinge } : {}),
     ...(args.flat === true ? { flat: true } : {}),
+    nozzle,
     name: base.name,
   };
   return lipProblem(spec) ?? spec;
@@ -543,14 +544,14 @@ const ROD = 0.2;
  * Thin rods along a line, tried in the design and taken back like the rod of `roomDepths`: for each, the share of it
  * (0 to 1) that lies inside `body`. A rod wholly in the body says there is material all along that line.
  */
-async function rodsInside(upstream: UpstreamTools, rods: { name: string; base: number[]; body: string }[], axis: number[], length: number, callId: string | undefined): Promise<Map<string, number>> {
+async function rodsInside(upstream: UpstreamTools, rods: { name: string; base: number[]; body: string; axis?: number[]; length?: number }[], axis: number[], length: number, callId: string | undefined): Promise<Map<string, number>> {
   const shares = new Map<string, number>();
-  if (rods.length === 0 || length <= 0) return shares;
+  if (rods.length === 0 || rods.some((rod) => (rod.length ?? length) <= 0)) return shares;
   const answer = await upstream.callTool(
     'batch',
     {
       commands: [
-        ...rods.map((rod) => ({ command: 'solid.cylinder', params: { diameter: ROD, height: length, base: rod.base, axis, operation: 'new', body_name: rod.name } })),
+        ...rods.map((rod) => ({ command: 'solid.cylinder', params: { diameter: ROD, height: rod.length ?? length, base: rod.base, axis: rod.axis ?? axis, operation: 'new', body_name: rod.name } })),
         { command: 'inspect.clearance', params: { bodies: rods.map((rod) => rod.name), against: [...new Set(rods.map((rod) => rod.body))], min_volume: 0 } },
         { command: 'sketch.inspect', params: { sketch: 2147483647 } },
       ],
@@ -564,8 +565,8 @@ async function rodsInside(upstream: UpstreamTools, rods: { name: string; base: n
   if (!Array.isArray(found)) throw new Error('the trial gave no answer');
   // Measured on SolidCraft 0.40.1 (2026-11-12): a rod wholly in a body of 30, 100 and 300 mm comes back with this
   // volume to nine digits, and one through a 1.5 mm gap with 1.500 mm less.
-  const whole = (Math.PI * ROD * ROD * length) / 4;
   for (const rod of rods) {
+    const whole = (Math.PI * ROD * ROD * (rod.length ?? length)) / 4;
     const inside = (found as { a?: unknown; b?: unknown; volume_mm3?: unknown }[]).find((pair) => [pair.a, pair.b].includes(rod.name) && [pair.a, pair.b].includes(rod.body))?.volume_mm3;
     shares.set(rod.name, typeof inside === 'number' ? inside / whole : 0);
   }
@@ -590,6 +591,69 @@ async function carried(upstream: UpstreamTools, spec: HingeSpec, bed: number, si
   const out: { fixed?: HingeSide; moving?: HingeSide } = {};
   for (const entry of tried) if (entry.base === null || (shares.get(entry.name) ?? 0) >= 0.9) out[entry.key] = entry.wall;
   return out;
+}
+
+/**
+ * A closure tried where the lid closes, before anything is built (audit W17, T14, H-10): `lipSteps` places the lip and
+ * the rille by the lid's room alone, so the box was never looked at, and a lid built open beside its box was never
+ * looked at closed. Rods along each wall the lip goes in by, turned about the hinge line where there is one: one just
+ * in front of the lid's wall plane, where the lip's outside comes, and one just past the lip's tip must find no box; along
+ * the wall with the catch one from 0.1 mm behind that plane must lie in the box's wall (standing back further, the bead
+ * would catch under 0.15 mm), and one behind the rille, two lines further, must too (the rille goes RILLE_DEPTH into
+ * that wall). A wall the box stands back from is said, not refused. A lid with walls is tried too: under the foot it
+ * must be hollow (review of PR #370: a shallow lid or box passed). Returns what is wrong, or the walls that stand back;
+ * throws when the trial gave no answer.
+ */
+export async function closureTrial(upstream: UpstreamTools, spec: LipSpec, nozzle: number, callId: string | undefined): Promise<{ problem: string | null; back: string[] }> {
+  const [x0, y0, x1, y1] = [spec.min[0], spec.min[1], spec.max[0], spec.max[1]].map((size) => (typeof size === 'number' ? size : size.at)) as [number, number, number, number];
+  const [rim, radius] = [spec.rim, spec.radius].map((size) => (typeof size === 'number' ? size : size.at)) as [number, number];
+  const least = Math.round(nozzle * 2 * 1.125 * 100) / 100;
+  const behind = Math.round((RILLE_DEPTH + least) * 100) / 100;
+  const thick = lipThick(nozzle);
+  // Half a turn about the hinge line takes a point of the open lid to where it is closed.
+  const closed = (point: Vec3): Vec3 => {
+    const hinge = spec.hinge;
+    if (!hinge) return point;
+    const [across, z] = [hinge.across, hinge.z].map((size) => (typeof size === 'number' ? size : size.at)) as [number, number];
+    return hinge.along === 'x' ? [point[0], 2 * across - point[1], 2 * z - point[2]] : [2 * across - point[0], point[1], 2 * z - point[2]];
+  };
+  const hingeWall = spec.hinge && !spec.flat ? `${spec.side[0] ?? ''}${spec.side.endsWith('+') ? '-' : '+'}` : null;
+  const sides = (['x-', 'x+', 'y-', 'y+'] as const).filter((side) => side !== hingeWall);
+  const rods = sides.flatMap((side) => {
+    const alongX = side.startsWith('y');
+    const out = side.endsWith('+') ? 1 : -1;
+    const plane = alongX ? (out > 0 ? y1 : y0) : out > 0 ? x1 : x0;
+    const [a0, a1] = alongX ? [x0, x1] : [y0, y1];
+    const r = Math.max(0, radius) + 0.5;
+    // In the box, where the lid has it closed; or in the lid itself, as it is built.
+    const rod = (name: string, across: number, from: number, to: number, high: number, inLid = false) => {
+      const z = rim + spec.up * high;
+      const [start, end] = [from, to].map((along) => (inLid ? (point: Vec3) => point : closed)(alongX ? [along, across, z] : [across, along, z]));
+      const delta = (end as Vec3).map((value, i) => value - ((start as Vec3)[i] ?? 0));
+      const length = Math.hypot(...delta);
+      return { name: `${PROBE} ${name} ${side}`, base: start as Vec3, body: inLid ? spec.moving : spec.fixed, axis: delta.map((value) => value / length), length };
+    };
+    const middle = (a0 + a1) / 2;
+    const lip = plane - out * (LIP.clear + thick / 2);
+    return [
+      { side, kind: 'room', ...rod('room', plane - out * 0.15, a0 + r, a1 - r, LIP.high / 2) },
+      { side, kind: 'tip', ...rod('tip', lip, a0 + r, a1 - r, LIP.high + 0.15) },
+      { side, kind: 'wall', ...rod('wall', plane + out * (0.1 + ROD / 2), a0 + r, a1 - r, LIP.high / 2) },
+      ...(side === spec.side ? [{ side, kind: 'behind', ...rod('behind', plane + out * (behind - ROD / 2), middle - LIP.beadLong / 2 - 0.5, middle + LIP.beadLong / 2 + 0.5, 2.5) }] : []),
+      ...(side === spec.side && !spec.flat ? [{ side, kind: 'under', ...rod('under', lip, middle - LIP.beadLong / 2, middle + LIP.beadLong / 2, -(LIP.foot + 0.3), true) }] : []),
+    ];
+  });
+  const shares = await rodsInside(upstream, rods, [1, 0, 0], 1, callId);
+  const share = (side: string, kind: string) => shares.get(rods.find((rod) => rod.side === side && rod.kind === kind)?.name ?? '') ?? 0;
+  const hint = !spec.hinge && spec.up > 0 ? ' If the lid is built open beside the box, give the hinge line it closes about (hinge_from, hinge_to).' : '';
+  const narrow = sides.filter((side) => share(side, 'room') > 0.02);
+  if (narrow.length > 0) return { problem: `closed, the lip would run into ${spec.fixed}'s wall at the lid's ${narrow.join(', ')} wall${narrow.length > 1 ? 's' : ''}: ${spec.fixed}'s inner room is narrower there than the lid's.${hint} Give from and to as the corners of the lid's inner room where ${spec.fixed}'s inner wall is, or make both rooms the same. Nothing was built.`, back: [] };
+  const shallow = sides.filter((side) => share(side, 'tip') > 0.02);
+  if (shallow.length > 0) return { problem: `closed, the lip's tip would stand in ${spec.fixed} at the lid's ${shallow.join(', ')} wall${shallow.length > 1 ? 's' : ''}: the lip goes ${String(LIP.high)} mm into ${spec.fixed}, which must be open that deep along its walls.${hint} Make ${spec.fixed} deeper there, or take away what stands in the way. Nothing was built.`, back: [] };
+  if (share(spec.side, 'wall') < 0.98) return { problem: `closed, ${spec.fixed}'s wall with the catch (${spec.side}) does not stand where the lid's wall does (it may stand back 0.1 mm at most), so the bead would catch too little or nothing.${hint} Make ${spec.fixed}'s inner room the same as the lid's there. Nothing was built.`, back: [] };
+  if (share(spec.side, 'behind') < 0.98) return { problem: `${spec.fixed}'s wall with the catch (${spec.side}) is under ${String(behind)} mm thick behind the middle of the lid's wall, or not straight there: the rille goes ${String(RILLE_DEPTH)} mm into it and two lines (${String(least)} mm) must stay behind it. Make that wall at least ${String(behind)} mm thick there. Nothing was built.`, back: [] };
+  if (!spec.flat && share(spec.side, 'under') > 0.02) return { problem: `${spec.moving} is not hollow ${String(LIP.foot + 0.3)} mm below its rim inside its ${spec.side} wall: the lip's foot lies ${String(LIP.foot)} mm down the lid's wall, with its slope under it. Make the lid that deep inside, or use flat for a lid without walls. Nothing was built.`, back: [] };
+  return { problem: null, back: sides.filter((side) => side !== spec.side && share(side, 'wall') < 0.5) };
 }
 
 /** What is wrong with the walls behind the knuckles' rooms, when the model said how thick they are; null when they print. */
@@ -823,14 +887,25 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     );
   }
   if (args.kind === 'closure') {
-    const spec = lipOf(args);
+    const spec = lipOf(args, nozzle);
     if (typeof spec === 'string') throw new Error(spec);
-    const warnings = await build(site, spec, lipSteps(spec), spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`);
+    const thick = lipThick(nozzle);
+    const behind = Math.round((RILLE_DEPTH + nozzle * 2 * 1.125) * 100) / 100;
+    // Unset: the trial gave no answer, and the answer says what to keep instead.
+    let tried: Awaited<ReturnType<typeof closureTrial>> | undefined;
+    const warnings = await build(site, spec, lipSteps(spec), spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, false, async () => {
+      tried = await closureTrial(upstream, spec, nozzle, callId).catch(() => undefined);
+      if (tried?.problem) throw new Error(tried.problem);
+    });
+    const box = tried
+      ? ` PartBuddy tried ${spec.fixed}'s wall where the lid closes: the lip goes in, and the wall with the catch is at least ${String(behind)} mm thick behind the rille.${tried.back.length > 0 ? ` At the lid's ${tried.back.join(', ')} wall${tried.back.length > 1 ? 's' : ''} ${spec.fixed}'s wall stands back from the lid's, so the lip does not centre the lid there.` : ''}`
+      : ` PartBuddy could not try ${spec.fixed}'s wall: keep it straight where the lip goes in, and at least ${String(behind)} mm thick behind the rille.`;
+    const unhinged = spec.hinge && !spec.flat ? ' The wall at the hinge keeps no lip: the hinge holds the lid there, and its knuckles turn where the lip would stand.' : '';
     if (spec.flat) {
-      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(LIP.thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up: set the print face of the plate on its outer face. It makes no joint. Keep the box's wall straight and at least 1.6 mm thick where the lip goes in.${warnings}`;
+      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up: set the print face of the plate on its outer face. It makes no joint.${box}${warnings}`;
     }
     return (
-      `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(LIP.thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch in the lid's rim to open it. It makes no joint and needs no room outside the box. Keep the box's wall straight and at least 1.6 mm thick where the lip goes in.${warnings}`
+      `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch through the lid's rim to open it. It makes no joint and needs no room outside the box.${unhinged}${box}${warnings}`
     );
   }
   if (args.kind === 'lid') {
@@ -948,4 +1023,4 @@ export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number,
 }
 
 /** Added to the role prompt of every route, after the joint guidance. */
-export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out and no wall cut through. For parts that are screwed together (a lid on a housing, a bracket on a base, a cover) call it with kind screw instead of drilling the holes yourself: it sizes the clearance hole, the room for the head and the seat of the heat-set insert, and says which screws to buy. For a round container that should screw shut (a jar, a canister, a bottle cap) build the container with a plain cylindrical neck and call it with kind lid: it threads the neck and makes the lid, instead of modelling a thread yourself. For a cover or a housing half that should clip on and come off again by pressing on catches (an electronics housing, a battery cover) call it with kind snap: hooks on one part, their windows through the other part's wall. For a lid that should be held down by a latch one sees and opens with a finger (a tool box, a case with a hinged lid) call it with kind latch: a snap latch outside, on the wall opposite the hinge. For a part split in two to fit the printer, or two parts that are plugged or glued together, call it with kind plug: pegs with their pockets (two or more), or shape dovetail to push one part onto the other.`;
+export const MECHANISM_GUIDANCE = `For a hinge (a lid that folds, a flap, a clamp that opens) or a guide (a drawer, a slider, a carriage on a rail) call ${MECHANISM_TOOL} once both bodies exist instead of modelling knuckles, a pin or a rail yourself: it builds the geometry with the right gaps, joins the bodies and sets the limits. For a lid that should hold shut by itself (a box, a case, a container) call it with kind closure instead of modelling a latch, a hook or a clip: a lip with a snap bead inside the lid, nothing standing out, only a notch for a fingernail in the lid's rim. For parts that are screwed together (a lid on a housing, a bracket on a base, a cover) call it with kind screw instead of drilling the holes yourself: it sizes the clearance hole, the room for the head and the seat of the heat-set insert, and says which screws to buy. For a round container that should screw shut (a jar, a canister, a bottle cap) build the container with a plain cylindrical neck and call it with kind lid: it threads the neck and makes the lid, instead of modelling a thread yourself. For a cover or a housing half that should clip on and come off again by pressing on catches (an electronics housing, a battery cover) call it with kind snap: hooks on one part, their windows through the other part's wall. For a lid that should be held down by a latch one sees and opens with a finger (a tool box, a case with a hinged lid) call it with kind latch: a snap latch outside, on the wall opposite the hinge. For a part split in two to fit the printer, or two parts that are plugged or glued together, call it with kind plug: pegs with their pockets (two or more), or shape dovetail to push one part onto the other.`;
