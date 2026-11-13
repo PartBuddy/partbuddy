@@ -135,9 +135,12 @@ export function printedThread(size: BlockSize): { designation: string; major: nu
   return { designation: `M${String(major)}x${String(THREAD_PITCH[size])}`, major, drill: Math.round((major - THREAD_PITCH[size]) * 100) / 100 };
 }
 
+/** A pilot hole for a screw cut into plastic is this many times its diameter (Machine Design); standards.ts says the same. */
+export const PILOT_FACTOR = 0.8;
+
 /**
  * The pilot hole a screw cuts its own thread in, in mm: 0.8 times its diameter (Machine Design), plus the hole allowance
  * of PLA, the material of the default print profile, as standards.ts tells the assistant to add the profile's (audit MV-26).
  * shortcut: PLA's allowance, as the block does not know the material; take the profile's once BC-16 brings it.
  */
-export const pilotHole = (diameter: number) => Math.round((0.8 * diameter + (MATERIAL_CATALOG.find((material) => material.name === 'PLA')?.holeShrink ?? 0.15)) * 100) / 100;
+export const pilotHole = (diameter: number) => Math.round((PILOT_FACTOR * diameter + (MATERIAL_CATALOG.find((material) => material.name === 'PLA')?.holeShrink ?? 0.15)) * 100) / 100;
