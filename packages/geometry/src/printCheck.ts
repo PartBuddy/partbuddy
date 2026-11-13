@@ -702,6 +702,8 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
   const parts = shells.filter((body) => !(body.model.openEdges > 0));
   if (parts.length > 0) {
     // A print face that is gone leaves the body as designed: said, not done silently (audit H-29).
+    // shortcut: a face kept under a body's old name is not found for the renamed body (no finding until a save brings
+    // SolidCraft's faces, PrintFaceKeeper.takeSaved); pass the kept faces of bodies that are gone if that must be said.
     const lost = parts.filter((body) => body.printFace && !printDown(body)).map((body) => body.name);
     if (lost.length > 0) findings.push({ kind: 'faceLost', severity: 'warn', bodies: lost });
     const meshes = laidBodies(parts);
@@ -844,6 +846,8 @@ export function withClearance(check: PrintCheck, measured: MeasuredClearance, pu
   const findings: PrintFinding[] = [...check.findings];
   for (const overlap of measured.overlaps) {
     if (overlap.volume < MIN_OVERLAP) continue;
+    // shortcut: an overlap stays a warning the assistant must fix or name (audit H-12); between bodies a joint moves or an
+    // assembly step puts together it should block, which needs the joints' bodies and the assembly order passed in here.
     findings.push({ kind: 'overlap', severity: 'warn', bodies: [overlap.a, overlap.b], volume: round(overlap.volume), places: [], box: overlap.box });
   }
   for (const near of measured.near) {
