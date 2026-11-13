@@ -4,14 +4,8 @@ import { delimiter, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
 import type { ModelChoice, ModelOption, ResearchSource, AgentStatus } from '../../shared/contract';
-import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
-import { CLAUDE_RESEARCH_TOOLS, RESEARCH_GUIDANCE, sourceOfSearchResult, sourceOfToolUse } from './research';
-import { VIEW_GUIDANCE } from './viewContext';
-import { ASSEMBLY_GUIDANCE, JOINT_GUIDANCE } from './assemblyTool';
-import { BLOCK_GUIDANCE } from './blockTool';
-import { STANDARD_GUIDANCE } from './standardTool';
-import { MECHANISM_GUIDANCE } from './mechanismTool';
-import { REFUSAL_GUIDANCE } from './loop';
+import { CLAUDE_RESEARCH_TOOLS, sourceOfSearchResult, sourceOfToolUse } from './research';
+import { rolePrompt } from './loop';
 
 /**
  * Adapter for the user's own, unmodified Claude Code (ADR 0015). PartBuddy starts the official
@@ -305,23 +299,7 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
 
 /** The role Claude Code gets as `--append-system-prompt`. */
 export function roleOf(research: boolean): string {
-  return [
-    'You are the design assistant inside PartBuddy, a desktop app for 3D-printable parts.',
-    'SolidCraft runs in the background and the user watches every step live in PartBuddy\'s 3D view.',
-    'Use only the partbuddy tools to inspect and change the design. Work in small visible steps:',
-    'one sketch or one feature group per call. Units are millimetres.',
-    REFUSAL_GUIDANCE,
-    'Answer in the language the user writes in, and name bodies, features and sketches in it too: the structure tree and the timeline show these names.',
-    VIEW_GUIDANCE,
-    ASSEMBLY_GUIDANCE,
-    JOINT_GUIDANCE,
-    MECHANISM_GUIDANCE,
-    BLOCK_GUIDANCE,
-    STANDARD_GUIDANCE,
-    QUESTION_GUIDANCE,
-    ANSWER_GUIDANCE,
-    ...(research ? [RESEARCH_GUIDANCE] : []),
-  ].join(' ');
+  return rolePrompt(false, research);
 }
 
 export interface SessionOptions {

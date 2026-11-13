@@ -4,8 +4,8 @@ import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 /**
  * What the assistant learns about PartBuddy's 3D view (decided 2026-11-04): the selected face,
  * edge or vertex goes with each message as one line of text, and the `partbuddy_view` tool answers what the user
- * is looking at in about a hundred tokens. Both replace screenshots, which cost far more and show
- * SolidCraft's window instead of PartBuddy's view.
+ * is looking at as text (no token count: the body and sketch lists grow with the design, audit R43). Both replace
+ * screenshots, which cost far more, show SolidCraft's window instead of PartBuddy's view and reach only Claude Code (R24).
  */
 
 export const VIEW_TOOL = 'partbuddy_view';
@@ -183,8 +183,9 @@ const viewTool: UpstreamTool = {
   description:
     "What the user sees in PartBuddy's 3D view right now: the selected face, edge or vertex, the direction the camera looks from, " +
     'the bodies and sketches shown, what the last step changed, the user\'s notes on the model and PartBuddy\'s latest ' +
-    'ready-to-print check. Text only, about 100 tokens plus the notes and the findings. Use it instead of ' +
-    "a screenshot to know what the user selected or looks at; SolidCraft's own window selection is not PartBuddy's.",
+    // audit R43: no token count, the body and sketch lists grow with the design; R24: the own loops have no screenshot.
+    'ready-to-print check, as text. Use it to know what the user selected or looks at; ' +
+    "SolidCraft's own window selection is not PartBuddy's.",
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { readOnlyHint: true },
 };
@@ -213,5 +214,7 @@ export const VIEW_GUIDANCE =
   'A message may start with a [PartBuddy: …] note naming the face, edge or vertex the user selected in PartBuddy’s view; ' +
   `that is what "this face", "this edge" or "the marked one" means. Call ${VIEW_TOOL} to see what the user looks at. ` +
   'PartBuddy checks the part for printing after every change and shows the result to the user as a light; the findings come ' +
-  `behind the answer of each tool call that changed the design, and ${VIEW_TOOL} gives the latest ones. ` +
-  'Take a screenshot only when the look of the part matters: it costs many tokens.';
+  `behind the answer of each tool call that changed the design, and ${VIEW_TOOL} gives the latest ones.`;
+
+/** Only for Claude Code (audit R24): the own loops pass no picture from a tool answer, so they have no screenshot tool. */
+export const SCREENSHOT_GUIDANCE = 'Take a screenshot only when the look of the part matters: it costs many tokens.';

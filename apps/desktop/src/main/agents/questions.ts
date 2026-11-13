@@ -26,6 +26,8 @@ export const ASK_TOOL = 'partbuddy_ask';
 export const PLAN_TOOL = 'partbuddy_plan';
 
 const optionInput = z.object({ label: z.string().trim().min(1).max(60), detail: z.string().trim().max(200).optional(), recommended: z.boolean().optional() }).strict();
+/** Refusal of a single-choice question with more than one answer marked (audit R44): the card preselects them all. */
+export const ONE_RECOMMENDED = 'mark at most one answer as recommended, or set multiSelect when several can apply';
 const questionInput = z
   .object({
     header: z.string().trim().max(24).optional(),
@@ -33,7 +35,8 @@ const questionInput = z
     options: z.array(optionInput).min(2).max(5),
     multiSelect: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .refine((entry) => entry.multiSelect === true || entry.options.filter((option) => option.recommended === true).length <= 1, { message: ONE_RECOMMENDED });
 const askInput = z.object({ questions: z.array(questionInput).min(1).max(4) }).strict();
 
 const planInput = z
@@ -69,9 +72,10 @@ const askTool: UpstreamTool = {
     'answers to pick from and a field for a different answer. Mark the answer you recommend with recommended (it is ' +
     'preselected) and say why in its detail; every answer must work as it is, without anything typed, so for a value to ' +
     'measure offer typical values and let the user type the exact one. Use multiSelect when several answers can apply. ' +
-    'Ask what matters for the part ' +
-    'and cannot be settled from the request, the picture or research (what it attaches to and how, sizes of the objects ' +
-    'involved, loads, cables and access, print limits); never ask what you can look up. After calling it, end your turn ' +
+    // audit R25: true on every route, whether research is on or not.
+    'Ask what matters for the part and cannot be settled from the request, the picture, PartBuddy\'s tools or, where you ' +
+    'may research, the web (what it attaches to and how, sizes of the objects involved, loads, cables and access, print ' +
+    'limits); never ask what you can look up there. After calling it, end your turn ' +
     'without changing the design: the answers are the next message, one line per question.',
   inputSchema: {
     type: 'object',
@@ -157,19 +161,26 @@ const planTool: UpstreamTool = {
 export const ANSWER_GUIDANCE =
   'Keep answers short: two or three sentences on what you built, found or need from the user. PartBuddy already shows ' +
   'every step, the parameters with their values and the dimensions, so do not repeat them as tables, lists or headings; ' +
-  'name a parameter when the user may want to change it. Write more only when the user asks for an explanation or a check.';
+  'name a parameter when the user may want to change it. Write more only when the user asks for an explanation or a check. ' +
+  // audit R26: brevity must not drop what the rule texts and tool answers ask to be said.
+  'Never leave out, for the sake of brevity: what does not print or was not checked, a figure that is a range, an ' +
+  'estimate or not printed yet, the fit you chose, and the source of a looked-up size. One short line each.';
 
-/** Added to the role prompt of every route. */
-// Concept, use and function check first: decided 2026-11-06, after a practice phone holder that would not have held the phone.
-export const QUESTION_GUIDANCE = [
+/**
+ * Added to the role prompt of every route; `research` says whether this conversation may search the web (audit R25).
+ * Concept, use and function check first: decided 2026-11-06, after a practice phone holder that would not have held the phone.
+ */
+export const questionGuidance = (research: boolean): string => [
   'For a new part, work like a product designer before you build.',
-  `1. Concept: think about how proven products and good printed designs solve this task (look them up when you may research).`,
+  `1. Concept: think about how proven products and good printed designs solve this task${research ? ' (look them up)' : ''}.`,
   `Your first ${ASK_TOOL} round offers 2 or 3 such concepts with their trade-offs, your recommendation marked.`,
   '2. Use: ask what decides the design and you cannot know: how it is used (loads, shocks and vibration, how often it is put',
-  'on and taken off, buttons, ports, cables, viewing angle), where, and the real sizes of the user\'s own items; look up',
-  'product data instead of asking for it. One round per turn, up to four questions, until nothing that matters is open.',
+  'on and taken off, buttons, ports, cables, viewing angle), where, and the real sizes of the user\'s own items' +
+    (research ? '; look up product data instead of asking for it.' : ' and of the products it is for.'),
+  'One round per turn, up to four questions, until nothing that matters is open.',
+  // audit R41: the material need not be PLA; how far an arm may bend is FLEX_GUIDANCE's (loop.ts).
   '3. Function check: before the plan, go through the part in use. Is it held securely under those loads, can it be put in',
-  'and taken out, does it flex where it must (PLA is stiff: a snap or a lip needs a thin, long arm; otherwise use a band,',
+  'and taken out, does it flex where it must (a snap or a lip needs a thin, long arm; otherwise use a band,',
   'spring, screw or clamp), are levers short and walls strong enough, does it print without supports. If the check fails,',
   'change the concept and tell the user why.',
   `Then call ${PLAN_TOOL}, with the function check as its last step, and build only after the user said Go. For several`,
