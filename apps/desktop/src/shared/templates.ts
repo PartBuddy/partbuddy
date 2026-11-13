@@ -71,8 +71,8 @@ function hingedBox(): Step[] {
   return [
     parameter('length', '60 mm', 'Outer length of box and lid; at least 54 mm, the hinge is 40 mm long'),
     parameter('width', '40 mm', 'Outer width of box and lid'),
-    parameter('height', '16 mm', 'Height of each half; closed, the box is twice as high. At least 8 mm: the webs under the hinge reach 6.2 mm below the rim'),
-    parameter('wall', '2.4 mm', 'Wall and floor thickness'),
+    parameter('height', '16 mm', 'Height of each half; closed, the box is twice as high. At least 8 mm: closed, the lip of the lid reaches 4 mm into the box above its floor'),
+    parameter('wall', '2.4 mm', 'Wall and floor thickness; at least 1.6 mm: the rille of the closure goes 0.45 mm into the wall of the box'),
     parameter('corner', '5 mm', 'Radius of the outer corners of box and lid; at least 2 mm more than the wall'),
     ...shell('Box', '-width', -width, (name) => `Box ${name}`),
     ...shell('Lid', between, between, (name) => `Lid ${name}`),
@@ -87,6 +87,7 @@ function hingedBox(): Step[] {
       up: 1,
       radius: { at: 5 - wall0, expr: 'corner - wall' },
       wall: { at: wall0, expr: 'wall' },
+      floor: { at: wall0, expr: 'wall' },
       side: 'y+',
       hinge: { along: 'x', across: between / 2, z: { at: height, expr: 'height' } },
       name: 'Closure',
@@ -324,8 +325,8 @@ const GERMAN: Record<string, string> = {
   'Thickness of the plate': 'Stärke der Platte',
   'Height of the capital letters': 'Höhe der Großbuchstaben',
   'Holes for M3 screws (ISO 273, normal)': 'Löcher für M3-Schrauben (ISO 273, mittel)',
-  'Height of each half; closed, the box is twice as high. At least 8 mm: the webs under the hinge reach 6.2 mm below the rim': 'Höhe jeder Hälfte; geschlossen ist die Box doppelt so hoch. Mindestens 8 mm: die Stege unter dem Scharnier reichen 6,2 mm unter den Rand',
-  'Wall and floor thickness': 'Stärke von Wand und Boden',
+  'Height of each half; closed, the box is twice as high. At least 8 mm: closed, the lip of the lid reaches 4 mm into the box above its floor': 'Höhe jeder Hälfte; geschlossen ist die Box doppelt so hoch. Mindestens 8 mm: geschlossen reicht die Lippe des Deckels 4 mm in die Box über ihrem Boden',
+  'Wall and floor thickness; at least 1.6 mm: the rille of the closure goes 0.45 mm into the wall of the box': 'Stärke von Wand und Boden; mindestens 1,6 mm: die Rille des Verschlusses geht 0,45 mm in die Wand der Box',
   'Wall, floor and lid thickness': 'Stärke von Wand, Boden und Deckel',
   'Outer length of housing and lid': 'Außenlänge von Gehäuse und Deckel',
   'Outer width of housing and lid': 'Außenbreite von Gehäuse und Deckel',
@@ -397,7 +398,7 @@ const GERMAN_FEATURES: Record<string, string> = {
 
 /** "Ear slot 2 end 1" → "Laschenschlitz 2 Ende 1": the base from the list, numbers and a mechanism's mark (·, ○, ● …) kept. */
 export function germanFeatureName(name: string): string {
-  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)((?: [·○●◢◆◠△◣◤▬])?)$/.exec(name);
+  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)((?: [·○●◢◆◠△◣◤▬▭])?)$/.exec(name);
   const base = match?.[1] ?? name;
   const german = GERMAN_FEATURES[base];
   if (german === undefined) return name;

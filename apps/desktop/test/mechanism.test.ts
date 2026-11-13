@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, screwStock, hingeOf, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, closureTrial, MECHANISM_GUIDANCE, screwStock, hingeOf, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { METADATA_PREFIX } from '../src/main/notes/noteRecord';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, TOGETHER_KEY, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, TOGETHER_KEY, screwLength, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -614,12 +614,13 @@ describe('the snap closure of a lid (G3)', () => {
     expect(steps[9]?.params).toMatchObject({ diameter: '16 mm', base: ['(2 mm + 58 mm) / 2', '2 mm - 2 mm', '20 mm - 5.5 mm'], axis: 'Y', operation: 'cut', targets: ['Lid'] });
     const [notch, bead] = [steps.findIndex((step) => step.params.name === 'Closure ◠'), steps.findIndex((step) => step.params.name === 'Closure ●')];
     expect(notch).toBeLessThan(bead);
-    // The foot lies above the rim in the lid, 0.2 mm into its wall; the lip hangs 4 mm below the rim, 0.25 mm clear, 1.2 mm thick.
+    // The foot lies above the rim in the lid, 0.2 mm into its wall; the lip hangs 4 mm below the rim, 0.25 mm clear, 1.35 mm thick
+    // (three lines of a 0.4 mm nozzle).
     expect(steps[0]?.params.offset).toBe('20 mm');
     expect(steps[1]?.params).toEqual({ p0: ['2 mm - 0.2 mm', '2 mm - 0.2 mm'], p1: ['58 mm + 0.2 mm', '38 mm + 0.2 mm'] });
     expect(steps[4]?.params.offset).toBe('20 mm - 4 mm');
     expect(steps[5]?.params).toEqual({ p0: ['2 mm + 0.25 mm', '2 mm + 0.25 mm'], p1: ['58 mm - 0.25 mm', '38 mm - 0.25 mm'] });
-    expect(steps[6]?.params).toEqual({ p0: ['2 mm + 1.45 mm', '2 mm + 1.45 mm'], p1: ['58 mm - 1.45 mm', '38 mm - 1.45 mm'] });
+    expect(steps[6]?.params).toEqual({ p0: ['2 mm + 1.6 mm', '2 mm + 1.6 mm'], p1: ['58 mm - 1.6 mm', '38 mm - 1.6 mm'] });
     // Only the rille is cut from the box; everything else belongs to the lid.
     expect(steps.filter((step) => JSON.stringify(step.params.targets ?? step.params.body ?? '').includes('Box')).map((step) => step.params.name)).toEqual(['Closure ○']);
     // The bead stands 0.25 mm past the wall's face (0.5 mm proud of the lip), 14 mm long in the wall's middle; its rille sits where it lands.
@@ -634,8 +635,88 @@ describe('the snap closure of a lid (G3)', () => {
 
   it('puts the rille where the bead lands when the lid is built open and closes on a hinge, and follows a template\'s parameters', () => {
     const open = lipSteps({ ...lid, up: 1, side: 'y+', rim: { at: 16, expr: 'height' }, hinge: { along: 'x', across: 0.5, z: { at: 16, expr: 'height' } } });
-    expect(open[12]?.params.base).toEqual(['(2 mm + 58 mm) / 2 - 7.5 mm', '2 * 0.5 mm - (38 mm - 0.25 mm)', '2 * (height) - ((height) + 2.5 mm)']);
+    expect(open.find((step) => step.params.name === 'Closure ○')?.params.base).toEqual(['(2 mm + 58 mm) / 2 - 7.5 mm', '2 * 0.5 mm - (38 mm - 0.25 mm)', '2 * (height) - ((height) + 2.5 mm)']);
     expect(open[0]?.params.offset).toBe('(height) - 3 mm');
+  });
+
+  it('leaves the lip off the wall at the hinge, where the knuckles turn (audit T3, N-nach-1)', () => {
+    // The lid lies open beside the box, its hinge line 0.5 mm out from y = 0; the room starts at y 2.4 + 1.
+    const unhinged: LipSpec = { ...lid, min: [2.4, 3.4], max: [57.6, 38.6], up: 1, side: 'y+', rim: 16, radius: 2.6, wall: 2.4 };
+    const open: LipSpec = { ...unhinged, hinge: { along: 'x', across: 0.5, z: 16 } };
+    const steps = lipSteps(open);
+    const names = steps.map((step) => step.params.name ?? '');
+    // Taken off after the slope was set on the whole ring, so the chamfer's edge stays the one it was picked as.
+    expect(names.indexOf('Closure ▭')).toBe(names.indexOf('Closure ◢') + 1);
+    // Along the straight stretch of the wall at the hinge (y 3.4, between the corners' arcs), from its face to past the lip,
+    // from under the foot to over the lip.
+    expect(steps.find((step) => step.params.name === 'Closure ▭')?.params).toMatchObject({
+      length: '57.6 mm - 2.4 mm - 2 * 2.6 mm',
+      width: '1.65 mm',
+      height: '3 mm + 4.2 mm',
+      corner: ['2.4 mm + 2.6 mm', '3.4 mm', '16 mm - 3 mm - 0.1 mm'],
+      operation: 'cut',
+      targets: ['Lid'],
+    });
+    // Without a hinge every wall keeps its lip.
+    expect(lipSteps(unhinged).some((step) => step.params.name === 'Closure ▭')).toBe(false);
+    expect(lipProblem({ ...open, side: 'y-' })).toBe('with a hinge the catch goes on the wall opposite it: side y+');
+    expect(lipProblem({ ...open, side: 'x+' })).toBe('with a hinge the catch goes on the wall opposite it: side y+');
+    expect(lipProblem(open)).toBeNull();
+  });
+
+  it('slopes the foot on all four edges of a sharp ring, and stops it short of a shallow floor (audit T15, N-mechanik-14, N-nach-2)', () => {
+    const chamfer = (spec: LipSpec) => lipSteps(spec).find((step) => step.params.name === 'Closure ◢')?.params.edges;
+    // Sharp: one point per wall, in the middle of each inner edge of the foot's underside (above the rim, the lid hangs down).
+    expect(chamfer(lid)).toEqual([[30, 3.6, 23], [30, 36.4, 23], [3.6, 20, 23], [56.4, 20, 23]]);
+    // Rounded: the four are one chain from any point of it.
+    expect(chamfer({ ...lid, radius: 4 })).toEqual([[30, 3.6, 23]]);
+    // A template's floor: the foot stops 0.6 mm short of it, however low the lid is made.
+    const low = lipSteps({ ...lid, up: 1, side: 'y+', rim: { at: 16, expr: 'height' }, floor: { at: 2.4, expr: 'wall' } });
+    expect(low[0]?.params.offset).toBe('(height) - (min(3 mm, (height) - (wall) - 0.6 mm))');
+    expect(low[3]?.params.distance).toBe('min(3 mm, (height) - (wall) - 0.6 mm)');
+  });
+
+  it('sizes the lip in whole lines of the nozzle, at least two (audit T13, MV-19)', () => {
+    expect([0.25, 0.4, 0.6, 0.8].map((nozzle) => lipThick(nozzle))).toEqual([1.405, 1.35, 1.35, 1.8]);
+    expect(lipSteps({ ...lid, nozzle: 0.8 })[6]?.params).toEqual({ p0: ['2 mm + 2.05 mm', '2 mm + 2.05 mm'], p1: ['58 mm - 2.05 mm', '38 mm - 2.05 mm'] });
+    expect(lipOf({ fixed: 'Box', moving: 'Lid', from: [2, 2, 20], to: [58, 38, 20], up: [0, 0, -1], side: 'y-' }, 0.6)).toMatchObject({ nozzle: 0.6 });
+  });
+
+  it('tries the box where the lid closes before it builds anything (audit W17, T14, H-10)', async () => {
+    // The lid open beside the box, as the template has it: rods turned half a turn about the hinge line land in the box.
+    const unhinged: LipSpec = { ...lid, min: [2, 43], max: [58, 79], up: 1, side: 'y+', rim: 20, radius: 2, wall: 2 };
+    const open: LipSpec = { ...unhinged, hinge: { along: 'x', across: 40.5, z: 20 } };
+    const rods: { name: string; base: number[]; height: number }[] = [];
+    // The share of each rod that lies in the box, by its name.
+    const trial = (inside: (name: string) => number, spec: LipSpec = open) => {
+      const upstream: UpstreamTools = {
+        instructions: () => undefined,
+        listTools: () => Promise.resolve([]),
+        callTool: (_name, args) => {
+          const commands = args.commands as { command: string; params: { body_name: string; base: number[]; height: number } }[];
+          const made = commands.filter((step) => step.command === 'solid.cylinder').map((step) => ({ name: step.params.body_name, base: step.params.base, height: step.params.height }));
+          rods.splice(0, rods.length, ...made);
+          const overlaps = made.map((rod) => ({ a: rod.name, b: 'Box', volume_mm3: ((Math.PI * 0.04) / 4) * rod.height * inside(rod.name) }));
+          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: [...made.map(() => ({})), { overlaps }] }) }] });
+        },
+      };
+      return closureTrial(upstream, spec, 0.4, undefined);
+    };
+    const fits = (name: string) => (name.includes('room') ? 0 : 1);
+    expect(await trial(fits)).toEqual({ problem: null, back: [] });
+    // No rod at the hinge's wall (y-), which keeps no lip; the one behind the rille lies 1.25 mm into the box's wall
+    // (0.45 mm of rille and two lines, less the rod's half), at the rille's height, along the bead.
+    expect(rods.map((rod) => rod.name.replace('PartBuddy probe ', ''))).toEqual(['room x-', 'wall x-', 'room x+', 'wall x+', 'room y+', 'wall y+', 'behind y+']);
+    const behind = rods.find((rod) => rod.name.endsWith('behind y+'));
+    expect(behind?.base.map((value) => Math.round(value * 1000) / 1000)).toEqual([22.5, 2 * 40.5 - (79 + 1.25), 2 * 20 - 22.5]);
+    expect(behind?.height).toBeCloseTo(15);
+    expect((await trial((name) => (name.endsWith('room y+') ? 0.3 : fits(name)))).problem).toContain("closed, the lip would run into Box's wall at the lid's y+ wall");
+    expect((await trial((name) => (name.endsWith('wall y+') ? 0 : fits(name)))).problem).toContain("Box's wall with the catch (y+) does not stand where the lid's wall does");
+    expect((await trial((name) => (name.endsWith('behind y+') ? 0.6 : fits(name)))).problem).toContain('is under 1.35 mm thick behind the middle of the lid');
+    // A side wall the box stands back from is said, not refused.
+    expect(await trial((name) => (name.endsWith('wall x-') ? 0 : fits(name)))).toEqual({ problem: null, back: ['x-'] });
+    // Without the hinge line, a lid lying open side up is looked for where it lies, and the answer says what is missing.
+    expect((await trial(() => 0, unhinged)).problem).toContain('give the hinge line it closes about (hinge_from, hinge_to)');
   });
 
   it('says what is wrong before anything is built', () => {
@@ -643,12 +724,15 @@ describe('the snap closure of a lid (G3)', () => {
     expect(lipProblem({ ...lid, moving: 'Box' })).toBe('fixed and moving must be two bodies');
     expect(lipProblem({ ...lid, side: 'x-', max: [58, 20] })).toContain('Put the catch on a longer wall');
     expect(lipProblem({ ...lid, wall: 1 })).toContain('wall must be 1.6–10 mm');
+    expect(lipProblem({ ...lid, radius: 18.5 })).toBe("radius must be at most half the room's shorter side (18 mm)");
     const args = { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [58, 2, 20], to: [2, 38, 20], up: [0, 0, -1], side: 'y-' };
     expect(lipOf(args)).toMatchObject({ min: [2, 2], max: [58, 38], rim: 20, up: -1, wall: 2, radius: 0, name: 'Closure' });
     expect(lipOf({ ...args, to: [2, 38, 25] })).toBe("from and to must both lie at the height of the lid's rim");
     expect(lipOf({ ...args, up: [1, 0, 0] })).toContain('up must be +Z');
     expect(lipOf({ ...args, side: 'front' })).toContain('side must be x-, x+, y- or y+');
-    expect(lipOf({ ...args, hinge_from: [0, 0, 20], hinge_to: [60, 0, 20] })).toMatchObject({ hinge: { along: 'x', across: 0, z: 20 } });
+    // With a hinge the catch goes opposite it.
+    expect(lipOf({ ...args, side: 'y+', hinge_from: [0, 0, 20], hinge_to: [60, 0, 20] })).toMatchObject({ hinge: { along: 'x', across: 0, z: 20 } });
+    expect(lipOf({ ...args, hinge_from: [0, 0, 20], hinge_to: [60, 0, 20] })).toBe('with a hinge the catch goes on the wall opposite it: side y+');
     expect(lipOf({ ...args, hinge_from: [0, 0, 20], hinge_to: [60, 10, 20] })).toBe('the hinge line must run level, along X or along Y');
   });
 
@@ -667,8 +751,13 @@ describe('the snap closure of a lid (G3)', () => {
     };
     const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [2, 2, 20], to: [58, 38, 20], up: [0, 0, -1], side: 'y-' });
     expect(built.isError).toBeUndefined();
-    expect(built.content[0]).toMatchObject({ text: expect.stringContaining('Built the closure "Closure" between Box (the box) and Lid (the lid): a lip 1.2 mm thick and 4 mm high inside the lid, 0.25 mm clear') as string });
-    expect(batches).toHaveLength(4);
+    expect(built.content[0]).toMatchObject({ text: expect.stringContaining('Built the closure "Closure" between Box (the box) and Lid (the lid): a lip 1.35 mm thick and 4 mm high inside the lid, 0.25 mm clear') as string });
+    // The trial of the box gave no answer here: the answer says what to keep instead.
+    expect(built.content[0]).toMatchObject({ text: expect.stringContaining("PartBuddy could not try Box's wall: keep it straight where the lip goes in, and at least 1.35 mm thick behind the rille.") as string });
+    expect(batches).toHaveLength(5);
+    // Audit R39: the notch goes through the lid's rim, so the guidance does not say that no wall is cut through.
+    expect(MECHANISM_GUIDANCE).not.toContain('no wall cut through');
+    expect(MECHANISM_GUIDANCE).toContain("only a notch for a fingernail in the lid's rim");
     expect(batches.join(' ')).not.toContain('joint.as_built');
   });
 });

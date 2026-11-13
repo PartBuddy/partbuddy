@@ -367,24 +367,56 @@ export interface LipSpec {
    * The foot is 3 mm high and came out of the top of a thinner plate (practice run 2026-11-11).
    */
   flat?: boolean;
+  /**
+   * The height (z) of the lid's floor inside, where the caller knows it (a template): the foot then stops 0.6 mm short
+   * of it however shallow the lid is made, so its chamfer keeps its edge (audit 2026-11-13, N-nach-2: at a height of 5 mm
+   * the foot ran into the floor and the chamfer lost its reference).
+   */
+  floor?: Size;
+  /** The nozzle the lip is sized for (mm); default 0.4. */
+  nozzle?: number;
   name: string;
 }
 
 /**
- * The snap closure of a printed lid, by the usual sizes for a 0.4 mm nozzle: the lip 1.2 mm thick and 4 mm high,
- * 0.25 mm clear of the box's wall; the bead 0.5 mm proud, so 0.25 mm of catch, with 45° flanks, 14 mm long in the
- * middle of a wall (never in a corner, which cannot give way); the rille 0.2 mm deeper than the bead reaches.
+ * The snap closure of a printed lid: the lip at least 1.2 mm thick (`lipThick`) and 4 mm high, 0.25 mm clear of the box's
+ * wall; the bead 0.5 mm proud, so 0.25 mm of catch, with 45° flanks, 14 mm long in the middle of a wall (never in a
+ * corner, which cannot give way); the rille 0.2 mm deeper than the bead reaches. The bead is a bump of the lip's outline,
+ * no wall of its own, so it needs no line width: the slicer's outer line follows it with any nozzle.
  */
-export const LIP = { thick: 1.2, high: 4, clear: 0.25, foot: 3, bead: 0.5, beadLong: 14, notch: 16 };
+export const LIP = { thick: 1.2, high: 4, clear: 0.25, foot: 3, bead: 0.5, beadLong: 14, notch: 16, rille: 1.4 };
+
+/**
+ * The lip's thickness: whole extrusion lines, as many as reach 1.2 mm, at least two (audit T13, MV-19: 1.2 mm is no
+ * whole number of lines on a 0.4 mm nozzle and under two on a 0.6 mm one). 1.35 mm on 0.4 and on 0.6, 1.8 mm on 0.8: the
+ * snap keeps about the same spring.
+ */
+export function lipThick(nozzle = 0.4): number {
+  const line = round(nozzle * 1.125);
+  return round(Math.max(2, Math.ceil(LIP.thick / line - 1e-9)) * line);
+}
+
+/** How far the rille goes into the box's wall past the lid's inner room: its axis stands 0.25 mm in front of that plane. */
+export const RILLE_DEPTH = round(LIP.rille / 2 - LIP.clear);
 
 /** What is wrong with a closure before anything is built; null when it can be built. */
 export function lipProblem(spec: LipSpec): string | null {
   const span = spec.side.startsWith('y') ? at(spec.max[0]) - at(spec.min[0]) : at(spec.max[1]) - at(spec.min[1]);
+  const short = Math.min(at(spec.max[0]) - at(spec.min[0]), at(spec.max[1]) - at(spec.min[1]));
   if (spec.fixed === spec.moving) return 'fixed and moving must be two bodies';
   if (!(at(spec.max[0]) - at(spec.min[0]) >= 12 && at(spec.max[1]) - at(spec.min[1]) >= 12)) return 'from and to must be opposite corners of the lid\'s inner room, at least 12 mm apart in x and in y';
   if (span < LIP.beadLong + 2 * Math.max(at(spec.radius), 2) + 2) return `the wall with the catch is ${String(round(span))} mm long inside; the bead needs ${String(LIP.beadLong + 2 * Math.max(at(spec.radius), 2) + 2)} mm between the corners. Put the catch on a longer wall`;
   if (!(at(spec.wall) >= 1.6 && at(spec.wall) <= 10)) return 'wall must be 1.6–10 mm (the lid\'s wall thickness)';
   if (at(spec.radius) < 0) return 'radius must not be negative';
+  // Audit W17: a corner wider than half the room is no room of rounded corners any more.
+  if (at(spec.radius) > short / 2) return `radius must be at most half the room's shorter side (${String(round(short / 2))} mm)`;
+  // The rille is placed by turning the catch about the hinge, and the hinge's wall keeps no lip: both need the catch opposite.
+  const hinge = spec.hinge;
+  if (hinge) {
+    const [lo, hi] = hinge.along === 'x' ? [spec.min[1], spec.max[1]] : [spec.min[0], spec.max[0]];
+    const far = `${hinge.along === 'x' ? 'y' : 'x'}${Math.abs(at(hi) - at(hinge.across)) > Math.abs(at(lo) - at(hinge.across)) ? '+' : '-'}`;
+    if (spec.side !== far) return `with a hinge the catch goes on the wall opposite it: side ${far}`;
+  }
   return null;
 }
 
@@ -400,16 +432,16 @@ export function lipSteps(spec: LipSpec): Step[] {
   const mm = (value: number) => `${String(round(Math.abs(value)))} mm`;
   // An expression moved by a number of mm.
   const by = (size: Size, value: number) => (value === 0 ? ex(size) : `${ex(size)} ${value < 0 ? '-' : '+'} ${mm(value)}`);
-  const inner = LIP.clear + LIP.thick;
+  const inner = round(LIP.clear + lipThick(spec.nozzle));
   const round_ = at(spec.radius) >= 2;
   // A ring between two outlines of the lid's room, each moved in by an inset, from the height `z` upwards.
-  const ring = (label: string, z: string, outside: number, distance: number): Step[] => [
+  const ring = (label: string, z: string, outside: number, distance: string): Step[] => [
     { command: 'sketch.create', params: { plane: 'XY', offset: z, project_edges: false, name: label } },
     ...[outside, inner].map((inset) => ({
       command: round_ ? 'sketch.rectangle.rounded' : 'sketch.rectangle.two_point',
       params: { p0: [by(x0, inset), by(y0, inset)], p1: [by(x1, -inset), by(y1, -inset)], ...(round_ ? { radius: by(spec.radius, -inset) } : {}) },
     })),
-    { command: 'solid.extrude', params: { distance: mm(distance), operation: 'join', targets: [spec.moving], name: label } },
+    { command: 'solid.extrude', params: { distance, operation: 'join', targets: [spec.moving], name: label } },
   ];
   // The wall with the catch: across it runs `n` (out of the room), along it the bead.
   const alongX = spec.side.startsWith('y');
@@ -432,10 +464,39 @@ export function lipSteps(spec: LipSpec): Step[] {
     const turned = (value: string, about: Size) => `2 * ${ex(about)} - (${value})`;
     return hinge.along === 'x' ? [point[0], turned(point[1], hinge.across), turned(point[2], hinge.z)] : [turned(point[0], hinge.across), point[1], turned(point[2], hinge.z)];
   };
+  // The foot's height: 3 mm, or less where the lid's floor comes closer than that and 0.6 mm.
+  const floor = spec.floor;
+  const footAt = floor === undefined ? LIP.foot : Math.min(LIP.foot, round(up * (at(spec.rim) - at(floor)) - 0.6));
+  const foot = floor === undefined ? mm(LIP.foot) : `min(${mm(LIP.foot)}, ${up > 0 ? `${ex(spec.rim)} - ${ex(floor)}` : `${ex(floor)} - ${ex(spec.rim)}`} - 0.6 mm)`;
+  const footZ = up > 0 ? `${ex(spec.rim)} - ${floor === undefined ? mm(LIP.foot) : `(${foot})`}` : ex(spec.rim);
+  const footEdge = at(spec.rim) - up * footAt;
+  // The 45° slope under the foot, on every inner edge of its underside: a rounded ring is one chain from any point of
+  // it, a sharp one four edges, and three of them stayed a level step of 184 mm² (audit T15, N-mechanik-14).
+  const footEdges: [number, number, number][] = round_
+    ? [xyz(middleAt, at(wallAt) - out * inner, footEdge)]
+    : [[(at(x0) + at(x1)) / 2, at(y0) + inner, footEdge], [(at(x0) + at(x1)) / 2, at(y1) - inner, footEdge], [at(x0) + inner, (at(y0) + at(y1)) / 2, footEdge], [at(x1) - inner, (at(y0) + at(y1)) / 2, footEdge]];
+  // With a hinge, its wall keeps no lip: the hinge holds the lid on that side, and the knuckles turning there bit the lip
+  // and the foot into faces that hung (audit 2026-11-12, T3: 63 mm² at the template; N-nach-1: 0.26 mm left at other sizes).
+  // Taken off along the straight stretch, from the wall's face into the room, after the slope was set on the whole ring.
+  const hingeWall = alongX ? (out > 0 ? y0 : y1) : out > 0 ? x0 : x1;
+  const reach = round(inner + 0.05);
+  const unhinged: Step[] = spec.hinge && !spec.flat
+    ? [{
+        command: 'solid.box',
+        params: {
+          ...size(`${ex(a1)} - ${ex(a0)} - 2 * ${ex(spec.radius)}`, mm(reach), `${foot} + ${mm(LIP.high + 0.2)}`),
+          corner: xyz(`${ex(a0)} + ${ex(spec.radius)}`, out > 0 ? ex(hingeWall) : by(hingeWall, -reach), up > 0 ? `${footZ} - 0.1 mm` : by(spec.rim, -LIP.high - 0.1)),
+          operation: 'cut',
+          targets: [spec.moving],
+          name: `${name} ▭`,
+        },
+      }]
+    : [];
   return [
-    ...(spec.flat ? [] : ring(`${name} ·`, by(spec.rim, up > 0 ? -LIP.foot : 0), -0.2, LIP.foot)),
-    ...ring(name, by(spec.rim, up > 0 ? 0 : -LIP.high), LIP.clear, LIP.high),
-    ...(spec.flat ? [] : [{ command: 'solid.chamfer', params: { edges: [xyz(middleAt, at(wallAt) - out * inner, at(spec.rim) - up * LIP.foot)], distance: mm(inner - 0.05), body: spec.moving, name: `${name} ◢` } }]),
+    ...(spec.flat ? [] : ring(`${name} ·`, footZ, -0.2, foot)),
+    ...ring(name, by(spec.rim, up > 0 ? 0 : -LIP.high), LIP.clear, mm(LIP.high)),
+    ...(spec.flat ? [] : [{ command: 'solid.chamfer', params: { edges: footEdges, distance: mm(inner - 0.05), body: spec.moving, name: `${name} ◢` } }]),
+    ...unhinged,
     // The notch before the bead: it reaches below the rim, where the bead stands past the wall's plane, and cut after
     // it took that part away, so the bead ended on the plane and caught nothing (audit 2026-11-12, N-mechanik-2).
     ...(spec.flat ? [] : [{
@@ -464,7 +525,7 @@ export function lipSteps(spec: LipSpec): Step[] {
     {
       command: 'solid.cylinder',
       params: {
-        diameter: '1.4 mm',
+        diameter: mm(LIP.rille),
         height: mm(LIP.beadLong + 1),
         base: closed(xyz(`${middle} - ${mm(LIP.beadLong / 2 + 0.5)}`, by(wallAt, -out * 0.25), by(spec.rim, up * 2.5))),
         axis: alongX ? 'X' : 'Y',

@@ -142,6 +142,17 @@ describe('templates with moving parts', () => {
     expect((drawn('Hinge 2 ◣')[1]?.points as string[][])[2]).toEqual(['0.5 mm + min(0.5 mm, height + -5.657 mm)', 'max(height + -6.157 mm, 0 mm)']);
     expect(germanFeatureName('Hinge 1 ◣')).toBe('Scharnier 1 ◣');
     expect(germanFeatureName('Hinge 2 ▬')).toBe('Scharnier 2 ▬');
+    // Audit T3 (63 mm² of overhang left at the lid) and N-nach-1 (0.26 mm at height 24, length 80, wall 3): the knuckles bit
+    // the closure's lip and foot along the wall at the hinge. That wall keeps no lip, at every size.
+    expect(steps.find((step) => step.params.name === 'Closure ▭')?.params).toMatchObject({
+      length: '(length - wall) - (wall) - 2 * (corner - wall)',
+      corner: ['(wall) + (corner - wall)', '(1 mm + wall)', '(height) - (min(3 mm, (height) - (wall) - 0.6 mm)) - 0.1 mm'],
+      operation: 'cut',
+      targets: ['Lid'],
+    });
+    // N-nach-2: at a height of 5 mm the foot ran into the lid's floor and its chamfer lost its edge; it stops short of the floor.
+    expect(steps.find((step) => step.command === 'solid.extrude' && step.params.name === 'Closure ·')?.params.distance).toBe('min(3 mm, (height) - (wall) - 0.6 mm)');
+    expect(germanFeatureName('Closure ▭')).toBe('Verschluss ▭');
     // The joint is kept on the pin's round top: underneath the pin is flat now.
     expect((steps.find((step) => step.command === 'joint.create')?.params.a as { circle: number[] }).circle.map((value) => Math.round(value * 100) / 100)).toEqual([25.46, 0.5, 18]);
   });
