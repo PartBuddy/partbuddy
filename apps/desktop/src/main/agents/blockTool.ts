@@ -188,6 +188,10 @@ export function seatStock(block: Extract<FeatureBlock, { block: 'insertSeat' }>,
   };
 }
 
+/** What a block says when a curved face took some of the wall round a hole, and how much was allowed. */
+const fallenSaid = (wall: number, slack: number) =>
+  ` Round the hole the face falls away evenly, as a curved face does: PartBuddy allowed the ${String(Math.round(wall * 10) / 10)} mm³ of wall at the top that this takes, and no more than ${String(Math.round(slack * 10) / 10)} mm³ missing round and under the hole in all. A face that falls away to one side, an edge or a chamfer, is not allowed.`;
+
 /** What a block says when its measure allowed for a curved face: how much, and that it covers the plastic under the hole alone. */
 const lenientSaid = (slack: number) =>
   ` Right under the hole it allows ${String(Math.round(slack * 10) / 10)} mm³ less plastic, ${String(CURVED_FACE)} mm of the hole's depth, as a curved face may take; it cannot tell that from a cut of that size there. The wall round the hole is measured in full.`;
@@ -379,9 +383,10 @@ export const STOCK_FULL = 0.999;
  * Where the body has less plastic than a block's cuts need (audit R54): each stock cylinder is laid in as a body
  * on trial and SolidCraft says how much of it lies in the part. A step that must fail ends the batch, and
  * SolidCraft takes the probes back, leaving revision, undo and redo as they were (as mechanismTool.ts measures a
- * hinge line). Null when all of it is plastic; `undefined` when it could not be measured.
+ * hinge line). Null when all of it is plastic; `undefined` when it could not be measured. `fallen` is told the mm³ of
+ * wall that a curved face took and that were allowed.
  */
-export async function shortOf(upstream: UpstreamTools, body: string, stock: Stock[], callId: string | undefined): Promise<string | null | undefined> {
+export async function shortOf(upstream: UpstreamTools, body: string, stock: Stock[], callId: string | undefined, fallen: (mm3: number) => void = () => undefined): Promise<string | null | undefined> {
   try {
     // Each stock cylinder, and where a hole is cut in it already a cylinder as wide as the hole (`core`) as well: the two apart
     // are the wall round the hole and what lies under it.
@@ -403,16 +408,33 @@ export async function shortOf(upstream: UpstreamTools, body: string, stock: Stoc
     const text = answer.content.find((part) => part.type === 'text')?.text;
     const results = (JSON.parse(typeof text === 'string' ? text : '') as { results?: unknown[] }).results;
     if (!Array.isArray(results) || results.length < probes.length * 2) return undefined;
-    const plastics = probes.map((_, k) => {
-      const found = (results[k * 2 + 1] as { interferences?: { volume_mm3?: unknown }[] } | undefined)?.interferences;
-      return Array.isArray(found) ? found.reduce((sum, pair) => sum + (typeof pair.volume_mm3 === 'number' ? pair.volume_mm3 : 0), 0) : NaN;
+    // The plastic in each probe and its centre (null when SolidCraft gives none).
+    const measured = probes.map((_, k) => {
+      const found = (results[k * 2 + 1] as { interferences?: { volume_mm3?: unknown; center?: unknown; centre?: unknown }[] } | undefined)?.interferences;
+      if (!Array.isArray(found)) return { volume: NaN, centre: null };
+      const parts = found.map((pair) => ({ volume: typeof pair.volume_mm3 === 'number' ? pair.volume_mm3 : 0, centre: vec3(pair.center ?? pair.centre) }));
+      const volume = parts.reduce((sum, part) => sum + part.volume, 0);
+      const centre = parts.every((part) => part.centre || part.volume === 0) && volume > 0 ? ([0, 1, 2].map((i) => parts.reduce((sum, part) => sum + part.volume * (part.centre?.[i] ?? 0), 0) / volume) as Vec3) : null;
+      return { volume, centre };
     });
-    if (plastics.some((plastic) => Number.isNaN(plastic))) return undefined;
+    if (measured.some((probe) => Number.isNaN(probe.volume))) return undefined;
     const area = (width: number) => (Math.PI * width ** 2) / 4;
     let k = 0;
     for (const room of stock) {
-      const whole = plastics[k++] ?? NaN;
-      const core = room.core ? (plastics[k++] ?? NaN) : 0;
+      const outer = measured[k++] ?? { volume: NaN, centre: null };
+      const inner = room.core ? (measured[k++] ?? { volume: NaN, centre: null }) : { volume: 0, centre: null };
+      const [whole, core] = [outer.volume, inner.volume];
+      if (room.core && room.slack) {
+        // A face that falls away evenly round the hole takes the top of the wall all round, as the slack of a curved face
+        // let it before (review 4 of PR #357); the wall and what lies under the hole then share that slack.
+        const full = { ring: (area(room.diameter) - area(room.core)) * room.depth, core: area(room.core) * room.depth - (room.hole ?? 0) };
+        const missing = { ring: full.ring - (whole - core), core: full.core - core };
+        const shape = missing.ring > full.ring * (1 - STOCK_FULL) ? wallShape(room, outer, inner, full.ring, missing.ring) : null;
+        if (shape && curvedWall(missing.ring, shape.off, shape.down, room.core / 2, room.diameter / 2, room.depth) && missing.ring + missing.core <= (full.ring + full.core) * (1 - STOCK_FULL) + room.slack) {
+          fallen(missing.ring);
+          continue;
+        }
+      }
       // The wall round the hole (all of the cylinder where nothing is cut yet), then what lies under the hole.
       const parts = room.core
         ? [
@@ -431,6 +453,63 @@ export async function shortOf(upstream: UpstreamTools, body: string, stock: Stoc
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Where what is missing of the wall round a hole lies: `off` the axis and `down` from the start of the stock, in mm,
+ * from the centres SolidCraft gives of the plastic in the stock cylinder and in the hole's; null without them.
+ */
+function wallShape(room: Stock, outer: { volume: number; centre: Vec3 | null }, inner: { volume: number; centre: Vec3 | null }, full: number, missing: number): { off: number; down: number } | null {
+  if (!outer.centre || (inner.volume > 0 && !inner.centre) || !(missing > 0)) return null;
+  const length = Math.hypot(...room.axis);
+  const axis = room.axis.map((value) => value / length) as Vec3;
+  // The full wall is a ring round the axis: its centre lies on the axis, half its depth down.
+  const whole = room.base.map((value, i) => value + (axis[i] ?? 0) * (room.depth / 2));
+  const at = [0, 1, 2].map((i) => ((whole[i] ?? 0) * full - ((outer.centre?.[i] ?? 0) * outer.volume - (inner.centre?.[i] ?? 0) * inner.volume)) / missing - (room.base[i] ?? 0));
+  const down = at.reduce((sum, value, i) => sum + value * (axis[i] ?? 0), 0);
+  return { off: Math.hypot(...at.map((value, i) => value - down * (axis[i] ?? 0))), down };
+}
+
+/**
+ * mm³ and depth of the centre (under the start of the stock) of what a face falling k·q² at q from the point takes of a
+ * ring of stock: q across a rod (`rod`) or from the point on a ball. Summed over a polar grid.
+ */
+function curvedLoss(k: number, inner: number, outer: number, depth: number, rod: boolean): { volume: number; down: number } {
+  const [n, m] = [40, 72];
+  let [volume, moment] = [0, 0];
+  for (let i = 0; i < n; i += 1) {
+    const r = inner + ((i + 0.5) * (outer - inner)) / n;
+    for (let j = 0; j < m; j += 1) {
+      const q = rod ? r * Math.abs(Math.cos(((j + 0.5) * 2 * Math.PI) / m)) : r;
+      const lost = Math.min(depth, Math.max(0, k * q * q - FACE_DROP));
+      volume += lost * r;
+      moment += ((lost * lost) / 2) * r;
+    }
+  }
+  const cell = ((outer - inner) / n) * ((2 * Math.PI) / m);
+  return { volume: volume * cell, down: volume > 0 ? moment / volume : 0 };
+}
+
+/**
+ * Whether `missing` mm³ of the wall round a hole, centred `off` the axis and `down` under the start of the stock, are what
+ * a curved face takes: one that falls away evenly round the point, as a rod or a ball does, takes the top of the ring all
+ * round. An edge or a chamfer takes one side (off the axis); a rib too narrow on both sides takes the ring all the way
+ * down (deeper than a curved face that takes as much).
+ */
+export function curvedWall(missing: number, off: number, down: number, inner: number, outer: number, depth: number): boolean {
+  if (off > 0.1 * outer) return false;
+  return [true, false].some((rod) => {
+    let [low, high] = [0, (FACE_DROP + depth) / inner ** 2];
+    for (let step = 0; step < 20 && curvedLoss(high, inner, outer, depth, rod).volume < missing; step += 1) high *= 2;
+    if (curvedLoss(high, inner, outer, depth, rod).volume < missing) return false;
+    for (let step = 0; step < 40; step += 1) {
+      const k = (low + high) / 2;
+      if (curvedLoss(k, inner, outer, depth, rod).volume < missing) low = k;
+      else high = k;
+    }
+    // Half again as deep as the model, and 0.05 mm, for a face that is no paraboloid.
+    return down <= curvedLoss(high, inner, outer, depth, rod).down * 1.5 + 0.05;
+  });
 }
 
 /** What was built, with the sizes it took from the tables, for the model to tell the user. */
@@ -498,6 +577,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         let results: unknown[];
         let after: boolean | null = null;
         let lenient = 0;
+        let fell = 0;
         // One hole a step, measured after each: every hole has its own way in, also on a stepped part or on two faces.
         const sent = holes ? sequence.flatMap((step) => [step, measure]) : [...sequence, measure];
         try {
@@ -518,7 +598,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
               const axis = cutAxis(body, was, is, point);
               if (axis) stocks.push(holes.stock(point, axis, holes.whole !== undefined && taken < holes.whole - cutNoise(holes.whole, volumesOf(was).get(body) ?? 0)));
             }
-            const thin = stocks.length === holes.points.length ? await shortOf(upstream, body, stocks, callId) : undefined;
+            const thin = stocks.length === holes.points.length ? await shortOf(upstream, body, stocks, callId, (mm3) => (fell += mm3)) : undefined;
             if (thin) throw new Error(`${thin}; ${holes.need}.`);
             after = thin === null;
             lenient = Math.max(0, ...stocks.map((room) => room.slack ?? 0));
@@ -550,7 +630,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
             : unmeasured
           : holes
             ? after
-              ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder' : ''}: it is there.${lenient > 0 ? lenientSaid(lenient) : ''}`
+              ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder' : ''}: it is there.${fell > 0 ? fallenSaid(fell, lenient) : lenient > 0 ? lenientSaid(lenient) : ''}`
               : unmeasured
             : '';
         const said = (wall ? wall.text : block ? built(block) : '') + (block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');

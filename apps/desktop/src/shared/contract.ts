@@ -936,6 +936,8 @@ export const clearanceResultSchema = z
     near: z.array(z.object({ a: bodyName, b: bodyName, distance: finite.nonnegative(), from: point3, to: point3 }).strict()).max(100),
     /** Bodies SolidCraft left out of the measure (a mesh body): nothing is known of their clearance. */
     unchecked: z.array(bodyName).max(200).optional(),
+    /** Pairs SolidCraft did not finish measuring (its time budget ran out): the measure is not whole. */
+    incomplete: z.literal(true).optional(),
   })
   .strict();
 

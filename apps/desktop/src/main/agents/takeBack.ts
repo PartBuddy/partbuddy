@@ -13,6 +13,8 @@
  * with webs, `document.inspect {timeline: 'summary', bodies: 'names'}`).
  */
 
+import { UNDO_CAP } from './workLog';
+
 type Step = { command: string; params: Record<string, unknown> };
 /** Runs SolidCraft commands in turn and gives each one's result; throws when one fails. */
 export type Run = (commands: Step[]) => Promise<unknown[]>;
@@ -30,7 +32,7 @@ export interface Mark {
 
 /**
  * How a take-back ended: `back` at the mark; `kept` not, and the design is all that the tool left (nothing undone, or
- * all of it redone); `partly` not, and the design is neither: the caller must say that only part of it is left.
+ * all of it redone); `partly` not, and it is not known to be either: the caller must say so.
  */
 export type TakenBack = 'back' | 'kept' | 'partly';
 
@@ -51,7 +53,8 @@ function markFrom(results: unknown[], joints: boolean): Mark | null {
   const count = (list: unknown) => (Array.isArray(list) ? list.length : 0);
   return {
     features: design.timeline.length + count(design.sketches) + count(listed?.joints),
-    state: JSON.stringify([ids(design.timeline), ids(design.sketches), design.bodies ?? null, ids(listed?.joints)]),
+    // A sketch by its whole entry: drawing in it (`sketch.slot`) changes its curves, not its id.
+    state: JSON.stringify([ids(design.timeline), design.sketches ?? null, design.bodies ?? null, ids(listed?.joints)]),
     undo: typeof design.undo === 'number' ? design.undo : null,
     joints,
   };
@@ -128,12 +131,15 @@ async function redo(run: Run, start: Mark, undone: number | null, look: () => Pr
   if (undone === 0) return 'kept';
   try {
     if (undone === null) {
+      // A step that changes nothing the design is read by (a print face) can still be missing when it reads as before: only
+      // the undo depth tells, and only below its ceiling. Otherwise it is not known, and said so.
+      const told = (now: Mark | null) => now?.state === start.state && now.undo === start.undo;
       let now = await look();
-      for (let step = 0; now && now.state !== start.state && step < MOST; step += 1) {
+      for (let step = 0; now && !told(now) && step < MOST; step += 1) {
         await run([REDO]);
         now = await look();
       }
-      return now?.state === start.state ? 'kept' : 'partly';
+      return told(now) && start.undo !== null && start.undo < UNDO_CAP ? 'kept' : 'partly';
     }
     await run(Array.from({ length: undone }, () => REDO));
     return (await look())?.state === start.state ? 'kept' : 'partly';
@@ -146,5 +152,5 @@ async function redo(run: Run, start: Mark, undone: number | null, look: () => Pr
 export const TAKEN_BACK_SAID: Record<TakenBack, string> = {
   back: 'Everything was taken back.',
   kept: 'What was built could NOT be taken back and is all still there: undo it before you call again.',
-  partly: 'What was built could NOT be taken back, and only part of it was: inspect the design and undo what is left of it before you call again.',
+  partly: 'What was built could NOT be taken back in full, and it cannot be told how much of it is left: inspect the design and undo what is left of it before you call again.',
 };

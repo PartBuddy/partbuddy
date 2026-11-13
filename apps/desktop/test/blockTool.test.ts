@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { FACE_DROP, blockOf, cutAxis, knobOf, magnetOf, misplaced, seatStock, shortOf, wallOf, withBlockTool } from '../src/main/agents/blockTool';
+import { FACE_DROP, STOCK_FULL, blockOf, cutAxis, knobOf, magnetOf, misplaced, seatStock, shortOf, wallOf, withBlockTool, type Stock } from '../src/main/agents/blockTool';
+import { INSERT } from '../src/shared/blocks';
 import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
 import { KNOB, knobProblem, knobSteps, type KnobSpec } from '../src/shared/knob';
@@ -628,5 +629,113 @@ describe('what the assistant may ask of a block (audit W3, S-02, N-bloecke-4)', 
     expect(blockOf({ block: 'insertSeat', ...at, depth: 3 })).toBe('the seat of an M3 insert is 6.7 mm deep (the insert is 5.7 mm long); depth may be 5.7 to 17.1 mm');
     expect(blockOf({ block: 'insertSeat', ...at, diameter: 4.2, depth: 8 })).toMatchObject({ diameter: 4.2, depth: 8 });
     expect(blockOf({ block: 'boss', ...at, size: 'M5', diameter: 8 })).toBe('a boss for an M5 insert is at least 11.6 mm wide: the 6.4 mm hole and 2.6 mm of wall round it');
+  });
+});
+
+// Review 5 of PR #357: the ring of a seat's wall had no slack at all, and a face curved like a handle of 40 mm or a rod
+// of 60 mm took more of its top than the tolerance: M5 and M6 seats there were refused. This double reckons what a rod,
+// a ball or a chamfer takes of each probe, column by column.
+describe('the wall round a hole on a curved face and at an edge (review 5 of PR 357)', () => {
+  type Drop = (x: number, y: number) => number;
+  const rod = (radius: number): Drop => (x) => (Math.abs(x) < radius ? radius - Math.sqrt(radius ** 2 - x ** 2) : Infinity);
+  const ball = (radius: number): Drop => (x, y) => (Math.hypot(x, y) < radius ? radius - Math.sqrt(radius ** 2 - x ** 2 - y ** 2) : Infinity);
+  /** A flat top with an edge `edge` mm from the point along +x, chamfered `chamfer` mm at 45°. */
+  const edged = (edge: number, chamfer: number): Drop => (x) => (x <= edge - chamfer ? 0 : x <= edge ? x - (edge - chamfer) : Infinity);
+  /** Plastic of a probe along -z from FACE_DROP under the point, in a part under `drop` with a hole that takes depths 0 to `hole(ρ)`; summed over a polar grid split at `breaks`. */
+  function probe(width: number, depth: number, drop: Drop, hole: (r: number) => number, breaks: number[]) {
+    const edges = [0, ...breaks.filter((b) => b > 0 && b < width / 2), width / 2];
+    const [n, m] = [60, 180];
+    let [volume, cx, cy, cz] = [0, 0, 0, 0];
+    for (let s = 0; s + 1 < edges.length; s += 1) {
+      const [from, to] = [edges[s] ?? 0, edges[s + 1] ?? 0];
+      for (let i = 0; i < n; i += 1) {
+        const r = from + ((i + 0.5) * (to - from)) / n;
+        for (let j = 0; j < m; j += 1) {
+          const t = ((j + 0.5) * 2 * Math.PI) / m;
+          const [x, y] = [r * Math.cos(t), r * Math.sin(t)];
+          const [start, end] = [Math.max(FACE_DROP, drop(x, y), hole(r)), FACE_DROP + depth];
+          if (start >= end) continue;
+          const v = (end - start) * r * ((to - from) / n) * ((2 * Math.PI) / m);
+          [volume, cx, cy, cz] = [volume + v, cx + v * x, cy + v * y, cz - (v * (start + end)) / 2];
+        }
+      }
+    }
+    return { volume_mm3: volume, center: volume > 0 ? [cx / volume, cy / volume, cz / volume] : [0, 0, 0] };
+  }
+  /** SolidCraft for `shortOf`: each probe cylinder in the part under `drop`, with the hole cut. */
+  function part(drop: Drop, hole: (r: number) => number, breaks: number[]): UpstreamTools {
+    return {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (_name, args) => {
+        let made = { width: 0, depth: 0 };
+        const results = (args.commands as { command: string; params: Record<string, unknown> }[]).map((step) => {
+          if (step.command === 'solid.cylinder') made = { width: parseFloat(String(step.params.diameter)), depth: parseFloat(String(step.params.height)) };
+          return step.command === 'inspect.interference' ? { interferences: [probe(made.width, made.depth, drop, hole, breaks)] } : {};
+        });
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: results.slice(0, -1), failed: { command: 'sketch.inspect' } }) }], isError: true });
+      },
+    };
+  }
+  const area = (width: number) => (Math.PI * width ** 2) / 4;
+  /** The check before review 3: the whole cylinder against the slack of a curved face. */
+  const before = (stock: Stock, drop: Drop, hole: (r: number) => number, breaks: number[]) => {
+    const full = area(stock.diameter) * stock.depth - (stock.hole ?? 0);
+    return probe(stock.diameter, stock.depth, drop, hole, breaks).volume_mm3 >= full * STOCK_FULL - (stock.slack ?? 0);
+  };
+  const seat = (size: 'M2' | 'M3' | 'M4' | 'M5' | 'M6') => {
+    const insert = INSERT[size] ?? { diameter: 0, length: 0 };
+    const block = { block: 'insertSeat' as const, body: 'Part', point: [0, 0, 0] as [number, number, number], size, diameter: insert.diameter, depth: insert.length + 1 };
+    return { stock: seatStock(block, [0, 0, 0], [0, 0, -1], true), hole: (r: number) => (r < block.diameter / 2 ? block.depth : 0), breaks: [block.diameter / 2] };
+  };
+  const screw = (size: 3.5 | 4 | 5) => {
+    const { clearance, countersink } = WALL[size];
+    const stock = woodScrewStock(size, [0, 0, 0], [0, 0, -1], FACE_DROP);
+    return { stock, hole: (r: number) => (r < clearance / 2 ? Infinity : r < countersink / 2 ? countersink / 2 - r : 0), breaks: [clearance / 2, countersink / 2 - FACE_DROP, countersink / 2] };
+  };
+
+  it('lets through on a rod or a ball every seat and wood screw the slack of a curved face let through before', async () => {
+    // The smallest radius at which each passed before, by the reviewer's reckoning; around it in steps of 1 mm.
+    const cases = [
+      ...(['M2', 'M3', 'M4', 'M5', 'M6'] as const).map((size, i) => ({ name: `rod ${size}`, ...seat(size), shape: rod, near: [6, 7, 9, 12.5, 19.5][i] ?? 0 })),
+      ...(['M3', 'M5', 'M6'] as const).map((size, i) => ({ name: `ball ${size}`, ...seat(size), shape: ball, near: [10, 18.5, 29][i] ?? 0 })),
+      ...([3.5, 4, 5] as const).map((size, i) => ({ name: `rod wood screw ${String(size)}`, ...screw(size), shape: rod, near: [15, 19.5, 30][i] ?? 0 })),
+    ];
+    for (const { name, stock, hole, breaks, shape, near } of cases) {
+      let passed = 0;
+      for (let radius = near - 3; radius <= near + 6; radius += 1) {
+        const drop = shape(radius);
+        const fell: number[] = [];
+        const now = await shortOf(part(drop, hole, breaks), 'Part', [stock], undefined, (mm3) => fell.push(mm3));
+        if (before(stock, drop, hole, breaks)) {
+          expect(now, `${name} at ${String(radius)} mm`).toBeNull();
+          passed += 1;
+        }
+        if (now === null && fell.length > 0) expect(fell[0], name).toBeGreaterThan(0);
+      }
+      expect(passed, name).toBeGreaterThan(0);
+    }
+    // The M5 seat in a handle of 40 mm and the M6 seat in a rod of 60 mm of the review.
+    expect(await shortOf(part(rod(20), seat('M5').hole, seat('M5').breaks), 'Part', [seat('M5').stock], undefined)).toBeNull();
+    expect(await shortOf(part(rod(30), seat('M6').hole, seat('M6').breaks), 'Part', [seat('M6').stock], undefined)).toBeNull();
+  });
+
+  it('still refuses a wall that an edge or a chamfer takes to one side, slack or not', async () => {
+    // The seat 5 mm from an edge with a 3 mm chamfer: before, it passed with 0.5 mm of wall at the top.
+    const m3 = seat('M3');
+    const chamfer = edged(5, 3);
+    expect(before(m3.stock, chamfer, m3.hole, m3.breaks)).toBe(true);
+    expect(String(await shortOf(part(chamfer, m3.hole, m3.breaks), "Part", [m3.stock], undefined))).toContain('(the mean over a ring from 4.02 to 8 mm wide;');
+    // A wood screw 5.7 mm from a square edge, and 7 mm from one with a 2 mm chamfer: the slack let both through before.
+    const wood = screw(4);
+    for (const drop of [edged(5.7, 0), edged(7, 2)]) {
+      expect(before(wood.stock, drop, wood.hole, wood.breaks)).toBe(true);
+      expect(String(await shortOf(part(drop, wood.hole, wood.breaks), "Part", [wood.stock], undefined))).toContain('(the mean over a ring from 7.82 to 12.7 mm wide;');
+    }
+    // A rib too narrow on both sides takes the wall all the way down, not at the top: refused though it is even.
+    const rib: Drop = (x) => (Math.abs(x) <= 3.95 ? 0 : Infinity);
+    expect(String(await shortOf(part(rib, m3.hole, m3.breaks), "Part", [m3.stock], undefined))).toContain('a ring from 4.02 to 8 mm wide');
+    // On a flat face the wall is measured in full.
+    expect(await shortOf(part(() => 0, m3.hole, m3.breaks), 'Part', [m3.stock], undefined)).toBeNull();
   });
 });

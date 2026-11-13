@@ -74,7 +74,7 @@ export function usePrintCheck(): void {
             )
             .catch(() => null);
           if (measured) final = withClearance(final, measured, pushFit);
-          else failed.push('clearance');
+          if (!measured || measured.incomplete) failed.push('clearance');
           unchecked = measured?.unchecked ?? [];
         }
         // Parts that move (ADR 0027): every joint value runs from where it stands to its limits.

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { markOf, takeBack, type Run } from '../src/main/agents/takeBack';
 
-type Kind = 'feature' | 'sketch' | 'draw' | 'joint';
+/** `draw` draws in the last sketch; `face` changes nothing the design is read by (a print face). */
+type Kind = 'feature' | 'sketch' | 'draw' | 'joint' | 'face';
 
 interface Options {
   timeline?: boolean;
@@ -34,7 +35,8 @@ function design(features: number, options: Options = {}) {
   let active = 0;
   const listed = () => ({
     timeline: steps.filter((step) => step.kind === 'feature' || (step.kind === 'sketch' && !sketchOutOfTimeline)).map((step) => ({ id: step.id, type: step.kind === 'sketch' ? 'Sketch' : 'Feature' })),
-    sketches: steps.filter((step) => step.kind === 'sketch').map((step) => ({ id: step.id })),
+    // A sketch with the curves drawn in it since, as `document.inspect` lists it.
+    sketches: steps.flatMap((step, i) => (step.kind === 'sketch' ? [{ id: step.id, curves: steps.slice(i + 1).findIndex((later) => later.kind !== 'draw') === -1 ? steps.length - i - 1 : steps.slice(i + 1).findIndex((later) => later.kind !== 'draw') }] : [])),
     joints: steps.filter((step) => step.kind === 'joint').map((step) => ({ id: step.id })),
   });
   const run: Run = (commands) => {
@@ -87,6 +89,11 @@ function design(features: number, options: Options = {}) {
       for (let i = 0; i < count; i += 1) steps.push({ kind: 'sketch', id: next++ }, { kind: 'draw', id: 0 }, { kind: 'feature', id: next++ });
       active = 5;
     },
+    /** Further steps of the kinds given, after what was built. */
+    add: (...kinds: Kind[]) => {
+      for (const kind of kinds) steps.push({ kind, id: kind === 'draw' || kind === 'face' ? 0 : next++ });
+    },
+    built: () => steps.map((step) => step.kind).join(' '),
     state: () => ({ features: listed().timeline.length, sketches: listed().sketches.length, joints: listed().joints.length, active }),
     undos: () => sent.flat().filter((command) => command === 'edit.undo').length,
     redos: () => sent.flat().filter((command) => command === 'edit.redo').length,
@@ -201,6 +208,24 @@ describe('taking back what a tool built before it failed', () => {
     expect(await takeBack(d.run, mark)).toBe('kept');
     expect(d.redos()).toBe(20);
     expect(d.state()).toEqual({ features: 66, sketches: 0, joints: 1, active: 0 });
+  });
+
+  // Review 5 of PR #357: redoing one at a time stopped at the first step that read like the design the tool left, and a
+  // last step that changes no id (a slot drawn in a sketch, a print face) stayed undone under "all still there".
+  it('redoes a last step that changes no id, and says it cannot tell where nothing tells', async () => {
+    const drawn = design(12, { failUndoAfter: 3, blindAfterRefusal: 1 });
+    const mark = await markOf(drawn.run);
+    drawn.build(2);
+    drawn.add('sketch', 'draw', 'draw');
+    const left = drawn.built();
+    expect(await takeBack(drawn.run, mark)).toBe('kept');
+    expect(drawn.built()).toBe(left);
+    // Past the ceiling of the undo depth a print face changes nothing that is read: the answer does not claim all of it.
+    const faced = design(240, { failUndoAfter: 1, blindAfterRefusal: 1 });
+    const before = await markOf(faced.run);
+    faced.build(2);
+    faced.add('face');
+    expect(await takeBack(faced.run, before ? { ...before, undo: 150 } : null)).toBe('partly');
   });
 
   it('says that only part is left when what it undid cannot be redone', async () => {
