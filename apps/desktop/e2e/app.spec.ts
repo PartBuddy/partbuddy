@@ -1651,7 +1651,10 @@ test('the light says when it still measures or a measure failed, and an export a
   const light = page.getByTestId('print-check');
   const confirm = page.getByTestId('export-confirm');
   await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
-  await expect(light).toHaveText('Checking');
+  // The label follows by a timer, 500 ms after the measure began so that a quick check does not blink. A loaded runner
+  // delays timers: measured under load, the 500 ms one fired after up to 1.4 s and the check's own 250 ms one after
+  // 4.3 s; on CI the light stayed "Ready to print" with data-measuring set past 5 s. The state is asserted above.
+  await expect(light).toHaveText('Checking', { timeout: 45_000 });
 
   // An export now asks: a blocked joint may still turn up.
   await page.getByTestId('export').click();
