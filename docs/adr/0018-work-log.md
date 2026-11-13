@@ -73,8 +73,11 @@ A part built in twenty steps filled the chat with twenty cards. The log now read
   opens the picture, every phrase and the tool details.
 * Only the newest answer shows in full; earlier ones and the narration between tool calls are cut
   to about four lines with "Show more".
-* Both routes tell the model to answer in two or three sentences and not to repeat steps,
-  parameters or dimensions as tables, since PartBuddy shows them (`ANSWER_GUIDANCE`).
+* Every route tells the model to answer in two or three sentences and not to repeat steps,
+  parameters or dimensions as tables, since PartBuddy shows them (`ANSWER_GUIDANCE`). Since
+  2026-11-13 (audit R26) the same text says what brevity must not drop, one short line each: what
+  does not print or was not checked, a figure that is a range, an estimate or not printed yet, the
+  fit chosen, and the source of a looked-up size.
 * The chat's width can be dragged (320 px up to 760 px, leaving the view at least 480 px),
   changed with the arrow keys on its separator, and reset with a double-click; it is kept per
   profile.

@@ -32,7 +32,8 @@ itself, so the naming change below affects mostly older files.
   (`PARTBUDDY_SOLIDCRAFT_EXE`) wins over both. A chosen program that is gone counts as missing:
   PartBuddy never falls back silently to a different kernel.
 * **Version check.** PartBuddy asks `solidcraft-cli --version` and rates it: from 0.40.0-rc.2
-  *recommended*, from 0.30.1 *supported*, older *too old* (refused when chosen). A chosen file must
+  *recommended*, from 0.30.1 *supported*, older *too old* (refused when chosen; until 2026-11-12, see
+  the update below). A chosen file must
   be `solidcraft.exe` with `solidcraft-cli.exe` beside it.
 * **Restart.** A new choice takes effect after PartBuddy restarts (the dialog offers it; the design
   is saved first), so an open design never moves between kernels.
@@ -40,6 +41,21 @@ itself, so the naming change below affects mostly older files.
   and does not now. The contract tests against the real engine run locally
   (`PARTBUDDY_E2E_SOLIDCRAFT=1`, with `PARTBUDDY_SOLIDCRAFT_EXE` pointing at 0.40) before every pull
   request that touches SolidCraft.
+
+### Update 2026-11-12: SolidCraft 0.40.1 is the minimum
+
+0.40.1 is the first stable release of 0.40. Since #346 it is both the minimum and the recommended
+version (`MINIMUM_VERSION` and `RECOMMENDED_VERSION` in `apps/desktop/src/main/solidcraft/engineVersion.ts`):
+every rule and measure of the app is checked on solidcore only. The version check now rates 0.40.1
+and newer *recommended* and everything older *too old*, 0.30.1 and the 0.40 release candidates
+included; *supported* stays in the code for a later minimum below the recommended version. The
+recommended version had moved with the release candidates before (rc.3 on 2026-11-08, rc.4 on
+2026-11-11, [engineering notes](../engineering-notes.md#solidcraft-0400-rc4-checked-2026-11-11)).
+
+The contract tests against the real engine no longer run only locally: `contract.yml` runs them on
+demand on the self-hosted Windows runner of the website screenshots with the SolidCraft installed
+there ([ADR 0022](0022-self-hosted-ci-runner.md), [website](../website.md)). The pull request CI
+still runs the fake SolidCraft only.
 
 ### Evidence (measured 2026-11-05)
 

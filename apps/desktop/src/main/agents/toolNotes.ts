@@ -4,7 +4,8 @@ import { CHECKED_WAYS, COMMAND_GROUPS, GROUP_EXCEPTIONS, REFUSED_COMMANDS } from
 /**
  * PartBuddy's own notes on SolidCraft's tools, added after SolidCraft's server instructions for
  * every route (gate proxy for Claude Code, own loop for ChatGPT). They name the traps of
- * SolidCraft 0.30.1 that cost a model a wasted call or a silent wrong result, and the rules
+ * SolidCraft (found from 0.30.1 on; docs/engineering-notes.md says on which version each was checked) that cost a
+ * model a wasted call or a silent wrong result, and the rules
  * PartBuddy's tool policy enforces, so the model knows them before a refusal tells it.
  */
 export const TOOL_NOTES = [

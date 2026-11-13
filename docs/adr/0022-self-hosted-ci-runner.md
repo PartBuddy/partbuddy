@@ -87,6 +87,29 @@ the PC stays free and work can go on at night.
   `tools/test-app/deliver-test-app.ps1` (electron-builder `--dir`, no link into a repository); it
   skips the delivery while the PC is off or the test version runs.
 
+### Update 2026-11-13: more room for the VM, a lighter pull request CI, contract tests on demand
+
+* `.wslconfig` on the server caps the VM at 16 GB and 20 of the 28 logical processors since
+  2026-11-13 19:54 (before: 12 GB and 14; the earlier file is kept as `.wslconfig.bak-2026-11-13`).
+  Ports stay inside WSL, WSLg stays off. The four runners `partbuddy-srv-1` to `-4` share that VM.
+* Pull requests run only the jobs their change can affect (#376): a job "What the change touches"
+  diffs the merge commit against the base branch and `tools/ci/changes.sh` decides; the other jobs
+  show as skipped. A documentation-only pull request runs four jobs of about 20 s. The desktop app
+  flows run as two Playwright shards, shard 1 with two workers and shard 2 with one, so three apps
+  run at once; six apps ran little faster and tipped over when anything else loaded the server.
+  Lint runs beside typecheck and the unit tests. The whole pull request CI took 5.4 minutes instead
+  of 14.9 when every job ran (measured on #376).
+* The SolidCraft contract tests (`contract.yml`) run on demand, one run at a time, on a second
+  self-hosted runner: `partbuddy-srv-shots`, a Windows service on the server with the labels
+  `self-hosted`, `windows`, `partbuddy-shots` and the installed SolidCraft ([website](../website.md),
+  setup). They are their own Playwright project with `retries: 1`, so a wobble shows as flaky, and
+  stay on one worker (two workers failed tests while the server ran at 90–100 % CPU). The input
+  `only` passes a title pattern to `--grep` (`gh workflow run contract.yml -f only='…'`).
+* The repository is public (checked 2026-11-13) and the pull request CI still runs on these
+  runners. GitHub asks for approval before workflow runs of first-time contributors only
+  (`fork-pr-contributor-approval`: `first_time_contributors`). The switch named under Consequences
+  is open.
+
 ### Consequences
 
 * Good: no Actions minutes for pull requests; runs are faster on a 20-core machine.
