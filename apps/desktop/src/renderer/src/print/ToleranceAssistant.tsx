@@ -62,7 +62,7 @@ export function ToleranceAssistant({
     let live = true;
     if (layerFits)
       void platform()
-        .print.testPiecesPicture({ nozzle: printer.nozzle, layer: printer.layer })
+        .print.testPiecesPicture({ nozzle: printer.nozzle, layer: printer.layer, holeShrink: material?.holeShrink })
         .then((result) => {
           if (live) setPicture(result.picture);
         })
@@ -80,7 +80,7 @@ export function ToleranceAssistant({
     return () => {
       live = false;
     };
-  }, [step, printer.nozzle, printer.layer, layerFits]);
+  }, [step, printer.nozzle, printer.layer, layerFits, material?.holeShrink]);
 
   if (!material) return null;
   const result = applyReadings(material, readings, printer.nozzle);
@@ -88,7 +88,7 @@ export function ToleranceAssistant({
   const exportPieces = (slicer: string | null) => {
     setStatus(t('print.tolerance.working'));
     platform()
-      .print.exportTestPieces({ nozzle: printer.nozzle, layer: printer.layer, slicer })
+      .print.exportTestPieces({ nozzle: printer.nozzle, layer: printer.layer, holeShrink: material.holeShrink, slicer })
       .then((done) => {
         setStatus(done ? (done.slicer ? t('print.tolerance.opened', { name: done.slicer }) : t('print.tolerance.saved', { file: done.file ?? '' })) : null);
       })

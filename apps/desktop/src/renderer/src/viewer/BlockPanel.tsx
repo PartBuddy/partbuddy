@@ -501,7 +501,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               {block.type === 'groove' ? <Length label={t('blocks.gap')} value={block.gap} onChange={(gap) => setBlock({ ...block, gap })} testId="block-gap" /> : null}
             </div>
           )}
-          <p className="text-xs text-text-subtle">{t(`blocks.hint.${block.block}`, { thread: THREAD_ALLOWANCE, shrink: holeRoom(block.block === 'insertSeat' ? block.diameter : 3, printer.material), room: 2 * fitClearance('push', printer), din: (NUT_DIN_FLATS.M10 ?? 17) + 2 * fitClearance('push', printer), head: HEAD_ALLOWANCE.diameter, layer: printer.layer, depth: textDepth(printer), stroke: textStroke(printer) })}</p>
+          <p className="text-xs text-text-subtle">{t(`blocks.hint.${block.block}`, { thread: THREAD_ALLOWANCE, shrink: holeRoom(3, printer.material), room: 2 * fitClearance('push', printer), din: (NUT_DIN_FLATS.M10 ?? 17) + 2 * fitClearance('push', printer), head: HEAD_ALLOWANCE.diameter, layer: printer.layer, depth: textDepth(printer), stroke: textStroke(printer) })}</p>
           {waiting ? (
             <p className="text-xs text-text-muted" role="status" data-testid="block-status">
               {t('blocks.logoWaiting')}

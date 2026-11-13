@@ -3605,7 +3605,7 @@ test('the assistant hangs a part on the wall with its blocks: keyhole slots on t
     // Each block says that the plastic it needs was measured at the real engine (audit R54): the 8 mm plate has it.
     // In the whole answer, not one element of it: the print check behind each block ends in a list of measures.
     await expect(page.getByTestId('assistant-text').last()).toContainText(
-      /Built 2 keyhole slots for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4\.5 mm wide running 8 mm up [\s\S]* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\.[\s\S]* Built 2 countersunk holes for 4 mm wood screws in Plate: 4\.7 mm through, countersink 8\.8 mm at 90°[\s\S]* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\./,
+      /Built 2 keyhole slots for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4\.5 mm wide running 8 mm up [\s\S]* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\.[\s\S]* Built 2 countersunk holes for 4 mm wood screws in Plate: 4\.5 mm through, countersink 8\.6 mm at 90° \(DIN 74; drawn 4\.65 and 8\.75 mm[\s\S]* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\./,
       { timeout: 60_000 },
     );
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });

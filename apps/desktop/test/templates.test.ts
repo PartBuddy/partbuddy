@@ -4,7 +4,7 @@ import { templateRequestSchema } from '../src/shared/contract';
 import { commentText, rangeOf } from '../src/renderer/src/shell/parameterRange';
 import { TEXT_STROKE } from '../src/shared/blocks';
 import { TEMPLATE_IDS, germanFeatureName, templatePrintFaces, templateSteps } from '../src/shared/templates';
-import { WALL } from '../src/shared/wallMount';
+import { wallSizes } from '../src/shared/wallMount';
 
 /** The geometry fields whose text is an expression over the design's parameters. */
 const EXPRESSION_FIELDS = new Set(['length', 'width', 'height', 'diameter', 'thickness', 'depth', 'corner', 'base', 'position', 'center', 'points', 'point', 'distance', 'cs_diameter', 'radius', 'text_expression', 'offset']);
@@ -233,10 +233,14 @@ describe('templates with moving parts', () => {
     expect(holder.find((step) => step.params.name === 'Inner radius')?.params).toEqual({ edges: [[25, 6, 6], [25, 46, 6]], radius: 'wall', name: 'Inner radius' });
     // Lying on its side, the corners that touch the bed are chamfered: a round there starts in the air.
     expect(holder.filter((step) => ['Outer corners', 'Lip corners'].includes(String(step.params.name))).map((step) => step.command)).toEqual(['solid.chamfer', 'solid.chamfer']);
-    // T43: 4.5 and 9 mm stood here, the table says 4.7 and 8.8 for a 4 mm wood screw.
+    // T43: one table for both; BC-16 review S3: DIN 74's 4.5 and 8.6 mm drawn with PLA's hole allowance.
     const value = (id: 'wallHolder' | 'slideStop', name: string) => templateSteps(id).find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.expression;
-    expect([value('wallHolder', 'screw_hole'), value('wallHolder', 'screw_head')]).toEqual([`${String(WALL[4].clearance)} mm`, `${String(WALL[4].countersink)} mm`]);
-    expect([value('slideStop', 'screw_hole'), value('slideStop', 'screw_head')]).toEqual(['4.7 mm', '9 mm']);
+    expect([value('wallHolder', 'screw_hole'), value('wallHolder', 'screw_head')]).toEqual([`${String(wallSizes(4).clearance)} mm`, `${String(wallSizes(4).countersink)} mm`]);
+    expect([value('wallHolder', 'screw_hole'), value('wallHolder', 'screw_head')]).toEqual(['4.65 mm', '8.75 mm']);
+    expect([value('slideStop', 'screw_hole'), value('slideStop', 'screw_head')]).toEqual(['4.65 mm', '9.15 mm']);
+    // In PP (0.3 mm) wider still; the insert's hole of the stop at its maker's size (S1).
+    const pp = (id: 'wallHolder' | 'slideStop' | 'housing' | 'sign', name: string) => templateSteps(id, false, { nozzle: 0.4, layer: 0.2, material: { holeShrink: 0.3, clearance: { clamp: 0.1, push: 0.2, slide: 0.3, turn: 0.35 } } }).find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.expression;
+    expect([pp('wallHolder', 'screw_hole'), pp('slideStop', 'clamp_hole'), pp('housing', 'screw_hole'), pp('housing', 'insert_hole'), pp('sign', 'screw_hole')]).toEqual(['4.8 mm', '5.6 mm', '3.7 mm', '4 mm', '3.7 mm']);
     // Review of BC-07, S2: within these ranges the rounds of one wall fit floor, lip and plate (measured at both ends).
     const range = (name: string, german = false) => rangeOf(String(templateSteps('wallHolder', german).find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.comment));
     expect(['plate_height', 'plate_width', 'wall', 'hook_width', 'lip_height'].map((name) => range(name))).toEqual([{ min: 60, max: 200 }, { min: 30, max: 150 }, { min: 4, max: 8 }, { min: 30, max: 120 }, { min: 20, max: 60 }]);

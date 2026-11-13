@@ -5,7 +5,7 @@
  * size from here, not from SolidCraft's own tables (audit R7, W21).
  */
 
-import { MATERIAL_CATALOG } from './materialCatalog';
+import { drawnHole, type ToolMaterial } from './toolFit';
 
 export const BLOCK_SIZES = ['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10'] as const;
 export type BlockSize = (typeof BLOCK_SIZES)[number];
@@ -61,8 +61,8 @@ export const NUT: Record<BlockSize, [number, number]> = {
  */
 export const NUT_DIN_FLATS: Partial<Record<BlockSize, number>> = { M10: 17 };
 
-/** Extra room around a printed nut: across flats and depth. */
-export const NUT_ALLOWANCE = { flats: 0.3, depth: 0.4 };
+/** Extra depth of a printed nut's pocket; across its flats the room is the material's push fit (blocks.ts nutFlats, audit BC-16). */
+export const NUT_ALLOWANCE = { depth: 0.4 };
 
 /**
  * Extra room around a printed screw head, in mm (audit T39, MV-20): `diameter` on each side of a cap screw's counterbore
@@ -129,8 +129,8 @@ export function printedThread(size: BlockSize): { designation: string; major: nu
 export const PILOT_FACTOR = 0.8;
 
 /**
- * The pilot hole a screw cuts its own thread in, in mm: 0.8 times its diameter (Machine Design), plus the hole allowance
- * of PLA, the material of the default print profile, as standards.ts tells the assistant to add the profile's (audit MV-26).
- * shortcut: PLA's allowance, as the block does not know the material; take the profile's once BC-16 brings it.
+ * The pilot hole a screw cuts its own thread in, in mm: 0.8 times its diameter (Machine Design), drawn wider by the hole
+ * allowance of the part's material (PLA's, the default profile's, where none is given), as standards.ts tells the assistant
+ * to add the profile's (audit MV-26, BC-16).
  */
-export const pilotHole = (diameter: number) => Math.round((PILOT_FACTOR * diameter + (MATERIAL_CATALOG.find((material) => material.name === 'PLA')?.holeShrink ?? 0.15)) * 100) / 100;
+export const pilotHole = (diameter: number, material?: ToolMaterial) => Math.round(drawnHole(PILOT_FACTOR * diameter, material) * 100) / 100;

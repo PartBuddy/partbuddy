@@ -691,7 +691,7 @@ export interface ScrewSpec {
   screws: boolean;
   /** The nozzle the plastic under the head is sized for (mm); default 0.4. */
   nozzle?: number;
-  /** The part's material: the clearance hole and the insert's seat are drawn wider by its hole allowance (audit S-10); default PLA. */
+  /** The part's material: the clearance hole is drawn wider by its hole allowance (audit S-10), the insert's seat not (S1); default PLA. */
   material?: ToolMaterial;
   name: string;
 }
@@ -829,7 +829,7 @@ export function screwSteps(spec: ScrewSpec): Step[] {
         command: 'solid.hole',
         params:
           spec.thread === 'insert' && insert
-            ? { position: meet, direction, diameter: mm(drawnHole(insert.diameter, spec.material)), depth: mm(insert.length + 1), targets: [spec.fixed], name: `${label} ○` }
+            ? { position: meet, direction, diameter: mm(insert.diameter), depth: mm(insert.length + 1), targets: [spec.fixed], name: `${label} ○` }
             : { position: meet, direction, thread: spec.size, modeled: true, depth: mm(hold(spec) + 1), targets: [spec.fixed], name: `${label} ○` },
       },
     ];

@@ -5,7 +5,7 @@ import { minimumWall } from '@partbuddy/geometry';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
 import { STANDARD_GUIDANCE, withStandardTool } from '../src/main/agents/standardTool';
-import { DEFAULT_PRINTER, defaultBlock, raisedBlock, sizesOf, type FeatureBlock } from '../src/shared/blocks';
+import { DEFAULT_PRINTER, defaultBlock, nutFlats, raisedBlock, sizesOf, type FeatureBlock } from '../src/shared/blocks';
 import { lineWidth, snapSize } from '../src/shared/designFit';
 import { CLEARANCE_NORMAL, NUT, NUT_ALLOWANCE, NUT_DIN_FLATS, PILOT_FACTOR, pilotHole } from '../src/shared/screwSizes';
 import { HEX_HEAD_HEIGHT, STANDARDS, STANDARD_TOPICS, standardText } from '../src/shared/standards';
@@ -95,7 +95,9 @@ describe('the standards the assistant looks up', () => {
     expect(knob).toContain('M10 16 and 6.4 mm.');
     // K4: the pocket's depth allowance as nutTrap builds it; S2: the wider DIN M10 head and nut.
     expect(knob).toContain(`${String(NUT_ALLOWANCE.depth)} mm deeper than the head, as partbuddy_block nutTrap makes it`);
-    expect(knob).toContain(`M10 heads of DIN 933 and nuts of DIN 934 are ${String(NUT_DIN_FLATS.M10)} mm across flats: pocket ${String(Math.round(((NUT_DIN_FLATS.M10 ?? 0) + NUT_ALLOWANCE.flats) * 100) / 100)}.`);
+    expect(knob).toContain(`M10 heads of DIN 933 and nuts of DIN 934 are ${String(NUT_DIN_FLATS.M10)} mm across flats: pocket ${String(Math.round(((NUT_DIN_FLATS.M10 ?? 0) + nutFlats('M10', DEFAULT_PRINTER) - NUT.M10[0]) * 100) / 100)}.`);
+    // BC-16 review S2: the room is the one nutTrap leaves, from the same function.
+    expect(knob).toContain('across flats 0.3 mm more than the head (the push fit of PLA on both sides; partbuddy_block takes the part\'s material)');
     expect(knob).toContain('pocket 17.3.');
     expect(knob).not.toContain('M12');
     expect(knob).not.toContain('0.4 mm under it');

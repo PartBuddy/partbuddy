@@ -1160,7 +1160,8 @@ export function printSettingsProblem(settings: PrintSettings): { problem: 'nameM
 }
 
 /** The tolerance assistant's test pieces for a nozzle and layer; to a 3MF file (slicer null) or into a slicer. */
-const testPiecesFor = z.object({ nozzle: range(0.1, 2), layer: range(0.04, 1.2) }).strict();
+/** `holeShrink`: the measured material's, so the fit comb's holes are drawn with it (BC-16 review B1). */
+const testPiecesFor = z.object({ nozzle: range(0.1, 2), layer: range(0.04, 1.2), holeShrink: range(0, 1).optional() }).strict();
 const testPiecesForSchema = testPiecesFor.refine(layerFitsNozzle, 'a layer height must not exceed the nozzle');
 export const testPiecesExportSchema = testPiecesFor.extend({ slicer: z.string().min(1).max(80).nullable() }).strict().refine(layerFitsNozzle, 'a layer height must not exceed the nozzle');
 

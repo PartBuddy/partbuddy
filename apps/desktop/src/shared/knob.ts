@@ -6,7 +6,7 @@
  */
 
 import { pilotHole } from './screwSizes';
-import { fitClearance, holeRoom, type ToolPrinter } from './toolFit';
+import { DEFAULT_PRINTER, fitClearance, holeRoom, type ToolPrinter } from './toolFit';
 
 type Vec3 = [number, number, number];
 type Step = { command: string; params: Record<string, unknown> };
@@ -31,7 +31,10 @@ export const SET_SCREW_HOLD = 6;
  * side (audit W16, T10: 0.2 mm fixed, which PP's hole allowance of 0.3 mm took); a split knurled shaft springs into a
  * plain bore of its own size.
  */
-export const knobClearance = (shaft: KnobShaft, printer: ToolPrinter) => (shaft === 'knurl' ? 0 : round(2 * fitClearance('clamp', printer)));
+export const knobClearance = (shaft: KnobShaft, printer: ToolPrinter) => (shaft === 'knurl' ? 0 : round(Math.min(KNOB_CLEARANCE_MOST, Math.max(0, 2 * fitClearance('clamp', printer)))));
+
+/** The most clearance a knob takes (knobProblem); a measured clamp fit is kept within 0 and this. */
+const KNOB_CLEARANCE_MOST = 0.6;
 
 export interface KnobSpec {
   /** The new body's name. */
@@ -86,7 +89,7 @@ export function knobProblem(spec: KnobSpec): string | null {
   const axis = unit(spec.axis);
   if (Math.hypot(...cross(axis, spec.toward)) < 1e-6) return 'up (the way the pointer points) must not run along normal (the shaft)';
   if (!(spec.shaftDiameter >= 3 && spec.shaftDiameter <= 10)) return 'shaftDiameter must be 3–10 mm';
-  if (!(spec.clearance >= 0 && spec.clearance <= 0.6)) return 'clearance must be 0–0.6 mm';
+  if (!(spec.clearance >= 0 && spec.clearance <= KNOB_CLEARANCE_MOST)) return `clearance must be 0–${String(KNOB_CLEARANCE_MOST)} mm`;
   if (spec.shaft === 'd' && !(spec.flat > spec.shaftDiameter / 2 && spec.flat < spec.shaftDiameter)) return `flat must be the D shaft's thickness at its flat, between ${String(spec.shaftDiameter / 2)} and ${String(spec.shaftDiameter)} mm (4.5 on a 6 mm shaft)`;
   const least = Math.ceil(spec.shaftDiameter + spec.clearance + 2 * KNOB.wall + KNOB.flute / 2);
   if (!(spec.diameter >= least && spec.diameter <= 80)) return `diameter must be ${String(least)}–80 mm for a ${String(spec.shaftDiameter)} mm shaft`;
@@ -102,7 +105,7 @@ export function knobProblem(spec: KnobSpec): string | null {
  * D shaft or beside it the pilot hole of a set screw, and a groove on the top as the pointer. It
  * prints on its top, the bore open upwards, without support; the print face is set so.
  */
-export function knobSteps(spec: KnobSpec, printer: ToolPrinter = { nozzle: 0.4, layer: 0.2 }): Step[] {
+export function knobSteps(spec: KnobSpec, printer: ToolPrinter = DEFAULT_PRINTER): Step[] {
   const axis = unit(spec.axis);
   const along = dot(spec.toward, axis);
   const toward = unit(spec.toward.map((value, i) => value - along * (axis[i] ?? 0)) as Vec3);
@@ -143,7 +146,7 @@ export function knobSteps(spec: KnobSpec, printer: ToolPrinter = { nozzle: 0.4, 
   }
   if (spec.shaft === 'round') {
     // The set screw comes in from the side away from the pointer, half way up the bore.
-    steps.push({ command: 'solid.cylinder', params: { diameter: mm(KNOB.setScrew), height: mm(radius + 1), base: at(insert / 2, -(radius + 1)), axis: tidy(toward), operation: 'cut', targets: [name], name: `${name} ⊙` } });
+    steps.push({ command: 'solid.cylinder', params: { diameter: mm(pilotHole(3, printer.material)), height: mm(radius + 1), base: at(insert / 2, -(radius + 1)), axis: tidy(toward), operation: 'cut', targets: [name], name: `${name} ⊙` } });
   }
   steps.push(
     // Sketch x across, y towards the pointer: x × y points down into the knob, so a positive distance cuts.

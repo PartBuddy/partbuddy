@@ -9,7 +9,7 @@ import { CLEARANCE_NOZZLE, scaleClearance, type FitPrinter } from './designFit';
 import { holeAllowance } from './holePlate';
 import { MATERIAL_CATALOG } from './materialCatalog';
 
-export type ToolMaterial = Pick<MaterialProfile, 'holeShrink' | 'clearance'> & { measuredNozzle?: number | undefined };
+export type ToolMaterial = Pick<MaterialProfile, 'holeShrink' | 'clearance'> & { measuredNozzle?: number | undefined; overhang?: number | undefined };
 
 /** The printer in use with the part's material; a tool given none reckons with {@link DEFAULT_MATERIAL}. */
 export interface ToolPrinter extends FitPrinter {
@@ -19,7 +19,14 @@ export interface ToolPrinter extends FitPrinter {
 const pla = MATERIAL_CATALOG.find((entry) => entry.name === 'PLA');
 if (!pla) throw new Error('PLA is not in the material catalog');
 /** The catalogue's PLA, the material of the default print profile (printProfiles.ts). */
-export const DEFAULT_MATERIAL: ToolMaterial = { holeShrink: pla.holeShrink, clearance: { ...pla.clearance } };
+export const DEFAULT_MATERIAL: ToolMaterial = { holeShrink: pla.holeShrink, clearance: { ...pla.clearance }, overhang: pla.overhang };
+/** How far PLA leans without support, degrees: the overhang a tool reckons with when it is given no material. */
+export const DEFAULT_OVERHANG = pla.overhang;
+/** The printer a tool reckons with when it is given none: the 0.4 mm nozzle the clearances stand for, 0.2 mm layers, PLA. */
+export const DEFAULT_PRINTER: ToolPrinter = { nozzle: CLEARANCE_NOZZLE, layer: 0.2 };
+
+/** Whether the fits were read off the tolerance pieces; the catalogue's are starting values (`measuredNozzle` unset). */
+export const fitsMeasured = (printer: ToolPrinter) => printer.material?.measuredNozzle !== undefined;
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
@@ -34,3 +41,7 @@ export const holeRoom = (diameter: number, material: ToolMaterial = DEFAULT_MATE
 
 /** A hole that shall come out `diameter` mm wide, as drawn. */
 export const drawnHole = (diameter: number, material?: ToolMaterial) => round(diameter + holeRoom(diameter, material));
+
+/** What an answer adds to a fit taken from a profile nobody measured (BC-16 review); empty once the tolerance pieces were read. */
+export const unmeasuredSaid = (printer: ToolPrinter) =>
+  fitsMeasured(printer) ? '' : " The fit is the material's starting value, not measured on this printer: if it binds or rattles, read the tolerance pieces (Settings › Print profiles) and build it again.";

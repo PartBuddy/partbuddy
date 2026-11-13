@@ -11,10 +11,10 @@ import { drawingColours, drawingPieces, drawingSize, drawingSvg, naturalWidth, p
 
 import { minimumWall, thinnestLine } from '@partbuddy/geometry';
 
-import { CLEARANCE_NOZZLE, snapSize, type FitPrinter } from './designFit';
-import { lipThick, TAPPED_FROM } from './mechanisms';
+import { snapSize, type FitPrinter } from './designFit';
+import { LIP, TAPPED_FROM } from './mechanisms';
 import { CLEARANCE, CLEARANCE_NORMAL, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, NUT, NUT_ALLOWANCE, BLOCK_SIZES, TAP_DRILL, headRoom, printedThread, screwDiameter, type BlockSize } from './screwSizes';
-import { drawnHole, fitClearance, type ToolPrinter } from './toolFit';
+import { DEFAULT_PRINTER, drawnHole, fitClearance, type ToolPrinter } from './toolFit';
 
 export { BLOCK_SIZES, HEAD_ALLOWANCE, INSERT, NUT_ALLOWANCE, type BlockSize };
 
@@ -105,17 +105,20 @@ export function defaultBlock(kind: BlockKind, body: string, point: [number, numb
       // 0.9 mm of two lines at 7 and 8 (PartBuddy's print check, 0.4 mm nozzle, SolidCraft 0.40.1, 2026-11-13).
       return { block: kind, body, point, normal, size, text: 'PartBuddy', height: 7, depth: textDepth(printer), mode: 'deboss', bold: true };
     case 'nutTrap': {
-      const [flats, height] = NUT[size];
-      // Room for a nut pushed in: the material's push fit on each side (PLA on 0.4 mm: 0.3 mm on the flats; audit T10).
-      return { block: kind, body, point, normal, size, flats: round(flats + 2 * fitClearance('push', printer)), depth: round(height + NUT_ALLOWANCE.depth) };
+      const height = NUT[size][1];
+      // Room for a nut pushed in: the material's push fit on each side (PLA on 0.4 mm: 0.3 mm on the flats; audit T10), kept
+      // within what blockLimit takes (the nut's flats up to under its corners), so a measured fit never refuses the standard.
+      return { block: kind, body, point, normal, size, flats: nutFlats(size, printer), depth: round(height + NUT_ALLOWANCE.depth) };
     }
     case 'slot': {
       const width = CLEARANCE_NORMAL[size];
       return { block: kind, body, point, normal, size, length: 10, width, depth: null, along: 'x' };
     }
     case 'lip':
-      // One lip for a lid in both tools (audit T42, W36): as thick as the closure's lip, the groove's room the material's slide fit.
-      return { block: kind, body, point, size, type: 'lip', width: lipThick(printer.nozzle), height: 2, gap: fitClearance('slide', printer) };
+      // The closure's least lip, LIP.thick (raised to two lines where the nozzle needs it, raisedBlock), and the groove's room the
+      // material's slide fit, as the closure's 0.25 is PLA's (audit T42, W36). Not the closure's lipThick: 1.4 + 0.25 left 0.75 mm of a
+      // 2.4 mm rim, under two lines (BC-16 review S4); plastic.lip adds gap once beside the lip and once under it (measured, PR text).
+      return { block: kind, body, point, size, type: 'lip', width: LIP.thick, height: 2, gap: Math.max(0, fitClearance('slide', printer)) };
     case 'logo':
       // No file yet: the form asks for one before anything is built.
       return { block: kind, body, point, normal, size, name: '', svg: '', width: 20, depth: textDepth(printer), mode: 'deboss' };
@@ -127,6 +130,15 @@ export function defaultBlock(kind: BlockKind, body: string, point: [number, numb
 
 /** How a refusal of PartBuddy's print limits starts, before the limit as JSON (main/index.ts, BlockPanel.tsx): no SolidCraft error starts so. */
 export const PRINT_LIMIT = 'PartBuddy print limit: ';
+
+/**
+ * A nut pocket's flats as printed: the nut's and the material's push fit on each side, within the nut's flats and under its
+ * corners (blockLimit), however the profile's fit was measured.
+ */
+export function nutFlats(size: BlockSize, printer: ToolPrinter): number {
+  const [flats] = NUT[size];
+  return round(Math.min(Math.max(flats, flats + 2 * fitClearance('push', printer)), (flats * 2) / Math.sqrt(3) - 0.01));
+}
 
 /** A {@link BlockLimit} as the form's refusal: the panel reads it back and says it in the interface language (refusal.ts). */
 export const limitRefusal = (limit: BlockLimit) => `${PRINT_LIMIT}${JSON.stringify(limit)}`;
@@ -294,12 +306,14 @@ export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | '
     case 'insertSeat':
       // No chamfer: the insert's tip is narrower than its hole and starts it (ruthex RX: d2 3.9 in 4.0), and a chamfer on a curved
       // face would hide a rim that breaks into an edge from the seat's measure (blockTool.ts; review of BC-12).
-      return { command: 'solid.hole', params: { position: block.point, diameter: mm(drawnHole(block.diameter, printer.material)), depth: mm(block.depth), targets: [block.body] } };
+      // Drawn as given, without the hole allowance: the maker's hole is the size to model in the printed part (ruthex RX data
+      // sheet, d3), and the insert melts into it as an interference (BC-16 review S1).
+      return { command: 'solid.hole', params: { position: block.point, diameter: mm(block.diameter), depth: mm(block.depth), targets: [block.body] } };
     case 'boss': {
       const insert = INSERT[block.size] ?? { diameter: 4, length: 5.7 };
       return {
         command: 'plastic.boss',
-        params: { position: block.point, diameter: mm(block.diameter), height: mm(block.height), hole_diameter: mm(drawnHole(insert.diameter, printer.material)), hole_depth: mm(insert.length + 1), draft: '0 deg', fillet: mm(bossFillet(block, printer)), body: block.body },
+        params: { position: block.point, diameter: mm(block.diameter), height: mm(block.height), hole_diameter: mm(insert.diameter), hole_depth: mm(insert.length + 1), draft: '0 deg', fillet: mm(bossFillet(block, printer)), body: block.body },
       };
     }
   }
@@ -502,8 +516,7 @@ export function logoFrom(text: string): { svg: string; width: number | null; bac
   return { svg: drawingSvg(result.drawing, width ?? 100), width, backgrounds: result.drawing.skipped.backgrounds };
 }
 
-/** The printer a block is reckoned for when it is given none: the 0.4 mm nozzle the clearances stand for, with 0.2 mm layers. */
-export const DEFAULT_PRINTER: FitPrinter = { nozzle: CLEARANCE_NOZZLE, layer: 0.2 };
+export { DEFAULT_PRINTER };
 
 /**
  * Why a size of a block does not print or does not do its work, as data: the assistant is told it in English

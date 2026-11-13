@@ -1552,7 +1552,7 @@
     "hint": {
       "tappedHole": "Ein modelliertes Gewinde dieser Größe, im Durchmesser {thread, number} mm größer für den Druck, mit angefaster Mündung; nicht modelliert wird mit dem Kernlochdurchmesser gebohrt, um nach dem Druck nachzuschneiden.",
       "screwHole": "Durchgangsloch aus PartBuddys Tabelle nach ISO 273 (um {shrink, number} mm größer gezeichnet, das Lochaufmaß des Materials, damit es in seiner Größe herauskommt), mit Platz für den Kopf nach ISO 4762 oder ISO 10642 plus {head, number} mm für den Druck (je Seite bei der Flachsenkung, einmal auf den Durchmesser der Kegelsenkung). Eine Flachsenkung bekommt zwei Brückenschichten von {layer, number} mm unter ihrem Boden und druckt so auch zum Bett hin.",
-      "insertSeat": "Typische Werte für ruthex-Einsätze, einen Millimeter tiefer als der Einsatz. Prüf das Datenblatt deines Einsatzes. Um {shrink, number} mm größer gezeichnet, das Lochaufmaß des Materials.",
+      "insertSeat": "Typische Werte für ruthex-Einsätze, einen Millimeter tiefer als der Einsatz. Prüf das Datenblatt deines Einsatzes. In dieser Größe gezeichnet, ohne Lochaufmaß des Materials: der Einsatz schmilzt sich hinein.",
       "boss": "Ein Dom mit Sitz für eine Einschmelzmutter dieser Größe und mindestens 2 mm Wand.",
       "nutTrap": "Sechskanttasche nach ISO 4032 mit {room, number} mm Luft (die Steckpassung des Materials) und 0,4 mm Tiefenzugabe, darunter ein Durchgangsloch nach ISO 273. Ältere DIN-Muttern sind bei M10 breiter (17 mm): dafür {din, number} als Schlüsselweite angeben.",
       "slot": "Ein Langloch mit der Breite des mittleren Durchgangslochs, mittig am Punkt, zum Verstellen der Schraube.",

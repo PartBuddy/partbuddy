@@ -108,6 +108,26 @@ describe('the test pieces', () => {
     expect(engraving?.params.distance).toBeCloseTo(0.56);
     expect(steps.filter((step) => step.params.operation === 'new').map((step) => step.params.body_name)).toEqual(['Fit comb', 'Fit pin', 'Hole plate', 'Overhang']);
   });
+
+  it('drill the fit comb with the hole allowance of the material measured, so the fit read is the room after printing (BC-16 review B1, N-nach-6)', async () => {
+    const { PIN, combHole } = await import('../src/shared/testPieces');
+    const { magnetPocket } = await import('../src/shared/magnet');
+    const { pegBore } = await import('../src/shared/mechanisms');
+    const hole = (holeShrink?: number) => testPieceSteps({ nozzle: 0.4, layer: 0.2, holeShrink }).find((step) => step.params.name === 'Fit 0.15')?.params.diameter;
+    // Pin 6 and 0.15 a side: 6.3 as it comes out, drawn 6.45 in PLA (0.15), 6.6 in PP (0.3), 6.3 with no allowance; PLA's without one given.
+    expect([hole(0.15), hole(0.3), hole(0), hole()]).toEqual([6.45, 6.6, 6.3, 6.45]);
+    expect(combHole(-0.05, 0.3)).toBe(6.2);
+    // The hole plate is drawn at its nominal sizes: it measures the allowance.
+    expect(testPieceSteps({ nozzle: 0.4, layer: 0.2, holeShrink: 0.3 }).find((step) => step.params.name === 'Hole 10')?.params.diameter).toBe(10);
+    // No double count: a hole that shrinks by the allowance drawn into it comes out at pin + 2 × the step read off the comb, and a
+    // tool given that reading as the profile's push fit draws its pocket so it comes out at the part + 2 × the same room.
+    const shrink = 0.3;
+    const read = 0.15;
+    expect(Math.round((combHole(read, shrink) - shrink) * 1000) / 1000).toBe(PIN + 2 * read);
+    const measured = { holeShrink: shrink, clearance: { clamp: 0.05, push: read, slide: 0.25, turn: 0.3 }, measuredNozzle: 0.4 };
+    expect(Math.round((magnetPocket({ diameter: 6, height: 2, hold: 'glue' }, { nozzle: 0.4, layer: 0.2, material: measured }).drawn - shrink) * 1000) / 1000).toBe(6 + 2 * read);
+    expect(Math.round((pegBore({ diameter: 5, gap: read, material: measured }) - shrink) * 1000) / 1000).toBe(5 + 2 * read);
+  });
 });
 
 describe('fits read on another nozzle than 0.4 mm (audit T2)', () => {

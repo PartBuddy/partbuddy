@@ -301,9 +301,9 @@ export interface PartBuddyApi {
     /** The latest ready-to-print check, for the assistant's next message. */
     reportCheck(report: PrintCheckReport): Promise<void>;
     /** A picture of the tolerance assistant's test pieces for this nozzle and layer, rendered by SolidCraft; null when it cannot. */
-    testPiecesPicture(printer: { nozzle: number; layer: number }): Promise<{ picture: string | null }>;
+    testPiecesPicture(printer: { nozzle: number; layer: number; holeShrink?: number | undefined }): Promise<{ picture: string | null }>;
     /** The test pieces as a 3MF the user saves (slicer null) or opened in a slicer; null when the save was cancelled. */
-    exportTestPieces(request: { nozzle: number; layer: number; slicer: string | null }): Promise<{ file: string | null; slicer: string | null } | null>;
+    exportTestPieces(request: { nozzle: number; layer: number; holeShrink?: number | undefined; slicer: string | null }): Promise<{ file: string | null; slicer: string | null } | null>;
   };
   /** The assembly order of the open project (ADR 0026): set by the assistant, null without one. */
   assembly: {

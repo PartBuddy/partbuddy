@@ -4,7 +4,7 @@
  * the diameter (Gridfinity's plain hole), none of it printed here yet.
  */
 
-import { drawnHole, fitClearance, type ToolPrinter } from './toolFit';
+import { DEFAULT_PRINTER, drawnHole, fitClearance, type ToolPrinter } from './toolFit';
 
 type Vec3 = [number, number, number];
 type Step = { command: string; params: Record<string, unknown> };
@@ -20,14 +20,17 @@ export type MagnetHold = (typeof MAGNET_HOLDS)[number];
 export const MAGNET = { sunk: 0.2, chamfer: 0.4, around: 1.2 };
 
 /**
- * The fit a magnet sits in (audit MV-17, W16): dropped in on glue, the material's push fit; pressed in, its clamp fit.
- * shortcut: the catalogue's clamp fit is room (PLA 0.05 mm a side), where a press fit is an interference (QI 0.05–0.15 mm,
- * audit MV-17); the pocket takes the profile as it is, and the tolerance pieces measure the user's clamp fit.
+ * A pressed magnet's interference on the diameter, in mm: the pocket comes out this much under the magnet, the middle of
+ * the 0.05 to 0.15 mm a press fit takes (audit MV-17), on every nozzle and material. The profile's clamp fit is room, not
+ * interference (PLA 0.05 mm a side), and grows with the nozzle: a pocket of it held nothing (BC-16 review B2).
  */
-const MAGNET_FIT = { glue: 'push', press: 'clamp' } as const;
+export const PRESS_INTERFERENCE = 0.1;
 
-/** The room on the diameter the pocket leaves round the magnet as printed, in mm. */
-export const magnetRoom = (hold: MagnetHold, printer: ToolPrinter) => round(2 * fitClearance(MAGNET_FIT[hold], printer));
+/**
+ * The room on the diameter the pocket leaves round the magnet as printed, in mm (audit MV-17, W16): dropped in on glue, the
+ * material's push fit on both sides; pressed in, less than none, {@link PRESS_INTERFERENCE} under the magnet.
+ */
+export const magnetRoom = (hold: MagnetHold, printer: ToolPrinter) => (hold === 'press' ? -PRESS_INTERFERENCE : round(2 * fitClearance('push', printer)));
 
 export interface MagnetSpec {
   body: string;
@@ -47,11 +50,8 @@ const round = (value: number) => Math.round(value * 1000) / 1000;
 /** A direction to SolidCraft at full precision (audit T40: rounded to 0.001, a skew one was off its line); only a hair from zero is zero. */
 const direction = (vector: Vec3) => vector.map((value) => (Math.abs(value) < 1e-12 ? 0 : value)) as Vec3;
 
-/** The printer a pocket is reckoned for when it is given none: a 0.4 mm nozzle and the default profile's material. */
-const PRINTER: ToolPrinter = { nozzle: 0.4, layer: 0.2 };
-
 /** The pocket's diameter as it comes out of the printer, as it is drawn (the material's hole allowance wider), and its depth. */
-export function magnetPocket(spec: Pick<MagnetSpec, 'diameter' | 'height' | 'hold'>, printer: ToolPrinter = PRINTER): { diameter: number; drawn: number; depth: number } {
+export function magnetPocket(spec: Pick<MagnetSpec, 'diameter' | 'height' | 'hold'>, printer: ToolPrinter = DEFAULT_PRINTER): { diameter: number; drawn: number; depth: number } {
   const diameter = round(spec.diameter + magnetRoom(spec.hold, printer));
   return { diameter, drawn: drawnHole(diameter, printer.material), depth: round(spec.height + MAGNET.sunk) };
 }
@@ -60,7 +60,7 @@ export function magnetPocket(spec: Pick<MagnetSpec, 'diameter' | 'height' | 'hol
  * The plastic each pocket needs: itself with what must stay round it and `under` it, as a cylinder into the face that
  * starts `from` mm under the point (a face may fall away that far, as a curved one does).
  */
-export function magnetStock(spec: MagnetSpec, from: number, under: number, printer: ToolPrinter = PRINTER): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number }[] {
+export function magnetStock(spec: MagnetSpec, from: number, under: number, printer: ToolPrinter = DEFAULT_PRINTER): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number }[] {
   const length = Math.hypot(...spec.normal);
   const axis = direction(spec.normal.map((value) => -value / length) as Vec3);
   const pocket = magnetPocket(spec, printer);
@@ -80,7 +80,7 @@ export function magnetProblem(spec: MagnetSpec): string | null {
 }
 
 /** The cuts of each pocket: the hole into the face, and a chamfer at its mouth to start the magnet. */
-export function magnetSteps(spec: MagnetSpec, printer: ToolPrinter = PRINTER): Step[] {
+export function magnetSteps(spec: MagnetSpec, printer: ToolPrinter = DEFAULT_PRINTER): Step[] {
   const length = Math.hypot(...spec.normal);
   const into = direction(spec.normal.map((value) => -value / length) as Vec3);
   const { drawn, depth } = magnetPocket(spec, printer);

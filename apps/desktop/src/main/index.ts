@@ -1238,8 +1238,8 @@ if (!app.requestSingleInstanceLock()) {
       return { opened: true, imported: true };
     });
     // Tolerance assistant: test pieces for the printer in the settings draft, built beside the open design.
-    const testPiecesDesign = async ({ nozzle, layer }: { nozzle: number; layer: number }) => {
-      const steps = testPieceSteps({ nozzle, layer });
+    const testPiecesDesign = async ({ nozzle, layer, holeShrink }: { nozzle: number; layer: number; holeShrink?: number | undefined }) => {
+      const steps = testPieceSteps({ nozzle, layer, holeShrink });
       // Named after the steps as well, so pieces changed by an update are built and pictured anew (audit D43).
       const made = createHash('sha256').update(JSON.stringify(steps)).digest('hex').slice(0, 12);
       const folder = join(cacheDirectory(), 'test-pieces');
@@ -1265,8 +1265,8 @@ if (!app.requestSingleInstanceLock()) {
         return { picture: null };
       }
     });
-    bridge.handle(invokeChannels.printTestPiecesExport, async ({ nozzle, layer, slicer }) => {
-      const steps = testPieceSteps({ nozzle, layer });
+    bridge.handle(invokeChannels.printTestPiecesExport, async ({ nozzle, layer, holeShrink, slicer }) => {
+      const steps = testPieceSteps({ nozzle, layer, holeShrink });
       const name = german ? 'Prüfkörper' : 'Test pieces';
       if (slicer) {
         const file = join(cacheDirectory(), 'test-pieces', `${name}.3mf`);
