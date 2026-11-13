@@ -1259,7 +1259,8 @@ if (!app.requestSingleInstanceLock()) {
       log('moved a logo');
       return undefined;
     });
-    // To the slicer (B8): through SolidCraft's slicer detection; the print face is SolidCraft's own.
+    // To the slicer (B8): through SolidCraft's slicer detection. Bodies lie on their print faces, which PartBuddy keeps
+    // too: with parts printed as one piece PartBuddy writes the file and lays them itself (audit G1).
     bridge.handle(invokeChannels.designSlicers, () => supervisor.slicers());
     bridge.handle(invokeChannels.designSendToSlicer, async ({ slicer }) => {
       const folder = assemblyFolder();

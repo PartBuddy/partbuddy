@@ -75,20 +75,34 @@ export function componentsWithBodies(listing: unknown): { id: number; bodies: st
 }
 
 /**
- * The bodies printed as one piece (audit G1): those of components that share a mark of `printTogether` (mechanisms.ts),
- * from their `component.metadata` in the order of `parts`. A component in two marks joins both groups into one.
+ * The bodies printed as one piece (audit G1): those of two components that a joint of `joint.list` joins and that carry
+ * the same mark of `printTogether` (mechanisms.ts) in their `component.metadata` (`described`, in the order of
+ * `parts`). A mark alone is not enough: a component copied with its metadata, a hinge whose joint was deleted, or one
+ * of the two marks taken back by undo leaves no such joint (review of PR #366, S1, S2, K2). Chains of hinges make one
+ * group. Each group lists its bodies in `order`, the order of the design's bodies, which every consumer keeps.
  */
-export function printGroupsOf(parts: readonly { bodies: string[] }[], described: readonly unknown[]): string[][] {
-  const labelled = new Map<string, string[]>();
+export function printGroupsOf(parts: readonly { id: number; bodies: string[] }[], described: readonly unknown[], listing: unknown, jointListing: unknown, order: readonly string[]): string[][] {
+  const marks = new Map<number, Set<string>>();
   parts.forEach((part, i) => {
     const metadata = (described[i] as { metadata?: unknown } | undefined)?.metadata;
-    for (const key of typeof metadata === 'object' && metadata !== null ? Object.keys(metadata) : []) {
-      if (key.startsWith(TOGETHER_KEY)) labelled.set(key, [...(labelled.get(key) ?? []), ...part.bodies]);
-    }
+    const keys = typeof metadata === 'object' && metadata !== null ? Object.keys(metadata).filter((key) => key.startsWith(TOGETHER_KEY)) : [];
+    if (keys.length > 0) marks.set(part.id, new Set(keys));
   });
+  const componentOf = new Map<number, number>();
+  const entries = (listing as { components?: unknown } | undefined)?.components;
+  for (const entry of Array.isArray(entries) ? (entries as { id?: unknown; occurrences?: unknown }[]) : []) {
+    for (const occurrence of Array.isArray(entry.occurrences) ? (entry.occurrences as { id?: unknown }[]) : []) {
+      if (Number.isInteger(occurrence.id) && Number.isInteger(entry.id)) componentOf.set(occurrence.id as number, entry.id as number);
+    }
+  }
+  const bodiesOf = new Map(parts.map((part) => [part.id, part.bodies]));
+  const joints = (jointListing as { joints?: unknown } | undefined)?.joints;
   let groups: Set<string>[] = [];
-  for (const bodies of labelled.values()) {
-    const merged = new Set(bodies);
+  for (const joint of Array.isArray(joints) ? (joints as { a?: unknown; b?: unknown; suppressed?: unknown }[]) : []) {
+    if (joint.suppressed === true) continue;
+    const [a, b] = [componentOf.get(joint.a as number), componentOf.get(joint.b as number)];
+    if (a === undefined || b === undefined || a === b || ![...(marks.get(a) ?? [])].some((key) => marks.get(b)?.has(key))) continue;
+    const merged = new Set([...(bodiesOf.get(a) ?? []), ...(bodiesOf.get(b) ?? [])]);
     groups = groups.filter((group) => {
       if (![...group].some((body) => merged.has(body))) return true;
       for (const body of group) merged.add(body);
@@ -96,26 +110,18 @@ export function printGroupsOf(parts: readonly { bodies: string[] }[], described:
     });
     groups.push(merged);
   }
-  // In the order of the design, so the first body names its group the same way each time.
-  const order = parts.flatMap((part) => part.bodies);
+  const rank = (body: string) => (order.includes(body) ? order.indexOf(body) : order.length);
   return groups
     .filter((group) => group.size > 1)
-    .map((group) => [...group].sort((a, b) => order.indexOf(a) - order.indexOf(b)).slice(0, 500))
+    .map((group) => [...group].sort((x, y) => rank(x) - rank(y)).slice(0, 500))
     .slice(0, 200);
 }
 
-/** The groups of `printGroupsOf`, read from SolidCraft; none when that fails, so each body is checked by itself as before. */
-async function printGroupsIn(client: ControlRequester, listing: unknown, log: (message: string) => void): Promise<string[][]> {
-  const parts = componentsWithBodies(listing);
-  if (parts.length < 2) return [];
-  try {
-    const described = await client.request<BatchResult>('engine.batch', { commands: parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } })), rollback: false }, 60_000);
-    if (described.failed) throw new Error(`${described.failed.command} failed: ${described.failed.error}`);
-    return printGroupsOf(parts, described.results);
-  } catch (error) {
-    log(`parts printed together could not be read (${(error as Error).message}); each body is checked on its own bed`);
-    return [];
-  }
+/** `component.metadata` of each component, in the order of `parts`. */
+async function metadataOf(client: ControlRequester, parts: readonly { id: number }[]): Promise<unknown[]> {
+  const described = await client.request<BatchResult>('engine.batch', { commands: parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } })), rollback: false }, 60_000);
+  if (described.failed) throw new Error(`${described.failed.command} failed: ${described.failed.error}`);
+  return described.results;
 }
 
 /** What telling standard parts needs besides the engine: the log, and SolidCraft's own build of each part. */
@@ -260,7 +266,7 @@ async function libraryOfEngine(client: ControlRequester, log: (message: string) 
  * printed, with a line in the log: a screw in the print check shows, a printed part left out of it
  * does not. Only a design with components holding bodies costs requests.
  */
-export async function boughtParts(client: ControlRequester, listing: unknown, checks: PartChecks): Promise<ToldParts> {
+export async function boughtParts(client: ControlRequester, listing: unknown, checks: PartChecks, read?: readonly unknown[]): Promise<ToldParts> {
   const none: ToldParts = { bought: [], pending: [], unchecked: [], unverified: [] };
   const parts = componentsWithBodies(listing);
   if (parts.length === 0) return none;
@@ -268,13 +274,9 @@ export async function boughtParts(client: ControlRequester, listing: unknown, ch
     const library = await libraryOfEngine(client, checks.log);
     // Without the library no body can be taken for a part, so every body is a printed one: nothing is left unchecked.
     if (!library) return none;
-    const described = await client.request<BatchResult>(
-      'engine.batch',
-      { commands: parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } })), rollback: false },
-      60_000,
-    );
-    if (described.failed) throw new Error(`${described.failed.command} failed: ${described.failed.error}`);
-    const candidates = partCandidates(parts, described.results, library, checks.log);
+    // The metadata the mirror read already for the marks of parts printed together, or read here.
+    const described = read ?? (await metadataOf(client, parts));
+    const candidates = partCandidates(parts, described, library, checks.log);
     if (candidates.length === 0) return none;
     const references = await checks.references(candidates);
     const measured = await client.request<BatchResult>(
@@ -550,9 +552,17 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
     }
     const tail = 1 + bodies.length * 2 + sketches.length;
     const joints = jointsOf(batch.results[tail + 2], batch.results[tail]);
-    const told = await boughtParts(client, batch.results[tail], checks);
-    // Parts are printed together only where a hinge joins them, so a design without joints is not asked.
-    const printGroups = joints.length > 0 ? await printGroupsIn(client, batch.results[tail], checks.log) : [];
+    // Parts are printed together only where a hinge joins them, so the marks are read only in a design with joints, and
+    // that one read serves the standard parts too (review of PR #366, K8). A read that fails leaves every body on its own bed.
+    const parts = componentsWithBodies(batch.results[tail]);
+    const described = joints.length > 0 && parts.length > 1
+      ? await metadataOf(client, parts).catch((error: unknown) => {
+          checks.log(`parts printed together could not be read (${(error as Error).message}); each body is checked on its own bed`);
+          return undefined;
+        })
+      : undefined;
+    const told = await boughtParts(client, batch.results[tail], checks, described);
+    const printGroups = described ? printGroupsOf(parts, described, batch.results[tail], batch.results[tail + 2], bodies) : [];
     const standardParts = told.bought.map((part) => part.body).slice(0, 500);
     const pendingParts = told.pending.slice(0, 500);
     const structure = withColours({ ...structureOf(inspect), standardParts, ...(pendingParts.length > 0 ? { pendingParts } : {}) }, batch.results[tail + 1]);

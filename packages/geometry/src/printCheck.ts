@@ -529,7 +529,8 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       for (let j = i + 1; j < parts.length; j += 1) {
         const a = parts[i];
         const b = parts[j];
-        if (a && b && (touches(a, b) || touches(b, a))) {
+        // Bodies printed as one piece stay together in the slicer (audit G1).
+        if (a && b && (a.group === undefined || a.group !== b.group) && (touches(a, b) || touches(b, a))) {
           separate.add(a.name);
           separate.add(b.name);
         }

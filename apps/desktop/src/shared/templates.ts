@@ -410,7 +410,8 @@ function inGerman(step: Step): Step {
   const comment = step.command === 'parameters.add' ? params.comment : undefined;
   if (typeof comment === 'string' && GERMAN[comment]) params.comment = GERMAN[comment];
   const body = (name: unknown) => (typeof name === 'string' ? (GERMAN_BODIES[name] ?? name) : name);
-  for (const key of ['body_name', 'body'] as const) if (key in params) params[key] = body(params[key]);
+  // A component made of a body (`component.from_bodies`) carries the body's name.
+  for (const key of ['body_name', 'body', 'component'] as const) if (key in params) params[key] = body(params[key]);
   for (const key of ['targets', 'bodies'] as const) if (Array.isArray(params[key])) params[key] = params[key].map(body);
   // A joint names its two components, which carry their bodies' names.
   for (const key of ['a', 'b', 'at'] as const) {

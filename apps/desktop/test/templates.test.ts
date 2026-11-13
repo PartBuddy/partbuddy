@@ -77,6 +77,15 @@ describe('templates (F3)', () => {
     expect(templateSteps('housing').some((step) => step.params.body_name === 'Housing')).toBe(true);
   });
 
+  it('marks box and lid of the hinged box as printed together by their components, in both languages (review of PR 366, B1)', () => {
+    for (const [german, names] of [[false, ['Box', 'Lid']], [true, ['Box', 'Deckel']]] as const) {
+      const steps = templateSteps('hingedBox', german);
+      // The components are made of the bodies and named after them: the marks must name those.
+      expect(steps.find((step) => step.command === 'component.from_bodies')?.params.bodies).toEqual(names);
+      expect(steps.filter((step) => step.command === 'component.metadata.set').map((step) => step.params.component)).toEqual(names);
+    }
+  });
+
   it('names every feature and sketch in German on request, and a sketch reference follows (audit B-03)', () => {
     for (const id of TEMPLATE_IDS) {
       const english = templateSteps(id);

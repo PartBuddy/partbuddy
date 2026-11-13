@@ -12,7 +12,8 @@ import type { NestRequest, NestResponse } from '../workers/nest.worker';
 import { suggestAssembly, type PartBox } from './assemblyOrder';
 import { activeStep, explodeAlong, playbackPoses, type Box } from './explode';
 import { jointPoses } from './jointPose';
-import type { NestResult, Vec2 } from './nesting';
+import type { NestResult } from './nesting';
+import { platePieces } from './platePieces';
 import type { ViewerColors } from './useTokenColors';
 import { requestShadow } from './SceneLook';
 
@@ -39,7 +40,7 @@ export const REST: Pose = { position: [0, 0, 0], quaternion: [0, 0, 0, 1], visib
 /** Seconds per assembly step in the playback. */
 export const STEP_SECONDS = 1.6;
 /** Plate layout: gap between parts and to the bed edge (mm), turns tried per part. */
-const PLATE = { spacing: 5, margin: 6, rotations: 24, maxPoints: 4000 };
+const PLATE = { spacing: 5, margin: 6, rotations: 24 };
 
 function boxOf(body: BodyModel): Box {
   const box = new Box3().setFromBufferAttribute(body.model.geometry.getAttribute('position') as BufferAttribute);
@@ -113,28 +114,6 @@ export function useProjectViewData(): void {
   );
 }
 
-/** The normal of a body's print face, if it is a flat face of the body. */
-const faceNormal = (body: BodyModel, face: string | undefined) => (face ? body.model.table.faces.find((entry) => entry.name === face)?.planeNormal : undefined);
-
-/** How each body is turned to lie on its print face (or as designed), with its footprint and height that way. */
-function plateInput(body: BodyModel, normal: Vec3 | undefined): { quaternion: Quaternion; points: Vec2[]; floor: number; height: number } {
-  const quaternion = normal ? new Quaternion().setFromUnitVectors(new Vector3(...normal).normalize(), new Vector3(0, 0, -1)) : new Quaternion();
-  const positions = (body.model.geometry.getAttribute('position') as BufferAttribute).array;
-  const count = positions.length / 3;
-  const stride = Math.max(1, Math.floor(count / PLATE.maxPoints));
-  const points: Vec2[] = [];
-  let floor = Infinity;
-  let top = -Infinity;
-  const v = new Vector3();
-  for (let i = 0; i < count; i += 1) {
-    v.set(positions[i * 3] ?? 0, positions[i * 3 + 1] ?? 0, positions[i * 3 + 2] ?? 0).applyQuaternion(quaternion);
-    floor = Math.min(floor, v.z);
-    top = Math.max(top, v.z);
-    if (i % stride === 0) points.push([v.x, v.y]);
-  }
-  return { quaternion, points, floor, height: top - floor };
-}
-
 export interface PlateLayout {
   status: 'computing' | 'ready' | 'error';
   /** The input the layout was worked out for; another input means a new one is on its way. */
@@ -151,24 +130,7 @@ export function usePlateLayout(bodies: BodyModel[], open: boolean, bed: [number,
   const standard = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.standardParts : undefined));
   const groups = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.printGroups : undefined));
   const [layout, setLayout] = useState<PlateLayout>({ status: 'computing', result: null, poses: new Map() });
-  // Standard parts (screws, nuts) are bought, not printed: they stay off the plate. Bodies printed as one piece (a
-  // print-in-place hinge, audit G1) lie on it as one part, as they lie to each other, on the first print face among them.
-  const inputs = useMemo(() => {
-    if (!open) return [];
-    const pieces = new Map<string, BodyModel[]>();
-    for (const body of bodies) {
-      if (standard?.includes(body.name)) continue;
-      const name = groups?.find((group) => group.includes(body.name))?.[0] ?? body.name;
-      pieces.set(name, [...(pieces.get(name) ?? []), body]);
-    }
-    return [...pieces].map(([name, members]) => {
-      const normal = members.map((body) => faceNormal(body, faces[body.name])).find(Boolean);
-      const laid = members.map((body) => plateInput(body, normal));
-      const floor = Math.min(...laid.map((entry) => entry.floor));
-      const top = Math.max(...laid.map((entry) => entry.floor + entry.height));
-      return { name, members: members.map((body) => body.name), quaternion: laid[0]?.quaternion ?? new Quaternion(), points: laid.flatMap((entry) => entry.points), floor, height: top - floor };
-    });
-  }, [bodies, faces, groups, open, standard]);
+  const inputs = useMemo(() => (open ? platePieces(bodies, groups ?? [], faces, standard) : []), [bodies, faces, groups, open, standard]);
   useEffect(() => {
     if (!open || !bed || inputs.length === 0) return;
     const worker = new Worker(new URL('../workers/nest.worker.ts', import.meta.url), { type: 'module' });

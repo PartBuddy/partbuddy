@@ -102,23 +102,43 @@ function design(answer: (command: string, component: number | undefined, call: n
 
 describe('parts printed together in the mirrored structure (audit G1)', () => {
   const mark = (label: string) => ({ [`io.github.manuelstaggl.partbuddy.together.${label}`]: { joint: 'Hinge' } });
+  // Components 2, 4, 6 … each placed once, as occurrence id + 1, with a body of their own.
+  const names = ['Box', 'Lid', 'Flap', 'Drawer', 'Loose', 'Lid (2)', 'Box (2)', 'Lid (3)'];
+  const parts = names.map((name, i) => ({ id: 2 + 2 * i, bodies: [name] }));
+  const listing = { components: parts.map((part) => ({ ...part, parent: 0, occurrences: [{ id: part.id + 1 }] })) };
+  const joint = (a: string, b: string, suppressed = false) => ({ a: 3 + 2 * names.indexOf(a), b: 3 + 2 * names.indexOf(b), suppressed });
 
-  it('groups the bodies of components that share the mark of a hinge, and joins groups through a body in two', () => {
-    const parts = [{ bodies: ['Box'] }, { bodies: ['Lid'] }, { bodies: ['Flap'] }, { bodies: ['Drawer'] }, { bodies: ['Loose'] }];
-    // Box and lid by one hinge, lid and flap by another; the drawer's guide prints apart and leaves no mark.
-    const described = [{ metadata: mark('a') }, { metadata: { ...mark('a'), ...mark('b') } }, { metadata: mark('b') }, { metadata: {} }, { metadata: mark('c') }];
-    expect(printGroupsOf(parts, described)).toEqual([['Box', 'Lid', 'Flap']]);
-    expect(printGroupsOf(parts.slice(0, 2), [{ metadata: mark('a') }, {}])).toEqual([]);
+  it('groups the bodies of two components a joint joins and that share the mark of a hinge, chains of hinges as one', () => {
+    // Box and lid by one hinge, lid and flap by another; the drawer's guide joins it to the box without a mark.
+    const described = [mark('a'), { ...mark('a'), ...mark('b') }, mark('b'), {}, mark('c')].map((metadata) => ({ metadata }));
+    const joints = { joints: [joint('Box', 'Lid'), joint('Lid', 'Flap'), joint('Box', 'Drawer')] };
+    // In the order of the design's bodies, which print check, plate and export all keep (review of PR 366, K1).
+    expect(printGroupsOf(parts.slice(0, 5), described, listing, joints, ['Flap', 'Lid', 'Box', 'Drawer', 'Loose'])).toEqual([['Flap', 'Lid', 'Box']]);
   });
 
-  it('reads the marks only in a design with joints, and says so in the log when they cannot be read', async () => {
-    const hinge = { joints: [{ id: 20, name: 'Hinge', type: 'revolute', a: 3, b: 10, values: [{ unit: 'deg', value: 0, limits: [0, 180] }] }] };
-    const marked = design((command, component) => (command === 'joint.list' ? hinge : command === 'component.metadata' && (component === 9 || component === 16) ? { metadata: mark('a') } : undefined));
+  it('takes no mark without its joint: a copied lid, a hinge whose joint is gone or suppressed, one mark taken back (review of PR 366, S1, S2, K2)', () => {
+    // The lid copied with its metadata (component.paste_new) carries the mark, but no joint joins it to the box.
+    const copied = [mark('a'), mark('a'), {}, {}, {}, mark('a')].map((metadata) => ({ metadata }));
+    expect(printGroupsOf(parts.slice(0, 6), copied, listing, { joints: [joint('Box', 'Lid')] }, names)).toEqual([['Box', 'Lid']]);
+    // The pair copied with its joint is a hinge of its own, not part of the first.
+    const pair = [mark('a'), mark('a'), {}, {}, {}, {}, mark('a'), mark('a')].map((metadata) => ({ metadata }));
+    expect(printGroupsOf(parts, pair, listing, { joints: [joint('Box', 'Lid'), joint('Box (2)', 'Lid (3)')] }, names)).toEqual([['Box', 'Lid'], ['Box (2)', 'Lid (3)']]);
+    expect(printGroupsOf(parts.slice(0, 2), copied, listing, { joints: [] }, names)).toEqual([]);
+    expect(printGroupsOf(parts.slice(0, 2), copied, listing, { joints: [joint('Box', 'Lid', true)] }, names)).toEqual([]);
+    expect(printGroupsOf(parts.slice(0, 2), [{ metadata: mark('a') }, {}], listing, { joints: [joint('Box', 'Lid')] }, names)).toEqual([]);
+  });
+
+  it('reads the marks once, only in a design with joints, and says so in the log when they cannot be read', async () => {
+    const placed = { components: [{ id: 0, parent: null, bodies: ['Block', 'Plate'] }, { id: 2, parent: 0, bodies: ['Body1'], occurrences: [{ id: 3 }] }, { id: 9, parent: 0, bodies: ['Body2'], occurrences: [{ id: 10 }] }, { id: 16, parent: 0, bodies: ['Holder'], occurrences: [{ id: 17 }] }] };
+    const hinge = { joints: [{ id: 20, name: 'Hinge', type: 'revolute', a: 10, b: 17, values: [{ unit: 'deg', value: 0, limits: [0, 180] }] }] };
+    const marked = design((command, component) => (command === 'component.list' ? placed : command === 'joint.list' ? hinge : command === 'component.metadata' && (component === 9 || component === 16) ? { metadata: mark('a') } : undefined));
     expect((await marked.structure()).printGroups).toEqual([['Body2', 'Holder']]);
+    // One read of the metadata serves the standard parts as well.
+    expect(marked.calls['component.metadata']).toBe(3);
     // Without a joint nothing is grouped and the marks are not asked for again.
-    const plain = design((command, component) => (command === 'component.metadata' && (component === 9 || component === 16) ? { metadata: mark('a') } : undefined));
+    const plain = design((command, component) => (command === 'component.list' ? placed : command === 'component.metadata' && (component === 9 || component === 16) ? { metadata: mark('a') } : undefined));
     expect((await plain.structure()).printGroups).toBeUndefined();
-    const unread = design((command, _component, call) => (command === 'joint.list' ? hinge : command === 'component.metadata' && call > 3 ? new Error('timed out') : undefined));
+    const unread = design((command, _component, call) => (command === 'component.list' ? placed : command === 'joint.list' ? hinge : command === 'component.metadata' && call === 1 ? new Error('timed out') : undefined));
     expect((await unread.structure()).printGroups).toBeUndefined();
     expect(unread.logs).toContain('parts printed together could not be read (timed out); each body is checked on its own bed');
   });

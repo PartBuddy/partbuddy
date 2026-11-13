@@ -222,6 +222,10 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   (identity transforms) it loads as one object with two parts, their offsets equal to the design to 1e-7 mm, the lowest
   point of the two on the bed; an item `transform` on it (a print face laid down) is kept. An STL of both bodies is
   one object with one part, as designed.
+- It names those parts `<object name> + _2` unless `Metadata/model_settings.config` names them:
+  `<config><object id="<the components object>"><metadata key="name" value="…"/><part id="<mesh object id>"
+  subtype="normal_part"><metadata key="name" value="Box"/></part>…</object></config>` is read from a 3MF of
+  another application too (checked 2026-11-13 with the German hinged box: parts "Box" and "Deckel").
 
 ## SolidCraft 0.40.0-rc.4 (checked 2026-11-11)
 

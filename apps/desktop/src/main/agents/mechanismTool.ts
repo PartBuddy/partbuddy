@@ -795,7 +795,8 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     );
     // A hinge on the line of an earlier one only narrows what that joint allows: it is run through its limits again.
     const range = await join(run, spec, 'revolute', site.shares?.limits ?? [-180, 180], 1, site.shares?.name);
-    const print = `${site.shares ? ` It lies on the line of the hinge "${site.shares.name}" and turns about that hinge's joint, which carries both now.` : ''}${hingePrint(spec, depths, overhang)}`;
+    // Review of PR #366, K1: which print face lays the hinge, said where it is decided.
+    const print = `${site.shares ? ` It lies on the line of the hinge "${site.shares.name}" and turns about that hinge's joint, which carries both now.` : ''}${hingePrint(spec, depths, overhang)} ${spec.fixed} and ${spec.moving} print as one piece, as they lie to each other: the print check, the plate view and the export lay both on the print face of whichever of them comes first in the design and has one, so give only one of them a print face.`;
     if (typeof range === 'string') return `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns) and joined them, but ${unswept(range, site.shares?.name)}${print}${warnings}`;
     const [min, max] = range;
     return (

@@ -1,8 +1,10 @@
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MirrorScheduler } from '../src/main/solidcraft/mirror';
@@ -10,6 +12,12 @@ import type { PartReferences, ReferenceState } from '../src/main/solidcraft/part
 import { SolidCraftSupervisor } from '../src/main/solidcraft/supervisor';
 import type { ConnectionStatus, MirrorRevision } from '../src/shared/contract';
 import { FakeSolidCraft } from './fakeSolidCraft';
+
+// The slicer a test opens is never started: spawn answers as a started or failed program would.
+vi.mock('node:child_process', async (original) => {
+  const actual = await original<typeof import('node:child_process')>();
+  return { ...actual, spawn: vi.fn(actual.spawn) };
+});
 
 const cleanups: (() => Promise<void> | void)[] = [];
 
@@ -211,6 +219,83 @@ describe('SolidCraft supervisor', () => {
     expect(await supervisor.exportDesign('stl', join(target, 'd.stl'))).toEqual({ unverified: ['Nut'] });
     expect(exported().at(-1)).toEqual(['CableClip', 'Nut']);
     expect(await supervisor.hardware()).toEqual([]);
+  });
+
+  describe('parts printed together in the export and to the slicer (audit G1, review of PR 366 S3, S4)', () => {
+    const mark = { 'io.github.manuelstaggl.partbuddy.together.a': { joint: 'Hinge' } };
+    const fixture = new URL('../../../packages/geometry/fixtures/cable-clip.3mf', import.meta.url);
+    /** A 3MF as SolidCraft writes it: a mesh object and a build item per body. */
+    const meshes = (bodies: string[]) => {
+      const objects = bodies.map((name, i) => `<object id="${String(i + 2)}" type="model" name="${name}"><mesh><vertices><vertex x="0" y="0" z="${String(i * 10)}"/><vertex x="1" y="0" z="${String(i * 10 + 5)}"/></vertices><triangles/></mesh></object>`);
+      return zipSync({ '3D/3dmodel.model': strToU8(`<model><resources>${objects.join('')}</resources><build>${bodies.map((_, i) => `<item objectid="${String(i + 2)}"/>`).join('')}</build></model>`) });
+    };
+    const started = async (slicer: { program: string | null }) => {
+      const { supervisor, revisions, controlDir } = setup();
+      const fake = await startFake(controlDir);
+      fake.bodies = ['Box', 'Lid', 'Loose'];
+      fake.answers['component.list'] = () => ({ components: [{ id: 0, parent: null, bodies: [] }, ...fake.bodies.map((name, i) => ({ id: 2 + 2 * i, parent: 0, bodies: [name], occurrences: [{ id: 3 + 2 * i }] }))] });
+      fake.answers['joint.list'] = () => ({ joints: [{ id: 20, name: 'Hinge', type: 'revolute', a: 3, b: 5, values: [{ unit: 'deg', value: 0, limits: [0, 180] }] }] });
+      fake.answers['component.metadata'] = (params) => ({ metadata: params.component === 2 || params.component === 4 ? mark : {} });
+      fake.answers['file.export'] = (params) => {
+        const bodies = (params.bodies as string[] | undefined) ?? fake.bodies;
+        if (params.format === '3mf-tagged') copyFileSync(fixture, String(params.path));
+        else writeFileSync(String(params.path), meshes(bodies));
+        fake.exports.push({ path: String(params.path), format: String(params.format), bodies });
+        return { path: params.path };
+      };
+      fake.answers['file.slicers'] = () => ({ slicers: [{ id: 'bambu', name: 'Bambu Studio', program: slicer.program }] });
+      supervisor.start();
+      await vi.waitFor(() => expect(revisions.at(-1)?.structure.printGroups).toEqual([['Box', 'Lid']]), { timeout: 5000 });
+      // Read after the mirror: the lid's top is its print face; the loose body's names a face it does not have.
+      const asked: unknown[] = [];
+      fake.answers['model.faces'] = (params) => {
+        asked.push(params.body);
+        return { body: params.body, faces: [{ name: 'F1:+z', plane_normal: [0, 0, 1] }] };
+      };
+      return { supervisor, fake, asked };
+    };
+    const model = (file: string) => strFromU8(unzipSync(readFileSync(file))['3D/3dmodel.model'] ?? new Uint8Array());
+    const child = (event: 'spawn' | 'error') => {
+      const program = Object.assign(new EventEmitter(), { unref: vi.fn() }) as unknown as ChildProcess;
+      setTimeout(() => program.emit(event, ...(event === 'error' ? [new Error('spawn EACCES')] : [])), 0);
+      return program;
+    };
+
+    it('writes the hinge as one object into the exported 3MF', async () => {
+      const { supervisor } = await started({ program: null });
+      const target = mkdtempSync(join(tmpdir(), 'partbuddy-export-'));
+      cleanups.push(() => {
+        rmSync(target, { recursive: true, force: true });
+      });
+      await supervisor.exportDesign('3mf', join(target, 'hinge.3mf'));
+      const written = model(join(target, 'hinge.3mf'));
+      expect(written).toContain('<object id="5" type="model" name="Box + Lid"><components><component objectid="2"/><component objectid="3"/></components></object>');
+      expect(written).toContain('<build>\n<item objectid="5"/>\n<item objectid="4"/>\n</build>');
+    });
+
+    it('writes the file for the slicer itself, the hinge as one piece laid on its print face, and starts the slicer on it', async () => {
+      const { supervisor, fake, asked } = await started({ program: process.execPath });
+      vi.mocked(spawn).mockImplementationOnce(() => child('spawn'));
+      expect(await supervisor.sendToSlicer('bambu', { Lid: 'F1:+z', Loose: 'F9:gone' })).toEqual({ name: 'Bambu Studio', unverified: [] });
+      // One batch: the export, then the faces of the two bodies with a print face, in that order.
+      expect(asked).toEqual(['Lid', 'Loose']);
+      const [program, args] = vi.mocked(spawn).mock.calls.at(-1) ?? [];
+      expect(program).toBe(process.execPath);
+      const file = String((args as string[] | undefined)?.[0]);
+      expect(fake.exports.at(-1)).toMatchObject({ path: file, format: '3mf', bodies: ['Box', 'Lid', 'Loose'] });
+      // The lid's top down turns the hinge over, its highest point (z 15) to the bed; the loose body has no such face and lies as designed.
+      expect(model(file)).toContain('<item objectid="5" transform="-1 0 0 0 1 0 0 0 -1 0 0 15"/>\n<item objectid="4"/>');
+    });
+
+    it('says when the slicer cannot be started instead of reporting it opened', async () => {
+      const missing = await started({ program: join(tmpdir(), 'no-such-slicer.exe') });
+      await expect(missing.supervisor.sendToSlicer('bambu')).rejects.toThrow('this slicer is not installed');
+      const nameless = await started({ program: null });
+      await expect(nameless.supervisor.sendToSlicer('bambu')).rejects.toThrow('SolidCraft names no program for Bambu Studio');
+      const failing = await started({ program: process.execPath });
+      vi.mocked(spawn).mockImplementationOnce(() => child('error'));
+      await expect(failing.supervisor.sendToSlicer('bambu')).rejects.toThrow('the slicer did not start: spawn EACCES');
+    });
   });
 
   it('refuses to export a design without a body', async () => {

@@ -249,8 +249,11 @@ export class SolidCraftSupervisor {
       );
       if (batch.failed) throw new Error(`export failed: ${batch.failed.error}`);
       // Bodies printed as one piece (a print-in-place hinge) go into the 3MF as one object, so the slicer keeps them together.
-      const groups = this.latest?.structure.printGroups ?? [];
-      if (format === '3mf' && groups.length > 0) await writeFile(temp, joinPieces(await readFile(temp), groups));
+      const groups = this.groupsAmong(bodies);
+      if (format === '3mf' && groups.length > 0) {
+        const joined = await joinPieces(await readFile(temp), groups);
+        if (joined) await writeFile(temp, joined);
+      }
       await mkdir(dirname(destination), { recursive: true });
       await copyFile(temp, destination);
     } finally {
@@ -473,10 +476,14 @@ export class SolidCraftSupervisor {
    */
   async openInSlicer(slicer: string, file: string): Promise<string> {
     const found = (await this.foundSlicers()).find((candidate) => candidate.id === slicer);
-    if (!found?.program || !existsSync(found.program)) throw new Error('this slicer is not installed');
-    // Argument array, no shell (architecture: security boundaries).
-    spawn(found.program, [file], { detached: true, stdio: 'ignore' }).unref();
+    if (!found?.program) throw new Error('this slicer is not installed');
+    await startSlicer(found.program, file);
     return found.name;
+  }
+
+  /** The groups of bodies printed as one piece (the last mirror's `printGroups`) with two or more of `bodies` in them. */
+  private groupsAmong(bodies: readonly string[]): string[][] {
+    return (this.latest?.structure.printGroups ?? []).filter((group) => group.filter((name) => bodies.includes(name)).length > 1);
   }
 
   private async foundSlicers(): Promise<{ id: string; name: string; program: string | null }[]> {
@@ -501,9 +508,9 @@ export class SolidCraftSupervisor {
     if (bodies.length === 0) throw new Error('the design has no body to print');
     // SolidCraft lays every body on the bed by itself, which takes a print-in-place hinge apart (audit G1): with such a
     // group PartBuddy writes the file itself, the group as one object, and opens the slicer on it.
-    const groups = (this.latest?.structure.printGroups ?? []).filter((group) => group.filter((name) => bodies.includes(name)).length > 1);
+    const groups = this.groupsAmong(bodies);
     if (groups.length > 0) {
-      if (!found.program) throw new Error(`${found.name} has no program to open a file with`);
+      if (!found.program) throw new Error(`SolidCraft names no program for ${found.name}, so the parts printed together cannot be opened in it`);
       await this.openPieces(found.program, bodies, groups, faces);
       return { name: found.name, unverified };
     }
@@ -531,7 +538,7 @@ export class SolidCraftSupervisor {
       { commands: [{ command: 'file.export', params: { path: file, format: '3mf', bodies } }, ...laid.map((body) => ({ command: 'model.faces', params: { body } }))], rollback: false, allow_paths: [this.options.cacheDir] },
       10 * 60 * 1000,
     );
-    if (reply.failed) throw new Error(`export failed: ${reply.failed.error}`);
+    if (reply.failed) throw new Error(`${reply.failed.command === 'model.faces' ? 'the print faces could not be read' : 'export failed'}: ${reply.failed.error}`);
     const downs: Record<string, [number, number, number]> = {};
     laid.forEach((body, i) => {
       const listed = (reply.results[i + 1] as { faces?: { name?: unknown; plane_normal?: unknown }[] } | undefined)?.faces ?? [];
@@ -539,10 +546,9 @@ export class SolidCraftSupervisor {
       if (Array.isArray(normal) && normal.length === 3 && normal.every((value) => typeof value === 'number' && Number.isFinite(value))) downs[body] = normal as [number, number, number];
       else this.options.log(`the print face of "${body}" is no flat face of it any more; it goes to the slicer as it lies`);
     });
-    await writeFile(file, joinPieces(await readFile(file), groups, downs));
-    const started = spawn(program, [file], { detached: true, stdio: 'ignore' });
-    started.on('error', (error) => this.options.log(`the slicer did not start: ${error.message}`));
-    started.unref();
+    const joined = await joinPieces(await readFile(file), groups, downs);
+    if (joined) await writeFile(file, joined);
+    await startSlicer(program, file);
   }
 
   /**
@@ -1417,4 +1423,24 @@ export class SolidCraftSupervisor {
       offClose();
     };
   }
+}
+
+/**
+ * Starts a slicer's program on a file and lets it run on its own. A program that is not there, or does not start, is an
+ * error of the call, not a success the log contradicts (review of PR #366, S3): Node reports a failed start only after
+ * the call, so it is awaited.
+ */
+export async function startSlicer(program: string, file: string): Promise<void> {
+  if (!existsSync(program)) throw new Error('this slicer is not installed');
+  await new Promise<void>((resolve, reject) => {
+    // Argument array, no shell (architecture: security boundaries).
+    const child = spawn(program, [file], { detached: true, stdio: 'ignore' });
+    child.once('error', (error) => {
+      reject(new Error(`the slicer did not start: ${error.message}`));
+    });
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+  });
 }
