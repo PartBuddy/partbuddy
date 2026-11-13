@@ -35,27 +35,60 @@ export async function cameraOf(page: Page): Promise<{ position: Vec3; target: Ve
   });
 }
 
-interface ProgramWindow {
-  linkedPrograms?: number;
+/** What {@link watchWebGl} counted since it started. */
+export interface WebGlCounts {
+  /** Shader programs linked, by any WebGL context of the window. */
+  linked: number;
+  /** Start page pictures drawn: PNGs read from a canvas outside the page (thumbnail.ts). */
+  pictures: number;
+  /** WebGL contexts lost (the GPU watchdog), which make every program be linked again. */
+  lost: number;
+}
+
+interface WebGlWindow {
+  webGlCounts?: WebGlCounts;
+  addEventListener(type: string, listener: (event: { target: unknown }) => void, capture: boolean): void;
   WebGL2RenderingContext: { prototype: { linkProgram: (this: unknown, program: unknown) => void } };
+  HTMLCanvasElement: {
+    prototype: {
+      toDataURL: (this: WebGlCanvas, type?: string, quality?: unknown) => string;
+    };
+  };
+}
+
+interface WebGlCanvas {
+  isConnected: boolean;
+  getContext(kind: 'webgl2'): { isContextLost(): boolean } | null;
 }
 
 /**
- * Counts the shader programs every WebGL context of the window links from now on, the view's and the start page
- * picture's. In software WebGL (CI) linking one took a quarter of a second of the renderer, so a revision that
- * compiled them again held up every click (13 November 2026).
+ * Counts from now on what the window's WebGL does: programs linked, start page pictures drawn and contexts lost.
+ * In software WebGL (CI) linking one program took a quarter of a second of the renderer, so a revision that
+ * compiled them again held up every click (13 November 2026). The picture's canvas is outside the page, so
+ * its context loss is read when it is drawn.
  */
-export async function countLinkedPrograms(page: Page): Promise<() => Promise<number>> {
+export async function watchWebGl(page: Page): Promise<() => Promise<WebGlCounts>> {
   await page.evaluate(() => {
-    const browser = globalThis as unknown as ProgramWindow;
-    if (browser.linkedPrograms === undefined) {
-      const link = browser.WebGL2RenderingContext.prototype.linkProgram;
-      browser.WebGL2RenderingContext.prototype.linkProgram = function (this: unknown, program: unknown) {
-        browser.linkedPrograms = (browser.linkedPrograms ?? 0) + 1;
-        link.call(this, program);
-      };
-    }
-    browser.linkedPrograms = 0;
+    const browser = globalThis as unknown as WebGlWindow;
+    if (browser.webGlCounts) return;
+    const counts: WebGlCounts = { linked: 0, pictures: 0, lost: 0 };
+    browser.webGlCounts = counts;
+    const link = browser.WebGL2RenderingContext.prototype.linkProgram;
+    browser.WebGL2RenderingContext.prototype.linkProgram = function (this: unknown, program: unknown) {
+      counts.linked += 1;
+      link.call(this, program);
+    };
+    const read = browser.HTMLCanvasElement.prototype.toDataURL;
+    browser.HTMLCanvasElement.prototype.toDataURL = function (this: WebGlCanvas, type?: string, quality?: unknown) {
+      // The step previews read WebP and the sketch pad draws in 2D; only the picture reads a PNG of a WebGL canvas.
+      const gl = type === 'image/png' && !this.isConnected ? this.getContext('webgl2') : null;
+      if (gl) {
+        counts.pictures += 1;
+        if (gl.isContextLost()) counts.lost += 1;
+      }
+      return read.call(this, type, quality);
+    };
+    browser.addEventListener('webglcontextlost', () => (counts.lost += 1), true);
   });
-  return () => page.evaluate(() => (globalThis as unknown as ProgramWindow).linkedPrograms ?? 0);
+  return () => page.evaluate(() => ({ ...(globalThis as unknown as WebGlWindow).webGlCounts ?? { linked: 0, pictures: 0, lost: 0 } }));
 }

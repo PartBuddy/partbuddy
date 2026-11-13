@@ -8,7 +8,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
 import { countViewportPixels } from './pixels';
-import { cameraOf, cameraSettled, countLinkedPrograms } from './view';
+import { cameraOf, cameraSettled, watchWebGl } from './view';
 import { launchApp, lookAgain, type LaunchedApp } from './launch';
 
 /**
@@ -45,6 +45,7 @@ async function connectedApp(): Promise<{ app: LaunchedApp; fake: FakeSolidCraft 
 test('the mirrored model appears and follows design changes', async () => {
   const { app, fake: solidcraft } = await connectedApp();
   const { page } = app;
+  const webGl = await watchWebGl(page);
   await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 1');
   await expect(page.getByTestId('design-name')).toHaveText('Cable clip');
   await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 41 faces');
@@ -67,13 +68,17 @@ test('the mirrored model appears and follows design changes', async () => {
 
   // A further revision draws with the shaders it has: the edges and the start page picture compiled theirs
   // again for each one, which held up the renderer for seconds on a loaded runner (13 November 2026).
-  await page.waitForTimeout(2000);
-  const linked = await countLinkedPrograms(page);
+  // Once a picture is drawn, both have made theirs.
+  await expect.poll(async () => (await webGl()).pictures, { timeout: 30_000 }).toBeGreaterThan(0);
+  const before = await webGl();
   solidcraft.change();
-  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 3');
-  // The picture follows a revision after a short quiet time (`PREVIEW_DELAY_MS`, useProjectPreview).
-  await page.waitForTimeout(2000);
-  expect(await linked()).toBe(0);
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '3', { timeout: 15_000 });
+  // The picture follows the new model after a quiet time (`PREVIEW_DELAY_MS`, useProjectPreview): one drawn now is of revision 3.
+  const shown = await webGl();
+  await expect.poll(async () => (await webGl()).pictures, { timeout: 30_000 }).toBeGreaterThan(shown.pictures);
+  const after = await webGl();
+  // A lost context links everything again: named apart, so that is not taken for this.
+  expect({ linked: after.linked - before.linked, lost: after.lost - before.lost }).toEqual({ linked: 0, lost: 0 });
 });
 
 test('the user undoes, redoes and exports without the assistant (ADR 0016)', async () => {

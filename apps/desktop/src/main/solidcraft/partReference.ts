@@ -357,6 +357,8 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
       // Once PartBuddy ends no run starts, also not the second one of a build whose first was under way.
       ending.signal.throwIfAborted();
       await writeFile(script, JSON.stringify(steps));
+      // It may end while the script is written.
+      ending.signal.throwIfAborted();
       return JSON.parse(await run(program, ['run', script, '--results', '--quiet'], TIMEOUT_BASE_MS + TIMEOUT_PER_PART_MS * wanted.length, ending.signal)) as unknown[];
     };
     try {
