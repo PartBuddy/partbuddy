@@ -31,7 +31,7 @@ describe('the sharing package (F5)', () => {
     expect(text).toContain('- Material: PLA\n- Layer height: 0.2 mm\n- Nozzle: 0.4 mm\n- Supports: the print check found no face that needs them; the slicer decides\n- Parts: 2 parts');
     expect(text).toContain('- Housing: 80 × 60 × 30 mm\n- Lid\n');
     expect(text).toContain('- `length` = 80 mm – Outer length of housing and lid\n- `count` = 4\n');
-    expect(text).toContain('- `Housing.3mf` – ready for the slicer');
+    expect(text).toContain('- `Housing.3mf` – each part on its print face where one is set, ready for the slicer');
     expect(text).toContain('`Housing-iso.png`, `Housing-front.png` – pictures');
   });
 

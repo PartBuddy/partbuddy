@@ -539,18 +539,19 @@
     "format": {
       "3mf": {
         "name": "3MF",
-        "hint": "Für den Slicer, z. B. OrcaSlicer oder Bambu Studio"
+        "hint": "Für den Slicer: die sichtbaren Druckteile, jedes auf seiner Druckfläche, wo eine gesetzt ist, Rundungen fein (Abweichung höchstens {chord, number} mm je 100 mm Teilgröße)"
       },
       "stl": {
         "name": "STL",
-        "hint": "Für jeden Slicer und ältere Programme"
+        "hint": "Ein Netz für jeden Slicer: die sichtbaren Druckteile, fein vernetzt; auf die Druckfläche gelegt nur ein einzelnes Teil, mehrere wie konstruiert"
       },
       "step": {
         "name": "STEP",
-        "hint": "Für andere CAD-Programme"
+        "hint": "Die sichtbaren Druckteile wie konstruiert, für andere CAD-Programme"
       }
     },
     "exported": "Gespeichert als {file}",
+    "hiddenLeftOut": "Ausgeblendet und deshalb nicht dabei: {bodies}.",
     "openInSolidCraft": "In SolidCraft öffnen",
     "openedInSolidCraft": "Das Design liegt in Dokumente\\PartBuddy und öffnet sich in SolidCraft. PartBuddy zeigt deine Änderungen dort live.",
     "failed": "Das hat nicht geklappt: {detail}",
@@ -563,7 +564,7 @@
     },
     "share": {
       "name": "Teilen-Paket …",
-      "hint": "3MF, STEP, vier Bilder und eine Beschreibung für Printables oder MakerWorld",
+      "hint": "3MF (jedes Teil auf seiner Druckfläche, wo eine gesetzt ist), STEP, vier Bilder und eine Beschreibung für Printables oder MakerWorld; ausgeblendete Körper bleiben draußen",
       "done": "Teilen-Paket gespeichert in exports\\{folder}"
     }
   },
@@ -686,8 +687,8 @@
     "show": "{name} einblenden",
     "mesh": "Mesh",
     "convert": "{name} in Flächen umwandeln",
-    "convertHint": "Macht aus dem Mesh bearbeitbare Flächen. Geht bei geschlossenen Meshes technischer Teile.",
-    "convertDone": "{name} hat jetzt bearbeitbare Flächen.",
+    "convertHint": "Baut das Mesh auf 0,05 mm genau als bearbeitbare Flächen nach: ebene und runde Flächen, die SolidCraft erkennt, als echte Flächen, alles andere als Facetten. Geht bei geschlossenen Meshes.",
+    "convertDone": "{name} hat jetzt bearbeitbare Flächen, auf 0,05 mm genau nach dem Mesh; was SolidCraft nicht als eben oder rund erkennt, bleibt facettiert.",
     "openMesh": "{name} ist nicht geschlossen, deshalb kann SolidCraft es nicht in Flächen umwandeln. Exportieren geht trotzdem; kleine Löcher repariert der Slicer selbst.",
     "standardPart": "Normteil",
     "bodiesTitle": "Körper",
@@ -1119,7 +1120,7 @@
     },
     "none": "Keine Probleme gefunden: Das Teil passt in den Bauraum, die Wände sind dick genug, nichts neigt sich über den Überhangwinkel.",
     "noneSoFar": "Bisher keine Probleme gefunden.",
-    "basis": "Geprüft nach jeder Änderung, wie konstruiert (auf der untersten Stelle stehend), mit Drucker und Material dieses Teils. Stützen, Brücken und die Lage entscheidet der Slicer.",
+    "basis": "Geprüft nach jeder Änderung, jeder Körper auf seiner Druckfläche, sonst wie konstruiert (auf der untersten Stelle stehend), mit Drucker und Material dieses Teils. Ausgeblendete Körper sind nicht geprüft. Stützen und Brücken entscheidet der Slicer.",
     "measuring": "Die Prüfung läuft noch. Überschneidungen, zu enge Spalte oder ein blockiertes Gelenk können noch dazukommen.",
     "unmeasured": "Nicht oder nicht vollständig gemessen: {what}. Befunde dazu können fehlen.",
     "unchecked": "Nicht auf Abstände geprüft (Netzkörper): {bodies}",
@@ -1382,8 +1383,8 @@
   },
   "printFace": {
     "action": "Auf dieser Fläche drucken",
-    "hint": "Der Slicer legt den Körper auf diese Fläche. Eine Fläche je Körper; eine andere ersetzt sie.",
-    "done": "{name} liegt im Slicer auf dieser Fläche."
+    "hint": "Prüfung, 3MF-Export und Slicer legen den Körper auf diese Fläche. Eine Fläche je Körper; eine andere ersetzt sie.",
+    "done": "{name} liegt beim Drucken auf dieser Fläche."
   },
   "firstStart": {
     "title": "Willkommen bei PartBuddy",

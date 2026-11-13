@@ -3,11 +3,14 @@ import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 
+import { strFromU8, unzipSync } from 'fflate';
 import { createActor, fromCallback, fromPromise } from 'xstate';
 
 import type { ConnectionStatus, ExportFormat, MirrorRevision } from '../../shared/contract';
 import type { UpstreamTools } from '../agents/gateProxy';
 import { joinPieces } from '../print/pieces3mf';
+import { EXPORT_QUALITY } from '../../shared/exportQuality';
+import { layStl } from './layStl';
 import { ControlClient, ControlError } from './controlClient';
 import { cliBeside, endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
 import type { ClearanceResult, DesignAction, JointSweep, JointSweepResult, MeasureItem, MeasureResult, PartInsert, PartsLibrary, TimelineCommand, VisibilityCommand } from '../../shared/contract';
@@ -18,7 +21,8 @@ import type { DesignParameter, DimensionMark, LogoMoveRequest, LogoSpot } from '
 import { logoAt, planLogoMove } from './logoMove';
 import { blockBodies, colourLayers, planeAt, type FeatureBlock } from '../../shared/blocks';
 import { centring, hostFace, movedPlane, TEXT_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
-import { insertCommand, type ImportKind } from '../projects/importFile';
+import { boxSize, insertCommand, statesNoUnit, type ImportKind, type MeshUnit } from '../projects/importFile';
+import { resolvePrintFaces, savedPrintFaces } from '../projects/assembly';
 import { freeBodyName, libraryOf } from './standardParts';
 import { cliReferences, type PartReferences } from './partReference';
 import { ProjectStore } from '../projects/projectStore';
@@ -26,6 +30,9 @@ import { HeadlessEngine, safeDesignFileName } from './headless';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
 import type { DesignHistory } from '../agents/workLog';
 import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, type BatchResult, type BoughtPart, type ControlRequester, type PartChecks } from './mirror';
+
+/** How closely `mesh.convert` rebuilds a mesh: SolidCraft's default, said and passed on purpose (audit S-28). */
+const MESH_TOLERANCE = '0.05 mm';
 
 export interface SupervisorOptions {
   environment: Environment;
@@ -77,6 +84,8 @@ export function longPath(folder: string): string {
 export interface SupervisorListeners {
   status(status: ConnectionStatus): void;
   revision(revision: MirrorRevision): void;
+  /** After each save of the headless design to its file, when it went through (not with every status). */
+  saved?(): void;
 }
 
 type Mirror = ConnectionStatus['mirror'];
@@ -228,13 +237,14 @@ export class SolidCraftSupervisor {
   }
 
   /**
-   * Exports every visible body to `destination`, a file the user picked in the save dialog;
-   * `prepare` may rewrite the exported file before it is copied there.
+   * Exports every visible, printed body to `destination`, a file the user picked in the save dialog.
+   * A 3MF or STL holds each body on its print face (`faces`, by body, as the print check lays it), turned as
+   * SolidCraft's slicer export turns it, and follows round faces at `quality: 'fine'` (audit D21, D22, S-23); an STL
+   * is one mesh, so it lays its body only when it holds one piece. STEP stays as designed, for other CAD programs.
    * SolidCraft writes into the cache folder only (its allowed folders); PartBuddy copies the file
    * from there, so the user may save anywhere without widening what SolidCraft may write.
    */
-  async exportDesign(format: ExportFormat, destination: string): Promise<{ unverified: string[] }> {
-    const requester = this.requester();
+  async exportDesign(format: ExportFormat, destination: string, faces: Readonly<Record<string, string>> = {}): Promise<{ unverified: string[] }> {
     const { bodies, unverified } = await this.printedBodies();
     if (bodies.length === 0) throw new Error('the design has no body to export');
     // The file keeps the name the user chose: STEP and 3MF carry it as the part's name.
@@ -242,17 +252,18 @@ export class SolidCraftSupervisor {
     await mkdir(folder, { recursive: true });
     const temp = join(folder, `${safeDesignFileName(basename(destination).replace(/\.[^.]*$/, ''))}.${format}`);
     try {
-      const batch = await requester.request<{ failed?: { error: string } }>(
-        'engine.batch',
-        { commands: [{ command: 'file.export', params: { path: temp, format, bodies } }], rollback: false, allow_paths: [this.options.cacheDir] },
-        10 * 60 * 1000,
-      );
-      if (batch.failed) throw new Error(`export failed: ${batch.failed.error}`);
+      const downs = await this.exportLaid(temp, format, bodies, format === 'step' ? {} : faces);
       // Bodies printed as one piece (a print-in-place hinge) go into the 3MF as one object, so the slicer keeps them together.
       const groups = this.groupsAmong(bodies);
-      if (format === '3mf' && groups.length > 0) {
-        const joined = await joinPieces(await readFile(temp), groups);
+      if (format === '3mf' && (groups.length > 0 || Object.keys(downs).length > 0)) {
+        const joined = await joinPieces(await readFile(temp), groups, downs);
         if (joined) await writeFile(temp, joined);
+      }
+      if (format === 'stl') {
+        const piece = groups.find((group) => bodies.every((body) => group.includes(body))) ?? (bodies.length === 1 ? bodies : null);
+        const down = piece?.map((body) => downs[body]).find(Boolean);
+        if (down) await writeFile(temp, layStl(await readFile(temp), down));
+        else if (!piece && Object.keys(downs).length > 0) this.options.log(`the STL holds ${String(bodies.length)} bodies as one mesh, so they are exported as designed, not on their print faces`);
       }
       await mkdir(dirname(destination), { recursive: true });
       await copyFile(temp, destination);
@@ -263,12 +274,40 @@ export class SolidCraftSupervisor {
   }
 
   /**
+   * Exports `bodies` to `path` (a file in the cache folder) and reads, in the same batch, the normal of each body's
+   * print face among `faces`: by body, the direction that goes down on the bed. A print face that is no flat face of
+   * its body any more is left out and logged; the body then lies as designed, as SolidCraft's slicer export lays it.
+   */
+  private async exportLaid(path: string, format: ExportFormat, bodies: readonly string[], faces: Readonly<Record<string, string>>): Promise<Record<string, [number, number, number]>> {
+    const laid = bodies.filter((body) => faces[body]);
+    const quality = format === 'step' ? {} : { quality: EXPORT_QUALITY };
+    const reply = await this.requester().request<BatchResult>(
+      'engine.batch',
+      { commands: [{ command: 'file.export', params: { path, format, bodies, ...quality } }, ...laid.map((body) => ({ command: 'model.faces', params: { body } }))], rollback: false, allow_paths: [this.options.cacheDir] },
+      10 * 60 * 1000,
+    );
+    if (reply.failed?.command === 'file.export') throw new Error(`export failed: ${reply.failed.error}`);
+    // The file is written; a print face that cannot be read leaves its body (and those after it) as designed.
+    if (reply.failed) this.options.log(`the print faces of ${laid.slice(reply.failed.index - 1).join(', ')} could not be read (${reply.failed.error}); exported as designed`);
+    const downs: Record<string, [number, number, number]> = {};
+    laid.forEach((body, i) => {
+      if (reply.failed && i + 1 >= reply.failed.index) return;
+      const listed = (reply.results[i + 1] as { faces?: { name?: unknown; plane_normal?: unknown }[] } | undefined)?.faces ?? [];
+      const normal = listed.find((face) => face.name === faces[body])?.plane_normal;
+      if (Array.isArray(normal) && normal.length === 3 && normal.every((value) => typeof value === 'number' && Number.isFinite(value))) downs[body] = normal as [number, number, number];
+      else this.options.log(`the print face of "${body}" is no flat face of it any more; it is exported as it lies`);
+    });
+    return downs;
+  }
+
+  /**
    * Inserts a STEP, IGES or mesh file into the open design (B4) as SolidCraft's import feature in
    * a component named after the file. SolidCraft reads only its allowed folders, so the file is
    * copied into the cache first; the design keeps the geometry, not the path, so the copy goes
-   * again afterwards. Returns the bodies the file brought.
+   * again afterwards. Returns the bodies the file brought and the size of the box around them (an STL or OBJ
+   * states no unit, so the size tells whether it was millimetres, audit D44); `units` for one that is not.
    */
-  async insertFile(source: string, kind: Exclude<ImportKind, 'design' | 'package'>): Promise<string[]> {
+  async insertFile(source: string, kind: Exclude<ImportKind, 'design' | 'package'>, units?: MeshUnit): Promise<{ bodies: string[]; size: [number, number, number] | null }> {
     await this.probing;
     const folder = join(this.options.cacheDir, `import-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
     await mkdir(folder, { recursive: true });
@@ -277,13 +316,16 @@ export class SolidCraftSupervisor {
       await copyFile(source, copy);
       const batch = await this.requester().request<BatchResult>(
         'engine.batch',
-        { commands: [insertCommand(kind, copy)], rollback: false, allow_paths: [this.options.cacheDir] },
+        { commands: [insertCommand(kind, copy, units), ...(statesNoUnit(source) ? [{ command: 'inspect.measure', params: {} }] : [])], rollback: false, allow_paths: [this.options.cacheDir] },
         10 * 60 * 1000,
       );
-      if (batch.failed) throw new Error(batch.failed.error);
+      // The measure failing after the insert went in leaves the file inserted, without a size.
+      if (batch.failed && batch.failed.index === 0) throw new Error(batch.failed.error);
+      if (batch.failed) this.options.log(`the inserted file was not measured: ${batch.failed.error}`);
       await this.engine?.changed();
       const created = (batch.results[0] as { created_bodies?: unknown } | undefined)?.created_bodies;
-      return Array.isArray(created) ? created.filter((name): name is string => typeof name === 'string') : [];
+      const bodies = Array.isArray(created) ? created.filter((name): name is string => typeof name === 'string') : [];
+      return { bodies, size: boxSize(batch.results[1], bodies) };
     } finally {
       await rm(folder, { recursive: true, force: true });
     }
@@ -291,25 +333,42 @@ export class SolidCraftSupervisor {
 
   /**
    * Makes a new design file from a STEP, IGES or mesh file (B4: import as a new project) with
-   * `solidcraft-cli run`, without touching the open design; the project opens it afterwards.
+   * `solidcraft-cli run`, without touching the open design; the project opens it afterwards. Returns the size of the
+   * box around what it holds, as `insertFile`.
    */
-  async designFromFile(source: string, kind: Exclude<ImportKind, 'design' | 'package'>, target: string): Promise<void> {
-    await this.designFromSteps([insertCommand(kind, source)], target);
+  async designFromFile(source: string, kind: Exclude<ImportKind, 'design' | 'package'>, target: string, units?: MeshUnit): Promise<[number, number, number] | null> {
+    if (!statesNoUnit(source)) {
+      await this.designFromSteps([insertCommand(kind, source, units)], target);
+      return null;
+    }
+    const results = await this.designFromSteps([insertCommand(kind, source, units), { command: 'inspect.measure', params: {} }], target, true);
+    return boxSize(results.at(-1));
   }
 
   /**
    * Makes a new design file from engine steps with `solidcraft-cli run` (B4 import, F3 templates); a
-   * target that is no `.sc` is written as that format instead (the tolerance assistant's 3MF).
+   * target that is no `.sc` is written as that format instead (the tolerance assistant's 3MF). With `results` it
+   * gives what each step answered.
    */
-  async designFromSteps(steps: { command: string; params: Record<string, unknown> }[], target: string): Promise<void> {
+  async designFromSteps(steps: { command: string; params: Record<string, unknown> }[], target: string, results = false): Promise<unknown[]> {
     const cli = this.cli();
     await mkdir(this.options.cacheDir, { recursive: true });
     await mkdir(dirname(target), { recursive: true });
     const script = join(this.options.cacheDir, `script-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.json`);
     await writeFile(script, JSON.stringify(steps));
     try {
-      await this.runCli(cli, ['run', script, /\.sc$/i.test(target) ? '--save' : '--out', target, '--quiet']);
+      // A mesh file (the test pieces' 3MF) follows round faces as finely as the export (audit D22).
+      const design = /\.sc$/i.test(target);
+      const printed = await this.runCli(cli, ['run', script, design ? '--save' : '--out', target, ...(design ? [] : ['--quality', EXPORT_QUALITY]), '--quiet', ...(results ? ['--results'] : [])]);
       if (!existsSync(target)) throw new Error('SolidCraft wrote no design');
+      if (!results) return [];
+      try {
+        const answered: unknown = JSON.parse(printed);
+        return Array.isArray(answered) ? (answered as unknown[]) : [];
+      } catch (error) {
+        this.options.log(`solidcraft-cli gave results that do not read: ${(error as Error).message}`);
+        return [];
+      }
     } finally {
       await rm(script, { force: true });
     }
@@ -330,16 +389,7 @@ export class SolidCraftSupervisor {
     const { bodies } = await this.printedBodies();
     if (bodies.length === 0) return [];
     const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'inspect.measure', params: { bodies } }], rollback: false }, 60_000);
-    const measured = reply.failed ? [] : ((reply.results[0] as { bodies?: unknown } | undefined)?.bodies ?? []);
-    const list = Array.isArray(measured) ? (measured as { name?: unknown; bbox?: { min?: unknown; max?: unknown } }[]) : [];
-    return bodies.map((name) => {
-      const box = list.find((entry) => entry.name === name)?.bbox;
-      const min = box?.min;
-      const max = box?.max;
-      const ok = (value: unknown): value is number[] => Array.isArray(value) && value.length === 3 && value.every((item) => typeof item === 'number' && Number.isFinite(item));
-      if (!ok(min) || !ok(max)) return { name, size: null };
-      return { name, size: [0, 1, 2].map((i) => Math.round(((max[i] ?? 0) - (min[i] ?? 0)) * 100) / 100) as [number, number, number] };
-    });
+    return bodies.map((name) => ({ name, size: reply.failed ? null : boxSize(reply.results[0], [name]) }));
   }
 
   /**
@@ -392,11 +442,12 @@ export class SolidCraftSupervisor {
     return cli;
   }
 
-  private runCli(cli: string, args: string[]): Promise<void> {
-    return new Promise<void>((done, fail) => {
+  /** Runs `solidcraft-cli` and gives what it printed. */
+  private runCli(cli: string, args: string[]): Promise<string> {
+    return new Promise<string>((done, fail) => {
       // Argument array, no shell (architecture: security boundaries).
-      execFile(cli, args, { env: this.options.environment.env, windowsHide: true, timeout: 10 * 60 * 1000, maxBuffer: 4 * 1024 * 1024 }, (error, _stdout, stderr) => {
-        if (!error) done();
+      execFile(cli, args, { env: this.options.environment.env, windowsHide: true, timeout: 10 * 60 * 1000, maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => {
+        if (!error) done(stdout);
         else fail(new Error(stderr.trim().replace(/^error:\s*/i, '').slice(0, 500) || error.message));
       });
     });
@@ -413,8 +464,24 @@ export class SolidCraftSupervisor {
       await this.autosave();
     }
     await this.autosaving;
+    // A change not mirrored yet has no timer yet: it is saved too, so what is read or copied from the file holds it.
+    if (this.designFile && !(await this.fileIsCurrent())) await this.autosave();
     return this.designFile;
   }
+
+  /** Whether the headless design is as it was last saved to its file: its revision has not moved since. */
+  private async fileIsCurrent(): Promise<boolean> {
+    const engine = this.engine;
+    if (!engine?.isOpen || this.savedRevision === null) return false;
+    const now = await engine.revision().catch((error: unknown) => {
+      this.options.log(`the revision was not read, so the design file counts as older than the design: ${(error as Error).message}`);
+      return null;
+    });
+    return now !== null && now.documentId === this.savedRevision.documentId && now.revision === this.savedRevision.revision;
+  }
+
+  /** The revision the headless design had right after its last save (a save moves it too); null before one. */
+  private savedRevision: { documentId: string; revision: number } | null = null;
 
   /**
    * Compares a saved version with the open design (B5). The version's bodies are written as STEP
@@ -532,20 +599,7 @@ export class SolidCraftSupervisor {
     const folder = join(this.options.cacheDir, 'slicer');
     await mkdir(folder, { recursive: true });
     const file = join(folder, `${safeDesignFileName(this.latest?.designName ?? '') || 'design'}.3mf`);
-    const laid = bodies.filter((body) => faces[body]);
-    const reply = await this.requester().request<BatchResult>(
-      'engine.batch',
-      { commands: [{ command: 'file.export', params: { path: file, format: '3mf', bodies } }, ...laid.map((body) => ({ command: 'model.faces', params: { body } }))], rollback: false, allow_paths: [this.options.cacheDir] },
-      10 * 60 * 1000,
-    );
-    if (reply.failed) throw new Error(`${reply.failed.command === 'model.faces' ? 'the print faces could not be read' : 'export failed'}: ${reply.failed.error}`);
-    const downs: Record<string, [number, number, number]> = {};
-    laid.forEach((body, i) => {
-      const listed = (reply.results[i + 1] as { faces?: { name?: unknown; plane_normal?: unknown }[] } | undefined)?.faces ?? [];
-      const normal = listed.find((face) => face.name === faces[body])?.plane_normal;
-      if (Array.isArray(normal) && normal.length === 3 && normal.every((value) => typeof value === 'number' && Number.isFinite(value))) downs[body] = normal as [number, number, number];
-      else this.options.log(`the print face of "${body}" is no flat face of it any more; it goes to the slicer as it lies`);
-    });
+    const downs = await this.exportLaid(file, '3mf', bodies, faces);
     const joined = await joinPieces(await readFile(file), groups, downs);
     if (joined) await writeFile(file, joined);
     await startSlicer(program, file);
@@ -563,6 +617,21 @@ export class SolidCraftSupervisor {
     if (reply.failed) throw new Error(reply.failed.error);
     const face = (reply.results[0] as { face?: unknown } | undefined)?.face;
     return typeof face === 'string' ? face : null;
+  }
+
+  /**
+   * The print faces as SolidCraft holds them, read from the design's saved file (SolidCraft lists them nowhere else),
+   * each matched to a face of the mirrored body (`resolvePrintFaces`). Null while the design has no file of its own.
+   */
+  async savedPrintFaces(): Promise<{ faces: Record<string, string>; lost: string[] } | null> {
+    const file = this.designFile;
+    // A file older than the design (a print face set or undone since the save) would take back what PartBuddy kept
+    // (review of BC-04, B1): it is read only while the design is as saved, and checked again after reading.
+    if (!file || !existsSync(file) || !(await this.fileIsCurrent())) return null;
+    const [document] = Object.values(unzipSync(await readFile(file), { filter: (entry) => entry.name === 'document.json' }));
+    if (!document) throw new Error('the saved design holds no document.json');
+    if (!(await this.fileIsCurrent())) return null;
+    return resolvePrintFaces(savedPrintFaces(JSON.parse(strFromU8(document))), this.latest?.bodies ?? []);
   }
 
   /** Marks or clears the body's print face (B8, `body.print_face`), which the slicer export uses. */
@@ -612,9 +681,24 @@ export class SolidCraftSupervisor {
     return body;
   }
 
-  /** Turns a mesh body into faces (`mesh.convert`), one undoable feature (B4). */
-  convertMesh(body: string): Promise<void> {
-    return this.run({ command: 'mesh.convert', params: { body } });
+  /**
+   * Turns a mesh body into faces (`mesh.convert`), one undoable feature (B4), within MESH_TOLERANCE of the mesh, which
+   * the user reads in the text of the action. What it changed is measured before and after and logged (audit S-28):
+   * a part SolidCraft does not read as planes and cylinders stays a faceted solid.
+   */
+  async convertMesh(body: string): Promise<void> {
+    const measure = () =>
+      this.requester()
+        .request<BatchResult>('engine.batch', { commands: [{ command: 'inspect.measure', params: { bodies: [body] } }], rollback: false }, 60_000)
+        .then((reply) => (reply.failed ? null : ((reply.results[0] as { bodies?: { volume_mm3?: unknown; face_types?: unknown }[] } | undefined)?.bodies?.[0] ?? null)))
+        .catch(() => null);
+    await this.probing;
+    const before = await measure();
+    await this.run({ command: 'mesh.convert', params: { body, tolerance: MESH_TOLERANCE } });
+    const after = await measure();
+    const [v0, v1] = [before?.volume_mm3, after?.volume_mm3];
+    const change = typeof v0 === 'number' && typeof v1 === 'number' && v0 > 0 ? `volume ${v0.toFixed(1)} → ${v1.toFixed(1)} mm³ (${(((v1 - v0) / v0) * 100).toFixed(3)} %)` : 'volume not measured';
+    this.options.log(`converted the mesh "${body}" within ${MESH_TOLERANCE}: ${change}, faces ${JSON.stringify(after?.face_types ?? null)}`);
   }
 
   /**
@@ -1045,6 +1129,8 @@ export class SolidCraftSupervisor {
    * 2026-11-04); it still asks the user about unsaved designs. One started elsewhere keeps running.
    */
   async shutdown(): Promise<void> {
+    // Builds of standard parts end with PartBuddy, rather than run on without anyone to tell.
+    this.references.stop?.();
     const client = this.client;
     const owned = this.actor.getSnapshot().context.owned;
     const engine = this.engine;
@@ -1230,12 +1316,17 @@ export class SolidCraftSupervisor {
           await engine.save(scratch);
           await rm(scratch, { force: true });
         }
+        // A change sent while the save ran moves the revision read after it, and may not be in the file: then the
+        // file counts as older than the design (review of BC-04, S1).
+        const sent = engine.changes;
         await engine.save(file);
+        this.savedRevision = engine.changes === sent ? engine.current() : null;
       })
       .then(async () => {
         designs.remember(file);
         this.currentFile = file;
         this.setSaveState('saved');
+        this.listeners.saved?.();
         // Without a window SolidCraft announces nothing, so the new name is mirrored right away.
         if (renamed) this.scheduler.request(await engine.revision());
       })

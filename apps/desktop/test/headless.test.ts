@@ -105,3 +105,20 @@ describe('headless engine: telling a change', () => {
     expect(told).toEqual([]);
   });
 });
+
+describe('headless engine: counting what may change the design (review of BC-04, S1)', () => {
+  it('counts tool calls and batches beyond reading, not reads or trials', async () => {
+    const { engine, answer } = setup();
+    expect(engine.changes).toBe(0);
+    await engine.requester.request('engine.batch', { commands: [{ command: 'document.revision', params: {} }, { command: 'model.faces', params: { body: 'A' } }, { command: 'file.export', params: {} }], rollback: false });
+    await engine.requester.request('engine.batch', { commands: [{ command: 'body.print_face', params: { body: 'A' } }], rollback: true });
+    await engine.requester.request('document.inspect');
+    expect(engine.changes).toBe(0);
+    await engine.requester.request('engine.batch', { commands: [{ command: 'document.revision', params: {} }, { command: 'body.print_face', params: { body: 'A' } }], rollback: false });
+    expect(engine.changes).toBe(1);
+    const call = engine.tools.callTool('execute', { command: 'body.rename' });
+    expect(engine.changes).toBe(2);
+    answer();
+    await call;
+  });
+});

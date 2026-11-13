@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator } from 'react-aria-components';
 
 import type { ExportFormat, Slicer } from '../../../shared/contract';
+import { FINE_CHORD } from '../../../shared/exportQuality';
 import { useAssistant, selectedStatus } from '../assistant/store';
 import { ExportConfirm } from '../print/ExportConfirm';
 import { asksBeforeExport } from '../print/report';
@@ -102,6 +103,13 @@ export function DesignActions() {
 
   // Bodies that look like bought standard parts but could not be checked went along as printed ones: the user hears it with the result.
   const unchecked = (bodies: string[] | undefined) => (bodies && bodies.length > 0 ? ` ${t('actions.uncheckedParts', { bodies: bodies.slice(0, 5).join(', '), count: bodies.length })}` : '');
+  // Hidden bodies are not mirrored, so neither checked nor exported: the result names them (audit D24).
+  const hidden = () => {
+    const { model: now } = useStudio.getState();
+    if (now.status !== 'ready') return '';
+    const left = now.structure.bodies.filter((body) => !body.visible && !now.structure.standardParts?.includes(body.name)).map((body) => body.name);
+    return left.length > 0 ? ` ${t('actions.hiddenLeftOut', { bodies: left.slice(0, 5).join(', ') + (left.length > 5 ? ' …' : '') })}` : '';
+  };
 
   // A red ready-to-print check, or one still measuring or not fully measured, asks once before the export (M7, X-1); it does not stop it.
   const exportNow = (target: ExportTarget) => {
@@ -109,16 +117,16 @@ export function DesignActions() {
       if (target.startsWith('slicer:')) {
         // To the slicer (B8): SolidCraft starts it with the printable bodies on their print faces.
         const { name, unverified } = await platform().design.sendToSlicer(target.slice('slicer:'.length));
-        return `${t('actions.sentToSlicer', { name })}${unchecked(unverified)}`;
+        return `${t('actions.sentToSlicer', { name })}${unchecked(unverified)}${hidden()}`;
       }
       if (target === 'share') {
         // The sharing package (F5): the main process opens its folder in Explorer.
         const { folder, unverified } = await platform().design.share();
-        return `${t('actions.share.done', { folder })}${unchecked(unverified)}`;
+        return `${t('actions.share.done', { folder })}${unchecked(unverified)}${hidden()}`;
       }
       const result = await platform().design.export(target as ExportFormat);
       if (!result) return null;
-      return `${t('actions.exported', { file: result.file })}${unchecked(result.unverified)}`;
+      return `${t('actions.exported', { file: result.file })}${unchecked(result.unverified)}${hidden()}`;
     });
   };
 
@@ -187,7 +195,7 @@ export function DesignActions() {
                   {format === 'step' ? <IconFileExport className={itemIcon} aria-hidden /> : <IconFile3d className={itemIcon} aria-hidden />}
                   <span className="flex flex-col">
                     <span className="text-sm font-medium text-text">{t(`actions.format.${format}.name`)}</span>
-                    <span className="text-xs text-text-muted">{t(`actions.format.${format}.hint`)}</span>
+                    <span className="text-xs text-text-muted">{t(`actions.format.${format}.hint`, { chord: FINE_CHORD * 100 })}</span>
                   </span>
                 </MenuItem>
               ))}

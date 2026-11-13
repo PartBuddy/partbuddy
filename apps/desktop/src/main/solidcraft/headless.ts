@@ -66,6 +66,8 @@ export class HeadlessEngine {
   private calls = 0;
   /** A change the listeners have not been told of, although its revision is recorded already. */
   private untold = false;
+  /** Requests that may change the design, counted as they are sent (see `changes`). */
+  private sent = 0;
   private closed = false;
 
   private constructor(
@@ -110,6 +112,15 @@ export class HeadlessEngine {
   onClose(listener: (reason: string) => void): () => void {
     this.closeListeners.add(listener);
     return () => this.closeListeners.delete(listener);
+  }
+
+  /**
+   * How many requests that may change the design were sent so far: the assistant's tool calls and batches that are
+   * not taken back and hold a command beyond reading. A save that sees it move while it ran may not hold the change
+   * (review of BC-04, S1).
+   */
+  get changes(): number {
+    return this.sent;
   }
 
   /** The revision PartBuddy knows; no request. */
@@ -180,6 +191,7 @@ export class HeadlessEngine {
       if (method === 'engine.batch') {
         // Paths are limited by --allow-path when the engine starts, not per request.
         const commands = (params.commands ?? []) as { command: string; params: Record<string, unknown> }[];
+        if (params.rollback !== true && commands.some((step) => !READS.has(step.command))) this.sent += 1;
         return (await this.batch(commands, timeoutMs, params.rollback === true)) as T;
       }
       throw new Error(`${method} is not available without the SolidCraft window`);
@@ -192,6 +204,7 @@ export class HeadlessEngine {
     listTools: async (): Promise<UpstreamTool[]> => (await this.client.listTools()).tools,
     callTool: async (name, args) => {
       this.calls += 1;
+      this.sent += 1;
       try {
         return await this.client.callTool({ name, arguments: args }, { timeout: LONG_TIMEOUT_MS });
       } finally {
@@ -234,6 +247,9 @@ export class HeadlessEngine {
     return body;
   }
 }
+
+/** Commands that only read the design (the mirror's, the print check's, an export's); any other may change it. */
+const READS = new Set(['document.revision', 'document.inspect', 'model.faces', 'model.edges', 'file.export', 'file.slicers', 'sketch.inspect', 'component.list', 'component.metadata', 'appearance.list', 'joint.list', 'inspect.measure', 'parts.library', 'parameters.list']);
 
 const UNTITLED = 'Untitled';
 
