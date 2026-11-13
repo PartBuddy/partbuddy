@@ -45,7 +45,7 @@ const ALLOWED = new Set([
   'partbuddy_move_drawing',
   // Places an attached SVG as a logo with the logo block's steps (drawingTool.ts), answered by PartBuddy.
   'partbuddy_place_drawing',
-  // Builds a print-in-place hinge with its joint from engine commands (mechanismTool.ts), answered by PartBuddy.
+  // Builds a mechanism (hinge, guide, closure, screw joint, screw lid, snap hooks, plug with pegs or a dovetail, latch) from engine commands (mechanismTool.ts), answered by PartBuddy.
   'partbuddy_mechanism',
   // Builds a function block or a wall mounting from the standard tables (blockTool.ts), answered by PartBuddy.
   'partbuddy_block',
@@ -66,7 +66,8 @@ const NEEDS_CONFIRMATION: Record<string, string> = {
 };
 
 /**
- * Tools SolidCraft also runs as `batch` steps (SolidCraft 0.30.1, batch tool description). Such a
+ * Tools SolidCraft also runs as `batch` steps (batch tool description; read on 0.30.1, still the same on
+ * 0.40.0-rc.4 by the audit of 2026-11-12, S-29; not read again on 0.40.1). Such a
  * step is decided like a call of that tool, so `{command: "save"}` in a batch is refused as well.
  */
 const BATCH_TOOL_STEPS = new Set([

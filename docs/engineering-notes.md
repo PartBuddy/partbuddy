@@ -1,7 +1,11 @@
 # Engineering notes
 
 Facts found while building PartBuddy that the code and the ADRs do not say on their own. Most
-SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a step touches them.
+SolidCraft sections name the version they were checked on in their heading. The sections without
+one (control channel, probes, policy, geometry and references) were first written on 0.30.1; a
+bullet added there later names its version itself. PartBuddy needs 0.40.1 or newer since
+2026-11-12 (`MINIMUM_VERSION` in `engineVersion.ts`); recheck a note checked on 0.30.1 or a 0.40
+release candidate on 0.40.1 when a step touches it.
 
 ## SolidCraft
 
@@ -242,7 +246,9 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 
 ## SolidCraft 0.40.0-rc.4 (checked 2026-11-11)
 
-- PartBuddy's recommended version since 2026-11-11. The contract suite ran against it and against the
+- PartBuddy's recommended version from 2026-11-11 to 2026-11-12. Since then 0.40.1 is both the
+  recommended and the minimum version, and rc.4 is refused as too old. The contract suite ran
+  against rc.4 and against the
   nightly 20261110.117.1 it contains; the nightly's own `solidcraft-cli --version` says `0.40.0-rc.3`,
   so PartBuddy cannot tell that nightly from rc.3.
 - New since rc.3 and of use here: `joint.find_limits` (both ways in one call, also for a joint without
@@ -293,6 +299,11 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   the slicer ends; PartBuddy waits at most 3 s when it closes the engine.
 - `body.print_face {body, point}` takes a point on a flat face of a solid body and refuses others;
   without `point` it clears the print face.
+- SolidCraft keeps print faces in the design and lists them nowhere but in the saved file: the `.sc`
+  is a zip whose `document.json` holds `print_faces` by body (0.40.1, measured for audit D20, #379).
+  PartBuddy therefore reads them after each save and before an export, only while the revision is
+  still the one right after that save, and writes `print-faces.json` from them (`assembly.ts`,
+  `supervisor.ts`); an undone, renamed or split print face reads as SolidCraft holds it.
 
 ## Installer (checked 2026-11-05, electron-builder 26.18.0, electron-updater 6.8.11)
 
@@ -377,8 +388,9 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   which `tools/test-app/deliver-test-app.ps1` builds and copies there over SSH (target `user@host`
   in `%USERPROFILE%\.partbuddy\test-pc.txt`). The server reaches the PC, not the other way round.
   The same run unpacks it on the server too: shortcut »PartBuddy (Test)« on the server desktop,
-  own profile via `--user-data-dir=…\.partbuddy\test-app\profile`, SolidCraft 0.40.0-rc.2 set once
-  in that profile's `solidcraft-settings.json`.
+  own profile via `--user-data-dir=…\.partbuddy\test-app\profile`. That profile uses the installed
+  SolidCraft: the script removes an older choice of a portable rc.3 or rc.4 from its
+  `solidcraft-settings.json`, since those are under the minimum 0.40.1.
 - On the server the Claude app hands out TEMP as the 8.3 short path (`ADMINI~1` in place of the user
   folder); the SolidCraft contract E2E tests that build a template then open no project. Run them with
   TEMP and TMP set to the long path (`%USERPROFILE%\AppData\Local\Temp` spelled out). The same holds
