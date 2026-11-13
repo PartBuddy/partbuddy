@@ -105,7 +105,7 @@ Built in a later change with `@agentclientprotocol/sdk`.
 
 **Gate proxy (own code).** External agents never get SolidCraft's MCP server directly. PartBuddy
 runs an MCP server on `127.0.0.1` with a random per-session bearer token and a host check, lists
-SolidCraft's tools unchanged and passes every call through the tool policy before forwarding it to
+SolidCraft's tools (since 2026-11-13 without those the policy refuses whatever their arguments) and passes every call through the tool policy before forwarding it to
 SolidCraft (`solidcraft-cli mcp --connect`). The token lives in an MCP configuration file only the
 user can read, never on a command line. Tools that discard the design or touch files (`new_design`,
 `open`, `save`, `export`, and `file.*`/`doc.*` commands inside `execute` and `batch`) are refused
@@ -120,7 +120,11 @@ inspecting, the history; `document`, `material`, `config`, the window groups and
 listed are refused), file arguments are known per command and refused in any form, a form the
 policy cannot read (`params` or a step as text, `execute` or `batch` named as an engine command) is
 refused, and the gate proxy and the own loop refuse `set_parameter`/`parameters.change` for a name the design does
-not have.
+not have. Since 2026-11-13 (audit BC-13, decided by Manuel) raw commands PartBuddy builds itself (`solid.hole`,
+`solid.thread`, `plastic.boss`, `plastic.snap_fit`, `plastic.lip`, `solid.scale`, SolidCraft's plastic rules) are
+refused with the `partbuddy_block` or `partbuddy_mechanism` call to use instead; the other modelling commands stay
+open and get the ready-to-print check of each change with their answer. Both routes check every call's arguments
+against the tool's input schema, and a `skill_reference` guide comes back with a note that PartBuddy's rules hold.
 
 **Tool notes.** Both routes add PartBuddy's notes after SolidCraft's server instructions
 (`apps/desktop/src/main/agents/toolNotes.ts`): the proxy as its MCP `instructions`, the ChatGPT
