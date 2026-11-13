@@ -170,6 +170,8 @@ Werkzeuge, die rohe Wege offen lassen; 18–25 Abläufe, Texte, Kosmetik, Erweit
 
 ### BC-13 Rohe SolidCraft-Befehle: FDM-geprüft oder gesperrt (L6)
 
+**Entscheidung Manuel 13.11.2026:** gemischt – was PartBuddy als geprüften Baustein hat (Löcher, Gewinde, Schnapphaken, Einsatz-Sitze), roh sperren mit Hinweis auf den Baustein; übrige volumenbildende Befehle erlaubt, danach automatisch druckgeprüft, Befund an den Assistenten.
+
 - **Kennungen:** `R2`, `S-03`, `S-17`, `S-18`, `S-12`, `S-08`, `S-21`, `S-22`, `S-20+R23`, `S-04`, `S-05`, `W28`
 - **Dateien:** M/agents/policy.ts, M/agents/toolNotes.ts, M/agents/gateProxy.ts, M/agents/assemblyTool.ts
 - **Worum:** Statt einer Negativliste: Löcher, Gewinde, Schnapphaken, Dome, Skalieren und Einheiten nur über PartBuddys geprüfte Wege, übrige volumenbildende Befehle mit Nachprüfung; Werkzeugliste ohne abgelehnte Werkzeuge, Eingaben gegen das Schema geprüft.
@@ -257,6 +259,8 @@ Werkzeuge, die rohe Wege offen lassen; 18–25 Abläufe, Texte, Kosmetik, Erweit
 - **Risiko:** niedrig-mittel
 
 ### BC-24 Neue Prüfungen (Erweiterung) (L1)
+
+**Entscheidung Manuel 13.11.2026:** alle sieben Prüfungen, nur als gelber Hinweis (nie Sperre), je mit Fallsammlung, einzeln über das Druckprofil abschaltbar; sperren erst, wenn bewährt.
 
 - **Kennungen:** `MG-25`, `D14`, `R35`
 - **Dateien:** G/printCheck.ts, G/overhang.ts, M/print/printCheckNote.ts
