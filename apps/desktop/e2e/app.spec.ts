@@ -1634,10 +1634,10 @@ test('the light says when it still measures or a measure failed, and an export a
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
   fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
   const solidcraft = fake;
-  // SolidCraft takes its time over the joint's way, until the test lets it go.
-  const hold = () => {
+  // SolidCraft takes its time over a command (the joint's way, the mirror's export), until the test lets it go.
+  const hold = (command = 'joint.sweep') => {
     let release: () => void = () => undefined;
-    solidcraft.held['joint.sweep'] = new Promise<void>((done) => {
+    solidcraft.held[command] = new Promise<void>((done) => {
       release = done;
     });
     return () => {
@@ -1707,6 +1707,26 @@ test('the light says when it still measures or a measure failed, and an export a
   solidcraft.change();
   await expect(light).toHaveText('Ready to print', { timeout: 15_000 });
   await expect(light).not.toHaveAttribute('data-unmeasured');
+
+  // While the main process still mirrors a change the light of the revision before does not hold either; a mirror that
+  // fails ends that, and the light of the model on screen holds again.
+  const mirrored = hold('file.export');
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  await expect(confirm).toContainText('The print check has not finished yet.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+  solidcraft.answers['file.export'] = () => {
+    throw new Error('the export failed');
+  };
+  mirrored();
+  await expect(light).not.toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
+  await expect(light).toHaveText('Ready to print');
+  delete solidcraft.answers['file.export'];
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-revision', String(solidcraft.revision), { timeout: 15_000 });
 
   // Two parts whose gaps SolidCraft fails to measure (the fake does not measure them at all): said the same way.
   solidcraft.bodies = ['CableClip', 'Second clip'];

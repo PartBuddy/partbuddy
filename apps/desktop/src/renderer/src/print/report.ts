@@ -1,6 +1,6 @@
 import type { PrintCheck } from '@partbuddy/geometry';
 
-import type { Joint, PrintCheckReport } from '../../../shared/contract';
+import type { ConnectionStatus, Joint, PrintCheckReport } from '../../../shared/contract';
 import type { ModelState, StudioPrintCheck } from '../state/store';
 
 /** How many joint runs one call asks SolidCraft for (the contract's limit of `joint.sweep`). */
@@ -41,11 +41,13 @@ export async function sweepInBlocks<S, R>(sweeps: readonly S[], sweep: (block: S
 
 /**
  * The check as far as it holds for the design on screen (audit X-1): one of another revision or another project is as
- * good as still measuring, since the revision numbers of two projects can be the same.
+ * good as still measuring, since the revision numbers of two projects can be the same. So is any while the main process
+ * mirrors a newer revision (`rebuilding`): that ends in a new model, or in `failed` or `idle`, which lets the light go.
  */
-export function checkNow(check: StudioPrintCheck | null, model: ModelState): StudioPrintCheck | null {
+export function checkNow(check: StudioPrintCheck | null, model: ModelState, connection: Pick<ConnectionStatus, 'state' | 'mirror'>): StudioPrintCheck | null {
   if (!check || check.measuring) return check;
-  const current = model.status === 'ready' && model.documentId === check.documentId && model.revision === check.revision;
+  const mirroring = connection.state === 'connected' && connection.mirror === 'rebuilding';
+  const current = !mirroring && model.status === 'ready' && model.documentId === check.documentId && model.revision === check.revision;
   return current ? check : { ...check, measuring: true };
 }
 
@@ -53,8 +55,8 @@ export function checkNow(check: StudioPrintCheck | null, model: ModelState): Stu
  * Whether an export asks first (M7, audit X-1): the light is red, or what SolidCraft measures is still out or did not
  * all run, so an overlap or a blocked joint may be missing. It only asks; the user may know better (decided 2026-11-05).
  */
-export function asksBeforeExport(check: StudioPrintCheck | null, model: ModelState): boolean {
-  const now = checkNow(check, model);
+export function asksBeforeExport(check: StudioPrintCheck | null, model: ModelState, connection: Pick<ConnectionStatus, 'state' | 'mirror'>): boolean {
+  const now = checkNow(check, model, connection);
   return now !== null && (now.result.status === 'block' || now.measuring === true || (now.unmeasured?.length ?? 0) > 0);
 }
 

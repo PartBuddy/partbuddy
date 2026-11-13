@@ -128,6 +128,7 @@ export function PrintCheckChip() {
   const check = checkNow(
     useStudio((s) => s.printCheck),
     useStudio((s) => s.model),
+    useStudio((s) => s.connection),
   );
   const setStepHighlight = useStudio((s) => s.setStepHighlight);
   const unmeasured = useUnmeasuredText()(check?.unmeasured ?? []);

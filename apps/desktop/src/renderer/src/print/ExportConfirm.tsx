@@ -21,7 +21,8 @@ export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget)
   // Selected as it is and read after: a fresh `[]` from the selector would re-render forever.
   const stored = useStudio((s) => s.printCheck);
   const model = useStudio((s) => s.model);
-  const check = checkNow(stored, model);
+  const connection = useStudio((s) => s.connection);
+  const check = checkNow(stored, model, connection);
   // Whether it was still measuring when the dialog opened: only then is "finished in the meantime" news.
   const [openedMeasuring, setOpenedMeasuring] = useState<boolean | null>(null);
   if (format === null && openedMeasuring !== null) setOpenedMeasuring(null);
@@ -60,7 +61,7 @@ export function ExportConfirm({ onConfirm }: { onConfirm: (target: ExportTarget)
                 {check?.measuring ? <p className="text-sm text-text-muted">{t('check.confirm.measuring')}</p> : null}
                 {unmeasured ? <p className="text-sm text-text-muted">{t('check.confirm.unmeasured', { what: unmeasured })}</p> : null}
                 {/* The measure came in green while the dialog stood open. */}
-                {openedMeasuring && !asksBeforeExport(stored, model) ? <p className="text-sm text-text-muted">{t('check.confirm.done')}</p> : null}
+                {openedMeasuring && !asksBeforeExport(stored, model, connection) ? <p className="text-sm text-text-muted">{t('check.confirm.done')}</p> : null}
               </div>
               <div className="flex justify-end gap-2">
                 <Button onPress={close} data-testid="export-confirm-cancel" autoFocus>

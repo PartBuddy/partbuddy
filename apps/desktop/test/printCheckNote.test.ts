@@ -134,20 +134,24 @@ describe('what the check could not measure', () => {
 
   it('asks before an export while the light is red, still measuring, of another revision or project, or a measure failed (audit X-1)', () => {
     const model = { status: 'ready', documentId: 'doc-a', revision: 3, designName: 'A', bodies: [], sketches: [], structure: { features: [] } } as unknown as ModelState;
+    const idle = { state: 'connected', mirror: 'idle' } as const;
     const light = (status: 'ready' | 'warn' | 'block', more: Partial<StudioPrintCheck> = {}): StudioPrintCheck => ({ documentId: 'doc-a', revision: 3, result: { status, findings: [] }, ...more });
-    expect(asksBeforeExport(null, model)).toBe(false);
-    expect(asksBeforeExport(light('ready'), model)).toBe(false);
-    expect(asksBeforeExport(light('warn'), model)).toBe(false);
-    expect(asksBeforeExport(light('ready', { unmeasured: [], unchecked: ['Mesh'] }), model)).toBe(false);
-    expect(asksBeforeExport(light('block'), model)).toBe(true);
+    expect(asksBeforeExport(null, model, idle)).toBe(false);
+    expect(asksBeforeExport(light('ready'), model, idle)).toBe(false);
+    expect(asksBeforeExport(light('warn'), model, idle)).toBe(false);
+    expect(asksBeforeExport(light('ready', { unmeasured: [], unchecked: ['Mesh'] }), model, idle)).toBe(false);
+    expect(asksBeforeExport(light('block'), model, idle)).toBe(true);
     // Green from the mesh check alone is no green yet: an overlap or a blocked joint may follow.
-    expect(asksBeforeExport(light('ready', { measuring: true }), model)).toBe(true);
-    expect(asksBeforeExport(light('warn', { unmeasured: ['joints'] }), model)).toBe(true);
+    expect(asksBeforeExport(light('ready', { measuring: true }), model, idle)).toBe(true);
+    expect(asksBeforeExport(light('warn', { unmeasured: ['joints'] }), model, idle)).toBe(true);
     // Green of the revision before, or of another project at the same revision, is no green for this one.
-    expect(asksBeforeExport(light('ready', { revision: 2 }), model)).toBe(true);
-    expect(asksBeforeExport(light('ready', { documentId: 'doc-b' }), model)).toBe(true);
-    expect(checkNow(light('ready', { documentId: 'doc-b' }), model)?.measuring).toBe(true);
-    expect(checkNow(light('ready'), model)?.measuring).toBeUndefined();
+    expect(asksBeforeExport(light('ready', { revision: 2 }), model, idle)).toBe(true);
+    expect(asksBeforeExport(light('ready', { documentId: 'doc-b' }), model, idle)).toBe(true);
+    expect(checkNow(light('ready', { documentId: 'doc-b' }), model, idle)?.measuring).toBe(true);
+    expect(checkNow(light('ready'), model, idle)?.measuring).toBeUndefined();
+    // While the main process mirrors a newer revision; once it ended, failed or not, the light holds again.
+    expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'rebuilding' })).toBe(true);
+    expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'failed' })).toBe(false);
   });
 
   it('sweeps the joints in blocks of 40, one after the other, and counts a failed block as not measured', async () => {
