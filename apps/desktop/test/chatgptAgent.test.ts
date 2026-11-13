@@ -202,13 +202,16 @@ describe('ChatGPT agent', () => {
     expect(bodies[MAX_STEPS]).toContain(ROUNDS_NOTE.slice(0, 60));
   });
 
-  it('refuses gated tools without calling SolidCraft', async () => {
-    const { agent, calls, events } = setup('export');
+  it('does not offer gated tools, and a call of one never reaches SolidCraft (audit S-04)', async () => {
+    const { agent, openai, calls, events } = setup('export');
     await agent.refresh();
     await agent.send('Export it');
     await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
     expect(calls).toEqual([]);
-    expect(events.find((e) => e.type === 'tool')).toMatchObject({ name: 'export', decision: 'denied' });
+    expect(events.some((e) => e.type === 'tool' && e.decision === 'allowed')).toBe(false);
+    const offered = JSON.stringify(openai.bodies[0]?.tools);
+    expect(offered).toContain('measure');
+    expect(offered).not.toContain('"export"');
   });
 });
 

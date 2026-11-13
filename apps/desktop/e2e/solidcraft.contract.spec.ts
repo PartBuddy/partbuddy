@@ -999,8 +999,10 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     await page.getByTestId('dimensions-all').click();
     const slots = page.getByTestId('mark-slot');
     // Every input of the three boxes, the two countersunk holes and the two fillets has a place on
-    // the model: boxes on formula corners too, the countersink angle at its rim.
-    await expect(slots).toHaveCount(17, { timeout: 20_000 });
+    // the model: boxes on formula corners too, the countersink angle at its rim. The holes come from
+    // partbuddy_block (BC-13), whose measured depth through the wall is a dimension of each: 17 → 19
+    // (measured with SolidCraft 0.40.1 on 2026-11-13, supervisor.dimensionMarks rebuilt in the audit harness).
+    await expect(slots).toHaveCount(19, { timeout: 20_000 });
     await expect(page.getByTestId('loose-dimensions')).toHaveCount(0);
     await expect.poll(() => slots.evaluateAll((all) => (all as unknown as LooseElement[]).every((slot) => slot.getAttribute('data-shown') !== null)), { timeout: 10_000 }).toBe(true);
     await page.waitForTimeout(500);
@@ -1031,8 +1033,8 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     await page.getByTestId('dimensions').click();
 
     // The ready-to-print check (M7, R1, ADR 0010 amendment 2026-11-08): the upper halves of the
-    // lying 4.5 mm countersunk holes reach at most 1.6 mm past the bore's sides, a small overhang the
-    // slicers print without support, so the wall holder is ready to print.
+    // lying 4.5 mm countersunk holes (M4, ISO 273 normal, countersink 9.56 mm from the block) are a small overhang the
+    // slicers print without support, so the wall holder is ready to print (the harness's checkPrint gave ready on 0.40.1).
     await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'ready', { timeout: 15_000 });
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('tidy-failed.png') }).catch(() => undefined);
