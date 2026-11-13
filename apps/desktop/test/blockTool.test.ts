@@ -1039,8 +1039,9 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     expect(blockOf({ block: 'lip', ...at }, nozzle(0.6))).toMatchObject({ width: 1.35 });
     expect(blockOf({ block: 'lip', ...at, width: 1.2 }, nozzle(0.6))).toBe('width 1.2: a lip narrower than 1.35 mm (two lines on a 0.6 mm nozzle) does not print solid');
     expect(blockOf({ block: 'lip', ...at, type: 'groove', width: 1.2 }, nozzle(0.6))).toBe('width 1.2: a groove narrower than 1.35 mm takes no lip that prints solid (two lines on a 0.6 mm nozzle)');
-    // 0.8 mm: the snap arm becomes 1.8 thick, the default text 8 high (strokes of 1.6 mm at the least).
-    expect(blockOf({ block: 'snapFit', ...up }, nozzle(0.8))).toMatchObject({ thickness: 1.8, width: 5, catchDepth: 0.8 });
+    // 0.8 mm: the snap arm becomes 1.8 thick, the catch 0.82 deep (the narrowest line a slicer lays, thinnestLine), the default
+    // text 8 high (strokes of 1.6 mm at the least).
+    expect(blockOf({ block: 'snapFit', ...up }, nozzle(0.8))).toMatchObject({ thickness: 1.8, width: 5, catchDepth: 0.82 });
     expect(blockOf({ block: 'snapFit', ...up, thickness: 1.5 }, nozzle(0.8))).toContain('thickness 1.5: an arm under 1.8 mm (two lines on a 0.8 mm nozzle)');
     expect(blockOf({ block: 'text', ...up, text: 'Hi' }, nozzle(0.8))).toMatchObject({ height: 8 });
     expect(blockOf({ block: 'text', ...up, text: 'Hi', height: 7 }, nozzle(0.8))).toContain('height 7: the strokes of bold capitals 7 mm high are 1.41 mm wide, under the 1.6 mm (two nozzle widths) a stroke needs on a 0.8 mm nozzle; give height 8 or more');
@@ -1082,7 +1083,10 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     );
     for (const block of form) expect(printLimit(block, nozzle(0.4)), block.block).toBeNull();
     // The form's snap fit with a catch of 0.3 mm: under one nozzle width (contract test F1, run 43449802254).
-    expect(printLimit({ ...(form[4] as FeatureBlock), catchDepth: 0.3 } as FeatureBlock, nozzle(0.4))).toBe('catchDepth 0.3: a catch under 0.4 mm (one nozzle width) does not print and holds nothing');
+    expect(printLimit({ ...(form[4] as FeatureBlock), catchDepth: 0.3 } as FeatureBlock, nozzle(0.4))).toBe('catchDepth 0.3: a catch under 0.42 mm (the narrowest line a slicer lays on a 0.4 mm nozzle) does not print and holds nothing');
+    // On the line it holds, just under it not (thinnestLine since #371).
+    expect(printLimit({ ...(form[4] as FeatureBlock), catchDepth: 0.42 } as FeatureBlock, nozzle(0.4))).toBeNull();
+    expect(printLimit({ ...(form[4] as FeatureBlock), catchDepth: 0.41 } as FeatureBlock, nozzle(0.4))).toContain('a catch under 0.42 mm');
     // Bold capitals of 3 mm in Arial: 0.61 mm strokes; in Georgia not measured, so not refused.
     const ui = { block: 'text', body: 'Body1', point: [10, 0, 5], normal: [0, -1, 0], size: 'M3', text: 'UI', height: 3, depth: 0.6, mode: 'deboss', bold: true } as FeatureBlock;
     expect(printLimit(ui, nozzle(0.4))).toBe('height 3: the strokes of bold capitals 3 mm high are 0.61 mm wide, under the 0.8 mm (two nozzle widths) a stroke needs on a 0.4 mm nozzle; give height 4 or more');
@@ -1094,7 +1098,7 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     expect(printLimit(form[3] as FeatureBlock, nozzle(0.8))).toContain('width 1.2: a lip narrower than 1.8 mm');
     expect(raisedBlock(defaultBlock('lip', 'Body1', [1.5, 10, 10], 'M3'), nozzle(0.6))).toMatchObject({ block: { width: 1.35 }, raised: ['width'] });
     expect(raisedBlock(defaultBlock('lip', 'Body1', [1.5, 10, 10], 'M3'), nozzle(0.8)).block).toMatchObject({ width: 1.8 });
-    expect(raisedBlock(defaultBlock('snapFit', 'Body1', [10, 10, 10], 'M3', [0, 0, 1]), nozzle(0.8))).toMatchObject({ block: { thickness: 1.8, width: 5, catchDepth: 0.8 }, raised: ['thickness'] });
+    expect(raisedBlock(defaultBlock('snapFit', 'Body1', [10, 10, 10], 'M3', [0, 0, 1]), nozzle(0.8))).toMatchObject({ block: { thickness: 1.8, width: 5, catchDepth: 0.82 }, raised: ['thickness', 'catchDepth'] });
     expect(raisedBlock(defaultBlock('text', 'Body1', [10, 0, 5], 'M3', [0, -1, 0]), nozzle(0.8)).block).toMatchObject({ height: 8 });
     expect(raisedBlock(defaultBlock('text', 'Body1', [10, 0, 5], 'M3', [0, -1, 0]), nozzle(0.4)).raised).toEqual([]);
     // Every standard the form starts from prints once raised, on every nozzle.

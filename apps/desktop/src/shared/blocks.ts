@@ -9,7 +9,7 @@
 import { logoBase, TEXT_PREFIX, uniqueLogoName } from './drawingPlacement';
 import { drawingColours, drawingPieces, drawingSize, drawingSvg, naturalWidth, parseDrawing, shapesOverlap, shapesSvg, type DrawingProblem, type Shape } from './svgDrawing';
 
-import { minimumWall } from '@partbuddy/geometry';
+import { minimumWall, thinnestLine } from '@partbuddy/geometry';
 
 import { CLEARANCE_NOZZLE, type FitPrinter } from './designFit';
 import { CAP_HEAD, CLEARANCE_NORMAL, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, NUT, NUT_ALLOWANCE, BLOCK_SIZES, type BlockSize } from './screwSizes';
@@ -489,7 +489,8 @@ export const strokesKnown = (block: { font?: string | undefined }) => block.font
 
 /**
  * The least each size of a block must be to print on the printer, from the code's own rules: two nozzle widths a stroke of
- * text (printProfiles.ts), two lines of wall, one nozzle of detail, one layer (designFit.ts, printCheck.ts).
+ * text (printProfiles.ts), two lines of wall, the narrowest line a slicer lays for a detail (`thinnestLine`), one layer
+ * (designFit.ts, printCheck.ts).
  */
 export function leastOf(block: FeatureBlock, printer: FitPrinter): { key: string; least: number; reason: BlockLimit['reason'] }[] {
   const wall = minimumWall(printer.nozzle);
@@ -507,7 +508,7 @@ export function leastOf(block: FeatureBlock, printer: FitPrinter): { key: string
       return [
         { key: 'thickness', least: wall, reason: 'armWall' },
         { key: 'width', least: wall, reason: 'armWall' },
-        { key: 'catchDepth', least: printer.nozzle, reason: 'catch' },
+        { key: 'catchDepth', least: thinnestLine(printer.nozzle), reason: 'catch' },
       ];
     default:
       return [];
@@ -562,7 +563,7 @@ export function limitSaid(limit: BlockLimit): string {
       case 'armWall':
         return `an arm under ${String(limit.least)} mm (two lines ${on}) does not print solid`;
       case 'catch':
-        return `a catch under ${String(limit.least)} mm (one nozzle width) does not print and holds nothing`;
+        return `a catch under ${String(limit.least)} mm (the narrowest line a slicer lays ${on}) does not print and holds nothing`;
       case 'layer':
         return `under one layer (${String(limit.least)} mm) nothing prints`;
       case 'screw':
