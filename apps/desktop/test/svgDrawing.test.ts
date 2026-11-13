@@ -40,7 +40,7 @@ describe('SVG drawings', () => {
     const d = drawing(fixture('illustrator.svg'));
     // The black line and polyline (stroke 2, butt ends) come last, painted over the fills.
     expect(drawingColours(d)).toEqual(['#1d71b8', '#ffd500', '#e30613', '#000000']);
-    expect(d.skipped).toEqual({ strokes: 0, texts: 1, images: 0, backgrounds: 0 });
+    expect(d.skipped).toEqual({ strokes: 0, texts: 1, images: 0, backgrounds: 0, colours: 0, clips: 0, dashes: 0, views: 0 });
     // px without a unit: no physical size.
     expect(naturalWidth(d)).toBeNull();
     // Butt ends reach past their end points by half the width across the line: the polyline's at (0, 0), the line's at (200, 100).
@@ -106,6 +106,50 @@ describe('SVG drawings', () => {
   });
 });
 
+describe('what is read otherwise than drawn (audit T51)', () => {
+  const svg = (body: string) => drawing(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${body}</svg>`);
+  const square = (fill: string) => `<rect width="10" height="10" fill="${fill}"/>`;
+  const fillOf = (fill: string) => drawingColours(svg(`${square(fill)}<rect x="20" width="10" height="10" fill="#123456"/>`))[0];
+
+  it('reads colours with alpha and hsl, and leaves out a colour with none', () => {
+    // Before, these were all black.
+    expect(fillOf('#ff000080')).toBe('#ff0000');
+    expect(fillOf('#f008')).toBe('#ff0000');
+    expect(fillOf('rgba(0, 128, 255, 0.5)')).toBe('#0080ff');
+    expect(fillOf('rgb(0 128 255 / 50%)')).toBe('#0080ff');
+    expect(fillOf('hsl(120, 100%, 25%)')).toBe('#008000');
+    expect(fillOf('hsl(0.5turn 100% 50%)')).toBe('#00ffff');
+    expect(fillOf('hsla(240, 100%, 50%, 1)')).toBe('#0000ff');
+    // Alpha 0 is no fill, as "none".
+    expect(fillOf('#ff000000')).toBe('#123456');
+    expect(fillOf('#f000')).toBe('#123456');
+    expect(fillOf('rgba(255, 0, 0, 0)')).toBe('#123456');
+    expect(svg(square('#ff000080')).skipped.colours).toBe(0);
+  });
+
+  it('counts an unknown colour and a gradient without fallback, built black, but not one with a fallback', () => {
+    expect(svg(`${square('rebeccapurple')}<rect x="20" width="10" height="10" fill="url(#g)"/>`).skipped.colours).toBe(2);
+    const fallback = svg(`<defs><linearGradient id="g"/></defs><rect width="10" height="10" fill="url(#g) #00ff00"/>`);
+    expect(fallback.skipped.colours).toBe(0);
+    expect(drawingColours(fallback)).toEqual(['#00ff00']);
+    // A stroke of an unknown colour counts as well, once per shape.
+    expect(svg('<path d="M0 0L50 50" stroke="papayawhip" stroke-width="2" fill="none"/>').skipped.colours).toBe(1);
+  });
+
+  it('counts clip paths and masks, dashed strokes and inner views, and nothing in a plain drawing', () => {
+    const d = svg(
+      '<defs><clipPath id="c"><rect width="5" height="5"/></clipPath><mask id="m"><rect width="5" height="5" fill="#ffffff"/></mask></defs>' +
+        '<rect width="10" height="10" clip-path="url(#c)"/><g style="mask: url(#m)"><rect x="20" width="10" height="10"/></g>' +
+        '<path d="M0 50H100" stroke="#000000" stroke-width="2" stroke-dasharray="4 2"/><path d="M0 60H100" stroke="#000000" stroke-width="2" stroke-dasharray="none"/>' +
+        '<svg x="50" y="50" width="20" height="20" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>',
+    );
+    expect(d.skipped).toMatchObject({ colours: 0, clips: 2, dashes: 1, views: 1 });
+    // A dash pattern of zeros and "clip-path: none" draw whole.
+    expect(svg('<path d="M0 50H100" stroke="#000000" stroke-width="2" stroke-dasharray="0, 0" clip-path="none"/>').skipped).toMatchObject({ clips: 0, dashes: 0 });
+    expect(svg(square('#000000')).skipped).toEqual({ strokes: 0, texts: 0, images: 0, backgrounds: 0, colours: 0, clips: 0, dashes: 0, views: 0 });
+  });
+});
+
 describe('pieces of a drawing', () => {
   it('splits shapes into pieces that hang together and tells overlapping pieces from pieces apart', () => {
     const d = drawing(
@@ -131,7 +175,7 @@ describe('line icons', () => {
     const d = drawing(fixture('tabler-rocket.svg'));
     expect(drawingColours(d)).toEqual(['#000000']);
     expect(d.shapes).toHaveLength(1);
-    expect(d.skipped).toEqual({ strokes: 1, texts: 0, images: 0, backgrounds: 0 });
+    expect(d.skipped).toEqual({ strokes: 1, texts: 0, images: 0, backgrounds: 0, colours: 0, clips: 0, dashes: 0, views: 0 });
     // The drawn lines run from about 4 to 20; a stroke 2 wide reaches one further each way.
     expect(Math.abs(d.bounds.minX - 3)).toBeLessThan(0.1);
     expect(Math.abs(d.bounds.maxX - 21)).toBeLessThan(0.1);

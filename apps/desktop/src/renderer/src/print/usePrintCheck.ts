@@ -40,7 +40,8 @@ export function usePrintCheck(): void {
       // box SolidCraft's measures took longer than a look at the list (practice run 2026-11-10).
       // A logo's colour pieces sit in the part on purpose; measuring them, SolidCraft took minutes
       // for a logo of many pieces and held up every trial after it.
-      const parts = printed.filter((body) => !isLogoColourBody(body.name));
+      const sketches = model.structure.sketches.map((sketch) => sketch.name);
+      const parts = printed.filter((body) => !isLogoColourBody(body.name, sketches));
       const measuring = parts.length >= 2 || joints.length > 0;
       const preliminary = joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result;
       useStudio.getState().setPrintCheck({ documentId: model.documentId, revision: model.revision, result: preliminary, ...(measuring ? { measuring } : {}) });

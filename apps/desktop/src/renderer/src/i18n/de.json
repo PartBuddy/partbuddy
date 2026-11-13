@@ -571,10 +571,17 @@
     }
   },
   "drawingDetail": {
-    "fine": "{places, plural, one {Eine Stelle ist} other {# Stellen sind}} schmaler als die Düse ({nozzle, number} mm), die schmalste {thinnest, number} mm: Sie drucken nicht sauber oder schließen sich. Ab {fineFrom, number} mm Breite passt alles.",
+    "fine": "{places, plural, one {Eine Stelle ist} other {# Stellen sind}} zu fein für die Düse ({nozzle, number} mm), die schmalste {thinnest, number} mm: Ein Strich unter {stroke, number} mm (zwei Bahnen) druckt nicht fest, ein Spalt unter {gap, number} mm schließt sich. Ab {fineFrom, number} mm Breite passt alles.",
+    "coarse": "Bei dieser Größe werden die Details auf einem Raster von {mmPerPx, number} mm geprüft: Eine Stelle um {gap, number} mm kann dabei übersehen werden.",
     "widen": "Auf {width, number} mm vergrößern",
     "show": "Stellen zeigen",
-    "backdrop": "Hintergrund bzw. Rahmen um die Zeichnung weggelassen – er gehört nicht zum Logo."
+    "backdrop": "Hintergrund bzw. Rahmen um die Zeichnung weggelassen – er gehört nicht zum Logo.",
+    "otherwise": {
+      "colours": "{count, plural, one {Eine Form hat} other {# Formen haben}} eine Farbe oder einen Verlauf, den PartBuddy nicht lesen kann: schwarz gebaut.",
+      "clips": "{count, plural, one {Ein Beschneidungspfad oder eine Maske wird} other {# Beschneidungspfade oder Masken werden}} nicht angewandt: Was sie verdecken, wird mitgebaut.",
+      "dashes": "{count, plural, one {Eine gestrichelte Linie wird} other {# gestrichelte Linien werden}} durchgehend gebaut.",
+      "views": "{count, plural, one {Eine innere Zeichnung wird} other {# innere Zeichnungen werden}} ohne eigenen Ausschnitt gebaut."
+    }
   },
   "logoMove": {
     "title": "Logo „{name}“",

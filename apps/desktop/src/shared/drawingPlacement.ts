@@ -42,9 +42,24 @@ export function uniqueLogoName(name: string, taken: readonly string[], prefix = 
   return `${first} ${String(n)}`;
 }
 
-/** A colour piece of a logo built in colours ("<file name> <fill> <n>", a split piece "… (2)"). */
-export function isLogoColourBody(name: string): boolean {
-  return /^.+ [0-9a-f]{6} \d+( \(\d+\))?$/.test(name);
+/** How deep, high or thick a logo may be, in mm (`partbuddy_place_drawing`, the logo dock). */
+export const LOGO_DEPTH_MAX = 50;
+/** How wide a logo may be, in mm. */
+export const LOGO_WIDTH_MAX = 1000;
+
+/**
+ * A colour piece of a logo built in colours ("<file name> <fill> <n>", a split piece "… (2)"), of a logo the design has:
+ * `sketches` are its sketch names. By the name pattern alone "Front facade 1" counted as one and fell out of the print
+ * check's measures (audit H-27); a logo's colour bodies are named after its sketch (blocks.ts, colourLayers).
+ * shortcut: a body named "<logo> <6 hex letters> <n>" beside a logo of that name still counts as a colour piece; check its
+ * colour against the fill too if such names turn up.
+ */
+export function isLogoColourBody(name: string, sketches: readonly string[]): boolean {
+  const match = /^(.+) [0-9a-f]{6} \d+( \(\d+\))?$/.exec(name);
+  if (!match) return false;
+  const base = match[1] as string;
+  // A second logo of a file is "SVG-Logo Badge 2" and names its bodies "Badge …" as the first does.
+  return sketches.some((sketch) => sketch.startsWith(LOGO_PREFIX) && [sketch.slice(LOGO_PREFIX.length), sketch.slice(LOGO_PREFIX.length).replace(/ \d+$/, '')].includes(base));
 }
 
 export interface PlacedSketch {

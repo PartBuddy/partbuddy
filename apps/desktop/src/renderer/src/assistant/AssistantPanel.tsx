@@ -890,6 +890,15 @@ ${t('assistant.photo.goesWith')}`}>
               {t('drawingDetail.backdrop')}
             </p>
           ) : null}
+          {drawing && (['colours', 'clips', 'dashes', 'views'] as const).some((kind) => drawing.drawing.skipped[kind] > 0) ? (
+            <p className="px-1 text-xs text-warning" data-testid="composer-drawing-otherwise">
+              {/* Built, but not as drawn (audit T51): said before it goes along. */}
+              {(['colours', 'clips', 'dashes', 'views'] as const)
+                .filter((kind) => drawing.drawing.skipped[kind] > 0)
+                .map((kind) => t(`drawingDetail.otherwise.${kind}`, { count: drawing.drawing.skipped[kind] }))
+                .join(' ')}
+            </p>
+          ) : null}
           {drawing ? (
             <DrawingDetailNote
               drawing={drawing.drawing}
