@@ -3199,6 +3199,99 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
   }
 });
 
+test('in the SolidCraft window the light measures a hinge once and then stays quiet: its measures move no revision (X-1)', async () => {
+  test.skip(process.env.PARTBUDDY_E2E_SOLIDCRAFT_WINDOW !== '1', 'opens the SolidCraft window, which cannot be kept off screen; set PARTBUDDY_E2E_SOLIDCRAFT_WINDOW=1');
+  test.setTimeout(240_000);
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { ControlClient } = await import('../src/main/solidcraft/controlClient');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-window-light-'));
+  const controlDir = join(work, 'control');
+  const port = '7943';
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: controlDir,
+    PARTBUDDY_SOLIDCRAFT_PORT: port,
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  const status = page.getByTestId('connection-status');
+  const light = page.getByTestId('print-check');
+  /**
+   * The light is done, and for ten seconds nothing moves: neither the revision SolidCraft reports nor the one the light
+   * checked, and it never measures again. A measure starts only for a new model, and a new model only comes with a new
+   * revision; so a measure that moved the revision in the window (design.changed) would show here as a loop.
+   */
+  const staysQuiet = async (what: string) => {
+    await expect(light, what).not.toHaveAttribute('data-measuring', 'true', { timeout: 60_000 });
+    await expect(status, what).toHaveText(/SolidCraft · Revision \d+/, { timeout: 30_000 });
+    const seen = await page.evaluate(async () => {
+      const doc = (globalThis as unknown as { document: { querySelector(selector: string): { getAttribute(name: string): string | null; textContent: string | null } | null } }).document;
+      const states = new Set<string>();
+      for (let i = 0; i < 50; i += 1) {
+        const shown = doc.querySelector('[data-testid="print-check"]');
+        const connection = doc.querySelector('[data-testid="connection-status"]');
+        states.add(`${shown?.getAttribute('data-measuring') ?? '-'} ${shown?.getAttribute('data-revision') ?? '-'} ${connection?.textContent ?? ''}`);
+        await new Promise((done) => setTimeout(done, 200));
+      }
+      return [...states];
+    });
+    expect(seen, what).toHaveLength(1);
+    expect(seen[0], what).toMatch(/^- \d+ SolidCraft · Revision \d+$/);
+  };
+  try {
+    await expect(status).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a hinge');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    await turnEnded(page);
+
+    // In the window SolidCraft reports every revision with design.changed, and PartBuddy mirrors each.
+    await page.getByRole('button', { name: 'Open in SolidCraft' }).click();
+    await expect(status).toHaveAttribute('data-engine', 'window', { timeout: 90_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    // Clearance between the two parts and the hinge's runs to its limits.
+    await staysQuiet('clearance and joint runs');
+
+    // A limit just past where the flap meets the base (28.1°) makes the run a snap fit to try: the joint is driven
+    // there and back quietly (joint.drive with quiet) and the pose checked.
+    const token = readFileSync(join(controlDir, `${port}.token`), 'utf8').trim();
+    const client = await ControlClient.open({ port: Number(port), token });
+    try {
+      const listed = await client.request<{ results?: { joints?: { id: number; name: string }[] }[] }>('engine.batch', { commands: [{ command: 'joint.list', params: {} }], rollback: false });
+      const hinge = listed.results?.[0]?.joints?.find((joint) => joint.name === 'Hinge');
+      if (!hinge) throw new Error('no joint "Hinge" in the window');
+      const checked = Number(await light.getAttribute('data-revision'));
+      const limited = await client.request<{ failed?: unknown }>('engine.batch', { commands: [{ command: 'joint.limits', params: { joint: hinge.id, min: -180, max: 30 } }], rollback: false });
+      expect(limited.failed).toBeUndefined();
+      // The new limit is mirrored and checked.
+      await expect.poll(async () => Number(await light.getAttribute('data-revision')), { timeout: 30_000 }).toBeGreaterThan(checked);
+    } finally {
+      client.close();
+    }
+    await staysQuiet('a snap fit tried');
+    await page.screenshot({ path: test.info().outputPath('window-light-quiet.png') });
+  } catch (error) {
+    await page.screenshot({ path: test.info().outputPath('window-light-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    // The window PartBuddy opened goes with it.
+    try {
+      const token = readFileSync(join(controlDir, `${port}.token`), 'utf8').trim();
+      const client = await ControlClient.open({ port: Number(port), token });
+      await client.request('app.quit', { force: true }, 5000).catch(() => undefined);
+      client.close();
+    } catch {
+      // No window to close.
+    }
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('a hinge plays in the view, stops where SolidCraft found the parts touching, and is driven only when the position is kept (ADR 0027)', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
