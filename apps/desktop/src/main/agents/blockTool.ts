@@ -2,7 +2,7 @@ import { minimumFloor, minimumWall } from '@partbuddy/geometry';
 
 import { BLOCK_SIZES, INSERT, ON_FACE, SNAP_STRAIN_LIMIT, TEXT_STROKE, cutsThrough, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
-import { CLEARANCE_NOZZLE } from '../../shared/designFit';
+import { CLEARANCE_NOZZLE, type FitPrinter } from '../../shared/designFit';
 import { KNOB, KNOB_CLEARANCE, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
 import { TAPPED_FROM } from '../../shared/mechanisms';
 import { MAGNET, MAGNET_HOLDS, MAGNET_MORE, magnetPocket, magnetProblem, magnetSteps, magnetStock, type MagnetHold } from '../../shared/magnet';
@@ -43,7 +43,7 @@ const blockTool: UpstreamTool = {
     'or woodScrew (a countersunk hole for a wood screw, at a point of the face away from the wall); screw is the wood screw in mm, needed. ' +
     "To hold with magnets: magnet (a pocket for a disc magnet at a point of a face, normal out of that face; diameter and height are the magnet's as the user measured them, needed; hold glue to drop it in on a drop of glue, press to press it in). " +
     "A knob for a shaft is a part of its own: knob (body is the new body's name, point the centre of its underside where the shaft goes in, normal the way the shaft points, up the way its pointer points; shaft, needed: d for a potentiometer's or encoder's D shaft, knurl for a split knurled one, round for a plain shaft with a set screw; shaftDiameter, needed). " +
-    'Give only what differs from the standard; everything else is filled in. A field a block does not take is refused, not passed over, and so is a size that does not print on a 0.4 mm nozzle. ' +
+    'Give only what differs from the standard; everything else is filled in. A field a block does not take is refused, not passed over, and so is a size that does not print on the nozzle of the printer in use. ' +
     'For two parts screwed together use partbuddy_mechanism with kind screw instead, which makes both holes on one line.',
   inputSchema: {
     type: 'object',
@@ -93,6 +93,13 @@ const blockTool: UpstreamTool = {
       flat: { type: 'number', description: 'knob on a D shaft: the thickness of the shaft at its flat in mm; 4.5 on a 6 mm shaft, to be measured on any other.' },
       clearance: { type: 'number', description: "knob: added to the shaft's diameter in mm; default 0.2 (0 for knurl). More when the printed knob sits too tight." },
       hook: { type: 'string', enum: ['x+', 'x-', 'y+', 'y-'], description: "snapFit: the way the catch points, along the face's directions." },
+      thickness: { type: 'number', description: 'snapFit: the thickness of the arm, default 1.5 (two lines at the least).' },
+      catchDepth: { type: 'number', description: 'snapFit: how far the catch stands out, default 0.8.' },
+      catchLength: { type: 'number', description: 'snapFit: the length of the catch along the arm, default 1.5.' },
+      flats: { type: 'number', description: "nutTrap: the pocket across its flats; default the nut's plus 0.3 mm." },
+      gap: { type: 'number', description: 'lip with type groove: the room beside the lip, default 0.2.' },
+      bold: { type: 'boolean', description: 'text: bold (the default) or not; not bold needs taller capitals.' },
+      modeled: { type: 'boolean', description: 'tappedHole: the thread cut into the wall (the default) or only listed.' },
     },
     required: ['block', 'body', 'point'],
     additionalProperties: false,
@@ -121,28 +128,54 @@ function outOfTable(block: FeatureBlock): string | null {
   return null;
 }
 
+/** The printer a block is reckoned for when it is given none: the 0.4 mm nozzle the clearances stand for, with 0.2 mm layers. */
+export const DEFAULT_PRINTER: FitPrinter = { nozzle: CLEARANCE_NOZZLE, layer: 0.2 };
 /**
- * The printer the limits of a block are reckoned for until the tools are told the user's (audit BC-16): the 0.4 mm
- * nozzle the clearances stand for, with 0.2 mm layers.
+ * The thinnest plastic under a pocket or engraved text: two lines (a wall) or four layers (a floor), whichever is more.
+ * The block cannot know which way the part will lie: under a pocket that opens upwards it is a floor, under one that opens
+ * sideways a wall (printCheck.ts).
  */
-export const LIMIT_PRINTER = { nozzle: CLEARANCE_NOZZLE, layer: 0.2 };
-/** The thinnest wall or floor that prints, whichever way the part lies: two lines, four layers (printCheck.ts). */
-const leastFloor = () => Math.max(minimumWall(LIMIT_PRINTER.nozzle), minimumFloor(LIMIT_PRINTER.layer));
+const leastFloor = (printer: FitPrinter) => Math.max(minimumWall(printer.nozzle), minimumFloor(printer.layer));
 const mm = (value: number) => String(Math.round(value * 100) / 100);
+const on = (printer: FitPrinter) => `on a ${String(printer.nozzle)} mm nozzle`;
 
-/** Why a size of a block does not print or does not do its work, on the {@link LIMIT_PRINTER}; null when all do. */
-function printLimit(block: FeatureBlock): string | null {
-  const { nozzle, layer } = LIMIT_PRINTER;
-  const wall = minimumWall(nozzle);
-  const on = `on a ${String(nozzle)} mm nozzle`;
+/**
+ * The least each size of a block must be to print on the printer: the code's own rules (two nozzle widths a stroke of
+ * text, printProfiles.ts; two lines of wall; one nozzle of detail; designFit.ts), with why. A size the model gave below
+ * it is refused; a standard size below it is raised to it.
+ */
+function leastOf(block: FeatureBlock, printer: FitPrinter): { key: string; least: number; why: string }[] {
+  const wall = minimumWall(printer.nozzle);
   switch (block.block) {
     case 'text': {
-      // The code's own rule for text (printProfiles.ts): at least two nozzle widths per stroke.
-      const [stroke, share] = [2 * nozzle, block.bold ? TEXT_STROKE.bold : TEXT_STROKE.regular];
-      if (block.height * share < stroke - 1e-9)
-        return `height ${String(block.height)}: the strokes of ${block.bold ? 'bold ' : ''}capitals ${String(block.height)} mm high are ${mm(block.height * share)} mm wide, under the ${mm(stroke)} mm (two nozzle widths) a stroke needs ${on}; give height ${String(Math.ceil((stroke / share) * 10) / 10)} or more`;
-      break;
+      const [stroke, share] = [2 * printer.nozzle, block.bold ? TEXT_STROKE.bold : TEXT_STROKE.regular];
+      const least = Math.ceil((stroke / share) * 10 - 1e-6) / 10;
+      return [{ key: 'height', least, why: `the strokes of ${block.bold ? 'bold ' : ''}capitals ${String(block.height)} mm high are ${mm(block.height * share)} mm wide, under the ${mm(stroke)} mm (two nozzle widths) a stroke needs ${on(printer)}; give height ${String(least)} or more` }];
     }
+    case 'lip':
+      return [
+        { key: 'width', least: wall, why: block.type === 'groove' ? `a groove narrower than ${mm(wall)} mm takes no lip that prints solid (two lines ${on(printer)})` : `a lip narrower than ${mm(wall)} mm (two lines ${on(printer)}) does not print solid` },
+        { key: 'height', least: printer.layer, why: `under one layer (${String(printer.layer)} mm) nothing prints` },
+      ];
+    case 'snapFit':
+      return [
+        { key: 'thickness', least: wall, why: `an arm under ${mm(wall)} mm (two lines ${on(printer)}) does not print solid` },
+        { key: 'width', least: wall, why: `an arm under ${mm(wall)} mm (two lines ${on(printer)}) does not print solid` },
+        { key: 'catchDepth', least: printer.nozzle, why: `a catch under ${String(printer.nozzle)} mm (one nozzle width) does not print and holds nothing` },
+      ];
+    default:
+      return [];
+  }
+}
+
+/** Why a size of a block does not print or does not do its work on the printer; null when all do. */
+function printLimit(block: FeatureBlock, printer: FitPrinter): string | null {
+  const sizes = block as unknown as Record<string, unknown>;
+  for (const { key, least, why } of leastOf(block, printer)) {
+    const value = sizes[key];
+    if (typeof value === 'number' && value < least - 1e-9) return `${key} ${String(value)}: ${why}`;
+  }
+  switch (block.block) {
     case 'slot': {
       const thread = Number(block.size.slice(1));
       if (block.width < thread) return `width ${String(block.width)}: an ${block.size} screw is ${String(thread)} mm thick and would not pass; the standard is ${String(CLEARANCE_NORMAL[block.size])} mm`;
@@ -157,24 +190,24 @@ function printLimit(block: FeatureBlock): string | null {
       if (block.depth < high) return `depth ${String(block.depth)}: an ${block.size} nut is ${String(high)} mm high and would stand out of the pocket; the standard is ${mm(standard.depth)}`;
       break;
     }
-    case 'lip':
-      if (block.width < wall - 1e-9) return `width ${String(block.width)}: a ${block.type} narrower than ${mm(wall)} mm (two lines ${on}) does not print solid`;
-      break;
-    case 'snapFit': {
-      for (const [key, value] of [['thickness', block.thickness], ['width', block.width]] as const) if (value < wall - 1e-9) return `${key} ${String(value)}: an arm under ${mm(wall)} mm (two lines ${on}) does not print solid`;
-      if (block.catchDepth < nozzle - 1e-9) return `catchDepth ${String(block.catchDepth)}: a catch under ${String(nozzle)} mm (one nozzle width) does not print and holds nothing`;
-      const strain = snapStrain(block);
-      if (strain > SNAP_STRAIN_LIMIT)
-        return `the arm would bend ${mm(strain)} % at its root as the catch snaps in; printed PLA cracks above ${String(SNAP_STRAIN_LIMIT)} %. Make the arm longer or thinner, or the catch shallower (the standard arm, 12 mm long and 1.5 mm thick with a 0.8 mm catch, bends 1.42 %)`;
-      break;
-    }
     default:
       break;
   }
   // Nothing else of a block prints under one layer; a gap may be none.
-  const thin = Object.entries(block).find(([key, value]) => typeof value === 'number' && key !== 'gap' && value < layer - 1e-9);
-  return thin ? `${thin[0]} ${String(thin[1])}: under one layer (${String(layer)} mm) nothing prints` : null;
+  const thin = Object.entries(block).find(([key, value]) => typeof value === 'number' && key !== 'gap' && value < printer.layer - 1e-9);
+  return thin ? `${thin[0]} ${String(thin[1])}: under one layer (${String(printer.layer)} mm) nothing prints` : null;
 }
+
+/**
+ * What the model is told of a snap fit's strain: the block does not know the material for sure, so above what printed
+ * PLA takes it warns and builds (as the form does, BlockPanel.tsx).
+ */
+const strainSaid = (block: Extract<FeatureBlock, { block: 'snapFit' }>) => {
+  const strain = snapStrain(block);
+  return strain > SNAP_STRAIN_LIMIT
+    ? ` Warning: the arm bends ${mm(strain)} % at its root as the catch snaps in; printed PLA cracks above ${String(SNAP_STRAIN_LIMIT)} % and PETG takes about 3 %. Tell the user, or make the arm longer or thinner, or the catch shallower.`
+    : ` The arm bends ${mm(strain)} % at its root as the catch snaps in; printed PLA takes ${String(SNAP_STRAIN_LIMIT)} %.`;
+};
 
 /** The fields each block takes besides block, body and point (the blocks of the interface: the fields of their standard). */
 const TAKES: Record<string, readonly string[]> = {
@@ -198,20 +231,24 @@ const direction = (value: unknown): Vec3 | null => {
   return v && Math.hypot(...v) > 1e-9 ? v : null;
 };
 
-/** The names of a block's features: the model's name on each feature step, numbered when several holes are made. */
+/**
+ * The names of a block's features, each its own: the model's name on the cut, its sketch marked ✎, the hole under a nut
+ * trap's pocket ● (as a hinge's pin), several holes numbered.
+ */
 export function named(steps: Step[], name: string | undefined): Step[] {
   if (!name) return steps;
   const holes = steps.filter((step) => step.command === 'solid.hole').length;
+  const cut = steps.some((step) => step.command === 'solid.extrude');
   let n = 0;
   return steps.map((step) => {
-    if (!['solid.hole', 'solid.extrude', 'sketch.create'].includes(step.command)) return step;
-    if (step.command === 'solid.hole' && holes > 1) n += 1;
-    return { ...step, params: { ...step.params, name: step.command === 'solid.hole' && holes > 1 ? `${name} ${String(n)}` : name } };
+    const own =
+      step.command === 'sketch.create' ? `${name} ✎` : step.command === 'solid.extrude' ? name : step.command !== 'solid.hole' ? null : holes > 1 ? `${name} ${String((n += 1))}` : cut ? `${name} ●` : name;
+    return own === null ? step : { ...step, params: { ...step.params, name: own } };
   });
 }
 
 /** The block the model asked for: the standard of its kind and size with what the model gave laid over it; or what is wrong. */
-export function blockOf(args: Record<string, unknown>): FeatureBlock | string {
+export function blockOf(args: Record<string, unknown>, printer: FitPrinter = DEFAULT_PRINTER): FeatureBlock | string {
   const kind = args.block;
   if (typeof kind !== 'string' || !(ASSISTANT_BLOCKS as readonly string[]).includes(kind)) return `block must be one of ${[...ASSISTANT_BLOCKS, ...WALL_BLOCKS, ...PART_BLOCKS].join(', ')}`;
   const body = typeof args.body === 'string' ? args.body.trim() : '';
@@ -240,7 +277,10 @@ export function blockOf(args: Record<string, unknown>): FeatureBlock | string {
   const through = args.through !== undefined && hasThrough ? { through: args.through } : {};
   const parsed = featureBlockSchema.safeParse({ ...standard, ...given, ...more, ...through });
   if (!parsed.success) return `${parsed.error.issues[0]?.path.join('.') ?? kind}: ${parsed.error.issues[0]?.message ?? 'invalid'}`;
-  return outOfTable(parsed.data) ?? printLimit(parsed.data) ?? parsed.data;
+  // A standard size the printer cannot print (a wider nozzle) is raised to what it can; one the model gave is refused below.
+  const raised = Object.fromEntries(leastOf(parsed.data, printer).flatMap(({ key, least }) => (key in given || Number((parsed.data as unknown as Record<string, unknown>)[key]) >= least ? [] : [[key, least]])));
+  const block: FeatureBlock = { ...parsed.data, ...raised };
+  return outOfTable(block) ?? printLimit(block, printer) ?? block;
 }
 
 type Step = { command: string; params: Record<string, unknown> };
@@ -546,14 +586,92 @@ function wallTrial(block: FeatureBlock): FeatureBlock | null {
 }
 
 /**
- * The mean width of the flat rim face at `point` (a shelled body's), from SolidCraft's area and perimeters of it: for a
- * ring of even width w, area = w · (outer + inner) / 2 (exact for a rectangle and a circle; SolidCraft 0.40.1, 2026-11-13:
- * the rim of a 60 × 40 box shelled to 2 mm gave 384 mm², 200 and 184 mm). Undefined when it cannot be told.
+ * How narrow the flat rim face at `point` is at its narrowest, from SolidCraft's faces and edges of the body (`model.faces`,
+ * `model.edges`: start, mid and end of each edge). The edges in the rim's plane make loops; the smallest loop round the
+ * point is the rim's outside, the loops within it its inside, and the rim is as narrow as the two come closest. A mean
+ * width let a box with walls of 1.6 mm on three sides and 6 mm on one through as 2.49 mm (review of PR #369).
+ * Undefined when it cannot be told: no flat face at the point, or no inside within its outside.
+ * shortcut: an edge that is neither straight nor round (a spline) is taken as the circle through its three points; measure
+ * along its own points if rims with free curves come.
  */
-export function rimWidth(measured: unknown): number | undefined {
-  const item = (measured as { items?: { area_mm2?: unknown; outer_perimeter_mm?: unknown; inner_perimeter_mm?: unknown }[] } | undefined)?.items?.[0];
-  const [area, outer, inner] = [item?.area_mm2, item?.outer_perimeter_mm, item?.inner_perimeter_mm];
-  return typeof area === 'number' && typeof outer === 'number' && typeof inner === 'number' && outer + inner > 0 ? Math.round(((2 * area) / (outer + inner)) * 1000) / 1000 : undefined;
+export function rimNarrowest(point: Vec3, faces: unknown, edges: unknown): number | undefined {
+  const dot = (a: readonly number[], b: readonly number[]) => (a[0] ?? 0) * (b[0] ?? 0) + (a[1] ?? 0) * (b[1] ?? 0) + (a[2] ?? 0) * (b[2] ?? 0);
+  const sub = (a: readonly number[], b: readonly number[]): Vec3 => [(a[0] ?? 0) - (b[0] ?? 0), (a[1] ?? 0) - (b[1] ?? 0), (a[2] ?? 0) - (b[2] ?? 0)];
+  const plane = ((faces as { faces?: { plane_normal?: unknown; point?: unknown }[] } | undefined)?.faces ?? [])
+    .map((face) => ({ n: vec3(face.plane_normal), at: vec3(face.point) }))
+    .find(({ n, at }) => n && at && Math.hypot(...n) > 1e-9 && Math.abs(dot(sub(point, at), n)) / Math.hypot(...n) < 1e-4);
+  if (!plane?.n) return undefined;
+  const length = Math.hypot(...plane.n);
+  const n = plane.n.map((value) => value / length) as Vec3;
+  // Two directions in the plane, for flat coordinates.
+  const axis: Vec3 = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+  const u = axis.map((value, k) => value - (n[k] ?? 0) * dot(axis, n));
+  const e1 = u.map((value) => value / Math.hypot(...u)) as Vec3;
+  const e2: Vec3 = [n[1] * e1[2] - n[2] * e1[1], n[2] * e1[0] - n[0] * e1[2], n[0] * e1[1] - n[1] * e1[0]];
+  const flat = (p: Vec3): [number, number] => [dot(sub(p, point), e1), dot(sub(p, point), e2)];
+  const inPlane = (p: Vec3 | null): p is Vec3 => p !== null && Math.abs(dot(sub(p, point), n)) < 1e-4;
+  // Each edge in the plane as a polyline: a line as itself, an arc or a circle in pieces of the circle through its points.
+  type Line = { ends: [string, string]; points: [number, number][] };
+  const key = (p: [number, number]) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`;
+  const lines: Line[] = [];
+  for (const edge of (edges as { edges?: { start?: unknown; mid?: unknown; end?: unknown }[] } | undefined)?.edges ?? []) {
+    const [s, m, e] = [vec3(edge.start), vec3(edge.mid), vec3(edge.end)];
+    if (!inPlane(s) || !inPlane(m) || !inPlane(e)) continue;
+    const [a, b, c] = [flat(s), flat(m), flat(e)];
+    const closed = Math.hypot(c[0] - a[0], c[1] - a[1]) < 1e-6;
+    const cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    if (!closed && Math.abs(cross) < 1e-9 * Math.max(1, Math.hypot(c[0] - a[0], c[1] - a[1]) ** 2)) {
+      lines.push({ ends: [key(a), key(c)], points: [a, c] });
+      continue;
+    }
+    // The circle: through start and mid as its diameter when the edge is closed, else through all three.
+    let centre: [number, number];
+    if (closed) centre = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    else {
+      const d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
+      const q = (p: [number, number]) => p[0] ** 2 + p[1] ** 2;
+      centre = [(q(a) * (b[1] - c[1]) + q(b) * (c[1] - a[1]) + q(c) * (a[1] - b[1])) / d, (q(a) * (c[0] - b[0]) + q(b) * (a[0] - c[0]) + q(c) * (b[0] - a[0])) / d];
+    }
+    const r = Math.hypot(a[0] - centre[0], a[1] - centre[1]);
+    const angle = (p: [number, number]) => Math.atan2(p[1] - centre[1], p[0] - centre[0]);
+    const [from, via] = [angle(a), angle(b)];
+    // The way round from start through mid to end.
+    const turn = (to: number) => ((to - from) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+    const ccw = closed || turn(via) < turn(angle(c));
+    const sweep = closed ? 2 * Math.PI : ccw ? turn(angle(c)) : -(2 * Math.PI - turn(angle(c)));
+    const pieces = Math.max(8, Math.ceil((Math.abs(sweep) / (2 * Math.PI)) * 256));
+    const points = Array.from({ length: pieces + 1 }, (_, k) => [centre[0] + r * Math.cos(from + (sweep * k) / pieces), centre[1] + r * Math.sin(from + (sweep * k) / pieces)] as [number, number]);
+    lines.push({ ends: closed ? [key(a), key(a)] : [key(a), key(c)], points });
+  }
+  // Loops: edges joined at their ends.
+  const parent = new Map<string, string>();
+  const root = (k: string): string => {
+    const up = parent.get(k) ?? k;
+    return up === k ? k : root(up);
+  };
+  for (const line of lines) parent.set(root(line.ends[0]), root(line.ends[1]));
+  const loops = [...new Set(lines.map((line) => root(line.ends[0])))].map((id) => lines.filter((line) => root(line.ends[0]) === id).flatMap((line) => line.points.slice(1).map((p, k) => [line.points[k] ?? p, p] as [[number, number], [number, number]])));
+  type Segment = [[number, number], [number, number]];
+  const inside = (p: [number, number], loop: Segment[]) =>
+    loop.filter(([a, b]) => a[1] > p[1] !== b[1] > p[1] && p[0] < a[0] + ((p[1] - a[1]) * (b[0] - a[0])) / (b[1] - a[1])).length % 2 === 1;
+  const area = (loop: Segment[]) => {
+    const xs = loop.flatMap(([a, b]) => [a[0], b[0]]);
+    const ys = loop.flatMap(([a, b]) => [a[1], b[1]]);
+    return (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
+  };
+  const outer = loops.filter((loop) => inside([0, 0], loop)).sort((a, b) => area(a) - area(b))[0];
+  if (!outer) return undefined;
+  const inner = loops.filter((loop) => loop !== outer && loop[0] && inside(loop[0][0], outer) && !inside([0, 0], loop));
+  if (inner.length === 0) return undefined;
+  const toSegment = (p: [number, number], [a, b]: Segment) => {
+    const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+  };
+  // Two loops that do not cross come closest at an end of a piece of one of them.
+  const between = (from: Segment[], to: Segment[]) => Math.min(...from.flatMap(([a, b]) => [a, b]).map((p) => Math.min(...to.map((segment) => toSegment(p, segment)))));
+  const narrowest = Math.min(...inner.map((loop) => Math.min(between(loop, outer), between(outer, loop))));
+  return Number.isFinite(narrowest) ? Math.round(narrowest * 1000) / 1000 : undefined;
 }
 
 /**
@@ -750,17 +868,41 @@ function measuredSaid(block: FeatureBlock, wall: number | null | undefined, rim:
     }
     case 'lip':
       return typeof rim === 'number'
-        ? ` The rim is ${mm(rim)} mm wide (its mean width, measured)${block.type === 'groove' ? `: ${mm(rim - block.width - block.gap)} mm of wall stay beside the groove` : ''}.`
+        ? ` The rim is ${mm(rim)} mm wide at its narrowest (measured on its edges)${block.type === 'groove' ? `: ${mm(rim - block.width - block.gap)} mm of wall stay beside the groove there` : ''}.`
         : ` PartBuddy could not measure the rim: check ${block.type === 'groove' ? 'the wall beside the groove' : 'that the lip stands on the rim'} yourself.`;
     case 'snapFit':
-      return ` The arm bends ${mm(snapStrain(block))} % at its root as the catch snaps in; printed PLA takes ${String(SNAP_STRAIN_LIMIT)} %.`;
+      return strainSaid(block);
     default:
       return '';
   }
 }
 
-/** The upstream tools plus `partbuddy_block`. */
-export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, face: string) => void = () => undefined, log: (line: string) => void = () => undefined): UpstreamTools {
+/**
+ * The joints that stand away from where they rest and move `body` (audit W34, review of PR #369): a joint rests at 0, or at
+ * the end of its limits nearest 0 (SolidCraft 0.40.1 puts a slider limited to [5, 50] at 5 as it joins it, and will not
+ * drive it to 0); it moves the side that is not fixed. Said as "name" stands at …, rests at …; empty when none.
+ * shortcut: a body moved through a chain of joints (on a part that a joint moves) is not found; follow the chain if it matters.
+ */
+export function jointsMoving(joints: unknown, listing: unknown, body: string): string[] {
+  const list = joints as { fixed?: unknown; joints?: { name?: unknown; a?: unknown; b?: unknown; values?: { value?: unknown; limits?: unknown; unit?: unknown }[] }[] } | undefined;
+  const fixed = Array.isArray(list?.fixed) ? (list.fixed as unknown[]) : [];
+  const components = ((listing as { components?: { parent?: unknown; bodies?: unknown; occurrences?: { id?: unknown; name?: unknown }[] }[] } | undefined)?.components ?? []).filter((entry) => entry.parent !== null && Array.isArray(entry.bodies) && entry.bodies.includes(body));
+  const holds = (side: unknown) => components.some((entry) => (entry.occurrences ?? []).some((occurrence) => occurrence.id === side || occurrence.name === side));
+  return (list?.joints ?? []).flatMap((joint) => {
+    if (![joint.a, joint.b].some((side) => side !== undefined && !fixed.includes(side) && holds(side))) return [];
+    const away = (joint.values ?? []).flatMap((value) => {
+      if (typeof value.value !== 'number') return [];
+      const [low, high] = Array.isArray(value.limits) && typeof value.limits[0] === 'number' && typeof value.limits[1] === 'number' ? [value.limits[0], value.limits[1]] : [-Infinity, Infinity];
+      const rest = Math.min(Math.max(0, low), high);
+      const unit = value.unit === 'deg' ? '°' : ' mm';
+      return Math.abs(value.value - rest) > 1e-6 ? [`stands at ${mm(value.value)}${unit} and rests at ${mm(rest)}${unit}`] : [];
+    });
+    return away.length > 0 ? [`${JSON.stringify(String(joint.name))} ${away.join(', ')}`] : [];
+  });
+}
+
+/** The upstream tools plus `partbuddy_block`; `printer` is the user's, whose nozzle and layer the sizes are checked for. */
+export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, face: string) => void = () => undefined, log: (line: string) => void = () => undefined, printer: () => FitPrinter = () => DEFAULT_PRINTER): UpstreamTools {
   return {
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), blockTool],
@@ -768,7 +910,13 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
       if (name !== BLOCK_TOOL) return upstream.callTool(name, args, callId);
       const wall = wallOf(args) ?? knobOf(args) ?? magnetOf(args);
       if (typeof wall === 'string') return { content: [{ type: 'text', text: `Not built: ${wall}` }], isError: true };
-      const block = wall ? null : blockOf(args);
+      let fit = DEFAULT_PRINTER;
+      try {
+        fit = printer();
+      } catch (cause) {
+        log(`partbuddy_block: no printer profile, checked for a ${String(DEFAULT_PRINTER.nozzle)} mm nozzle (${(cause as Error).message.slice(0, 200)})`);
+      }
+      const block = wall ? null : blockOf(args, fit);
       if (typeof block === 'string') return { content: [{ type: 'text', text: `Not built: ${block}` }], isError: true };
       try {
         const run = async (commands: { command: string; params: Record<string, unknown> }[], rollback = false) => {
@@ -792,22 +940,25 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         const before = volumesOf(measured);
         const missing = fresh ? null : misplaced(body, before, before);
         if (missing?.startsWith('there is no body')) return { content: [{ type: 'text', text: `Not built: ${missing}` }], isError: true };
-        // The point is given in the world as designed: with a joint away from 0 its bodies stand elsewhere (audit W34, as mechanismTool.ts).
-        const away = ((joints as { joints?: { name?: unknown; values?: { value?: unknown }[] }[] } | undefined)?.joints ?? [])
-          .filter((joint) => (joint.values ?? []).some((value) => typeof value.value === 'number' && Math.abs(value.value) > 1e-6))
-          .map((joint) => JSON.stringify(String(joint.name)));
-        if (!fresh && away.length > 0) return { content: [{ type: 'text', text: `Not built: the joint(s) ${away.join(', ')} stand away from 0; drive them back with joint.drive first, so the bodies are where they were designed` }], isError: true };
+        // The point is given in the world as designed: a joint that stands away from where it rests has moved the body elsewhere (audit W34).
+        const hasJoints = ((joints as { joints?: { values?: unknown[] }[] } | undefined)?.joints ?? []).length > 0;
+        const away = !fresh && hasJoints ? jointsMoving(joints, listing ?? (await run([{ command: 'component.list', params: {} }]))[0], body) : [];
+        if (away.length > 0)
+          return { content: [{ type: 'text', text: `Not built: ${body} stands moved by its joint: ${away.join('; ')}. Drive the joint to where it rests with joint.drive first, so ${body} is where it was designed` }], isError: true };
         // A cut "through" goes through the wall at its point, not on through the far side of a hollow part (audit W2); a nut
         // trap and engraved text must stop short of it, so their wall is measured on the same trial.
         const probe = block ? (cutsThrough(block) ? block : wallTrial(block)) : null;
         const tried = probe ? await reachOf(upstream, probe, wrap, callId) : undefined;
         const reach = block && cutsThrough(block) ? tried?.reach : undefined;
         const thick = tried?.wall[0];
-        const floor = leastFloor();
+        const floor = leastFloor(fit);
         if (block && (block.block === 'nutTrap' || block.block === 'text') && typeof thick === 'number' && block.depth + floor > thick + 1e-9) {
           const what = block.block === 'nutTrap' ? `the pocket of an ${block.size} nut trap is ${mm(block.depth)} mm deep` : `text engraved ${mm(block.depth)} mm deep`;
+          // A smaller nut whose standard pocket fits there.
+          const smaller = block.block === 'nutTrap' ? BLOCK_SIZES.filter((size) => Number(size.slice(1)) < Number(block.size.slice(1)) && (defaultBlock('nutTrap', body, block.point, size) as { depth: number }).depth + floor <= thick + 1e-9).at(-1) : undefined;
+          const instead = smaller ? ` An ${smaller} nut trap (pocket ${mm((defaultBlock('nutTrap', body, block.point, smaller) as { depth: number }).depth)} mm deep) fits there.` : '';
           return {
-            content: [{ type: 'text', text: `Not built: at [${block.point.join(', ')}] ${body} is ${mm(thick)} mm thick (measured on trial); ${what} and needs ${mm(floor)} mm of plastic under it (two lines or four layers on a ${String(LIMIT_PRINTER.nozzle)} mm nozzle), ${mm(block.depth + floor)} mm in all. Put it where the part is thicker, or thicken the part there.` }],
+            content: [{ type: 'text', text: `Not built: at [${block.point.join(', ')}] ${body} is ${mm(thick)} mm thick (measured on trial); ${what} and needs ${mm(floor)} mm of plastic under it (two lines or four layers ${on(fit)}, as the part may lie either way), ${mm(block.depth + floor)} mm in all. Put it where the part is thicker, or thicken the part there.${instead}` }],
             isError: true,
           };
         }
@@ -815,14 +966,18 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         let rim: number | undefined;
         if (block?.block === 'lip') {
           try {
-            rim = rimWidth((await run([{ command: 'inspect.measure', params: { items: [{ type: 'face', body, point: block.point }] } }]))[0]);
+            const [faces, edges] = await run([
+              { command: 'model.faces', params: { body } },
+              { command: 'model.edges', params: { body } },
+            ]);
+            rim = rimNarrowest(block.point, faces, edges);
           } catch {
             rim = undefined;
           }
-          const least = minimumWall(LIMIT_PRINTER.nozzle);
+          const least = minimumWall(fit.nozzle);
           if (block.type === 'groove' && rim !== undefined && rim - block.width - block.gap < least - 1e-9)
             return {
-              content: [{ type: 'text', text: `Not built: the rim of ${body} is ${mm(rim)} mm wide (its mean width, measured); a groove ${mm(block.width + block.gap)} mm wide (width and gap) leaves ${mm(rim - block.width - block.gap)} mm of wall beside it, under the ${mm(least)} mm of two lines on a ${String(LIMIT_PRINTER.nozzle)} mm nozzle. Give a narrower width, or make the wall thicker.` }],
+              content: [{ type: 'text', text: `Not built: the rim of ${body} is ${mm(rim)} mm wide at its narrowest (measured on its edges); a groove ${mm(block.width + block.gap)} mm wide (width and gap) leaves ${mm(rim - block.width - block.gap)} mm of wall beside it there, under the ${mm(least)} mm of two lines ${on(fit)}. Give a narrower width, or make the wall thicker.` }],
               isError: true,
             };
         }

@@ -1520,7 +1520,7 @@
       "boss": "Ein Dom mit Sitz für eine Einschmelzmutter dieser Größe und mindestens 2 mm Wand.",
       "nutTrap": "Sechskanttasche nach ISO 4032 mit 0,3 mm Luft und 0,4 mm Tiefenzugabe, darunter ein Durchgangsloch nach ISO 273.",
       "slot": "Ein Langloch mit der Breite des mittleren Durchgangslochs, mittig am Punkt, zum Verstellen der Schraube.",
-      "text": "Text mittig am Punkt, waagrecht lesbar. Vertieft ab 0,6 mm und erhaben ab 0,4 mm Tiefe druckt sauber; Schrift ab etwa 5 mm Höhe.",
+      "text": "Text mittig am Punkt, waagrecht lesbar. Vertieft ab 0,6 mm und erhaben ab 0,4 mm Tiefe druckt sauber; jeder Strich mindestens zwei Düsenbreiten: bei 0,4-mm-Düse fette Großbuchstaben ab 4 mm Höhe, normale ab 6 mm; vertieft lassen 7 mm (die Vorgabe) genug Kunststoff zwischen den Buchstaben.",
       "lip": "Für ein ausgehöhltes Gehäuse: Fläche am Rand wählen. Die Lippe kommt aufs Unterteil, die Nut mit Spalt in den Deckel.",
       "snapFit": "Ein federnder Arm mit Rastnase, der aus der Fläche ragt. Liegend drucken, damit die Schichten längs des Arms laufen: stehend bricht er an einer Schicht. Das Gegenstück braucht eine Öffnung so tief wie die Nase.",
       "logo": "Eine SVG-Datei mittig am Punkt, so breit wie angegeben. Gebaut werden gefüllte Flächen und Linien in ihrer Strichstärke; Text vorher in Pfade umwandeln (in Inkscape: Pfad › Objekt in Pfad)."
