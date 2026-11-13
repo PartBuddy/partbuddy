@@ -119,3 +119,12 @@ jobs:
 
       - name: Run flows against the fake SolidCraft, bridge and accessibility checks
         run: xvfb-run --auto-servernum pnpm --filter @partbuddy/desktop exec playwright test
+
+      # Screenshots, traces and error contexts of the failed flows, to read the cause of a flaky test without a rerun.
+      - name: Keep the results of failed flows
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-flow-results
+          path: apps/desktop/test-results
+          retention-days: 14
