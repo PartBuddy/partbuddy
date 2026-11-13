@@ -10,7 +10,8 @@ import { CHECKED_WAYS, COMMAND_GROUPS, decide, decideParameterNames, GROUP_EXCEP
 import { ASK_TOOL, Questions } from '../src/main/agents/questions';
 import { SKILL_NOTE, TOOL_NOTES } from '../src/main/agents/toolNotes';
 import { changesDesign } from '../src/main/agents/workLog';
-import { withMechanismTool } from '../src/main/agents/mechanismTool';
+import { JOINT_GUIDANCE } from '../src/main/agents/assemblyTool';
+import { MECHANISM_TOOL, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { BLOCK_KINDS } from '../src/shared/blocks';
 import { TAPPED_FROM } from '../src/shared/mechanisms';
 import type { AgentEvent } from '../src/shared/contract';
@@ -419,6 +420,12 @@ describe('tool policy: raw commands PartBuddy builds itself are refused with the
     const enumOf = ((mechanism?.inputSchema.properties as Record<string, { enum?: string[] }> | undefined)?.kind?.enum ?? []);
     for (const kind of kinds) expect(enumOf, kind).toContain(kind);
     expect(CHECKED_WAYS['solid.thread']).toContain(`M${String(TAPPED_FROM)} and larger`);
+  });
+
+  it('sends hinges and guides to the mechanism tool and says what coupled joints do not make (audit R23, S-20)', () => {
+    expect(JOINT_GUIDANCE.startsWith(`For a hinge or a guide use ${MECHANISM_TOOL}, which also makes the joint.`)).toBe(true);
+    for (const link of ['joint.gear', 'joint.rack_pinion', 'joint.screw', 'joint.cam', 'joint.motion_link']) expect(JOINT_GUIDANCE, link).toContain(link);
+    expect(JOINT_GUIDANCE).toContain('they make no teeth, thread or cam');
   });
 });
 

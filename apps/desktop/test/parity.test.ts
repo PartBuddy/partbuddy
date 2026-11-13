@@ -99,7 +99,7 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.designSweepJoints]: { command: 'joint.sweep' },
   [invokeChannels.designPartsLibrary]: { command: 'parts.library' },
   [invokeChannels.designPreviewBlock]: { reason: PREVIEW },
-  [invokeChannels.designApplyBlock]: { command: 'plastic.snap_fit' },
+  [invokeChannels.designApplyBlock]: { tool: 'partbuddy_block' },
   [invokeChannels.designLogoAt]: { reason: READ },
   [invokeChannels.designPreviewLogoMove]: { reason: PREVIEW },
   [invokeChannels.designMoveLogo]: { tool: 'partbuddy_move_drawing' },

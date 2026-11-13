@@ -1,6 +1,5 @@
 import { assemblyGroupSchema, assemblyPlanSchema, assemblyStepSchema, type AssemblyPlan } from '../../shared/assembly';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
-import { MECHANISM_TOOL } from './mechanismTool';
 
 /**
  * `partbuddy_assembly` (ADR 0026): the assistant sets the assembly order of a design of several
@@ -106,7 +105,8 @@ export const ASSEMBLY_GUIDANCE = `For a design of two or more printed parts, set
  * moves them with a slider in the view.
  */
 export const JOINT_GUIDANCE =
-  `For a hinge or a guide use ${MECHANISM_TOOL}, which also makes the joint. Only for other moving parts (a wheel on its axle, a lever) make them movable yourself once the bodies exist: ` +
+  // The name as a word: importing mechanismTool here would close a cycle through blockTool and questions (policy.test.ts checks it).
+  'For a hinge or a guide use partbuddy_mechanism, which also makes the joint. Only for other moving parts (a wheel on its axle, a lever) make them movable yourself once the bodies exist: ' +
   'turn those bodies into components with component.from_bodies {bodies}, then join each pair with joint.as_built ' +
   '{type: revolute or slider, a, b: the occurrences such as "Lid:1" (a stays, b moves), at: {occurrence, point: [x, y, z] on the axis, z: the direction of the axis}, ' +
   "name in the user's language} and set its range with joint.limits {joint, min, max} (degrees or mm; 0 is the position as designed). " +
