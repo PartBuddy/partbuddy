@@ -20,9 +20,9 @@ import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, Not
 /**
  * The ready-to-print check of one revision of one design (M7). `measuring`: SolidCraft still measures gaps and the
  * joints' ways, or a newer revision is on its way; those findings follow. `unmeasured`: what SolidCraft's measure left
- * out, failed or not all of it: its findings may be missing. `unchecked`: mesh bodies it does not measure for gaps.
+ * out, failed or not all of it, or `mirror` when the view could not read the newest state: findings may be missing. `unchecked`: mesh bodies it does not measure for gaps.
  */
-export type StudioPrintCheck = { documentId: string; revision: number; result: PrintCheck; measuring?: boolean; unmeasured?: ('clearance' | 'joints')[]; unchecked?: string[] };
+export type StudioPrintCheck = { documentId: string; revision: number; result: PrintCheck; measuring?: boolean; unmeasured?: ('clearance' | 'joints' | 'mirror')[]; unchecked?: string[] };
 
 /** What goes out: a file format, or a slicer by its id (B8). */
 export type ExportTarget = ExportFormat | `slicer:${string}` | 'share';

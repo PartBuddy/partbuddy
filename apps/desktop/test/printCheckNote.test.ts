@@ -151,7 +151,10 @@ describe('what the check could not measure', () => {
     expect(checkNow(light('ready'), model, idle)?.measuring).toBeUndefined();
     // While the main process mirrors a newer revision; once it ended, failed or not, the light holds again.
     expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'rebuilding' })).toBe(true);
-    expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'failed' })).toBe(false);
+    expect(asksBeforeExport(light('ready'), model, idle)).toBe(false);
+    // A mirror that failed leaves SolidCraft further on than the check: not measured, so it asks.
+    expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'failed' })).toBe(true);
+    expect(checkNow(light('ready', { unmeasured: ['joints'] }), model, { state: 'connected', mirror: 'failed' })?.unmeasured).toEqual(['joints', 'mirror']);
   });
 
   it('sweeps the joints in blocks of 40, one after the other, and counts a failed block as not measured', async () => {

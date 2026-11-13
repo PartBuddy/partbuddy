@@ -62,7 +62,7 @@ export function useFindingText(): (finding: PrintFinding) => string {
 }
 
 /** What SolidCraft did not measure, in words; empty when it measured all. */
-export function useUnmeasuredText(): (unmeasured: readonly ('clearance' | 'joints')[]) => string {
+export function useUnmeasuredText(): (unmeasured: readonly ('clearance' | 'joints' | 'mirror')[]) => string {
   const { t, i18n } = useTranslation();
   return (unmeasured) => new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(unmeasured.map((what) => t(`check.measure.${what}`)));
 }

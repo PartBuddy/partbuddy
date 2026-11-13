@@ -1125,7 +1125,8 @@
     "unchecked": "Not checked for gaps (mesh bodies): {bodies}",
     "measure": {
       "clearance": "the gaps between the parts",
-      "joints": "the travel of the joints"
+      "joints": "the travel of the joints",
+      "mirror": "the newest state of the design, which the view could not read"
     },
     "faces": "{count, plural, one {# face} other {# faces}}",
     "more": "{count} more",

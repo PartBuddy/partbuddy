@@ -1125,7 +1125,8 @@
     "unchecked": "Nicht auf Abstände geprüft (Netzkörper): {bodies}",
     "measure": {
       "clearance": "die Abstände zwischen den Teilen",
-      "joints": "die Wege der Gelenke"
+      "joints": "die Wege der Gelenke",
+      "mirror": "der neueste Stand der Konstruktion, den die Ansicht nicht lesen konnte"
     },
     "faces": "{count, plural, one {# Fläche} other {# Flächen}}",
     "more": "{count, plural, one {# weiterer} other {# weitere}}",

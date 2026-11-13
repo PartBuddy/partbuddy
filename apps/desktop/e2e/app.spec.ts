@@ -1708,8 +1708,8 @@ test('the light says when it still measures or a measure failed, and an export a
   await expect(light).toHaveText('Ready to print', { timeout: 15_000 });
   await expect(light).not.toHaveAttribute('data-unmeasured');
 
-  // While the main process still mirrors a change the light of the revision before does not hold either; a mirror that
-  // fails ends that, and the light of the model on screen holds again.
+  // While the main process still mirrors a change the light of the revision before does not hold either; nor after a
+  // mirror that failed.
   const mirrored = hold('file.export');
   solidcraft.change();
   await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
@@ -1722,11 +1722,21 @@ test('the light says when it still measures or a measure failed, and an export a
     throw new Error('the export failed');
   };
   mirrored();
-  await expect(light).not.toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
-  await expect(light).toHaveText('Ready to print');
+  // SolidCraft is further on than the light now: not fully checked, and an export asks.
+  await expect(light).toHaveAttribute('data-unmeasured', 'mirror', { timeout: 15_000 });
+  await expect(light).not.toHaveAttribute('data-measuring');
+  await expect(light).toHaveText('Not fully checked');
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  await expect(confirm).toContainText('Not measured, or not all of it: the newest state of the design, which the view could not read.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+  // The next change that comes through lets it go.
   delete solidcraft.answers['file.export'];
   solidcraft.change();
   await expect(light).toHaveAttribute('data-revision', String(solidcraft.revision), { timeout: 15_000 });
+  await expect(light).toHaveText('Ready to print');
+  await expect(light).not.toHaveAttribute('data-unmeasured');
 
   // Two parts whose gaps SolidCraft fails to measure (the fake does not measure them at all): said the same way.
   solidcraft.bodies = ['CableClip', 'Second clip'];

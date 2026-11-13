@@ -43,12 +43,14 @@ export async function sweepInBlocks<S, R>(sweeps: readonly S[], sweep: (block: S
  * The check as far as it holds for the design on screen (audit X-1): one of another revision or another project is as
  * good as still measuring, since the revision numbers of two projects can be the same. So is any while the main process
  * mirrors a newer revision (`rebuilding`): that ends in a new model, or in `failed` or `idle`, which lets the light go.
+ * After a mirror that failed SolidCraft is further on than the check: not measured, until a mirror comes through.
  */
 export function checkNow(check: StudioPrintCheck | null, model: ModelState, connection: Pick<ConnectionStatus, 'state' | 'mirror'>): StudioPrintCheck | null {
   if (!check || check.measuring) return check;
   const mirroring = connection.state === 'connected' && connection.mirror === 'rebuilding';
   const current = !mirroring && model.status === 'ready' && model.documentId === check.documentId && model.revision === check.revision;
-  return current ? check : { ...check, measuring: true };
+  if (!current) return { ...check, measuring: true };
+  return connection.state === 'connected' && connection.mirror === 'failed' ? { ...check, unmeasured: [...(check.unmeasured ?? []), 'mirror'] } : check;
 }
 
 /**
