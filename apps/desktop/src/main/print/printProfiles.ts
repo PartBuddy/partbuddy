@@ -18,7 +18,7 @@ import { lineWidth, printInPlaceGap, scaleClearance, snapSize, type FitPrinter }
 import { MATERIAL_CATALOG } from '../../shared/materialCatalog';
 import { HOLE_SIZES } from '../../shared/tolerances';
 import { ASK_TOOL } from '../agents/questions';
-import { BRIDGE_SPAN, LYING_HOLE, minimumFloor, minimumWall } from '@partbuddy/geometry';
+import { BRIDGE_SPAN, LYING_HOLE, minimumFloor, minimumWall, thinnestLine } from '@partbuddy/geometry';
 
 /**
  * What is kept next to a design: its material, and the design rule groups the user turned on or off
@@ -289,7 +289,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
   const off = (Object.keys(RULE_NAMES) as DesignRule[]).filter((rule) => !design[rule]);
   const lines = [
     'Design it well without being asked: apply the rules below on your own, in every design, unless the user says otherwise.',
-    `- Sizes the user names are fixed: build them exactly, never round or snap them to the nozzle or layer height. If one does not print at all, as the print check blocks it (a wall or detail thinner than the ${mm(printer.nozzle)} nozzle, a floor or lid thinner than one ${mm(layer)} layer), or is implausible for the part (ten times off the rest, a hole wider than the face it goes through), do not build it: ask with ${ASK_TOOL}, offering the value as given and the nearest one that prints. A size that only prints less well (a wall under two lines, ${mm(minWall)}, or not a whole number of ${mm(line)} lines; a detail under one line; a floor under ${mm(minimumFloor(layer))}) is built as given, with one sentence on the better value.`,
+    `- Sizes the user names are fixed: build them exactly, never round or snap them to the nozzle or layer height. If one does not print at all, as the print check blocks it (a wall or detail thinner than ${mm(thinnestLine(printer.nozzle))}, the narrowest line a slicer lays with this nozzle, a floor or lid thinner than one ${mm(layer)} layer), or is implausible for the part (ten times off the rest, a hole wider than the face it goes through), do not build it: ask with ${ASK_TOOL}, offering the value as given and the nearest one that prints. A size that only prints less well (a wall under two lines, ${mm(minWall)}, or not a whole number of ${mm(line)} lines; a detail under one line; a floor under ${mm(minimumFloor(layer))}) is built as given, with one sentence on the better value.`,
     `- Fits follow the purpose, not the raw size: nominal size plus the clearance per side of the fit, clamp ${clearance('clamp')} (tight, only with force), push ${clearance('push')} (in by hand), slide ${clearance('slide')} (without force), turn ${clearance('turn')} (turns freely); the material's values, scaled for this nozzle. ${room} A round hole also gets the material's hole allowance on its diameter. A part that holds something (a clip on a cable, tube or pen) grips it: wrap round items more than halfway, with the push fit and an opening narrower than the item. Ask only when the purpose is unclear.`,
     `- Printing comes first: nothing leans more than ${String(material.overhang)}° without support, no support that a better shape or orientation avoids, and stand the part so loads and snap arms run along the layers, not across them. A refinement never makes function or printing worse; leave it out where it would.`,
   ];
@@ -331,7 +331,7 @@ export function printNote({ printer, material: used, supportFree, design }: Part
   const { clamp, push, slide, turn } = used.clearance;
   return [
     `[PartBuddy: print profile of this part. Printer ${name(printer.name)}: build volume ${String(x)} × ${String(y)} × ${String(z)} mm,`,
-    `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(minimumWall(printer.nozzle))} (two lines) print poorly, and walls or details thinner than the nozzle do not print (the print check blocks them).`,
+    `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(minimumWall(printer.nozzle))} (two lines) print poorly, and walls or details thinner than ${mm(thinnestLine(printer.nozzle))}, the narrowest line a slicer lays, do not print (the print check blocks them).`,
     `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter, a guide value for holes of ${String(HOLE_SIZES[0])} to ${String(HOLE_SIZES[HOLE_SIZES.length - 1])} mm (larger ones shrink more) that the hole plate of the tolerance pieces measures on this printer.`,
     `Clearance per side between mating parts, for this nozzle (${used.measuredNozzle === undefined ? 'not measured with the tolerance pieces' : 'measured with the tolerance pieces'}): clamp ${fit(clamp)}, push ${fit(push)}, slide ${fit(slide)}, turn ${fit(turn)}.`,
     'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed; the check and the slicer then lay it on that face.',

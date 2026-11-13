@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_PRINT_SETTINGS, PrintProfiles, ProfileNote, printFileOf, printNote } from '../src/main/print/printProfiles';
-import { BRIDGE_SPAN, checkPrint, LYING_HOLE, minimumFloor, minimumWall, type PrintCheckBody } from '@partbuddy/geometry';
+import { BRIDGE_SPAN, checkPrint, LYING_HOLE, minimumFloor, minimumWall, thinnestLine, type PrintCheckBody } from '@partbuddy/geometry';
 
 import { smallOverhangReach } from '../../../packages/geometry/src/overhang';
 import { boxesBody } from '../../../packages/geometry/src/testShapes';
@@ -198,13 +198,15 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
     for (const [nozzle, layer] of [[0.25, 0.12], [0.4, 0.2], [0.6, 0.3]] as const) {
       const wall = (t: number) => boxesBody('Wall', [[[0, 0, 0], [30, t, 20]]]);
       const floor = (t: number) => boxesBody('Floor', [[[0, 0, 0], [30, 30, t]]]);
-      expect(blocks(wall(nozzle - 0.02), nozzle, layer)).toBe(true);
-      expect(blocks(wall(nozzle), nozzle, layer)).toBe(false);
+      // Since #371 the check blocks walls under the narrowest line a slicer lays (nozzle + 0.02 mm), no longer under the nozzle.
+      expect(blocks(wall(thinnestLine(nozzle) - 0.01), nozzle, layer)).toBe(true);
+      expect(blocks(wall(thinnestLine(nozzle)), nozzle, layer)).toBe(false);
+      expect(blocks(wall(thinnestLine(nozzle) + 0.01), nozzle, layer)).toBe(false);
       expect(blocks(wall(minimumWall(nozzle) - 0.02), nozzle, layer)).toBe(false);
       expect(blocks(floor(layer - 0.02), nozzle, layer)).toBe(true);
       expect(blocks(floor(layer), nozzle, layer)).toBe(false);
       const note = noteFor(nozzle, layer);
-      expect(note).toContain(`a wall or detail thinner than the ${String(nozzle)} mm nozzle, a floor or lid thinner than one ${String(layer)} mm layer`);
+      expect(note).toContain(`a wall or detail thinner than ${String(thinnestLine(nozzle))} mm, the narrowest line a slicer lays with this nozzle, a floor or lid thinner than one ${String(layer)} mm layer`);
       expect(note).toContain(`a wall under two lines, ${String(minimumWall(nozzle))} mm, or not a whole number of ${String(lineWidth({ nozzle, layer }))} mm lines; a detail under one line; a floor under ${String(minimumFloor(layer))} mm) is built as given`);
     }
     const note = noteFor(0.4, 0.2);
@@ -253,7 +255,7 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
 
   it('gives details, text and floors the sizes of their sources (D29, H-18, H-22, H-23)', () => {
     const note = noteFor(0.4, 0.2);
-    expect(note).toContain('walls or details thinner than the nozzle do not print (the print check blocks them)');
+    expect(note).toContain('walls or details thinner than 0.42 mm, the narrowest line a slicer lays, do not print (the print check blocks them)');
     expect(note).toContain('text at least 0.6 mm deep and 1 mm wide per stroke (Xometry: 0.5 mm and 1 mm)');
     expect(noteFor(0.6, 0.3)).toContain('text at least 0.6 mm deep and 1.35 mm wide per stroke');
     expect(noteFor(0.4, 0.12)).toContain('text at least 0.6 mm deep');
