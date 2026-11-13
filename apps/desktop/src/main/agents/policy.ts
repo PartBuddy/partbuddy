@@ -182,7 +182,7 @@ export const CHECKED_WAYS: Record<string, string> = {
   'solid.thread':
     `is cosmetic unless modeled, and printed threads under M${String(TAPPED_FROM)} strip. Use partbuddy_block {"block": "tappedHole"} (M${String(TAPPED_FROM)} and larger) or {"block": "insertSeat"} for a screw, or partbuddy_mechanism {"kind": "lid"} for a container that screws shut.`,
   'plastic.boss':
-    'is an injection-moulding boss (draft and wall from SolidCraft\'s plastic rules). Use partbuddy_block {"block": "boss"}, which sizes the boss from its insert.',
+    'is an injection-moulding boss (draft and wall from SolidCraft\'s plastic rules) with no seat for an insert. Use partbuddy_block {"block": "boss"}, which sizes the boss and its seat from the insert and stands it straight for printing.',
   'plastic.snap_fit':
     'is an injection-moulding snap hook, and nothing tells its strain. Use partbuddy_block {"block": "snapFit"}, which says the strain at the arm\'s root, or partbuddy_mechanism {"kind": "snap"} for a part that clips onto another.',
   'plastic.lip':
@@ -545,7 +545,9 @@ export function inputProblem(tool: UpstreamTool, args: Record<string, unknown>):
   if (check === undefined) {
     try {
       check = validators.getValidator(tool.inputSchema);
-    } catch {
+    } catch (error) {
+      // Its calls then go on unchecked, as before the check; said once per schema (cached below).
+      console.warn(`Warning: the input schema of ${tool.name} does not compile, so its calls are not checked against it: ${(error as Error).message.slice(0, 200)}`);
       check = null;
     }
     if (compiled.size > 200) compiled.clear();

@@ -17,7 +17,7 @@ export const TOOL_NOTES = [
     "document, SolidCraft's window, settings and materials, configurations), and so are " +
     `${Object.keys(REFUSED_COMMANDS).map((id) => `\`${id}\``).join(', ')}. A refusal says what to do instead.`,
   // Written from the policy's list, so the note says what the code refuses (audit R2, S-04).
-  `- Built by PartBuddy: ${Object.keys(CHECKED_WAYS).map((id) => `\`${id}\``).join(', ')} are refused, also as \`batch\` steps and inside ` +
+  `- Built by PartBuddy: ${Object.keys(CHECKED_WAYS).filter((id) => id !== 'solid.scale').map((id) => `\`${id}\``).join(', ')} and \`solid.scale\` (it scales screw holes and gaps with the body) are refused, also as \`batch\` steps and inside ` +
     'other commands, whatever the notes above suggest: `partbuddy_block` and `partbuddy_mechanism` build holes, threads, ' +
     'insert seats, bosses, snap hooks and lips sized for printing, and the refusal names the call. The other modelling ' +
     'commands work, and the ready-to-print check of each change comes back with its answer: read it before you go on.',
@@ -56,7 +56,7 @@ export const TOOL_NOTES = [
 /** Behind every guide `skill_reference` returns (audit S-05): the guides know nothing of printing or of PartBuddy's tools. */
 export const SKILL_NOTE =
   "[PartBuddy: this guide is SolidCraft's, written without 3D printing. In PartBuddy holes, threads, insert seats, bosses, snap hooks and " +
-  'lips are built with partbuddy_block or partbuddy_mechanism, sizes you choose snap to the printer\'s lines and layers, and save, export and checkpoints are refused; ' +
+  'lips are built with partbuddy_block or partbuddy_mechanism, walls, floors and gaps are sized to the printer\'s lines and layers as PartBuddy\'s notes say, and save, export and checkpoints are refused; ' +
   "PartBuddy's notes hold where this guide differs.]";
 
 /** A tool's answer as the model gets it: a guide of `skill_reference` with {@link SKILL_NOTE} behind it. */
