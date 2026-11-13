@@ -1689,9 +1689,7 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     // nozzle (printProfiles.ts; stroke share of Arial bold measured 2026-11-13): the form refuses them and says why.
     await page.getByTestId('block-height').getByRole('textbox').fill('3');
     await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'false', { timeout: 60_000 });
-    await expect(page.getByTestId('block-status')).toContainText('does not print with the nozzle in use');
-    await page.getByTestId('block-status').getByText('Details').click();
-    await expect(page.getByTestId('block-status')).toContainText('give height 4 or more');
+    await expect(page.getByTestId('block-status')).toContainText('Bold capitals 3 mm high have strokes 0.61 mm wide, under the 0.8 mm (two nozzle widths) a stroke needs on the 0.4 mm nozzle: give a height of 4 mm or more.');
     await page.getByTestId('block-height').getByRole('textbox').fill('4');
     await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
     await page.screenshot({ path: test.info().outputPath('block-form-text.png') });

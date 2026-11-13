@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { BLOCK_GUIDANCE, FACE_DROP, jointsMoving, printLimit, STOCK_FULL, blockOf, cutAxis, knobOf, magnetOf, misplaced, named, rimNarrowest, seatStock, shortOf, wallOf, withBlockTool, type Stock } from '../src/main/agents/blockTool';
-import { INSERT, stepsOf, type FeatureBlock } from '../src/shared/blocks';
+import { INSERT, blockLimit, defaultBlock, raisedBlock, stepsOf, type FeatureBlock } from '../src/shared/blocks';
 import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
 import { KNOB, knobProblem, knobSteps, type KnobSpec } from '../src/shared/knob';
@@ -1071,8 +1071,19 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     expect(printLimit({ ...ui, height: 4 } as FeatureBlock, nozzle(0.4))).toBeNull();
     expect(printLimit({ ...ui, font: 'Georgia' } as FeatureBlock, nozzle(0.4))).toBeNull();
     expect(printLimit({ ...ui, font: 'Arial' } as FeatureBlock, nozzle(0.4))).toContain('give height 4 or more');
-    // With a 0.8 mm nozzle the form's lip of 1.2 mm is refused, as the assistant's is.
+    // With a 0.8 mm nozzle a lip of 1.2 mm someone gave is refused; the form starts from the standard raised to 1.8, as the
+    // assistant does (BlockPanel.tsx; third review of PR 369, S4).
     expect(printLimit(form[3] as FeatureBlock, nozzle(0.8))).toContain('width 1.2: a lip narrower than 1.8 mm');
+    expect(raisedBlock(defaultBlock('lip', 'Body1', [1.5, 10, 10], 'M3'), nozzle(0.6))).toMatchObject({ block: { width: 1.35 }, raised: ['width'] });
+    expect(raisedBlock(defaultBlock('lip', 'Body1', [1.5, 10, 10], 'M3'), nozzle(0.8)).block).toMatchObject({ width: 1.8 });
+    expect(raisedBlock(defaultBlock('snapFit', 'Body1', [10, 10, 10], 'M3', [0, 0, 1]), nozzle(0.8))).toMatchObject({ block: { thickness: 1.8, width: 5, catchDepth: 0.8 }, raised: ['thickness'] });
+    expect(raisedBlock(defaultBlock('text', 'Body1', [10, 0, 5], 'M3', [0, -1, 0]), nozzle(0.8)).block).toMatchObject({ height: 8 });
+    expect(raisedBlock(defaultBlock('text', 'Body1', [10, 0, 5], 'M3', [0, -1, 0]), nozzle(0.4)).raised).toEqual([]);
+    // Every standard the form starts from prints once raised, on every nozzle.
+    for (const kind of ['lip', 'snapFit', 'text', 'nutTrap', 'slot'] as const)
+      for (const size of [0.25, 0.4, 0.6, 0.8]) expect(blockLimit(raisedBlock(defaultBlock(kind, 'Body1', [10, 10, 10], 'M3', [0, 0, 1]), nozzle(size)).block, nozzle(size)), kind + String(size)).toBeNull();
+    // A size someone gave stays as given, and is refused.
+    expect(raisedBlock(form[3] as FeatureBlock, nozzle(0.8), ['width']).block).toMatchObject({ width: 1.2 });
   });
 
   it('warns of a snap arm that bends more than PLA takes, and builds it (S3)', async () => {

@@ -9,6 +9,9 @@
 import { logoBase, TEXT_PREFIX, uniqueLogoName } from './drawingPlacement';
 import { drawingColours, drawingPieces, drawingSize, drawingSvg, naturalWidth, parseDrawing, shapesOverlap, shapesSvg, type DrawingProblem, type Shape } from './svgDrawing';
 
+import { minimumWall } from '@partbuddy/geometry';
+
+import { CLEARANCE_NOZZLE, type FitPrinter } from './designFit';
 import { CAP_HEAD, CLEARANCE_NORMAL, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, NUT, NUT_ALLOWANCE, BLOCK_SIZES, type BlockSize } from './screwSizes';
 
 export { BLOCK_SIZES, HEAD_ALLOWANCE, INSERT, NUT_ALLOWANCE, type BlockSize };
@@ -105,8 +108,11 @@ export function defaultBlock(kind: BlockKind, body: string, point: [number, numb
   }
 }
 
-/** How a refusal of PartBuddy's print limits starts (main/index.ts), before its reason: no SolidCraft error starts so. */
+/** How a refusal of PartBuddy's print limits starts, before the limit as JSON (main/index.ts, BlockPanel.tsx): no SolidCraft error starts so. */
 export const PRINT_LIMIT = 'PartBuddy print limit: ';
+
+/** A {@link BlockLimit} as the form's refusal: the panel reads it back and says it in the interface language (refusal.ts). */
+export const limitRefusal = (limit: BlockLimit) => `${PRINT_LIMIT}${JSON.stringify(limit)}`;
 
 /** Above this strain at the arm's root, printed PLA tends to crack (PETG takes about 3 %). */
 export const SNAP_STRAIN_LIMIT = 2;
@@ -461,4 +467,113 @@ export function logoFrom(text: string): { svg: string; width: number | null; bac
   if (!result.ok) return { problem: result.problem };
   const width = naturalWidth(result.drawing);
   return { svg: drawingSvg(result.drawing, width ?? 100), width, backgrounds: result.drawing.skipped.backgrounds };
+}
+
+/** The printer a block is reckoned for when it is given none: the 0.4 mm nozzle the clearances stand for, with 0.2 mm layers. */
+export const DEFAULT_PRINTER: FitPrinter = { nozzle: CLEARANCE_NOZZLE, layer: 0.2 };
+
+/**
+ * Why a size of a block does not print or does not do its work, as data: the assistant is told it in English
+ * ({@link limitSaid}), the form in the interface language (`blocks.limit.<reason>`, with these values as placeholders).
+ */
+export type BlockLimit = { key: string; value: number; nozzle: number } & (
+  | { reason: 'stroke' | 'strokeBold'; least: number; stroke: number; needed: number }
+  | { reason: 'lipWall' | 'grooveWall' | 'armWall' | 'catch' | 'layer'; least: number }
+  | { reason: 'screw'; size: string; thread: number; standard: number }
+  | { reason: 'nutFlats' | 'nutHeight'; size: string; least: number; standard: number }
+  | { reason: 'nutCorners'; size: string; most: number }
+);
+
+/** Whether the strokes of a text's font are known: measured for Arial bold and the built-in Liberation Sans alone (TEXT_STROKE). */
+export const strokesKnown = (block: { font?: string | undefined }) => block.font === undefined || block.font === BOLD_FONT;
+
+/**
+ * The least each size of a block must be to print on the printer, from the code's own rules: two nozzle widths a stroke of
+ * text (printProfiles.ts), two lines of wall, one nozzle of detail, one layer (designFit.ts, printCheck.ts).
+ */
+export function leastOf(block: FeatureBlock, printer: FitPrinter): { key: string; least: number; reason: BlockLimit['reason'] }[] {
+  const wall = minimumWall(printer.nozzle);
+  switch (block.block) {
+    case 'text':
+      // Another font than those measured is not checked; the form says so (blocks.strokeUnchecked).
+      if (!strokesKnown(block)) return [];
+      return [{ key: 'height', least: Math.ceil(((2 * printer.nozzle) / (block.bold ? TEXT_STROKE.bold : TEXT_STROKE.regular)) * 10 - 1e-6) / 10, reason: block.bold ? 'strokeBold' : 'stroke' }];
+    case 'lip':
+      return [
+        { key: 'width', least: wall, reason: block.type === 'groove' ? 'grooveWall' : 'lipWall' },
+        { key: 'height', least: printer.layer, reason: 'layer' },
+      ];
+    case 'snapFit':
+      return [
+        { key: 'thickness', least: wall, reason: 'armWall' },
+        { key: 'width', least: wall, reason: 'armWall' },
+        { key: 'catchDepth', least: printer.nozzle, reason: 'catch' },
+      ];
+    default:
+      return [];
+  }
+}
+
+/** The block with each size below what the printer prints raised to it, except those in `kept` (sizes someone gave), and which were raised. */
+export function raisedBlock(block: FeatureBlock, printer: FitPrinter, kept: readonly string[] = []): { block: FeatureBlock; raised: string[] } {
+  const sizes = block as unknown as Record<string, unknown>;
+  const raised = leastOf(block, printer).filter(({ key, least }) => !kept.includes(key) && typeof sizes[key] === 'number' && (sizes[key]) < least - 1e-9);
+  return { block: { ...block, ...Object.fromEntries(raised.map(({ key, least }) => [key, least])) }, raised: raised.map(({ key }) => key) };
+}
+
+/** The first size of a block that does not print or does not do its work on the printer; null when all do. */
+export function blockLimit(block: FeatureBlock, printer: FitPrinter): BlockLimit | null {
+  const sizes = block as unknown as Record<string, unknown>;
+  const { nozzle } = printer;
+  for (const { key, least, reason } of leastOf(block, printer)) {
+    const value = sizes[key];
+    if (typeof value !== 'number' || value >= least - 1e-9) continue;
+    if (reason === 'stroke' || reason === 'strokeBold') return { key, value, nozzle, reason, least, needed: round(2 * nozzle), stroke: round(value * (reason === 'strokeBold' ? TEXT_STROKE.bold : TEXT_STROKE.regular)) };
+    return { key, value, nozzle, reason: reason as 'lipWall', least };
+  }
+  if (block.block === 'slot') {
+    const thread = Number(block.size.slice(1));
+    if (block.width < thread) return { key: 'width', value: block.width, nozzle, reason: 'screw', size: block.size, thread, standard: CLEARANCE_NORMAL[block.size] };
+  }
+  if (block.block === 'nutTrap') {
+    const [flats, high] = NUT[block.size];
+    const standard = defaultBlock('nutTrap', '', [0, 0, 0], block.size) as Extract<FeatureBlock, { block: 'nutTrap' }>;
+    if (block.flats < flats) return { key: 'flats', value: block.flats, nozzle, reason: 'nutFlats', size: block.size, least: flats, standard: standard.flats };
+    if (block.flats >= (flats * 2) / Math.sqrt(3)) return { key: 'flats', value: block.flats, nozzle, reason: 'nutCorners', size: block.size, most: round((flats * 2) / Math.sqrt(3)) };
+    if (block.depth < high) return { key: 'depth', value: block.depth, nozzle, reason: 'nutHeight', size: block.size, least: high, standard: standard.depth };
+  }
+  // Nothing else of a block prints under one layer; a gap may be none.
+  const thin = Object.entries(block).find(([key, value]) => typeof value === 'number' && key !== 'gap' && value < printer.layer - 1e-9);
+  return thin ? { key: thin[0], value: thin[1] as number, nozzle, reason: 'layer', least: printer.layer } : null;
+}
+
+/** A {@link BlockLimit} in English, for the assistant: the size, why it does not print, and what to give. */
+export function limitSaid(limit: BlockLimit): string {
+  const on = `on a ${String(limit.nozzle)} mm nozzle`;
+  const why = (() => {
+    switch (limit.reason) {
+      case 'stroke':
+      case 'strokeBold':
+        return `the strokes of ${limit.reason === 'strokeBold' ? 'bold ' : ''}capitals ${String(limit.value)} mm high are ${String(limit.stroke)} mm wide, under the ${String(limit.needed)} mm (two nozzle widths) a stroke needs ${on}; give height ${String(limit.least)} or more`;
+      case 'lipWall':
+        return `a lip narrower than ${String(limit.least)} mm (two lines ${on}) does not print solid`;
+      case 'grooveWall':
+        return `a groove narrower than ${String(limit.least)} mm takes no lip that prints solid (two lines ${on})`;
+      case 'armWall':
+        return `an arm under ${String(limit.least)} mm (two lines ${on}) does not print solid`;
+      case 'catch':
+        return `a catch under ${String(limit.least)} mm (one nozzle width) does not print and holds nothing`;
+      case 'layer':
+        return `under one layer (${String(limit.least)} mm) nothing prints`;
+      case 'screw':
+        return `an ${limit.size} screw is ${String(limit.thread)} mm thick and would not pass; the standard is ${String(limit.standard)} mm`;
+      case 'nutFlats':
+        return `an ${limit.size} nut is ${String(limit.least)} mm across its flats and would not go in; the standard pocket is ${String(limit.standard)}`;
+      case 'nutCorners':
+        return `an ${limit.size} nut is ${String(limit.most)} mm across its corners and would turn in the pocket; give less than that`;
+      case 'nutHeight':
+        return `an ${limit.size} nut is ${String(limit.least)} mm high and would stand out of the pocket; the standard is ${String(limit.standard)}`;
+    }
+  })();
+  return `${limit.key} ${String(limit.value)}: ${why}`;
 }

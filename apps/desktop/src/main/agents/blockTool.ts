@@ -1,12 +1,11 @@
 import { minimumFloor, minimumWall } from '@partbuddy/geometry';
 
-import { BLOCK_SIZES, BOLD_FONT, INSERT, ON_FACE, SNAP_STRAIN_LIMIT, TEXT_STROKE, cutsThrough, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, DEFAULT_PRINTER, INSERT, ON_FACE, blockLimit, limitSaid, raisedBlock, SNAP_STRAIN_LIMIT, TEXT_STROKE, cutsThrough, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
-import { CLEARANCE_NOZZLE, type FitPrinter } from '../../shared/designFit';
+import type { FitPrinter } from '../../shared/designFit';
 import { KNOB, KNOB_CLEARANCE, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
 import { TAPPED_FROM } from '../../shared/mechanisms';
 import { MAGNET, MAGNET_HOLDS, MAGNET_MORE, magnetPocket, magnetProblem, magnetSteps, magnetStock, type MagnetHold } from '../../shared/magnet';
-import { CLEARANCE_NORMAL, NUT } from '../../shared/screwSizes';
 import { KEYHOLE, WALL, WALL_MORE, WOOD_SCREWS, WOOD_SCREW_UNDER, countersinkDepth, keyholeDepth, keyholeProblem, keyholeSteps, keyholeStock, woodScrewSteps, woodScrewStock, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -128,8 +127,6 @@ function outOfTable(block: FeatureBlock): string | null {
   return null;
 }
 
-/** The printer a block is reckoned for when it is given none: the 0.4 mm nozzle the clearances stand for, with 0.2 mm layers. */
-export const DEFAULT_PRINTER: FitPrinter = { nozzle: CLEARANCE_NOZZLE, layer: 0.2 };
 /**
  * The thinnest plastic under a pocket or engraved text: two lines (a wall) or four layers (a floor), whichever is more.
  * The block cannot know which way the part will lie: under a pocket that opens upwards it is a floor, under one that opens
@@ -139,69 +136,11 @@ const leastFloor = (printer: FitPrinter) => Math.max(minimumWall(printer.nozzle)
 const mm = (value: number) => String(Math.round(value * 100) / 100);
 const on = (printer: FitPrinter) => `on a ${String(printer.nozzle)} mm nozzle`;
 
-/**
- * The least each size of a block must be to print on the printer: the code's own rules (two nozzle widths a stroke of
- * text, printProfiles.ts; two lines of wall; one nozzle of detail; designFit.ts), with why. A size the model gave below
- * it is refused; a standard size below it is raised to it.
- */
-function leastOf(block: FeatureBlock, printer: FitPrinter): { key: string; least: number; why: string }[] {
-  const wall = minimumWall(printer.nozzle);
-  switch (block.block) {
-    case 'text': {
-      // The stroke share is measured for Arial bold and the built-in Liberation Sans alone: another font is not checked.
-      if (block.font !== undefined && block.font !== BOLD_FONT) return [];
-      const [stroke, share] = [2 * printer.nozzle, block.bold ? TEXT_STROKE.bold : TEXT_STROKE.regular];
-      const least = Math.ceil((stroke / share) * 10 - 1e-6) / 10;
-      return [{ key: 'height', least, why: `the strokes of ${block.bold ? 'bold ' : ''}capitals ${String(block.height)} mm high are ${mm(block.height * share)} mm wide, under the ${mm(stroke)} mm (two nozzle widths) a stroke needs ${on(printer)}; give height ${String(least)} or more` }];
-    }
-    case 'lip':
-      return [
-        { key: 'width', least: wall, why: block.type === 'groove' ? `a groove narrower than ${mm(wall)} mm takes no lip that prints solid (two lines ${on(printer)})` : `a lip narrower than ${mm(wall)} mm (two lines ${on(printer)}) does not print solid` },
-        { key: 'height', least: printer.layer, why: `under one layer (${String(printer.layer)} mm) nothing prints` },
-      ];
-    case 'snapFit':
-      return [
-        { key: 'thickness', least: wall, why: `an arm under ${mm(wall)} mm (two lines ${on(printer)}) does not print solid` },
-        { key: 'width', least: wall, why: `an arm under ${mm(wall)} mm (two lines ${on(printer)}) does not print solid` },
-        { key: 'catchDepth', least: printer.nozzle, why: `a catch under ${String(printer.nozzle)} mm (one nozzle width) does not print and holds nothing` },
-      ];
-    default:
-      return [];
-  }
-}
-
-/**
- * Why a size of a block does not print or does not do its work on the printer; null when all do. The form's blocks are
- * checked by it too (index.ts), so that the form and the assistant build to the same limits (second review of PR 369, K9).
- */
-export function printLimit(block: FeatureBlock, printer: FitPrinter): string | null {
-  const sizes = block as unknown as Record<string, unknown>;
-  for (const { key, least, why } of leastOf(block, printer)) {
-    const value = sizes[key];
-    if (typeof value === 'number' && value < least - 1e-9) return `${key} ${String(value)}: ${why}`;
-  }
-  switch (block.block) {
-    case 'slot': {
-      const thread = Number(block.size.slice(1));
-      if (block.width < thread) return `width ${String(block.width)}: an ${block.size} screw is ${String(thread)} mm thick and would not pass; the standard is ${String(CLEARANCE_NORMAL[block.size])} mm`;
-      break;
-    }
-    case 'nutTrap': {
-      const [flats, high] = NUT[block.size];
-      const corners = (flats * 2) / Math.sqrt(3);
-      const standard = defaultBlock('nutTrap', '', [0, 0, 0], block.size) as Extract<FeatureBlock, { block: 'nutTrap' }>;
-      if (block.flats < flats) return `flats ${String(block.flats)}: an ${block.size} nut is ${String(flats)} mm across its flats and would not go in; the standard pocket is ${mm(standard.flats)}`;
-      if (block.flats >= corners) return `flats ${String(block.flats)}: an ${block.size} nut is ${mm(corners)} mm across its corners and would turn in the pocket; give less than that`;
-      if (block.depth < high) return `depth ${String(block.depth)}: an ${block.size} nut is ${String(high)} mm high and would stand out of the pocket; the standard is ${mm(standard.depth)}`;
-      break;
-    }
-    default:
-      break;
-  }
-  // Nothing else of a block prints under one layer; a gap may be none.
-  const thin = Object.entries(block).find(([key, value]) => typeof value === 'number' && key !== 'gap' && value < printer.layer - 1e-9);
-  return thin ? `${thin[0]} ${String(thin[1])}: under one layer (${String(printer.layer)} mm) nothing prints` : null;
-}
+/** Why a size of a block does not print on the printer, in English; null when all do. The form checks the same (index.ts, BlockPanel.tsx). */
+export const printLimit = (block: FeatureBlock, printer: FitPrinter): string | null => {
+  const limit = blockLimit(block, printer);
+  return limit ? limitSaid(limit) : null;
+};
 
 /**
  * What the model is told of a snap fit's strain: the block does not know the material for sure, so above what printed
@@ -283,8 +222,7 @@ export function blockOf(args: Record<string, unknown>, printer: FitPrinter = DEF
   const parsed = featureBlockSchema.safeParse({ ...standard, ...given, ...more, ...through });
   if (!parsed.success) return `${parsed.error.issues[0]?.path.join('.') ?? kind}: ${parsed.error.issues[0]?.message ?? 'invalid'}`;
   // A standard size the printer cannot print (a wider nozzle) is raised to what it can; one the model gave is refused below.
-  const raised = Object.fromEntries(leastOf(parsed.data, printer).flatMap(({ key, least }) => (key in given || Number((parsed.data as unknown as Record<string, unknown>)[key]) >= least ? [] : [[key, least]])));
-  const block: FeatureBlock = { ...parsed.data, ...raised };
+  const { block } = raisedBlock(parsed.data, printer, Object.keys(given));
   return outOfTable(block) ?? printLimit(block, printer) ?? block;
 }
 
@@ -1119,3 +1057,5 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
 
 /** Added to the role prompt of every route. */
 export const BLOCK_GUIDANCE = `For a screw hole, a tapped hole, the seat of a heat-set insert, a nut trap, a screw boss, a slot, text, a lid's lip or a snap hook on one body call ${BLOCK_TOOL} instead of drilling or modelling it yourself: it takes clearance, head, nut and insert sizes from the standard tables. For a part that hangs on a wall use its keyhole (hung over screws in the wall) or woodScrew (screwed on through countersunk holes) blocks, two of them level for anything wider than 60 mm. For parts held by magnets (a lid, a tool holder, a sign) use its magnet block for each pocket instead of drilling a hole of the magnet's size; it needs the magnet's diameter and height, so ask with ${ASK_TOOL} when the user has not said them. For a knob on a potentiometer, an encoder or any other shaft use its knob block, which makes the knob as a part of its own; it needs the shaft (D, knurled or round, and its diameter), so ask with ${ASK_TOOL} when the user has not said. Keyholes and wood screw holes need the wood screw's size the same way.`;
+
+export { DEFAULT_PRINTER } from '../../shared/blocks';

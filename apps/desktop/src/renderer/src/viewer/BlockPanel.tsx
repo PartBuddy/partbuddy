@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
 
-import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, SNAP_STRAIN_LIMIT, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import { BLOCK_KINDS, DEFAULT_PRINTER, blockLimit, defaultBlock, hasSize, limitRefusal, raisedBlock, strokesKnown, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, SNAP_STRAIN_LIMIT, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
 import { drawingColours, drawingSvg, mergedColours, naturalWidth, parseDrawing, type Drawing, type DrawingProblem } from '../../../shared/svgDrawing';
 import { DrawingDetailNote } from '../assistant/DrawingDetailNote';
 import { platform } from '../platform';
@@ -119,6 +119,8 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   const [open, setOpen] = useState(false);
   // The block's values; body and point come from the picked face.
   const [spec, setBlock] = useState<FeatureBlock>(() => defaultBlock('tappedHole', '', [0, 0, 0], 'M3'));
+  // The printer in use: the form starts from standard sizes raised to what it prints, and checks by the assistant's limits.
+  const printer = useStudio((s) => s.print?.printer) ?? DEFAULT_PRINTER;
   // SolidCraft's answer for a block; only the answer for the block as it is now counts (a moved one is tried anew).
   const [status, setStatus] = useState<{ ok: boolean; error?: string; block?: FeatureBlock; unmeasured?: boolean } | null>(null);
   const [fileProblem, setFileProblem] = useState<DrawingProblem | 'unreadable' | null>(null);
@@ -168,7 +170,11 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   // The ghost keeps up while the block is dragged or its values are typed.
   useLivePreview(
     open && block && !busy && !waiting ? block : null,
-    (tried) => platform().design.previewBlock(sent(tried)),
+    // A size that does not print is said at once, in the interface language, without a trial (refusal.ts).
+    (tried) => {
+      const limit = blockLimit(tried, printer);
+      return limit ? Promise.resolve({ ok: false as const, error: limitRefusal(limit) }) : platform().design.previewBlock(sent(tried));
+    },
     (tried, result) => {
       setStatus(result.ok ? { ok: true, block: tried, unmeasured: result.unmeasured === true } : { ok: false, error: result.error, block: tried });
       onGhost(result.ok ? result.preview : null);
@@ -185,7 +191,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   if (!face || !block) return null;
   const kind = (next: BlockKind) => {
     const sizes = sizesOf(next);
-    setBlock(defaultBlock(next, face.body, face.point, sizes.includes(block.size) ? block.size : (sizes[2] ?? 'M3'), face.normal));
+    setBlock(raisedBlock(defaultBlock(next, face.body, face.point, sizes.includes(block.size) ? block.size : (sizes[2] ?? 'M3'), face.normal), printer).block);
     setStatus(null);
     setFileProblem(null);
     onGhost(null);
@@ -497,7 +503,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               {t('blocks.logoWaiting')}
             </p>
           ) : (
-            <ProbeStatus state={!tried ? 'probing' : tried.ok ? 'ready' : 'refused'} error={tried?.error} ready={tried?.unmeasured ? t('blocks.unmeasured') : t('blocks.ready')} testId="block-status" />
+            <ProbeStatus state={!tried ? 'probing' : tried.ok ? 'ready' : 'refused'} error={tried?.error} ready={`${tried?.unmeasured ? t('blocks.unmeasured') : t('blocks.ready')}${block.block === 'text' && !strokesKnown(block) ? ` ${t('blocks.strokeUnchecked')}` : ''}`} testId="block-status" />
           )}
           <div className="flex gap-2">
             <Button variant="primary" isDisabled={busy || !tried?.ok} onPress={apply} className="flex-1" data-testid="block-apply">
