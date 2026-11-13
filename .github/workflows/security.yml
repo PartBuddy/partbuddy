@@ -16,8 +16,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: What the change touches
+    if: github.event_name == 'pull_request'
+    runs-on: [self-hosted, partbuddy]
+    timeout-minutes: 5
+    outputs:
+      dependencies: ${{ steps.paths.outputs.dependencies }}
+      workflows: ${{ steps.paths.outputs.workflows }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The self-hosted runner shares one workspace between workflows; a checkout without LFS
+          # would leave pointer files that a later checkout with LFS does not replace (ADR 0022).
+          lfs: true
+          # The merge commit and its first parent, the base branch: their difference is what the merge brings.
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: List the changed paths
+        id: paths
+        shell: bash
+        run: git diff --name-only HEAD^1 HEAD | tee /dev/stderr | tools/ci/changes.sh | tee -a "$GITHUB_OUTPUT"
+
   zizmor:
     name: Workflow security (zizmor)
+    # Pull requests only when they touch GitHub workflows or settings (tools/ci/changes.sh); the weekly scan runs always.
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.workflows == 'true') }}
     # Pull requests run on the self-hosted runner (ADR 0022); the weekly scan stays on a
     # GitHub-hosted runner so it runs even when the PC is off (a few minutes a month).
     runs-on: ${{ github.event_name == 'schedule' && 'ubuntu-24.04' || 'partbuddy' }}
@@ -41,6 +68,9 @@ jobs:
 
   dependencies:
     name: Vulnerabilities and licences
+    # Pull requests only when they touch package manifests, the lockfile or the licence check (tools/ci/changes.sh); the weekly scan runs always.
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.dependencies == 'true') }}
     # Pull requests run on the self-hosted runner (ADR 0022); the weekly scan stays on a
     # GitHub-hosted runner so it runs even when the PC is off (a few minutes a month).
     runs-on: ${{ github.event_name == 'schedule' && 'ubuntu-24.04' || 'partbuddy' }}

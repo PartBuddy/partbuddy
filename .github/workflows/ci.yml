@@ -11,8 +11,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Pull requests run only the checks their change can affect (tools/ci/changes.sh); skipped jobs show as such.
+  changes:
+    name: What the change touches
+    runs-on: [self-hosted, partbuddy]
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.paths.outputs.code }}
+      desktop: ${{ steps.paths.outputs.desktop }}
+      clickdummy: ${{ steps.paths.outputs.clickdummy }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The self-hosted runner shares one workspace between workflows; a checkout without LFS
+          # would leave pointer files that a later checkout with LFS does not replace (ADR 0022).
+          lfs: true
+          # The merge commit and its first parent, the base branch: their difference is what the merge brings.
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: List the changed paths
+        id: paths
+        shell: bash
+        run: git diff --name-only HEAD^1 HEAD | tee /dev/stderr | tools/ci/changes.sh | tee -a "$GITHUB_OUTPUT"
+
   verify:
     name: Lint, typecheck, test, build
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: [self-hosted, partbuddy]
     timeout-minutes: 20
     steps:
@@ -51,6 +78,8 @@ jobs:
 
   e2e:
     name: Click dummy flows (Playwright)
+    needs: changes
+    if: needs.changes.outputs.clickdummy == 'true'
     runs-on: [self-hosted, partbuddy]
     timeout-minutes: 20
     steps:
@@ -84,6 +113,14 @@ jobs:
 
   desktop-e2e:
     name: Desktop app flows (Playwright Electron)
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    # Three shards with two workers each: about 4 minutes instead of 12 on one worker (pull request text of
+    # this change). Each shard starts its own apps, so one red shard does not stop the others.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     runs-on: [self-hosted, partbuddy]
     timeout-minutes: 20
     steps:
@@ -118,13 +155,15 @@ jobs:
         run: pnpm --filter @partbuddy/desktop build
 
       - name: Run flows against the fake SolidCraft, bridge and accessibility checks
-        run: xvfb-run --auto-servernum pnpm --filter @partbuddy/desktop exec playwright test
+        run: xvfb-run --auto-servernum pnpm --filter @partbuddy/desktop exec playwright test --project=app --shard="$SHARD/3" --workers=2
+        env:
+          SHARD: ${{ matrix.shard }}
 
       # Screenshots, traces and error contexts of the failed flows, to read the cause of a flaky test without a rerun.
       - name: Keep the results of failed flows
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: desktop-flow-results
+          name: desktop-flow-results-${{ matrix.shard }}
           path: apps/desktop/test-results
           retention-days: 14
