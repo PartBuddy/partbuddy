@@ -1064,7 +1064,25 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
       { block: 'snapFit', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', length: 10, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5, hook: 'y+' },
       { block: 'text', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', text: 'PB', height: 6, depth: 0.6, mode: 'emboss', bold: false },
     ] as FeatureBlock[];
+    // And every other block the contract tests build or try through the form (solidcraft.contract.spec.ts).
+    const top = (x: number, y: number) => ({ body: 'Body1', point: [x, y, 10] });
+    form.push(
+      ...([
+        { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: true, more: [[5, 10, 10]] },
+        { block: 'screwHole', ...top(15, 5), size: 'M3', head: 'countersunk', fit: 'normal' },
+        { block: 'insertSeat', ...top(5, 15), size: 'M3', diameter: 4, depth: 6.7 },
+        { block: 'boss', ...top(15, 15), size: 'M2', diameter: 7.2, height: 6 },
+        { block: 'boss', body: 'Body1', point: [10, 10, 5], size: 'M3', diameter: 8, height: 5 },
+        { block: 'snapFit', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', length: 9, thickness: 1.5, width: 5, catchDepth: 0.5, catchLength: 1.5, hook: 'y+' },
+        { block: 'logo', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', name: 'ring', svg: '', width: 12, depth: 0.6, mode: 'deboss' },
+        { block: 'logo', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', name: 'Badge', svg: '', width: 16, depth: 0.6, mode: 'deboss', colours: true },
+        { block: 'logo', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', name: 'ring', svg: '', width: 6, depth: 0.6, mode: 'deboss' },
+        { block: 'slot', body: 'Flap', point: [64, 15, 4], normal: [0, 0, 1], size: 'M3', length: 10, width: 3.4, depth: null, along: 'x' },
+      ] as FeatureBlock[]),
+    );
     for (const block of form) expect(printLimit(block, nozzle(0.4)), block.block).toBeNull();
+    // The form's snap fit with a catch of 0.3 mm: under one nozzle width (contract test F1, run 43449802254).
+    expect(printLimit({ ...(form[4] as FeatureBlock), catchDepth: 0.3 } as FeatureBlock, nozzle(0.4))).toBe('catchDepth 0.3: a catch under 0.4 mm (one nozzle width) does not print and holds nothing');
     // Bold capitals of 3 mm in Arial: 0.61 mm strokes; in Georgia not measured, so not refused.
     const ui = { block: 'text', body: 'Body1', point: [10, 0, 5], normal: [0, -1, 0], size: 'M3', text: 'UI', height: 3, depth: 0.6, mode: 'deboss', bold: true } as FeatureBlock;
     expect(printLimit(ui, nozzle(0.4))).toBe('height 3: the strokes of bold capitals 3 mm high are 0.61 mm wide, under the 0.8 mm (two nozzle widths) a stroke needs on a 0.4 mm nozzle; give height 4 or more');
