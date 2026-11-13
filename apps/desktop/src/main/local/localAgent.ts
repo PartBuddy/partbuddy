@@ -5,7 +5,7 @@ import { createOllama } from 'ollama-ai-provider-v2';
 import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself } from '../agents/loop';
+import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import { composeMessage } from '../agents/viewContext';
 import { contextFor, findOllama, LOCAL_CONTEXT, MIN_CONTEXT, OLLAMA_URL, type OllamaFound } from './ollama';
@@ -157,6 +157,8 @@ export class LocalAgent implements AgentBackend {
   private readonly prepared = new Set<string>();
   /** How full the conversation is after the last turn. */
   private context: AgentStatus['context'] | null = null;
+  /** The last turn used all its tool rounds; the next message tells the model (audit R57). */
+  private cutShort = false;
 
   constructor(private readonly options: LocalAgentOptions) {}
 
@@ -228,6 +230,7 @@ export class LocalAgent implements AgentBackend {
     await this.stop();
     this.history = [];
     this.context = null;
+    this.cutShort = false;
   }
 
   async dispose(): Promise<void> {
@@ -256,7 +259,8 @@ export class LocalAgent implements AgentBackend {
       this.options.event({ type: 'error', message: 'SolidCraft is not connected' });
       return;
     }
-    const message = composeMessage(text, selections, note);
+    const message = composeMessage(text, selections, withRoundsNote(this.cutShort, note));
+    this.cutShort = false;
     this.options.event(userEvent(text, message.label, message.summary, images.length > 0 ? kind : undefined));
     // A model without vision gets the words only, and the user learns why the picture went nowhere.
     const pictures = model.vision ? images : [];
@@ -372,6 +376,12 @@ export class LocalAgent implements AgentBackend {
       if (repeatsItself({ steps: await result.steps })) {
         this.options.event({ type: 'error', message: LOOP_NOTICE });
         this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: 'failed' });
+        return;
+      }
+      if (usedAllRounds(await result.steps)) {
+        this.cutShort = true;
+        this.options.log(`local model turn used all ${String(MAX_STEPS)} tool rounds and stopped`);
+        this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: ROUNDS_DETAIL });
         return;
       }
       this.options.event({ type: 'done', ok: true, durationMs: Date.now() - started, detail: null });

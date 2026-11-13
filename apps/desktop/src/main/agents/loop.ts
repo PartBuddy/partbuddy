@@ -8,21 +8,35 @@ import { RESEARCH_GUIDANCE } from './research';
 import { withToolNotes } from './toolNotes';
 import { VIEW_GUIDANCE } from './viewContext';
 import { ASSEMBLY_GUIDANCE, JOINT_GUIDANCE } from './assemblyTool';
-import { BLOCK_GUIDANCE } from './blockTool';
+import { BLOCK_GUIDANCE, BLOCK_TOOL } from './blockTool';
 import { STANDARD_GUIDANCE } from './standardTool';
-import { MECHANISM_GUIDANCE } from './mechanismTool';
+import { MECHANISM_GUIDANCE, MECHANISM_TOOL } from './mechanismTool';
 
 /**
  * What PartBuddy's own agent loop shares between its routes (ChatGPT plan, local models): the
  * instructions and SolidCraft's tools behind the same policy as the gate proxy (ADR 0010).
  */
 
+/** Tool rounds per turn before the loop stops. */
+export const MAX_STEPS = 25;
+
+/**
+ * What to do when PartBuddy refuses a call, on every route (audit R22): a policy refusal is worked around, a block or
+ * mechanism that was not built is corrected and called again, never modelled by hand instead.
+ */
+export const REFUSAL_GUIDANCE =
+  'If PartBuddy refuses a tool as not allowed, tell the user why and continue without it. ' +
+  `When ${BLOCK_TOOL} or ${MECHANISM_TOOL} answers "Not built", correct what it names and call it again; never model that feature yourself instead. ` +
+  'If it still cannot be built, stop and tell the user.';
+
 const INSTRUCTIONS = [
   'You are the design assistant inside PartBuddy, a desktop app for 3D-printable parts.',
   'SolidCraft is open and the user watches every step live, mirrored in PartBuddy.',
   'Use the solidcraft tools to inspect and change the design. Work in small visible steps:',
   'one sketch or one feature group per call. Units are millimetres.',
-  'If PartBuddy refuses a tool, tell the user why and continue without it.',
+  REFUSAL_GUIDANCE,
+  // The own loop stops after MAX_STEPS rounds (audit R57); Claude Code has no such limit.
+  `You have ${String(MAX_STEPS)} tool rounds per turn: plan them, and say when you stop unfinished.`,
   'Answer in the language the user writes in, and name bodies, features and sketches in it too: the structure tree and the timeline show these names.',
   VIEW_GUIDANCE,
   ASSEMBLY_GUIDANCE,
@@ -33,9 +47,6 @@ const INSTRUCTIONS = [
   QUESTION_GUIDANCE,
   ANSWER_GUIDANCE,
 ].join(' ');
-
-/** Tool rounds per turn before the loop stops. */
-export const MAX_STEPS = 25;
 
 /** Rounds in a row with the same tool calls after which the loop stops: small models can circle. */
 export const REPEAT_LIMIT = 3;
@@ -56,6 +67,26 @@ export const repeatsItself: StopCondition<ToolSet> = ({ steps }) => {
   const rounds = steps.slice(-REPEAT_LIMIT).map(roundCalls);
   return rounds[0] !== '[]' && rounds.every((round) => round === rounds[0]);
 };
+
+/**
+ * True when the turn ended because it used all {@link MAX_STEPS} rounds while the model still called tools, not
+ * because the model had finished (audit R57): the part may be half built and its check unread.
+ */
+export function usedAllRounds(steps: readonly { finishReason: string }[]): boolean {
+  return steps.length >= MAX_STEPS && steps.at(-1)?.finishReason === 'tool-calls';
+}
+
+/** The `done` detail of such a turn; the chat words it (`assistant.failed.reason.rounds`). */
+export const ROUNDS_DETAIL = 'rounds';
+
+/** Goes to the model with the next message after a turn that used all its rounds. */
+export const ROUNDS_NOTE = `[PartBuddy: your last turn stopped after all ${String(MAX_STEPS)} tool rounds, perhaps unfinished. Look at the design and its ready-to-print check before you go on.]`;
+
+/** The note for the next message: the rounds note when the last turn was cut short, before PartBuddy's other notes. */
+export function withRoundsNote(cutShort: boolean, note: string | null): string | null {
+  if (!cutShort) return note;
+  return note ? `${ROUNDS_NOTE}\n${note}` : ROUNDS_NOTE;
+}
 
 /**
  * How full the context is after a turn: the last request's input plus its answer, which the next

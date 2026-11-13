@@ -176,6 +176,13 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: true, result: expired, duration_ms: 12 });
       continue;
     }
+    // "Compact now": the boundary Claude Code reports after compacting its context (audit H-11).
+    if (content.includes('Compact now')) {
+      out({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto', pre_tokens: 180000 } });
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'Compacted.' }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     if (content.includes('Make it fail')) {
       out({ type: 'result', subtype: 'error_during_execution', is_error: true, duration_ms: 12 });
       continue;

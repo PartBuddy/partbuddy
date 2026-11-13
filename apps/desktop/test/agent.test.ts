@@ -7,7 +7,8 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentService } from '../src/main/agents/agentService';
-import { findClaudeCode, parseStreamLine } from '../src/main/agents/claudeCode';
+import { findClaudeCode, parseStreamLine, roleOf } from '../src/main/agents/claudeCode';
+import { instructionsFor, MAX_STEPS, REFUSAL_GUIDANCE } from '../src/main/agents/loop';
 import { GateProxy, REPEAT_REASON, type ToolCallRecord, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { photoFile, photoNote } from '../src/main/agents/photoNote';
 import { decide, TOOL_ARGUMENTS } from '../src/main/agents/policy';
@@ -346,6 +347,24 @@ describe('Claude Code adapter', () => {
     expect(parseStreamLine('{"type":"assistant","message":{"content":[],"usage":{"input_tokens":2,"cache_read_input_tokens":70,"cache_creation_input_tokens":18,"output_tokens":4}}}')).toEqual([{ type: 'context', used: 94 }]);
     expect(parseStreamLine('{"type":"assistant","message":{"content":[],"usage":{"input_tokens":2,"output_tokens":-1}}}')).toEqual([]);
     expect(parseStreamLine('{"type":"result","subtype":"success","modelUsage":{"a":{"contextWindow":200000},"b":{"contextWindow":1000000},"c":{"contextWindow":"x"}}}')[0]).toEqual({ type: 'context', size: 1000000 });
+    // Compacting (audit H-11): the boundary, with or without a usable size.
+    expect(parseStreamLine('{"type":"system","subtype":"compact_boundary","compact_metadata":{"trigger":"auto","pre_tokens":180000}}')).toEqual([{ type: 'compacted', tokens: 180000 }]);
+    expect(parseStreamLine('{"type":"system","subtype":"compact_boundary","compact_metadata":{"pre_tokens":-1}}')).toEqual([{ type: 'compacted', tokens: null }]);
+    expect(parseStreamLine('{"type":"system","subtype":"compact_boundary"}')).toEqual([{ type: 'compacted', tokens: null }]);
+    expect(parseStreamLine('{"type":"system","subtype":"status"}')).toEqual([]);
+  });
+
+  it('tells every route alike what to do when a block or mechanism was not built, and the own loops their rounds (audit R22, R57)', () => {
+    const upstream: UpstreamTools = { instructions: () => undefined, listTools: () => Promise.resolve([]), callTool: () => Promise.reject(new Error('unused')) };
+    for (const role of [roleOf(false), roleOf(true), instructionsFor(upstream, false)]) {
+      expect(role).toContain(REFUSAL_GUIDANCE);
+      // The old rule made "continue without it" cover "Not built" too.
+      expect(role).not.toContain('If PartBuddy refuses a tool, tell the user why');
+    }
+    expect(REFUSAL_GUIDANCE).toContain('When partbuddy_block or partbuddy_mechanism answers "Not built", correct what it names and call it again; never model that feature yourself instead.');
+    expect(instructionsFor(upstream, false)).toContain(`You have ${String(MAX_STEPS)} tool rounds per turn`);
+    // Claude Code has no such limit.
+    expect(roleOf(false)).not.toContain('tool rounds per turn');
   });
 
   it('finds the native install in the user folder', () => {
@@ -499,6 +518,22 @@ describe('agent service with a fake Claude Code', () => {
     await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 15_000 });
     expect(calls).toEqual(['inspect_design']);
     expect(events.filter((e) => e.type === 'tool').at(-1)).toMatchObject({ name: 'export', decision: 'denied' });
+  }, 30_000);
+
+  it('counts a compacted session as fresh once, so the print profile goes along again (audit H-11)', async () => {
+    const { service, events } = setup();
+    await service.refresh();
+    expect(service.freshConversation()).toBe(true);
+    await service.send('How many bodies?');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 15_000 });
+    expect(service.freshConversation()).toBe(false);
+    await service.send('Compact now');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 15_000 });
+    expect(service.freshConversation()).toBe(true);
+    // The next message carried the notes: the session is no longer fresh.
+    await service.send('How many bodies?');
+    expect(service.freshConversation()).toBe(false);
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(3), { timeout: 15_000 });
   }, 30_000);
 
   it('removes its MCP configuration with the token on dispose', async () => {

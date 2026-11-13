@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Assistant, type AgentBackend } from '../src/main/agents/assistant';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import type { ChatGptAccount } from '../src/main/chatgpt/account';
+import { MAX_STEPS, ROUNDS_DETAIL, ROUNDS_NOTE } from '../src/main/agents/loop';
 import { ChatGptAgent } from '../src/main/chatgpt/chatgptAgent';
 import type { AgentEvent, AgentKind, AgentStatus } from '../src/shared/contract';
 
@@ -67,7 +68,8 @@ function fakeOpenAI(firstTool: string) {
   return { fetchFn, bodies, auth };
 }
 
-function setup(firstTool = 'measure') {
+/** `answer` stands in for OpenAI's answers to the turn's requests; the model list stays the fake's. */
+function setup(firstTool = 'measure', answer?: typeof fetch) {
   const openai = fakeOpenAI(firstTool);
   const calls: string[] = [];
   const events: AgentEvent[] = [];
@@ -94,7 +96,7 @@ function setup(firstTool = 'measure') {
     changed: () => undefined,
     log: () => undefined,
     choices: { get: () => null, set: () => undefined },
-    fetch: openai.fetchFn,
+    fetch: answer ? (((url: string | URL, init?: RequestInit) => (String(url).endsWith('/models') ? openai.fetchFn(url, init) : answer(url, init))) as typeof fetch) : openai.fetchFn,
   });
   return { agent, openai, calls, events };
 }
@@ -170,6 +172,34 @@ describe('ChatGPT agent', () => {
     expect(events.find((e) => e.type === 'tool')).toMatchObject({ name: 'measure', decision: 'allowed' });
     expect(events.find((e) => e.type === 'done')).toMatchObject({ ok: true });
     expect(agent.status()).toMatchObject({ agent: 'chatgpt', state: 'ready', account: 'someone@example.com', model: 'gpt-5-test' });
+  });
+
+  it('says when a turn used all its tool rounds, and tells the model with the next message (audit R57)', async () => {
+    // Every request of the turn answers with a call of measure with new input, so nothing repeats.
+    const bodies: string[] = [];
+    const endless = ((_url: string | URL, init?: RequestInit): Promise<Response> => {
+      bodies.push(typeof init?.body === 'string' ? init.body : '');
+      const id = `fc_${String(bodies.length)}`;
+      const item = { type: 'function_call', id, call_id: `call_${String(bodies.length)}`, name: 'measure', namespace: 'solidcraft', arguments: '' };
+      const input = JSON.stringify({ round: bodies.length });
+      return Promise.resolve(sse([
+        ...created(`resp_${String(bodies.length)}`),
+        { type: 'response.output_item.added', output_index: 0, item },
+        { type: 'response.function_call_arguments.done', item_id: id, output_index: 0, arguments: input },
+        { type: 'response.output_item.done', output_index: 0, item: { ...item, arguments: input, status: 'completed' } },
+        completed(`resp_${String(bodies.length)}`),
+      ]));
+    }) as typeof fetch;
+    const { agent, events } = setup('measure', endless);
+    await agent.refresh();
+    await agent.send('Build a big case');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 10_000 });
+    expect(bodies).toHaveLength(MAX_STEPS);
+    expect(events.find((e) => e.type === 'done')).toMatchObject({ ok: false, detail: ROUNDS_DETAIL });
+    expect(bodies[0]).toContain(`You have ${String(MAX_STEPS)} tool rounds per turn`);
+    await agent.send('continue');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 10_000 });
+    expect(bodies[MAX_STEPS]).toContain(ROUNDS_NOTE.slice(0, 60));
   });
 
   it('refuses gated tools without calling SolidCraft', async () => {
