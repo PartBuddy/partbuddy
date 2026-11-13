@@ -1262,7 +1262,8 @@ if (!app.requestSingleInstanceLock()) {
     // To the slicer (B8): through SolidCraft's slicer detection; the print face is SolidCraft's own.
     bridge.handle(invokeChannels.designSlicers, () => supervisor.slicers());
     bridge.handle(invokeChannels.designSendToSlicer, async ({ slicer }) => {
-      const { name, unverified } = await supervisor.sendToSlicer(slicer);
+      const folder = assemblyFolder();
+      const { name, unverified } = await supervisor.sendToSlicer(slicer, folder ? readPrintFaces(folder) : {});
       log(`opened the design in ${name}`);
       return { name, ...(unverified.length > 0 ? { unverified } : {}) };
     });

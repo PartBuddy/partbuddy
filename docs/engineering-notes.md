@@ -216,6 +216,12 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 - `file.export` 3MF with `objects: component` makes one object of the bodies of one component only. Two
   components joined by a joint stay two objects, side by side under the root or both under a parent
   component; a joint needs two occurrences, so a print-in-place hinge always leaves as two objects.
+- Bambu Studio (`bambu-studio.exe --outputdir <dir> --export-3mf out.3mf <file>`, no window when started hidden,
+  `result.json` beside it) loads such a 3MF as two objects, each dropped onto the bed and placed apart: the lid of the
+  audit's hinge came down 22 mm into the box's knuckles. One object whose `components` point at the two mesh objects
+  (identity transforms) it loads as one object with two parts, their offsets equal to the design to 1e-7 mm, the lowest
+  point of the two on the bed; an item `transform` on it (a print face laid down) is kept. An STL of both bodies is
+  one object with one part, as designed.
 
 ## SolidCraft 0.40.0-rc.4 (checked 2026-11-11)
 

@@ -1,12 +1,13 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
-import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 
 import { createActor, fromCallback, fromPromise } from 'xstate';
 
 import type { ConnectionStatus, ExportFormat, MirrorRevision } from '../../shared/contract';
 import type { UpstreamTools } from '../agents/gateProxy';
+import { joinPieces } from '../print/pieces3mf';
 import { ControlClient, ControlError } from './controlClient';
 import { cliBeside, endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
 import type { ClearanceResult, DesignAction, JointSweep, JointSweepResult, MeasureItem, MeasureResult, PartInsert, PartsLibrary, TimelineCommand, VisibilityCommand } from '../../shared/contract';
@@ -247,6 +248,9 @@ export class SolidCraftSupervisor {
         10 * 60 * 1000,
       );
       if (batch.failed) throw new Error(`export failed: ${batch.failed.error}`);
+      // Bodies printed as one piece (a print-in-place hinge) go into the 3MF as one object, so the slicer keeps them together.
+      const groups = this.latest?.structure.printGroups ?? [];
+      if (format === '3mf' && groups.length > 0) await writeFile(temp, joinPieces(await readFile(temp), groups));
       await mkdir(dirname(destination), { recursive: true });
       await copyFile(temp, destination);
     } finally {
@@ -488,12 +492,21 @@ export class SolidCraftSupervisor {
   /**
    * Opens the printable bodies in a slicer SolidCraft found (B8, `file.send_to_slicer`): standard
    * parts stay out, each body lies on its print face. The slicer is started without waiting for it.
+   * `faces`: the print face of each body by name, as PartBuddy keeps them (SolidCraft does not list its own).
    */
-  async sendToSlicer(slicer: string): Promise<{ name: string; unverified: string[] }> {
-    const found = (await this.slicers()).find((candidate) => candidate.id === slicer);
+  async sendToSlicer(slicer: string, faces: Readonly<Record<string, string>> = {}): Promise<{ name: string; unverified: string[] }> {
+    const found = (await this.foundSlicers()).find((candidate) => candidate.id === slicer);
     if (!found) throw new Error('this slicer is not installed');
     const { bodies, unverified } = await this.printedBodies();
     if (bodies.length === 0) throw new Error('the design has no body to print');
+    // SolidCraft lays every body on the bed by itself, which takes a print-in-place hinge apart (audit G1): with such a
+    // group PartBuddy writes the file itself, the group as one object, and opens the slicer on it.
+    const groups = (this.latest?.structure.printGroups ?? []).filter((group) => group.filter((name) => bodies.includes(name)).length > 1);
+    if (groups.length > 0) {
+      if (!found.program) throw new Error(`${found.name} has no program to open a file with`);
+      await this.openPieces(found.program, bodies, groups, faces);
+      return { name: found.name, unverified };
+    }
     const reply = await this.requester().request<BatchResult>(
       'engine.batch',
       { commands: [{ command: 'file.send_to_slicer', params: { slicer: found.id, bodies, wait: 'return' } }], rollback: false },
@@ -501,6 +514,35 @@ export class SolidCraftSupervisor {
     );
     if (reply.failed) throw new Error(reply.failed.error);
     return { name: found.name, unverified };
+  }
+
+  /**
+   * Writes the bodies as a 3MF with each group as one object, every piece laid on its print face as SolidCraft's slicer
+   * export lays a body, and opens it in the slicer's program. The file keeps its name for the same design, so sending
+   * again replaces it, as SolidCraft's does.
+   */
+  private async openPieces(program: string, bodies: string[], groups: string[][], faces: Readonly<Record<string, string>>): Promise<void> {
+    const folder = join(this.options.cacheDir, 'slicer');
+    await mkdir(folder, { recursive: true });
+    const file = join(folder, `${safeDesignFileName(this.latest?.designName ?? '') || 'design'}.3mf`);
+    const laid = bodies.filter((body) => faces[body]);
+    const reply = await this.requester().request<BatchResult>(
+      'engine.batch',
+      { commands: [{ command: 'file.export', params: { path: file, format: '3mf', bodies } }, ...laid.map((body) => ({ command: 'model.faces', params: { body } }))], rollback: false, allow_paths: [this.options.cacheDir] },
+      10 * 60 * 1000,
+    );
+    if (reply.failed) throw new Error(`export failed: ${reply.failed.error}`);
+    const downs: Record<string, [number, number, number]> = {};
+    laid.forEach((body, i) => {
+      const listed = (reply.results[i + 1] as { faces?: { name?: unknown; plane_normal?: unknown }[] } | undefined)?.faces ?? [];
+      const normal = listed.find((face) => face.name === faces[body])?.plane_normal;
+      if (Array.isArray(normal) && normal.length === 3 && normal.every((value) => typeof value === 'number' && Number.isFinite(value))) downs[body] = normal as [number, number, number];
+      else this.options.log(`the print face of "${body}" is no flat face of it any more; it goes to the slicer as it lies`);
+    });
+    await writeFile(file, joinPieces(await readFile(file), groups, downs));
+    const started = spawn(program, [file], { detached: true, stdio: 'ignore' });
+    started.on('error', (error) => this.options.log(`the slicer did not start: ${error.message}`));
+    started.unref();
   }
 
   /**
