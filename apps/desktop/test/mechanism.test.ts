@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, closureTrial, latchTrial, MECHANISM_GUIDANCE, MECHANISM_TOOL, snapTrial, pegStock, screwStock, hingeOf, lineProblem, reach, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool, refusal, railFace, freeName } from '../src/main/agents/mechanismTool';
+import { activated, closureTrial, latchTrial, MECHANISM_GUIDANCE, MECHANISM_TOOL, snapTrial, pegStock, screwStock, hingeOf, lineProblem, reach, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool, refusal, railFace, freeName, layOn } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { METADATA_PREFIX } from '../src/main/notes/noteRecord';
 import { describeToolCall } from '../src/shared/stepPhrases';
@@ -277,6 +277,8 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(String(built.content[0]?.text)).not.toMatch(/joint\.(limits|sweep|as_built)/);
     expect(batches.map((batch) => batch.map((step) => step.command).join(' '))).toEqual([
       'component.list joint.list',
+      // Review of BC-15, S3: bodies that overlap already are refused before anything is built.
+      'inspect.interference',
       // Where the line lies, measured on trial with a rod that is taken back.
       'solid.cylinder inspect.clearance inspect.measure sketch.inspect',
       // Audit W7, R11: the walls behind the knuckles' rooms, measured on trial with a rod behind each.
@@ -292,18 +294,18 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
       'joint.limits',
     ]);
     // The rods behind the rooms: one just behind the room of 3.4 mm about the line, one just inside where two lines (0.9 mm) end, each the way to its body.
-    expect(batches[2]?.slice(0, 4).map((step) => (step.params.base as number[]).map((value) => Math.round(value * 1000) / 1000))).toEqual([[38.55, 0, 3], [37.75, 0, 3], [45.45, 0, 3], [46.25, 0, 3]]);
-    expect(batches[2]?.[4]?.params).toMatchObject({ min_volume: 0 });
+    expect(batches[3]?.slice(0, 4).map((step) => (step.params.base as number[]).map((value) => Math.round(value * 1000) / 1000))).toEqual([[38.55, 0, 3], [37.75, 0, 3], [45.45, 0, 3], [46.25, 0, 3]]);
+    expect(batches[3]?.[4]?.params).toMatchObject({ min_volume: 0 });
     expect(String(built.content[0]?.text)).toContain(" The knuckles' rooms go 1.4 mm into Base and 1.4 mm into Flap, measured from the face nearest the line, and PartBuddy measured the walls behind them on the way to that face: no room leaves a skin there under 0.9 mm of Base or 0.9 mm of Flap.");
-    expect(batches[8]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
+    expect(batches[9]?.[0]?.params).toMatchObject({ type: 'revolute', a: 'Base:1', b: 'Flap:1', at: { occurrence: 'Base:1', point: [42, 15, 3], z: [0, 30, 0] }, name: 'Lid hinge' });
     // Audit 2026-11-12, G1: the hinge prints in place, so both components carry one mark (a label of their own) that the
     // print check and the plate view stand them on one bed by.
-    const [base, flap] = [batches[8]?.[1]?.params, batches[8]?.[2]?.params] as { component: number; values: Record<string, unknown> }[];
+    const [base, flap] = [batches[9]?.[1]?.params, batches[9]?.[2]?.params] as { component: number; values: Record<string, unknown> }[];
     expect([base?.component, flap?.component]).toEqual([3, 5]);
     expect(Object.keys(base?.values ?? {})).toEqual(Object.keys(flap?.values ?? {}));
     expect(Object.entries(base?.values ?? {})).toEqual([[expect.stringMatching(/^io.github.manuelstaggl.partbuddy.together.[0-9a-f]{8}$/), { joint: 'Lid hinge' }]]);
     expect(TOGETHER_KEY.startsWith(METADATA_PREFIX)).toBe(true);
-    expect(batches[10]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
+    expect(batches[11]?.[0]?.params).toEqual({ joint: 'Lid hinge', min: -145, max: 67 });
 
     // Webs: with the line 16 mm above the bed and 2.5 mm from either wall, every knuckle gets a profile from where the barrel leans
     // 45° on the far side (2.121 mm from the axis) at 45° down to its own wall, 0.5 mm into it; on the bed (the line a radius above it) none is needed.
@@ -1071,7 +1073,7 @@ describe('the snap closure of a lid (G3)', () => {
     expect(built.content[0]).toMatchObject({ text: expect.stringContaining('Built the closure "Closure" between Box (the box) and Lid (the lid): a lip 1.4 mm thick and 4 mm high inside the lid, 0.25 mm clear') as string });
     // The trial of the box gave no answer here: the answer says what to keep instead.
     expect(built.content[0]).toMatchObject({ text: expect.stringContaining("PartBuddy could not try Box's wall: keep it straight where the lip goes in, and at least 1.35 mm thick behind the rille.") as string });
-    expect(batches).toHaveLength(5);
+    expect(batches).toHaveLength(6);
     // Audit R39: the notch goes through the lid's rim, so the guidance does not say that no wall is cut through.
     expect(MECHANISM_GUIDANCE).not.toContain('no wall cut through');
     expect(MECHANISM_GUIDANCE).toContain("only a notch for a fingernail in the lid's rim");
@@ -1240,6 +1242,8 @@ describe('the screw joint (standards)', () => {
               const z = base[2] ?? 0;
               probe = { x: base[0] ?? 0, y: base[1] ?? 0, r: parseFloat(String(step.params.diameter)) / 2, low: Math.min(z, z + way * height), high: Math.max(z, z + way * height) };
             }
+            // The two bodies themselves (before and after the build) do not overlap; a probe is measured against its body.
+            if (step.command === 'inspect.interference' && (step.params.bodies as string[])[1] === 'Cover') return { count: 0, interferences: [] };
             if (step.command === 'inspect.interference') {
               const [x0, y0, z0, x1, y1, z1] = box[(step.params.bodies as string[])[0] ?? ''] ?? [0, 0, 0, 0, 0, 0];
               const inside = probe.x - probe.r >= x0 && probe.x + probe.r <= x1 && probe.y - probe.r >= y0 && probe.y + probe.r <= y1;
@@ -1305,6 +1309,8 @@ describe('the screw joint (standards)', () => {
               const [base, height] = [step.params.base as number[], parseFloat(String(step.params.height))];
               probe = { x: base[0] ?? 0, y: base[1] ?? 0, r: parseFloat(String(step.params.diameter)) / 2, low: (base[2] ?? 0) - height, high: base[2] ?? 0 };
             }
+            // The two bodies themselves (before and after the build) do not overlap; a probe is measured against its body.
+            if (step.command === 'inspect.interference' && (step.params.bodies as string[])[1] === 'Cover') return { count: 0, interferences: [] };
             if (step.command === 'inspect.interference') {
               const cover = (step.params.bodies as string[])[0] === 'Cover';
               let [volume, mx, my, mz] = [0, 0, 0, 0];
@@ -1600,6 +1606,18 @@ function boxWorld(bodies: Record<string, Box[]>, { sent = [], together = false, 
         }
         if (step.command === 'inspect.interference') return { count: 0 };
         // Each body's box, from its boxes; a print face on the flat face at the point (the boxes' faces are all flat).
+        // A face at a point: the side of the first box the point lies on, with its area and perimeter.
+        const item = (step.params.items as { body: string; point: number[] }[] | undefined)?.[0];
+        if (step.command === 'inspect.measure' && item) {
+          for (const [min, max] of bodies[item.body] ?? []) {
+            const on = [0, 1, 2].find((i) => Math.abs((item.point[i] ?? 0) - (min[i] ?? 0)) < 1e-6 || Math.abs((item.point[i] ?? 0) - (max[i] ?? 0)) < 1e-6);
+            const others = [0, 1, 2].filter((i) => i !== on);
+            if (on === undefined || !others.every((i) => (item.point[i] ?? 0) >= (min[i] ?? 0) && (item.point[i] ?? 0) <= (max[i] ?? 0))) continue;
+            const [a = 0, b = 0] = others.map((i) => (max[i] ?? 0) - (min[i] ?? 0));
+            return { items: [{ type: 'face', area_mm2: a * b, perimeter_mm: 2 * (a + b) }] };
+          }
+          return { items: [] };
+        }
         if (step.command === 'inspect.measure') {
           return {
             bodies: ((step.params.bodies as string[] | undefined) ?? names).map((body) => {
@@ -2012,6 +2030,9 @@ describe('what the tool answers and what the guide checks (audit BC-15)', () => 
     expect(refusal(JSON.stringify({ results: [] }))).toBe('SolidCraft answered with an error and gave no reason');
     expect(refusal('timed out')).toBe('timed out');
     expect(refusal(undefined)).toBe('SolidCraft gave no answer');
+    // JSON that is no object is SolidCraft's sentence, not "no reason" (review of BC-15).
+    expect(refusal(JSON.stringify('the design is locked'))).toBe('the design is locked');
+    expect(refusal('42')).toBe('42');
     // A design that cannot be read: the reason, without the JSON round it.
     const upstream: UpstreamTools = { ...plain(), callTool: () => Promise.resolve({ content: [{ type: 'text', text: failed }], isError: true }) };
     const built = await withMechanismTool(upstream, () => 0.4).callTool(MECHANISM_TOOL, closure);
@@ -2021,21 +2042,31 @@ describe('what the tool answers and what the guide checks (audit BC-15)', () => 
   it('takes the build back when the two bodies share volume after it, and passes on every other warning (W26, H-09)', async () => {
     const undos: string[] = [];
     let depth = 1;
-    const clash = (count: number) => (step: Step) => {
+    const clash = (count: number, before = false) => (step: Step) => {
       if (step.command === 'edit.undo') {
         undos.push('undo');
         depth -= 1;
       }
       if (step.command === 'solid.extrude' && step.params.operation === 'join') depth += 1;
       if (step.command === 'document.inspect') return { undo: depth, timeline: Array.from({ length: depth }, (_, i) => ({ id: i + 1 })) };
-      if (step.command === 'inspect.interference') return { count, interferences: count > 0 ? [{ volume_mm3: 12.345 }] : [] };
+      // Before the build nothing overlaps (`before` overlaps already), after it `count` pairs.
+      if (step.command === 'inspect.interference') return depth > 1 || before ? { count, interferences: count > 0 ? [{ volume_mm3: 12.345 }] : [] } : { count: 0, interferences: [] };
       return step.command === 'solid.chamfer' ? { warning: 'the chamfer was made smaller where it met the face' } : undefined;
     };
     const shared = await withMechanismTool(plain(clash(1)), () => 0.4).callTool(MECHANISM_TOOL, closure);
     expect(shared.isError).toBe(true);
-    expect(shared.content[0]).toMatchObject({ text: 'Not built: after the build Box and Lid share volume (12.35 mm³): they overlapped before, or the mechanism runs into the other body. Make room between them (inspect.interference shows where), then call again. Everything was taken back.' });
+    expect(shared.content[0]).toMatchObject({ text: 'Not built: after the build Box and Lid share volume (12.35 mm³): the mechanism runs into the other body. Make room between them (inspect.interference shows where), then call again. Everything was taken back.' });
     expect(undos.length).toBeGreaterThan(0);
     expect(depth).toBe(1);
+    // Review of BC-15, S3: bodies that overlap already are refused before anything is built, so nothing needs undoing.
+    undos.length = 0;
+    const already = await withMechanismTool(plain(clash(1, true)), () => 0.4).callTool(MECHANISM_TOOL, closure);
+    expect(already.content[0]).toMatchObject({ text: 'Not built: Box and Lid overlap already (12.35 mm³), before anything is built. Make room between them (inspect.interference shows where), then call again' });
+    expect(undos).toHaveLength(0);
+    expect(depth).toBe(1);
+    // A count SolidCraft leaves out is the pairs it lists.
+    const uncounted = await withMechanismTool(plain((step) => (step.command === 'inspect.interference' ? { interferences: [{ volume_mm3: 1 }] } : undefined)), () => 0.4).callTool(MECHANISM_TOOL, closure);
+    expect(String(uncounted.content[0]?.text)).toContain('overlap already (1 mm³)');
     const clear = String((await withMechanismTool(plain(clash(0)), () => 0.4).callTool(MECHANISM_TOOL, closure)).content[0]?.text);
     expect(clear).toMatch(/^Built the closure/);
     // The same warning of the two chamfers once, as SolidCraft said it.
@@ -2045,7 +2076,7 @@ describe('what the tool answers and what the guide checks (audit BC-15)', () => 
 
   it('asks for no joint command by hand, and says it is a mechanism or a connection (H-26, R49)', async () => {
     const description = await withMechanismDescription();
-    expect(description.startsWith('Build a mechanism or a connection between two bodies from proven geometry; the answer says how it prints. hinge: knuckles in turn on both bodies and a pin through them, the same gap everywhere, printed in place as one piece.')).toBe(true);
+    expect(description.startsWith('Build a mechanism or a connection between two bodies from proven geometry; the answer says how it prints. hinge: knuckles in turn on both bodies and a pin through them, the same gap everywhere, printed in place as one piece. Give the hinge line (from, to)')).toBe(true);
     expect(description).not.toMatch(/joint\.(limits|as_built)/);
   });
 
@@ -2070,12 +2101,12 @@ describe('what the tool answers and what the guide checks (audit BC-15)', () => 
     // A box 60 × 40 × 20 with walls 2 mm thick and no top, and a plate 1.6 mm thick lying on it.
     const box: Box[] = [[[0, 0, 0], [60, 40, 2]], [[0, 0, 0], [2, 40, 20]], [[58, 0, 0], [60, 40, 20]], [[0, 0, 0], [60, 2, 20]], [[0, 38, 0], [60, 40, 20]]];
     const plate = await withMechanismTool(boxWorld({ Box: box, Lid: [[[0, 0, 20], [60, 40, 21.6]]] }), () => 0.4, keep).callTool(MECHANISM_TOOL, { ...closure, flat: true });
-    expect(String(plate.content[0]?.text)).toContain("It prints with the lip up, lying on the plate's outer face, which is set as its print face. It makes no joint.");
+    expect(String(plate.content[0]?.text)).toContain("It prints with the lip up, lying on the plate's outer face, which is set as its print face, in place of any it had. It makes no joint.");
     expect(String(plate.content[0]?.text)).not.toContain('set the print face');
     // The lip stands down out of the plate: its outer face is its top.
     expect(faces).toEqual([['Lid', 'F[30,20,21.6]']]);
     const latched = await withMechanismTool(boxWorld({ Box: [[[0, 0, 0], [40, 30, 20]]], Lid: [[[0, 0, 20], [40, 30, 30]]] }), () => 0.4, keep).callTool(MECHANISM_TOOL, { kind: 'latch', fixed: 'Box', moving: 'Lid', from: [20, 0, 20], to: [20, -5, 20] });
-    expect(String(latched.content[0]?.text)).toContain('The lid prints on its top, which is set as its print face: the arm then grows out of it without support; the box prints standing.');
+    expect(String(latched.content[0]?.text)).toContain('The lid prints on its top, which is set as its print face, in place of any it had: the arm then grows out of it without support; the box prints standing.');
     expect(faces[1]).toEqual(['Lid', 'F[20,15,30]']);
     // Where SolidCraft cannot, the answer says so and what to do.
     const refused = boxWorld({ Box: [[[0, 0, 0], [40, 30, 20]]], Lid: [[[0, 0, 20], [40, 30, 30]]] });
@@ -2084,6 +2115,16 @@ describe('what the tool answers and what the guide checks (audit BC-15)', () => 
     const unset = String((await withMechanismTool(refused, () => 0.4, keep).callTool(MECHANISM_TOOL, { kind: 'latch', fixed: 'Box', moving: 'Lid', from: [20, 0, 20], to: [20, -5, 20] })).content[0]?.text);
     expect(unset).toContain('The lid prints on its top, which PartBuddy could not set as its print face (SolidCraft refused body.print_face: no flat face at the point): set it there:');
     expect(faces).toHaveLength(2);
+    // Review of BC-15, S1: a knob 10 × 10 mm in the middle of the lid's top stands highest; the face at the box's middle is
+    // its top, which would lay the lid on the knob. Not set, and asked for.
+    const knob = boxWorld({ Box: [[[0, 0, 0], [40, 30, 20]]], Lid: [[[0, 0, 20], [40, 30, 30]], [[15, 10, 30], [25, 20, 35]]] });
+    const knobbed = String((await withMechanismTool(knob, () => 0.4, keep).callTool(MECHANISM_TOOL, { kind: 'latch', fixed: 'Box', moving: 'Lid', from: [20, 0, 20], to: [20, -5, 20] })).content[0]?.text);
+    expect(knobbed).toContain("The lid prints on its top, which PartBuddy could not set as its print face (the face at the middle of that side is about 10 × 10 mm of the body's 40 × 30 mm: a knob, a step or a hollow stands there): set it there:");
+    expect(faces).toHaveLength(2);
+    // At the bound: a top 30 × 22.5 of 40 × 30 (three quarters each way) is set, a hair less not.
+    const top = (width: number) => boxWorld({ Box: [[[0, 0, 0], [40, 30, 20]]], Lid: [[[0, 0, 20], [40, 30, 30]], [[20 - width / 2, 15 - (width * 0.75) / 2, 30], [20 + width / 2, 15 + (width * 0.75) / 2, 31]]] });
+    expect(await layOn((commands) => top(30).callTool('batch', { commands }).then((result) => (JSON.parse(String(result.content[0]?.text)) as { results: unknown[] }).results), 'Lid', [0, 0, 1], keep)).toBeNull();
+    expect(await layOn((commands) => top(29.9).callTool('batch', { commands }).then((result) => (JSON.parse(String(result.content[0]?.text)) as { results: unknown[] }).results), 'Lid', [0, 0, 1], keep)).toContain('a knob, a step or a hollow stands there');
   });
 
   it("says when SolidCraft could not read whether a latch's bodies print as one piece (review of BC-11)", async () => {
@@ -2105,6 +2146,7 @@ describe('what the tool answers and what the guide checks (audit BC-15)', () => 
     expect(built.isError).toBeUndefined();
     expect(sent.find((step) => step.command === 'solid.coil')?.params.sketch).toBe('Thread (3) 1');
     expect(sent.find((step) => step.command === 'solid.pattern.circular')?.params.features).toEqual(['Thread (3) ◆']);
+    expect(String(built.content[0]?.text)).toContain(' Its thread and flutes are named "Thread (3)": the design has "Thread" already.');
     const run = (names: string[]) => () => Promise.resolve([{ timeline: names.map((name, id) => ({ id, name })) }]);
     expect(await freeName(run(['Threaded insert']), 'Thread')).toBe('Thread');
     expect(await freeName(run(['Thread']), 'Thread')).toBe('Thread (2)');
@@ -2126,6 +2168,13 @@ describe('what the tool answers and what the guide checks (audit BC-15)', () => 
     expect(await tried({ from: [0, 15, 4.15], to: [60, 15, 4.15] })).toContain('Base has no face under the whole rail');
     // A rail longer than the plate.
     expect(await tried({ to: [70, 15, 4] })).toMatch(/only 60(\.\d+)? of 70 mm are plastic/);
+    // Turned: along Y on a block's side face (up +X) and on its underside (up −Z); the wrong way round is refused.
+    const block: Box[] = [[[0, 0, 0], [30, 60, 10]]];
+    const turned = (spec: Partial<SlideSpec>) => railFace(boxWorld({ Base: block }), { ...rail, ...spec }, undefined);
+    expect(await turned({ from: [30, 0, 5], to: [30, 60, 5], up: [1, 0, 0] })).toBeNull();
+    expect(await turned({ from: [30, 0, 5], to: [30, 60, 5], up: [-1, 0, 0] })).toContain('Base has no face under the whole rail');
+    expect(await turned({ from: [15, 60, 0], to: [15, 0, 0], up: [0, 0, -1] })).toBeNull();
+    expect(await turned({ from: [15, 60, 0], to: [15, 0, 0], up: [0, 0, 1] })).toContain('Base has no face under the whole rail');
     // Through the tool: nothing is built.
     const sent: string[][] = [];
     const answer = await withMechanismTool(boxWorld({ Base: base, Carriage: [[[20, 0, 4.4], [40, 30, 12]]] }, { sent }), () => 0.4).callTool(MECHANISM_TOOL, { kind: 'slide', fixed: 'Base', moving: 'Carriage', from: [0, 15, 4], to: [60, 15, 4], up: [0, 1, 1] });
@@ -2146,6 +2195,10 @@ describe('what the tool answers and what the guide checks (audit BC-15)', () => 
     // The dovetail to plug together has no travel to find: it is pushed on from an end.
     const plugged = await withMechanismTool(boxWorld({ Base: base, Carriage: [[[-5, 0, 4.4], [65, 30, 12]]] }), () => 0.4).callTool(MECHANISM_TOOL, { kind: 'plug', shape: 'dovetail', fixed: 'Base', moving: 'Carriage', from: [0, 15, 4], to: [60, 15, 4] });
     expect(String(plugged.content[0]?.text)).toMatch(/^Built the dovetail/);
+    // Review of BC-15, S2: askew the travel goes by the body's box, which reads [0, 0] for a carriage 30 × 10 at 45° on a 40 mm
+    // rail: not refused for that.
+    const askew = withMechanismTool(boxWorld({ Base: [[[0, 0, 0], [60, 60, 4]]], Carriage: [[[5, 5, 4.4], [55, 55, 12]]] }), () => 0.4);
+    expect(String((await askew.callTool(MECHANISM_TOOL, { kind: 'slide', fixed: 'Base', moving: 'Carriage', from: [10, 10, 4], to: [38.28, 38.28, 4] })).content[0]?.text)).not.toContain('lies over the whole rail');
   });
 
   it("lays the gap over the rail's head to whole layers where the rail stands upright (W14)", () => {

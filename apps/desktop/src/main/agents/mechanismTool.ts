@@ -35,7 +35,7 @@ const mechanismTool: UpstreamTool = {
   name: MECHANISM_TOOL,
   description:
     'Build a mechanism or a connection between two bodies from proven geometry; the answer says how it prints. ' +
-    'hinge: knuckles in turn on both bodies and a pin through them, the same gap everywhere, printed in place as one piece.Give the hinge line (from, to) in the gap between the bodies, level with the bed and half the barrel diameter above it when the part prints lying flat, or straight up when it prints standing (a line at a slant is refused); ' +
+    'hinge: knuckles in turn on both bodies and a pin through them, the same gap everywhere, printed in place as one piece. Give the hinge line (from, to) in the gap between the bodies, level with the bed and half the barrel diameter above it when the part prints lying flat, or straight up when it prints standing (a line at a slant is refused); ' +
     'the line must lie closer to both bodies than the barrel radius less ' + String(HOLD) + ' mm, so the knuckles grow out of them: PartBuddy measures that before it builds. It cuts each knuckle\'s room in the other body itself, a gap wider than the barrel, and carries knuckles that start above the bed on webs at 45° down to their own walls, where the wall reaches about one and a quarter barrel diameters below the line (the answer says where it does not, and what then needs support): add no supports of your own. PartBuddy also measures the walls along the line: a room that would leave less than two lines of a wall (of a floor: four layers, at least ' + String(minimumFloor(0.001)) + ' mm) behind it is refused, with how far to move the line. ' +
     'slide: a dovetail rail on the fixed body and its groove in the moving body, which lies over the rail a gap above the face. Give the middle line of the rail (from, to) on that face and the face normal (up). The two print apart and the moving body is pushed onto the rail from an end. Where the moving body stands high enough over that face (the answer names how high) the groove gets a roof at 45° and prints as it stands; otherwise its ceiling is flat and the answer says how to lay the part. ' +
     'PartBuddy also joins the two with a joint, finds how far it moves before the bodies meet (a slide: while the moving body stays on its rail) and sets that as its limits; the user then moves it with a slider in the view. ' +
@@ -80,7 +80,7 @@ const mechanismTool: UpstreamTool = {
       starts: { type: 'integer', enum: [1, 2, 3], description: 'lid: threads side by side; default 1. With 2 or 3 the lid closes in less than a turn.' },
       knuckles: { type: 'integer', enum: [3, 5, 7, 9], description: `hinge: how many knuckles; default by the length of the line. Lying, the pin bridges each knuckle of the moving body and may bridge at most ${String(BRIDGE_SPAN)} mm.` },
       width: { type: 'number', minimum: 2, maximum: 60, description: 'slide: width of the rail at its foot in mm; default 6. It widens by its height on each side. latch: its width along the wall (5 to 40); default 10.' },
-      height: { type: 'number', minimum: 1.5, maximum: 20, description: 'slide: height of the rail in mm; default 3.' },
+      height: { type: 'number', minimum: 1.5, maximum: 20, description: 'slide: height of the rail in mm; default 3, at most width.' },
       gap: { type: 'number', minimum: 0.05, maximum: 1, description: "The gap between the parts in mm. hinge: default and least the printer's nozzle, at least 0.3 (up to 1). slide: default the printer's nozzle, at least 0.3 (allowed 0.2 to 1). lid: radial, default three quarters of the nozzle, 0.3 to 0.6 (allowed 0.2 to 0.6). plug with pegs: per side, default 0.2 to slide and glue, 0.1 to press (allowed 0.05 to 0.5); plug dovetail: all round, default 0.2, 0.1 to press (allowed 0.1 to 1). Not used by closure, snap, latch and screw." },
       name: { type: 'string', maxLength: 60, description: "The mechanism's name in the user's language, e.g. \"Lid hinge\"." },
     },
@@ -108,7 +108,10 @@ export function refusal(text: unknown): string {
     // Plain text: SolidCraft's own sentence.
     return text.slice(0, 300);
   }
-  const { failed, error } = (reply ?? {}) as { failed?: { command?: unknown; error?: unknown }; error?: unknown };
+  // JSON that is no object (a string, a number) is SolidCraft's sentence too.
+  if (typeof reply === 'string') return reply.slice(0, 300);
+  if (typeof reply !== 'object' || reply === null || Array.isArray(reply)) return text.slice(0, 300);
+  const { failed, error } = reply as { failed?: { command?: unknown; error?: unknown }; error?: unknown };
   const reason = (value: unknown) => String(typeof value === 'object' && value !== null && 'message' in value ? value.message : value).slice(0, 200);
   if (failed) return `SolidCraft refused ${String(failed.command)}: ${reason(failed.error)}`;
   if (error !== undefined && error !== null) return `SolidCraft refused it: ${reason(error)}`;
@@ -361,12 +364,17 @@ interface Site {
 type KeepFace = (body: string, face: string) => void;
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
+/** How much of a body's box, each way across, the face `layOn` lays it on must fill (own choice: a top with rounds or chamfers of a tenth of its size still passes). */
+const FACE_FILLS = 0.75;
+
 /**
  * Sets the print face of `body` on its face that points `down` (along an axis), at the middle of its box, and keeps it for
  * the plate view, as `lidSteps` does for a screw lid (audit W48, R29, N-mechanik-19: the answers of the flat closure and
  * the latch asked the model to set it, and the print check judged them as built: 2400 mm² under a latch's lid). Null when
- * it is set, else why not.
- * shortcut: the middle of the box must lie on a flat face that way (a lid's top, a plate); over a knob or a hollow SolidCraft refuses it and the answer says so.
+ * it is set, else why not. The face at that point must fill the box across, both ways, to `FACE_FILLS` at least: on a lid
+ * with a knob in the middle the point lies on the knob's top (review of BC-15, S1), and that is not set; nor is a face
+ * SolidCraft does not measure.
+ * shortcut: the face's two sides are reckoned from its area and outer perimeter as a rectangle's; a ring or an L-shaped top reads smaller and is asked for instead of set.
  */
 export async function layOn(run: Run, body: string, down: Vec3, keepFace: KeepFace): Promise<string | null> {
   const axis = down.findIndex((value) => Math.abs(value) > 1e-6);
@@ -377,6 +385,15 @@ export async function layOn(run: Run, body: string, down: Vec3, keepFace: KeepFa
     const [min, max] = [vec3(box?.min), vec3(box?.max)];
     if (!min || !max) return `${body} could not be measured`;
     const point = min.map((value, i) => (i === axis ? ((down[axis] ?? 0) > 0 ? max[i] : value) : round2((value + (max[i] ?? 0)) / 2))) as Vec3;
+    const [measured] = await run([{ command: 'inspect.measure', params: { items: [{ type: 'face', body, point }] } }]);
+    const item = ((measured as { items?: unknown } | undefined)?.items as { area_mm2?: unknown; perimeter_mm?: unknown; outer_perimeter_mm?: unknown }[] | undefined)?.[0];
+    const [area, perimeter] = [item?.area_mm2, item?.outer_perimeter_mm ?? item?.perimeter_mm];
+    if (typeof area !== 'number' || typeof perimeter !== 'number' || !(area > 0)) return `SolidCraft did not measure the face at ${JSON.stringify(point)}`;
+    // A rectangle of that area and perimeter; a face rounder than a square, as a square of that area.
+    const [half, square] = [perimeter / 2, (perimeter / 2) ** 2 - 4 * area];
+    const sides = square < 0 ? [Math.sqrt(area), Math.sqrt(area)] : [(half + Math.sqrt(square)) / 2, (half - Math.sqrt(square)) / 2];
+    const across = [0, 1, 2].filter((i) => i !== axis).map((i) => (max[i] ?? 0) - (min[i] ?? 0)).sort((a, b) => b - a);
+    if ((sides[0] ?? 0) < FACE_FILLS * (across[0] ?? 0) || (sides[1] ?? 0) < FACE_FILLS * (across[1] ?? 0)) return `the face at the middle of that side is about ${sides.map((side) => String(Math.round(side))).join(' × ')} mm of the body's ${across.map((side) => String(round2(side))).join(' × ')} mm: a knob, a step or a hollow stands there`;
     const [laid] = await run([{ command: 'body.print_face', params: { body, point } }]);
     const face = (laid as { face?: unknown } | undefined)?.face;
     if (typeof face !== 'string') return 'SolidCraft named no face';
@@ -471,6 +488,13 @@ async function build(site: Site, spec: { fixed: string; moving: string; name: st
     const asked = spec.name;
     for (let n = 2; taken.has(spec.name); n += 1) spec.name = `${asked} (${String(n)})`;
   }
+  // Bodies that overlap already are refused before anything is built (review of BC-15, S3: found only after the build, the
+  // take-back had all its steps to undo, near SolidCraft's undo ceiling). A lid the call makes is not there yet.
+  if (!makes) {
+    const [already] = await run([{ command: 'inspect.interference', params: { bodies: [spec.fixed, spec.moving] } }]);
+    const before = overlapOf(already);
+    if (before.count > 0) throw new Error(`${spec.fixed} and ${spec.moving} overlap already${before.volume > 0 ? ` (${String(before.volume)} mm³)` : ''}, before anything is built. Make room between them (inspect.interference shows where), then call again`);
+  }
   // The bodies are there and stand as designed: what must be measured on them before anything is built.
   await ready();
   // From here on the design changes: a call that fails later is taken back to this state.
@@ -493,16 +517,24 @@ async function build(site: Site, spec: { fixed: string; moving: string; name: st
   if (apart > 0) throw new Error(`${String(apart)} piece(s) did not touch their body and stand apart from it. ${where}`);
   // Bodies that share volume are a fault, not a warning (audit W26: a lid pushed 0.5 mm into its box was built and kept).
   const [clash] = await run([{ command: 'inspect.interference', params: { bodies: [spec.fixed, spec.moving] } }]);
-  const found = clash as { count?: unknown; interferences?: { volume_mm3?: unknown }[]; unchecked?: unknown[] } | undefined;
-  if (typeof found?.count === 'number' && found.count > 0) {
-    const volume = round2((found.interferences ?? []).reduce((sum, pair) => sum + (typeof pair.volume_mm3 === 'number' ? pair.volume_mm3 : 0), 0));
-    throw new Error(`after the build ${spec.fixed} and ${spec.moving} share volume${volume > 0 ? ` (${String(volume)} mm³)` : ''}: they overlapped before, or the mechanism runs into the other body. Make room between them (inspect.interference shows where), then call again`);
-  }
+  const after = overlapOf(clash);
+  if (after.count > 0) throw new Error(`after the build ${spec.fixed} and ${spec.moving} share volume${after.volume > 0 ? ` (${String(after.volume)} mm³)` : ''}: the mechanism runs into the other body. Make room between them (inspect.interference shows where), then call again`);
   // Every other warning of SolidCraft's goes on as it said it (audit H-09: all but the loose pieces were dropped).
   // shortcut: no step is checked to have cut or added anything (H-09); a hinge's web room cuts nothing where the web misses the other body, so a per-step volume check needs to know which steps must hit first.
   const said = [...new Set(warnings)].map((warning) => warning.slice(0, 200));
-  const unchecked = Array.isArray(found?.unchecked) && found.unchecked.length > 0 ? ` SolidCraft could not check whether ${spec.fixed} and ${spec.moving} overlap.` : '';
+  const unchecked = after.unchecked ? ` SolidCraft could not check whether ${spec.fixed} and ${spec.moving} overlap.` : '';
   return `${unchecked}${said.length > 0 ? ` SolidCraft warns: ${said.join(' ')}` : ''}`;
+}
+
+/** What `inspect.interference` found: how many pairs overlap, their volume, and whether a pair could not be checked. */
+function overlapOf(result: unknown): { count: number; volume: number; unchecked: boolean } {
+  const found = result as { count?: unknown; interferences?: unknown; unchecked?: unknown } | undefined;
+  const pairs = Array.isArray(found?.interferences) ? (found.interferences as { volume_mm3?: unknown }[]) : [];
+  return {
+    count: typeof found?.count === 'number' ? found.count : pairs.length,
+    volume: round2(pairs.reduce((sum, pair) => sum + (typeof pair.volume_mm3 === 'number' ? pair.volume_mm3 : 0), 0)),
+    unchecked: Array.isArray(found?.unchecked) && found.unchecked.length > 0,
+  };
 }
 
 /**
@@ -1273,7 +1305,9 @@ async function buildGuide(site: Site, spec: SlideSpec, nozzle: number, overhang:
       const axis = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
       const length = Math.hypot(...axis);
       // Audit W13: a body that lies over the whole rail cannot slide on it, and "slides from 0 mm to 0 mm" was the answer.
-      if (joins && travel[0] === 0 && travel[1] === 0) throw new Error(`${spec.moving} lies over the whole rail (from–to, ${String(round2(length))} mm) or reaches past both its ends, so it has no way to slide while it stays on the rail. Make the rail longer than ${spec.moving} is along it, or ${spec.moving} shorter`);
+      // shortcut: only along an axis; askew the travel goes by the body's box, which reaches past a body that fits (review of BC-15, S2: 30 × 10 on a 40 mm rail at 45° read [0, 0]), so no such refusal there. Measure the body along the line when askew guides turn up.
+      const alongAxis = axis.filter((value) => Math.abs(value) > 1e-6).length === 1;
+      if (joins && alongAxis && travel[0] === 0 && travel[1] === 0) throw new Error(`${spec.moving} lies over the whole rail (from–to, ${String(round2(length))} mm) or reaches past both its ends, so it has no way to slide while it stays on the rail. Make the rail longer than ${spec.moving} is along it, or ${spec.moving} shorter`);
       // Not measured is not built: that the rail stands on a face of the fixed body, square to up, is checked here or nowhere.
       const face = await railFace(site.upstream, spec, site.callId).catch((cause: unknown) => {
         throw new Error(`PartBuddy could not measure the face of ${spec.fixed} under the rail: ${(cause as Error).message}. So it could not check that the rail stands on it with up as its normal, and nothing was built`);
@@ -1497,7 +1531,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     if (spec.flat) {
       // The lip stands along up: the plate prints on its face the other way.
       const laid = await layOn(run, spec.moving, [0, 0, -spec.up], keepFace);
-      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up, lying on the plate's outer face, ${laid === null ? 'which is set as its print face' : `which PartBuddy could not set as its print face (${laid}): set it there`}. It makes no joint.${box}${warnings}`;
+      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up, lying on the plate's outer face, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}. It makes no joint.${box}${warnings}`;
     }
     return (
       `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch through the lid's rim to open it. It makes no joint and needs no room outside the box.${unhinged}${box}${warnings}`
@@ -1510,6 +1544,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     const skirt = lidSkirt(spec);
     // Set from the trial; an object, so the answer below reads what the trial wrote.
     const neck = { measured: false };
+    const asked = spec.name;
     const warnings = await build(site, spec, () => lidSteps(spec), `Give from as the centre of the rim of ${spec.fixed} and diameter as the outer diameter of its neck, which must be a plain upright cylinder over the top ${String(skirt)} mm.`, true, async () => {
       const problem = await neckTrial(upstream, spec, callId).catch(() => undefined);
       if (problem) throw new Error(problem);
@@ -1528,6 +1563,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
       `and the same inside the lid, ${String(spec.gap)} mm clear radially (${String(round2(spec.gap / Math.SQRT2))} mm square to the 45° flanks); it closes in ${String(round2(thread.turns))} turn${thread.turns > 1 ? 's' : ''} and stops with its inner top on the rim. ` +
       `The lid is ${String(round2(spec.diameter + 2 * (thread.depth + spec.gap + LID.wall)))} mm wide and covers the top ${String(skirt)} mm of the neck, has flutes to grip and prints standing on its top (its print face is set); ${overhang < 45 ? leans("the threads' flanks on both parts", overhang).replace(/\.$/, '') : 'both parts print without support'}. ` +
       (neck.measured ? `PartBuddy measured the neck: a plain cylinder of ${String(spec.diameter)} mm there, centred on from, with a wall of at least ${String(NECK_WALL)} mm.` : `PartBuddy could not measure the neck this time: keep it a plain cylinder of ${String(spec.diameter)} mm there, with a wall of at least ${String(NECK_WALL)} mm.`) +
+      (spec.name === asked ? '' : ` Its thread and flutes are named "${spec.name}": the design has "${asked}" already.`) +
       warnings
     );
   }
@@ -1611,7 +1647,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     return (
       `Built the latch "${spec.name}": an arm ${String(spec.width)} mm wide and ${String(LATCH.thick)} mm thick grows out of the wall of ${spec.moving} (the lid), hangs ${String(LATCH.off)} mm off the wall over the joint and snaps with its hook under a bead ${String(LATCH.bead)} mm high on ${spec.fixed} (the box); the two overlap by ${String(round2(LATCH.bead - LATCH.clear))} mm on 45° faces, and the arm meets its root in a ${String(LATCH.root)} mm radius. ` +
       `Pressing the lid down snaps it shut (about ${String(Math.round(latchStrain() * 10) / 10)} % strain at the arm's root); pulling the arm's lower end away from the box opens it, and so does a strong pull on the lid. It makes no joint. ` +
-      `PartBuddy measured both walls first: flat and plastic ${String(deep)} mm deep across the latch, on ${spec.moving} from ${String(lid[0])} to ${String(lid[1])} mm above the joint and on ${spec.fixed} from ${String(-box[1])} to ${String(-box[0])} mm below it. The lid prints on its top, ${laid === null ? 'which is set as its print face' : `which PartBuddy could not set as its print face (${laid}): set it there`}: ${overhang < 45 ? leans("the arm's foot and the bead's faces", overhang).replace(/\.$/, '') : 'the arm then grows out of it without support'}; the box prints standing. The arm stands upright that way and bends across its layers, the weak way: for a lid opened often use PETG or ABS rather than PLA. Not printed yet: how firmly it holds shows on the first print.${warnings}`
+      `PartBuddy measured both walls first: flat and plastic ${String(deep)} mm deep across the latch, on ${spec.moving} from ${String(lid[0])} to ${String(lid[1])} mm above the joint and on ${spec.fixed} from ${String(-box[1])} to ${String(-box[0])} mm below it. The lid prints on its top, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}: ${overhang < 45 ? leans("the arm's foot and the bead's faces", overhang).replace(/\.$/, '') : 'the arm then grows out of it without support'}; the box prints standing. The arm stands upright that way and bends across its layers, the weak way: for a lid opened often use PETG or ABS rather than PLA. Not printed yet: how firmly it holds shows on the first print.${warnings}`
     );
   }
   if (args.kind === 'plug' && args.shape === 'dovetail') {
