@@ -37,6 +37,13 @@ answer. One "Answer" button sends all answers as the next message, one line per 
 turn, then shows its plan. A call with a single question outside a round is taken as a round of
 one; chats saved before keep loading.
 
+**Flow held in code (2026-11-13, audit BC-18).** The next message no longer frees everything. A
+plan answered without Go (Change, typed text) keeps the changing tools refused until a plan gets Go;
+Cancel refuses them for the turn that answers it. A design without bodies is built only after a
+plan got Go in the conversation; the E2E test doubles turn this off with `PARTBUDDY_PLAN_FIRST=0`.
+An open question also holds `partbuddy_assembly` and `partbuddy_design_rules`. A plan may name the
+`partbuddy_standard` topics it follows (`standards`); one not read in the conversation is refused.
+
 ### Consequences
 
 * Good: no MCP time-out to tune, Stop keeps working, Claude Code and ChatGPT behave the same.
