@@ -1,4 +1,4 @@
-import { BLOCK_SIZES, INSERT, defaultBlock, needsNormal, sizesOf, stepsOf, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, INSERT, cutsThrough, defaultBlock, needsNormal, sizesOf, stepsOf, throughReach, throughTrial, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import { KNOB, KNOB_CLEARANCE, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
 import { TAPPED_FROM } from '../../shared/mechanisms';
@@ -52,7 +52,7 @@ const blockTool: UpstreamTool = {
       more: { type: 'array', items: vector, maxItems: 99, description: 'screwHole, tappedHole, insertSeat, keyhole, woodScrew, magnet: further points on the same face, one each.' },
       head: { type: 'string', enum: ['none', 'cap', 'countersunk'], description: 'screwHole: the room for the head; default cap (a counterbore).' },
       fit: { type: 'string', enum: ['close', 'normal', 'loose'], description: 'screwHole: the clearance by ISO 273; default normal.' },
-      depth: { type: 'number', description: 'tappedHole, insertSeat, nutTrap, slot, text: depth in mm; default by the block (a slot and a tapped hole go through).' },
+      depth: { type: 'number', description: 'tappedHole, insertSeat, nutTrap, slot, text: depth in mm; default by the block (a slot and a tapped hole go through the wall at the point, not on through the far side of a hollow part).' },
       diameter: { type: 'number', description: 'insertSeat: the hole for the insert; boss: its outer diameter; knob: its outer diameter, default 25; magnet: the diameter of the magnet, default 6. Default from the table.' },
       height: { type: 'number', description: 'boss: its height; text: the height of its capitals; lip: its height; knob: its height, default 16; magnet: the height of the magnet, default 2. Default by the block.' },
       length: { type: 'number', description: 'slot: its length; snapFit: the length of the arm. Default 10 and 12 mm.' },
@@ -153,7 +153,7 @@ const CURVED_FACE = 0.3;
 /** In mm: the plastic that must stay under the seat of an insert (three layers of 0.2 mm, as under a magnet pocket; our own choice). */
 export const SEAT_UNDER = 0.6;
 /** The plastic round an insert: what its maker asks for, and never under 2 mm (as a boss has it). */
-const seatWall = (size: BlockSize) => Math.max(2, INSERT[size]?.wall ?? 2);
+export const seatWall = (size: BlockSize) => Math.max(2, INSERT[size]?.wall ?? 2);
 
 /**
  * In mm: how far under the point the plastic is measured from. A face may fall away that far within the width of the
@@ -380,6 +380,24 @@ const PROBE = 'PartBuddy probe';
 export const STOCK_FULL = 0.999;
 
 /**
+ * How deep each cut of a block that cuts through must go to pass the wall at its point and no further (blocks.ts, audit
+ * W2), found on trial; SolidCraft takes the trial back. Undefined when it could not be tried: the block is then built
+ * as before, and what goes wrong with it is found after.
+ */
+export async function reachOf(upstream: UpstreamTools, block: FeatureBlock, wrap: (steps: Step[]) => Step[], callId: string | undefined): Promise<(number | null)[] | undefined> {
+  const trial = wrap(throughTrial(block));
+  try {
+    const answer = await upstream.callTool('batch', { commands: [...trial, { command: 'sketch.inspect', params: { sketch: 2147483647 } }], rollback: true }, callId);
+    const text = answer.content.find((part) => part.type === 'text')?.text;
+    const reply = JSON.parse(typeof text === 'string' ? text : '') as { results?: unknown[]; failed?: { index?: unknown } };
+    if (reply.failed?.index !== trial.length) return undefined;
+    return throughReach(block, reply.results?.[trial.map((step) => step.command).lastIndexOf('inspect.measure')]);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Where the body has less plastic than a block's cuts need (audit R54): each stock cylinder is laid in as a body
  * on trial and SolidCraft says how much of it lies in the part. A step that must fail ends the batch, and
  * SolidCraft takes the probes back, leaving revision, undo and redo as they were (as mechanismTool.ts measures a
@@ -554,13 +572,16 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         // A new part must not take the name of a body there is: its cuts would go into that one.
         const taken = ((listing as { components?: { bodies?: unknown }[] } | undefined)?.components ?? []).some((entry) => Array.isArray(entry.bodies) && entry.bodies.includes(body));
         if (wall && 'fresh' in wall && taken) return { content: [{ type: 'text', text: `Not built: there is a body named ${body} already; give the knob another name` }], isError: true };
-        const sequence = component === 0 ? steps : [{ command: 'component.activate', params: { component } }, ...steps, { command: 'component.activate', params: { component: 0 } }];
+        const wrap = (inner: Step[]) => (component === 0 ? inner : [{ command: 'component.activate', params: { component } }, ...inner, { command: 'component.activate', params: { component: 0 } }]);
         const fresh = wall !== null && 'fresh' in wall;
         const measure = { command: 'inspect.measure', params: {} };
         const [measured] = await run([measure]);
         const before = volumesOf(measured);
         const missing = fresh ? null : misplaced(body, before, before);
         if (missing?.startsWith('there is no body')) return { content: [{ type: 'text', text: `Not built: ${missing}` }], isError: true };
+        // A cut "through" goes through the wall at its point, not on through the far side of a hollow part (audit W2).
+        const reach = block && cutsThrough(block) ? await reachOf(upstream, block, wrap, callId) : undefined;
+        const sequence = wrap(block && reach ? stepsOf(block, undefined, reach) : steps);
         // A pocket that comes out of the far side or of an edge is not built at all.
         const { stock, cut, need } = (wall ?? {}) as { stock?: Stock[]; cut?: (point: Vec3, axis: Vec3) => Stock; need?: string };
         const short = stock ? await shortOf(upstream, body, stock, callId) : null;

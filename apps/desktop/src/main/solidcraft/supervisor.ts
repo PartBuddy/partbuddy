@@ -15,7 +15,7 @@ import { DimensionService, type DimensionTarget, type ProbeResult } from './dime
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
 import type { DesignParameter, DimensionMark, LogoMoveRequest, LogoSpot } from '../../shared/contract';
 import { logoAt, planLogoMove } from './logoMove';
-import { blockBodies, colourLayers, planeAt, stepsOf, type FeatureBlock } from '../../shared/blocks';
+import { blockBodies, colourLayers, cutsThrough, planeAt, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../../shared/blocks';
 import { centring, hostFace, movedPlane, TEXT_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
 import { insertCommand, type ImportKind } from '../projects/importFile';
 import { freeBodyName, libraryOf } from './standardParts';
@@ -670,11 +670,18 @@ export class SolidCraftSupervisor {
     const block = await this.boldBlock(given);
     return this.trial('block preview', async () => {
       const placed = await this.centredBlock(block);
-      const preview = await this.actions.previewSteps(await this.actions.inComponentOf(placed.body, stepsOf(placed)), blockBodies(placed));
+      const preview = await this.actions.previewSteps(await this.blockSteps(placed), blockBodies(placed));
       // The panel shows a short reason; the log keeps SolidCraft's own words.
       if (!preview.ok) this.options.log(`${block.block} preview refused: ${preview.error}`);
       return preview;
     });
+  }
+
+  /** A block's steps in its body's component; a cut "through" with the reach found on trial, through the wall at its point alone (audit W2). */
+  private async blockSteps(block: FeatureBlock, sketch?: string): Promise<{ command: string; params: Record<string, unknown> }[]> {
+    const tried = cutsThrough(block) ? await this.actions.trial(await this.actions.inComponentOf(block.body, throughTrial(block))) : null;
+    const measured = tried?.findLast((result) => Array.isArray((result as { bodies?: unknown } | undefined)?.bodies));
+    return this.actions.inComponentOf(block.body, stepsOf(block, sketch, measured ? throughReach(block, measured) : undefined));
   }
 
   /** A logo "on the face's middle": its point moved there before it is built, so the ghost shows it there too. */
@@ -698,7 +705,7 @@ export class SolidCraftSupervisor {
     const sketch =
       block.block === 'logo' ? uniqueLogoName(block.name, await this.actions.sketchNames()) : block.block === 'text' ? uniqueLogoName(block.text, await this.actions.sketchNames(), TEXT_PREFIX) : undefined;
     block = await this.centredBlock(block);
-    await this.actions.applySteps(await this.actions.inComponentOf(block.body, stepsOf(block, sketch)));
+    await this.actions.applySteps(await this.blockSteps(block, sketch));
     // A logo in colours: pieces a cut split off get their colour too.
     const layers = block.block === 'logo' ? colourLayers(block) : [];
     if (layers.length > 0) {

@@ -141,7 +141,7 @@ type Step = { command: string; params: Record<string, unknown> };
  * The SolidCraft commands of a block, in one batch: one feature, or a sketch and its feature. A
  * logo's sketches are named `sketch` (default `SVG-Logo <name>`), so it can be moved later (drawingPlacement.ts).
  */
-export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
+export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly (number | null)[]): Step[] {
   const mm = (value: number) => `${String(round(value))} mm`;
   switch (block.block) {
     case 'text':
@@ -159,7 +159,7 @@ export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
         { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
         { command: 'sketch.polygon.circumscribed', params: { center: [0, 0], radius: round(block.flats / 2), sides: 6 } },
         { command: 'solid.extrude', params: { distance: mm(-block.depth), operation: 'cut', targets: [block.body] } },
-        { command: 'solid.hole', params: { position: bottom, clearance: block.size, fit: 'normal', targets: [block.body] } },
+        { command: 'solid.hole', params: { position: bottom, clearance: block.size, fit: 'normal', ...(through?.[0] ? { depth: mm(Math.max(through[0] - block.depth, 0.01)) } : {}), targets: [block.body] } },
       ];
     }
     case 'slot': {
@@ -168,8 +168,8 @@ export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
       return [
         { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
         { command: 'sketch.slot.center_to_center', params: { p0, p1, width: block.width } },
-        // "Through" cuts far beyond any printable part.
-        { command: 'solid.extrude', params: { distance: mm(-(block.depth ?? 1000)), operation: 'cut', targets: [block.body] } },
+        // "Through" without a measured reach cuts far beyond any printable part.
+        { command: 'solid.extrude', params: { distance: mm(-(block.depth ?? through?.[0] ?? 1000)), operation: 'cut', targets: [block.body] } },
       ];
     }
     case 'logo':
@@ -201,7 +201,7 @@ export function stepsOf(block: FeatureBlock, sketch?: string): Step[] {
       return [{ command: 'plastic.lip', params: { face: block.point, type: block.type, width: mm(block.width), height: mm(block.height), ...(block.type === 'groove' ? { gap: mm(block.gap) } : {}), body: block.body } }];
     default:
       // A row of holes: the same hole at each further point.
-      return [block.point, ...('more' in block ? (block.more ?? []) : [])].map((point) => stepOf({ ...block, point }));
+      return [block.point, ...('more' in block ? (block.more ?? []) : [])].map((point, i) => stepOf({ ...block, point }, through?.[i]));
   }
 }
 
@@ -212,16 +212,21 @@ function textFont(block: { bold: boolean; font?: string | undefined }): { font?:
 }
 
 /** The SolidCraft command of a block that is one feature; it names its body, so a point where two bodies meet cuts only that one. */
-export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | 'nutTrap' | 'slot' | 'lip' | 'snapFit' }>): Step {
+export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | 'nutTrap' | 'slot' | 'lip' | 'snapFit' }>, through?: number | null): Step {
   const mm = (value: number) => `${String(round(value))} mm`;
   switch (block.block) {
-    case 'tappedHole':
-      return { command: 'solid.hole', params: { position: block.point, thread: block.size, modeled: block.modeled, ...(block.depth ? { depth: mm(block.depth) } : {}), targets: [block.body] } };
+    case 'tappedHole': {
+      const depth = block.depth ?? through;
+      return { command: 'solid.hole', params: { position: block.point, thread: block.size, modeled: block.modeled, ...(depth ? { depth: mm(depth) } : {}), targets: [block.body] } };
+    }
     case 'screwHole': {
-      const base = { position: block.point, clearance: block.size, fit: block.fit, targets: [block.body] };
+      const base = { position: block.point, clearance: block.size, fit: block.fit, ...(through ? { depth: mm(through) } : {}), targets: [block.body] };
       if (block.head === 'cap') {
         const [diameter, height] = CAP_HEAD[block.size];
-        return { command: 'solid.hole', params: { ...base, type: 'counterbore', cb_diameter: mm(diameter + 2 * HEAD_ALLOWANCE.diameter), cb_depth: mm(height + HEAD_ALLOWANCE.depth) } };
+        const room = height + HEAD_ALLOWANCE.depth;
+        // SolidCraft refuses a counterbore as deep as its hole (0.40.1): in a wall thinner than the head, the hole ends just past it.
+        const depth = through ? { depth: mm(Math.max(through, room + 0.01)) } : {};
+        return { command: 'solid.hole', params: { ...base, ...depth, type: 'counterbore', cb_diameter: mm(diameter + 2 * HEAD_ALLOWANCE.diameter), cb_depth: mm(room) } };
       }
       if (block.head === 'countersunk') {
         const diameter = COUNTERSUNK_HEAD[block.size] ?? CAP_HEAD[block.size][0];
@@ -239,6 +244,75 @@ export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | '
       };
     }
   }
+}
+
+/**
+ * Audit W2: a block that cuts "through" (a screw hole, a nut trap's hole, a slot or a tapped hole without depth) goes
+ * through the wall it enters and no further, not on through the far wall of a hollow part. How far that is, is found on
+ * trial: {@link throughTrial} cuts the block through all into a copy of the body and leaves what the cut takes as bodies
+ * of their own, one for each wall it passes (SolidCraft 0.40.1, 2026-11-13: a slot through both walls of a box gave two
+ * bodies of 86.158 mm³); {@link throughReach} reads from them how deep each cut must go.
+ */
+export function cutsThrough(block: FeatureBlock): boolean {
+  return block.block === 'screwHole' || block.block === 'nutTrap' || ((block.block === 'slot' || block.block === 'tappedHole') && !block.depth);
+}
+
+/** The trial bodies that hold what a through cut takes; they are never kept. */
+const THROUGH = 'PartBuddy through';
+/** In mm: past the far side of its wall a cut goes on this far, or half way to the next wall where that is nearer. */
+const PAST = 1;
+
+/** The steps that find the reach of a block that cuts through, to run on trial: they end with `inspect.measure`. */
+export function throughTrial(block: FeatureBlock): Step[] {
+  // A modelled thread is not needed to find the walls (and one on trial breaks the same thread built after it, blockTool.ts).
+  const plain = block.block === 'tappedHole' ? { ...block, modeled: false } : block;
+  return [
+    // A copy of the body under a name of PartBuddy's: all of it within 10 m of the origin.
+    { command: 'solid.box', params: { length: 20000, width: 20000, height: 20000, corner: [-10000, -10000, -10000], operation: 'new', body_name: THROUGH } },
+    { command: 'solid.combine', params: { target: THROUGH, tools: [block.body], operation: 'intersect', keep_tools: true } },
+    ...stepsOf(plain),
+    { command: 'solid.combine', params: { target: THROUGH, tools: [block.body], operation: 'cut', keep_tools: true } },
+    { command: 'inspect.measure', params: {} },
+  ];
+}
+
+/**
+ * How deep each cut of a block that cuts through must go, in mm from its point (for a nut trap from the face, its pocket
+ * included), from the `inspect.measure` at the end of {@link throughTrial}: through the piece of plastic the point lies
+ * on, along the way from the point to that piece's centre, and {@link PAST} on. Null for a point no piece holds.
+ * shortcut: the pieces are measured by their boxes, exact for walls square to the axes; askew a box reaches further and
+ * the cut with it, never less far. Measure along the axis if a skew cut must stop short of a near wall.
+ */
+export function throughReach(block: FeatureBlock, measured: unknown): (number | null)[] {
+  const vector = (value: unknown) => (Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry)) ? (value as Point) : null);
+  const bodies = ((measured ?? {}) as { bodies?: { name?: unknown; bbox?: { min?: unknown; max?: unknown }; center_of_mass?: unknown }[] }).bodies ?? [];
+  const pieces = bodies.flatMap((body) => {
+    const [min, max, centre] = [vector(body.bbox?.min), vector(body.bbox?.max), vector(body.center_of_mass)];
+    return typeof body.name === 'string' && (body.name === THROUGH || body.name.startsWith(`${THROUGH} (`)) && min && max && centre ? [{ min, max, centre }] : [];
+  });
+  type Piece = (typeof pieces)[number];
+  return [block.point, ...('more' in block ? (block.more ?? []) : [])].map((point) => {
+    const distance = (piece: Piece) => Math.hypot(...piece.centre.map((value, k) => value - (point[k] ?? 0)));
+    const first = pieces.filter((piece) => point.every((value, k) => value >= (piece.min[k] ?? 0) - 1e-3 && value <= (piece.max[k] ?? 0) + 1e-3)).sort((a, b) => distance(a) - distance(b))[0];
+    if (!first || distance(first) < 1e-6) return null;
+    const axis = first.centre.map((value, k) => (value - (point[k] ?? 0)) / distance(first));
+    // Where the line from the point along the axis enters and leaves a piece's box.
+    const span = (piece: Piece): [number, number] | null => {
+      let [from, to] = [-Infinity, Infinity];
+      for (let k = 0; k < 3; k += 1) {
+        const [o, d, low, high] = [point[k] ?? 0, axis[k] ?? 0, piece.min[k] ?? 0, piece.max[k] ?? 0];
+        if (Math.abs(d) < 1e-9) {
+          if (o < low - 1e-3 || o > high + 1e-3) return null;
+          continue;
+        }
+        [from, to] = [Math.max(from, Math.min((low - o) / d, (high - o) / d)), Math.min(to, Math.max((low - o) / d, (high - o) / d))];
+      }
+      return from <= to ? [from, to] : null;
+    };
+    const exit = span(first)?.[1] ?? 0;
+    const next = Math.min(...pieces.flatMap((piece) => (piece === first ? [] : [span(piece)])).flatMap((range) => (range && range[1] > exit ? [range[0]] : [])));
+    return Math.ceil((exit + Math.min(PAST, Math.max(0, next - exit) / 2)) * 100 - 1e-6) / 100;
+  });
 }
 
 type LogoBlock = Extract<FeatureBlock, { block: 'logo' }>;

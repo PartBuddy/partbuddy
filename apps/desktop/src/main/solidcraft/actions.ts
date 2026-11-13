@@ -83,6 +83,12 @@ export class ActionService {
     }
   }
 
+  /** Steps on trial: SolidCraft takes them back and gives what they answered; null when one of them failed. */
+  async trial(steps: Step[]): Promise<unknown[] | null> {
+    const reply = await this.batch([...steps, UNDO_ALL], true);
+    return reply.failed?.index === steps.length ? (reply.results ?? []).slice(0, steps.length) : null;
+  }
+
   apply(action: DesignAction): Promise<void> {
     return this.applySteps([commandOf(action)]);
   }

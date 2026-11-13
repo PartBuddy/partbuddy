@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_KINDS, blockBodies, defaultBlock, hasSize, hookVector, logoFrom, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, type FeatureBlock } from '../src/shared/blocks';
+import { BLOCK_KINDS, blockBodies, cutsThrough, defaultBlock, hasSize, hookVector, logoFrom, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../src/shared/blocks';
 import { featureBlockSchema } from '../src/shared/contract';
 import { blockPhrase, describeCommands } from '../src/shared/stepPhrases';
 
@@ -88,6 +88,58 @@ describe('function blocks (F1)', () => {
     const upright = stepsOf({ ...block, along: 'y', depth: 3 } as FeatureBlock);
     expect(upright[1]?.params).toMatchObject({ p0: [0, -5], p1: [0, 5] });
     expect(upright[2]?.params).toEqual({ distance: '-3 mm', operation: 'cut', targets: ['Body1'] });
+  });
+
+  describe('a cut "through" goes through the wall it enters, not the far wall of a hollow part (audit W2, T4, N-bloecke-1)', () => {
+    // SolidCraft 0.40.1, 2026-11-13: box 60 × 40 × 30 with walls of 2 mm, open at the top; the trial of a slot at
+    // [0, 20, 15] into the wall x = 0 left these two pieces.
+    const measured = {
+      bodies: [
+        { name: 'Dose', bbox: { min: [0, 0, 0], max: [60, 40, 30] }, center_of_mass: [30, 20, 11.33] },
+        { name: 'PartBuddy through', bbox: { min: [57.99999999999999, 13.299999999999997, 13.3], max: [60.00000000000001, 26.7, 16.700000000000006] }, center_of_mass: [59.000000000000014, 20, 15] },
+        { name: 'PartBuddy through (1)', bbox: { min: [0, 13.299999999999997, 13.3], max: [2, 26.7, 16.700000000000006] }, center_of_mass: [1.0000000000000149, 20, 15] },
+      ],
+    };
+    const wall: [number, number, number] = [0, 20, 15];
+
+    it('knows the blocks that cut through', () => {
+      expect(['screwHole', 'nutTrap', 'slot', 'tappedHole'].map((kind) => cutsThrough(defaultBlock(kind as 'slot', 'Dose', wall, 'M5', [-1, 0, 0])))).toEqual([true, true, true, true]);
+      expect(cutsThrough({ ...defaultBlock('slot', 'Dose', wall, 'M3', [-1, 0, 0]), depth: 2 } as FeatureBlock)).toBe(false);
+      expect(cutsThrough(defaultBlock('insertSeat', 'Dose', wall, 'M3'))).toBe(false);
+    });
+
+    it('tries the cut through all on a copy of the body, plain where it is a modelled thread, and measures what it takes', () => {
+      const trial = throughTrial(defaultBlock('tappedHole', 'Dose', wall, 'M5'));
+      expect(trial.map((step) => step.command)).toEqual(['solid.box', 'solid.combine', 'solid.hole', 'solid.combine', 'inspect.measure']);
+      expect(trial[1]?.params).toEqual({ target: 'PartBuddy through', tools: ['Dose'], operation: 'intersect', keep_tools: true });
+      expect(trial[2]?.params).toMatchObject({ thread: 'M5', modeled: false });
+      expect(trial[3]?.params).toEqual({ target: 'PartBuddy through', tools: ['Dose'], operation: 'cut', keep_tools: true });
+    });
+
+    it('cuts through the near wall and a millimetre on, never half way to the next wall or further', () => {
+      const slot = defaultBlock('slot', 'Dose', wall, 'M3', [-1, 0, 0]);
+      expect(throughReach(slot, measured)).toEqual([3]);
+      expect(stepsOf(slot, undefined, [3])[2]?.params).toEqual({ distance: '-3 mm', operation: 'cut', targets: ['Dose'] });
+      // A wall 1 mm before the next: half way.
+      const near = { bodies: [measured.bodies[2], { ...measured.bodies[1], bbox: { min: [3, 13.3, 13.3], max: [5, 26.7, 16.7] } }] };
+      expect(throughReach(slot, near)).toEqual([2.5]);
+      // A solid part: one piece, through it and on.
+      expect(throughReach(slot, { bodies: [{ ...measured.bodies[2], bbox: { min: [0, 13.3, 13.3], max: [60, 26.7, 16.7] }, center_of_mass: [30, 20, 15] }] })).toEqual([61]);
+    });
+
+    it('gives each hole of a row its own reach, the nut trap its hole from the pocket on, and none where no piece holds the point', () => {
+      const row: FeatureBlock = { block: 'screwHole', body: 'Dose', point: wall, size: 'M3', head: 'none', fit: 'normal', more: [[30, 20, 0]] };
+      const floor = { name: 'PartBuddy through (2)', bbox: { min: [28.3, 18.3, 0], max: [31.7, 21.7, 2] }, center_of_mass: [30, 20, 1] };
+      expect(throughReach(row, { bodies: [...measured.bodies, floor] })).toEqual([3, 3]);
+      expect(stepsOf(row, undefined, [3, null]).map((step) => step.params.depth)).toEqual(['3 mm', undefined]);
+      expect(throughReach(row, { bodies: [] })).toEqual([null, null]);
+      const trap = { ...defaultBlock('nutTrap', 'Dose', wall, 'M3', [-1, 0, 0]), depth: 1.5 } as FeatureBlock;
+      expect(stepsOf(trap, undefined, [3])[3]?.params).toMatchObject({ position: [1.5, 20, 15], depth: '1.5 mm' });
+      expect(stepsOf(defaultBlock('tappedHole', 'Dose', wall, 'M5'), undefined, [3])[0]?.params).toMatchObject({ depth: '3 mm', modeled: true });
+      // SolidCraft refuses a counterbore as deep as its hole: in a 2 mm wall the 3.4 mm counterbore takes the wall, the hole ends past it.
+      expect(stepsOf(defaultBlock('screwHole', 'Dose', wall, 'M3'), undefined, [3])[0]?.params).toMatchObject({ depth: '3.41 mm', cb_depth: '3.4 mm' });
+      expect(stepsOf(defaultBlock('screwHole', 'Dose', wall, 'M3'), undefined, [6])[0]?.params).toMatchObject({ depth: '6 mm' });
+    });
   });
 
   it('builds a lip, and a groove with its gap, with SolidCraft\'s plastic.lip', () => {

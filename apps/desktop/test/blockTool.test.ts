@@ -50,7 +50,7 @@ describe('the function blocks for the assistant (standards)', () => {
     const key = await tools.callTool('partbuddy_block', { block: 'keyhole', body: 'Plate', point: [20, 0, 80], normal: [0, -1, 0] });
     expect(String(key.content[0]?.text)).toContain('Built 1 keyhole slot for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4.5 mm wide running 8 mm up to where the screw rests, and behind its 2 mm lip a pocket 3.5 mm deep for the head. The part must be at least 6.7 mm thick there.');
     // The holes need no sketch; the keyhole's plastic is measured on trial, then its sketches are drawn with the plate's component active.
-    expect(batches).toEqual(['solid.hole solid.hole', 'component.list', 'solid.cylinder inspect.interference solid.cylinder inspect.interference sketch.inspect', 'component.activate solid.cylinder sketch.create sketch.slot.center_to_center solid.extrude sketch.create sketch.slot.center_to_center solid.extrude component.activate']);
+    expect(batches).toEqual(['solid.box solid.combine solid.hole solid.hole solid.combine sketch.inspect', 'solid.hole solid.hole', 'component.list', 'solid.cylinder inspect.interference solid.cylinder inspect.interference sketch.inspect', 'component.activate solid.cylinder sketch.create sketch.slot.center_to_center solid.extrude sketch.create sketch.slot.center_to_center solid.extrude component.activate']);
     expect(await tools.callTool('partbuddy_block', { block: 'keyhole', body: 'Plate', point: [20, 0, 80] })).toMatchObject({ isError: true, content: [{ text: 'Not built: keyhole needs normal: the way out of the face against the wall, three numbers' }] });
     expect(decide('partbuddy_block', { block: 'screwHole' })).toEqual({ allow: true });
     expect(describeToolCall('partbuddy_block', { block: 'keyhole', screw: 4.5 })).toEqual([{ key: 'keyhole', values: { screw: 4.5 } }]);
@@ -224,6 +224,44 @@ describe('wall mounting (standards)', () => {
   });
 });
 
+describe('a cut through goes through the wall at its point alone (audit W2, T4, N-bloecke-1)', () => {
+  it('finds the reach on trial and builds the slot, the screw hole and the tapped hole that deep', async () => {
+    const sent: { commands: { command: string; params: Record<string, unknown> }[]; rollback: boolean }[] = [];
+    // Box 60 × 40 × 30, walls of 2 mm (SolidCraft 0.40.1, 2026-11-13): the trial leaves one piece in each side wall.
+    const pieces = [
+      { name: 'PartBuddy through', bbox: { min: [58, 13.3, 13.3], max: [60, 26.7, 16.7] }, center_of_mass: [59, 20, 15] },
+      { name: 'PartBuddy through (1)', bbox: { min: [0, 13.3, 13.3], max: [2, 26.7, 16.7] }, center_of_mass: [1, 20, 15] },
+    ];
+    let volume = 15552;
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (_name, args) => {
+        const commands = args.commands as { command: string; params: Record<string, unknown> }[];
+        const rollback = args.rollback === true;
+        sent.push({ commands, rollback });
+        if (!rollback && commands.some((step) => step.command === 'solid.hole' || step.command === 'solid.extrude')) volume -= 80;
+        const results = commands.map((step) => (step.command === 'inspect.measure' ? { bodies: [{ name: 'Dose', volume_mm3: volume }, ...(rollback ? pieces : [])] } : step.command === 'document.inspect' ? { undo: 1, timeline: [], sketches: [] } : {}));
+        const reply = rollback ? { results: results.slice(0, -1), failed: { index: commands.length - 1, command: 'sketch.inspect', error: 'no sketch' } } : { results };
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(reply) }], ...(rollback ? { isError: true } : {}) });
+      },
+    };
+    const tools = withBlockTool(upstream);
+    const built = (command: string) => sent.filter((batch) => !batch.rollback).flatMap((batch) => batch.commands).filter((step) => step.command === command).map((step) => step.params);
+    expect((await tools.callTool('partbuddy_block', { block: 'slot', body: 'Dose', point: [0, 20, 15], normal: [-1, 0, 0] })).isError).toBeUndefined();
+    expect(sent.find((batch) => batch.rollback)?.commands.map((step) => step.command)).toEqual(['solid.box', 'solid.combine', 'sketch.create', 'sketch.slot.center_to_center', 'solid.extrude', 'solid.combine', 'inspect.measure', 'sketch.inspect']);
+    expect(built('solid.extrude')).toEqual([{ distance: '-3 mm', operation: 'cut', targets: ['Dose'] }]);
+    await tools.callTool('partbuddy_block', { block: 'screwHole', body: 'Dose', point: [0, 20, 15], head: 'none' });
+    await tools.callTool('partbuddy_block', { block: 'tappedHole', body: 'Dose', point: [0, 20, 15], size: 'M5' });
+    expect(built('solid.hole').map((params) => params.depth)).toEqual(['3 mm', '3 mm']);
+    // A depth given is kept, and needs no trial.
+    const trials = sent.filter((batch) => batch.rollback).length;
+    await tools.callTool('partbuddy_block', { block: 'slot', body: 'Dose', point: [0, 20, 15], normal: [-1, 0, 0], depth: 1.5 });
+    expect(sent.filter((batch) => batch.rollback).length).toBe(trials);
+    expect(built('solid.extrude').at(-1)).toMatchObject({ distance: '-1.5 mm' });
+  });
+});
+
 describe('a block lands on the body it names (audit W1)', () => {
   const before = new Map([['A', 16000], ['B', 48000]]);
 
@@ -250,7 +288,7 @@ describe('a block that lands on another body is taken back (audit W1)', () => {
       callTool: (_name, args) => {
         const commands = args.commands as { command: string }[];
         batches.push(commands.map((step) => step.command).join(' '));
-        if (commands.some((step) => step.command === 'solid.hole')) built = true;
+        if (args.rollback !== true && commands.some((step) => step.command === 'solid.hole')) built = true;
         if (commands.some((step) => step.command === 'edit.undo')) built = false;
         const reply = (step: { command: string }) =>
           step.command === 'inspect.measure' ? { bodies: [{ name: 'A', volume_mm3: 16000 }, { name: 'B', volume_mm3: built ? 47818 : 48000 }] } : step.command === 'document.inspect' ? { undo: built ? 4 : 2, timeline: built ? [1, 2, 3, 4] : [1, 2], sketches: [] } : {};
@@ -260,7 +298,7 @@ describe('a block that lands on another body is taken back (audit W1)', () => {
     const answer = await withBlockTool(upstream).callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20], more: [[40, 10, 20]] });
     expect(answer).toMatchObject({ isError: true, content: [{ text: 'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies' }] });
     // The design marked before, the two steps since undone in one batch and looked at; then the top component is made active.
-    expect(batches).toEqual(['inspect.measure', 'document.inspect joint.list', 'solid.hole solid.hole inspect.measure', 'document.inspect joint.list', 'edit.undo edit.undo document.inspect joint.list', 'component.activate']);
+    expect(batches).toEqual(['inspect.measure', 'solid.box solid.combine solid.hole solid.hole solid.combine inspect.measure sketch.inspect', 'document.inspect joint.list', 'solid.hole solid.hole inspect.measure', 'document.inspect joint.list', 'edit.undo edit.undo document.inspect joint.list', 'component.activate']);
     expect(String((await withBlockTool(upstream).callTool('partbuddy_block', { block: 'screwHole', body: 'Ghost', point: [30, 10, 20] })).content[0]?.text)).toBe('Not built: there is no body named Ghost; the design has A, B');
   });
 });
@@ -535,6 +573,8 @@ describe('a block is taken back by what the design measures, not by the depth of
       callTool: (_name, args) => {
         const commands = args.commands as { command: string; params: Record<string, unknown> }[];
         batches.push(commands.map((step) => step.command).join(' '));
+        // A trial SolidCraft takes back (the reach of a cut through, blocks.ts): refused here, so the block is built as asked.
+        if (args.rollback === true) return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: [], failed: { index: 0, command: 'solid.box', error: 'refused' } }) }], isError: true });
         const results: unknown[] = [];
         for (const step of commands) {
           if (step.command === 'edit.undo') {
