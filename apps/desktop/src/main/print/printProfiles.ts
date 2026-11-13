@@ -301,7 +301,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
     );
   if (design.printInPlace)
     lines.push(
-      `- Hinges, joints and clips: first look for a print-in-place solution that prints without support, with ${mm(gap)} gap all round the moving parts (one nozzle, at least ${mm(MOVING_GAP)}: Prusa), the pin lying flat with 45° cones or teardrop holes instead of flat ceilings, and a ${mm(layer * 2)} chamfer on the moving parts' bed edges so they do not fuse. Snap arms at least five times as long as thick, with a 30–45° lead-in (own choice). When print-in-place does not work (load, size, material), choose another joint on purpose and say why in one sentence.`,
+      `- Hinges, guides, snap closures and clips: build them with partbuddy_mechanism, which makes them print-in-place with this printer's gap. Other joints you model yourself (a wheel on its axle, a lever): first look for a print-in-place solution that prints without support, with ${mm(gap)} gap all round the moving parts (one nozzle, at least ${mm(MOVING_GAP)}: Prusa), the pin lying flat with 45° cones or teardrop holes instead of flat ceilings, and a ${mm(layer * 2)} chamfer on the moving parts' bed edges so they do not fuse. Snap arms at least five times as long as thick, with a 30–45° lead-in (own choice). When print-in-place does not work (load, size, material), choose another joint on purpose and say why in one sentence.`,
     );
   if (design.details)
     lines.push(
