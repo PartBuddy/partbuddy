@@ -19,6 +19,7 @@ import { CLEARANCE_NOZZLE, ELEPHANT_FOOT, lineWidth, printInPlaceGap, scaleClear
 import { MATERIAL_CATALOG } from '../../shared/materialCatalog';
 import { COMPENSATED_CIRCLE, holeAllowance, HOLE_SIZES, LARGEST_HOLE } from '../../shared/tolerances';
 import { BLOCK_TOOL } from '../agents/blockTool';
+import { MECHANISM_TOOL } from '../agents/mechanismTool';
 import { DESIGN_TOOL } from '../agents/designTool';
 import { ASK_TOOL } from '../agents/questions';
 import { BRIDGE_SPAN, LYING_HOLE, minimumFloor, minimumWall, thinnestLine } from '@partbuddy/geometry';
@@ -289,7 +290,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
   const lines = [
     'Design it well without being asked: apply the rules below on your own, in every design, unless the user says otherwise.',
     `- Sizes the user names are fixed: build them exactly, never round or snap them to the nozzle or layer height. If one does not print at all (a wall or detail thinner than ${mm(thinnestLine(printer.nozzle))}, the narrowest line a slicer lays with this nozzle; a floor or lid thinner than one ${mm(layer)} layer; such walls and floors are what the print check blocks), or is implausible for the part (ten times off the rest, a hole wider than the face it goes through), do not build it: ask with ${ASK_TOOL}, offering the value as given and the nearest one that prints. A size that only prints less well (a wall under two lines, ${mm(minWall)}, or not a whole number of ${mm(line)} lines; a detail under one line; a floor under ${mm(minimumFloor(layer))}) is built as given, with one sentence on the better value. Working parts are the exception: lips and snap arms under two lines do not hold, and ${BLOCK_TOOL} refuses them, so ask for those too.`,
-    `- Fits follow the purpose, not the raw size: nominal size plus the clearance per side of the fit, clamp ${clearance('clamp')} (tight, only with force), push ${clearance('push')} (in by hand), slide ${clearance('slide')} (without force), turn ${clearance('turn')} (turns freely); the material's values brought to this nozzle: they grow with a nozzle wider than ${mm(CLEARANCE_NOZZLE)} and never go under their ${mm(CLEARANCE_NOZZLE)} values on a finer one. ${room} A round hole also gets the material's hole allowance on its diameter. A part that holds something (a clip on a cable, tube or pen) grips it: wrap round items more than halfway, with the push fit and an opening narrower than the item. Ask only when the purpose is unclear.`,
+    `- Fits follow the purpose, not the raw size: nominal size plus the clearance per side of the fit, clamp ${clearance('clamp')} (tight, only with force), push ${clearance('push')} (in by hand), slide ${clearance('slide')} (without force), turn ${clearance('turn')} (turns freely); the material's values brought to this nozzle: they grow with a nozzle wider than ${mm(CLEARANCE_NOZZLE)} and never go under their ${mm(CLEARANCE_NOZZLE)} values on a finer one. ${room} A round hole also gets the material's hole allowance on its diameter. ${BLOCK_TOOL} and ${MECHANISM_TOOL} add both themselves: give them nominal sizes (the screw, the insert, the magnet, the peg, the shaft), never a size with clearance or allowance added, or they come out twice as loose. A part that holds something (a clip on a cable, tube or pen) grips it: wrap round items more than halfway, with the push fit and an opening narrower than the item. Ask only when the purpose is unclear.`,
     `- Printing comes first: nothing leans more than ${String(material.overhang)}° without support, no support that a better shape or orientation avoids, and stand the part so loads and snap arms run along the layers, not across them. A refinement never makes function or printing worse; leave it out where it would.`,
   ];
   if (design.rounding)
@@ -337,7 +338,7 @@ export function printNote({ printer, material: used, supportFree, design }: Part
     'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed; the check and the slicer then lay it on that face.',
     ...(supportFree ? supportFreeLines(used.overhang, printer.nozzle) : []),
     ...designLines(design, printer, used),
-    'Keep nominal sizes as parameters, add the clearance and the hole allowance as their own parameters, and say which fit you chose.]',
+    `Keep nominal sizes as parameters, add the clearance and the hole allowance as their own parameters where you model a fit yourself (${BLOCK_TOOL} and ${MECHANISM_TOOL} add them), and say which fit you chose.]`,
   ].join('\n');
 }
 

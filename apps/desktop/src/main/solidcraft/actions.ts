@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { cutsThrough, splitPieceSteps, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../../shared/blocks';
 import type { ClearanceResult, DesignAction, JointSweep, JointSweepResult, MeasureItem, MeasureResult } from '../../shared/contract';
-import type { FitPrinter } from '../../shared/designFit';
+import type { ToolPrinter } from '../../shared/toolFit';
 import { LIP, snapHold } from '../../shared/mechanisms';
 import type { ControlRequester } from './mirror';
 
@@ -108,7 +108,7 @@ export class ActionService {
    * alone (audit W2). `unmeasured` when the reach could not be found: then it goes through all of the body on its line,
    * far walls too, and the form must say so. SolidCraft's refusal and an engine error are told apart in the log.
    */
-  async blockSteps(block: FeatureBlock, sketch: string | undefined, log: (line: string) => void, printer?: FitPrinter): Promise<{ steps: Step[]; unmeasured: boolean }> {
+  async blockSteps(block: FeatureBlock, sketch: string | undefined, log: (line: string) => void, printer?: ToolPrinter): Promise<{ steps: Step[]; unmeasured: boolean }> {
     let reach: (number | null)[] | undefined;
     if (cutsThrough(block)) {
       try {

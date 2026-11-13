@@ -4,7 +4,7 @@ import { templateRequestSchema } from '../src/shared/contract';
 import { commentText, rangeOf } from '../src/renderer/src/shell/parameterRange';
 import { TEXT_STROKE } from '../src/shared/blocks';
 import { TEMPLATE_IDS, germanFeatureName, templatePrintFaces, templateSteps } from '../src/shared/templates';
-import { WALL } from '../src/shared/wallMount';
+import { wallSizes } from '../src/shared/wallMount';
 
 /** The geometry fields whose text is an expression over the design's parameters. */
 const EXPRESSION_FIELDS = new Set(['length', 'width', 'height', 'diameter', 'thickness', 'depth', 'corner', 'base', 'position', 'center', 'points', 'point', 'distance', 'cs_diameter', 'radius', 'text_expression', 'offset']);
@@ -192,6 +192,31 @@ describe('templates with moving parts', () => {
     expect(templateSteps('slideStop').filter((step) => step.command === 'solid.extrude').map((step) => step.params.distance)).toEqual(['length', 'length']);
   });
 
+  it('builds its moving parts for the printer in use: gaps of its nozzle, a barrel two lines round the bore (audit T28, BC-10 open)', () => {
+    const hinged = (nozzle: number, layer = 0.2) => {
+      const steps = templateSteps('hingedBox', false, { nozzle, layer });
+      const offset = steps.find((step) => step.command === 'joint.create')?.params.offset;
+      // The barrel and the bore: the largest cylinder that is not the knuckles' room, and the pin.
+      const sizes = [...new Set(steps.filter((step) => step.command === 'solid.cylinder' && String(step.params.name).startsWith('Hinge')).map((step) => step.params.diameter))];
+      return { offset, sizes };
+    };
+    // On 0.4 mm as before: gap 0.4, barrel 8, pin 4 (the template's preview pictures stay true).
+    expect(hinged(0.4)).toEqual(hinged(0.4, 0.12));
+    expect(hinged(0.4).offset).toBe(-0.4);
+    expect(hinged(0.4).sizes).toEqual(expect.arrayContaining(['8 mm', '4 mm']));
+    // Finer nozzles take the least print-in-place gap, 0.3 mm; coarser ones their own, and a wider barrel where two lines need it.
+    expect([0.2, 0.25, 0.6, 0.8].map((nozzle) => hinged(nozzle).offset)).toEqual([-0.3, -0.3, -0.6, -0.8]);
+    expect(hinged(0.6).sizes).toEqual(expect.arrayContaining(['9 mm', '4.5 mm']));
+    expect(hinged(0.8).sizes).toEqual(expect.arrayContaining(['12 mm', '6 mm']));
+    // What the mechanism tool refuses, the template does not build: layers as high as the 0.3 mm gap close it.
+    expect(() => templateSteps('hingedBox', false, { nozzle: 0.25, layer: 0.3 })).toThrow("the hinged box's hinge does not print on a 0.25 mm nozzle with 0.3 mm layers: gap must be more than a layer (0.3 mm)");
+    // The closure's lip follows the nozzle as well (lipThick): 1.4 mm on 0.4, 1.85 mm on 0.8, with its 0.25 mm of clearance.
+    const ring = (nozzle: number) => templateSteps('hingedBox', false, { nozzle, layer: 0.2 }).filter((step) => step.command === 'sketch.rectangle.rounded').map((step) => step.params.p0)[1];
+    expect([ring(0.4), ring(0.8)]).toEqual([['(wall) + 1.65 mm', '(1 mm + wall) + 1.65 mm'], ['(wall) + 2.1 mm', '(1 mm + wall) + 2.1 mm']]);
+    // The guide of the stop: its gap is the nozzle's, so the stop's print face moves up with it.
+    expect([0.2, 0.4, 0.8].map((nozzle) => templatePrintFaces('slideStop', false, { nozzle, layer: 0.2 })[0]?.point)).toEqual([[60, 8, 26.3], [60, 8, 26.4], [60, 8, 26.8]]);
+  });
+
   it('seats the housing\'s screws as standard parts on the lid, and words the sign from its text parameter', () => {
     // One part per hole, each body named, so the view shows all four.
     expect(templateSteps('housing').filter((step) => step.command === 'parts.insert')).toHaveLength(4);
@@ -208,10 +233,14 @@ describe('templates with moving parts', () => {
     expect(holder.find((step) => step.params.name === 'Inner radius')?.params).toEqual({ edges: [[25, 6, 6], [25, 46, 6]], radius: 'wall', name: 'Inner radius' });
     // Lying on its side, the corners that touch the bed are chamfered: a round there starts in the air.
     expect(holder.filter((step) => ['Outer corners', 'Lip corners'].includes(String(step.params.name))).map((step) => step.command)).toEqual(['solid.chamfer', 'solid.chamfer']);
-    // T43: 4.5 and 9 mm stood here, the table says 4.7 and 8.8 for a 4 mm wood screw.
+    // T43: one table for both; BC-16 review S3: DIN 74's 4.5 and 8.6 mm drawn with PLA's hole allowance.
     const value = (id: 'wallHolder' | 'slideStop', name: string) => templateSteps(id).find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.expression;
-    expect([value('wallHolder', 'screw_hole'), value('wallHolder', 'screw_head')]).toEqual([`${String(WALL[4].clearance)} mm`, `${String(WALL[4].countersink)} mm`]);
-    expect([value('slideStop', 'screw_hole'), value('slideStop', 'screw_head')]).toEqual(['4.7 mm', '9 mm']);
+    expect([value('wallHolder', 'screw_hole'), value('wallHolder', 'screw_head')]).toEqual([`${String(wallSizes(4).clearance)} mm`, `${String(wallSizes(4).countersink)} mm`]);
+    expect([value('wallHolder', 'screw_hole'), value('wallHolder', 'screw_head')]).toEqual(['4.65 mm', '8.75 mm']);
+    expect([value('slideStop', 'screw_hole'), value('slideStop', 'screw_head')]).toEqual(['4.65 mm', '9.15 mm']);
+    // In PP (0.3 mm) wider still; the insert's hole of the stop at its maker's size (S1).
+    const pp = (id: 'wallHolder' | 'slideStop' | 'housing' | 'sign', name: string) => templateSteps(id, false, { nozzle: 0.4, layer: 0.2, material: { holeShrink: 0.3, clearance: { clamp: 0.1, push: 0.2, slide: 0.3, turn: 0.35 } } }).find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.expression;
+    expect([pp('wallHolder', 'screw_hole'), pp('slideStop', 'clamp_hole'), pp('housing', 'screw_hole'), pp('housing', 'insert_hole'), pp('sign', 'screw_hole')]).toEqual(['4.8 mm', '5.6 mm', '3.7 mm', '4 mm', '3.7 mm']);
     // Review of BC-07, S2: within these ranges the rounds of one wall fit floor, lip and plate (measured at both ends).
     const range = (name: string, german = false) => rangeOf(String(templateSteps('wallHolder', german).find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.comment));
     expect(['plate_height', 'plate_width', 'wall', 'hook_width', 'lip_height'].map((name) => range(name))).toEqual([{ min: 60, max: 200 }, { min: 30, max: 150 }, { min: 4, max: 8 }, { min: 30, max: 120 }, { min: 20, max: 60 }]);

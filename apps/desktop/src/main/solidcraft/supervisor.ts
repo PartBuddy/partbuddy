@@ -20,7 +20,7 @@ import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFea
 import type { DesignParameter, DimensionMark, LogoMoveRequest, LogoSpot } from '../../shared/contract';
 import { logoAt, planLogoMove } from './logoMove';
 import { blockBodies, colourLayers, planeAt, type FeatureBlock } from '../../shared/blocks';
-import type { FitPrinter } from '../../shared/designFit';
+import type { ToolPrinter } from '../../shared/toolFit';
 import { centring, hostFace, movedPlane, TEXT_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
 import { boxSize, insertCommand, statesNoUnit, type ImportKind, type MeshUnit } from '../projects/importFile';
 import { resolvePrintFaces, savedPrintFaces } from '../projects/assembly';
@@ -826,7 +826,7 @@ export class SolidCraftSupervisor {
   }
 
   /** A function block (F1) on trial for the ghost, like an action. */
-  async previewBlock(given: FeatureBlock, printer?: FitPrinter): Promise<ActionPreview> {
+  async previewBlock(given: FeatureBlock, printer?: ToolPrinter): Promise<ActionPreview> {
     const block = await this.boldBlock(given);
     return this.trial('block preview', async () => {
       const placed = await this.centredBlock(block);
@@ -853,7 +853,7 @@ export class SolidCraftSupervisor {
     return { ...block, point: movedPlane(plane, du, dv).origin };
   }
 
-  async applyBlock(given: FeatureBlock, printer?: FitPrinter): Promise<void> {
+  async applyBlock(given: FeatureBlock, printer?: ToolPrinter): Promise<void> {
     let block = await this.boldBlock(given);
     await this.probing;
     // A logo's sketches get a name no other logo has, so it can be moved on its own later.

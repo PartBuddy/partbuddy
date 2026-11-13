@@ -230,6 +230,8 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
     expect(fine).not.toContain('0.562, 0.843, 1.124 mm (two to four lines)');
     // Lips and snap arms are the exception the block tool refuses under two lines.
     expect(fine).toContain(`Working parts are the exception: lips and snap arms under two lines do not hold, and ${BLOCK_TOOL} refuses them, so ask for those too.`);
+    // BC-16 review S5: the tools add clearance and hole allowance themselves, so the model gives them nominal sizes.
+    expect(fine).toContain(`${BLOCK_TOOL} and partbuddy_mechanism add both themselves: give them nominal sizes`);
     expect(fine).not.toMatch(/two lines,? \(?0\.562/);
   });
 

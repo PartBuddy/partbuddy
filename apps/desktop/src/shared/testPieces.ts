@@ -1,6 +1,7 @@
 import { BOLD_FONT, textDepth } from './blocks';
 import { ELEPHANT_FOOT, snapSize } from './designFit';
 import { FIT_STEPS, HOLE_SIZES, OVERHANG_STEPS } from './tolerances';
+import { DEFAULT_MATERIAL, drawnHole } from './toolFit';
 
 /**
  * The test pieces of the tolerance assistant, built with SolidCraft's own commands like the
@@ -14,7 +15,10 @@ import { FIT_STEPS, HOLE_SIZES, OVERHANG_STEPS } from './tolerances';
 
 type Step = { command: string; params: Record<string, unknown> };
 
-/** The diameter of the comb's pin; each hole is this plus twice the step's clearance. */
+/**
+ * The diameter of the comb's pin; each hole is this plus twice the step's clearance, as it shall come out, drawn wider by the
+ * hole allowance of the material measured ({@link combHole}).
+ */
 export const PIN = 6;
 /** The fit comb's holes per row. */
 const PER_ROW = 5;
@@ -27,7 +31,15 @@ export const DIGIT_STROKE = 0.134;
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
-export function testPieceSteps({ nozzle, layer }: { nozzle: number; layer: number }): Step[] {
+/**
+ * A hole of the fit comb as drawn: pin and clearance, plus the material's hole allowance, so the clearance read off the comb is the
+ * room left after printing, as the tools add the allowance on top of it (BC-16 review B1, audit N-nach-6: undrawn, the shrink went
+ * into the reading, and the tools counted it twice). `holeShrink` is the profile's before the reading, PLA's when none is given.
+ * The plate printed beside it measures the real allowance; applyReadings takes the difference off each reading (review S3).
+ */
+export const combHole = (clearance: number, holeShrink = DEFAULT_MATERIAL.holeShrink) => drawnHole(PIN + 2 * clearance, { ...DEFAULT_MATERIAL, holeShrink });
+
+export function testPieceSteps({ nozzle, layer, holeShrink }: { nozzle: number; layer: number; holeShrink?: number | undefined }): Step[] {
   const printer = { nozzle, layer };
   const layers = (mm: number) => snapSize('height', mm, printer);
   const engraving = textDepth(printer);
@@ -61,7 +73,7 @@ export function testPieceSteps({ nozzle, layer }: { nozzle: number; layer: numbe
   FIT_STEPS.forEach((clearance, i) => {
     const x = pitch / 2 + (i % PER_ROW) * pitch;
     const y = (rows - 1 - Math.floor(i / PER_ROW)) * row + above;
-    hole('Fit comb', PIN + 2 * clearance, comb, [x, y], `Fit ${String(clearance)}`);
+    hole('Fit comb', combHole(clearance, holeShrink), comb, [x, y], `Fit ${String(clearance)}`);
     fitLabels.push([String(clearance), x, y - above + 1.5]);
   });
   label('Fit comb', comb, fitLabels);

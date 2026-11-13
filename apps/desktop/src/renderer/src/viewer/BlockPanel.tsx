@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
 
 import { BLOCK_KINDS, DEFAULT_PRINTER, blockLimit, defaultBlock, hasSize, limitRefusal, raisedBlock, strokesKnown, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, SNAP_STRAIN_LIMIT, snapStrain, textDepth, textStroke, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
-import { HEAD_ALLOWANCE, HOLE_SHRINK_MOST, THREAD_ALLOWANCE } from '../../../shared/screwSizes';
+import { HEAD_ALLOWANCE, NUT_DIN_FLATS, THREAD_ALLOWANCE } from '../../../shared/screwSizes';
+import { fitClearance, holeRoom, type ToolPrinter } from '../../../shared/toolFit';
 import { drawingColours, drawingSvg, mergedColours, naturalWidth, parseDrawing, type Drawing, type DrawingProblem } from '../../../shared/svgDrawing';
 import { DrawingDetailNote } from '../assistant/DrawingDetailNote';
 import { platform } from '../platform';
@@ -120,8 +121,10 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   const [open, setOpen] = useState(false);
   // The block's values; body and point come from the picked face.
   const [spec, setBlock] = useState<FeatureBlock>(() => defaultBlock('tappedHole', '', [0, 0, 0], 'M3'));
-  // The printer in use: the form starts from standard sizes raised to what it prints, and checks by the assistant's limits.
-  const printer = useStudio((s) => s.print?.printer) ?? DEFAULT_PRINTER;
+  // The printer in use with the part's material: the form starts from standard sizes raised to what it prints, with the
+  // material's fits, and checks by the assistant's limits; main builds with the same (index.ts, toolPrinter).
+  const print = useStudio((s) => s.print);
+  const printer = useMemo<ToolPrinter>(() => (print ? { ...print.printer, material: print.material } : DEFAULT_PRINTER), [print]);
   // SolidCraft's answer for a block; only the answer for the block as it is now counts (a moved one is tried anew).
   const [status, setStatus] = useState<{ ok: boolean; error?: string; block?: FeatureBlock; unmeasured?: boolean } | null>(null);
   const [fileProblem, setFileProblem] = useState<DrawingProblem | 'unreadable' | null>(null);
@@ -498,7 +501,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               {block.type === 'groove' ? <Length label={t('blocks.gap')} value={block.gap} onChange={(gap) => setBlock({ ...block, gap })} testId="block-gap" /> : null}
             </div>
           )}
-          <p className="text-xs text-text-subtle">{t(`blocks.hint.${block.block}`, { thread: THREAD_ALLOWANCE, shrink: HOLE_SHRINK_MOST, head: HEAD_ALLOWANCE.diameter, layer: printer.layer, depth: textDepth(printer), stroke: textStroke(printer) })}</p>
+          <p className="text-xs text-text-subtle">{t(`blocks.hint.${block.block}`, { thread: THREAD_ALLOWANCE, shrink: holeRoom(3, printer.material), room: 2 * fitClearance('push', printer), din: (NUT_DIN_FLATS.M10 ?? 17) + 2 * fitClearance('push', printer), head: HEAD_ALLOWANCE.diameter, layer: printer.layer, depth: textDepth(printer), stroke: textStroke(printer) })}</p>
           {waiting ? (
             <p className="text-xs text-text-muted" role="status" data-testid="block-status">
               {t('blocks.logoWaiting')}

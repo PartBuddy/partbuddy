@@ -9,6 +9,7 @@ import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 
 import { printInPlaceGap, type FitPrinter } from './designFit';
 import { CAP_HEAD, CLEARANCE_NORMAL, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, type BlockSize } from './screwSizes';
+import { drawnHole, type ToolMaterial } from './toolFit';
 
 type Vec3 = [number, number, number];
 type Step = { command: string; params: Record<string, unknown> };
@@ -690,6 +691,8 @@ export interface ScrewSpec {
   screws: boolean;
   /** The nozzle the plastic under the head is sized for (mm); default 0.4. */
   nozzle?: number;
+  /** The part's material: the clearance hole is drawn wider by its hole allowance (audit S-10), the insert's seat not (S1); default PLA. */
+  material?: ToolMaterial;
   name: string;
 }
 
@@ -816,7 +819,7 @@ export function screwSteps(spec: ScrewSpec): Step[] {
     const label = `${spec.name} ${String(i + 1)}`;
     // A countersink sunk deeper starts on the floor of a cylinder as wide as its mouth.
     const sunk = spec.head === 'countersunk' && sink > 0 && room;
-    const hole = { diameter: mm(CLEARANCE_NORMAL[spec.size]), direction, targets: [spec.moving], name: label };
+    const hole = { diameter: mm(drawnHole(CLEARANCE_NORMAL[spec.size], spec.material)), direction, targets: [spec.moving], name: label };
     return [
       ...(sunk ? [{ command: 'solid.cylinder', params: { diameter: mm(room.diameter), height: mm(sink), base: entry, axis: direction, operation: 'cut', targets: [spec.moving], name: `${label} ◎` } }] : []),
       sunk
@@ -1065,8 +1068,10 @@ export interface PegSpec {
   more: Vec3[];
   /** The peg's diameter in mm. */
   diameter: number;
-  /** The room round the peg in its pocket, per side, in mm. */
+  /** The room round the peg in its pocket, per side, in mm, as printed. */
   gap: number;
+  /** The part's material: the pocket is drawn wider by its hole allowance (audit S-10, W16); default PLA. */
+  material?: ToolMaterial;
   name: string;
 }
 
@@ -1082,9 +1087,11 @@ export const PEG = { ratio: 1.5, deeper: 1, chamfer: 0.5, root: 0.5, least: 5, w
 /**
  * The plastic under a pocket, in mm: what the print check takes for a floor, four layers and at least 0.8 mm, or for a
  * wall, two lines, as the pocket stands (0.6 mm, three layers, was a thin floor to the check).
- * shortcut: reckoned with 0.2 mm layers, since the tool knows the nozzle only; pass the profile's layer when it does.
  */
-export const pegFloor = (nozzle = 0.4) => Math.max(minimumFloor(0.2), minimumWall(nozzle));
+export const pegFloor = (nozzle = 0.4, layer = 0.2) => Math.max(minimumFloor(layer), minimumWall(nozzle));
+
+/** A peg's pocket as drawn: the peg, its gap on both sides, and the material's hole allowance. */
+export const pegBore = (spec: Pick<PegSpec, 'diameter' | 'gap' | 'material'>) => drawnHole(spec.diameter + 2 * spec.gap, spec.material);
 
 /** How far a peg stands out of its face. */
 export function pegLength(diameter: number): number {
@@ -1111,7 +1118,7 @@ export function pegSteps(spec: PegSpec): Step[] {
   const axis = delta.map((value) => value / Math.hypot(...delta) + 0) as Vec3;
   const mm = (value: number) => `${String(round(value))} mm`;
   const long = pegLength(spec.diameter);
-  const bore = spec.diameter + 2 * spec.gap;
+  const bore = pegBore(spec);
   return [spec.from, ...spec.more].flatMap((foot, i): Step[] => {
     const at = (distance: number) => foot.map((value, k) => round(value + (axis[k] ?? 0) * distance)) as Vec3;
     const label = `${spec.name} ${String(i + 1)}`;

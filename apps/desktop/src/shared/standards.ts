@@ -1,6 +1,6 @@
 import { BRIDGE_SPAN } from '@partbuddy/geometry';
 
-import { DEFAULT_PRINTER, defaultBlock, sizesOf, type FeatureBlock } from './blocks';
+import { DEFAULT_PRINTER, defaultBlock, nutFlats, sizesOf, type FeatureBlock } from './blocks';
 import { lineWidth } from './designFit';
 import { CLEARANCE_NORMAL, NUT, NUT_ALLOWANCE, NUT_DIN_FLATS, PILOT_FACTOR, type BlockSize } from './screwSizes';
 
@@ -35,9 +35,11 @@ const KNOB_SIZES = Object.keys(STAR_KNOB) as KnobSize[];
 export const HEX_HEAD_HEIGHT: Record<KnobSize, number> = { M5: 3.5, M6: 4, M8: 5.3, M10: 6.4 };
 const knobSizes = (say: (size: KnobSize) => string) => KNOB_SIZES.map(say).join(', ');
 /** Where heads of DIN 933 and nuts of DIN 934 are wider than ISO's, with the pocket they need (audit BC-22 review S2). */
+/** The room across flats partbuddy_block nutTrap leaves round a nut in the default material (nutFlats: its push fit on both sides). */
+const NUT_ROOM = Math.round((nutFlats('M10', DEFAULT_PRINTER) - NUT.M10[0]) * 100) / 100;
 const DIN_POCKETS = KNOB_SIZES.flatMap((size) => {
   const flats = NUT_DIN_FLATS[size];
-  return flats ? [`${size} heads of DIN 933 and nuts of DIN 934 are ${mm(flats)} mm across flats: pocket ${mm(flats + NUT_ALLOWANCE.flats)}.`] : [];
+  return flats ? [`${size} heads of DIN 933 and nuts of DIN 934 are ${mm(flats)} mm across flats: pocket ${mm(flats + NUT_ROOM)}.`] : [];
 }).join(' ');
 const NUT_TRAP = sizesOf('nutTrap');
 
@@ -127,7 +129,7 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
     rules: [
       `Sizes of DIN 6336 in plastic (Ganter), diameter, hub and height: ${KNOB_SIZES.map((size) => `${size} ${STAR_KNOB[size].join(', ')} mm`).join('; ')}. The standard goes on to larger knobs; PartBuddy's screw tables end at M10.`,
       'Five lobes are usual (the standard\'s count could not be confirmed); round them generously, lobe radius about a sixth of the diameter.',
-      `To hold a hexagon screw: a hexagonal pocket from the top, across flats ${mm(NUT_ALLOWANCE.flats)} mm more than the head and ${mm(NUT_ALLOWANCE.depth)} mm deeper than the head, as partbuddy_block nutTrap makes it, with the normal clearance hole of ISO 273 under it (${knobSizes((size) => `${size} ${mm(CLEARANCE_NORMAL[size])}`)} mm). Heads by ISO 4017, across flats and height: ${knobSizes((size) => `${size} ${mm(NUT[size][0])} and ${mm(HEX_HEAD_HEIGHT[size])}`)} mm. ${DIN_POCKETS}`,
+      `To hold a hexagon screw: a hexagonal pocket from the top, across flats ${mm(NUT_ROOM)} mm more than the head (the push fit of PLA on both sides; partbuddy_block takes the part's material) and ${mm(NUT_ALLOWANCE.depth)} mm deeper than the head, as partbuddy_block nutTrap makes it, drawn the material's hole allowance wider across flats, with the normal clearance hole of ISO 273 under it (${knobSizes((size) => `${size} ${mm(CLEARANCE_NORMAL[size])}`)} mm). Heads by ISO 4017, across flats and height: ${knobSizes((size) => `${size} ${mm(NUT[size][0])} and ${mm(HEX_HEAD_HEIGHT[size])}`)} mm. ${DIN_POCKETS}`,
       `To hold a nut: the same pocket from below the hub; nuts by ISO 4032 are as wide as the heads and ${knobSizes((size) => `${mm(NUT[size][1])} (${size})`)} mm high. For ${String(NUT_TRAP[0])} to ${String(NUT_TRAP.at(-1))} partbuddy_block nutTrap makes the pocket.`,
       'Keep plastic round the pocket as thick as the thread is wide, and glue the screw or nut in with a drop of superglue or close the pocket with a pressed-in cap.',
       'Print it with the pocket opening upwards, flat side down. For a knob on a shaft (potentiometer, encoder) use partbuddy_block knob.',

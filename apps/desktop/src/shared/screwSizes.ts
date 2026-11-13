@@ -5,7 +5,7 @@
  * size from here, not from SolidCraft's own tables (audit R7, W21).
  */
 
-import { MATERIAL_CATALOG } from './materialCatalog';
+import { drawnHole, type ToolMaterial } from './toolFit';
 
 export const BLOCK_SIZES = ['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10'] as const;
 export type BlockSize = (typeof BLOCK_SIZES)[number];
@@ -61,8 +61,8 @@ export const NUT: Record<BlockSize, [number, number]> = {
  */
 export const NUT_DIN_FLATS: Partial<Record<BlockSize, number>> = { M10: 17 };
 
-/** Extra room around a printed nut: across flats and depth. */
-export const NUT_ALLOWANCE = { flats: 0.3, depth: 0.4 };
+/** Extra depth of a printed nut's pocket; across its flats the room is the material's push fit (blocks.ts nutFlats, audit BC-16). */
+export const NUT_ALLOWANCE = { depth: 0.4 };
 
 /**
  * Extra room around a printed screw head, in mm (audit T39, MV-20): `diameter` on each side of a cap screw's counterbore
@@ -101,18 +101,8 @@ export const CLEARANCE: Record<Fit, Record<BlockSize, number>> = {
 /** Normal clearance holes, ISO 273 medium series, in mm. */
 export const CLEARANCE_NORMAL: Record<BlockSize, number> = CLEARANCE.normal;
 
-/**
- * In mm on the diameter: the most a printed hole comes out smaller than drawn, the largest hole allowance of the material
- * catalogue (PP). A clearance hole must leave more than this over its screw, or the screw may not pass (audit T31).
- * shortcut: the block does not know the material (BC-16 brings the profile); take the profile's allowance then.
- */
-export const HOLE_SHRINK_MOST = Math.max(...MATERIAL_CATALOG.map((material) => material.holeShrink));
-
 /** The screw's own diameter, M3 → 3. */
 export const screwDiameter = (size: BlockSize) => Number(size.slice(1));
-
-/** Whether a printed clearance hole of the fit still lets the screw pass after the largest hole shrink: ISO 273 fine leaves 0.2 to 0.3 mm up to M5. */
-export const clearancePasses = (size: BlockSize, fit: Fit) => CLEARANCE[fit][size] - screwDiameter(size) > HOLE_SHRINK_MOST + 1e-9;
 
 /** Tap drills of the coarse threads, ISO 2306 (Optimas), in mm: what SolidCraft drills a listed thread with. */
 export const TAP_DRILL: Record<BlockSize, number> = { M2: 1.6, 'M2.5': 2.05, M3: 2.5, M4: 3.3, M5: 4.2, M6: 5, M8: 6.8, M10: 8.5 };
@@ -139,8 +129,8 @@ export function printedThread(size: BlockSize): { designation: string; major: nu
 export const PILOT_FACTOR = 0.8;
 
 /**
- * The pilot hole a screw cuts its own thread in, in mm: 0.8 times its diameter (Machine Design), plus the hole allowance
- * of PLA, the material of the default print profile, as standards.ts tells the assistant to add the profile's (audit MV-26).
- * shortcut: PLA's allowance, as the block does not know the material; take the profile's once BC-16 brings it.
+ * The pilot hole a screw cuts its own thread in, in mm: 0.8 times its diameter (Machine Design), drawn wider by the hole
+ * allowance of the part's material (PLA's, the default profile's, where none is given), as standards.ts tells the assistant
+ * to add the profile's (audit MV-26, BC-16).
  */
-export const pilotHole = (diameter: number) => Math.round((PILOT_FACTOR * diameter + (MATERIAL_CATALOG.find((material) => material.name === 'PLA')?.holeShrink ?? 0.15)) * 100) / 100;
+export const pilotHole = (diameter: number, material?: ToolMaterial) => Math.round(drawnHole(PILOT_FACTOR * diameter, material) * 100) / 100;

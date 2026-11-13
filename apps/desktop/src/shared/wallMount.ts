@@ -7,6 +7,8 @@
 
 import { BRIDGE_SPAN } from '@partbuddy/geometry';
 
+import { drawnHole, type ToolMaterial } from './toolFit';
+
 type Vec3 = [number, number, number];
 type Step = { command: string; params: Record<string, unknown> };
 
@@ -16,14 +18,21 @@ export type WoodScrew = (typeof WOOD_SCREWS)[number];
 /**
  * Per wood screw, in mm: the keyhole's entry hole (head plus 0.5 mm per side) and slot (thread plus
  * 0.25 mm per side), the depth of the pocket for the head (DIN 7996's pan head, 2.35 / 2.8 / 3.1 / 3.5 mm high, plus 0.65
- * to 0.7 mm: audit MV-21), and the countersunk hole of DIN 74 form A with 0.2 mm more for print.
+ * to 0.7 mm: audit MV-21), and the countersunk hole of DIN 74 form A. Holes as they come out of the printer: {@link wallSizes}
+ * draws them wider by the material's hole allowance (BC-16 review S3; before, a fixed 0.2 mm on the DIN 74 hole and countersink).
  */
 export const WALL: Record<WoodScrew, { entry: number; slot: number; pocket: number; clearance: number; countersink: number }> = {
-  3.5: { entry: 8, slot: 4, pocket: 3, clearance: 4.1, countersink: 7.8 },
-  4: { entry: 9, slot: 4.5, pocket: 3.5, clearance: 4.7, countersink: 8.8 },
-  4.5: { entry: 10, slot: 5, pocket: 3.8, clearance: 5.2, countersink: 9.7 },
-  5: { entry: 11, slot: 5.5, pocket: 4.2, clearance: 5.7, countersink: 10.6 },
+  3.5: { entry: 8, slot: 4, pocket: 3, clearance: 3.9, countersink: 7.6 },
+  4: { entry: 9, slot: 4.5, pocket: 3.5, clearance: 4.5, countersink: 8.6 },
+  4.5: { entry: 10, slot: 5, pocket: 3.8, clearance: 5, countersink: 9.5 },
+  5: { entry: 11, slot: 5.5, pocket: 4.2, clearance: 5.5, countersink: 10.4 },
 };
+
+/** A wood screw's sizes as drawn for the material: entry, slot, hole and countersink the hole allowance wider, the pocket's depth as it is. */
+export function wallSizes(screw: WoodScrew, material?: ToolMaterial): (typeof WALL)[WoodScrew] {
+  const size = WALL[screw];
+  return { ...size, entry: drawnHole(size.entry, material), slot: drawnHole(size.slot, material), clearance: drawnHole(size.clearance, material), countersink: drawnHole(size.countersink, material) };
+}
 
 /**
  * How far the screw travels up the slot, and the lip of the slot in front of the head. The lip has
@@ -60,26 +69,26 @@ const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0
  * up. None where the entry is no wider. At 45° the print check took the slopes into the bridge and found it 11 mm wide
  * (SolidCraft 0.40.1, 2026-11-13).
  */
-export function keyholeRoof(screw: WoodScrew): number {
-  return Math.ceil(Math.max(0, (WALL[screw].entry - BRIDGE_SPAN) / 2 / Math.tan((ROOF_LEAN * Math.PI) / 180)) * 100 - 1e-6) / 100;
+export function keyholeRoof(screw: WoodScrew, material?: ToolMaterial): number {
+  return Math.ceil(Math.max(0, (wallSizes(screw, material).entry - BRIDGE_SPAN) / 2 / Math.tan((ROOF_LEAN * Math.PI) / 180)) * 100 - 1e-6) / 100;
 }
 
 /** How far from upright the sides under a keyhole's roof lean: under the 35° the least steep material of the catalogue takes (TPU). */
 export const ROOF_LEAN = 30;
 
 /** How thick the part must be at a keyhole: lip, pocket, its roof and what stays behind the head. */
-export function keyholeDepth(screw: WoodScrew): number {
-  return round(KEYHOLE.lip + WALL[screw].pocket + keyholeRoof(screw) + KEYHOLE.behind);
+export function keyholeDepth(screw: WoodScrew, material?: ToolMaterial): number {
+  return round(KEYHOLE.lip + WALL[screw].pocket + keyholeRoof(screw, material) + KEYHOLE.behind);
 }
 
 /**
  * The plastic each keyhole needs: as thick as {@link keyholeDepth} behind the entry and behind where the screw
  * rests, as cylinders that start `from` mm under the face.
  */
-export function keyholeStock(spec: KeyholeSpec, from: number): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number }[] {
+export function keyholeStock(spec: KeyholeSpec, from: number, material?: ToolMaterial): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number }[] {
   const [n, up] = [unit(spec.normal), unit(spec.up)];
   const axis = direction(n.map((value) => -value) as Vec3);
-  const room = { axis, diameter: WALL[spec.screw].entry, depth: round(keyholeDepth(spec.screw) - from), from };
+  const room = { axis, diameter: wallSizes(spec.screw, material).entry, depth: round(keyholeDepth(spec.screw, material) - from), from };
   const behind = (point: Vec3) => ({ at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3, ...room });
   return [spec.point, ...spec.more].flatMap((rest) => [behind(rest), behind(rest.map((value, k) => round(value - (up[k] ?? 0) * KEYHOLE.travel)) as Vec3)]);
 }
@@ -88,8 +97,9 @@ export function keyholeStock(spec: KeyholeSpec, from: number): { at: Vec3; base:
 export const WOOD_SCREW_UNDER = 0.6;
 
 /** How deep the 90° countersink of a wood screw goes. */
-export function countersinkDepth(screw: WoodScrew): number {
-  return round((WALL[screw].countersink - WALL[screw].clearance) / 2);
+export function countersinkDepth(screw: WoodScrew, material?: ToolMaterial): number {
+  const size = wallSizes(screw, material);
+  return round((size.countersink - size.clearance) / 2);
 }
 
 /**
@@ -98,9 +108,9 @@ export function countersinkDepth(screw: WoodScrew): number {
  * deep. `axis` is the way the hole went into the part, `from` how far under the face the cylinder starts; the hole
  * itself is taken off.
  */
-export function woodScrewStock(screw: WoodScrew, point: Vec3, axis: Vec3, from: number): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number; hole: number; core: number; slack: number } {
-  const size = WALL[screw];
-  const cone = Math.max(0, countersinkDepth(screw) - from);
+export function woodScrewStock(screw: WoodScrew, point: Vec3, axis: Vec3, from: number, material?: ToolMaterial): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number; hole: number; core: number; slack: number } {
+  const size = wallSizes(screw, material);
+  const cone = Math.max(0, countersinkDepth(screw, material) - from);
   // The 90° cone is as much wider than the clearance hole as it still has to go down.
   const [wide, narrow] = [size.clearance / 2 + cone, size.clearance / 2];
   const hole = (Math.PI * cone * (wide ** 2 + wide * narrow + narrow ** 2)) / 3 + Math.PI * narrow ** 2 * WOOD_SCREW_UNDER;
@@ -128,13 +138,13 @@ export function keyholeProblem(spec: KeyholeSpec): string | null {
  * the entry's width, at most {@link BRIDGE_SPAN} where the pocket's sides lean in above it ({@link keyholeRoof}),
  * and nothing needs support.
  */
-export function keyholeSteps(spec: KeyholeSpec): Step[] {
-  const size = WALL[spec.screw];
+export function keyholeSteps(spec: KeyholeSpec, material?: ToolMaterial): Step[] {
+  const size = wallSizes(spec.screw, material);
   const [n, up] = [unit(spec.normal), unit(spec.up)];
   const into = direction(n.map((value) => -value) as Vec3);
   // Sketch x across the slot and y up, so that x × y points into the part: a positive distance cuts.
   const across = direction(cross(n, up));
-  const roof = keyholeRoof(spec.screw);
+  const roof = keyholeRoof(spec.screw, material);
   const mm = (value: number) => `${String(round(value))} mm`;
   return [spec.point, ...spec.more].flatMap((rest, i): Step[] => {
     const label = `${spec.name} ${String(i + 1)}`;
@@ -164,8 +174,8 @@ export interface WoodScrewSpec {
 }
 
 /** Countersunk holes for wood screws: clearance and a 90° countersink the head lies flush in (DIN 74 form A). */
-export function woodScrewSteps(spec: WoodScrewSpec): Step[] {
-  const size = WALL[spec.screw];
+export function woodScrewSteps(spec: WoodScrewSpec, material?: ToolMaterial): Step[] {
+  const size = wallSizes(spec.screw, material);
   return [spec.point, ...spec.more].map((point, i) => ({
     command: 'solid.hole',
     params: { position: point.map(round), diameter: `${String(size.clearance)} mm`, type: 'countersink', cs_diameter: `${String(size.countersink)} mm`, cs_angle: '90 deg', targets: [spec.body], name: `${spec.name} ${String(i + 1)}` },

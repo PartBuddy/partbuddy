@@ -48,13 +48,14 @@ export function applyReadings(material: MaterialProfile, readings: ToleranceRead
   const measured = nozzle !== undefined && FIT_KINDS.some((fit) => readings.fits[fit] !== undefined) ? nozzle : undefined;
   const carried = (value: number) => (measured === undefined ? value : clamp(scaleClearance(value, { nozzle: measured, layer: 0 }, from), -0.5, 2));
   const clearance = { clamp: carried(material.clearance.clamp), push: carried(material.clearance.push), slide: carried(material.clearance.slide), turn: carried(material.clearance.turn) };
+  // The steps read, checked here so their problems come first; set below, once the plate has given the allowance.
+  const steps: Partial<Record<(typeof FIT_KINDS)[number], number>> = {};
   for (const fit of FIT_KINDS) {
     const value = readings.fits[fit];
     if (value === undefined) continue;
-    if (Number.isFinite(value) && isStep(FIT_STEPS, value)) clearance[fit] = clamp(toStep(value), -0.5, 2);
+    if (Number.isFinite(value) && isStep(FIT_STEPS, value)) steps[fit] = toStep(value);
     else problems.push({ field: 'fit', fit });
   }
-  if (FIT_KINDS.some((fit) => readings.fits[fit] !== undefined) && !fitsInOrder(clearance)) problems.push({ field: 'order' });
 
   const shrink: number[] = [];
   HOLE_SIZES.forEach((size, i) => {
@@ -67,10 +68,20 @@ export function applyReadings(material: MaterialProfile, readings: ToleranceRead
   if (mean !== null && mean < 0) problems.push({ field: 'oversize', by: -mean });
   const holeShrink = mean === null ? material.holeShrink : clamp(mean, 0, 1);
 
+  // The comb was drilled with the profile's allowance as it was (combHole, testPieces.ts); its holes shrank by the one the plate
+  // reads now, so each step's real room is the step plus half the difference (BC-16 review S3).
+  const drilled = (material.holeShrink - holeShrink) / 2;
+  for (const fit of FIT_KINDS) {
+    const step = steps[fit];
+    if (step !== undefined) clearance[fit] = clamp(Math.round((step + drilled) * 1000) / 1000, -0.5, 2);
+  }
+  if (FIT_KINDS.some((fit) => readings.fits[fit] !== undefined) && !fitsInOrder(clearance)) problems.push({ field: 'order' });
+  const read = Object.keys(steps).length > 0;
+
   let overhang = material.overhang;
   if (readings.overhang !== null) {
     if (Number.isFinite(readings.overhang) && isStep(OVERHANG_STEPS, readings.overhang)) overhang = clamp(readings.overhang, 20, 70);
     else problems.push({ field: 'overhang' });
   }
-  return { material: { ...material, overhang, holeShrink, clearance, ...(measured === undefined ? {} : { measuredNozzle: measured }) }, problems };
+  return { material: { ...material, overhang, holeShrink, clearance, ...(measured === undefined ? {} : { measuredNozzle: measured }), ...(read ? { fitsAfterPrint: true as const } : {}) }, problems };
 }

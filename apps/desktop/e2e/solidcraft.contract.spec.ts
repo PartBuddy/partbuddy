@@ -3605,14 +3605,14 @@ test('the assistant hangs a part on the wall with its blocks: keyhole slots on t
     // Each block says that the plastic it needs was measured at the real engine (audit R54): the 8 mm plate has it.
     // In the whole answer, not one element of it: the print check behind each block ends in a list of measures.
     await expect(page.getByTestId('assistant-text').last()).toContainText(
-      /Built 2 keyhole slots for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4\.5 mm wide running 8 mm up [\s\S]* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\.[\s\S]* Built 2 countersunk holes for 4 mm wood screws in Plate: 4\.7 mm through, countersink 8\.8 mm at 90°[\s\S]* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\./,
+      /Built 2 keyhole slots for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4\.5 mm wide running 8 mm up [\s\S]* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\.[\s\S]* Built 2 countersunk holes for 4 mm wood screws in Plate: 4\.5 mm through, countersink 8\.6 mm at 90° \(DIN 74; drawn 4\.65 and 8\.75 mm[\s\S]* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\./,
       { timeout: 60_000 },
     );
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
     // Each block is one line of the work log, and no feature failed.
     await expect(page.getByText('Keyhole slot for a 4 mm screw, to hang on a wall')).toHaveCount(1);
     await expect(page.getByText('Countersunk hole for a 4 mm wood screw')).toHaveCount(1);
-    await expect(page.getByText(/Built 2 pockets for 6 × 2 mm disc magnets in Plate: 6\.3 mm wide and 2\.2 mm deep.* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\./)).toBeVisible();
+    await expect(page.getByText(/Built 2 pockets for 6 × 2 mm disc magnets in Plate: 6\.3 mm wide as printed \(drawn 6\.45 mm, the material's hole allowance wider\) and 2\.2 mm deep.* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\./)).toBeVisible();
     await expect(page.getByText('Pocket for a 6 × 2 mm magnet')).toHaveCount(1);
     await expect(page.getByText(/SolidCraft warns:/)).toHaveCount(0);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
@@ -3643,7 +3643,7 @@ test('the assistant makes a knob for a D shaft with one call: a part of its own 
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a volume knob');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the knob "Volume" for a 6 mm D shaft \(flat at 4\.5 mm\): the bore is 6\.2 mm wide and 11 mm deep, flat over its last 6 mm .* with a chamfered mouth, to push on.* with 12 flutes to grip/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Built the knob "Volume" for a 6 mm D shaft \(flat at 4\.5 mm\): the bore is 6\.1 mm wide \(drawn 6\.25 mm\) and 11 mm deep, flat over its last 6 mm .* with a chamfered mouth, to push on.* with 12 flutes to grip/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/SolidCraft warns:/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
     await expect(page.getByText('Knob “Volume” for a shaft')).toHaveCount(1);
@@ -3714,7 +3714,7 @@ test('the assistant plugs the halves of a split block together: pegs in their po
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a split block');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built 2 pegs "Alignment" on Left with their pockets in Right: 5 mm thick and 7\.5 mm long, 0\.2 mm clear per side/)).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByText(/Built 2 pegs "Alignment" on Left with their pockets in Right: 5 mm thick and 7\.5 mm long, 0\.15 mm clear per side as printed \(the pocket drawn 5\.45 mm wide/)).toBeVisible({ timeout: 90_000 });
     await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Plugged connection “Alignment” between two parts')).toHaveCount(1);

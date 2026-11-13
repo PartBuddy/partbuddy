@@ -1565,7 +1565,9 @@ test('the tolerance assistant reads the test pieces into the material in place o
   await pick('tolerance-fit-clamp', '-0.05 mm');
   await pick('tolerance-fit-push', '0.1 mm');
   await pick('tolerance-fit-slide', '0.2 mm');
-  await pick('tolerance-fit-turn', '0.3 mm');
+  // The comb was drilled with PLA's 0.15 mm allowance and the plate reads 0.25: each step is 0.05 mm a side less room (BC-16
+  // review S3), so turn read at 0.35 stays PLA's 0.3.
+  await pick('tolerance-fit-turn', '0.35 mm');
   for (const [size, measured] of [['3', '2.75'], ['5', '4.75'], ['8', '7.75'], ['10', '9.75']] as const) {
     const field = assistant.getByTestId(`tolerance-hole-${size}`).getByRole('textbox');
     await field.fill(measured);
@@ -1584,11 +1586,11 @@ test('the tolerance assistant reads the test pieces into the material in place o
 
   await expect(dialog.getByTestId('material-overhang').getByRole('textbox')).toHaveValue('50');
   await expect(dialog.getByTestId('material-hole').getByRole('textbox')).toHaveValue('0.25');
-  await expect(dialog.getByTestId('material-fit-clamp').getByRole('textbox')).toHaveValue('-0.05');
+  await expect(dialog.getByTestId('material-fit-clamp').getByRole('textbox')).toHaveValue('-0.1');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ materials: { id: string; overhang: number; holeShrink: number; clearance: Record<string, number> }[] }> } } }).partbuddy.print.settings());
-  expect(saved.materials.find((item) => item.id === 'pla')).toMatchObject({ overhang: 50, holeShrink: 0.25, clearance: { clamp: -0.05, push: 0.1, slide: 0.2, turn: 0.3 } });
+  expect(saved.materials.find((item) => item.id === 'pla')).toMatchObject({ overhang: 50, holeShrink: 0.25, clearance: { clamp: -0.1, push: 0.05, slide: 0.15, turn: 0.3 }, fitsAfterPrint: true });
 });
 
 test('a printer saved before with a layer over its nozzle gets no test pieces and is told why (BC-14 review S1)', async () => {

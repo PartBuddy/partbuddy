@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, closureTrial, latchTrial, MECHANISM_GUIDANCE, MECHANISM_TOOL, snapTrial, pegStock, screwStock, hingeOf, lineProblem, reach, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool, refusal, railFace, freeName, layOn } from '../src/main/agents/mechanismTool';
+import { activated, armProblem, unusedSaid, closureTrial, latchTrial, MECHANISM_GUIDANCE, MECHANISM_TOOL, snapTrial, pegStock, screwStock, hingeOf, lineProblem, reach, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool, refusal, railFace, freeName, layOn } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { METADATA_PREFIX } from '../src/main/notes/noteRecord';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { barrelLeast, barrelWalls, hingeDiameter, hingeLies, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, TOGETHER_KEY, type LatchSpec, type SnapSpec, screwFit, screwLengths, screwSink, screwWindow, sinkMost, underHead, pegFloor, pegProblem, screwProblem, screwSteps, slideOver, slideProblem, slideRoof, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, slideSteps, snapHold, snapProblem, snapSteps, snapWindow, latchReach, latchStrain, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import type { ToolMaterial } from '../src/shared/toolFit';
+
+/** The catalogue's PP and PETG as the tools take them (materialCatalog.ts). */
+const PP: ToolMaterial = { holeShrink: 0.3, clearance: { clamp: 0.1, push: 0.2, slide: 0.3, turn: 0.35 } };
+const PETG: ToolMaterial = { holeShrink: 0.15, clearance: { clamp: 0.1, push: 0.2, slide: 0.3, turn: 0.35 } };
+import { barrelLeast, barrelWalls, hingeDiameter, hingeLies, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, TOGETHER_KEY, type LatchSpec, type PegSpec, type SnapSpec, screwFit, screwLengths, screwSink, screwWindow, sinkMost, underHead, pegFloor, pegProblem, screwProblem, screwSteps, slideOver, slideProblem, slideRoof, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, slideSteps, snapHold, snapProblem, snapSteps, snapWindow, latchReach, latchStrain, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -1078,6 +1083,11 @@ describe('the snap closure of a lid (G3)', () => {
     expect(MECHANISM_GUIDANCE).not.toContain('no wall cut through');
     expect(MECHANISM_GUIDANCE).toContain("only a notch for a fingernail in the lid's rim");
     expect(batches.join(' ')).not.toContain('joint.as_built');
+    // A gap the closure does not read is said (audit W15); a material that prints less than 45° is told the slopes need support (T11).
+    const told = String((await withMechanismTool(upstream, () => 0.4, undefined, () => 40).callTool('partbuddy_mechanism', { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [2, 2, 20], to: [58, 38, 20], up: [0, 0, -1], side: 'y-', gap: 0.3 })).content[0]?.text);
+    expect(told).toContain("The slope under the lip's foot and the bead's flanks lean 45°, more than the 40° the material in use prints without support: they need support there, or a material that prints 45°.");
+    expect(told).toMatch(/ closure takes no gap: it was not used\.$/);
+    expect(String(built.content[0]?.text)).not.toContain('lean 45°');
   });
 });
 
@@ -1096,9 +1106,13 @@ describe('the screw joint (standards)', () => {
       ['parts.insert', ''],
     ]);
     // Audit W21: the clearance hole from our own table (ISO 273, normal), not SolidCraft's unseen one.
-    expect(steps[0]?.params).toEqual({ position: [10, 10, 26], diameter: '3.4 mm', type: 'counterbore', cb_diameter: '6.7 mm', cb_depth: '3.4 mm', direction: [0, 0, -1], depth: '6 mm', targets: ['Plate'], name: 'Screw 1' });
+    expect(steps[0]?.params).toEqual({ position: [10, 10, 26], diameter: '3.55 mm', type: 'counterbore', cb_diameter: '6.7 mm', cb_depth: '3.4 mm', direction: [0, 0, -1], depth: '6 mm', targets: ['Plate'], name: 'Screw 1' });
     // The seat is a millimetre deeper than the 5.7 mm insert.
     expect(steps[1]?.params).toEqual({ position: [10, 10, 20], direction: [0, 0, -1], diameter: '4 mm', depth: '6.7 mm', targets: ['Block'], name: 'Screw 1 ○' });
+    // In PP (hole allowance 0.3 mm) the clearance hole is drawn wider still (audit S-10); the insert's seat stays the maker's (review S1).
+    const pp = screwSteps({ ...joint, material: PP });
+    expect([pp[0]?.params.diameter, pp[1]?.params.diameter]).toEqual(['3.7 mm', '4 mm']);
+    expect(screwOf({ kind: 'screw', fixed: joint.fixed, moving: joint.moving, from: joint.from, to: joint.to }, 0.4, PP)).toMatchObject({ material: PP });
     expect(steps[3]?.params.position).toEqual([50, 30, 20]);
     // M3×8: 2.6 mm of plate under the head and 5.4 mm of the 5.7 mm insert. It sits on the counterbore's floor, head up.
     expect(screwFit(joint)).toEqual({ length: 8, sink: 0 });
@@ -1202,7 +1216,7 @@ describe('the screw joint (standards)', () => {
     const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'screw', fixed: 'Block', moving: 'Plate', from: [10, 10, 26], to: [10, 10, 20], more: [[50, 30, 26]], name: 'Plate screws' });
     expect(built.isError).toBeUndefined();
     const text = String(built.content[0]?.text);
-    expect(text).toContain('Built 2 screw joints "Plate screws" that hold Plate on Block: in Plate a clearance hole of 3.4 mm for M3 (ISO 273, normal: 0.4 mm over the screw, more than a printed hole shrinks) with a counterbore for the head, in Block the seat of a heat-set insert (4 mm wide, 6.7 mm deep).');
+    expect(text).toContain(`Built 2 screw joints "Plate screws" that hold Plate on Block: in Plate a clearance hole of 3.4 mm for M3 (ISO 273, normal: 0.4 mm over the screw; drawn 3.55 mm, the material's hole allowance wider, so that it comes out at that size) with a counterbore for the head, in Block the seat of a heat-set insert (4 mm wide, its maker's size, and 6.7 mm deep).`);
     expect(text).toContain('To buy: 2 × M3×8 socket head cap screws (ISO 4762) and 2 M3 heat-set inserts 5.7 mm long; the screws are in the design as standard parts.');
     expect(text).not.toContain("ISO's 60° flanks");
     const tools = withMechanismTool(upstream, () => 0.4);
@@ -1272,7 +1286,7 @@ describe('the screw joint (standards)', () => {
       const { tools, sent } = boxes();
       const edge = await tools.callTool('partbuddy_mechanism', { ...joint, from: [2.5, 20, 15], to: [2.5, 20, 10] });
       expect(edge.isError).toBe(true);
-      expect(String(edge.content[0]?.text)).toContain('at [2.5, 20, 15] Cover has 3.01 mm of plastic where 3.4 mm are needed (the mean over a ring from 3.4 to 6.7 mm wide; the far side, an edge, a face that falls away to one side or another cut takes the rest); the counterbore for the head is 6.7 mm wide and must lie wholly inside Cover: move the screw at least 3.35 mm away from its edges and other cuts, or use head none.');
+      expect(String(edge.content[0]?.text)).toContain('at [2.5, 20, 15] Cover has 3 mm of plastic where 3.4 mm are needed (the mean over a ring from 3.55 to 6.7 mm wide; the far side, an edge, a face that falls away to one side or another cut takes the rest); the counterbore for the head is 6.7 mm wide and must lie wholly inside Cover: move the screw at least 3.35 mm away from its edges and other cuts, or use head none.');
       expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(false);
       // A head lying on the face: the seat is measured, and its wall is short.
       const flat = await tools.callTool('partbuddy_mechanism', { ...joint, head: 'none', from: [2.5, 20, 15], to: [2.5, 20, 10] });
@@ -1350,7 +1364,7 @@ describe('the screw joint (standards)', () => {
       const { tools, sent } = domed(1 / 120, true);
       const edge = await tools.callTool('partbuddy_mechanism', { ...joint, from: [2.5, 20, 25 - (17.5 * 17.5) / 120] });
       // No standard length ends in the insert along this line, so the counterbore sinks 1.88 mm deeper, and is measured so.
-      expect(String(edge.content[0]?.text)).toMatch(/^Not built: at \[2\.5, 20, [\d.]+\] Cover has [\d.]+ mm of plastic where 5\.28 mm are needed \(the mean over a ring from 3\.4 to 6\.7 mm wide/);
+      expect(String(edge.content[0]?.text)).toMatch(/^Not built: at \[2\.5, 20, [\d.]+\] Cover has [\d.]+ mm of plastic where 5\.28 mm are needed \(the mean over a ring from 3\.55 to 6\.7 mm wide/);
       // Review of BC-07, S3: the refusal names how deep the room for the head has become.
       expect(String(edge.content[0]?.text)).toContain('the counterbore for the head is 6.7 mm wide and 5.28 mm deep, sunk 1.88 mm deeper so that a standard length fits, and must lie wholly inside Cover');
       expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(false);
@@ -1764,7 +1778,10 @@ describe('a plugged connection (standards)', () => {
   it('cuts each pocket with its chamfered mouth, then grows the peg out of its body with a chamfered tip', () => {
     const spec = pegOf(args);
     if (typeof spec === 'string') throw new Error(spec);
-    expect(spec).toMatchObject({ diameter: 5, gap: 0.2, name: 'Peg' });
+    // PLA's push fit per side (audit W16: 0.2 mm for every material before); PETG's 0.2, on a 0.8 mm nozzle PLA's doubles.
+    expect(spec).toMatchObject({ diameter: 5, gap: 0.15, name: 'Peg' });
+    expect(pegOf(args, { nozzle: 0.4, layer: 0.2, material: PETG })).toMatchObject({ gap: 0.2, material: PETG });
+    expect(pegOf(args, { nozzle: 0.8, layer: 0.2 })).toMatchObject({ gap: 0.3 });
     const steps = pegSteps(spec);
     expect(steps.map((step) => [step.command, step.params.operation, (step.params.targets as string[])[0], step.params.name])).toEqual([
       ['solid.cylinder', 'cut', 'Right', 'Peg 1 ○'],
@@ -1776,9 +1793,10 @@ describe('a plugged connection (standards)', () => {
       ['solid.cylinder', 'join', 'Left', 'Peg 2'],
       ['solid.cone', 'join', 'Left', 'Peg 2 ◢'],
     ]);
-    // The pocket: 0.2 mm of room per side and 1 mm deeper than the peg is long (7.5 mm); its mouth opens by 0.5 mm.
-    expect(steps[0]?.params).toMatchObject({ diameter: '5.4 mm', height: '8.5 mm', base: [30, 10, 10], axis: [1, 0, 0] });
-    expect(steps[1]?.params).toMatchObject({ diameter: '6.4 mm', top_diameter: '5.4 mm', height: '0.5 mm', base: [30, 10, 10] });
+    // The pocket: 0.15 mm of room per side as printed, drawn 0.15 mm wider (PLA), 1 mm deeper than the peg is long (7.5 mm); its mouth opens by 0.5 mm.
+    expect(steps[0]?.params).toMatchObject({ diameter: '5.45 mm', height: '8.5 mm', base: [30, 10, 10], axis: [1, 0, 0] });
+    expect(steps[1]?.params).toMatchObject({ diameter: '6.45 mm', top_diameter: '5.45 mm', height: '0.5 mm', base: [30, 10, 10] });
+    expect(pegSteps({ ...spec, material: PP })[0]?.params).toMatchObject({ diameter: '5.6 mm' });
     // The peg is rooted 0.5 mm in its body and ends in a tip chamfered by 0.5 mm.
     expect(steps[2]?.params).toMatchObject({ diameter: '5 mm', height: '7.5 mm', base: [29.5, 10, 10] });
     expect(steps[3]?.params).toMatchObject({ diameter: '5 mm', top_diameter: '4 mm', height: '0.5 mm', base: [37, 10, 10] });
@@ -1787,12 +1805,14 @@ describe('a plugged connection (standards)', () => {
     expect(PEG).toEqual({ ratio: 1.5, deeper: 1, chamfer: 0.5, root: 0.5, least: 5, wall: 2 });
     // Under the pocket what the print check takes for a floor or a wall (measured 2026-11-13: 0.6 mm was a thin floor).
     expect([0.25, 0.4, 0.6, 0.8].map((nozzle) => pegFloor(nozzle))).toEqual([0.8, 0.9, 1.35, 1.8]);
+    // With the profile's layer (the pegs' shortcut of 0.2 mm layers is gone): four 0.3 mm layers are 1.2 mm.
+    expect([pegFloor(0.4, 0.3), pegFloor(0.4, 0.12)]).toEqual([1.2, 0.9]);
     // T59: from and to the same point has no way to point.
     expect(pegProblem({ ...spec, to: spec.from })).toBe('from and to must be two points: to lies further into the moving body');
     // W24: the plastic each pocket needs, 2 mm round it and 0.9 mm under it, from 0.5 mm under the face on.
     expect(pegStock(spec)).toEqual([
-      { at: [30, 10, 10], base: [30.5, 10, 10], axis: [1, 0, 0], diameter: 9.4, depth: 8.9, from: 0.5, hole: 0 },
-      { at: [30, 20, 10], base: [30.5, 20, 10], axis: [1, 0, 0], diameter: 9.4, depth: 8.9, from: 0.5, hole: 0 },
+      { at: [30, 10, 10], base: [30.5, 10, 10], axis: [1, 0, 0], diameter: 9.45, depth: 8.9, from: 0.5, hole: 0 },
+      { at: [30, 20, 10], base: [30.5, 20, 10], axis: [1, 0, 0], diameter: 9.45, depth: 8.9, from: 0.5, hole: 0 },
     ]);
   });
 
@@ -1802,11 +1822,20 @@ describe('a plugged connection (standards)', () => {
     expect(pegOf({ ...args, moving: 'Left' })).toBe('fixed and moving must be two bodies');
     const tools = withMechanismTool(upstream([]), () => 0.4);
     const two = String((await tools.callTool('partbuddy_mechanism', args)).content[0]?.text);
-    expect(two).toContain('Built 2 pegs "Peg" on Left with their pockets in Right: 5 mm thick and 7.5 mm long, 0.2 mm clear per side, the pocket 1 mm deeper for air and glue, tip and mouth chamfered. It makes no joint.');
+    expect(two).toContain(`Built 2 pegs "Peg" on Left with their pockets in Right: 5 mm thick and 7.5 mm long, 0.15 mm clear per side as printed (the pocket drawn 5.45 mm wide, the material's hole allowance wider), the pocket 1 mm deeper for air and glue, tip and mouth chamfered. It makes no joint.`);
     expect(two).not.toContain('lets the parts turn');
     const one = String((await tools.callTool('partbuddy_mechanism', { ...args, more: undefined, diameter: 4, gap: 0.1 })).content[0]?.text);
     expect(one).toContain('One round peg lets the parts turn about it');
     expect(one).toContain('A peg under 5 mm printed standing is weak.');
+    // A gap the model gave is not the profile's: nothing said of the fit's source.
+    expect(one).not.toContain("The fit is the profile's");
+    // A measured push fit over what a peg takes is held at 0.5 and said, in the answer and the log (BC-16 review S2).
+    const lines: string[] = [];
+    const wide = { holeShrink: 0.15, clearance: { clamp: 0.3, push: 0.6, slide: 0.7, turn: 0.8 }, measuredNozzle: 0.4, fitsAfterPrint: true as const };
+    const held = String((await withMechanismTool(upstream([]), () => 0.4, undefined, undefined, undefined, () => wide, (line) => lines.push(line)).callTool('partbuddy_mechanism', args)).content[0]?.text);
+    expect(held).toContain("0.5 mm clear per side as printed");
+    expect(held).toContain(" The profile's push fit makes it 0.6 mm, outside what a peg takes (0.05 to 0.5 mm a side); 0.5 mm used.");
+    expect(lines).toEqual(["partbuddy_mechanism plug: The profile's push fit makes it 0.6 mm, outside what a peg takes (0.05 to 0.5 mm a side); 0.5 mm used."]);
     expect(await tools.callTool('partbuddy_mechanism', { ...args, shape: 'star' })).toMatchObject({ isError: true, content: [{ text: 'Not built: shape must be peg or dovetail' }] });
     expect(describeToolCall('partbuddy_mechanism', { kind: 'plug' })).toEqual([{ key: 'plug', values: { name: 'Peg' } }]);
     expect(describeToolCall('partbuddy_mechanism', { kind: 'plug', shape: 'dovetail' })).toEqual([{ key: 'plug', values: { name: 'Dovetail' } }]);
@@ -1847,7 +1876,7 @@ describe('a plugged connection (standards)', () => {
     const thin = plate(16);
     const refused = await thin.tools.callTool('partbuddy_mechanism', peg);
     expect(refused.isError).toBe(true);
-    expect(String(refused.content[0]?.text)).toBe('Not built: at [20, 20, 10] Right has 6 mm of plastic where 9.4 mm are needed (the mean over a width of 9.4 mm; the far side, an edge or another cut takes the rest); each pocket needs 2 mm of plastic round it and 0.9 mm under it, 9.4 mm from the face in all. Make Right thicker there, move the peg away from its edges, or use a smaller diameter (a peg is 1.5 diameters long).');
+    expect(String(refused.content[0]?.text)).toBe('Not built: at [20, 20, 10] Right has 6 mm of plastic where 9.4 mm are needed (the mean over a width of 9.45 mm; the far side, an edge or another cut takes the rest); each pocket needs 2 mm of plastic round it and 0.9 mm under it, 9.4 mm from the face in all. Make Right thicker there, move the peg away from its edges, or use a smaller diameter (a peg is 1.5 diameters long).');
     expect(thin.sent.some((batch) => batch.includes('solid.cone'))).toBe(false);
     expect(String((await plate(19.39).tools.callTool('partbuddy_mechanism', peg)).content[0]?.text)).toContain('Not built: at [20, 20, 10] Right has 9.39 mm of plastic where 9.4 mm are needed');
     const thick = plate(19.4);
@@ -1863,7 +1892,7 @@ describe('a plugged connection (standards)', () => {
     const plate = (): Record<string, Box[]> => ({ Left: [[[0, 0, 0], [40, 30, 4]]], Right: [[[0, 0, 4.2], [40, 30, 16]]] });
     const upstream = (sent: string[][]) => boxWorld(plate(), { sent });
     const built = await withMechanismTool(upstream(calls), () => 0.4).callTool('partbuddy_mechanism', { kind: 'plug', shape: 'dovetail', fixed: 'Left', moving: 'Right', from: [0, 15, 4], to: [40, 15, 4] });
-    expect(String(built.content[0]?.text)).toContain('Built the dovetail "Dovetail" between Left (carries the rail) and Right (has the groove): 6 mm wide at its foot and 3 mm high with 45° flanks, 0.2 mm clear all round. It makes no joint');
+    expect(String(built.content[0]?.text)).toContain('Built the dovetail "Dovetail" between Left (carries the rail) and Right (has the groove): 6 mm wide at its foot and 3 mm high with 45° flanks, 0.15 mm clear, 0.2 mm over the rail\'s head (whole layers of 0.2 mm). It makes no joint');
     expect(calls.flat()).not.toContain('joint.as_built');
     expect(calls.flat().filter((command) => command === 'solid.extrude')).toHaveLength(2);
     // W25: pressed together with 0.1 mm, as the description offers; a guide that slides keeps 0.2 at the least.
@@ -2222,5 +2251,59 @@ describe('what the tool answers and what the guide checks (audit BC-15)', () => 
     expect(slideProblem({ ...rail, width: 6, height: 6.01 })).toBe('height must be at most width (6 mm): the rail widens by its height on each side, and its head may be at most three times as wide as its foot');
     // As the audit found it: a 2 mm foot under 20 mm.
     expect(slideOf({ fixed: 'Base', moving: 'Carriage', from: [0, 15, 4], to: [60, 15, 4], width: 2, height: 20 }, 0.4)).toContain('height must be at most width (2 mm)');
+  });
+});
+
+describe('the print profile in the mechanism tool (audit BC-16)', () => {
+  it('refuses snap hooks and the latch on a nozzle their fixed arms do not print on, at the boundary (W15)', () => {
+    // Two lines of 0.6 mm are 1.35 mm, under the arms of 1.5 and 1.6 mm; of 0.8 mm 1.8, over both.
+    expect(armProblem('snap', SNAP.thickness, SNAP.catch, 0.6)).toBeNull();
+    expect(armProblem('latch', LATCH.thick, null, 0.6)).toBeNull();
+    expect(armProblem('snap', SNAP.thickness, SNAP.catch, 0.8)).toBe("PartBuddy's snap hooks are sized for finer nozzles: on a 0.8 mm nozzle the arm of 1.5 mm is under the 1.8 mm of two lines that print solid and the catch of 0.8 mm is under the 0.82 mm of the narrowest line a slicer lays. Use partbuddy_block snapFit, whose sizes are raised to the nozzle, or print with a finer nozzle");
+    expect(armProblem('latch', LATCH.thick, null, 0.8)).toContain("PartBuddy's latch is sized for finer nozzles: on a 0.8 mm nozzle the arm of 1.6 mm is under the 1.8 mm");
+    // 1.6 mm holds two lines up to a 0.71 mm nozzle (2.25 × 0.71 = 1.6).
+    expect(armProblem('latch', 1.6, null, 0.71)).toBeNull();
+    // The snap hook on both sides of its two limits: the 1.5 mm arm holds two lines up to 0.66 mm (1.49), not on 0.67 (1.51);
+    // the 0.8 mm catch takes the narrowest line up to 0.78 mm (0.8), not on 0.79 (0.81).
+    expect(armProblem('snap', SNAP.thickness, null, 0.66)).toBeNull();
+    expect(armProblem('snap', SNAP.thickness, null, 0.67)).toContain('the arm of 1.5 mm is under the 1.51 mm');
+    expect(armProblem('snap', 2, SNAP.catch, 0.78)).toBeNull();
+    expect(armProblem('snap', 2, SNAP.catch, 0.79)).toContain('the catch of 0.8 mm is under the 0.81 mm');
+    expect(armProblem('latch', 1.6, null, 0.72)).not.toBeNull();
+    const latch = { kind: 'latch', fixed: 'Box', moving: 'Lid', from: [0, 20, 10], to: [-1, 20, 10] };
+    expect(latchOf(latch, 0.8)).toContain('sized for finer nozzles');
+    expect(typeof latchOf(latch, 0.6)).toBe('object');
+    expect(snapOf({ kind: 'snap', fixed: 'Base', moving: 'Cover', from: [0, 20, 2], to: [-1, 20, 2] }, 0.8)).toContain('sized for finer nozzles');
+  });
+
+  it('says what a kind does not read, and nothing where all is read (W15)', () => {
+    expect(unusedSaid({ kind: 'snap', fixed: 'A', moving: 'B', from: [0, 0, 0], gap: 0.2, wall: 2 })).toBe(' snap takes no gap: it was not used.');
+    expect(unusedSaid({ kind: 'screw', fixed: 'A', moving: 'B', from: [0, 0, 0], gap: 0.2, width: 4 })).toBe(' screw takes no gap, width: they were not used.');
+    expect(unusedSaid({ kind: 'plug', shape: 'dovetail', fixed: 'A', moving: 'B', from: [0, 0, 0], to: [1, 0, 0], gap: 0.1, width: 6 })).toBe('');
+    expect(unusedSaid({ kind: 'plug', fixed: 'A', moving: 'B', from: [0, 0, 0], width: 6 })).toBe(' peg takes no width: it was not used.');
+    expect(unusedSaid({ kind: 'hinge', fixed: 'A', moving: 'B', from: [0, 0, 0], to: [1, 0, 0], gap: 0.4, name: 'Hinge' })).toBe('');
+  });
+
+  it('keeps fits from a measured profile within what each kind takes, and says when a fit was not measured (BC-16 review)', async () => {
+    const args = { kind: 'plug', fixed: 'Left', moving: 'Right', from: [30, 10, 10], to: [40, 10, 10] };
+    const fit = (push: number, measuredNozzle?: number) => ({ nozzle: 0.4, layer: 0.2, material: { holeShrink: 0.15, clearance: { clamp: 0, push, slide: 0.6, turn: 0.7 }, measuredNozzle } });
+    // Pegs take 0.05 to 0.5 mm a side: a push fit read at 0.02 or 0.6 is held there, never refused as a size nobody gave.
+    expect([0.02, 0.05, 0.3, 0.5, 0.6].map((push) => (pegOf(args, fit(push)) as PegSpec).gap)).toEqual([0.05, 0.05, 0.3, 0.5, 0.5]);
+    // Knob bores take 0 to 0.6 mm: a clamp fit below zero is none.
+    const { knobClearance } = await import('../src/shared/knob');
+    expect([-0.1, 0, 0.35].map((clamp) => knobClearance('d', { nozzle: 0.4, layer: 0.2, material: { holeShrink: 0.15, clearance: { clamp, push: 0.4, slide: 0.5, turn: 0.6 } } }))).toEqual([0, 0, 0.6]);
+    const { unmeasuredSaid } = await import('../src/shared/toolFit');
+    // Not read with this version's pieces, read off the older comb (the allowance counted twice), or read off the new one.
+    expect(unmeasuredSaid(fit(0.15))).toBe(" The fit is the profile's, not read off this version's tolerance pieces: if it binds or rattles, read them (Settings › Print profiles) and build it again.");
+    expect(unmeasuredSaid(fit(0.15, 0.4))).toContain("The profile's fits were read off the older fit comb, drilled without the hole allowance, so the allowance is counted twice here: read the fits again");
+    expect(unmeasuredSaid({ ...fit(0.15, 0.4), material: { ...fit(0.15, 0.4).material, fitsAfterPrint: true } })).toBe('');
+  });
+
+  it('writes a refusal to the log as well as to the model (BC-15 rest)', async () => {
+    const lines: string[] = [];
+    const tools = withMechanismTool({ instructions: () => undefined, listTools: () => Promise.resolve([]), callTool: () => Promise.reject(new Error('not reached')) }, () => 0.8, undefined, undefined, undefined, undefined, (line) => lines.push(line));
+    const refused = await tools.callTool('partbuddy_mechanism', { kind: 'snap', fixed: 'Base', moving: 'Cover', from: [0, 20, 2], to: [-1, 20, 2] });
+    expect(refused.isError).toBe(true);
+    expect(lines).toEqual([expect.stringMatching(/^partbuddy_mechanism snap not built: PartBuddy's snap hooks are sized for finer nozzles/) as string]);
   });
 });

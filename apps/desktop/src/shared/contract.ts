@@ -1104,6 +1104,11 @@ export const materialProfileSchema = z
     clearance: z.object({ clamp: range(-0.5, 2), push: range(-0.5, 2), slide: range(-0.5, 2), turn: range(-0.5, 2) }).strict(),
     /** The nozzle the clearances were read on with the tolerance pieces; without it they are starting values for 0.4 mm. */
     measuredNozzle: range(0.1, 2).optional(),
+    /**
+     * The fits were read off a fit comb drilled with the hole allowance (BC-16), so they are the room after printing. Missing on
+     * fits read before, where the comb's shrink is in them: the tools would count it twice. Optional, so older files load.
+     */
+    fitsAfterPrint: z.literal(true).optional(),
   })
   .strict();
 
@@ -1160,7 +1165,8 @@ export function printSettingsProblem(settings: PrintSettings): { problem: 'nameM
 }
 
 /** The tolerance assistant's test pieces for a nozzle and layer; to a 3MF file (slicer null) or into a slicer. */
-const testPiecesFor = z.object({ nozzle: range(0.1, 2), layer: range(0.04, 1.2) }).strict();
+/** `holeShrink`: the measured material's, so the fit comb's holes are drawn with it (BC-16 review B1). */
+const testPiecesFor = z.object({ nozzle: range(0.1, 2), layer: range(0.04, 1.2), holeShrink: range(0, 1).optional() }).strict();
 const testPiecesForSchema = testPiecesFor.refine(layerFitsNozzle, 'a layer height must not exceed the nozzle');
 export const testPiecesExportSchema = testPiecesFor.extend({ slicer: z.string().min(1).max(80).nullable() }).strict().refine(layerFitsNozzle, 'a layer height must not exceed the nozzle');
 
