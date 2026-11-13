@@ -217,8 +217,24 @@ const RETRIES = 3;
 const STORE_FILE = 'part-references.json';
 /** Raised when what the file holds changes, so an older file is built anew rather than misread. */
 const STORE_FORMAT = 2;
-/** The parts of one run; more wait for the next. */
+/** The parts one look starts building; more wait for the next look. */
 const PARTS_PER_RUN = 200;
+/**
+ * They are built in up to this many runs side by side, each of at least MIN_PARTS_PER_RUN parts (audit N-nach-4):
+ * 80 parts took 14.5 to 14.9 s in one run and 4.1 to 4.7 s in four of 20 (SolidCraft 0.40.1, 28 cores). Each run
+ * tells `built` when it ends, so the parts it brought show before the slowest run is done. A design with up to
+ * MIN_PARTS_PER_RUN new parts starts one process, as before.
+ */
+const RUNS_AT_ONCE = 4;
+const MIN_PARTS_PER_RUN = 8;
+
+/** `parts` cut into at most RUNS_AT_ONCE runs of at least MIN_PARTS_PER_RUN parts, as even as they come. */
+export function runsOf<T>(parts: readonly T[]): T[][] {
+  if (parts.length === 0) return [];
+  const count = Math.max(1, Math.min(RUNS_AT_ONCE, Math.floor(parts.length / MIN_PARTS_PER_RUN)));
+  const size = Math.ceil(parts.length / count);
+  return Array.from({ length: Math.ceil(parts.length / size) }, (_, i) => parts.slice(i * size, (i + 1) * size));
+}
 /** How often `ready` starts another run for what is still open (20 runs are 4000 descriptions). */
 const READY_ROUNDS = 20;
 
@@ -297,6 +313,8 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
   /** The parts one timer builds again once their wait is over; a part is in here once. */
   const waiting = new Map<string, { program: string; part: PartQuery }>();
   let cancelTimer: (() => void) | null = null;
+  /** Runs side by side write the same file: one after the other, each with all that is known by then. */
+  let keeping: Promise<void> = Promise.resolve();
   const key = (program: string, description: string) => `${program}\n${description}`;
 
   const open = (program: string) => {
@@ -431,10 +449,13 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
     for (const part of missing) if (typeof store.parts.get(part.description) === 'object') tries.delete(key(program, part.description));
     // Nobody asks again by itself after a run without an answer: once the wait is over the parts are built and the design mirrored.
     arm();
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, STORE_FILE), JSON.stringify({ identity: store.identity, parts: Object.fromEntries(store.parts) })).catch((error: unknown) => {
+    keeping = keeping.then(async () => {
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, STORE_FILE), JSON.stringify({ identity: store.identity, parts: Object.fromEntries(store.parts) }));
+    }).catch((error: unknown) => {
       log(`the standard part references were not kept: ${(error as Error).message}`);
     });
+    await keeping;
   };
 
   /** `solidcraft-cli`, or why there is none: without it no part can be built here, now or in a moment. */
@@ -464,8 +485,8 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
         if (!building.has(key(cli, part.description)) && wanted.length < PARTS_PER_RUN) wanted.push(part);
       }
     }
-    if (wanted.length > 0) {
-      const job = work(cli, wanted)
+    for (const run of runsOf(wanted)) {
+      const job = work(cli, run)
         .then(
           async () => {
             opened.set(cli, (await open(cli)).parts);
@@ -473,16 +494,16 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
           (error: unknown) => {
             // The program itself could not be asked (its version, its file): nothing says the parts cannot be built.
             const reason = ((error as Error).message || String(error)).slice(0, 300);
-            for (const part of wanted) failed.set(key(cli, part.description), { reason });
+            for (const part of run) failed.set(key(cli, part.description), { reason });
             log(`no references for standard parts in this run of PartBuddy: ${reason}`);
           },
         )
         .finally(() => {
-          for (const part of wanted) building.delete(key(cli, part.description));
+          for (const part of run) building.delete(key(cli, part.description));
           // With or without a reference, the parts are no longer "being built": the mirror says once more what each body is.
           options.built?.();
         });
-      for (const part of wanted) building.set(key(cli, part.description), job);
+      for (const part of run) building.set(key(cli, part.description), job);
     }
     return states;
   };

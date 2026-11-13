@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { builtParts, cliReferences, faceCount, faceScript, referenceScript, referencesOf, RefusedPartError, sameShape, shapeOf, TransientCliError, type CliRunner, type PartQuery } from '../src/main/solidcraft/partReference';
+import { builtParts, cliReferences, faceCount, faceScript, referenceScript, referencesOf, RefusedPartError, runsOf, sameShape, shapeOf, TransientCliError, type CliRunner, type PartQuery } from '../src/main/solidcraft/partReference';
 
 const nut: PartQuery = { description: 'Hex nut M3', part: { family: 'hex_nut', size: 'M3', length: null } };
 const screw: PartQuery = { description: 'Countersunk socket screw M3x10', part: { family: 'countersunk_socket_screw', size: 'M3', length: 10 } };
@@ -405,7 +405,22 @@ describe('references from solidcraft-cli, kept and built in the background (seco
     const { references } = store(cli);
     const many: PartQuery[] = Array.from({ length: 450 }, (_, i) => ({ description: `Hex nut S${String(i)}`, part: { family: 'hex_nut', size: `S${String(i)}`, length: null } }));
     const ready = await references.ready(many);
-    expect(cli.runs.map((parts) => parts.length)).toEqual([200, 200, 50]);
+    // Each look starts 200 parts in four runs side by side (audit N-nach-4), which start in any order; the rest waits for the next look.
+    expect(cli.runs.map((parts) => parts.length).sort((a, b) => b - a)).toEqual([50, 50, 50, 50, 50, 50, 50, 50, 13, 13, 13, 11]);
     expect([...ready.values()].filter((state) => 'shape' in state)).toHaveLength(450);
+  });
+});
+
+describe('runs side by side (audit N-nach-4)', () => {
+  it('starts one run up to 15 parts and at most four, as even as they come', () => {
+    const sizes = (count: number) => runsOf(Array.from({ length: count }, (_, i) => i)).map((run) => run.length);
+    expect(sizes(0)).toEqual([]);
+    expect(sizes(1)).toEqual([1]);
+    expect(sizes(15)).toEqual([15]);
+    expect(sizes(16)).toEqual([8, 8]);
+    expect(sizes(31)).toEqual([11, 11, 9]);
+    expect(sizes(32)).toEqual([8, 8, 8, 8]);
+    expect(sizes(200)).toEqual([50, 50, 50, 50]);
+    expect(runsOf(['a', 'b', 'c']).flat()).toEqual(['a', 'b', 'c']);
   });
 });
