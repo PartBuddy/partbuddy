@@ -681,7 +681,8 @@ test('the user\'s Claude Code builds a part in SolidCraft through the gate proxy
   const { ControlClient } = await import('../src/main/solidcraft/controlClient');
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-spike-'));
   const port = '7882';
-  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port } });
+  // The test asks for a box straight away; the plan before a new part (questions.ts) is tested on its own.
+  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port, PARTBUDDY_PLAN_FIRST: '0' } });
   try {
     const { page } = launched;
     await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
@@ -723,7 +724,8 @@ test('ChatGPT builds a part in SolidCraft with the user\'s plan', async () => {
   const { ControlClient } = await import('../src/main/solidcraft/controlClient');
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-spike-'));
   const port = '7883';
-  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port } });
+  // The test asks for a box straight away; the plan before a new part (questions.ts) is tested on its own.
+  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port, PARTBUDDY_PLAN_FIRST: '0' } });
   try {
     const { page } = launched;
     await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
