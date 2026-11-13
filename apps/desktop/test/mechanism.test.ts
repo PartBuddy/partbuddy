@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { activated, closureTrial, MECHANISM_GUIDANCE, pegStock, screwStock, hingeOf, lineProblem, reach, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
+import { activated, closureTrial, latchTrial, MECHANISM_GUIDANCE, MECHANISM_TOOL, snapTrial, pegStock, screwStock, hingeOf, lineProblem, reach, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { METADATA_PREFIX } from '../src/main/notes/noteRecord';
 import { describeToolCall } from '../src/shared/stepPhrases';
-import { barrelLeast, barrelWalls, hingeDiameter, hingeLies, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, TOGETHER_KEY, screwFit, screwLengths, screwSink, screwWindow, sinkMost, underHead, pegFloor, pegProblem, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapProblem, snapSteps, latchReach, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { barrelLeast, barrelWalls, hingeDiameter, hingeLies, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, TOGETHER_KEY, type LatchSpec, type SnapSpec, screwFit, screwLengths, screwSink, screwWindow, sinkMost, underHead, pegFloor, pegProblem, screwProblem, screwSteps, slideProblem, slideRoof, slideSteps, snapHold, snapProblem, snapSteps, snapWindow, latchReach, latchStrain, latchSteps, LATCH, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -1523,12 +1523,82 @@ describe('the screw lid (standards)', () => {
     const built = await withMechanismTool(upstream(['Jar']), () => 0.4).callTool('partbuddy_mechanism', args);
     expect(built.isError).toBeUndefined();
     const text = String(built.content[0]?.text);
-    expect(text).toContain('Built the screw lid "Lid" for Jar: a thread with 45° flanks on the neck, pitch 4 mm, 1.2 mm deep, 1 start, and the same inside the lid, 0.3 mm clear; it closes in 1.75 turns and stops with its inner top on the rim.');
+    expect(text).toContain('Built the screw lid "Lid" for Jar: a thread with 45° flanks on the neck, pitch 4 mm, 1.2 mm deep, 1 start, and the same inside the lid, 0.3 mm clear radially (0.21 mm square to the 45° flanks); it closes in 1.75 turns and stops with its inner top on the rim.');
     expect(text).toContain('The lid is 67.8 mm wide and covers the top 14.2 mm of the neck');
     const taken = await withMechanismTool(upstream(['Jar', 'Lid']), () => 0.4).callTool('partbuddy_mechanism', args);
     expect(taken).toMatchObject({ isError: true, content: [{ text: 'Not built: a body "Lid" exists already; give the lid another name, or delete that body first' }] });
   });
 });
+
+type Box = [[number, number, number], [number, number, number]];
+
+/**
+ * SolidCraft for the trials of snap hooks and latches: each body a set of boxes (corner, opposite corner). A probe rod
+ * counts by the share of its axis inside the body, taken at the middles of a thousand equal pieces, so a rod that ends
+ * on a face counts nothing past it; its volume comes back as SolidCraft gives it. Every other step answers as built, and
+ * `sent` keeps each batch's commands. `together` makes the two bodies components joined by a hinge PartBuddy marked.
+ */
+function boxWorld(bodies: Record<string, Box[]>, { sent = [], together = false, silent = false }: { sent?: string[][]; together?: boolean; silent?: boolean } = {}): UpstreamTools {
+  const reply = (value: unknown) => Promise.resolve({ content: [{ type: 'text' as const, text: JSON.stringify(value) }] });
+  const names = Object.keys(bodies);
+  const inside = (body: string, point: number[]) => (bodies[body] ?? []).some(([min, max]) => point.every((value, i) => value > Math.min(min[i] ?? 0, max[i] ?? 0) && value < Math.max(min[i] ?? 0, max[i] ?? 0)));
+  return {
+    instructions: () => undefined,
+    listTools: () => Promise.resolve([]),
+    callTool: (name, args) => {
+      if (name === 'inspect_design') return reply({ bodies: names.map((body) => ({ name: body })) });
+      const commands = args.commands as { command: string; params: Record<string, unknown> }[];
+      sent.push(commands.map((step) => step.command));
+      const rods = new Map(commands.filter((step) => step.command === 'solid.cylinder' && String(step.params.body_name).startsWith('PartBuddy probe')).map((step) => [String(step.params.body_name), step.params as { diameter: number; height: number; base: number[]; axis: number[] }]));
+      if (silent && rods.size > 0) return reply({});
+      const share = (rod: string, body: string) => {
+        const params = rods.get(rod);
+        if (!params) return 0;
+        // Over the rod's whole cross-section, as SolidCraft's overlap volume is (review of BC-11: the axis alone was 0.1 mm too kind at a wall's end).
+        const [ax = 0, ay = 0, az = 0] = params.axis;
+        const other = Math.abs(ax) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+        const cross = (a: number[], b: number[]) => [(a[1] ?? 0) * (b[2] ?? 0) - (a[2] ?? 0) * (b[1] ?? 0), (a[2] ?? 0) * (b[0] ?? 0) - (a[0] ?? 0) * (b[2] ?? 0), (a[0] ?? 0) * (b[1] ?? 0) - (a[1] ?? 0) * (b[0] ?? 0)];
+        const u0 = cross([ax, ay, az], other);
+        const length = Math.hypot(...u0);
+        const u = u0.map((value) => value / length);
+        const v = cross([ax, ay, az], u);
+        // Equal areas: rings at r·√((k + ½) / 3), eight points each.
+        const spots = [0, 1, 2].flatMap((k) => Array.from({ length: 8 }, (_, j) => {
+          const r = (params.diameter / 2) * Math.sqrt((k + 0.5) / 3);
+          const angle = (j / 8) * 2 * Math.PI + k * 0.4;
+          return u.map((value, i) => r * (Math.cos(angle) * value + Math.sin(angle) * (v[i] ?? 0)));
+        }));
+        const pieces = 400;
+        let count = 0;
+        for (let n = 0; n < pieces; n += 1) {
+          const t = ((n + 0.5) / pieces) * params.height;
+          for (const spot of spots) if (inside(body, params.base.map((value, i) => value + (params.axis[i] ?? 0) * t + (spot[i] ?? 0)))) count += 1;
+        }
+        return count / (pieces * spots.length);
+      };
+      const results = commands.map((step) => {
+        if (step.command === 'inspect.clearance' && rods.size > 0) {
+          const against = step.params.against as string[];
+          return {
+            overlaps: (step.params.bodies as string[]).flatMap((rod) =>
+              against.flatMap((body) => {
+                const part = share(rod, body);
+                const params = rods.get(rod);
+                return part > 0 && params ? [{ a: rod, b: body, volume_mm3: ((part * Math.PI * params.diameter ** 2) / 4) * params.height }] : [];
+              }),
+            ),
+          };
+        }
+        if (step.command === 'inspect.interference') return { count: 0 };
+        if (step.command === 'component.list') return together ? { components: [{ id: 0, parent: null, bodies: [] }, ...names.map((body, i) => ({ id: i + 1, parent: 0, bodies: [body], occurrences: [{ id: 10 + i, name: `${body}:1` }] }))] } : { components: [] };
+        if (step.command === 'joint.list') return { joints: together ? [{ name: 'Hinge', type: 'revolute', a: 10, b: 11, values: [{ value: 0 }] }] : [] };
+        if (step.command === 'component.metadata') return { metadata: together ? { [`${TOGETHER_KEY}ab12cd34`]: { joint: 'Hinge' } } : {} };
+        return {};
+      });
+      return reply({ results });
+    },
+  };
+}
 
 describe('snap hooks with their windows (standards)', () => {
   // A base with a cover over it: the cover's wall stands from y = 20 to y = 22, the hooks stand on the base's top at z = 4.
@@ -1541,10 +1611,11 @@ describe('snap hooks with their windows (standards)', () => {
     const steps = snapSteps(spec);
     expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.line', 'solid.extrude', 'sketch.create', 'sketch.line', 'solid.extrude', 'plastic.snap_fit', 'plastic.snap_fit']);
     // The window's lower edge lies 0.2 mm under the catch (12 − 1.5 above the face); x × y points into the wall.
-    expect(steps[0]?.params.plane).toEqual({ origin: [20, 20, 14.3], x_dir: [-1, 0, 0], y_dir: [0, 0, 1] });
+    // The cut starts at the arm's face, 0.2 mm before the wall, and goes that much further.
+    expect(steps[0]?.params.plane).toEqual({ origin: [20, 19.8, 14.3], x_dir: [-1, 0, 0], y_dir: [0, 0, 1] });
     expect(steps[1]?.params).toEqual({ points: [[-2.8, 0], [2.8, 0], [2.8, 2.2], [-2.8, 2.2]], closed: true });
-    expect(steps[2]?.params).toMatchObject({ distance: '2 mm', operation: 'cut', targets: ['Cover'], name: 'Snap hook 1 □' });
-    expect(steps[3]?.params.plane).toMatchObject({ origin: [32, 20, 14.3] });
+    expect(steps[2]?.params).toMatchObject({ distance: '2.2 mm', operation: 'cut', targets: ['Cover'], name: 'Snap hook 1 □' });
+    expect(steps[3]?.params.plane).toMatchObject({ origin: [32, 19.8, 14.3] });
     expect(steps[6]?.params).toEqual({ position: [20, 19.8, 4], direction: [0, 0, 1], hook: [0, 1, 0], length: '12 mm', thickness: '1.5 mm', width: '5 mm', catch_depth: '0.8 mm', catch_length: '1.5 mm', body: 'Base' });
     expect(steps[7]?.params).toMatchObject({ position: [32, 19.8, 4] });
     expect(SNAP).toEqual({ length: 12, thickness: 1.5, width: 5, catch: 0.8, catchLength: 1.5, gap: 0.2, side: 0.3, seat: 0.2, air: 0.5 });
@@ -1563,6 +1634,79 @@ describe('snap hooks with their windows (standards)', () => {
     expect(activated(snapSteps({ ...spec, more: [] }), listing).map((step) => (step.command === 'component.activate' ? `activate ${String(step.params.component)}` : step.command))).toEqual(['activate 4', 'sketch.create', 'sketch.line', 'solid.extrude', 'activate 3', 'plastic.snap_fit', 'activate 0']);
     expect(decide('partbuddy_mechanism', { kind: 'snap' })).toEqual({ allow: true });
     expect(describeToolCall('partbuddy_mechanism', { kind: 'snap', name: 'Cover clips' })).toEqual([{ key: 'snapHooks', values: { name: 'Cover clips' } }]);
+  });
+
+  // The cover's wall from y = 20 to y = 20 + thick, standing from z = 4.5 to z = top, along x from 0 to long.
+  const cover = ({ thick = 2, top = 24.5, long = 40, face = 20 } = {}): Record<string, Box[]> => ({ Base: [[[0, 0, 0], [40, 40, 4]]], Cover: [[[0, face, 4.5], [long, 20 + thick, top]]] });
+  const built = async (world: Record<string, Box[]>, extra: Record<string, unknown> = {}, nozzle = 0.4, layer = 0.2) => {
+    const sent: string[][] = [];
+    const answer = await withMechanismTool(boxWorld(world, { sent }), () => nozzle, undefined, () => 45, () => layer).callTool(MECHANISM_TOOL, { ...args, ...extra }, undefined);
+    return { text: answer.content[0]?.type === 'text' ? answer.content[0].text : '', isError: answer.isError === true, cut: sent.some((batch) => batch.includes('plastic.snap_fit')) };
+  };
+
+  it('says how far the catch holds and the arm bends: the catch less the room to the wall (audit T58, W23)', () => {
+    expect(snapHold()).toBe(0.6);
+    // The window goes from 0.2 mm under the catch to 0.5 mm over the hook's tip, 0.3 mm wider than the hook each side.
+    expect(snapWindow()).toEqual({ from: 10.3, to: 12.5, half: 2.8 });
+  });
+
+  it('measures the wall at each hook before it cuts a window: thickness, face, height and width (audit N-mechanik-11, W23)', async () => {
+    const good = await built(cover());
+    expect(good.isError).toBe(false);
+    expect(good.text).toContain("an arm 12 mm long, 1.5 mm thick and 5 mm wide, 0.2 mm off the wall, with a catch 0.8 mm deep that reaches 0.6 mm over the window's edge.");
+    expect(good.text).toContain('(the arm bends 0.6 mm, about 1.1 % strain at the root)');
+    // Four layers (0.8 mm) under and over the window, as the bars lie level, two lines (0.9 mm) beside it.
+    expect(good.text).toContain('PartBuddy measured that wall at each hook first: 2 mm thick behind from and whole round the window, from 9.5 to 13.3 mm above the foot and 7.4 mm wide.');
+    expect(good.cut).toBe(true);
+    // A wall of 4 mm said to be 2: the window would have been a pocket (harness snap-wall-said-2-is-4).
+    const thick = await built(cover({ thick: 4 }));
+    expect(thick).toMatchObject({ isError: true, cut: false });
+    expect(thick.text).toBe("Not built: Cover's wall at hook 1 (from [20,20,4]) is thicker than 2 mm behind from, or something stands right behind it: 1 mm of plastic lie within 1 mm past it, so the window would leave a skin instead of going through. Give wall as the wall's thickness there");
+    // Just over what was said is a skin too; just under still opens.
+    expect((await built(cover({ thick: 2.01 }))).text).toContain('is thicker than 2 mm behind from');
+    expect((await built(cover({ thick: 1.99 }))).isError).toBe(false);
+    const thin = await built(cover({ thick: 1.6 }));
+    expect(thin.text).toContain("Cover's wall at hook 1 (from [20,20,4]) is not 2 mm thick behind from: through the middle of the window, from 0.1 mm behind from, only 1.5 of 1.8 mm are plastic.");
+    // A wall 10 mm high ends 0.2 mm into the window (harness snap-low-wall); the bar over it needs 13.3 mm above the foot.
+    const low = await built(cover({ top: 14.5 }));
+    expect(low).toMatchObject({ isError: true, cut: false });
+    expect(low.text).toContain("Cover's wall at hook 1 (from [20,20,4]) does not stand whole round the window, which goes from 10.3 to 12.5 mm above the foot: it needs 0.8 mm of wall under and over it (from 9.5 to 13.3 mm above the foot) and 0.9 mm beside it (7.4 mm wide in all), its face at most 0.1 mm behind from; over the window only 0 of 7.4 mm are plastic.");
+    // As high as the bar needs passes; ending short of the rod, which lies half its width inside the bar's edge, does not.
+    expect((await built(cover({ top: 4 + 13.3 }))).isError).toBe(false);
+    expect((await built(cover({ top: 4 + 13.29 }))).text).toContain('over the window only');
+    // The face standing in the arm's way, and the second hook at the end of a wall too short for its window's posts.
+    expect((await built(cover({ face: 19.8 }))).text).toContain('Cover stands in front of from at hook 1 (from [20,20,4]): in the 0.2 mm the arm keeps off the wall, up to 12 mm above the foot,');
+    expect((await built(cover({ long: 35 }))).text).toContain("Cover's wall at hook 2 (from [32,20,4]) does not stand whole round the window");
+    expect((await built(cover({ long: 35.8 }))).isError).toBe(false);
+    // Two windows keep two lines of wall between them: 5.6 + 0.9 mm from middle to middle.
+    expect((await built(cover(), { more: [[26.49, 20, 4]] })).text).toBe('Not built: hooks 1 and 2 stand 6.49 mm apart along the wall: their windows are 5.6 mm wide and keep 0.9 mm of wall between them, so the middles must be at least 6.5 mm apart');
+    expect((await built(cover(), { more: [[26.5, 20, 4]] })).isError).toBe(false);
+    // A wall that comes further towards the hook than the cut starts, at the window's side (a round wall of small radius).
+    const wedge = cover();
+    wedge.Cover?.push([[22.5, 19.6, 14], [23, 20, 16]]);
+    // The plastic share is the fake's sample of the rod (0.29–0.3 mm).
+    expect((await built(wedge)).text).toMatch(/Cover's wall at hook 1 \(from \[20,20,4\]\) curves towards the hook by more than the 0\.2 mm the arm keeps off it, across the window's 5\.6 mm \(0\.(29|3) mm of a line there are plastic\)/);
+  });
+
+  it('takes the bars and posts round the window from the nozzle and the layer of the profile', async () => {
+    // Nozzle 0.6 with 0.3 mm layers: posts of two lines (1.35 mm), bars of four layers (1.2 mm).
+    expect((await built(cover(), {}, 0.6, 0.3)).text).toContain('whole round the window, from 9.1 to 13.7 mm above the foot and 8.3 mm wide.');
+    // A hook lying (standing out of a side face): the bars are walls now, the posts floors.
+    const spec = snapOf({ ...args, from: [4, 20, 10], to: [4, 22, 10], up: [1, 0, 0], more: [] }) as SnapSpec;
+    const rods: { name: string; base: number[]; axis: number[]; height: number }[] = [];
+    const upstream = boxWorld({ Base: [[[0, 0, 0], [4, 40, 40]]], Cover: [[[4.5, 20, 0], [40, 22, 40]]] });
+    const probed: UpstreamTools = { ...upstream, callTool: (name, call, id) => {
+      for (const step of (call.commands ?? []) as { command: string; params: { body_name: string; base: number[]; axis: number[]; height: number } }[]) if (step.command === 'solid.cylinder') rods.push({ name: step.params.body_name, base: step.params.base, axis: step.params.axis, height: step.params.height });
+      return upstream.callTool(name, call, id);
+    } };
+    expect(await snapTrial(probed, spec, { nozzle: 0.4, layer: 0.2 }, undefined)).toBeNull();
+    expect(rods.find((rod) => rod.name.endsWith('under'))).toMatchObject({ base: [4 + 10.3 - 0.9 + 0.1, 20.2, 10 - 2.8 - 0.8], axis: [0, 0, 1], height: 7.2 });
+  });
+
+  it('builds nothing when the wall could not be measured', async () => {
+    const answer = await withMechanismTool(boxWorld(cover(), { silent: true }), () => 0.4).callTool(MECHANISM_TOOL, args, undefined);
+    expect(answer.isError).toBe(true);
+    expect(answer.content[0]).toMatchObject({ text: expect.stringContaining('Not built: PartBuddy could not measure the wall of Cover at the hooks: the trial gave no answer. So it could not check that each window goes through a wall that holds the catch, and nothing was built') as string });
   });
 });
 
@@ -1705,6 +1849,8 @@ describe('a snap latch outside a box (standards)', () => {
       ['solid.extrude', 'Latch ◁', 'Box'],
       ['sketch.create', 'Latch', ''],
       ['sketch.line', '', ''],
+      ['sketch.arc.center_point', '', ''],
+      ['sketch.line', '', ''],
       ['solid.extrude', 'Latch', 'Lid'],
     ]);
     // Sketch x runs out of the wall and y up; the profiles run along the wall from one edge of the latch to the other.
@@ -1713,13 +1859,21 @@ describe('a snap latch outside a box (standards)', () => {
     // The bead: a ridge 1.2 mm high with 45° faces, its crest 10.2 mm under the joint, rooted 0.5 mm in the wall.
     expect(steps[1]?.params.points).toEqual([[-0.5, -9], [0, -9], [1.2, -10.2], [0, -11.4], [-0.5, -11.4]]);
     expect(steps[3]?.params.plane).toMatchObject({ origin: [25, 0, 20] });
-    expect(steps[5]?.params).toMatchObject({ distance: '10 mm', operation: 'join' });
+    expect(steps[7]?.params).toMatchObject({ distance: '10 mm', operation: 'join' });
     // The arm: a 45° slope out of the lid's wall, 1.6 mm thick and 1.5 mm off the wall, the hook's crest 0.4 mm off it
     // and 0.8 mm under the bead's, so its upper face lies on the bead's lower one without play, then 2 mm of tab.
-    expect(steps[4]?.params.points).toEqual([[-0.5, 8.1], [0, 8.1], [3.1, 5], [3.1, -14.1], [1.5, -14.1], [1.5, -12.1], [0.4, -11], [1.5, -9.9], [1.5, 1], [-0.5, 1]]);
+    expect(steps[4]?.params).toEqual({ points: [[-0.5, 8.1], [0, 8.1], [3.1, 5], [3.1, -14.1], [1.5, -14.1], [1.5, -12.1], [0.4, -11], [1.5, -9.9], [1.5, 0.2]] });
+    // Audit MV-11: the arm's inner face meets the root's underside in a radius of half its thickness, not a sharp corner;
+    // the three curves end where the next one starts, so they close (the radius ends 0.2 mm above the joint).
+    expect(steps[5]?.params).toEqual({ center: [0.7, 0.2], start: [1.5, 0.2], end: [0.7, 1] });
+    expect(steps[6]?.params).toEqual({ points: [[0.7, 1], [-0.5, 1], [-0.5, 8.1]] });
+    expect(LATCH.root).toBe(LATCH.thick / 2);
+    expect(LATCH.foot - LATCH.root).toBeGreaterThan(0);
     expect(latchReach()).toEqual({ above: 8.1, below: 14.1 });
-    // The strain at the root as the hook passes the bead: 1.5 · thickness · overlap / lever².
-    expect((150 * LATCH.thick * (LATCH.bead - LATCH.clear)) / LATCH.lever ** 2).toBeCloseTo(1.33, 2);
+    // The strain at the root as the hook passes the bead: 1.5 · thickness · overlap / lever², the lever from where the
+    // radius starts (1.33 % from the root's flat underside).
+    expect(latchStrain()).toBeCloseTo((150 * 1.6 * 0.8) / 11.2 ** 2, 9);
+    expect(Math.round(latchStrain() * 10) / 10).toBe(1.5);
   });
 
   it('refuses what is no wall, and is allowed and named in the work log', () => {
@@ -1732,5 +1886,84 @@ describe('a snap latch outside a box (standards)', () => {
     expect(latchSteps(side)[0]?.params.plane).toEqual({ origin: [40, 21, 20], x_dir: [1, 0, 0], y_dir: [0, 0, 1] });
     expect(decide('partbuddy_mechanism', { kind: 'latch' })).toEqual({ allow: true });
     expect(describeToolCall('partbuddy_mechanism', { kind: 'latch', name: 'Front latch' })).toEqual([{ key: 'latch', values: { name: 'Front latch' } }]);
+  });
+
+  // A box 40 × 30 and its lid on it, the joint at z = joint; their front walls lie in y = 0.
+  const closed = ({ joint = 20, lid = 10, lidFront = 0, lidLong = 40 } = {}): Record<string, Box[]> => ({ Box: [[[0, 0, 0], [40, 30, joint]]], Lid: [[[0, lidFront, joint], [lidLong, 30, joint + lid]]] });
+  const latched = async (world: Record<string, Box[]>, extra: Record<string, unknown> = {}, together = false) => {
+    const sent: string[][] = [];
+    const answer = await withMechanismTool(boxWorld(world, { sent, together }), () => 0.4).callTool(MECHANISM_TOOL, { ...args, ...extra }, undefined);
+    // The fake samples each probe rod's cross-section, so a depth it finds may read a hundredth over the box's (5.01 for 5).
+    const text = answer.content[0]?.type === 'text' ? String(answer.content[0].text).replace(/least found is (\d+)\.0\d /g, 'least found is $1 ') : '';
+    return { text, isError: answer.isError === true, built: sent.some((batch) => batch.includes('sketch.arc.center_point')) };
+  };
+
+  it('measures both walls before it builds, and says what it measured and the root\'s radius (audit N-mechanik-10, R50, MV-11)', async () => {
+    const good = await latched(closed());
+    expect(good).toMatchObject({ isError: false, built: true });
+    expect(good.text).toContain('Built the latch "Latch": an arm 10 mm wide and 1.6 mm thick grows out of the wall of Lid (the lid), hangs 1.5 mm off the wall over the joint and snaps with its hook under a bead 1.2 mm high on Box (the box); the two overlap by 0.8 mm on 45° faces, and the arm meets its root in a 0.8 mm radius.');
+    expect(good.text).toContain("(about 1.5 % strain at the arm's root)");
+    expect(good.text).toContain('PartBuddy measured both walls first: flat and plastic 0.5 mm deep across the latch, on Lid from 1 to 8.1 mm above the joint and on Box from 1 to 14.1 mm below it.');
+    // A lid 6 mm high: the arm's root stood 2.1 mm over its top (harness latch-lid-6); 8.1 mm passes, a hair less not.
+    const short = await latched(closed({ lid: 6 }));
+    expect(short).toMatchObject({ isError: true, built: false });
+    expect(short.text).toBe("Not built: Lid (the lid) is not plastic 0.5 mm deep behind its outer face at from, from 1 to 8.1 mm above the joint across the latch's 10 mm, where the arm's root goes into it (the least found is 5 of 7.1 mm). Make Lid at least 8.1 mm high there with a flat wall that wide, give from on the line where the two meet, or move the latch away from an edge");
+    expect((await latched(closed({ lid: 8.1 }))).isError).toBe(false);
+    expect((await latched(closed({ lid: 8.05 }))).isError).toBe(true);
+    // A box 10 mm high: the bead and the arm hung under its floor (harness latch-box-10).
+    const shallow = await latched(closed({ joint: 10 }), { from: [20, 0, 10], to: [20, -5, 10] });
+    expect(shallow.text).toContain('Not built: Box (the box) is not plastic 0.5 mm deep behind its outer face at from, from 1 to 14.1 mm below the joint across 12 mm, where the bead goes into it and the arm hangs (the least found is 9 of 13.1 mm). Make Box at least 14.1 mm high there');
+    expect((await latched(closed({ joint: 14.1 }), { from: [20, 0, 14.1], to: [20, -5, 14.1] })).isError).toBe(false);
+    // A lid that stands 1 mm out over the box, and one narrower than the latch.
+    expect((await latched(closed({ lidFront: -1 }))).text).toContain("Not built: Lid stands out of the wall's plane at from: 0.15 mm in front of it, from 14.1 mm below the joint to 8.1 mm above it, up to 8.1 mm of the way are plastic");
+    // The latch's edge rod (0.2 mm across) reaches 25 mm: the wall must reach it whole (review of BC-11: 24.95 passed only on the rod's axis).
+    expect((await latched(closed({ lidLong: 24.95 }))).text).toContain('Not built: Lid (the lid) is not plastic 0.5 mm deep');
+    expect((await latched(closed({ lidLong: 25.01 }))).isError).toBe(false);
+    // Given from 2 mm above the joint, the box's wall ends short of the stretch it is tried on.
+    expect((await latched(closed({ lid: 12 }), { from: [20, 0, 22], to: [20, -5, 22] })).text).toContain('Not built: Box (the box) is not plastic 0.5 mm deep');
+  });
+
+  it('refuses a lid that prints with its box on a hinge, where hook and bead would fuse (audit R40, H-24)', async () => {
+    const hinged = await latched(closed(), {}, true);
+    expect(hinged).toMatchObject({ isError: true, built: false });
+    expect(hinged.text).toBe("Not built: Lid and Box print as one piece, joined by a print-in-place hinge. A latch needs the lid closed on its box: built open beside it (as a hinged box prints), the two walls share no seam for arm and bead; built closed, the hook lies on its bead without room and printed together they would fuse. A latch is for a lid that lifts off and prints apart; for a lid on a hinge use kind closure, which takes the hinge line");
+    expect(MECHANISM_GUIDANCE).not.toContain('opposite the hinge');
+    expect(MECHANISM_GUIDANCE).toContain('a lid on a hinge prints with its box and is held by kind closure instead');
+    const [tool] = (await withMechanismTool(boxWorld({}), () => 0.4).listTools()).filter((entry) => entry.name === MECHANISM_TOOL);
+    // Audit R50: the reach comes from latchReach(), not typed into the text.
+    expect(tool?.description).toContain("the lid's from 1 to 8.1 mm above the joint, the box's from 1 to 14.1 mm below it.");
+    expect(tool?.description).toContain('A lid on a print-in-place hinge prints with its box, where hook and bead would fuse: use closure there.');
+    expect(tool?.description).not.toContain("Opposite the lid's hinge");
+    expect(tool?.description).toContain('which goes from 10.3 to 12.5 mm above the foot and is 5.6 mm wide');
+  });
+
+  it('builds nothing when the walls could not be measured', async () => {
+    const answer = await withMechanismTool(boxWorld(closed(), { silent: true }), () => 0.4).callTool(MECHANISM_TOOL, args, undefined);
+    expect(answer.content[0]).toMatchObject({ text: expect.stringContaining('Not built: PartBuddy could not measure the walls of Lid and Box at the latch: the trial gave no answer.') as string });
+  });
+
+  it('tries the walls with rods in each wall and in front of its plane, at the latch\'s middle and edges', async () => {
+    const rods: { name: string; base: number[]; height: number }[] = [];
+    const upstream = boxWorld(closed());
+    const probed: UpstreamTools = { ...upstream, callTool: (name, call, id) => {
+      for (const step of (call.commands ?? []) as { command: string; params: { body_name: string; base: number[]; height: number } }[]) if (step.command === 'solid.cylinder') rods.push({ name: step.params.body_name, base: step.params.base, height: step.params.height });
+      return upstream.callTool(name, call, id);
+    } };
+    expect(await latchTrial(probed, latchOf(args) as LatchSpec, undefined)).toBeNull();
+    // Sketch x out of the wall is −Y here, along the wall +X: the rods in the walls lie 0.4 mm behind the face.
+    expect(rods.map((rod) => [rod.name.replace('PartBuddy probe ', ''), rod.base, rod.height])).toEqual([
+      ['lid 0', [24.9, 0.4, 21], 7.1],
+      ['lid 1', [20, 0.4, 21], 7.1],
+      ['lid 2', [15.1, 0.4, 21], 7.1],
+      ['box 0', [25.9, 0.4, 5.9], 13.1],
+      ['box 1', [20, 0.4, 5.9], 13.1],
+      ['box 2', [14.1, 0.4, 5.9], 13.1],
+      ['front 0 0', [25.9, -0.15, 5.9], 22.2],
+      ['front 0 1', [25.9, -0.15, 5.9], 22.2],
+      ['front 1 0', [20, -0.15, 5.9], 22.2],
+      ['front 1 1', [20, -0.15, 5.9], 22.2],
+      ['front 2 0', [14.1, -0.15, 5.9], 22.2],
+      ['front 2 1', [14.1, -0.15, 5.9], 22.2],
+    ]);
   });
 });
