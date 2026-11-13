@@ -157,15 +157,17 @@ Prozesszählung, 1 Worker); #384 (Zeitgrenze der Überhang-Fälle). BEFUNDE.md i
 WSL-VM der Runner seit 19:54 auf 20 Threads / 16 GB (`%USERPROFILE%\.wslconfig`, Sicherung `.bak-2026-11-13`).
 
 ### Offen bei Übergabe – zuerst prüfen
+
+Die alte Sitzung läuft weiter, bis ihre Subagenten (BC-08-Nachreview, BC-11, BC-12, BC-13) fertig sind, und leitet deren Berichte als Nachricht an die neue Sitzung weiter. Bis ein Bericht da ist, in diesen vier Worktrees nichts ändern.
 Vor jeder Arbeit an einem Zweig `git fetch`, Kopf und `git status` im Worktree ansehen; uncommittete Arbeit übernehmen,
 nicht überschreiben. Die Subagenten der alten Sitzung sind beendet; was sie nicht committet haben, liegt im Worktree.
 
 | Paket | Worktree / Zweig | Stand bei Übergabe | Nächster Schritt |
 |---|---|---|---|
-| BC-08 Auswahlaktionen | `../partbuddy-wt-bc-08`, `fix/bc08-selection-actions`, PR #385 | Kopf `e7cf6df` gepusht; Review-Punkte drin. Offen: erste Maßprobe in der Gehäuse-Vorlage dauerte 66–72 s (vorher 40–45 s) – Auftrag: Kandidaten des gewählten Körpers zuerst, Vorschau sofort, Rest im Hintergrund, möglichst Abhängigkeiten lesen statt neu bauen; Tabelle vorher/nachher. Bauer war bei Zeitmessungen (7 uncommittete Dateien) | `git status` im Worktree; ist die Beschleunigung fertig und gemessen (erste Vorschau ≤ alte Zeit): kurzes Nachreview nur dieses Teils, pushen, gezielter Vertragstest (Titel im PR-Text), mergen. Sonst fertigstellen |
-| BC-12 Baustein-Löcher | `../partbuddy-wt-bc-12`, `fix/bc12-block-holes` | Kopf `eb26e06` lokal, nicht gepusht; `PR-BODY.md` uncommittet. Review lief (Ergebnis kam evtl. nicht an) | Review neu starten, falls kein Ergebnis im PR/Worktree: Brief wie BC-10-Review, Schwerpunkte Lochtabelle ISO 273, Gewinde-Aufmaß `M<d+0,3>`, Fasen, Magnet-Boden, Schlüsselloch 30°, Formularweg ohne Drucker, `tools/` im Worktree vollständig (wurde versehentlich gelöscht und per `git checkout -- tools` wiederhergestellt). Dann rebasen, Push, PR, gezielter Vertragstest (F1 Funktionsbausteine, Knopf), mergen |
-| BC-13 rohe Befehle | `../partbuddy-wt-bc-13`, `fix/bc13-raw-commands` | Bauer lief (7 uncommittete Dateien), Entscheidung „gemischt“ steht in BC-PAKETE.md | Stand im Worktree ansehen, fertig bauen, Review, Push/PR, gezielter Vertragstest, mergen |
-| BC-11 Riegel/Schnapphaken | `../partbuddy-wt-bc-11`, `fix/bc11-latch-snap` | Bauer gerade gestartet, noch nichts committet | Wie BC-13 |
+| BC-08 Auswahlaktionen | `../partbuddy-wt-bc-08`, `fix/bc08-selection-actions`, PR #385 | Kopf `c41bb6c` gepusht, auf main `50c08ac`; Maßprobe jetzt 6,7 s statt 32–46 s (Gruppentest), `fitSize`→`snapSize`/`minimumWall`/`thinnestLine`. Gezielter Vertragstest 43498701724 und PR-CI liefen; Nachreview der neuen Maßfeld-Suche lief in der alten Sitzung (Bericht wird weitergeleitet) | Vertragstest + PR-CI + Nachreview grün → mergen; Funde des Nachreviews einarbeiten lassen |
+| BC-12 Baustein-Löcher | `../partbuddy-wt-bc-12`, `fix/bc12-block-holes` | Review fertig (nicht merge-reif): B1 Import-Konflikt `printProfiles.ts:17`; S1 Formular baut ohne Drucker (an `blockSteps`/`stepsOf` durchreichen); S2 Formular erlaubt modellierte Gewinde < M5; S3 Einsatzsitz-Fase in `drop`. Bauer der alten Sitzung arbeitet das ein und soll pushen + PR öffnen | Bericht abwarten (wird weitergeleitet) bzw. PR prüfen; gezielter Vertragstest: F1 Funktionsbausteine, F1 Skizzenbausteine, Wandaufhängung, Knopf; mergen |
+| BC-13 rohe Befehle | `../partbuddy-wt-bc-13`, `fix/bc13-raw-commands` | Bauer der alten Sitzung baut (Entscheidung „gemischt“, dazu rohe fillet/chamfer/shell nachprüfen), committet nur lokal | Bericht abwarten (wird weitergeleitet), dann Review, Push/PR, gezielter Vertragstest, mergen |
+| BC-11 Riegel/Schnapphaken | `../partbuddy-wt-bc-11`, `fix/bc11-latch-snap` | Bauer der alten Sitzung baut, committet nur lokal | Wie BC-13 |
 
 ### Danach (Reihenfolge nach Nutzen, je Spur nacheinander, höchstens 3 Bauer gleichzeitig)
 L1 BC-19 (Aussagen der Prüfung) → BC-24 (neue Prüfungen, alle sieben als Hinweis); L2 BC-15 (Führung) → BC-16 (Druckprofil
