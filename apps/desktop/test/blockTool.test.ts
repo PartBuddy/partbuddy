@@ -334,7 +334,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     return { tools: withBlockTool(upstream, () => undefined, (line) => logged.push(line)), upstream, batches, holes, logged, active: () => active };
   }
   const text = async (answer: Promise<ToolResult>) => String((await answer).content[0]?.text);
-  const pilot = 'On a hole that is there already (a pilot hole) a seat is never built: PartBuddy cannot tell that hole from missing plastic. Undo that hole and build the seat at its point instead.';
+  const pilot = "If a hole is there already at that point (a pilot hole), it counts as missing plastic too: delete that hole's feature and build the seat in its place.";
   const seatNeed = 'the seat of an M3 insert needs 2 mm of plastic round it and 0.6 mm under it. Thicken the part there, move the seat away from edges and other cuts, or use a boss.';
 
   it('names the plastic each block needs, measured from half a millimetre under the face on', () => {
@@ -376,7 +376,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     // 8 mm thick at x = 10, 4 mm at x = 50: the holes take unequal amounts, and their common centre lies askew under the middle.
     const stepped = plate(8, { thin: 4 });
     expect(await text(stepped.tools.callTool('partbuddy_block', { block: 'woodScrew', body: 'Plate', point: [10, 20, 8], more: [[50, 20, 4]] }))).toMatch(
-      /^Built 2 countersunk holes .* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\. It allows a little for a curved face and cannot tell that from an edge or a chamfer: .* keep the hole away from edges yourself\.$/,
+      /^Built 2 countersunk holes .* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\. Right under the hole it allows 5\.2 mm³ less plastic, 0\.3 mm of the hole's depth, as a curved face may take; it cannot tell that from a cut of that size there\. The wall round the hole is measured in full\.$/,
     );
     // Each hole is cut and measured by itself, then both are probed in one trial.
     expect(stepped.batches).toContain('solid.hole inspect.measure solid.hole inspect.measure');
@@ -427,6 +427,33 @@ describe('a block is built only where the part has the plastic for it (audit R54
     );
   });
 
+  // Review 4 of PR #357: a seat 5 mm from an edge with a 3 mm chamfer missed about 4.0 mm³ of its stock, the slack of a
+  // curved face and the tolerance together, and passed with 0.5 mm of wall at the top. The slack counts under the seat alone.
+  it('never lets the slack of a curved face pass a wall that is too thin round a seat', async () => {
+    const seat = seatStock({ block: 'insertSeat', body: 'Plate', point: [10, 10, 10], size: 'M3', diameter: 4, depth: 6.7 }, [10, 10, 10], [0, 0, -1], true);
+    const area = (width: number) => (Math.PI * width ** 2) / 4;
+    const [core, ring] = [area(seat.core ?? 0) * seat.depth - (seat.hole ?? 0), (area(8) - area(seat.core ?? 0)) * seat.depth];
+    const probed = (missing: { ring: number; core: number }): UpstreamTools => ({
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (_name, args) => {
+        const commands = args.commands as { command: string; params: { bodies?: string[] } }[];
+        const results = commands.map((step) => {
+          if (step.command !== 'inspect.interference') return {};
+          const inner = String(step.params.bodies?.[1]).endsWith('core');
+          return { interferences: [{ volume_mm3: inner ? core - missing.core : core - missing.core + ring - missing.ring }] };
+        });
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: results.slice(0, -1), failed: { command: 'sketch.inspect' } }) }], isError: true });
+      },
+    });
+    expect(await shortOf(probed({ ring: 4, core: 0 }), 'Plate', [seat], undefined)).toBe(
+      'at [10, 10, 10] Plate has 7.19 mm of plastic where 7.3 mm are needed (the mean over a ring from 4.02 to 8 mm wide; the far side, an edge or another cut takes the rest)',
+    );
+    // As much missing right under the seat as a curved face takes passes; the answer says so (the stepped wood screws above).
+    expect(await shortOf(probed({ ring: 0, core: 3.5 }), 'Plate', [seat], undefined)).toBeNull();
+    expect(await shortOf(probed({ ring: 0, core: 4.5 }), 'Plate', [seat], undefined)).toContain('(the mean over a width of 4.02 mm, under the hole;');
+  });
+
   it('says so when the plastic could not be measured, instead of passing it over', async () => {
     const silent: UpstreamTools = { instructions: () => undefined, listTools: () => Promise.resolve([]), callTool: () => Promise.resolve({ content: [{ type: 'text', text: 'no' }], isError: true }) };
     expect(await shortOf(silent, 'Plate', [{ at: [0, 0, 0], base: [0, 0, 0], axis: [0, 0, 1], diameter: 9, depth: 6.7, from: 0 }], undefined)).toBeUndefined();
@@ -441,7 +468,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     // A plate just as thick as the seat is deep: the hole is whole, and has no floor (review of PR 357).
     const flush = plate(6.7);
     expect(await text(flush.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 6.7] }))).toBe(
-      `Not built: at [20, 20, 6.7] Plate has 6.52 mm of plastic where 7.3 mm are needed (the mean over a width of 8 mm; the far side, an edge or another cut takes the rest); ${seatNeed}`,
+      `Not built: at [20, 20, 6.7] Plate has 6.7 mm of plastic where 7.3 mm are needed (the mean over a ring from 4.02 to 8 mm wide; the far side, an edge or another cut takes the rest); ${seatNeed}`,
     );
     expect(flush.holes).toEqual([]);
     const thick = plate(10);
@@ -460,7 +487,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     // A curved face takes a little off the rim as well, and passes: 0.03 % on a rod of 20 mm radius, as measured. Only
     // there is the slack of a curved face allowed, and the answer says what that slack lets through (review 3 of PR 357).
     const rod = plate(20, { rim: 0.9997 });
-    expect(await text(rod.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 20] }))).toMatch(/^Built insertSeat .*: it is there\. It allows a little for a curved face/);
+    expect(await text(rod.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 20] }))).toMatch(/^Built insertSeat .*: it is there\. Right under the hole it allows 3\.8 mm³ less plastic/);
     const seat = { block: 'insertSeat' as const, body: 'Plate', point: [0, 0, 0] as [number, number, number], size: 'M3' as const, diameter: 4, depth: 6.7 };
     expect(seatStock(seat, [0, 0, 0], [0, 0, -1]).slack).toBeUndefined();
     expect(seatStock(seat, [0, 0, 0], [0, 0, -1], true).slack).toBeCloseTo(Math.PI * 4 * 0.3, 6);
@@ -471,7 +498,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     const thin = plate(2);
     // (The double drills a plain hole, so the figure it "has" is not the engine's; that one is in the audit harness.)
     expect(await text(thin.tools.callTool('partbuddy_block', { block: 'woodScrew', body: 'Plate', point: [20, 20, 2] }))).toMatch(
-      /^Not built: at \[20, 20, 2\] Plate has [\d.]+ mm of plastic where 2\.65 mm are needed \(the mean over a width of 12\.7 mm; the far side, an edge or another cut takes the rest\); a countersunk hole for a 4 mm wood screw needs 4 mm of plastic round its 4\.7 mm hole and a plate at least 2\.65 mm thick\. Thicken the plate, or move the hole away from edges and other cuts\.$/,
+      /^Not built: at \[20, 20, 2\] Plate has [\d.]+ mm of plastic where 2\.65 mm are needed \(the mean over a ring from 7\.82 to 12\.7 mm wide; the far side, an edge or another cut takes the rest\); a countersunk hole for a 4 mm wood screw needs 4 mm of plastic round its 4\.7 mm hole and a plate at least 2\.65 mm thick\. Thicken the plate, or move the hole away from edges and other cuts\.$/,
     );
     expect(thin.holes).toEqual([]);
   });
@@ -541,7 +568,7 @@ describe('a block is taken back by what the design measures, not by the depth of
     return { tools: withBlockTool(upstream, () => undefined, (line) => logged.push(line)), batches, logged, built, base: () => base, active: () => active, undos: () => count('edit.undo'), redos: () => count('edit.redo') };
   }
   const landsOnB = 'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies';
-  const notBack = `${landsOnB}. What was built of it could NOT be taken back and is all still there: undo it before you call again`;
+  const notBack = `${landsOnB}. What was built could NOT be taken back and is all still there: undo it before you call again.`;
   const slot = { block: 'slot', body: 'A', point: [30, 10, 20], normal: [0, 0, 1] };
 
   it('undoes exactly the steps of the block, not the component activations around it, below the cap and past it', async () => {
@@ -575,7 +602,7 @@ describe('a block is taken back by what the design measures, not by the depth of
       expect(d.built, String(steps)).toEqual(['sketch.create', 'sketch.slot.center_to_center', 'solid.extrude']);
       expect(d.base(), String(steps)).toBe(steps);
       expect(d.active(), String(steps)).toBe(0);
-      expect(d.logged, String(steps)).toEqual([`partbuddy_block slot on A could not be taken back after: ${landsOnB.slice('Not built: '.length)}`]);
+      expect(d.logged, String(steps)).toEqual([`partbuddy_block slot on A could not be taken back (kept) after: ${landsOnB.slice('Not built: '.length)}`]);
     }
   });
 

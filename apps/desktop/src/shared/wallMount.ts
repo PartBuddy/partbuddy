@@ -81,14 +81,15 @@ export function countersinkDepth(screw: WoodScrew): number {
  * deep. `axis` is the way the hole went into the part, `from` how far under the face the cylinder starts; the hole
  * itself is taken off.
  */
-export function woodScrewStock(screw: WoodScrew, point: Vec3, axis: Vec3, from: number): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number; hole: number; slack: number } {
+export function woodScrewStock(screw: WoodScrew, point: Vec3, axis: Vec3, from: number): { at: Vec3; base: Vec3; axis: Vec3; diameter: number; depth: number; from: number; hole: number; core: number; slack: number } {
   const size = WALL[screw];
   const cone = Math.max(0, countersinkDepth(screw) - from);
   // The 90° cone is as much wider than the clearance hole as it still has to go down.
   const [wide, narrow] = [size.clearance / 2 + cone, size.clearance / 2];
   const hole = (Math.PI * cone * (wide ** 2 + wide * narrow + narrow ** 2)) / 3 + Math.PI * narrow ** 2 * WOOD_SCREW_UNDER;
-  // On a curved face the hole does not end where it ends on a flat one: 0.3 mm of its depth are allowed for that.
-  return { at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3, axis, diameter: round(size.clearance + 2 * screw), depth: round(cone + WOOD_SCREW_UNDER), from, hole, slack: Math.PI * narrow ** 2 * 0.3 };
+  // On a curved face the hole does not end where it ends on a flat one: 0.3 mm of its depth are allowed for that, inside
+  // the widest the hole is (`core`, a hair wider so that no face of the probe lies on the hole's) alone; the wall round it is measured without.
+  return { at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3, axis, diameter: round(size.clearance + 2 * screw), depth: round(cone + WOOD_SCREW_UNDER), from, hole, core: round(wide * 2 + 0.02), slack: Math.PI * narrow ** 2 * 0.3 };
 }
 
 /** What is wrong with a keyhole before anything is built; null when it can be built. */

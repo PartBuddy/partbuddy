@@ -6,7 +6,7 @@ import { MAGNET, MAGNET_HOLDS, magnetPocket, magnetProblem, magnetSteps, magnetS
 import { KEYHOLE, WALL, WOOD_SCREWS, WOOD_SCREW_UNDER, countersinkDepth, keyholeDepth, keyholeProblem, keyholeSteps, keyholeStock, woodScrewSteps, woodScrewStock, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
-import { markOf, takeBack } from './takeBack';
+import { markOf, TAKEN_BACK_SAID, takeBack } from './takeBack';
 
 /**
  * `partbuddy_block` (plan step F1, standards of 2026-11-11): the function blocks of the interface
@@ -136,8 +136,13 @@ export interface Stock {
   /** mm³ of the cylinder the block itself has cut away, when it is measured after the block was built. */
   hole?: number;
   /**
-   * mm³ more the block may have cut away: on a curved face the hole does not end where it ends on a flat one. Only
-   * where the face falls away, or where that cannot be told: it lets an edge or a chamfer pass as well.
+   * The widest the hole is within the cylinder, in mm, when it is measured after the block was built: the ring outside
+   * that width is the wall round the hole and must be plastic in full; `hole` and `slack` count inside it alone.
+   */
+  core?: number;
+  /**
+   * mm³ more the block may have cut away inside `core`: on a curved face the hole does not end where it ends on a flat
+   * one. It lets a cut of that size under the hole pass as well, never one in the wall round it.
    */
   slack?: number;
 }
@@ -162,8 +167,9 @@ const rimDrop = (width: number, stock: number) => (Math.PI * FACE_DROP * width *
 
 /**
  * The plastic the seat of an insert needs, measured after it is cut: {@link FACE_DROP} under the face on, the seat itself
- * taken off. `curved` when the seat cut less than its cylinder: only then is the slack of a curved face allowed (on a flat
- * face it let a seat 5 mm from an edge with a 3 mm chamfer through, its wall under 1.6 mm; review 3 of PR #357).
+ * taken off. `curved` when the seat cut less than its cylinder: only then is the slack of a curved face allowed, and
+ * only under the seat: its wall is measured as a ring round it, in full (a slack over the whole cylinder let a seat 5 mm
+ * from an edge with a 3 mm chamfer through with 0.5 mm of wall at the top; reviews 3 and 4 of PR #357).
  */
 export function seatStock(block: Extract<FeatureBlock, { block: 'insertSeat' }>, point: Vec3, axis: Vec3, curved = false): Stock {
   const round = (value: number) => Math.round(value * 1000) / 1000;
@@ -176,15 +182,15 @@ export function seatStock(block: Extract<FeatureBlock, { block: 'insertSeat' }>,
     depth: round(block.depth - FACE_DROP + SEAT_UNDER),
     from: FACE_DROP,
     hole: area * (block.depth - FACE_DROP),
+    // A hair wider than the seat, so that no face of the probe lies on a face of the seat.
+    core: round(block.diameter + 0.02),
     ...(curved ? { slack: area * CURVED_FACE } : {}),
   };
 }
 
-/**
- * What a block says when its measure allowed for a curved face: that allowance cannot tell a curved face from an edge or a
- * chamfer (review 3 of PR #357: a wood screw passed 5.7 mm from an edge where 6.35 mm are asked for).
- */
-const LENIENT = ' It allows a little for a curved face and cannot tell that from an edge or a chamfer: next to one the wall may be up to about 0.7 mm thinner than that, so keep the hole away from edges yourself.';
+/** What a block says when its measure allowed for a curved face: how much, and that it covers the plastic under the hole alone. */
+const lenientSaid = (slack: number) =>
+  ` Right under the hole it allows ${String(Math.round(slack * 10) / 10)} mm³ less plastic, ${String(CURVED_FACE)} mm of the hole's depth, as a curved face may take; it cannot tell that from a cut of that size there. The wall round the hole is measured in full.`;
 
 /** A wall mounting the model asked for: its steps and what to say; null when the block is none of them; or what is wrong. */
 export function wallOf(args: Record<string, unknown>): { body: string; steps: Step[]; text: string; stock?: Stock[]; cut?: (point: Vec3, axis: Vec3) => Stock; need: string } | string | null {
@@ -350,6 +356,14 @@ export function misplaced(body: string, before: Map<string, number>, after: Map<
   return null;
 }
 
+/**
+ * mm³ a seat may cut less than its cylinder on a flat face: what is noise in the measure, not a face that falls away.
+ * SolidCraft 0.40.1 gave cylinders wholly in a part as 1.0000000 of their volume (seven digits, {@link STOCK_FULL}), and
+ * `taken` is the difference of two body volumes, good to about 1e-12 of the body in doubles; a seat on a rod of 20 mm
+ * radius cut 0.9997 of its cylinder, three hundred times above the first.
+ */
+const cutNoise = (whole: number, body: number) => whole * 1e-6 + body * 1e-12;
+
 /** The name of the bodies that measure the plastic at a block; they are never kept. */
 const PROBE = 'PartBuddy probe';
 
@@ -369,13 +383,16 @@ export const STOCK_FULL = 0.999;
  */
 export async function shortOf(upstream: UpstreamTools, body: string, stock: Stock[], callId: string | undefined): Promise<string | null | undefined> {
   try {
+    // Each stock cylinder, and where a hole is cut in it already a cylinder as wide as the hole (`core`) as well: the two apart
+    // are the wall round the hole and what lies under it.
+    const probes = stock.flatMap((room, i) => [{ width: room.diameter, name: `${PROBE} ${String(i)}` }, ...(room.core ? [{ width: room.core, name: `${PROBE} ${String(i)} core` }] : [])].map((probe) => ({ ...probe, room })));
     const answer = await upstream.callTool(
       'batch',
       {
         commands: [
-          ...stock.flatMap((room, i) => [
-            { command: 'solid.cylinder', params: { diameter: `${String(room.diameter)} mm`, height: `${String(room.depth)} mm`, base: room.base, axis: room.axis, operation: 'new', body_name: `${PROBE} ${String(i)}` } },
-            { command: 'inspect.interference', params: { bodies: [body, `${PROBE} ${String(i)}`] } },
+          ...probes.flatMap(({ room, width, name }) => [
+            { command: 'solid.cylinder', params: { diameter: `${String(width)} mm`, height: `${String(room.depth)} mm`, base: room.base, axis: room.axis, operation: 'new', body_name: name } },
+            { command: 'inspect.interference', params: { bodies: [body, name] } },
           ]),
           { command: 'sketch.inspect', params: { sketch: 2147483647 } },
         ],
@@ -385,18 +402,29 @@ export async function shortOf(upstream: UpstreamTools, body: string, stock: Stoc
     );
     const text = answer.content.find((part) => part.type === 'text')?.text;
     const results = (JSON.parse(typeof text === 'string' ? text : '') as { results?: unknown[] }).results;
-    if (!Array.isArray(results) || results.length < stock.length * 2) return undefined;
-    for (const [i, room] of stock.entries()) {
-      const found = (results[i * 2 + 1] as { interferences?: { volume_mm3?: unknown }[] } | undefined)?.interferences;
-      if (!Array.isArray(found)) return undefined;
-      const area = (Math.PI * room.diameter ** 2) / 4;
-      const hole = room.hole ?? 0;
-      const plastic = found.reduce((sum, pair) => sum + (typeof pair.volume_mm3 === 'number' ? pair.volume_mm3 : 0), 0);
-      const full = area * room.depth - hole;
-      if (plastic < full * STOCK_FULL - (room.slack ?? 0)) {
+    if (!Array.isArray(results) || results.length < probes.length * 2) return undefined;
+    const plastics = probes.map((_, k) => {
+      const found = (results[k * 2 + 1] as { interferences?: { volume_mm3?: unknown }[] } | undefined)?.interferences;
+      return Array.isArray(found) ? found.reduce((sum, pair) => sum + (typeof pair.volume_mm3 === 'number' ? pair.volume_mm3 : 0), 0) : NaN;
+    });
+    if (plastics.some((plastic) => Number.isNaN(plastic))) return undefined;
+    const area = (width: number) => (Math.PI * width ** 2) / 4;
+    let k = 0;
+    for (const room of stock) {
+      const whole = plastics[k++] ?? NaN;
+      const core = room.core ? (plastics[k++] ?? NaN) : 0;
+      // The wall round the hole (all of the cylinder where nothing is cut yet), then what lies under the hole.
+      const parts = room.core
+        ? [
+            { plastic: whole - core, full: (area(room.diameter) - area(room.core)) * room.depth, slack: 0, over: `a ring from ${String(room.core)} to ${String(room.diameter)} mm wide` },
+            { plastic: core, full: area(room.core) * room.depth - (room.hole ?? 0), slack: room.slack ?? 0, over: `a width of ${String(room.core)} mm, under the hole` },
+          ]
+        : [{ plastic: whole, full: area(room.diameter) * room.depth - (room.hole ?? 0), slack: room.slack ?? 0, over: `a width of ${String(room.diameter)} mm` }];
+      for (const { plastic, full, slack, over } of parts) {
+        if (plastic >= full * STOCK_FULL - slack) continue;
         // The cylinder starts under the face: with none of it in the part, all that is known is that the part ends above it.
         const has = plastic < full * 0.001 ? `less than ${String(room.from)}` : String(Math.round((room.from + (room.depth * plastic) / full) * 100) / 100);
-        return `at [${room.at.join(', ')}] ${body} has ${has} mm of plastic where ${String(Math.round((room.from + room.depth) * 100) / 100)} mm are needed (the mean over a width of ${String(room.diameter)} mm; the far side, an edge or another cut takes the rest)`;
+        return `at [${room.at.join(', ')}] ${body} has ${has} mm of plastic where ${String(Math.round((room.from + room.depth) * 100) / 100)} mm are needed (the mean over ${over}; the far side, an edge or another cut takes the rest)`;
       }
     }
     return null;
@@ -469,7 +497,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         const mark = await markOf(run);
         let results: unknown[];
         let after: boolean | null = null;
-        let lenient = false;
+        let lenient = 0;
         // One hole a step, measured after each: every hole has its own way in, also on a stepped part or on two faces.
         const sent = holes ? sequence.flatMap((step) => [step, measure]) : [...sequence, measure];
         try {
@@ -485,24 +513,24 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
               // A seat is cut out of solid plastic: where its rim breaks out of the face it takes less than its cylinder.
               if (holes.whole && taken < holes.whole * STOCK_FULL - (holes.drop ?? 0))
                 throw new Error(
-                  `at [${point.join(', ')}] the seat would cut ${String(Math.round(taken * 10) / 10)} mm³ of plastic where its whole cylinder is ${String(Math.round(holes.whole * 10) / 10)} mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${holes.need}. On a hole that is there already (a pilot hole) a seat is never built: PartBuddy cannot tell that hole from missing plastic. Undo that hole and build the seat at its point instead.`,
+                  `at [${point.join(', ')}] the seat would cut ${String(Math.round(taken * 10) / 10)} mm³ of plastic where its whole cylinder is ${String(Math.round(holes.whole * 10) / 10)} mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${holes.need}. If a hole is there already at that point (a pilot hole), it counts as missing plastic too: delete that hole's feature and build the seat in its place.`,
                 );
               const axis = cutAxis(body, was, is, point);
-              // A seat on a flat face cuts its whole cylinder to the last digit; less means the face falls away there.
-              if (axis) stocks.push(holes.stock(point, axis, holes.whole !== undefined && taken < holes.whole * (1 - 1e-6)));
+              if (axis) stocks.push(holes.stock(point, axis, holes.whole !== undefined && taken < holes.whole - cutNoise(holes.whole, volumesOf(was).get(body) ?? 0)));
             }
             const thin = stocks.length === holes.points.length ? await shortOf(upstream, body, stocks, callId) : undefined;
             if (thin) throw new Error(`${thin}; ${holes.need}.`);
             after = thin === null;
-            lenient = stocks.some((room) => (room.slack ?? 0) > 0);
+            lenient = Math.max(0, ...stocks.map((room) => room.slack ?? 0));
           }
         } catch (cause) {
           // Nothing of a block that failed half way, landed on another body or found too little plastic stays. (A batch with
           // `rollback` or a checkpoint is no way back in SolidCraft 0.40.1: after the one the same modelled thread fails for
           // real, and the other is gone once a batch has run.)
-          if (!(await takeBack(run, mark))) {
-            log(`partbuddy_block ${String(args.block)} on ${body} could not be taken back after: ${(cause as Error).message.slice(0, 200)}`);
-            throw new Error(`${(cause as Error).message.replace(/\.$/, '')}. What was built of it could NOT be taken back and is all still there: undo it before you call again`, { cause });
+          const taken = await takeBack(run, mark);
+          if (taken !== 'back') {
+            log(`partbuddy_block ${String(args.block)} on ${body} could not be taken back (${taken}) after: ${(cause as Error).message.slice(0, 200)}`);
+            throw new Error(`${(cause as Error).message.replace(/\.$/, '')}. ${TAKEN_BACK_SAID[taken]}`, { cause });
           }
           throw cause;
         }
@@ -522,7 +550,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
             : unmeasured
           : holes
             ? after
-              ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder' : ''}: it is there.${lenient ? LENIENT : ''}`
+              ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder' : ''}: it is there.${lenient > 0 ? lenientSaid(lenient) : ''}`
               : unmeasured
             : '';
         const said = (wall ? wall.text : block ? built(block) : '') + (block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');

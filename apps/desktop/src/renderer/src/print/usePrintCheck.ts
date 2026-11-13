@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { measuresOf } from './bodyMeasures';
-import { reportOf } from './report';
+import { jointRuns, reportOf } from './report';
 
 /** Quiet time after a revision before the check runs, so a burst of steps is checked once. */
 const CHECK_DELAY_MS = 250;
@@ -41,8 +41,8 @@ export function usePrintCheck(): void {
       useStudio.getState().setPrintCheck({ revision: model.revision, result: joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result, ...(measuring ? { measuring } : {}) });
       // What each closed body costs to print, for the assistant to see what a change saved.
       const measures = measuresOf(printed, { nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang });
-      const report = (final: typeof result, pending = false, unmeasured: ('clearance' | 'joints')[] = []) => {
-        const more = { ...(pending ? { measuring: true } : {}), ...(unmeasured.length > 0 ? { unmeasured } : {}), ...(measures.problem ? { problem: measures.problem } : {}) };
+      const report = (final: typeof result, pending = false, unmeasured: ('clearance' | 'joints')[] = [], unchecked: string[] = []) => {
+        const more = { ...(pending ? { measuring: true } : {}), ...(unmeasured.length > 0 ? { unmeasured } : {}), ...(unchecked.length > 0 ? { unchecked } : {}), ...(measures.problem ? { problem: measures.problem } : {}) };
         void platform()
           .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision, measures.bodies, more))
           // A report the main process does not take would leave the assistant waiting for a check that never comes:
@@ -60,6 +60,8 @@ export function usePrintCheck(): void {
       // when they come, if nothing changed. A measure that fails leaves its findings out.
       // A measure that fails leaves its findings out, and the check says that it does.
       const failed: ('clearance' | 'joints')[] = [];
+      // Mesh bodies SolidCraft leaves out of the clearance: named, as nothing is known of them.
+      let unchecked: string[] = [];
       const measure = async (): Promise<PrintCheck> => {
         let final = result;
         // Several parts (F2): overlaps and gaps under the push fit.
@@ -72,19 +74,13 @@ export function usePrintCheck(): void {
             )
             .catch(() => null);
           if (measured) final = withClearance(final, measured, pushFit);
-          // A mesh body is left out of SolidCraft's measure: nothing found there is nothing known.
-          if (!measured || (measured.unchecked ?? []).length > 0) failed.push('clearance');
+          else failed.push('clearance');
+          unchecked = measured?.unchecked ?? [];
         }
         // Parts that move (ADR 0027): every joint value runs from where it stands to its limits.
         if (joints.length > 0) {
-          const runs = joints.flatMap((joint) =>
-            joint.values.flatMap((value) =>
-              (value.limits ?? []).flatMap((limit) => (limit !== null && Math.abs(limit - value.value) > 1e-6 ? [{ joint: joint.id, name: joint.name, unit: value.unit, index: value.index, from: value.value, to: limit }] : [])),
-            ),
-          );
-          // SolidCraft is asked for 40 runs at most (the contract's limit): the rest is not measured, and the check says so.
-          const sweeps = runs.slice(0, 40);
-          if (runs.length > sweeps.length) failed.push('joints');
+          const { sweeps, more } = jointRuns(joints);
+          if (more) failed.push('joints');
           const stopped = await platform()
             .design.sweepJoints(sweeps.map(({ joint, index, from, to }) => ({ joint, index, from, to })))
             .catch(() => {
@@ -102,7 +98,7 @@ export function usePrintCheck(): void {
       void measure().then((final) => {
         if (stale) return;
         useStudio.getState().setPrintCheck({ revision: model.revision, result: final });
-        report(final, false, failed);
+        report(final, false, failed, unchecked);
       });
     }, CHECK_DELAY_MS);
     let stale = false;

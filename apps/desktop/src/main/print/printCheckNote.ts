@@ -79,7 +79,10 @@ const FETCH_FULL = 'call partbuddy_view for the full check before you call the p
 const preliminaryLine = (view: boolean) => `Preliminary: clearance and joints still being measured (${CHECKED_MEASURED}); ${view ? 'the full check will be here in a moment' : FETCH_FULL}.`;
 /** A measure that failed is said, never read as "nothing found" (audit H-05). */
 const unmeasuredLine = (failed: readonly ('clearance' | 'joints')[]) =>
-  `NOT measured, or not all of it (SolidCraft's measure failed, left out a mesh body, or there were more than 40 joint runs): ${failed.map((what) => MEASURED[what]).join(', ')}. Measure it yourself (${failed.map((what) => (what === 'clearance' ? 'inspect.clearance' : 'joint.sweep')).join(', ')}) before you call the part done.`;
+  `NOT measured, or not all of it (SolidCraft's measure failed, or there were more than 40 joint runs): ${failed.map((what) => MEASURED[what]).join(', ')}. Measure it yourself (${failed.map((what) => (what === 'clearance' ? 'inspect.clearance' : 'joint.sweep')).join(', ')}) before you call the part done.`;
+/** Mesh bodies have no faces to measure: `inspect.clearance` leaves them out however it is called, so the way is to convert them. */
+const uncheckedLine = (bodies: readonly string[]) =>
+  `NOT measured for overlaps and gaps: ${bodies.map((name) => `"${name}"`).join(', ')}, mesh bod${bodies.length === 1 ? 'y' : 'ies'} SolidCraft does not measure. Convert ${bodies.length === 1 ? 'it' : 'them'} to faces (mesh.convert, closed meshes only) to have ${bodies.length === 1 ? 'it' : 'them'} measured; until then judge ${bodies.length === 1 ? 'its' : 'their'} fit yourself.`;
 /** What a clean check says nothing about (audit R3); the model must not pass the verdict on as more. */
 const NOT_CHECKED = 'Not checked: strength and layer direction under load, the fits and hole allowances you chose, details and text too fine to print, bed-edge chamfers. Judge those yourself.';
 
@@ -130,7 +133,7 @@ export function printCheckNote(report: PrintCheckReport, view = false): string {
   const head =
     '[PartBuddy: ready-to-print check of the part as it is now (each body lying on its print face when it has one, else as designed along +Z on its own lowest point; overhangs by angle only):';
   const failed = report.unmeasured ?? [];
-  const preliminary = [...(report.measuring ? [preliminaryLine(view)] : []), ...(failed.length > 0 ? [unmeasuredLine(failed)] : [])];
+  const preliminary = [...(report.measuring ? [preliminaryLine(view)] : []), ...(failed.length > 0 ? [unmeasuredLine(failed)] : []), ...((report.unchecked ?? []).length > 0 ? [uncheckedLine(report.unchecked ?? [])] : [])];
   const measured = (['clearance', 'joints'] as const).filter((what) => !failed.includes(what)).map((what) => `, ${MEASURED[what]}`).join('');
   if (report.findings.length === 0)
     return [`${head} nothing found ${report.measuring ? `so far (${CHECKED_MESH})` : `in what it checks (${CHECKED_MESH}${measured})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}]`].join('\n');
@@ -155,7 +158,7 @@ export class CheckTold {
 
   note(report: PrintCheckReport): string {
     // Every finding with its faces and numbers, not the lines shown: a change in the thirteenth finding is a change.
-    const verdict = JSON.stringify([report.status, report.measuring === true, report.unmeasured ?? [], report.findings, report.omitted ?? 0]);
+    const verdict = JSON.stringify([report.status, report.measuring === true, report.unmeasured ?? [], report.unchecked ?? [], report.findings, report.omitted ?? 0]);
     const same = verdict === this.verdict;
     const changed = (body: Body) => this.bodies.get(body.name) !== measureLine(body);
     const short = same

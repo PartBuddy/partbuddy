@@ -246,7 +246,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(taken.depth()).toBe(2);
     // Where SolidCraft does not say what the design consists of nothing is taken back, and the answer says so instead of "as it was".
     const stuck = tools(false);
-    expect((await stuck.call()).content[0]).toMatchObject({ text: expect.stringMatching(/^Not built: SolidCraft refused joint\.as_built: .* What was begun could not be taken back: undo it before you call again\.$/) as string });
+    expect((await stuck.call()).content[0]).toMatchObject({ text: expect.stringMatching(/^Not built: SolidCraft refused joint\.as_built: .* What was built could NOT be taken back and is all still there: undo it before you call again\.$/) as string });
     expect(stuck.sent.join(' ')).not.toContain('edit.undo');
   });
 

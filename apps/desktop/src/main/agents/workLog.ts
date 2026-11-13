@@ -10,7 +10,7 @@ export interface DesignHistory {
   revision: number;
   undo: number;
   redo: number;
-  /** Where SolidCraft's rollback marker stands (`document.inspect`): it counts features past the cap of `undo`, not sketches. */
+  /** Where SolidCraft's rollback marker stands (`document.inspect`): it counts timeline entries (a new sketch too) past the cap of `undo`, not what is drawn in a sketch. */
   marker?: number;
 }
 
@@ -222,7 +222,7 @@ export class WorkLog {
  */
 export function designChanged(before: DesignHistory, after: DesignHistory): boolean {
   if (before.documentId !== after.documentId || before.undo !== after.undo || (before.redo > 0 && after.redo === 0)) return true;
-  // The marker tells a new or a lost feature at any depth, also past a cap that SolidCraft may one day move.
+  // The marker tells a new or a lost timeline entry at any depth, also past a cap that SolidCraft may one day move.
   if (before.marker !== undefined && after.marker !== undefined && before.marker !== after.marker) return true;
   // At the cap a step adds to the history and its depth stays: there a moved revision is all that tells, and it
   // counts, at the price of a check too many after a trial. Without this no change past the cap got its check.
@@ -231,7 +231,7 @@ export function designChanged(before: DesignHistory, after: DesignHistory): bool
 
 /**
  * How deep SolidCraft's undo history goes (0.40.1, measured 2026-11-12: 260 steps read as 200).
- * shortcut: past the cap a change of sketches alone is told only by this number and the revision; measure it again when SolidCraft moves the cap.
+ * shortcut: past the cap a change drawn inside a sketch alone is told only by this number and the revision; measure it again when SolidCraft moves the cap.
  */
 export const UNDO_CAP = 200;
 
