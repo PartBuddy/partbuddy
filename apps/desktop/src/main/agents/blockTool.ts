@@ -1,11 +1,16 @@
-import { BLOCK_SIZES, INSERT, ON_FACE, cutsThrough, defaultBlock, needsNormal, sizesOf, stepsOf, throughReach, throughTrial, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { minimumFloor, minimumWall } from '@partbuddy/geometry';
+
+import { BLOCK_SIZES, INSERT, ON_FACE, SNAP_STRAIN_LIMIT, TEXT_STROKE, cutsThrough, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
+import { CLEARANCE_NOZZLE } from '../../shared/designFit';
 import { KNOB, KNOB_CLEARANCE, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
 import { TAPPED_FROM } from '../../shared/mechanisms';
-import { MAGNET, MAGNET_HOLDS, magnetPocket, magnetProblem, magnetSteps, magnetStock, type MagnetHold } from '../../shared/magnet';
-import { KEYHOLE, WALL, WOOD_SCREWS, WOOD_SCREW_UNDER, countersinkDepth, keyholeDepth, keyholeProblem, keyholeSteps, keyholeStock, woodScrewSteps, woodScrewStock, type WoodScrew } from '../../shared/wallMount';
+import { MAGNET, MAGNET_HOLDS, MAGNET_MORE, magnetPocket, magnetProblem, magnetSteps, magnetStock, type MagnetHold } from '../../shared/magnet';
+import { CLEARANCE_NORMAL, NUT } from '../../shared/screwSizes';
+import { KEYHOLE, WALL, WALL_MORE, WOOD_SCREWS, WOOD_SCREW_UNDER, countersinkDepth, keyholeDepth, keyholeProblem, keyholeSteps, keyholeStock, woodScrewSteps, woodScrewStock, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
+import { ASK_TOOL } from './questions';
 import { markOf, TAKEN_BACK_SAID, takeBack } from './takeBack';
 
 /**
@@ -35,21 +40,36 @@ const blockTool: UpstreamTool = {
     'insertSeat (the seat of a heat-set insert, M2 to M6), nutTrap (a hexagonal pocket with its clearance hole), boss (a screw boss with an insert seat, standing on the face), ' +
     'slot (a slot for a screw, to adjust), text (embossed or engraved), lip (a lip or a groove on the rim of a shelled body), snapFit (a cantilever snap hook standing on the face). ' +
     'To hang a part on a wall: keyhole (a keyhole slot on the face against the wall, over a screw already in the wall; point is where the screw rests, normal points to the wall, up is the way up as the part hangs) ' +
-    'or woodScrew (a countersunk hole for a wood screw, at a point of the face away from the wall); screw is the wood screw in mm. ' +
-    'To hold with magnets: magnet (a pocket for a disc magnet at a point of a face, normal out of that face; diameter and height are the magnet\'s, default 6 × 2 mm; hold glue to drop it in on a drop of glue, press to press it in). ' +
-    "A knob for a shaft is a part of its own: knob (body is the new body's name, point the centre of its underside where the shaft goes in, normal the way the shaft points, up the way its pointer points; shaft d for a potentiometer's or encoder's D shaft, knurl for a split knurled one, round for a plain shaft with a set screw). " +
-    'Give only what differs from the standard; everything else is filled in. For two parts screwed together use partbuddy_mechanism with kind screw instead, which makes both holes on one line.',
+    'or woodScrew (a countersunk hole for a wood screw, at a point of the face away from the wall); screw is the wood screw in mm, needed. ' +
+    "To hold with magnets: magnet (a pocket for a disc magnet at a point of a face, normal out of that face; diameter and height are the magnet's as the user measured them, needed; hold glue to drop it in on a drop of glue, press to press it in). " +
+    "A knob for a shaft is a part of its own: knob (body is the new body's name, point the centre of its underside where the shaft goes in, normal the way the shaft points, up the way its pointer points; shaft, needed: d for a potentiometer's or encoder's D shaft, knurl for a split knurled one, round for a plain shaft with a set screw; shaftDiameter, needed). " +
+    'Give only what differs from the standard; everything else is filled in. A field a block does not take is refused, not passed over, and so is a size that does not print on a 0.4 mm nozzle. ' +
+    'For two parts screwed together use partbuddy_mechanism with kind screw instead, which makes both holes on one line.',
   inputSchema: {
     type: 'object',
     properties: {
       block: { type: 'string', enum: [...ASSISTANT_BLOCKS, ...WALL_BLOCKS, ...PART_BLOCKS] },
       body: { type: 'string', description: 'The body (exact name); for knob the name of the new body.' },
       point: { ...vector, description: 'A point on the flat face the block goes at, in mm: the centre of the hole, the foot of the boss, the middle of the text.' },
-      normal: { ...vector, description: 'The way out of that face; needed for nutTrap, slot, text, snapFit, keyhole and magnet. knob: the way the shaft points, default +Z.' },
+      normal: {
+        ...vector,
+        description:
+          'The way out of that face; needed for nutTrap, slot, text, snapFit, keyhole and magnet. knob: the way the shaft points, default +Z. screwHole, tappedHole, insertSeat, boss, lip and woodScrew go square into the face at the point and do not use it.',
+      },
       up: { ...vector, description: 'keyhole: the way up as the part hangs, along the face; default +Z. knob: the way its pointer points, across the shaft; default +Y.' },
-      screw: { type: 'number', enum: [...WOOD_SCREWS], description: 'keyhole, woodScrew: the wood screw, its thread diameter in mm; default 4.' },
-      size: { type: 'string', enum: [...BLOCK_SIZES], description: 'The screw; default M3. Ignored for text, lip and snapFit.' },
-      more: { type: 'array', items: vector, maxItems: 99, description: 'screwHole, tappedHole, insertSeat, keyhole, woodScrew, magnet: further points on the same face, one each.' },
+      screw: { type: 'number', enum: [...WOOD_SCREWS], description: 'keyhole, woodScrew: the wood screw, its thread diameter in mm; needed.' },
+      size: { type: 'string', enum: [...BLOCK_SIZES], description: 'The screw; default M3. Not used by text, lip and snapFit; keyhole, woodScrew, magnet and knob take none.' },
+      more: {
+        type: 'array',
+        items: vector,
+        maxItems: 99,
+        description: `screwHole, tappedHole, insertSeat, keyhole, woodScrew, magnet: further points on the same face, one each; up to 99, for magnet ${String(MAGNET_MORE)}, for keyhole and woodScrew ${String(WALL_MORE)}.`,
+      },
+      name: {
+        type: 'string',
+        maxLength: 100,
+        description: "screwHole, tappedHole, insertSeat, nutTrap, slot, keyhole, woodScrew, magnet: the name of its features in the timeline, in the user's language; several holes get a number each.",
+      },
       head: { type: 'string', enum: ['none', 'cap', 'countersunk'], description: 'screwHole: the room for the head; default cap (a counterbore).' },
       fit: { type: 'string', enum: ['close', 'normal', 'loose'], description: 'screwHole: the clearance by ISO 273; default normal.' },
       depth: { type: 'number', description: 'tappedHole, insertSeat, nutTrap, slot, text: depth in mm; default by the block (a slot and a tapped hole go through, see through).' },
@@ -59,17 +79,17 @@ const blockTool: UpstreamTool = {
         description:
           'screwHole, tappedHole and slot without depth, and the hole of a nutTrap: how far they go. wall (default): through the wall at the point and no further, so a hole in the side of a hollow box leaves the far side whole. body: through all of the body on its line, as through both cheeks of a fork, a clevis or a hinge block with a gap between.',
       },
-      diameter: { type: 'number', description: 'insertSeat: the hole for the insert; boss: its outer diameter; knob: its outer diameter, default 25; magnet: the diameter of the magnet, default 6. Default from the table.' },
-      height: { type: 'number', description: 'boss: its height; text: the height of its capitals; lip: its height; knob: its height, default 16; magnet: the height of the magnet, default 2. Default by the block.' },
-      length: { type: 'number', description: 'slot: its length; snapFit: the length of the arm. Default 10 and 12 mm.' },
+      diameter: { type: 'number', description: 'insertSeat: the hole for the insert; boss: its outer diameter; knob: its outer diameter, default 25; magnet: the diameter of the magnet, needed. Default from the table.' },
+      height: { type: 'number', description: 'boss: its height; text: the height of its capitals, default 7; lip: its height; knob: its height, default 16; magnet: the height of the magnet, needed. Default by the block.' },
+      length: { type: 'number', description: 'slot: the distance between the centres of its round ends, which is how far the screw can travel; the slot is its width longer. snapFit: the length of the arm. Default 10 and 12 mm.' },
       width: { type: 'number', description: 'slot, lip, snapFit: width in mm. Default by the block.' },
       along: { type: 'string', enum: ['x', 'y'], description: "slot: along the face's first or second direction." },
       text: { type: 'string', maxLength: 80, description: 'text: the words.' },
       mode: { type: 'string', enum: ['emboss', 'deboss'], description: 'text: raised or engraved; default engraved.' },
       type: { type: 'string', enum: ['lip', 'groove'], description: 'lip: a lip, or the groove that takes one.' },
       hold: { type: 'string', enum: [...MAGNET_HOLDS], description: 'magnet: glued in (0.3 mm of room, the default) or pressed in (0.1 mm).' },
-      shaft: { type: 'string', enum: [...KNOB_SHAFTS], description: 'knob: the shaft it goes on; default d.' },
-      shaftDiameter: { type: 'number', description: 'knob: the diameter of the shaft in mm; default 6.' },
+      shaft: { type: 'string', enum: [...KNOB_SHAFTS], description: 'knob: the shaft it goes on; needed.' },
+      shaftDiameter: { type: 'number', description: 'knob: the diameter of the shaft in mm; needed.' },
       flat: { type: 'number', description: 'knob on a D shaft: the thickness of the shaft at its flat in mm; 4.5 on a 6 mm shaft, to be measured on any other.' },
       clearance: { type: 'number', description: "knob: added to the shaft's diameter in mm; default 0.2 (0 for knurl). More when the printed knob sits too tight." },
       hook: { type: 'string', enum: ['x+', 'x-', 'y+', 'y-'], description: "snapFit: the way the catch points, along the face's directions." },
@@ -101,15 +121,105 @@ function outOfTable(block: FeatureBlock): string | null {
   return null;
 }
 
+/**
+ * The printer the limits of a block are reckoned for until the tools are told the user's (audit BC-16): the 0.4 mm
+ * nozzle the clearances stand for, with 0.2 mm layers.
+ */
+export const LIMIT_PRINTER = { nozzle: CLEARANCE_NOZZLE, layer: 0.2 };
+/** The thinnest wall or floor that prints, whichever way the part lies: two lines, four layers (printCheck.ts). */
+const leastFloor = () => Math.max(minimumWall(LIMIT_PRINTER.nozzle), minimumFloor(LIMIT_PRINTER.layer));
+const mm = (value: number) => String(Math.round(value * 100) / 100);
+
+/** Why a size of a block does not print or does not do its work, on the {@link LIMIT_PRINTER}; null when all do. */
+function printLimit(block: FeatureBlock): string | null {
+  const { nozzle, layer } = LIMIT_PRINTER;
+  const wall = minimumWall(nozzle);
+  const on = `on a ${String(nozzle)} mm nozzle`;
+  switch (block.block) {
+    case 'text': {
+      // The code's own rule for text (printProfiles.ts): at least two nozzle widths per stroke.
+      const [stroke, share] = [2 * nozzle, block.bold ? TEXT_STROKE.bold : TEXT_STROKE.regular];
+      if (block.height * share < stroke - 1e-9)
+        return `height ${String(block.height)}: the strokes of ${block.bold ? 'bold ' : ''}capitals ${String(block.height)} mm high are ${mm(block.height * share)} mm wide, under the ${mm(stroke)} mm (two nozzle widths) a stroke needs ${on}; give height ${String(Math.ceil((stroke / share) * 10) / 10)} or more`;
+      break;
+    }
+    case 'slot': {
+      const thread = Number(block.size.slice(1));
+      if (block.width < thread) return `width ${String(block.width)}: an ${block.size} screw is ${String(thread)} mm thick and would not pass; the standard is ${String(CLEARANCE_NORMAL[block.size])} mm`;
+      break;
+    }
+    case 'nutTrap': {
+      const [flats, high] = NUT[block.size];
+      const corners = (flats * 2) / Math.sqrt(3);
+      const standard = defaultBlock('nutTrap', '', [0, 0, 0], block.size) as Extract<FeatureBlock, { block: 'nutTrap' }>;
+      if (block.flats < flats) return `flats ${String(block.flats)}: an ${block.size} nut is ${String(flats)} mm across its flats and would not go in; the standard pocket is ${mm(standard.flats)}`;
+      if (block.flats >= corners) return `flats ${String(block.flats)}: an ${block.size} nut is ${mm(corners)} mm across its corners and would turn in the pocket; give less than that`;
+      if (block.depth < high) return `depth ${String(block.depth)}: an ${block.size} nut is ${String(high)} mm high and would stand out of the pocket; the standard is ${mm(standard.depth)}`;
+      break;
+    }
+    case 'lip':
+      if (block.width < wall - 1e-9) return `width ${String(block.width)}: a ${block.type} narrower than ${mm(wall)} mm (two lines ${on}) does not print solid`;
+      break;
+    case 'snapFit': {
+      for (const [key, value] of [['thickness', block.thickness], ['width', block.width]] as const) if (value < wall - 1e-9) return `${key} ${String(value)}: an arm under ${mm(wall)} mm (two lines ${on}) does not print solid`;
+      if (block.catchDepth < nozzle - 1e-9) return `catchDepth ${String(block.catchDepth)}: a catch under ${String(nozzle)} mm (one nozzle width) does not print and holds nothing`;
+      const strain = snapStrain(block);
+      if (strain > SNAP_STRAIN_LIMIT)
+        return `the arm would bend ${mm(strain)} % at its root as the catch snaps in; printed PLA cracks above ${String(SNAP_STRAIN_LIMIT)} %. Make the arm longer or thinner, or the catch shallower (the standard arm, 12 mm long and 1.5 mm thick with a 0.8 mm catch, bends 1.42 %)`;
+      break;
+    }
+    default:
+      break;
+  }
+  // Nothing else of a block prints under one layer; a gap may be none.
+  const thin = Object.entries(block).find(([key, value]) => typeof value === 'number' && key !== 'gap' && value < layer - 1e-9);
+  return thin ? `${thin[0]} ${String(thin[1])}: under one layer (${String(layer)} mm) nothing prints` : null;
+}
+
+/** The fields each block takes besides block, body and point (the blocks of the interface: the fields of their standard). */
+const TAKES: Record<string, readonly string[]> = {
+  keyhole: ['normal', 'up', 'screw', 'more', 'name'],
+  woodScrew: ['normal', 'screw', 'more', 'name'],
+  magnet: ['normal', 'more', 'diameter', 'height', 'hold', 'name'],
+  knob: ['normal', 'up', 'shaft', 'shaftDiameter', 'flat', 'clearance', 'diameter', 'height'],
+};
+/** The blocks whose features take the name the model gives (SolidCraft names no lip, boss, snap fit or emboss). */
+const NAMED = ['screwHole', 'tappedHole', 'insertSeat', 'nutTrap', 'slot'];
+
+/** What the model gave that the block does not take, said so that it can call again (audit W30, R28); null when nothing. */
+function unusedOf(args: Record<string, unknown>, takes: readonly string[]): string | null {
+  const unused = Object.keys(args).filter((key) => args[key] !== undefined && !['block', 'body', 'point', ...takes].includes(key));
+  return unused.length > 0 ? `${String(args.block)} takes no ${unused.join(', ')}; it takes ${takes.join(', ')}. Leave out what it does not take` : null;
+}
+
+/** A direction the model gave: three numbers that are not all zero; null otherwise. */
+const direction = (value: unknown): Vec3 | null => {
+  const v = vec3(value);
+  return v && Math.hypot(...v) > 1e-9 ? v : null;
+};
+
+/** The names of a block's features: the model's name on each feature step, numbered when several holes are made. */
+export function named(steps: Step[], name: string | undefined): Step[] {
+  if (!name) return steps;
+  const holes = steps.filter((step) => step.command === 'solid.hole').length;
+  let n = 0;
+  return steps.map((step) => {
+    if (!['solid.hole', 'solid.extrude', 'sketch.create'].includes(step.command)) return step;
+    if (step.command === 'solid.hole' && holes > 1) n += 1;
+    return { ...step, params: { ...step.params, name: step.command === 'solid.hole' && holes > 1 ? `${name} ${String(n)}` : name } };
+  });
+}
+
 /** The block the model asked for: the standard of its kind and size with what the model gave laid over it; or what is wrong. */
 export function blockOf(args: Record<string, unknown>): FeatureBlock | string {
   const kind = args.block;
-  if (typeof kind !== 'string' || !(ASSISTANT_BLOCKS as readonly string[]).includes(kind)) return `block must be one of ${ASSISTANT_BLOCKS.join(', ')}`;
+  if (typeof kind !== 'string' || !(ASSISTANT_BLOCKS as readonly string[]).includes(kind)) return `block must be one of ${[...ASSISTANT_BLOCKS, ...WALL_BLOCKS, ...PART_BLOCKS].join(', ')}`;
   const body = typeof args.body === 'string' ? args.body.trim() : '';
   const point = vec3(args.point);
   if (!body || !point) return 'body and point (three numbers on a flat face) are needed';
-  const normal = args.normal === undefined ? null : vec3(args.normal);
-  if (needsNormal(kind as AssistantBlock) && !normal) return `${kind} needs normal: the way out of the face, three numbers`;
+  const normal = args.normal === undefined ? null : direction(args.normal);
+  if (needsNormal(kind as AssistantBlock) && !normal) return `${kind} needs normal: the way out of the face, three numbers, not all zero`;
+  if (args.name !== undefined && (typeof args.name !== 'string' || !args.name.trim() || args.name.length > 100)) return 'name must be the words to call its features, at most 100 characters';
   const size = (args.size ?? 'M3') as BlockSize;
   const head = args.head === 'countersunk' || args.head === 'none' ? args.head : 'cap';
   const sizes = sizesOf(kind as AssistantBlock, head);
@@ -119,13 +229,18 @@ export function blockOf(args: Record<string, unknown>): FeatureBlock | string {
   // The form's placeholder word is no text of the user's.
   if (kind === 'text' && (typeof args.text !== 'string' || !args.text.trim())) return 'text needs text: the words to write';
   const standard = defaultBlock(kind as AssistantBlock, body, point, size, normal ?? [0, 0, 1]);
-  // Only the fields this kind has are taken from the model; the schema then checks their values.
+  const hasMore = ['screwHole', 'tappedHole', 'insertSeat'].includes(kind);
+  const hasThrough = ['screwHole', 'tappedHole', 'slot', 'nutTrap'].includes(kind);
+  const takes = [...Object.keys(standard).filter((key) => !['block', 'body', 'point'].includes(key)), ...(needsNormal(kind as AssistantBlock) ? [] : ['normal']), ...(hasMore ? ['more'] : []), ...(hasThrough ? ['through'] : []), ...(NAMED.includes(kind) ? ['name'] : [])];
+  const unused = unusedOf(args, takes);
+  if (unused) return unused;
+  // The fields of this kind are taken from the model; the schema then checks their values.
   const given = Object.fromEntries(Object.keys(standard).flatMap((key) => (key in args && !['block', 'body', 'point', 'normal', 'size'].includes(key) ? [[key, args[key]]] : [])));
-  const more = args.more !== undefined && 'more' in { more: undefined, ...standard } && ['screwHole', 'tappedHole', 'insertSeat'].includes(kind) ? { more: args.more } : {};
-  const through = args.through !== undefined && ['screwHole', 'tappedHole', 'slot', 'nutTrap'].includes(kind) ? { through: args.through } : {};
+  const more = args.more !== undefined && hasMore ? { more: args.more } : {};
+  const through = args.through !== undefined && hasThrough ? { through: args.through } : {};
   const parsed = featureBlockSchema.safeParse({ ...standard, ...given, ...more, ...through });
   if (!parsed.success) return `${parsed.error.issues[0]?.path.join('.') ?? kind}: ${parsed.error.issues[0]?.message ?? 'invalid'}`;
-  return outOfTable(parsed.data) ?? parsed.data;
+  return outOfTable(parsed.data) ?? printLimit(parsed.data) ?? parsed.data;
 }
 
 type Step = { command: string; params: Record<string, unknown> };
@@ -206,19 +321,25 @@ const lenientSaid = (slack: number) =>
 /** A wall mounting the model asked for: its steps and what to say; null when the block is none of them; or what is wrong. */
 export function wallOf(args: Record<string, unknown>): { body: string; steps: Step[]; text: string; stock?: Stock[]; cut?: (point: Vec3, axis: Vec3) => Stock; need: string } | string | null {
   if (args.block !== 'keyhole' && args.block !== 'woodScrew') return null;
+  const unused = unusedOf(args, TAKES[args.block] ?? []);
+  if (unused) return unused;
   const body = typeof args.body === 'string' ? args.body.trim() : '';
   const point = vec3(args.point);
   if (!body || !point) return 'body and point (three numbers on a flat face) are needed';
-  const screw = (args.screw ?? 4) as WoodScrew;
+  // The wood screw in the user's hand decides every size: none is assumed (audit R15).
+  if (args.screw === undefined) return `${args.block} needs screw: the wood screw's thread diameter in mm (${WOOD_SCREWS.join(', ')}); ask the user with ${ASK_TOOL} if they did not say`;
+  const screw = args.screw as WoodScrew;
   if (!(WOOD_SCREWS as readonly number[]).includes(screw)) return `screw must be one of ${WOOD_SCREWS.join(', ')} (mm, a wood screw)`;
   const more = args.more === undefined ? [] : Array.isArray(args.more) ? args.more.map(vec3) : null;
   if (!more || more.some((entry) => entry === null)) return 'more must be a list of points, each three numbers';
+  if (more.length > WALL_MORE) return `at most ${String(WALL_MORE)} further ${args.block === 'keyhole' ? 'keyholes' : 'holes'}`;
+  const name = typeof args.name === 'string' && args.name.trim() ? args.name.trim().slice(0, 100) : null;
   const count = more.length + 1;
   const size = WALL[screw];
   if (args.block === 'woodScrew') {
     return {
       body,
-      steps: woodScrewSteps({ body, point, more: more as Vec3[], screw, name: 'Wall screw' }),
+      steps: woodScrewSteps({ body, point, more: more as Vec3[], screw, name: name ?? 'Wall screw' }),
       cut: (at, axis) => woodScrewStock(screw, at, axis, FACE_DROP),
       need: `a countersunk hole for a ${String(screw)} mm wood screw needs ${String(screw)} mm of plastic round its ${String(size.clearance)} mm hole and a plate at least ${String(Math.round((countersinkDepth(screw) + WOOD_SCREW_UNDER) * 100) / 100)} mm thick. Thicken the plate, or move the hole away from edges and other cuts`,
       text: `Built ${String(count)} countersunk hole${count > 1 ? 's' : ''} for ${String(screw)} mm wood screws in ${body}: ${String(size.clearance)} mm through, countersink ${String(size.countersink)} mm at 90°, so the head lies flush. Keep at least ${String(screw)} mm of plastic between the ${String(size.clearance)} mm hole and an edge, and the plate thicker than the countersink is deep (${String(Math.round(((size.countersink - size.clearance) / 2) * 10) / 10)} mm).`,
@@ -228,7 +349,7 @@ export function wallOf(args: Record<string, unknown>): { body: string; steps: St
   if (!normal) return 'keyhole needs normal: the way out of the face against the wall, three numbers';
   const up = args.up === undefined ? ([0, 0, 1] as Vec3) : vec3(args.up);
   if (!up) return 'up must be three numbers';
-  const spec = { body, point, normal, up, screw, more: more as Vec3[], name: 'Keyhole' };
+  const spec = { body, point, normal, up, screw, more: more as Vec3[], name: name ?? 'Keyhole' };
   const problem = keyholeProblem(spec);
   if (problem) return problem;
   return {
@@ -246,6 +367,8 @@ export function wallOf(args: Record<string, unknown>): { body: string; steps: St
 /** Magnet pockets the model asked for: their steps and what to say; null when the block is none; or what is wrong. */
 export function magnetOf(args: Record<string, unknown>): { body: string; steps: Step[]; text: string; stock: Stock[]; need: string } | string | null {
   if (args.block !== 'magnet') return null;
+  const unused = unusedOf(args, TAKES.magnet ?? []);
+  if (unused) return unused;
   const body = typeof args.body === 'string' ? args.body.trim() : '';
   const point = vec3(args.point);
   if (!body || !point) return 'body and point (three numbers on a flat face) are needed';
@@ -255,8 +378,11 @@ export function magnetOf(args: Record<string, unknown>): { body: string; steps: 
   if (!more || more.some((entry) => entry === null)) return 'more must be a list of points, each three numbers';
   const hold = (args.hold ?? 'glue') as MagnetHold;
   if (!MAGNET_HOLDS.includes(hold)) return `hold must be one of ${MAGNET_HOLDS.join(', ')}`;
-  const number = (value: unknown, standard: number) => (value === undefined ? standard : typeof value === 'number' ? value : Number.NaN);
-  const spec = { body, point, normal, more: more as Vec3[], diameter: number(args.diameter, 6), height: number(args.height, 2), hold, name: 'Magnet' };
+  // Magnets differ: a pocket for a size the user did not give holds nothing (audit R15).
+  if (args.diameter === undefined || args.height === undefined) return `magnet needs diameter and height: the magnet's, as the user measured them; ask the user with ${ASK_TOOL} if they did not say`;
+  const number = (value: unknown) => (typeof value === 'number' ? value : Number.NaN);
+  const name = typeof args.name === 'string' && args.name.trim() ? args.name.trim().slice(0, 100) : 'Magnet';
+  const spec = { body, point, normal, more: more as Vec3[], diameter: number(args.diameter), height: number(args.height), hold, name };
   const problem = magnetProblem(spec);
   if (problem) return problem;
   const pocket = magnetPocket(spec);
@@ -276,6 +402,8 @@ export function magnetOf(args: Record<string, unknown>): { body: string; steps: 
 /** A knob the model asked for: its steps and what to say; null when the block is none; or what is wrong. */
 export function knobOf(args: Record<string, unknown>): { body: string; steps: Step[]; text: string; fresh: true } | string | null {
   if (args.block !== 'knob') return null;
+  const unused = unusedOf(args, TAKES.knob ?? []);
+  if (unused) return unused;
   const body = typeof args.body === 'string' ? args.body.trim() : '';
   const point = vec3(args.point);
   if (!body || !point) return 'body (the name of the new knob) and point (three numbers, the centre of its underside) are needed';
@@ -285,10 +413,12 @@ export function knobOf(args: Record<string, unknown>): { body: string; steps: St
   const usual: Vec3 = Math.abs(axis[0]) < 1e-9 && Math.abs(axis[2]) < 1e-9 ? [0, 0, 1] : [0, 1, 0];
   const toward = args.up === undefined ? usual : vec3(args.up);
   if (!toward) return 'up must be three numbers';
-  const shaft = (args.shaft ?? 'd') as KnobShaft;
+  // The shaft in the user's hand decides the bore: none is assumed (audit R15).
+  if (args.shaft === undefined || args.shaftDiameter === undefined) return `knob needs shaft (${KNOB_SHAFTS.join(', ')}) and shaftDiameter, as the user measured them; ask the user with ${ASK_TOOL} if they did not say`;
+  const shaft = args.shaft as KnobShaft;
   if (!KNOB_SHAFTS.includes(shaft)) return `shaft must be one of ${KNOB_SHAFTS.join(', ')}`;
   const number = (value: unknown, standard: number) => (value === undefined ? standard : typeof value === 'number' ? value : Number.NaN);
-  const shaftDiameter = number(args.shaftDiameter, 6);
+  const shaftDiameter = number(args.shaftDiameter, Number.NaN);
   const flat = number(args.flat, knobFlat(shaftDiameter) ?? Number.NaN);
   if (shaft === 'd' && args.flat === undefined && Number.isNaN(flat)) return `a D shaft of ${String(shaftDiameter)} mm has no one flat: give flat, the shaft's thickness there, as measured`;
   const spec = { body, point, axis, toward, shaft, shaftDiameter, flat, diameter: number(args.diameter, 25), height: number(args.height, 16), clearance: number(args.clearance, KNOB_CLEARANCE[shaft]) };
@@ -391,17 +521,39 @@ export const STOCK_FULL = 0.999;
  * W2), found on trial; SolidCraft takes the trial back. Undefined when it could not be tried: the block is then built
  * as before, and what goes wrong with it is found after.
  */
-export async function reachOf(upstream: UpstreamTools, block: FeatureBlock, wrap: (steps: Step[]) => Step[], callId: string | undefined): Promise<(number | null)[] | undefined> {
+export async function reachOf(upstream: UpstreamTools, block: FeatureBlock, wrap: (steps: Step[]) => Step[], callId: string | undefined): Promise<{ reach: (number | null)[]; wall: (number | null)[] } | undefined> {
   const trial = wrap(throughTrial(block));
   try {
     const answer = await upstream.callTool('batch', { commands: [...trial, { command: 'sketch.inspect', params: { sketch: 2147483647 } }], rollback: true }, callId);
     const text = answer.content.find((part) => part.type === 'text')?.text;
     const reply = JSON.parse(typeof text === 'string' ? text : '') as { results?: unknown[]; failed?: { index?: unknown } };
     if (reply.failed?.index !== trial.length) return undefined;
-    return throughReach(block, reply.results?.[trial.map((step) => step.command).lastIndexOf('inspect.measure')]);
+    const measured = reply.results?.[trial.map((step) => step.command).lastIndexOf('inspect.measure')];
+    return { reach: throughReach(block, measured), wall: throughWall(block, measured) };
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The block whose trial finds the wall under a block that must not go through it (audit N-bloecke-6, W31): a nut trap
+ * (its own trial drills the hole alone) and engraved text (a plain M3 hole at its middle). Null for every other block.
+ */
+function wallTrial(block: FeatureBlock): FeatureBlock | null {
+  if (block.block === 'nutTrap') return block;
+  if (block.block === 'text' && block.mode === 'deboss') return { block: 'screwHole', body: block.body, point: block.point, size: 'M3', head: 'none', fit: 'normal' };
+  return null;
+}
+
+/**
+ * The mean width of the flat rim face at `point` (a shelled body's), from SolidCraft's area and perimeters of it: for a
+ * ring of even width w, area = w · (outer + inner) / 2 (exact for a rectangle and a circle; SolidCraft 0.40.1, 2026-11-13:
+ * the rim of a 60 × 40 box shelled to 2 mm gave 384 mm², 200 and 184 mm). Undefined when it cannot be told.
+ */
+export function rimWidth(measured: unknown): number | undefined {
+  const item = (measured as { items?: { area_mm2?: unknown; outer_perimeter_mm?: unknown; inner_perimeter_mm?: unknown }[] } | undefined)?.items?.[0];
+  const [area, outer, inner] = [item?.area_mm2, item?.outer_perimeter_mm, item?.inner_perimeter_mm];
+  return typeof area === 'number' && typeof outer === 'number' && typeof inner === 'number' && outer + inner > 0 ? Math.round(((2 * area) / (outer + inner)) * 1000) / 1000 : undefined;
 }
 
 /**
@@ -560,15 +712,51 @@ function reachSaid(block: FeatureBlock, reach: (number | null)[] | undefined): s
   return ` ${why.charAt(0).toUpperCase()}${why.slice(1)}: it went${all}, far walls too; check it, and give depth where it must stop sooner.`;
 }
 
-/** What was built, with the sizes it took from the tables, for the model to tell the user. */
+/** What was built, with the sizes it took from the tables and the standard of each size it did not (audit R6), for the model to tell the user. */
 function built(block: FeatureBlock): string {
   const { block: kind, body, point, ...sizes } = block;
+  const standard = defaultBlock(kind, body, point, block.size) as Record<string, unknown>;
   const listed = Object.entries(sizes)
-    .filter(([key, value]) => key !== 'normal' && key !== 'more' && value !== undefined && value !== null)
-    .map(([key, value]) => `${key} ${String(value)}`)
+    // A size is no screw's for text, a lip or a snap fit: it is not said.
+    .filter(([key, value]) => key !== 'normal' && key !== 'more' && (key !== 'size' || hasSize(kind)) && value !== undefined && value !== null)
+    .map(([key, value]) => `${key} ${String(value)}${typeof value === 'number' && typeof standard[key] === 'number' && standard[key] !== value ? ` (standard ${String(standard[key])})` : ''}`)
     .join(', ');
   const count = 'more' in block && block.more ? block.more.length + 1 : 1;
-  return `Built ${count > 1 ? `${String(count)} × ` : ''}${kind} on ${body} at [${point.join(', ')}]: ${listed}.`;
+  // `length` is SolidCraft's centre to centre (audit T44): the slot itself is its width longer.
+  const slot = block.block === 'slot' ? ` The length is centre to centre, how far the screw can travel: the slot is ${mm(block.length + block.width)} mm long.` : '';
+  return `Built ${count > 1 ? `${String(count)} × ` : ''}${kind} on ${body} at [${point.join(', ')}]: ${listed}.${slot}`;
+}
+
+/**
+ * What a block says of what it measured and of what it did not (audit W31, N-bloecke-5, N-bloecke-6, T30): `wall` is how
+ * thick the part is at its point as the trial measured it, `rim` the width of a lip's rim; undefined or null when unmeasured.
+ */
+function measuredSaid(block: FeatureBlock, wall: number | null | undefined, rim: number | undefined): string {
+  const unmeasured = wall === null ? `no plastic of ${block.body} lies within ${String(ON_FACE)} mm of the point` : 'SolidCraft could not run the trial that measures it';
+  switch (block.block) {
+    case 'text': {
+      const stroke = block.height * (block.bold ? TEXT_STROKE.bold : TEXT_STROKE.regular);
+      const under =
+        block.mode !== 'deboss'
+          ? ''
+          : typeof wall === 'number'
+            ? ` The part is ${mm(wall)} mm thick at the middle of the text, as measured on trial: ${mm(wall - block.depth)} mm stay under the letters there.`
+            : ` PartBuddy could not measure the part under the text (${unmeasured}): check that the letters do not come out on the far side.`;
+      return ` Its strokes are about ${mm(stroke)} mm wide; the gaps between the letters were not measured: the print check shows them.${under}`;
+    }
+    case 'nutTrap': {
+      const under = typeof wall === 'number' ? ` The wall is ${mm(wall)} mm thick there, as measured on trial: ${mm(wall - block.depth)} mm of it stay under the nut.` : ` PartBuddy could not measure the wall there (${unmeasured}): check that the pocket does not come out on the far side.`;
+      return `${under} Lying open downwards, the pocket's roof is a bridge with the hole in it, and lying on its side its top is an overhang: PartBuddy did not check either; print the part with the pocket opening upwards where it allows.`;
+    }
+    case 'lip':
+      return typeof rim === 'number'
+        ? ` The rim is ${mm(rim)} mm wide (its mean width, measured)${block.type === 'groove' ? `: ${mm(rim - block.width - block.gap)} mm of wall stay beside the groove` : ''}.`
+        : ` PartBuddy could not measure the rim: check ${block.type === 'groove' ? 'the wall beside the groove' : 'that the lip stands on the rim'} yourself.`;
+    case 'snapFit':
+      return ` The arm bends ${mm(snapStrain(block))} % at its root as the catch snaps in; printed PLA takes ${String(SNAP_STRAIN_LIMIT)} %.`;
+    default:
+      return '';
+  }
 }
 
 /** The upstream tools plus `partbuddy_block`. */
@@ -589,7 +777,8 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
           return reply.results ?? [];
         };
         // A sketch belongs to the component of its body: built with that component active, the block moves with the body.
-        const steps = wall ? wall.steps : block ? stepsOf(block) : [];
+        const name = block && typeof args.name === 'string' ? args.name.trim() : undefined;
+        const steps = wall ? wall.steps : block ? named(stepsOf(block), name) : [];
         const body = wall ? wall.body : (block?.body ?? '');
         const [listing] = steps.some((step) => step.command === 'sketch.create') ? await run([{ command: 'component.list', params: {} }]) : [undefined];
         const component = listing === undefined ? 0 : componentOf(listing, body);
@@ -599,13 +788,45 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         const wrap = (inner: Step[]) => (component === 0 ? inner : [{ command: 'component.activate', params: { component } }, ...inner, { command: 'component.activate', params: { component: 0 } }]);
         const fresh = wall !== null && 'fresh' in wall;
         const measure = { command: 'inspect.measure', params: {} };
-        const [measured] = await run([measure]);
+        const [measured, joints] = await run([measure, { command: 'joint.list', params: {} }]);
         const before = volumesOf(measured);
         const missing = fresh ? null : misplaced(body, before, before);
         if (missing?.startsWith('there is no body')) return { content: [{ type: 'text', text: `Not built: ${missing}` }], isError: true };
-        // A cut "through" goes through the wall at its point, not on through the far side of a hollow part (audit W2).
-        const reach = block && cutsThrough(block) ? await reachOf(upstream, block, wrap, callId) : undefined;
-        const sequence = wrap(block && reach ? stepsOf(block, undefined, reach) : steps);
+        // The point is given in the world as designed: with a joint away from 0 its bodies stand elsewhere (audit W34, as mechanismTool.ts).
+        const away = ((joints as { joints?: { name?: unknown; values?: { value?: unknown }[] }[] } | undefined)?.joints ?? [])
+          .filter((joint) => (joint.values ?? []).some((value) => typeof value.value === 'number' && Math.abs(value.value) > 1e-6))
+          .map((joint) => JSON.stringify(String(joint.name)));
+        if (!fresh && away.length > 0) return { content: [{ type: 'text', text: `Not built: the joint(s) ${away.join(', ')} stand away from 0; drive them back with joint.drive first, so the bodies are where they were designed` }], isError: true };
+        // A cut "through" goes through the wall at its point, not on through the far side of a hollow part (audit W2); a nut
+        // trap and engraved text must stop short of it, so their wall is measured on the same trial.
+        const probe = block ? (cutsThrough(block) ? block : wallTrial(block)) : null;
+        const tried = probe ? await reachOf(upstream, probe, wrap, callId) : undefined;
+        const reach = block && cutsThrough(block) ? tried?.reach : undefined;
+        const thick = tried?.wall[0];
+        const floor = leastFloor();
+        if (block && (block.block === 'nutTrap' || block.block === 'text') && typeof thick === 'number' && block.depth + floor > thick + 1e-9) {
+          const what = block.block === 'nutTrap' ? `the pocket of an ${block.size} nut trap is ${mm(block.depth)} mm deep` : `text engraved ${mm(block.depth)} mm deep`;
+          return {
+            content: [{ type: 'text', text: `Not built: at [${block.point.join(', ')}] ${body} is ${mm(thick)} mm thick (measured on trial); ${what} and needs ${mm(floor)} mm of plastic under it (two lines or four layers on a ${String(LIMIT_PRINTER.nozzle)} mm nozzle), ${mm(block.depth + floor)} mm in all. Put it where the part is thicker, or thicken the part there.` }],
+            isError: true,
+          };
+        }
+        // A groove takes its width and gap out of the rim: what stays beside it must still print (audit N-bloecke-5).
+        let rim: number | undefined;
+        if (block?.block === 'lip') {
+          try {
+            rim = rimWidth((await run([{ command: 'inspect.measure', params: { items: [{ type: 'face', body, point: block.point }] } }]))[0]);
+          } catch {
+            rim = undefined;
+          }
+          const least = minimumWall(LIMIT_PRINTER.nozzle);
+          if (block.type === 'groove' && rim !== undefined && rim - block.width - block.gap < least - 1e-9)
+            return {
+              content: [{ type: 'text', text: `Not built: the rim of ${body} is ${mm(rim)} mm wide (its mean width, measured); a groove ${mm(block.width + block.gap)} mm wide (width and gap) leaves ${mm(rim - block.width - block.gap)} mm of wall beside it, under the ${mm(least)} mm of two lines on a ${String(LIMIT_PRINTER.nozzle)} mm nozzle. Give a narrower width, or make the wall thicker.` }],
+              isError: true,
+            };
+        }
+        const sequence = wrap(block && reach ? named(stepsOf(block, undefined, reach), name) : steps);
         // A pocket that comes out of the far side or of an edge is not built at all.
         const { stock, cut, need } = (wall ?? {}) as { stock?: Stock[]; cut?: (point: Vec3, axis: Vec3) => Stock; need?: string };
         const short = stock ? await shortOf(upstream, body, stock, callId) : null;
@@ -636,6 +857,9 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
           // The point decides what SolidCraft cuts, so the named body is checked before the block stays.
           const wrong = fresh ? null : misplaced(body, before, volumesOf(results[results.length - 1]));
           if (wrong) throw new Error(wrong);
+          // A piece that does not touch the body stays in it apart, and SolidCraft only warns (audit W34, as mechanismTool.ts).
+          const apart = results.map((result) => (result as { warning?: unknown } | undefined)?.warning).find((warning) => typeof warning === 'string' && warning.includes('separate pieces'));
+          if (typeof apart === 'string') throw new Error(`it would stand apart from ${body} (SolidCraft: "${apart.slice(0, 200)}"); give a point on a face of ${body}`);
           if (holes) {
             const stocks: Stock[] = [];
             for (const [i, point] of holes.points.entries()) {
@@ -665,8 +889,9 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
           }
           throw cause;
         }
-        // The plate view lays the part on the face SolidCraft names (print-faces.json), as the slicer will.
-        const face = results.map((result) => (result as { face?: unknown } | undefined)?.face).find((entry) => typeof entry === 'string');
+        // The plate view lays the part on the face SolidCraft names (print-faces.json), as the slicer will: the face of
+        // `body.print_face` alone, not one another step answers (audit W33, as printFaceWatch.ts).
+        const face = sent.flatMap((step, i) => (step.command === 'body.print_face' ? [(results[i] as { face?: unknown } | undefined)?.face] : [])).find((entry) => typeof entry === 'string');
         if (face) keepFace(body, face);
         const warnings = results.flatMap((result) => {
           const warning = (result as { warning?: unknown } | undefined)?.warning;
@@ -684,7 +909,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
               ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder' : ''}: it is there.${fell > 0 ? fallenSaid(fell, lenient) : lenient > 0 ? lenientSaid(lenient) : ''}`
               : unmeasured
             : '';
-        const said = (wall ? wall.text : block ? built(block) + reachSaid(block, reach) : '') + (block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');
+        const said = (wall ? wall.text : block ? built(block) + reachSaid(block, reach) + measuredSaid(block, thick, rim) : '') +(block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');
         return { content: [{ type: 'text', text: `${said}${stockSaid}${warnings.length > 0 ? ` SolidCraft warns: ${warnings.join(' ')}` : ''}` }] };
       } catch (cause) {
         return { content: [{ type: 'text', text: `Not built: ${(cause as Error).message}` }], isError: true };
@@ -694,4 +919,4 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
 }
 
 /** Added to the role prompt of every route. */
-export const BLOCK_GUIDANCE = `For a screw hole, a tapped hole, the seat of a heat-set insert, a nut trap, a screw boss, a slot, text, a lid's lip or a snap hook on one body call ${BLOCK_TOOL} instead of drilling or modelling it yourself: it takes clearance, head, nut and insert sizes from the standard tables. For a part that hangs on a wall use its keyhole (hung over screws in the wall) or woodScrew (screwed on through countersunk holes) blocks, two of them level for anything wider than 60 mm. For parts held by magnets (a lid, a tool holder, a sign) use its magnet block for each pocket instead of drilling a hole of the magnet's size; ask for the magnet's diameter and height when the user has not said. For a knob on a potentiometer, an encoder or any other shaft use its knob block, which makes the knob as a part of its own; ask for the shaft (D, knurled or round, and its diameter) when the user has not said.`;
+export const BLOCK_GUIDANCE = `For a screw hole, a tapped hole, the seat of a heat-set insert, a nut trap, a screw boss, a slot, text, a lid's lip or a snap hook on one body call ${BLOCK_TOOL} instead of drilling or modelling it yourself: it takes clearance, head, nut and insert sizes from the standard tables. For a part that hangs on a wall use its keyhole (hung over screws in the wall) or woodScrew (screwed on through countersunk holes) blocks, two of them level for anything wider than 60 mm. For parts held by magnets (a lid, a tool holder, a sign) use its magnet block for each pocket instead of drilling a hole of the magnet's size; it needs the magnet's diameter and height, so ask with ${ASK_TOOL} when the user has not said them. For a knob on a potentiometer, an encoder or any other shaft use its knob block, which makes the knob as a part of its own; it needs the shaft (D, knurled or round, and its diameter), so ask with ${ASK_TOOL} when the user has not said. Keyholes and wood screw holes need the wood screw's size the same way.`;

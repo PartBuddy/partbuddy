@@ -92,12 +92,15 @@ export function woodScrewStock(screw: WoodScrew, point: Vec3, axis: Vec3, from: 
   return { at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3, axis, diameter: round(size.clearance + 2 * screw), depth: round(cone + WOOD_SCREW_UNDER), from, hole, core: round(wide * 2 + 0.02), slack: Math.PI * narrow ** 2 * 0.3 };
 }
 
+/** How many keyholes or wood screw holes one call may add beside the first. */
+export const WALL_MORE = 20;
+
 /** What is wrong with a keyhole before anything is built; null when it can be built. */
 export function keyholeProblem(spec: KeyholeSpec): string | null {
   if (Math.hypot(...spec.normal) < 1e-9 || Math.hypot(...spec.up) < 1e-9) return 'normal and up must not be zero';
   const [n, u] = [unit(spec.normal), unit(spec.up)];
   if (Math.abs(n[0] * u[0] + n[1] * u[1] + n[2] * u[2]) > 1e-6) return 'up must be square to normal: the way up along the face against the wall';
-  if (spec.more.length > 20) return 'at most 20 further keyholes';
+  if (spec.more.length > WALL_MORE) return `at most ${String(WALL_MORE)} further keyholes`;
   return null;
 }
 

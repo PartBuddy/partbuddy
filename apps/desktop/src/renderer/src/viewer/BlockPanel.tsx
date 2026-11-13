@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
 
-import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, SNAP_STRAIN_LIMIT, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
 import { drawingColours, drawingSvg, mergedColours, naturalWidth, parseDrawing, type Drawing, type DrawingProblem } from '../../../shared/svgDrawing';
 import { DrawingDetailNote } from '../assistant/DrawingDetailNote';
 import { platform } from '../platform';
@@ -97,9 +97,6 @@ const TILES = [
   { kind: 'insertSeat', icon: <IconNut className="size-icon-sm" aria-hidden /> },
 ] as const satisfies readonly { kind: BlockKind; icon: React.ReactNode }[];
 const tiled = (kind: BlockKind) => TILES.some((tile) => tile.kind === kind);
-
-/** Above this strain at the arm's root, printed PLA tends to crack (PETG takes about 3 %). */
-const SNAP_STRAIN_LIMIT = 2;
 
 /** The catch's direction named by its world axis, so it matches the axes in the view. */
 function hookLabel(vector: Vec, index: number, t: TFunction): string {

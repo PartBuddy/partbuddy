@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_KINDS, blockBodies, cutsThrough, defaultBlock, hasSize, hookVector, logoFrom, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../src/shared/blocks';
+import { BLOCK_KINDS, blockBodies, cutsThrough, defaultBlock, hasSize, hookVector, logoFrom, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
 import { featureBlockSchema } from '../src/shared/contract';
 import { blockPhrase, describeCommands } from '../src/shared/stepPhrases';
 
@@ -58,7 +58,7 @@ describe('function blocks (F1)', () => {
   it('engraves or embosses text centred on the point', () => {
     const steps = stepsOf(defaultBlock('text', 'Body1', at, 'M3', [0, 0, 1]));
     expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.text', 'solid.emboss']);
-    expect(steps[1]?.params).toEqual({ text: 'PartBuddy', at: [0, -2.5], height: 5, align: 'center', font: 'Arial', bold: true });
+    expect(steps[1]?.params).toEqual({ text: 'PartBuddy', at: [0, -3.5], height: 7, align: 'center', font: 'Arial', bold: true });
     expect(steps[2]?.params).toEqual({ depth: '0.6 mm', mode: 'deboss', face: at, targets: ['Body1'] });
   });
 
@@ -128,6 +128,13 @@ describe('function blocks (F1)', () => {
     it('cuts through the near wall and a millimetre on, never half way to the next wall or further', () => {
       const slot = defaultBlock('slot', 'Dose', wall, 'M3', [-1, 0, 0]);
       expect(throughReach(slot, measured)).toEqual([3]);
+      // The wall itself, which a nut trap's pocket and engraved text must stop short of (audit N-bloecke-6).
+      expect(throughWall(slot, measured)).toEqual([2]);
+      expect(throughWall({ ...slot, point: [-0.1, 20, 15] }, measured)).toEqual([null]);
+      // A nut trap is tried by its hole alone: its pocket, deeper than a thin wall, would leave the hole on no face.
+      expect(throughTrial(defaultBlock('nutTrap', 'Dose', wall, 'M3', [-1, 0, 0])).filter((step) => step.command !== 'solid.box' && step.command !== 'solid.combine' && step.command !== 'solid.move' && step.command !== 'inspect.measure')).toEqual([
+        { command: 'solid.hole', params: { position: wall, clearance: 'M3', fit: 'normal', targets: ['Dose'] } },
+      ]);
       // A point a little off its face (rounded) still finds its wall; one further off finds none.
       expect(throughReach({ ...slot, point: [-0.04, 20, 15] }, measured)).toEqual([3.04]);
       expect(throughReach({ ...slot, point: [-0.1, 20, 15] }, measured)).toEqual([null]);

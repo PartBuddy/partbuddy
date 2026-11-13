@@ -49,12 +49,15 @@ export function magnetStock(spec: MagnetSpec, from: number): { at: Vec3; base: V
   return [spec.point, ...spec.more].map((point) => ({ at: point, base: point.map((value, k) => round(value + (axis[k] ?? 0) * from)) as Vec3, axis, diameter: round(pocket.diameter + 2 * MAGNET.around), depth: round(pocket.depth - from + MAGNET.under), from }));
 }
 
+/** How many pockets one call may add beside the first. */
+export const MAGNET_MORE = 40;
+
 /** What is wrong with a magnet pocket before anything is built; null when it can be built. */
 export function magnetProblem(spec: MagnetSpec): string | null {
   if (Math.hypot(...spec.normal) < 1e-9) return 'normal must not be zero';
   if (!(spec.diameter >= 2 && spec.diameter <= 40)) return 'diameter must be 2–40 mm (the magnet)';
   if (!(spec.height >= 1 && spec.height <= 20)) return 'height must be 1–20 mm (the magnet)';
-  if (spec.more.length > 40) return 'at most 40 further pockets';
+  if (spec.more.length > MAGNET_MORE) return `at most ${String(MAGNET_MORE)} further pockets`;
   return null;
 }
 

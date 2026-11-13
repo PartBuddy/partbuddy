@@ -83,7 +83,9 @@ export function defaultBlock(kind: BlockKind, body: string, point: [number, numb
       // Wall round the insert: what its maker asks for, and never under 2 mm.
       return { block: kind, body, point, size, diameter: round(insert.diameter + 2 * Math.max(2, insert.wall)), height: round(insert.length + 3) };
     case 'text':
-      return { block: kind, body, point, normal, size, text: 'PartBuddy', height: 5, depth: 0.6, mode: 'deboss', bold: true };
+      // 7 mm capitals: engraved, "PartBuddy" left 0.62 mm of plastic between letters at 5 to 6.5 mm and none under the
+      // 0.9 mm of two lines at 7 and 8 (PartBuddy's print check, 0.4 mm nozzle, SolidCraft 0.40.1, 2026-11-13).
+      return { block: kind, body, point, normal, size, text: 'PartBuddy', height: 7, depth: 0.6, mode: 'deboss', bold: true };
     case 'nutTrap': {
       const [flats, height] = NUT[size];
       return { block: kind, body, point, normal, size, flats: round(flats + NUT_ALLOWANCE.flats), depth: round(height + NUT_ALLOWANCE.depth) };
@@ -102,6 +104,15 @@ export function defaultBlock(kind: BlockKind, body: string, point: [number, numb
       return { block: kind, body, point, normal, size, length: 12, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5, hook: 'y+' };
   }
 }
+
+/** Above this strain at the arm's root, printed PLA tends to crack (PETG takes about 3 %). */
+export const SNAP_STRAIN_LIMIT = 2;
+
+/**
+ * The stroke of a capital I as a share of the capital height, measured on SolidCraft 0.40.1 (2026-11-13, 10 mm capitals:
+ * 2.019 mm in Arial bold, 1.356 mm in the built-in Liberation Sans): the thinnest stroke of a text of that height.
+ */
+export const TEXT_STROKE = { bold: 0.2019, regular: 0.1356 };
 
 /**
  * The bending strain at the arm's root when the catch is pushed aside by its depth, for a
@@ -277,7 +288,10 @@ const ASIDE = 30000;
 /** The steps that find the reach of a block that cuts through, to run on trial: they end with `inspect.measure`. */
 export function throughTrial(block: FeatureBlock): Step[] {
   // A modelled thread is not needed to find the walls (and one on trial breaks the same thread built after it, blockTool.ts).
-  const plain = block.block === 'tappedHole' ? { ...block, modeled: false } : block;
+  // A nut trap's wall is found by its hole alone from the face: a pocket deeper than the wall left its hole on no face
+  // and failed the trial (audit N-bloecke-6).
+  const plain: FeatureBlock =
+    block.block === 'tappedHole' ? { ...block, modeled: false } : block.block === 'nutTrap' ? { block: 'screwHole', body: block.body, point: block.point, size: block.size, head: 'none', fit: 'normal' } : block;
   return [
     // A copy of the body under a name of PartBuddy's: all of it within 10 m of the origin.
     { command: 'solid.box', params: { length: 20000, width: 20000, height: 20000, corner: [-10000, -10000, -10000], operation: 'new', body_name: THROUGH } },
@@ -301,6 +315,16 @@ export function throughTrial(block: FeatureBlock): Step[] {
  * the cut with it, never less far. Measure along the axis if a skew cut must stop short of a near wall.
  */
 export function throughReach(block: FeatureBlock, measured: unknown): (number | null)[] {
+  return throughSpans(block, measured).map((span) => span && Math.ceil((span.exit + Math.min(PAST, Math.max(0, span.next - span.exit) / 2)) * 100 - 1e-6) / 100);
+}
+
+/** How thick the wall is at each point of a block, along the way its cut goes, in mm, as {@link throughReach} finds it; null where no piece holds the point. */
+export function throughWall(block: FeatureBlock, measured: unknown): (number | null)[] {
+  return throughSpans(block, measured).map((span) => span && Math.round(span.exit * 1000) / 1000);
+}
+
+/** Where the cut at each point leaves the wall it entered, and where it would enter the next, in mm from the point. */
+function throughSpans(block: FeatureBlock, measured: unknown): ({ exit: number; next: number } | null)[] {
   const vector = (value: unknown) => (Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry)) ? (value as Point) : null);
   const bodies = ((measured ?? {}) as { bodies?: { name?: unknown; bbox?: { min?: unknown; max?: unknown }; center_of_mass?: unknown }[] }).bodies ?? [];
   const pieces = bodies.flatMap((body) => {
@@ -328,7 +352,7 @@ export function throughReach(block: FeatureBlock, measured: unknown): (number | 
     };
     const exit = span(first)?.[1] ?? 0;
     const next = Math.min(...pieces.flatMap((piece) => (piece === first ? [] : [span(piece)])).flatMap((range) => (range && range[1] > exit ? [range[0]] : [])));
-    return Math.ceil((exit + Math.min(PAST, Math.max(0, next - exit) / 2)) * 100 - 1e-6) / 100;
+    return { exit, next };
   });
 }
 
