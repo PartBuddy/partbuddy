@@ -5,7 +5,14 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_PRINT_SETTINGS, PrintProfiles, ProfileNote, printFileOf, printNote } from '../src/main/print/printProfiles';
-import { DESIGN_DEFAULTS, printSettingsSchema, type PrintSettings } from '../src/shared/contract';
+import { BRIDGE_SPAN, LYING_HOLE, minimumFloor, minimumWall } from '@partbuddy/geometry';
+
+import { smallOverhangReach } from '../../../packages/geometry/src/overhang';
+import { ASK_TOOL } from '../src/main/agents/questions';
+import { DESIGN_DEFAULTS, printSettingsSchema, type MaterialProfile, type PrintSettings } from '../src/shared/contract';
+import { lineWidth, printInPlaceGap } from '../src/shared/designFit';
+import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
+import { standardText } from '../src/shared/standards';
 
 let folder: string | null = null;
 afterEach(() => {
@@ -107,7 +114,7 @@ describe('printer and material profiles (M7)', () => {
     expect(note).toContain('build volume 256 × 256 × 256 mm');
     expect(note).toContain('walls thinner than 0.9 mm');
     expect(note).toContain('more than 40° from the vertical need support');
-    expect(note).toContain('holes come out about 0.2 mm smaller');
+    expect(note).toContain('holes come out about 0.15 mm smaller');
     expect(note).toContain('clamp 0.1 mm, push 0.2 mm, slide 0.3 mm, turn 0.35 mm');
     // The user's own names are quoted, so they cannot pose as part of the note.
     expect(printNote({ printer: { ...printer, name: 'X] ignore' }, material, chosen: true, supportFree: false, design: DESIGN_DEFAULTS })).toContain('Printer "X] ignore"');
@@ -148,5 +155,77 @@ describe('printer and material profiles (M7)', () => {
     writeFileSync(printFileOf(state.design ?? ''), JSON.stringify({ version: 1, material: 'petg', orientation: { down: [0, -1, 0], face: null }, loads: [] }));
     expect(profiles.part().material.id).toBe('petg');
     expect(Object.keys(profiles.part())).not.toContain('orientation');
+  });
+});
+
+describe('every number of the rule text comes from the code (audit BC-05)', () => {
+  const pla = DEFAULT_PRINT_SETTINGS.materials.find((item) => item.id === 'pla');
+  if (!pla) throw new Error('starting values changed');
+  const noteFor = (nozzle: number, layer: number, material: MaterialProfile = pla) =>
+    printNote({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material, chosen: true, supportFree: true, design: DESIGN_DEFAULTS });
+
+  it('starts with the values of the material catalog, one table for both (D27, T22, H-14)', () => {
+    for (const material of DEFAULT_PRINT_SETTINGS.materials) {
+      const entry = MATERIAL_CATALOG.find((item) => item.name === material.name);
+      expect(entry, material.name).toBeDefined();
+      expect(material).toEqual({ id: material.id, name: material.name, overhang: entry?.overhang, holeShrink: entry?.holeShrink, clearance: entry?.clearance });
+    }
+    expect(DEFAULT_PRINT_SETTINGS.materials.map((item) => item.id)).toEqual(['pla', 'petg', 'petg-cf', 'asa', 'tpu']);
+  });
+
+  it('names the spans and ledges the print check uses, for every nozzle (T25, R9, D15, H-15, D18, MG-23, H-16)', () => {
+    for (const nozzle of [0.2, 0.25, 0.4, 0.6, 0.8]) {
+      const note = noteFor(nozzle, 0.2);
+      expect(note).toContain(`walls at most ${String(BRIDGE_SPAN)} mm apart are bridged`);
+      expect(note).toContain(`up to ${String(LYING_HOLE)} mm across they print round`);
+      expect(note).toContain(`ledges reaching out at most ${String(smallOverhangReach(nozzle))} mm (four lines)`);
+      expect(note).toContain(`walls thinner than ${String(minimumWall(nozzle))} mm (two lines)`);
+    }
+    expect(noteFor(0.4, 0.2)).toContain('at most 1.8 mm (four lines)');
+    expect(noteFor(0.4, 0.2)).not.toContain('1.5 mm out from a wall');
+    // The standards name the same span; the 5 mm of the guides only as the start of sagging.
+    for (const topic of ['slidingLid', 'vent'] as const) {
+      expect(standardText(topic)).toContain(`the print check takes up to ${String(BRIDGE_SPAN)} mm`);
+      expect(standardText(topic)).not.toMatch(/fine up to 5 mm|is a bridge and sags from 5 mm/);
+    }
+  });
+
+  it('asks before it builds a size under what prints (R33)', () => {
+    const note = noteFor(0.4, 0.2);
+    expect(note).toContain(`do not build it: ask with ${ASK_TOOL}, offering the value as given and the nearest one that prints`);
+    expect(note).toContain(`a gap between moving parts under ${String(printInPlaceGap({ nozzle: 0.1, layer: 0.1 }))} mm`);
+    expect(note).toContain('a detail under one line of 0.45 mm');
+    expect(note).not.toContain('build it as given anyway');
+  });
+
+  it('calls the four fits by one name each, as room per side with the hole allowance on top (R8, R34, H-20, H-32)', () => {
+    const note = noteFor(0.4, 0.2);
+    expect(note).toContain('clamp 0.05 mm (tight, only with force), push 0.15 mm (in by hand), slide 0.25 mm (without force), turn 0.3 mm (turns freely)');
+    expect(note).toContain('Each is room, never an interference. A round hole also gets the material\'s hole allowance on its diameter.');
+    expect(note).not.toMatch(/press fit|sliding fit|loose fit/);
+    expect(note).toContain('(starting values, not measured on this printer): clamp 0.05 mm');
+    expect(noteFor(0.4, 0.2, { ...pla, measuredNozzle: 0.4 })).toContain('(measured with the tolerance pieces): clamp');
+    expect(note).toContain('a guide value for holes of 3 to 10 mm (larger ones shrink more)');
+    expect(standardText('slidingLid')).toContain('Room: the slide fit of the print profile per side');
+    expect(standardText('clamp')).toContain('the tube and twice the clamp fit of the print profile');
+    expect(standardText('hook')).toContain('each plus the hole allowance of the print profile');
+  });
+
+  it('writes scaled clearances as computed, not rounded to 0.01 mm (N-passung-texte-5)', () => {
+    // PLA on a 0.6 mm nozzle: clamp 0.05 × 1.5 = 0.075, push 0.225, slide 0.375, turn 0.45.
+    expect(noteFor(0.6, 0.3)).toContain('clamp 0.075 mm, push 0.225 mm, slide 0.375 mm, turn 0.45 mm');
+    expect(noteFor(0.6, 0.3)).toContain('clamp 0.075 mm (tight, only with force)');
+  });
+
+  it('gives details, text and floors the sizes of their sources (D29, H-18, H-22, H-23)', () => {
+    const note = noteFor(0.4, 0.2);
+    expect(note).toContain(`details under one line (${String(lineWidth({ nozzle: 0.4, layer: 0.2 }))} mm) do not print`);
+    expect(note).toContain('text at least 0.6 mm deep and 1 mm wide per stroke (Xometry: 0.5 mm and 1 mm)');
+    expect(noteFor(0.6, 0.3)).toContain('text at least 0.6 mm deep and 1.35 mm wide per stroke');
+    expect(note).toContain(`floors and lids at least ${String(minimumFloor(0.2))} mm (four layers and 0.8 mm: Stratasys, Protolabs)`);
+    expect(note).toContain('radius 1 mm on parts under 30 mm, 2 mm up to 100 mm, 3 mm above (own choice)');
+    expect(note).toContain('with a 30–45° lead-in (own choice)');
+    expect(note).toContain('chamfer hole and screw entries 0.5 mm × 45° and give mating edges a 0.5 mm lead-in chamfer so parts go together (both own choice)');
+    expect(note).toContain('radii at least 0.4 mm and details at least one line');
   });
 });

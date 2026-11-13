@@ -1,3 +1,5 @@
+import { BRIDGE_SPAN } from '@partbuddy/geometry';
+
 /**
  * The standards the assistant looks up before it designs a part of a kind itself (decided
  * 2026-11-11: no fixed block per kind, whose shape depends on the part; the rules and sizes are
@@ -13,9 +15,9 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
   slidingLid: {
     title: 'A lid that slides into grooves of a box',
     rules: [
-      'Grooves with 45° flanks (a dovetail) in the two long walls and the back wall, open at the front: they print without support with the box standing. A square groove is a bridge and sags from 5 mm (Hubs).',
+      `Grooves with 45° flanks (a dovetail) in the two long walls and the back wall, open at the front: they print without support with the box standing. A square groove's ceiling is a bridge: the print check takes up to ${String(BRIDGE_SPAN)} mm (UltiMaker), and from 5 mm it sags (Hubs).`,
       'Lid 3 to 4 mm thick, its edges chamfered at 45° to match; groove 1.5 mm deep, at most half the wall; 2 mm of wall over the groove; walls 3 mm (guides).',
-      'Room 0.3 mm per side and 0.3 mm above and below the lid (guides say 0.2 to 0.4; Prusa asks at least 0.3 for moving parts, Hubs 0.5).',
+      'Room: the slide fit of the print profile per side and above and below the lid (guides say 0.2 to 0.4 mm; Prusa asks at least 0.3 for moving parts, Hubs 0.5).',
       'Hold it shut with a bump 0.3 mm high across the lid near the open end and a matching dent, and give the lid a finger dent about 12 mm round and 2 mm deep, or a raised ridge (guides, one source each).',
       'Print the box standing and the lid lying flat. The front wall of the box is lower by the lid, so the lid closes it.',
       'For a rail pushed onto another part use partbuddy_mechanism with kind plug and shape dovetail instead.',
@@ -24,8 +26,8 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
   clamp: {
     title: 'A clip or clamp round a tube, a rod or a cable',
     rules: [
-      'A C clip to snap on: inner diameter the tube and 0.3 to 0.5 mm, the opening 75 to 85 % of the tube, arms 1.5 to 2.5 mm thick, 8 to 12 mm wide (guides). Round the ends of the arms outwards so the tube finds its way in.',
-      'A clamp closed by a screw: bore the measured diameter to grip (0.1 to 0.2 mm more to slide), a slot 2 to 5 mm wide, wall about 4 mm at 25 mm, and lugs either side of the slot for the screw; make the screw holes with partbuddy_block or partbuddy_mechanism kind screw.',
+      'A C clip to snap on: inner diameter the tube and twice the clamp fit of the print profile (guides say 0.3 to 0.5 mm in all), the opening 75 to 85 % of the tube, arms 1.5 to 2.5 mm thick, 8 to 12 mm wide (guides). Round the ends of the arms outwards so the tube finds its way in.',
+      'A clamp closed by a screw: bore the measured diameter to grip (twice the slide fit of the print profile more to slide), a slot 2 to 5 mm wide, wall about 4 mm at 25 mm, and lugs either side of the slot for the screw; make the screw holes with partbuddy_block or partbuddy_mechanism kind screw.',
       'A clamp of two halves: 0.4 mm of room on the tube, a gap of 1 mm between the halves so the screws can pull them tight (guides).',
       'Always print it lying, the bore upright: the layers then run round the ring. Standing, the arms break along their layers (guides, and measured for hooks).',
       'Ask for the measured diameter; tubes are sold in many series and none is assumed here.',
@@ -48,7 +50,7 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
       'Layers of at most 0.2 mm and four or more wall lines; at 0.3 mm the standing hook held half (CNC Kitchen).',
       'Round the inside corner where the hook leaves its plate, with a radius of at least the hook\'s thickness (Hubs asks for a fillet without a size; the size is our choice), and keep the section at least 6 × 6 mm for anything heavier than a coat.',
       'Hang the plate with partbuddy_block keyhole or woodScrew, two of them level from 60 mm of width.',
-      'An eye: hole 4 mm for a key ring (5 mm for a heavy one), 3.5 mm for a ball chain, twice the wire and 1 mm for a carabiner, each 0.2 mm more for print; 2 to 3 mm of plastic round the hole (guides say 1.5 to 3).',
+      'An eye: hole 4 mm for a key ring (5 mm for a heavy one), 3.5 mm for a ball chain, twice the wire and 1 mm for a carabiner, each plus the hole allowance of the print profile; 2 to 3 mm of plastic round the hole (guides say 1.5 to 3).',
       'A slot for a cable tie: ties are 2.5, 3.5 and 4.6 mm wide (HellermannTyton T18R, T30R, T50R) and about 1 mm thick; make the slot 1 mm wider and 1.5 mm high (own choice), and print it so that it stands upright: a lying slot sags.',
     ],
   },
@@ -66,7 +68,7 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
   vent: {
     title: 'Vents, grilles and fan openings',
     rules: [
-      'In an upright wall make slots that stand upright, 2 to 3 mm wide with bars at least 1.2 mm between them (three lines of a 0.4 mm nozzle; Prusa lists 0.45, 0.9, 1.35 and 1.8 mm for one to four lines); a lying slot is a bridge, fine up to 5 mm long (Hubs). Close a long upright slot with a 45° point at its top.',
+      `In an upright wall make slots that stand upright, 2 to 3 mm wide with bars at least 1.2 mm between them (three lines of a 0.4 mm nozzle; Prusa lists 0.45, 0.9, 1.35 and 1.8 mm for one to four lines); a lying slot is a bridge, which the print check takes up to ${String(BRIDGE_SPAN)} mm long (UltiMaker) and which sags from 5 mm (Hubs). Close a long upright slot with a 45° point at its top.`,
       'In a flat top or bottom any pattern prints, as the holes are upright. Hexagons 6 to 8 mm across flats with 1.2 mm bars are stiff and open (own choice; no source gives sizes).',
       'To keep fingers out, no opening over 12 mm (IP2X stops what is larger than 12.5 mm); against wire and small parts 1 mm (IP4X).',
       'Fans, mounting holes centre to centre: 25 mm fan 20, 30 fan 24, 40 fan 32, 50 fan 40, 60 fan 50, 80 fan 71.5, 92 fan 82.5, 120 fan 105 mm. Screws by the fan: commonly M3 up to 60 mm and M4 above; check the fan in hand, sources differ on the hole.',
