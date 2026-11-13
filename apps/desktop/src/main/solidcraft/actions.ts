@@ -177,7 +177,9 @@ export class ActionService {
    * Runs each joint value to a limit on a copy of the design (`joint.sweep`, ADR 0027); a sweep SolidCraft refuses counts as run through.
    * So does a snap fit: parts that meet a short way before the limit and are free of each other at the limit press past
    * one another there, as a lid's bead does over the rim of its box. The limit's pose is tried and the joint put back
-   * where it stood (a batch taken back leaves a driven joint where it was driven, 0.40.0-rc.4).
+   * where it stood (a batch taken back leaves a driven joint where it was driven, 0.40.0-rc.4). The batch ends in the
+   * failing read, so SolidCraft takes back both drives with their undo steps: `rollback` alone took back nothing, and in
+   * the window each check left two undo steps and a new revision, mirrored and checked again without end (audit X-1).
    */
   async sweepJoints(sweeps: JointSweep[]): Promise<JointSweepResult> {
     if (sweeps.length === 0) return [];
@@ -197,11 +199,12 @@ export class ActionService {
           { command: 'joint.drive', params: { joint: sweep.joint, value: sweep.to, quiet: true } },
           { command: 'inspect.interference', params: {} },
           { command: 'joint.drive', params: { joint: sweep.joint, value: stands, quiet: true } },
+          UNDO_ALL,
         ],
         true,
       );
       // Free at the limit: what stopped the sweep is pressed past on the way there.
-      if (!posed.failed && (posed.results?.[1] as { count?: unknown } | undefined)?.count === 0) stops[i] = null;
+      if (posed.failed?.index === 3 && (posed.results?.[1] as { count?: unknown } | undefined)?.count === 0) stops[i] = null;
     }
     return stops;
   }
