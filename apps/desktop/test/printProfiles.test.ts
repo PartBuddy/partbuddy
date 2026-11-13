@@ -246,7 +246,9 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
     expect(pressed).not.toContain('never an interference');
     expect(note).toContain('(not measured with the tolerance pieces): clamp 0.05 mm');
     expect(noteFor(0.4, 0.2, { ...pla, measuredNozzle: 0.4 })).toContain('(measured with the tolerance pieces): clamp');
-    expect(note).toContain('a guide value for holes of 3 to 10 mm (larger ones shrink more)');
+    // The allowance grows with the diameter above the hole plate (audit MG-26): PLA 0.15 on 10 mm is 0.35 on 50 mm.
+    expect(note).toContain('a guide value for holes of 3 to 10 mm that the hole plate of the tolerance pieces measures on this printer; larger ones shrink more, about 0.35 mm at 50 mm, growing evenly in between');
+    expect(noteFor(0.4, 0.2, { ...pla, holeShrink: 0.1 })).toContain('about 0.1 mm at 50 mm');
     expect(standardText('slidingLid')).toContain('Room: the slide fit of the print profile per side');
     expect(standardText('slidingLid')).not.toContain('Prusa asks at least 0.3');
     expect(standardText('clamp')).toContain('the tube and twice the push fit of the print profile, so it goes on by hand (for PLA and PETG on a 0.4 mm nozzle within the 0.3 to 0.5 mm the guides name)');

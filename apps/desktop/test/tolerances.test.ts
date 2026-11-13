@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { MaterialProfile } from '../src/shared/contract';
 import { fitsInOrder, materialProfileSchema } from '../src/shared/contract';
 import { testPieceSteps } from '../src/shared/testPieces';
-import { applyReadings, FIT_STEPS, HOLE_SIZES, OVERHANG_STEPS } from '../src/shared/tolerances';
+import { applyReadings, FIT_STEPS, holeAllowance, HOLE_SIZES, LARGEST_HOLE, OVERHANG_STEPS, PRINT_UNDERSIZE } from '../src/shared/tolerances';
 
 const pla: MaterialProfile = { id: 'pla', name: 'PLA', overhang: 45, holeShrink: 0.15, clearance: { clamp: 0.05, push: 0.15, slide: 0.25, turn: 0.3 } };
 const none = { fits: {}, holes: [null, null, null, null], overhang: null };
@@ -100,7 +100,7 @@ describe('the test pieces', () => {
     expect(texts(testPieceSteps({ nozzle: 0.4, layer: 0.2 }))).toEqual([...FIT_STEPS, ...HOLE_SIZES, ...OVERHANG_STEPS].map(String));
   });
 
-  it('make heights whole layers and the engraving two layers deep', () => {
+  it('make heights whole layers and the engraving at least 0.5 mm in whole layers', () => {
     const steps = testPieceSteps({ nozzle: 0.6, layer: 0.28 });
     const comb = steps.find((step) => step.params.body_name === 'Fit comb');
     expect(comb?.params.height).toBeCloseTo(4.2);
@@ -150,5 +150,81 @@ describe('fits read on another nozzle than 0.4 mm (audit T2)', () => {
     expect(material.clearance).toEqual({ clamp: 0.075, push: 0.225, slide: 0.3, turn: 0.45 });
     // Readings of holes and overhang alone leave the fits and their nozzle alone.
     expect(applyReadings(pla, { ...none, overhang: 55 }, 0.6).material).toEqual({ ...pla, overhang: 55 });
+  });
+});
+
+describe('the hole allowance by diameter (audit MG-26, T23)', () => {
+  it('holds the measured value up to the largest hole of the plate and lets the shrinkage grow above it', () => {
+    // ABS 0.25 mm: 0.10 from printing and 0.15 shrinkage on 10 mm; 50 mm takes 0.10 + 0.75 (before: 0.25 for every size).
+    expect(holeAllowance(0.25, 3)).toBe(0.25);
+    expect(holeAllowance(0.25, LARGEST_HOLE)).toBe(0.25);
+    expect(holeAllowance(0.25, LARGEST_HOLE + 0.001)).toBe(0.25);
+    expect(holeAllowance(0.25, LARGEST_HOLE + 1)).toBe(0.265);
+    expect(holeAllowance(0.25, 50)).toBe(0.85);
+    // PLA 0.15: 0.35 on 50 mm.
+    expect(holeAllowance(0.15, 50)).toBe(0.35);
+  });
+
+  it('grows nothing that is no shrinkage, and takes nonsense diameters as the measured value', () => {
+    expect(holeAllowance(PRINT_UNDERSIZE, 50)).toBe(PRINT_UNDERSIZE);
+    expect(holeAllowance(0.05, 50)).toBe(0.05);
+    expect(holeAllowance(0, 50)).toBe(0);
+    for (const diameter of [Number.NaN, 0, -5]) expect(holeAllowance(0.25, diameter)).toBe(0.25);
+  });
+});
+
+describe('the test pieces keep the rules they measure for (audit T27, MV-16, T57)', () => {
+  const nozzles = [0.2, 0.25, 0.4, 0.6, 0.8];
+  const layersFor = (nozzle: number) => [0.12, 0.2].filter((layer) => layer <= nozzle);
+
+  it('chamfer every measured hole at the bed by at least two layers and the elephant foot', () => {
+    for (const nozzle of nozzles)
+      for (const layer of layersFor(nozzle)) {
+        const steps = testPieceSteps({ nozzle, layer });
+        const holes = steps.filter((step) => step.command === 'solid.cylinder' && step.params.operation === 'cut');
+        expect(holes).toHaveLength(FIT_STEPS.length + HOLE_SIZES.length);
+        for (const hole of holes) {
+          const cone = steps.find((step) => step.command === 'solid.cone' && step.params.name === `${String(hole.params.name)} chamfer`);
+          const chamfer = Number(cone?.params.height);
+          expect(cone?.params).toMatchObject({ base: hole.params.base, operation: 'cut', targets: hole.params.targets, top_diameter: hole.params.diameter });
+          expect((hole.params.base as number[])[2]).toBe(0);
+          expect(Number(cone?.params.diameter)).toBeCloseTo(Number(hole.params.diameter) + 2 * chamfer, 6);
+          // 0.4 at 0.2 mm layers, 0.36 (three layers) at 0.12, where two would be 0.24 under the elephant foot.
+          expect(chamfer).toBeCloseTo(layer === 0.2 ? 0.4 : 0.36, 6);
+        }
+      }
+  });
+
+  it('engrave bold digits two nozzles wide, as the block check asks, and as deep as the rule text asks', async () => {
+    const { BOLD_FONT } = await import('../src/shared/blocks');
+    const { DIGIT_STROKE } = await import('../src/shared/testPieces');
+    const expected = { 0.2: 3, 0.25: 4, 0.4: 6, 0.6: 9, 0.8: 12 } as Record<number, number>;
+    for (const nozzle of nozzles)
+      for (const layer of layersFor(nozzle)) {
+        const steps = testPieceSteps({ nozzle, layer });
+        const letters = steps.filter((step) => step.command === 'sketch.text');
+        for (const text of letters) {
+          expect(text.params).toMatchObject({ font: BOLD_FONT, bold: true, height: expected[nozzle] });
+          // Before: 3 mm in the built-in regular font at every nozzle, digit strokes of about 0.3 mm.
+          expect(Number(text.params.height) * DIGIT_STROKE).toBeGreaterThanOrEqual(2 * nozzle - 1e-9);
+        }
+        for (const cut of steps.filter((step) => String(step.params.name).endsWith(' values'))) {
+          const depth = Number(cut.params.distance);
+          expect(depth).toBeGreaterThanOrEqual(0.5);
+          expect(Math.abs(depth / layer - Math.round(depth / layer))).toBeLessThan(1e-6);
+        }
+      }
+  });
+
+  it('make each piece fit the smallest bed of the catalog up to a 0.4 mm nozzle, and common beds above', async () => {
+    const { testPieceSizes } = await import('../src/shared/testPieces');
+    const largest = (nozzle: number) => Math.max(...Object.values(testPieceSizes({ nozzle, layer: 0.2 })).flat());
+    expect(Object.keys(testPieceSizes({ nozzle: 0.4, layer: 0.2 }))).toEqual(['Fit comb', 'Fit pin', 'Hole plate', 'Overhang']);
+    // Voron 0.2, 120 × 120 mm, the smallest bed of the printer catalog; MINI+ and A1 mini 180; most others 256.
+    for (const nozzle of [0.2, 0.25, 0.4]) expect(largest(nozzle)).toBeLessThanOrEqual(120);
+    expect(largest(0.6)).toBeLessThanOrEqual(180);
+    expect(largest(0.8)).toBeLessThanOrEqual(256);
+    // On 0.8 the pieces outgrow a 180 mm bed, which the tolerance assistant says (tolerance-too-large).
+    expect(largest(0.8)).toBeGreaterThan(180);
   });
 });

@@ -103,6 +103,16 @@ describe('standard parts (B7)', () => {
     expect(libraryOf(null)).toEqual([]);
   });
 
+  it('offers the countersunk screw that the blocks sink and the mechanism seats, in the menu and the requests (audit S-30, T48)', async () => {
+    const { partFamilySchema, partInsertSchema } = await import('../src/shared/contract');
+    const menu = libraryOf(library).map((entry) => entry.family);
+    // The nine metric families of SolidCraft 0.40.1's thirteen, in the menu's order; the inch ones stay out.
+    expect(menu).toEqual(['socket_head_cap_screw', 'button_head_cap_screw', 'countersunk_socket_screw', 'hex_bolt', 'set_screw', 'hex_nut', 'washer', 'dowel_pin', 'bearing']);
+    expect(menu).toEqual(partFamilySchema.options);
+    expect(partInsertSchema.safeParse({ family: 'countersunk_socket_screw', size: 'M3', length: 8, point: [0, 0, 0] }).success).toBe(true);
+    expect(partInsertSchema.safeParse({ family: 'hex_cap_screw_inch', size: '1/4-20 UNC', point: [0, 0, 0] }).success).toBe(false);
+  });
+
   it('suggests the size and length that fit the picked hole', () => {
     const library = libraryOf(raw);
     expect(suggestSize(library, 'socket_head_cap_screw', 3.4)).toBe('M3');

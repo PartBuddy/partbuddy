@@ -15,9 +15,9 @@ import {
   type PrintSettings,
 } from '../../shared/contract';
 import { ENTRY_CHAMFER, STURDY, textDepth, textStroke } from '../../shared/blocks';
-import { CLEARANCE_NOZZLE, lineWidth, printInPlaceGap, scaleClearance, type FitPrinter } from '../../shared/designFit';
+import { CLEARANCE_NOZZLE, ELEPHANT_FOOT, lineWidth, printInPlaceGap, scaleClearance, type FitPrinter } from '../../shared/designFit';
 import { MATERIAL_CATALOG } from '../../shared/materialCatalog';
-import { HOLE_SIZES } from '../../shared/tolerances';
+import { COMPENSATED_CIRCLE, holeAllowance, HOLE_SIZES, LARGEST_HOLE } from '../../shared/tolerances';
 import { BLOCK_TOOL } from '../agents/blockTool';
 import { DESIGN_TOOL } from '../agents/designTool';
 import { ASK_TOOL } from '../agents/questions';
@@ -294,7 +294,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
   ];
   if (design.rounding)
     lines.push(
-      `- Edges: round outer edges that are seen or touched, radius 1 mm on parts under 30 mm, 2 mm up to 100 mm, 3 mm above (own choice), never more than the wall they cut into. Edges on the bed get a 45° chamfer, not a fillet, ${series(layer, 2, 3)} high, which also takes up the elephant's foot (0.1 to 0.25 mm: Prusa about 0.2, Bambu Lab 0.1 to 0.2, OrcaSlicer up to 0.25). Round inner corners under load with at least half the wall thickness (guides say a quarter to the whole wall: MakerVerse, Xometry), and at least ${mm(Math.max(1, printer.nozzle * 2))} (own choice). Use at most two or three radii per part so they match.`,
+      `- Edges: round outer edges that are seen or touched, radius 1 mm on parts under 30 mm, 2 mm up to 100 mm, 3 mm above (own choice), never more than the wall they cut into. Edges on the bed get a 45° chamfer, not a fillet, ${series(layer, 2, 3)} high, which also takes up the elephant's foot (0.1 to ${mm(ELEPHANT_FOOT)}: Prusa about 0.2, Bambu Lab 0.1 to 0.2, OrcaSlicer up to 0.25). Round inner corners under load with at least half the wall thickness (guides say a quarter to the whole wall: MakerVerse, Xometry), and at least ${mm(Math.max(1, printer.nozzle * 2))} (own choice). Use at most two or three radii per part so they match.`,
     );
   if (design.printInPlace)
     lines.push(
@@ -332,7 +332,7 @@ export function printNote({ printer, material: used, supportFree, design }: Part
   return [
     `[PartBuddy: print profile of this part. Printer ${name(printer.name)}: build volume ${String(x)} × ${String(y)} × ${String(z)} mm,`,
     `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(minimumWall(printer.nozzle))} (two lines) print poorly, and walls or details thinner than ${mm(thinnestLine(printer.nozzle))}, the narrowest line a slicer lays, do not print. The print check blocks such walls where they cover more than a few square millimetres and only warns about smaller spots; fine details and text it does not check.`,
-    `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter, a guide value for holes of ${String(HOLE_SIZES[0])} to ${String(HOLE_SIZES[HOLE_SIZES.length - 1])} mm (larger ones shrink more) that the hole plate of the tolerance pieces measures on this printer.`,
+    `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter, a guide value for holes of ${String(HOLE_SIZES[0])} to ${String(LARGEST_HOLE)} mm that the hole plate of the tolerance pieces measures on this printer; larger ones shrink more, about ${mm(holeAllowance(used.holeShrink, COMPENSATED_CIRCLE))} at ${String(COMPENSATED_CIRCLE)} mm, growing evenly in between (shrinkage is a share of the size).`,
     `Clearance per side between mating parts, for this nozzle (${used.measuredNozzle === undefined ? 'not measured with the tolerance pieces' : 'measured with the tolerance pieces'}): clamp ${fit(clamp)}, push ${fit(push)}, slide ${fit(slide)}, turn ${fit(turn)}.`,
     'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed; the check and the slicer then lay it on that face.',
     ...(supportFree ? supportFreeLines(used.overhang, printer.nozzle) : []),

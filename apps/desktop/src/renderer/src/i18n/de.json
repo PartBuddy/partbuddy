@@ -1097,6 +1097,8 @@
       "notRead": "nicht ermittelt",
       "holesTitle": "Lochplatte",
       "holes": "Miss jede Bohrung mit dem Messschieber. Leer lassen, was du nicht misst.",
+      "piecesTooLarge": "Ein Prüfkörper ist {length} × {width} mm groß und passt auch gedreht nicht auf das Druckbett dieses Druckers ({x} × {y} mm). Druck es auf einem größeren Drucker mit derselben Düse, oder prüf das Druckbett im Druckerprofil.",
+      "holesSmall": "Passt der Messschieber nicht hinein (etwa bei {size} mm), den dicksten Bohrer suchen, dessen Schaft hineingeht, und den Schaft messen. Immer oberhalb der Fase am unteren Rand messen.",
       "hole": "Ø {size} mm",
       "overhangTitle": "Überhang-Treppe",
       "overhang": "Steilste Stufe mit sauberer Unterseite",
@@ -1383,6 +1385,7 @@
     "families": {
       "socket_head_cap_screw": "Zylinderschraube",
       "button_head_cap_screw": "Linsenkopfschraube",
+      "countersunk_socket_screw": "Senkschraube",
       "hex_bolt": "Sechskantschraube",
       "set_screw": "Gewindestift",
       "hex_nut": "Sechskantmutter",

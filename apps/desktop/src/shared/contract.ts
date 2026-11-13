@@ -4,6 +4,7 @@ import { eventChannels, invokeChannels, type EventChannel, type InvokeChannel } 
 import { keptSketchSchema, sketchStateSchema } from './sketch';
 import { drawingSvg, naturalWidth, parseDrawing } from './svgDrawing';
 import { assemblyPlanSchema } from './assembly';
+import { BLOCK_SIZES } from './screwSizes';
 import { MAX_PHRASES_PER_STEP, STEP_PHRASE_KEYS } from './stepPhrases';
 import { TEMPLATE_IDS } from './templates';
 
@@ -364,9 +365,9 @@ export const updateStateSchema = z.discriminatedUnion('state', [
 
 /** The language of the interface (B6): follow Windows, German or English. */
 export const languageSchema = z.enum(['system', 'de', 'en']);
-/** The size of the whole interface (2026-11-07): 90 % to 150 %, as Electron's zoom factor. */
+/** The size of the whole interface (2026-11-07): 90 % to 150 %, as Electron's zoom factor; the schema takes the same range (audit T47). */
 export const ZOOM_STEPS = [0.9, 1, 1.1, 1.25, 1.5] as const;
-export const zoomSchema = z.number().min(0.8).max(1.5);
+export const zoomSchema = z.number().min(Math.min(...ZOOM_STEPS)).max(Math.max(...ZOOM_STEPS));
 /** What PartBuddy shows when it starts: the start page or the last project. */
 export const startPageSchema = z.enum(['home', 'last']);
 /** The app-wide settings without a channel of their own, read and changed together. */
@@ -778,8 +779,8 @@ export const designActionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('hole'), body: bodyName, points: z.array(point3).length(1), size: length, depth: length.optional() }).strict(),
   z.object({ action: z.literal('shell'), body: bodyName, points: actionPoints, size: length }).strict(),
 ]);
-/** The standard part families PartBuddy offers (B7), metric, from SolidCraft's library. */
-export const partFamilySchema = z.enum(['socket_head_cap_screw', 'button_head_cap_screw', 'hex_bolt', 'set_screw', 'hex_nut', 'washer', 'dowel_pin', 'bearing']);
+/** The standard part families PartBuddy offers (B7), metric, from SolidCraft's library, in the order of the menu; the countersunk screw since audit S-30. */
+export const partFamilySchema = z.enum(['socket_head_cap_screw', 'button_head_cap_screw', 'countersunk_socket_screw', 'hex_bolt', 'set_screw', 'hex_nut', 'washer', 'dowel_pin', 'bearing']);
 export const partsLibrarySchema = z
   .array(
     z
@@ -806,7 +807,8 @@ export const printFaceSchema = z.object({ body: bodyName, point: point3.nullable
 /** The print face of each body as PartBuddy set it, by face name. */
 export const printFacesSchema = z.record(bodyName, z.string().max(300));
 /** A function block at a picked flat face (F1); `shared/blocks.ts` turns it into SolidCraft's command. */
-const blockSize = z.enum(['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10']);
+// The sizes of shared/screwSizes.ts, not a second list (audit T48).
+const blockSize = z.enum(BLOCK_SIZES);
 const blockLength = finite.positive().max(500);
 /** Further points of a row of the same hole (the first is `point`). */
 const morePoints = z.array(point3).max(99).optional();
@@ -882,6 +884,7 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       width: blockLength,
       catchDepth: blockLength,
       catchLength: blockLength,
+      // shared/blocks.ts HOOK_DIRECTIONS; not imported, so contract.ts does not load the blocks (and the geometry) with it; a test holds them equal.
       hook: z.enum(['y+', 'y-', 'x+', 'x-']),
     })
     .strict(),
