@@ -761,6 +761,23 @@ describe('the wall round a hole on a curved face and at an edge (review 5 of PR 
     }
   });
 
+  // Review 7 of PR #357: a curve and a gentle chamfer to one side, just past the hole's rim. The even part of the loss
+  // pulled the centre towards the axis and the chamfer went through (main let both through as well).
+  it('refuses a curved face with a chamfer to one side just past the rim', async () => {
+    const rod8: Drop = (x) => (Math.abs(x) < 8 ? 8 - Math.sqrt(64 - x ** 2) : Infinity);
+    const rod30: Drop = (x) => (Math.abs(x) < 30 ? 30 - Math.sqrt(900 - x ** 2) : Infinity);
+    const side = (from: number) => (v: number) => (v <= from ? 0 : (v - from) * 0.3);
+    const [m3, m6] = [seat('M3'), seat('M6')];
+    // M3 on a rod of 8 mm with a slope of 0.3 from 0.1 mm past the rim: 0.47 mm of wall at the top, the reviewer reckoned.
+    const chamfered: Drop = (x, y) => rod8(x, y) + side(2.1)(x);
+    expect(before(m3.stock, chamfered, m3.hole, m3.breaks)).toBe(true);
+    expect(String(await shortOf(part(chamfered, m3.hole, m3.breaks), 'Part', [m3.stock], undefined))).toContain('a face that falls away to one side');
+    // M6 on a rod of 30 mm with such a slope on two sides, a corner.
+    const corner: Drop = (x, y) => rod30(x, y) + side(4.1)(x) + side(4.1)(y);
+    expect(before(m6.stock, corner, m6.hole, m6.breaks)).toBe(true);
+    expect(String(await shortOf(part(corner, m6.hole, m6.breaks), 'Part', [m6.stock], undefined))).toContain('a face that falls away to one side');
+  });
+
   it('still refuses a wall that an edge or a chamfer takes to one side, slack or not', async () => {
     // The seat 5 mm from an edge with a 3 mm chamfer: before, it passed with 0.5 mm of wall at the top.
     const m3 = seat('M3');

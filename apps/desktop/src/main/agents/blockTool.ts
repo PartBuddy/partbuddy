@@ -190,7 +190,7 @@ export function seatStock(block: Extract<FeatureBlock, { block: 'insertSeat' }>,
 
 /** What a block says when a curved face took some of the wall round its holes: the most at one hole, and the most allowed at one. */
 const fallenSaid = (wall: number, slack: number) =>
-  ` Round the hole the face falls away all round, as a curved face does: PartBuddy allowed up to ${String(Math.round(wall * 10) / 10)} mm³ of wall at the top of a hole that this takes, and no more than ${String(Math.round(slack * 10) / 10)} mm³ missing round and under any one hole. A face that falls away to one side is not allowed.`;
+  ` Round the hole the face falls away all round, as a curved face does: PartBuddy allowed up to ${String(Math.round(wall * 10) / 10)} mm³ of wall at the top of a hole that this takes, and no more than ${String(Math.round(slack * 10) / 10)} mm³ missing round and under any one hole. A face that falls away to one side on its own is not allowed; where it comes with a curve, PartBuddy cannot always tell it apart.`;
 
 /** What a block says when its measure allowed for a curved face: how much, and that it covers the plastic under the hole alone. */
 const lenientSaid = (slack: number) =>
@@ -493,13 +493,17 @@ function curvedLoss(k: number, inner: number, outer: number, depth: number, rod:
 /**
  * Whether `missing` mm³ of the wall round a hole, centred `off` the axis and `down` under the start of the stock, are what
  * a curved face takes: one that falls away all round the point, as a rod, a ball, a cone or a torus does, takes the top
- * of the ring all round, and the centre of that lies within the hole's width of the axis (on a cone it leans towards the
- * apex: 0.65 mm for M3 at 45°, 1.2 mm at 60°; review 6 of PR #357). An edge or a chamfer that leaves the hole whole takes
- * the ring beyond the hole's rim on one side, so the centre of that lies further out. A rib too narrow on both sides takes
- * the ring all the way down (deeper than a curved face that takes as much).
+ * of the ring all round, and the centre of that lies near the axis (on a cone it leans towards the apex: 0.65 mm for M3 at
+ * 45°, 1.2 mm at 60°; review 6 of PR #357). An edge or a chamfer that leaves the hole whole takes the ring beyond the
+ * hole's rim on one side, so the centre of that lies further out. A rib too narrow on both sides takes the ring all the way
+ * down (deeper than a curved face that takes as much).
  */
 export function curvedWall(missing: number, off: number, down: number, inner: number, outer: number, depth: number): boolean {
-  if (off > inner) return false;
+  // shortcut: the centre does not tell a cone from a curve with a gentle chamfer to one side, whose even part pulls the
+  // centre in; 0.6 of the hole's half width lets cones to 60° through and keeps a chamfer at 0.3 just past the rim of an M3
+  // on a rod of 8 mm out (review 7 of PR #357), not every such mix. Upgrade: a probe on the far side, as a curve takes
+  // plastic there too and a chamfer does not.
+  if (off > 0.6 * inner) return false;
   return [true, false].some((rod) => {
     let [low, high] = [0, (FACE_DROP + depth) / inner ** 2];
     for (let step = 0; step < 20 && curvedLoss(high, inner, outer, depth, rod).volume < missing; step += 1) high *= 2;
