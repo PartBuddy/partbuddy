@@ -227,7 +227,7 @@ describe('a function block from the form: a cut through goes through the wall at
 
   it('measures the reach on trial and builds that deep', async () => {
     const { service, logged, log } = form('pieces');
-    expect(await service.blockSteps(hole, undefined, log)).toEqual({ steps: [{ command: 'solid.hole', params: { position: [0, 20, 15], clearance: 'M3', fit: 'normal', depth: '3 mm', targets: ['Dose'] } }], unmeasured: false });
+    expect(await service.blockSteps(hole, undefined, log)).toEqual({ steps: [{ command: 'solid.hole', params: { position: [0, 20, 15], diameter: '3.4 mm', depth: '3 mm', type: 'countersink', cs_diameter: '4.4 mm', cs_angle: '90 deg', targets: ['Dose'] } }], unmeasured: false });
     expect(logged).toEqual([]);
   });
 
