@@ -468,7 +468,9 @@ const OPEN = new Set([
   'lying nut pocket M6, a corner up',
 ]);
 
-describe('overhangs that hold and overhangs that do not: the cases of the reviews', () => {
+// These check answers, not speed (overhangSpeed.test.ts times the check): each case checks a mesh up to ten times,
+// turned and mirrored, which takes 1–3 s alone and ran past vitest's 5 s while other CI jobs shared the runner's CPU.
+describe('overhangs that hold and overhangs that do not: the cases of the reviews', { timeout: 30_000 }, () => {
   it('names only cases there are as open', () => {
     expect([...OPEN].filter((name) => !cases.some(([known]) => known === name))).toEqual([]);
   });
