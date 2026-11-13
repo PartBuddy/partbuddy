@@ -183,7 +183,7 @@ In der vorigen Sitzung liefen dazu Subagenten. Ob sie noch laufen, weiß die neu
 - Ersetzungen mit Backslashes nie über Heredoc/sed, sondern mit dem Edit-Werkzeug oder einer mit Write angelegten Skriptdatei.
 
 ### Danach, in dieser Reihenfolge
-1. Rücknahme vereinheitlichen: `takeBack` in `blockTool.ts` (#357) und `takeBack.ts` (#358) zu einer Funktion (Befund M-1).
+1. ~~Rücknahme vereinheitlichen~~ **erledigt 13.11.2026, #364 (`2e09800`)** nach vier Reviews, Vertragstest 43382740874 grün: eine Rücknahme (`takeBack.ts`) für Bausteine und Mechanik, Meldung back/kept/partly, Rückfall ohne `joint.list`, `marker` neben `UNDO_CAP`, Netzkörper und unfertige Paare der Abstandsmessung als „nicht gemessen“, Punkte 1–7 aus dem Review von #357. Einsatz-Sitz: äußerer Ring muss voll sein; Spielraum nur, wo das Fehlende wie eine Wölbung aussieht (Schwerpunkt aus `inspect.interference` `center`, an 0.40.1 gemessen: exakter Volumenschwerpunkt). Bekannte Grenze als `shortcut:` in `curvedWall`: Wölbung plus flache einseitige Fase ist vom Kegel nicht sicher zu trennen (M3 auf Stab R8 mit Fase ab 0,6 mm hinter dem Lochrand geht durch, wie auf main); Ausbau: Sonde auf der Gegenseite. M3-Kegel 60° liegt genau an der Grenze, steilere Kegel werden abgelehnt.
 2. Rest-A-Befunde im Baustein-Werkzeug: Durchgangsloch/Langloch geht durch beide Wände des eigenen Hohlkörpers (W2/T4/N-bloecke-1 Rest); Loch schneidet die Außenwand auf (N-normteile-policy-2); Mechanik-Fall `r54-screw-insert-edge`.
 3. Zusammen gedruckte Teile (G1): Print-in-place-Paare der Mechanik-Werkzeuge als Gruppe merken, Druckprüfung stellt sie auf ein gemeinsames Bett.
 4. X-1: Ampel und Export während laufender Abstandsmessung.
