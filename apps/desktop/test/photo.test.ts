@@ -57,6 +57,8 @@ describe('a photo for the assistant (F6)', () => {
     expect(note).toContain('clarification card');
     // Audit R53: then plan, Go and build, as for any new part.
     expect(note).toContain('then go on as for any new part (plan, Go, build).');
+    // canvas.insert changes the design, so it comes after Go (review K1).
+    expect(note).toContain('after the user pressed Go on your plan: lay it out with `canvas.insert`');
     // Forward slashes, as the model copies them into canvas.insert; the policy takes them too.
     expect(note).toContain(`\`${forward}\``);
     expect(decide('execute', { command: 'canvas.insert', params: { path: forward } })).toEqual({ allow: true });

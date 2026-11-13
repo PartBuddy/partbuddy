@@ -466,11 +466,12 @@
         "failed": "Der Assistent hat mit einem Fehler aufgehört.",
         "error_during_execution": "Ein Fehler hat den Assistenten mitten in der Arbeit gestoppt.",
         "error_max_turns": "Der Assistent hat zu viele Schritte gebraucht und aufgehört.",
-        "rounds": "Der Assistent hat alle Werkzeugrunden dieser Antwort verbraucht und aufgehört; das Teil ist vielleicht unfertig. Schreib „weiter“, um fortzufahren.",
+        "rounds": "Der Assistent hat alle Werkzeugrunden dieser Antwort verbraucht und aufgehört; das Teil ist vielleicht unfertig. „Weiter“ macht dort weiter, wo er aufgehört hat.",
         "signedOut": "Die Anmeldung bei Claude Code ist abgelaufen. Melde dich neu an, dann sende die Nachricht erneut.",
         "other": "Der Assistent hat aufgehört, bevor er fertig war."
       },
       "retry": "Erneut senden",
+      "continue": "Weiter",
       "openLog": "Logdatei zeigen"
     },
     "examples": {

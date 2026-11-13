@@ -3,6 +3,7 @@ import { LOGO_PREFIX, logoBase, uniqueLogoName } from '../../shared/drawingPlace
 import { colourLayers, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
 import { planLogoMove, type Run } from '../solidcraft/logoMove';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
+import { PLAN_TOOL } from './questions';
 
 export const MOVE_DRAWING_TOOL = 'partbuddy_move_drawing';
 export const PLACE_DRAWING_TOOL = 'partbuddy_place_drawing';
@@ -117,7 +118,7 @@ export function drawingNote(id: string, kept: KeptDrawing, skipped: Drawing['ski
     ` As a logo on a face (engraved, built up, in colours, centred), place it with \`${PLACE_DRAWING_TOOL}\` {drawing: "${id}", body, point, normal, mode, depth` +
     (facts.colours.length > 1 ? ', colours: true for a body per fill' + (facts.colours.length > 2 ? ', colours_max for fewer filaments' : '') : '') +
     `, centre}: PartBuddy builds it exactly; \`${MOVE_DRAWING_TOOL}\` moves it afterwards. ` +
-    `As a part of its own (a pendant, a sign, the drawing extruded) use mode "part" {drawing: "${id}", mode: "part", depth}, never a sketch of your own, so the user can move, turn and resize it. ` +
+    `As a part of its own (a pendant, a sign, the drawing extruded) use mode "part" {drawing: "${id}", mode: "part", depth}, never a sketch of your own, so the user can move, turn and resize it; in a design without bodies that is a new part, so show a plan with ${PLAN_TOOL} first. ` +
     'fills: [...] builds only some fills; a white or light fill behind the whole drawing is usually background to leave out. ' +
     `Only for other uses (a cut-out through the part, a profile to revolve or sweep) put it into a sketch with \`sketch.insert_svg\` {text: "drawing:${id}", width: ${mm(facts.width)}, align: "center", at: [x, y]}: ` +
     'PartBuddy replaces that text with the exact contours, so never type, trace or redraw the paths. Build that with `solid.extrude` (a loop inside a hole stays material, as drawn); ' +

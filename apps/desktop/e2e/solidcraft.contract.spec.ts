@@ -533,6 +533,8 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
     // The test double shows a plan for "plan" and then tries to build anyway (test/fakeClaude.mjs).
     PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+    // The plan before a new part (audit R14) end to end: the design is empty, so only Go lets the box through.
+    PARTBUDDY_PLAN_FIRST: '1',
   };
   const launched = await launchApp({ isolated: false, work, env });
   const { page } = launched;
@@ -542,6 +544,11 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     await page.getByTestId('chat-example').first().click();
     await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toHaveValue(/^A wall holder for a cordless drill/);
     await expect(page.getByTestId('chat-start')).toBeVisible();
+    // A box straight away in the empty design is refused: a new part waits for a plan with Go (audit R14).
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('assistant-text').last()).toHaveText('Refused: This is a new part: show a plan with partbuddy_plan first and build after the user pressed Go.', { timeout: 30_000 });
+    await expect(page.getByTestId('step-card')).toHaveCount(0);
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make a plan first');
     await page.getByRole('button', { name: 'Send' }).click();
     const card = page.getByTestId('question-card');
