@@ -522,9 +522,11 @@ function addToFootprint(foot: Footprint, [ax, ay, , bx, by, , cx, cy]: readonly 
  * no source names a fixed area, the 25 mm² before had none). A 5 × 5 × 200 mm tower gets one, a 4 × 4 × 10 mm pin not.
  * Bambu reads X and Y as the part lies in the slicer; the check reads the footprint's two main axes instead, where its
  * second moment is least and most, so turning a fin on the plate does not change the answer, and a part exported along
- * its axes reads as Bambu reads it. A footprint alike all round (a square, a circle) has no main axes: it is read across
+ * its axes reads as Bambu reads it when the footprint has an axis of symmetry (a plate, a T, a U). A footprint alike all round (a square, a circle) has no main axes: it is read across
  * its narrowest width, as Bambu reads a square along its sides. The worst of all directions read slender plates up to
- * 1.6 times Bambu's (second review of PR #371, S5).
+ * 1.2 times Bambu's (third review of PR #371, S6).
+ * shortcut: an L footprint's main axes lie at a slant, so it reads up to 1.9 times what Bambu reads along X and Y (an L
+ * 40 × 40 × 5 is reported from about 152 mm high, Bambu adds a brim from about 211 mm); it warns early, never late.
  * shortcut: PETG (factor 2) and TPU (0.5) are taken as PLA, the speed is Bambu's standard, and the footprint is the
  * faces on the bed, not the first layer the slicer cuts: a chamfer or a round at the foot leaves the footprint smaller
  * than that layer, so such a part reads a little less steady than Bambu takes it, and a round footprint's extent is its

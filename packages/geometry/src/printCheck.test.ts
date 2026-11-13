@@ -561,7 +561,7 @@ describe('what stands tall on too little (audit D17, MG-20)', () => {
     ['a post 10 × 10 × 40', boxesBody('Post', [[[0, 0, 0], [10, 10, 40]]]), false],
     ['a plate 60 × 2 × 10, on its edge', boxesBody('Fin', [[[0, 0, 0], [60, 2, 10]]]), false],
     // Slender plates on edge, just under and over Bambu's 5 mm brim along their main axes; the worst of all directions
-    // read them 1.6 and 1.2 times higher, at an angle no slicer reads (second review of PR 371, S5).
+    // read them 1.2 times higher, at an angle no slicer reads (second review of PR 371, S5).
     ['a sign 100 × 4 × 60 on its edge (Bambu: 4.2 mm, no brim)', boxesBody('Sign', [[[0, 0, 0], [100, 4, 60]]]), false],
     ['a sign 100 × 4 × 66 on its edge (Bambu: 5.1 mm)', boxesBody('Sign', [[[0, 0, 0], [100, 4, 66]]]), true],
     ['a small part 10 × 3 × 15 (Bambu: 4.7 mm, no brim)', boxesBody('Clip', [[[0, 0, 0], [10, 3, 15]]]), false],
