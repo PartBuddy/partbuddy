@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { templateRequestSchema } from '../src/shared/contract';
+import { commentText, rangeOf } from '../src/renderer/src/shell/parameterRange';
 import { TEMPLATE_IDS, germanFeatureName, templatePrintFaces, templateSteps } from '../src/shared/templates';
 
 /** The geometry fields whose text is an expression over the design's parameters. */
@@ -154,10 +155,20 @@ describe('templates with moving parts', () => {
       { p0: ['(wall) - 1 mm', '(1 mm + wall) - 1 mm'], p1: ['(length - wall) + 1 mm', '(1 mm + wall) + (max((corner - wall), 1.7 mm) + 0.5 mm)'] },
       { distance: 'min(3 mm, (height) - (wall) - 0.6 mm) + 4.1 mm', operation: 'cut', targets: ['Lid'], profiles: [{ point: [30, 4.25] }], exact_regions: true, name: 'Closure ▭' },
     ]);
-    // Review of PR #370: the limits of width and wall that keep the box printable and closing stand in the parameters.
-    const comment = (name: string) => steps.find((step) => step.command === 'parameters.add' && step.params.name === name)?.params.comment;
-    expect(comment('width')).toContain('at least 32 mm');
-    expect(comment('wall')).toContain('1.6 to 3 mm');
+    // Review of PR #370: the limits that keep the box printable and closing, measured on SolidCraft 0.40.1 (corner 8 at length
+    // 54 and wall 1.6 left 7 mm² of overhang at the hinge, width 30 did not snap shut, wall 4 left a skin of 0.1 mm), stand in
+    // the comments as the ranges the parameter panel reads; the starting sizes lie inside them, in both languages.
+    for (const german of [false, true]) {
+      const declared = templateSteps('hingedBox', german).filter((step) => step.command === 'parameters.add');
+      const ranges: Record<string, ReturnType<typeof rangeOf>> = Object.fromEntries(declared.map((step) => [String(step.params.name), rangeOf(String(step.params.comment))]));
+      expect(ranges).toEqual({ length: { min: 54, max: 200 }, width: { min: 32, max: 150 }, height: { min: 8, max: 60 }, wall: { min: 1.6, max: 3 }, corner: { min: 4, max: 7 } });
+      for (const step of declared) {
+        const range = ranges[String(step.params.name)];
+        const start = Number.parseFloat(String(step.params.expression));
+        expect(start >= (range?.min ?? Infinity) && start <= (range?.max ?? -Infinity), String(step.params.name)).toBe(true);
+      }
+    }
+    expect(commentText(String(templateSteps('hingedBox').find((step) => step.params.name === 'width')?.params.comment)).trim()).toBe('Outer width of box and lid; narrower, the bead meets the rim of the box more than 6° before the lid is shut');
     // N-nach-2: at a height of 5 mm the foot ran into the lid's floor and its chamfer lost its edge; it stops short of the floor.
     expect(steps.find((step) => step.command === 'solid.extrude' && step.params.name === 'Closure ·')?.params.distance).toBe('min(3 mm, (height) - (wall) - 0.6 mm)');
     expect(germanFeatureName('Closure ▭')).toBe('Verschluss ▭');

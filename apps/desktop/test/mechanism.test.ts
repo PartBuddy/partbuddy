@@ -737,7 +737,8 @@ describe('the snap closure of a lid (G3)', () => {
     expect(lipProblem({ ...lid, moving: 'Box' })).toBe('fixed and moving must be two bodies');
     expect(lipProblem({ ...lid, side: 'x-', max: [58, 20] })).toContain('Put the catch on a longer wall');
     expect(lipProblem({ ...lid, wall: 1 })).toContain('wall must be 1.6–10 mm');
-    expect(lipProblem({ ...lid, radius: 18 })).toBe("radius must be less than half the room's shorter side (18 mm)");
+    expect(lipProblem({ ...lid, radius: 17.5 })).toBe('radius must be at most 17 mm: every wall of the room needs a straight stretch of at least 2 mm between its corners');
+    expect(lipProblem({ ...lid, radius: 17 })).toBeNull();
     const args = { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [58, 2, 20], to: [2, 38, 20], up: [0, 0, -1], side: 'y-' };
     expect(lipOf(args)).toMatchObject({ min: [2, 2], max: [58, 38], rim: 20, up: -1, wall: 2, radius: 0, name: 'Closure' });
     expect(lipOf({ ...args, to: [2, 38, 25] })).toBe("from and to must both lie at the height of the lid's rim");

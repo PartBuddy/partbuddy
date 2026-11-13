@@ -412,8 +412,10 @@ export function lipProblem(spec: LipSpec): string | null {
   if (span < LIP.beadLong + 2 * Math.max(at(spec.radius), 2) + 2) return `the wall with the catch is ${String(round(span))} mm long inside; the bead needs ${String(LIP.beadLong + 2 * Math.max(at(spec.radius), 2) + 2)} mm between the corners. Put the catch on a longer wall`;
   if (!(at(spec.wall) >= 1.6 && at(spec.wall) <= 10)) return 'wall must be 1.6–10 mm (the lid\'s wall thickness)';
   if (at(spec.radius) < 0) return 'radius must not be negative';
-  // Audit W17: a corner wider than half the room is no room of rounded corners any more.
-  if (at(spec.radius) >= short / 2) return `radius must be less than half the room's shorter side (${String(round(short / 2))} mm)`;
+  // Audit W17: a corner wider than half the room is no room of rounded corners any more; and every wall keeps a straight
+  // stretch of at least 1 mm, along which the lip is tried (review 2 of PR #370: at 17.5 mm in a room 36 mm wide the trial
+  // had no stretch to measure and said the box's wall was missing).
+  if (at(spec.radius) > short / 2 - 1) return `radius must be at most ${String(round(short / 2 - 1))} mm: every wall of the room needs a straight stretch of at least 2 mm between its corners`;
   // The rille is placed by turning the catch about the hinge, and the hinge's wall keeps no lip: both need the catch opposite.
   const hinge = spec.hinge;
   if (hinge) {
