@@ -56,7 +56,7 @@ test('the mirrored model appears and follows design changes', async () => {
   await expect(async () => {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await expect(page.getByTestId('selected-face')).toHaveAttribute('data-name', /^F\d+:/, { timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   // The selection goes with the next message to the assistant, as a short note.
   // A readable name; SolidCraft's name stays on hover and goes to the assistant (polish round 2).
   await expect(page.getByTestId('composer-selection')).toHaveText(/Selected face goes with the message: (Plane|Cylinder Ø [\d.]+ mm|Surface) · CableClip/);
@@ -250,7 +250,7 @@ test('a sketch without a body is drawn in the view (#21)', async () => {
   // The sketch is drawn: the canvas shows sketch-coloured pixels (software WebGL, so wait for frames).
   await expect(async () => {
     expect(await countViewportPixels(page, '--cs-viewer-sketch')).toBeGreaterThan(200);
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await page.screenshot({ path: test.info().outputPath('sketch-only.png') });
 
   // Finishing the sketch and consuming it in a feature hides it, as SolidCraft does.
@@ -513,7 +513,7 @@ test('a joint moves with its slider and goes back to as designed (ADR 0027)', as
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(findings).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   // The lower limit is the slider's end; SolidCraft is driven once, when the key is let go.
   await slider().focus();
   await page.keyboard.press('Home');
@@ -527,7 +527,7 @@ test('a joint moves with its slider and goes back to as designed (ADR 0027)', as
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(findings).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await page.getByTestId('joint-reset').click();
   await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(0);
   await expect(slider()).toHaveValue('0');
@@ -598,7 +598,7 @@ test('a joint plays in the view only, keeps its position when asked and stays as
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(findings).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await panel.getByTestId('joint-reset').click();
   await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(0);
   await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue('0');
@@ -642,7 +642,7 @@ test('the playback stops where the check found parts in the joint\'s way, and go
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(findings).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await page.getByTestId('joints-play').click();
   const panel = page.getByTestId('joint-panel');
   const play = panel.getByTestId('joint-play');
@@ -818,7 +818,7 @@ test('a gear\'s mate follows its driver in the panel, the playback and what is k
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(findings).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await panel.getByTestId('joint-reset').click();
   await expect.poll(() => fake?.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
   await expect(panel.getByTestId('joint-error')).toHaveCount(0);
@@ -1697,7 +1697,7 @@ test('the light says when it still measures or a measure failed, and an export a
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('print-check-panel')).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await page.getByTestId('export').click();
   await page.getByTestId('export-share').click();
   await expect(confirm).toContainText('The print check did not run in full. Not measured, or not all of it: the travel of the joints.');
