@@ -3455,7 +3455,7 @@ test('a hinge whose knuckles start above the bed carries them on webs at 45°: o
     await expect(page.getByText(/All 5 knuckles start above the bed and stand on webs at 45° that run from under the barrel down to their own wall, and the pin is flat underneath where it bridges from knuckle to knuckle, so the hinge prints as it stands, without support./)).toBeVisible();
     // With the webs the flap still folds all the way onto the base.
     await expect(page.getByText(/It turns from -179° to/)).toBeVisible();
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     await page.getByTestId('print-check').click();
@@ -3675,7 +3675,7 @@ test('the assistant latches a lid onto its box: the arm grows out of the lid and
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a latched box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText(/Built the latch "Front latch": an arm 10 mm wide and 1\.6 mm thick grows out of the wall of Lid \(the lid\), hangs 1\.5 mm off the wall over the joint and snaps with its hook under a bead 1\.2 mm high on Box/)).toBeVisible({ timeout: 90_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByText(/stand apart/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Snap latch “Front latch” outside, between lid and box')).toHaveCount(1);
@@ -3714,7 +3714,7 @@ test('the assistant plugs the halves of a split block together: pegs in their po
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a split block');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText(/Built 2 pegs "Alignment" on Left with their pockets in Right: 5 mm thick and 7\.5 mm long, 0\.2 mm clear per side/)).toBeVisible({ timeout: 90_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Plugged connection “Alignment” between two parts')).toHaveCount(1);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
@@ -3754,7 +3754,7 @@ test('the assistant clips a cover onto its base with snap hooks: each hook catch
       /Built 1 snap hook "Back clip" on Base, each with its window through the 2 mm wall of Cover: an arm 12 mm long, 1\.5 mm thick and 5 mm wide, 0\.2 mm off the wall[\s\S]* Built 1 snap hook "Front clip" on Base/,
       { timeout: 90_000 },
     );
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Snap hooks “Back clip” with their windows')).toHaveCount(1);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
@@ -3791,7 +3791,7 @@ test('the assistant makes a screw lid for a jar with one call: the threads mesh 
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a jar with a screw lid');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText(/Built the screw lid "Jar lid" for Jar: a thread with 45° flanks on the neck, pitch 4 mm, 1\.2 mm deep, 1 start, and the same inside the lid, 0\.3 mm clear radially \(0\.21 mm square to the 45° flanks\); it closes in 1\.75 turns/)).toBeVisible({ timeout: 90_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Screw lid “Jar lid” with its thread on the container')).toHaveCount(1);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
@@ -3836,7 +3836,7 @@ test('the assistant builds a screw joint with one call: holes on one line in bot
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a screwed plate');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText(/Built 2 screw joints "Plate screws" that hold Plate on Block: .* To buy: 2 × M3×8 socket head cap screws \(ISO 4762\) and 2 M3 heat-set inserts 5\.7 mm long/)).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     // Block, plate and two screws, which the tree knows as standard parts.
     await expect(page.getByTestId('mesh-summary')).toContainText('4 bodies', { timeout: 30_000 });
     // The screws count once SolidCraft has built one to hold them against, a mirror after the bodies show.
@@ -3876,7 +3876,7 @@ test('a flat plate as the lid gets the lip alone: one piece, nothing through its
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a snap plate');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText(/Built the closure "Plate closure" between Box \(the box\) and Plate \(the flat lid\): a lip 1\.4 mm thick and 4 mm high on the plate/)).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     // The lip grew onto the plate: a loose piece would have been taken back, with a message instead of "Built".
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
@@ -3912,7 +3912,7 @@ test('the assistant builds a snap closure with one call: a lip in the lid, its b
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a snap lid');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText(/Built the closure "Lid closure" between Box \(the box\) and Lid \(the lid\): a lip 1\.4 mm thick and 4 mm high inside the lid, 0\.25 mm clear of the box's wall, a bead that snaps 0\.25 mm into a rille/)).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     // The closure is one step of the work log, and no feature of it failed.
     await expect(page.getByText('Snap closure “Lid closure” between lid and box')).toHaveCount(1);
