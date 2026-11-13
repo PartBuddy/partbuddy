@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { boughtParts, mirrorActiveDesign, MirrorScheduler, type ControlRequester, type PartChecks } from '../src/main/solidcraft/mirror';
+import { boughtParts, mirrorActiveDesign, MirrorScheduler, printGroupsOf, type ControlRequester, type PartChecks } from '../src/main/solidcraft/mirror';
 import type { PartReference } from '../src/main/solidcraft/partReference';
 
 describe('mirroring while the design changes', () => {
@@ -99,6 +99,30 @@ function design(answer: (command: string, component: number | undefined, call: n
   const mirror = async (given: PartChecks = checks) => (await structure(given)).standardParts;
   return { mirror, structure, logs, calls, checks };
 }
+
+describe('parts printed together in the mirrored structure (audit G1)', () => {
+  const mark = (label: string) => ({ [`io.github.manuelstaggl.partbuddy.together.${label}`]: { joint: 'Hinge' } });
+
+  it('groups the bodies of components that share the mark of a hinge, and joins groups through a body in two', () => {
+    const parts = [{ bodies: ['Box'] }, { bodies: ['Lid'] }, { bodies: ['Flap'] }, { bodies: ['Drawer'] }, { bodies: ['Loose'] }];
+    // Box and lid by one hinge, lid and flap by another; the drawer's guide prints apart and leaves no mark.
+    const described = [{ metadata: mark('a') }, { metadata: { ...mark('a'), ...mark('b') } }, { metadata: mark('b') }, { metadata: {} }, { metadata: mark('c') }];
+    expect(printGroupsOf(parts, described)).toEqual([['Box', 'Lid', 'Flap']]);
+    expect(printGroupsOf(parts.slice(0, 2), [{ metadata: mark('a') }, {}])).toEqual([]);
+  });
+
+  it('reads the marks only in a design with joints, and says so in the log when they cannot be read', async () => {
+    const hinge = { joints: [{ id: 20, name: 'Hinge', type: 'revolute', a: 3, b: 10, values: [{ unit: 'deg', value: 0, limits: [0, 180] }] }] };
+    const marked = design((command, component) => (command === 'joint.list' ? hinge : command === 'component.metadata' && (component === 9 || component === 16) ? { metadata: mark('a') } : undefined));
+    expect((await marked.structure()).printGroups).toEqual([['Body2', 'Holder']]);
+    // Without a joint nothing is grouped and the marks are not asked for again.
+    const plain = design((command, component) => (command === 'component.metadata' && (component === 9 || component === 16) ? { metadata: mark('a') } : undefined));
+    expect((await plain.structure()).printGroups).toBeUndefined();
+    const unread = design((command, _component, call) => (command === 'joint.list' ? hinge : command === 'component.metadata' && call > 3 ? new Error('timed out') : undefined));
+    expect((await unread.structure()).printGroups).toBeUndefined();
+    expect(unread.logs).toContain('parts printed together could not be read (timed out); each body is checked on its own bed');
+  });
+});
 
 describe('standard parts in the mirrored structure (audit S-01, G2 and its review)', () => {
   it('takes the countersunk screws of a screw joint for standard parts, and no body for its name in the design\'s metadata', async () => {

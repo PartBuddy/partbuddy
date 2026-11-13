@@ -36,6 +36,14 @@ describe('what a body costs to print, as the assistant reads it with every check
     expect(bodyMeasures({ ...box('Box', [20, 30, 10]), printFace: 'F1:-x' }, PLA)).toMatchObject({ volume: 6000, height: 20, layers: 100, contact: 300, support: 0 });
   });
 
+  it('measures a body printed with another as one piece as their piece lies: turned onto the print face of the other (audit G1)', () => {
+    const lying = { ...box('Base', [20, 30, 10]), printFace: 'F1:-x' };
+    const [, together] = measuresOf([{ ...lying, group: 'Base' }, { ...box('Flap', [20, 30, 10]), group: 'Base' }], PLA).bodies;
+    expect(together).toMatchObject({ name: 'Flap', height: 20, contact: 300 });
+    const [, apart] = measuresOf([lying, box('Flap', [20, 30, 10])], PLA).bodies;
+    expect(apart).toMatchObject({ name: 'Flap', height: 10, contact: 600 });
+  });
+
   it('reckons a block mostly as sparse infill and a thin wall in full, so the shell estimate does not promise what thinning a block saves', () => {
     // 40 × 40 × 20 mm: 32 cm³ solid; two lines on 6400 mm² of surface are 5.76 cm³, the rest counts at 15 %.
     expect(bodyMeasures(box('Block', [40, 40, 20]), PLA)).toMatchObject({ volume: 32000, surface: 6400, shell: 5760 + Math.round((32000 - 5760) * 0.15) });

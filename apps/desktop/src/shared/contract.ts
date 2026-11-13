@@ -168,6 +168,8 @@ export const structureSchema = z
     pendingParts: z.array(z.string().max(200)).max(500).optional(),
     /** The joints of parts that move against each other (ADR 0027); left out when there are none. */
     joints: z.array(jointSchema).max(200).optional(),
+    /** Bodies printed as one piece, as they lie to each other (a print-in-place hinge, audit G1); left out when there are none. */
+    printGroups: z.array(z.array(z.string().max(200)).max(500)).max(200).optional(),
   })
   .strict();
 

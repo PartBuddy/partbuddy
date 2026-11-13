@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { FaceTable } from './faceTable';
 import { smallOverhangReach } from './overhang';
-import { checkPrint, minimumFloor, minimumWall, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
+import { checkPrint, laidBodies, minimumFloor, minimumWall, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
 import { boxesBody, lyingTube, prismBody } from './testShapes';
@@ -336,4 +336,47 @@ describe('clearance between parts (F2)', () => {
     expect(check.status).toBe('block');
     expect(check.findings.map((finding) => finding.kind)).toEqual(['feature', 'overlap']);
   });
+});
+
+describe('parts printed together (audit 2026-11-12, G1)', () => {
+  // The hinge of the mechanism tool between a box 30 mm high and a lid block on z 22…30 beside it
+  // (tools/fixtures/hinge.script.json, the audit's `g1-lid-underside-lowest`).
+  const fixture = new URL('../fixtures/', import.meta.url);
+  const tables = JSON.parse(readFileSync(new URL('hinge.faces.json', fixture), 'utf8')) as Record<string, FaceTable>;
+  const hinge = (group?: string, faces: Partial<Record<string, string>> = {}): PrintCheckBody[] =>
+    ['Box', 'Lid'].map((name) => {
+      const table = tables[name];
+      if (!table) throw new Error(`no fixture ${name}`);
+      const mesh = parseTagged3mf(new Uint8Array(readFileSync(new URL(`hinge-${name}.3mf`, fixture))));
+      return { name, model: buildViewerModel(buildRenderMesh(mesh, table), table), printFace: faces[name], group };
+    });
+  const lidFaces = (check: ReturnType<typeof checkPrint>) => {
+    const overhang = check.findings.find((f) => f.kind === 'overhang');
+    return overhang && 'places' in overhang ? (overhang.places.find((place) => place.body === 'Lid')?.faces ?? []) : [];
+  };
+
+  it('stands a print-in-place hinge on one bed: the lid that starts 22 mm up hangs over it', () => {
+    const together = checkPrint(hinge('hinge'), PLA);
+    // The lid's underside is 1200 mm² in the air; on its own bed it was taken for 1200 mm² on the bed.
+    expect(lidFaces(together)).toContain('F2:-z');
+    expect((together.findings.find((f) => f.kind === 'overhang') as { area: number }).area).toBeGreaterThanOrEqual(1200);
+    // On the bed stands the box: the hinge does not come loose.
+    expect(together.findings.find((f) => f.kind === 'contact')).toBeUndefined();
+  }, 60_000);
+
+  it('checks parts printed apart each on its own bed, as before (counter-check)', () => {
+    // A guide's two parts print apart: each lies on its own lowest point, the lid's underside on the bed.
+    expect(lidFaces(checkPrint(hinge(), PLA))).not.toContain('F2:-z');
+  }, 60_000);
+
+  it('turns the group as one onto the print face of one of its bodies', () => {
+    // On the box's top (+z) the hinge lies upside down, the lid turned with it: both stand on the barrels, which reach
+    // 1.5 mm over the tops (z 31.5), so the tops of box and lid hang that far over the bed and little stands on it.
+    const bodies = hinge('hinge', { Box: 'F1:+z' });
+    expect(laidBodies(bodies).map((body) => [body.down?.toArray(), Math.round(body.bed * 10) / 10])).toEqual([[[0, 0, 1], -31.5], [[0, 0, 1], -31.5]]);
+    const turned = checkPrint(bodies, PLA);
+    expect(lidFaces(turned)).toContain('F2:+z');
+    expect(lidFaces(turned)).not.toContain('F2:-z');
+    expect(turned.findings.find((f) => f.kind === 'contact')).toMatchObject({ bodies: 2 });
+  }, 60_000);
 });

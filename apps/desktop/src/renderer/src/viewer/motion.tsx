@@ -113,9 +113,11 @@ export function useProjectViewData(): void {
   );
 }
 
+/** The normal of a body's print face, if it is a flat face of the body. */
+const faceNormal = (body: BodyModel, face: string | undefined) => (face ? body.model.table.faces.find((entry) => entry.name === face)?.planeNormal : undefined);
+
 /** How each body is turned to lie on its print face (or as designed), with its footprint and height that way. */
-function plateInput(body: BodyModel, face: string | undefined): { quaternion: Quaternion; points: Vec2[]; floor: number; height: number } {
-  const normal = face ? body.model.table.faces.find((entry) => entry.name === face)?.planeNormal : undefined;
+function plateInput(body: BodyModel, normal: Vec3 | undefined): { quaternion: Quaternion; points: Vec2[]; floor: number; height: number } {
   const quaternion = normal ? new Quaternion().setFromUnitVectors(new Vector3(...normal).normalize(), new Vector3(0, 0, -1)) : new Quaternion();
   const positions = (body.model.geometry.getAttribute('position') as BufferAttribute).array;
   const count = positions.length / 3;
@@ -147,12 +149,26 @@ const COMPUTING: PlateLayout = { status: 'computing', result: null, poses: new M
 export function usePlateLayout(bodies: BodyModel[], open: boolean, bed: [number, number, number] | null): PlateLayout {
   const faces = useStudio((s) => s.printFaces);
   const standard = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.standardParts : undefined));
+  const groups = useStudio((s) => (s.model.status === 'ready' ? s.model.structure.printGroups : undefined));
   const [layout, setLayout] = useState<PlateLayout>({ status: 'computing', result: null, poses: new Map() });
-  // Standard parts (screws, nuts) are bought, not printed: they stay off the plate.
-  const inputs = useMemo(
-    () => (open ? bodies.filter((body) => !standard?.includes(body.name)).map((body) => ({ name: body.name, ...plateInput(body, faces[body.name]) })) : []),
-    [bodies, faces, open, standard],
-  );
+  // Standard parts (screws, nuts) are bought, not printed: they stay off the plate. Bodies printed as one piece (a
+  // print-in-place hinge, audit G1) lie on it as one part, as they lie to each other, on the first print face among them.
+  const inputs = useMemo(() => {
+    if (!open) return [];
+    const pieces = new Map<string, BodyModel[]>();
+    for (const body of bodies) {
+      if (standard?.includes(body.name)) continue;
+      const name = groups?.find((group) => group.includes(body.name))?.[0] ?? body.name;
+      pieces.set(name, [...(pieces.get(name) ?? []), body]);
+    }
+    return [...pieces].map(([name, members]) => {
+      const normal = members.map((body) => faceNormal(body, faces[body.name])).find(Boolean);
+      const laid = members.map((body) => plateInput(body, normal));
+      const floor = Math.min(...laid.map((entry) => entry.floor));
+      const top = Math.max(...laid.map((entry) => entry.floor + entry.height));
+      return { name, members: members.map((body) => body.name), quaternion: laid[0]?.quaternion ?? new Quaternion(), points: laid.flatMap((entry) => entry.points), floor, height: top - floor };
+    });
+  }, [bodies, faces, groups, open, standard]);
   useEffect(() => {
     if (!open || !bed || inputs.length === 0) return;
     const worker = new Worker(new URL('../workers/nest.worker.ts', import.meta.url), { type: 'module' });
@@ -168,10 +184,12 @@ export function usePlateLayout(bodies: BodyModel[], open: boolean, bed: [number,
       for (const placement of response.result.placements) {
         const input = inputs.find((entry) => entry.name === placement.id);
         if (!input) continue;
-        const turn = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), placement.angle);
-        poses.set(placement.id, { position: [placement.x, placement.y, -input.floor], quaternion: turn.multiply(input.quaternion), plate: placement.plate });
+        const turn = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), placement.angle).multiply(input.quaternion);
+        for (const member of input.members) poses.set(member, { position: [placement.x, placement.y, -input.floor], quaternion: turn.clone(), plate: placement.plate });
       }
-      setLayout({ status: 'ready', result: response.result, poses, input: inputs });
+      // A part that does not fit is each of its bodies, so the view marks them all.
+      const misfits = response.result.misfits.flatMap((misfit) => (inputs.find((entry) => entry.name === misfit.id)?.members ?? [misfit.id]).map((id) => ({ ...misfit, id })));
+      setLayout({ status: 'ready', result: { ...response.result, misfits }, poses, input: inputs });
     };
     worker.onerror = (event) => {
       console.warn(`plate layout failed: ${event.message}`);

@@ -142,6 +142,22 @@ export function webFoot(diameter: number, distance: number): number {
   return round((diameter / 2) * Math.SQRT2 + distance);
 }
 
+/**
+ * Parts printed as one piece (audit 2026-11-12, G1: a print-in-place hinge): each of their components carries a key of
+ * PartBuddy's (`METADATA_PREFIX` of notes/noteRecord.ts, which the assistant may not write) with the same label, and
+ * the mirror groups the bodies of components that share one (`printGroups`), so print check and plate view stand them
+ * on one bed. One key per label: a component in two hinges keeps both, and nothing is read before it is written. The
+ * marks are part of the design, so they come back with undo, redo and a design opened again.
+ * shortcut: export and "send to slicer" still hand over one 3MF object per body (SolidCraft's `objects: component` joins
+ * no jointed components, engineering-notes.md 2026-11-13), so a slicer that drops each object onto the bed takes the
+ * hinge apart; merge a group's objects in the exported 3MF when that is taken on (audit, 09-gegenpruefung "Slicer").
+ */
+export const TOGETHER_KEY = 'io.github.manuelstaggl.partbuddy.together.';
+
+export function printTogether(components: readonly (string | number)[], label: string, joint: string): Step[] {
+  return components.map((component) => ({ command: 'component.metadata.set', params: { component, values: { [`${TOGETHER_KEY}${label}`]: { joint } } } }));
+}
+
 /** Whether the knuckles of a lying hinge start above the bed, so that each needs a web under it. */
 export function hangs(spec: Pick<HingeSpec, 'from' | 'to' | 'diameter'>, bed: number): boolean {
   return Math.abs(spec.to[2] - spec.from[2]) < 1e-6 && spec.from[2] - spec.diameter / 2 - bed >= WEB.least;

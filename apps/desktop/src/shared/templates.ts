@@ -14,7 +14,7 @@
  * (0.40.0-rc.4), so no occurrence id has to be read first.
  */
 
-import { hingeSteps, lipSteps, pinDiameter, slideSteps } from './mechanisms';
+import { hingeSteps, lipSteps, pinDiameter, printTogether, slideSteps } from './mechanisms';
 
 export const TEMPLATE_IDS = ['hingedBox', 'slideStop', 'housing', 'sign', 'wallHolder'] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
@@ -111,6 +111,8 @@ function hingedBox(): Step[] {
     components('Box', 'Lid'),
     // It closes all the way: the bead pressing past the box's rim on the last degrees is the snap. The joint is kept on top of the pin (underneath it is flat) and on the bore under it, inside the lid's first knuckle: faces no wall or lip cuts, whatever the sizes.
     joint('revolute', 'Box', 'Lid', { fixed: { circle: [far, between / 2, height + pin / 2], x: [0, 0, 1] }, moving: { circle: [far, between / 2, height - pin / 2 - gap], x: [0, 0, 1] } }, { flip: true, offset: -gap, limits: [[0, 180]] }, 'Hinge'),
+    // Box and lid print as one piece, side by side as they are built.
+    ...printTogether(['Box', 'Lid'], 'hinge', 'Hinge'),
   ];
 }
 

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { faceTableFromModelFaces, sketchFromInspect, tessellateSketch, type SketchLines } from '@partbuddy/geometry';
 
 import type { Joint, MirroredBody, MirroredSketch, MirrorRevision, Structure } from '../../shared/contract';
+import { TOGETHER_KEY } from '../../shared/mechanisms';
 import { cliBeside, findExecutable, systemEnvironment } from './discovery';
 import { cliReferences, faceCount, faceSteps, sameShape, shapeOf, type PartReference, type ReferenceReader, type ReferenceState } from './partReference';
 import { libraryPartOf, type LibraryPart } from './standardParts';
@@ -71,6 +72,50 @@ export function componentsWithBodies(listing: unknown): { id: number; bodies: st
     .filter((entry) => Number.isInteger(entry.id) && entry.parent !== null && Array.isArray(entry.bodies) && entry.bodies.length > 0)
     .slice(0, 500)
     .map((entry) => ({ id: entry.id as number, bodies: (entry.bodies as unknown[]).filter((name): name is string => typeof name === 'string') }));
+}
+
+/**
+ * The bodies printed as one piece (audit G1): those of components that share a mark of `printTogether` (mechanisms.ts),
+ * from their `component.metadata` in the order of `parts`. A component in two marks joins both groups into one.
+ */
+export function printGroupsOf(parts: readonly { bodies: string[] }[], described: readonly unknown[]): string[][] {
+  const labelled = new Map<string, string[]>();
+  parts.forEach((part, i) => {
+    const metadata = (described[i] as { metadata?: unknown } | undefined)?.metadata;
+    for (const key of typeof metadata === 'object' && metadata !== null ? Object.keys(metadata) : []) {
+      if (key.startsWith(TOGETHER_KEY)) labelled.set(key, [...(labelled.get(key) ?? []), ...part.bodies]);
+    }
+  });
+  let groups: Set<string>[] = [];
+  for (const bodies of labelled.values()) {
+    const merged = new Set(bodies);
+    groups = groups.filter((group) => {
+      if (![...group].some((body) => merged.has(body))) return true;
+      for (const body of group) merged.add(body);
+      return false;
+    });
+    groups.push(merged);
+  }
+  // In the order of the design, so the first body names its group the same way each time.
+  const order = parts.flatMap((part) => part.bodies);
+  return groups
+    .filter((group) => group.size > 1)
+    .map((group) => [...group].sort((a, b) => order.indexOf(a) - order.indexOf(b)).slice(0, 500))
+    .slice(0, 200);
+}
+
+/** The groups of `printGroupsOf`, read from SolidCraft; none when that fails, so each body is checked by itself as before. */
+async function printGroupsIn(client: ControlRequester, listing: unknown, log: (message: string) => void): Promise<string[][]> {
+  const parts = componentsWithBodies(listing);
+  if (parts.length < 2) return [];
+  try {
+    const described = await client.request<BatchResult>('engine.batch', { commands: parts.map((part) => ({ command: 'component.metadata', params: { component: part.id } })), rollback: false }, 60_000);
+    if (described.failed) throw new Error(`${described.failed.command} failed: ${described.failed.error}`);
+    return printGroupsOf(parts, described.results);
+  } catch (error) {
+    log(`parts printed together could not be read (${(error as Error).message}); each body is checked on its own bed`);
+    return [];
+  }
 }
 
 /** What telling standard parts needs besides the engine: the log, and SolidCraft's own build of each part. */
@@ -506,6 +551,8 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
     const tail = 1 + bodies.length * 2 + sketches.length;
     const joints = jointsOf(batch.results[tail + 2], batch.results[tail]);
     const told = await boughtParts(client, batch.results[tail], checks);
+    // Parts are printed together only where a hinge joins them, so a design without joints is not asked.
+    const printGroups = joints.length > 0 ? await printGroupsIn(client, batch.results[tail], checks.log) : [];
     const standardParts = told.bought.map((part) => part.body).slice(0, 500);
     const pendingParts = told.pending.slice(0, 500);
     const structure = withColours({ ...structureOf(inspect), standardParts, ...(pendingParts.length > 0 ? { pendingParts } : {}) }, batch.results[tail + 1]);
@@ -522,7 +569,7 @@ export async function mirrorActiveDesign(client: ControlRequester, cacheDir: str
       designName,
       bodies: mirrored,
       sketches: mirrorSketches(batch.results.slice(1 + bodies.length * 2), sketches),
-      structure: joints.length > 0 ? { ...structure, joints } : structure,
+      structure: { ...structure, ...(joints.length > 0 ? { joints } : {}), ...(printGroups.length > 0 ? { printGroups } : {}) },
       history: { undo: count(inspect.undo), redo: count(inspect.redo) },
       mirrorMs: Math.round(performance.now() - started),
     };

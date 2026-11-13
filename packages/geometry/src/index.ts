@@ -23,6 +23,7 @@ export {
 } from './faceTable';
 export {
   checkPrint,
+  laidBodies,
   minimumFloor,
   minimumWall,
   withClearance,
@@ -31,6 +32,7 @@ export {
   type FindingPlace,
   type FindingSeverity,
   type JointUnit,
+  type LaidBody,
   type MeasuredClearance,
   type MeasuredMotion,
   type PrintCheck,

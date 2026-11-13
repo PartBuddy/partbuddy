@@ -28,7 +28,9 @@ export function usePrintCheck(): void {
       // Standard parts (B7) are counterparts and are not printed.
       // A body whose part SolidCraft is still building is neither yet; the mirror that follows says which, and the check runs again.
       const standard = new Set([...(model.structure.standardParts ?? []), ...(model.structure.pendingParts ?? [])]);
-      const printed = model.bodies.filter((body) => !standard.has(body.name)).map((body) => ({ ...body, printFace: printFaces[body.name] }));
+      // Bodies printed as one piece (a print-in-place hinge) stand on one bed: the first body's name names the group.
+      const groupOf = (name: string) => model.structure.printGroups?.find((group) => group.includes(name))?.[0];
+      const printed = model.bodies.filter((body) => !standard.has(body.name)).map((body) => ({ ...body, printFace: printFaces[body.name], group: groupOf(body.name) }));
       const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang }, model.structure.features);
       // A value that follows another through a motion link (a gear) is neither swept nor posed on its own: its driver is.
       const joints = (model.structure.joints ?? []).map((joint) => ({ ...joint, values: joint.values.map((value, index) => ({ ...value, index })).filter((value) => !value.follows) })).filter((joint) => joint.values.length > 0);

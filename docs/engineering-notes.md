@@ -210,6 +210,12 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   the hole and shallower than it"); a countersink deeper than the hole is built.
 - `model.faces` names the wall of a `solid.hole` `F<n>:bore:side:0`; a hole that breaks out of a side
   leaves `…#1`, `…#2`. A `solid.cylinder` cut is `F<n>:side`.
+- Checked 2026-11-13 (audit G1): `component.metadata.set {component, values: {"<reverse-DNS key>": {…}}}`
+  keeps the object on the component, one undo step (undo and redo take it away and back), and it is in the
+  saved `.sc` when the design is opened again. `component.list` does not show it; `component.metadata` does.
+- `file.export` 3MF with `objects: component` makes one object of the bodies of one component only. Two
+  components joined by a joint stay two objects, side by side under the root or both under a parent
+  component; a joint needs two occurrences, so a print-in-place hinge always leaves as two objects.
 
 ## SolidCraft 0.40.0-rc.4 (checked 2026-11-11)
 
