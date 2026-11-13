@@ -150,9 +150,10 @@ Opus 5.5 · Mittel (PR #354); Claude Codes Eintrag „Default (recommended)“ i
 - **Gemergt in der Nacht:** BC-11 #389, BC-13 #390 (vor BC-12, Text zum Lochspiel stimmt seit #387), BC-21 #388, BC-12 #387,
   BC-20 #392, BC-08 #385, E2E-Wackler #393 (Shader je Revision neu kompiliert: drei-Patch `<Line>` + `thumbnail.ts`; Kamera-Flow
   ein Screenshot je Versuch; `partReference` startete nach dem Stopp noch einen Lauf). BEFUNDE.md je Paket nachgezogen, neu N-nach-6.
-- **Offen:** BC-15 #395 (Vertragstest), BC-22 #394 (PR-CI), BC-19 #391 Entwurf – **nicht mergen vor Manuels Entscheidung**
-  (Überhang mit „stützfrei“ wird Sperre; eigenes Scharnier, Gewinde, Wandhalter werden rot); BC-23 lokal in Nachbesserung
-  (`../partbuddy-wt-bc-23`); BC-25 lokal im Bau (`../partbuddy-wt-bc-25`). Danach BC-16 → BC-17 (nach BC-15), BC-24 (nach BC-19).
+- **Später gemergt (14.11. früh):** BC-15 #395, BC-22 #394, BC-23 #396, BC-25 #397 (alle mit BEFUNDE.md-Status).
+- **Offen:** BC-19 #391 Entwurf – **nicht mergen vor Manuels Entscheidung** (Überhang mit „stützfrei“ wird Sperre; eigenes
+  Scharnier, Gewinde, Wandhalter werden rot); BC-16 lokal in Nachbesserung nach Review (`../partbuddy-wt-bc-16`; behebt N-nach-6
+  mit, Presssitz Magnet, Einsatz-Sitz ohne Aufmaß); danach BC-17; BC-24 nach BC-19. Dann voller Vertragstest auf main.
 - **Fragen für Manuel:** im Notizordner der Sitzungen `MORGEN-FRAGEN.md` (Überhang-Standard, Lochzugabe-Richtung,
   Folgepakete Erlaubnisliste je Befehl und rohe fillet/chamfer/shell in der Druckprüfung, Drucklage Zapfen/Schnapphaken).
 - **Merke:** Die Testattrappe `fakeClaude.mjs` wählt ihre Szene nach Wörtern im ganzen Nachrichtentext samt Notizen
