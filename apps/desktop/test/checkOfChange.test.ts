@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GateProxy, type ToolResult, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { policyToolSet } from '../src/main/agents/loop';
 import { Questions } from '../src/main/agents/questions';
-import { CHANGING_TOOLS, UNDO_CAP, designChanged, WorkLog } from '../src/main/agents/workLog';
+import { CHANGING_TOOLS, UNCHECKED_CHANGE, UNDO_CAP, designChanged, WorkLog } from '../src/main/agents/workLog';
 import { CHECK_PENDING, CHECK_PENDING_VIEW, CheckTold, printCheckNote, withCheckOfChange, type CheckState } from '../src/main/print/printCheckNote';
 import type { PrintCheckReport } from '../src/shared/contract';
 import { describeToolCall } from '../src/shared/stepPhrases';
@@ -245,10 +245,12 @@ describe('only a call that changed the design gets a check (review of PR 357)', 
     expect(textOf(first) + textOf(second)).not.toContain('nothing found');
   });
 
-  it('says in the log when the history cannot be read, since the answer then carries no check', async () => {
+  it('says in the log and to the model when the history cannot be read, since the answer then carries no check (audit R18)', async () => {
     const { tools, logged, failHistory } = setup();
     failHistory();
-    expect(textOf(await tools.callTool('execute', extrude))).toBe('ok');
+    expect(textOf(await tools.callTool('execute', extrude))).toBe(`ok
+${UNCHECKED_CHANGE}`);
+    expect(UNCHECKED_CHANGE).toContain('no ready-to-print check comes with it; call partbuddy_view');
     expect(logged).toEqual(["the design's history could not be read round execute; its answer carries no print check"]);
   });
 });
