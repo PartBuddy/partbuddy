@@ -249,6 +249,25 @@ describe('the ready-to-print check (M7)', () => {
     expect(thinOf(prismBody('Cube', outline, 20, cut('F2:side')))).toEqual([]);
   });
 
+  it('on SolidCraft\'s own meshes: finds the hole that opens the side, and no wall at the rim of a hole drilled across a rod, into a chamfer or askew (review of PR #365)', () => {
+    const fixture = new URL('../fixtures/', import.meta.url);
+    const tables = JSON.parse(readFileSync(new URL('holes.faces.json', fixture), 'utf8')) as Record<string, FaceTable>;
+    const thin = (name: string) => {
+      const table = tables[name];
+      if (!table) throw new Error(`no fixture ${name}`);
+      const mesh = parseTagged3mf(new Uint8Array(readFileSync(new URL(`holes-${name}.3mf`, fixture))));
+      return thinOf({ name, model: buildViewerModel(buildRenderMesh(mesh, table), table) });
+    };
+    // A 3.4 mm hole 1 mm from the side: the side is open over 20 mm (the old check said ready).
+    const edge = thin('Edge');
+    expect(edge).toHaveLength(1);
+    expect(edge[0]).toMatchObject({ severity: 'block', floor: false, thickness: 0 });
+    expect((edge[0] as { places: { faces: string[] }[] }).places[0]?.faces.every((face) => face.includes(':bore:'))).toBe(true);
+    // The same cylinder cut by solid.cylinder (a groove, a knuckle's room) may open on purpose; across a rod, the hole's
+    // rim meets the round face at a slant, as it does a chamfer and the faces of a hole drilled askew.
+    for (const name of ['Groove', 'Rod8M5', 'Rod10M5', 'Rod6M3', 'Rod20M8', 'Chamfer', 'Slant', 'Cross']) expect(thin(name), name).toEqual([]);
+  }, 60_000);
+
   it('checks overhangs at 45° where the profile names no angle', () => {
     // With the angle undefined nothing passed the limit: a ceiling 14 mm wide read ready.
     const table = boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]]);
