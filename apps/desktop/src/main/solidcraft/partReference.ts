@@ -354,6 +354,8 @@ export function cliReferences(options: PartReferenceOptions): PartReferences {
     await mkdir(dir, { recursive: true });
     const script = join(dir, `parts-${now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.json`);
     const results = async (steps: unknown[]): Promise<unknown[]> => {
+      // Once PartBuddy ends no run starts, also not the second one of a build whose first was under way.
+      ending.signal.throwIfAborted();
       await writeFile(script, JSON.stringify(steps));
       return JSON.parse(await run(program, ['run', script, '--results', '--quiet'], TIMEOUT_BASE_MS + TIMEOUT_PER_PART_MS * wanted.length, ending.signal)) as unknown[];
     };
