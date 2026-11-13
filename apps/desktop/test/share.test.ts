@@ -2,7 +2,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { shareDescription, type ShareFacts } from '../src/main/share/description';
+import { shareCheck, shareDescription, type ShareFacts } from '../src/main/share/description';
 import { freeFolder } from '../src/main/share/freeFolder';
 
 const facts: ShareFacts = {
@@ -33,6 +33,16 @@ describe('the sharing package (F5)', () => {
     expect(text).toContain('- `length` = 80 mm – Outer length of housing and lid\n- `count` = 4\n');
     expect(text).toContain('- `Housing.3mf` – each part on its print face where one is set, ready for the slicer');
     expect(text).toContain('`Housing-iso.png`, `Housing-front.png` – pictures');
+  });
+
+  it('reads an overhang made red by "Design without support" as faces to check, not as a part that does not print (audit R55)', () => {
+    const overhang = { kind: 'overhang', severity: 'block' as const };
+    expect(shareCheck({ status: 'block', findings: [overhang] })).toEqual({ status: 'warn', overhang: true });
+    expect(shareDescription({ ...facts, check: shareCheck({ status: 'block', findings: [overhang] }) })).toContain('check them in the slicer');
+    // Anything else that blocks still blocks.
+    expect(shareCheck({ status: 'block', findings: [{ kind: 'size', severity: 'block' }, overhang] })).toEqual({ status: 'block', overhang: true });
+    expect(shareCheck({ status: 'warn', findings: [{ kind: 'overhang', severity: 'warn' }] })).toEqual({ status: 'warn', overhang: true });
+    expect(shareCheck({ status: 'ready', findings: [] })).toEqual({ status: 'ready', overhang: false });
   });
 
   it('says where supports may be needed, or that the check has not run, and speaks German', () => {

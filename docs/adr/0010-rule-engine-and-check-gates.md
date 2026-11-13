@@ -210,3 +210,21 @@ while the slicer export lays it on that face.
 * A print face the assistant sets or clears itself is read from SolidCraft's answer and kept in
   `print-faces.json`, like those of blocks, mechanisms and templates, so the plate view and the
   check agree. An undo of `body.print_face` is not seen (SolidCraft does not list print faces).
+
+## Amendment 2026-11-13: what the check's findings ask for (audit BC-19)
+
+* **"Design without support" makes an overhang red.** With the setting on (it is on from the start),
+  the user wants the part to print without support, so the overhang finding blocks; the assistant
+  is told to reshape the part or lay it on another face, or to say why it cannot be done. With the
+  setting off it stays the yellow hint of the R1 amendment. A shared description still reads such
+  an overhang as faces to check in the slicer, not as a part that does not print.
+* **The limit is the one the finding names:** a flat face needs support from a tenth of a degree
+  past the material's angle, not from 1° past it (45.9° passed a limit said to be 45°). The
+  triangles of a curved face, and the roof line of a lying hole read between them, keep the 1°:
+  they lean further than the surface they stand for (with 0.1° the wall holder template's lying 90°
+  countersinks read as an overhang).
+* **Parts that do not go together are not "done":** overlaps, gaps under the fit, bodies that fuse
+  and joints that stop stay warnings, but the assistant must fix them or name them to the user
+  before it calls the part done.
+* **A print face that is gone is said** as a finding of its own, instead of the body being checked
+  as designed without a word.

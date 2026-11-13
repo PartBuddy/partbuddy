@@ -10,7 +10,7 @@ import type { ViewerModel } from './viewerModel';
  * TypeScript on the mirrored render meshes, no sidecar. It checks what only the design decides:
  * whether the part fits the printer, walls the nozzle cannot print, bodies that touch, how much of
  * the part lies on the bed, bodies that are no closed solid, and features SolidCraft could not build. Overhangs are a hint by angle
- * only (yellow, never red): whether something needs support, and how, is the slicer's job; small
+ * only (yellow; red when the user designs without support, audit R55): whether something needs support, and how, is the slicer's job; small
  * ones that hang from the material below, as the slicers ignore them, and ceilings the printer
  * bridges are left out.
  * The part is checked as designed, Z up, or lying on its print face where SolidCraft has one for the
@@ -28,6 +28,8 @@ export interface PrintCheckProfile {
   layer: number;
   /** Degrees from the vertical beyond which a face is an overhang. */
   overhang: number;
+  /** The user's setting "Design without support": an overhang then blocks, as the part is to print without (audit R55). */
+  supportFree?: boolean | undefined;
 }
 
 export interface PrintCheckBody {
@@ -84,6 +86,8 @@ export type PrintFinding =
   | { kind: 'fused'; severity: FindingSeverity; bodies: string[] }
   /** Bodies that are open shells (SolidCraft's surface bodies): no solid to print. */
   | { kind: 'open'; severity: FindingSeverity; bodies: string[] }
+  /** Bodies whose print face is no flat face of them any more (renamed or changed since it was set): checked without it (audit H-29). */
+  | { kind: 'faceLost'; severity: FindingSeverity; bodies: string[] }
   | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string }
   /** Two bodies share volume: as separate parts they do not go together (F2, SolidCraft's measure). */
   | ({ kind: 'overlap'; severity: FindingSeverity; bodies: [string, string]; volume: number } & Located)
@@ -697,6 +701,9 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
   // A model that carries no count is taken as closed, not dropped from the check.
   const parts = shells.filter((body) => !(body.model.openEdges > 0));
   if (parts.length > 0) {
+    // A print face that is gone leaves the body as designed: said, not done silently (audit H-29).
+    const lost = parts.filter((body) => body.printFace && !printDown(body)).map((body) => body.name);
+    if (lost.length > 0) findings.push({ kind: 'faceLost', severity: 'warn', bodies: lost });
     const meshes = laidBodies(parts);
     // Each piece against the plate by itself: the slicer places every one, on more plates if need be.
     parts.forEach((_, b) => {
@@ -794,7 +801,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
     });
     const steep = locate(parts, overhang, MIN_AREA);
     if (steep.area >= MIN_AREA) {
-      findings.push({ kind: 'overhang', severity: 'warn', area: round(steep.area, 0), limit: limits.support, places: steep.places, box: steep.box });
+      findings.push({ kind: 'overhang', severity: profile.supportFree ? 'block' : 'warn', area: round(steep.area, 0), limit: limits.support, places: steep.places, box: steep.box });
     }
     // One finding for all of them: fifty pins are one thing to say, and none drops off the end of a list.
     if (loose.length > 0) {

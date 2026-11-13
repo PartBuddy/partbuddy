@@ -1205,6 +1205,7 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
   z.object({ kind: z.literal('fused'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
   z.object({ kind: z.literal('open'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(1).max(20) }).strict(),
+  z.object({ kind: z.literal('faceLost'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(1).max(20) }).strict(),
   z.object({ kind: z.literal('overlap'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), volume: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('tight'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), gap: mmValue, minimum: mmValue, inPlace: z.literal(true).optional(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('blocked'), severity: findingSeveritySchema, joint: z.string().max(200), bodies: z.tuple([bodyName, bodyName]), at: finite, limit: finite, unit: z.enum(['deg', 'mm']), free: z.literal(true).optional(), places: findingPlacesSchema }).strict(),

@@ -35,7 +35,7 @@ export function useFindingText(): (finding: PrintFinding) => string {
           ? t('check.finding.wallTooThin', { thickness: number.format(finding.thickness), nozzle: number.format(nozzle) })
           : t('check.finding.wallThin', { thickness: number.format(finding.thickness), minimum: number.format(finding.minimum) });
       case 'overhang':
-        return t('check.finding.overhang', { area: number.format(finding.area), limit: finding.limit });
+        return t(finding.severity === 'block' ? 'check.finding.overhangSupportFree' : 'check.finding.overhang', { area: number.format(finding.area), limit: finding.limit });
       case 'contact':
       {
         // Three names, and how many more: fifty pins do not fit a line.
@@ -46,6 +46,8 @@ export function useFindingText(): (finding: PrintFinding) => string {
       }
       case 'open':
         return t('check.finding.open', { count: finding.bodies.length, bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
+      case 'faceLost':
+        return t('check.finding.faceLost', { count: finding.bodies.length, bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
       case 'separate':
         return t('check.finding.separate', { bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
       case 'fused':
@@ -244,7 +246,7 @@ export function PrintCheckChip() {
                 {t('check.unchecked', { bodies: bodyList(check.unchecked) })}
               </p>
             ) : null}
-            <p className="px-2 text-xs text-text-muted">{t('check.basis')}</p>
+            <p className="px-2 text-xs text-text-muted">{t('check.basis', { setting: t('print.supportFree') })}</p>
           </Dialog>
         </Popover>
       </DialogTrigger>

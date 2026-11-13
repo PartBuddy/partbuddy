@@ -21,6 +21,15 @@ export interface ShareFacts {
   files: { model: string; step: string; pictures: string[] };
 }
 
+/**
+ * The check as the description reads it. An overhang is red only for a user who designs without support (audit R55):
+ * shared, the part prints with support, so it is said as faces to check in the slicer, not as a part that does not print.
+ */
+export function shareCheck(report: { status: 'ready' | 'warn' | 'block'; findings: readonly { kind: string; severity: 'block' | 'warn' }[] }): NonNullable<ShareFacts['check']> {
+  const blocked = report.findings.some((finding) => finding.severity === 'block' && finding.kind !== 'overhang');
+  return { status: blocked ? 'block' : report.status === 'ready' ? 'ready' : 'warn', overhang: report.findings.some((finding) => finding.kind === 'overhang') };
+}
+
 const TEXT = {
   en: {
     write: '<!-- What is it, what is it for, how is it put together? -->',

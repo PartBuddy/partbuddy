@@ -148,7 +148,7 @@ export function reportOf(result: PrintCheck, nozzle: number, revision: number, b
       // SolidCraft measures pairs of bodies, not faces: the pair is where it is.
       if (finding.kind === 'overlap') return { kind: finding.kind, severity: finding.severity, bodies: finding.bodies, volume: finding.volume, places: [] };
       if (finding.kind === 'tight') return { kind: finding.kind, severity: finding.severity, bodies: finding.bodies, gap: finding.gap, minimum: finding.minimum, ...(finding.inPlace ? { inPlace: true } : {}), places: [] };
-      if (finding.kind === 'separate' || finding.kind === 'fused' || finding.kind === 'open') return { ...finding, bodies: finding.bodies.slice(0, 20) };
+      if (finding.kind === 'separate' || finding.kind === 'fused' || finding.kind === 'open' || finding.kind === 'faceLost') return { ...finding, bodies: finding.bodies.slice(0, 20) };
       if (finding.kind === 'leftOut') return { ...finding, features: finding.features.slice(0, 40) };
       const places = finding.places.slice(0, 20).map((place) => ({ body: place.body, faces: place.faces.slice(0, 40) }));
       switch (finding.kind) {

@@ -48,7 +48,12 @@ function line(finding: Finding, nozzle: number): string {
         ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than the narrowest line a slicer lays (${mm(thinnestLine(nozzle))} with the ${mm(nozzle)} nozzle), so they do not print${where(finding.places)}.`
         : `- ${tag}: walls down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} of two lines${where(finding.places)}.`;
     case 'overhang':
-      return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical${where(finding.places)}; the slicer decides whether they need support.`;
+      // Red only with the user's "Design without support" (audit R55): then the slicer's choice is not what is wanted.
+      return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical${where(finding.places)}; ${
+        finding.severity === 'block'
+          ? 'the user wants this part to print without support: reshape it (a slope within that angle, a teardrop roof, a chamfer) or set another print face, or tell the user why it cannot be done.'
+          : 'the slicer decides whether they need support.'
+      }`;
     case 'contact':
       return finding.bodies > 1
         ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed for their height, the least ${String(finding.area)} mm²; they may come loose or tip over, a brim holds them${where(finding.places, finding.bodies)}.`
@@ -59,6 +64,8 @@ function line(finding: Finding, nozzle: number): string {
       return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(', ')} print as one piece and touch: they fuse where they touch, so the mechanism between them does not move. Leave a gap between them there.`;
     case 'open':
       return `- ${tag}: ${finding.bodies.map((body) => `body ${JSON.stringify(body)}`).join(', ')} is an open surface, not a closed solid: it has no volume, so nothing of it prints. Close it into a solid, or remove it if it only helped to build.`;
+    case 'faceLost':
+      return `- ${tag}: the print face of ${finding.bodies.map((body) => `body ${JSON.stringify(body)}`).join(', ')} is no flat face of it any more (renamed or changed since it was set), so it is not checked lying on it (but as designed, or on the print face of a body it prints in one piece with). Set it again (body.print_face) where it should lie.`;
     case 'feature':
       return (
         `- ${tag}: feature ${JSON.stringify(finding.feature)} reports ${JSON.stringify(finding.message.slice(0, 200))}.` +
@@ -105,6 +112,12 @@ const uncheckedLine = (bodies: readonly string[]) =>
   `NOT measured for overlaps and gaps: ${bodies.map((name) => `"${name}"`).join(', ')}, mesh bod${bodies.length === 1 ? 'y' : 'ies'} SolidCraft does not measure. Convert ${bodies.length === 1 ? 'it' : 'them'} to faces (mesh.convert, closed meshes only) to have ${bodies.length === 1 ? 'it' : 'them'} measured; until then judge ${bodies.length === 1 ? 'its' : 'their'} fit yourself.`;
 /** What a clean check says nothing about (audit R3); the model must not pass the verdict on as more. */
 const NOT_CHECKED = 'Not checked: strength and layer direction under load, the fits and hole allowances you chose, details and text too fine to print, bed-edge chamfers. Judge those yourself.';
+
+/** Findings about parts that overlap, fit too tight, fuse or stop a joint: each piece prints, the whole does not work. */
+const FIT_KINDS = new Set<Finding['kind']>(['overlap', 'tight', 'fused', 'blocked']);
+/** What the model must do before "done" (audit H-12): a warning about how the parts go together is fixed or told, never passed over. */
+const FIX_BEFORE_DONE =
+  'Fix what blocks printing, and either fix or name to the user every warning about parts that overlap, are too tight, fuse or stop a joint, before you call the part done; the user sees the same findings.';
 
 /** Bodies listed with their measures before the rest is counted. */
 const MAX_BODIES = 6;
@@ -157,8 +170,10 @@ export function printCheckNote(report: PrintCheckReport, view = false): string {
   const measured = (['clearance', 'joints'] as const).filter((what) => !failed.includes(what)).map((what) => `, ${MEASURED[what]}`).join('');
   if (report.findings.length === 0)
     return [`${head} nothing found ${report.measuring ? `so far (${CHECKED_MESH})` : `in what it checks (${CHECKED_MESH}${measured})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}]`].join('\n');
-  const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? 'prints, with warnings' : 'ready to print';
-  return [`${head} ${verdict}.`, ...findingLines(report), ...preliminary, ...measureLines(report), `Fix what blocks printing before you call the part done; the user sees the same findings. ${NOT_CHECKED}]`].join('\n');
+  // An assembly whose parts do not go together or move is no finished part, though each piece prints (audit H-12).
+  const fitting = report.findings.some((finding) => FIT_KINDS.has(finding.kind));
+  const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? (fitting ? 'prints, but its parts do not go together or move as designed' : 'prints, with warnings') : 'ready to print';
+  return [`${head} ${verdict}.`, ...findingLines(report), ...preliminary, ...measureLines(report), `${FIX_BEFORE_DONE} ${NOT_CHECKED}]`].join('\n');
 }
 
 /**

@@ -141,8 +141,27 @@ describe('the ready-to-print check (M7)', () => {
     // By angle only: the whole ceiling, without guessing what the slicer bridges or grows from the leg.
     expect(table.findings.find((f) => f.kind === 'overhang')).toMatchObject({ severity: 'warn', limit: 45, area: 400, places: [{ body: 'Table', faces: ['F2:-z'] }] });
     expect(table.findings.find((f) => f.kind === 'contact')).toMatchObject({ area: 4, places: [{ body: 'Table', faces: ['F1:-z'] }] });
-    // An overhang never makes the light red.
+    // An overhang does not make the light red, unless the user designs without support (audit R55).
     expect(table.findings.every((f) => f.severity !== 'block')).toBe(true);
+    expect(checkPrint([boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]])], { ...PLA, supportFree: false })).toEqual(table);
+    const without = checkPrint([boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]])], { ...PLA, supportFree: true });
+    expect(without.status).toBe('block');
+    expect(without.findings.map((f) => [f.kind, f.severity])).toEqual([['overhang', 'block'], ['contact', 'warn']]);
+    // Without an overhang the setting changes nothing.
+    expect(checkPrint([box('Block', [0, 0, 0], [40, 30, 10])], { ...PLA, supportFree: true })).toEqual({ status: 'ready', findings: [] });
+  });
+
+  it('needs support from just past the limit it names, not a degree past it (audit D19, MG-22)', () => {
+    // A bar with its two lower edges chamfered 3 mm up at `deg` from the vertical.
+    const bar = (deg: number) => {
+      const run = 3 * Math.tan((deg * Math.PI) / 180);
+      return checkPrint([prismBody('Bar', [[run, 0], [20 - run, 0], [20, 3], [20, 10], [0, 10], [0, 3]], 40)], PLA).findings.find((f) => f.kind === 'overhang');
+    };
+    expect(bar(45)).toBeUndefined();
+    expect(bar(45.05)).toBeUndefined();
+    expect(bar(45.2)).toMatchObject({ limit: 45, places: [{ body: 'Bar', faces: ['F1:s1', 'F1:s5'] }] });
+    // 45.9° passed with the 1° before.
+    expect(bar(45.9)).toMatchObject({ limit: 45 });
   });
 
   it('checks a body lying on its print face, and as designed when the face is not a flat one of the body', () => {
@@ -152,7 +171,10 @@ describe('the ready-to-print check (M7)', () => {
     const onTop = checkPrint([{ ...table, printFace: 'F2:+z' }], PLA).findings;
     expect(onTop.map((f) => f.kind)).toEqual(['overhang']);
     expect(onTop[0]).toMatchObject({ area: 4, places: [{ body: 'Table', faces: ['F1:+z'] }] });
-    expect(checkPrint([{ ...table, printFace: 'gone' }], PLA).findings.map((f) => f.kind)).toEqual(['overhang', 'contact']);
+    // A print face that is gone is said, not passed over (audit H-29).
+    const gone = checkPrint([{ ...table, printFace: 'gone' }, { ...boxesBody('Block', [[[40, 0, 0], [60, 20, 10]]]), printFace: 'F1:-z' }, box('Plain', [80, 0, 0], [100, 20, 10])], PLA).findings;
+    expect(gone.map((f) => f.kind)).toEqual(['faceLost', 'overhang', 'contact']);
+    expect(gone[0]).toEqual({ kind: 'faceLost', severity: 'warn', bodies: ['Table'] });
     // On its side the finding still names the faces where they are in the design.
     const side = checkPrint([{ ...table, printFace: 'F2:+x' }], PLA).findings.find((f) => f.kind === 'overhang');
     expect(side && 'box' in side ? side.box?.max[2] : null).toBeLessThanOrEqual(12);
