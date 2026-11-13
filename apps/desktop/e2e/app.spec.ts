@@ -285,14 +285,19 @@ test('the camera keeps a growing design in view until the user moves it', async 
   const { page } = launched;
   await lookAgain(page);
   await expect(page.getByTestId('viewer')).toHaveAttribute('data-sketches', '1');
-  // Curves of a new revision are drawn in the colour of changes.
-  const sketchPixels = async (border?: number) =>
-    (await countViewportPixels(page, '--cs-viewer-sketch', 40, { border })) + (await countViewportPixels(page, '--cs-viewer-changed', 40, { border }));
+  // Curves of a new revision are drawn in the colour of changes. One shot of the view per look, counted twice:
+  // a shot took seconds on a loaded runner, and four per look let one look use up the 30 s (13 November 2026).
+  const curves = ['--cs-viewer-sketch', '--cs-viewer-changed'];
+  const sketchPixels = async () => {
+    const png = await page.getByTestId('viewport').screenshot();
+    return { all: await countViewportPixels(page, curves, 40, { png }), edge: await countViewportPixels(page, curves, 40, { png, border: 8 }) };
+  };
 
   // The small first sketch fills the view instead of sitting as a speck in its middle.
   await expect(async () => {
-    expect(await sketchPixels()).toBeGreaterThan(1500);
-    expect(await sketchPixels(8)).toBe(0);
+    const pixels = await sketchPixels();
+    expect(pixels.all).toBeGreaterThan(1500);
+    expect(pixels.edge).toBe(0);
   }).toPass({ timeout: 30_000 });
   await page.getByTestId('viewport').screenshot({ path: test.info().outputPath('small-sketch.png') });
 
@@ -301,8 +306,9 @@ test('the camera keeps a growing design in view until the user moves it', async 
   fake.change();
   await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '2');
   await expect(async () => {
-    expect(await sketchPixels()).toBeGreaterThan(1500);
-    expect(await sketchPixels(8)).toBe(0);
+    const pixels = await sketchPixels();
+    expect(pixels.all).toBeGreaterThan(1500);
+    expect(pixels.edge).toBe(0);
   }).toPass({ timeout: 30_000 });
   await page.getByTestId('viewport').screenshot({ path: test.info().outputPath('grown-sketch.png') });
 
@@ -319,7 +325,7 @@ test('the camera keeps a growing design in view until the user moves it', async 
   fake.change();
   await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '3');
   await page.waitForTimeout(1500);
-  expect(await sketchPixels(8)).toBeGreaterThan(0);
+  expect((await sketchPixels()).edge).toBeGreaterThan(0);
 });
 
 test('the parameter panel lists the design parameters and changes a length with a preview first', async () => {
@@ -584,8 +590,15 @@ test('a joint plays in the view only, keeps its position when asked and stays as
   const first = await shown();
   await expect.poll(shown).not.toBe(first);
   // Paused, it stays where the view shows it, and the design is as it was: the panel says so.
-  await play.click();
-  await expect(play).toHaveAttribute('data-playing', 'false');
+  // Starting over, the joint stands one frame where it started (JointPanel, one after the other): paused just then
+  // it is as designed and the panel rightly says nothing, so it plays on and pauses again (red 3 of 10 times locally).
+  for (let tries = 1; ; tries += 1) {
+    await play.click();
+    await expect(play).toHaveAttribute('data-playing', 'false');
+    if ((await shown()) !== 0 || tries === 3) break;
+    await play.click();
+    await expect.poll(shown).toBeLessThan(-5);
+  }
   await expect(panel.getByTestId('joint-view-only')).toBeVisible();
   const paused = await shown();
   expect(paused).toBeLessThan(0);
