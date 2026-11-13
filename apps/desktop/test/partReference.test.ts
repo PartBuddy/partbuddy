@@ -434,15 +434,19 @@ describe('references from solidcraft-cli, kept and built in the background (seco
       signals.push(signal);
       return run(program, args, timeoutMs, signal);
     };
-    const { references, timers } = store(cli);
+    const { references, timers, built } = store(cli);
     references.known([nut]);
     await expect.poll(() => cli.runs.length).toBe(1);
     references.stop?.();
     expect(signals.filter((signal) => signal !== undefined).every((signal) => signal.aborted)).toBe(true);
     expect(signals.some((signal) => signal !== undefined)).toBe(true);
     expect(references.known([screw]).get('Countersunk socket screw M3x10')).toEqual({ failed: 'PartBuddy is ending' });
+    // A run that answers all the same (this fake does not stop) starts no second one, and the build ends before the
+    // test does: it wrote into the folder while it was removed (ENOTEMPTY on CI, 13 November 2026).
     cli.release();
+    await expect.poll(() => built()).toBe(1);
     expect(cli.runs).toHaveLength(1);
+    expect(cli.faceRuns).toEqual([]);
     expect(timers).toHaveLength(0);
   });
 });
