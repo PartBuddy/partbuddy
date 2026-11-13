@@ -1653,7 +1653,8 @@ test('function blocks are previewed and built at a face: tapped hole, screw hole
       expect(await preview(block)).toEqual({ ok: true, error: null });
       await apply(block);
     }
-    for (const line of ['Tapped hole M4', 'Screw hole M3', 'Hole ⌀ 4 mm, 6.7 mm deep', 'Screw boss ⌀ 7.2 mm']) {
+    // The thread with its room for printing and the screw hole by its diameter from PartBuddy's table (audit S-09, W21).
+    for (const line of ['Tapped hole M4.3x0.7', 'Hole ⌀ 3.4 mm', 'Hole ⌀ 4 mm, 6.7 mm deep', 'Screw boss ⌀ 7.2 mm']) {
       await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
     }
     // The design changed only through the four blocks, the tapped hole twice (`more`): previews leave nothing
@@ -3641,7 +3642,7 @@ test('the assistant makes a knob for a D shaft with one call: a part of its own 
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a volume knob');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the knob "Volume" for a 6 mm D shaft \(flat at 4\.5 mm\): the bore is 6\.2 mm wide and 11 mm deep, flat over its last 7 mm .* with a chamfered mouth, to push on.* with 11 flutes to grip/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Built the knob "Volume" for a 6 mm D shaft \(flat at 4\.5 mm\): the bore is 6\.2 mm wide and 11 mm deep, flat over its last 6 mm .* with a chamfered mouth, to push on.* with 12 flutes to grip/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/SolidCraft warns:/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
     await expect(page.getByText('Knob “Volume” for a shaft')).toHaveCount(1);

@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
 
-import { BLOCK_KINDS, DEFAULT_PRINTER, blockLimit, defaultBlock, hasSize, limitRefusal, raisedBlock, strokesKnown, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, SNAP_STRAIN_LIMIT, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import { BLOCK_KINDS, DEFAULT_PRINTER, blockLimit, defaultBlock, hasSize, limitRefusal, raisedBlock, strokesKnown, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, SNAP_STRAIN_LIMIT, snapStrain, textDepth, textStroke, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import { HEAD_ALLOWANCE, HOLE_SHRINK_MOST, THREAD_ALLOWANCE } from '../../../shared/screwSizes';
 import { drawingColours, drawingSvg, mergedColours, naturalWidth, parseDrawing, type Drawing, type DrawingProblem } from '../../../shared/svgDrawing';
 import { DrawingDetailNote } from '../assistant/DrawingDetailNote';
 import { platform } from '../platform';
@@ -191,7 +192,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   if (!face || !block) return null;
   const kind = (next: BlockKind) => {
     const sizes = sizesOf(next);
-    setBlock(raisedBlock(defaultBlock(next, face.body, face.point, sizes.includes(block.size) ? block.size : (sizes[2] ?? 'M3'), face.normal), printer).block);
+    setBlock(raisedBlock(defaultBlock(next, face.body, face.point, sizes.includes(block.size) ? block.size : (sizes[2] ?? 'M3'), face.normal, printer), printer).block);
     setStatus(null);
     setFileProblem(null);
     onGhost(null);
@@ -215,7 +216,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     );
   };
   const size = (next: BlockSize) => {
-    setBlock(block.block === 'screwHole' ? { ...block, size: next } : block.block === 'slot' ? { ...defaultBlock('slot', face.body, face.point, next, face.normal), length: block.length, depth: block.depth, along: block.along } as FeatureBlock : defaultBlock(block.block, face.body, face.point, next, face.normal));
+    setBlock(block.block === 'screwHole' ? { ...block, size: next } : block.block === 'slot' ? { ...defaultBlock('slot', face.body, face.point, next, face.normal, printer), length: block.length, depth: block.depth, along: block.along } as FeatureBlock : defaultBlock(block.block, face.body, face.point, next, face.normal, printer));
     setStatus(null);
   };
   const close = () => {
@@ -394,7 +395,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
           ) : block.block === 'text' ? (
             <div className="grid grid-cols-2 gap-2" key={block.block}>
               <Words label={t('blocks.text')} value={block.text} onChange={(text) => setBlock({ ...block, text })} testId="block-text" />
-              <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id, depth: id === 'emboss' ? 0.4 : 0.6 })} testId="block-mode" />
+              <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id, depth: textDepth(printer) })} testId="block-mode" />
               <Length key={block.mode} label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
               <Length label={t('blocks.textHeight')} value={block.height} onChange={(height) => setBlock({ ...block, height })} testId="block-height" />
               <div className="flex items-end pb-1">
@@ -427,7 +428,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
                   {t(`blocks.logoProblems.${fileProblem}`)}
                 </p>
               ) : null}
-              <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id, depth: id === 'emboss' ? 0.4 : 0.6 })} testId="block-mode" />
+              <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id, depth: textDepth(printer) })} testId="block-mode" />
               <Length key={block.mode} label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
               <Length key={widened} label={t('blocks.width')} value={block.width} onChange={(width) => setBlock({ ...block, width })} testId="block-width" />
               <div className="col-span-2">
@@ -497,7 +498,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               {block.type === 'groove' ? <Length label={t('blocks.gap')} value={block.gap} onChange={(gap) => setBlock({ ...block, gap })} testId="block-gap" /> : null}
             </div>
           )}
-          <p className="text-xs text-text-subtle">{t(`blocks.hint.${block.block}`)}</p>
+          <p className="text-xs text-text-subtle">{t(`blocks.hint.${block.block}`, { thread: THREAD_ALLOWANCE, shrink: HOLE_SHRINK_MOST, head: HEAD_ALLOWANCE.diameter, layer: printer.layer, depth: textDepth(printer), stroke: textStroke(printer) })}</p>
           {waiting ? (
             <p className="text-xs text-text-muted" role="status" data-testid="block-status">
               {t('blocks.logoWaiting')}
