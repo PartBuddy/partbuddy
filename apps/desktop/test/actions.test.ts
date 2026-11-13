@@ -188,6 +188,14 @@ describe('the actions of the selection follow the print rules (audit D25, S-15, 
     expect(actionPlan('shell', 0.9, bodies, [face(1)], bed, pla(0.4, 0.3)).notes).toEqual([{ note: 'floorThin', least: 1.2, layers: 4, better: 1.35 }]);
     const tube = [{ name: 'T', model: { table: { faces: [faces[0], faces[1], faces[2]] } } }] as unknown as BodyModel[];
     expect(actionPlan('shell', 0.9, tube, [face(0), face(1)], bed, pla(0.4, 0.3)).notes).toEqual([]);
+    // A face 46° from upright is a floor to the check (within 45° of the bed), one at 44° is a wall; and lying on its side, the x faces are.
+    const slanted = (index: number) => [{ name: 'S', model: { table: { faces: [faces[0], faces[1], faces[2], faces[index]] } } }] as unknown as BodyModel[];
+    expect(actionPlan('shell', 0.9, slanted(4), [face(0), face(1)], bed, pla(0.4, 0.3)).notes.map((note) => note.note)).toEqual(['floorThin']);
+    expect(actionPlan('shell', 0.9, slanted(5), [face(0), face(1)], bed, pla(0.4, 0.3)).notes).toEqual([]);
+    expect(actionPlan('shell', 0.9, tube, [face(0), face(1)], { ...bed, down: [1, 0, 0] }, pla(0.4, 0.3)).notes.map((note) => note.note)).toEqual(['floorThin']);
+    // Layers as the check counts them, to a tenth: 0.8 mm are 5.3 layers of 0.15 and 6.7 of 0.12.
+    expect(actionPlan('shell', 0.5, bodies, [face(1)], bed, pla(0.4, 0.15)).notes.at(-1)).toMatchObject({ note: 'floorThin', least: 0.8, layers: 5.3 });
+    expect(actionPlan('shell', 0.5, bodies, [face(1)], bed, pla(0.4, 0.12)).notes.at(-1)).toMatchObject({ note: 'floorThin', least: 0.8, layers: 6.7 });
     expect(actionPlan('shell', 0.89, bodies, [face(1)], bed, pla()).notes).toEqual([{ note: 'wallThin', least: 0.9, better: 0.9 }]);
     expect(actionPlan('shell', 0.9, bodies, [face(1)], bed, pla()).notes).toEqual([]);
     expect(actionPlan('shell', 1.6, bodies, [face(1)], bed, pla()).notes).toEqual([{ note: 'wallLines', line: 0.45, better: 1.8 }]);

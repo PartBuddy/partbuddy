@@ -688,7 +688,7 @@
       "wallNoPrint": "Zu dünn zum Drucken: Die schmalste Linie, die ein Slicer mit dieser Düse legt, ist {least} mm. {better} mm druckt.",
       "wallThin": "Unter zwei Linien ({least} mm) druckt die Wand schlecht; {better} mm druckt massiv.",
       "wallLines": "Keine ganze Zahl an Linien von {line} mm; {better} mm druckt sauberer.",
-      "floorThin": "Boden und Deckel bekommen dieselbe Dicke: unter {least} mm ({layers} Schichten) drucken sie schlecht; {better} mm druckt massiv."
+      "floorThin": "Ein flacher Boden oder Deckel bekommt dieselbe Dicke: unter {least} mm ({layers} Schichten) druckt er schlecht; für ihn druckt {better} mm massiv."
     }
   },
   "structure": {

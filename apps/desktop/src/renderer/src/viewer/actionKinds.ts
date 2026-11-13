@@ -78,12 +78,16 @@ export function bedOf(bodies: BodyModel[], index: number, printFaces: Readonly<R
 /** How far under a limit a size may be and still meet it: the print check's EPSILON (printCheck.ts). */
 const CHECK_SLACK = 1e-3;
 
-/** The shelled body keeps a flat face square to the bed that is not picked (the face a shell removes): a floor or a lid. */
+/**
+ * The shelled body keeps a face that the print check reads as a floor or lid (within 45° of the bed, FLAT in printCheck.ts)
+ * and that is not picked (the face a shell removes).
+ * shortcut: only flat faces count, a dome's top does not; read the triangles if shelled domes turn up.
+ */
 function keepsFlat(bodies: BodyModel[], picks: Pick[], down: Vec3): boolean {
   const removed = new Set(picks.flatMap((pick) => (pick.kind === 'face' ? [`${String(pick.body)}:${String(pick.face)}`] : [])));
   const shelled = new Set(picks.map((pick) => pick.body));
   return [...shelled].some((body) =>
-    (bodies[body]?.model.table.faces ?? []).some((face, index) => !removed.has(`${String(body)}:${String(index)}`) && face.planeNormal !== undefined && Math.abs(dot(face.planeNormal, down)) > 1 - 1e-6),
+    (bodies[body]?.model.table.faces ?? []).some((face, index) => !removed.has(`${String(body)}:${String(index)}`) && face.planeNormal !== undefined && Math.abs(dot(face.planeNormal, down)) >= Math.SQRT1_2),
   );
 }
 
@@ -209,7 +213,8 @@ export function actionPlan(kind: ActionKind, size: number, bodies: BodyModel[], 
       }
       // A shell keeps its flat floor and lid at the same thickness; the check holds those to minimumFloor (layers).
       const floor = minimumFloor(printer.layer);
-      if (size < floor - CHECK_SLACK && keepsFlat(bodies, picks, down)) notes.push({ note: 'floorThin', least: floor, layers: Math.round(floor / printer.layer), better: snapSize('wall', floor, printer) });
+      if (size < floor - CHECK_SLACK && keepsFlat(bodies, picks, down)) // Layers rounded to a tenth, as the check says them (printCheck.ts thinWall).
+      notes.push({ note: 'floorThin', least: floor, layers: Math.round((floor / printer.layer) * 10) / 10, better: snapSize('wall', floor, printer) });
       return { size, notes };
     }
     default:

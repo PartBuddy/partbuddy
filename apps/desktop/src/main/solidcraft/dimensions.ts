@@ -58,9 +58,11 @@ const KEPT_PROBES = 20;
  * How far a group test moves each candidate (mm): a twentieth of a millimetre, times 1 + √p / 10 for the k-th prime p.
  * Square roots of different primes are no rational multiples of one another, so the moves of several drivers changed
  * together do not cancel out exactly as long as each moves the selection by a rational multiple of its own change. They
- * can come close: two opposite drivers at neighbouring primes leave 0.005 × (√q − √p), 0.0009 mm for 29 and 31, 0.0006
- * for 229 and 233; so the group test counts any move over `SAME` (1e-4).
- * shortcut: twin primes above about 2500 (some 370 candidates of one size) leave less than `SAME`; split such groups by hand if it ever matters.
+ * can come close: two opposite drivers of the same lever at neighbouring primes leave 0.005 × (√q − √p), 0.0009 mm for 29 and 31,
+ * 0.0007 for 229 and 233; so the group test counts any move over `SAME` (1e-4). Drivers of different levers (1 and ½:
+ * a size and a diameter) can come closer with fewer candidates.
+ * shortcut: twin primes above about 2500 (some 370 candidates of one size), or drivers of different levers, can leave less
+ * than `SAME`; measure the selection before the change in the same batch and split such groups if it ever matters.
  */
 const NUDGE = 0.05;
 /** Plain numbers with an optional length unit; formulas are the designer's intent and stay untouched. */
@@ -229,6 +231,8 @@ export class DimensionService {
   private async attempt(search: Search, steps: { command: string; params: Record<string, unknown> }[]): Promise<unknown[] | 'refused' | 'changed'> {
     const reply = await this.batch([...READ_DESIGN, ...steps, UNDO_ALL], true);
     const results = reply.results ?? [];
+    // SolidCraft could not read the design: its own error, not a changed design.
+    if (reply.failed && reply.failed.index < READ_DESIGN.length) throw new Error(`SolidCraft could not read the design: ${reply.failed.error.slice(0, 200)}`);
     if (designOf(results).state !== search.state) {
       // The search is of a design that is gone: it stops and is not kept.
       search.stale = true;
@@ -252,8 +256,8 @@ export class DimensionService {
    * - those of the features the selection lies on come first (`nearFirst`);
    * - a group is tested in one rebuild, each member moved by its own small step: if the selection stays, none of them
    *   drives it; if it moves, the group is halved until one is left, which is tried with the value typed;
-   * - the answer comes with the first driver; the rest is searched afterwards, one try per step (two rebuilds and the
-   *   design read, up to about 26 s on the housing) behind any other trial (`later`), and stops when another selection
+   * - the answer comes with the first driver; the rest is searched afterwards, one try per step (two rebuilds, 2.3 to 13 s
+   *   on the housing, and the design read in the same batch) behind any other trial (`later`), and stops when another selection
    *   is probed, a value applied or the design changed. A second driver found then turns the next value typed into a choice;
    * - what was found is kept per selection (its target as picked, for an edge with the exact point), its size and the
    *   design, so the next value typed tries only what SolidCraft refused. A kept driver is taken as one again without a
@@ -278,8 +282,14 @@ export class DimensionService {
     }
     search.value = value;
     // What SolidCraft refused or lost the selection with at an earlier value is tried at this one.
-    for (const candidate of search.open.splice(0)) await this.tryValue(search, candidate);
-    while ((search.drivers.length === 0 || !this.later) && search.queue.length > 0) await this.step(search);
+    try {
+      for (const candidate of search.open.splice(0)) if (!search.stale) await this.tryValue(search, candidate);
+      while ((search.drivers.length === 0 || !this.later) && search.queue.length > 0) await this.step(search);
+    } catch (error) {
+      // A try that threw (a timeout) took its group with it: the search is not kept half done.
+      this.searches.delete(key);
+      throw error;
+    }
     // Changed by another call while it was searched: what was found may be of the design before (the field then leaves it to the assistant).
     if (search.stale) throw new Error('the design changed while its sizes were tried');
     if (search.queue.length > 0) this.searchOn(search);
@@ -294,7 +304,7 @@ export class DimensionService {
       parameter: driver.parameter.name,
       factor: driver.factor,
       label: labelOf(driver.parameter),
-      preview: await this.preview(target.body, driver.parameter.name, value * driver.factor),
+      preview: await this.preview(target.body, driver.parameter.name, value * driver.factor, search),
     };
   }
 
@@ -304,12 +314,13 @@ export class DimensionService {
     search.running = true;
     this.later(async () => {
       try {
-        // Each try reads the design in its own batch and stops the search when it changed (attempt).
+        // Each try reads the design in the try's batch and stops the search when it changed (attempt).
         if (this.live !== search.key) return (search.running = false);
         await this.step(search);
         return (search.running = search.queue.length > 0 && this.live === search.key);
       } catch (error) {
         search.running = false;
+        this.searches.delete(search.key);
         throw error;
       }
     });
@@ -353,19 +364,25 @@ export class DimensionService {
     else if (Math.abs(after - search.value) <= SAME * 10) search.drivers.push(candidate);
   }
 
-  /** The body with the parameter at `value`, exported and undone again; null if SolidCraft cannot build it. */
-  private async preview(body: string, parameter: string, value: number): Promise<Uint8Array<ArrayBuffer> | null> {
+  /**
+   * The body with the parameter at `value`, exported and undone again; null if SolidCraft cannot build it. For a search, the
+   * design is read in the same batch: a preview of a design changed since is no answer of the search (attempt).
+   */
+  private async preview(body: string, parameter: string, value: number, search?: Search): Promise<Uint8Array<ArrayBuffer> | null> {
     const file = join(this.cacheDir, `preview-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.3mf`);
+    const steps = [
+      { command: 'parameters.change', params: { name: parameter, expression: mm(value) } },
+      { command: 'file.export', params: { path: file, format: '3mf-tagged', bodies: [body], quality: 'standard' } },
+    ];
     try {
-      const reply = await this.batch(
-        [
-          { command: 'parameters.change', params: { name: parameter, expression: mm(value) } },
-          { command: 'file.export', params: { path: file, format: '3mf-tagged', bodies: [body], quality: 'standard' } },
-          UNDO_ALL,
-        ],
-        true,
-      );
-      if (reply.failed?.index !== 2) return null;
+      if (search) {
+        const results = await this.attempt(search, steps);
+        if (results === 'changed') throw new Error('the design changed while its sizes were tried');
+        if (results === 'refused') return null;
+      } else {
+        const reply = await this.batch([...steps, UNDO_ALL], true);
+        if (reply.failed?.index !== 2) return null;
+      }
       return new Uint8Array(await readFile(file));
     } finally {
       await rm(file, { force: true });

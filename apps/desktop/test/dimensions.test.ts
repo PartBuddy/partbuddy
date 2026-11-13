@@ -239,6 +239,21 @@ describe('dimension field: direct where unambiguous (M1b)', () => {
       },
     };
     await expect(new DimensionService(() => changing, tmpdir()).probe(target, 20, 30)).rejects.toThrow(/design changed/);
+    // Changed just before the preview: no preview of another design as the answer (review of c367a71, S-c).
+    const late = boxEngine({ d1: 20, d2: 20, d3: 10 });
+    const beforePreview: ControlRequester = {
+      request: <T>(method: string, params?: Record<string, unknown>) => {
+        if ((params?.commands as { command: string }[] | undefined)?.some((step) => step.command === 'file.export')) late.state.d3 = 11;
+        return late.requester.request<T>(method, params);
+      },
+    };
+    await expect(new DimensionService(() => beforePreview, tmpdir()).probe(target, 20, 30)).rejects.toThrow(/design changed/);
+    // SolidCraft fails to read the design: its own error, not "changed".
+    const unreadable: ControlRequester = {
+      request: <T>(method: string, params?: Record<string, unknown>) =>
+        params?.rollback === true ? Promise.resolve({ results: [], failed: { index: 0, command: 'parameters.list', error: 'busy' } } as T) : late.requester.request<T>(method, params),
+    };
+    await expect(new DimensionService(() => unreadable, tmpdir()).probe(target, 20, 30)).rejects.toThrow(/could not read the design: busy/);
   });
 
   it('lets the user pick when several parameters each move the edge', async () => {
