@@ -40,8 +40,13 @@ export interface Drawing {
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
   /** Millimetres per unit when the file states a physical size (mm, cm, in, pt, pc), else null. */
   unitMm: number | null;
-  /** What has no area and was left out: shapes with neither fill nor stroke (`strokes`), text, embedded pictures. */
-  skipped: { strokes: number; texts: number; images: number; backgrounds: number };
+  /**
+   * What was left out or read otherwise than drawn: shapes with neither fill nor stroke (`strokes`), text, embedded
+   * pictures, a backdrop; shapes of a colour PartBuddy does not know or of a gradient without a fallback, built black
+   * (`colours`); clip paths and masks, built unclipped (`clips`); dashed strokes, built as one line (`dashes`); inner
+   * `<svg>` elements whose own view and clipping are not applied (`views`). Audit T51.
+   */
+  skipped: { strokes: number; texts: number; images: number; backgrounds: number; colours: number; clips: number; dashes: number; views: number };
 }
 export type DrawingProblem = 'tooBig' | 'notSvg' | 'unsafe' | 'tooComplex' | 'empty';
 export type DrawingResult = { ok: true; drawing: Drawing } | { ok: false; problem: DrawingProblem; detail: string };
@@ -161,7 +166,7 @@ function styleRules(root: Element): Rule[] {
   return rules.sort((a, b) => a.specificity - b.specificity || a.order - b.order);
 }
 
-const STYLE_PROPS = ['fill', 'fill-rule', 'fill-opacity', 'opacity', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linejoin', 'stroke-linecap', 'stroke-miterlimit', 'display', 'visibility', 'color'] as const;
+const STYLE_PROPS = ['fill', 'fill-rule', 'fill-opacity', 'opacity', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linejoin', 'stroke-linecap', 'stroke-miterlimit', 'stroke-dasharray', 'display', 'visibility', 'color', 'clip-path', 'mask'] as const;
 type Style = Partial<Record<(typeof STYLE_PROPS)[number], string>>;
 
 function ownStyle(element: Element, rules: Rule[]): Style {
@@ -190,23 +195,43 @@ const NAMED: Record<string, string> = {
   maroon: '#800000', olive: '#808000', navy: '#000080', purple: '#800080', teal: '#008080', orange: '#ffa500',
 };
 
-/** A fill as #rrggbb, or null for none. Gradients and unknown colours count as black. */
-function colour(value: string | undefined, current: string): string | null {
+const hex = (parts: readonly number[]) => `#${parts.map((part) => Math.max(0, Math.min(255, Math.round(part))).toString(16).padStart(2, '0')).join('')}`;
+
+/**
+ * A fill as #rrggbb, or null for none (also a colour with alpha 0). Alpha is otherwise left out: a print has no see-through.
+ * Gradients without a fallback and unknown colours count as black, and `unknown` hears of each (audit T51).
+ * shortcut: only the 20 basic colour names are known; add CSS's other named colours if logos with them turn up.
+ */
+function colour(value: string | undefined, current: string, unknown: () => void = () => undefined): string | null {
   const v = (value ?? '#000000').trim().toLowerCase();
   if (v === 'none' || v === 'transparent') return null;
-  if (v === 'currentcolor') return colour(current, '#000000');
-  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/.exec(v);
-  if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`;
-  if (/^#[0-9a-f]{6}$/.test(v)) return v;
-  const rgb = /^rgba?\(\s*([\d.]+%?)[\s,]+([\d.]+%?)[\s,]+([\d.]+%?)/.exec(v);
-  if (rgb) {
-    const byte = (text: string) => Math.max(0, Math.min(255, Math.round(text.endsWith('%') ? parseFloat(text) * 2.55 : parseFloat(text))));
-    return `#${[rgb[1], rgb[2], rgb[3]].map((part) => byte(part as string).toString(16).padStart(2, '0')).join('')}`;
+  if (v === 'currentcolor') return colour(current, '#000000', unknown);
+  // #rgb and #rgba, #rrggbb and #rrggbbaa.
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])([0-9a-f])?$/.exec(v);
+  if (short) return short[4] === '0' ? null : `#${String(short[1]).repeat(2)}${String(short[2]).repeat(2)}${String(short[3]).repeat(2)}`;
+  const long = /^#([0-9a-f]{6})([0-9a-f]{2})?$/.exec(v);
+  if (long) return long[2] === '00' ? null : `#${String(long[1])}`;
+  const alpha = (text: string | undefined) => (text === undefined ? 1 : text.endsWith('%') ? parseFloat(text) / 100 : parseFloat(text));
+  const channel = (text: string) => (text.endsWith('%') ? parseFloat(text) * 2.55 : parseFloat(text));
+  const rgb = /^rgba?\(\s*([\d.]+%?)[\s,]+([\d.]+%?)[\s,]+([\d.]+%?)(?:[\s,/]+([\d.]+%?))?/.exec(v);
+  if (rgb) return alpha(rgb[4]) === 0 ? null : hex([rgb[1], rgb[2], rgb[3]].map((part) => channel(String(part))));
+  const hsl = /^hsla?\(\s*(-?[\d.]+)(deg|turn|rad)?[\s,]+([\d.]+)%[\s,]+([\d.]+)%(?:[\s,/]+([\d.]+%?))?/.exec(v);
+  if (hsl) {
+    if (alpha(hsl[5]) === 0) return null;
+    const unit = hsl[2] === 'turn' ? 360 : hsl[2] === 'rad' ? 180 / Math.PI : 1;
+    const h = ((((parseFloat(String(hsl[1])) * unit) % 360) + 360) % 360) / 30;
+    const [s, l] = [Math.min(1, parseFloat(String(hsl[3])) / 100), Math.min(1, parseFloat(String(hsl[4])) / 100)];
+    // CSS Color 4, hsl to rgb.
+    const f = (n: number) => l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(((n + h) % 12) - 3, 9 - ((n + h) % 12), 1));
+    return hex([f(0), f(8), f(4)].map((part) => part * 255));
   }
   // A gradient's fallback colour after the url, else black.
   const fallback = /^url\([^)]*\)\s*(.+)$/.exec(v);
-  if (fallback) return colour(fallback[1], current);
-  return NAMED[v] ?? '#000000';
+  if (fallback) return colour(fallback[1], current, unknown);
+  const named = NAMED[v];
+  if (named) return named;
+  unknown();
+  return '#000000';
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -775,9 +800,9 @@ function read(text: string): Drawing {
   index(svg);
 
   const shapes: (Shape & { rule: string })[] = [];
-  const skipped = { strokes: 0, texts: 0, images: 0, backgrounds: 0 };
+  const skipped = { strokes: 0, texts: 0, images: 0, backgrounds: 0, colours: 0, clips: 0, dashes: 0, views: 0 };
   let segments = 0;
-  type Inherited = { fill: string | undefined; rule: string; color: string; hidden: boolean; fillOpacity: number; stroke: string | undefined; strokeWidth: string; strokeOpacity: number; join: string; cap: string; miter: number };
+  type Inherited = { fill: string | undefined; rule: string; color: string; hidden: boolean; fillOpacity: number; stroke: string | undefined; strokeWidth: string; strokeOpacity: number; join: string; cap: string; miter: number; dashed: boolean };
   const strokes: Stroke[] = [];
   const walk = (element: Element, matrix: Matrix, parent: Inherited, uses: number) => {
     if (NO_RENDER.has(element.name)) return;
@@ -797,14 +822,21 @@ function read(text: string): Drawing {
       join: (style['stroke-linejoin'] ?? parent.join).trim(),
       cap: (style['stroke-linecap'] ?? parent.cap).trim(),
       miter: style['stroke-miterlimit'] !== undefined ? parseFloat(style['stroke-miterlimit']) : parent.miter,
+      // "none" or only zeros draw the line whole.
+      dashed: style['stroke-dasharray'] !== undefined ? /[1-9]/.test(style['stroke-dasharray'].replace(/none/i, '')) : parent.dashed,
     };
+    // Built without its clip or mask: what it hides is built too.
+    if ([style['clip-path'], style.mask].some((value) => value !== undefined && value.trim() !== 'none')) skipped.clips += 1;
     let m = multiply(matrix, parseTransform(element.attrs.get('transform')));
     const a = (name: string, fallback = 0) => length(element.attrs.get(name), fallback);
     let loops: Loop[] | null = null;
     switch (element.name) {
       case 'svg':
         // shortcut: a nested <svg> only moves by x, y; its own viewBox and clipping are ignored.
-        if (element !== svg) m = multiply(m, [1, 0, 0, 1, a('x'), a('y')]);
+        if (element !== svg) {
+          m = multiply(m, [1, 0, 0, 1, a('x'), a('y')]);
+          if (element.attrs.has('viewBox')) skipped.views += 1;
+        }
         break;
       case 'g':
       case 'a':
@@ -855,8 +887,12 @@ function read(text: string): Drawing {
       return;
     }
     // A line has no inside to fill.
-    const fill = element.name === 'line' || inherited.fillOpacity === 0 ? null : colour(inherited.fill, inherited.color);
-    const strokeColour = inherited.stroke === undefined || inherited.strokeOpacity === 0 ? null : colour(inherited.stroke, inherited.color);
+    const read = { guessed: false };
+    const unknown = () => {
+      read.guessed = true;
+    };
+    const fill = element.name === 'line' || inherited.fillOpacity === 0 ? null : colour(inherited.fill, inherited.color, unknown);
+    const strokeColour = inherited.stroke === undefined || inherited.strokeOpacity === 0 ? null : colour(inherited.stroke, inherited.color, unknown);
     // A stroke's width scales with the element's transform (an even scale; a skewed one is taken on average).
     const strokeWidth = length(inherited.strokeWidth, 1) * Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
     const stroked = strokeColour !== null && strokeWidth > 0;
@@ -867,13 +903,15 @@ function read(text: string): Drawing {
       return;
     }
     if (loops.length === 0) return;
+    if (read.guessed) skipped.colours += 1;
+    if (stroked && inherited.dashed) skipped.dashes += 1;
     segments += loops.reduce((sum, loop) => sum + loop.segments.length, 0) * (fill && stroked ? 2 : 1);
     if (shapes.length + strokes.length >= MAX_SHAPES || segments > MAX_SEGMENTS) throw new Refused('tooComplex', 'the drawing has too many shapes for a sketch');
     const placed = loops.map((loop) => transformLoop(m, loop));
     if (fill) shapes.push({ fill, rule: inherited.rule, loops: placed });
     if (stroked) strokes.push({ colour: strokeColour, width: strokeWidth, join: inherited.join, cap: inherited.cap, miter: inherited.miter, loops: placed });
   };
-  walk(svg, IDENTITY, { fill: undefined, rule: 'nonzero', color: '#000000', hidden: false, fillOpacity: 1, stroke: undefined, strokeWidth: '1', strokeOpacity: 1, join: 'miter', cap: 'butt', miter: 4 }, 0);
+  walk(svg, IDENTITY, { fill: undefined, rule: 'nonzero', color: '#000000', hidden: false, fillOpacity: 1, stroke: undefined, strokeWidth: '1', strokeOpacity: 1, join: 'miter', cap: 'butt', miter: 4, dashed: false }, 0);
   // Strokes paint over fills: their outlines come last.
   shapes.push(...strokeShapes(strokes));
 

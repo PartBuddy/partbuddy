@@ -575,7 +575,13 @@
     "coarse": "At this size the details are checked on a raster of {mmPerPx, number} mm: a place of about {gap, number} mm can go unseen.",
     "widen": "Make it {width, number} mm wide",
     "show": "Show the places",
-    "backdrop": "Background or frame around the drawing left out – it is not part of the logo."
+    "backdrop": "Background or frame around the drawing left out – it is not part of the logo.",
+    "otherwise": {
+      "colours": "{count, plural, one {One shape has} other {# shapes have}} a colour or gradient PartBuddy cannot read: built black.",
+      "clips": "{count, plural, one {A clip path or mask is} other {# clip paths or masks are}} not applied: what they hide is built too.",
+      "dashes": "{count, plural, one {A dashed line is} other {# dashed lines are}} built as one line.",
+      "views": "{count, plural, one {An inner drawing is} other {# inner drawings are}} built without its own view and clipping."
+    }
   },
   "logoMove": {
     "title": "Logo “{name}”",
