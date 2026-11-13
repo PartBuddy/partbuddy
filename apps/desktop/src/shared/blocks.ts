@@ -15,17 +15,23 @@ export { BLOCK_SIZES, HEAD_ALLOWANCE, INSERT, NUT_ALLOWANCE, type BlockSize };
 
 type Point = [number, number, number];
 
+/**
+ * How far a cut without depth goes: through the wall at its point (the default), or through all of its body on its line,
+ * both cheeks of a fork or a clevis (audit W2).
+ */
+export type Through = 'wall' | 'body';
+
 export type FeatureBlock =
-  | { block: 'tappedHole'; body: string; point: [number, number, number]; size: BlockSize; depth: number | null; modeled: boolean; more?: Point[] | undefined }
-  | { block: 'screwHole'; body: string; point: [number, number, number]; size: BlockSize; head: 'none' | 'cap' | 'countersunk'; fit: 'close' | 'normal' | 'loose'; more?: Point[] | undefined }
+  | { block: 'tappedHole'; body: string; point: [number, number, number]; size: BlockSize; depth: number | null; modeled: boolean; more?: Point[] | undefined; through?: Through | undefined }
+  | { block: 'screwHole'; body: string; point: [number, number, number]; size: BlockSize; head: 'none' | 'cap' | 'countersunk'; fit: 'close' | 'normal' | 'loose'; more?: Point[] | undefined; through?: Through | undefined }
   | { block: 'insertSeat'; body: string; point: [number, number, number]; size: BlockSize; diameter: number; depth: number; more?: Point[] | undefined }
   | { block: 'boss'; body: string; point: [number, number, number]; size: BlockSize; diameter: number; height: number }
   /** Text embossed onto or engraved into the face, centred on the point. */
   | { block: 'text'; body: string; point: Point; normal: Point; size: BlockSize; text: string; height: number; depth: number; mode: 'emboss' | 'deboss'; bold: boolean; /** An installed font family; none is SolidCraft's built-in Liberation Sans. */ font?: string | undefined; /** The full name of the family's bold face, for SolidCraft to try when bold with the family is refused. */ boldFace?: string | undefined }
   /** A hexagonal pocket for a nut with a clearance hole through the rest. */
-  | { block: 'nutTrap'; body: string; point: Point; normal: Point; size: BlockSize; flats: number; depth: number }
+  | { block: 'nutTrap'; body: string; point: Point; normal: Point; size: BlockSize; flats: number; depth: number; through?: Through | undefined }
   /** A slot for a screw, across or along the face, through or to a depth. */
-  | { block: 'slot'; body: string; point: Point; normal: Point; size: BlockSize; length: number; width: number; depth: number | null; along: 'x' | 'y' }
+  | { block: 'slot'; body: string; point: Point; normal: Point; size: BlockSize; length: number; width: number; depth: number | null; along: 'x' | 'y'; through?: Through | undefined }
   /** A lip or a groove on the rim of a shelled body, for a lid (SolidCraft's `plastic.lip`). */
   | { block: 'lip'; body: string; point: Point; size: BlockSize; type: 'lip' | 'groove'; width: number; height: number; gap: number }
   /**
@@ -254,6 +260,7 @@ export function stepOf(block: Exclude<FeatureBlock, { block: 'text' | 'logo' | '
  * bodies of 86.158 mm³); {@link throughReach} reads from them how deep each cut must go.
  */
 export function cutsThrough(block: FeatureBlock): boolean {
+  if ('through' in block && block.through === 'body') return false;
   return block.block === 'screwHole' || block.block === 'nutTrap' || ((block.block === 'slot' || block.block === 'tappedHole') && !block.depth);
 }
 
@@ -261,6 +268,11 @@ export function cutsThrough(block: FeatureBlock): boolean {
 const THROUGH = 'PartBuddy through';
 /** In mm: past the far side of its wall a cut goes on this far, or half way to the next wall where that is nearer. */
 const PAST = 1;
+/** In mm: how far a block's point may lie off the face it is on (a point rounded to two places is 0.005 off). */
+export const ON_FACE = 0.05;
+
+/** How far the copy stands aside while the block is cut, in mm along Z: beyond the box it was cut from. */
+const ASIDE = 30000;
 
 /** The steps that find the reach of a block that cuts through, to run on trial: they end with `inspect.measure`. */
 export function throughTrial(block: FeatureBlock): Step[] {
@@ -270,7 +282,11 @@ export function throughTrial(block: FeatureBlock): Step[] {
     // A copy of the body under a name of PartBuddy's: all of it within 10 m of the origin.
     { command: 'solid.box', params: { length: 20000, width: 20000, height: 20000, corner: [-10000, -10000, -10000], operation: 'new', body_name: THROUGH } },
     { command: 'solid.combine', params: { target: THROUGH, tools: [block.body], operation: 'intersect', keep_tools: true } },
+    // Out of the way while the block is cut: with the copy on the body, every `solid.hole` failed ("the reference `F1:+z`
+    // no longer exists as it was picked", SolidCraft 0.40.1, review of PR #365); a sketched slot did not.
+    { command: 'solid.move', params: { bodies: [THROUGH], translate: [0, 0, ASIDE] } },
     ...stepsOf(plain),
+    { command: 'solid.move', params: { bodies: [THROUGH], translate: [0, 0, -ASIDE] } },
     { command: 'solid.combine', params: { target: THROUGH, tools: [block.body], operation: 'cut', keep_tools: true } },
     { command: 'inspect.measure', params: {} },
   ];
@@ -279,7 +295,8 @@ export function throughTrial(block: FeatureBlock): Step[] {
 /**
  * How deep each cut of a block that cuts through must go, in mm from its point (for a nut trap from the face, its pocket
  * included), from the `inspect.measure` at the end of {@link throughTrial}: through the piece of plastic the point lies
- * on, along the way from the point to that piece's centre, and {@link PAST} on. Null for a point no piece holds.
+ * on, along the way from the point to that piece's centre, and {@link PAST} on. Null for a point no piece holds within
+ * {@link ON_FACE} of it.
  * shortcut: the pieces are measured by their boxes, exact for walls square to the axes; askew a box reaches further and
  * the cut with it, never less far. Measure along the axis if a skew cut must stop short of a near wall.
  */
@@ -293,7 +310,7 @@ export function throughReach(block: FeatureBlock, measured: unknown): (number | 
   type Piece = (typeof pieces)[number];
   return [block.point, ...('more' in block ? (block.more ?? []) : [])].map((point) => {
     const distance = (piece: Piece) => Math.hypot(...piece.centre.map((value, k) => value - (point[k] ?? 0)));
-    const first = pieces.filter((piece) => point.every((value, k) => value >= (piece.min[k] ?? 0) - 1e-3 && value <= (piece.max[k] ?? 0) + 1e-3)).sort((a, b) => distance(a) - distance(b))[0];
+    const first = pieces.filter((piece) => point.every((value, k) => value >= (piece.min[k] ?? 0) - ON_FACE && value <= (piece.max[k] ?? 0) + ON_FACE)).sort((a, b) => distance(a) - distance(b))[0];
     if (!first || distance(first) < 1e-6) return null;
     const axis = first.centre.map((value, k) => (value - (point[k] ?? 0)) / distance(first));
     // Where the line from the point along the axis enters and leaves a piece's box.

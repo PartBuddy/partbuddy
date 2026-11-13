@@ -679,7 +679,13 @@ export class SolidCraftSupervisor {
 
   /** A block's steps in its body's component; a cut "through" with the reach found on trial, through the wall at its point alone (audit W2). */
   private async blockSteps(block: FeatureBlock, sketch?: string): Promise<{ command: string; params: Record<string, unknown> }[]> {
-    const tried = cutsThrough(block) ? await this.actions.trial(await this.actions.inComponentOf(block.body, throughTrial(block))) : null;
+    // A trial that fails leaves the block as asked, through all; preview and build go on (as blockTool.ts's reachOf).
+    const tried = cutsThrough(block)
+      ? await this.actions.inComponentOf(block.body, throughTrial(block)).then((steps) => this.actions.trial(steps)).catch((cause: unknown) => {
+          this.options.log(`${block.block} reach not measured: ${(cause as Error).message.slice(0, 200)}`);
+          return null;
+        })
+      : null;
     const measured = tried?.findLast((result) => Array.isArray((result as { bodies?: unknown } | undefined)?.bodies));
     return this.actions.inComponentOf(block.body, stepsOf(block, sketch, measured ? throughReach(block, measured) : undefined));
   }

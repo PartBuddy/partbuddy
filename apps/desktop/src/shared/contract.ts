@@ -808,10 +808,12 @@ const blockSize = z.enum(['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10']);
 const blockLength = finite.positive().max(500);
 /** Further points of a row of the same hole (the first is `point`). */
 const morePoints = z.array(point3).max(99).optional();
+/** A cut without depth: through the wall at its point, or through all of its body (shared/blocks.ts). */
+const through = z.enum(['wall', 'body']).optional();
 export const featureBlockSchema = z.discriminatedUnion('block', [
-  z.object({ block: z.literal('tappedHole'), body: bodyName, point: point3, size: blockSize, depth: blockLength.nullable(), modeled: z.boolean(), more: morePoints }).strict(),
+  z.object({ block: z.literal('tappedHole'), body: bodyName, point: point3, size: blockSize, depth: blockLength.nullable(), modeled: z.boolean(), more: morePoints, through }).strict(),
   z
-    .object({ block: z.literal('screwHole'), body: bodyName, point: point3, size: blockSize, head: z.enum(['none', 'cap', 'countersunk']), fit: z.enum(['close', 'normal', 'loose']), more: morePoints })
+    .object({ block: z.literal('screwHole'), body: bodyName, point: point3, size: blockSize, head: z.enum(['none', 'cap', 'countersunk']), fit: z.enum(['close', 'normal', 'loose']), more: morePoints, through })
     .strict(),
   z.object({ block: z.literal('insertSeat'), body: bodyName, point: point3, size: blockSize, diameter: blockLength, depth: blockLength, more: morePoints }).strict(),
   z.object({ block: z.literal('boss'), body: bodyName, point: point3, size: blockSize, diameter: blockLength, height: blockLength }).strict(),
@@ -831,9 +833,9 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       boldFace: z.string().trim().min(1).max(100).optional(),
     })
     .strict(),
-  z.object({ block: z.literal('nutTrap'), body: bodyName, point: point3, normal: point3, size: blockSize, flats: blockLength, depth: blockLength }).strict(),
+  z.object({ block: z.literal('nutTrap'), body: bodyName, point: point3, normal: point3, size: blockSize, flats: blockLength, depth: blockLength, through }).strict(),
   z
-    .object({ block: z.literal('slot'), body: bodyName, point: point3, normal: point3, size: blockSize, length: blockLength, width: blockLength, depth: blockLength.nullable(), along: z.enum(['x', 'y']) })
+    .object({ block: z.literal('slot'), body: bodyName, point: point3, normal: point3, size: blockSize, length: blockLength, width: blockLength, depth: blockLength.nullable(), along: z.enum(['x', 'y']), through })
     .strict(),
   z
     .object({ block: z.literal('lip'), body: bodyName, point: point3, size: blockSize, type: z.enum(['lip', 'groove']), width: blockLength, height: blockLength, gap: finite.min(0).max(5) })

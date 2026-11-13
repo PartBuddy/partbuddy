@@ -1,4 +1,4 @@
-import { BLOCK_SIZES, INSERT, cutsThrough, defaultBlock, needsNormal, sizesOf, stepsOf, throughReach, throughTrial, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, INSERT, ON_FACE, cutsThrough, defaultBlock, needsNormal, sizesOf, stepsOf, throughReach, throughTrial, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import { KNOB, KNOB_CLEARANCE, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
 import { TAPPED_FROM } from '../../shared/mechanisms';
@@ -52,7 +52,13 @@ const blockTool: UpstreamTool = {
       more: { type: 'array', items: vector, maxItems: 99, description: 'screwHole, tappedHole, insertSeat, keyhole, woodScrew, magnet: further points on the same face, one each.' },
       head: { type: 'string', enum: ['none', 'cap', 'countersunk'], description: 'screwHole: the room for the head; default cap (a counterbore).' },
       fit: { type: 'string', enum: ['close', 'normal', 'loose'], description: 'screwHole: the clearance by ISO 273; default normal.' },
-      depth: { type: 'number', description: 'tappedHole, insertSeat, nutTrap, slot, text: depth in mm; default by the block (a slot and a tapped hole go through the wall at the point, not on through the far side of a hollow part).' },
+      depth: { type: 'number', description: 'tappedHole, insertSeat, nutTrap, slot, text: depth in mm; default by the block (a slot and a tapped hole go through, see through).' },
+      through: {
+        type: 'string',
+        enum: ['wall', 'body'],
+        description:
+          'screwHole, tappedHole and slot without depth, and the hole of a nutTrap: how far they go. wall (default): through the wall at the point and no further, so a hole in the side of a hollow box leaves the far side whole. body: through all of the body on its line, as through both cheeks of a fork, a clevis or a hinge block with a gap between.',
+      },
       diameter: { type: 'number', description: 'insertSeat: the hole for the insert; boss: its outer diameter; knob: its outer diameter, default 25; magnet: the diameter of the magnet, default 6. Default from the table.' },
       height: { type: 'number', description: 'boss: its height; text: the height of its capitals; lip: its height; knob: its height, default 16; magnet: the height of the magnet, default 2. Default by the block.' },
       length: { type: 'number', description: 'slot: its length; snapFit: the length of the arm. Default 10 and 12 mm.' },
@@ -116,7 +122,8 @@ export function blockOf(args: Record<string, unknown>): FeatureBlock | string {
   // Only the fields this kind has are taken from the model; the schema then checks their values.
   const given = Object.fromEntries(Object.keys(standard).flatMap((key) => (key in args && !['block', 'body', 'point', 'normal', 'size'].includes(key) ? [[key, args[key]]] : [])));
   const more = args.more !== undefined && 'more' in { more: undefined, ...standard } && ['screwHole', 'tappedHole', 'insertSeat'].includes(kind) ? { more: args.more } : {};
-  const parsed = featureBlockSchema.safeParse({ ...standard, ...given, ...more });
+  const through = args.through !== undefined && ['screwHole', 'tappedHole', 'slot', 'nutTrap'].includes(kind) ? { through: args.through } : {};
+  const parsed = featureBlockSchema.safeParse({ ...standard, ...given, ...more, ...through });
   if (!parsed.success) return `${parsed.error.issues[0]?.path.join('.') ?? kind}: ${parsed.error.issues[0]?.message ?? 'invalid'}`;
   return outOfTable(parsed.data) ?? parsed.data;
 }
@@ -148,7 +155,7 @@ export interface Stock {
 }
 
 /** In mm: how much deeper than asked a hole may reach on a curved face (measured 2026-11-12: an M3 seat on a rod of 20 mm radius took 0.02 mm more of the stock than on a flat face). */
-const CURVED_FACE = 0.3;
+export const CURVED_FACE = 0.3;
 
 /** In mm: the plastic that must stay under the seat of an insert (three layers of 0.2 mm, as under a magnet pocket; our own choice). */
 export const SEAT_UNDER = 0.6;
@@ -536,6 +543,19 @@ export function curvedWall(missing: number, off: number, down: number, inner: nu
   });
 }
 
+/**
+ * How far a block's cut without depth went (audit W2): through the wall at each point as measured on trial, or, when that
+ * could not be measured or the model asked for it, through all of the body on its line.
+ */
+function reachSaid(block: FeatureBlock, reach: (number | null)[] | undefined): string {
+  const all = ` through all of ${block.body} on its line`;
+  if ('through' in block && block.through === 'body') return ` It goes${all}.`;
+  if (!cutsThrough(block)) return '';
+  if (reach?.every((value) => value !== null))
+    return ` It goes through the wall at ${reach.length > 1 ? 'each point' : 'the point'} and up to a millimetre past it, as measured on trial (${reach.map(String).join(', ')} mm from the face), not on through a far wall; give through body to go through all of ${block.body}.`;
+  return ` PartBuddy could not measure the wall at ${reach ? 'some of the points' : 'more' in block && block.more?.length ? 'the points' : 'the point'} (a point must lie on a face of ${block.body}, within ${String(ON_FACE)} mm), so it went${all}, far walls too; check it, and give depth where it must stop sooner.`;
+}
+
 /** What was built, with the sizes it took from the tables, for the model to tell the user. */
 function built(block: FeatureBlock): string {
   const { block: kind, body, point, ...sizes } = block;
@@ -660,7 +680,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
               ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder' : ''}: it is there.${fell > 0 ? fallenSaid(fell, lenient) : lenient > 0 ? lenientSaid(lenient) : ''}`
               : unmeasured
             : '';
-        const said = (wall ? wall.text : block ? built(block) : '') + (block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');
+        const said = (wall ? wall.text : block ? built(block) + reachSaid(block, reach) : '') + (block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');
         return { content: [{ type: 'text', text: `${said}${stockSaid}${warnings.length > 0 ? ` SolidCraft warns: ${warnings.join(' ')}` : ''}` }] };
       } catch (cause) {
         return { content: [{ type: 'text', text: `Not built: ${(cause as Error).message}` }], isError: true };

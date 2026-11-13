@@ -106,19 +106,31 @@ describe('function blocks (F1)', () => {
       expect(['screwHole', 'nutTrap', 'slot', 'tappedHole'].map((kind) => cutsThrough(defaultBlock(kind as 'slot', 'Dose', wall, 'M5', [-1, 0, 0])))).toEqual([true, true, true, true]);
       expect(cutsThrough({ ...defaultBlock('slot', 'Dose', wall, 'M3', [-1, 0, 0]), depth: 2 } as FeatureBlock)).toBe(false);
       expect(cutsThrough(defaultBlock('insertSeat', 'Dose', wall, 'M3'))).toBe(false);
+      // Asked to go through all of the body (both cheeks of a fork): no reach to find, the cut goes through all.
+      const fork = { ...defaultBlock('screwHole', 'Fork', wall, 'M3'), through: 'body' } as FeatureBlock;
+      expect(cutsThrough(fork)).toBe(false);
+      expect(stepsOf(fork)[0]?.params).not.toHaveProperty('depth');
+      expect(featureBlockSchema.safeParse(fork).success).toBe(true);
+      expect(featureBlockSchema.safeParse({ ...fork, through: 'all' }).success).toBe(false);
     });
 
     it('tries the cut through all on a copy of the body, plain where it is a modelled thread, and measures what it takes', () => {
       const trial = throughTrial(defaultBlock('tappedHole', 'Dose', wall, 'M5'));
-      expect(trial.map((step) => step.command)).toEqual(['solid.box', 'solid.combine', 'solid.hole', 'solid.combine', 'inspect.measure']);
+      expect(trial.map((step) => step.command)).toEqual(['solid.box', 'solid.combine', 'solid.move', 'solid.hole', 'solid.move', 'solid.combine', 'inspect.measure']);
       expect(trial[1]?.params).toEqual({ target: 'PartBuddy through', tools: ['Dose'], operation: 'intersect', keep_tools: true });
-      expect(trial[2]?.params).toMatchObject({ thread: 'M5', modeled: false });
-      expect(trial[3]?.params).toEqual({ target: 'PartBuddy through', tools: ['Dose'], operation: 'cut', keep_tools: true });
+      // The copy stands aside while the hole is drilled: on the body, SolidCraft 0.40.1 failed every solid.hole.
+      expect(trial[2]?.params).toEqual({ bodies: ['PartBuddy through'], translate: [0, 0, 30000] });
+      expect(trial[3]?.params).toMatchObject({ thread: 'M5', modeled: false });
+      expect(trial[4]?.params).toEqual({ bodies: ['PartBuddy through'], translate: [0, 0, -30000] });
+      expect(trial[5]?.params).toEqual({ target: 'PartBuddy through', tools: ['Dose'], operation: 'cut', keep_tools: true });
     });
 
     it('cuts through the near wall and a millimetre on, never half way to the next wall or further', () => {
       const slot = defaultBlock('slot', 'Dose', wall, 'M3', [-1, 0, 0]);
       expect(throughReach(slot, measured)).toEqual([3]);
+      // A point a little off its face (rounded) still finds its wall; one further off finds none.
+      expect(throughReach({ ...slot, point: [-0.04, 20, 15] }, measured)).toEqual([3.04]);
+      expect(throughReach({ ...slot, point: [-0.1, 20, 15] }, measured)).toEqual([null]);
       expect(stepsOf(slot, undefined, [3])[2]?.params).toEqual({ distance: '-3 mm', operation: 'cut', targets: ['Dose'] });
       // A wall 1 mm before the next: half way.
       const near = { bodies: [measured.bodies[2], { ...measured.bodies[1], bbox: { min: [3, 13.3, 13.3], max: [5, 26.7, 16.7] } }] };
