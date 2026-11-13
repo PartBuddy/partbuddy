@@ -905,7 +905,7 @@ export class SolidCraftSupervisor {
 
   /** Where parts stop each joint value on its way to a limit (ADR 0027, `joint.sweep`); the design stays as it is. */
   sweepJoints(sweeps: JointSweep[]): Promise<JointSweepResult> {
-    return this.trial('joint sweep', () => this.actions.sweepJoints(sweeps));
+    return this.trial('joint sweep', () => this.actions.sweepJoints(sweeps, (line) => this.options.log(line)));
   }
 
   /** Overlaps and gaps narrower than `gap` between the bodies (F2, `inspect.clearance`). */

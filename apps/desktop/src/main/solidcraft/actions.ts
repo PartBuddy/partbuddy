@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { cutsThrough, splitPieceSteps, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../../shared/blocks';
 import type { ClearanceResult, DesignAction, JointSweep, JointSweepResult, MeasureItem, MeasureResult } from '../../shared/contract';
+import { LIP } from '../../shared/mechanisms';
 import type { ControlRequester } from './mirror';
 
 /**
@@ -186,23 +187,44 @@ export class ActionService {
 
   /**
    * Runs each joint value to a limit on a copy of the design (`joint.sweep`, ADR 0027); a sweep SolidCraft refuses counts as run through.
-   * So does a snap fit: parts that meet a short way before the limit and are free of each other at the limit press past
-   * one another there, as a lid's bead does over the rim of its box. The limit's pose is tried in a batch that ends in
-   * the failing read, so SolidCraft takes the drive back with its undo step and the joint stands where it stood
-   * (0.40.1). `rollback` alone took back nothing: in the window each check left undo steps and a new revision, which
-   * was mirrored and checked again without end (audit X-1, contract test "stays quiet").
+   * So does a snap fit: parts that meet a short way before the limit, press past one another no deeper than a snap's catch
+   * and are free of each other at the limit, as a lid's bead does over the rim of its box. Anything deeper in the way is a
+   * stop, however close to the limit (audit D11). The poses are tried in one batch that ends in the failing read, so
+   * SolidCraft takes every drive back with its undo step and the joint stands where it stood (0.40.1); a failure on the
+   * way takes them back the same way, and the stop is kept and logged (audit G4). `rollback` alone took back nothing: in
+   * the window each check left undo steps and a new revision, which was mirrored and checked again without end (audit
+   * X-1, contract test "stays quiet").
    */
-  async sweepJoints(sweeps: JointSweep[]): Promise<JointSweepResult> {
+  async sweepJoints(sweeps: JointSweep[], log: (line: string) => void = () => undefined): Promise<JointSweepResult> {
     if (sweeps.length === 0) return [];
     const reply = await this.batch(sweeps.map((sweep) => ({ command: 'joint.sweep', params: { ...sweep } })), false);
     if (reply.failed) throw new Error(reply.failed.error);
     const stops = sweeps.map((_, i) => sweepStopOf(reply.results?.[i]));
     for (const [i, sweep] of sweeps.entries()) {
       const stop = stops[i];
-      if (!stop || sweep.index !== 0 || !snapSpan(stop.stoppedAt, sweep.to, (reply.results?.[i] as { unit?: unknown } | undefined)?.unit)) continue;
-      const posed = await this.batch([{ command: 'joint.drive', params: { joint: sweep.joint, value: sweep.to, quiet: true } }, { command: 'inspect.interference', params: {} }, UNDO_ALL], true);
-      // Free at the limit: what stopped the sweep is pressed past on the way there.
-      if (posed.failed?.index === 2 && (posed.results?.[1] as { count?: unknown } | undefined)?.count === 0) stops[i] = null;
+      const unit = (reply.results?.[i] as { unit?: unknown } | undefined)?.unit;
+      if (!stop || !snapSpan(stop.stoppedAt, sweep.to, unit)) continue;
+      const poses = snapPoses(stop.stoppedAt, sweep.to, unit);
+      const drive = (value: number) => ({ command: 'joint.drive', params: { joint: sweep.joint, index: sweep.index, value, quiet: true } });
+      const steps = [...poses.flatMap((value) => [drive(value), { command: 'inspect.interference', params: {} }]), UNDO_ALL];
+      const what = `joint ${String(sweep.joint)} value ${String(sweep.index)}: ${stop.a} meets ${stop.b} at ${String(stop.stoppedAt)} on the way to ${String(sweep.to)}`;
+      const posed = await this.batch(steps, true);
+      if (posed.failed?.index !== steps.length - 1) {
+        const why = posed.failed ? `${posed.failed.command}: ${posed.failed.error.slice(0, 200)}` : 'the batch did not end in its failing read';
+        log(`Warning: ${what}: the snap fit could not be tried (${why}); the stop is reported`);
+        continue;
+      }
+      const depths = poses.map((_, k) => overlapDepth(posed.results?.[k * 2 + 1]));
+      const passing = depths.slice(0, -1);
+      // Not free at the limit: the stop stands, as before.
+      if (depths.at(-1) !== 0) continue;
+      if (passing.some((depth) => depth === null)) {
+        log(`Warning: ${what}: SolidCraft's interference on the way could not be read; the stop is reported`);
+        continue;
+      }
+      // Through no deeper than a snap's catch on the way, and free at the limit: what stopped the sweep is a snap fit.
+      const deepest = Math.max(...passing.map((depth) => depth ?? Infinity));
+      if (deepest > 0 && deepest <= SNAP_CATCH + 1e-9) stops[i] = null;
     }
     return stops;
   }
@@ -219,11 +241,47 @@ export class ActionService {
 }
 
 /**
- * How close to its limit a contact must lie to be a snap fit rather than a stop: a bead's way over a rim, not a part in
- * the way. Nearer than `REACHED` it reached the limit anyway (the light's own rule), and nothing needs trying.
+ * How close to its limit a contact must lie to be tried as a snap fit: a bead's way over a rim. Nearer than `REACHED` it
+ * reached the limit anyway (the light's own rule), and nothing needs trying. Within the span it is a snap fit only when
+ * what passes is no deeper than `SNAP_CATCH` (sweepJoints): the span says where to look, the overlap decides (audit D11).
  */
 const SNAP_SPAN = { deg: 6, mm: 4 };
 const REACHED = { deg: 0.5, mm: 0.1 };
+/**
+ * The deepest overlap a snap fit presses past (mm): the bead of PartBuddy's own closure, 0.5 mm proud (`LIP.bead`,
+ * mechanisms.ts). The template's hinged box measured 0.22 to 0.33 mm from 176° to 179.5° (SolidCraft 0.40.1, 2026-11-13).
+ */
+export const SNAP_CATCH = LIP.bead;
+
+/**
+ * Where a snap fit is tried: just past the contact, at a quarter, half and three quarters of the way, and at the limit.
+ * shortcut: a part in the way that is passed between two of these poses is not seen; the stop is then reported, as no
+ * pose found the snap. Sample finer if a snap fit with a short way reads as a stop.
+ */
+export function snapPoses(stoppedAt: number, to: number, unit: unknown): number[] {
+  const near = Math.sign(to - stoppedAt) * (unit === 'mm' ? REACHED.mm : REACHED.deg);
+  const at = (value: number) => Math.round(value * 1e6) / 1e6;
+  return [at(stoppedAt + near), ...[0.25, 0.5, 0.75].map((share) => at(stoppedAt + (to - stoppedAt) * share)), to];
+}
+
+/**
+ * How deep two parts overlap in an `inspect.interference` answer (0.40.1: `{count, interferences: [{a, b, bbox, volume_mm3}]}`):
+ * the thinnest side of the deepest overlap's box, 0 when they are free, null when the answer cannot be read.
+ * shortcut: the box lies along the world axes, so an overlap that runs at a slant reads thicker than it is and is kept as
+ * a stop; measure along the motion if a slanted snap fit reads as a stop.
+ */
+export function overlapDepth(result: unknown): number | null {
+  const { count, interferences } = (result ?? {}) as { count?: unknown; interferences?: unknown };
+  if (count === 0) return 0;
+  if (!Array.isArray(interferences) || interferences.length === 0) return null;
+  let deepest = 0;
+  for (const item of interferences as { bbox?: { min?: unknown; max?: unknown } }[]) {
+    const { min, max } = item.bbox ?? {};
+    if (!isVec(min) || !isVec(max)) return null;
+    deepest = Math.max(deepest, Math.min(max[0] - min[0], max[1] - min[1], max[2] - min[2]));
+  }
+  return deepest;
+}
 
 /** Whether a sweep that stopped at `stoppedAt` on its way to `to` stopped close enough to be a snap fit, if the limit's pose is free. */
 export function snapSpan(stoppedAt: number, to: number, unit: unknown): boolean {
