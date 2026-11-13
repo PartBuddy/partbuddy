@@ -191,7 +191,8 @@ describe('the actions of the selection follow the print rules (audit D25, S-15, 
     const at = (nozzle: number, layer: number, bed = false) => (['fillet', 'chamfer', 'extrude', 'hole', 'shell'] as const).map((kind) => startSize(kind, { nozzle, layer }, bed));
     expect(at(0.4, 0.2)).toEqual([1, 0.6, 5, 3, 1.35]);
     expect(at(0.4, 0.2, true)[1]).toBe(0.4);
-    expect(at(0.25, 0.12)).toEqual([1, 0.6, 5, 3, 0.843]);
+    // Lines of 0.28 mm at 0.25 mm: half the check's two-line wall of 0.56 (designFit lineWidth, BC-14).
+    expect(at(0.25, 0.12)).toEqual([1, 0.6, 5, 3, 0.84]);
     expect(at(0.25, 0.12, true)[1]).toBe(0.24);
     expect(at(1.2, 0.6)).toEqual([1.2, 0.6, 5, 3, 4.05]);
     // Before the part's profile is known: the blocks' default printer, no allowance.

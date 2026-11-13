@@ -1,8 +1,8 @@
-import { LYING_HOLE, OVERHANG_LIMITS, thinnestLine } from '@partbuddy/geometry';
+import { LYING_HOLE, minimumWall, OVERHANG_LIMITS, thinnestLine } from '@partbuddy/geometry';
 
 import { DEFAULT_PRINTER } from '../../../shared/blocks';
 import type { DesignAction, PartPrint } from '../../../shared/contract';
-import { fitSize, lineWidth, snapSize, type FitPrinter } from '../../../shared/designFit';
+import { lineWidth, snapSize, type FitPrinter } from '../../../shared/designFit';
 import type { BodyModel, Pick } from '../state/store';
 
 export type ActionKind = DesignAction['action'];
@@ -158,8 +158,8 @@ export interface ActionPlan {
 /**
  * The action as PartBuddy's rules build it (audit D25, S-15, S-16): a hole gets the material's allowance on its diameter
  * and a word when it lies across the layers too wide to print round; a fillet on edges facing the bed gets the chamfer
- * offered; a shell's wall is held against the narrowest line, two lines and the line grid, as fitSize does for the
- * assistant. Sizes the user types stay as typed (printProfiles.ts: "Sizes the user names are fixed"); only a wall that
+ * offered; a shell's wall is held against the narrowest line (thinnestLine), two lines (minimumWall) and the line grid
+ * (snapSize), as the print check and the assistant's sizes are. Sizes the user types stay as typed (printProfiles.ts: "Sizes the user names are fixed"); only a wall that
  * does not print is refused, as the print check would block it.
  */
 export function actionPlan(kind: ActionKind, size: number, bodies: BodyModel[], picks: Pick[], bed: Bed, print: ActionPrint): ActionPlan {
@@ -186,8 +186,9 @@ export function actionPlan(kind: ActionKind, size: number, bodies: BodyModel[], 
       const better = snapSize('wall', size, printer);
       const least = thinnestLine(printer.nozzle);
       if (size < least - 1e-9) return { size, notes: [{ note: 'wallNoPrint', least, better, refuse: true }] };
-      if (!fitSize('wall', size, 'user', printer).warning) return { size, notes: [] };
-      const two = snapSize('wall', 0, printer);
+      // On the grid of lines and at least two of them: snapSize leaves it as it is (designFit.ts, the check's minimumWall).
+      if (Math.abs(better - size) <= 1e-6) return { size, notes: [] };
+      const two = minimumWall(printer.nozzle);
       return { size, notes: [size < two - 1e-6 ? { note: 'wallThin', least: two, better } : { note: 'wallLines', line: lineWidth(printer), better }] };
     }
     default:
