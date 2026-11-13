@@ -196,6 +196,20 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   `plastic.snap_fit` take `body`. Without them the point alone decides which body is cut: on an edge two
   bodies share, both. With them a point that is not on the body cuts nothing ("the hole removes no
   material", a warning, not an error) or is refused.
+- Checked 2026-11-13: `solid.hole` without `depth` and `solid.extrude` cut far go through every wall of the
+  named body on their line (a box 60 × 40 × 30 with walls of 2 mm lost 2 × 18.158 mm³ to an M3 hole).
+  A cut as deep as the wall, or a millimetre more, takes that wall alone; a depth exactly as thick
+  leaves no skin. What a cut takes, as bodies: a box of 20 m `intersect` the body (`keep_tools`) is a
+  copy under a name of one's own; after the cut, the copy `cut` by the body leaves one body per piece
+  ("Name", "Name (1)"), each with `bbox` and `center_of_mass` in `inspect.measure`.
+- While such a copy lies on the body, every `solid.hole` at a point of it fails ("Hole1: the reference
+  `F1:+z` no longer exists as it was picked; reselect it"), whichever body `targets` names; a sketched
+  extrude does not. Moved aside first (`solid.move` by 30 m) and back after the hole, it works: a box with
+  2 mm walls gave two pieces of 18.158 mm³ for an M3 hole (review of PR #365).
+- `solid.hole` refuses a counterbore as deep as the hole or deeper ("the counterbore must be wider than
+  the hole and shallower than it"); a countersink deeper than the hole is built.
+- `model.faces` names the wall of a `solid.hole` `F<n>:bore:side:0`; a hole that breaks out of a side
+  leaves `…#1`, `…#2`. A `solid.cylinder` cut is `F<n>:side`.
 
 ## SolidCraft 0.40.0-rc.4 (checked 2026-11-11)
 

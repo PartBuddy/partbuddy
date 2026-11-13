@@ -561,12 +561,19 @@ export function screwSteps(spec: ScrewSpec): Step[] {
   ];
 }
 
+/** The room for the head in the moving body: its width at the face and how deep the head sits; null for a head lying on the face. */
+export function headRecess(spec: ScrewSpec): { diameter: number; depth: number } | null {
+  if (spec.head === 'cap') return { diameter: CAP_HEAD[spec.size][0] + 2 * HEAD_ALLOWANCE.diameter, depth: headDepth(spec) };
+  if (spec.head === 'countersunk') return { diameter: (COUNTERSUNK_HEAD[spec.size] ?? CAP_HEAD[spec.size][0]) + HEAD_ALLOWANCE.diameter, depth: headDepth(spec) };
+  return null;
+}
+
 /** The room for the head, as the function block for a screw hole makes it: a counterbore or a countersink with the allowance of a printed hole. */
 function headRoom(spec: ScrewSpec): Record<string, unknown> {
   const mm = (value: number) => `${String(round(value))} mm`;
-  if (spec.head === 'cap') return { type: 'counterbore', cb_diameter: mm(CAP_HEAD[spec.size][0] + 2 * HEAD_ALLOWANCE.diameter), cb_depth: mm(CAP_HEAD[spec.size][1] + HEAD_ALLOWANCE.depth) };
-  if (spec.head === 'countersunk') return { type: 'countersink', cs_diameter: mm((COUNTERSUNK_HEAD[spec.size] ?? CAP_HEAD[spec.size][0]) + HEAD_ALLOWANCE.diameter), cs_angle: '90 deg' };
-  return {};
+  const room = headRecess(spec);
+  if (!room) return {};
+  return spec.head === 'cap' ? { type: 'counterbore', cb_diameter: mm(room.diameter), cb_depth: mm(room.depth) } : { type: 'countersink', cs_diameter: mm(room.diameter), cs_angle: '90 deg' };
 }
 
 
