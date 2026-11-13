@@ -40,6 +40,11 @@ const look = {
 };
 
 let renderer: WebGLRenderer | null = null;
+/**
+ * Made with the first picture and kept, like the renderer: three.js frees a shader program with the last material that
+ * uses it, so materials made and freed for each picture compiled their shaders for every revision.
+ */
+let materials: { faces: MeshStandardMaterial; edges: LineBasicMaterial } | null = null;
 
 /** One small renderer for every picture; a second WebGL context beside the view's, made once. */
 function pictureRenderer(): WebGLRenderer {
@@ -69,7 +74,7 @@ function boundsOf(bodies: BodyModel[]): Sphere | null {
 /**
  * Draws the bodies from the isometric corner into a PNG and returns it as base64 (without the
  * data URL prefix), or null when there are no bodies or WebGL is not available. The geometry is
- * the view's own; only materials and lights are made here and freed again.
+ * the view's own; only the lights are made for each picture.
  */
 export function renderThumbnail(bodies: BodyModel[]): string | null {
   const bounds = boundsOf(bodies);
@@ -81,8 +86,11 @@ export function renderThumbnail(bodies: BodyModel[]): string | null {
     return null;
   }
   const scene = new Scene();
-  const faces = new MeshStandardMaterial({ color: look.body, roughness: look.roughness, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
-  const edges = new LineBasicMaterial({ color: look.edge, transparent: true, opacity: look.edgeOpacity });
+  materials ??= {
+    faces: new MeshStandardMaterial({ color: look.body, roughness: look.roughness, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
+    edges: new LineBasicMaterial({ color: look.edge, transparent: true, opacity: look.edgeOpacity }),
+  };
+  const { faces, edges } = materials;
   for (const body of bodies) {
     scene.add(new Mesh(body.model.geometry, faces));
     scene.add(new LineSegments(body.model.edges, edges));
@@ -116,8 +124,6 @@ export function renderThumbnail(bodies: BodyModel[]): string | null {
   } catch {
     return null;
   } finally {
-    faces.dispose();
-    edges.dispose();
     gl.renderLists.dispose();
   }
 }

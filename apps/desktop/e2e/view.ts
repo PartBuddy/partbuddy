@@ -34,3 +34,28 @@ export async function cameraOf(page: Page): Promise<{ position: Vec3; target: Ve
     return { position, target };
   });
 }
+
+interface ProgramWindow {
+  linkedPrograms?: number;
+  WebGL2RenderingContext: { prototype: { linkProgram: (this: unknown, program: unknown) => void } };
+}
+
+/**
+ * Counts the shader programs every WebGL context of the window links from now on, the view's and the start page
+ * picture's. In software WebGL (CI) linking one took a quarter of a second of the renderer, so a revision that
+ * compiled them again held up every click (13 November 2026).
+ */
+export async function countLinkedPrograms(page: Page): Promise<() => Promise<number>> {
+  await page.evaluate(() => {
+    const browser = globalThis as unknown as ProgramWindow;
+    if (browser.linkedPrograms === undefined) {
+      const link = browser.WebGL2RenderingContext.prototype.linkProgram;
+      browser.WebGL2RenderingContext.prototype.linkProgram = function (this: unknown, program: unknown) {
+        browser.linkedPrograms = (browser.linkedPrograms ?? 0) + 1;
+        link.call(this, program);
+      };
+    }
+    browser.linkedPrograms = 0;
+  });
+  return () => page.evaluate(() => (globalThis as unknown as ProgramWindow).linkedPrograms ?? 0);
+}

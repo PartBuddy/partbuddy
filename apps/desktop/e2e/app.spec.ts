@@ -8,7 +8,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
 import { countViewportPixels } from './pixels';
-import { cameraOf, cameraSettled } from './view';
+import { cameraOf, cameraSettled, countLinkedPrograms } from './view';
 import { launchApp, lookAgain, type LaunchedApp } from './launch';
 
 /**
@@ -64,6 +64,16 @@ test('the mirrored model appears and follows design changes', async () => {
   solidcraft.change();
   await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 2');
   await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+
+  // A further revision draws with the shaders it has: the edges and the start page picture compiled theirs
+  // again for each one, which held up the renderer for seconds on a loaded runner (13 November 2026).
+  await page.waitForTimeout(2000);
+  const linked = await countLinkedPrograms(page);
+  solidcraft.change();
+  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 3');
+  // The picture follows a revision after a short quiet time (`PREVIEW_DELAY_MS`, useProjectPreview).
+  await page.waitForTimeout(2000);
+  expect(await linked()).toBe(0);
 });
 
 test('the user undoes, redoes and exports without the assistant (ADR 0016)', async () => {
