@@ -51,6 +51,14 @@ const lips: Record<string, [number, number][]> = {
   'a lip with a step of 0.5 mm that looks up': [[13, 13], [12.5, 13], [12.5, 12.5], [13.75, 11.25], [15, 12.5]],
   'a bead whose back looks up': [[12, 14], [13.5, 12.5], [15, 14]],
 };
+// The shelf's 240 mm², and the faces of the lip at 45° that begin in the air under it: the lip
+// needs its own support, whatever props the shelf (the layers, review of pull request 363).
+const lipFindings: Record<string, { area: number; faces: string[] }> = {
+  'a drip edge': { area: 325, faces: ['F1:s2', 'F1:s4'] },
+  'a hook curled back to the wall': { area: 410, faces: ['F1:s2', 'F1:s6', 'F1:s7'] },
+  'a lip with a step of 0.5 mm that looks up': { area: 346, faces: ['F1:s2', 'F1:s6', 'F1:s7'] },
+  'a bead whose back looks up': { area: 367, faces: ['F1:s2', 'F1:s4', 'F1:s5'] },
+};
 // A tunnel under a round arch of diameter `d` on legs 4 mm high.
 const arch = (d: number, segments = 48) =>
   prismBody('Arch', [[0, 0], [4, 0], ...Array.from({ length: segments + 1 }, (_, i): [number, number] => [4 + d / 2 - (d / 2) * Math.cos((i * Math.PI) / segments), 4 + (d / 2) * Math.sin((i * Math.PI) / segments)]), [4 + d, 0], [8 + d, 0], [8 + d, 10 + d / 2], [0, 10 + d / 2]], 30);
@@ -87,7 +95,7 @@ describe('bridges, arms and what they hang from, on closed bodies', () => {
   it('hangs nothing from material that itself ends in the air', () => {
     // The lip going down from the far edge counted as a second wall, and the shelf as bridged; with a
     // face that looks up on the lip, the lip counted as standing.
-    for (const [name, lip] of Object.entries(lips)) expect(hanging(shelf(lip)), name).toEqual({ area: 240, faces: ['F1:s2'] });
+    for (const [name, lip] of Object.entries(lips)) expect(hanging(shelf(lip)), name).toEqual(lipFindings[name]);
     expect(hanging(prismBody('Shelf', [[0, 0], [5, 0], [5, 16], [15, 16], [15, 20], [0, 20]], 30)).area).toBe(300);
     // A wall that stands on the floor of a box holds a bridge as one on the bed does, also where the
     // floor is reached only through the material under it.
@@ -137,8 +145,8 @@ describe('bridges, arms and what they hang from, on closed bodies', () => {
       ['T-slot', slotted(true), 162],
       ['counterbore', ring(true), 20],
       ['bridge with a hole', holed(30), 15],
-      ['shelf with a drip edge', shelf(lips['a drip edge'] ?? []), 240],
-      ['shelf with a hook', shelf(lips['a hook curled back to the wall'] ?? []), 240],
+      ['shelf with a drip edge', shelf(lips['a drip edge'] ?? []), 240 + 30 * 2 * Math.SQRT2],
+      ['shelf with a hook', shelf(lips['a hook curled back to the wall'] ?? []), 240 + 2 * 30 * 2 * Math.SQRT2],
       ['sealed box', sealed, 0],
       ['hole Ø 7', lyingTube('Tube', 10, 3.5, 10, 96), turned(lyingTube('Tube', 10, 1.5, 10, 96))],
       ['hole Ø 8', lyingTube('Tube', 10, 4, 10, 96), turned(lyingTube('Tube', 10, 1.5, 10, 96))],
