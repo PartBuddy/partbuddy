@@ -1,8 +1,8 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MirrorScheduler } from '../src/main/solidcraft/mirror';
 import type { PartReferences, ReferenceState } from '../src/main/solidcraft/partReference';
 import { SolidCraftSupervisor } from '../src/main/solidcraft/supervisor';
+import { ProjectStore } from '../src/main/projects/projectStore';
 import type { ConnectionStatus, MirrorRevision } from '../src/shared/contract';
 import { FakeSolidCraft } from './fakeSolidCraft';
 
@@ -34,6 +35,7 @@ function setup(options: { installed?: boolean; autoStart?: boolean; cacheDir?: s
   });
   const statuses: ConnectionStatus[] = [];
   const revisions: MirrorRevision[] = [];
+  const saved = { count: 0 };
   const supervisor = new SolidCraftSupervisor(
     {
       environment: {
@@ -55,10 +57,13 @@ function setup(options: { installed?: boolean; autoStart?: boolean; cacheDir?: s
     {
       status: (status) => statuses.push(status),
       revision: (revision) => revisions.push(revision),
+      saved: () => {
+        saved.count += 1;
+      },
     },
   );
   cleanups.push(() => supervisor.shutdown());
-  return { supervisor, statuses, revisions, controlDir, cacheDir };
+  return { supervisor, statuses, revisions, controlDir, cacheDir, saved };
 }
 
 async function startFake(controlDir: string, batchDelayMs = 0) {
@@ -355,8 +360,8 @@ describe('SolidCraft supervisor', () => {
     });
   });
 
-  it('reads the print faces SolidCraft saved with the design and matches them to the mirrored faces (audit D20)', async () => {
-    const { supervisor, revisions, controlDir, cacheDir } = setup();
+  it('reads the print faces from the saved design only while it is current, and saves first when the design moved (audit D20, review of BC-04 B1)', async () => {
+    const { supervisor, revisions, controlDir, cacheDir, saved } = setup();
     await startFake(controlDir);
     supervisor.start();
     await vi.waitFor(() => expect(revisions).toHaveLength(1), { timeout: 5000 });
@@ -364,15 +369,44 @@ describe('SolidCraft supervisor', () => {
     const [body] = revisions[0]?.bodies ?? [];
     const top = body?.faces.faces.find((face) => face.planeNormal?.[2] === 1);
     if (!body || !top) throw new Error('the fixture has no flat top');
-    // A design file as SolidCraft saves it: a zip whose document.json lists the print faces; one names a face long gone.
-    const design = join(cacheDir, 'Clip.sc');
-    const document = { print_faces: { [body.name]: { name: 'F9:old', point: top.centroid }, Gone: { name: 'F1:+z', point: [0, 0, 0] } } };
-    writeFileSync(design, zipSync({ 'document.json': strToU8(JSON.stringify(document)), 'cache/bodies.bin': new Uint8Array(8) }));
-    (supervisor as unknown as { designFile: string }).designFile = design;
-    expect(await supervisor.savedPrintFaces()).toEqual({ faces: { [body.name]: expect.any(String) as string, Gone: 'F1:+z' }, lost: [] });
-    const faces = (await supervisor.savedPrintFaces())?.faces ?? {};
-    const laid = body.faces.faces.find((face) => face.name === faces[body.name]);
-    expect(laid?.planeNormal).toEqual(top.planeNormal);
+    // The headless engine as the supervisor uses it: a save writes the design as SolidCraft does (a zip whose
+    // document.json lists the print faces) and moves the revision; the project store holds the design.
+    const projects = join(cacheDir, 'projects');
+    const design = join(projects, 'Cable clip', 'Cable clip.sc');
+    const state = { revision: 7, faces: {} as Record<string, unknown> };
+    const engine = {
+      isOpen: true,
+      current: () => ({ documentId: 'doc', revision: state.revision }),
+      revision: () => Promise.resolve({ documentId: 'doc', revision: state.revision }),
+      save: (path: string) => {
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, zipSync({ 'document.json': strToU8(JSON.stringify({ print_faces: state.faces })), 'cache/bodies.bin': new Uint8Array(8) }));
+        state.revision += 1;
+        return Promise.resolve();
+      },
+      close: () => Promise.resolve(),
+    };
+    Object.assign(supervisor as unknown as Record<string, unknown>, { engine, designFile: design, designs: new ProjectStore(projects, join(cacheDir, 'designs'), 'Part') });
+    // Never saved: nothing is read.
+    expect(await supervisor.savedPrintFaces()).toBeNull();
+    // A print face set and not saved yet (no timer runs, the mirror has not come): saveNow saves, the save is told.
+    state.faces = { [body.name]: { name: 'F9:old', point: top.centroid }, Gone: { name: 'F1:+z', point: [0, 0, 0] } };
+    state.revision += 1;
+    expect(await supervisor.saveNow()).toBe(design);
+    expect(saved.count).toBe(1);
+    const read = await supervisor.savedPrintFaces();
+    expect(read).toEqual({ faces: { [body.name]: expect.any(String) as string, Gone: 'F1:+z' }, lost: [] });
+    expect(body.faces.faces.find((face) => face.name === read?.faces[body.name])?.planeNormal).toEqual(top.planeNormal);
+    // The design moved after the save (a print face set or undone): the older file is not read.
+    state.faces = {};
+    state.revision += 1;
+    expect(await supervisor.savedPrintFaces()).toBeNull();
+    await supervisor.saveNow();
+    expect(saved.count).toBe(2);
+    expect(await supervisor.savedPrintFaces()).toEqual({ faces: {}, lost: [] });
+    // Nothing moved since: no save.
+    await supervisor.saveNow();
+    expect(saved.count).toBe(2);
   });
 
   it('refuses to export a design without a body', async () => {

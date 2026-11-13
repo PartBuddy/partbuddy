@@ -4,13 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator } from 'react-aria-components';
 
 import type { ExportFormat, Slicer } from '../../../shared/contract';
+import { FINE_CHORD } from '../../../shared/exportQuality';
 import { useAssistant, selectedStatus } from '../assistant/store';
 import { ExportConfirm } from '../print/ExportConfirm';
 import { asksBeforeExport } from '../print/report';
 import { platform } from '../platform';
 import { useStudio, type ExportTarget } from '../state/store';
 import { buttonClass, IconButton } from '../ui/Button';
-import { goneFaces } from './printFaceChanges';
 import { VersionsDialog } from './VersionsDialog';
 import { POPOVER_OFFSET, menuClass, menuHeaderClass, menuItemTwoLineClass, menuSeparatorClass, popoverClass } from '../ui/Overlay';
 
@@ -100,18 +100,6 @@ export function DesignActions() {
       window.removeEventListener('keydown', onKey);
     };
   }, [canUndo, canRedo, undo, redo]);
-
-  // A print face SolidCraft no longer holds (undone, or on no flat face after a change) is said, not dropped silently (audit D20).
-  const printFaces = useStudio((s) => s.printFaces);
-  const seenFaces = useRef<{ documentId: string | null; faces: Record<string, string> }>({ documentId: null, faces: {} });
-  useEffect(() => {
-    const documentId = model.status === 'ready' ? model.documentId : null;
-    const before = seenFaces.current;
-    seenFaces.current = { documentId, faces: printFaces };
-    if (documentId === null || before.documentId !== documentId || model.status !== 'ready') return;
-    const gone = goneFaces(before.faces, printFaces, model.bodies.map((entry) => entry.name));
-    if (gone.length > 0) setNotice({ tone: 'danger', text: t('actions.printFaceGone', { bodies: gone.slice(0, 5).join(', '), count: gone.length }) });
-  }, [printFaces, model, setNotice, t]);
 
   // Bodies that look like bought standard parts but could not be checked went along as printed ones: the user hears it with the result.
   const unchecked = (bodies: string[] | undefined) => (bodies && bodies.length > 0 ? ` ${t('actions.uncheckedParts', { bodies: bodies.slice(0, 5).join(', '), count: bodies.length })}` : '');
@@ -207,7 +195,7 @@ export function DesignActions() {
                   {format === 'step' ? <IconFileExport className={itemIcon} aria-hidden /> : <IconFile3d className={itemIcon} aria-hidden />}
                   <span className="flex flex-col">
                     <span className="text-sm font-medium text-text">{t(`actions.format.${format}.name`)}</span>
-                    <span className="text-xs text-text-muted">{t(`actions.format.${format}.hint`)}</span>
+                    <span className="text-xs text-text-muted">{t(`actions.format.${format}.hint`, { chord: FINE_CHORD * 100 })}</span>
                   </span>
                 </MenuItem>
               ))}

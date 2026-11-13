@@ -2949,7 +2949,7 @@ test('a local model builds a part in SolidCraft through the policy (F8)', async 
 
 test('the tolerance assistant has SolidCraft build its test pieces and shows a picture of them', async () => {
   test.setTimeout(240_000);
-  const { existsSync, mkdtempSync, rmSync } = await import('node:fs');
+  const { mkdtempSync, readdirSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-test-pieces-'));
@@ -2973,7 +2973,8 @@ test('the tolerance assistant has SolidCraft build its test pieces and shows a p
     const assistant = page.getByTestId('tolerance-assistant');
     await assistant.getByTestId('tolerance-next').click();
     await expect(assistant.getByTestId('tolerance-picture')).toBeVisible({ timeout: 120_000 });
-    expect(existsSync(join(work, 'cache', 'test-pieces', 'test-pieces-0.4-0.2.sc'))).toBe(true);
+    // Named after the printer and a hash of the pieces' steps (audit D43).
+    expect(readdirSync(join(work, 'cache', 'test-pieces')).filter((name) => /^test-pieces-0\.4-0\.2-[0-9a-f]{12}\.sc$/.test(name))).toHaveLength(1);
     await page.screenshot({ path: test.info().outputPath('tolerance-pieces.png') });
   } finally {
     await launched.close();

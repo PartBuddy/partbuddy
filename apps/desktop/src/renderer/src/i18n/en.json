@@ -539,7 +539,7 @@
     "format": {
       "3mf": {
         "name": "3MF",
-        "hint": "For the slicer: the visible printed parts, each on its print face where one is set, round faces fine (off by 0.005 mm per 100 mm of part size at most)"
+        "hint": "For the slicer: the visible printed parts, each on its print face where one is set, round faces fine (off by {chord, number} mm per 100 mm of part size at most)"
       },
       "stl": {
         "name": "STL",
@@ -552,7 +552,6 @@
     },
     "exported": "Saved as {file}",
     "hiddenLeftOut": "Hidden, so left out: {bodies}.",
-    "printFaceGone": "{bodies} {count, plural, one {has} other {have}} no print face any more and {count, plural, one {lies} other {lie}} as designed in the check and the export.",
     "openInSolidCraft": "Open in SolidCraft",
     "openedInSolidCraft": "The design is in Documents\\PartBuddy and opens in SolidCraft. PartBuddy shows your changes there live.",
     "failed": "That did not work: {detail}",

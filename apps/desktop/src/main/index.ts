@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { copyFileSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve, sep } from 'node:path';
@@ -24,7 +24,7 @@ import { guardNotes } from './agents/noteGuard';
 import { withViewTool } from './agents/viewContext';
 import { withAssemblyTool } from './agents/assemblyTool';
 import { withDesignTool } from './agents/designTool';
-import { readAssembly, readPrintFaces, withPrintFace, writeAssembly, writePrintFaces } from './projects/assembly';
+import { PrintFaceKeeper, readAssembly, writeAssembly } from './projects/assembly';
 import { withPrintFaces } from './agents/printFaceWatch';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
@@ -277,7 +277,7 @@ if (!app.requestSingleInstanceLock()) {
     let notes: NotesService | null = null;
     let chats: ChatArchive | null = null;
     let prints: PrintProfiles | null = null;
-    // Reads the print faces SolidCraft saved with the design (audit D20); set once the supervisor exists.
+    // Reads the print faces SolidCraft saved with the design after each save (audit D20); set once the supervisor exists.
     let syncPrintFaces: (() => void) | null = null;
     // Which SolidCraft runs (R0, ADR 0024): the automatic search or the program the user chose.
     const engineChoice = new EngineChoice({
@@ -314,8 +314,10 @@ if (!app.requestSingleInstanceLock()) {
           if (status.state === 'connected' && status.save === 'saved') {
             chats?.flush();
             prints?.flush();
-            syncPrintFaces?.();
           }
+        },
+        saved: () => {
+          syncPrintFaces?.();
         },
         revision: (revision) => {
           bridge.emit(mainWindow?.webContents ?? null, eventChannels.mirrorRevision, revision);
@@ -587,34 +589,26 @@ if (!app.requestSingleInstanceLock()) {
       log(`kept the assembly order: ${String(plan.steps.length)} steps`);
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.assemblyChanged, plan);
     };
-    // Print faces of a design without a project folder stay here until it has one (audit H-13); SolidCraft keeps them
-    // in the design, so the first save brings them into the folder (syncPrintFaces).
-    let looseFaces: { documentId: string | null; faces: Record<string, string> } = { documentId: null, faces: {} };
-    const printFacesNow = (): Record<string, string> => {
-      const folder = assemblyFolder();
-      if (folder) return readPrintFaces(folder);
-      return looseFaces.documentId === (supervisor.currentRevision()?.documentId ?? null) ? looseFaces.faces : {};
-    };
-    const setPrintFaces = (faces: Record<string, string>) => {
-      const folder = assemblyFolder();
-      if (folder) writePrintFaces(folder, faces);
-      else looseFaces = { documentId: supervisor.currentRevision()?.documentId ?? null, faces };
-      bridge.emit(mainWindow?.webContents ?? null, eventChannels.printFacesChanged, faces);
-    };
+    // The print faces, kept for the plate view, the check, the export and the slicer (audit D20, H-13).
+    const printFaces = new PrintFaceKeeper({
+      folder: assemblyFolder,
+      documentId: () => supervisor.currentRevision()?.documentId ?? null,
+      changed: (faces) => {
+        bridge.emit(mainWindow?.webContents ?? null, eventChannels.printFacesChanged, faces);
+      },
+    });
+    const printFacesNow = () => printFaces.now();
     // A mechanism that lays its part down (a screw lid on its top) says so here, so the plate view turns it as the slicer will.
     const keepMechanismFace = (body: string, face: string | null) => {
-      setPrintFaces(withPrintFace(printFacesNow(), body, face));
+      printFaces.keep(body, face);
     };
-    // After each save the kept faces follow SolidCraft's: an undone, renamed or rebuilt print face reads as SolidCraft holds it.
+    // After a save the kept faces follow SolidCraft's: an undone, renamed or split print face reads as SolidCraft holds it.
+    // A face that is on no flat face of its body any more is logged and told to the assistant once.
     const readSavedFaces = async () => {
-      const saved = await supervisor.savedPrintFaces();
-      if (!saved || !assemblyFolder()) return;
-      if (saved.lost.length > 0) log(`print faces on no flat face of their body any more, laid as designed: ${saved.lost.join(', ')}`);
-      const kept = printFacesNow();
-      const same = Object.keys(kept).length === Object.keys(saved.faces).length && Object.entries(saved.faces).every(([body, face]) => kept[body] === face);
-      if (same) return;
-      setPrintFaces(saved.faces);
-      log(`print faces read from the saved design: ${String(Object.keys(saved.faces).length)}`);
+      const lost = printFaces.takeSaved(await supervisor.savedPrintFaces());
+      if (lost.length === 0) return;
+      log(`print faces on no flat face of their body any more, laid as designed: ${lost.join(', ')}`);
+      steps.mention(`the print face of ${lost.map((body) => `"${body}"`).join(', ')} is on no flat face of it any more, so it is checked and exported as designed; set it again (body.print_face) where it should lie`);
     };
     syncPrintFaces = () => {
       void readSavedFaces().catch((error: unknown) => {
@@ -859,6 +853,7 @@ if (!app.requestSingleInstanceLock()) {
       const options = { title: 'Export', defaultPath: join(folder, `${name}.${format}`), filters: [EXPORT_FILTERS[format]] };
       const choice = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
       if (choice.canceled || !choice.filePath) return null;
+      // Saved first when the design moved since its last save, so the faces read are the design's as it is now.
       await supervisor.saveNow();
       await readSavedFaces().catch((error: unknown) => {
         log(`print faces not read from the saved design before the export: ${(error as Error).message}`);
@@ -1235,8 +1230,16 @@ if (!app.requestSingleInstanceLock()) {
       const steps = testPieceSteps({ nozzle, layer });
       // Named after the steps as well, so pieces changed by an update are built and pictured anew (audit D43).
       const made = createHash('sha256').update(JSON.stringify(steps)).digest('hex').slice(0, 12);
-      const design = join(cacheDirectory(), 'test-pieces', `test-pieces-${String(nozzle)}-${String(layer)}-${made}.sc`);
-      if (!existsSync(design)) await supervisor.designFromSteps(steps, design);
+      const folder = join(cacheDirectory(), 'test-pieces');
+      const name = `test-pieces-${String(nozzle)}-${String(layer)}`;
+      const design = join(folder, `${name}-${made}.sc`);
+      if (!existsSync(design)) {
+        // The pieces of earlier steps for this printer go: they are not shown again.
+        for (const old of existsSync(folder) ? readdirSync(folder) : []) {
+          if (old.startsWith(name) && /^(-[0-9a-f]{12})?\.(sc|png)$/.test(old.slice(name.length)) && !old.startsWith(`${name}-${made}.`)) rmSync(join(folder, old), { force: true });
+        }
+        await supervisor.designFromSteps(steps, design);
+      }
       return design;
     };
     bridge.handle(invokeChannels.printTestPiecesPicture, async (printer) => {
@@ -1299,10 +1302,21 @@ if (!app.requestSingleInstanceLock()) {
       let bodies: string[] = [];
       await steps.recordUser(describeUserAction({ kind: 'insertFile', name }), async () => {
         let inserted = await supervisor.insertFile(file, kind);
+        const after = await supervisor.history();
         const unit = kind === 'mesh' ? await askUnit(file, inserted.size) : null;
         if (unit) {
           // The design keeps the millimetre mesh and not the unit, so the file goes in again in the unit the user named.
+          // Only the insert is taken back: while the question was open the assistant or the user may have changed the design.
+          assistantIdle();
+          const now = await supervisor.history();
+          if (now.documentId !== after.documentId || now.undo !== after.undo || now.redo !== 0) {
+            log(`the unit of ${name} was not applied: the design changed while the question was open`);
+            throw new Error(`the design changed while PartBuddy asked for the unit, so ${name} stays in millimetres; take it back and insert it again`);
+          }
           await supervisor.undo();
+          const back = await supervisor.history();
+          // One step back, also at SolidCraft's undo depth of 200, where the insert pushed the oldest step out.
+          if (back.redo !== 1 || back.undo !== after.undo - 1) throw new Error(`${name} was not taken back as one step, so it was not inserted again in ${unit}`);
           inserted = await supervisor.insertFile(file, kind, unit);
         }
         bodies = inserted.bodies;

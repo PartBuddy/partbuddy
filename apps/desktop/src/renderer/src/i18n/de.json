@@ -539,7 +539,7 @@
     "format": {
       "3mf": {
         "name": "3MF",
-        "hint": "Für den Slicer: die sichtbaren Druckteile, jedes auf seiner Druckfläche, wo eine gesetzt ist, Rundungen fein (Abweichung höchstens 0,005 mm je 100 mm Teilgröße)"
+        "hint": "Für den Slicer: die sichtbaren Druckteile, jedes auf seiner Druckfläche, wo eine gesetzt ist, Rundungen fein (Abweichung höchstens {chord, number} mm je 100 mm Teilgröße)"
       },
       "stl": {
         "name": "STL",
@@ -552,7 +552,6 @@
     },
     "exported": "Gespeichert als {file}",
     "hiddenLeftOut": "Ausgeblendet und deshalb nicht dabei: {bodies}.",
-    "printFaceGone": "{bodies} {count, plural, one {hat} other {haben}} keine Druckfläche mehr und {count, plural, one {liegt} other {liegen}} in Prüfung und Export wie konstruiert.",
     "openInSolidCraft": "In SolidCraft öffnen",
     "openedInSolidCraft": "Das Design liegt in Dokumente\\PartBuddy und öffnet sich in SolidCraft. PartBuddy zeigt deine Änderungen dort live.",
     "failed": "Das hat nicht geklappt: {detail}",

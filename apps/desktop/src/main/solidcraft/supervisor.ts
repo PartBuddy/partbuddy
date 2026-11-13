@@ -9,6 +9,7 @@ import { createActor, fromCallback, fromPromise } from 'xstate';
 import type { ConnectionStatus, ExportFormat, MirrorRevision } from '../../shared/contract';
 import type { UpstreamTools } from '../agents/gateProxy';
 import { joinPieces } from '../print/pieces3mf';
+import { EXPORT_QUALITY } from '../../shared/exportQuality';
 import { layStl } from './layStl';
 import { ControlClient, ControlError } from './controlClient';
 import { cliBeside, endpointForPort, findExecutable, findRunning, type ControlEndpoint, type Environment } from './discovery';
@@ -20,7 +21,7 @@ import type { DesignParameter, DimensionMark, LogoMoveRequest, LogoSpot } from '
 import { logoAt, planLogoMove } from './logoMove';
 import { blockBodies, colourLayers, planeAt, type FeatureBlock } from '../../shared/blocks';
 import { centring, hostFace, movedPlane, TEXT_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
-import { boxSize, insertCommand, type ImportKind, type MeshUnit } from '../projects/importFile';
+import { boxSize, insertCommand, statesNoUnit, type ImportKind, type MeshUnit } from '../projects/importFile';
 import { resolvePrintFaces, savedPrintFaces } from '../projects/assembly';
 import { freeBodyName, libraryOf } from './standardParts';
 import { cliReferences, type PartReferences } from './partReference';
@@ -83,6 +84,8 @@ export function longPath(folder: string): string {
 export interface SupervisorListeners {
   status(status: ConnectionStatus): void;
   revision(revision: MirrorRevision): void;
+  /** After each save of the headless design to its file, when it went through (not with every status). */
+  saved?(): void;
 }
 
 type Mirror = ConnectionStatus['mirror'];
@@ -277,15 +280,18 @@ export class SolidCraftSupervisor {
    */
   private async exportLaid(path: string, format: ExportFormat, bodies: readonly string[], faces: Readonly<Record<string, string>>): Promise<Record<string, [number, number, number]>> {
     const laid = bodies.filter((body) => faces[body]);
-    const quality = format === 'step' ? {} : { quality: 'fine' };
+    const quality = format === 'step' ? {} : { quality: EXPORT_QUALITY };
     const reply = await this.requester().request<BatchResult>(
       'engine.batch',
       { commands: [{ command: 'file.export', params: { path, format, bodies, ...quality } }, ...laid.map((body) => ({ command: 'model.faces', params: { body } }))], rollback: false, allow_paths: [this.options.cacheDir] },
       10 * 60 * 1000,
     );
-    if (reply.failed) throw new Error(`${reply.failed.command === 'model.faces' ? 'the print faces could not be read' : 'export failed'}: ${reply.failed.error}`);
+    if (reply.failed?.command === 'file.export') throw new Error(`export failed: ${reply.failed.error}`);
+    // The file is written; a print face that cannot be read leaves its body (and those after it) as designed.
+    if (reply.failed) this.options.log(`the print faces of ${laid.slice(reply.failed.index - 1).join(', ')} could not be read (${reply.failed.error}); exported as designed`);
     const downs: Record<string, [number, number, number]> = {};
     laid.forEach((body, i) => {
+      if (reply.failed && i + 1 >= reply.failed.index) return;
       const listed = (reply.results[i + 1] as { faces?: { name?: unknown; plane_normal?: unknown }[] } | undefined)?.faces ?? [];
       const normal = listed.find((face) => face.name === faces[body])?.plane_normal;
       if (Array.isArray(normal) && normal.length === 3 && normal.every((value) => typeof value === 'number' && Number.isFinite(value))) downs[body] = normal as [number, number, number];
@@ -310,7 +316,7 @@ export class SolidCraftSupervisor {
       await copyFile(source, copy);
       const batch = await this.requester().request<BatchResult>(
         'engine.batch',
-        { commands: [insertCommand(kind, copy, units), { command: 'inspect.measure', params: {} }], rollback: false, allow_paths: [this.options.cacheDir] },
+        { commands: [insertCommand(kind, copy, units), ...(statesNoUnit(source) ? [{ command: 'inspect.measure', params: {} }] : [])], rollback: false, allow_paths: [this.options.cacheDir] },
         10 * 60 * 1000,
       );
       // The measure failing after the insert went in leaves the file inserted, without a size.
@@ -331,6 +337,10 @@ export class SolidCraftSupervisor {
    * box around what it holds, as `insertFile`.
    */
   async designFromFile(source: string, kind: Exclude<ImportKind, 'design' | 'package'>, target: string, units?: MeshUnit): Promise<[number, number, number] | null> {
+    if (!statesNoUnit(source)) {
+      await this.designFromSteps([insertCommand(kind, source, units)], target);
+      return null;
+    }
     const results = await this.designFromSteps([insertCommand(kind, source, units), { command: 'inspect.measure', params: {} }], target, true);
     return boxSize(results.at(-1));
   }
@@ -349,7 +359,7 @@ export class SolidCraftSupervisor {
     try {
       // A mesh file (the test pieces' 3MF) follows round faces as finely as the export (audit D22).
       const design = /\.sc$/i.test(target);
-      const printed = await this.runCli(cli, ['run', script, design ? '--save' : '--out', target, ...(design ? [] : ['--quality', 'fine']), '--quiet', ...(results ? ['--results'] : [])]);
+      const printed = await this.runCli(cli, ['run', script, design ? '--save' : '--out', target, ...(design ? [] : ['--quality', EXPORT_QUALITY]), '--quiet', ...(results ? ['--results'] : [])]);
       if (!existsSync(target)) throw new Error('SolidCraft wrote no design');
       if (!results) return [];
       try {
@@ -454,8 +464,24 @@ export class SolidCraftSupervisor {
       await this.autosave();
     }
     await this.autosaving;
+    // A change not mirrored yet has no timer yet: it is saved too, so what is read or copied from the file holds it.
+    if (this.designFile && !(await this.fileIsCurrent())) await this.autosave();
     return this.designFile;
   }
+
+  /** Whether the headless design is as it was last saved to its file: its revision has not moved since. */
+  private async fileIsCurrent(): Promise<boolean> {
+    const engine = this.engine;
+    if (!engine?.isOpen || this.savedRevision === null) return false;
+    const now = await engine.revision().catch((error: unknown) => {
+      this.options.log(`the revision was not read, so the design file counts as older than the design: ${(error as Error).message}`);
+      return null;
+    });
+    return now !== null && now.documentId === this.savedRevision.documentId && now.revision === this.savedRevision.revision;
+  }
+
+  /** The revision the headless design had right after its last save (a save moves it too); null before one. */
+  private savedRevision: { documentId: string; revision: number } | null = null;
 
   /**
    * Compares a saved version with the open design (B5). The version's bodies are written as STEP
@@ -599,9 +625,12 @@ export class SolidCraftSupervisor {
    */
   async savedPrintFaces(): Promise<{ faces: Record<string, string>; lost: string[] } | null> {
     const file = this.designFile;
-    if (!file || !existsSync(file)) return null;
+    // A file older than the design (a print face set or undone since the save) would take back what PartBuddy kept
+    // (review of BC-04, B1): it is read only while the design is as saved, and checked again after reading.
+    if (!file || !existsSync(file) || !(await this.fileIsCurrent())) return null;
     const [document] = Object.values(unzipSync(await readFile(file), { filter: (entry) => entry.name === 'document.json' }));
     if (!document) throw new Error('the saved design holds no document.json');
+    if (!(await this.fileIsCurrent())) return null;
     return resolvePrintFaces(savedPrintFaces(JSON.parse(strFromU8(document))), this.latest?.bodies ?? []);
   }
 
@@ -1100,6 +1129,8 @@ export class SolidCraftSupervisor {
    * 2026-11-04); it still asks the user about unsaved designs. One started elsewhere keeps running.
    */
   async shutdown(): Promise<void> {
+    // Builds of standard parts end with PartBuddy, rather than run on without anyone to tell.
+    this.references.stop?.();
     const client = this.client;
     const owned = this.actor.getSnapshot().context.owned;
     const engine = this.engine;
@@ -1286,11 +1317,13 @@ export class SolidCraftSupervisor {
           await rm(scratch, { force: true });
         }
         await engine.save(file);
+        this.savedRevision = engine.current();
       })
       .then(async () => {
         designs.remember(file);
         this.currentFile = file;
         this.setSaveState('saved');
+        this.listeners.saved?.();
         // Without a window SolidCraft announces nothing, so the new name is mirrored right away.
         if (renamed) this.scheduler.request(await engine.revision());
       })

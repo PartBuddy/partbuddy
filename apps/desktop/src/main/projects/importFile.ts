@@ -81,6 +81,11 @@ export function boxSize(measured: unknown, bodies?: readonly string[]): [number,
   return [0, 1, 2].map((i) => Math.round(((max[i] ?? 0) - (min[i] ?? 0)) * 1000) / 1000) as [number, number, number];
 }
 
+/** Whether the file is an STL or OBJ, which state no unit (a 3MF, STEP or IGES file does). */
+export function statesNoUnit(file: string): boolean {
+  return ['.stl', '.obj'].includes(extname(file).toLowerCase());
+}
+
 /**
  * Below this, the largest side of an STL or OBJ read in millimetres is more likely inches or metres: a part designed
  * at 1 to 5 in reads as 1 to 5 mm (audit D44). A part this small in millimetres is asked about once and kept.
@@ -92,7 +97,7 @@ const SMALL_MM = 5;
  * nothing): when its largest side is under SMALL_MM or larger than the largest side of the printer's bed.
  */
 export function asksForUnit(file: string, size: readonly [number, number, number] | null, bed: readonly [number, number, number]): boolean {
-  if (!size || !['.stl', '.obj'].includes(extname(file).toLowerCase())) return false;
+  if (!size || !statesNoUnit(file)) return false;
   const largest = Math.max(...size);
   return largest < SMALL_MM || largest > Math.max(...bed);
 }
