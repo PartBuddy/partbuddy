@@ -151,7 +151,9 @@ export class SolidCraftSupervisor {
     this.references = references;
     this.partChecks = { log, references: references.known };
     this.settledChecks = { log, references: references.ready };
-    this.dimensions = new DimensionService(() => this.requester(), cacheDir);
+    this.dimensions = new DimensionService(() => this.requester(), cacheDir, (step) => {
+      this.probeLater(step);
+    });
     this.actions = new ActionService(() => this.requester(), cacheDir);
     this.designs = options.designsDir && options.projectsDir ? new ProjectStore(options.projectsDir, options.designsDir, options.newPartName) : null;
     this.scheduler = new MirrorScheduler(
@@ -716,6 +718,30 @@ export class SolidCraftSupervisor {
     });
     this.probing = run.catch(() => undefined);
     return run;
+  }
+
+  /**
+   * One step of a dimension search after its answer (DimensionService.probe), queued behind every trial asked for by
+   * then, and queued again at the end while it says there is more: previews, the light and joint runs wait at most one
+   * rebuild for it.
+   */
+  private probeLater(step: () => Promise<boolean>): void {
+    const run = this.probing.then(async () => {
+      try {
+        return await step();
+      } finally {
+        await this.engine?.unchanged().catch(() => undefined);
+      }
+    });
+    this.probing = run.catch(() => undefined);
+    run.then(
+      (more) => {
+        if (more) this.probeLater(step);
+      },
+      (error: unknown) => {
+        this.options.log(`Warning: the dimension search after its answer stopped: ${(error as Error).message.slice(0, 200)}`);
+      },
+    );
   }
 
   /** Sets the parameter the probe found (the user pressed Enter); the change is mirrored as usual. */

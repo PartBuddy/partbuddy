@@ -35,10 +35,17 @@ template (SolidCraft 0.40.1, measured 2026-11-13).
 
 * **Candidates:** length parameters (`parameters.list`, unit mm) whose expression is a plain number
   and whose value equals the edge length, or the radius of a cylindrical face (also twice the
-  radius: a diameter parameter). All of them are tried: a cap of eight left out the driver of a design
-  with more sizes of the same value (audit D45, 2026-11-13). The drivers found are kept per selection,
-  its size and the design (parameters and timeline), so the next value typed tries only the candidates
-  SolidCraft refused before.
+  radius: a diameter parameter). None is left out: a cap of eight lost the driver of a design with
+  more sizes of the same value (audit D45, 2026-11-13).
+* **Search (2026-11-13, review of BC-08):** the candidates of the features the selection lies on (the
+  feature ids in its face and edge names, the user parameters those features use) come first. A group
+  is tested in one rebuild with `parameters.change {changes}`, each member moved by its own small step
+  (0.05 mm × (1 + √p / 10), p a prime per member, so moves cannot cancel out): if the selection stays,
+  none of them drives it; if it moves, the group is halved until one is left, which is tried with the
+  value typed. The answer comes with the first driver; the rest of the search runs afterwards, one
+  rebuild per step behind any other trial, and stops when another selection is probed, a value is
+  applied or the design changed; a second driver found then makes the next value a choice. What was
+  found is kept per selection, its size and the design (parameters and timeline).
 * **Try:** one `engine.batch` per candidate: `parameters.change`, `model.edges` or `model.faces`,
   then `sketch.inspect` of a sketch that does not exist. That last step fails on purpose, and
   SolidCraft undoes the whole batch, undo history included, but still returns the earlier results.

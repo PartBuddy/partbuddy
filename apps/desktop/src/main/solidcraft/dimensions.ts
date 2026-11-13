@@ -39,6 +39,8 @@ export interface Parameter {
   input?: string;
   /** As SolidCraft reports it; not checked, so read it as unknown. */
   comment?: unknown;
+  /** The parameters whose expressions name this one (`parameters.list`); not checked. */
+  used_by?: unknown;
 }
 
 interface BatchReply {
@@ -50,8 +52,14 @@ interface BatchReply {
 const SAME = 1e-4;
 /** The failing last step that makes SolidCraft undo the whole batch. */
 const UNDO_ALL = { command: 'sketch.inspect', params: { sketch: 2147483647 } };
-/** How many selections keep their drivers; the oldest is dropped. */
+/** How many selections keep what their search found; the oldest is dropped. */
 const KEPT_PROBES = 20;
+/**
+ * How far a group test moves each candidate (mm): a twentieth of a millimetre, times 1 + √p / 10 for the k-th prime p.
+ * Square roots of different primes are no rational multiples of one another, so the moves of several drivers changed
+ * together cannot cancel out to nothing as long as each moves the selection by a rational multiple of its own change.
+ */
+const NUDGE = 0.05;
 /** Plain numbers with an optional length unit; formulas are the designer's intent and stay untouched. */
 const PLAIN_NUMBER = /^\s*-?\d+(?:\.\d+)?\s*(?:mm)?\s*$/;
 /** Names the contract accepts (letters, digits, underscore). */
@@ -63,13 +71,9 @@ function isParameter(entry: unknown): entry is Parameter {
 }
 
 /**
- * Lengths in mm whose value equals the current one, or twice it for a radius (a diameter parameter). All of them are
- * tried: a cap of eight left out the driver of a design with more sizes of the same value, and the field then sent the
- * user to the assistant (audit D45). Each try rebuilds the design twice (the change and its undo): on the housing
- * template, 15 sizes of 2 mm, 2.3 to 13 s each (SolidCraft 0.40.1, 2026-11-13), so the answer is kept per selection
- * (DimensionService.probe) and only the first value typed pays for it.
- * shortcut: the first probe of a selection still tries every candidate in SolidCraft's order, about a minute on that
- * template; try the parameters of the features that made the selection first, and answer with those, if that is felt.
+ * Lengths in mm whose value equals the current one, or twice it for a radius (a diameter parameter). None is left out: a
+ * cap of eight lost the driver of a design with more sizes of the same value, and the field then sent the user to the
+ * assistant (audit D45). How they are told apart without a rebuild for each: DimensionService.probe.
  */
 export function candidatesFor(parameters: Parameter[], current: number, measure: DimensionTarget['measure']): { parameter: Parameter; factor: 1 | 2 }[] {
   const found: { parameter: Parameter; factor: 1 | 2 }[] = [];
@@ -79,6 +83,52 @@ export function candidatesFor(parameters: Parameter[], current: number, measure:
     else if (measure === 'radius' && Math.abs(parameter.value - 2 * current) <= SAME) found.push({ parameter, factor: 2 });
   }
   return found;
+}
+
+type Candidate = { parameter: Parameter; factor: 1 | 2 };
+
+/** The feature ids in a target's face and edge names: `F12:side|F1:+z` → 12 and 1 (engineering-notes.md: the feature id in the face name). */
+export function featureIds(target: DimensionTarget): Set<number> {
+  const names = target.measure === 'length' ? target.edge.split('|') : target.measure === 'radius' ? [target.face] : target.faces;
+  return new Set(names.flatMap((name) => /^F(\d+)/.exec(name)?.slice(1).map(Number) ?? []));
+}
+
+/**
+ * The candidates in three groups, each in SolidCraft's order: the inputs of a feature the selection lies on (by the
+ * timeline's ids and names), then user parameters such a feature uses (`used_by`), then the rest. The first are the
+ * likely drivers and are told apart first; the rest are still searched (a cut shortens an edge of the box it cuts).
+ */
+export function nearFirst(candidates: Candidate[], target: DimensionTarget, parameters: Parameter[], timeline: { id: number; name: string }[]): [Candidate[], Candidate[], Candidate[]] {
+  const ids = featureIds(target);
+  const features = new Set(timeline.filter((item) => ids.has(item.id)).map((item) => item.name));
+  const featureOfParameter = new Map(parameters.map((parameter) => [parameter.name, parameter.feature]));
+  const own = ({ parameter }: Candidate) => parameter.feature !== undefined && features.has(parameter.feature);
+  const used = ({ parameter }: Candidate) => !own({ parameter, factor: 1 }) && Array.isArray(parameter.used_by) && parameter.used_by.some((name) => typeof name === 'string' && features.has(featureOfParameter.get(name) ?? ''));
+  return [candidates.filter(own), candidates.filter(used), candidates.filter((candidate) => !own(candidate) && !used(candidate))];
+}
+
+/** The k-th prime, k from 0 (2, 3, 5, …): the nudges of a group test are told apart by their square roots. */
+const PRIMES: number[] = [];
+function prime(k: number): number {
+  for (let n = (PRIMES.at(-1) ?? 1) + 1; PRIMES.length <= k; n += 1) if (PRIMES.every((p) => n % p !== 0)) PRIMES.push(n);
+  return PRIMES[k] ?? 2;
+}
+
+/** A group of candidates still to be told apart. `moves`: one of them is known to move the selection; `then`: the other half of its split, which moves when this one does not. */
+type Group = { members: Candidate[]; moves: boolean; then?: Group };
+
+/** What one selection's search knows: drivers found, candidates to try again at the next value, groups not yet told apart. */
+interface Search {
+  key: string;
+  state: string;
+  target: DimensionTarget;
+  current: number;
+  value: number;
+  candidates: Candidate[];
+  drivers: Candidate[];
+  open: Candidate[];
+  queue: Group[];
+  running: boolean;
 }
 
 function distance(a: readonly number[], b: readonly number[]): number {
@@ -123,6 +173,11 @@ export class DimensionService {
     private readonly engine: () => ControlRequester,
     /** Folder SolidCraft may write to, for the preview export. */
     private readonly cacheDir: string,
+    /**
+     * Runs one step of a search after the answer, behind every trial queued by then (supervisor), again while it says
+     * there is more; without it the search is finished before the answer.
+     */
+    private readonly later?: (step: () => Promise<boolean>) => void,
   ) {}
 
   private async batch(commands: { command: string; params: Record<string, unknown> }[], rollback: boolean): Promise<BatchReply> {
@@ -138,58 +193,62 @@ export class DimensionService {
    * timeline with what is suppressed or rolled back (`document.inspect`, read in the same call). A probe's own tries
    * are undone, so they leave both as they were.
    */
-  private async design(): Promise<{ parameters: Parameter[]; state: string }> {
+  private async design(): Promise<{ parameters: Parameter[]; state: string; timeline: { id: number; name: string }[] }> {
     const reply = await this.batch([{ command: 'parameters.list', params: {} }, { command: 'document.inspect', params: {} }], false);
     const list = (reply.results?.[0] as { parameters?: unknown[] } | undefined)?.parameters ?? [];
     const parameters = list.filter(isParameter);
     const inspected = (reply.results?.[1] ?? {}) as { timeline?: unknown; marker?: unknown };
-    const timeline = Array.isArray(inspected.timeline) ? (inspected.timeline as Record<string, unknown>[]).map((item) => [item.id, item.name, item.suppressed, item.rolled_back]) : null;
-    return { parameters, state: JSON.stringify([parameters.map((p) => [p.name, p.expression, p.value]), timeline, inspected.marker ?? null]) };
+    const items = Array.isArray(inspected.timeline) ? (inspected.timeline as Record<string, unknown>[]) : [];
+    const timeline = items.flatMap((item) => (typeof item.id === 'number' && typeof item.name === 'string' ? [{ id: item.id, name: item.name }] : []));
+    const shape = Array.isArray(inspected.timeline) ? items.map((item) => [item.id, item.name, item.suppressed, item.rolled_back]) : null;
+    return { parameters, timeline, state: JSON.stringify([parameters.map((p) => [p.name, p.expression, p.value]), shape, inspected.marker ?? null]) };
   }
 
-  /**
-   * The drivers found per selection, its current size and the design as it was (audit D45, review of BC-08): which
-   * parameter moves a selection does not hang on the value typed, so the next value of the same selection tries again
-   * only the candidates SolidCraft refused or that lost the selection at the earlier value.
-   */
-  private readonly found = new Map<string, { drivers: string[]; open: string[] }>();
+  /** The searches per selection, its current size and the design as it was; the selection probed last is the live one. */
+  private readonly searches = new Map<string, Search>();
+  private live = '';
 
   /**
-   * Finds the parameter that drives the target and, when there is exactly one, a face-tagged 3MF
-   * of the body with the new value for the ghost preview. Nothing in the design changes.
+   * Finds the parameter that drives the target and, when there is exactly one, a face-tagged 3MF of the body with the
+   * new value for the ghost preview. Nothing in the design changes.
+   *
+   * A try rebuilds the design twice, the change and its undo: 2.3 to 13 s on the housing template (SolidCraft 0.40.1,
+   * 2026-11-13), where 15 sizes are 2 mm. So the candidates are not tried one by one (audit D45, review of BC-08):
+   * - those of the features the selection lies on come first (`nearFirst`);
+   * - a group is tested in one rebuild, each member moved by its own small step: if the selection stays, none of them
+   *   drives it; if it moves, the group is halved until one is left, which is tried with the value typed;
+   * - the answer comes with the first driver; the rest is searched afterwards, one rebuild per step behind any other
+   *   trial (`later`), and stops when another selection is probed, a value applied or the design changed. A second
+   *   driver found then turns the next value typed into a choice;
+   * - what was found is kept per selection and design, so the next value typed tries only what SolidCraft refused.
+   * shortcut: a driver whose move is cancelled exactly by another's in the same group is not found (`NUDGE` makes that
+   * need an irrational ratio of their effects); and the first value typed answers "direct" before a second driver is
+   * known. Try every candidate of a group that moved if a driver is ever missed.
    */
   async probe(target: DimensionTarget, current: number, value: number): Promise<ProbeResult> {
     if (!(value > 0) || !Number.isFinite(value)) return { mode: 'assistant', reason: 'noDriver' };
-    const { parameters, state } = await this.design();
-    const candidates = candidatesFor(parameters, current, target.measure);
+    const { parameters, state, timeline } = await this.design();
     const key = JSON.stringify([target, Number(current.toFixed(6)), state]);
-    const known = this.found.get(key);
-    const drivers = candidates.filter((candidate) => known?.drivers.includes(candidate.parameter.name));
-    const open: string[] = [];
-    for (const candidate of known ? candidates.filter((c) => known.open.includes(c.parameter.name)) : candidates) {
-      const reply = await this.batch(
-        [
-          { command: 'parameters.change', params: { name: candidate.parameter.name, expression: mm(value * candidate.factor) } },
-          measureStep(target),
-          UNDO_ALL,
-        ],
-        true,
-      );
-      // A candidate that SolidCraft refuses (out of range, breaks the model) fails at step 0 or 1; it and one that loses
-      // the selection at this value are tried again at the next.
-      const after = reply.failed?.index === 2 ? measured(target, reply.results?.[1]) : null;
-      if (after === null) open.push(candidate.parameter.name);
-      else if (Math.abs(after - value) <= SAME * 10) drivers.push(candidate);
+    this.live = key;
+    let search = this.searches.get(key);
+    if (!search) {
+      const tiers = nearFirst(candidatesFor(parameters, current, target.measure), target, parameters, timeline);
+      const queue = tiers.filter((members) => members.length > 0).map((members): Group => ({ members, moves: false }));
+      search = { key, state, target, current, value, candidates: tiers.flat(), drivers: [], open: [], queue, running: false };
+      this.searches.set(key, search);
+      if (this.searches.size > KEPT_PROBES) this.searches.delete(this.searches.keys().next().value as string);
     }
-    // In SolidCraft's order, as found the first time.
-    drivers.sort((a, b) => candidates.indexOf(a) - candidates.indexOf(b));
-    this.found.delete(key);
-    this.found.set(key, { drivers: drivers.map((d) => d.parameter.name), open });
-    if (this.found.size > KEPT_PROBES) this.found.delete(this.found.keys().next().value as string);
+    search.value = value;
+    // What SolidCraft refused or lost the selection with at an earlier value is tried at this one.
+    for (const candidate of search.open.splice(0)) await this.tryValue(search, candidate);
+    while ((search.drivers.length === 0 || !this.later) && search.queue.length > 0) await this.step(search);
+    if (search.queue.length > 0) this.searchOn(search);
+    const order = search.candidates;
+    const drivers = [...search.drivers].sort((a, b) => order.indexOf(a) - order.indexOf(b));
     if (drivers.length === 0) return { mode: 'assistant', reason: 'noDriver' };
     // Several drive it (a symmetric extrude, a mirrored size): the user says which; the preview follows the pick.
     if (drivers.length > 1) return { mode: 'choice', options: drivers.map((d) => ({ parameter: d.parameter.name, factor: d.factor, label: labelOf(d.parameter) })) };
-    const [driver] = drivers as [{ parameter: Parameter; factor: 1 | 2 }];
+    const [driver] = drivers as [Candidate];
     return {
       mode: 'direct',
       parameter: driver.parameter.name,
@@ -197,6 +256,60 @@ export class DimensionService {
       label: labelOf(driver.parameter),
       preview: await this.preview(target.body, driver.parameter.name, value * driver.factor),
     };
+  }
+
+  /** The rest of a search after the answer, one step at a time behind other trials, while its selection is the live one and the design unchanged. */
+  private searchOn(search: Search): void {
+    if (search.running || !this.later) return;
+    search.running = true;
+    this.later(async () => {
+      try {
+        if (this.live !== search.key || (await this.design()).state !== search.state) return (search.running = false);
+        await this.step(search);
+        return (search.running = search.queue.length > 0 && this.live === search.key);
+      } catch (error) {
+        search.running = false;
+        throw error;
+      }
+    });
+  }
+
+  /** One rebuild of a search: a group tested, split, or one candidate tried with the value. */
+  private async step(search: Search): Promise<void> {
+    const group = search.queue.shift();
+    if (!group) return;
+    const [only] = group.members;
+    if (group.members.length === 1 && only) return this.tryValue(search, only);
+    const moved = group.moves ? 'moved' : await this.nudged(search, group.members);
+    if (moved === 'still') {
+      // Its half moves then: the group they were split from did.
+      if (group.then) group.then.moves = true;
+      return;
+    }
+    const half = Math.ceil(group.members.length / 2);
+    const second: Group = { members: group.members.slice(half), moves: false };
+    // A group SolidCraft refused to move tells nothing of its halves.
+    search.queue.unshift({ members: group.members.slice(0, half), moves: false, ...(moved === 'moved' ? { then: second } : {}) }, second);
+  }
+
+  /** Moves every member of a group a little at once: does the selection move? `refused` when SolidCraft does not build it. */
+  private async nudged(search: Search, members: Candidate[]): Promise<'moved' | 'still' | 'refused'> {
+    const changes = Object.fromEntries(members.map((candidate) => [candidate.parameter.name, mm(candidate.parameter.value + NUDGE * (1 + Math.sqrt(prime(search.candidates.indexOf(candidate))) / 10))]));
+    const reply = await this.batch([{ command: 'parameters.change', params: { changes } }, measureStep(search.target), UNDO_ALL], true);
+    if (reply.failed?.index !== 2) return 'refused';
+    const after = measured(search.target, reply.results?.[1]);
+    return after === null || Math.abs(after - search.current) > SAME * 10 ? 'moved' : 'still';
+  }
+
+  /** One candidate with the value typed: a driver when it brings the selection there; tried again at the next value when refused or the selection is lost. */
+  private async tryValue(search: Search, candidate: Candidate): Promise<void> {
+    const reply = await this.batch(
+      [{ command: 'parameters.change', params: { name: candidate.parameter.name, expression: mm(search.value * candidate.factor) } }, measureStep(search.target), UNDO_ALL],
+      true,
+    );
+    const after = reply.failed?.index === 2 ? measured(search.target, reply.results?.[1]) : null;
+    if (after === null) search.open.push(candidate);
+    else if (Math.abs(after - search.value) <= SAME * 10) search.drivers.push(candidate);
   }
 
   /** The body with the parameter at `value`, exported and undone again; null if SolidCraft cannot build it. */
@@ -266,6 +379,8 @@ export class DimensionService {
    */
   async apply(parameter: string, value: number, factor: 1 | 2, keepFitMark = false): Promise<void> {
     if (!(value > 0) || !Number.isFinite(value)) throw new Error('the value must be a positive length');
+    // The design changes: a search still going on stops.
+    this.live = '';
     const known = (await this.parameters()).find((entry) => entry.name === parameter);
     if (!known || known.unit !== 'mm' || !PLAIN_NUMBER.test(known.expression)) throw new Error(`${parameter} is not a plain length parameter`);
     // A size the user sets is theirs from now on: it loses the assistant's mark, and a printer change no longer moves it.
