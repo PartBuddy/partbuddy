@@ -16,9 +16,10 @@ import { CHANGING_TOOLS } from './workLog';
  * so the model cannot build past an open question, whatever it decides. Nothing waits inside a
  * tool call: no time-outs, Stop keeps working, and all assistant routes behave alike.
  *
- * The flow is held in code, not only asked for (audit W41, R13, R14): a plan that did not get Go keeps
- * the design locked until one does, Cancel locks it for the turn that answers it, and a new part (a
- * design without bodies) is built only after a plan got Go in this conversation.
+ * The flow is held in code, not only asked for (audit W41, R13, R14): a plan answered with Change or
+ * Cancel keeps the design locked for the turn that answers it (the next message frees it, so the user
+ * never depends on the model; review of BC-18, S2), and a new part (a design without bodies) is built
+ * only after a plan got Go in this conversation.
  */
 
 export const ASK_TOOL = 'partbuddy_ask';
@@ -43,6 +44,23 @@ const planInput = z
     standards: z.array(z.enum(STANDARD_TOPICS)).max(STANDARD_TOPICS.length).optional(),
   })
   .strict();
+
+/**
+ * A plan as a small model may send it, fitted instead of refused (review of BC-18, S3): a new part waits for a plan,
+ * so a plan must not fail on its form. Steps as one text become lines, over-long texts are cut, unknown keys and
+ * standards are dropped, a missing summary or step is taken from the other. Only a plan without any text is refused.
+ * shortcut: a cut text may end mid-word on the card; the card is the user's to change.
+ */
+export function fitPlan(args: Record<string, unknown>): Record<string, unknown> {
+  const cut = (value: unknown, max: number) => (typeof value === 'string' ? value.trim().slice(0, max).trim() : '');
+  const given: unknown[] = typeof args.steps === 'string' ? args.steps.split(/\r?\n/) : Array.isArray(args.steps) ? args.steps : [];
+  let steps = given.map((step) => cut(step, 200)).filter((step) => step !== '').slice(0, 12);
+  const summary = cut(args.summary, 300) || steps[0] || '';
+  if (steps.length === 0 && summary) steps = [summary.slice(0, 200)];
+  const name = cut(args.name, 60);
+  const standards = Array.isArray(args.standards) ? [...new Set(args.standards.filter((topic): topic is string => (STANDARD_TOPICS as readonly unknown[]).includes(topic)))] : [];
+  return { summary, steps, ...(name ? { name } : {}), ...(standards.length > 0 ? { standards } : {}) };
+}
 
 const askTool: UpstreamTool = {
   name: ASK_TOOL,
@@ -166,7 +184,7 @@ const refusal = (value: string): ToolResult => ({ content: [{ type: 'text', text
 const HELD_TOOLS = new Set([...CHANGING_TOOLS, ASSEMBLY_TOOL, DESIGN_TOOL]);
 
 /** Refusals of a change while the flow says no (audit R13, R14). */
-export const NOT_GO = `The user has not pressed Go on a plan. Show the changed plan with ${PLAN_TOOL}, or answer the user.`;
+export const NOT_GO = `The user wants your plan changed and has not pressed Go on it. Show the changed plan with ${PLAN_TOOL}, or answer the user; do not change the design in this turn.`;
 export const CANCELLED = 'The user cancelled your plan. Do not change the design in this turn; ask what they want instead.';
 export const PLAN_FIRST = `This is a new part: show a plan with ${PLAN_TOOL} first and build after the user pressed Go.`;
 
@@ -177,7 +195,7 @@ const STANDARD_REMINDER = `If the part has one of the kinds ${STANDARD_TOOL} cov
 export class Questions {
   private pending: AgentQuestion | null = null;
   private sequence = 0;
-  /** After a plan without Go: `plan` until a plan gets Go, `cancel` for the turn that answers Cancel. */
+  /** The turn that answers a plan without Go: `plan` after Change or typed text, `cancel` after Cancel. */
   private hold: 'plan' | 'cancel' | null = null;
   /** A plan got Go in this conversation, so a new part may be built. */
   private approved = false;
@@ -220,20 +238,21 @@ export class Questions {
         'the answer comes as the next message. Do not change the design before that.'
       );
     }
-    if (!CHANGING_TOOLS.has(name)) return null;
+    // Undo and redo bring back what was there: they build nothing new, so only an open question holds them.
+    if (!CHANGING_TOOLS.has(name) || name === 'undo' || name === 'redo') return null;
     if (this.hold === 'plan') return NOT_GO;
     if (this.hold === 'cancel') return CANCELLED;
-    // Undo and redo in an empty design bring back what was there; they start no new part.
-    if (this.planFirst && !this.approved && name !== 'undo' && name !== 'redo' && (await this.newPart(upstream))) return PLAN_FIRST;
+    if (this.planFirst && !this.approved && (await this.newPart(upstream))) return PLAN_FIRST;
     return null;
   }
 
   /** True when the design has no body yet, read through partbuddy_view as the model would see it. */
   private async newPart(upstream: UpstreamTools): Promise<boolean> {
+    // shortcut: a view that throws or is not describeView's (bodiesInView null) lets the change through without a log
+    // line, since Questions has no log; pass one in once index.ts (BC-04) may change.
     try {
       return bodiesInView(await upstream.callTool(VIEW_TOOL, {})) === 0;
     } catch {
-      // shortcut: a view that cannot be read lets the change through (nothing to log to here); pass a log in once index.ts may change.
       return false;
     }
   }
@@ -243,8 +262,8 @@ export class Questions {
    * names the choice, typed text is the answer itself. Closes the question.
    */
   answer(answer?: MessageAnswer): string | null {
-    // The turn that answered Cancel is over: this message frees the design again.
-    if (this.hold === 'cancel') this.hold = null;
+    // The turn that answered the plan is over: this message frees the design again.
+    this.hold = null;
     const question = this.pending;
     if (!question) return null;
     this.pending = null;
@@ -257,7 +276,7 @@ export class Questions {
         return '[PartBuddy: the user pressed Go on your plan. Build it now, in small visible steps.]';
       }
       if (choice === 'cancel') return '[PartBuddy: the user cancelled your plan. Do not change the design in this turn; ask what they want instead.]';
-      return `[PartBuddy: the user wants the plan changed, as this message says. Show the changed plan with ${PLAN_TOOL}; the design stays locked until the user presses Go.]`;
+      return `[PartBuddy: the user wants the plan changed, as this message says. Show the changed plan with ${PLAN_TOOL} before you build; PartBuddy refuses changes in this turn.]`;
     }
     const asked = question.questions.map((entry) => `"${entry.question}"`).join(', ');
     if (choice === 'answered') return `[PartBuddy: the user answered your questions ${asked} on the card; the message has one line per question.]`;
@@ -292,7 +311,7 @@ export class Questions {
       }));
       this.pending = { id, kind: 'ask', questions };
     } else {
-      const parsed = planInput.safeParse(args);
+      const parsed = planInput.safeParse(fitPlan(args));
       if (!parsed.success) return refusal(`Invalid ${PLAN_TOOL} input: ${parsed.error.issues.map((issue) => issue.message).join('; ')}`.slice(0, 500));
       const unread = (parsed.data.standards ?? []).filter((topic) => !this.read.has(topic));
       const them = unread.length === 1 ? 'it' : 'them';

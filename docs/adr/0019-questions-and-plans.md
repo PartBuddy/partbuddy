@@ -37,11 +37,13 @@ answer. One "Answer" button sends all answers as the next message, one line per 
 turn, then shows its plan. A call with a single question outside a round is taken as a round of
 one; chats saved before keep loading.
 
-**Flow held in code (2026-11-13, audit BC-18).** The next message no longer frees everything. A
-plan answered without Go (Change, typed text) keeps the changing tools refused until a plan gets Go;
-Cancel refuses them for the turn that answers it. A design without bodies is built only after a
-plan got Go in the conversation; the E2E test doubles turn this off with `PARTBUDDY_PLAN_FIRST=0`.
-An open question also holds `partbuddy_assembly` and `partbuddy_design_rules`. A plan may name the
+**Flow held in code (2026-11-13, audit BC-18).** A plan answered without Go (Change, typed text,
+Cancel) keeps the changing tools refused for the turn that answers it; the user's next message frees
+them, so the user never depends on the model. Undo and redo are held only by an open question. A
+design without bodies is built only after a plan got Go in the conversation; the E2E test doubles
+turn this off with `PARTBUDDY_PLAN_FIRST=0`. A plan is fitted to its form rather than refused (steps
+as one text, over-long texts, unknown keys), so a small model can still get one to the user. An open
+question also holds `partbuddy_assembly` and `partbuddy_design_rules`. A plan may name the
 `partbuddy_standard` topics it follows (`standards`); one not read in the conversation is refused.
 
 ### Consequences

@@ -4,7 +4,7 @@ import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
 import { ASSEMBLY_TOOL } from '../src/main/agents/assemblyTool';
 import { DESIGN_TOOL } from '../src/main/agents/designTool';
-import { ASK_TOOL, CANCELLED, NOT_GO, PLAN_FIRST, PLAN_TOOL, Questions } from '../src/main/agents/questions';
+import { ASK_TOOL, CANCELLED, fitPlan, NOT_GO, PLAN_FIRST, PLAN_TOOL, Questions } from '../src/main/agents/questions';
 import { STANDARD_TOOL } from '../src/main/agents/standardTool';
 import { VIEW_TOOL } from '../src/main/agents/viewContext';
 import { CHANGING_TOOLS } from '../src/main/agents/workLog';
@@ -172,22 +172,21 @@ function flow(options: { bodies?: number | 'none' | 'unreadable'; planFirst?: bo
 }
 
 describe('the flow is held, not asked for (audit BC-18)', () => {
-  it('keeps the design locked after Change until a plan gets Go (R13)', async () => {
-    const { questions, tools, lastId, plan, build } = flow();
+  it('locks the design for the turn that answers Change, and frees it with the message after (R13, review S2)', async () => {
+    const { questions, tools, plan, build } = flow();
     await plan();
     // Change on the card fills the composer: the typed message comes without a choice.
-    expect(questions.answer()).toContain('the design stays locked until the user presses Go');
+    expect(questions.answer()).toContain('Show the changed plan with partbuddy_plan before you build; PartBuddy refuses changes in this turn.');
     expect(await build()).toEqual({ refused: true, text: NOT_GO });
-    // The next message does not free it either.
-    expect(questions.answer()).toBeNull();
-    expect(await build()).toEqual({ refused: true, text: NOT_GO });
-    // Reading, asking and a new plan stay possible; an answered question keeps the plan's lock.
+    // Reading, asking, a new plan, undo and redo stay possible in that turn.
     expect((await tools.callTool('inspect_design', {})).isError).toBeUndefined();
-    expect((await tools.callTool(ASK_TOOL, { questions: [{ question: 'Wall?', options: [{ label: '2 mm' }, { label: '3 mm' }] }] })).isError).toBeUndefined();
-    questions.answer({ question: lastId(), choice: 'answered' });
+    expect((await tools.callTool('undo', {})).isError).toBeUndefined();
+    expect((await tools.callTool('redo', {})).isError).toBeUndefined();
+    expect((await plan({ steps: ['Plate 40 × 20 × 4 mm'] })).isError).toBeUndefined();
+    // The user's next message frees the design whatever the model did: the user never depends on it.
+    expect(questions.answer()).toContain('wants the plan changed');
     expect(await build()).toEqual({ refused: true, text: NOT_GO });
-    await plan({ steps: ['Plate 40 × 20 × 4 mm'] });
-    questions.answer({ question: lastId(), choice: 'go' });
+    expect(questions.answer()).toBeNull();
     expect((await build()).refused).toBe(false);
   });
 
@@ -200,6 +199,10 @@ describe('the flow is held, not asked for (audit BC-18)', () => {
     // An answer naming another card is no Go for this one.
     questions.answer({ question: 'question-0', choice: 'go' });
     expect(await build()).toEqual({ refused: true, text: NOT_GO });
+    // A Go on the shown card frees it in the same turn.
+    await plan();
+    questions.answer({ question: lastId(), choice: 'go' });
+    expect((await build()).refused).toBe(false);
   });
 
   it('locks the design for the turn that answers Cancel, and frees it with the message after (R13)', async () => {
@@ -266,15 +269,38 @@ describe('the flow is held, not asked for (audit BC-18)', () => {
     const shown = await plan({ standards: ['hook', 'feet'] });
     expect(shown.isError).toBeUndefined();
     expect(String(shown.content[0]?.text)).toContain(`If the part has one of the kinds partbuddy_standard covers (${STANDARD_TOPICS.join(', ')}) and you have not read it, read it before you build.`);
-    // A new conversation forgets what was read; an unknown topic is no standard.
+    // A new conversation forgets what was read; an unknown topic is no standard and is left out (review S3).
     questions.clear();
     expect((await plan({ standards: ['hook'] })).isError).toBe(true);
-    expect((await plan({ standards: ['gear'] })).isError).toBe(true);
+    expect((await plan({ standards: ['gear'] })).isError).toBeUndefined();
   });
 
   it('does not count a standard that could not be read (R16)', async () => {
     const { tools, plan } = flow({ standard: 'error' });
     await tools.callTool(STANDARD_TOOL, { topic: 'hook' });
     expect((await plan({ standards: ['hook'] })).isError).toBe(true);
+  });
+});
+
+describe('a plan in the form a small model sends it (review of BC-18, S3)', () => {
+  it('fits the form instead of refusing it, and refuses only a plan without text', () => {
+    expect(fitPlan({ summary: 'Box', steps: 'Base 40 × 20 mm\n\nLid 3 mm', extra: 1, standards: ['gear', 'hook', 'hook'] })).toEqual({ summary: 'Box', steps: ['Base 40 × 20 mm', 'Lid 3 mm'], standards: ['hook'] });
+    expect(fitPlan({ steps: ['Base'] })).toEqual({ summary: 'Base', steps: ['Base'] });
+    expect(fitPlan({ summary: 'Only a summary' })).toEqual({ summary: 'Only a summary', steps: ['Only a summary'] });
+    const long = fitPlan({ summary: 'x'.repeat(301), name: ` ${'n'.repeat(61)} `, steps: Array.from({ length: 13 }, () => 'y'.repeat(201)) });
+    expect(String(long.summary)).toHaveLength(300);
+    expect(String(long.name)).toHaveLength(60);
+    expect(long.steps).toHaveLength(12);
+    expect((long.steps as string[])[0]).toHaveLength(200);
+    expect(fitPlan({ summary: '  ', steps: [' ', 3] })).toEqual({ summary: '', steps: [] });
+  });
+
+  it('shows the fitted plan, so a new part can get Go', async () => {
+    const { questions, tools, lastId, build } = flow({ bodies: 0 });
+    expect((await tools.callTool(PLAN_TOOL, { summary: 'A bracket', steps: 'Plate 40 × 20 × 3 mm', standards: ['bracket'] })).isError).toBeUndefined();
+    expect(questions.open).toMatchObject({ kind: 'plan', steps: ['Plate 40 × 20 × 3 mm'] });
+    questions.answer({ question: lastId(), choice: 'go' });
+    expect((await build()).refused).toBe(false);
+    expect((await tools.callTool(PLAN_TOOL, {})).isError).toBe(true);
   });
 });
