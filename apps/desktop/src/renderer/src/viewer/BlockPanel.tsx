@@ -123,7 +123,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   // The block's values; body and point come from the picked face.
   const [spec, setBlock] = useState<FeatureBlock>(() => defaultBlock('tappedHole', '', [0, 0, 0], 'M3'));
   // SolidCraft's answer for a block; only the answer for the block as it is now counts (a moved one is tried anew).
-  const [status, setStatus] = useState<{ ok: boolean; error?: string; block?: FeatureBlock } | null>(null);
+  const [status, setStatus] = useState<{ ok: boolean; error?: string; block?: FeatureBlock; unmeasured?: boolean } | null>(null);
   const [fileProblem, setFileProblem] = useState<DrawingProblem | 'unreadable' | null>(null);
   const at = face ? `${face.body}\u0000${face.point.join(',')}\u0000${face.normal.join(',')}` : null;
   // Where the block sits on its face, from the face's middle; at first where it was clicked.
@@ -173,7 +173,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     open && block && !busy && !waiting ? block : null,
     (tried) => platform().design.previewBlock(sent(tried)),
     (tried, result) => {
-      setStatus(result.ok ? { ok: true, block: tried } : { ok: false, error: result.error, block: tried });
+      setStatus(result.ok ? { ok: true, block: tried, unmeasured: result.unmeasured === true } : { ok: false, error: result.error, block: tried });
       onGhost(result.ok ? result.preview : null);
     },
   );
@@ -500,7 +500,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               {t('blocks.logoWaiting')}
             </p>
           ) : (
-            <ProbeStatus state={!tried ? 'probing' : tried.ok ? 'ready' : 'refused'} error={tried?.error} ready={t('blocks.ready')} testId="block-status" />
+            <ProbeStatus state={!tried ? 'probing' : tried.ok ? 'ready' : 'refused'} error={tried?.error} ready={tried?.unmeasured ? t('blocks.unmeasured') : t('blocks.ready')} testId="block-status" />
           )}
           <div className="flex gap-2">
             <Button variant="primary" isDisabled={busy || !tried?.ok} onPress={apply} className="flex-1" data-testid="block-apply">

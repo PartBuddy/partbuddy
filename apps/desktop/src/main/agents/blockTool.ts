@@ -196,7 +196,7 @@ export function seatStock(block: Extract<FeatureBlock, { block: 'insertSeat' }>,
 }
 
 /** What a block says when a curved face took some of the wall round its holes: the most at one hole, and the most allowed at one. */
-const fallenSaid = (wall: number, slack: number) =>
+export const fallenSaid = (wall: number, slack: number) =>
   ` Round the hole the face falls away all round, as a curved face does: PartBuddy allowed up to ${String(Math.round(wall * 10) / 10)} mm³ of wall at the top of a hole that this takes, and no more than ${String(Math.round(slack * 10) / 10)} mm³ missing round and under any one hole. A face that falls away to one side on its own is not allowed; where it comes with a curve, PartBuddy cannot always tell it apart.`;
 
 /** What a block says when its measure allowed for a curved face: how much, and that it covers the plastic under the hole alone. */
@@ -549,11 +549,15 @@ export function curvedWall(missing: number, off: number, down: number, inner: nu
  */
 function reachSaid(block: FeatureBlock, reach: (number | null)[] | undefined): string {
   const all = ` through all of ${block.body} on its line`;
+  // A depth given is how deep it goes, whatever `through` says.
+  if ('depth' in block && block.depth && block.block !== 'nutTrap') return '';
   if ('through' in block && block.through === 'body') return ` It goes${all}.`;
   if (!cutsThrough(block)) return '';
   if (reach?.every((value) => value !== null))
     return ` It goes through the wall at ${reach.length > 1 ? 'each point' : 'the point'} and up to a millimetre past it, as measured on trial (${reach.map(String).join(', ')} mm from the face), not on through a far wall; give through body to go through all of ${block.body}.`;
-  return ` PartBuddy could not measure the wall at ${reach ? 'some of the points' : 'more' in block && block.more?.length ? 'the points' : 'the point'} (a point must lie on a face of ${block.body}, within ${String(ON_FACE)} mm), so it went${all}, far walls too; check it, and give depth where it must stop sooner.`;
+  // Undefined: SolidCraft refused the trial or it failed; a null: no plastic of the body at that point.
+  const why = reach ? `no plastic of ${block.body} lies within ${String(ON_FACE)} mm of ${reach.length > 1 ? 'some of the points' : 'the point'}, so its wall could not be measured` : 'SolidCraft could not run the trial that measures the wall';
+  return ` ${why.charAt(0).toUpperCase()}${why.slice(1)}: it went${all}, far walls too; check it, and give depth where it must stop sooner.`;
 }
 
 /** What was built, with the sizes it took from the tables, for the model to tell the user. */

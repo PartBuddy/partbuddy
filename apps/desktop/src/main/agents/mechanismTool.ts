@@ -3,7 +3,7 @@ import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../sha
 import { BRIDGE_SPAN } from '@partbuddy/geometry';
 
 import { componentOf } from '../solidcraft/actions';
-import { CURVED_FACE, FACE_DROP, SEAT_UNDER, seatStock, seatWall, shortOf, type Stock } from './blockTool';
+import { CURVED_FACE, FACE_DROP, SEAT_UNDER, fallenSaid, seatStock, seatWall, shortOf, type Stock } from './blockTool';
 import { markOf, TAKEN_BACK_SAID, takeBack, type Mark, type Run } from './takeBack';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
@@ -853,14 +853,14 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     const stock = screwStock(spec);
     const recess = headRecess(spec);
     const room = spec.head === 'cap' ? 'counterbore' : 'countersink';
-    const measured = { all: true };
+    const measured = { all: true, fell: 0 };
     const warnings = await build(site, spec, screwSteps(spec), `Give from on the outer face of ${spec.moving} and to on the face where it meets ${spec.fixed}.`, false, async () => {
       for (const [body, rooms, need] of [
         [spec.moving, stock.moving, `the ${room} for the head is ${String(recess?.diameter)} mm wide and must lie wholly inside ${spec.moving}: move the screw at least ${String(round2((recess?.diameter ?? 0) / 2))} mm away from its edges and other cuts, or use head none`],
         [spec.fixed, stock.fixed, `the seat of an ${spec.size} insert needs ${String(seatWall(spec.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it. Thicken ${spec.fixed} there, move the screw away from edges and other cuts, or put a boss there`],
       ] as const) {
         if (rooms.length === 0) continue;
-        const short = await shortOf(upstream, body, rooms, callId);
+        const short = await shortOf(upstream, body, rooms, callId, (mm3) => (measured.fell = Math.max(measured.fell, mm3)));
         if (short) throw new Error(`${short}; ${need}.`);
         measured.all &&= short === null;
       }
@@ -875,7 +875,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
       `${spec.thread === 'insert' && insert ? `the seat of a heat-set insert (${String(insert.diameter)} mm wide, ${String(insert.length + 1)} mm deep)` : 'a modelled thread'}. ` +
       `${length === null ? 'No standard screw length ends inside the thread at this thickness, so no screws were put in: choose the length yourself.' : `To buy: ${String(count)} × ${spec.size}×${String(length)} ${screw}${spec.thread === 'insert' && insert ? ` and ${String(count)} ${spec.size} heat-set inserts ${String(insert.length)} mm long` : ''}${spec.screws ? '; the screws are in the design as standard parts' : ''}.`} ` +
       (spec.thread === 'insert' ? `Each insert's seat needs ${String(seatWall(spec.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it${recess ? `, and the ${room} for each head lies inside ${spec.moving}` : ''}. ` : recess ? `The ${room} for each head lies inside ${spec.moving}. ` : '') +
-      `${stock.moving.length + stock.fixed.length === 0 ? '' : measured.all ? `PartBuddy measured that plastic, from ${String(FACE_DROP)} mm under the faces on: it is there.` : 'PartBuddy could not measure that plastic this time: check it yourself.'}${warnings}`
+      `${stock.moving.length + stock.fixed.length === 0 ? '' : measured.all ? `PartBuddy measured that plastic, from ${String(FACE_DROP)} mm under the faces on: it is there.${measured.fell > 0 ? fallenSaid(measured.fell, Math.max(0, ...stock.moving.map((room) => room.slack ?? 0))) : ''}` : 'PartBuddy could not measure that plastic this time: check it yourself.'}${warnings}`
     );
   }
   if (args.kind === 'snap') {

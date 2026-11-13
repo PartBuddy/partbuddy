@@ -1472,6 +1472,7 @@
       "empty": "The drawing has neither filled areas nor lines. Text cannot be built – convert it to paths in the drawing program."
     },
     "ready": "Shown in the view – Build makes it",
+    "unmeasured": "Shown in the view – the wall here could not be measured, so this cut goes through the whole part, far walls too",
     "kinds": {
       "tappedHole": "Tapped hole",
       "screwHole": "Screw hole",

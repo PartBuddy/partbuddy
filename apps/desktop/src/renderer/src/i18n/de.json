@@ -1472,6 +1472,7 @@
       "empty": "Die Zeichnung hat weder gefüllte Flächen noch Linien. Text lässt sich nicht bauen – im Zeichenprogramm in Pfade umwandeln."
     },
     "ready": "In der Ansicht gezeigt – Bauen übernimmt es",
+    "unmeasured": "In der Ansicht gezeigt – die Wand hier ließ sich nicht messen, darum geht der Schnitt durch das ganze Teil, auch durch gegenüberliegende Wände",
     "kinds": {
       "tappedHole": "Gewindebohrung",
       "screwHole": "Schraubenloch",

@@ -885,7 +885,8 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
     .strict(),
 ]);
 export const actionPreviewSchema = z.discriminatedUnion('ok', [
-  z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable() }).strict(),
+  // `unmeasured`: a function block's cut goes through all of its body, as its reach could not be measured (audit W2).
+  z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable(), unmeasured: z.literal(true).optional() }).strict(),
   z.object({ ok: z.literal(false), error: z.string().max(300) }).strict(),
 ]);
 /** A placed logo at a picked point (sketches named "SVG-Logo <name>"), and where it sits from its face's middle. */

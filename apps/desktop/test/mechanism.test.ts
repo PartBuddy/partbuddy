@@ -787,6 +787,69 @@ describe('the screw joint (standards)', () => {
       expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(false);
       expect(screwStock(screwOf(joint) as ScrewSpec).fixed[0]).toMatchObject({ hole: 0, diameter: 8, core: 4.02, depth: 6.8 });
     });
+
+    /**
+     * Base 40 × 40 × 10 and on it a Cover 15 mm high in its middle whose top falls away by `k` · q², q from (20, 20) on a
+     * ball or across a rod along Y: the plastic in a probe and its centre summed over a polar grid, as SolidCraft gives
+     * them exactly (`inspect.interference`, volume and centre).
+     */
+    function domed(k: number, rod: boolean) {
+      const sent: string[] = [];
+      const top = (x: number, y: number) => 25 - k * ((x - 20) ** 2 + (rod ? 0 : (y - 20) ** 2));
+      const upstream: UpstreamTools = {
+        instructions: () => undefined,
+        listTools: () => Promise.resolve([]),
+        callTool: (name, args) => {
+          if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Cover' }] }) }] });
+          const commands = args.commands as { command: string; params: Record<string, unknown> }[];
+          sent.push(commands.map((step) => step.command).join(' '));
+          let probe = { x: 0, y: 0, r: 0, low: 0, high: 0 };
+          const results = commands.map((step) => {
+            if (step.command === 'solid.cylinder') {
+              const [base, height] = [step.params.base as number[], parseFloat(String(step.params.height))];
+              probe = { x: base[0] ?? 0, y: base[1] ?? 0, r: parseFloat(String(step.params.diameter)) / 2, low: (base[2] ?? 0) - height, high: base[2] ?? 0 };
+            }
+            if (step.command === 'inspect.interference') {
+              const cover = (step.params.bodies as string[])[0] === 'Cover';
+              let [volume, mx, my, mz] = [0, 0, 0, 0];
+              const [n, m] = [40, 72];
+              for (let i = 0; i < n; i += 1) {
+                for (let j = 0; j < m; j += 1) {
+                  const [q, a] = [((i + 0.5) * probe.r) / n, ((j + 0.5) * 2 * Math.PI) / m];
+                  const [x, y] = [probe.x + q * Math.cos(a), probe.y + q * Math.sin(a)];
+                  const [floor, roof] = cover ? [10, top(x, y)] : [0, 10];
+                  const [from, to] = [Math.max(floor, probe.low), Math.min(roof, probe.high)];
+                  if (x < 0 || x > 40 || y < 0 || y > 40 || to <= from) continue;
+                  const dv = (to - from) * q * (probe.r / n) * ((2 * Math.PI) / m);
+                  [volume, mx, my, mz] = [volume + dv, mx + dv * x, my + dv * y, mz + (dv * (from + to)) / 2];
+                }
+              }
+              return { interferences: [{ volume_mm3: volume, center: volume > 0 ? [mx / volume, my / volume, mz / volume] : [0, 0, 0] }] };
+            }
+            return step.command === 'component.list' ? { components: [] } : step.command === 'document.inspect' ? { undo: 1, timeline: [], sketches: [] } : {};
+          });
+          const trial = args.rollback === true;
+          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(trial ? { results: results.slice(0, -1), failed: { command: 'sketch.inspect' } } : { results }) }], ...(trial ? { isError: true } : {}) });
+        },
+      };
+      return { tools: withMechanismTool(upstream, () => 0.4), sent };
+    }
+
+    it('lets the room for a head into a curved lid as a seat into a curved face, and says how much the curve took; an edge it refuses (review of PR 365)', async () => {
+      // A ball of radius 8 and a rod of radius 5 at the top: the counterbore's rim lies up to 0.7 and 1.1 mm under the top.
+      for (const [k, rod] of [[1 / 16, false], [1 / 10, true]] as const) {
+        const { tools, sent } = domed(k, rod);
+        const built = await tools.callTool('partbuddy_mechanism', { ...joint, from: [20, 20, 25] });
+        expect(built.isError, String(k)).toBeUndefined();
+        expect(String(built.content[0]?.text), String(k)).toMatch(/it is there\. Round the hole the face falls away all round, as a curved face does: PartBuddy allowed up to [\d.]+ mm³ of wall/);
+        expect(sent.some((batch) => batch.includes('solid.hole')), String(k)).toBe(true);
+      }
+      // A rod of radius 60 along Y and the screw 2.5 mm from the lid's edge: the room breaks out to one side.
+      const { tools, sent } = domed(1 / 120, true);
+      const edge = await tools.callTool('partbuddy_mechanism', { ...joint, from: [2.5, 20, 25 - (17.5 * 17.5) / 120] });
+      expect(String(edge.content[0]?.text)).toMatch(/^Not built: at \[2\.5, 20, [\d.]+\] Cover has [\d.]+ mm of plastic where 3\.4 mm are needed \(the mean over a ring from 3\.4 to 6\.7 mm wide/);
+      expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(false);
+    });
   });
 });
 

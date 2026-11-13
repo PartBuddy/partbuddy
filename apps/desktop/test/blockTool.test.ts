@@ -47,7 +47,7 @@ describe('the function blocks for the assistant (standards)', () => {
     expect((await tools.listTools()).map((tool) => tool.name)).toEqual(['partbuddy_block']);
     const hole = await tools.callTool('partbuddy_block', { block: 'screwHole', body: 'Plate', point: [10, 10, 6], more: [[30, 10, 6]] });
     // The double answers no trial: the holes go through all, and the answer says so.
-    expect(hole.content[0]).toMatchObject({ text: 'Built 2 × screwHole on Plate at [10, 10, 6]: size M3, head cap, fit normal. PartBuddy could not measure the wall at the points (a point must lie on a face of Plate, within 0.05 mm), so it went through all of Plate on its line, far walls too; check it, and give depth where it must stop sooner.' });
+    expect(hole.content[0]).toMatchObject({ text: 'Built 2 × screwHole on Plate at [10, 10, 6]: size M3, head cap, fit normal. SolidCraft could not run the trial that measures the wall: it went through all of Plate on its line, far walls too; check it, and give depth where it must stop sooner.' });
     const key = await tools.callTool('partbuddy_block', { block: 'keyhole', body: 'Plate', point: [20, 0, 80], normal: [0, -1, 0] });
     expect(String(key.content[0]?.text)).toContain('Built 1 keyhole slot for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4.5 mm wide running 8 mm up to where the screw rests, and behind its 2 mm lip a pocket 3.5 mm deep for the head. The part must be at least 6.7 mm thick there.');
     // The holes need no sketch; the keyhole's plastic is measured on trial, then its sketches are drawn with the plate's component active.
@@ -288,7 +288,10 @@ describe('a cut through goes through the wall at its point alone (audit W2, T4, 
     const { tools, built } = box({ aside: false });
     const hole = await tools.callTool('partbuddy_block', { block: 'screwHole', ...side, head: 'none' });
     expect(built('solid.hole')[0]).not.toHaveProperty('depth');
-    expect(String(hole.content[0]?.text)).toContain('PartBuddy could not measure the wall at the point (a point must lie on a face of Dose, within 0.05 mm), so it went through all of Dose on its line, far walls too');
+    expect(String(hole.content[0]?.text)).toContain('SolidCraft could not run the trial that measures the wall: it went through all of Dose on its line, far walls too');
+    // A point off every face of the body: the trial runs, and no piece holds the point.
+    const off = await box().tools.callTool('partbuddy_block', { block: 'screwHole', body: 'Dose', point: [-0.5, 20, 15], head: 'none' });
+    expect(String(off.content[0]?.text)).toContain('No plastic of Dose lies within 0.05 mm of the point, so its wall could not be measured: it went through all of Dose on its line');
   });
 
   it('drills through both cheeks of a fork when asked to go through the body, without a trial', async () => {
@@ -297,6 +300,9 @@ describe('a cut through goes through the wall at its point alone (audit W2, T4, 
     expect(sent.some((batch) => batch.rollback)).toBe(false);
     expect(built('solid.hole')[0]).not.toHaveProperty('depth');
     expect(String(fork.content[0]?.text)).toContain('through body. It goes through all of Dose on its line.');
+    // With a depth, it goes that deep and the answer says nothing of going through.
+    const deep = await tools.callTool('partbuddy_block', { block: 'slot', ...side, normal: [-1, 0, 0], depth: 1.5, through: 'body' });
+    expect(String(deep.content[0]?.text)).not.toContain('through all');
     expect(blockOf({ block: 'insertSeat', ...side, through: 'body' })).not.toHaveProperty('through');
     expect(blockOf({ block: 'slot', ...side, normal: [-1, 0, 0], through: 'all' })).toContain('through');
   });

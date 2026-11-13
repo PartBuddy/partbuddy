@@ -207,7 +207,12 @@ function hollowAt(model: PrintCheckBody['model'], t: number, normal: Vector3, ce
   return off.sub(axis.multiplyScalar(off.dot(axis))).dot(normal) < 0;
 }
 
-/** A face runs along a hole when it lies within 15° of its axis: a side the hole breaks out of, not a rim it goes in or out at. */
+/**
+ * A face runs along a hole when it lies within 15° of its axis: a side the hole breaks out of, not a rim it goes in or out at.
+ * shortcut: a side that leans more than that (a drafted or slanted outer wall, from about 20°) is not found when a hole breaks
+ * out of it, as before PR #365; nor are counterbores and countersinks (`cbore`, `csink`) or slots, which are no `…:bore:…`
+ * cylinder. Measure the wall round the hole's own section instead if those must be found.
+ */
 const ALONG = Math.sin((15 * Math.PI) / 180);
 
 /** What is too thin in one body: the faces under the minimum, and the area (mm²) that does not print at all. */
