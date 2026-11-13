@@ -1327,25 +1327,27 @@ if (!app.requestSingleInstanceLock()) {
     // Function blocks (F1): previewed like actions, built as one step of the work log.
     // The same limits for the nozzle in use as the assistant's blocks; the form says which size and why (refusal.ts).
     // The panel checks first with the printer it shows; this is the same check with the profile as it is now.
-    const formLimit = (block: Parameters<typeof blockLimit>[0]) => {
-      let printer = DEFAULT_PRINTER;
+    // The form's blocks are built for the printer in use, as the assistant's (bridge layers, a boss's fillet: audit BC-12).
+    const formPrinter = () => {
       try {
-        printer = printProfiles.part().printer;
+        return printProfiles.part().printer;
       } catch (cause) {
         log(`block form: no printer profile, checked for a ${String(DEFAULT_PRINTER.nozzle)} mm nozzle (${(cause as Error).message.slice(0, 200)})`);
+        return DEFAULT_PRINTER;
       }
-      return blockLimit(block, printer);
     };
     bridge.handle(invokeChannels.designPreviewBlock, (block) => {
       assistantIdle();
-      const limit = formLimit(block);
-      return limit ? { ok: false as const, error: limitRefusal(limit).slice(0, 300) } : supervisor.previewBlock(block);
+      const printer = formPrinter();
+      const limit = blockLimit(block, printer);
+      return limit ? { ok: false as const, error: limitRefusal(limit).slice(0, 300) } : supervisor.previewBlock(block, printer);
     });
     bridge.handle(invokeChannels.designApplyBlock, async (block) => {
       assistantIdle();
-      const limit = formLimit(block);
+      const printer = formPrinter();
+      const limit = blockLimit(block, printer);
       if (limit) throw new Error(limitSaid(limit));
-      await steps.recordUser(blockPhrase(block), () => supervisor.applyBlock(block));
+      await steps.recordUser(blockPhrase(block), () => supervisor.applyBlock(block, printer));
       log(`built the function block ${block.block}`);
       return undefined;
     });

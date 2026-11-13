@@ -1644,7 +1644,8 @@ test('function blocks are previewed and built at a face: tapped hole, screw hole
     await turnEnded(page);
     const top = (x: number, y: number) => ({ body: 'Body1', point: [x, y, 10] });
     const blocks = [
-      { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: true, more: [[5, 10, 10]] },
+      // Listed, to be tapped: a printed M4 strips, and the form refuses it modelled (review of BC-12).
+      { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: false, more: [[5, 10, 10]] },
       { block: 'screwHole', ...top(15, 5), size: 'M3', head: 'countersunk', fit: 'normal' },
       { block: 'insertSeat', ...top(5, 15), size: 'M3', diameter: 4, depth: 6.7 },
       { block: 'boss', ...top(15, 15), size: 'M2', diameter: 7.2, height: 6 },
@@ -3641,7 +3642,7 @@ test('the assistant makes a knob for a D shaft with one call: a part of its own 
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a volume knob');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the knob "Volume" for a 6 mm D shaft \(flat at 4\.5 mm\): the bore is 6\.2 mm wide and 11 mm deep, flat over its last 7 mm .* with a chamfered mouth, to push on.* with 11 flutes to grip/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Built the knob "Volume" for a 6 mm D shaft \(flat at 4\.5 mm\): the bore is 6\.2 mm wide and 11 mm deep, flat over its last 6 mm .* with a chamfered mouth, to push on.* with 12 flutes to grip/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/SolidCraft warns:/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
     await expect(page.getByText('Knob “Volume” for a shaft')).toHaveCount(1);
