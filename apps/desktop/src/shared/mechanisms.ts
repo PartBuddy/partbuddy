@@ -5,7 +5,9 @@
  * in the tool (`mechanismTool.ts`).
  */
 
-import { CAP_HEAD, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, type BlockSize } from './screwSizes';
+import { minimumFloor, minimumWall } from '@partbuddy/geometry';
+
+import { CAP_HEAD, CLEARANCE_NORMAL, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, type BlockSize } from './screwSizes';
 
 type Vec3 = [number, number, number];
 type Step = { command: string; params: Record<string, unknown> };
@@ -265,8 +267,11 @@ export function slideRoof(spec: Pick<SlideSpec, 'width' | 'height' | 'gap'>): { 
   return { ceiling: round(2 * half), ridge: RIDGE, top: round(spec.height + spec.gap + half - RIDGE / 2) };
 }
 
-/** What is wrong with a guide before anything is built; null when it can be built. */
-export function slideProblem(spec: SlideSpec): string | null {
+/**
+ * What is wrong with a guide before anything is built; null when it can be built. `least` is the smallest gap: 0.2 for a
+ * guide that slides, 0.1 for a dovetail pressed together (audit W25: the plug refused the 0.1 its description offered).
+ */
+export function slideProblem(spec: SlideSpec, least = 0.2): string | null {
   const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0)) as Vec3;
   const length = Math.hypot(...delta);
   const up = Math.hypot(...spec.up);
@@ -276,7 +281,7 @@ export function slideProblem(spec: SlideSpec): string | null {
   if (Math.abs(delta.reduce((sum, value, i) => sum + value * (spec.up[i] ?? 0), 0)) > 1e-6 * length * up) return 'up must be square to the line from–to (the normal of the face the rail stands on)';
   if (!(spec.width >= 2 && spec.width <= 60)) return 'width must be 2–60 mm';
   if (!(spec.height >= 1.5 && spec.height <= 20)) return 'height must be 1.5–20 mm';
-  if (!(spec.gap >= 0.2 && spec.gap <= 1)) return 'gap must be 0.2–1 mm';
+  if (!(spec.gap >= least && spec.gap <= 1)) return `gap must be ${String(least)}–1 mm`;
   return null;
 }
 
@@ -589,29 +594,83 @@ export interface ScrewSpec {
   thread: 'insert' | 'tapped';
   /** Whether the screws go in as standard parts, for the parts list and the assembly. */
   screws: boolean;
+  /** The nozzle the plastic under the head is sized for (mm); default 0.4. */
+  nozzle?: number;
   name: string;
 }
 
-/** Lengths screws are sold in, ISO 4762 and ISO 10642, in mm. */
-const SCREW_LENGTHS = [4, 5, 6, 8, 10, 12, 16, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80];
+/**
+ * The lengths screws are made in, in mm, per size from the standards' tables (audit T17, MV-08: one list for every size
+ * named M2×80 and M10×4 and lacked 55 and 65). Socket head cap screws ISO 4762 (fasteners.eu, table ISO 4762: a size
+ * runs to the last length its shank is listed for); countersunk ones from DIN 7991, which ISO 10642 replaced, without 45,
+ * 55 and 65 (fasteners.eu, page ISO 10642). Checked 2026-11-13.
+ */
+const SCREW_LENGTHS: Record<'cap' | 'countersunk', { series: number[]; range: Partial<Record<BlockSize, [number, number]>> }> = {
+  cap: {
+    series: [3, 4, 5, 6, 8, 10, 12, 16, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 80, 90, 100],
+    range: { M2: [3, 20], 'M2.5': [4, 25], M3: [5, 30], M4: [6, 40], M5: [8, 50], M6: [10, 60], M8: [12, 80], M10: [16, 100] },
+  },
+  countersunk: {
+    series: [8, 10, 12, 16, 20, 25, 30, 35, 40, 50, 60, 70],
+    range: { M3: [8, 30], M4: [8, 40], M5: [8, 50], M6: [8, 50], M8: [10, 60], M10: [12, 70] },
+  },
+};
 /** A modelled thread holds from about M5 in print; smaller ones strip. */
 export const TAPPED_FROM = 5;
-/** Plastic left under a sunk head, in mm: three layers and more. */
-const UNDER_HEAD = 1.2;
 
 const grip = (spec: ScrewSpec) => Math.hypot(...spec.to.map((value, i) => value - (spec.from[i] ?? 0)));
 const metric = (size: BlockSize) => Number(size.slice(1));
-/** How deep the head sits in the moving body. */
-const headDepth = (spec: ScrewSpec) => (spec.head === 'cap' ? CAP_HEAD[spec.size][1] + HEAD_ALLOWANCE.depth : spec.head === 'countersunk' ? metric(spec.size) * 0.6 : 0);
+/**
+ * Plastic left under a sunk head, in mm: at least 1.2 (six layers of 0.2 mm, our own choice) and the print check's least
+ * wall, two lines of the nozzle, so a 0.6 mm nozzle gets 1.35 (audit N-mechanik-18, T61: 1.2 was fixed and said "three
+ * layers").
+ */
+export const underHead = (nozzle = 0.4) => Math.max(1.2, minimumWall(nozzle));
+/**
+ * How deep the head sits in the moving body, without any sink: the counterbore, or the countersink's 90° cone from its
+ * width at the face (head and allowance) down to the clearance hole, as it is cut (audit T7, MV-07, W19: 0.6 · d was
+ * 0.13 to 0.16 mm less than the cone, so 1.04 mm were left where 1.2 were checked).
+ */
+const headDepth = (spec: ScrewSpec) =>
+  spec.head === 'cap' ? CAP_HEAD[spec.size][1] + HEAD_ALLOWANCE.depth : spec.head === 'countersunk' ? round(((COUNTERSUNK_HEAD[spec.size] ?? 0) + HEAD_ALLOWANCE.diameter - CLEARANCE_NORMAL[spec.size]) / 2) : 0;
 /** How deep the screw may reach into the fixed body: the insert, or 2.5 diameters of thread. */
 const hold = (spec: ScrewSpec) => (spec.thread === 'insert' ? (INSERT[spec.size]?.length ?? 0) : metric(spec.size) * 2.5);
+/** How deep it must reach at least: two thirds of the insert, or two diameters of a printed thread (MV-28: plastic wants at least 2 d). */
+const engage = (spec: ScrewSpec) => (spec.thread === 'insert' ? ((INSERT[spec.size]?.length ?? 0) * 2) / 3 : metric(spec.size) * 2);
 
-/** The screw to buy: the longest standard length that ends inside the insert or thread, and holds at least two thirds of it. */
-export function screwLength(spec: ScrewSpec): number | null {
-  // A socket head's length counts from under the head, a countersunk one's from its top.
+/** The lengths the screw of a joint is made in, shortest first. */
+export function screwLengths(spec: Pick<ScrewSpec, 'size' | 'head'>): number[] {
+  const table = SCREW_LENGTHS[spec.head === 'countersunk' ? 'countersunk' : 'cap'];
+  const [least, most] = table.range[spec.size] ?? [0, -1];
+  return table.series.filter((length) => length >= least && length <= most);
+}
+
+/**
+ * Where the screw reaches into the fixed body, from the face the two meet at: from the least to the most it may, for a
+ * head not sunk deeper. A socket head's length counts from under the head, a countersunk one's from its top.
+ */
+export function screwWindow(spec: ScrewSpec): { least: number; most: number; through: number } {
   const through = grip(spec) - (spec.head === 'cap' ? headDepth(spec) : 0);
-  const fits = SCREW_LENGTHS.filter((length) => length <= through + hold(spec) && length >= through + (hold(spec) * 2) / 3);
-  return fits.at(-1) ?? null;
+  return { least: round(through + engage(spec)), most: round(through + hold(spec)), through: round(through) };
+}
+
+/**
+ * The screw to buy and how much deeper its head sits than the counterbore or countersink would put it (audit T17, W20:
+ * at many thicknesses no standard length ended in the insert, and no screw went in). The longest standard length that
+ * ends inside the insert or thread and holds at least `engage` of it; where none does, the next shorter one, with the
+ * head sunk deeper by what it lacks, as long as the plastic under the head stays. Null when neither fits: a head lying on
+ * the face cannot sink.
+ */
+export function screwFit(spec: ScrewSpec): { length: number; sink: number } | null {
+  const { least, most } = screwWindow(spec);
+  const lengths = screwLengths(spec);
+  const fits = lengths.filter((length) => length >= least - 1e-9 && length <= most + 1e-9);
+  const longest = fits.at(-1);
+  if (longest !== undefined) return { length: longest, sink: 0 };
+  const shorter = lengths.filter((length) => length < least).at(-1);
+  if (spec.head === 'none' || shorter === undefined) return null;
+  const sink = Math.ceil((least - shorter) * 100 - 1e-6) / 100;
+  return round(grip(spec) - headDepth(spec) - sink) >= underHead(spec.nozzle) ? { length: shorter, sink } : null;
 }
 
 /** What is wrong with a screw joint before anything is built; null when it can be built. */
@@ -621,15 +680,18 @@ export function screwProblem(spec: ScrewSpec): string | null {
   if (spec.thread === 'insert' && !INSERT[spec.size]) return `there is no heat-set insert for ${spec.size} in the table (M2 to M6); use thread tapped or another size`;
   if (spec.thread === 'tapped' && metric(spec.size) < TAPPED_FROM) return `a printed ${spec.size} thread strips; use thread insert, or M${String(TAPPED_FROM)} and larger`;
   if (spec.head === 'countersunk' && metric(spec.size) < 3) return 'countersunk screws start at M3';
-  const left = grip(spec) - headDepth(spec);
-  if (left < UNDER_HEAD) return `the moving body is ${String(round(grip(spec)))} mm thick there, which leaves ${String(round(left))} mm under the ${spec.head === 'cap' ? 'counterbore' : 'countersink'}; make it at least ${String(round(headDepth(spec) + UNDER_HEAD))} mm thick, or use head none`;
+  // Rounded as it is said, so a thickness that leaves just enough is not refused by a float (audit N-bloecke-7).
+  const [left, under] = [round(grip(spec) - headDepth(spec)), underHead(spec.nozzle)];
+  if (spec.head !== 'none' && left < under) return `the moving body is ${String(round(grip(spec)))} mm thick there, which leaves ${String(left)} mm under the ${spec.head === 'cap' ? 'counterbore' : 'countersink'}; make it at least ${String(round(headDepth(spec) + under))} mm thick, or use head none`;
   if (spec.more.length > 40) return 'at most 40 further screws';
   return null;
 }
 
 /**
- * The holes of a screw joint, one set per screw: in the moving body a clearance hole (ISO 273, normal) with the
- * room for the head, drilled only as deep as that body is thick; in the fixed body, on the same line, the seat of a
+ * The holes of a screw joint, one set per screw: in the moving body a clearance hole of ISO 273, normal, from our own
+ * table (audit W21: SolidCraft's was taken unseen and its size never said) with the room for the head, drilled only as
+ * deep as that body is thick; a head that must sink deeper for a standard length (`screwFit`) gets a counterbore that
+ * much deeper, a countersink a cylinder as wide as its mouth over it. In the fixed body, on the same line, the seat of a
  * heat-set insert (a millimetre deeper than the insert, for the plastic it pushes down) or a modelled thread. With
  * `screws` the screws themselves follow as standard parts, each seated in its hole.
  */
@@ -638,14 +700,23 @@ export function screwSteps(spec: ScrewSpec): Step[] {
   const direction = delta.map((value) => round(value / grip(spec))) as Vec3;
   const mm = (value: number) => `${String(round(value))} mm`;
   const insert = INSERT[spec.size];
-  const length = screwLength(spec);
+  const fit = screwFit(spec);
+  const sink = fit?.sink ?? 0;
+  const room = headRecess(spec);
   const family = spec.head === 'countersunk' ? 'countersunk_socket_screw' : 'socket_head_cap_screw';
   const entries = [spec.from, ...spec.more].map((entry) => entry.map(round) as Vec3);
+  const along = (entry: Vec3, distance: number) => entry.map((value, k) => round(value + (direction[k] ?? 0) * distance)) as Vec3;
   const holes = entries.flatMap((entry, i): Step[] => {
     const meet = entry.map((value, k) => round(value + (delta[k] ?? 0))) as Vec3;
     const label = `${spec.name} ${String(i + 1)}`;
+    // A countersink sunk deeper starts on the floor of a cylinder as wide as its mouth.
+    const sunk = spec.head === 'countersunk' && sink > 0 && room;
+    const hole = { diameter: mm(CLEARANCE_NORMAL[spec.size]), direction, targets: [spec.moving], name: label };
     return [
-      { command: 'solid.hole', params: { position: entry, clearance: spec.size, fit: 'normal', ...headRoom(spec), direction, depth: mm(grip(spec)), targets: [spec.moving], name: label } },
+      ...(sunk ? [{ command: 'solid.cylinder', params: { diameter: mm(room.diameter), height: mm(sink), base: entry, axis: direction, operation: 'cut', targets: [spec.moving], name: `${label} ◎` } }] : []),
+      sunk
+        ? { command: 'solid.hole', params: { position: along(entry, sink), ...hole, type: 'countersink', cs_diameter: mm(room.diameter), cs_angle: '90 deg', depth: mm(grip(spec) - sink) } }
+        : { command: 'solid.hole', params: { position: entry, ...hole, ...headRoom(spec), depth: mm(grip(spec)) } },
       {
         command: 'solid.hole',
         params:
@@ -655,26 +726,27 @@ export function screwSteps(spec: ScrewSpec): Step[] {
       },
     ];
   });
-  if (!spec.screws || length === null) return holes;
+  if (!spec.screws || fit === null) return holes;
   // Each put where it sits, head outwards: a socket head on the floor of its counterbore, a countersunk head flush with
-  // the face. (Seated by a pick on the hole, SolidCraft 0.40.0-rc.4 turns the screw in from the far side.) The screws
-  // come after every hole, so they belong to the design and not to a body's component.
+  // the face or as deep as it is sunk. (Seated by a pick on the hole, SolidCraft 0.40.0-rc.4 turns the screw in from the
+  // far side.) The screws come after every hole, so they belong to the design and not to a body's component.
   // Plus zero: no negative zero in what goes to SolidCraft.
   const outwards = direction.map((value) => round(-value) + 0);
   return [
     ...holes,
     ...entries.map((entry) => ({
       command: 'parts.insert',
-      params: { family, size: spec.size, length, point: entry.map((value, k) => round(value + (direction[k] ?? 0) * (spec.head === 'cap' ? headDepth(spec) : 0))), direction: outwards },
+      params: { family, size: spec.size, length: fit.length, point: along(entry, spec.head === 'cap' ? (room?.depth ?? 0) : sink), direction: outwards },
     })),
   ];
 }
 
-/** The room for the head in the moving body: its width at the face and how deep the head sits; null for a head lying on the face. */
+/** The room for the head in the moving body: its width at the face and how deep the head sits, sunk deeper where `screwFit` says; null for a head lying on the face. */
 export function headRecess(spec: ScrewSpec): { diameter: number; depth: number } | null {
-  if (spec.head === 'cap') return { diameter: CAP_HEAD[spec.size][0] + 2 * HEAD_ALLOWANCE.diameter, depth: headDepth(spec) };
-  if (spec.head === 'countersunk') return { diameter: (COUNTERSUNK_HEAD[spec.size] ?? CAP_HEAD[spec.size][0]) + HEAD_ALLOWANCE.diameter, depth: headDepth(spec) };
-  return null;
+  if (spec.head === 'none') return null;
+  const sink = screwFit(spec)?.sink ?? 0;
+  if (spec.head === 'cap') return { diameter: CAP_HEAD[spec.size][0] + 2 * HEAD_ALLOWANCE.diameter, depth: round(headDepth(spec) + sink) };
+  return { diameter: (COUNTERSUNK_HEAD[spec.size] ?? CAP_HEAD[spec.size][0]) + HEAD_ALLOWANCE.diameter, depth: round(headDepth(spec) + sink) };
 }
 
 /** The room for the head, as the function block for a screw hole makes it: a counterbore or a countersink with the allowance of a printed hole. */
@@ -749,8 +821,10 @@ export function lidSteps(spec: LidSpec): Step[] {
   const mouth = rim - lidSkirt(spec);
   const bore = radius + thread.depth + spec.gap;
   const outer = bore + LID.wall;
-  // The section reaches 0.2 mm into its body, along its flanks, but never to the next turn.
+  // The section reaches 0.2 mm into its body, along its flanks, but never to the next turn; where that cuts it short (pitch
+  // 3) it reaches in radially as far as it does along the axis, so the flanks keep 45° (audit T6: 46.1° there).
   const into = Math.min(thread.foot / 2 + 0.2, thread.pitch / 2 - 0.05);
+  const overlap = round(into - thread.crest / 2 - thread.depth);
   const coil = (label: string, target: string, z: number, foot: number, crest: number, k: number): Step[] => {
     const angle = (2 * Math.PI * k) / spec.starts;
     const name = `${label} ${String(k + 1)}`;
@@ -763,13 +837,13 @@ export function lidSteps(spec: LidSpec): Step[] {
   };
   const flutes = Math.max(8, Math.round((2 * Math.PI * outer) / 7));
   return [
-    ...Array.from({ length: spec.starts }, (_, k) => coil(spec.name, spec.fixed, start, radius - 0.2, radius + thread.depth, k)).flat(),
+    ...Array.from({ length: spec.starts }, (_, k) => coil(spec.name, spec.fixed, start, radius - overlap, radius + thread.depth, k)).flat(),
     // The lid's top edge lies on the bed when it prints, so its last 0.6 mm are a cone, not a chamfer: SolidCraft
     // 0.40.0-rc.4 refuses to chamfer the top edge of a cylinder from about 60 mm of diameter.
     { command: 'solid.cylinder', params: { diameter: mm(2 * outer), height: mm(rim + LID.top - 0.6 - mouth), base: [cx, cy, round(mouth)], operation: 'new', body_name: spec.moving, name: spec.moving } },
     { command: 'solid.cone', params: { diameter: mm(2 * outer), top_diameter: mm(2 * outer - 1.2), height: '0.6 mm', base: [cx, cy, round(rim + LID.top - 0.6)], operation: 'join', targets: [spec.moving], name: `${spec.name} ◢` } },
     { command: 'solid.cylinder', params: { diameter: mm(2 * bore), height: mm(rim - mouth), base: [cx, cy, round(mouth)], operation: 'cut', targets: [spec.moving], name: `${spec.name} ○` } },
-    ...Array.from({ length: spec.starts }, (_, k) => coil(`${spec.name} ·`, spec.moving, lidStart, bore + 0.2, radius + spec.gap, k)).flat(),
+    ...Array.from({ length: spec.starts }, (_, k) => coil(`${spec.name} ·`, spec.moving, lidStart, bore + overlap, radius + spec.gap, k)).flat(),
     // Flutes for the fingers, ending below the top so its edge stays whole for the bed.
     { command: 'solid.cylinder', params: { diameter: mm(LID.flute), height: mm(rim - mouth), base: [round(cx + outer + LID.flute / 4), cy, round(mouth)], operation: 'cut', targets: [spec.moving], name: `${spec.name} ◆` } },
     { command: 'solid.pattern.circular', params: { features: [`${spec.name} ◆`], axis: { origin: [cx, cy, 0], dir: [0, 0, 1] }, count: flutes } },
@@ -877,9 +951,18 @@ export interface PegSpec {
 /**
  * A peg, in mm: one and a half diameters long (what makers of split prints publish: 1.5 to 2), its pocket `deeper` for
  * air and glue, and `chamfer` at 45° on the peg's tip and the pocket's mouth so they find each other. Under 5 mm a
- * standing peg is perimeters only and weak (Hubs).
+ * standing peg is perimeters only and weak (Hubs). Round each pocket the moving body keeps `wall`, as round a screw boss
+ * or an insert's seat (seatWall in blockTool.ts), and under it {@link pegFloor} (audit W24: an unclear "max(2·Ø, 4) mm
+ * round the axis" stood in the answer, and nothing was measured).
  */
-export const PEG = { ratio: 1.5, deeper: 1, chamfer: 0.5, root: 0.5, least: 5 };
+export const PEG = { ratio: 1.5, deeper: 1, chamfer: 0.5, root: 0.5, least: 5, wall: 2 };
+
+/**
+ * The plastic under a pocket, in mm: what the print check takes for a floor, four layers and at least 0.8 mm, or for a
+ * wall, two lines, as the pocket stands (0.6 mm, three layers, was a thin floor to the check).
+ * shortcut: reckoned with 0.2 mm layers, since the tool knows the nozzle only; pass the profile's layer when it does.
+ */
+export const pegFloor = (nozzle = 0.4) => Math.max(minimumFloor(0.2), minimumWall(nozzle));
 
 /** How far a peg stands out of its face. */
 export function pegLength(diameter: number): number {
@@ -889,6 +972,8 @@ export function pegLength(diameter: number): number {
 /** What is wrong with a peg before anything is built; null when it can be built. */
 export function pegProblem(spec: PegSpec): string | null {
   if (spec.fixed === spec.moving) return 'fixed and moving must be two bodies';
+  // pegSteps takes the way from from to to (audit T59).
+  if (Math.hypot(...spec.to.map((value, i) => value - (spec.from[i] ?? 0))) < 1e-6) return 'from and to must be two points: to lies further into the moving body';
   if (!(spec.diameter >= 3 && spec.diameter <= 20)) return 'diameter must be 3–20 mm';
   if (!(spec.gap >= 0.05 && spec.gap <= 0.5)) return 'gap must be 0.05–0.5 mm';
   if (spec.more.length > 20) return 'at most 20 further pegs';
