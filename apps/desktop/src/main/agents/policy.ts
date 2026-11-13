@@ -172,6 +172,7 @@ export const REFUSED_COMMANDS: Record<string, string> = {
  * The other modelling commands stay open, and the ready-to-print check of each change goes back with the answer
  * (workLog.ts, printCheckNote.ts). PartBuddy's own tools send these commands below the policy and stay free. From the
  * catalogue of SolidCraft 0.40.1; `document.units` is refused with its group (audit S-22).
+ * shortcut: raw solid.fillet, solid.chamfer and solid.shell are only checked after the change, not held to the rules of the selection actions (bed edges chamfered, shell walls in whole lines) before it; the policy knows neither the bed nor the printer. Give `decide` the print profile and share those rules once BC-08 (#385) is merged.
  */
 export const CHECKED_WAYS: Record<string, string> = {
   'solid.hole':
