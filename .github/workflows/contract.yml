@@ -9,6 +9,15 @@ name: SolidCraft contract tests
 
 on:
   workflow_dispatch:
+    inputs:
+      window:
+        description: Also run the tests that open a SolidCraft window (it shows on the runner's desktop)
+        type: boolean
+        default: false
+      only:
+        description: Run only the tests whose title matches this (Playwright --grep); empty runs all
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -54,9 +63,13 @@ jobs:
         run: pnpm --filter @partbuddy/desktop build
 
       - name: Run the contract tests
-        run: pnpm --filter @partbuddy/desktop exec playwright test e2e/solidcraft.contract.spec.ts --reporter=line
+        run: |
+          $only = if ($env:ONLY) { @('--grep', $env:ONLY) } else { @() }
+          pnpm --filter @partbuddy/desktop exec playwright test e2e/solidcraft.contract.spec.ts --reporter=line @only
         env:
           PARTBUDDY_E2E_SOLIDCRAFT: "1"
+          PARTBUDDY_E2E_SOLIDCRAFT_WINDOW: ${{ inputs.window && '1' || '' }}
+          ONLY: ${{ inputs.only }}
           PARTBUDDY_SOLIDCRAFT_EXE: C:\Program Files\SolidCraft\solidcraft.exe
 
       # Screenshots, traces and error contexts of the failed tests, to read the cause without a rerun.

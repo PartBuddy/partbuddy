@@ -88,6 +88,9 @@ test('the user undoes, redoes and exports without the assistant (ADR 0016)', asy
   await page.keyboard.press('Control+y');
   await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 3', { timeout: 15_000 });
   await expect(undo).toBeEnabled();
+  // The light of revision 3 first: until it is there an export asks (audit X-1).
+  await expect(page.getByTestId('print-check')).toHaveAttribute('data-revision', '3', { timeout: 15_000 });
+  await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-measuring');
 
   // The save dialog is the system's; the test answers it with a file in its own folder.
   const target = join(mkdtempSync(join(tmpdir(), 'partbuddy-e2e-export-')), 'clip.3mf');
@@ -1622,6 +1625,127 @@ test('the ready-to-print light follows the printer, points at its findings and a
   const confirm = page.getByTestId('export-confirm');
   await expect(confirm).toContainText('Too large for the build volume');
   await page.screenshot({ path: test.info().outputPath('export-confirm.png') });
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+});
+
+test('the light says when it still measures or a measure failed, and an export asks then (audit X-1)', async () => {
+  launched = await launchApp();
+  fake = new FakeSolidCraft({ controlDir: launched.controlDir });
+  fake.joints = [{ id: 9, name: 'Hinge', type: 'revolute', values: [{ name: 'angle', unit: 'deg', value: 0, limits: [-180, 0] }] }];
+  const solidcraft = fake;
+  // SolidCraft takes its time over a command (the joint's way, the mirror's export), until the test lets it go.
+  const hold = (command = 'joint.sweep') => {
+    let release: () => void = () => undefined;
+    solidcraft.held[command] = new Promise<void>((done) => {
+      release = done;
+    });
+    return () => {
+      release();
+    };
+  };
+  let measured = hold();
+  await solidcraft.start();
+  const { page } = launched;
+  await lookAgain(page);
+  const light = page.getByTestId('print-check');
+  const confirm = page.getByTestId('export-confirm');
+  await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
+  await expect(light).toHaveText('Checking');
+
+  // An export now asks: a blocked joint may still turn up.
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  await expect(confirm).toContainText('The print check has not finished yet.');
+  // The dialog follows the light: the measure comes in while it stands open.
+  measured();
+  await expect(confirm).toContainText('The measuring has finished in the meantime.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+  await expect(light).toHaveText('Ready to print');
+  await expect(light).not.toHaveAttribute('data-measuring');
+
+  // After a change the green of the revision before no longer holds: an export at once asks, and the measure
+  // that comes in while the dialog is open brings a finding.
+  measured = hold();
+  solidcraft.sweepStops.set(-180, { stopped_at: -28.07, stopped_by: { a: 'CableClip:1', b: 'CableClip:1', at: [10, 5, 2] } });
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  await expect(confirm).toContainText('The print check has not finished yet.');
+  measured();
+  await expect(light).toHaveText('1 warning');
+  await expect(confirm).toContainText('The measuring has finished in the meantime.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+  solidcraft.sweepStops.clear();
+
+  // A measure that fails is no green: the light says what is missing, and sharing asks as well.
+  solidcraft.answers['joint.sweep'] = () => {
+    throw new Error('the measure ran out of time');
+  };
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-unmeasured', 'joints', { timeout: 15_000 });
+  await expect(light).toHaveText('Not fully checked');
+  await light.click();
+  await expect(page.getByTestId('print-check-unmeasured')).toHaveText('Not measured, or not all of it: the travel of the joints. Findings there may be missing.');
+  await expect(page.getByTestId('print-check-panel')).toContainText('No problems found so far.');
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('print-check-panel')).toBeHidden({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-share').click();
+  await expect(confirm).toContainText('The print check did not run in full. Not measured, or not all of it: the travel of the joints.');
+  await expect(confirm).not.toContainText('finished in the meantime');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+
+  // Measured again, the light is green again.
+  delete solidcraft.answers['joint.sweep'];
+  solidcraft.change();
+  await expect(light).toHaveText('Ready to print', { timeout: 15_000 });
+  await expect(light).not.toHaveAttribute('data-unmeasured');
+
+  // While the main process still mirrors a change the light of the revision before does not hold either; nor after a
+  // mirror that failed.
+  const mirrored = hold('file.export');
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  await expect(confirm).toContainText('The print check has not finished yet.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+  solidcraft.answers['file.export'] = () => {
+    throw new Error('the export failed');
+  };
+  mirrored();
+  // SolidCraft is further on than the light now: not fully checked, and an export asks.
+  await expect(light).toHaveAttribute('data-unmeasured', 'mirror', { timeout: 15_000 });
+  await expect(light).not.toHaveAttribute('data-measuring');
+  await expect(light).toHaveText('Not fully checked');
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-3mf').click();
+  await expect(confirm).toContainText('The view could not read the newest state; it is not checked.');
+  await confirm.getByTestId('export-confirm-cancel').click();
+  await expect(confirm).toHaveCount(0);
+  // The next change that comes through lets it go.
+  delete solidcraft.answers['file.export'];
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-revision', String(solidcraft.revision), { timeout: 15_000 });
+  await expect(light).toHaveText('Ready to print');
+  await expect(light).not.toHaveAttribute('data-unmeasured');
+
+  // Two parts whose gaps SolidCraft fails to measure (the fake does not measure them at all): said the same way.
+  solidcraft.bodies = ['CableClip', 'Second clip'];
+  solidcraft.joints = [];
+  solidcraft.change();
+  await expect(light).toHaveAttribute('data-unmeasured', 'clearance', { timeout: 15_000 });
+  await page.getByTestId('export').click();
+  await page.getByTestId('export-stl').click();
+  await expect(confirm).toContainText('Not measured, or not all of it: the gaps between the parts.');
   await confirm.getByTestId('export-confirm-cancel').click();
   await expect(confirm).toHaveCount(0);
 });

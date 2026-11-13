@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
-import { jointRuns, reportOf } from '../src/renderer/src/print/report';
+import { asksBeforeExport, checkNow, jointRuns, lateOn, reportOf, sweepInBlocks } from '../src/renderer/src/print/report';
+import type { ModelState, StudioPrintCheck } from '../src/renderer/src/state/store';
 import { printCheckReportSchema } from '../src/shared/contract';
 
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
@@ -120,14 +121,81 @@ describe('what the check could not measure', () => {
     expect(note).not.toContain('Measure it yourself (inspect.clearance)');
   });
 
-  it('asks SolidCraft for 40 joint runs at most and says when there were more', () => {
+  it('measures 200 joint runs at most and says when there were more', () => {
     const joint = (id: number) => ({ id, name: `J${String(id)}`, values: [{ unit: 'deg' as const, value: 0, limits: [-90, 90] as [number, number], index: 0 }] });
-    expect(jointRuns(Array.from({ length: 20 }, (_, i) => joint(i)))).toMatchObject({ more: false });
-    const many = jointRuns(Array.from({ length: 21 }, (_, i) => joint(i)));
-    expect(many.sweeps).toHaveLength(40);
+    expect(jointRuns(Array.from({ length: 100 }, (_, i) => joint(i)))).toMatchObject({ more: false });
+    const many = jointRuns(Array.from({ length: 101 }, (_, i) => joint(i)));
+    expect(many.sweeps).toHaveLength(200);
     expect(many.more).toBe(true);
     expect(many.sweeps[0]).toEqual({ joint: 0, name: 'J0', unit: 'deg', index: 0, from: 0, to: -90 });
     // A limit where the value stands already, or none, is no run.
     expect(jointRuns([{ id: 1, name: 'J', values: [{ unit: 'mm', value: 5, limits: [5, null], index: 2 }] }]).sweeps).toEqual([]);
+  });
+
+  it('asks before an export while the light is red, still measuring, of another revision or project, or a measure failed (audit X-1)', () => {
+    const model = { status: 'ready', documentId: 'doc-a', revision: 3, designName: 'A', bodies: [], sketches: [], structure: { features: [] } } as unknown as ModelState;
+    const idle = { state: 'connected', mirror: 'idle' } as const;
+    const light = (status: 'ready' | 'warn' | 'block', more: Partial<StudioPrintCheck> = {}): StudioPrintCheck => ({ documentId: 'doc-a', revision: 3, result: { status, findings: [] }, ...more });
+    expect(asksBeforeExport(null, model, idle)).toBe(false);
+    expect(asksBeforeExport(light('ready'), model, idle)).toBe(false);
+    expect(asksBeforeExport(light('warn'), model, idle)).toBe(false);
+    expect(asksBeforeExport(light('ready', { unmeasured: [], unchecked: ['Mesh'] }), model, idle)).toBe(false);
+    expect(asksBeforeExport(light('block'), model, idle)).toBe(true);
+    // Green from the mesh check alone is no green yet: an overlap or a blocked joint may follow.
+    expect(asksBeforeExport(light('ready', { measuring: true }), model, idle)).toBe(true);
+    expect(asksBeforeExport(light('warn', { unmeasured: ['joints'] }), model, idle)).toBe(true);
+    // Green of the revision before, or of another project at the same revision, is no green for this one.
+    expect(asksBeforeExport(light('ready', { revision: 2 }), model, idle)).toBe(true);
+    expect(asksBeforeExport(light('ready', { documentId: 'doc-b' }), model, idle)).toBe(true);
+    expect(checkNow(light('ready', { documentId: 'doc-b' }), model, idle)?.measuring).toBe(true);
+    expect(checkNow(light('ready'), model, idle)?.measuring).toBeUndefined();
+    // While the main process mirrors a newer revision; once it ended, failed or not, the light holds again.
+    expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'rebuilding' })).toBe(true);
+    expect(asksBeforeExport(light('ready'), model, idle)).toBe(false);
+    // A mirror that failed leaves SolidCraft further on than the check: not measured, so it asks.
+    expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'failed' })).toBe(true);
+    expect(checkNow(light('ready', { unmeasured: ['joints'] }), model, { state: 'connected', mirror: 'failed' })?.unmeasured).toEqual(['joints', 'mirror']);
+    // A mirror of the revision on screen once more that failed: SolidCraft is not further on, nothing lacks.
+    expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'failed', documentId: 'doc-a', revision: 3 })).toBe(false);
+    expect(asksBeforeExport(light('ready'), model, { state: 'connected', mirror: 'failed', documentId: 'doc-a', revision: 4 })).toBe(true);
+  });
+
+  it('shows a passing state only once it lasted, and its end at once', () => {
+    vi.useFakeTimers();
+    try {
+      const shown: boolean[] = [];
+      const follow = lateOn(500, (on) => shown.push(on));
+      // A step checked within the time never shows "checking".
+      follow(true);
+      vi.advanceTimersByTime(400);
+      follow(false);
+      vi.advanceTimersByTime(1000);
+      expect(shown).toEqual([false]);
+      // One that lasts does, and its end shows at once.
+      follow(true);
+      vi.advanceTimersByTime(500);
+      expect(shown).toEqual([false, true]);
+      follow(false);
+      expect(shown).toEqual([false, true, false]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sweeps the joints in blocks of 40, one after the other, and counts a failed block as not measured', async () => {
+    const calls: number[][] = [];
+    let failures = 0;
+    const stops = await sweepInBlocks(
+      Array.from({ length: 95 }, (_, i) => i),
+      (block) => {
+        calls.push(block);
+        return block[0] === 40 ? Promise.reject(new Error('busy')) : Promise.resolve(block.map((run) => (run === 3 ? 'stop' : null)));
+      },
+      () => (failures += 1),
+    );
+    expect(calls.map((block) => [block[0], block.length])).toEqual([[0, 40], [40, 40], [80, 15]]);
+    expect(stops).toHaveLength(95);
+    expect(stops[3]).toBe('stop');
+    expect(failures).toBe(1);
   });
 });

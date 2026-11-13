@@ -1113,10 +1113,24 @@
     "status": {
       "ready": "Ready to print",
       "warn": "{count, plural, one {# warning} other {# warnings}}",
-      "block": "Not ready to print"
+      "block": "Not ready to print",
+      "measuring": "Checking",
+      "unmeasured": "Not fully checked"
     },
     "none": "No problems found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
+    "noneSoFar": "No problems found so far.",
     "basis": "Checked after every change, as designed (standing on its lowest point), with the printer and material of this part. Supports, bridges and the orientation are up to the slicer.",
+    "measuring": "The check is still running. Overlaps, gaps that are too tight or a blocked joint may still turn up.",
+    "unmeasured": "Not measured, or not all of it: {what}. Findings there may be missing.",
+    "unchecked": "Not checked for gaps (mesh bodies): {bodies}",
+    "measure": {
+      "clearance": "the gaps between the parts",
+      "joints": "the travel of the joints"
+    },
+    "lacking": {
+      "mirror": "The view could not read the newest state; it is not checked.",
+      "check": "The print check broke off with an error; this state is not checked."
+    },
     "faces": "{count, plural, one {# face} other {# faces}}",
     "more": "{count} more",
     "show": "Show the place",
@@ -1142,7 +1156,10 @@
       "title": "Export anyway?",
       "body": "The print check is red. As it is, the part will likely not print cleanly:",
       "cancel": "Cancel",
-      "go": "Export anyway"
+      "go": "Export anyway",
+      "measuring": "The print check has not finished yet. Findings may still turn up, such as overlaps or a blocked joint.",
+      "unmeasured": "The print check did not run in full. Not measured, or not all of it: {what}.",
+      "done": "The measuring has finished in the meantime."
     }
   },
   "engine": {

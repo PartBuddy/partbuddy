@@ -294,6 +294,8 @@ test('website pictures', async () => {
     });
     // The package itself: its description goes beside the pictures, the notice is the picture.
     await step('share', async () => {
+      // Measured first: until then the export asks (audit X-1).
+      await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-measuring', 'true', { timeout: 60_000 });
       await page.getByTestId('export').click();
       await page.getByTestId('export-share').click();
       await expect(page.getByText(/Sharing package saved in exports/)).toBeVisible({ timeout: 60_000 });

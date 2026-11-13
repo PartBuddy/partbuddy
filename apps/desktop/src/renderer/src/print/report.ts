@@ -1,9 +1,12 @@
 import type { PrintCheck } from '@partbuddy/geometry';
 
-import type { Joint, PrintCheckReport } from '../../../shared/contract';
+import type { ConnectionStatus, Joint, PrintCheckReport } from '../../../shared/contract';
+import type { ModelState, StudioPrintCheck } from '../state/store';
 
-/** How many joint runs SolidCraft is asked for at most (the contract's limit of `joint.sweep`). */
-const MOST_RUNS = 40;
+/** How many joint runs one call asks SolidCraft for (the contract's limit of `joint.sweep`). */
+export const SWEEP_BATCH = 40;
+/** How many joint runs the check measures at most, in calls of {@link SWEEP_BATCH}: beyond, it says it did not measure them all. */
+const MOST_RUNS = 200;
 
 /**
  * The joint runs to measure: every value from where it stands to each of its limits, `index` its place in the joint.
@@ -16,6 +19,68 @@ export function jointRuns(joints: readonly (Pick<Joint, 'id' | 'name'> & { value
     ),
   );
   return { sweeps: runs.slice(0, MOST_RUNS), more: runs.length > MOST_RUNS };
+}
+
+/** How long the light waits before it shows that it is still checking: a step that checks at once does not blink. */
+export const PENDING_SHOWN_MS = 500;
+
+/**
+ * Follows a state that passes (review of #367): `show(true)` only once it held for `ms`, `show(false)` at once when it
+ * ends. "Checking" after every step of a build would blink, and a screen reader would read it out each time.
+ */
+export function lateOn(ms: number, show: (on: boolean) => void): (on: boolean) => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return (on) => {
+    clearTimeout(timer);
+    if (on)
+      timer = setTimeout(() => {
+        show(true);
+      }, ms);
+    else show(false);
+  };
+}
+
+/**
+ * Runs the sweeps in calls of {@link SWEEP_BATCH}, one after the other; a call that fails counts its runs as run through
+ * and is told to `failed`, so the check says it did not measure them.
+ */
+export async function sweepInBlocks<S, R>(sweeps: readonly S[], sweep: (block: S[]) => Promise<R[]>, failed: () => void): Promise<(R | null)[]> {
+  const stops: (R | null)[] = [];
+  for (let start = 0; start < sweeps.length; start += SWEEP_BATCH) {
+    const block = sweeps.slice(start, start + SWEEP_BATCH);
+    stops.push(
+      ...(await sweep(block).catch(() => {
+        failed();
+        return block.map(() => null);
+      })),
+    );
+  }
+  return stops;
+}
+
+/**
+ * The check as far as it holds for the design on screen (audit X-1): one of another revision or another project is as
+ * good as still measuring, since the revision numbers of two projects can be the same. So is any while the main process
+ * mirrors a newer revision (`rebuilding`): that ends in a new model, or in `failed` or `idle`, which lets the light go.
+ * After a mirror that failed SolidCraft is further on than the check: not measured, until a mirror comes through.
+ */
+export function checkNow(check: StudioPrintCheck | null, model: ModelState, connection: Pick<ConnectionStatus, 'state' | 'mirror' | 'documentId' | 'revision'>): StudioPrintCheck | null {
+  if (!check || check.measuring) return check;
+  const mirroring = connection.state === 'connected' && connection.mirror === 'rebuilding';
+  const current = !mirroring && model.status === 'ready' && model.documentId === check.documentId && model.revision === check.revision;
+  if (!current) return { ...check, measuring: true };
+  // A mirror of the same revision once more (a standard part's reference was built) may fail too: SolidCraft is not further on then.
+  const behind = connection.state === 'connected' && connection.mirror === 'failed' && !(connection.documentId === check.documentId && connection.revision === check.revision);
+  return behind ? { ...check, unmeasured: [...(check.unmeasured ?? []), 'mirror'] } : check;
+}
+
+/**
+ * Whether an export asks first (M7, audit X-1): the light is red, or what SolidCraft measures is still out or did not
+ * all run, so an overlap or a blocked joint may be missing. It only asks; the user may know better (decided 2026-11-05).
+ */
+export function asksBeforeExport(check: StudioPrintCheck | null, model: ModelState, connection: Pick<ConnectionStatus, 'state' | 'mirror' | 'documentId' | 'revision'>): boolean {
+  const now = checkNow(check, model, connection);
+  return now !== null && (now.result.status === 'block' || now.measuring === true || (now.unmeasured?.length ?? 0) > 0);
 }
 
 /** The check without the camera boxes, as the main process words it for the assistant; `bodies`: what each body costs to print. */
