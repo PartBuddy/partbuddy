@@ -5,8 +5,8 @@ import { TAPPED_FROM } from '../../shared/mechanisms';
 import { MAGNET, MAGNET_HOLDS, magnetPocket, magnetProblem, magnetSteps, magnetStock, type MagnetHold } from '../../shared/magnet';
 import { KEYHOLE, WALL, WOOD_SCREWS, WOOD_SCREW_UNDER, countersinkDepth, keyholeDepth, keyholeProblem, keyholeSteps, keyholeStock, woodScrewSteps, woodScrewStock, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
-import { count } from '../solidcraft/mirror';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
+import { markOf, takeBack } from './takeBack';
 
 /**
  * `partbuddy_block` (plan step F1, standards of 2026-11-11): the function blocks of the interface
@@ -135,7 +135,10 @@ export interface Stock {
   from: number;
   /** mm³ of the cylinder the block itself has cut away, when it is measured after the block was built. */
   hole?: number;
-  /** mm³ more the block may have cut away: on a curved face the hole does not end where it ends on a flat one. */
+  /**
+   * mm³ more the block may have cut away: on a curved face the hole does not end where it ends on a flat one. Only
+   * where the face falls away, or where that cannot be told: it lets an edge or a chamfer pass as well.
+   */
   slack?: number;
 }
 
@@ -157,8 +160,12 @@ export const FACE_DROP = 0.5;
 /** mm³ a hole `width` wide may take less than its cylinder on a face that falls away {@link FACE_DROP} at the rim of its stock (the cap of a ball). */
 const rimDrop = (width: number, stock: number) => (Math.PI * FACE_DROP * width ** 4) / (8 * stock ** 2);
 
-/** The plastic the seat of an insert needs, measured after it is cut: {@link FACE_DROP} under the face on, the seat itself taken off. */
-export function seatStock(block: Extract<FeatureBlock, { block: 'insertSeat' }>, point: Vec3, axis: Vec3): Stock {
+/**
+ * The plastic the seat of an insert needs, measured after it is cut: {@link FACE_DROP} under the face on, the seat itself
+ * taken off. `curved` when the seat cut less than its cylinder: only then is the slack of a curved face allowed (on a flat
+ * face it let a seat 5 mm from an edge with a 3 mm chamfer through, its wall under 1.6 mm; review 3 of PR #357).
+ */
+export function seatStock(block: Extract<FeatureBlock, { block: 'insertSeat' }>, point: Vec3, axis: Vec3, curved = false): Stock {
   const round = (value: number) => Math.round(value * 1000) / 1000;
   const area = (Math.PI * block.diameter ** 2) / 4;
   return {
@@ -169,9 +176,15 @@ export function seatStock(block: Extract<FeatureBlock, { block: 'insertSeat' }>,
     depth: round(block.depth - FACE_DROP + SEAT_UNDER),
     from: FACE_DROP,
     hole: area * (block.depth - FACE_DROP),
-    slack: area * CURVED_FACE,
+    ...(curved ? { slack: area * CURVED_FACE } : {}),
   };
 }
+
+/**
+ * What a block says when its measure allowed for a curved face: that allowance cannot tell a curved face from an edge or a
+ * chamfer (review 3 of PR #357: a wood screw passed 5.7 mm from an edge where 6.35 mm are asked for).
+ */
+const LENIENT = ' It allows a little for a curved face and cannot tell that from an edge or a chamfer: next to one the wall may be up to about 0.7 mm thinner than that, so keep the hole away from edges yourself.';
 
 /** A wall mounting the model asked for: its steps and what to say; null when the block is none of them; or what is wrong. */
 export function wallOf(args: Record<string, unknown>): { body: string; steps: Step[]; text: string; stock?: Stock[]; cut?: (point: Vec3, axis: Vec3) => Stock; need: string } | string | null {
@@ -318,13 +331,6 @@ export function cutAxis(body: string, before: unknown, after: unknown, point: Ve
   return length > 0.1 ? (way.map((value) => Math.round((value / length) * 1e6) / 1e6 + 0) as Vec3) : null;
 }
 
-/** How many features and sketches the design has, as `document.inspect` lists them; null when it does not. */
-function featuresOf(inspected: unknown): number | null {
-  const { timeline, sketches } = (inspected ?? {}) as { timeline?: unknown; sketches?: unknown };
-  return Array.isArray(timeline) ? timeline.length + (Array.isArray(sketches) ? sketches.length : 0) : null;
-}
-const undoDepth = (inspected: unknown) => count((inspected as { undo?: unknown } | undefined)?.undo);
-
 /** Volume in mm³ of every body by name as `inspect.measure` answers; NaN for a body that is not closed. */
 function volumesOf(measured: unknown): Map<string, number> {
   const bodies = (measured as { bodies?: { name?: unknown; volume_mm3?: unknown }[] } | undefined)?.bodies ?? [];
@@ -399,41 +405,6 @@ export async function shortOf(upstream: UpstreamTools, body: string, stock: Stoc
   }
 }
 
-type Run = (commands: { command: string; params: Record<string, unknown> }[]) => Promise<unknown[]>;
-
-/** Undo steps tried beyond those the block sent, before giving up. */
-const UNDO_RESERVE = 3;
-
-/**
- * Takes a block back that was built and must not stay: one Undo at a time, until the design measures as it did
- * before (the same bodies with the same volumes, the same number of features, the history no deeper). The depth of
- * the undo history alone does not say how many steps: SolidCraft 0.40.1 caps it at 200, so past that a block adds
- * steps and the depth stays. Never more steps than the block sent plus a reserve. The top component is made active
- * again, which Undo leaves as the block set it. False when the design does not come back to where it was.
- */
-async function takeBack(run: Run, before: Map<string, number>, was: unknown, sent: number): Promise<boolean> {
-  const same = (now: Map<string, number>) =>
-    now.size === before.size && [...before].every(([name, volume]) => now.has(name) && (Number.isNaN(volume) ? Number.isNaN(now.get(name)) : Math.abs((now.get(name) ?? NaN) - volume) <= 1e-6));
-  let back = false;
-  try {
-    for (let step = 0; step <= sent + UNDO_RESERVE; step += 1) {
-      const [measured, inspected] = await run([
-        { command: 'inspect.measure', params: {} },
-        { command: 'document.inspect', params: {} },
-      ]);
-      if (same(volumesOf(measured)) && featuresOf(inspected) === featuresOf(was) && undoDepth(inspected) <= undoDepth(was)) {
-        back = true;
-        break;
-      }
-      await run([{ command: 'edit.undo', params: {} }]);
-    }
-  } catch {
-    back = false;
-  }
-  await run([{ command: 'component.activate', params: { component: 0 } }]).catch(() => undefined);
-  return back;
-}
-
 /** What was built, with the sizes it took from the tables, for the model to tell the user. */
 function built(block: FeatureBlock): string {
   const { block: kind, body, point, ...sizes } = block;
@@ -473,8 +444,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         const sequence = component === 0 ? steps : [{ command: 'component.activate', params: { component } }, ...steps, { command: 'component.activate', params: { component: 0 } }];
         const fresh = wall !== null && 'fresh' in wall;
         const measure = { command: 'inspect.measure', params: {} };
-        const inspect = { command: 'document.inspect', params: {} };
-        const [measured, inspected] = await run([measure, inspect]);
+        const [measured] = await run([measure]);
         const before = volumesOf(measured);
         const missing = fresh ? null : misplaced(body, before, before);
         if (missing?.startsWith('there is no body')) return { content: [{ type: 'text', text: `Not built: ${missing}` }], isError: true };
@@ -483,11 +453,11 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         const short = stock ? await shortOf(upstream, body, stock, callId) : null;
         if (short) return { content: [{ type: 'text', text: `Not built: ${short}; ${need ?? ''}.` }], isError: true };
         // Holes that are given no direction are measured once they are cut, each along the way it went in.
-        const holes: { points: Vec3[]; stock: (point: Vec3, axis: Vec3) => Stock; whole?: number; drop?: number; need: string } | null =
+        const holes: { points: Vec3[]; stock: (point: Vec3, axis: Vec3, curved: boolean) => Stock; whole?: number; drop?: number; need: string } | null =
           block?.block === 'insertSeat'
             ? {
                 points: [block.point, ...(block.more ?? [])],
-                stock: (point, axis) => seatStock(block, point, axis),
+                stock: (point, axis, curved) => seatStock(block, point, axis, curved),
                 whole: ((Math.PI * block.diameter ** 2) / 4) * block.depth,
                 drop: rimDrop(block.diameter, block.diameter + 2 * seatWall(block.size)),
                 need: `the seat of an ${block.size} insert needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it. Thicken the part there, move the seat away from edges and other cuts, or use a boss`,
@@ -495,8 +465,11 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
             : cut && need
               ? { points: [vec3(args.point) ?? [0, 0, 0], ...(Array.isArray(args.more) ? args.more.flatMap((entry) => { const point = vec3(entry); return point ? [point] : []; }) : [])], stock: cut, need }
               : null;
+        // The design before the block, to take it back to.
+        const mark = await markOf(run);
         let results: unknown[];
         let after: boolean | null = null;
+        let lenient = false;
         // One hole a step, measured after each: every hole has its own way in, also on a stepped part or on two faces.
         const sent = holes ? sequence.flatMap((step) => [step, measure]) : [...sequence, measure];
         try {
@@ -512,22 +485,24 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
               // A seat is cut out of solid plastic: where its rim breaks out of the face it takes less than its cylinder.
               if (holes.whole && taken < holes.whole * STOCK_FULL - (holes.drop ?? 0))
                 throw new Error(
-                  `at [${point.join(', ')}] the seat would cut ${String(Math.round(taken * 10) / 10)} mm³ of plastic where its whole cylinder is ${String(Math.round(holes.whole * 10) / 10)} mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${holes.need}.`,
+                  `at [${point.join(', ')}] the seat would cut ${String(Math.round(taken * 10) / 10)} mm³ of plastic where its whole cylinder is ${String(Math.round(holes.whole * 10) / 10)} mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${holes.need}. On a hole that is there already (a pilot hole) a seat is never built: PartBuddy cannot tell that hole from missing plastic. Undo that hole and build the seat at its point instead.`,
                 );
               const axis = cutAxis(body, was, is, point);
-              if (axis) stocks.push(holes.stock(point, axis));
+              // A seat on a flat face cuts its whole cylinder to the last digit; less means the face falls away there.
+              if (axis) stocks.push(holes.stock(point, axis, holes.whole !== undefined && taken < holes.whole * (1 - 1e-6)));
             }
             const thin = stocks.length === holes.points.length ? await shortOf(upstream, body, stocks, callId) : undefined;
             if (thin) throw new Error(`${thin}; ${holes.need}.`);
             after = thin === null;
+            lenient = stocks.some((room) => (room.slack ?? 0) > 0);
           }
         } catch (cause) {
           // Nothing of a block that failed half way, landed on another body or found too little plastic stays. (A batch with
           // `rollback` or a checkpoint is no way back in SolidCraft 0.40.1: after the one the same modelled thread fails for
           // real, and the other is gone once a batch has run.)
-          if (!(await takeBack(run, before, inspected, sequence.length))) {
+          if (!(await takeBack(run, mark))) {
             log(`partbuddy_block ${String(args.block)} on ${body} could not be taken back after: ${(cause as Error).message.slice(0, 200)}`);
-            throw new Error(`${(cause as Error).message.replace(/\.$/, '')}. What was built of it could NOT be taken back: undo it before you call again`, { cause });
+            throw new Error(`${(cause as Error).message.replace(/\.$/, '')}. What was built of it could NOT be taken back and is all still there: undo it before you call again`, { cause });
           }
           throw cause;
         }
@@ -547,7 +522,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
             : unmeasured
           : holes
             ? after
-              ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder' : ''}: it is there.`
+              ? ` PartBuddy measured that plastic, ${under}${holes.whole ? ', and that each seat cut its whole cylinder' : ''}: it is there.${lenient ? LENIENT : ''}`
               : unmeasured
             : '';
         const said = (wall ? wall.text : block ? built(block) : '') + (block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');

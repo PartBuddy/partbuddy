@@ -6,8 +6,10 @@ import { markOf, takeBack, type Run } from '../src/main/agents/takeBack';
  * A design as SolidCraft 0.40.1 answers for it: every built step is a feature and an undo step, a joint is an undo
  * step that is no feature, the undo depth stops at 200, and activating a component is not undone.
  */
-function design(features: number, { timeline = true } = {}) {
+function design(features: number, { timeline = true, failUndoAfter = Infinity } = {}) {
   const steps: ('feature' | 'joint')[] = Array.from({ length: features }, () => 'feature');
+  const undone: { step: 'feature' | 'joint'; id: number }[] = [];
+  let undos = 0;
   let next = features + 1;
   const ids = Array.from({ length: features }, (_, i) => i + 1);
   const joints: number[] = [];
@@ -18,11 +20,18 @@ function design(features: number, { timeline = true } = {}) {
     return Promise.resolve(
       commands.map((step) => {
         if (step.command === 'edit.undo') {
+          if (undos++ >= failUndoAfter) throw new Error('SolidCraft refused edit.undo: lost');
           const last = steps.pop();
           if (last === undefined) throw new Error('nothing to undo');
-          if (last === 'feature') ids.pop();
-          else joints.pop();
+          undone.push({ step: last, id: (last === 'feature' ? ids.pop() : joints.pop()) ?? 0 });
           return { undone: last };
+        }
+        if (step.command === 'edit.redo') {
+          const back = undone.pop();
+          if (!back) throw new Error('nothing to redo');
+          steps.push(back.step);
+          (back.step === 'feature' ? ids : joints).push(back.id);
+          return { redone: back.step };
         }
         if (step.command === 'component.activate') active = step.params.component as number;
         if (step.command === 'document.inspect') return { ...(timeline ? { timeline: ids.map((id) => ({ id })) } : {}), sketches: [], bodies: ['Base', 'Flap'], undo: Math.min(steps.length, 200) };
@@ -47,6 +56,7 @@ function design(features: number, { timeline = true } = {}) {
     },
     state: () => ({ features: ids.length, joints: joints.length, active }),
     undos: () => sent.flat().filter((command) => command === 'edit.undo').length,
+    redos: () => sent.flat().filter((command) => command === 'edit.redo').length,
   };
 }
 
@@ -94,13 +104,36 @@ describe('taking back what a tool built before it failed', () => {
     expect(await takeBack(blind.run, null)).toBe(false);
     expect(blind.undos()).toBe(0);
     expect(blind.state().active).toBe(0);
-    // A mark the design never comes back to (another feature in its place): the undoing ends at the mark's number of
-    // features, not at the bottom of the timeline.
+  });
+
+  // Review 3 of PR #357: a take-back that fails must leave the design as the tool left it, so that "could not be taken
+  // back: undo it" holds, and must never undo a step from before the mark.
+  it('undoes nothing from before the mark when the design never comes back to it, and redoes what it undid', async () => {
     const other = design(5);
     const mark = await markOf(other.run);
     other.build(3);
+    // The undos work, but the design never reads like the mark (another feature in its place).
     expect(await takeBack(other.run, mark ? { ...mark, state: '[]', undo: 200 } : null)).toBe(false);
-    expect(other.state().features).toBe(5);
     expect(other.undos()).toBe(3);
+    expect(other.redos()).toBe(3);
+    expect(other.state()).toEqual({ features: 8, joints: 0, active: 0 });
+  });
+
+  it('redoes the undos that went through when edit.undo throws, below the ceiling and past it', async () => {
+    for (const before of [12, 240]) {
+      const d = design(before, { failUndoAfter: 20 });
+      const mark = await markOf(d.run);
+      d.build(54, true);
+      expect(await takeBack(d.run, mark), String(before)).toBe(false);
+      // Below the ceiling the batch of 55 undos stops at the 21st; past it the 21st single undo throws.
+      expect(d.redos(), String(before)).toBe(20);
+      expect(d.state(), String(before)).toEqual({ features: before + 54, joints: 1, active: 0 });
+    }
+    // With nothing left to undo SolidCraft answers "nothing to undo": nothing to redo either.
+    const empty = design(0);
+    const mark = await markOf(empty.run);
+    expect(await takeBack(empty.run, mark ? { ...mark, state: '[]', features: -1 } : null)).toBe(false);
+    expect(empty.redos()).toBe(0);
+    expect(empty.state().active).toBe(0);
   });
 });

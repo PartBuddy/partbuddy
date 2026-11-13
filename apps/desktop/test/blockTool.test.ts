@@ -35,8 +35,8 @@ describe('the function blocks for the assistant (standards)', () => {
       listTools: () => Promise.resolve([]),
       callTool: (_name, args) => {
         const commands = args.commands as { command: string }[];
-        // Round every block: the plate measured and the undo depth read, then the block with a measurement after it.
-        const block = commands.filter((step) => !['inspect.measure', 'document.inspect'].includes(step.command));
+        // Round every block: the plate measured and the design marked, then the block with a measurement after it.
+        const block = commands.filter((step) => !['inspect.measure', 'document.inspect', 'joint.list'].includes(step.command));
         if (block.length > 0) batches.push(block.map((step) => step.command).join(' '));
         const measured = { bodies: [{ name: 'Plate', volume_mm3: commands.length > 2 ? 900 : 1000 }] };
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'component.list' ? { components: [{ id: 0, parent: null, bodies: [] }, { id: 7, parent: 0, bodies: ['Plate'], occurrences: [{ name: 'Plate:1' }] }] } : step.command === 'inspect.measure' ? measured : {})) }) }] });
@@ -252,14 +252,14 @@ describe('a block that lands on another body is taken back (audit W1)', () => {
         if (commands.some((step) => step.command === 'solid.hole')) built = true;
         if (commands.some((step) => step.command === 'edit.undo')) built = false;
         const reply = (step: { command: string }) =>
-          step.command === 'inspect.measure' ? { bodies: [{ name: 'A', volume_mm3: 16000 }, { name: 'B', volume_mm3: built ? 47818 : 48000 }] } : step.command === 'document.inspect' ? { undo: built ? 4 : 2 } : {};
+          step.command === 'inspect.measure' ? { bodies: [{ name: 'A', volume_mm3: 16000 }, { name: 'B', volume_mm3: built ? 47818 : 48000 }] } : step.command === 'document.inspect' ? { undo: built ? 4 : 2, timeline: built ? [1, 2, 3, 4] : [1, 2], sketches: [] } : {};
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map(reply) }) }] });
       },
     };
     const answer = await withBlockTool(upstream).callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20], more: [[40, 10, 20]] });
     expect(answer).toMatchObject({ isError: true, content: [{ text: 'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies' }] });
-    // One Undo at a time, measured before each, until the design is as it was (this double takes both holes back with one); then the top component is made active.
-    expect(batches).toEqual(['inspect.measure document.inspect', 'solid.hole solid.hole inspect.measure', 'inspect.measure document.inspect', 'edit.undo', 'inspect.measure document.inspect', 'component.activate']);
+    // The design marked before, the two steps since undone in one batch and looked at; then the top component is made active.
+    expect(batches).toEqual(['inspect.measure', 'document.inspect joint.list', 'solid.hole solid.hole inspect.measure', 'document.inspect joint.list', 'edit.undo edit.undo document.inspect joint.list', 'component.activate']);
     expect(String((await withBlockTool(upstream).callTool('partbuddy_block', { block: 'screwHole', body: 'Ghost', point: [30, 10, 20] })).content[0]?.text)).toBe('Not built: there is no body named Ghost; the design has A, B');
   });
 });
@@ -334,6 +334,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     return { tools: withBlockTool(upstream, () => undefined, (line) => logged.push(line)), upstream, batches, holes, logged, active: () => active };
   }
   const text = async (answer: Promise<ToolResult>) => String((await answer).content[0]?.text);
+  const pilot = 'On a hole that is there already (a pilot hole) a seat is never built: PartBuddy cannot tell that hole from missing plastic. Undo that hole and build the seat at its point instead.';
   const seatNeed = 'the seat of an M3 insert needs 2 mm of plastic round it and 0.6 mm under it. Thicken the part there, move the seat away from edges and other cuts, or use a boss.';
 
   it('names the plastic each block needs, measured from half a millimetre under the face on', () => {
@@ -375,7 +376,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     // 8 mm thick at x = 10, 4 mm at x = 50: the holes take unequal amounts, and their common centre lies askew under the middle.
     const stepped = plate(8, { thin: 4 });
     expect(await text(stepped.tools.callTool('partbuddy_block', { block: 'woodScrew', body: 'Plate', point: [10, 20, 8], more: [[50, 20, 4]] }))).toMatch(
-      /^Built 2 countersunk holes .* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\.$/,
+      /^Built 2 countersunk holes .* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\. It allows a little for a curved face and cannot tell that from an edge or a chamfer: .* keep the hole away from edges yourself\.$/,
     );
     // Each hole is cut and measured by itself, then both are probed in one trial.
     expect(stepped.batches).toContain('solid.hole inspect.measure solid.hole inspect.measure');
@@ -384,6 +385,10 @@ describe('a block is built only where the part has the plastic for it (audit R54
     const pocket = plate(10, { thin: 5 });
     expect(await text(pocket.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [10, 20, 10], more: [[50, 20, 5]] }))).toContain('Not built: at [50, 20, 5] the seat would cut');
     expect(pocket.holes).toEqual([]);
+    // Three seats, the bad one in the middle (review 3 of PR 357): none of them stays.
+    const middle = plate(10, { thin: 5 });
+    expect(await text(middle.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [10, 20, 10], more: [[50, 20, 5], [20, 20, 10]] }))).toContain('Not built: at [50, 20, 5] the seat would cut');
+    expect(middle.holes).toEqual([]);
   });
 
   it('builds no keyhole in a 3 mm plate and no magnet pocket through it, and says what it measured', async () => {
@@ -430,7 +435,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
   it('takes back the seat of an insert that comes out of the far side, and one that leaves no floor', async () => {
     const thin = plate(3);
     expect(await text(thin.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 3] }))).toBe(
-      `Not built: at [20, 20, 3] the seat would cut 37.7 mm³ of plastic where its whole cylinder is 84.2 mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${seatNeed}`,
+      `Not built: at [20, 20, 3] the seat would cut 37.7 mm³ of plastic where its whole cylinder is 84.2 mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${seatNeed} ${pilot}`,
     );
     expect(thin.holes).toEqual([]);
     // A plate just as thick as the seat is deep: the hole is whole, and has no floor (review of PR 357).
@@ -452,9 +457,14 @@ describe('a block is built only where the part has the plastic for it (audit R54
       'Not built: at [20, 20, 20] the seat would cut 83.1 mm³ of plastic where its whole cylinder is 84.2 mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut',
     );
     expect(chamfer.holes).toEqual([]);
-    // A curved face takes a little off the rim as well, and passes: 0.03 % on a rod of 20 mm radius, as measured.
+    // A curved face takes a little off the rim as well, and passes: 0.03 % on a rod of 20 mm radius, as measured. Only
+    // there is the slack of a curved face allowed, and the answer says what that slack lets through (review 3 of PR 357).
     const rod = plate(20, { rim: 0.9997 });
-    expect(await text(rod.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 20] }))).toMatch(/^Built insertSeat /);
+    expect(await text(rod.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 20] }))).toMatch(/^Built insertSeat .*: it is there\. It allows a little for a curved face/);
+    const seat = { block: 'insertSeat' as const, body: 'Plate', point: [0, 0, 0] as [number, number, number], size: 'M3' as const, diameter: 4, depth: 6.7 };
+    expect(seatStock(seat, [0, 0, 0], [0, 0, -1]).slack).toBeUndefined();
+    expect(seatStock(seat, [0, 0, 0], [0, 0, -1], true).slack).toBeCloseTo(Math.PI * 4 * 0.3, 6);
+    expect(await text(plate(20).tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 20] }))).toMatch(/: it is there.$/);
   });
 
   it('takes back a countersunk hole in a plate thinner than the countersink with its hole under it', async () => {
@@ -476,55 +486,105 @@ describe('a block is built only where the part has the plastic for it (audit R54
   });
 });
 
-describe('a block is taken back by what the design measures, not by the depth of the undo history (review 2 of PR 357)', () => {
-  /** A design whose undo history is full: SolidCraft 0.40.1 reads 200 however many steps there are. */
-  function capped(stuck = false) {
+describe('a block is taken back by what the design measures, not by the depth of the undo history (review 2 and 3 of PR 357)', () => {
+  /**
+   * A design as SolidCraft 0.40.1 answers for it: every built command is one undo step and one feature, activating a
+   * component is none, the undo depth stops at `cap`, Undo and Redo work on the steps. Every block lands on body B as
+   * well, so it must not stay. `undo: 'throws'` refuses every Undo; `'foreign'` leaves a body renamed that no Undo
+   * brings back, so the design never reads as before.
+   */
+  function design(steps: number, { cap = 200, undo = 'works' }: { cap?: number; undo?: 'works' | 'throws' | 'foreign' } = {}) {
     const batches: string[] = [];
-    let holes = 0;
+    const built: string[] = [];
+    const redo: string[] = [];
+    let base = steps;
+    let renamed = false;
     let active = 7;
+    const reads = new Set(['inspect.measure', 'document.inspect', 'joint.list', 'component.list', 'component.activate', 'edit.undo', 'edit.redo']);
     const upstream: UpstreamTools = {
       instructions: () => undefined,
       listTools: () => Promise.resolve([]),
       callTool: (_name, args) => {
         const commands = args.commands as { command: string; params: Record<string, unknown> }[];
         batches.push(commands.map((step) => step.command).join(' '));
-        const results = commands.map((step) => {
-          if (step.command === 'solid.hole') holes += 1;
-          if (step.command === 'edit.undo' && !stuck) holes -= 1;
+        const results: unknown[] = [];
+        for (const step of commands) {
+          if (step.command === 'edit.undo') {
+            if (undo === 'throws') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results, failed: { command: 'edit.undo', error: 'nothing to undo' } }) }], isError: true });
+            const last = built.pop();
+            if (last) redo.push(last);
+            else base -= 1;
+          }
+          if (step.command === 'edit.redo') built.push(redo.pop() ?? '?');
           if (step.command === 'component.activate') active = step.params.component as number;
-          // Every hole lands on body B as well: the block must not stay.
-          if (step.command === 'inspect.measure') return { bodies: [{ name: 'A', volume_mm3: 16000 - holes * 50 }, { name: 'B', volume_mm3: 48000 - holes * 50 }] };
-          if (step.command === 'document.inspect') return { undo: 200, timeline: Array.from({ length: 260 + holes }), sketches: [] };
-          return {};
-        });
+          if (!reads.has(step.command)) {
+            built.push(step.command);
+            redo.length = 0;
+            if (undo === 'foreign') renamed = true;
+          }
+          const n = built.length;
+          results.push(
+            step.command === 'inspect.measure'
+              ? { bodies: [{ name: 'A', volume_mm3: 16000 - n * 50 }, { name: 'B', volume_mm3: 48000 - n * 50 }] }
+              : step.command === 'document.inspect'
+                ? { undo: Math.min(cap, base + n), timeline: Array.from({ length: base + n }, (_, i) => ({ id: i + 1 })), sketches: [], bodies: renamed ? ['A', 'B2'] : ['A', 'B'] }
+                : step.command === 'component.list'
+                  ? { components: [{ id: 0, parent: null, bodies: [] }, { id: 7, parent: 0, bodies: ['A'] }] }
+                  : {},
+          );
+        }
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
       },
     };
     const logged: string[] = [];
-    return { tools: withBlockTool(upstream, () => undefined, (line) => logged.push(line)), batches, logged, left: () => holes, active: () => active };
+    const count = (command: string) => batches.join(' ').split(' ').filter((entry) => entry === command).length;
+    return { tools: withBlockTool(upstream, () => undefined, (line) => logged.push(line)), batches, logged, built, base: () => base, active: () => active, undos: () => count('edit.undo'), redos: () => count('edit.redo') };
   }
+  const landsOnB = 'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies';
+  const notBack = `${landsOnB}. What was built of it could NOT be taken back and is all still there: undo it before you call again`;
+  const slot = { block: 'slot', body: 'A', point: [30, 10, 20], normal: [0, 0, 1] };
 
-  it('undoes both holes of a block though the depth reads 200 before and after, and makes the top component active again', async () => {
-    const design = capped();
-    const answer = await design.tools.callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20], more: [[40, 10, 20]] });
-    expect(answer).toMatchObject({ isError: true, content: [{ text: 'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies' }] });
-    expect(design.left()).toBe(0);
-    expect(design.batches.filter((batch) => batch === 'edit.undo')).toHaveLength(2);
-    expect(design.batches.at(-1)).toBe('component.activate');
-    expect(design.active()).toBe(0);
-    expect(design.logged).toEqual([]);
+  it('undoes exactly the steps of the block, not the component activations around it, below the cap and past it', async () => {
+    for (const steps of [10, 260]) {
+      const d = design(steps);
+      // A sketched slot in the component of A: activate, three steps, activate (the old take-back counted five and tried four more).
+      expect(await d.tools.callTool('partbuddy_block', slot), String(steps)).toMatchObject({ isError: true, content: [{ text: landsOnB }] });
+      expect(d.built, String(steps)).toEqual([]);
+      expect(d.undos(), String(steps)).toBe(3);
+      expect(d.base(), String(steps)).toBe(steps);
+      expect(d.active(), String(steps)).toBe(0);
+      expect(d.batches.at(-1), String(steps)).toBe('component.activate');
+      expect(d.logged, String(steps)).toEqual([]);
+    }
   });
 
-  it('gives up after the steps it sent and three more, and says that the block is still there', async () => {
-    const design = capped(true);
-    const answer = await design.tools.callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20] });
-    expect(String(answer.content[0]?.text)).toBe(
-      'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies. What was built of it could NOT be taken back: undo it before you call again',
-    );
-    // One step sent, three in reserve.
-    expect(design.batches.filter((batch) => batch === 'edit.undo')).toHaveLength(5);
-    expect(design.logged).toEqual(['partbuddy_block screwHole on A could not be taken back after: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies']);
-    expect(design.active()).toBe(0);
+  it('undoes both holes of a block though the depth reads 200 before and after', async () => {
+    const d = design(260);
+    expect(await d.tools.callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20], more: [[40, 10, 20]] })).toMatchObject({ isError: true, content: [{ text: landsOnB }] });
+    expect(d.built).toEqual([]);
+    expect(d.undos()).toBe(2);
+    expect(d.base()).toBe(260);
+  });
+
+  it('when the design never reads as before, undoes nothing older than the block, redoes what it undid and says that all of it is there', async () => {
+    for (const steps of [10, 260]) {
+      const d = design(steps, { undo: 'foreign' });
+      expect(String((await d.tools.callTool('partbuddy_block', slot)).content[0]?.text), String(steps)).toBe(notBack);
+      expect(d.undos(), String(steps)).toBe(3);
+      expect(d.redos(), String(steps)).toBe(3);
+      expect(d.built, String(steps)).toEqual(['sketch.create', 'sketch.slot.center_to_center', 'solid.extrude']);
+      expect(d.base(), String(steps)).toBe(steps);
+      expect(d.active(), String(steps)).toBe(0);
+      expect(d.logged, String(steps)).toEqual([`partbuddy_block slot on A could not be taken back after: ${landsOnB.slice('Not built: '.length)}`]);
+    }
+  });
+
+  it('when edit.undo throws, leaves the block as it was and says so', async () => {
+    const d = design(260, { undo: 'throws' });
+    expect(String((await d.tools.callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20] })).content[0]?.text)).toBe(notBack);
+    expect(d.built).toEqual(['solid.hole']);
+    expect(d.redos()).toBe(0);
+    expect(d.active()).toBe(0);
   });
 });
 
