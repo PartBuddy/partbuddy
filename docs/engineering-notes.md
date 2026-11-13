@@ -1,7 +1,9 @@
 # Engineering notes
 
-Facts found while building PartBuddy that the code and the ADRs do not say on their own. Each
-SolidCraft section names the version it was checked on. PartBuddy needs 0.40.1 or newer since
+Facts found while building PartBuddy that the code and the ADRs do not say on their own. Most
+SolidCraft sections name the version they were checked on in their heading. The sections without
+one (control channel, probes, policy, geometry and references) were first written on 0.30.1; a
+bullet added there later names its version itself. PartBuddy needs 0.40.1 or newer since
 2026-11-12 (`MINIMUM_VERSION` in `engineVersion.ts`); recheck a note checked on 0.30.1 or a 0.40
 release candidate on 0.40.1 when a step touches it.
 
@@ -244,8 +246,9 @@ release candidate on 0.40.1 when a step touches it.
 
 ## SolidCraft 0.40.0-rc.4 (checked 2026-11-11)
 
-- PartBuddy's recommended version from 2026-11-11 until 0.40.1 replaced it on 2026-11-12 (since then
-  the minimum, rc.4 is refused as too old). The contract suite ran against it and against the
+- PartBuddy's recommended version from 2026-11-11 to 2026-11-12. Since then 0.40.1 is both the
+  recommended and the minimum version, and rc.4 is refused as too old. The contract suite ran
+  against rc.4 and against the
   nightly 20261110.117.1 it contains; the nightly's own `solidcraft-cli --version` says `0.40.0-rc.3`,
   so PartBuddy cannot tell that nightly from rc.3.
 - New since rc.3 and of use here: `joint.find_limits` (both ways in one call, also for a joint without

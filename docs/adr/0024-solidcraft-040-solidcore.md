@@ -32,8 +32,8 @@ itself, so the naming change below affects mostly older files.
   (`PARTBUDDY_SOLIDCRAFT_EXE`) wins over both. A chosen program that is gone counts as missing:
   PartBuddy never falls back silently to a different kernel.
 * **Version check.** PartBuddy asks `solidcraft-cli --version` and rates it: from 0.40.0-rc.2
-  *recommended*, from 0.30.1 *supported*, older *too old* (refused when chosen; until 2026-11-12, see
-  the update below). A chosen file must
+  *recommended*, from 0.30.1 *supported*, older *too old* (refused when chosen). These ratings held until
+  2026-11-12, see the update below. A chosen file must
   be `solidcraft.exe` with `solidcraft-cli.exe` beside it.
 * **Restart.** A new choice takes effect after PartBuddy restarts (the dialog offers it; the design
   is saved first), so an open design never moves between kernels.

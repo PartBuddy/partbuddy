@@ -90,7 +90,7 @@ the PC stays free and work can go on at night.
 ### Update 2026-11-13: more room for the VM, a lighter pull request CI, contract tests on demand
 
 * `.wslconfig` on the server caps the VM at 16 GB and 20 of the 28 logical processors since
-  2026-11-13 19:54 (before: 12 GB and 14; the earlier file is kept as `.wslconfig.bak-2026-11-13`).
+  the evening of 2026-11-13 (before: 12 GB and 14; the earlier file is kept as `.wslconfig.bak-2026-11-13`).
   Ports stay inside WSL, WSLg stays off. The four runners `partbuddy-srv-1` to `-4` share that VM.
 * Pull requests run only the jobs their change can affect (#376): a job "What the change touches"
   diffs the merge commit against the base branch and `tools/ci/changes.sh` decides; the other jobs
@@ -98,7 +98,7 @@ the PC stays free and work can go on at night.
   flows run as two Playwright shards, shard 1 with two workers and shard 2 with one, so three apps
   run at once; six apps ran little faster and tipped over when anything else loaded the server.
   Lint runs beside typecheck and the unit tests. The whole pull request CI took 5.4 minutes instead
-  of 14.9 when every job ran (measured on #376).
+  of 14.9 when every job ran (measured on #376, still with the VM at 14 processors and 12 GB).
 * The SolidCraft contract tests (`contract.yml`) run on demand, one run at a time, on a second
   self-hosted runner: `partbuddy-srv-shots`, a Windows service on the server with the labels
   `self-hosted`, `windows`, `partbuddy-shots` and the installed SolidCraft ([website](../website.md),

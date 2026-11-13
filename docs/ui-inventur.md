@@ -8,9 +8,10 @@ beziehen sich auf `main` bei `d782dcf`.
 **Grenzen (Audit D46, 13.11.2026):** Die Inventur ordnet Bedienelement-**Familien** fürs Styling, sie
 ist kein Verzeichnis der Aktionen. Später Gebautes fehlt hier, u. a. Gelenk-Regler, Plattenansicht
 und Zusammenbau, Toleranzassistent und Materialkatalog. Eine vollständige
-Liste dessen, was die Oberfläche auslösen kann, gibt es in der Doku nicht; als Inventar gelten die
-IPC-Kanäle in `apps/desktop/src/shared/channels.ts` (`invokeChannels`: 115 Anfragen an den
-Hauptprozess, `eventChannels`: 9 Meldungen zurück; Stand `0f8fcbb`).
+Liste dessen, was die Oberfläche auslösen kann, gibt es in der Doku nicht; die nächste Annäherung
+sind die IPC-Kanäle in `apps/desktop/src/shared/channels.ts` (`invokeChannels`: 115 Anfragen an den
+Hauptprozess, `eventChannels`: 9 Meldungen zurück; Stand `61db080`). Aktionen, die nur im Renderer
+wirken (Ansicht, Auswahl, Regler), stehen dort nicht.
 
 Checkliste (Spalte „Mängel“): **1** Zustände · **2** Hell/Dunkel nur über Tokens · **3** Tastatur
 und Fokusring · **4** WCAG 2.2 AA (Kontrast, Zielgröße ≥ 24 px, ARIA, reduzierte Bewegung) ·

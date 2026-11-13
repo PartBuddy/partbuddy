@@ -45,7 +45,7 @@ const ALLOWED = new Set([
   'partbuddy_move_drawing',
   // Places an attached SVG as a logo with the logo block's steps (drawingTool.ts), answered by PartBuddy.
   'partbuddy_place_drawing',
-  // Builds a mechanism (hinge, guide, closure, screw joint, screw lid, snap hooks, pegs, latch) from engine commands (mechanismTool.ts), answered by PartBuddy.
+  // Builds a mechanism (hinge, guide, closure, screw joint, screw lid, snap hooks, plug with pegs or a dovetail, latch) from engine commands (mechanismTool.ts), answered by PartBuddy.
   'partbuddy_mechanism',
   // Builds a function block or a wall mounting from the standard tables (blockTool.ts), answered by PartBuddy.
   'partbuddy_block',
