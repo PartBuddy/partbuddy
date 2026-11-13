@@ -17,7 +17,7 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
     rules: [
       `Grooves with 45° flanks (a dovetail) in the two long walls and the back wall, open at the front: they print without support with the box standing. A square groove's ceiling is a bridge: the print check takes up to ${String(BRIDGE_SPAN)} mm (UltiMaker), and from 5 mm it sags (Hubs).`,
       'Lid 3 to 4 mm thick, its edges chamfered at 45° to match; groove 1.5 mm deep, at most half the wall; 2 mm of wall over the groove; walls 3 mm (guides).',
-      'Room: the slide fit of the print profile per side and above and below the lid (guides say 0.2 to 0.4 mm; Prusa asks at least 0.3 for moving parts, Hubs 0.5).',
+      'Room: the slide fit of the print profile per side and above and below the lid (its starting values follow the 0.2 to 0.3 mm Xometry names for sliding parts; the larger figures of other guides, up to 0.5 mm, are for parts that move freely, the turn fit).',
       'Hold it shut with a bump 0.3 mm high across the lid near the open end and a matching dent, and give the lid a finger dent about 12 mm round and 2 mm deep, or a raised ridge (guides, one source each).',
       'Print the box standing and the lid lying flat. The front wall of the box is lower by the lid, so the lid closes it.',
       'For a rail pushed onto another part use partbuddy_mechanism with kind plug and shape dovetail instead.',
@@ -26,7 +26,7 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
   clamp: {
     title: 'A clip or clamp round a tube, a rod or a cable',
     rules: [
-      'A C clip to snap on: inner diameter the tube and twice the clamp fit of the print profile (guides say 0.3 to 0.5 mm in all), the opening 75 to 85 % of the tube, arms 1.5 to 2.5 mm thick, 8 to 12 mm wide (guides). Round the ends of the arms outwards so the tube finds its way in.',
+      'A C clip to snap on: inner diameter the tube and twice the push fit of the print profile, so it goes on by hand (for PLA and PETG on a 0.4 mm nozzle within the 0.3 to 0.5 mm the guides name), the opening 75 to 85 % of the tube, arms 1.5 to 2.5 mm thick, 8 to 12 mm wide (guides). Round the ends of the arms outwards so the tube finds its way in.',
       'A clamp closed by a screw: bore the measured diameter to grip (twice the slide fit of the print profile more to slide), a slot 2 to 5 mm wide, wall about 4 mm at 25 mm, and lugs either side of the slot for the screw; make the screw holes with partbuddy_block or partbuddy_mechanism kind screw.',
       'A clamp of two halves: 0.4 mm of room on the tube, a gap of 1 mm between the halves so the screws can pull them tight (guides).',
       'Always print it lying, the bore upright: the layers then run round the ring. Standing, the arms break along their layers (guides, and measured for hooks).',

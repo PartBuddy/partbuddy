@@ -14,7 +14,7 @@ import {
   type PartPrint,
   type PrintSettings,
 } from '../../shared/contract';
-import { fitSize, lineWidth, printInPlaceGap, scaleClearance, snapSize, type FitPrinter } from '../../shared/designFit';
+import { lineWidth, printInPlaceGap, scaleClearance, snapSize, type FitPrinter } from '../../shared/designFit';
 import { MATERIAL_CATALOG } from '../../shared/materialCatalog';
 import { HOLE_SIZES } from '../../shared/tolerances';
 import { ASK_TOOL } from '../agents/questions';
@@ -221,7 +221,7 @@ const mm = (value: number) => `${String(Math.round(value * 1000) / 1000)} mm`;
  * How far a ledge may reach out from the material below without support: four lines, as the print check counts
  * it (`smallOverhangReach`). OrcaSlicer leaves such overhangs without support by default ("Ignore small
  * overhangs": a cluster narrower than two lines once one line is eroded from each side, TreeSupport.cpp at
- * commit e23af6d, lines 1182-1188; default in PrintConfig.cpp). HLH Rapid names 1.2 mm.
+ * commit e23af6d, lines 1186-1190; default in PrintConfig.cpp). HLH Rapid names 1.2 mm.
  * shortcut: repeats smallOverhangReach, which packages/geometry does not export; import it once it does.
  */
 const smallLedge = (nozzle: number) => Math.round(4 * 1.125 * nozzle * 100) / 100;
@@ -249,7 +249,7 @@ function supportFreeLines(overhang: number, nozzle: number): string[] {
     'Design it to print without support as designed, standing on its lowest point (the user\'s setting); where that cannot be done, say so and why:',
     `- Edges that face down towards the bed: chamfer them at 45° instead of filleting (the bottom of a fillet ends flat; Prusa); fillets that face up or sideways are fine.`,
     `- Holes lying across the layers: up to ${String(LYING_HOLE)} mm across they print round without support (MakerVerse); wider ones get a teardrop roof (45° to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
-    `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged (UltiMaker; Protolabs names 5 mm for a bridge that does not sag at all), and ledges reaching out at most ${mm(smallLedge(nozzle))} (four lines) from the material below are left without support (OrcaSlicer); the print check counts both the same way. Anything wider gets a 45° slope underneath, or say which side the part should rather stand on.`,
+    `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged (UltiMaker; Hubs names 5 mm for a bridge that does not sag at all), and ledges reaching out at most ${mm(smallLedge(nozzle))} (four lines) from the material below are left without support (OrcaSlicer); the print check counts both the same way. Anything wider gets a 45° slope underneath, or say which side the part should rather stand on.`,
     'Model these as their own features with parameters (layer height, roof angle) and name them when you report.',
   ];
 }
@@ -279,18 +279,23 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
   const line = lineWidth(printer);
   const layer = printer.layer;
   const gap = printInPlaceGap(printer);
-  const minWall = fitSize('wall', 0, 'assistant', printer).value;
+  // The print check's own minimum, so the rules and the check name the same wall (0.56, not 0.562, at 0.25 mm).
+  const minWall = minimumWall(printer.nozzle);
   const clearance = (fit: keyof MaterialProfile['clearance']) => mm(scaleClearance(material.clearance[fit], printer, material.measuredNozzle));
+  // A measured clamp fit may be below zero (the schema allows it): then it is an interference, not room.
+  const room = Object.values(material.clearance).every((value) => value >= 0)
+    ? 'Each is room, never an interference.'
+    : 'A value below zero is an interference: the part is that much larger than its seat, per side.';
   const off = (Object.keys(RULE_NAMES) as DesignRule[]).filter((rule) => !design[rule]);
   const lines = [
     'Design it well without being asked: apply the rules below on your own, in every design, unless the user says otherwise.',
-    `- Sizes the user names are fixed: build them exactly, never round or snap them to the nozzle or layer height. If one cannot print (a wall under ${mm(minWall)}, a gap between moving parts under ${mm(MOVING_GAP)}, a detail under one line of ${mm(line)}) or is implausible for the part (ten times off the rest, a hole wider than the face it goes through), do not build it: ask with ${ASK_TOOL}, offering the value as given and the nearest one that prints. A size that only prints less cleanly (a wall that is not a whole number of ${mm(line)} lines) is built as given, with one sentence on the better value.`,
-    `- Fits follow the purpose, not the raw size: nominal size plus the clearance per side of the fit, clamp ${clearance('clamp')} (tight, only with force), push ${clearance('push')} (in by hand), slide ${clearance('slide')} (without force), turn ${clearance('turn')} (turns freely); the material's values, scaled for this nozzle. Each is room, never an interference. A round hole also gets the material's hole allowance on its diameter. A part that holds something (a clip on a cable, tube or pen) grips it: wrap round items more than halfway, with the clamp fit and an opening narrower than the item. Ask only when the purpose is unclear.`,
+    `- Sizes the user names are fixed: build them exactly, never round or snap them to the nozzle or layer height. If one does not print at all, as the print check blocks it (a wall or detail thinner than the ${mm(printer.nozzle)} nozzle, a floor or lid thinner than one ${mm(layer)} layer), or is implausible for the part (ten times off the rest, a hole wider than the face it goes through), do not build it: ask with ${ASK_TOOL}, offering the value as given and the nearest one that prints. A size that only prints less well (a wall under two lines, ${mm(minWall)}, or not a whole number of ${mm(line)} lines; a detail under one line; a floor under ${mm(minimumFloor(layer))}) is built as given, with one sentence on the better value.`,
+    `- Fits follow the purpose, not the raw size: nominal size plus the clearance per side of the fit, clamp ${clearance('clamp')} (tight, only with force), push ${clearance('push')} (in by hand), slide ${clearance('slide')} (without force), turn ${clearance('turn')} (turns freely); the material's values, scaled for this nozzle. ${room} A round hole also gets the material's hole allowance on its diameter. A part that holds something (a clip on a cable, tube or pen) grips it: wrap round items more than halfway, with the push fit and an opening narrower than the item. Ask only when the purpose is unclear.`,
     `- Printing comes first: nothing leans more than ${String(material.overhang)}° without support, no support that a better shape or orientation avoids, and stand the part so loads and snap arms run along the layers, not across them. A refinement never makes function or printing worse; leave it out where it would.`,
   ];
   if (design.rounding)
     lines.push(
-      `- Edges: round outer edges that are seen or touched, radius 1 mm on parts under 30 mm, 2 mm up to 100 mm, 3 mm above (own choice), never more than the wall they cut into. Edges on the bed get a 45° chamfer, not a fillet, ${series(layer, 2, 3)} high, which also takes up the elephant's foot (0.1 to 0.25 mm, Prusa, Bambu Lab). Round inner corners under load with at least half the wall thickness (guides say a quarter to the whole wall: MakerVerse, Xometry), and at least ${mm(Math.max(1, printer.nozzle * 2))} (own choice). Use at most two or three radii per part so they match.`,
+      `- Edges: round outer edges that are seen or touched, radius 1 mm on parts under 30 mm, 2 mm up to 100 mm, 3 mm above (own choice), never more than the wall they cut into. Edges on the bed get a 45° chamfer, not a fillet, ${series(layer, 2, 3)} high, which also takes up the elephant's foot (0.1 to 0.25 mm: Prusa about 0.2, Bambu Lab 0.1 to 0.2, OrcaSlicer up to 0.25). Round inner corners under load with at least half the wall thickness (guides say a quarter to the whole wall: MakerVerse, Xometry), and at least ${mm(Math.max(1, printer.nozzle * 2))} (own choice). Use at most two or three radii per part so they match.`,
     );
   if (design.printInPlace)
     lines.push(
@@ -302,13 +307,13 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
     );
   if (design.snap)
     lines.push(
-      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(minimumFloor(layer))} (four layers and 0.8 mm: Stratasys, Protolabs), print-in-place gaps ${mm(gap)}, radii at least ${mm(printer.nozzle)} and details at least one line. Mark each such parameter's comment with the multiple, e.g. "Wall [auto 3×line]", "Floor [auto 5×layer]", "Hinge gap [auto 1×nozzle]", so PartBuddy fits it again when the user changes printer or nozzle. Sizes the user named get no mark.`,
+      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(minimumFloor(layer))} (four layers and 0.8 mm: Stratasys, Hubs), print-in-place gaps ${mm(gap)}, radii at least ${mm(printer.nozzle)} and details at least one line. Mark each such parameter's comment with the multiple, e.g. "Wall [auto 3×line]", "Floor [auto 5×layer]", "Hinge gap [auto 1×nozzle]", so PartBuddy fits it again when the user changes printer or nozzle. Sizes the user named get no mark.`,
     );
   // Material and print time (2026-11-12): what the shape decides of them, by the makers' design guides (Prusa, Protolabs
   // Network, Markforged, Stratasys Direct); what the slicer decides is named as not the assistant's to promise.
   if (design.economy)
     lines.push(
-      `- Material and print time, from the first shape on and not as a clean-up: build a shell, not a block. Slicers print ${series(line, 2, 4)} (two to four lines) as wall and fill anything thicker with sparse infill, so stiffen with ribs as thick as the wall, at least two lines (${mm(line * 2)}), instead of thickening the wall. Keep the part low as it prints: every ${mm(layer)} of height is one more layer, and print time grows with the layers. Shape it so it needs no support, which costs more time and material than any other choice. Leave out whole regions that do nothing (an open frame instead of a plate, a shorter body); small pockets and holes in a filled region add walls and save little or nothing. Split a part only when that saves support or much height and a joint is acceptable. Loaded regions, sizes the user names and what the user wants solid stay as they are. Infill, speed and layer height are set in the slicer: never promise grams or minutes. The print check lists each body's solid volume, height, layers and support area: compare them before and after a change.`,
+      `- Material and print time, from the first shape on and not as a clean-up: build a shell, not a block. Slicers print ${series(line, 2, 4)} (two to four lines) as wall and fill anything thicker with sparse infill, so stiffen with ribs as thick as the wall, at least two lines (${mm(minWall)}), instead of thickening the wall. Keep the part low as it prints: every ${mm(layer)} of height is one more layer, and print time grows with the layers. Shape it so it needs no support, which costs more time and material than any other choice. Leave out whole regions that do nothing (an open frame instead of a plate, a shorter body); small pockets and holes in a filled region add walls and save little or nothing. Split a part only when that saves support or much height and a joint is acceptable. Loaded regions, sizes the user names and what the user wants solid stay as they are. Infill, speed and layer height are set in the slicer: never promise grams or minutes. The print check lists each body's solid volume, height, layers and support area: compare them before and after a change.`,
     );
   if (off.length > 0)
     lines.push(`- The user turned off ${off.map((rule) => RULE_NAMES[rule]).join(', ')}: do not add them unless the user asks for them.`);
@@ -326,9 +331,9 @@ export function printNote({ printer, material: used, supportFree, design }: Part
   const { clamp, push, slide, turn } = used.clearance;
   return [
     `[PartBuddy: print profile of this part. Printer ${name(printer.name)}: build volume ${String(x)} × ${String(y)} × ${String(z)} mm,`,
-    `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(minimumWall(printer.nozzle))} (two lines) print poorly and details under one line (${mm(lineWidth(printer))}) do not print.`,
+    `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(minimumWall(printer.nozzle))} (two lines) print poorly, and walls or details thinner than the nozzle do not print (the print check blocks them).`,
     `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter, a guide value for holes of ${String(HOLE_SIZES[0])} to ${String(HOLE_SIZES[HOLE_SIZES.length - 1])} mm (larger ones shrink more) that the hole plate of the tolerance pieces measures on this printer.`,
-    `Clearance per side between mating parts, for this nozzle (${used.measuredNozzle === undefined ? 'starting values, not measured on this printer' : 'measured with the tolerance pieces'}): clamp ${fit(clamp)}, push ${fit(push)}, slide ${fit(slide)}, turn ${fit(turn)}.`,
+    `Clearance per side between mating parts, for this nozzle (${used.measuredNozzle === undefined ? 'not measured with the tolerance pieces' : 'measured with the tolerance pieces'}): clamp ${fit(clamp)}, push ${fit(push)}, slide ${fit(slide)}, turn ${fit(turn)}.`,
     'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed; the check and the slicer then lay it on that face.',
     ...(supportFree ? supportFreeLines(used.overhang, printer.nozzle) : []),
     ...designLines(design, printer, used),

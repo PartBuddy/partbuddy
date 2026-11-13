@@ -5,12 +5,13 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_PRINT_SETTINGS, PrintProfiles, ProfileNote, printFileOf, printNote } from '../src/main/print/printProfiles';
-import { BRIDGE_SPAN, LYING_HOLE, minimumFloor, minimumWall } from '@partbuddy/geometry';
+import { BRIDGE_SPAN, checkPrint, LYING_HOLE, minimumFloor, minimumWall, type PrintCheckBody } from '@partbuddy/geometry';
 
 import { smallOverhangReach } from '../../../packages/geometry/src/overhang';
+import { boxesBody } from '../../../packages/geometry/src/testShapes';
 import { ASK_TOOL } from '../src/main/agents/questions';
 import { DESIGN_DEFAULTS, printSettingsSchema, type MaterialProfile, type PrintSettings } from '../src/shared/contract';
-import { lineWidth, printInPlaceGap } from '../src/shared/designFit';
+import { lineWidth } from '../src/shared/designFit';
 import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
 import { standardText } from '../src/shared/standards';
 
@@ -190,12 +191,33 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
     }
   });
 
-  it('asks before it builds a size under what prints (R33)', () => {
+  it('asks only below what the print check blocks, and builds what merely prints less well (R33)', () => {
+    // The check's own thresholds, measured: a standing wall and a floor lying on the bed, just under and at the limit.
+    const blocks = (body: PrintCheckBody, nozzle: number, layer: number) =>
+      checkPrint([body], { bed: [256, 256, 256], nozzle, layer, overhang: 45 }).findings.some((f) => f.kind === 'thinWall' && f.severity === 'block');
+    for (const [nozzle, layer] of [[0.25, 0.12], [0.4, 0.2], [0.6, 0.3]] as const) {
+      const wall = (t: number) => boxesBody('Wall', [[[0, 0, 0], [30, t, 20]]]);
+      const floor = (t: number) => boxesBody('Floor', [[[0, 0, 0], [30, 30, t]]]);
+      expect(blocks(wall(nozzle - 0.02), nozzle, layer)).toBe(true);
+      expect(blocks(wall(nozzle), nozzle, layer)).toBe(false);
+      expect(blocks(wall(minimumWall(nozzle) - 0.02), nozzle, layer)).toBe(false);
+      expect(blocks(floor(layer - 0.02), nozzle, layer)).toBe(true);
+      expect(blocks(floor(layer), nozzle, layer)).toBe(false);
+      const note = noteFor(nozzle, layer);
+      expect(note).toContain(`a wall or detail thinner than the ${String(nozzle)} mm nozzle, a floor or lid thinner than one ${String(layer)} mm layer`);
+      expect(note).toContain(`a wall under two lines, ${String(minimumWall(nozzle))} mm, or not a whole number of ${String(lineWidth({ nozzle, layer }))} mm lines; a detail under one line; a floor under ${String(minimumFloor(layer))} mm) is built as given`);
+    }
     const note = noteFor(0.4, 0.2);
     expect(note).toContain(`do not build it: ask with ${ASK_TOOL}, offering the value as given and the nearest one that prints`);
-    expect(note).toContain(`a gap between moving parts under ${String(printInPlaceGap({ nozzle: 0.1, layer: 0.1 }))} mm`);
-    expect(note).toContain('a detail under one line of 0.45 mm');
     expect(note).not.toContain('build it as given anyway');
+    expect(note).not.toContain('a gap between moving parts under');
+    // One minimum wall for the rules and the check, also where the two roundings differ (0.56, not 0.562);
+    // 0.562 stays only in the snapping grid of designFit (audit D37).
+    const fine = noteFor(0.25, 0.12);
+    expect(fine).toContain('walls thinner than 0.56 mm (two lines)');
+    expect(fine).toContain('a wall under two lines, 0.56 mm,');
+    expect(fine).toContain('at least two lines (0.56 mm)');
+    expect(fine).not.toMatch(/two lines,? \(?0\.562/);
   });
 
   it('calls the four fits by one name each, as room per side with the hole allowance on top (R8, R34, H-20, H-32)', () => {
@@ -203,11 +225,23 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
     expect(note).toContain('clamp 0.05 mm (tight, only with force), push 0.15 mm (in by hand), slide 0.25 mm (without force), turn 0.3 mm (turns freely)');
     expect(note).toContain('Each is room, never an interference. A round hole also gets the material\'s hole allowance on its diameter.');
     expect(note).not.toMatch(/press fit|sliding fit|loose fit/);
-    expect(note).toContain('(starting values, not measured on this printer): clamp 0.05 mm');
+    expect(note).toContain('with the push fit and an opening narrower than the item');
+    // A measured clamp fit below zero is an interference, and the note says so.
+    const pressed = noteFor(0.4, 0.2, { ...pla, clearance: { ...pla.clearance, clamp: -0.05 }, measuredNozzle: 0.4 });
+    expect(pressed).toContain('clamp -0.05 mm (tight, only with force)');
+    expect(pressed).toContain('A value below zero is an interference');
+    expect(pressed).not.toContain('never an interference');
+    expect(note).toContain('(not measured with the tolerance pieces): clamp 0.05 mm');
     expect(noteFor(0.4, 0.2, { ...pla, measuredNozzle: 0.4 })).toContain('(measured with the tolerance pieces): clamp');
     expect(note).toContain('a guide value for holes of 3 to 10 mm (larger ones shrink more)');
     expect(standardText('slidingLid')).toContain('Room: the slide fit of the print profile per side');
-    expect(standardText('clamp')).toContain('the tube and twice the clamp fit of the print profile');
+    expect(standardText('slidingLid')).not.toContain('Prusa asks at least 0.3');
+    expect(standardText('clamp')).toContain('the tube and twice the push fit of the print profile, so it goes on by hand (for PLA and PETG on a 0.4 mm nozzle within the 0.3 to 0.5 mm the guides name)');
+    for (const id of ['pla', 'petg']) {
+      const push = DEFAULT_PRINT_SETTINGS.materials.find((item) => item.id === id)?.clearance.push ?? 0;
+      expect(2 * push).toBeGreaterThanOrEqual(0.3);
+      expect(2 * push).toBeLessThanOrEqual(0.5);
+    }
     expect(standardText('hook')).toContain('each plus the hole allowance of the print profile');
   });
 
@@ -219,10 +253,14 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
 
   it('gives details, text and floors the sizes of their sources (D29, H-18, H-22, H-23)', () => {
     const note = noteFor(0.4, 0.2);
-    expect(note).toContain(`details under one line (${String(lineWidth({ nozzle: 0.4, layer: 0.2 }))} mm) do not print`);
+    expect(note).toContain('walls or details thinner than the nozzle do not print (the print check blocks them)');
     expect(note).toContain('text at least 0.6 mm deep and 1 mm wide per stroke (Xometry: 0.5 mm and 1 mm)');
     expect(noteFor(0.6, 0.3)).toContain('text at least 0.6 mm deep and 1.35 mm wide per stroke');
-    expect(note).toContain(`floors and lids at least ${String(minimumFloor(0.2))} mm (four layers and 0.8 mm: Stratasys, Protolabs)`);
+    expect(noteFor(0.4, 0.12)).toContain('text at least 0.6 mm deep');
+    expect(noteFor(0.4, 0.1)).toContain('text at least 0.5 mm deep');
+    for (const layer of [0.12, 0.2]) expect(noteFor(0.4, layer)).toContain(`floors and lids at least ${String(minimumFloor(layer))} mm (four layers and 0.8 mm: Stratasys, Hubs)`);
+    expect(note).toContain('elephant\'s foot (0.1 to 0.25 mm: Prusa about 0.2, Bambu Lab 0.1 to 0.2, OrcaSlicer up to 0.25)');
+    expect(note).not.toContain('Protolabs');
     expect(note).toContain('radius 1 mm on parts under 30 mm, 2 mm up to 100 mm, 3 mm above (own choice)');
     expect(note).toContain('with a 30–45° lead-in (own choice)');
     expect(note).toContain('chamfer hole and screw entries 0.5 mm × 45° and give mating edges a 0.5 mm lead-in chamfer so parts go together (both own choice)');
