@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { measuresOf } from './bodyMeasures';
-import { jointRuns, reportOf, sweepInBlocks } from './report';
+import { fitsOf, jointRuns, reachOf, reportOf, sweepInBlocks } from './report';
 
 /** Quiet time after a revision before the check runs, so a burst of steps is checked once. */
 const CHECK_DELAY_MS = 250;
@@ -69,22 +69,29 @@ export function usePrintCheck(): void {
       let unchecked: string[] = [];
       const measure = async (): Promise<PrintCheck> => {
         let final = result;
-        // Several parts (F2): overlaps and gaps under the push fit.
-        const pushFit = print.material.clearance.push;
+        // Several parts (F2): overlaps, gaps under the push fit for this nozzle, and under the print-in-place gap
+        // between parts printed as one piece that move.
+        const fits = fitsOf(print, model.structure);
+        // shortcut: with a print group every pair is measured up to the print-in-place gap, and SolidCraft's answer is cut to 100 near pairs (contract); measure the group's bodies apart when designs with many close parts and a hinge come up.
         if (parts.length >= 2) {
           const measured = await platform()
             .design.clearance(
               parts.map((body) => body.name),
-              Math.max(pushFit, 0),
+              Math.max(fits.push, fits.inPlace?.gap ?? 0, 0),
             )
-            .catch(() => null);
-          if (measured) final = withClearance(final, measured, pushFit);
+            .catch((error: unknown) => {
+              console.warn('PartBuddy: measuring the clearance between the parts failed', error);
+              return null;
+            });
+          if (measured) final = withClearance(final, measured, fits.push, fits.inPlace);
           if (!measured || measured.incomplete) failed.push('clearance');
           unchecked = measured?.unchecked ?? [];
         }
-        // Parts that move (ADR 0027): every joint value runs from where it stands to its limits.
+        // Parts that move (ADR 0027): every joint value runs from where it stands to its limits, and as far as it can go where it has none.
         if (joints.length > 0) {
-          const { sweeps, more } = jointRuns(joints);
+          // The box round all bodies only for a distance without a limit: 20 ms for 250 000 triangles.
+          const reach = joints.some((joint) => joint.values.some((value) => value.unit === 'mm' && (value.limits ?? [null]).includes(null))) ? reachOf(model.bodies) : 0;
+          const { sweeps, more } = jointRuns(joints, reach);
           if (more) failed.push('joints');
           // SolidCraft takes a limited number of runs per call: block after block.
           const stopped = await sweepInBlocks(
@@ -96,7 +103,7 @@ export function usePrintCheck(): void {
           );
           const stops = sweeps.flatMap((sweep, i) => {
             const stop = stopped[i];
-            return stop ? [{ joint: sweep.name, unit: sweep.unit, to: sweep.to, ...stop }] : [];
+            return stop ? [{ joint: sweep.name, unit: sweep.unit, to: sweep.to, ...(sweep.free ? { free: true } : {}), ...stop }] : [];
           });
           final = withMotion(final, { joints, stops });
         }

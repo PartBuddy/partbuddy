@@ -1,9 +1,11 @@
+import { BufferAttribute, BufferGeometry } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
-import { asksBeforeExport, checkNow, jointRuns, lateOn, reportOf, sweepInBlocks } from '../src/renderer/src/print/report';
+import { printNote } from '../src/main/print/printProfiles';
+import { asksBeforeExport, checkNow, fitsOf, jointRuns, lateOn, reachOf, reportOf, sweepInBlocks } from '../src/renderer/src/print/report';
 import type { ModelState, StudioPrintCheck } from '../src/renderer/src/state/store';
-import { printCheckReportSchema } from '../src/shared/contract';
+import { DESIGN_DEFAULTS, printCheckReportSchema, type PartPrint } from '../src/shared/contract';
 
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
   it('says what it looked at when nothing was found, and what it did not (audit R3)', () => {
@@ -118,7 +120,80 @@ describe('clearance between parts as the assistant reads it (F2)', () => {
     expect(JSON.stringify(report)).not.toContain('box');
     const note = printCheckNote(report);
     expect(note).toContain('bodies "Case" and "Lid" overlap by 400 mm³');
-    expect(note).toContain('bodies "Case" and "Clip" come within 0.1 mm of each other without touching, under the material\'s push fit of 0.15 mm per side');
+    expect(note).toContain('bodies "Case" and "Clip" come within 0.1 mm of each other without touching, under the push fit of 0.15 mm per side for this nozzle (as in the print profile)');
+  });
+
+  it('says that parts printed as one piece fuse under their gap, and a joint without a limit that way (audit D10, H-04)', () => {
+    const box = { min: [0, 0, 0] as [number, number, number], max: [1, 1, 1] as [number, number, number] };
+    const report = reportOf(
+      {
+        status: 'warn',
+        findings: [
+          { kind: 'tight', severity: 'warn', bodies: ['Box', 'Lid'], gap: 0.2, minimum: 0.4, inPlace: true, places: [], box },
+          { kind: 'blocked', severity: 'warn', joint: 'Hinge', bodies: ['Lid', 'Box'], at: 120, limit: 190, unit: 'deg', free: true, places: [], box },
+          { kind: 'blocked', severity: 'warn', joint: 'Wheel', bodies: ['Lid', 'Box'], at: -300, limit: -370, unit: 'deg', free: true, places: [], box },
+        ],
+      },
+      0.4,
+      7,
+    );
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    expect(report.findings).toMatchObject([{ inPlace: true }, { free: true }, { free: true }]);
+    const note = printCheckNote(report);
+    expect(note).toContain('bodies "Box" and "Lid" print as one piece and move against each other, but come within 0.2 mm of each other, under the print-in-place gap of 0.4 mm for this nozzle: they fuse there in the print and do not move.');
+    expect(note).toContain('joint "Hinge" has no limit that way and stops at 120 deg: bodies "Lid" and "Box" touch there. Make room where they touch, or set its limits with joint.limits if that is the stop you mean.');
+    // The end of the run is no limit of the joint's, and is not named as one.
+    // An angle past half a turn is said within one turn (-180° to 180°), as the joint stands then.
+    expect(note).toContain('joint "Wheel" has no limit that way and stops at 60 deg');
+    expect(note).not.toContain('190');
+    expect(note).not.toContain('300');
+  });
+});
+
+describe('the gaps the check holds the parts to (audit D9, D10)', () => {
+  const pla = { id: 'pla', name: 'PLA', overhang: 45, holeShrink: 0.2, clearance: { clamp: 0.05, push: 0.15, slide: 0.25, turn: 0.3 } };
+  const printer = (nozzle: number, layer = 0.2): PartPrint => ({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material: pla, chosen: true, supportFree: true, design: DESIGN_DEFAULTS });
+
+  it('takes the push fit scaled to the nozzle, the number the print profile gives the assistant', () => {
+    for (const [nozzle, push] of [
+      [0.2, 0.075],
+      [0.25, 0.094],
+      [0.4, 0.15],
+      [0.6, 0.225],
+      [0.8, 0.3],
+    ] as const) {
+      expect(fitsOf(printer(nozzle), {}).push).toBe(push);
+      // The same number, to the thousandth, in the profile and in the check's words (review of BC-06, B1).
+      expect(printNote(printer(nozzle))).toContain(`push ${String(push)} mm`);
+      const tight = reportOf({ status: 'warn', findings: [{ kind: 'tight', severity: 'warn', bodies: ['A', 'B'], gap: 0.05, minimum: fitsOf(printer(nozzle), {}).push, places: [], box: { min: [0, 0, 0], max: [1, 1, 1] } }] }, nozzle, 1);
+      expect(printCheckNote(tight)).toContain(`under the push fit of ${String(push)} mm per side for this nozzle (as in the print profile)`);
+    }
+    // Read off tolerance pieces printed with a 0.6 mm nozzle, the fit holds as read on that nozzle.
+    expect(fitsOf({ ...printer(0.6), material: { ...pla, measuredNozzle: 0.6 } }, {}).push).toBe(0.15);
+    // The layer height has no part in it.
+    expect(fitsOf(printer(0.4, 0.12), {}).push).toBe(0.15);
+  });
+
+  it('holds bodies of one print group that a joint moves against each other to max(0.3, nozzle)', () => {
+    const structure = { printGroups: [['Box', 'Lid', 'Lip']], joints: [{ bodies: ['Lid', 'Lip'] }, {}] };
+    expect(fitsOf(printer(0.4), {}).inPlace).toBeUndefined();
+    for (const [nozzle, gap] of [
+      [0.2, 0.3],
+      [0.25, 0.3],
+      [0.4, 0.4],
+      [0.6, 0.6],
+      [0.8, 0.8],
+    ] as const)
+      expect(fitsOf(printer(nozzle), structure).inPlace?.gap).toBe(gap);
+    const { pair } = fitsOf(printer(0.4), structure).inPlace ?? { pair: () => false };
+    expect(pair('Box', 'Lid')).toBe(true);
+    expect(pair('Lip', 'Box')).toBe(true);
+    // The lid and its lip move together: no gap needed between them.
+    expect(pair('Lid', 'Lip')).toBe(false);
+    expect(pair('Box', 'Clip')).toBe(false);
+    // No joint says which bodies it moves: any two of a group are taken to move.
+    const unknown = fitsOf(printer(0.4), { printGroups: [['Box', 'Lid']], joints: [{}] }).inPlace;
+    expect(unknown?.pair('Lid', 'Box')).toBe(true);
   });
 });
 
@@ -139,8 +214,36 @@ describe('what the check could not measure', () => {
     expect(many.sweeps).toHaveLength(200);
     expect(many.more).toBe(true);
     expect(many.sweeps[0]).toEqual({ joint: 0, name: 'J0', unit: 'deg', index: 0, from: 0, to: -90 });
-    // A limit where the value stands already, or none, is no run.
+    // A limit where the value stands already is no run; a distance without a limit is none either while nothing says how far the parts reach.
     expect(jointRuns([{ id: 1, name: 'J', values: [{ unit: 'mm', value: 5, limits: [5, null], index: 2 }] }]).sweeps).toEqual([]);
+  });
+
+  it('runs a joint without limits too, as far as anything can stop it (audit H-04)', () => {
+    const run = (unit: 'deg' | 'mm', value: number, limits: [number | null, number | null] | null, reach = 0) => jointRuns([{ id: 1, name: 'J', values: [{ unit, value, limits, index: 0 }] }], reach).sweeps.map(({ from, to, free }) => ({ from, to, ...(free ? { free } : {}) }));
+    // No limits at all: half a turn and 10° each way, so the two runs overlap past the snap-fit span.
+    expect(run('deg', 0, null)).toEqual([{ from: 0, to: -190, free: true }, { from: 0, to: 190, free: true }]);
+    expect(run('deg', 30, [null, null])).toEqual([{ from: 30, to: -160, free: true }, { from: 30, to: 220, free: true }]);
+    // A limit on one side: to it, and a whole turn and 10° the other way.
+    expect(run('deg', 0, [null, 90])).toEqual([{ from: 0, to: -370, free: true }, { from: 0, to: 90 }]);
+    expect(run('deg', 0, [0, null])).toEqual([{ from: 0, to: 370, free: true }]);
+    // A distance as far as the parts reach.
+    expect(run('mm', 5, [5, null], 121)).toEqual([{ from: 5, to: 126, free: true }]);
+    expect(run('mm', 0, null, 121)).toEqual([{ from: 0, to: -121, free: true }, { from: 0, to: 121, free: true }]);
+    // Both limits set: as before, no free run.
+    expect(run('deg', 0, [-90, 90])).toEqual([{ from: 0, to: -90 }, { from: 0, to: 90 }]);
+  });
+
+  it('takes the reach of a slide from the diagonal of all bodies', () => {
+    const body = (min: [number, number, number], max: [number, number, number]) => {
+      const geometry = new BufferGeometry();
+      geometry.setAttribute('position', new BufferAttribute(new Float32Array([...min, ...max, ...min]), 3));
+      return { model: { geometry } };
+    };
+    expect(reachOf([])).toBe(0);
+    // 0..30 × 0..40 × 0..0: a diagonal of 50 mm, and 5 mm more.
+    expect(reachOf([body([0, 0, 0], [30, 0, 0]), body([0, 40, 0], [0, 40, 0])])).toBe(55);
+    // A body without positions adds nothing.
+    expect(reachOf([{ model: { geometry: new BufferGeometry() } }, body([0, 0, 0], [3, 4, 0])])).toBe(10);
   });
 
   it('asks before an export while the light is red, still measuring, of another revision or project, or a measure failed (audit X-1)', () => {

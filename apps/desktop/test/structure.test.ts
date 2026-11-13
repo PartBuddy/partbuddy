@@ -229,6 +229,13 @@ describe('the motion of joints in the ready-to-print check (ADR 0027)', () => {
     ]);
   });
 
+  it('says that a joint without a limit that way stopped, not that it missed a limit (audit H-04)', () => {
+    const check = withMotion(ready, { joints: [], stops: [{ ...stop(190, 120), free: true }, { ...stop(-190, -189.8), free: true }] });
+    expect(check.findings).toEqual([
+      { kind: 'blocked', severity: 'warn', joint: 'Hinge', bodies: ['Flap', 'Base'], at: 120, limit: 190, unit: 'deg', free: true, places: [], box: { min: [38, 28, -2], max: [42, 32, 2] } },
+    ]);
+  });
+
   it('names a joint left away from the position as designed', () => {
     const check = withMotion(ready, { joints: [{ name: 'Hinge', values: [{ unit: 'deg', value: -90 }] }, { name: 'Slide', values: [{ unit: 'mm', value: 0 }] }], stops: [] });
     expect(check.findings).toEqual([{ kind: 'posed', severity: 'warn', joint: 'Hinge', value: -90, unit: 'deg' }]);

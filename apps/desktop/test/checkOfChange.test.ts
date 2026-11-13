@@ -155,7 +155,7 @@ describe('designs of several bodies: the mesh check goes ahead of the measures (
     const text = textOf(await setup({ measureMs: 60_000, waitMs: 2000, fullMs: 300 }).tools.callTool('execute', extrude));
     expect(Date.now() - started).toBeLessThan(1500);
     expect(text).toContain(BLOCKED);
-    expect(text).toContain('Preliminary: clearance and joints still being measured (bodies that overlap or come closer than a push fit, joints that stop before a limit); call partbuddy_view for the full check before you call the part done.');
+    expect(text).toContain('Preliminary: clearance and joints still being measured (bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move, joints that stop before a limit, or within a turn or as far as the parts reach where they have none); call partbuddy_view for the full check before you call the part done.');
     expect(text).toContain('- "Plate": 6 cm³ solid');
     expect(text).not.toContain(CHECK_PENDING);
   });
@@ -171,14 +171,14 @@ describe('designs of several bodies: the mesh check goes ahead of the measures (
 
   it('does not send partbuddy_view back to partbuddy_view: from the view a preliminary check says that the rest is coming', () => {
     const fromView = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 2, measuring: true }, true);
-    expect(fromView).toContain('Preliminary: clearance and joints still being measured (bodies that overlap or come closer than a push fit, joints that stop before a limit); the full check will be here in a moment.');
+    expect(fromView).toContain('Preliminary: clearance and joints still being measured (bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move, joints that stop before a limit, or within a turn or as far as the parts reach where they have none); the full check will be here in a moment.');
     expect(fromView).not.toContain('call partbuddy_view');
   });
 
   it('says what SolidCraft could not measure instead of counting it as checked', () => {
     const failed = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 2, unmeasured: ['clearance'] });
-    expect(failed).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch, joints that stop before a limit).');
-    expect(failed).toContain("NOT measured, or not all of it (SolidCraft's measure failed or did not finish every pair in its time, or there were more than 200 joint runs): bodies that overlap or come closer than a push fit. Measure it yourself (inspect.clearance) before you call the part done.");
+    expect(failed).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch, joints that stop before a limit, or within a turn or as far as the parts reach where they have none).');
+    expect(failed).toContain("NOT measured, or not all of it (SolidCraft's measure failed or did not finish every pair in its time, or there were more than 200 joint runs): bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move. Measure it yourself (inspect.clearance) before you call the part done.");
     const both = printCheckNote({ status: 'warn', findings: [{ kind: 'open', severity: 'warn', bodies: ['A'] }], nozzle: 0.4, revision: 2, unmeasured: ['clearance', 'joints'] });
     expect(both).toContain('Measure it yourself (inspect.clearance, joint.sweep)');
     // A check that lost its measures is another check than the one before.

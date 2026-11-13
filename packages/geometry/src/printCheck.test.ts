@@ -376,6 +376,43 @@ describe('clearance between parts (F2)', () => {
     expect(withClearance(ready, { overlaps: [], near: [near(0.1)] }, 0).findings).toEqual([]);
   });
 
+  it('compares a gap as it is said: on the minimum is enough, just under is not (audit D9)', () => {
+    const gaps = (distance: number, minimum: number) => withClearance(ready, { overlaps: [], near: [{ a: 'A', b: 'C', distance, from: [0, 0, 0], to: [0, distance, 0] }] }, minimum).findings.map((finding) => finding.kind === 'tight' && finding.gap);
+    // The push fits of PLA for a 0.6, 0.25 and 0.2 mm nozzle (0.225, 0.094, 0.075 mm): built as the profile says, and
+    // measured a hair under as SolidCraft does, they are no warning; a thousandth under is.
+    expect(gaps(0.225, 0.225)).toEqual([]);
+    expect(gaps(0.22499999999998, 0.225)).toEqual([]);
+    expect(gaps(0.224, 0.225)).toEqual([0.224]);
+    expect(gaps(0.226, 0.225)).toEqual([]);
+    expect(gaps(0.094, 0.094)).toEqual([]);
+    expect(gaps(0.093, 0.094)).toEqual([0.093]);
+    expect(gaps(0.07499999, 0.075)).toEqual([]);
+    expect(gaps(0.074, 0.075)).toEqual([0.074]);
+    // Exactly the minimum, as SolidCraft measures it a hair under, is no "0.4 mm, under 0.4 mm"; 0.395 mm is.
+    expect(gaps(0.39999999999998, 0.4)).toEqual([]);
+    expect(gaps(0.395, 0.4)).toEqual([0.395]);
+    expect(gaps(0.39, 0.4)).toEqual([0.39]);
+  });
+
+  it('holds bodies printed as one piece that move to the print-in-place gap, the others to the push fit (audit D10)', () => {
+    const near = (a: string, b: string, distance: number) => ({ a, b, distance, from: [0, 0, 0] as [number, number, number], to: [0, distance, 0] as [number, number, number] });
+    const inPlace = { gap: 0.4, pair: (a: string, b: string) => [a, b].sort().join() === 'Base,Lid' };
+    const found = (distance: number, a = 'Base', b = 'Lid') => withClearance(ready, { overlaps: [], near: [near(a, b, distance)] }, 0.15, inPlace).findings;
+    // A hinge with a gap of 0.2 mm is no push-fit problem, but it fuses in the print.
+    expect(found(0.2)).toEqual([{ kind: 'tight', severity: 'warn', bodies: ['Base', 'Lid'], gap: 0.2, minimum: 0.4, inPlace: true, places: [], box: { min: [-2, -2, -2], max: [2, 2.2, 2] } }]);
+    expect(found(0.39)).toMatchObject([{ gap: 0.39, minimum: 0.4, inPlace: true }]);
+    expect(found(0.4)).toEqual([]);
+    expect(found(0.41)).toEqual([]);
+    // A pair that does not print as one piece keeps the push fit.
+    expect(found(0.2, 'Base', 'Clip')).toEqual([]);
+    expect(found(0.1, 'Base', 'Clip')).toMatchObject([{ minimum: 0.15 }]);
+    expect(found(0.1, 'Base', 'Clip')[0]).not.toHaveProperty('inPlace');
+    // Touching is the mesh check's "fused", not a gap.
+    expect(found(0)).toEqual([]);
+    // A material without a push fit still holds print-in-place parts to their gap.
+    expect(withClearance(ready, { overlaps: [], near: [near('Base', 'Lid', 0.2)] }, 0, inPlace).findings).toMatchObject([{ inPlace: true }]);
+  });
+
   it('keeps what blocks printing first and the status of the worst finding', () => {
     const blocked = { status: 'block' as const, findings: [{ kind: 'feature' as const, severity: 'block' as const, feature: 'Fillet1', message: 'failed' }] };
     const check = withClearance(blocked, { overlaps: [{ a: 'A', b: 'B', volume: 5, box }], near: [] }, 0.15);
