@@ -316,6 +316,11 @@ export interface SlideSpec {
   height: number;
   /** The gap between rail and groove in mm. */
   gap: number;
+  /**
+   * The gap over the rail's head in mm, where it is more than `gap`: with the rail upright it is a gap in Z, and that
+   * goes to whole layers (F13; audit W14: 0.3 mm were 1.5 layers of 0.2 mm). See {@link slideOver}.
+   */
+  over?: number;
   /** The moving body is high enough over the rail's face for the roof over the groove (`slideRoof`); without it the groove's ceiling is flat. */
   roof?: boolean;
   name: string;
@@ -330,9 +335,22 @@ const RIDGE = 5;
  * a bridge prints up to 10 mm (audit 2026-11-12, T5). The roof rises at 45° from both edges of the ceiling to a ridge
  * `ridge` wide, `top` above the face the rail stands on.
  */
-export function slideRoof(spec: Pick<SlideSpec, 'width' | 'height' | 'gap'>): { ceiling: number; ridge: number; top: number } {
-  const half = spec.width / 2 + spec.gap * Math.SQRT2 + spec.height + spec.gap;
-  return { ceiling: round(2 * half), ridge: RIDGE, top: round(spec.height + spec.gap + half - RIDGE / 2) };
+export function slideRoof(spec: Pick<SlideSpec, 'width' | 'height' | 'gap' | 'over'>): { ceiling: number; ridge: number; top: number } {
+  const over = spec.over ?? spec.gap;
+  const half = spec.width / 2 + spec.gap * Math.SQRT2 + spec.height + over;
+  return { ceiling: round(2 * half), ridge: RIDGE, top: round(spec.height + over + half - RIDGE / 2) };
+}
+
+/**
+ * The gap over a rail's head: `gap` up to whole layers where the rail stands upright (`up` along ±Z), so that the
+ * groove's ceiling starts on a layer of its own; undefined where that is `gap` already, or the rail lies on its side.
+ * shortcut: a rail on a side wall keeps `gap` over its head, and its flanks' gaps in Z are not laid to layers either; lay them when such guides turn up.
+ */
+export function slideOver(spec: Pick<SlideSpec, 'gap' | 'up'>, layer: number): number | undefined {
+  const size = Math.hypot(...spec.up);
+  if (!(layer > 0) || Math.abs(Math.abs(spec.up[2]) - size) > 1e-6 * size) return undefined;
+  const over = round(Math.ceil(spec.gap / layer - 1e-6) * layer);
+  return over > spec.gap + 1e-9 ? over : undefined;
 }
 
 /**
@@ -349,6 +367,8 @@ export function slideProblem(spec: SlideSpec, least = 0.2): string | null {
   if (Math.abs(delta.reduce((sum, value, i) => sum + value * (spec.up[i] ?? 0), 0)) > 1e-6 * length * up) return 'up must be square to the line from–to (the normal of the face the rail stands on)';
   if (!(spec.width >= 2 && spec.width <= 60)) return 'width must be 2–60 mm';
   if (!(spec.height >= 1.5 && spec.height <= 20)) return 'height must be 1.5–20 mm';
+  // Audit T16: a 2 mm foot under 20 mm of height had a head 42 mm wide on a 2 mm neck. Own choice: the head at most three times the neck.
+  if (spec.height > spec.width) return `height must be at most width (${String(spec.width)} mm): the rail widens by its height on each side, and its head may be at most three times as wide as its foot`;
   if (!(spec.gap >= least && spec.gap <= 1)) return `gap must be ${String(least)}–1 mm`;
   return null;
 }
@@ -369,6 +389,7 @@ export function slideSteps(spec: SlideSpec): Step[] {
   const plane = { origin: spec.from.map(round), x_dir: cross(up, axis).map((value) => value + 0), y_dir: up.map((value) => value + 0) };
   const half = spec.width / 2;
   const { height, gap } = spec;
+  const over = spec.over ?? gap;
   // The flank moved out by the gap, measured square to it.
   const out = gap * Math.SQRT2;
   const roof = slideRoof(spec);
@@ -384,9 +405,9 @@ export function slideSteps(spec: SlideSpec): Step[] {
         [-(half + out), -gap],
         [half + out, -gap],
         [half + out, 0],
-        [half + out + height + gap, height + gap],
+        [half + out + height + over, height + over],
         ...(spec.roof ? ([[roof.ridge / 2, roof.top], [-roof.ridge / 2, roof.top]] as [number, number][]) : []),
-        [-(half + out + height + gap), height + gap],
+        [-(half + out + height + over), height + over],
         [-(half + out), 0],
       ],
       'cut',
@@ -644,6 +665,11 @@ export function lipSteps(spec: LipSpec): Step[] {
   ];
 }
 
+/** How many further screws, snap hooks and pegs one call may place (`more`): the tool's schema takes the largest, and each kind refuses past its own (audit R51). */
+export const SCREWS_MORE = 40;
+export const HOOKS_MORE = 20;
+export const PEGS_MORE = 20;
+
 export interface ScrewSpec {
   /** The body the screw is screwed into: it gets the seat for the insert, or the thread. */
   fixed: string;
@@ -762,7 +788,7 @@ export function screwProblem(spec: ScrewSpec): string | null {
   // Rounded as it is said, so a thickness that leaves just enough is not refused by a float (audit N-bloecke-7).
   const [left, under] = [round(grip(spec) - headDepth(spec)), underHead(spec.nozzle)];
   if (spec.head !== 'none' && left < under) return `the moving body is ${String(round(grip(spec)))} mm thick there, which leaves ${String(left)} mm under the ${spec.head === 'cap' ? 'counterbore' : 'countersink'}; make it at least ${String(round(headDepth(spec) + under))} mm thick, or use head none`;
-  if (spec.more.length > 40) return 'at most 40 further screws';
+  if (spec.more.length > SCREWS_MORE) return `at most ${String(SCREWS_MORE)} further screws`;
   return null;
 }
 
@@ -982,7 +1008,7 @@ export function snapProblem(spec: SnapSpec): string | null {
   const up = spec.up.map((value) => value / Math.hypot(...spec.up)) as Vec3;
   if (Math.hypot(...cross(up, spec.toward)) < 1e-6) return 'to must lie beside from, in the wall the catch goes into: not straight along up';
   if (!(spec.wall >= 1.6 && spec.wall <= 10)) return 'wall must be 1.6–10 mm';
-  if (spec.more.length > 20) return 'at most 20 further hooks';
+  if (spec.more.length > HOOKS_MORE) return `at most ${String(HOOKS_MORE)} further hooks`;
   return null;
 }
 
@@ -1072,7 +1098,7 @@ export function pegProblem(spec: PegSpec): string | null {
   if (Math.hypot(...spec.to.map((value, i) => value - (spec.from[i] ?? 0))) < 1e-6) return 'from and to must be two points: to lies further into the moving body';
   if (!(spec.diameter >= 3 && spec.diameter <= 20)) return 'diameter must be 3–20 mm';
   if (!(spec.gap >= 0.05 && spec.gap <= 0.5)) return 'gap must be 0.05–0.5 mm';
-  if (spec.more.length > 20) return 'at most 20 further pegs';
+  if (spec.more.length > PEGS_MORE) return `at most ${String(PEGS_MORE)} further pegs`;
   return null;
 }
 
