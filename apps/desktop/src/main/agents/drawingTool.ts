@@ -1,7 +1,7 @@
 import { drawingColours, drawingFacts, drawingSvg, mergedColours, withFills, type Drawing } from '../../shared/svgDrawing';
-import { detailCoarse, drawingDetail } from '../../shared/drawingDetail';
-import { LOGO_DEPTH_MAX, LOGO_PREFIX, LOGO_WIDTH_MAX, logoBase, uniqueLogoName } from '../../shared/drawingPlacement';
-import { blockLimit, colourLayers, DEFAULT_PRINTER, limitSaid, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
+import { detailCoarse, drawingDetail, type DetailBuild } from '../../shared/drawingDetail';
+import { centring, hostFace, LOGO_DEPTH_MAX, LOGO_PREFIX, LOGO_WIDTH_MAX, logoBase, movedPlane, uniqueLogoName } from '../../shared/drawingPlacement';
+import { blockLimit, colourLayers, DEFAULT_PRINTER, limitSaid, planeAt, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
 import type { FitPrinter } from '../../shared/designFit';
 import { planLogoMove, type Run } from '../solidcraft/logoMove';
 import { leastFloor, misplaced, reachOf, volumesOf, wallTrial } from './blockTool';
@@ -186,10 +186,11 @@ const vec3 = (value: unknown): [number, number, number] | null =>
   Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry)) ? (value as [number, number, number]) : null;
 
 /**
- * `partbuddy_place_drawing`: the logo block's steps for a drawing of this session, then centring. Engraved or inlaid, the
- * wall under it is measured on trial first, as for engraved text (blockTool.ts); built, the named body is checked as a
- * block's is; and what fails after the first step (SolidCraft refusing a step, the wrong body, centring) is taken back, so a
- * logo is either placed as said or not there (audit W38, W39).
+ * `partbuddy_place_drawing`: the logo block's steps for a drawing of this session. Centred, its middle is moved onto the
+ * face's middle first, as the form does (supervisor.ts centredBlock), so the wall is measured where it is built. Engraved or
+ * inlaid, the wall under it is measured on trial, as for engraved text (blockTool.ts); built, the named body is checked as a
+ * block's is; and what fails after the first step (SolidCraft refusing a step, the wrong body) is taken back, so a logo is
+ * either placed as said or not there (audit W38, W39).
  */
 async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: Record<string, unknown>, callId: string | undefined, fit: FitPrinter, log: (line: string) => void): Promise<string> {
   const id = typeof args.drawing === 'string' ? args.drawing.trim().replace(/^drawing:/, '') : '';
@@ -219,9 +220,9 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
   if (args.colours_max !== undefined && most === null) throw new Error('colours_max must be a whole number 2–16');
   const shown = most ? mergedColours(drawing, most) : drawing;
   // A part of its own is built like a logo standing on the plane, but as a new body.
-  const block: Extract<FeatureBlock, { block: 'logo' }> = { block: 'logo', body: part ? '' : body, point: point ?? [0, 0, 0], normal: normal ?? [0, 0, 1], size: 'M3', name: kept.name, svg: drawingSvg(shown, width), width, depth, mode: part ? 'emboss' : mode, colours: args.colours === true };
+  const given: Extract<FeatureBlock, { block: 'logo' }> = { block: 'logo', body: part ? '' : body, point: point ?? [0, 0, 0], normal: normal ?? [0, 0, 1], size: 'M3', name: kept.name, svg: drawingSvg(shown, width), width, depth, mode: part ? 'emboss' : mode, colours: args.colours === true };
   // Nothing of a block prints under one layer (blocks.ts).
-  const limit = blockLimit(block, fit);
+  const limit = blockLimit(given, fit);
   if (limit) throw new Error(limitSaid(limit));
   const run: Run = async (commands) => {
     const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[]; failed?: { error?: unknown } };
@@ -230,10 +231,25 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
   };
   const sketches = (jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { sketches?: { name?: unknown }[] }).sketches ?? [];
   const sketch = uniqueLogoName(kept.name, sketches.flatMap((entry) => (typeof entry.name === 'string' ? [entry.name] : [])));
-  const steps = stepsOf(block, sketch).map((step) => (part && step.command === 'solid.extrude' && step.params.operation === 'join' ? { ...step, params: { ...step.params, operation: 'new', body_name: logoBase(kept.name) } } : step));
   const measure = { command: 'inspect.measure', params: {} };
   const before = part ? null : volumesOf((await run([measure]))[0]);
   if (before && !before.has(body)) throw new Error(misplaced(body, before, before) ?? `there is no body named ${body}`);
+  // Onto the face's middle before anything is built or measured.
+  let block = given;
+  let centred = '';
+  if (centre) {
+    const plane = planeAt(given.point, given.normal);
+    const [faces, edges] = await run([
+      { command: 'model.faces', params: { body } },
+      { command: 'model.edges', params: { body } },
+    ]);
+    const host = hostFace(plane, [{ body, faces, edges }]);
+    if (!host) throw new Error(`no flat face of ${body} at the point to centre the logo on; give the point of the face's middle, or leave centre out`);
+    const [du, dv] = centring(host.extent, centre);
+    block = { ...given, point: movedPlane(plane, du, dv).origin };
+    centred = ` Moved by ${mm(du)} mm along its x and ${mm(dv)} mm along its y onto the middle of face ${host.face} of ${body} before it was built; its middle is now at [${block.point.map(mm).join(', ')}] mm.`;
+  }
+  const steps = stepsOf(block, sketch).map((step) => (part && step.command === 'solid.extrude' && step.params.operation === 'join' ? { ...step, params: { ...step.params, operation: 'new', body_name: logoBase(kept.name) } } : step));
   // Engraved or inlaid, it must leave plastic under it: the wall at its middle, measured on trial as for engraved text.
   // shortcut: one point, the logo's middle; a logo reaching over a thinner part of the wall passes. Measure under each piece if that turns up.
   const probe = part ? null : wallTrial(block);
@@ -245,14 +261,15 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
   if (typeof thick === 'number' && depth + floor > thick + 1e-9) {
     const less = thick - floor >= fit.layer - 1e-9 ? `Give depth ${mm(thick - floor)} or less, put` : 'Put';
     throw new Error(
-      `at [${(point ?? []).join(', ')}] ${body} is ${mm(thick)} mm thick (measured on trial); a logo ${how} ${mm(depth)} mm deep needs ${mm(floor)} mm of plastic under it (two lines or four layers on a ${String(fit.nozzle)} mm nozzle, as the part may lie either way), ${mm(depth + floor)} mm in all. ${less} it where the part is thicker, or build it up (emboss)`,
+      `at [${block.point.map(mm).join(', ')}] ${body} is ${mm(thick)} mm thick (measured on trial); a logo ${how} ${mm(depth)} mm deep needs ${mm(floor)} mm of plastic under it (two lines or four layers on a ${String(fit.nozzle)} mm nozzle, as the part may lie either way), ${mm(depth + floor)} mm in all. ${less} it where the part is thicker, or build it up (emboss)`,
     );
   }
   if (probe && typeof thick !== 'number') log(`partbuddy_place_drawing on ${body}: the wall under the logo could not be measured on trial`);
   const wallSaid = !probe ? '' : typeof thick === 'number' ? ` ${body} is ${mm(thick)} mm thick there (measured on trial): ${mm(thick - depth)} mm of plastic stay under it.` : ` PartBuddy could not measure the wall of ${body} under it: check that ${mm(depth)} mm leave plastic behind.`;
+  // Said before anything is built: should it throw, no logo stands under "Not placed".
+  const detail = detailSaid(shown, width, fit.nozzle, part || mode === 'emboss' ? 'raised' : layers.length > 0 ? 'inlaid' : 'engraved');
   // The design before the logo, to take it back to.
   const mark = await markOf(run);
-  let centred = '';
   try {
     const results = await run(before ? [...steps, measure] : steps);
     if (before) {
@@ -274,7 +291,6 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
       const recolour = splitPieceSteps(layers, jsonOf(await upstream.callTool('inspect_design', {}, callId)));
       if (recolour.length > 0) await run(recolour);
     }
-    if (centre) centred = ` ${await moveDrawing(upstream, { logo: sketch, centre }, callId)}`;
   } catch (cause) {
     const taken = await takeBack(run, mark);
     if (taken !== 'back') log(`partbuddy_place_drawing ${sketch} could not be taken back (${taken}) after: ${(cause as Error).message.slice(0, 200)}`);
@@ -282,18 +298,18 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
   }
   const said = `${how} ${String(depth)} mm, ${String(width)} mm wide` + (layers.length > 0 ? `, ${String(layers.length)} colour bodies` : '');
   const placed = part ? `Built "${sketch}" (${said}).` : `Placed "${sketch}" on ${body} (${said}).`;
-  return placed + centred + wallSaid + detailSaid(shown, width, fit.nozzle);
+  return placed + centred + wallSaid + detail;
 }
 
 /**
  * What the answer says of details too fine at the width (drawingDetail.ts), as the composer shows it; empty when all print.
  * shortcut: runs in the main process, a few hundred ms for a large drawing (measured up to about 1 s at 400 mm under load); move it to a worker if it holds up other calls.
  */
-function detailSaid(drawing: Drawing, width: number, nozzle: number): string {
-  const detail = drawingDetail(drawing, width, nozzle);
+function detailSaid(drawing: Drawing, width: number, nozzle: number, build: DetailBuild): string {
+  const detail = drawingDetail(drawing, width, nozzle, build);
   const coarse = detailCoarse(drawing, width, nozzle);
   const fine = detail
-    ? ` ${detail.places === 1 ? 'One place of the drawing is' : `${String(detail.places)} places of the drawing are`} too fine for the ${String(nozzle)} mm nozzle at ${mm(width)} mm wide, the narrowest ${mm(detail.thinnest)} mm: a stroke under ${mm(detail.stroke)} mm (two lines) does not print solid, a gap under ${mm(detail.gap)} mm closes up. From ${String(detail.fineFrom)} mm wide everything fits; tell the user.`
+    ? ` ${detail.places === 1 ? 'One place of the drawing is' : `${String(detail.places)} places of the drawing are`} too fine for the ${String(nozzle)} mm nozzle at ${mm(width)} mm wide, the narrowest ${mm(detail.thinnest)} mm: ${build === 'engraved' ? 'a stroke (a groove)' : 'a stroke'} under ${mm(detail.stroke)} mm ${detail.stroke < detail.gap ? 'closes up' : 'does not print solid (two lines)'}, ${build === 'engraved' ? 'a gap (a rib left standing)' : 'a gap'} under ${mm(detail.gap)} mm ${detail.gap < detail.stroke ? 'closes up' : 'does not print solid (two lines)'}. From ${String(detail.fineFrom)} mm wide everything fits; tell the user.`
     : '';
   return fine + (coarse === null ? '' : ` At this size PartBuddy checked the details on a raster of ${String(coarse)} mm, so a place near the limit can go unseen.`);
 }

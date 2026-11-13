@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 
 import { drawingNote, Drawings, withDrawings } from '../src/main/agents/drawingTool';
 import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
+import { TAKEN_BACK_SAID } from '../src/main/agents/takeBack';
+import { UNDO_CAP } from '../src/main/agents/workLog';
 import { agentMessageSchema } from '../src/shared/contract';
 import { parseDrawing, type Drawing } from '../src/shared/svgDrawing';
 
@@ -149,22 +151,39 @@ const built = (calls: { name: string; args: Record<string, unknown> }[]): Step[]
   (calls.find((call) => call.name === 'batch' && call.args.rollback !== true && (call.args.commands as Step[]).some((step) => step.command === 'sketch.create'))?.args.commands as Step[] | undefined) ?? [];
 
 /**
- * SolidCraft as far as placing a logo needs it: a timeline of the steps built, `edit.undo` taking the last back, volumes
- * that drop by 10 mm³ per cut, and the wall trial (a batch with rollback) answering a wall `thick` mm deep under the point.
+ * SolidCraft as far as placing a logo needs it: a timeline of the steps built, `edit.undo` taking the last back (at most
+ * 200, as SolidCraft 0.40.1 keeps) and `edit.redo` giving it again, volumes that drop by 10 mm³ per cut, the top face of a
+ * 20 × 20 × 10 box, and the wall trial (a batch with rollback) answering a wall `thick` mm deep under the point.
  */
-function engine(options: { sketches?: string[]; bodies?: Record<string, number>; thick?: number | null; refuse?: string; volumes?: (timeline: string[]) => Record<string, number> } = {}) {
+function engine(
+  options: {
+    sketches?: string[];
+    bodies?: Record<string, number>;
+    thick?: number | null;
+    /** Commands SolidCraft refuses. */
+    refuse?: string[];
+    /** From this many built steps on, every further one is refused. */
+    refuseAfter?: number;
+    volumes?: (timeline: string[]) => Record<string, number>;
+    /** A warning on the answer of each `solid.extrude`. */
+    warning?: string;
+  } = {},
+) {
   const calls: { name: string; args: Record<string, unknown> }[] = [];
   const timeline: string[] = [];
+  const undone: string[] = [];
+  let undoable = 0;
   const bodies = options.bodies ?? { Body1: 4000 };
   const volumes = options.volumes ?? ((built: string[]) => Object.fromEntries(Object.entries(bodies).map(([name, volume], i) => [name, i === 0 ? volume - 10 * built.filter((step) => step === 'solid.extrude').length : volume])));
   const measured = () => ({ bodies: Object.entries(volumes(timeline)).map(([name, volume_mm3]) => ({ name, volume_mm3 })) });
   const reply = (value: unknown): ToolResult => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
+  const edge = (name: string, start: number[], end: number[]) => ({ name, start, end, mid: start.map((value, i) => (value + (end[i] ?? 0)) / 2), length: 20 });
   const upstream: UpstreamTools = {
     instructions: () => undefined,
     listTools: () => Promise.resolve([]),
     callTool: (name, args) => {
       calls.push({ name, args });
-      if (name === 'inspect_design') return Promise.resolve(reply({ sketches: (options.sketches ?? []).map((sketch) => ({ name: sketch })) }));
+      if (name === 'inspect_design') return Promise.resolve(reply({ sketches: (options.sketches ?? []).map((sketch) => ({ name: sketch })), bodies: Object.keys(volumes(timeline)).map((body) => ({ name: body })) }));
       const commands = (args.commands ?? []) as Step[];
       if (args.rollback === true) {
         // The trial: what the hole takes out of the copy, a piece 3.4 mm across under the point.
@@ -175,18 +194,32 @@ function engine(options: { sketches?: string[]; bodies?: Record<string, number>;
       }
       const results: unknown[] = [];
       for (const [index, step] of commands.entries()) {
-        if (step.command === options.refuse) return Promise.resolve(reply({ results, failed: { index, command: step.command, error: 'refused for the test' } }));
+        const refused = () => Promise.resolve(reply({ results, failed: { index, command: step.command, error: 'refused for the test' } }));
+        if (options.refuse?.includes(step.command)) return refused();
         if (step.command === 'inspect.measure') results.push(measured());
-        else if (step.command === 'document.inspect') results.push({ timeline: timeline.map((type, i) => ({ id: i + 1, type })), sketches: [], bodies: Object.keys(volumes(timeline)), undo: timeline.length });
+        else if (step.command === 'document.inspect') results.push({ timeline: timeline.map((type, i) => ({ id: i + 1, type })), sketches: [], bodies: Object.keys(volumes(timeline)), undo: undoable });
         else if (step.command === 'joint.list') results.push({ joints: [] });
+        else if (step.command === 'model.faces') results.push({ faces: [{ name: 'F1:+z', plane_normal: [0, 0, 1], point: [10, 10, 10] }] });
+        else if (step.command === 'model.edges')
+          results.push({ edges: [edge('F1:+z|F1:-y', [0, 0, 10], [20, 0, 10]), edge('F1:+x|F1:+z', [20, 0, 10], [20, 20, 10]), edge('F1:+y|F1:+z', [20, 20, 10], [0, 20, 10]), edge('F1:-x|F1:+z', [0, 20, 10], [0, 0, 10])] });
         else if (step.command === 'edit.undo') {
-          if (timeline.length === 0) return Promise.resolve(reply({ results, failed: { index, error: 'nothing to undo' } }));
-          timeline.pop();
+          if (undoable === 0) return Promise.resolve(reply({ results, failed: { index, error: 'nothing to undo' } }));
+          undone.push(timeline.pop() as string);
+          undoable -= 1;
+          results.push({});
+        } else if (step.command === 'edit.redo') {
+          const again = undone.pop();
+          if (again === undefined) return Promise.resolve(reply({ results, failed: { index, error: 'nothing to redo' } }));
+          timeline.push(again);
+          undoable += 1;
           results.push({});
         } else if (step.command === 'component.activate') results.push({});
         else {
+          if (options.refuseAfter !== undefined && timeline.length >= options.refuseAfter) return refused();
           timeline.push(step.command);
-          results.push({});
+          undone.length = 0;
+          undoable = Math.min(UNDO_CAP, undoable + 1);
+          results.push(step.command === 'solid.extrude' && options.warning ? { warning: options.warning } : {});
         }
       }
       return Promise.resolve(reply({ results }));
@@ -196,25 +229,42 @@ function engine(options: { sketches?: string[]; bodies?: Record<string, number>;
 }
 
 describe('placing a logo for the assistant (audit W38, W39, W40)', () => {
-  const place = async (args: Record<string, unknown>, options: Parameters<typeof engine>[0] = {}, printer = { nozzle: 0.4, layer: 0.2 }) => {
+  const place = async (args: Record<string, unknown>, options: Parameters<typeof engine>[0] = {}, printer = { nozzle: 0.4, layer: 0.2 }, picture: Drawing = read('logo-o.svg'), name = 'O') => {
     const drawings = new Drawings();
-    const id = drawings.keep({ name: 'O', drawing: read('logo-o.svg'), width: 40 });
+    const id = drawings.keep({ name, drawing: picture, width: 40 });
     const fake = engine(options);
     const lines: string[] = [];
     const answer = await withDrawings(fake.upstream, drawings, () => printer, (line) => lines.push(line)).callTool('partbuddy_place_drawing', { drawing: id, body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], mode: 'deboss', depth: 0.6, ...args });
     return { ...fake, answer, text: answer.content[0]?.type === 'text' ? answer.content[0].text : '', lines };
   };
+  // Two squares in two colours, side by side; `count` pairs of them for a logo of many pieces.
+  const duo = (count = 1) => {
+    const squares = Array.from({ length: count }, (_, i) => `<rect x="${String(i * 4)}" width="1" height="1" fill="#e30613"/><rect x="${String(i * 4 + 2)}" width="1" height="1" fill="#1d71b8"/>`).join('');
+    const parsed = parseDrawing(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${String(count * 4)} 1">${squares}</svg>`);
+    if (!parsed.ok) throw new Error(parsed.detail);
+    return parsed.drawing;
+  };
 
-  it('takes the logo back when centring fails after it was built, and says so', async () => {
-    // The design has no logo sketch to centre: planLogoMove finds none after the build.
-    const { text, answer, timeline } = await place({ centre: 'both' });
-    expect(answer.isError).toBe(true);
-    expect(text).toMatch(/^Not placed: there is no logo "SVG-Logo O"; placed logos: none. Everything was taken back.$/);
-    expect(timeline).toEqual([]);
+  it('centres the logo before it is built and measures the wall there (review S1)', async () => {
+    // Put down at [4, 5] on the 20 × 20 top face: centred to [10, 10] first, the trial hole goes there too.
+    const { text, calls, timeline } = await place({ point: [4, 5, 10], centre: 'both' });
+    expect(text).toBe(
+      'Placed "SVG-Logo O" on Body1 (engraved 0.6 mm, 40 mm wide). Moved by 6 mm along its x and 5 mm along its y onto the middle of face F1:+z of Body1 before it was built; its middle is now at [10, 10, 10] mm. Body1 is 10 mm thick there (measured on trial): 9.4 mm of plastic stay under it.',
+    );
+    const trial = calls.find((call) => call.args.rollback === true)?.args.commands as Step[];
+    expect(trial.find((step) => step.command === 'solid.hole')?.params.position).toEqual([10, 10, 10]);
+    expect((built(calls)[0]?.params.plane as { origin: number[] }).origin).toEqual([10, 10, 10]);
+    expect(timeline).toEqual(['sketch.create', 'sketch.insert_svg', 'solid.extrude']);
+    // Along one axis only the other stays.
+    expect((await place({ point: [4, 5, 10], centre: 'x' })).text).toContain('Moved by 6 mm along its x and 0 mm along its y');
+    // No flat face there: refused before anything is built.
+    const off = await place({ point: [30, 30, 10], centre: 'both' });
+    expect(off.text).toBe("Not placed: no flat face of Body1 at the point to centre the logo on; give the point of the face's middle, or leave centre out");
+    expect(built(off.calls)).toEqual([]);
   });
 
   it('takes back what a refused step left and what landed on another body', async () => {
-    const refused = await place({}, { refuse: 'solid.extrude' });
+    const refused = await place({}, { refuse: ['solid.extrude'] });
     expect(refused.text).toBe('Not placed: SolidCraft refused it: refused for the test. Everything was taken back.');
     expect(refused.timeline).toEqual([]);
     // The cut went into "Other", not Body1.
@@ -227,11 +277,39 @@ describe('placing a logo for the assistant (audit W38, W39, W40)', () => {
     expect(built(none.calls)).toEqual([]);
   });
 
-  it('says when it could not be taken back in full', async () => {
-    // Nothing can be undone: what was built stays, and the answer says so.
-    const kept = await place({ centre: 'both' }, { refuse: 'edit.undo' });
-    expect(kept.text).toContain('What was built could NOT be taken back');
-    expect(kept.lines.some((line) => line.includes('could not be taken back'))).toBe(true);
+  it('says when nothing could be undone, and what is left over 200 undo steps (review S3)', async () => {
+    // Nothing can be undone: what was built stays, and the answer and the log say so.
+    const kept = await place({}, { refuse: ['solid.extrude', 'edit.undo'] });
+    expect(kept.text).toBe(`Not placed: SolidCraft refused it: refused for the test. ${TAKEN_BACK_SAID.kept}`);
+    expect(kept.timeline).toEqual(['sketch.create', 'sketch.insert_svg']);
+    expect(kept.lines).toContain('partbuddy_place_drawing SVG-Logo O could not be taken back (kept) after: SolidCraft refused it: refused for the test');
+    // A logo of 60 colour pieces built up: 240 steps, 40 over SolidCraft's 200 undo steps, the last one refused.
+    const many = duo(30);
+    const capped = await place({ mode: 'emboss', colours: true, depth: 1 }, { refuseAfter: 239, volumes: () => ({ Body1: 4000 }) }, undefined, many, 'Duo');
+    expect(capped.text).toBe(`Not placed: SolidCraft refused it: refused for the test. ${TAKEN_BACK_SAID.kept}`);
+    expect(capped.timeline).toHaveLength(239);
+    expect(capped.lines.some((line) => line.startsWith('partbuddy_place_drawing SVG-Logo Duo could not be taken back (kept)'))).toBe(true);
+    // The same, and SolidCraft does not redo either: how much is left cannot be told.
+    const partly = await place({ mode: 'emboss', colours: true, depth: 1 }, { refuseAfter: 239, refuse: ['edit.redo'], volumes: () => ({ Body1: 4000 }) }, undefined, many, 'Duo');
+    expect(partly.text).toBe(`Not placed: SolidCraft refused it: refused for the test. ${TAKEN_BACK_SAID.partly}`);
+    expect(partly.lines.some((line) => line.startsWith('partbuddy_place_drawing SVG-Logo Duo could not be taken back (partly)'))).toBe(true);
+  });
+
+  it('refuses a logo built up that stands apart, and keeps the pieces an inlay splits as its own (review K6)', async () => {
+    // A body of its own beside Body1, or SolidCraft's warning: apart, taken back.
+    const own = await place({ mode: 'emboss', depth: 1 }, { volumes: (steps) => (steps.includes('solid.extrude') ? { Body1: 4000, Body2: 12 } : { Body1: 4000 }) });
+    expect(own.text).toBe('Not placed: it would stand apart from Body1, not on it; give a point on a face of Body1. Everything was taken back.');
+    expect(own.timeline).toEqual([]);
+    const warned = await place({ mode: 'emboss', depth: 1 }, { warning: 'the result has 2 separate pieces', volumes: (steps) => ({ Body1: 4000 + steps.length }) });
+    expect(warned.text).toContain('it would stand apart from Body1');
+    // Inlaid in colours: the colour bodies and a piece a cut split off one ("… (2)") are the logo's, not new bodies of the part.
+    const cut = (steps: string[]) => steps.includes('solid.combine');
+    const inlay = await place({ colours: true }, { volumes: (steps) => (cut(steps) ? { Body1: 3990, 'Duo e30613 1': 1, 'Duo e30613 1 (2)': 0.5, 'Duo 1d71b8 1': 1 } : { Body1: 4000 }) }, undefined, duo(), 'Duo');
+    expect(inlay.answer.isError).toBeFalsy();
+    expect(inlay.text).toContain('inlaid 0.6 mm');
+    // A piece of the part itself the inlay cut off is not.
+    const split = await place({ colours: true }, { volumes: (steps) => (cut(steps) ? { Body1: 3990, 'Body1 (1)': 2, 'Duo e30613 1': 1, 'Duo 1d71b8 1': 1 } : { Body1: 4000 }) }, undefined, duo(), 'Duo');
+    expect(split.text).toMatch(/^Not placed: it would leave 2 bodies where Body1 was one \(Body1 \(1\)\)/);
   });
 
   it('holds an engraved depth to the wall under it, on either side of the limit', async () => {
@@ -257,10 +335,18 @@ describe('placing a logo for the assistant (audit W38, W39, W40)', () => {
     expect(blind.lines.some((line) => line.includes('could not be measured'))).toBe(true);
   });
 
-  it('says details too fine for the nozzle, as the composer does', async () => {
-    // The "O" ring is 0.32 mm wide at 1.6 mm: under the 0.9 mm of two lines.
-    const fine = await place({ width: 1.6, depth: 0.2 }, { thick: 10 });
-    expect(fine.text).toMatch(/One place of the drawing is too fine for the 0\.4 mm nozzle at 1\.6 mm wide, the narrowest [\d.]+ mm: a stroke under 0\.9 mm \(two lines\) does not print solid, a gap under 0\.42 mm closes up\. From \d+ mm wide everything fits; tell the user\./);
+  it('says details too fine for the nozzle as the logo is built (review S2)', async () => {
+    // The "O" ring is 0.32 mm wide at 1.6 mm. Engraved it is a groove, under the 0.42 mm a line needs.
+    const engraved = await place({ width: 1.6, depth: 0.2 }, { thick: 10 });
+    expect(engraved.text).toMatch(
+      /One place of the drawing is too fine for the 0\.4 mm nozzle at 1\.6 mm wide, the narrowest [\d.]+ mm: a stroke \(a groove\) under 0\.42 mm closes up, a gap \(a rib left standing\) under 0\.9 mm does not print solid \(two lines\)\. From \d+ mm wide everything fits; tell the user\./,
+    );
+    // Built up it stands, under the 0.9 mm of two lines.
+    const raised = await place({ width: 1.6, depth: 0.2, mode: 'emboss' }, { volumes: (steps) => ({ Body1: 4000 + steps.length }) });
+    expect(raised.text).toContain('a stroke under 0.9 mm does not print solid (two lines), a gap under 0.42 mm closes up.');
+    // At 3 mm the ring is 0.6 mm: a groove that prints, a stroke standing up that does not.
+    expect((await place({ width: 3, depth: 0.2 }, { thick: 10 })).text).not.toContain('too fine');
+    expect((await place({ width: 3, depth: 0.2, mode: 'emboss' }, { volumes: (steps) => ({ Body1: 4000 + steps.length }) })).text).toContain('too fine');
     expect((await place({}, { thick: 10 })).text).not.toContain('too fine');
   });
 
