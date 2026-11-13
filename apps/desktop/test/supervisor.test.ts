@@ -333,7 +333,7 @@ describe('SolidCraft supervisor', () => {
       cleanups.push(() => {
         rmSync(target, { recursive: true, force: true });
       });
-      return { supervisor, asked, target };
+      return { supervisor, asked, target, fake };
     };
     const heights = (file: string) => {
       const data = readFileSync(file);
@@ -349,6 +349,17 @@ describe('SolidCraft supervisor', () => {
       // Without a print face it lies as designed.
       await supervisor.exportDesign('stl', join(target, 'as-designed.stl'));
       expect(heights(join(target, 'as-designed.stl'))).toEqual([12, 12, 12, 2, 2, 2]);
+    });
+
+    it('exports a body whose print face cannot be read as designed instead of failing the export (review of BC-04, K4)', async () => {
+      const { supervisor, target, fake } = await exporting(['Lid']);
+      fake.answers['model.faces'] = () => {
+        throw new Error('the body has no faces to list');
+      };
+      await supervisor.exportDesign('stl', join(target, 'lid.stl'), { Lid: 'F1:+z' });
+      expect(heights(join(target, 'lid.stl'))).toEqual([12, 12, 12, 2, 2, 2]);
+      await supervisor.exportDesign('3mf', join(target, 'lid.3mf'), { Lid: 'F1:+z' });
+      expect(existsSync(join(target, 'lid.3mf'))).toBe(true);
     });
 
     it('leaves an STL of several pieces as designed, and STEP always, without a quality', async () => {
@@ -373,15 +384,23 @@ describe('SolidCraft supervisor', () => {
     // document.json lists the print faces) and moves the revision; the project store holds the design.
     const projects = join(cacheDir, 'projects');
     const design = join(projects, 'Cable clip', 'Cable clip.sc');
-    const state = { revision: 7, faces: {} as Record<string, unknown> };
+    // As HeadlessEngine: `current()` is the revision recorded at the end of the save, not a live read; `during` is a
+    // change sent while the save runs, after SolidCraft took the file.
+    const state = { revision: 7, recorded: null as { documentId: string; revision: number } | null, changes: 0, faces: {} as Record<string, unknown>, during: null as (() => void) | null };
     const engine = {
       isOpen: true,
-      current: () => ({ documentId: 'doc', revision: state.revision }),
+      get changes() {
+        return state.changes;
+      },
+      current: () => state.recorded,
       revision: () => Promise.resolve({ documentId: 'doc', revision: state.revision }),
       save: (path: string) => {
         mkdirSync(dirname(path), { recursive: true });
         writeFileSync(path, zipSync({ 'document.json': strToU8(JSON.stringify({ print_faces: state.faces })), 'cache/bodies.bin': new Uint8Array(8) }));
+        state.during?.();
+        state.during = null;
         state.revision += 1;
+        state.recorded = { documentId: 'doc', revision: state.revision };
         return Promise.resolve();
       },
       close: () => Promise.resolve(),
@@ -407,6 +426,20 @@ describe('SolidCraft supervisor', () => {
     // Nothing moved since: no save.
     await supervisor.saveNow();
     expect(saved.count).toBe(2);
+    // A print face sent while a save runs (review of BC-04, S1): the file was taken before it, the revision read after
+    // the save holds it. The file is not read, so the face just set stays; the next save holds it.
+    state.revision += 1;
+    state.during = () => {
+      state.faces = { [body.name]: { name: top.name, point: top.centroid } };
+      state.changes += 1;
+      state.revision += 1;
+    };
+    await supervisor.saveNow();
+    expect(saved.count).toBe(3);
+    expect(await supervisor.savedPrintFaces()).toBeNull();
+    await supervisor.saveNow();
+    expect(saved.count).toBe(4);
+    expect((await supervisor.savedPrintFaces())?.faces).toEqual({ [body.name]: top.name });
   });
 
   it('refuses to export a design without a body', async () => {

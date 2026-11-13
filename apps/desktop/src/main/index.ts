@@ -44,7 +44,7 @@ import { Bridge, trustedSender } from './bridge';
 import { findExecutable, programInBundle, systemEnvironment } from './solidcraft/discovery';
 import { EngineChoice } from './solidcraft/engineChoice';
 import { AssistantSettings } from './agents/assistantSettings';
-import { asksForUnit, checkImportFile, IMPORT_EXTENSIONS, importName, MESH_UNITS, type ImportKind, type MeshUnit } from './projects/importFile';
+import { asksForUnit, checkImportFile, insertIsLast, IMPORT_EXTENSIONS, importName, MESH_UNITS, type ImportKind, type MeshUnit } from './projects/importFile';
 import { migrateDesigns, ProjectStore, whenFree } from './projects/projectStore';
 import { readParts, writePart } from './projects/parts';
 import { writeMeta } from './projects/projectMeta';
@@ -1309,7 +1309,7 @@ if (!app.requestSingleInstanceLock()) {
           // Only the insert is taken back: while the question was open the assistant or the user may have changed the design.
           assistantIdle();
           const now = await supervisor.history();
-          if (now.documentId !== after.documentId || now.undo !== after.undo || now.redo !== 0) {
+          if (!insertIsLast(after, now)) {
             log(`the unit of ${name} was not applied: the design changed while the question was open`);
             throw new Error(`the design changed while PartBuddy asked for the unit, so ${name} stays in millimetres; take it back and insert it again`);
           }
@@ -1375,6 +1375,11 @@ if (!app.requestSingleInstanceLock()) {
     // too: with parts printed as one piece PartBuddy writes the file and lays them itself (audit G1).
     bridge.handle(invokeChannels.designSlicers, () => supervisor.slicers());
     bridge.handle(invokeChannels.designSendToSlicer, async ({ slicer }) => {
+      // As the export: the faces read from the design as it is now (review of BC-04, K1).
+      await supervisor.saveNow();
+      await readSavedFaces().catch((error: unknown) => {
+        log(`print faces not read from the saved design before the slicer: ${(error as Error).message}`);
+      });
       const { name, unverified } = await supervisor.sendToSlicer(slicer, printFacesNow());
       log(`opened the design in ${name}`);
       return { name, ...(unverified.length > 0 ? { unverified } : {}) };

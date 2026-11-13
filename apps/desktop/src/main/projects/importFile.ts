@@ -1,6 +1,8 @@
 import { existsSync, statSync } from 'node:fs';
 import { basename, extname, isAbsolute } from 'node:path';
 
+import { designChanged, type DesignHistory } from '../agents/workLog';
+
 /**
  * Files PartBuddy imports (plan step B4): SolidCraft designs as they are, STEP and IGES as bodies
  * with faces (`file.insert_step`), STL, 3MF and OBJ as mesh bodies (`file.insert_mesh`), and
@@ -100,4 +102,13 @@ export function asksForUnit(file: string, size: readonly [number, number, number
   if (!size || !statesNoUnit(file)) return false;
   const largest = Math.max(...size);
   return largest < SMALL_MM || largest > Math.max(...bed);
+}
+
+/**
+ * Whether the insert is still the last step of the design, so one Undo takes back the insert and nothing else: nothing
+ * changed since (`designChanged`, which at SolidCraft's undo cap of 200 goes by the marker and the revision) and
+ * nothing waits to be redone (review of BC-04, S2).
+ */
+export function insertIsLast(after: DesignHistory, now: DesignHistory): boolean {
+  return !designChanged(after, now) && now.redo === 0;
 }

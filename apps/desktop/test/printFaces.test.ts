@@ -96,8 +96,13 @@ describe('the print faces of the open design, kept in one place (audit D20, H-13
     expect(faces.now()).toEqual({ Knob: 'F1:+z' });
     folder.now = mkdtempSync(join(tmpdir(), 'partbuddy-faces-'));
     folders.push(folder.now);
+    // The folder has no file before the first save is read: the faces kept without it still hold (review of BC-04, K2).
+    expect(faces.now()).toEqual({ Knob: 'F1:+z' });
+    // The first save writes the file, also when SolidCraft's faces are those kept.
+    expect(faces.takeSaved({ faces: { Knob: 'F1:+z' }, lost: [] })).toEqual([]);
+    expect(readPrintFaces(folder.now)).toEqual({ Knob: 'F1:+z' });
     faces.keep('Lid', 'F2:-z');
-    expect(readPrintFaces(folder.now)).toEqual({ Lid: 'F2:-z' });
+    expect(readPrintFaces(folder.now)).toEqual({ Knob: 'F1:+z', Lid: 'F2:-z' });
   });
 
   it('takes the saved faces only when the file is current, and says a lost face once', () => {

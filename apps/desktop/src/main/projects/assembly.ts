@@ -1,4 +1,4 @@
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { assemblyPlanSchema, type AssemblyPlan } from '../../shared/assembly';
@@ -94,8 +94,11 @@ export class PrintFaceKeeper {
 
   now(): Record<string, string> {
     const folder = this.options.folder();
-    if (folder) return readPrintFaces(folder);
-    return this.loose.documentId === this.options.documentId() ? this.loose.faces : {};
+    const loose = this.loose.documentId === this.options.documentId() ? this.loose.faces : {};
+    // A design that just got its folder has no file there until its first save is read: until then the faces kept
+    // without a folder hold (review of BC-04, K2).
+    if (folder && existsSync(join(folder, PRINT_FACES_FILE))) return readPrintFaces(folder);
+    return loose;
   }
 
   /** Keeps or clears (null) one body's print face, as it is set: by the user, the assistant, a mechanism or a template. */
@@ -109,10 +112,12 @@ export class PrintFaceKeeper {
    * lies on no flat face of them any more and that were not said before: they now lie as designed.
    */
   takeSaved(saved: { faces: Record<string, string>; lost: string[] } | null): string[] {
-    if (!saved || !this.options.folder()) return [];
+    const folder = this.options.folder();
+    if (!saved || !folder) return [];
     const kept = this.now();
     const same = Object.keys(kept).length === Object.keys(saved.faces).length && Object.entries(saved.faces).every(([body, face]) => kept[body] === face);
-    if (!same) this.set(saved.faces);
+    // The first save of a design in its folder writes the file even when the faces are those kept without one.
+    if (!same || !existsSync(join(folder, PRINT_FACES_FILE))) this.set(saved.faces);
     const news = saved.lost.filter((body) => !this.told.has(body));
     this.told = new Set(saved.lost);
     return news;

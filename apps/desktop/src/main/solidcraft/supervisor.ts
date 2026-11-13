@@ -1316,8 +1316,11 @@ export class SolidCraftSupervisor {
           await engine.save(scratch);
           await rm(scratch, { force: true });
         }
+        // A change sent while the save ran moves the revision read after it, and may not be in the file: then the
+        // file counts as older than the design (review of BC-04, S1).
+        const sent = engine.changes;
         await engine.save(file);
-        this.savedRevision = engine.current();
+        this.savedRevision = engine.changes === sent ? engine.current() : null;
       })
       .then(async () => {
         designs.remember(file);

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { asksForUnit, boxSize, checkImportFile, importKindOf, importName, insertCommand } from '../src/main/projects/importFile';
+import { asksForUnit, boxSize, checkImportFile, insertIsLast, importKindOf, importName, insertCommand } from '../src/main/projects/importFile';
 import { describeCommands, describeUserAction } from '../src/shared/stepPhrases';
 
 const folders: string[] = [];
@@ -75,5 +75,26 @@ describe('the unit of an STL or OBJ (audit D44)', () => {
     expect(asksForUnit('clip.stl', [256.001, 20, 20], bed)).toBe(true);
     expect(asksForUnit('clip.3mf', [1, 1, 1], bed)).toBe(false);
     expect(asksForUnit('clip.stl', null, bed)).toBe(false);
+  });
+});
+
+describe('taking back an insert for its unit (review of BC-04, S2)', () => {
+  const after = { documentId: 'doc', revision: 40, undo: 12, redo: 0, marker: 9 };
+
+  it('takes it back when nothing changed since, and not after another step or with something to redo', () => {
+    expect(insertIsLast(after, { ...after })).toBe(true);
+    // A save moved the revision below the cap: still the insert.
+    expect(insertIsLast(after, { ...after, revision: 41 })).toBe(true);
+    expect(insertIsLast(after, { ...after, undo: 13, revision: 41 })).toBe(false);
+    expect(insertIsLast(after, { ...after, undo: 11, redo: 1 })).toBe(false);
+    expect(insertIsLast(after, { ...after, documentId: 'other' })).toBe(false);
+  });
+
+  it('sees a step of the assistant at the undo cap of 200, where the depth stays', () => {
+    const capped = { ...after, undo: 200 };
+    expect(insertIsLast(capped, { ...capped })).toBe(true);
+    expect(insertIsLast(capped, { ...capped, revision: 41 })).toBe(false);
+    expect(insertIsLast(capped, { ...capped, marker: 10 })).toBe(false);
+    expect(insertIsLast({ ...capped, undo: 199 }, { ...capped, undo: 199, revision: 41 })).toBe(true);
   });
 });
