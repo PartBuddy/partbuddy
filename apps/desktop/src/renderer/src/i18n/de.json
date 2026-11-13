@@ -1014,6 +1014,10 @@
     "defaultMaterial": "Standard für neue Teile",
     "materialHint": "Startwerte, nicht für deinen Drucker gemessen. Miss sie mit „Toleranzen einmessen …“ an drei kleinen Prüfkörpern nach; der Assistent baut mit diesen Spielen.",
     "nameMissing": "Jedes Profil braucht einen Namen. Bis dahin bleibt der zuletzt gespeicherte Stand.",
+    "layerOverNozzle": "Dicker als die Düse: das drucken Slicer nicht. Höchstens die Düse angeben.",
+    "layerUnsaved": "Die Schichthöhe von {name} ist dicker als ihre Düse. Bis das behoben ist, bleibt der zuletzt gespeicherte Stand.",
+    "fitOrder": "Die Spiele müssen von Klemmen bis Drehen wachsen.",
+    "fitOrderUnsaved": "Bei {name} wachsen die Spiele nicht von Klemmen bis Drehen. Bis dahin bleibt der zuletzt gespeicherte Stand.",
     "supportFree": "Stützfrei konstruieren",
     "supportFreeHint": "Der Assistent gibt Kanten zum Druckbett eine Fase statt einer Rundung, gibt breiten liegenden Bohrungen ein Tropfendach und überbrückt Senkungen, die nach unten zeigen. So braucht der Slicer keine Stützen.",
     "saveFailed": "Die Profile konnten nicht gespeichert werden.",
@@ -1106,9 +1110,11 @@
         "fit": "{fit}: keine Stufe des Kamms.",
         "hole": "Ø {size} mm: der Messwert liegt mehr als 1 mm daneben.",
         "overhang": "Überhang: keine Stufe der Treppe.",
-        "order": "Die Spiele müssen von Klemmen bis Drehen wachsen. Prüfe die gewählten Stufen."
+        "order": "Die Spiele müssen von Klemmen bis Drehen wachsen. Prüfe die gewählten Stufen.",
+        "oversize": "Die Löcher sind im Mittel {by, number} mm größer als gezeichnet; die Lochzugabe bleibt deshalb 0. Miss sie noch einmal nach; sind sie wirklich größer, weitet sie wahrscheinlich der Lochausgleich des Slicers."
       },
-      "backToMaterials": "Zurück zu Material"
+      "backToMaterials": "Zurück zu Material",
+      "layerOverNozzle": "Die Schichthöhe dieses Druckers, {layer} mm, ist dicker als seine Düse, {nozzle} mm: das drucken Slicer nicht, deshalb gibt es dafür keine Prüfkörper. Zuerst im Druckerprofil die Schichthöhe auf höchstens die Düse setzen."
     }
   },
   "check": {

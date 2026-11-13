@@ -1014,6 +1014,10 @@
     "defaultMaterial": "Default for new parts",
     "materialHint": "Starting values, not measured on your printer. Measure them with »Measure tolerances …« on three small test pieces; the assistant designs with these clearances.",
     "nameMissing": "Every profile needs a name. Until then the last saved profiles stay.",
+    "layerOverNozzle": "Thicker than the nozzle: slicers do not print that. Make it at most the nozzle.",
+    "layerUnsaved": "The layer height of {name} is thicker than its nozzle. Until it is fixed the last saved profiles stay.",
+    "fitOrder": "The clearances have to grow from clamp to turn.",
+    "fitOrderUnsaved": "The clearances of {name} do not grow from clamp to turn. Until they do the last saved profiles stay.",
     "saveFailed": "The profiles could not be saved.",
     "supportFree": "Design without support",
     "supportFreeHint": "The assistant chamfers edges facing the bed instead of rounding them, gives wide lying holes a teardrop roof and bridges countersinks that open downwards, so the slicer needs no support.",
@@ -1106,9 +1110,11 @@
         "fit": "{fit}: not a step of the comb.",
         "hole": "Ø {size} mm: the reading is more than 1 mm off.",
         "overhang": "Overhang: not a step of the staircase.",
-        "order": "The clearances must grow from clamp to turn. Check the steps you picked."
+        "order": "The clearances must grow from clamp to turn. Check the steps you picked.",
+        "oversize": "The holes came out {by, number} mm larger than drawn on average, so the hole allowance stays 0. Measure them again; if they really are larger, the slicer's hole compensation is likely widening them."
       },
-      "backToMaterials": "Back to materials"
+      "backToMaterials": "Back to materials",
+      "layerOverNozzle": "The layer height of this printer, {layer} mm, is thicker than its nozzle, {nozzle} mm: slicers do not print that, so there are no test pieces for it. Set the layer height to at most the nozzle in the printer profile first."
     }
   },
   "check": {

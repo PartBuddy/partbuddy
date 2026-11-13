@@ -155,9 +155,10 @@ describe('the gaps the check holds the parts to (audit D9, D10)', () => {
   const printer = (nozzle: number, layer = 0.2): PartPrint => ({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material: pla, chosen: true, supportFree: true, design: DESIGN_DEFAULTS });
 
   it('takes the push fit scaled to the nozzle, the number the print profile gives the assistant', () => {
+    // A finer nozzle keeps the 0.4 mm value (BC-14, audit MG-12: before 0.075 and 0.094).
     for (const [nozzle, push] of [
-      [0.2, 0.075],
-      [0.25, 0.094],
+      [0.2, 0.15],
+      [0.25, 0.15],
       [0.4, 0.15],
       [0.6, 0.225],
       [0.8, 0.3],
