@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
 import { STANDARD_GUIDANCE, withStandardTool } from '../src/main/agents/standardTool';
+import { DEFAULT_PRINTER, defaultBlock, sizesOf } from '../src/shared/blocks';
+import { lineWidth, snapSize } from '../src/shared/designFit';
+import { CLEARANCE_NORMAL, NUT } from '../src/shared/screwSizes';
 import { STANDARDS, STANDARD_TOPICS, standardText } from '../src/shared/standards';
 
 describe('the standards the assistant looks up', () => {
@@ -39,5 +42,43 @@ describe('the standards the assistant looks up', () => {
     // Figures from the sheets: fan hole spacing and the Raspberry Pi's hole pattern.
     expect(standardText('vent')).toContain('80 fan 71.5');
     expect(standardText('boardMount')).toContain('58 × 49 mm');
+  });
+
+  // Audit BC-22: the figures come from the tables and blocks the code uses, and what depends on the profile says so.
+  it('says the sizes of the blocks and tables it names, and the profile where a size depends on it', () => {
+    // T24, R5: three lines on the 0.4 mm nozzle are a whole number of lines, as 1.2 mm was not.
+    const vent = standardText('vent');
+    const bars = 3 * lineWidth(DEFAULT_PRINTER);
+    expect(vent).toContain(`bars at least 3 lines of the print profile wide between them (the line width your design rules name: ${String(bars)} mm on a 0.4 mm nozzle`);
+    expect(snapSize('wall', bars, DEFAULT_PRINTER)).toBe(bars);
+    expect(snapSize('wall', 1.2, DEFAULT_PRINTER)).toBe(bars);
+    expect(vent).toContain('with bars of 3 lines');
+    expect(vent).not.toMatch(/1\.2 mm/);
+    // T50, R45: the bed chamfer in layers as the design rules; the hook's root radius named as the deviation from them.
+    expect(standardText('feet')).toContain('two to three layers high as the design rules say');
+    expect(standardText('feet')).not.toContain('0.4 mm at 45°');
+    expect(standardText('hook')).toContain("at least the hook's thickness, more than the half wall the design rules ask");
+    // R46, H-33: hooks over the block with its own sizes; pins only locate. MV-27: standoffs three times the hole. MV-23: plug heights.
+    const board = standardText('boardMount');
+    const hook = defaultBlock('snapFit', '', [0, 0, 0], 'M3');
+    expect(hook.block === 'snapFit' && board.includes(`built with partbuddy_block snapFit (by default ${String(hook.thickness)} mm thick at its root and ${String(hook.width)} mm wide)`)).toBe(true);
+    expect(board).not.toContain('1 mm thick at its root');
+    expect(board).toContain('which only locate it');
+    expect(board).toContain('outer diameter three times the hole');
+    expect(board).toContain('USB 16.0, Ethernet 13.5, USB-C 3.2, micro HDMI 3.0, audio jack 6.0 mm');
+    expect(board).toContain('(2 mm for M2.5, 2.4 mm for M3)');
+    // T50, MV-22, R47: every knob size has its head, nut and ISO 273 hole; nutTrap's range is the block's, both ends.
+    const knob = standardText('starKnob');
+    const traps = sizesOf('nutTrap');
+    expect(knob).toContain(`For ${String(traps[0])} to ${String(traps[traps.length - 1])} partbuddy_block nutTrap makes the pocket.`);
+    expect(knob).toContain('For M2 to M10');
+    for (const size of ['M5', 'M6', 'M8', 'M10'] as const) {
+      expect(knob).toContain(`${size} ${String(CLEARANCE_NORMAL[size])}`);
+      expect(knob).toContain(`${size} ${String(NUT[size][0])} and `);
+      expect(knob).toContain(`${String(NUT[size][1])} (${size})`);
+    }
+    expect(knob).toContain('M10 50, 22, 32 mm.');
+    expect(knob).not.toContain('M12');
+    expect(knob).not.toContain('0.4 mm under it');
   });
 });
