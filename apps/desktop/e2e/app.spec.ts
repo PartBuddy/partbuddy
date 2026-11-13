@@ -1462,6 +1462,17 @@ test('a printer from the catalog becomes an ordinary profile that can be changed
   await expect(nozzle).toHaveValue('0.4');
   await nozzle.fill('0.6');
   await nozzle.press('Tab');
+  // A layer thicker than the nozzle is not saved and the field says why (audit D28, T32).
+  const layer = dialog.getByTestId('printer-layer').getByRole('textbox');
+  await layer.fill('0.8');
+  await layer.press('Tab');
+  await expect(dialog.getByTestId('printer-layer')).toContainText('Thicker than the nozzle');
+  await expect(dialog.getByTestId('print-unsaved')).toContainText('thicker than its nozzle');
+  await layer.fill('0.6');
+  await layer.press('Tab');
+  await expect(dialog.getByTestId('print-unsaved')).toHaveCount(0);
+  await layer.fill('0.2');
+  await layer.press('Tab');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
@@ -1582,6 +1593,14 @@ test('a material from the catalog becomes an ordinary profile with its starting 
   const slide = dialog.getByTestId('material-fit-slide').getByRole('textbox');
   await slide.fill('0.45');
   await slide.press('Tab');
+  // Looser than turn: not saved until the fits grow again from clamp to turn (audit T33).
+  await expect(dialog.getByTestId('material-fit-order')).toBeVisible();
+  await expect(dialog.getByTestId('print-unsaved')).toContainText('clamp to turn');
+  const turn = dialog.getByTestId('material-fit-turn').getByRole('textbox');
+  await turn.fill('0.5');
+  await turn.press('Tab');
+  await expect(dialog.getByTestId('material-fit-order')).toHaveCount(0);
+  await expect(dialog.getByTestId('print-unsaved')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
@@ -1589,7 +1608,7 @@ test('a material from the catalog becomes an ordinary profile with its starting 
   const added = saved.materials.filter((item) => item.name === 'PETG-CF');
   expect(added).toHaveLength(2);
   expect(added[0]?.id).toBe('petg-cf');
-  expect(added[1]).toMatchObject({ overhang: entry.overhang, holeShrink: entry.holeShrink, clearance: { ...entry.clearance, slide: 0.45 } });
+  expect(added[1]).toMatchObject({ overhang: entry.overhang, holeShrink: entry.holeShrink, clearance: { ...entry.clearance, slide: 0.45, turn: 0.5 } });
 });
 
 test('the ready-to-print light follows the printer, points at its findings and asks before a red export (M7)', async () => {

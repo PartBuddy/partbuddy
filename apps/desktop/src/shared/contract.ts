@@ -1071,9 +1071,21 @@ export const printerProfileSchema = z
   })
   .strict();
 
+/**
+ * A layer no thicker than the nozzle (audit T32, D28): PrusaSlicer refuses more ("Layer height can't be greater than
+ * nozzle diameter", DisplayStrings.cpp, commit e6c85c5), Bambu Studio's machine profiles stop at 0.28 mm for 0.4 mm
+ * (`max_layer_height`, fdm_machine_common.json, commit 930fe93). Checked where profiles are entered (the editor, through
+ * `printSettingsProblem`) and for the test pieces, not when they are read, so a file saved before still opens and the
+ * editor says what to fix.
+ */
+export const layerFitsNozzle = (printer: { nozzle: number; layer: number }) => printer.layer <= printer.nozzle + 1e-9;
+
 /** Fits from tightest to loosest: held by clamping, pushed together and apart, sliding, turning. */
 export const fitKindSchema = z.enum(['clamp', 'push', 'slide', 'turn']);
 export const FIT_KINDS = fitKindSchema.options;
+
+/** Each fit at least as loose as the one before it, clamp to turn (audit T33); checked where profiles are entered, as the layer. */
+export const fitsInOrder = (clearance: Record<FitKind, number>) => FIT_KINDS.every((fit, i) => i === 0 || clearance[fit] >= clearance[FIT_KINDS[i - 1] ?? fit] - 1e-9);
 
 export const materialProfileSchema = z
   .object({
@@ -1127,9 +1139,22 @@ export const printSettingsSchema = z
   .refine((settings) => settings.printers.some((printer) => printer.id === settings.printer), 'the printer in use must exist')
   .refine((settings) => settings.materials.some((material) => material.id === settings.material), 'the default material must exist');
 
+/**
+ * Why the profiles the user edits cannot be kept as they are, or null (audit T32, D28, T33). The editor holds them back
+ * until fixed. Not part of `printSettingsSchema` and its save request: a file saved before must still open, and the
+ * assistant settings save the whole profiles with every switch, which would then fail without a word.
+ */
+export function printSettingsProblem(settings: PrintSettings): 'nameMissing' | 'layerUnsaved' | 'fitOrderUnsaved' | null {
+  if ([...settings.printers, ...settings.materials].some((item) => item.name.trim() === '')) return 'nameMissing';
+  if (!settings.printers.every(layerFitsNozzle)) return 'layerUnsaved';
+  if (!settings.materials.every((material) => fitsInOrder(material.clearance))) return 'fitOrderUnsaved';
+  return null;
+}
+
 /** The tolerance assistant's test pieces for a nozzle and layer; to a 3MF file (slicer null) or into a slicer. */
-const testPiecesForSchema = z.object({ nozzle: range(0.1, 2), layer: range(0.04, 1.2) }).strict();
-export const testPiecesExportSchema = testPiecesForSchema.extend({ slicer: z.string().min(1).max(80).nullable() }).strict();
+const testPiecesFor = z.object({ nozzle: range(0.1, 2), layer: range(0.04, 1.2) }).strict();
+const testPiecesForSchema = testPiecesFor.refine(layerFitsNozzle, 'a layer height must not exceed the nozzle');
+export const testPiecesExportSchema = testPiecesFor.extend({ slicer: z.string().min(1).max(80).nullable() }).strict().refine(layerFitsNozzle, 'a layer height must not exceed the nozzle');
 
 /** What the open part is printed with: the printer in use and the part's material. */
 export const partPrintSchema = z

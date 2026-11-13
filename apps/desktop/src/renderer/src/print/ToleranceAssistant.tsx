@@ -58,6 +58,10 @@ export function ToleranceAssistant({
       .print.testPiecesPicture({ nozzle: printer.nozzle, layer: printer.layer })
       .then((result) => {
         if (live) setPicture(result.picture);
+      })
+      .catch((reason: unknown) => {
+        // A layer over the nozzle (a profile saved before BC-14) is refused; the profile editor says what to fix.
+        console.warn('PartBuddy: the test pieces could not be pictured', reason);
       });
     void platform()
       .design.slicers()
@@ -99,12 +103,16 @@ export function ToleranceAssistant({
     { key: 'hole', label: t('print.holeShrink'), before: `${number.format(material.holeShrink)} mm`, after: `${number.format(result.material.holeShrink)} mm` },
     ...FIT_KINDS.map((fit) => ({ key: fit, label: `${t('print.clearance')}: ${t(`print.fit.${fit}`)}`, before: `${number.format(material.clearance[fit])} mm`, after: `${number.format(result.material.clearance[fit])} mm` })),
   ];
-  const problems = result.problems.map((problem) =>
-    problem.field === 'fit'
-      ? t('print.tolerance.problem.fit', { fit: t(`print.fit.${problem.fit}`) })
-      : problem.field === 'hole'
-        ? t('print.tolerance.problem.hole', { size: problem.size })
-        : t(`print.tolerance.problem.${problem.field}`),
+  // Holes larger than drawn are said but do not hold the profile back: the allowance is 0, the rest applies (audit MG-31).
+  const oversize = result.problems.flatMap((problem) => (problem.field === 'oversize' ? [problem.by] : []))[0];
+  const problems = result.problems.flatMap((problem) =>
+    problem.field === 'oversize'
+      ? []
+      : problem.field === 'fit'
+        ? [t('print.tolerance.problem.fit', { fit: t(`print.fit.${problem.fit}`) })]
+        : problem.field === 'hole'
+          ? [t('print.tolerance.problem.hole', { size: problem.size })]
+          : [t(`print.tolerance.problem.${problem.field}`)],
   );
   const last = index === STEPS.length - 1;
 
@@ -237,6 +245,11 @@ export function ToleranceAssistant({
                     ))}
                   </tbody>
                 </table>
+                {oversize !== undefined ? (
+                  <p role="status" className="text-sm text-warning" data-testid="tolerance-oversize">
+                    {t('print.tolerance.problem.oversize', { by: oversize })}
+                  </p>
+                ) : null}
                 {problems.length > 0 ? (
                   <ul role="alert" className="list-disc pl-5 text-sm text-danger" data-testid="tolerance-problems">
                     {problems.map((problem) => (

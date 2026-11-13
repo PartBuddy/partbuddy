@@ -220,12 +220,13 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
     expect(note).not.toContain('build it as given anyway');
     expect(note).not.toContain('a gap between moving parts under');
     // One minimum wall for the rules and the check, also where the two roundings differ (0.56, not 0.562);
-    // 0.562 stays only in the snapping grid of designFit (audit D37).
+    // since BC-14 designFit's line is half the check's wall, 0.28 mm, so its grid says the same (audit D37, MG-17).
     const fine = noteFor(0.25, 0.12);
     expect(fine).toContain('walls thinner than 0.56 mm (two lines)');
     expect(fine).toContain('a wall under two lines, 0.56 mm,');
     expect(fine).toContain('at least two lines (0.56 mm)');
-    expect(fine).toContain('Slicers print two to four lines (0.56 mm to 1.124 mm) as wall');
+    expect(fine).toContain('Slicers print two to four lines (0.56 mm to 1.12 mm) as wall');
+    expect(fine).toContain('walls and ribs to whole lines of 0.28 mm (0.56, 0.84, 1.12, 1.4 mm)');
     expect(fine).not.toContain('0.562, 0.843, 1.124 mm (two to four lines)');
     // Lips and snap arms are the exception the block tool refuses under two lines.
     expect(fine).toContain(`Working parts are the exception: lips and snap arms under two lines do not hold, and ${BLOCK_TOOL} refuses them, so ask for those too.`);
