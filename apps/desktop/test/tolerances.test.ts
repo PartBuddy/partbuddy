@@ -49,6 +49,16 @@ describe('applying the readings of the test pieces', () => {
       expect(at(0.074), `Ø ${String(size)}`).toBe(0.05);
       expect(at(0.025), `Ø ${String(size)}`).toBe(0.05);
       expect(at(0.024), `Ø ${String(size)}`).toBe(0);
+      // Over nominal by the same amounts: the same steps, said as oversize (BC-14 review K4).
+      const over = (off: number) => {
+        const holes: (number | null)[] = [null, null, null, null];
+        holes[i] = size + off;
+        return applyReadings(pla, { ...none, holes }).problems;
+      };
+      expect(over(0.075), `Ø ${String(size)}`).toEqual([{ field: 'oversize', by: 0.1 }]);
+      expect(over(0.074), `Ø ${String(size)}`).toEqual([{ field: 'oversize', by: 0.05 }]);
+      expect(over(0.025), `Ø ${String(size)}`).toEqual([{ field: 'oversize', by: 0.05 }]);
+      expect(over(0.024), `Ø ${String(size)}`).toEqual([]);
     }
   });
 

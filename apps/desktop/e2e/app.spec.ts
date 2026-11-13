@@ -1467,7 +1467,7 @@ test('a printer from the catalog becomes an ordinary profile that can be changed
   await layer.fill('0.8');
   await layer.press('Tab');
   await expect(dialog.getByTestId('printer-layer')).toContainText('Thicker than the nozzle');
-  await expect(dialog.getByTestId('print-unsaved')).toContainText('thicker than its nozzle');
+  await expect(dialog.getByTestId('print-unsaved')).toContainText('The layer height of Prusa MK4S is thicker than its nozzle');
   await layer.fill('0.6');
   await layer.press('Tab');
   await expect(dialog.getByTestId('print-unsaved')).toHaveCount(0);
@@ -1476,9 +1476,9 @@ test('a printer from the catalog becomes an ordinary profile that can be changed
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
-  const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ printer: string; printers: { id: string; name: string; nozzle: number }[] }> } } }).partbuddy.print.settings());
+  const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ printer: string; printers: { id: string; name: string; nozzle: number; layer: number }[] }> } } }).partbuddy.print.settings());
   expect(saved.printers).toHaveLength(2);
-  expect(saved.printers.find((item) => item.id === saved.printer)).toMatchObject({ name: 'Prusa MK4S', nozzle: 0.6 });
+  expect(saved.printers.find((item) => item.id === saved.printer)).toMatchObject({ name: 'Prusa MK4S', nozzle: 0.6, layer: 0.2 });
 
   // Resetting the section brings back the starting printer only (audit A-23).
   await page.getByTestId('settings').click();
@@ -1561,6 +1561,31 @@ test('the tolerance assistant reads the test pieces into the material in place o
   await expect(dialog).toHaveCount(0);
   const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ materials: { id: string; overhang: number; holeShrink: number; clearance: Record<string, number> }[] }> } } }).partbuddy.print.settings());
   expect(saved.materials.find((item) => item.id === 'pla')).toMatchObject({ overhang: 50, holeShrink: 0.25, clearance: { clamp: -0.05, push: 0.1, slide: 0.2, turn: 0.3 } });
+});
+
+test('a printer saved before with a layer over its nozzle gets no test pieces and is told why (BC-14 review S1)', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  // As a file saved before the editor held such a layer back: it still loads and saves.
+  await page.evaluate(async () => {
+    const print = (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ printers: { layer: number }[] }>; saveSettings: (settings: unknown) => Promise<unknown> } } }).partbuddy.print;
+    const settings = await print.settings();
+    await print.saveSettings({ ...settings, printers: settings.printers.map((printer) => ({ ...printer, layer: 0.8 })) });
+  });
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-print').click();
+  const dialog = page.getByTestId('print-profiles');
+  await expect(dialog.getByTestId('printer-layer')).toContainText('Thicker than the nozzle');
+  await expect(dialog.getByTestId('print-unsaved')).toContainText('thicker than its nozzle');
+  await dialog.getByTestId('print-tab-material').click();
+  await dialog.getByTestId('tolerance-start').click();
+  const assistant = page.getByTestId('tolerance-assistant');
+  await assistant.getByTestId('tolerance-next').click();
+  await expect(assistant).toHaveAttribute('data-step', 'pieces');
+  await expect(assistant.getByTestId('tolerance-layer')).toContainText('0.8 mm, is thicker than its nozzle, 0.4 mm');
+  await expect(assistant.getByTestId('tolerance-save')).toBeDisabled();
+  await expect(assistant.getByTestId('tolerance-picture')).toHaveCount(0);
+  await expect(assistant.getByTestId('tolerance-status')).toHaveCount(0);
 });
 
 test('a material from the catalog becomes an ordinary profile with its starting values', async () => {

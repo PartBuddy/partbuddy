@@ -1072,8 +1072,9 @@ export const printerProfileSchema = z
   .strict();
 
 /**
- * A layer no thicker than the nozzle (audit T32, D28): PrusaSlicer refuses more ("Layer height can't be greater than
- * nozzle diameter", DisplayStrings.cpp, commit e6c85c5), Bambu Studio's machine profiles stop at 0.28 mm for 0.4 mm
+ * A layer no thicker than the nozzle (audit T32, D28). The nozzle is the limit a slicer refuses beyond: PrusaSlicer
+ * "Layer height can't be greater than nozzle diameter" (DisplayStrings.cpp, commit e6c85c5). What prints well is less,
+ * a recommendation and not refused here: Bambu Studio's machine profiles stop at 0.28 mm for 0.4 mm, 70 %
  * (`max_layer_height`, fdm_machine_common.json, commit 930fe93). Checked where profiles are entered (the editor, through
  * `printSettingsProblem`) and for the test pieces, not when they are read, so a file saved before still opens and the
  * editor says what to fix.
@@ -1144,10 +1145,13 @@ export const printSettingsSchema = z
  * until fixed. Not part of `printSettingsSchema` and its save request: a file saved before must still open, and the
  * assistant settings save the whole profiles with every switch, which would then fail without a word.
  */
-export function printSettingsProblem(settings: PrintSettings): 'nameMissing' | 'layerUnsaved' | 'fitOrderUnsaved' | null {
-  if ([...settings.printers, ...settings.materials].some((item) => item.name.trim() === '')) return 'nameMissing';
-  if (!settings.printers.every(layerFitsNozzle)) return 'layerUnsaved';
-  if (!settings.materials.every((material) => fitsInOrder(material.clearance))) return 'fitOrderUnsaved';
+export function printSettingsProblem(settings: PrintSettings): { problem: 'nameMissing' | 'layerUnsaved' | 'fitOrderUnsaved'; name: string } | null {
+  if ([...settings.printers, ...settings.materials].some((item) => item.name.trim() === '')) return { problem: 'nameMissing', name: '' };
+  // Named, as it may be a profile other than the one on screen (BC-14 review K5).
+  const printer = settings.printers.find((item) => !layerFitsNozzle(item));
+  if (printer) return { problem: 'layerUnsaved', name: printer.name };
+  const material = settings.materials.find((item) => !fitsInOrder(item.clearance));
+  if (material) return { problem: 'fitOrderUnsaved', name: material.name };
   return null;
 }
 

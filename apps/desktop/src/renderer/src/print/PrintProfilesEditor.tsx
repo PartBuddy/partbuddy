@@ -339,7 +339,9 @@ export function PrintProfilesEditor() {
       });
   };
   const writeRef = useRef(write);
-  writeRef.current = write;
+  useEffect(() => {
+    writeRef.current = write;
+  });
   // Closing the settings saves what is still waiting.
   useEffect(
     () => () => {
@@ -500,7 +502,7 @@ export function PrintProfilesEditor() {
       </Tabs>
       {error || invalid ? (
         <p role="alert" className="text-sm text-danger" data-testid="print-unsaved">
-          {error ?? t(`print.${invalid ?? 'nameMissing'}`)}
+          {error ?? t(`print.${invalid?.problem ?? 'nameMissing'}`, { name: invalid?.name ?? '' })}
         </p>
       ) : null}
     </>

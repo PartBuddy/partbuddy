@@ -146,8 +146,8 @@ describe('profiles as the user enters them (audit T32, D28, T33)', () => {
 
   it('holds back a layer over the nozzle and takes one up to it', () => {
     // Before: layer 1.2 on a 0.1 mm nozzle was saved.
-    expect(printSettingsProblem(withPrinter(0.1, 1.2))).toBe('layerUnsaved');
-    expect(printSettingsProblem(withPrinter(0.4, 0.41))).toBe('layerUnsaved');
+    expect(printSettingsProblem(withPrinter(0.1, 1.2))).toEqual({ problem: 'layerUnsaved', name: 'My printer' });
+    expect(printSettingsProblem(withPrinter(0.4, 0.41))?.problem).toBe('layerUnsaved');
     expect(printSettingsProblem(withPrinter(0.4, 0.4))).toBeNull();
     expect(printSettingsProblem(withPrinter(0.4, 0.39))).toBeNull();
     expect(printSettingsProblem(withPrinter(0.1, 0.04))).toBeNull();
@@ -165,9 +165,9 @@ describe('profiles as the user enters them (audit T32, D28, T33)', () => {
 
   it('holds back a material whose fits do not grow from clamp to turn, and a missing name first', () => {
     const disordered = { ...DEFAULT_PRINT_SETTINGS, materials: DEFAULT_PRINT_SETTINGS.materials.map((material, i) => (i === 0 ? { ...material, clearance: { ...material.clearance, slide: material.clearance.turn + 0.05 } } : material)) };
-    expect(printSettingsProblem(disordered)).toBe('fitOrderUnsaved');
+    expect(printSettingsProblem(disordered)).toEqual({ problem: 'fitOrderUnsaved', name: DEFAULT_PRINT_SETTINGS.materials[0]?.name });
     expect(printSettingsProblem({ ...disordered, materials: disordered.materials.map((material) => ({ ...material, clearance: { ...material.clearance, turn: material.clearance.slide } })) })).toBeNull();
-    expect(printSettingsProblem({ ...withPrinter(0.4, 0.6), printers: withPrinter(0.4, 0.6).printers.map((printer) => ({ ...printer, name: ' ' })) })).toBe('nameMissing');
+    expect(printSettingsProblem({ ...withPrinter(0.4, 0.6), printers: withPrinter(0.4, 0.6).printers.map((printer) => ({ ...printer, name: ' ' })) })).toEqual({ problem: 'nameMissing', name: '' });
     expect(printSettingsProblem(DEFAULT_PRINT_SETTINGS)).toBeNull();
   });
 });
@@ -242,14 +242,24 @@ describe('sizes fitted to nozzle and layer', () => {
     expect(withoutFitMark('Wall [auto 3×line]')).toBe('Wall');
   });
 
-  it('keeps the count of nozzles a radius or gap is marked with, never under the print-in-place gap (audit T21, MG-15)', () => {
-    const radius = (value: number) => [{ name: 'Radius', value, comment: 'Edge radius [auto 2×nozzle]' }];
-    // Before: 2 × 0.3 = 0.6 mm on a 0.2 mm nozzle, three nozzles while the mark said two.
-    expect(refit(radius(0.8), { nozzle: 0.2, layer: 0.1 })).toEqual([{ name: 'Radius', value: 0.4 }]);
-    expect(refit(radius(0.8), { nozzle: 0.25, layer: 0.12 })).toEqual([{ name: 'Radius', value: 0.5 }]);
-    expect(refit(radius(0.8), { nozzle: 0.6, layer: 0.3 })).toEqual([{ name: 'Radius', value: 1.2 }]);
+  it('tells the assistant the fits as scaleClearance brings them to the nozzle (BC-14 review K2)', () => {
+    const pla = { id: 'pla', name: 'PLA', overhang: 45, holeShrink: 0.15, clearance: { clamp: 0.05, push: 0.15, slide: 0.25, turn: 0.3 } };
+    const note = (nozzle: number, layer: number) => printNote({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material: pla, chosen: true, supportFree: true, design: DESIGN_DEFAULTS });
+    const sentence = 'they grow with a nozzle wider than 0.4 mm and never go under their 0.4 mm values on a finer one';
+    expect(note(0.2, 0.1)).toContain(`clamp 0.05 mm (tight, only with force), push 0.15 mm (in by hand), slide 0.25 mm (without force), turn 0.3 mm (turns freely); the material's values brought to this nozzle: ${sentence}`);
+    expect(note(0.6, 0.3)).toContain(`clamp 0.075 mm (tight, only with force), push 0.225 mm (in by hand), slide 0.375 mm (without force), turn 0.45 mm (turns freely); the material's values brought to this nozzle: ${sentence}`);
+    expect(note(0.4, 0.2)).not.toContain('scaled for this nozzle');
+  });
+
+  it('makes a size marked in nozzles that many print-in-place gaps, so a gap never narrows on a fine nozzle (BC-14 review S3)', () => {
+    const gap = (value: number) => [{ name: 'Gap', value, comment: 'Hinge gap [auto 2×nozzle]' }];
+    // Two gaps of 0.3 mm on 0.2 and 0.25 mm nozzles, not two nozzles (0.4 / 0.5 mm, a narrower gap).
+    expect(refit(gap(0.8), { nozzle: 0.2, layer: 0.1 })).toEqual([{ name: 'Gap', value: 0.6 }]);
+    expect(refit(gap(0.8), { nozzle: 0.25, layer: 0.12 })).toEqual([{ name: 'Gap', value: 0.6 }]);
+    expect(refit(gap(0.8), { nozzle: 0.6, layer: 0.3 })).toEqual([{ name: 'Gap', value: 1.2 }]);
     // There and back gives the size it started with.
-    expect(refit(radius(1.2), small)).toEqual([{ name: 'Radius', value: 0.8 }]);
+    expect(refit(gap(1.2), small)).toEqual([{ name: 'Gap', value: 0.8 }]);
+    expect(refit(gap(0.6), small)).toEqual([{ name: 'Gap', value: 0.8 }]);
     expect(refit([{ name: 'Gap', value: 0.4, comment: 'Gap [auto 1×nozzle]' }], { nozzle: 0.29, layer: 0.1 })).toEqual([{ name: 'Gap', value: 0.3 }]);
     expect(refit([{ name: 'Gap', value: 0.4, comment: 'Gap [auto 1×nozzle]' }], { nozzle: 0.31, layer: 0.1 })).toEqual([{ name: 'Gap', value: 0.31 }]);
   });

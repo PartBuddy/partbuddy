@@ -26,8 +26,11 @@ export interface ToleranceReadings {
  */
 export type ReadingProblem = { field: 'fit'; fit: FitKind } | { field: 'hole'; size: number } | { field: 'overhang' } | { field: 'order' } | { field: 'oversize'; by: number };
 
-/** On 0.05 mm, halves up; smoothed to 0.000001 first, so 10 − 9.925 rounds like 3 − 2.925 (audit T53). */
-const toStep = (value: number) => Math.round(Math.round(value * 20 * 1e6) / 1e6) / 20;
+/**
+ * On 0.05 mm, halves away from zero, so −0.075 rounds like 0.075; smoothed to 0.000001 first, so 10 − 9.925 rounds like
+ * 3 − 2.925 (audit T53).
+ */
+const toStep = (value: number) => (Math.sign(value) * Math.round(Math.round(Math.abs(value) * 20 * 1e6) / 1e6)) / 20;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const isStep = (steps: readonly number[], value: number) => steps.some((step) => Math.abs(step - value) < 1e-9);
 

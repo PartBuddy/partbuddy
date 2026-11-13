@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Heading, Label, NumberField } from 'react-aria-components';
 
-import { FIT_KINDS, type FitKind, type MaterialProfile, type PrinterProfile, type Slicer } from '../../../shared/contract';
+import { FIT_KINDS, layerFitsNozzle, type FitKind, type MaterialProfile, type PrinterProfile, type Slicer } from '../../../shared/contract';
 import { applyReadings, FIT_STEPS, HOLE_SIZES, OVERHANG_STEPS, type ToleranceReadings } from '../../../shared/tolerances';
 import { platform } from '../platform';
 import { Button } from '../ui/Button';
@@ -51,18 +51,20 @@ export function ToleranceAssistant({
   }, [index]);
 
   // The picture and the slicers are read when the step with the test pieces comes up.
+  // A printer saved before BC-14 may have a layer over its nozzle: no test pieces for it, and the step says why.
+  const layerFits = layerFitsNozzle(printer);
   useEffect(() => {
     if (step !== 'pieces') return;
     let live = true;
-    void platform()
-      .print.testPiecesPicture({ nozzle: printer.nozzle, layer: printer.layer })
-      .then((result) => {
-        if (live) setPicture(result.picture);
-      })
-      .catch((reason: unknown) => {
-        // A layer over the nozzle (a profile saved before BC-14) is refused; the profile editor says what to fix.
-        console.warn('PartBuddy: the test pieces could not be pictured', reason);
-      });
+    if (layerFits)
+      void platform()
+        .print.testPiecesPicture({ nozzle: printer.nozzle, layer: printer.layer })
+        .then((result) => {
+          if (live) setPicture(result.picture);
+        })
+        .catch((reason: unknown) => {
+          console.warn('PartBuddy: the test pieces could not be pictured', reason);
+        });
     void platform()
       .design.slicers()
       .then((found) => {
@@ -74,7 +76,7 @@ export function ToleranceAssistant({
     return () => {
       live = false;
     };
-  }, [step, printer.nozzle, printer.layer]);
+  }, [step, printer.nozzle, printer.layer, layerFits]);
 
   if (!material) return null;
   const result = applyReadings(material, readings, printer.nozzle);
@@ -154,12 +156,17 @@ export function ToleranceAssistant({
                     <li key={key}>{t(`print.tolerance.guide.${key}`, { material: material.name })}</li>
                   ))}
                 </ul>
+                {layerFits ? null : (
+                  <p role="alert" className="text-sm text-danger" data-testid="tolerance-layer">
+                    {t('print.tolerance.layerOverNozzle', { nozzle: number.format(printer.nozzle), layer: number.format(printer.layer) })}
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-2">
-                  <Button onPress={() => exportPieces(null)} data-testid="tolerance-save">
+                  <Button isDisabled={!layerFits} onPress={() => exportPieces(null)} data-testid="tolerance-save">
                     {t('print.tolerance.save3mf')}
                   </Button>
                   {slicers.map((slicer) => (
-                    <Button key={slicer.id} onPress={() => exportPieces(slicer.id)} data-testid="tolerance-slicer">
+                    <Button key={slicer.id} isDisabled={!layerFits} onPress={() => exportPieces(slicer.id)} data-testid="tolerance-slicer">
                       {t('print.tolerance.openIn', { name: slicer.name })}
                     </Button>
                   ))}

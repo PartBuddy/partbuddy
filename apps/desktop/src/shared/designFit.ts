@@ -94,8 +94,12 @@ export function withoutFitMark(comment: string): string {
 
 /**
  * The value a marked size has on this printer. Walls and heights keep their size, rounded up to the new grid of lines
- * or layers (decided 2026-11-07: counting layers made a 6 mm rim 9 mm on a 0.3 mm layer). Gaps and radii keep their
- * count of nozzles, and a gap never goes under the print-in-place gap however fine the nozzle (audit MG-05).
+ * or layers (decided 2026-11-07: counting layers made a 6 mm rim 9 mm on a 0.3 mm layer). Sizes marked in nozzles are
+ * that many print-in-place gaps: a gap never closes under what keeps moving parts apart, however fine the nozzle
+ * (audit MG-05, #352; the gap the check holds parts to, #381).
+ * shortcut: the mark does not say gap or radius, and a gap that narrows fuses while a wider radius is harmless, so a
+ * radius follows the gap too ("2×nozzle" is 0.6 mm on a 0.2 mm nozzle, not 0.4; BC-14 review S3); give the mark a kind
+ * ("[auto 2×gap]") if radii should follow the nozzle itself.
  * shortcut: the mark keeps the count it was written with, so after a change to a coarser grid a wall or height can
  * stand on more units than its mark says, and changing back keeps the larger size (0.9 mm "2×line" is 1.35 mm on
  * 0.6 mm and stays 1.35 on 0.4; audit T21, MG-15); fix it when refit may rewrite the mark with the size it was
@@ -104,7 +108,7 @@ export function withoutFitMark(comment: string): string {
 export function fittedValue(mark: FitMark, value: number, printer: FitPrinter): number {
   if (mark.unit === 'line') return snapSize('wall', value, printer);
   if (mark.unit === 'layer') return snapSize('height', value, printer);
-  return round(Math.max(mark.count * printer.nozzle, printInPlaceGap(printer)));
+  return round(mark.count * printInPlaceGap(printer));
 }
 
 /** The assistant's marked sizes whose value changes on this printer; the user's sizes are never in it. */
