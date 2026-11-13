@@ -28,7 +28,8 @@ import { keepPrintFace, readAssembly, readPrintFaces, writeAssembly } from './pr
 import { withPrintFaces } from './agents/printFaceWatch';
 import { Questions } from './agents/questions';
 import { WorkLog } from './agents/workLog';
-import { withBlockTool } from './agents/blockTool';
+import { printLimit, withBlockTool } from './agents/blockTool';
+import { PRINT_LIMIT } from './../shared/blocks';
 import { withStandardTool } from './agents/standardTool';
 import { withMechanismTool } from './agents/mechanismTool';
 import { blockPhrase, describeUserAction } from '../shared/stepPhrases';
@@ -1227,12 +1228,20 @@ if (!app.requestSingleInstanceLock()) {
       return { inserted: true, name, bodies: bodies.slice(0, 500) };
     });
     // Function blocks (F1): previewed like actions, built as one step of the work log.
+    // The same limits for the nozzle in use as the assistant's blocks; the form says which size and why (refusal.ts).
+    const formLimit = (block: Parameters<typeof printLimit>[0]) => {
+      const problem = printLimit(block, printProfiles.part().printer);
+      return problem ? `${PRINT_LIMIT}${problem}` : null;
+    };
     bridge.handle(invokeChannels.designPreviewBlock, (block) => {
       assistantIdle();
-      return supervisor.previewBlock(block);
+      const problem = formLimit(block);
+      return problem ? { ok: false as const, error: problem.slice(0, 300) } : supervisor.previewBlock(block);
     });
     bridge.handle(invokeChannels.designApplyBlock, async (block) => {
       assistantIdle();
+      const problem = formLimit(block);
+      if (problem) throw new Error(problem);
       await steps.recordUser(blockPhrase(block), () => supervisor.applyBlock(block));
       log(`built the function block ${block.block}`);
       return undefined;

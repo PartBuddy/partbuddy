@@ -660,6 +660,7 @@
     "fold": "Einklappen: nur die Auswahl zeigen",
     "unfold": "Ausklappen",
     "refused": {
+      "limit": "Dieses Maß lässt sich mit der eingestellten Düse nicht drucken – die Details nennen das Maß, den Grund und was stattdessen geht.",
       "check": "Die entstehende Form besteht SolidCrafts Geometrieprüfung nicht (etwa eine zu scharf geknickte Kurve) – eine etwas andere Größe hilft oft.",
       "shell": "Die Wandstärke passt nicht zu dieser Form – probier einen kleineren Wert.",
       "fillet": "Der Radius ist für diese Kante zu groß – probier einen kleineren Wert.",

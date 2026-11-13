@@ -1,6 +1,6 @@
 import { minimumFloor, minimumWall } from '@partbuddy/geometry';
 
-import { BLOCK_SIZES, INSERT, ON_FACE, SNAP_STRAIN_LIMIT, TEXT_STROKE, cutsThrough, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, BOLD_FONT, INSERT, ON_FACE, SNAP_STRAIN_LIMIT, TEXT_STROKE, cutsThrough, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import { CLEARANCE_NOZZLE, type FitPrinter } from '../../shared/designFit';
 import { KNOB, KNOB_CLEARANCE, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
@@ -148,6 +148,8 @@ function leastOf(block: FeatureBlock, printer: FitPrinter): { key: string; least
   const wall = minimumWall(printer.nozzle);
   switch (block.block) {
     case 'text': {
+      // The stroke share is measured for Arial bold and the built-in Liberation Sans alone: another font is not checked.
+      if (block.font !== undefined && block.font !== BOLD_FONT) return [];
       const [stroke, share] = [2 * printer.nozzle, block.bold ? TEXT_STROKE.bold : TEXT_STROKE.regular];
       const least = Math.ceil((stroke / share) * 10 - 1e-6) / 10;
       return [{ key: 'height', least, why: `the strokes of ${block.bold ? 'bold ' : ''}capitals ${String(block.height)} mm high are ${mm(block.height * share)} mm wide, under the ${mm(stroke)} mm (two nozzle widths) a stroke needs ${on(printer)}; give height ${String(least)} or more` }];
@@ -168,8 +170,11 @@ function leastOf(block: FeatureBlock, printer: FitPrinter): { key: string; least
   }
 }
 
-/** Why a size of a block does not print or does not do its work on the printer; null when all do. */
-function printLimit(block: FeatureBlock, printer: FitPrinter): string | null {
+/**
+ * Why a size of a block does not print or does not do its work on the printer; null when all do. The form's blocks are
+ * checked by it too (index.ts), so that the form and the assistant build to the same limits (second review of PR 369, K9).
+ */
+export function printLimit(block: FeatureBlock, printer: FitPrinter): string | null {
   const sizes = block as unknown as Record<string, unknown>;
   for (const { key, least, why } of leastOf(block, printer)) {
     const value = sizes[key];

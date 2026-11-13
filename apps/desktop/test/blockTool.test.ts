@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_GUIDANCE, FACE_DROP, jointsMoving, STOCK_FULL, blockOf, cutAxis, knobOf, magnetOf, misplaced, named, rimNarrowest, seatStock, shortOf, wallOf, withBlockTool, type Stock } from '../src/main/agents/blockTool';
+import { BLOCK_GUIDANCE, FACE_DROP, jointsMoving, printLimit, STOCK_FULL, blockOf, cutAxis, knobOf, magnetOf, misplaced, named, rimNarrowest, seatStock, shortOf, wallOf, withBlockTool, type Stock } from '../src/main/agents/blockTool';
 import { INSERT, stepsOf, type FeatureBlock } from '../src/shared/blocks';
 import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
@@ -1052,6 +1052,27 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     // A raised size says why (second review of PR 369, K7); one the model gave names its standard.
     expect(await said(fine.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 15 }))).toContain('length 15 (standard 12), thickness 1.8 (raised from the standard 1.5 for the 0.8 mm nozzle)');
     expect(fine.built('plastic.snap_fit')[0]).toMatchObject({ thickness: '1.8 mm' });
+  });
+
+  it("checks the form's blocks by the same limits, and no font whose strokes were not measured (contract test F1)", () => {
+    // The blocks the contract tests build through the form print on a 0.4 mm nozzle.
+    const form = [
+      { block: 'text', body: 'Body1', point: [10, 0, 5], normal: [0, -1, 0], size: 'M3', text: 'PB', height: 4, depth: 0.6, mode: 'deboss', bold: true, font: 'Georgia' },
+      { block: 'nutTrap', body: 'Body1', point: [10, 10, 0], normal: [0, 0, -1], size: 'M2', flats: 4.3, depth: 2 },
+      { block: 'slot', body: 'Body1', point: [20, 10, 5], normal: [1, 0, 0], size: 'M3', length: 6, width: 3.4, depth: 3, along: 'x' },
+      { block: 'lip', body: 'Body1', point: [1.5, 10, 10], size: 'M3', type: 'lip', width: 1.2, height: 2, gap: 0.2 },
+      { block: 'snapFit', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', length: 10, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5, hook: 'y+' },
+      { block: 'text', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', text: 'PB', height: 6, depth: 0.6, mode: 'emboss', bold: false },
+    ] as FeatureBlock[];
+    for (const block of form) expect(printLimit(block, nozzle(0.4)), block.block).toBeNull();
+    // Bold capitals of 3 mm in Arial: 0.61 mm strokes; in Georgia not measured, so not refused.
+    const ui = { block: 'text', body: 'Body1', point: [10, 0, 5], normal: [0, -1, 0], size: 'M3', text: 'UI', height: 3, depth: 0.6, mode: 'deboss', bold: true } as FeatureBlock;
+    expect(printLimit(ui, nozzle(0.4))).toBe('height 3: the strokes of bold capitals 3 mm high are 0.61 mm wide, under the 0.8 mm (two nozzle widths) a stroke needs on a 0.4 mm nozzle; give height 4 or more');
+    expect(printLimit({ ...ui, height: 4 } as FeatureBlock, nozzle(0.4))).toBeNull();
+    expect(printLimit({ ...ui, font: 'Georgia' } as FeatureBlock, nozzle(0.4))).toBeNull();
+    expect(printLimit({ ...ui, font: 'Arial' } as FeatureBlock, nozzle(0.4))).toContain('give height 4 or more');
+    // With a 0.8 mm nozzle the form's lip of 1.2 mm is refused, as the assistant's is.
+    expect(printLimit(form[3] as FeatureBlock, nozzle(0.8))).toContain('width 1.2: a lip narrower than 1.8 mm');
   });
 
   it('warns of a snap arm that bends more than PLA takes, and builds it (S3)', async () => {

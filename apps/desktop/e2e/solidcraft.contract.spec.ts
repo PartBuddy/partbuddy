@@ -1685,8 +1685,15 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     await page.getByTestId('block-tile-text').click();
     await expect(page.getByTestId('block-size')).toHaveCount(0);
     await page.getByTestId('block-text').getByRole('textbox').fill('UI');
+    // Bold capitals 3 mm high have strokes of 0.61 mm, under the two nozzle widths (0.8 mm) a stroke needs on the 0.4 mm
+    // nozzle (printProfiles.ts; stroke share of Arial bold measured 2026-11-13): the form refuses them and says why.
     await page.getByTestId('block-height').getByRole('textbox').fill('3');
-    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'false', { timeout: 60_000 });
+    await expect(page.getByTestId('block-status')).toContainText('does not print with the nozzle in use');
+    await page.getByTestId('block-status').getByText('Details').click();
+    await expect(page.getByTestId('block-status')).toContainText('give height 4 or more');
+    await page.getByTestId('block-height').getByRole('textbox').fill('4');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
     await page.screenshot({ path: test.info().outputPath('block-form-text.png') });
     await page.getByTestId('block-apply').click();
     await expect(page.getByText('Text “UI”')).toBeVisible({ timeout: 30_000 });

@@ -105,6 +105,9 @@ export function defaultBlock(kind: BlockKind, body: string, point: [number, numb
   }
 }
 
+/** How a refusal of PartBuddy's print limits starts (main/index.ts), before its reason: no SolidCraft error starts so. */
+export const PRINT_LIMIT = 'PartBuddy print limit: ';
+
 /** Above this strain at the arm's root, printed PLA tends to crack (PETG takes about 3 %). */
 export const SNAP_STRAIN_LIMIT = 2;
 
