@@ -65,9 +65,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Typed lint takes about as long as typecheck and tests together, mostly on one core: it runs beside
-      # them, and the step "Lint" below shows its output and result. RUNNER_TEMP is emptied for every job.
+      # them at lower priority (the speed checks of the geometry tests measure time), and the step "Lint" below
+      # shows its output and result. RUNNER_TEMP is emptied for every job.
       - name: Start lint
-        run: (pnpm lint > "$RUNNER_TEMP/lint.log" 2>&1; echo $? > "$RUNNER_TEMP/lint.exit") &
+        run: (nice -n 10 pnpm lint > "$RUNNER_TEMP/lint.log" 2>&1; echo $? > "$RUNNER_TEMP/lint.exit") &
 
       - name: Typecheck
         run: pnpm typecheck

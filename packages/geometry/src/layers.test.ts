@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Overhang, overhangLimits, overhangOf, smallOverhangReach } from './overhang';
 import { gridBody, meshOf, prismBody, revolved, type RawMesh } from './testShapes';
+import { growth } from './testTiming';
 
 const check = (mesh: RawMesh) => overhangOf({ ...mesh, normals: new Float32Array(mesh.positions.length) }, 0, overhangLimits(45), smallOverhangReach(0.4));
 
@@ -16,29 +17,18 @@ const squareFunnel = (height: number, degrees: number) => {
   const top = 5 + (height * Math.tan((degrees * Math.PI) / 180)) / Math.SQRT1_2;
   return revolved([[0, 0], [5, 0], [top, height], [top + 1.5, height], [top + 1.5, height + 2], [0, height + 2]], [-1, 0, -1, 0, 1], 4);
 };
-/** The fastest of three runs (ms): one run alone says more about the runner than about the check. */
-const fastest = (mesh: RawMesh) => {
-  let ms = Infinity;
-  for (let run = 0; run < 3; run += 1) {
-    const start = performance.now();
-    check(mesh);
-    ms = Math.min(ms, performance.now() - start);
-  }
-  return ms;
-};
 
 describe('what stands, cut in layers', () => {
   // Rounded as the carried outline grew, every corner left an arc that was never taken out again:
   // 40 triangles took 0.8 s at 5 mm and 33 s at 20 mm (review of pull request 363).
   it.each([45, 50])('cuts a funnel of four flat sides at %s° four times as high in no more than twelve times the time', { timeout: 120_000 }, (degrees) => {
-    // Under a millisecond the clock measures itself.
-    expect(fastest(squareFunnel(20, degrees))).toBeLessThan(Math.max(5, fastest(squareFunnel(5, degrees))) * 12);
+    expect(growth(check, squareFunnel(5, degrees), squareFunnel(20, degrees))).toBeLessThan(12);
   });
 
   it('cuts only where something hangs or begins: a column 300 mm high under a lip costs no more than one of 30', { timeout: 120_000 }, () => {
     const column = (height: number) => revolved([[0, 0], [10, 0], [10, height - 2], [11.5, height - 2], [11.5, height], [0, height]], [-1, 0, -1, 0, 1], 160);
     expect(check(column(300)).area[Overhang.Support]).toBeLessThan(1);
-    expect(fastest(column(300))).toBeLessThan(Math.max(5, fastest(column(30))) * 4);
+    expect(growth(check, column(30), column(300))).toBeLessThan(4);
   });
 
   it('cuts a stair of 740 steps in no more than forty times the time of one of 185', { timeout: 120_000 }, () => {
@@ -53,7 +43,7 @@ describe('what stands, cut in layers', () => {
       const positions = Float32Array.from(mesh.positions, (_, i) => (i % 3 === 0 ? cos * (mesh.positions[i] ?? 0) - sin * (mesh.positions[i + 1] ?? 0) : i % 3 === 1 ? sin * (mesh.positions[i - 1] ?? 0) + cos * (mesh.positions[i] ?? 0) : (mesh.positions[i] ?? 0)));
       return { ...mesh, positions };
     };
-    expect(fastest(stairOf(740))).toBeLessThan(Math.max(5, fastest(stairOf(185))) * 40);
+    expect(growth(check, stairOf(185), stairOf(740))).toBeLessThan(40);
   });
 
   it('takes a triangle that comes twice, and says so when a mesh with a hole is followed along its faces instead', () => {
@@ -82,25 +72,13 @@ describe('what stands, cut in layers', () => {
       const ribs = Array.from({ length: count }, (_, k): [number, number][] => [[4.6, k + 0.3], [4, k + 1]]).flat();
       return revolved([[0, 0], [4, 0], ...ribs, [0, count]], [-1, ...ribs.map(() => 0), 1]);
     };
-    // The fastest of three runs: one run alone says more about the runner than about the check.
-    const timed = (mesh: RawMesh) => {
-      let ms = Infinity;
-      let map = check(mesh);
-      for (let run = 0; run < 3; run += 1) {
-        const start = performance.now();
-        map = check(mesh);
-        ms = Math.min(ms, performance.now() - start);
-      }
-      return { ms, map };
-    };
     const bolt = boltOf(260);
-    const quarter = timed(boltOf(65));
-    const { ms, map } = timed(bolt);
+    const map = check(bolt);
     expect(bolt.index.length / 3).toBe(100_224);
     expect(Math.round(map.area[Overhang.Support])).toBe(0);
     expect(map.area[Overhang.Borderline]).toBeGreaterThan(4700);
     // Held by its growth, not in seconds (0.9 s on the build server, 3.5 s on a busy runner, 2026-11-12):
     // four times the bolt may take twelve times as long; quadratic would be sixteen.
-    expect(ms / quarter.ms).toBeLessThan(12);
+    expect(growth(check, boltOf(65), bolt)).toBeLessThan(12);
   });
 });
