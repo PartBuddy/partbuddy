@@ -229,6 +229,26 @@ describe('the ready-to-print check (M7)', () => {
     expect(drafted.findings.map((f) => f.kind)).toContain('thinWall');
   });
 
+  it('finds a hole that cuts the wall of the part open as a wall of nothing, and leaves a cut cylinder that opens alone (audit N-normteile-policy-2)', () => {
+    // A block 20 × 20 × 20 and a 3.4 mm hole along Y, its axis 1 mm under the top: the top is open over the hole's length.
+    const [cx, cz, r] = [10, 19, 1.7];
+    const edge = Math.asin((20 - cz) / r);
+    const arc = Array.from({ length: 41 }, (_, i): [number, number] => {
+      const angle = edge - (i * (Math.PI + 2 * edge)) / 40;
+      return [cx + r * Math.cos(angle), cz + r * Math.sin(angle)];
+    });
+    const outline: [number, number][] = [[0, 0], [20, 0], [20, 20], ...arc, [0, 20]];
+    const cut = (name: string) => (i: number) => (i >= 3 && i < 3 + 40 ? { name, cylinder: { origin: [cx, 0, cz] as [number, number, number], axis: [0, 1, 0] as [number, number, number], radius: r } } : undefined);
+    const opened = thinOf(prismBody('Cube', outline, 20, cut('F2:bore:side:0#1')));
+    expect(opened).toHaveLength(1);
+    // Each arc's piece is a face of its own here; SolidCraft names the pieces of a split bore alike.
+    expect(opened[0]).toMatchObject({ severity: 'block', floor: false, places: [{ body: 'Cube' }] });
+    expect(new Set((opened[0] as { places: { faces: string[] }[] }).places[0]?.faces)).toEqual(new Set(['F2:bore:side:0#1']));
+    expect((opened[0] as { thickness: number }).thickness).toBeLessThan(0.1);
+    // The same shape cut by a cylinder of another feature (a knuckle's room, a flute) may open on purpose.
+    expect(thinOf(prismBody('Cube', outline, 20, cut('F2:side')))).toEqual([]);
+  });
+
   it('checks overhangs at 45° where the profile names no angle', () => {
     // With the angle undefined nothing passed the limit: a ceiling 14 mm wide read ready.
     const table = boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]]);

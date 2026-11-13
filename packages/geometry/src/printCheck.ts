@@ -195,6 +195,18 @@ const FLAT = Math.SQRT1_2;
 /** Just inside each corner of a triangle, as weights of its corners. */
 const CORNERS: [number, number, number][] = [[0.998, 0.001, 0.001], [0.001, 0.998, 0.001], [0.001, 0.001, 0.998]];
 
+/**
+ * Whether a triangle lies on a cylinder the material lies outside of: a hole, a room cut for a knuckle, a flute. Its
+ * outward normal points towards the axis.
+ */
+function hollowAt(model: PrintCheckBody['model'], t: number, normal: Vector3, centroid: Vector3): boolean {
+  const cylinder = model.table.faces[model.triangleFaces[t] ?? 0]?.cylinder;
+  if (!cylinder) return false;
+  const axis = new Vector3(...cylinder.axis).normalize();
+  const off = centroid.clone().sub(new Vector3(...cylinder.origin));
+  return off.sub(axis.multiplyScalar(off.dot(axis))).dot(normal) < 0;
+}
+
 /** What is too thin in one body: the faces under the minimum, and the area (mm²) that does not print at all. */
 interface Thin {
   faces: FaceTally;
@@ -229,6 +241,11 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile): { walls: T
   for (let t = 0; t < triangles; t += stride) {
     const { corners, area, normal } = triangle(positions, index, t);
     if (!normal || area === 0) continue;
+    // The bore of a hole (SolidCraft names the wall of a `solid.hole` "…:bore:…") is meant to be closed all round: a face
+    // of the part within the minimum of it is its wall, at whatever angle. So a hole that opens the part's wall is found
+    // as a wall of nothing, as one that leaves 0.1 mm of it is (audit N-normteile-policy-2: a 3.4 mm hole 1 mm from the
+    // side cut the side open over 20 mm and was passed). Another hole or cut cylinder it meets is no wall of it.
+    const bore = model.table.faces[model.triangleFaces[t] ?? 0]?.name.includes(':bore') === true;
     const flat = Math.abs(normal.dot(down)) >= FLAT;
     const thin = flat ? floors : walls;
     const minimum = flat ? minimumFloor(profile.layer) : minimumWall(profile.nozzle);
@@ -243,8 +260,9 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile): { walls: T
       const thickness = hit.distance + EPSILON;
       // A wall of just the minimum is not under it.
       if (thickness > minimum - EPSILON) return;
-      const opposite = triangle(positions, index, hit.faceIndex).normal;
-      if (!opposite || opposite.dot(normal) > OPPOSITE) return;
+      const met = triangle(positions, index, hit.faceIndex);
+      const opposite = met.normal;
+      if (!opposite || (opposite.dot(normal) > OPPOSITE && !(bore && !hollowAt(model, hit.faceIndex, opposite, met.centroid)))) return;
       // The corners only say how thin the face gets; its area is shared out among the spread points.
       const share = p < count ? (area * stride) / count : 0;
       thin.faces.add(model.triangleFaces[t] ?? 0, share, thickness, corners);

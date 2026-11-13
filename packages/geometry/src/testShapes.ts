@@ -106,18 +106,20 @@ export function lyingTube(name: string, outer: number, inner: number, length: nu
 
 /**
  * A prism along Y: the convex outline in the XZ plane (counter-clockwise seen from -y, i.e. with
- * X right and Z up), `length` deep. Faces `F1:s0`, `F1:s1` … per outline edge, then `F1:-y`, `F1:+y`.
+ * X right and Z up), `length` deep. Faces `F1:s0`, `F1:s1` … per outline edge, then `F1:-y`, `F1:+y`;
+ * `faces` may name an edge's face otherwise and give it a cylinder, as SolidCraft's `model.faces` does.
  */
-export function prismBody(name: string, outline: readonly (readonly [number, number])[], length: number) {
+export function prismBody(name: string, outline: readonly (readonly [number, number])[], length: number, faces: (edge: number) => { name: string; cylinder?: { origin: Point; axis: Point; radius: number } } | undefined = () => undefined) {
   const n = outline.length;
-  const built: Built = { positions: [], indices: [], triangleFaces: [], names: [], normals: [] };
+  const built: Built = { positions: [], indices: [], triangleFaces: [], names: [], normals: [], cylinders: [] };
   for (const [x, z] of outline) built.positions.push(x, 0, z);
   for (const [x, z] of outline) built.positions.push(x, length, z);
   for (let i = 0; i < n; i += 1) {
     const j = (i + 1) % n;
     const face = built.names.length;
-    built.names.push(`F1:s${String(i)}`);
+    built.names.push(faces(i)?.name ?? `F1:s${String(i)}`);
     built.normals.push(undefined);
+    built.cylinders?.push(faces(i)?.cylinder);
     // Seen from outside: front edge i→j, then back.
     built.indices.push(i, n + j, j, i, n + i, n + j);
     built.triangleFaces.push(face, face);
