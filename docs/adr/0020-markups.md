@@ -209,7 +209,7 @@ M2b-2 drawing, M2b-3 dimensions.
 ### Confirmation
 
 * Unit tests: the filter removes the prefix from nested JSON and refuses a result that still
-  carries it; the policy refuses metadata writes with the prefix in `key`, `keys` and `values`
+  carries it; the policy refuses metadata writes with the prefix in `key`, `keys`, `values` and `properties`
   and in batch steps; signatures fail after any change to text or anchor; the restore list picks
   up a note removed by undo and not one the user deleted; the assistant's `undo` is refused on a
   note write.

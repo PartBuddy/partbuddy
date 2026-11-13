@@ -6,7 +6,7 @@ import { Readable } from 'node:stream';
 import { Server, WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server';
 
 import { REPEAT_LIMIT } from './loop';
-import { decide } from './policy';
+import { decide, decideParameterNames, type ToolDecision } from './policy';
 import { withToolNotes } from './toolNotes';
 
 /** A tool as the upstream MCP server lists it, passed through unchanged. */
@@ -158,7 +158,9 @@ export class GateProxy {
       const key = JSON.stringify([name, args]);
       this.repeats = key === this.lastCall ? this.repeats + 1 : 1;
       this.lastCall = key;
-      const decision = this.repeats >= REPEAT_LIMIT ? { allow: false as const, reason: REPEAT_REASON } : decide(name, args);
+      let decision: ToolDecision = this.repeats >= REPEAT_LIMIT ? { allow: false, reason: REPEAT_REASON } : decide(name, args);
+      // A misspelt parameter name would make a new parameter (audit R17); only the names need the design.
+      if (decision.allow) decision = await decideParameterNames((tool, toolArgs) => this.upstream.callTool(tool, toolArgs), name, args);
       if (!decision.allow) {
         this.onCall({ id, name, summary, decision: 'denied', reason: decision.reason });
         return { content: [{ type: 'text' as const, text: decision.reason }], isError: true };

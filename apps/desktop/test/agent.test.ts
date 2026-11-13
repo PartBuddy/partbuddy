@@ -121,15 +121,17 @@ describe('tool policy', () => {
     expect(Object.keys(TOOL_ARGUMENTS).sort()).toEqual([...tools].sort());
     const steps = ['set_parameter', 'list_commands', 'describe_command', 'execute', 'measure', 'compare_picture', 'inspect_design', 'undo', 'redo'];
     for (const tool of tools) {
-      expect(decide(tool, {}), tool).toEqual({ allow: true });
+      // execute and batch need their command or steps in a form the policy can read (audit H-30).
+      const base: Record<string, unknown> = tool === 'execute' ? { command: 'solid.box' } : tool === 'batch' ? { commands: [] } : {};
+      expect(decide(tool, base), tool).toEqual({ allow: true });
       for (const argument of TOOL_ARGUMENTS[tool] ?? []) {
         if (['reference', 'file', 'commands', 'command', 'params'].includes(argument)) continue;
-        expect(decide(tool, { [argument]: 1 }), `${tool} ${argument}`).toEqual({ allow: true });
+        expect(decide(tool, { ...base, [argument]: 1 }), `${tool} ${argument}`).toEqual({ allow: true });
       }
       // An argument that is not listed is refused, whatever it is called: a later SolidCraft may write a file with it.
       for (const argument of ['path', 'file', 'reference', 'output', 'out', 'filename', 'dest', 'image', 'dir', 'depth']) {
         if ((TOOL_ARGUMENTS[tool] ?? []).includes(argument)) continue;
-        const decision = decide(tool, { [argument]: cache });
+        const decision = decide(tool, { ...base, [argument]: cache });
         expect(decision.allow, `${tool} ${argument}`).toBe(false);
         // The same as a batch step, for the tools SolidCraft runs as steps.
         if (steps.includes(tool)) expect(decide('batch', { commands: [{ command: tool, params: { [argument]: cache } }] }).allow, `batch step ${tool} ${argument}`).toBe(false);
@@ -215,7 +217,7 @@ describe('tool policy', () => {
     expect(decide('BATCH', { commands: [] }).allow).toBe(false);
     // What was allowed stays allowed in any case, the photo canvas too.
     expect(decide('execute', { command: 'Solid.Extrude', params: {} })).toEqual({ allow: true });
-    expect(decide('batch', { commands: [{ command: 'SOLID.BOX', params: {} }, { id: 'document.revision' }] })).toEqual({ allow: true });
+    expect(decide('batch', { commands: [{ command: 'SOLID.BOX', params: {} }, { id: 'Sketch.Finish' }] })).toEqual({ allow: true });
     expect(decide('execute', { command: 'Construct.Point.Along_Path', params: { path: 'l1', t: 0.5 } }).allow).toBe(true);
     // Parameter keys SolidCraft reads only as written: `Path` writes no file (measured), so it is not taken for one.
     expect(decide('execute', { command: 'parameters.export', params: { Path: 'out.json' } }).allow).toBe(true);

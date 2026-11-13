@@ -7,7 +7,7 @@ import { DESIGN_TOOL } from './designTool';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 import { STANDARD_TOOL } from './standardTool';
 import { bodiesInView, VIEW_TOOL } from './viewContext';
-import { CHANGING_TOOLS } from './workLog';
+import { changesDesign } from './workLog';
 
 /**
  * Questions and plans as cards in the chat (M2a): the model calls `partbuddy_ask` or
@@ -181,7 +181,7 @@ const text = (value: string): ToolResult => ({ content: [{ type: 'text', text: v
 const refusal = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }], isError: true });
 
 /** What an open question holds back besides the design: the assembly order and the design rules are the user's to say too (audit W41). */
-const HELD_TOOLS = new Set([...CHANGING_TOOLS, ASSEMBLY_TOOL, DESIGN_TOOL]);
+const HELD_TOOLS = new Set([ASSEMBLY_TOOL, DESIGN_TOOL]);
 
 /** Refusals of a change while the flow says no (audit R13, R14). */
 export const NOT_GO = `The user wants your plan changed and has not pressed Go on it. Show the changed plan with ${PLAN_TOOL}, or answer the user; do not change the design in this turn.`;
@@ -221,7 +221,7 @@ export class Questions {
       listTools: async () => [...(await upstream.listTools()), askTool, planTool],
       callTool: async (name, args, callId) => {
         if (name === ASK_TOOL || name === PLAN_TOOL) return this.show(name, args);
-        const refused = await this.refused(name, upstream);
+        const refused = await this.refused(name, args, upstream);
         if (refused) return refusal(refused);
         const result = await upstream.callTool(name, args, callId);
         if (name === STANDARD_TOOL && result.isError !== true && typeof args.topic === 'string') this.read.add(args.topic);
@@ -231,15 +231,16 @@ export class Questions {
   }
 
   /** Why the flow refuses this call now, or null. */
-  private async refused(name: string, upstream: UpstreamTools): Promise<string | null> {
-    if (this.pending && HELD_TOOLS.has(name)) {
+  private async refused(name: string, args: Record<string, unknown>, upstream: UpstreamTools): Promise<string | null> {
+    const changes = changesDesign(name, args);
+    if (this.pending && (changes || HELD_TOOLS.has(name))) {
       return (
         `The user has not answered your ${this.pending.kind === 'plan' ? 'plan' : 'question'} yet. End your turn now; ` +
         'the answer comes as the next message. Do not change the design before that.'
       );
     }
     // Undo and redo bring back what was there: they build nothing new, so only an open question holds them.
-    if (!CHANGING_TOOLS.has(name) || name === 'undo' || name === 'redo') return null;
+    if (!changes || name === 'undo' || name === 'redo') return null;
     if (this.hold === 'plan') return NOT_GO;
     if (this.hold === 'cancel') return CANCELLED;
     if (this.planFirst && !this.approved && (await this.newPart(upstream))) return PLAN_FIRST;
