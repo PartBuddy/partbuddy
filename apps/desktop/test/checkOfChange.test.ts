@@ -178,7 +178,7 @@ describe('designs of several bodies: the mesh check goes ahead of the measures (
   it('says what SolidCraft could not measure instead of counting it as checked', () => {
     const failed = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 2, unmeasured: ['clearance'] });
     expect(failed).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, area on the bed, open bodies, failed features, bodies that touch, joints that stop before a limit).');
-    expect(failed).toContain("NOT measured, because SolidCraft's measure failed: bodies that overlap or come closer than a push fit. Measure it yourself (inspect.clearance) before you call the part done.");
+    expect(failed).toContain("NOT measured, or not all of it (SolidCraft's measure failed or did not finish every pair in its time, or there were more than 40 joint runs): bodies that overlap or come closer than a push fit. Measure it yourself (inspect.clearance) before you call the part done.");
     const both = printCheckNote({ status: 'warn', findings: [{ kind: 'open', severity: 'warn', bodies: ['A'] }], nozzle: 0.4, revision: 2, unmeasured: ['clearance', 'joints'] });
     expect(both).toContain('Measure it yourself (inspect.clearance, joint.sweep)');
     // A check that lost its measures is another check than the one before.
@@ -214,6 +214,9 @@ describe('only a call that changed the design gets a check (review of PR 357)', 
     expect(designChanged({ documentId: 'a', revision: 300, undo: 200, redo: 0 }, { documentId: 'a', revision: 301, undo: 200, redo: 0 })).toBe(true);
     // A call that only read moves nothing, at the cap as below it.
     expect(designChanged({ documentId: 'a', revision: 300, undo: 200, redo: 0 }, { documentId: 'a', revision: 300, undo: 200, redo: 0 })).toBe(false);
+    // The rollback marker counts features past any cap: a new feature shows there even where the cap were higher than 200 (review 3 of PR 357).
+    expect(designChanged({ documentId: 'a', revision: 300, undo: 150, redo: 0, marker: 260 }, { documentId: 'a', revision: 301, undo: 150, redo: 0, marker: 261 })).toBe(true);
+    expect(designChanged({ documentId: 'a', revision: 300, undo: 150, redo: 0, marker: 260 }, { documentId: 'a', revision: 305, undo: 150, redo: 0, marker: 260 })).toBe(false);
     const { tools } = setup({ steps: 260 });
     expect(textOf(await tools.callTool('execute', extrude))).toContain(BLOCKED);
     expect(textOf(await tools.callTool('execute', extrude))).toContain('ready-to-print check after this change: unchanged');

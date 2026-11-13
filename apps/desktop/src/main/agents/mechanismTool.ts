@@ -3,7 +3,7 @@ import { BLOCK_SIZES, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { BRIDGE_SPAN } from '@partbuddy/geometry';
 
 import { componentOf } from '../solidcraft/actions';
-import { markOf, takeBack, type Mark, type Run } from './takeBack';
+import { markOf, TAKEN_BACK_SAID, takeBack, type Mark, type Run } from './takeBack';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
 /**
@@ -729,7 +729,7 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     const message = (cause as Error).message;
     // Unset: the call was refused before anything was built.
     if (!('state' in site.mark)) throw cause;
-    throw new Error(`${message.replace(/\.?$/, '.')} ${(await takeBack(run, site.mark.state ?? null)) ? 'Everything was taken back.' : 'What was begun could not be taken back: undo it before you call again.'}`, { cause });
+    throw new Error(`${message.replace(/\.?$/, '.')} ${TAKEN_BACK_SAID[await takeBack(run, site.mark.state ?? null)]}`, { cause });
   }
 }
 

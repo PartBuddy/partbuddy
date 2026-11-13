@@ -1,15 +1,32 @@
 import type { PrintCheck } from '@partbuddy/geometry';
 
-import type { PrintCheckReport } from '../../../shared/contract';
+import type { Joint, PrintCheckReport } from '../../../shared/contract';
+
+/** How many joint runs SolidCraft is asked for at most (the contract's limit of `joint.sweep`). */
+const MOST_RUNS = 40;
+
+/**
+ * The joint runs to measure: every value from where it stands to each of its limits, `index` its place in the joint.
+ * At most {@link MOST_RUNS}; `more` when there were more, which the check then says it did not measure.
+ */
+export function jointRuns(joints: readonly (Pick<Joint, 'id' | 'name'> & { values: (Joint['values'][number] & { index: number })[] })[]) {
+  const runs = joints.flatMap((joint) =>
+    joint.values.flatMap((value) =>
+      (value.limits ?? []).flatMap((limit) => (limit !== null && Math.abs(limit - value.value) > 1e-6 ? [{ joint: joint.id, name: joint.name, unit: value.unit, index: value.index, from: value.value, to: limit }] : [])),
+    ),
+  );
+  return { sweeps: runs.slice(0, MOST_RUNS), more: runs.length > MOST_RUNS };
+}
 
 /** The check without the camera boxes, as the main process words it for the assistant; `bodies`: what each body costs to print. */
-export function reportOf(result: PrintCheck, nozzle: number, revision: number, bodies: NonNullable<PrintCheckReport['bodies']> = [], more: Pick<PrintCheckReport, 'measuring' | 'problem' | 'unmeasured'> = {}): PrintCheckReport {
+export function reportOf(result: PrintCheck, nozzle: number, revision: number, bodies: NonNullable<PrintCheckReport['bodies']> = [], more: Pick<PrintCheckReport, 'measuring' | 'problem' | 'unmeasured' | 'unchecked'> = {}): PrintCheckReport {
   return {
     status: result.status,
     nozzle,
     revision,
     ...(more.measuring ? { measuring: true } : {}),
     ...(more.unmeasured && more.unmeasured.length > 0 ? { unmeasured: more.unmeasured } : {}),
+    ...(more.unchecked && more.unchecked.length > 0 ? { unchecked: more.unchecked.slice(0, 40) } : {}),
     ...(more.problem ? { problem: more.problem.slice(0, 300) } : {}),
     ...(bodies.length > 0 ? { bodies: bodies.slice(0, 40) } : {}),
     ...(bodies.length > 40 ? { bodiesOmitted: bodies.length - 40 } : {}),

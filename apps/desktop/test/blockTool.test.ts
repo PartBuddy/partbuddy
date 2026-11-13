@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { FACE_DROP, blockOf, cutAxis, knobOf, magnetOf, misplaced, seatStock, shortOf, wallOf, withBlockTool } from '../src/main/agents/blockTool';
+import { FACE_DROP, STOCK_FULL, blockOf, cutAxis, knobOf, magnetOf, misplaced, seatStock, shortOf, wallOf, withBlockTool, type Stock } from '../src/main/agents/blockTool';
+import { INSERT } from '../src/shared/blocks';
 import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
 import { KNOB, knobProblem, knobSteps, type KnobSpec } from '../src/shared/knob';
@@ -35,8 +36,8 @@ describe('the function blocks for the assistant (standards)', () => {
       listTools: () => Promise.resolve([]),
       callTool: (_name, args) => {
         const commands = args.commands as { command: string }[];
-        // Round every block: the plate measured and the undo depth read, then the block with a measurement after it.
-        const block = commands.filter((step) => !['inspect.measure', 'document.inspect'].includes(step.command));
+        // Round every block: the plate measured and the design marked, then the block with a measurement after it.
+        const block = commands.filter((step) => !['inspect.measure', 'document.inspect', 'joint.list'].includes(step.command));
         if (block.length > 0) batches.push(block.map((step) => step.command).join(' '));
         const measured = { bodies: [{ name: 'Plate', volume_mm3: commands.length > 2 ? 900 : 1000 }] };
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'component.list' ? { components: [{ id: 0, parent: null, bodies: [] }, { id: 7, parent: 0, bodies: ['Plate'], occurrences: [{ name: 'Plate:1' }] }] } : step.command === 'inspect.measure' ? measured : {})) }) }] });
@@ -252,14 +253,14 @@ describe('a block that lands on another body is taken back (audit W1)', () => {
         if (commands.some((step) => step.command === 'solid.hole')) built = true;
         if (commands.some((step) => step.command === 'edit.undo')) built = false;
         const reply = (step: { command: string }) =>
-          step.command === 'inspect.measure' ? { bodies: [{ name: 'A', volume_mm3: 16000 }, { name: 'B', volume_mm3: built ? 47818 : 48000 }] } : step.command === 'document.inspect' ? { undo: built ? 4 : 2 } : {};
+          step.command === 'inspect.measure' ? { bodies: [{ name: 'A', volume_mm3: 16000 }, { name: 'B', volume_mm3: built ? 47818 : 48000 }] } : step.command === 'document.inspect' ? { undo: built ? 4 : 2, timeline: built ? [1, 2, 3, 4] : [1, 2], sketches: [] } : {};
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map(reply) }) }] });
       },
     };
     const answer = await withBlockTool(upstream).callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20], more: [[40, 10, 20]] });
     expect(answer).toMatchObject({ isError: true, content: [{ text: 'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies' }] });
-    // One Undo at a time, measured before each, until the design is as it was (this double takes both holes back with one); then the top component is made active.
-    expect(batches).toEqual(['inspect.measure document.inspect', 'solid.hole solid.hole inspect.measure', 'inspect.measure document.inspect', 'edit.undo', 'inspect.measure document.inspect', 'component.activate']);
+    // The design marked before, the two steps since undone in one batch and looked at; then the top component is made active.
+    expect(batches).toEqual(['inspect.measure', 'document.inspect joint.list', 'solid.hole solid.hole inspect.measure', 'document.inspect joint.list', 'edit.undo edit.undo document.inspect joint.list', 'component.activate']);
     expect(String((await withBlockTool(upstream).callTool('partbuddy_block', { block: 'screwHole', body: 'Ghost', point: [30, 10, 20] })).content[0]?.text)).toBe('Not built: there is no body named Ghost; the design has A, B');
   });
 });
@@ -334,6 +335,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     return { tools: withBlockTool(upstream, () => undefined, (line) => logged.push(line)), upstream, batches, holes, logged, active: () => active };
   }
   const text = async (answer: Promise<ToolResult>) => String((await answer).content[0]?.text);
+  const pilot = "If a hole is there already at that point (a pilot hole), it counts as missing plastic too: delete that hole's feature and build the seat in its place.";
   const seatNeed = 'the seat of an M3 insert needs 2 mm of plastic round it and 0.6 mm under it. Thicken the part there, move the seat away from edges and other cuts, or use a boss.';
 
   it('names the plastic each block needs, measured from half a millimetre under the face on', () => {
@@ -375,7 +377,7 @@ describe('a block is built only where the part has the plastic for it (audit R54
     // 8 mm thick at x = 10, 4 mm at x = 50: the holes take unequal amounts, and their common centre lies askew under the middle.
     const stepped = plate(8, { thin: 4 });
     expect(await text(stepped.tools.callTool('partbuddy_block', { block: 'woodScrew', body: 'Plate', point: [10, 20, 8], more: [[50, 20, 4]] }))).toMatch(
-      /^Built 2 countersunk holes .* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\.$/,
+      /^Built 2 countersunk holes .* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\. Right under the hole it allows 5\.2 mm³ less plastic, 0\.3 mm of the hole's depth, as a curved face may take; it cannot tell that from a cut of that size there\. The wall round the hole is measured in full\.$/,
     );
     // Each hole is cut and measured by itself, then both are probed in one trial.
     expect(stepped.batches).toContain('solid.hole inspect.measure solid.hole inspect.measure');
@@ -384,6 +386,10 @@ describe('a block is built only where the part has the plastic for it (audit R54
     const pocket = plate(10, { thin: 5 });
     expect(await text(pocket.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [10, 20, 10], more: [[50, 20, 5]] }))).toContain('Not built: at [50, 20, 5] the seat would cut');
     expect(pocket.holes).toEqual([]);
+    // Three seats, the bad one in the middle (review 3 of PR 357): none of them stays.
+    const middle = plate(10, { thin: 5 });
+    expect(await text(middle.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [10, 20, 10], more: [[50, 20, 5], [20, 20, 10]] }))).toContain('Not built: at [50, 20, 5] the seat would cut');
+    expect(middle.holes).toEqual([]);
   });
 
   it('builds no keyhole in a 3 mm plate and no magnet pocket through it, and says what it measured', async () => {
@@ -422,6 +428,33 @@ describe('a block is built only where the part has the plastic for it (audit R54
     );
   });
 
+  // Review 4 of PR #357: a seat 5 mm from an edge with a 3 mm chamfer missed about 4.0 mm³ of its stock, the slack of a
+  // curved face and the tolerance together, and passed with 0.5 mm of wall at the top. The slack counts under the seat alone.
+  it('never lets the slack of a curved face pass a wall that is too thin round a seat', async () => {
+    const seat = seatStock({ block: 'insertSeat', body: 'Plate', point: [10, 10, 10], size: 'M3', diameter: 4, depth: 6.7 }, [10, 10, 10], [0, 0, -1], true);
+    const area = (width: number) => (Math.PI * width ** 2) / 4;
+    const [core, ring] = [area(seat.core ?? 0) * seat.depth - (seat.hole ?? 0), (area(8) - area(seat.core ?? 0)) * seat.depth];
+    const probed = (missing: { ring: number; core: number }): UpstreamTools => ({
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (_name, args) => {
+        const commands = args.commands as { command: string; params: { bodies?: string[] } }[];
+        const results = commands.map((step) => {
+          if (step.command !== 'inspect.interference') return {};
+          const inner = String(step.params.bodies?.[1]).endsWith('core');
+          return { interferences: [{ volume_mm3: inner ? core - missing.core : core - missing.core + ring - missing.ring }] };
+        });
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: results.slice(0, -1), failed: { command: 'sketch.inspect' } }) }], isError: true });
+      },
+    });
+    expect(await shortOf(probed({ ring: 4, core: 0 }), 'Plate', [seat], undefined)).toBe(
+      'at [10, 10, 10] Plate has 7.19 mm of plastic where 7.3 mm are needed (the mean over a ring from 4.02 to 8 mm wide; the far side, an edge, a face that falls away to one side or another cut takes the rest)',
+    );
+    // As much missing right under the seat as a curved face takes passes; the answer says so (the stepped wood screws above).
+    expect(await shortOf(probed({ ring: 0, core: 3.5 }), 'Plate', [seat], undefined)).toBeNull();
+    expect(await shortOf(probed({ ring: 0, core: 4.5 }), 'Plate', [seat], undefined)).toContain('(the mean over a width of 4.02 mm, under the hole;');
+  });
+
   it('says so when the plastic could not be measured, instead of passing it over', async () => {
     const silent: UpstreamTools = { instructions: () => undefined, listTools: () => Promise.resolve([]), callTool: () => Promise.resolve({ content: [{ type: 'text', text: 'no' }], isError: true }) };
     expect(await shortOf(silent, 'Plate', [{ at: [0, 0, 0], base: [0, 0, 0], axis: [0, 0, 1], diameter: 9, depth: 6.7, from: 0 }], undefined)).toBeUndefined();
@@ -430,13 +463,13 @@ describe('a block is built only where the part has the plastic for it (audit R54
   it('takes back the seat of an insert that comes out of the far side, and one that leaves no floor', async () => {
     const thin = plate(3);
     expect(await text(thin.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 3] }))).toBe(
-      `Not built: at [20, 20, 3] the seat would cut 37.7 mm³ of plastic where its whole cylinder is 84.2 mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${seatNeed}`,
+      `Not built: at [20, 20, 3] the seat would cut 37.7 mm³ of plastic where its whole cylinder is 84.2 mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut; ${seatNeed} ${pilot}`,
     );
     expect(thin.holes).toEqual([]);
     // A plate just as thick as the seat is deep: the hole is whole, and has no floor (review of PR 357).
     const flush = plate(6.7);
     expect(await text(flush.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 6.7] }))).toBe(
-      `Not built: at [20, 20, 6.7] Plate has 6.52 mm of plastic where 7.3 mm are needed (the mean over a width of 8 mm; the far side, an edge or another cut takes the rest); ${seatNeed}`,
+      `Not built: at [20, 20, 6.7] Plate has 6.7 mm of plastic where 7.3 mm are needed (the mean over a ring from 4.02 to 8 mm wide; the far side, an edge, a face that falls away to one side or another cut takes the rest); ${seatNeed}`,
     );
     expect(flush.holes).toEqual([]);
     const thick = plate(10);
@@ -452,16 +485,21 @@ describe('a block is built only where the part has the plastic for it (audit R54
       'Not built: at [20, 20, 20] the seat would cut 83.1 mm³ of plastic where its whole cylinder is 84.2 mm³: its rim breaks out of the face, into an edge, a chamfer, the far side or another cut',
     );
     expect(chamfer.holes).toEqual([]);
-    // A curved face takes a little off the rim as well, and passes: 0.03 % on a rod of 20 mm radius, as measured.
+    // A curved face takes a little off the rim as well, and passes: 0.03 % on a rod of 20 mm radius, as measured. Only
+    // there is the slack of a curved face allowed, and the answer says what that slack lets through (review 3 of PR 357).
     const rod = plate(20, { rim: 0.9997 });
-    expect(await text(rod.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 20] }))).toMatch(/^Built insertSeat /);
+    expect(await text(rod.tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 20] }))).toMatch(/^Built insertSeat .*: it is there\. Right under the hole it allows 3\.8 mm³ less plastic/);
+    const seat = { block: 'insertSeat' as const, body: 'Plate', point: [0, 0, 0] as [number, number, number], size: 'M3' as const, diameter: 4, depth: 6.7 };
+    expect(seatStock(seat, [0, 0, 0], [0, 0, -1]).slack).toBeUndefined();
+    expect(seatStock(seat, [0, 0, 0], [0, 0, -1], true).slack).toBeCloseTo(Math.PI * 4 * 0.3, 6);
+    expect(await text(plate(20).tools.callTool('partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [20, 20, 20] }))).toMatch(/: it is there.$/);
   });
 
   it('takes back a countersunk hole in a plate thinner than the countersink with its hole under it', async () => {
     const thin = plate(2);
     // (The double drills a plain hole, so the figure it "has" is not the engine's; that one is in the audit harness.)
     expect(await text(thin.tools.callTool('partbuddy_block', { block: 'woodScrew', body: 'Plate', point: [20, 20, 2] }))).toMatch(
-      /^Not built: at \[20, 20, 2\] Plate has [\d.]+ mm of plastic where 2\.65 mm are needed \(the mean over a width of 12\.7 mm; the far side, an edge or another cut takes the rest\); a countersunk hole for a 4 mm wood screw needs 4 mm of plastic round its 4\.7 mm hole and a plate at least 2\.65 mm thick\. Thicken the plate, or move the hole away from edges and other cuts\.$/,
+      /^Not built: at \[20, 20, 2\] Plate has [\d.]+ mm of plastic where 2\.65 mm are needed \(the mean over a ring from 7\.82 to 12\.7 mm wide; the far side, an edge, a face that falls away to one side or another cut takes the rest\); a countersunk hole for a 4 mm wood screw needs 4 mm of plastic round its 4\.7 mm hole and a plate at least 2\.65 mm thick\. Thicken the plate, or move the hole away from edges and other cuts\.$/,
     );
     expect(thin.holes).toEqual([]);
   });
@@ -476,55 +514,105 @@ describe('a block is built only where the part has the plastic for it (audit R54
   });
 });
 
-describe('a block is taken back by what the design measures, not by the depth of the undo history (review 2 of PR 357)', () => {
-  /** A design whose undo history is full: SolidCraft 0.40.1 reads 200 however many steps there are. */
-  function capped(stuck = false) {
+describe('a block is taken back by what the design measures, not by the depth of the undo history (review 2 and 3 of PR 357)', () => {
+  /**
+   * A design as SolidCraft 0.40.1 answers for it: every built command is one undo step and one feature, activating a
+   * component is none, the undo depth stops at `cap`, Undo and Redo work on the steps. Every block lands on body B as
+   * well, so it must not stay. `undo: 'throws'` refuses every Undo; `'foreign'` leaves a body renamed that no Undo
+   * brings back, so the design never reads as before.
+   */
+  function design(steps: number, { cap = 200, undo = 'works' }: { cap?: number; undo?: 'works' | 'throws' | 'foreign' } = {}) {
     const batches: string[] = [];
-    let holes = 0;
+    const built: string[] = [];
+    const redo: string[] = [];
+    let base = steps;
+    let renamed = false;
     let active = 7;
+    const reads = new Set(['inspect.measure', 'document.inspect', 'joint.list', 'component.list', 'component.activate', 'edit.undo', 'edit.redo']);
     const upstream: UpstreamTools = {
       instructions: () => undefined,
       listTools: () => Promise.resolve([]),
       callTool: (_name, args) => {
         const commands = args.commands as { command: string; params: Record<string, unknown> }[];
         batches.push(commands.map((step) => step.command).join(' '));
-        const results = commands.map((step) => {
-          if (step.command === 'solid.hole') holes += 1;
-          if (step.command === 'edit.undo' && !stuck) holes -= 1;
+        const results: unknown[] = [];
+        for (const step of commands) {
+          if (step.command === 'edit.undo') {
+            if (undo === 'throws') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results, failed: { command: 'edit.undo', error: 'nothing to undo' } }) }], isError: true });
+            const last = built.pop();
+            if (last) redo.push(last);
+            else base -= 1;
+          }
+          if (step.command === 'edit.redo') built.push(redo.pop() ?? '?');
           if (step.command === 'component.activate') active = step.params.component as number;
-          // Every hole lands on body B as well: the block must not stay.
-          if (step.command === 'inspect.measure') return { bodies: [{ name: 'A', volume_mm3: 16000 - holes * 50 }, { name: 'B', volume_mm3: 48000 - holes * 50 }] };
-          if (step.command === 'document.inspect') return { undo: 200, timeline: Array.from({ length: 260 + holes }), sketches: [] };
-          return {};
-        });
+          if (!reads.has(step.command)) {
+            built.push(step.command);
+            redo.length = 0;
+            if (undo === 'foreign') renamed = true;
+          }
+          const n = built.length;
+          results.push(
+            step.command === 'inspect.measure'
+              ? { bodies: [{ name: 'A', volume_mm3: 16000 - n * 50 }, { name: 'B', volume_mm3: 48000 - n * 50 }] }
+              : step.command === 'document.inspect'
+                ? { undo: Math.min(cap, base + n), timeline: Array.from({ length: base + n }, (_, i) => ({ id: i + 1 })), sketches: [], bodies: renamed ? ['A', 'B2'] : ['A', 'B'] }
+                : step.command === 'component.list'
+                  ? { components: [{ id: 0, parent: null, bodies: [] }, { id: 7, parent: 0, bodies: ['A'] }] }
+                  : {},
+          );
+        }
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
       },
     };
     const logged: string[] = [];
-    return { tools: withBlockTool(upstream, () => undefined, (line) => logged.push(line)), batches, logged, left: () => holes, active: () => active };
+    const count = (command: string) => batches.join(' ').split(' ').filter((entry) => entry === command).length;
+    return { tools: withBlockTool(upstream, () => undefined, (line) => logged.push(line)), batches, logged, built, base: () => base, active: () => active, undos: () => count('edit.undo'), redos: () => count('edit.redo') };
   }
+  const landsOnB = 'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies';
+  const notBack = `${landsOnB}. What was built could NOT be taken back and is all still there: undo it before you call again.`;
+  const slot = { block: 'slot', body: 'A', point: [30, 10, 20], normal: [0, 0, 1] };
 
-  it('undoes both holes of a block though the depth reads 200 before and after, and makes the top component active again', async () => {
-    const design = capped();
-    const answer = await design.tools.callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20], more: [[40, 10, 20]] });
-    expect(answer).toMatchObject({ isError: true, content: [{ text: 'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies' }] });
-    expect(design.left()).toBe(0);
-    expect(design.batches.filter((batch) => batch === 'edit.undo')).toHaveLength(2);
-    expect(design.batches.at(-1)).toBe('component.activate');
-    expect(design.active()).toBe(0);
-    expect(design.logged).toEqual([]);
+  it('undoes exactly the steps of the block, not the component activations around it, below the cap and past it', async () => {
+    for (const steps of [10, 260]) {
+      const d = design(steps);
+      // A sketched slot in the component of A: activate, three steps, activate (the old take-back counted five and tried four more).
+      expect(await d.tools.callTool('partbuddy_block', slot), String(steps)).toMatchObject({ isError: true, content: [{ text: landsOnB }] });
+      expect(d.built, String(steps)).toEqual([]);
+      expect(d.undos(), String(steps)).toBe(3);
+      expect(d.base(), String(steps)).toBe(steps);
+      expect(d.active(), String(steps)).toBe(0);
+      expect(d.batches.at(-1), String(steps)).toBe('component.activate');
+      expect(d.logged, String(steps)).toEqual([]);
+    }
   });
 
-  it('gives up after the steps it sent and three more, and says that the block is still there', async () => {
-    const design = capped(true);
-    const answer = await design.tools.callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20] });
-    expect(String(answer.content[0]?.text)).toBe(
-      'Not built: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies. What was built of it could NOT be taken back: undo it before you call again',
-    );
-    // One step sent, three in reserve.
-    expect(design.batches.filter((batch) => batch === 'edit.undo')).toHaveLength(5);
-    expect(design.logged).toEqual(['partbuddy_block screwHole on A could not be taken back after: at this point it would change B, not only A; give a point on a face of A alone, away from other bodies']);
-    expect(design.active()).toBe(0);
+  it('undoes both holes of a block though the depth reads 200 before and after', async () => {
+    const d = design(260);
+    expect(await d.tools.callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20], more: [[40, 10, 20]] })).toMatchObject({ isError: true, content: [{ text: landsOnB }] });
+    expect(d.built).toEqual([]);
+    expect(d.undos()).toBe(2);
+    expect(d.base()).toBe(260);
+  });
+
+  it('when the design never reads as before, undoes nothing older than the block, redoes what it undid and says that all of it is there', async () => {
+    for (const steps of [10, 260]) {
+      const d = design(steps, { undo: 'foreign' });
+      expect(String((await d.tools.callTool('partbuddy_block', slot)).content[0]?.text), String(steps)).toBe(notBack);
+      expect(d.undos(), String(steps)).toBe(3);
+      expect(d.redos(), String(steps)).toBe(3);
+      expect(d.built, String(steps)).toEqual(['sketch.create', 'sketch.slot.center_to_center', 'solid.extrude']);
+      expect(d.base(), String(steps)).toBe(steps);
+      expect(d.active(), String(steps)).toBe(0);
+      expect(d.logged, String(steps)).toEqual([`partbuddy_block slot on A could not be taken back (kept) after: ${landsOnB.slice('Not built: '.length)}`]);
+    }
+  });
+
+  it('when edit.undo throws, leaves the block as it was and says so', async () => {
+    const d = design(260, { undo: 'throws' });
+    expect(String((await d.tools.callTool('partbuddy_block', { block: 'screwHole', body: 'A', point: [30, 10, 20] })).content[0]?.text)).toBe(notBack);
+    expect(d.built).toEqual(['solid.hole']);
+    expect(d.redos()).toBe(0);
+    expect(d.active()).toBe(0);
   });
 });
 
@@ -541,5 +629,175 @@ describe('what the assistant may ask of a block (audit W3, S-02, N-bloecke-4)', 
     expect(blockOf({ block: 'insertSeat', ...at, depth: 3 })).toBe('the seat of an M3 insert is 6.7 mm deep (the insert is 5.7 mm long); depth may be 5.7 to 17.1 mm');
     expect(blockOf({ block: 'insertSeat', ...at, diameter: 4.2, depth: 8 })).toMatchObject({ diameter: 4.2, depth: 8 });
     expect(blockOf({ block: 'boss', ...at, size: 'M5', diameter: 8 })).toBe('a boss for an M5 insert is at least 11.6 mm wide: the 6.4 mm hole and 2.6 mm of wall round it');
+  });
+});
+
+// Review 5 of PR #357: the ring of a seat's wall had no slack at all, and a face curved like a handle of 40 mm or a rod
+// of 60 mm took more of its top than the tolerance: M5 and M6 seats there were refused. This double reckons what a rod,
+// a ball or a chamfer takes of each probe, column by column.
+describe('the wall round a hole on a curved face and at an edge (review 5 of PR 357)', () => {
+  type Drop = (x: number, y: number) => number;
+  const rod = (radius: number): Drop => (x) => (Math.abs(x) < radius ? radius - Math.sqrt(radius ** 2 - x ** 2) : Infinity);
+  const ball = (radius: number): Drop => (x, y) => (Math.hypot(x, y) < radius ? radius - Math.sqrt(radius ** 2 - x ** 2 - y ** 2) : Infinity);
+  /** A flat top with an edge `edge` mm from the point along +x, chamfered `chamfer` mm at 45°. */
+  const edged = (edge: number, chamfer: number): Drop => (x) => (x <= edge - chamfer ? 0 : x <= edge ? x - (edge - chamfer) : Infinity);
+  /** Plastic of a probe along -z from FACE_DROP under the point, in a part under `drop` with a hole that takes depths 0 to `hole(ρ)`; summed over a polar grid split at `breaks`. */
+  function probe(width: number, depth: number, drop: Drop, hole: (r: number) => number, breaks: number[]) {
+    const edges = [0, ...breaks.filter((b) => b > 0 && b < width / 2), width / 2];
+    const [n, m] = [60, 180];
+    let [volume, cx, cy, cz] = [0, 0, 0, 0];
+    for (let s = 0; s + 1 < edges.length; s += 1) {
+      const [from, to] = [edges[s] ?? 0, edges[s + 1] ?? 0];
+      for (let i = 0; i < n; i += 1) {
+        const r = from + ((i + 0.5) * (to - from)) / n;
+        for (let j = 0; j < m; j += 1) {
+          const t = ((j + 0.5) * 2 * Math.PI) / m;
+          const [x, y] = [r * Math.cos(t), r * Math.sin(t)];
+          const [start, end] = [Math.max(FACE_DROP, drop(x, y), hole(r)), FACE_DROP + depth];
+          if (start >= end) continue;
+          const v = (end - start) * r * ((to - from) / n) * ((2 * Math.PI) / m);
+          [volume, cx, cy, cz] = [volume + v, cx + v * x, cy + v * y, cz - (v * (start + end)) / 2];
+        }
+      }
+    }
+    return { volume_mm3: volume, center: volume > 0 ? [cx / volume, cy / volume, cz / volume] : [0, 0, 0] };
+  }
+  /** SolidCraft for `shortOf`: each probe cylinder in the part under `drop`, with the hole cut. */
+  function part(drop: Drop, hole: (r: number) => number, breaks: number[]): UpstreamTools {
+    return {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (_name, args) => {
+        let made = { width: 0, depth: 0 };
+        const results = (args.commands as { command: string; params: Record<string, unknown> }[]).map((step) => {
+          if (step.command === 'solid.cylinder') made = { width: parseFloat(String(step.params.diameter)), depth: parseFloat(String(step.params.height)) };
+          return step.command === 'inspect.interference' ? { interferences: [probe(made.width, made.depth, drop, hole, breaks)] } : {};
+        });
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: results.slice(0, -1), failed: { command: 'sketch.inspect' } }) }], isError: true });
+      },
+    };
+  }
+  const area = (width: number) => (Math.PI * width ** 2) / 4;
+  /** The check before review 3: the whole cylinder against the slack of a curved face. */
+  const before = (stock: Stock, drop: Drop, hole: (r: number) => number, breaks: number[]) => {
+    const full = area(stock.diameter) * stock.depth - (stock.hole ?? 0);
+    return probe(stock.diameter, stock.depth, drop, hole, breaks).volume_mm3 >= full * STOCK_FULL - (stock.slack ?? 0);
+  };
+  const seat = (size: 'M2' | 'M3' | 'M4' | 'M5' | 'M6') => {
+    const insert = INSERT[size] ?? { diameter: 0, length: 0 };
+    const block = { block: 'insertSeat' as const, body: 'Part', point: [0, 0, 0] as [number, number, number], size, diameter: insert.diameter, depth: insert.length + 1 };
+    return { stock: seatStock(block, [0, 0, 0], [0, 0, -1], true), hole: (r: number) => (r < block.diameter / 2 ? block.depth : 0), breaks: [block.diameter / 2] };
+  };
+  const screw = (size: 3.5 | 4 | 5) => {
+    const { clearance, countersink } = WALL[size];
+    const stock = woodScrewStock(size, [0, 0, 0], [0, 0, -1], FACE_DROP);
+    return { stock, hole: (r: number) => (r < clearance / 2 ? Infinity : r < countersink / 2 ? countersink / 2 - r : 0), breaks: [clearance / 2, countersink / 2 - FACE_DROP, countersink / 2] };
+  };
+
+  it('lets through on a rod or a ball every seat and wood screw the slack of a curved face let through before', async () => {
+    // The smallest radius at which each passed before, by the reviewer's reckoning; around it in steps of 1 mm.
+    const cases = [
+      ...(['M2', 'M3', 'M4', 'M5', 'M6'] as const).map((size, i) => ({ name: `rod ${size}`, ...seat(size), shape: rod, near: [6, 7, 9, 12.5, 19.5][i] ?? 0 })),
+      ...(['M3', 'M5', 'M6'] as const).map((size, i) => ({ name: `ball ${size}`, ...seat(size), shape: ball, near: [10, 18.5, 29][i] ?? 0 })),
+      ...([3.5, 4, 5] as const).map((size, i) => ({ name: `rod wood screw ${String(size)}`, ...screw(size), shape: rod, near: [15, 19.5, 30][i] ?? 0 })),
+    ];
+    for (const { name, stock, hole, breaks, shape, near } of cases) {
+      let passed = 0;
+      for (let radius = near - 3; radius <= near + 6; radius += 1) {
+        const drop = shape(radius);
+        const fell: number[] = [];
+        const now = await shortOf(part(drop, hole, breaks), 'Part', [stock], undefined, (mm3) => fell.push(mm3));
+        if (before(stock, drop, hole, breaks)) {
+          expect(now, `${name} at ${String(radius)} mm`).toBeNull();
+          passed += 1;
+        }
+        if (now === null && fell.length > 0) expect(fell[0], name).toBeGreaterThan(0);
+      }
+      expect(passed, name).toBeGreaterThan(0);
+    }
+    // The M5 seat in a handle of 40 mm and the M6 seat in a rod of 60 mm of the review.
+    expect(await shortOf(part(rod(20), seat('M5').hole, seat('M5').breaks), 'Part', [seat('M5').stock], undefined)).toBeNull();
+    expect(await shortOf(part(rod(30), seat('M6').hole, seat('M6').breaks), 'Part', [seat('M6').stock], undefined)).toBeNull();
+  });
+
+  // Review 6 of PR #357: on a cone what is missing leans towards the apex, on a torus away from its middle: the centre
+  // left the axis by more than a tenth of the stock, and seats main built there were refused.
+  it('lets through on a cone and off the middle of a torus what the slack of a curved face let through before', async () => {
+    /** A cone of half angle `angle` whose face at the point is curved with `radius`, its apex towards -y (the reviewer's model). */
+    const cone = (radius: number, angle: number): Drop => (x, y) => {
+      const r = radius * (1 + (y * Math.tan(angle)) / radius);
+      return r <= 0 || Math.abs(x) >= r ? Infinity : r - Math.sqrt(r ** 2 - x ** 2);
+    };
+    /** A torus round the z axis, its tube `tube` mm thick round a circle of `ring` mm, the point `at` radians up the tube from its outer middle. */
+    const torus = (ring: number, tube: number, at: number): Drop => {
+      const [n, along] = [[Math.cos(at), 0, Math.sin(at)], [-Math.sin(at), 0, Math.cos(at)]];
+      const p = [ring + tube * Math.cos(at), 0, tube * Math.sin(at)];
+      const inside = (q: number[]) => (Math.hypot(q[0] ?? 0, q[1] ?? 0) - ring) ** 2 + (q[2] ?? 0) ** 2 <= tube ** 2;
+      return (x, y) => {
+        const at0 = [0, 1, 2].map((i) => (p[i] ?? 0) + x * (along[i] ?? 0) + (i === 1 ? y : 0));
+        const down = (s: number) => at0.map((value, i) => value - s * (n[i] ?? 0));
+        if (inside(down(0))) return 0;
+        let [low, high] = [0, 2 * tube];
+        if (!inside(down(high)) && !inside(down(tube))) return Infinity;
+        if (!inside(down(high))) high = tube;
+        for (let step = 0; step < 40; step += 1) {
+          const mid = (low + high) / 2;
+          if (inside(down(mid))) high = mid;
+          else low = mid;
+        }
+        return high;
+      };
+    };
+    const cases = [
+      ...([['M3', 10], ['M5', 20], ['M6', 30]] as const).flatMap(([size, radius]) => [45, 60].map((degrees) => ({ name: `${size} cone R${String(radius)} ${String(degrees)}°`, ...seat(size), drop: cone(radius, (degrees * Math.PI) / 180) }))),
+      // The M5 seat in a conical knob of 28 mm at 45° of the review, built on main.
+      { name: 'M5 knob 28 mm 45°', ...seat('M5'), drop: cone(14, Math.PI / 4) },
+      ...([['M3', 10], ['M5', 15]] as const).map(([size, tube]) => ({ name: `${size} torus off its middle`, ...seat(size), drop: torus(40, tube, Math.PI / 5) })),
+      { name: 'wood screw 4 cone R25 45°', ...screw(4), drop: cone(25, Math.PI / 4) },
+    ];
+    for (const { name, stock, hole, breaks, drop } of cases) {
+      expect(before(stock, drop, hole, breaks), name).toBe(true);
+      expect(await shortOf(part(drop, hole, breaks), 'Part', [stock], undefined), name).toBeNull();
+    }
+  });
+
+  // Review 7 of PR #357: a curve and a gentle chamfer to one side, just past the hole's rim. The even part of the loss
+  // pulled the centre towards the axis and the chamfer went through (main let both through as well).
+  it('refuses a curved face with a chamfer to one side just past the rim', async () => {
+    const rod8: Drop = (x) => (Math.abs(x) < 8 ? 8 - Math.sqrt(64 - x ** 2) : Infinity);
+    const rod30: Drop = (x) => (Math.abs(x) < 30 ? 30 - Math.sqrt(900 - x ** 2) : Infinity);
+    const side = (from: number) => (v: number) => (v <= from ? 0 : (v - from) * 0.3);
+    const [m3, m6] = [seat('M3'), seat('M6')];
+    // M3 on a rod of 8 mm with a slope of 0.3 from 0.1 mm past the rim: 0.47 mm of wall at the top, the reviewer reckoned.
+    const chamfered: Drop = (x, y) => rod8(x, y) + side(2.1)(x);
+    expect(before(m3.stock, chamfered, m3.hole, m3.breaks)).toBe(true);
+    expect(String(await shortOf(part(chamfered, m3.hole, m3.breaks), 'Part', [m3.stock], undefined))).toContain('a face that falls away to one side');
+    // M6 on a rod of 30 mm with such a slope on two sides, a corner.
+    const corner: Drop = (x, y) => rod30(x, y) + side(4.1)(x) + side(4.1)(y);
+    expect(before(m6.stock, corner, m6.hole, m6.breaks)).toBe(true);
+    expect(String(await shortOf(part(corner, m6.hole, m6.breaks), 'Part', [m6.stock], undefined))).toContain('a face that falls away to one side');
+  });
+
+  it('still refuses a wall that an edge or a chamfer takes to one side, slack or not', async () => {
+    // The seat 5 mm from an edge with a 3 mm chamfer: before, it passed with 0.5 mm of wall at the top.
+    const m3 = seat('M3');
+    const chamfer = edged(5, 3);
+    expect(before(m3.stock, chamfer, m3.hole, m3.breaks)).toBe(true);
+    expect(String(await shortOf(part(chamfer, m3.hole, m3.breaks), "Part", [m3.stock], undefined))).toContain('(the mean over a ring from 4.02 to 8 mm wide;');
+    // A wood screw 5.7 mm from a square edge, and 7 mm from one with a 2 mm chamfer: the slack let both through before.
+    const wood = screw(4);
+    for (const drop of [edged(5.7, 0), edged(7, 2)]) {
+      expect(before(wood.stock, drop, wood.hole, wood.breaks)).toBe(true);
+      expect(String(await shortOf(part(drop, wood.hole, wood.breaks), "Part", [wood.stock], undefined))).toContain('(the mean over a ring from 7.82 to 12.7 mm wide;');
+    }
+    // An edge rounded with 3 mm, 4.5 mm from the seat's point: one side, refused.
+    const rounded: Drop = (x) => (x <= 1.5 ? 0 : x <= 4.5 ? 3 - Math.sqrt(9 - (x - 1.5) ** 2) : Infinity);
+    expect(before(m3.stock, rounded, m3.hole, m3.breaks)).toBe(true);
+    expect(String(await shortOf(part(rounded, m3.hole, m3.breaks), 'Part', [m3.stock], undefined))).toContain('a face that falls away to one side');
+    // A rib too narrow on both sides takes the wall all the way down, not at the top: refused though it is even.
+    const rib: Drop = (x) => (Math.abs(x) <= 3.95 ? 0 : Infinity);
+    expect(String(await shortOf(part(rib, m3.hole, m3.breaks), "Part", [m3.stock], undefined))).toContain('a ring from 4.02 to 8 mm wide');
+    // On a flat face the wall is measured in full.
+    expect(await shortOf(part(() => 0, m3.hole, m3.breaks), 'Part', [m3.stock], undefined)).toBeNull();
   });
 });

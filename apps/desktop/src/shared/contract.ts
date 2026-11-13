@@ -934,6 +934,10 @@ export const clearanceResultSchema = z
   .object({
     overlaps: z.array(z.object({ a: bodyName, b: bodyName, volume: finite.nonnegative(), box: boxSchema }).strict()).max(100),
     near: z.array(z.object({ a: bodyName, b: bodyName, distance: finite.nonnegative(), from: point3, to: point3 }).strict()).max(100),
+    /** Bodies SolidCraft left out of the measure (a mesh body): nothing is known of their clearance. */
+    unchecked: z.array(bodyName).max(200).optional(),
+    /** Pairs SolidCraft did not finish measuring (its time budget ran out): the measure is not whole. */
+    incomplete: z.literal(true).optional(),
   })
   .strict();
 
@@ -1172,8 +1176,10 @@ export const printCheckReportSchema = z
     revision: z.number().int().nonnegative(),
     /** True for the mesh check sent ahead while SolidCraft still measures clearance and joints; the full check follows. */
     measuring: z.boolean().optional(),
-    /** What SolidCraft could not measure for this check (its measure failed): the check then says nothing of it. */
+    /** What SolidCraft could not measure for this check, or not all of (its measure failed, joint runs past 40): the check then says nothing of it. */
     unmeasured: z.array(z.enum(['clearance', 'joints'])).max(2).optional(),
+    /** Mesh bodies whose clearance SolidCraft does not measure: the check says nothing of them until they are converted to faces. */
+    unchecked: z.array(bodyName).max(40).optional(),
     /**
      * Per printed body, as it lies on the bed: solid volume and the shell estimate in mm³ (two wall lines on every
      * surface, 15 % infill inside), height in mm and its layers, mm² of surface, on the bed and leaning past the

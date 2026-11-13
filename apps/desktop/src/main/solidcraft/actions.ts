@@ -179,7 +179,7 @@ export class ActionService {
 
   /**
    * Overlaps and gaps narrower than `gap` between bodies (`inspect.clearance`, plan step F2). Mesh
-   * bodies are not measured; SolidCraft lists them as unchecked, which the light leaves out.
+   * bodies are not measured; SolidCraft lists them as unchecked, and the check says so.
    */
   async clearance(bodies: string[], gap: number): Promise<ClearanceResult> {
     const reply = await this.batch([{ command: 'inspect.clearance', params: { bodies, clearance: gap } }], false);
@@ -217,9 +217,16 @@ const name = (value: unknown): string | null => (typeof value === 'string' && va
 
 /** SolidCraft's answer of `inspect.clearance`, checked field by field; anything odd is left out. */
 export function clearanceOf(result: unknown): ClearanceResult {
-  const { overlaps, near } = (result ?? {}) as { overlaps?: unknown; near?: unknown };
+  const { overlaps, near, unchecked } = (result ?? {}) as { overlaps?: unknown; near?: unknown; unchecked?: unknown };
   const list = (value: unknown) => (Array.isArray(value) ? (value as Record<string, unknown>[]).slice(0, 100) : []);
+  // SolidCraft lists a mesh body as {a: name, b: null, reason: "mesh body: not checked"}; any other entry is a pair it
+  // did not finish (its time budget ran out), so the measure is not whole (inspect.interference/clearance, 0.40.1).
+  const entries = Array.isArray(unchecked) ? (unchecked as Record<string, unknown>[]) : [];
+  const mesh = (item: Record<string, unknown>) => item.b === null && typeof item.reason === 'string' && item.reason.startsWith('mesh body');
+  const left = [...new Set(entries.filter(mesh).flatMap((item) => name(item.a) ?? []))].slice(0, 200);
   return {
+    ...(left.length > 0 ? { unchecked: left } : {}),
+    ...(entries.some((item) => !mesh(item)) ? { incomplete: true as const } : {}),
     overlaps: list(overlaps).flatMap((item) => {
       const a = name(item.a);
       const b = name(item.b);

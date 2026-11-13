@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
-import { reportOf } from '../src/renderer/src/print/report';
+import { jointRuns, reportOf } from '../src/renderer/src/print/report';
 import { printCheckReportSchema } from '../src/shared/contract';
 
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
@@ -107,5 +107,27 @@ describe('clearance between parts as the assistant reads it (F2)', () => {
     const note = printCheckNote(report);
     expect(note).toContain('bodies "Case" and "Lid" overlap by 400 mm³');
     expect(note).toContain('bodies "Case" and "Clip" come within 0.1 mm of each other without touching, under the material\'s push fit of 0.15 mm per side');
+  });
+});
+
+// Review 4 of PR #357: what the check leaves out is said, with a way the assistant can take.
+describe('what the check could not measure', () => {
+  it('names mesh bodies left out of the clearance and says how to have them measured', () => {
+    const report = reportOf({ status: 'ready', findings: [] }, 0.4, 7, [], { unchecked: ['Scan'] });
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    const note = printCheckNote(report);
+    expect(note).toContain('NOT measured for overlaps and gaps: "Scan", mesh body SolidCraft does not measure. Convert it to faces (mesh.convert, closed meshes only) to have it measured; until then judge its fit yourself.');
+    expect(note).not.toContain('Measure it yourself (inspect.clearance)');
+  });
+
+  it('asks SolidCraft for 40 joint runs at most and says when there were more', () => {
+    const joint = (id: number) => ({ id, name: `J${String(id)}`, values: [{ unit: 'deg' as const, value: 0, limits: [-90, 90] as [number, number], index: 0 }] });
+    expect(jointRuns(Array.from({ length: 20 }, (_, i) => joint(i)))).toMatchObject({ more: false });
+    const many = jointRuns(Array.from({ length: 21 }, (_, i) => joint(i)));
+    expect(many.sweeps).toHaveLength(40);
+    expect(many.more).toBe(true);
+    expect(many.sweeps[0]).toEqual({ joint: 0, name: 'J0', unit: 'deg', index: 0, from: 0, to: -90 });
+    // A limit where the value stands already, or none, is no run.
+    expect(jointRuns([{ id: 1, name: 'J', values: [{ unit: 'mm', value: 5, limits: [5, null], index: 2 }] }]).sweeps).toEqual([]);
   });
 });
