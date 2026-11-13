@@ -3787,7 +3787,7 @@ test('the assistant makes a screw lid for a jar with one call: the threads mesh 
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a jar with a screw lid');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the screw lid "Jar lid" for Jar: a thread with 45° flanks on the neck, pitch 4 mm, 1\.2 mm deep, 1 start, and the same inside the lid, 0\.3 mm clear; it closes in 1\.75 turns/)).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByText(/Built the screw lid "Jar lid" for Jar: a thread with 45° flanks on the neck, pitch 4 mm, 1\.2 mm deep, 1 start, and the same inside the lid, 0\.3 mm clear radially \(0\.21 mm square to the 45° flanks\); it closes in 1\.75 turns/)).toBeVisible({ timeout: 90_000 });
     await expect(page.getByText(/Warning:/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Screw lid “Jar lid” with its thread on the container')).toHaveCount(1);
