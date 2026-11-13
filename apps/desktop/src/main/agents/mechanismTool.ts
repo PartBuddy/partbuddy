@@ -34,7 +34,7 @@ const mechanismTool: UpstreamTool = {
   description:
     'Build a mechanism between two bodies that exist, with the same gap everywhere; the answer says how it prints. ' +
     'hinge: knuckles in turn on both bodies and a pin through them, printed in place as one piece. Give the hinge line (from, to) in the gap between the bodies, level with the bed and half the barrel diameter above it when the part prints lying flat, or straight up when it prints standing (a line at a slant is refused); ' +
-    'the line must lie closer to both bodies than the barrel radius less ' + String(HOLD) + ' mm, so the knuckles grow out of them: PartBuddy measures that before it builds. It cuts each knuckle\'s room in the other body itself, a gap wider than the barrel, and carries knuckles that start above the bed on webs at 45° down to their own walls, where the wall reaches about one and a quarter barrel diameters below the line (the answer says where it does not, and what then needs support): add no supports of your own. PartBuddy also measures the walls along the line: a room that would leave less than two lines of a wall (four layers of a floor) behind it is refused, with how far to move the line. ' +
+    'the line must lie closer to both bodies than the barrel radius less ' + String(HOLD) + ' mm, so the knuckles grow out of them: PartBuddy measures that before it builds. It cuts each knuckle\'s room in the other body itself, a gap wider than the barrel, and carries knuckles that start above the bed on webs at 45° down to their own walls, where the wall reaches about one and a quarter barrel diameters below the line (the answer says where it does not, and what then needs support): add no supports of your own. PartBuddy also measures the walls along the line: a room that would leave less than two lines of a wall (of a floor: four layers, at least ' + String(minimumFloor(0.001)) + ' mm) behind it is refused, with how far to move the line. ' +
     'slide: a dovetail rail on the fixed body and its groove in the moving body, which lies over the rail a gap above the face. Give the middle line of the rail (from, to) on that face and the face normal (up). The two print apart and the moving body is pushed onto the rail from an end. Where the moving body stands high enough over that face (the answer names how high) the groove gets a roof at 45° and prints as it stands; otherwise its ceiling is flat and the answer says how to lay the part. ' +
     'PartBuddy also joins the two with a joint, finds how far it moves before the bodies meet (a slide: while the moving body stays on its rail) and sets that as its limits; the user then moves it with a slider in the view. ' +
     'closure: a snap closure between a lid and its box, nothing standing out: a lip inside the lid that goes into the box along its wall and centres the lid, a bead that snaps into a rille of the box\'s wall, and a notch for a fingernail. ' +
@@ -140,7 +140,9 @@ export function hingeOf(args: Record<string, unknown>, nozzle: number, layer = 0
     ...rest,
     gap,
     // The standard barrel, or the thinnest that keeps two lines round the bore with this gap on a wider nozzle (audit
-    // N-passung-texte-2, W4, T12: from a 0.5 mm nozzle on, the defaults were refused).
+    // N-passung-texte-2, W4, T12: from a 0.5 mm nozzle on, the defaults were refused). Standing it stays 6 mm and the
+    // answer warns of the thin pin: a barrel of 10 mm for a 5 mm pin made the flat ends over the gaps 111 mm² for 18 at
+    // 0.4 mm (review of PR BC-10, 11, measured 2026-11-13).
     diameter: typeof args.diameter === 'number' ? args.diameter : Math.max(6, hingeDiameter(gap, lying, printer) ?? 6),
     // Lying, it is the pin's bridge that counts: inside each knuckle of the moving body it bridges from one fixed knuckle
     // to the next, a gap further on each side than the knuckle is long, and past BRIDGE_SPAN hingeProblem refuses it.
@@ -514,74 +516,118 @@ export interface Lies {
 /**
  * Where the hinge line lies against each body, measured on trial with a thin rod on the line: a step that must fail ends
  * the batch, and SolidCraft takes the rod back. A body the rod runs into stands under `overlaps`, not `near` (audit W9:
- * it was read as out of reach, and its skin went unchecked). Null when it could not be measured.
+ * it was read as out of reach, and its skin went unchecked). Why not, when it could not be measured.
  *
  * `support` names the bed and, for the webs of a hinge that hangs, each body whose wall reaches down to where its web
  * would meet it: tried with a second rod inside that wall, just under the web's foot. A web drawn to the wall's plane
  * where the wall had ended hung 4.6 mm in the air under a lid plate (audit 2026-11-12, N-mechanik-5).
  */
-export async function roomDepths(upstream: UpstreamTools, spec: HingeSpec, callId: string | undefined): Promise<Lies | null> {
-  try {
-    const axis = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
-    const rod = 0.1;
-    // The batch fails on purpose, so its answer comes as an error that still carries the results before the step that failed.
-    const answer = await upstream.callTool(
-        'batch',
-        {
-          commands: [
-            { command: 'solid.cylinder', params: { diameter: rod, height: Math.hypot(...axis), base: spec.from, axis, operation: 'new', body_name: PROBE } },
-            { command: 'inspect.clearance', params: { bodies: [PROBE], against: [spec.fixed, spec.moving], clearance: spec.diameter } },
-            { command: 'inspect.measure', params: { bodies: [spec.fixed, spec.moving] } },
-            { command: 'sketch.inspect', params: { sketch: 2147483647 } },
-          ],
-          rollback: true,
-        },
-        callId,
-      );
-    const text = answer.content.find((part) => part.type === 'text')?.text;
-    const reply = JSON.parse(typeof text === 'string' ? text : '') as { results?: unknown[] };
-    const clearance = reply.results?.[1] as { near?: { a?: unknown; b?: unknown; distance_mm?: unknown; from?: unknown; to?: unknown }[]; overlaps?: { a?: unknown; b?: unknown }[] } | undefined;
-    const near = clearance?.near;
-    if (!Array.isArray(near)) return null;
-    const overlaps = Array.isArray(clearance?.overlaps) ? clearance.overlaps : [];
-    const length = Math.hypot(...axis);
-    // Of a pair's two points the one off the line lies on the body; the other is on the rod. Its way from the line, square to it.
-    const offset = (body: string): Vec3 | undefined => {
-      const pair = near.find((entry) => entry.a === body || entry.b === body);
-      const offsets = [vec3(pair?.from), vec3(pair?.to)].flatMap((point) => {
-        if (!point) return [];
-        const rel = point.map((value, i) => value - (spec.from[i] ?? 0));
-        const along = rel.reduce((sum, value, i) => sum + value * ((axis[i] ?? 0) / length), 0);
-        return [rel.map((value, i) => value - along * ((axis[i] ?? 0) / length)) as Vec3];
-      });
-      return offsets.sort((a, b) => Math.hypot(...b) - Math.hypot(...a))[0];
-    };
-    const lie = (body: string): Lie | null => {
-      if (overlaps.some((pair) => pair.a === body || pair.b === body)) return { inside: true, distance: 0, toward: null };
-      const pair = near.find((entry) => entry.a === body || entry.b === body);
-      // No pair: the body is further away than the barrel is wide.
-      if (typeof pair?.distance_mm !== 'number') return null;
-      const off = offset(body);
-      const size = off ? Math.hypot(...off) : 0;
-      return { inside: false, distance: Math.round((pair.distance_mm + rod / 2) * 1000) / 1000, toward: off && size > 1e-9 ? (off.map((value) => value / size) as Vec3) : null };
-    };
-    // For the webs under the knuckles: the level way from the line to each body's wall, and the bed both stand on.
-    const side = (body: string): HingeSide | null => {
-      const off = offset(body);
-      const level = off ? Math.hypot(off[0], off[1]) : 0;
-      // A body under or over the line has no wall beside it to carry a web.
-      if (!off || level < 0.2 || level < Math.abs(off[2])) return null;
-      return { toward: [off[0] / level, off[1] / level, 0], distance: Math.round(level * 100) / 100 };
-    };
-    const lies = { fixed: lie(spec.fixed), moving: lie(spec.moving) };
-    const lows = (((reply.results?.[2] as { bodies?: { bbox?: { min?: unknown } }[] } | undefined)?.bodies ?? []) as { bbox?: { min?: unknown } }[]).flatMap((body) => vec3(body.bbox?.min)?.[2] ?? []);
-    if (lows.length === 0) return lies;
-    const bed = Math.min(...lows);
-    const { untried, ...walls } = hangs(spec, bed) ? await carried(upstream, spec, bed, { fixed: side(spec.fixed), moving: side(spec.moving) }, callId) : {};
-    return { ...lies, support: { bed, ...walls }, ...(untried ? { untried } : {}) };
-  } catch {
+export async function roomDepths(upstream: UpstreamTools, spec: HingeSpec, callId: string | undefined): Promise<Lies | string> {
+  const axis = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
+  const length = Math.hypot(...axis);
+  const unit = axis.map((value) => value / length);
+  const rod = 0.1;
+  type Pair = { a?: unknown; b?: unknown; distance_mm?: unknown; from?: unknown; to?: unknown };
+  type Reply = { results?: unknown[] };
+  // The batch fails on purpose, so its answer comes as an error that still carries the results before the step that failed.
+  // A trial SolidCraft gives no answer to is tried once more (review of PR BC-10, 9).
+  const trial = async (start: number, end: number): Promise<Reply | null> => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const answer = await upstream.callTool(
+          'batch',
+          {
+            commands: [
+              { command: 'solid.cylinder', params: { diameter: rod, height: end - start, base: spec.from.map((value, i) => value + (unit[i] ?? 0) * start), axis, operation: 'new', body_name: PROBE } },
+              { command: 'inspect.clearance', params: { bodies: [PROBE], against: [spec.fixed, spec.moving], clearance: spec.diameter } },
+              { command: 'inspect.measure', params: { bodies: [spec.fixed, spec.moving] } },
+              { command: 'sketch.inspect', params: { sketch: 2147483647 } },
+            ],
+            rollback: true,
+          },
+          callId,
+        );
+        const text = answer.content.find((part) => part.type === 'text')?.text;
+        const reply = JSON.parse(typeof text === 'string' ? text : '') as Reply;
+        if (Array.isArray((reply.results?.[1] as { near?: unknown } | undefined)?.near)) return reply;
+      } catch {
+        // No answer: tried again, or said.
+      }
+    }
     return null;
+  };
+  // A pair's point on the body: `from` lies on `a` (SolidCraft 0.40.1, measured 2026-11-13).
+  const onBody = (pair: Pair, body: string) => vec3(pair.a === body ? pair.from : pair.to);
+  const onRod = (pair: Pair, body: string) => vec3(pair.a === body ? pair.to : pair.from);
+  const along = (point: Vec3) => point.reduce((sum, value, i) => sum + (value - (spec.from[i] ?? 0)) * (unit[i] ?? 0), 0);
+  // Met along the line rather than beside it: the end of another hinge on this line, or a face across the line, at an end
+  // of the rod. A second hinge end to end with the first read the first one's pin, 0.05 mm off, for the wall (review of
+  // PR BC-10, 1): its hold passed always, and its skin was tried the wrong way.
+  const ended = (pair: Pair, body: string, start: number, end: number): 'start' | 'end' | null => {
+    const [at, from] = [onBody(pair, body), onRod(pair, body)];
+    if (!at || !from) return null;
+    // Touching, the two points are one and tell beside from along no more: at an end of the rod it is taken for the end of
+    // something across the line (measured 2026-11-13: a hinge end to end with another read 0 mm to the other's pin end).
+    if (typeof pair.distance_mm === 'number' && pair.distance_mm < 1e-6) return along(at) <= start + 1e-3 ? 'start' : along(at) >= end - 1e-3 ? 'end' : null;
+    const way = at.map((value, i) => value - (from[i] ?? 0));
+    const axial = Math.abs(way.reduce((sum, value, i) => sum + value * (unit[i] ?? 0), 0));
+    if (axial <= Math.sqrt(Math.max(0, way.reduce((sum, value) => sum + value * value, 0) - axial * axial))) return null;
+    return along(at) < length / 2 ? 'start' : 'end';
+  };
+  const bodies = [spec.fixed, spec.moving];
+  // So far from the ends that the end of another hinge's barrel lies further than any wall the knuckles can hold on.
+  const cut = spec.diameter / 2 + spec.gap;
+  let [start, end] = [0, length];
+  let reply: Reply | null;
+  let near: Pair[] = [];
+  for (let round = 0; ; round += 1) {
+    reply = await trial(start, end);
+    if (!reply) return "SolidCraft's trial gave no answer, twice";
+    near = (reply.results?.[1] as { near: Pair[] }).near;
+    const hits = bodies.flatMap((body) => {
+      const pair = near.find((entry) => entry.a === body || entry.b === body);
+      const hit = pair ? ended(pair, body, start, end) : null;
+      return hit ? [{ body, hit }] : [];
+    });
+    if (hits.length === 0) break;
+    if (round === 1 || end - start - cut * hits.length < 1) return `the rod on the line meets ${hits.map((entry) => entry.body).join(' and ')} at its ${[...new Set(hits.map((entry) => entry.hit))].join(' and ')}, along the line and not beside it, also ${String(Math.round(cut * 10) / 10)} mm shorter there (the end of another hinge on this line, or a face across it), so the wall beside the line could not be measured`;
+    if (hits.some((entry) => entry.hit === 'start')) start += cut;
+    if (hits.some((entry) => entry.hit === 'end')) end -= cut;
   }
+  const clearance = reply.results?.[1] as { overlaps?: { a?: unknown; b?: unknown }[] } | undefined;
+  const overlaps = Array.isArray(clearance?.overlaps) ? clearance.overlaps : [];
+  // The way from the line to the body's point, square to the line.
+  const offset = (body: string): Vec3 | undefined => {
+    const pair = near.find((entry) => entry.a === body || entry.b === body);
+    const at = pair ? onBody(pair, body) : null;
+    if (!at) return undefined;
+    const rel = at.map((value, i) => value - (spec.from[i] ?? 0));
+    const on = along(at);
+    return rel.map((value, i) => value - on * (unit[i] ?? 0)) as Vec3;
+  };
+  const lie = (body: string): Lie | null => {
+    if (overlaps.some((pair) => pair.a === body || pair.b === body)) return { inside: true, distance: 0, toward: null };
+    const pair = near.find((entry) => entry.a === body || entry.b === body);
+    // No pair: the body is further away than the barrel is wide.
+    if (typeof pair?.distance_mm !== 'number') return null;
+    const off = offset(body);
+    const size = off ? Math.hypot(...off) : 0;
+    return { inside: false, distance: Math.round((pair.distance_mm + rod / 2) * 1000) / 1000, toward: off && size > 1e-9 ? (off.map((value) => value / size) as Vec3) : null };
+  };
+  // For the webs under the knuckles: the level way from the line to each body's wall, and the bed both stand on.
+  const side = (body: string): HingeSide | null => {
+    const off = offset(body);
+    const level = off ? Math.hypot(off[0], off[1]) : 0;
+    // A body under or over the line has no wall beside it to carry a web.
+    if (!off || level < 0.2 || level < Math.abs(off[2])) return null;
+    return { toward: [off[0] / level, off[1] / level, 0], distance: Math.round(level * 100) / 100 };
+  };
+  const lies = { fixed: lie(spec.fixed), moving: lie(spec.moving) };
+  const lows = (((reply.results?.[2] as { bodies?: { bbox?: { min?: unknown } }[] } | undefined)?.bodies ?? []) as { bbox?: { min?: unknown } }[]).flatMap((body) => vec3(body.bbox?.min)?.[2] ?? []);
+  if (lows.length === 0) return lies;
+  const bed = Math.min(...lows);
+  const { untried, ...walls } = hangs(spec, bed) ? await carried(upstream, spec, bed, { fixed: side(spec.fixed), moving: side(spec.moving) }, callId) : {};
+  return { ...lies, support: { bed, ...walls }, ...(untried ? { untried } : {}) };
 }
 
 /**
@@ -603,62 +649,96 @@ export function lineProblem(lies: Pick<Lies, 'fixed' | 'moving'>, spec: HingeSpe
   return null;
 }
 
-/** The skin a knuckle's room leaves of a body's wall: `mm` thin, under `least`; `floor` when the wall lies under or over the line. */
+/**
+ * The skin a knuckle's room leaves of a body's wall, under `least`: `mm` thin where it was measured whole, or null where
+ * only `along` (mm of the line) is known; `floor` when the wall lies under or over the line.
+ */
 export interface Skin {
-  mm: number;
+  mm: number | null;
   least: number;
   floor: boolean;
+  along: number;
+}
+
+/** What `skins` found: the thin skins, the least each wall must keep, and how much of the line (0 to 1) each wall keeps it along. */
+export interface Skins {
+  fixed: Skin | null;
+  moving: Skin | null;
+  least: { fixed: number; moving: number };
+  deep: { fixed: number; moving: number };
 }
 
 /**
  * The skins the knuckles' rooms leave behind them, measured (audit W7, R11, H-08: `wall` was the model's word, and
- * without it, or with the trial failed, nothing was checked; a 1.8 mm wall kept 0.8 mm). A thin rod runs along the line
- * just past where the least wall ends behind the room, the way to the body's face nearest the line (for a line inside
- * the body, away from the other one): in the body, the wall there is thick enough; beside it, the wall ends `distance`
- * short of the rod, and what is left behind the room is the skin. A wall under or over the line is a floor and needs
- * four layers, one beside it two lines. Null for a body that keeps no skin that thin. Throws when the trial gave no answer.
+ * without it, or with the trial failed, nothing was checked; a 1.8 mm wall kept 0.8 mm). Two thin rods run along the
+ * line, the way to the body's face nearest the line (for a line inside the body, away from the other one): one just
+ * behind the room, one just inside where the least wall ends. Each counts by the share of it that lies in the body, as
+ * `rodsInside` does, not by touching it somewhere (review of PR BC-10, 2: a rib or a wall ending short of the line passed
+ * for the whole line). Plastic behind the room that does not reach the least wall along more than a rod's width of the
+ * line is a skin; where the outer rod lies wholly outside, the wall's back stands `distance` short of it and the skin is
+ * that thin. A wall under or over the line is a floor and needs four layers, one beside it two lines. Throws, with why,
+ * when it could not be measured.
  * shortcut: only the way to the nearest face is tried, so a body that wraps round the line (a corner) is not tried at
  * the sides; add rods round the room when hinges in corners turn up.
  */
-export async function skins(upstream: UpstreamTools, spec: HingeSpec, lies: Pick<Lies, 'fixed' | 'moving'>, printer: FitPrinter, callId: string | undefined): Promise<{ fixed: Skin | null; moving: Skin | null; least: { fixed: number; moving: number } }> {
+export async function skins(upstream: UpstreamTools, spec: HingeSpec, lies: Pick<Lies, 'fixed' | 'moving'>, printer: FitPrinter, callId: string | undefined): Promise<Skins> {
   const axis = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
+  const length = Math.hypot(...axis);
   const room = spec.diameter / 2 + spec.gap;
   const rod = 0.1;
   const rods = (['fixed', 'moving'] as const).map((key) => {
     const [lie, other] = [lies[key], lies[key === 'fixed' ? 'moving' : 'fixed']];
     const toward = lie?.inside ? other?.toward?.map((value) => -value + 0) : lie?.toward;
-    if (!toward) throw new Error('the trial gave no answer');
+    if (!toward) throw new Error(`the way from the line to the wall of ${spec[key]} is not known: ${lie?.inside ? `the line runs inside it, and ${spec[key === 'fixed' ? 'moving' : 'fixed']} gives no way out` : 'its nearest point lies on the line'}`);
     const floor = Math.abs(toward[2] ?? 0) >= Math.SQRT1_2;
     const least = floor ? minimumFloor(printer.layer) : minimumWall(printer.nozzle);
-    return { key, least, floor, name: `${PROBE} ${key}`, base: spec.from.map((value, i) => value + (toward[i] ?? 0) * (room + least + rod / 2)) };
+    const at = (offset: number) => spec.from.map((value, i) => value + (toward[i] ?? 0) * offset);
+    return { key, least, floor, inner: `${PROBE} ${key} behind`, outer: `${PROBE} ${key}`, bases: [at(room + rod / 2), at(room + least - rod / 2)] };
   });
-  const answer = await upstream.callTool(
-    'batch',
-    {
-      commands: [
-        ...rods.map((entry) => ({ command: 'solid.cylinder', params: { diameter: rod, height: Math.hypot(...axis), base: entry.base, axis, operation: 'new', body_name: entry.name } })),
-        { command: 'inspect.clearance', params: { bodies: rods.map((entry) => entry.name), against: [spec.fixed, spec.moving], clearance: Math.max(...rods.map((entry) => entry.least)) + 0.01 } },
-        { command: 'sketch.inspect', params: { sketch: 2147483647 } },
-      ],
-      rollback: true,
-    },
-    callId,
-  );
-  const text = answer.content.find((part) => part.type === 'text')?.text;
-  const found = (JSON.parse(typeof text === 'string' ? text : '{}') as { results?: unknown[] }).results?.[rods.length] as { near?: { a?: unknown; b?: unknown; distance_mm?: unknown }[]; overlaps?: { a?: unknown; b?: unknown }[] } | undefined;
-  if (!Array.isArray(found?.near)) throw new Error('the trial gave no answer');
-  const both = (pair: { a?: unknown; b?: unknown }, name: string, body: string) => [pair.a, pair.b].includes(name) && [pair.a, pair.b].includes(body);
-  const skin = (entry: (typeof rods)[number]): Skin | null => {
-    const body = spec[entry.key];
-    if ((found.overlaps ?? []).some((pair) => both(pair, entry.name, body))) return null;
-    const distance = found.near?.find((pair) => both(pair, entry.name, body))?.distance_mm;
-    if (typeof distance !== 'number') return null;
-    const mm = Math.round((entry.least - distance) * 100) / 100;
-    return mm > 0 && mm < entry.least ? { mm, least: entry.least, floor: entry.floor } : null;
+  const commands = [
+    ...rods.flatMap((entry) => [entry.inner, entry.outer].map((name, n) => ({ command: 'solid.cylinder', params: { diameter: rod, height: length, base: entry.bases[n], axis, operation: 'new', body_name: name } }))),
+    { command: 'inspect.clearance', params: { bodies: rods.flatMap((entry) => [entry.inner, entry.outer]), against: [spec.fixed, spec.moving], clearance: Math.max(...rods.map((entry) => entry.least)) + 0.01, min_volume: 0 } },
+    { command: 'sketch.inspect', params: { sketch: 2147483647 } },
+  ];
+  type Pair = { a?: unknown; b?: unknown; distance_mm?: unknown; volume_mm3?: unknown };
+  let found: { near: Pair[]; overlaps?: Pair[] } | null = null;
+  // A trial SolidCraft gives no answer to is tried once more (review of PR BC-10, 9).
+  for (let attempt = 0; attempt < 2 && !found; attempt += 1) {
+    const answer = await upstream.callTool('batch', { commands, rollback: true }, callId).catch(() => null);
+    const text = answer?.content.find((part) => part.type === 'text')?.text;
+    try {
+      const result = (JSON.parse(typeof text === 'string' ? text : '{}') as { results?: unknown[] }).results?.[commands.length - 2] as { near?: unknown; overlaps?: unknown } | undefined;
+      if (Array.isArray(result?.near)) found = result as { near: Pair[]; overlaps?: Pair[] };
+    } catch {
+      // No answer: tried again, or said.
+    }
+  }
+  if (!found) throw new Error("SolidCraft's trial gave no answer, twice");
+  const { near, overlaps = [] } = found;
+  // As many overlaps as rods and bodies at most: far under the cap of 25 (rodsInside).
+  const both = (pair: Pair, name: string, body: string) => [pair.a, pair.b].includes(name) && [pair.a, pair.b].includes(body);
+  const whole = (Math.PI * rod ** 2 * length) / 4;
+  const share = (name: string, body: string) => {
+    const volume = overlaps.find((pair) => both(pair, name, body))?.volume_mm3;
+    return typeof volume === 'number' ? Math.min(1, volume / whole) : 0;
   };
-  const [fixed, moving] = rods;
-  if (!fixed || !moving) throw new Error('the trial gave no answer');
-  return { fixed: skin(fixed), moving: skin(moving), least: { fixed: fixed.least, moving: moving.least } };
+  const out: Skins = { fixed: null, moving: null, least: { fixed: 0, moving: 0 }, deep: { fixed: 0, moving: 0 } };
+  for (const entry of rods) {
+    const body = spec[entry.key];
+    const [behind, deep] = [share(entry.inner, body), share(entry.outer, body)];
+    out.least[entry.key] = entry.least;
+    out.deep[entry.key] = deep;
+    const distance = near.find((pair) => both(pair, entry.outer, body))?.distance_mm;
+    if (deep < 0.01 && typeof distance === 'number') {
+      const mm = Math.round((entry.least - rod - distance) * 100) / 100;
+      if (mm > 0.005 && mm < entry.least) out[entry.key] = { mm, least: entry.least, floor: entry.floor, along: Math.round(behind * length * 10) / 10 };
+      continue;
+    }
+    // Plastic right behind the room along more of the line than reaches the least wall: a skin there, of unknown thickness.
+    const along = Math.max(0, behind - deep) * length;
+    if (along > ROD) out[entry.key] = { mm: null, least: entry.least, floor: entry.floor, along: Math.round(along * 10) / 10 };
+  }
+  return out;
 }
 
 /** How thick a trial rod is (mm). */
@@ -853,15 +933,28 @@ export async function neckTrial(upstream: UpstreamTools, spec: LidSpec, callId: 
   return null;
 }
 
-/** What is wrong with the walls behind the knuckles' rooms, as `skins` measured them; null when they print. */
-export function skinProblem(found: { fixed: Skin | null; moving: Skin | null }, spec: { fixed: string; moving: string }, nozzle: number): string | null {
+/**
+ * What is wrong with the walls behind the knuckles' rooms, as `skins` measured them; null when they print. A way to move
+ * the line is offered only as far as both bodies still hold their knuckles (`HOLD`; review of PR BC-10, 6).
+ */
+export function skinProblem(found: Pick<Skins, 'fixed' | 'moving'>, spec: Pick<HingeSpec, 'fixed' | 'moving' | 'diameter'>, lies: Pick<Lies, 'fixed' | 'moving'>, nozzle: number): string | null {
   const mm = (value: number) => String(Math.round(value * 100) / 100);
+  // How far the line may move away from a body before its knuckles hang on less than HOLD.
+  const slack = (lie: Lie | null) => (lie && !lie.inside ? spec.diameter / 2 - HOLD - lie.distance + 1e-6 : Infinity);
   for (const key of ['fixed', 'moving'] as const) {
     const skin = found[key];
     if (!skin) continue;
-    const short = mm(skin.least - skin.mm);
+    const other = key === 'fixed' ? 'moving' : 'fixed';
     const solid = skin.floor ? `the ${mm(skin.least)} mm a floor needs to print closed` : `two lines of the ${String(nozzle)} mm nozzle (${mm(skin.least)} mm)`;
-    return `the rooms of the knuckles would leave a skin of ${mm(skin.mm)} mm of ${spec[key]}'s wall behind them, under ${solid}. Move the line ${short} mm back from that wall, or ${mm(skin.mm)} mm towards it so the rooms open through it, or make the wall ${short} mm thicker. Nothing was built.`;
+    if (skin.mm === null) return `the rooms of the knuckles would leave a skin under ${solid} of ${spec[key]}'s wall behind them, along about ${mm(skin.along)} mm of the line. Make that wall thicker there, so it keeps ${mm(skin.least)} mm behind the rooms, or thinner than the rooms reach. Nothing was built.`;
+    const short = skin.least - skin.mm;
+    const ways = [
+      short <= slack(lies[key]) ? `move the line ${mm(short)} mm away from that skin, towards ${spec[other]}` : null,
+      skin.mm <= slack(lies[other]) ? (short <= slack(lies[key]) ? `${mm(skin.mm)} mm towards it, so the rooms open through it` : `move the line ${mm(skin.mm)} mm towards that skin, so the rooms open through it`) : null,
+      `make that wall ${mm(short)} mm thicker`,
+    ].filter((way) => way !== null);
+    const said = ways.length === 1 ? ways[0] ?? '' : `${ways.slice(0, -1).join(', or ')}, or ${ways.at(-1) ?? ''}`;
+    return `the rooms of the knuckles would leave a skin of ${mm(skin.mm)} mm of ${spec[key]}'s wall behind them, under ${solid}. ${said.charAt(0).toUpperCase()}${said.slice(1)}. Nothing was built.`;
   }
   return null;
 }
@@ -1074,13 +1167,16 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
     const reach = String(Math.round((spec.diameter / 2 - HOLD) * 10) / 10);
     const where = `Put the hinge line within ${reach} mm of both bodies (the barrel is ${String(spec.diameter)} mm, so it must overlap each by at least ${String(HOLD)} mm). PartBuddy cuts each knuckle's room in the other body itself.`;
     let depths: Lies | null = null;
-    let left: Awaited<ReturnType<typeof skins>> | null = null;
+    let left: Skins | null = null;
     // What was measured before the build, said as measured: how deep the rooms go, and that no wall behind them is left thinner than prints.
     const rooms = () => {
       if (!depths || !left) return '';
       const room = String(Math.round((spec.diameter / 2 + spec.gap) * 100) / 100);
       const into = (key: 'fixed' | 'moving') => (depths?.[key]?.inside ? `${room} mm and more into ${spec[key]} (the line runs inside it)` : `${String(Math.round((spec.diameter / 2 + spec.gap - (depths?.[key]?.distance ?? 0)) * 100) / 100)} mm into ${spec[key]}`);
-      return ` The knuckles' rooms go ${into('fixed')} and ${into('moving')}, measured from the face nearest the line, and PartBuddy measured the walls behind them: each room opens through its wall or leaves at least ${String(left.least.fixed)} mm of ${spec.fixed} and ${String(left.least.moving)} mm of ${spec.moving}.`;
+      const length = Math.hypot(...spec.to.map((value, i) => value - (spec.from[i] ?? 0)));
+      // Where a wall keeps the least behind the rooms along part of the line only, that is said: elsewhere nothing of it is behind them.
+      const part = (['fixed', 'moving'] as const).filter((key) => (left?.deep[key] ?? 1) < 0.9).map((key) => ` ${spec[key]} keeps it along ${String(Math.round((left?.deep[key] ?? 0) * length * 10) / 10)} of the ${String(Math.round(length * 10) / 10)} mm of the line; elsewhere nothing of its wall stands behind the rooms that way.`).join('');
+      return ` The knuckles' rooms go ${into('fixed')} and ${into('moving')}, measured from the face nearest the line, and PartBuddy measured the walls behind them on the way to that face: no room leaves a skin there under ${String(left.least.fixed)} mm of ${spec.fixed} or ${String(left.least.moving)} mm of ${spec.moving}.${part}`;
     };
     const warnings = await build(site, spec,
       // With the walls and the bed measured, knuckles that start in the air get their webs.
@@ -1088,14 +1184,16 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
       where,
       false,
       async () => {
-        depths = await roomDepths(upstream, spec, callId);
         // Not measured is not built: the knuckles' hold and the walls behind their rooms are checked here or nowhere (audit H-08, W7).
-        if (!depths) throw new Error(`PartBuddy could not measure where the hinge line lies against ${spec.fixed} and ${spec.moving} (SolidCraft's trial gave no answer), so it could not check that the knuckles hold and leave no thin skin; nothing was built. Call again`);
+        const measured = await roomDepths(upstream, spec, callId);
+        if (typeof measured === 'string') throw new Error(`PartBuddy could not measure where the hinge line lies against ${spec.fixed} and ${spec.moving}: ${measured}. So it could not check that the knuckles hold and leave no thin skin, and nothing was built. Check that both are solid bodies beside the line (inspect.measure) before you call again`);
+        depths = measured;
         const off = lineProblem(depths, spec, where);
         if (off) throw new Error(off);
-        left = await skins(upstream, spec, depths, { nozzle, layer }, callId).catch(() => null);
-        if (!left) throw new Error(`PartBuddy could not measure the walls behind the knuckles' rooms (SolidCraft's trial gave no answer), so it could not check that none is left as a thin skin; nothing was built. Call again`);
-        const thin = skinProblem(left, spec, nozzle);
+        const tried = await skins(upstream, spec, depths, { nozzle, layer }, callId).catch((cause: unknown) => (cause as Error).message);
+        if (typeof tried === 'string') throw new Error(`PartBuddy could not measure the walls behind the knuckles' rooms: ${tried}. So it could not check that none is left as a thin skin, and nothing was built`);
+        left = tried;
+        const thin = skinProblem(left, spec, depths, nozzle);
         if (thin) throw new Error(thin);
       },
       'revolute',
@@ -1272,9 +1370,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, nozzle: numb
 /**
  * The upstream tools plus `partbuddy_mechanism`; `nozzle` is the printer's nozzle in use, for the default gap, `overhang`
  * how far the material in use leans without support (degrees), for what the answers promise, and `layer` its layer
- * height, for the hinge's gap and floors.
- * shortcut: main/index.ts passes no layer yet (it belongs to BC-04/BC-16), so 0.2 mm stands in; pass
- * `() => printProfiles.part().printer.layer` there when that file is free.
+ * height, for the hinge's gap and floors (0.2 mm where none is given).
  */
 export function withMechanismTool(upstream: UpstreamTools, nozzle: () => number, keepFace: KeepFace = () => undefined, overhang: () => number = () => 45, layer: () => number = () => 0.2): UpstreamTools {
   return {

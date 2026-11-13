@@ -76,6 +76,9 @@ export function hingeLies(spec: Pick<HingeSpec, 'from' | 'to'>): 'lying' | 'stan
  * The thinnest plastic round the bore, in mm: the barrel's wall beside the pin and, lying, over the bore's roof at the
  * edges of its flat, where the round top of the barrel has fallen already. Over the middle of the flat it is thicker:
  * taken from there, the roof of a barrel of 8 mm at 0.6 mm read 1.27 mm where the print check found 1.23 (audit W6).
+ * Measured straight up from the flat, as the print check measures a floor along its normal: the shortest way from the
+ * flat's edge to the barrel's skin is less (0.889 mm against 0.924 on the standard barrel; review of PR BC-10, 7). The
+ * defaults measured clean in the print check on 0.4, 0.6 and 0.8 mm nozzles (tools/audit, bc10-hinge).
  */
 export function barrelWalls(diameter: number, gap: number, lying: boolean): { wall: number; roof: number | null } {
   const bore = pinDiameter(diameter) / 2 + gap;
@@ -116,7 +119,8 @@ export function hingeProblem(spec: HingeSpec, printer: FitPrinter = PRINTER): st
   if (!Number.isInteger(spec.knuckles) || spec.knuckles < 3 || spec.knuckles > 9 || spec.knuckles % 2 === 0) return 'knuckles must be 3, 5, 7 or 9';
   const lying = lies === 'lying';
   const least = barrelLeast(printer, lying);
-  const lines = least === minimumWall(printer.nozzle) ? `two lines of the ${String(printer.nozzle)} mm nozzle` : `four layers of ${String(printer.layer)} mm`;
+  // Named by the rule that sets it: two lines, four layers, or the floor's own least where four layers are less (review of PR BC-10, 4).
+  const lines = least === minimumWall(printer.nozzle) ? `two lines of the ${String(printer.nozzle)} mm nozzle` : least > printer.layer * 4 + 1e-9 ? `a floor of at least ${String(least)} mm` : `four layers of ${String(printer.layer)} mm`;
   const { wall, roof } = barrelWalls(spec.diameter, spec.gap, lying);
   const fits = hingeDiameter(spec.gap, lying, printer);
   // The diameter that passes every check, so the advice does not lead into the next refusal (audit W5, R20), never a gap under the nozzle (W4).
