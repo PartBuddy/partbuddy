@@ -145,6 +145,51 @@ Opus 5.5 · Mittel (PR #354); Claude Codes Eintrag „Default (recommended)“ i
 | 12.11.2026 | #353: 3. Runde gepusht (Brückenrichtung aus den Auflagern, Flutung vom Bett, Laufzeit 56 s → 0,4 s); 3. Review läuft, Vertragstests in der Schlange. #356: 3. Review „merge-reif“, letzte kleine Runde (Absturz nicht dauerhaft merken, Cache validieren, Zeitfenster der Druckprüfung) plus neuer Befund P-6 (`screenshot {path}` überschreibt Nutzerdateien) | je nach Push: Vertragstests, mergen |
 | 12.11.2026 | Merke: `contract.yml` hat nur EINEN wartenden Platz – ein neu angestoßener Lauf bricht den wartenden ab. Vertragstests immer einzeln anstoßen, erst wenn kein Lauf mehr läuft oder wartet; `cancelled` zählt nicht. Der Test „starts SolidCraft without a window“ zählt `solidcraft-cli`-Prozesse auf dem Rechner und kippt, wenn nebenher ein Harness-Lauf endet | gilt |
 
+## Übergabe 13.11.2026 nachts – ZUERST LESEN, ersetzt ältere Übergaben
+
+Die Nacht wird autonom durchgearbeitet (Manuel 13.11.2026: „die nacht durch arbeiten ohne mich“). Kein Release, keine
+Rückfragen außer bei echten Entscheidungen; die stehen dann als Frage am Ende für den Morgen.
+
+### Gemergt am 13.11.2026
+BC-01 #370, BC-02 #371, BC-03 #369, BC-04 #379, BC-05 #377, BC-06 #381, BC-07 #378, BC-09 #383, BC-10 #382, BC-14 #386,
+BC-18 #380; CI-Umbau #376 (PR-CI ~5 statt ~15 min, Pfadfilter, 2 Shards, Vertragstest `retries: 1`, eigene
+Prozesszählung, 1 Worker); #384 (Zeitgrenze der Überhang-Fälle). BEFUNDE.md ist für alle nachgezogen (Status-Spalte).
+WSL-VM der Runner seit 19:54 auf 20 Threads / 16 GB (`%USERPROFILE%\.wslconfig`, Sicherung `.bak-2026-11-13`).
+
+### Offen bei Übergabe – zuerst prüfen
+Vor jeder Arbeit an einem Zweig `git fetch`, Kopf und `git status` im Worktree ansehen; uncommittete Arbeit übernehmen,
+nicht überschreiben. Die Subagenten der alten Sitzung sind beendet; was sie nicht committet haben, liegt im Worktree.
+
+| Paket | Worktree / Zweig | Stand bei Übergabe | Nächster Schritt |
+|---|---|---|---|
+| BC-08 Auswahlaktionen | `../partbuddy-wt-bc-08`, `fix/bc08-selection-actions`, PR #385 | Kopf `e7cf6df` gepusht; Review-Punkte drin. Offen: erste Maßprobe in der Gehäuse-Vorlage dauerte 66–72 s (vorher 40–45 s) – Auftrag: Kandidaten des gewählten Körpers zuerst, Vorschau sofort, Rest im Hintergrund, möglichst Abhängigkeiten lesen statt neu bauen; Tabelle vorher/nachher. Bauer war bei Zeitmessungen (7 uncommittete Dateien) | `git status` im Worktree; ist die Beschleunigung fertig und gemessen (erste Vorschau ≤ alte Zeit): kurzes Nachreview nur dieses Teils, pushen, gezielter Vertragstest (Titel im PR-Text), mergen. Sonst fertigstellen |
+| BC-12 Baustein-Löcher | `../partbuddy-wt-bc-12`, `fix/bc12-block-holes` | Kopf `eb26e06` lokal, nicht gepusht; `PR-BODY.md` uncommittet. Review lief (Ergebnis kam evtl. nicht an) | Review neu starten, falls kein Ergebnis im PR/Worktree: Brief wie BC-10-Review, Schwerpunkte Lochtabelle ISO 273, Gewinde-Aufmaß `M<d+0,3>`, Fasen, Magnet-Boden, Schlüsselloch 30°, Formularweg ohne Drucker, `tools/` im Worktree vollständig (wurde versehentlich gelöscht und per `git checkout -- tools` wiederhergestellt). Dann rebasen, Push, PR, gezielter Vertragstest (F1 Funktionsbausteine, Knopf), mergen |
+| BC-13 rohe Befehle | `../partbuddy-wt-bc-13`, `fix/bc13-raw-commands` | Bauer lief (7 uncommittete Dateien), Entscheidung „gemischt“ steht in BC-PAKETE.md | Stand im Worktree ansehen, fertig bauen, Review, Push/PR, gezielter Vertragstest, mergen |
+| BC-11 Riegel/Schnapphaken | `../partbuddy-wt-bc-11`, `fix/bc11-latch-snap` | Bauer gerade gestartet, noch nichts committet | Wie BC-13 |
+
+### Danach (Reihenfolge nach Nutzen, je Spur nacheinander, höchstens 3 Bauer gleichzeitig)
+L1 BC-19 (Aussagen der Prüfung) → BC-24 (neue Prüfungen, alle sieben als Hinweis); L2 BC-15 (Führung) → BC-16 (Druckprofil
+in die Werkzeuge, auch Klappbox-Vorlage mit Düse, `templateSteps` ohne Profil) → BC-17; L4 BC-20; L5 BC-21 → BC-22;
+L7 BC-23 (nach BC-08); L9 BC-25 (Doku, dazu ADR 0022 mit den neuen WSL-Werten und alle in PR-Texten als „docs open“
+genannten Stellen). Dann: voller Vertragstest auf main (`gh workflow run contract.yml --ref main`), Phase 4, Phase 7.
+
+### Ablauf je Paket (bewährt am 13.11.)
+1. Worktree `../partbuddy-wt-bc-NN` von `origin/main`; Subagent baut nach dem Brief-Muster (Paketabschnitt, Kennungen,
+   Spurgrenzen, offene Reste anderer Pakete, `PRUEFLISTE.md`, **nur lokal committen**, `PR-BODY.md`).
+2. Unabhängiges Review auf dem lokalen Zweig (Diff gegen Basis, `merge-tree` gegen main und offene Zweige, Prüfliste).
+3. Nachbesserung durch denselben Bauer, dann rebasen, pushen, PR öffnen. Nur bei tiefen Eingriffen ein Nachreview.
+4. Gezielter Vertragstest `gh workflow run contract.yml --ref <zweig> -f only='<Titelteile|…>'` parallel zur PR-CI;
+   nur ein Lauf + ein wartender. Beide grün → `gh pr merge <n> --squash` → BEFUNDE.md-Status (Skript-Muster im Scratchpad
+   der alten Sitzung: Status je Kennung als „behoben PR #n … · vorher: …“ voranstellen).
+5. Rote Checks: Log lesen. Last-Wackler → `gh run rerun <id> --failed`; wiederholt → Ursache beheben (z. B. #384).
+
+### Regeln, die heute Zeit gekostet haben
+- SolidCraft-Messungen nur, wenn `gh run list --workflow contract.yml -L 3 --json status` nichts aktiv/wartend zeigt –
+  als **eigener Befehl** vor dem Messblock. Drei Bauer haben es im selben Befehl geprüft und Läufe gestört.
+- Wartende Prüf-Schleifen auf `.status != "COMPLETED"` zählen, nicht auf leere `conclusion` (zwei Wächter endeten zu früh).
+- Server ist der Engpass: Bauer keine vollen Testsuiten, während CI läuft.
+- Lauf-Zeiten: gezielter Vertragstest 3–6 min, PR-CI ~5 min ohne Wartezeit.
+
 ## Übergabe 13.11.2026 abends – ZUERST LESEN, ersetzt ältere Übergaben
 
 - **Gemergt heute:** #363–#368 (alle A-Befunde, Fensterschleife), #370 BC-01 Klappbox (`f87f020`), #372 (CI lädt Ergebnisse roter Desktop-Flows hoch; Erwartungen 15 s, Pixel 45 s), #373 (X-1-E2E robust). Harness am main nachgemessen (Audit-Zweig `44f6e08`).
