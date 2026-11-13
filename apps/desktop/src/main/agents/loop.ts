@@ -2,7 +2,7 @@ import { jsonSchema, tool, type StopCondition, type ToolSet } from 'ai';
 
 import type { AgentEvent } from '../../shared/contract';
 import type { ToolResult, UpstreamTools } from './gateProxy';
-import { decide } from './policy';
+import { decide, decideParameterNames, type ToolDecision } from './policy';
 import { ANSWER_GUIDANCE, QUESTION_GUIDANCE } from './questions';
 import { RESEARCH_GUIDANCE } from './research';
 import { withToolNotes } from './toolNotes';
@@ -138,7 +138,9 @@ export async function policyToolSet(upstream: UpstreamTools, options: PolicyTool
 async function callTool(upstream: UpstreamTools, name: string, args: Record<string, unknown>, options: PolicyToolOptions): Promise<string> {
   const id = options.nextId();
   const summary = JSON.stringify(args).slice(0, 2000);
-  const decision = decide(name, args);
+  let decision: ToolDecision = decide(name, args);
+  // A misspelt parameter name would make a new parameter (audit R17), as in the gate proxy.
+  if (decision.allow) decision = await decideParameterNames((tool, toolArgs) => upstream.callTool(tool, toolArgs), name, args);
   if (!decision.allow) {
     options.event({ type: 'tool', id, name, summary, decision: 'denied', reason: decision.reason.slice(0, 500) });
     return decision.reason;

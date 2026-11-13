@@ -5,8 +5,12 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { describe, expect, it } from 'vitest';
 
 import { GateProxy, type ToolCallRecord, type ToolResult, type UpstreamTools } from '../src/main/agents/gateProxy';
+import { policyToolSet } from '../src/main/agents/loop';
 import { COMMAND_GROUPS, decide, decideParameterNames, GROUP_EXCEPTIONS, namesToChange, REFUSED_COMMANDS } from '../src/main/agents/policy';
+import { ASK_TOOL, Questions } from '../src/main/agents/questions';
 import { TOOL_NOTES } from '../src/main/agents/toolNotes';
+import { changesDesign } from '../src/main/agents/workLog';
+import type { AgentEvent } from '../src/shared/contract';
 
 const absolute = (name: string): string => join(tmpdir(), 'PartBuddy', name);
 const reasonOf = (name: string, args: Record<string, unknown>): string => {
@@ -79,8 +83,11 @@ describe('tool policy: command groups are an allow list', () => {
       expect(step(command, { feature: 'Extrude1', occurrence: 'Lid:1', translate: [1, 0, 0] }).allow, command).toBe(false);
     }
     expect(reasonOf('execute', { command: 'occurrence.move', params: { occurrence: 'Lid:1', translate: [5, 0, 0] } })).toContain('solid.move');
-    // Neighbours that change nothing PartBuddy cannot show stay.
-    for (const command of ['timeline.suppress', 'timeline.rollback', 'occurrence.copy', 'occurrence.ground', 'parameters.add', 'parameters.list']) {
+    // Review BC-09 S1, measured with 0.40.1: move_many put Base behind the history marker, 2 bodies became 1.
+    expect(reasonOf('execute', { command: 'timeline.move_many', params: { features: ['Base'], position: 4, active: false } })).toContain('moves features in the history');
+    expect(step('Timeline.Move_Many', { features: ['Base'], position: 0 }).allow).toBe(false);
+    // Neighbours that change nothing PartBuddy cannot show stay; folders keep the order.
+    for (const command of ['timeline.suppress', 'timeline.rollback', 'timeline.move_to_group', 'occurrence.copy', 'occurrence.ground', 'parameters.add', 'parameters.list']) {
       expect(execute(command, { feature: 'Extrude1' }), command).toEqual({ allow: true });
     }
   });
@@ -161,6 +168,29 @@ describe('tool policy: files by argument, per command (audit N-normteile-policy-
     }
   });
 
+  it('decides the command a command runs inside it (review BC-09)', () => {
+    const svg = { command: 'sketch.insert_svg', params: { path: absolute('box.svg') } };
+    expect(reasonOf('execute', { command: 'sketch.draw.dimensioned', params: { ...svg, dimensions: {} } })).toContain('sketch.draw.dimensioned runs sketch.insert_svg: sketch.insert_svg with path');
+    expect(decide('batch', { commands: [{ command: 'sketch.draw.dimensioned', params: { ...svg, dimensions: {} } }] }).allow).toBe(false);
+    expect(execute('timeline.redefine', { feature: 'Logo', command: 'File.Export', params: { path: 'x.stl' } }).allow).toBe(false);
+    expect(execute('timeline.redefine', { feature: 'Box1', command: 'timeline.redefine', params: { feature: 'Box1', command: 'material.assign', params: {} } }).allow).toBe(false);
+    expect(execute('sketch.drag_end', { constraint: { command: 'execute', params: { command: 'file.export' } } }).allow).toBe(false);
+    expect(execute('sketch.draw.dimensioned', { command: 'sketch.rectangle.two_point', params: '{}' }).allow).toBe(false);
+    expect(execute('sketch.drag_end', { constraint: 'sketch.constraint.coincident' }).allow).toBe(false);
+    expect(execute('timeline.redefine', { feature: 'Box1' }).allow).toBe(false);
+    // What they are for stays.
+    expect(execute('sketch.draw.dimensioned', { command: 'sketch.rectangle.two_point', params: { p1: [0, 0], p2: [20, 10] }, dimensions: { width: 'breite = 20 mm' } })).toEqual({ allow: true });
+    expect(execute('timeline.redefine', { feature: 'Box1', command: 'solid.box', params: { length: 30, width: 20, height: 10 } })).toEqual({ allow: true });
+    expect(execute('sketch.drag_end', { constraint: { command: 'sketch.constraint.coincident', params: { a: 'p1', b: 'p2' } } })).toEqual({ allow: true });
+    expect(execute('sketch.drag_end', {})).toEqual({ allow: true });
+  });
+
+  it('finds no reason on Object for a name such as constructor (review BC-09)', () => {
+    expect(reasonOf('execute', { command: 'constructor.x', params: {} })).toBe('constructor.x is not available in PartBuddy. Continue with the modelling and inspection commands.');
+    expect(reasonOf('constructor', {})).toBe('constructor is not allowed by PartBuddy. Continue with the other tools.');
+    expect(reasonOf('batch', { commands: [{ command: 'toString' }] })).toContain('is not an engine command id');
+  });
+
   it('keeps geometry paths of the other commands', () => {
     expect(execute('solid.sweep', { sketch: 'P', path_sketch: 'S', path: ['l1', 'a2'] })).toEqual({ allow: true });
     expect(execute('sketch.text', { text: 'A', path: 'l1' })).toEqual({ allow: true });
@@ -207,6 +237,19 @@ describe('tool policy: parameter names (audit R17)', () => {
       }),
     ).toEqual(['a', 'c', 'd']);
     expect(namesToChange('inspect_design', {})).toEqual([]);
+    // A step that names its command twice is followed under both, as the policy decides it; names are compared trimmed.
+    expect(namesToChange('batch', { commands: [{ command: 'sketch.finish', id: 'set_parameter', params: { name: ' wnad ' } }] })).toEqual(['wnad']);
+    // A dimension "name = value" earlier in the batch makes the parameter.
+    expect(
+      namesToChange('batch', {
+        commands: [
+          { command: 'sketch.dimension', params: { a: 'l1', value: 'breite = 40 mm' } },
+          { command: 'sketch.draw.dimensioned', params: { command: 'sketch.rectangle.two_point', params: {}, dimensions: { height: 'hoehe=20 mm' } } },
+          { command: 'set_parameter', params: { name: 'breite', value: 50 } },
+          { command: 'set_parameter', params: { name: 'hoehe', value: 25 } },
+        ],
+      }),
+    ).toEqual([]);
   });
 
   it('refuses a name the design does not have and lists the names it has', async () => {
@@ -220,6 +263,7 @@ describe('tool policy: parameter names (audit R17)', () => {
     expect(calls).toEqual(['execute {"command":"parameters.list","params":{}}']);
     expect((await decideParameterNames(callTool, 'set_parameter', { name: 'Wand', value: 3 })).allow).toBe(false);
     expect(await decideParameterNames(callTool, 'set_parameter', { name: 'wand', value: 3 })).toEqual({ allow: true });
+    expect(await decideParameterNames(callTool, 'set_parameter', { name: ' wand', value: 3 })).toEqual({ allow: true });
     expect(await decideParameterNames(callTool, 'execute', { command: 'parameters.change', params: { name: 'd1', expression: '25 mm' } })).toEqual({ allow: true });
     expect(await decideParameterNames(callTool, 'batch', { commands: [{ command: 'parameters.add', params: { name: 'neu', expression: '1 mm' } }, { command: 'set_parameter', params: { name: 'neu', value: 2 } }] })).toEqual({ allow: true });
   });
@@ -262,5 +306,49 @@ describe('tool policy: parameter names (audit R17)', () => {
       await client.close();
       await proxy.stop();
     }
+  });
+
+  it('holds in the loop of ChatGPT and local models too (review BC-09 S2)', async () => {
+    const calls: string[] = [];
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([{ name: 'set_parameter', inputSchema: { type: 'object', properties: {} } }]),
+      callTool: (name) => {
+        calls.push(name);
+        return Promise.resolve({ content: [{ type: 'text', text: name === 'execute' ? JSON.stringify({ parameters: [{ name: 'wand' }] }) : 'ok' }] });
+      },
+    };
+    const events: AgentEvent[] = [];
+    const set = await policyToolSet(upstream, { nextId: () => 'call-1', event: (event) => events.push(event) });
+    const run = set.set_parameter?.execute as (input: unknown, options: unknown) => Promise<string>;
+    expect(await run({ name: 'wnad', value: 6 }, { toolCallId: 'call-1', messages: [] })).toContain('There is no parameter "wnad"');
+    expect(calls).toEqual(['execute']);
+    expect(events.at(-1)).toMatchObject({ type: 'tool', name: 'set_parameter', decision: 'denied' });
+    expect(await run({ name: 'wand', value: 6 }, { toolCallId: 'call-1', messages: [] })).toBe('ok');
+    expect(calls).toEqual(['execute', 'execute', 'set_parameter']);
+  });
+
+  it('reads the names as a read: not held by an open question, not tracked as a change (review BC-09 S3)', async () => {
+    expect(changesDesign('execute', { command: 'parameters.list', params: {} })).toBe(false);
+    expect(changesDesign('execute', { command: ' Parameters.List ' })).toBe(false);
+    expect(changesDesign('execute', { command: 'parameters.change', params: { name: 'wand' } })).toBe(true);
+    expect(changesDesign('batch', { commands: [{ command: 'parameters.list' }] })).toBe(true);
+    expect(changesDesign('set_parameter', { name: 'wand' })).toBe(true);
+    const forwarded: string[] = [];
+    const questions = new Questions(() => undefined);
+    const tools = questions.tools({
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (name, args) => {
+        forwarded.push(`${name} ${String(args.command)}`);
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ parameters: [{ name: 'wand' }] }) }] });
+      },
+    });
+    await tools.callTool(ASK_TOOL, { questions: [{ question: 'Fillets?', options: [{ label: 'Yes' }, { label: 'No' }] }] });
+    // While the question is open the read goes through and the change is held, with the question's own reason.
+    expect(await decideParameterNames((name, args) => tools.callTool(name, args), 'set_parameter', { name: 'wand', value: 3 })).toEqual({ allow: true });
+    const held = await tools.callTool('set_parameter', { name: 'wand', value: 3 });
+    expect(JSON.stringify(held.content)).toContain('has not answered your question');
+    expect(forwarded).toEqual(['execute parameters.list']);
   });
 });

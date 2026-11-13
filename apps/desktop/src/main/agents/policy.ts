@@ -88,6 +88,9 @@ const FILES_REASON =
 const WINDOW_REASON =
   "works on SolidCraft's window, which the user does not see: PartBuddy shows the model in its own view. Look at the model " +
   'with screenshot (view or camera), and name bodies, faces and edges in the commands themselves.';
+const REORDER_REASON =
+  'moves features in the history, where later features can then drop out without an error; PartBuddy shows the history ' +
+  'as steps in order. Build in the order you need, or undo and build again.';
 const MOVE_REASON =
   'moves a part away from where it was designed, and PartBuddy checks, lays out and exports the parts as designed (joints ' +
   'count from there too). Move the body itself with solid.move, or make it movable with a joint.';
@@ -142,8 +145,10 @@ export const REFUSED_COMMANDS: Record<string, string> = {
   'edit.repeat': WINDOW_REASON,
   // audit S-26: state PartBuddy does not show.
   'timeline.add': 'puts in a recorded feature as raw data, which PartBuddy cannot check (it may hold a file to import). Build the feature with its own command instead.',
-  'timeline.reorder': 'moves features in the history, where later features can then drop out without an error; PartBuddy shows the history as steps in order. Build in the order you need, or undo and build again.',
-  'timeline.reorder_many': 'moves features in the history, where later features can then drop out without an error; PartBuddy shows the history as steps in order. Build in the order you need, or undo and build again.',
+  'timeline.reorder': REORDER_REASON,
+  'timeline.reorder_many': REORDER_REASON,
+  // Measured with 0.40.1: {features: ["Base"], position: 4, active: false} put Base behind the marker, 2 bodies became 1.
+  'timeline.move_many': REORDER_REASON,
   'parameters.import': 'sets many parameters at once from a table, past the check PartBuddy makes for each name. Change each with set_parameter, or add a new one with parameters.add.',
   // Moving a placement takes a part away from where it was designed; drag and align do the same as move.
   'occurrence.move': MOVE_REASON,
@@ -211,6 +216,9 @@ function metadataKeys(params: Record<string, unknown>): string[] {
 
 const refuse = (reason: string): ToolDecision => ({ allow: false, reason });
 
+/** A record's own entry: `constructor` or `toString` as a name finds nothing, not Object's. */
+const entryOf = <T>(record: Readonly<Record<string, T>>, key: string): T | undefined => (Object.hasOwn(record, key) ? record[key] : undefined);
+
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 function objectOr(value: unknown): Record<string, unknown> {
@@ -232,11 +240,11 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
   if (command === 'execute') return refuse('execute is a tool, not an engine command: give the engine command itself, such as {"command": "solid.extrude", "params": {…}}.');
   if (command === 'batch') return refuse('batches do not nest: put these steps into this batch, or send them as a batch of their own.');
   if (!COMMAND_ID.test(command)) return refuse(`${JSON.stringify(id)} is not an engine command id; ids look like solid.extrude, as list_commands lists them.`);
-  const refused = REFUSED_COMMANDS[command];
+  const refused = entryOf(REFUSED_COMMANDS, command);
   if (refused) return refuse(`${command} ${refused}`);
   const group = command.slice(0, command.indexOf('.'));
   if (!COMMAND_GROUPS.has(group) && !GROUP_EXCEPTIONS.has(command)) {
-    return refuse(`${command} ${GROUP_REASONS[group] ?? 'is not available in PartBuddy. Continue with the modelling and inspection commands.'}`);
+    return refuse(`${command} ${entryOf(GROUP_REASONS, group) ?? 'is not available in PartBuddy. Continue with the modelling and inspection commands.'}`);
   }
   if (METADATA_WRITES.has(command) && metadataKeys(params).some((key) => key.toLowerCase().startsWith(METADATA_PREFIX))) {
     return refuse(
@@ -252,7 +260,14 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
         'it with parts.resize, and continue without a description.',
     );
   }
-  const fileArguments = FILE_ARGUMENTS[command] ?? [];
+  // Commands that run another command inside them: that one is decided as well.
+  const nested = command === 'sketch.draw.dimensioned' || command === 'timeline.redefine' ? params : command === 'sketch.drag_end' ? params.constraint : undefined;
+  if (nested !== undefined) {
+    if (!isObject(nested) || (nested.params !== undefined && !isObject(nested.params))) return refuse(`${command} takes the command it runs as {"command": id, "params": {…}}.`);
+    const inner = decideCommand(nested.command, objectOr(nested.params));
+    if (!inner.allow) return refuse(`${command} runs ${commandId(nested.command) || 'no command'}: ${inner.reason}`);
+  }
+  const fileArguments = entryOf(FILE_ARGUMENTS, command) ?? [];
   for (const argument of fileArguments) {
     const value = params[argument];
     if (value === undefined) continue;
@@ -315,7 +330,7 @@ function decideExecute(args: Record<string, unknown>): ToolDecision {
 }
 
 function decideTool(name: string, args: Record<string, unknown>, depth: number): ToolDecision {
-  const confirmation = NEEDS_CONFIRMATION[name];
+  const confirmation = entryOf(NEEDS_CONFIRMATION, name);
   if (confirmation) {
     return refuse(`${name} is not available in PartBuddy yet: ${confirmation}. Tell the user how to do it in PartBuddy instead.`);
   }
@@ -359,7 +374,7 @@ export const TOOL_ARGUMENTS: Readonly<Record<string, readonly string[]>> = {
 function decideArguments(name: string, args: Record<string, unknown>): ToolDecision {
   // PartBuddy's own tools are answered by PartBuddy and check their arguments themselves.
   if (name.startsWith('partbuddy_')) return { allow: true };
-  const known = TOOL_ARGUMENTS[name];
+  const known = entryOf(TOOL_ARGUMENTS, name);
   if (!known) return refuse(`${name} is not allowed by PartBuddy. Continue with the other tools.`);
   for (const [argument, value] of Object.entries(args)) {
     if (value === undefined) continue;
@@ -389,8 +404,9 @@ export function decide(name: string, args: Record<string, unknown>): ToolDecisio
  * The parameter names a call sets that must exist already (audit R17): `set_parameter` and
  * `parameters.change {name}` create a parameter of a name that does not exist, without an error
  * (measured with SolidCraft 0.40.1: `wnad` for `wand`, `recomputed: 0`), so a misspelt name
- * changes nothing. A name a `parameters.add` step makes earlier in the same batch counts as
- * existing. `parameters.change {changes}` is left out: SolidCraft refuses an unknown name there.
+ * changes nothing. A name a `parameters.add` step or a dimension `name = value` makes earlier in
+ * the same batch counts as existing. Names are compared trimmed and in their case, as SolidCraft
+ * does. `parameters.change {changes}` is left out: SolidCraft refuses an unknown name there.
  */
 // shortcut: a parameters.rename step earlier in the same batch is not followed, so its new name is refused; follow it when the assistant batches renames.
 export function namesToChange(name: string, args: Record<string, unknown>): string[] {
@@ -399,20 +415,35 @@ export function namesToChange(name: string, args: Record<string, unknown>): stri
   const visit = (tool: string, params: Record<string, unknown>): void => {
     const command = tool === 'execute' ? commandId(params.command) : tool;
     const inner = tool === 'execute' ? objectOr(params.params) : params;
+    const named = typeof inner.name === 'string' ? inner.name.trim() : null;
     if (command === 'batch') {
       for (const step of Array.isArray(params.commands) ? (params.commands as unknown[]) : []) {
         const { command: stepCommand, id, params: stepParams } = objectOr(step);
-        visit(commandId(stepCommand ?? id), objectOr(stepParams));
+        // As decideBatch: a step that names its command twice is followed under both.
+        for (const stepName of [stepCommand, id].filter((entry) => typeof entry === 'string')) visit(commandId(stepName), objectOr(stepParams));
       }
     } else if (command === 'execute') {
       visit('execute', inner);
-    } else if (typeof inner.name === 'string' && command === 'parameters.add') {
-      added.add(inner.name);
-    } else if (typeof inner.name === 'string' && (command === 'set_parameter' || command === 'parameters.change') && !added.has(inner.name)) {
-      names.push(inner.name);
+    } else if (named !== null && command === 'parameters.add') {
+      added.add(named);
+    } else if (named !== null && (command === 'set_parameter' || command === 'parameters.change')) {
+      if (!added.has(named)) names.push(named);
+    } else {
+      for (const made of dimensionNames(inner)) added.add(made);
     }
   };
   visit(name, args);
+  return names;
+}
+
+/** Names a dimension makes with a value `name = expression` (sketch.dimension, sketch.draw.dimensioned), up to two levels deep. */
+function dimensionNames(params: Record<string, unknown>, depth = 0): string[] {
+  const names: string[] = [];
+  for (const value of Object.values(params)) {
+    const made = typeof value === 'string' ? /^\s*([A-Za-z_]\w*)\s*=/.exec(value)?.[1] : undefined;
+    if (made) names.push(made);
+    else if (isObject(value) && depth < 2) names.push(...dimensionNames(value, depth + 1));
+  }
   return names;
 }
 
@@ -432,7 +463,7 @@ export async function decideParameterNames(callTool: UpstreamTools['callTool'], 
     if (result.isError || typeof text !== 'string') throw new Error(typeof text === 'string' ? text.slice(0, 300) : 'SolidCraft gave no answer');
     const list = objectOr(JSON.parse(text)).parameters;
     if (!Array.isArray(list)) throw new Error('the answer names no parameters');
-    known = list.map((entry) => objectOr(entry).name).filter((entry): entry is string => typeof entry === 'string');
+    known = list.map((entry) => objectOr(entry).name).filter((entry): entry is string => typeof entry === 'string').map((entry) => entry.trim());
   } catch (error) {
     return refuse(`PartBuddy could not read the design's parameters to check the name ${JSON.stringify(names[0])}: ${(error as Error).message}`);
   }

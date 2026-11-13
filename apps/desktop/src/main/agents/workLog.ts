@@ -28,6 +28,17 @@ export interface WorkLogOptions {
 
 /** Tools that may change the design; every other tool only reads and is not tracked. */
 export const CHANGING_TOOLS = new Set(['execute', 'batch', 'set_parameter', 'undo', 'redo', 'partbuddy_mechanism', 'partbuddy_block', 'partbuddy_place_drawing', 'partbuddy_move_drawing']);
+/**
+ * Engine commands that only read (audit BC-09): `execute` of one of them changes nothing, so it is neither tracked nor
+ * held. The gate reads the parameter names with it before every `set_parameter` (policy.ts).
+ */
+const READ_COMMANDS = new Set(['parameters.list']);
+
+/** Whether a call may change the design: a changing tool, unless it is `execute` of a command that only reads. */
+export function changesDesign(name: string, args: Record<string, unknown>): boolean {
+  if (!CHANGING_TOOLS.has(name)) return false;
+  return !(name === 'execute' && typeof args.command === 'string' && READ_COMMANDS.has(args.command.trim().toLowerCase()));
+}
 /** Behind the answer of a changing call whose history could not be read: no check came with it, so it is not checked. */
 export const UNCHECKED_CHANGE =
   `[PartBuddy: whether this call changed the design could not be read, so no ready-to-print check comes with it; call ${VIEW_TOOL} for the check before you call the part done.]`;
@@ -73,7 +84,7 @@ export class WorkLog {
       instructions: () => upstream.instructions(),
       listTools: () => upstream.listTools(),
       callTool: async (name, args, callId) => {
-        if (!CHANGING_TOOLS.has(name)) return upstream.callTool(name, args, callId);
+        if (!changesDesign(name, args)) return upstream.callTool(name, args, callId);
         const { result, moved } = await this.serial(async () => {
           const before = await this.readHistory();
           const result: ToolResult = await upstream.callTool(name, args, callId);
