@@ -32,8 +32,12 @@ export interface PrintCheckProfile {
   off?: readonly PrintHint[] | undefined;
 }
 
-/** The hints of BC-24: yellow only, each one switched off in the print settings on its own (Manuel, 2026-11-13). */
-export type PrintHint = 'smallHole' | 'narrowGap';
+/**
+ * The hints of BC-24: yellow only, each one switched off in the print settings on its own (Manuel, 2026-11-13). The design
+ * hints (`withDesign`, Manuel 2026-11-14) say how the part looks and holds, not whether it prints.
+ */
+export type PrintHint = 'smallHole' | 'narrowGap' | DesignHint;
+export type DesignHint = 'sharpEdge';
 
 export interface PrintCheckBody {
   name: string;
@@ -88,6 +92,11 @@ export type PrintFinding =
   | ({ kind: 'smallHole'; severity: FindingSeverity; holes: number; diameter: number; minimum: number } & Located)
   /** Slots between two walls of one body under `minimum` wide (BC-24): `gap` the narrowest, over `area` of wall. */
   | ({ kind: 'narrowGap'; severity: FindingSeverity; gap: number; minimum: number; area: number } & Located)
+  /**
+   * Bodies with no rounded or chamfered edge at all (design hint): `edges` sharp outer edges, `length` mm of them, and the
+   * radius the design rules ask for the largest such body (`size` its longest side).
+   */
+  | ({ kind: 'sharpEdge'; severity: FindingSeverity; edges: number; length: number; size: number; radius: number } & Located)
   /** The bodies with too little on the bed: how many, and the area of the one with the least. */
   | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
@@ -1136,6 +1145,232 @@ export function withMotion(check: PrintCheck, measured: MeasuredMotion): PrintCh
       if (Math.abs(value.value) > 1e-3) findings.push({ kind: 'posed', severity: 'warn', joint: joint.name, value: round(value.value, 1), unit: value.unit });
     }
   }
+  findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+  return { status: statusOf(findings), findings };
+}
+
+/** The design hints, in the order the note names them. */
+export const DESIGN_HINTS: readonly DesignHint[] = ['sharpEdge'];
+
+/** Within 10° two faces run on smoothly: a fillet into its faces, the facets of one curved face. */
+const SMOOTH = Math.cos((10 * Math.PI) / 180);
+/** Turning more than 60° two faces make a sharp edge: a box's 90°, not the two 45° turns of a chamfer. */
+const SHARP = Math.cos((60 * Math.PI) / 180);
+/** Turning outwards between 15° and 55° two faces make a bevel: either side of a chamfer, however it was built. */
+const BEVEL = [Math.cos((15 * Math.PI) / 180), Math.cos((55 * Math.PI) / 180)] as const;
+
+/** Where two faces of one body meet, from the mesh: mm of it in all, turning sharp out or in, turning in at all, running on smoothly. */
+interface FaceEdge {
+  a: number;
+  b: number;
+  length: number;
+  sharpOut: number;
+  sharpIn: number;
+  inward: number;
+  smooth: number;
+  /** mm turning outwards as a chamfer does (`BEVEL`). */
+  bevel: number;
+  /** A sharp stretch lies on the bed as the body lies. */
+  bed: boolean;
+  /** The sharp stretches, xyz xyz each. */
+  segments: number[];
+  /** A facet of each face at a smooth stretch (-1: none), to measure from. */
+  smoothAt: [number, number];
+}
+
+/**
+ * Every pair of faces that meet, by the facets on either side of each mesh edge between them (render vertices are split
+ * per face, so corners are matched by position). The halves of one cylinder are one face. Linear in the triangles.
+ */
+function faceEdges(model: ViewerModel, laid?: LaidBody): Map<number, FaceEdge> {
+  const index = model.geometry.index?.array ?? [];
+  const positions = model.geometry.getAttribute('position').array;
+  const faces = model.table.faces;
+  const weld = new Uint32Array(positions.length / 3);
+  const ids = new Map<string, number>();
+  for (let v = 0; v < weld.length; v += 1) {
+    const key = `${String(positions[v * 3])},${String(positions[v * 3 + 1])},${String(positions[v * 3 + 2])}`;
+    let id = ids.get(key);
+    if (id === undefined) {
+      id = ids.size;
+      ids.set(key, id);
+    }
+    weld[v] = id;
+  }
+  const corners = ids.size;
+  const open = new Map<number, number>();
+  const pairs = new Map<number, FaceEdge>();
+  const onBed = (v: number) => !!laid && (laid.positions[v * 3 + 2] ?? Infinity) <= laid.bed + BED_TOUCH;
+  for (let t = 0; t < index.length / 3; t += 1) {
+    const face = model.triangleFaces[t] ?? 0;
+    for (let k = 0; k < 3; k += 1) {
+      const p = index[t * 3 + k] ?? 0;
+      const q = index[t * 3 + ((k + 1) % 3)] ?? 0;
+      const [i, j] = [weld[p] ?? 0, weld[q] ?? 0];
+      if (i === j) continue;
+      const key = i < j ? i * corners + j : j * corners + i;
+      const first = open.get(key);
+      if (first === undefined) {
+        open.set(key, t);
+        continue;
+      }
+      open.delete(key);
+      const other = model.triangleFaces[first] ?? 0;
+      const [fa, fb] = [faces[other], faces[face]];
+      if (other === face || !fa || !fb || sameCylinder(fa, fb)) continue;
+      const n1 = triangle(positions, index, first).normal;
+      const n2 = triangle(positions, index, t).normal;
+      if (!n1 || !n2) continue;
+      // The corner of this facet off the edge, against the other facet's plane: in front of it, the faces make an inner corner.
+      const r = (index[t * 3 + ((k + 2) % 3)] ?? 0) * 3;
+      const side = ((positions[r] ?? 0) - (positions[p * 3] ?? 0)) * n1.x + ((positions[r + 1] ?? 0) - (positions[p * 3 + 1] ?? 0)) * n1.y + ((positions[r + 2] ?? 0) - (positions[p * 3 + 2] ?? 0)) * n1.z;
+      const ends = [positions[p * 3] ?? 0, positions[p * 3 + 1] ?? 0, positions[p * 3 + 2] ?? 0, positions[q * 3] ?? 0, positions[q * 3 + 1] ?? 0, positions[q * 3 + 2] ?? 0];
+      const length = Math.hypot((ends[3] ?? 0) - (ends[0] ?? 0), (ends[4] ?? 0) - (ends[1] ?? 0), (ends[5] ?? 0) - (ends[2] ?? 0));
+      const [a, b] = other < face ? [other, face] : [face, other];
+      const id = a * faces.length + b;
+      let pair = pairs.get(id);
+      if (!pair) {
+        pair = { a, b, length: 0, sharpOut: 0, sharpIn: 0, inward: 0, smooth: 0, bevel: 0, bed: false, segments: [], smoothAt: [-1, -1] };
+        pairs.set(id, pair);
+      }
+      pair.length += length;
+      const cos = n1.dot(n2);
+      if (cos > SMOOTH) {
+        pair.smooth += length;
+        pair.smoothAt = other < face ? [first, t] : [t, first];
+      } else if (side > EPSILON) pair.inward += length;
+      else if (cos < BEVEL[0] && cos > BEVEL[1]) pair.bevel += length;
+      if (cos >= SHARP) continue;
+      if (side > EPSILON) pair.sharpIn += length;
+      else pair.sharpOut += length;
+      pair.segments.push(...ends);
+      if (onBed(p) && onBed(q) && laid && [first, t].some((s) => (triangle(laid.positions, index, s).normal?.z ?? 0) < -0.99)) pair.bed = true;
+    }
+  }
+  return pairs;
+}
+
+/** Per face, whether it is a cylinder the material lies outside of (a hole, `hollowAt`), by one facet of it. */
+function hollowFaces(model: ViewerModel): Uint8Array {
+  const index = model.geometry.index?.array ?? [];
+  const positions = model.geometry.getAttribute('position').array;
+  const hollow = new Uint8Array(model.table.faces.length);
+  const seen = new Uint8Array(model.table.faces.length);
+  for (let t = 0; t < index.length / 3; t += 1) {
+    const face = model.triangleFaces[t] ?? 0;
+    if (seen[face] || !model.table.faces[face]?.cylinder) continue;
+    const { normal, centroid } = triangle(positions, index, t);
+    if (!normal) continue;
+    seen[face] = 1;
+    if (hollowAt(model, t, normal, centroid)) hollow[face] = 1;
+  }
+  return hollow;
+}
+
+/**
+ * The radius the design rules ask on outer edges that are seen or touched (printProfiles.ts, "Edges"): 1 mm on parts under
+ * 30 mm, 2 mm up to 100 mm, 3 mm above.
+ */
+export function edgeRadius(size: number): number {
+  return size < 30 ? 1 : size <= 100 ? 2 : 3;
+}
+
+/** Bodies smaller than this are details (a pin, a key): no edge hint (mm, the longest side). */
+const SMALLEST_PART = 10;
+/** A sharp edge shorter than this is a detail (a step, a letter); a body with less sharp edge than LEAST_SHARP in all is left alone (mm). */
+const SHORTEST_EDGE = 2;
+const LEAST_SHARP = 10;
+
+/**
+ * The longest side of a body, the same however it is turned: its extent along its longest sharp edge, across it on the
+ * plane of one of its faces, and along that face's normal.
+ */
+function sizeAlong(model: ViewerModel, pairs: readonly FaceEdge[]): number {
+  const longest = pairs.reduce<FaceEdge | undefined>((best, pair) => (!best || pair.length > best.length ? pair : best), undefined);
+  const normal = longest ? model.table.faces[longest.a]?.planeNormal : undefined;
+  const s = longest?.segments ?? [];
+  if (!normal || s.length < 6) return Math.max(...extentOf(model.geometry.getAttribute('position').array));
+  const along = new Vector3((s[3] ?? 0) - (s[0] ?? 0), (s[4] ?? 0) - (s[1] ?? 0), (s[5] ?? 0) - (s[2] ?? 0)).normalize();
+  const up = new Vector3(...normal).normalize();
+  const axes = [along, new Vector3().crossVectors(up, along).normalize(), up];
+  const positions = model.geometry.getAttribute('position').array;
+  const point = new Vector3();
+  return Math.max(
+    ...axes.map((axis) => {
+      let [low, high] = [Infinity, -Infinity];
+      for (let i = 0; i < positions.length; i += 3) {
+        const d = point.set(positions[i] ?? 0, positions[i + 1] ?? 0, positions[i + 2] ?? 0).dot(axis);
+        low = Math.min(low, d);
+        high = Math.max(high, d);
+      }
+      return high - low;
+    }),
+  );
+}
+
+/** One body as the design hints read it. */
+interface DesignBody {
+  body: PrintCheckBody;
+  laid: LaidBody | undefined;
+  pairs: FaceEdge[];
+  hollow: Uint8Array;
+}
+
+/**
+ * `sharpEdge`: a body of SolidCraft's with no fillet and no chamfer at all (no `blend(` face), no fillet-like round of an
+ * import either (a convex cylinder running on smoothly from a flat face) and no chamfer made otherwise (two faces turning
+ * 15° to 55° outwards all along their edge, as a cone joined on the knob block's top), whose edges between two flat faces turn more than
+ * 60° outwards: the rules round those by its size (research O14, H9: the block look). Edges on the bed (chamfered there,
+ * BC-27) are left out, and so are edges under 2 mm (a letter, a step), round edges (a hole's rim, a knuckle's end: the
+ * entry chamfer of the details rule, or a mechanism's) and bodies under 10 mm.
+ * shortcut: a body that has one fillet or chamfer anywhere is taken as treated, so outer edges left sharp beside a rounded
+ * corner (a plate rounded at its corners, sharp along the top) are not told: PartBuddy's own sign, slide stop and housing do
+ * so on purpose, and the mesh cannot tell an edge that is seen or touched from one that is not. Tell them if a rule names it.
+ */
+function sharpEdges(bodies: readonly DesignBody[]): PrintFinding | null {
+  let [edges, length, size] = [0, 0, 0];
+  const tallies = bodies.map(({ body, pairs, hollow }) => {
+    const faces = body.model.table.faces;
+    const tally = new FaceTally(faces.length);
+    if (faces.some((face) => face.name.includes('blend('))) return tally;
+    const curvedOut = (face: number) => !!faces[face]?.cylinder && !hollow[face];
+    if (pairs.some((pair) => pair.smooth >= 1 && ((!!faces[pair.a]?.planeNormal && curvedOut(pair.b)) || (!!faces[pair.b]?.planeNormal && curvedOut(pair.a))))) return tally;
+    // A chamfer made otherwise (the knob block's top is a cone joined on): an edge turning out as a chamfer's do, all along.
+    if (pairs.some((pair) => pair.bevel >= SHORTEST_EDGE && pair.bevel >= 0.9 * pair.length)) return tally;
+    const flat = (face: number) => !!faces[face]?.planeNormal;
+    const found = pairs.filter((pair) => flat(pair.a) && flat(pair.b) && !pair.bed && pair.sharpOut >= SHORTEST_EDGE && pair.sharpOut >= 0.9 * pair.length);
+    const mm = found.reduce((sum, pair) => sum + pair.sharpOut, 0);
+    const longest = sizeAlong(body.model, found);
+    if (mm < LEAST_SHARP || longest < SMALLEST_PART) return tally;
+    for (const pair of found) for (const face of [pair.a, pair.b]) tally.add(face, pair.sharpOut, 0, pair.segments);
+    edges += found.length;
+    length += mm;
+    size = Math.max(size, longest);
+    return tally;
+  });
+  if (edges === 0) return null;
+  const found = locate(bodies.map(({ body }) => body), tallies, 0);
+  return { kind: 'sharpEdge', severity: 'warn', edges, length: round(length, 0), size: round(size, 0), radius: edgeRadius(size), places: found.places, box: found.box };
+}
+
+/**
+ * Adds the design hints (Manuel, 2026-11-14) to the check: how the part looks and holds, not whether it prints, so yellow
+ * only and each turned off on its own (in the print settings, or with the design rule it belongs to). Each body lies as the
+ * check lays it; open bodies are left out as there. Linear in the triangles.
+ */
+export function withDesign(check: PrintCheck, bodies: readonly PrintCheckBody[], profile: PrintCheckProfile): PrintCheck {
+  const off = profile.off ?? [];
+  const parts = bodies.filter((body) => body.model.table.faces.length > 0 && !(body.model.openEdges > 0));
+  if (DESIGN_HINTS.every((hint) => off.includes(hint)) || parts.length === 0) return check;
+  const laid = laidBodies(parts);
+  const read: DesignBody[] = parts.map((body, b) => ({
+    body,
+    laid: laid[b],
+    pairs: [...faceEdges(body.model, laid[b]).values()],
+    hollow: hollowFaces(body.model),
+  }));
+  const found: (PrintFinding | null)[] = [off.includes('sharpEdge') ? null : sharpEdges(read)];
+  const findings = [...check.findings, ...found.filter((finding): finding is PrintFinding => finding !== null)];
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   return { status: statusOf(findings), findings };
 }

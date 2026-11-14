@@ -1152,6 +1152,10 @@
       "narrowGap": {
         "label": "Schlitze, die zuwachsen",
         "hint": "Zeigt, wo zwei Wände eines Teils näher als eine Düsenbreite (mindestens 0,3 mm) beieinander liegen: Eine gravierte Linie, ein Schnitt oder ein Spalt zwischen Buchstaben druckt dort zu. Nur ein Hinweis, nie eine Sperre."
+      },
+      "sharpEdge": {
+        "label": "Körper ohne jede Rundung",
+        "hint": "Zeigt Körper ganz ohne Rundung oder Fase, deren Außenkanten scharf sind: Die Gestaltungsregeln runden sichtbare Kanten je nach Teilgröße mit 1, 2 oder 3 mm. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
       }
     }
   },
@@ -1205,7 +1209,8 @@
       "blockedFree": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk hat in diese Richtung keine Grenze und bleibt dort stehen",
       "posed": "{joint} steht auf {value}, nicht wie konstruiert – exportiert und geprüft wird diese Stellung",
       "smallHole": "{count, plural, one {Eine Bohrung unter {minimum} mm ({diameter} mm)} other {# Bohrungen unter {minimum} mm, die kleinste {diameter} mm}}: So kleine Bohrungen wachsen zu oder werden zu klein – nach dem Druck aufbohren",
-      "narrowGap": "Schlitze bis {gap} mm, unter den {minimum} mm, die mit dieser Düse offen bleiben: Die Wände daneben drücken sich zusammen und schließen sie"
+      "narrowGap": "Schlitze bis {gap} mm, unter den {minimum} mm, die mit dieser Düse offen bleiben: Die Wände daneben drücken sich zusammen und schließen sie",
+      "sharpEdge": "{count, plural, one {Eine scharfe Kante} other {# scharfe Kanten}} ({length} mm) an Körpern ganz ohne Rundung oder Fase: Die Gestaltungsregeln runden sichtbare Außenkanten bei {size} mm Teilgröße mit {radius} mm"
     },
     "confirm": {
       "title": "Trotzdem exportieren?",

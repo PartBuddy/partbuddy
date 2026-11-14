@@ -1152,6 +1152,10 @@
       "narrowGap": {
         "label": "Slots that print closed",
         "hint": "Says where two walls of one part come closer than one nozzle (at least 0.3 mm): an engraved stroke, a kerf or a slit between letters prints closed there. A hint, never a block."
+      },
+      "sharpEdge": {
+        "label": "Bodies with no rounding at all",
+        "hint": "Says where a body has no rounded or chamfered edge at all and its outer edges are sharp: the design rules round seen edges by 1, 2 or 3 mm, by the size of the part. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
       }
     }
   },
@@ -1205,7 +1209,8 @@
       "blockedFree": "{joint}: {a} and {b} touch at {at} – the joint has no limit that way and stops there",
       "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands",
       "smallHole": "{count, plural, one {A hole under {minimum} mm across ({diameter} mm)} other {# holes under {minimum} mm across, the smallest {diameter} mm}}: holes that small close up or come out under size – drill them out after printing",
-      "narrowGap": "Slots down to {gap} mm, under the {minimum} mm that stay open with this nozzle: the walls beside them squeeze together and close them"
+      "narrowGap": "Slots down to {gap} mm, under the {minimum} mm that stay open with this nozzle: the walls beside them squeeze together and close them",
+      "sharpEdge": "{count, plural, one {A sharp edge} other {# sharp edges}} ({length} mm) on bodies with no rounded or chamfered edge at all: the design rules round seen outer edges {radius} mm on a part of {size} mm"
     },
     "confirm": {
       "title": "Export anyway?",

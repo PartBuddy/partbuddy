@@ -1131,14 +1131,19 @@ export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true
 
 /**
  * The print check's hints of audit BC-24 (Manuel, 2026-11-13): yellow only, never a block, each turned off here on its own;
- * on unless turned off. The names are `PrintHint` of the geometry package.
+ * on unless turned off. The names are `PrintHint` of the geometry package. After them the design hints (Manuel, 2026-11-14):
+ * how the part looks and holds, each also off while the design rule it belongs to is off (`HINT_RULE`).
  */
-export const PRINT_HINTS = ['smallHole', 'narrowGap'] as const;
-const HINTS_ON = { smallHole: true, narrowGap: true };
+export const PRINT_HINTS = ['smallHole', 'narrowGap', 'sharpEdge'] as const;
+export type PrintHintName = (typeof PRINT_HINTS)[number];
+const HINTS_ON = { smallHole: true, narrowGap: true, sharpEdge: true };
+const on = () => z.boolean().catch(true).default(true);
 // Not strict, and each value falls back to on: a hint of a newer or older PartBuddy must not lose the printers and materials (BC-24 review).
-export const printHintsSchema = z.object({ smallHole: z.boolean().catch(true).default(true), narrowGap: z.boolean().catch(true).default(true) }).catch(HINTS_ON);
+export const printHintsSchema = z.object({ smallHole: on(), narrowGap: on(), sharpEdge: on() }).catch(HINTS_ON);
 export type PrintHints = z.infer<typeof printHintsSchema>;
 export const HINT_DEFAULTS: PrintHints = HINTS_ON;
+/** The design rule a design hint checks: turned off for the part, the hint is not looked for either (the assistant was told not to). */
+export const HINT_RULE: Partial<Record<PrintHintName, DesignRule>> = { sharpEdge: 'rounding' };
 
 export const printSettingsSchema = z
   .object({
@@ -1211,6 +1216,7 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('roundBedEdge'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('smallHole'), severity: findingSeveritySchema, holes: z.number().int().positive().max(100_000), diameter: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('narrowGap'), severity: findingSeveritySchema, gap: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('sharpEdge'), severity: findingSeveritySchema, edges: z.number().int().positive().max(100_000), length: finite.nonnegative(), size: finite.nonnegative(), radius: mmValue, places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), bodies: z.number().int().positive().max(100_000), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
@@ -1239,7 +1245,7 @@ export const printCheckReportSchema = z
     unmeasured: z.array(z.enum(['clearance', 'joints'])).max(2).optional(),
     /** Mesh bodies whose clearance SolidCraft does not measure: the check says nothing of them until they are converted to faces. */
     unchecked: z.array(bodyName).max(40).optional(),
-    /** The hints turned off in the print settings (BC-24): not looked for, so the note does not claim them. */
+    /** The hints turned off in the print settings (BC-24) or with their design rule: not looked for, so the note does not claim them. */
     off: z.array(z.enum(PRINT_HINTS)).max(PRINT_HINTS.length).optional(),
     /**
      * Per printed body, as it lies on the bed: solid volume and the shell estimate in mm³ (two wall lines on every

@@ -23,6 +23,11 @@ export {
 } from './faceTable';
 export {
   checkPrint,
+  DESIGN_HINTS,
+  edgeRadius,
+  withDesign,
+  type DesignHint,
+  type PrintHint,
   laidBodies,
   minimumFloor,
   minimumWall,

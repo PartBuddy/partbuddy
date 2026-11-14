@@ -40,6 +40,8 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.roundBedEdge', { area: number.format(finding.area), limit: finding.limit, chamfer: Math.min(45, finding.limit) });
       case 'smallHole':
         return t('check.finding.smallHole', { count: finding.holes, diameter: number.format(finding.diameter), minimum: number.format(finding.minimum) });
+      case 'sharpEdge':
+        return t('check.finding.sharpEdge', { count: finding.edges, length: number.format(finding.length), radius: number.format(finding.radius), size: number.format(finding.size) });
       case 'narrowGap':
         return t('check.finding.narrowGap', { gap: gap.format(finding.gap), minimum: gap.format(finding.minimum) });
       case 'contact':

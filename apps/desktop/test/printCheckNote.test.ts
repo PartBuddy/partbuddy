@@ -86,12 +86,21 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     expect(printCheckNote({ ...report, findings: [{ kind: 'smallHole', severity: 'warn', holes: 1, diameter: 1, minimum: 2, places: [] }] })).toContain('- warning: a hole under 2 mm across, the smallest 1 mm:');
   });
 
+  it('words the design hints (2026-11-14)', () => {
+    const report = reportOf({ status: 'warn', findings: [{ kind: 'sharpEdge', severity: 'warn', edges: 8, length: 200, size: 40, radius: 2, places: [{ body: 'Box', faces: ['F1:+z', 'F1:+x'] }], box: null }] }, 0.4, 3);
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    const note = printCheckNote(report);
+    expect(note).toContain('- warning: 8 sharp edges (200 mm) on bodies with no rounded or chamfered edge at all (faces "F1:+z", "F1:+x" of body "Box"): the design rules round outer edges that are seen or touched, 2 mm on a part of 40 mm');
+    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).toContain('Design hints looked for (how the part looks and holds; yellow, never a block): bodies with no rounded or chamfered edge.');
+    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: ['sharpEdge'] }))).not.toContain('Design hints looked for');
+  });
+
   it('claims no hint the user turned off (BC-24)', () => {
     const report = reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: ['smallHole'] });
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
     const note = printCheckNote(report);
     expect(note).toContain('rounded edges on the bed, slots under one nozzle, area on the bed');
-    expect(note).toContain("Turned off in PartBuddy's print settings, so not looked for: holes under 2 mm.");
+    expect(note).toContain("Turned off in PartBuddy's print settings or with the design rules, so not looked for: holes under 2 mm.");
     expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).not.toContain('Turned off');
   });
 
