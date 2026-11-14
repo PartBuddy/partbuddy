@@ -46,6 +46,7 @@ import {
 import { DESIGN_RULES, PRINT_HINTS, ZOOM_STEPS, type AppSettings, type AppInfo, type GeneralSettingsInfo, type Language, type PrintSettings, type SettingsReset, type Theme, type UpdateState } from '../../../shared/contract';
 import { AssistantChoice } from '../assistant/AgentChip';
 import { localeFrom } from '../i18n';
+import { withSwitch } from '../print/settingsMerge';
 import { PrintProfilesEditor } from '../print/PrintProfilesEditor';
 import { platform } from '../platform';
 import { useStudio, type SettingsSection } from '../state/store';
@@ -450,10 +451,10 @@ function PrintRuleSettings({ group }: { group: 'design' | 'hints' }) {
   if (!settings) return null;
   // On the profiles as saved now: the profile editor beside the hints saves printers and materials of its own (BC-24).
   const save = (rule: string, on: boolean) => {
-    setSettings({ ...settings, [group]: { ...settings[group], [rule]: on } });
+    setSettings(withSwitch(settings, group, rule, on));
     void platform()
       .print.settings()
-      .then((stored) => platform().print.saveSettings({ ...stored, [group]: { ...stored[group], [rule]: on } }))
+      .then((stored) => platform().print.saveSettings(withSwitch(stored, group, rule, on)))
       .then(setSettings);
   };
   return (

@@ -26,6 +26,7 @@ import { MATERIAL_CATALOG } from '../../../shared/materialCatalog';
 import { PRINTER_CATALOG } from '../../../shared/printerCatalog';
 import { fitsSource } from '../../../shared/toolFit';
 import { CatalogPicker, type CatalogSection } from './CatalogPicker';
+import { withProfiles } from './settingsMerge';
 import { ToleranceAssistant } from './ToleranceAssistant';
 import { listRowClass, tabClass, tabListClass } from '../ui/Navigation';
 
@@ -337,7 +338,7 @@ export function PrintProfilesEditor() {
     // The design rules and the check's hints are switched beside the editor (BC-24): kept as saved, not as loaded here.
     platform()
       .print.settings()
-      .then((stored) => platform().print.saveSettings({ ...trimmed, design: stored.design, hints: stored.hints }))
+      .then((stored) => platform().print.saveSettings(withProfiles(trimmed, stored)))
       .then(() => {
         setError(null);
       })

@@ -952,8 +952,8 @@
         "general": "Language, appearance, interface size, start behaviour, the update check and the project folder go back to the defaults. Another project folder applies after a restart.",
         "solidcraft": "PartBuddy finds SolidCraft itself again. This applies after a restart.",
         "assistant": "Web research, the design rules and model and effort per assistant go back to the defaults. Sign-ins stay.",
-        "print": "Printers and materials go back to the starting profiles; your own profiles are removed. The assistant's design rules stay.",
-        "all": "All settings go back to the defaults. Printer and material profiles, projects and sign-ins stay."
+        "print": "Printers and materials go back to the starting profiles; your own profiles are removed. The print check's hints are all turned on again. The assistant's design rules stay.",
+        "all": "All settings go back to the defaults, the print check's hints too. Printer and material profiles, projects and sign-ins stay."
       }
     },
     "zoom": {

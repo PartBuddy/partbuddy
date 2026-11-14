@@ -92,6 +92,10 @@ describe('printer and material profiles (M7)', () => {
     expect(profiles.settings().hints).toEqual({ smallHole: true, narrowGap: true });
     writeFileSync(join(root, 'print-profiles.json'), JSON.stringify({ ...before, hints: { smallHole: false } }));
     expect(profiles.part().hints).toEqual({ smallHole: false, narrowGap: true });
+    // A hint of another PartBuddy version, or a broken value, loses neither the profiles nor the other hints (BC-24 review).
+    writeFileSync(join(root, 'print-profiles.json'), JSON.stringify({ ...before, printer: 'p1s', printers: [{ id: 'p1s', name: 'P1S', bed: [256, 256, 256], nozzle: 0.6, layer: 0.3 }], hints: { smallHole: false, knifeEdge: true, narrowGap: 'yes' } }));
+    expect(profiles.settings().printers.map((printer) => printer.name)).toEqual(['P1S']);
+    expect(profiles.settings().hints).toEqual({ smallHole: false, narrowGap: true });
     // Back to the starting profiles turns them on again: they belong to the print section.
     expect(profiles.startingProfiles().hints).toEqual({ smallHole: true, narrowGap: true });
   });

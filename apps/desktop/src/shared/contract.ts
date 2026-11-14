@@ -1134,9 +1134,11 @@ export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true
  * on unless turned off. The names are `PrintHint` of the geometry package.
  */
 export const PRINT_HINTS = ['smallHole', 'narrowGap'] as const;
-export const printHintsSchema = z.object({ smallHole: z.boolean().default(true), narrowGap: z.boolean().default(true) }).strict();
+const HINTS_ON = { smallHole: true, narrowGap: true };
+// Not strict, and each value falls back to on: a hint of a newer or older PartBuddy must not lose the printers and materials (BC-24 review).
+export const printHintsSchema = z.object({ smallHole: z.boolean().catch(true).default(true), narrowGap: z.boolean().catch(true).default(true) }).catch(HINTS_ON);
 export type PrintHints = z.infer<typeof printHintsSchema>;
-export const HINT_DEFAULTS: PrintHints = { smallHole: true, narrowGap: true };
+export const HINT_DEFAULTS: PrintHints = HINTS_ON;
 
 export const printSettingsSchema = z
   .object({
