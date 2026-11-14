@@ -3,6 +3,8 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { execFileSync } from 'node:child_process';
 
+import { COMMAND_GROUPS, GROUP_EXCEPTIONS, KNOWN_COMMANDS, KNOWN_COMMANDS_VERSION } from '../src/main/agents/knownCommands';
+import { cliBeside, findExecutable, systemEnvironment } from '../src/main/solidcraft/discovery';
 import { launchApp } from './launch';
 
 /**
@@ -36,6 +38,19 @@ function countProcesses(image: string): number {
 // control folder: it connects to a running SolidCraft or starts one. Opt in with
 // PARTBUDDY_E2E_SOLIDCRAFT=1; CI has no SolidCraft.
 test.skip(process.env.PARTBUDDY_E2E_SOLIDCRAFT !== '1', 'needs SolidCraft; set PARTBUDDY_E2E_SOLIDCRAFT=1');
+
+test('knows every command of the allowed groups of the installed SolidCraft (BC-26, audit S-03)', () => {
+  // The SolidCraft the app finds (PARTBUDDY_SOLIDCRAFT_EXE in CI, else the automatic search), and its CLI.
+  const executable = findExecutable(systemEnvironment);
+  expect(executable, 'SolidCraft is installed').not.toBeNull();
+  const cli = cliBeside(executable ?? '');
+  // The catalogue list_commands reads from, with every command (list_commands pages it).
+  const catalogue = JSON.parse(execFileSync(cli, ['commands'], { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 })) as { id: string }[];
+  const allowed = catalogue.map(({ id }) => id.toLowerCase()).filter((id) => COMMAND_GROUPS.has(id.slice(0, id.indexOf('.'))) || GROUP_EXCEPTIONS.has(id));
+  // A new id runs only once someone has looked at it: refuse it in policy.ts or add it to knownCommands.ts (and its version).
+  // The list holds older versions' ids too (0.40.1 is the minimum), so only ids missing from it count.
+  expect(allowed.filter((id) => !KNOWN_COMMANDS.has(id)), `commands newer than SolidCraft ${KNOWN_COMMANDS_VERSION}`).toEqual([]);
+});
 
 test('connects to a SolidCraft window the user opened and shows its design', async () => {
   // Needs a SolidCraft window the user opened with a design that has a body; without one PartBuddy

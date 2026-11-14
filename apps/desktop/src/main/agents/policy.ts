@@ -10,6 +10,7 @@ import { AjvJsonSchemaValidator } from '@modelcontextprotocol/server/validators/
 import { TAPPED_FROM } from '../../shared/mechanisms';
 import { METADATA_PREFIX } from '../notes/noteRecord';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
+import { COMMAND_GROUPS, GROUP_EXCEPTIONS, KNOWN_COMMANDS, KNOWN_COMMANDS_VERSION } from './knownCommands';
 import { isKeptPhoto } from './photoNote';
 
 export type ToolDecision = { allow: true } | { allow: false; reason: string };
@@ -103,22 +104,6 @@ const PLASTIC_RULES_REASON =
   "sets SolidCraft's injection-moulding rules (draft, clearance), which plastic features then take as defaults; PartBuddy " +
   'sizes for printing from the print profile instead. Continue without it.';
 
-/**
- * The command groups (the id up to its first dot) the assistant may use, from the catalogue of
- * SolidCraft 0.40.1 (`solidcraft-cli commands`, 634 commands): modelling, inspecting and the
- * history. A group that is not listed, one a later SolidCraft adds among them, is refused until
- * someone has looked at it (audit H-30, S-31). Of the raw modelling commands, those PartBuddy builds
- * itself are refused ({@link CHECKED_WAYS}); the others are checked after each change (audit S-03, S-17).
- */
-export const COMMAND_GROUPS = new Set([
-  'appearance', 'assembly', 'body', 'browser', 'canvas', 'component', 'construct', 'contact', 'explode', 'expr', 'face',
-  'frame', 'inspect', 'joint', 'mesh', 'model', 'motion', 'note', 'occurrence', 'parameters', 'parts', 'plastic', 'sheet',
-  'sketch', 'solid', 'surface', 'timeline',
-]);
-
-/** Single commands of a group that is not listed: undo and redo, and the saved views `screenshot {view}` shows. */
-export const GROUP_EXCEPTIONS = new Set(['edit.undo', 'edit.redo', 'view.save', 'view.apply', 'view.list']);
-
 /** Why a group is refused, where the general sentence would not tell the assistant what to do instead. */
 const GROUP_REASONS: Record<string, string> = {
   file: FILES_REASON,
@@ -136,6 +121,9 @@ const GROUP_REASONS: Record<string, string> = {
     "sets SolidCraft's physical material, which is not the material the part is printed in: PartBuddy takes that from the print profile the user chose. Continue without it.",
   // audit S-26: PartBuddy's parameter list, print check and export know one design, not configurations.
   config: 'works on configurations, which PartBuddy does not show: its parameters, print check and export see one design. Change sizes with set_parameter instead.',
+  // 0.41.0: plugins are third-party code that runs inside SolidCraft, past every check of PartBuddy's.
+  plugin:
+    "installs or runs SolidCraft plugins, third-party code that runs outside PartBuddy's checks; PartBuddy does not allow that for the assistant. Continue with the modelling commands.",
   // audit S-31.
   layout: WINDOW_REASON,
   panel: WINDOW_REASON,
@@ -295,6 +283,8 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
   if (!COMMAND_GROUPS.has(group) && !GROUP_EXCEPTIONS.has(command)) {
     return refuse(`${command} ${entryOf(GROUP_REASONS, group) ?? 'is not available in PartBuddy. Continue with the modelling and inspection commands.'}`);
   }
+  // shortcut: construct.plane, construct.axis and construct.point run the first construct.* command of their family that takes the refs, which this check never sees, so a construct.* command a later SolidCraft adds is reachable through them until it is on the list; look at those three when the contract test names a new construct id.
+  if (!KNOWN_COMMANDS.has(command)) return refuse(uncheckedCommand(command, group));
   if (METADATA_WRITES.has(command) && metadataKeys(params).some((key) => key.toLowerCase().startsWith(METADATA_PREFIX))) {
     return refuse(
       `${command} would change PartBuddy's own data in the design: the user's notes, or which parts print as one piece, which partbuddy_mechanism marks. Only the user writes notes; read them with partbuddy_view and continue without it.`,
@@ -343,6 +333,43 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
     );
   }
   return { allow: true };
+}
+
+/** How many known commands a refusal of an unknown one names (the sketch group alone has 131). */
+const CLOSEST_COMMANDS = 20;
+
+/**
+ * Why a command of an allowed group that PartBuddy does not know is refused (audit S-03, BC-26): it was misspelt, or a
+ * later SolidCraft added it, and nobody has looked at what it builds. Names the group's commands the assistant may use.
+ */
+function uncheckedCommand(command: string, group: string): string {
+  const known = [...KNOWN_COMMANDS].filter((id) => id.startsWith(`${group}.`) && !Object.hasOwn(REFUSED_COMMANDS, id) && !Object.hasOwn(CHECKED_WAYS, id));
+  // The closest by name first: the longest shared start, then the fewest edits. Compared on the first 64 signs (the
+  // longest id of SolidCraft 0.41.0 has 41), so an id of any length costs no more than a short one on the main thread.
+  const name = command.slice(0, 64);
+  const shared = (id: string): number => {
+    let length = 0;
+    while (length < id.length && id[length] === name[length]) length++;
+    return length;
+  };
+  const closest = known.map((id) => ({ id, start: shared(id), edits: editDistance(id, name) })).sort((a, b) => b.start - a.start || a.edits - b.edits);
+  const named = closest.slice(0, CLOSEST_COMMANDS).map(({ id }) => id);
+  const rest = known.length > named.length ? `; list_commands {"prefix": "${group}."} lists the rest` : '';
+  return (
+    `${command} is not checked by PartBuddy yet: PartBuddy knows the commands up to SolidCraft ${KNOWN_COMMANDS_VERSION}, and this one is misspelt or newer. ` +
+    `Use ${/^[aeiou]/.test(group) ? 'an' : 'a'} ${group} command it knows, such as ${named.join(', ')}${rest}. If none of them does what you need, tell the user what is missing.`
+  );
+}
+
+/** Levenshtein distance of two short ids. */
+function editDistance(a: string, b: string): number {
+  let row = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) next[j] = Math.min((row[j] ?? 0) + 1, (next[j - 1] ?? 0) + 1, (row[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1));
+    row = next;
+  }
+  return row[b.length] ?? 0;
 }
 
 const STEP_FORM = '{"command": "sketch.create", "params": {…}}';

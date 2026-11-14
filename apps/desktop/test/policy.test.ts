@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest';
 
 import { GateProxy, type ToolCallRecord, type ToolResult, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { policyToolSet } from '../src/main/agents/loop';
-import { CHECKED_WAYS, COMMAND_GROUPS, decide, decideParameterNames, GROUP_EXCEPTIONS, inputProblem, namesToChange, offeredTool, REFUSED_COMMANDS, TOOL_ARGUMENTS } from '../src/main/agents/policy';
+import { COMMAND_GROUPS, GROUP_EXCEPTIONS, KNOWN_COMMANDS, KNOWN_COMMANDS_VERSION } from '../src/main/agents/knownCommands';
+import { CHECKED_WAYS, decide, decideParameterNames, inputProblem, namesToChange, offeredTool, REFUSED_COMMANDS, TOOL_ARGUMENTS } from '../src/main/agents/policy';
 import { ASK_TOOL, Questions } from '../src/main/agents/questions';
 import { SKILL_NOTE, TOOL_NOTES } from '../src/main/agents/toolNotes';
 import { changesDesign } from '../src/main/agents/workLog';
@@ -406,6 +407,54 @@ describe('tool policy: raw commands PartBuddy builds itself are refused with the
     }
     // The units of the design are refused with the design document (audit S-22, BC-09).
     expect(reasonOf('execute', { command: 'document.units', params: { units: 'in' } })).toContain('stays in millimetres');
+  });
+
+  it('refuses a command of an allowed group that SolidCraft 0.41.0 does not have, in every way it can be sent (BC-26, audit S-03)', () => {
+    // Names a later SolidCraft could add to an allowed group, and a misspelt one.
+    for (const command of ['solid.hole_series', 'plastic.screw_boss', 'sketch.slot', 'solid.extrue']) {
+      for (const sent of [command, ` ${command.toUpperCase()} `]) {
+        const reason = reasonOf('execute', { command: sent, params: {} });
+        expect(reason, sent).toContain(`${command} is not checked by PartBuddy yet: PartBuddy knows the commands up to SolidCraft ${KNOWN_COMMANDS_VERSION}`);
+        expect(reason, sent).toContain('tell the user what is missing');
+        expect(step(sent).allow, sent).toBe(false);
+        expect(decide('batch', { commands: [{ id: sent, params: {} }] }).allow, sent).toBe(false);
+        expect(decide('batch', { commands: [{ command: 'execute', params: { command: sent, params: {} } }] }).allow, sent).toBe(false);
+        expect(execute('timeline.redefine', { feature: 'Hole1', command: sent, params: {} }).allow, sent).toBe(false);
+        expect(execute('sketch.draw.dimensioned', { command: sent, params: {}, dimensions: {} }).allow, sent).toBe(false);
+      }
+    }
+    // The refusal names the group's commands the assistant may use, not the ones refused.
+    // The closest by name first, at most 20, and where to find the rest.
+    const named = (command: string): string[] => /command it knows, such as (.*?)(;|\. If none)/.exec(reasonOf('execute', { command, params: {} }))?.[1]?.split(', ') ?? [];
+    expect(named('solid.extrue')[0]).toBe('solid.extrude');
+    expect(named('sketch.spline.handle')[0]).toBe('sketch.spline.handles');
+    expect(named('sketch.slot').slice(0, 5).every((id) => id.startsWith('sketch.slot.'))).toBe(true);
+    expect(named('sketch.slot')).toHaveLength(20);
+    expect(reasonOf('execute', { command: 'sketch.slot', params: {} })).toContain('list_commands {"prefix": "sketch."} lists the rest');
+    for (const refused of ['solid.hole', 'solid.thread', 'solid.scale']) expect(named('solid.hole_series'), refused).not.toContain(refused);
+    expect(named('plastic.screw_boss').sort()).toEqual(['plastic.rest', 'plastic.rules']);
+    expect(reasonOf('execute', { command: 'plastic.screw_boss', params: {} })).not.toContain('lists the rest');
+    expect(reasonOf('execute', { command: 'inspect.thing', params: {} })).toContain('Use an inspect command it knows');
+    expect(reasonOf('execute', { command: 'sketch.thing', params: {} })).toContain('Use a sketch command it knows');
+    // Review BC-26: an id of 100 000 signs took 2.3 s on the main thread; only its start is compared now.
+    const started = performance.now();
+    expect(reasonOf('execute', { command: `sketch.${'a'.repeat(100_000)}`, params: {} })).toContain('is not checked by PartBuddy yet');
+    expect(performance.now() - started).toBeLessThan(200);
+    // An unknown group keeps its own reason, the ones SolidCraft 0.41.0 added among them.
+    expect(reasonOf('execute', { command: 'file.export_all', params: {} })).toContain('reads or writes files');
+    expect(reasonOf('execute', { command: 'file.import_cache_clear', params: {} })).toContain('reads or writes files or settings');
+    for (const command of ['plugin.install', 'plugin.run', 'plugin.inspect', 'plugin.list']) expect(step(command, { path: 'p.zip' }).allow, command).toBe(false);
+    expect(reasonOf('execute', { command: 'plugin.run', params: { path: 'p', approval: 'x' } })).toContain('third-party code');
+  });
+
+  it('holds only commands of the allowed groups, and every command the refusals name (BC-26)', () => {
+    for (const command of KNOWN_COMMANDS) expect(COMMAND_GROUPS.has(command.slice(0, command.indexOf('.'))) || GROUP_EXCEPTIONS.has(command), command).toBe(true);
+    // edit.checkpoint and the like are refused by name in a group that is not allowed.
+    const named = [...Object.keys(REFUSED_COMMANDS), ...Object.keys(CHECKED_WAYS)].filter((command) => COMMAND_GROUPS.has(command.slice(0, command.indexOf('.'))));
+    expect(named.length).toBeGreaterThan(10);
+    for (const command of [...GROUP_EXCEPTIONS, ...named, 'timeline.edit', 'parameters.change']) expect(KNOWN_COMMANDS.has(command), command).toBe(true);
+    expect(TOOL_NOTES).toContain(`only the commands up to SolidCraft ${KNOWN_COMMANDS_VERSION} are allowed`);
+    for (const command of ['model.mesh', 'sketch.spline.handles', 'sketch.spline.reset_handles']) expect(execute(command, { body: 'Box' }), command).toEqual({ allow: true });
   });
 
   it('names the commands in the notes, and blocks and kinds the tools have, as the code holds them', async () => {
