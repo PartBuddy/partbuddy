@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BLOCK_KINDS, blockBodies, blockLimit, cutsThrough, defaultBlock, DEFAULT_PRINTER, hasSize, hookVector, limitSaid, logoFrom, needsNormal, planeAt, raisedBlock, sizesOf, snapStrain, stepsOf, textDepth, textStroke, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
 import { SNAP } from '../src/shared/mechanisms';
-import { rootApplied, rootFillet, rootOutcome, rootSteps } from '../src/shared/blocks';
+import { ROOT_FIT, rootApplied, rootFillet, rootGrowth, rootOutcome, rootSteps } from '../src/shared/blocks';
 import { CLEARANCE, CLEARANCE_NORMAL, headRoom, pilotHole, printedThread } from '../src/shared/screwSizes';
 import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
 import { DEFAULT_MATERIAL, drawnHole, fitClearance, type ToolMaterial } from '../src/shared/toolFit';
@@ -276,19 +276,31 @@ describe('function blocks (F1)', () => {
     // Audit MV-10: both root edges rounded at 0.6 of the thickness, a step of its own, named in the timeline; the arm stands from
     // the point against the catch (SolidCraft 0.40.1: edges at y 10 and 8.5 for a hook along +y, +0.869 mm³ each for 0.9 mm over 5 mm).
     const snap = block as Extract<FeatureBlock, { block: 'snapFit' }>;
-    expect(rootFillet(snap)).toEqual({ command: 'solid.fillet', params: { edges: [at, [10, 8.5, 10]], radius: '0.9 mm', tangent_chain: false, fit: 'reduce', body: 'Body1', name: 'Snap fit root' } });
+    // One edge a step, so each is measured on its own (second review of BC-17, S1).
+    expect(rootFillet(snap)).toEqual([at, [10, 8.5, 10]].map((edge) => ({ command: 'solid.fillet', params: { edges: [edge], radius: '0.9 mm', tangent_chain: false, fit: 'reduce', body: 'Body1', name: 'Snap fit root' } })));
     // Sideways, the second edge lies one thickness against the catch.
-    expect(rootFillet({ ...snap, normal: [1, 0, 0], hook: 'x-', thickness: 2 }).params).toMatchObject({ edges: [at, [10, 12, 10]], radius: '1.2 mm' });
+    expect(rootFillet({ ...snap, normal: [1, 0, 0], hook: 'x-', thickness: 2 })[1]?.params).toMatchObject({ edges: [[10, 12, 10]], radius: '1.2 mm' });
     // What SolidCraft answers: the radius it made smaller, or none when it took the one asked.
     expect(rootApplied(snap, { radius_applied: 0.2298 })).toBe(0.2298);
     expect(rootApplied(snap, { warning: null })).toBe(0.9);
-    // Only a body that grew got a root: one that shrank had its convex edges rounded (thin wall, measured), one missing is unknown.
+    // Each edge must add what its radius adds along the arm: 5 · 0.9² · (1 − π/4) = 0.869 mm³ (measured for both edges at once: 1.738).
     const measured = (volume_mm3: number) => ({ bodies: [{ name: 'Body1', volume_mm3 }] });
-    expect(rootSteps(snap).map((step) => step.command)).toEqual(['inspect.measure', 'solid.fillet', 'inspect.measure']);
-    expect(rootOutcome(snap, [measured(16093), { radius_applied: 0.5 }, measured(16094.1)])).toBe(0.5);
-    expect(rootOutcome(snap, [measured(693), { radius_applied: 0.1649 }, measured(692.796)])).toBeNull();
-    expect(rootOutcome(snap, [measured(693), {}, measured(693)])).toBeNull();
-    expect(rootOutcome(snap, [{}, {}, measured(694)])).toBeNull();
+    const edge = rootGrowth(5, 0.9);
+    expect(edge).toBeCloseTo(0.869, 3);
+    expect(rootSteps(snap).map((step) => step.command)).toEqual(['inspect.measure', 'solid.fillet', 'inspect.measure', 'solid.fillet', 'inspect.measure']);
+    const five = (a: number, b: number, c: number, r1: object = {}, r2: object = {}) => [measured(a), r1, measured(b), r2, measured(c)];
+    expect(rootOutcome(snap, five(16093, 16093 + edge, 16093 + 2 * edge))).toEqual({ radius: 0.9, measured: true });
+    // Within ROOT_FIT of it on each edge, and just outside.
+    expect(rootOutcome(snap, five(16093, 16093 + edge * (1 + ROOT_FIT - 0.001), 16093 + 2 * edge))).toEqual({ radius: 0.9, measured: true });
+    expect(rootOutcome(snap, five(16093, 16093 + edge * (1 + ROOT_FIT + 0.001), 16093 + 2 * edge))).toBeNull();
+    // Smaller radii: their own growth; the smaller is said.
+    expect(rootOutcome(snap, five(0, rootGrowth(5, 0.5), rootGrowth(5, 0.5) + rootGrowth(5, 0.27), { radius_applied: 0.5 }, { radius_applied: 0.27 }))).toEqual({ radius: 0.27, measured: true });
+    // One root edge concave and a convex wrong one: the body grows, but not by the root (review S1); one edge alone; shrank (thin wall).
+    expect(rootOutcome(snap, five(0, 0.43, 0.33))).toBeNull();
+    expect(rootOutcome(snap, five(0, edge, edge))).toBeNull();
+    expect(rootOutcome(snap, five(693, 692.9, 692.796, { radius_applied: 0.1649 }, { radius_applied: 0.1649 }))).toBeNull();
+    // A volume missing proves nothing either way: kept, said as not measured.
+    expect(rootOutcome(snap, [{}, {}, measured(694), {}, measured(695)])).toEqual({ radius: 0.9, measured: false });
     // On a side face the catch can point up or down, or level along the face.
     expect(hookVector(at, [1, 0, 0], 'y+')).toEqual([0, 0, 1]);
     expect(hookVector(at, [1, 0, 0], 'y-')).toEqual([0, 0, -1]);
@@ -337,7 +349,7 @@ describe('function blocks (F1)', () => {
     const cf = { ...DEFAULT_PRINTER, material: { ...DEFAULT_MATERIAL, name: 'Bambu PETG CF' } };
     const fibre = blockLimit(block, cf);
     expect(fibre).toMatchObject({ reason: 'strain', most: 1, material: 'Bambu PETG CF', fibre: true, least: 14.2 });
-    expect(limitSaid(fibre as NonNullable<typeof fibre>)).toContain('(fibre-filled: half of what PLA takes, its own choice, as fibres lower what a plastic takes)');
+    expect(limitSaid(fibre as NonNullable<typeof fibre>)).toContain('(fibre-filled: 50 % of what PLA takes, its own choice, as fibres lower what a plastic takes)');
     expect(blockLimit({ ...block, length: 15 }, cf)).toBeNull();
     // The block's default is as long as the fibre type needs.
     expect(defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1], cf)).toMatchObject({ length: 14.2 });

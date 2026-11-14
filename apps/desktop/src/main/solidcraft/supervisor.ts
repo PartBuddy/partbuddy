@@ -833,7 +833,7 @@ export class SolidCraftSupervisor {
       const { steps, unmeasured } = await this.actions.blockSteps(placed, undefined, (line) => this.options.log(line), printer);
       // A snap fit's root radius, tried on its own: the form says when it comes out smaller or not at all (review of BC-17 S4).
       const root = placed.block === 'snapFit' ? { applied: await this.actions.rootOf(placed, steps), wanted: snapRoot(placed) } : undefined;
-      const preview = await this.actions.previewSteps(placed.block === 'snapFit' && root?.applied ? [...steps, rootFillet(placed)] : steps, blockBodies(placed));
+      const preview = await this.actions.previewSteps(placed.block === 'snapFit' && root?.applied ? [...steps, ...rootFillet(placed)] : steps, blockBodies(placed));
       // The panel shows a short reason; the log keeps SolidCraft's own words.
       if (!preview.ok) this.options.log(`${block.block} preview refused: ${preview.error}`);
       // A cut whose reach could not be measured goes through all: the panel says so (audit W2).
@@ -855,7 +855,8 @@ export class SolidCraftSupervisor {
     return { ...block, point: movedPlane(plane, du, dv).origin };
   }
 
-  async applyBlock(given: FeatureBlock, printer?: ToolPrinter): Promise<void> {
+  /** Builds a function block; for a snap fit whose root stays sharp says so, for the form to tell (second review of BC-17). */
+  async applyBlock(given: FeatureBlock, printer?: ToolPrinter): Promise<{ rootSharp: true } | null> {
     let block = await this.boldBlock(given);
     await this.probing;
     // A logo's sketches get a name no other logo has, so it can be moved on its own later.
@@ -867,15 +868,17 @@ export class SolidCraftSupervisor {
     // the hook stays without it (audit MV-10, review of BC-17 S4); the form said so on its trial.
     const root = block.block === 'snapFit' ? await this.actions.rootOf(block, steps) : null;
     const warned = await this.actions.applySteps(steps);
-    if (block.block === 'snapFit')
-      if (root === null) this.options.log(`snapFit on ${block.body}: root not rounded (SolidCraft refused it on trial, or rounded other edges)`);
-      else
-        warned.push(
-          ...(await this.actions.applySteps([rootFillet(block)]).catch((cause: unknown) => {
-            this.options.log(`snapFit on ${block.body}: root not rounded (${(cause as Error).message.slice(0, 200)})`);
-            return [];
-          })),
-        );
+    let sharp = block.block === 'snapFit' && root === null;
+    if (sharp) this.options.log(`snapFit on ${block.body}: root not rounded (SolidCraft refused it on trial, or rounded other edges)`);
+    if (block.block === 'snapFit' && root !== null)
+      warned.push(
+        // Both edges in one batch: refused, SolidCraft rolls back both and the hook stands as built.
+        ...(await this.actions.applySteps(rootFillet(block)).catch((cause: unknown) => {
+          this.options.log(`snapFit on ${block.body}: root not rounded though its trial was (${(cause as Error).message.slice(0, 200)})`);
+          sharp = true;
+          return [];
+        })),
+      );
     for (const warning of warned) this.options.log(`${block.block} on ${block.body}: SolidCraft warns: ${warning}`);
     // A logo in colours: pieces a cut split off get their colour too.
     const layers = block.block === 'logo' ? colourLayers(block) : [];
@@ -884,6 +887,7 @@ export class SolidCraftSupervisor {
       if (coloured > 0) this.options.log(`coloured the pieces of ${String(coloured)} split logo bodies`);
     }
     await this.engine?.changed();
+    return sharp ? { rootSharp: true } : null;
   }
 
   /** The placed logo at a picked point, for the logo controls of the selection dock; reading changes nothing. */

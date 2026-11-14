@@ -1325,7 +1325,8 @@ export const invokeContract = {
   [invokeChannels.designSweepJoints]: { request: jointSweepRequestSchema, response: jointSweepResultSchema },
   [invokeChannels.designPartsLibrary]: { request: none, response: partsLibrarySchema },
   [invokeChannels.designPreviewBlock]: { request: featureBlockSchema, response: actionPreviewSchema },
-  [invokeChannels.designApplyBlock]: { request: featureBlockSchema, response: none },
+  // A snap fit whose root stays sharp says so, for the form to tell (second review of BC-17).
+  [invokeChannels.designApplyBlock]: { request: featureBlockSchema, response: z.object({ rootSharp: z.literal(true) }).strict().nullable() },
   [invokeChannels.designLogoAt]: { request: z.object({ point: point3 }).strict(), response: logoSpotSchema.nullable() },
   [invokeChannels.designPreviewLogoMove]: { request: logoMoveSchema, response: actionPreviewSchema },
   [invokeChannels.designMoveLogo]: { request: logoMoveSchema, response: none },

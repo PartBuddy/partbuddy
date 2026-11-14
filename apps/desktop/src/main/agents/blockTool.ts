@@ -1,6 +1,6 @@
 import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 
-import { BLOCK_SIZES, DEFAULT_PRINTER, nutCorners, nutFlatsOfFit, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, limitSaid, raisedBlock, rootOutcome, rootSteps, snapRoot, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, DEFAULT_PRINTER, nutCorners, nutFlatsOfFit, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, limitSaid, raisedBlock, rootOutcome, rootSteps, snapRoot, SNAP_ROOT_NAME, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import type { FitPrinter } from '../../shared/designFit';
 import { CLEARANCE, NUT, NUT_DIN_FLATS, THREAD_ALLOWANCE, headRoom, pilotHole, printedThread, screwDiameter } from '../../shared/screwSizes';
@@ -161,26 +161,36 @@ const strainSaid = (block: Extract<FeatureBlock, { block: 'snapFit' }>, printer:
 };
 
 /**
- * Rounds a snap fit's root (rootFillet) after the hook stands and says what came of it: the radius, one SolidCraft made smaller
- * where the face ends closer, or that it stays sharp because SolidCraft refused (logged too).
+ * Rounds a snap fit's root (rootFillet, one edge a step) after the hook stands and says what came of it: the radius, one
+ * SolidCraft made smaller where the face ends closer, or that it stays sharp, because SolidCraft refused or rounded other
+ * edges (rootOutcome), which is taken back to the hook as it stood (takeBack.ts). Never asks to undo the hook: where the
+ * radius could not be taken back, only its own features are named. Logged in each case.
  */
 export async function rounded(block: Extract<FeatureBlock, { block: 'snapFit' }>, run: (commands: Step[]) => Promise<unknown[]>, log: (line: string) => void): Promise<string> {
   const wanted = snapRoot(block);
-  // As the block itself: built for real, and a refusal taken back to the hook as it stood (takeBack.ts).
+  const sharp = ' the hook stands with sharp root edges, where it cracks sooner. Put it on a flat stretch of the face, away from its edges.';
+  const leftOver = ` PartBuddy could not take back what of the radius SolidCraft built: delete the features named "${SNAP_ROOT_NAME}" of this hook in the timeline, not the hook.`;
   const mark = await markOf(run);
+  let outcome: ReturnType<typeof rootOutcome>;
+  let why: string;
   try {
-    const applied = rootOutcome(block, await run(rootSteps(block)));
-    if (applied === null) throw new Error('it rounded other edges instead, which was taken back');
-    if (applied >= wanted - 1e-6) return ` It meets the face in a ${mm(applied)} mm radius on both sides (${String(SNAP_ROOT)} × its thickness, Bayer).`;
-    log(`root radius ${mm(applied)} mm of ${mm(wanted)}`);
-    return ` SolidCraft rounded the arm's root only ${mm(applied)} mm of the ${mm(wanted)} mm asked (${String(SNAP_ROOT)} × its thickness, Bayer), as the face ends closer to the arm${applied < ROOT_LEAST - 1e-9 ? `, under the ${String(ROOT_LEAST)} mm Bayer asks at the least: move it away from the face's edge` : ''}.`;
+    outcome = rootOutcome(block, await run(rootSteps(block)));
+    why = 'it rounded other edges than the root';
   } catch (cause) {
-    const why = (cause as Error).message.slice(0, 200);
-    const taken = await takeBack(run, mark);
-    log(`root not rounded (${taken}): ${why}`);
-    if (taken !== 'back') return ` SolidCraft could not round the arm's root (${why}). ${TAKEN_BACK_SAID[taken]}`;
-    return ` SolidCraft could not round the arm's root (${why}): the hook stands with sharp root edges, where it cracks sooner. Put it on a flat stretch of the face, away from its edges.`;
+    outcome = null;
+    why = (cause as Error).message.slice(0, 200);
   }
+  if (outcome === null) {
+    const taken = await takeBack(run, mark);
+    log(`root not rounded (${mark ? taken : 'no mark'}): ${why}`);
+    return taken === 'back' ? ` SolidCraft could not round the arm's root (${why}), which was taken back:${sharp}` : ` SolidCraft could not round the arm's root (${why}).${leftOver}`;
+  }
+  const { radius, measured } = outcome;
+  const unmeasured = measured ? '' : ' PartBuddy could not measure that SolidCraft rounded the root edges and no others: look at the root.';
+  if (!measured) log(`root radius ${mm(radius)} mm not measured`);
+  if (radius >= wanted - 1e-6) return ` It meets the face in a ${mm(radius)} mm radius on both sides (${String(SNAP_ROOT)} × its thickness, Bayer).${unmeasured}`;
+  log(`root radius ${mm(radius)} mm of ${mm(wanted)}`);
+  return ` SolidCraft rounded the arm's root only ${mm(radius)} mm of the ${mm(wanted)} mm asked (${String(SNAP_ROOT)} × its thickness, Bayer), as the face ends closer to the arm${radius < ROOT_LEAST - 1e-9 ? `, under the ${String(ROOT_LEAST)} mm Bayer asks at the least: move it away from the face's edge` : ''}.${unmeasured}`;
 }
 
 /** The fields each block takes besides block, body and point (the blocks of the interface: the fields of their standard). */

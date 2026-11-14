@@ -1514,8 +1514,8 @@
       "other": "Richtung {n}"
     },
     "strain": "Etwa {strain} % Dehnung beim Einrasten; gedrucktes {material} verträgt einmal {most, number} %, bei häufigem Einrasten etwa {often, number} %",
-    "strainFibre": "Etwa {strain} % Dehnung beim Einrasten; {material} ist faserverstärkt, und Fasern senken, was ein Kunststoff verträgt: ohne Wert dafür lässt PartBuddy {most, number} % zu (halb so viel wie bei PLA, eigene Wahl), bei häufigem Einrasten etwa {often, number} %",
-    "snapUpright": "So konstruiert steht der Arm aufrecht: so gedruckt biegt er quer zu den Schichten, und stehend gedruckte Probestäbe brachen bei {least, number} bis {most, number} %. Das Teil so legen, dass der Arm liegt.",
+    "strainFibre": "Etwa {strain} % Dehnung beim Einrasten; {material} ist faserverstärkt, und Fasern senken, was ein Kunststoff verträgt: ohne Wert dafür lässt PartBuddy {most, number} % zu ({share, number} % des PLA-Werts, eigene Wahl), bei häufigem Einrasten etwa {often, number} %",
+    "snapUpright": "So konstruiert steht der Arm aufrecht: so gedruckt biegt er quer zu den Schichten, und stehend gedruckte Probestäbe aus PLA, ABS und PC brachen gebogen oder gezogen bei {least, number} bis {most, number} % (Ultimaker-Datenblätter). Das Teil so legen, dass der Arm liegt.",
     "rootSharp": "SolidCraft kann die Wurzel des Arms hier nicht runden: sie bleibt scharfkantig und bricht eher. Auf eine ebene Stelle der Fläche setzen.",
     "rootSmall": "SolidCraft rundet die Wurzel des Arms hier nur mit {applied, number} statt {wanted, number} mm, weil die Fläche nahe daneben endet.",
     "rootTooSmall": "SolidCraft rundet die Wurzel des Arms hier nur mit {applied, number} mm, unter den {least, number} mm, die eine Wurzel mindestens braucht: weiter vom Rand der Fläche weg setzen.",

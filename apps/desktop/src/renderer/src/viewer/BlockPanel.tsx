@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
 
-import { ROOT_LEAST, snapLimit, standsUpright, UPRIGHT_BREAK } from '../../../shared/mechanisms';
+import { FIBRE_SHARE, ROOT_LEAST, snapLimit, standsUpright, UPRIGHT_BREAK } from '../../../shared/mechanisms';
 import { BLOCK_KINDS, DEFAULT_PRINTER, blockLimit, defaultBlock, hasSize, limitRefusal, raisedBlock, strokesKnown, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, snapStrain, textDepth, textStroke, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
 import { HEAD_ALLOWANCE, NUT_DIN_FLATS, THREAD_ALLOWANCE } from '../../../shared/screwSizes';
 import { fitClearance, holeRoom, type ToolPrinter } from '../../../shared/toolFit';
@@ -242,6 +242,10 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     onGhost(null);
     void platform()
       .design.applyBlock(sent(block))
+      // A snap fit that came out without its root's radius: said after the form has closed (second review of BC-17).
+      .then((built) => {
+        if (built?.rootSharp) useStudio.getState().setNotice({ tone: 'danger', text: t('blocks.rootSharp') });
+      })
       .catch((error: unknown) => {
         useStudio.getState().setNotice({ tone: 'danger', text: t('actions.failed', { detail: (error as Error).message.slice(0, 200) }) });
       });
@@ -501,7 +505,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               <Length label={t('blocks.catchLength')} value={block.catchLength} onChange={(catchLength) => setBlock({ ...block, catchLength })} testId="block-catch-length" />
               {/* Over what the material takes the block is refused (blockLimit, in the status); the line names both limits (audit T18, MV-12). */}
               <p className="col-span-2 text-xs text-text-subtle" data-testid="block-strain">
-                {t(strainLimit.fibre ? 'blocks.strainFibre' : strainLimit.known ? 'blocks.strain' : 'blocks.strainUnknown', { strain: snapStrain(block).toLocaleString(i18n.language, { maximumFractionDigits: 1 }), most: strainLimit.strain, often: strainLimit.often, material: strainLimit.known ? strainLimit.type : strainLimit.name, fallback: strainLimit.type })}
+                {t(strainLimit.fibre ? 'blocks.strainFibre' : strainLimit.known ? 'blocks.strain' : 'blocks.strainUnknown', { strain: snapStrain(block).toLocaleString(i18n.language, { maximumFractionDigits: 1 }), most: strainLimit.strain, often: strainLimit.often, material: strainLimit.known ? strainLimit.type : strainLimit.name, fallback: strainLimit.type, share: FIBRE_SHARE })}
               </p>
               {/* An arm standing upright as designed bends across its layers (audit R31, S-13; review of BC-17 S4). */}
               {standsUpright(block.normal) ? (

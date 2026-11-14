@@ -13,6 +13,7 @@ import { SolidCraftSupervisor } from '../src/main/solidcraft/supervisor';
 import { ProjectStore } from '../src/main/projects/projectStore';
 import type { ConnectionStatus, MirrorRevision } from '../src/shared/contract';
 import { FakeSolidCraft } from './fakeSolidCraft';
+import { rootGrowth, type FeatureBlock } from '../src/shared/blocks';
 
 // The slicer a test opens is never started: spawn answers as a started or failed program would.
 vi.mock('node:child_process', async (original) => {
@@ -473,6 +474,43 @@ describe('SolidCraft supervisor', () => {
     await vi.waitFor(() => expect(statuses.some((s) => s.state === 'lost')).toBe(true), { timeout: 5000 });
     await startFake(controlDir);
     await vi.waitFor(() => expect(supervisor.status().state).toBe('connected'), { timeout: 15000 });
+  }, 20000);
+
+  it("tries a form snap fit's root radius, shows it, builds it only where kept, and says when it stays sharp (second review of BC-17, S2/S4)", async () => {
+    const { supervisor, revisions, controlDir } = setup();
+    const fake = await startFake(controlDir);
+    // SolidCraft's hook and each root edge: the body grows by what a 0.9 mm radius adds along 5 mm, as measured on 0.40.1.
+    let volume = 1000;
+    let fillets = 0;
+    let refuse: (n: number) => boolean = () => false;
+    const built: string[][] = [];
+    fake.answers['component.list'] = () => ({ components: [{ id: 0, parent: null, bodies: ['CableClip'], occurrences: [] }] });
+    fake.answers['plastic.snap_fit'] = () => ({ feature: 1 });
+    fake.answers['inspect.measure'] = () => ({ bodies: [{ name: 'CableClip', volume_mm3: volume }] });
+    fake.answers['solid.fillet'] = (params) => {
+      fillets += 1;
+      if (refuse(fillets)) throw new Error('the fillet is larger than the faces beside its edges allow');
+      built.push((params.edges as number[][]).map((edge) => edge.join(',')));
+      volume += rootGrowth(5, 0.9);
+      return { warning: null };
+    };
+    supervisor.start();
+    await vi.waitFor(() => expect(revisions).toHaveLength(1), { timeout: 5000 });
+    const hook = { block: 'snapFit', body: 'CableClip', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', length: 12, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5, hook: 'y+' } satisfies FeatureBlock;
+    // Kept: the preview carries it (and draws it), apply builds both edges after the trial.
+    expect(await supervisor.previewBlock(hook)).toMatchObject({ ok: true, root: { applied: 0.9, wanted: 0.9 } });
+    expect(await supervisor.applyBlock(hook)).toBeNull();
+    expect(built.slice(-2)).toEqual([['10,10,10'], ['10,8.5,10']]);
+    // Refused on trial: the preview says null, apply builds the hook alone and answers rootSharp.
+    refuse = () => true;
+    built.length = 0;
+    expect(await supervisor.previewBlock(hook)).toMatchObject({ ok: true, root: { applied: null, wanted: 0.9 } });
+    expect(await supervisor.applyBlock(hook)).toEqual({ rootSharp: true });
+    expect(built).toEqual([]);
+    // Kept on trial, refused when built for real: still told (not only logged).
+    const from = fillets;
+    refuse = (n) => n > from + 2;
+    expect(await supervisor.applyBlock(hook)).toEqual({ rootSharp: true });
   }, 20000);
 
   it('says when SolidCraft is not running, and finds it once it starts', async () => {

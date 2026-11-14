@@ -1032,8 +1032,12 @@ const SNAP_FALLBACK = 'PLA';
  * 20 % glass 2.2 and 2.0 % against 4 % unfilled (table 2). No source gives printed fibre types, so half of PLA's, own choice.
  */
 export const SNAP_FIBRE = 1;
-/** A name that says fibres: CF, GF (PLA-CF, PA6-GF25, rCF08), carbon, glass, fibre or fiber (Fiberon). */
-const FIBRE = /(CF|GF)\d*([^A-Z]|$)|CARBON|GLASS|FIB(RE|ER)/;
+/**
+ * A name that says fibres (second review of BC-17, S3): CF or GF as a word of their own, with a filler share or an r for
+ * recycled (PLA-CF, Bambu PETG CF, PA6-GF25, PETG-rCF08, XT-CF20), or the word fibre / fiber (PC Blend Carbon Fiber). Not
+ * carbon or glass alone, which name colours (PETG Carbon Black, PLA Glass Blue), nor Fiberlogy or FiberSilk.
+ */
+const FIBRE = /(^|[^A-Z])R?[CG]F\d*([^A-Z]|$)|\bFIB(RE|ER)S?\b/;
 
 /** The allowed strain of a material type in the table, rounded down to 0.1 %. */
 const allowedOf = (type: string) => {
@@ -1070,10 +1074,13 @@ export function snapLimit(material?: { name?: string | undefined }): { strain: n
   return { strain, often: Math.floor(strain * SNAP_OFTEN * 10 + 1e-6) / 10, type: type ?? SNAP_FALLBACK, known: type !== undefined, fibre, name };
 }
 
+/** What a fibre-filled material is allowed, in per cent of PLA's: from the constants, for the texts. */
+export const FIBRE_SHARE = Math.round((SNAP_FIBRE / allowedOf(SNAP_FALLBACK)) * 100);
+
 /** What an answer says of the allowed strain: the material's, that none is known and PLA's is taken, or that fibres take less. */
 export function limitWords(limit: ReturnType<typeof snapLimit>): string {
   if (limit.fibre)
-    return `${String(limit.strain)} %: ${limit.name} is fibre-filled, and fibres lower what a plastic takes (Bayer: moulded PC with glass 2 to 2.2 % against 4 % without); with no value for it PartBuddy holds it to half of PLA's, its own choice`;
+    return `${String(limit.strain)} %: ${limit.name} is fibre-filled, and fibres lower what a plastic takes (Bayer: moulded PC with glass 2 to 2.2 % against 4 % without); with no value for it PartBuddy holds it to ${String(FIBRE_SHARE)} % of PLA's, its own choice`;
   return limit.known
     ? `${String(limit.strain)} %, what printed ${limit.type} takes for one snap-in (${String(Math.round(SNAP_ONCE * 100))} % of its yield strain)`
     : `${String(limit.strain)} %: no allowed strain is known for ${limit.name}, so PartBuddy holds it to ${limit.type}'s, the lowest it knows`;
@@ -1318,8 +1325,8 @@ export function latchStrain(arm: LatchArm = LATCH): number {
  * The latch on the printer in the material (audit W15 rest, BC-16: refused on coarse nozzles before): the arm at least two
  * lines thick, its root's radius half of that, and its lever long enough to bend within what the material takes
  * ({@link snapLimit}), measured from where the radius starts as {@link latchStrain} does.
- * shortcut: held to the strain of bars printed flat, though the arm prints upright and bends across its layers (1.53 % against
- * the 1.5 to 2 % at which upright bars broke, UPRIGHT_BREAK); the answer says so. Lengthen the lever when a print cracks.
+ * shortcut: held to the strain of bars printed flat, though the arm prints upright and bends across its layers: 1.53 %, over
+ * the 1.5 % at which the weakest upright bars broke (UPRIGHT_BREAK); the answer says so. Lengthen the lever when a print cracks.
  */
 export function latchArm(printer: FitPrinter, material?: { name?: string | undefined }): LatchArm {
   const thick = Math.max(LATCH.thick, minimumWall(printer.nozzle));

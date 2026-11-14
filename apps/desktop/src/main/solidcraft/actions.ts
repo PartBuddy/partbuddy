@@ -141,11 +141,12 @@ export class ActionService {
 
   /**
    * The radius a snap fit's root gets after its steps, tried and taken back (audit MV-10): the radius asked, a smaller one where
-   * the face ends closer, or null where SolidCraft refuses the fillet or one of the steps.
+   * the face ends closer, or null where SolidCraft refuses the fillet or one of the steps, or rounds other edges (rootOutcome;
+   * one not measured counts as rounded, as the assistant's block takes it).
    */
   async rootOf(block: Extract<FeatureBlock, { block: 'snapFit' }>, steps: Step[]): Promise<number | null> {
     const results = await this.trial([...steps, ...rootSteps(block)]);
-    return results ? rootOutcome(block, results.slice(-3)) : null;
+    return results ? (rootOutcome(block, results.slice(-rootSteps(block).length))?.radius ?? null) : null;
   }
 
   /**

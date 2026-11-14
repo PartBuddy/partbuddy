@@ -10,7 +10,7 @@ import { actionPlan, actionPrint, actionsFor, bedOf, downEdges, startSize, type 
 import { dimensionFor, draggedValue, handleOf } from '../src/renderer/src/viewer/dimensionOf';
 import type { BodyModel, Pick } from '../src/renderer/src/state/store';
 import { designActionSchema } from '../src/shared/contract';
-import type { FeatureBlock } from '../src/shared/blocks';
+import { rootGrowth, type FeatureBlock } from '../src/shared/blocks';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -386,6 +386,43 @@ describe('a function block from the form: a cut through goes through the wall at
     const off = form('pieces');
     expect((await off.service.blockSteps({ ...hole, point: [-1, 20, 15] }, undefined, off.log)).unmeasured).toBe(true);
     expect(off.logged[0]).toContain('no wall of the body at a point');
+  });
+
+  it("tries a snap fit's root on its own and keeps it only where each edge adds what its radius does (second review of BC-17, S1/S2)", async () => {
+    const snap: Extract<FeatureBlock, { block: 'snapFit' }> = { block: 'snapFit', body: 'Dose', point: [0, 20, 15], normal: [0, 0, 1], size: 'M3', length: 12, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5, hook: 'y+' };
+    const edge = rootGrowth(5, 0.9);
+    // A trial as SolidCraft answers it: each fillet adds `adds(n)` or is refused, and the closing step fails on purpose.
+    const tried = (adds: (n: number) => number | Error, measured = true) => {
+      const sent: string[][] = [];
+      const requester: ControlRequester = {
+        request: <T>(_method: string, params: Record<string, unknown> = {}) => {
+          const commands = params.commands as { command: string }[];
+          sent.push(commands.map((step) => step.command));
+          let volume = 500;
+          let n = 0;
+          const results: unknown[] = [];
+          for (const [index, step] of commands.entries()) {
+            if (step.command === 'sketch.inspect') return Promise.resolve({ results, failed: { index, command: step.command, error: 'no sketch' } } as T);
+            if (step.command === 'solid.fillet') {
+              const add = adds((n += 1));
+              if (add instanceof Error) return Promise.resolve({ results, failed: { index, command: step.command, error: add.message } } as T);
+              volume += add;
+            }
+            results.push(step.command === 'inspect.measure' ? (measured ? { bodies: [{ name: 'Dose', volume_mm3: volume }] } : {}) : {});
+          }
+          return Promise.resolve({ results } as T);
+        },
+      };
+      return { service: new ActionService(() => requester, tmpdir()), sent };
+    };
+    const steps = [{ command: 'plastic.snap_fit', params: {} }];
+    const good = tried(() => edge);
+    expect(await good.service.rootOf(snap, steps)).toBe(0.9);
+    expect(good.sent[0]).toEqual(['plastic.snap_fit', 'inspect.measure', 'solid.fillet', 'inspect.measure', 'solid.fillet', 'inspect.measure', 'sketch.inspect']);
+    expect(await tried((n) => (n === 2 ? new Error('no') : edge)).service.rootOf(snap, steps)).toBeNull();
+    expect(await tried((n) => (n === 1 ? 0.43 : -0.1)).service.rootOf(snap, steps)).toBeNull();
+    // Not measured proves nothing: kept, as the assistant's block keeps it.
+    expect(await tried(() => edge, false).service.rootOf(snap, steps)).toBe(0.9);
   });
 
   it('tries nothing for a block with a depth, or one asked to go through all of its body', async () => {

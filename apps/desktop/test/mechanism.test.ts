@@ -2312,9 +2312,15 @@ describe('the print profile in the mechanism tool (audit BC-16)', () => {
     expect(snapLimit({ name: 'PETG PLA' })).toMatchObject({ strain: 2, type: 'PLA' });
     for (const name of ['ABS', 'PA (Nylon)', 'TPU 95A', 'PC-ABS']) expect(snapLimit({ name }), name).toMatchObject({ strain: 2, type: 'PLA', known: false, fibre: false, name });
     // Fibres (review of BC-17 S1): never the base type's value, but half of PLA's, said as an own choice.
-    for (const name of ['PETG CF', 'Bambu PETG CF', 'PETG-CF', 'PLA-CF', 'PC Blend Carbon Fiber', 'PA6-GF25', 'Fiberon PETG-rCF08', 'ASA glass', 'PA12 fibre'])
+    for (const name of ['PETG CF', 'Bambu PETG CF', 'PETG-CF', 'PLA-CF', 'Prusament PC Blend Carbon Fiber', 'PA6-GF25', 'Fiberon PETG-rCF08', 'XT-CF20', 'PA12 fibre', 'Glass Fiber PETG'])
       expect(snapLimit({ name }), name).toMatchObject({ strain: 1, often: 0.6, known: false, fibre: true, name });
-    expect(limitWords(snapLimit({ name: 'PETG CF' }))).toBe("1 %: PETG CF is fibre-filled, and fibres lower what a plastic takes (Bayer: moulded PC with glass 2 to 2.2 % against 4 % without); with no value for it PartBuddy holds it to half of PLA's, its own choice");
+    // Second review S3: colours and brands are no fibres.
+    expect(snapLimit({ name: 'Fiberlogy Easy PLA' })).toMatchObject({ fibre: false, known: true, type: 'PLA', strain: 2 });
+    expect(snapLimit({ name: 'Fiberlogy FiberSilk' })).toMatchObject({ fibre: false, known: false });
+    expect(snapLimit({ name: 'PLA Glass Blue' })).toMatchObject({ fibre: false, type: 'PLA' });
+    expect(snapLimit({ name: 'Sunlu PETG Glass' })).toMatchObject({ fibre: false, type: 'PETG', strain: 3.5 });
+    expect(snapLimit({ name: 'PETG Carbon Black' })).toMatchObject({ fibre: false, type: 'PETG' });
+    expect(limitWords(snapLimit({ name: 'PETG CF' }))).toBe("1 %: PETG CF is fibre-filled, and fibres lower what a plastic takes (Bayer: moulded PC with glass 2 to 2.2 % against 4 % without); with no value for it PartBuddy holds it to 50 % of PLA's, its own choice");
     expect(snapLimit({ name: 'PETG Galaxy' })).toMatchObject({ fibre: false, type: 'PETG' });
     expect(limitWords(snapLimit({ name: 'ABS' }))).toBe("2 %: no allowed strain is known for ABS, so PartBuddy holds it to PLA's, the lowest it knows");
     // PETG lets the 2 mm nozzle's hook stay shorter than PLA does.

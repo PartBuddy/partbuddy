@@ -1788,8 +1788,8 @@ test('a snap fit stands out of a face, its catch across the arm, with its strain
       await apply(block);
     }
     for (const line of ['Snap fit 12 mm', 'Snap fit 11 mm']) await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
-    // The box and each hook with the fillet at its root (audit MV-10).
-    await expect(page.getByTestId('timeline-feature')).toHaveCount(5, { timeout: 30_000 });
+    // The box and each hook with the fillets at its two root edges, one a step (audit MV-10, second review of BC-17).
+    await expect(page.getByTestId('timeline-feature')).toHaveCount(7, { timeout: 30_000 });
     await page.screenshot({ path: test.info().outputPath('blocks-snap-fit.png') });
 
     // Through the form: the strain warns on a short arm and is fine again on a longer one.

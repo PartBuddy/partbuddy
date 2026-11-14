@@ -1514,8 +1514,8 @@
       "other": "Direction {n}"
     },
     "strain": "About {strain} % strain when it snaps in; printed {material} takes {most, number} % once, about {often, number} % when it snaps often",
-    "strainFibre": "About {strain} % strain when it snaps in; {material} is fibre-filled, and fibres lower what a plastic takes: with no value for it PartBuddy allows {most, number} % (half of PLA's, its own choice), about {often, number} % when it snaps often",
-    "snapUpright": "As designed the arm stands upright: printed so, it bends across its layers, and upright test bars broke at {least, number} to {most, number} %. Lay the part so that the arm lies flat.",
+    "strainFibre": "About {strain} % strain when it snaps in; {material} is fibre-filled, and fibres lower what a plastic takes: with no value for it PartBuddy allows {most, number} % ({share, number} % of PLA's, its own choice), about {often, number} % when it snaps often",
+    "snapUpright": "As designed the arm stands upright: printed so, it bends across its layers, and upright test bars of PLA, ABS and PC broke at {least, number} to {most, number} %, bent or pulled (Ultimaker data sheets). Lay the part so that the arm lies flat.",
     "rootSharp": "SolidCraft cannot round the arm's root here: it stays sharp and cracks sooner. Move it to a flat stretch of the face.",
     "rootSmall": "SolidCraft rounds the arm's root only {applied, number} mm of {wanted, number} mm here, as the face ends close to it.",
     "rootTooSmall": "SolidCraft rounds the arm's root only {applied, number} mm here, under the {least, number} mm a root needs at the least: move it away from the face's edge.",
