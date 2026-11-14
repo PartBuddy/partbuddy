@@ -1263,7 +1263,7 @@ test('PartBuddy starts on the start page with no project open; a saved part gets
     const preview = join(projects, 'Part', 'preview.png');
     await expect.poll(() => existsSync(preview), { timeout: 15_000 }).toBe(true);
     expect(readFileSync(preview).subarray(1, 4).toString()).toBe('PNG');
-    await expect.poll(() => (existsSync(join(projects, 'Part', 'preview.json')) ? (JSON.parse(readFileSync(join(projects, 'Part', 'preview.json'), 'utf8')) as { check: unknown }).check : null), { timeout: 15_000 }).toBe('ready');
+    await expect.poll(() => (existsSync(join(projects, 'Part', 'preview.json')) ? (JSON.parse(readFileSync(join(projects, 'Part', 'preview.json'), 'utf8')) as { check: unknown }).check : null), { timeout: 15_000 }).toBe('warn'); // sharpEdge hint on the raw box (#413)
 
     // A new project from the start page, then back to the first one through its tile.
     await page.getByTestId('home-button').click();
@@ -1645,7 +1645,8 @@ test('a standard screw is seated in a hole as a counterpart that is neither expo
     expect(inserted.body).toBe('SHCS M3x12');
     const screw = page.getByTestId('structure-body').filter({ hasText: 'SHCS M3x12' });
     await expect(screw).toContainText('standard part', { timeout: 30_000 });
-    await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'ready', { timeout: 15_000 });
+    // Only the sharpEdge hint of the raw box (#413): the screw itself is not checked.
+    await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'warn', { timeout: 15_000 });
     await page.screenshot({ path: test.info().outputPath('standard-part.png') });
 
     // The export holds the box only.
@@ -2243,7 +2244,8 @@ test('the light measures parts against each other: an overlap and a gap under th
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
     await turnEnded(page);
-    await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'ready', { timeout: 30_000 });
+    // Only the sharpEdge hint of the raw box (#413).
+    await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'warn', { timeout: 30_000 });
 
     // A case, a lid sunk 1 mm into it and a clip 0.1 mm beside it (PLA's push fit is 0.15 mm).
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build parts that clash');
@@ -3311,8 +3313,8 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
       });
     expect(await turned()).toBe(0);
     // Not while a trial still shows "rebuilding": the revision that stands is what the test compares with.
-    await expect(page.getByTestId('connection-status')).toHaveText(/Revision \d+/, { timeout: 30_000 });
-    const revision = await page.getByTestId('connection-status').textContent();
+    await expect(page.getByTestId('connection-status')).not.toContainText('rebuilding', { timeout: 30_000 });
+    const revision = await page.getByTestId('connection-status').getAttribute('data-revision');
     const track = await page.getByTestId('joint-value').locator('.relative').first().boundingBox();
     if (!track) throw new Error('the slider has no track');
     // The limits are -180° and 90°, so 0° is two thirds along the track.
@@ -3322,10 +3324,10 @@ test('a hinge the assistant joined moves with its slider and goes back to as des
     await expect.poll(turned).toBe(1);
     await page.waitForTimeout(600);
     await page.screenshot({ path: test.info().outputPath('hinge-dragging.png') });
-    expect(await page.getByTestId('connection-status').textContent()).toBe(revision);
+    expect(await page.getByTestId('connection-status').getAttribute('data-revision')).toBe(revision);
     // Let go: SolidCraft drives the joint, the mirror shows the flap there, and nothing is turned on top of it.
     await page.mouse.up();
-    await expect(page.getByTestId('connection-status')).not.toHaveText(revision ?? '', { timeout: 30_000 });
+    await expect(page.getByTestId('connection-status')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 30_000 });
     await expect.poll(turned, { timeout: 30_000 }).toBe(0);
     await expect(page.getByTestId('joint-panel').getByRole('slider', { name: 'Hinge' })).toHaveValue(/^-(8\d|9\d)$/);
     await page.waitForTimeout(600);
@@ -3487,8 +3489,8 @@ test('a hinge plays in the view, stops where SolidCraft found the parts touching
       await expect(findings).toBeHidden({ timeout: 1000 });
     }).toPass({ timeout: 15_000 });
     // Not while a trial still shows "rebuilding": the revision that stands is what the test compares with.
-    await expect(page.getByTestId('connection-status')).toHaveText(/Revision \d+/, { timeout: 30_000 });
-    const revision = await page.getByTestId('connection-status').textContent();
+    await expect(page.getByTestId('connection-status')).not.toContainText('rebuilding', { timeout: 30_000 });
+    const revision = await page.getByTestId('connection-status').getAttribute('data-revision');
     // One click plays it: down to its limit first (the longer way), then up until the parts touch.
     await page.getByTestId('joints-play').click();
     const panel = page.getByTestId('joint-panel');
@@ -3501,11 +3503,11 @@ test('a hinge plays in the view, stops where SolidCraft found the parts touching
     expect(await shown()).toBeCloseTo(28.1);
     await page.screenshot({ path: test.info().outputPath('hinge-stopped.png') });
     // SolidCraft was not driven: the revision is the one before.
-    await expect(page.getByTestId('connection-status')).toHaveText(revision ?? '');
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-revision', revision ?? '');
     await expect(panel.getByTestId('joint-view-only')).toBeVisible();
     // Kept, SolidCraft drives the joint to what the panel reads, and the light says it stands there.
     await panel.getByTestId('joint-keep').click();
-    await expect(page.getByTestId('connection-status')).not.toHaveText(revision ?? '', { timeout: 30_000 });
+    await expect(page.getByTestId('connection-status')).not.toHaveAttribute('data-revision', revision ?? '', { timeout: 30_000 });
     await expect(panel.getByTestId('joint-value').locator('output')).toHaveText('28.1°', { timeout: 30_000 });
     await expect(panel.getByTestId('joint-keep')).toHaveCount(0);
     await page.getByTestId('print-check').click();
