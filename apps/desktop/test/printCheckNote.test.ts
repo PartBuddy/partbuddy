@@ -1,11 +1,12 @@
 import { BufferAttribute, BufferGeometry } from 'three';
 import { describe, expect, it, vi } from 'vitest';
+import { DESIGN_HINTS } from '@partbuddy/geometry';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
 import { printNote } from '../src/main/print/printProfiles';
 import { asksBeforeExport, checkNow, fitsOf, jointRuns, lateOn, reachOf, reportOf, sweepInBlocks } from '../src/renderer/src/print/report';
 import type { ModelState, StudioPrintCheck } from '../src/renderer/src/state/store';
-import { DESIGN_DEFAULTS, HINT_RULE, PRINT_HINTS, printCheckReportSchema, type PartPrint } from '../src/shared/contract';
+import { DESIGN_DEFAULTS, printCheckReportSchema, type PartPrint } from '../src/shared/contract';
 
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
   it('says what it looked at when nothing was found, and what it did not (audit R3)', () => {
@@ -98,8 +99,11 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     expect(printCheckReportSchema.safeParse(roots).success).toBe(true);
     expect(printCheckNote(roots)).toContain('- warning: 2 sides of slender arms stand on a sharp inner corner, the thinnest 1.6 mm thick and 14 mm long (faces "F2:+y" of body "Clip"): an arm that bends');
     expect(printCheckNote(roots)).toContain('Round the root with at least 1 mm');
-    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).toContain('Design hints looked for (how the part looks and holds; yellow, never a block): bodies with no rounded or chamfered edge, more than three radii on outer edges, sharp inner corners at the foot of slender arms.');
-    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: PRINT_HINTS.filter((hint) => HINT_RULE[hint]) }))).not.toContain('Design hints looked for');
+    const slope = reportOf({ status: 'warn', findings: [{ kind: 'shallowSlope', severity: 'warn', faces: 1, area: 912, angle: 9.5, step: 1.2, limit: 15, places: [{ body: 'Box', faces: ['F2:blend(F1:+x|F1:+z)'] }], box: null }] }, 0.4, 3);
+    expect(printCheckReportSchema.safeParse(slope).success).toBe(true);
+    expect(printCheckNote(slope)).toContain('- warning: a flat face facing up leans less than 15° from flat (912 mm², the shallowest 9.5°) (faces "F2:blend(F1:+x|F1:+z)" of body "Box"): the layers show on it as steps about 1.2 mm wide.');
+    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).toContain('Design hints looked for (how the part looks and holds; yellow, never a block): bodies with no rounded or chamfered edge, more than three radii on outer edges, sharp inner corners at the foot of slender arms, faces facing up that lean less than 15° from flat.');
+    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: [...DESIGN_HINTS] }))).not.toContain('Design hints looked for');
   });
 
   it('claims no hint the user turned off (BC-24)', () => {

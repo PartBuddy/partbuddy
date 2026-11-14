@@ -1164,6 +1164,10 @@
       "rootCorner": {
         "label": "Sharp roots of thin arms",
         "hint": "Says where a slender free arm, hook or thin post (at least three times as long as it is thick) stands on a face with a sharp inner corner: an arm under load breaks there first, a round of half its thickness holds it. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
+      },
+      "shallowSlope": {
+        "label": "Shallow slopes",
+        "hint": "Says where a flat face facing up leans less than 15° from flat: the layers show on it as wide steps (over 0.75 mm at 0.2 mm layers). A hint, never a block."
       }
     }
   },
@@ -1220,7 +1224,8 @@
       "narrowGap": "Slots down to {gap} mm, under the {minimum} mm that stay open with this nozzle: the walls beside them squeeze together and close them",
       "sharpEdge": "{count, plural, one {A sharp edge} other {# sharp edges}} ({length} mm) on bodies with no rounded or chamfered edge at all: the design rules round seen outer edges {radius} mm on a part of {size} mm",
       "edgeRadii": "Outer edges rounded with {count} different radii ({radii} mm): the design rules use at most {most} per part, so the rounds match",
-      "rootCorner": "{count, plural, one {A slender arm stands} other {# sides of slender arms stand}} on a sharp inner corner, the thinnest {thickness} mm thick and {length} mm long: it breaks there first under load – round the root at least {radius} mm"
+      "rootCorner": "{count, plural, one {A slender arm stands} other {# sides of slender arms stand}} on a sharp inner corner, the thinnest {thickness} mm thick and {length} mm long: it breaks there first under load – round the root at least {radius} mm",
+      "shallowSlope": "{count, plural, one {A face facing up leans} other {# faces facing up lean}} less than {limit}° from flat, the shallowest {angle}°: the layers show there as steps about {step} mm wide"
     },
     "confirm": {
       "title": "Export anyway?",

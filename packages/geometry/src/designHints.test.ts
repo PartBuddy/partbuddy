@@ -153,6 +153,47 @@ describe('sharp inner corners at the foot of slender arms (rootCorner)', () => {
   });
 });
 
+describe('faces facing up that lean less than 15° from flat (shallowSlope)', () => {
+  // slopes.script.json: 40 × 30 × 20 blocks, the top cut 30 mm back by a chamfer down 1.5, 5 and 11 mm. [body, angle, or 'none']
+  const cases: [string, number | 'none'][] = [
+    ['Slope3', 2.9],
+    ['Slope10', 9.5],
+    ['Slope20', 'none'],
+    // Flat tops, 45° chamfers and fillets.
+    ['RawBox', 'none'],
+    ['ChamferedBox', 'none'],
+    ['RoundedBox', 'none'],
+  ];
+
+  it.each(cases)('%s', (name, want) => {
+    const body = solidcraft(name.startsWith('Slope') ? 'slopes' : 'sharp', name);
+    // Turned about Z, mirrored and lifted it lies the same.
+    everywhere(body, (findings, what) => {
+      const found = one(findings, 'shallowSlope');
+      if (want === 'none') expect(found, what).toBeUndefined();
+      else {
+        expect(found, what).toMatchObject({ severity: 'warn', faces: 1, angle: want, limit: 15 });
+        // Steps of a layer each: 0.2 / tan 9.5° = 1.2 mm at 0.2 mm layers.
+        const layer = what.includes('"layer":0.3') ? 0.3 : 0.2;
+        expect(found?.step, what).toBeCloseTo(layer / Math.tan((want * Math.PI) / 180), 0);
+      }
+    });
+  }, 60_000);
+
+  it('looks at the faces as the body lies on its print face', () => {
+    // Lying on the slope, it is the bed; the flat top across from it now leans 9.5° the other way, facing up.
+    const body = solidcraft('slopes', 'Slope10');
+    const slope = body.model.table.faces.find((face) => face.name.startsWith('F2:blend'))?.name;
+    expect(one(design([{ ...body, printFace: slope }]), 'shallowSlope')).toMatchObject({ angle: 9.5 });
+    expect(one(design([{ ...body, printFace: 'F1:-z' }]), 'shallowSlope')).toMatchObject({ angle: 9.5 });
+    expect(one(design([{ ...body, printFace: 'F1:-x' }]), 'shallowSlope')).toBeUndefined();
+  });
+
+  it('is not looked for when turned off', () => {
+    expect(one(design([solidcraft('slopes', 'Slope3')], { ...PLA, off: ['shallowSlope'] }), 'shallowSlope')).toBeUndefined();
+  });
+});
+
 describe("PartBuddy's templates", () => {
   // templates.faces.json (templateFixtures.test.ts): the bodies on their print faces and in their print-in-place groups.
   const tables = JSON.parse(readFileSync(new URL('templates.faces.json', fixture), 'utf8')) as Record<string, FaceTable & { printFace?: string; group?: string }>;

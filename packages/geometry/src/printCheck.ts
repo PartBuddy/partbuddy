@@ -37,7 +37,7 @@ export interface PrintCheckProfile {
  * hints (`withDesign`, Manuel 2026-11-14) say how the part looks and holds, not whether it prints.
  */
 export type PrintHint = 'smallHole' | 'narrowGap' | DesignHint;
-export type DesignHint = 'sharpEdge' | 'edgeRadii' | 'rootCorner';
+export type DesignHint = 'sharpEdge' | 'edgeRadii' | 'rootCorner' | 'shallowSlope';
 
 export interface PrintCheckBody {
   name: string;
@@ -104,6 +104,8 @@ export type PrintFinding =
    * arm `thickness` thick and `length` long; `radius` the root fillet the design rules ask for it.
    */
   | ({ kind: 'rootCorner'; severity: FindingSeverity; roots: number; thickness: number; length: number; radius: number } & Located)
+  /** Flat faces facing up that lean under `limit`° from flat (design hint): `faces` of them over `area` mm², the shallowest at `angle`°, its layer steps `step` mm wide. */
+  | ({ kind: 'shallowSlope'; severity: FindingSeverity; faces: number; area: number; angle: number; step: number; limit: number } & Located)
   /** The bodies with too little on the bed: how many, and the area of the one with the least. */
   | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
@@ -1157,7 +1159,7 @@ export function withMotion(check: PrintCheck, measured: MeasuredMotion): PrintCh
 }
 
 /** The design hints, in the order the note names them. */
-export const DESIGN_HINTS: readonly DesignHint[] = ['sharpEdge', 'edgeRadii', 'rootCorner'];
+export const DESIGN_HINTS: readonly DesignHint[] = ['sharpEdge', 'edgeRadii', 'rootCorner', 'shallowSlope'];
 
 /** Within 10° two faces run on smoothly: a fillet into its faces, the facets of one curved face. */
 const SMOOTH = Math.cos((10 * Math.PI) / 180);
@@ -1521,6 +1523,68 @@ function rootCorners(bodies: readonly DesignBody[], nozzle: number): PrintFindin
   return { kind: 'rootCorner', severity: 'warn', roots, thickness: round(thickness), length: round(length, 1), radius: rootRadius(thickness, nozzle), places: found.places, box: found.box };
 }
 
+/** Up to this angle from flat a face shows its layers as wide steps (research O4, D5): 0.75 mm and more at 0.2 mm layers. */
+export const SHALLOW_SLOPE = 15;
+/** A sloped face smaller than this is a detail (a chamfer's end, a letter), mm². */
+const SHALLOW_AREA = 50;
+
+/**
+ * `shallowSlope` (research O4, H4): a flat face that faces up as the part lies and leans less than `SHALLOW_SLOPE` from flat,
+ * rising at least one layer across: the layers show on it as steps `layer / tan(angle)` wide, more than on any other face.
+ * Faces under 50 mm² are left out. The finding names the shallowest and its steps.
+ * shortcut: flat faces only: the flat top of a dome or a large fillet shows the same steps and is not told. Which face is
+ * seen is not known: a slope on the inside of a box is told as well.
+ */
+function shallowSlopes(bodies: readonly DesignBody[], layer: number): PrintFinding | null {
+  const step = layerOf(layer);
+  let [count, area, angle] = [0, 0, Infinity];
+  const lean = Math.cos((SHALLOW_SLOPE * Math.PI) / 180);
+  const tallies = bodies.map(({ body, laid }) => {
+    const { model } = body;
+    const faces = model.table.faces;
+    const tally = new FaceTally(faces.length);
+    const index = model.geometry.index?.array;
+    if (!laid || !index) return tally;
+    const design = model.geometry.getAttribute('position').array;
+    // Per flat face as it lies: its area, its normal by the area of its facets (a sliver's own normal is off), and how high it reaches.
+    const normal = new Float64Array(faces.length * 3);
+    const low = new Float64Array(faces.length).fill(Infinity);
+    const high = new Float64Array(faces.length).fill(-Infinity);
+    const sum = new Float64Array(faces.length);
+    for (let t = 0; t < index.length / 3; t += 1) {
+      const face = model.triangleFaces[t] ?? 0;
+      if (!faces[face]?.planeNormal) continue;
+      const lying = triangle(laid.positions, index, t);
+      if (!lying.normal) continue;
+      sum[face] = (sum[face] ?? 0) + lying.area;
+      for (const [k, value] of [lying.normal.x, lying.normal.y, lying.normal.z].entries()) normal[face * 3 + k] = (normal[face * 3 + k] ?? 0) + value * lying.area;
+      for (let k = 2; k < 9; k += 3) {
+        low[face] = Math.min(low[face] ?? Infinity, lying.corners[k] ?? Infinity);
+        high[face] = Math.max(high[face] ?? -Infinity, lying.corners[k] ?? -Infinity);
+      }
+    }
+    const shallow = new Uint8Array(faces.length);
+    faces.forEach((_, face) => {
+      const z = (normal[face * 3 + 2] ?? 0) / (Math.hypot(normal[face * 3] ?? 0, normal[face * 3 + 1] ?? 0, normal[face * 3 + 2] ?? 0) || 1);
+      if (z < lean || (sum[face] ?? 0) < SHALLOW_AREA || (high[face] ?? 0) - (low[face] ?? 0) < step - EPSILON) return;
+      shallow[face] = 1;
+      count += 1;
+      area += sum[face] ?? 0;
+      angle = Math.min(angle, (Math.acos(Math.min(1, z)) * 180) / Math.PI);
+    });
+    for (let t = 0; t < index.length / 3; t += 1) {
+      const face = model.triangleFaces[t] ?? 0;
+      if (!shallow[face]) continue;
+      const { corners, area: own } = triangle(design, index, t);
+      tally.add(face, own, 0, corners);
+    }
+    return tally;
+  });
+  if (count === 0) return null;
+  const found = locate(bodies.map(({ body }) => body), tallies, 0);
+  return { kind: 'shallowSlope', severity: 'warn', faces: count, area: round(area, 0), angle: round(angle, 1), step: round(step / Math.tan((angle * Math.PI) / 180), 1), limit: SHALLOW_SLOPE, places: found.places, box: found.box };
+}
+
 /**
  * Adds the design hints (Manuel, 2026-11-14) to the check: how the part looks and holds, not whether it prints, so yellow
  * only and each turned off on its own (in the print settings, or with the design rule it belongs to). Each body lies as the
@@ -1537,7 +1601,7 @@ export function withDesign(check: PrintCheck, bodies: readonly PrintCheckBody[],
     pairs: [...faceEdges(body.model, laid[b]).values()],
     hollow: hollowFaces(body.model),
   }));
-  const found: (PrintFinding | null)[] = [off.includes('sharpEdge') ? null : sharpEdges(read), off.includes('edgeRadii') ? null : edgeRadii(read), off.includes('rootCorner') ? null : rootCorners(read, profile.nozzle)];
+  const found: (PrintFinding | null)[] = [off.includes('sharpEdge') ? null : sharpEdges(read), off.includes('edgeRadii') ? null : edgeRadii(read), off.includes('rootCorner') ? null : rootCorners(read, profile.nozzle), off.includes('shallowSlope') ? null : shallowSlopes(read, profile.layer)];
   const findings = [...check.findings, ...found.filter((finding): finding is PrintFinding => finding !== null)];
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   return { status: statusOf(findings), findings };
