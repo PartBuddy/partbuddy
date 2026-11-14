@@ -345,8 +345,10 @@ release candidate on 0.40.1 when a step touches it.
   `hook` must lie in the face ("must point across the arm" otherwise). The strain shown in the form
   uses the lever to the catch's middle. The arm stands from `position` against `hook` and meets the face
   in sharp edges (0.40.1: 13 plane faces); `solid.fillet` on its two long root edges at `position` and one
-  thickness behind it rounds them (+0.869 mm³ each for 0.9 mm over 5 mm); flush with the face's edge the
-  radius fits only 0.23 mm, so the block passes `fit: reduce` (BC-17).
+  thickness behind it rounds them (+0.869 mm³ each for 0.9 mm over 5 mm). With `fit: reduce` it makes the radius
+  smaller where the face ends closer and warns, but flush with the face's edge, or on a
+  wall as thin as the arm, it rounds the convex edges beside the arm instead (−0.204 mm³ at 0.1649 mm): the block measures
+  the body before and after and keeps the radius only where it grew (BC-17, `rootOutcome`).
 - `sketch.insert_svg {text, at, width, align: center}` takes the SVG as text (no file access needed)
   and keeps it upright (SVG's y runs down, the sketch's up). `solid.emboss` without `profiles`
   takes every region, so a ring's hole is filled; `solid.extrude` keeps a loop inside a hole as

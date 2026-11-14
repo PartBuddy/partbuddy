@@ -1709,7 +1709,9 @@ describe('snap hooks with their windows (standards)', () => {
     // Two lines (0.9 mm) or four layers (0.8 mm), whichever is more, all round: how the part lies to print is not known (BC-11 review).
     expect(good.text).toContain('PartBuddy measured that wall at each hook first: 2 mm thick behind from and whole round the window, from 9.4 to 13.4 mm above the foot and 7.4 mm wide.');
     expect(good.text).toContain('That strain is within the 2 %, what printed PLA takes for one snap-in (70 % of its yield strain).');
-    expect(good.text).toContain("Printed standing, an arm bends across its layers, and upright test bars broke at 1.7 to 2 % without yielding (makers' data sheets). As designed the arms stand upright: where the part allows, lay Base so that they lie flat.");
+    // Review of BC-17 S5: the hooks' roots are sharp, where Bayer's formula assumes a radius.
+    expect(good.text).toContain("The arms meet their foot in a sharp edge (SolidCraft's hook has no radius, and one beside the wall would run into it), where the formula assumes a round one: count about 2.1 % there (a sharp root about 2 times as strained, Bayer), more than those 2 %: print a test piece first, or use PETG.");
+    expect(good.text).toContain("Printed standing, an arm bends across its layers, and upright test bars of PLA, ABS and PC broke at 1.5 to 2 % without yielding, bent or pulled (Ultimaker data sheets). As designed the arms stand upright: where the part allows, lay Base so that they lie flat.");
     expect(good.cut).toBe(true);
     // A wall of 4 mm said to be 2: the window would have been a pocket (harness snap-wall-said-2-is-4).
     const thick = await built(cover({ thick: 4 }));
@@ -1978,7 +1980,7 @@ describe('a snap latch outside a box (standards)', () => {
     expect(good.text).toContain('Built the latch "Latch": an arm 10 mm wide and 1.6 mm thick grows out of the wall of Lid (the lid), hangs 1.5 mm off the wall over the joint and snaps with its hook under a bead 1.2 mm high on Box (the box); the two overlap by 0.8 mm on 45° faces, and the arm meets its root in a 0.8 mm radius.');
     expect(good.text).toContain("(about 1.5 % strain at the arm's root)");
     // Audit R31, H-21: the layers with a source, and that the latch's arm never lies flat.
-    expect(good.text).toContain("Printed standing, the arm bends across its layers, and upright test bars broke at 1.7 to 2 % without yielding (makers' data sheets). Lying it would be within the 2 %, what printed PLA takes for one snap-in (70 % of its yield strain), but no way of printing the lid lays it flat: print a test piece first.");
+    expect(good.text).toContain("Printed standing, the arm bends across its layers, and upright test bars of PLA, ABS and PC broke at 1.5 to 2 % without yielding, bent or pulled (Ultimaker data sheets). Lying it would be within the 2 %, what printed PLA takes for one snap-in (70 % of its yield strain), but no way of printing the lid lays it flat: print a test piece first.");
     expect(good.text).not.toContain('about half the strain');
     expect(good.text).toContain('PartBuddy measured both walls first: flat and plastic 0.5 mm deep across the latch, on Lid from 1 to 8.1 mm above the joint and on Box from 1 to 14.1 mm below it.');
     // A lid 6 mm high: the arm's root stood 2.1 mm over its top (harness latch-lid-6); 8.1 mm passes, a hair less not.
@@ -2308,7 +2310,12 @@ describe('the print profile in the mechanism tool (audit BC-16)', () => {
     expect(snapLimit({ name: 'pc blend' })).toMatchObject({ strain: 4, often: 2.4, type: 'PC', known: true });
     // Several types in a name: the lowest. None, or a fibre-filled one: PLA's, said as such.
     expect(snapLimit({ name: 'PETG PLA' })).toMatchObject({ strain: 2, type: 'PLA' });
-    for (const name of ['PETG-CF', 'ABS', 'PA (Nylon)', 'TPU 95A', 'PC-ABS']) expect(snapLimit({ name }), name).toMatchObject({ strain: 2, type: 'PLA', known: false, name });
+    for (const name of ['ABS', 'PA (Nylon)', 'TPU 95A', 'PC-ABS']) expect(snapLimit({ name }), name).toMatchObject({ strain: 2, type: 'PLA', known: false, fibre: false, name });
+    // Fibres (review of BC-17 S1): never the base type's value, but half of PLA's, said as an own choice.
+    for (const name of ['PETG CF', 'Bambu PETG CF', 'PETG-CF', 'PLA-CF', 'PC Blend Carbon Fiber', 'PA6-GF25', 'Fiberon PETG-rCF08', 'ASA glass', 'PA12 fibre'])
+      expect(snapLimit({ name }), name).toMatchObject({ strain: 1, often: 0.6, known: false, fibre: true, name });
+    expect(limitWords(snapLimit({ name: 'PETG CF' }))).toBe("1 %: PETG CF is fibre-filled, and fibres lower what a plastic takes (Bayer: moulded PC with glass 2 to 2.2 % against 4 % without); with no value for it PartBuddy holds it to half of PLA's, its own choice");
+    expect(snapLimit({ name: 'PETG Galaxy' })).toMatchObject({ fibre: false, type: 'PETG' });
     expect(limitWords(snapLimit({ name: 'ABS' }))).toBe("2 %: no allowed strain is known for ABS, so PartBuddy holds it to PLA's, the lowest it knows");
     // PETG lets the 2 mm nozzle's hook stay shorter than PLA does.
     expect(snapHook({ nozzle: 2, layer: 0.2 }, { name: 'PETG' }).length).toBe(12);

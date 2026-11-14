@@ -892,7 +892,8 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
 ]);
 export const actionPreviewSchema = z.discriminatedUnion('ok', [
   // `unmeasured`: a function block's cut goes through all of its body, as its reach could not be measured (audit W2).
-  z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable(), unmeasured: z.literal(true).optional() }).strict(),
+  // `root`: the radius a snap fit's root gets on trial, null where SolidCraft refuses it, and the radius asked (review of BC-17 S4).
+  z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable(), unmeasured: z.literal(true).optional(), root: z.object({ applied: finite.nullable(), wanted: finite }).strict().optional() }).strict(),
   z.object({ ok: z.literal(false), error: z.string().max(300) }).strict(),
 ]);
 /** A placed logo at a picked point (sketches named "SVG-Logo <name>"), and where it sits from its face's middle. */

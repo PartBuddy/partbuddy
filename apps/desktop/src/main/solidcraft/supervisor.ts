@@ -19,7 +19,7 @@ import { DimensionService, type DimensionTarget, type ProbeResult } from './dime
 import { featureMarks, pointExpressions, resolvePoints, sketchMarks, type RawFeature, type RawParameter, type RawSketch } from './dimensionMarks';
 import type { DesignParameter, DimensionMark, LogoMoveRequest, LogoSpot } from '../../shared/contract';
 import { logoAt, planLogoMove } from './logoMove';
-import { blockBodies, colourLayers, planeAt, type FeatureBlock } from '../../shared/blocks';
+import { rootFillet, snapRoot, blockBodies, colourLayers, planeAt, type FeatureBlock } from '../../shared/blocks';
 import type { ToolPrinter } from '../../shared/toolFit';
 import { centring, hostFace, movedPlane, TEXT_PREFIX, uniqueLogoName } from '../../shared/drawingPlacement';
 import { boxSize, insertCommand, statesNoUnit, type ImportKind, type MeshUnit } from '../projects/importFile';
@@ -831,11 +831,13 @@ export class SolidCraftSupervisor {
     return this.trial('block preview', async () => {
       const placed = await this.centredBlock(block);
       const { steps, unmeasured } = await this.actions.blockSteps(placed, undefined, (line) => this.options.log(line), printer);
-      const preview = await this.actions.previewSteps(steps, blockBodies(placed));
+      // A snap fit's root radius, tried on its own: the form says when it comes out smaller or not at all (review of BC-17 S4).
+      const root = placed.block === 'snapFit' ? { applied: await this.actions.rootOf(placed, steps), wanted: snapRoot(placed) } : undefined;
+      const preview = await this.actions.previewSteps(placed.block === 'snapFit' && root?.applied ? [...steps, rootFillet(placed)] : steps, blockBodies(placed));
       // The panel shows a short reason; the log keeps SolidCraft's own words.
       if (!preview.ok) this.options.log(`${block.block} preview refused: ${preview.error}`);
       // A cut whose reach could not be measured goes through all: the panel says so (audit W2).
-      return preview.ok && unmeasured ? { ...preview, unmeasured: true } : preview;
+      return preview.ok ? { ...preview, ...(unmeasured ? { unmeasured: true as const } : {}), ...(root ? { root } : {}) } : preview;
     });
   }
 
@@ -860,7 +862,21 @@ export class SolidCraftSupervisor {
     const sketch =
       block.block === 'logo' ? uniqueLogoName(block.name, await this.actions.sketchNames()) : block.block === 'text' ? uniqueLogoName(block.text, await this.actions.sketchNames(), TEXT_PREFIX) : undefined;
     block = await this.centredBlock(block);
-    await this.actions.applySteps((await this.actions.blockSteps(block, sketch, (line) => this.options.log(line), printer)).steps);
+    const { steps } = await this.actions.blockSteps(block, sketch, (line) => this.options.log(line), printer);
+    // A snap fit's root radius, tried first and built as a step of its own: where SolidCraft refuses it or rounds other edges,
+    // the hook stays without it (audit MV-10, review of BC-17 S4); the form said so on its trial.
+    const root = block.block === 'snapFit' ? await this.actions.rootOf(block, steps) : null;
+    const warned = await this.actions.applySteps(steps);
+    if (block.block === 'snapFit')
+      if (root === null) this.options.log(`snapFit on ${block.body}: root not rounded (SolidCraft refused it on trial, or rounded other edges)`);
+      else
+        warned.push(
+          ...(await this.actions.applySteps([rootFillet(block)]).catch((cause: unknown) => {
+            this.options.log(`snapFit on ${block.body}: root not rounded (${(cause as Error).message.slice(0, 200)})`);
+            return [];
+          })),
+        );
+    for (const warning of warned) this.options.log(`${block.block} on ${block.body}: SolidCraft warns: ${warning}`);
     // A logo in colours: pieces a cut split off get their colour too.
     const layers = block.block === 'logo' ? colourLayers(block) : [];
     if (layers.length > 0) {

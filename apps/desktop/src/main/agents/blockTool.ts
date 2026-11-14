@@ -1,12 +1,12 @@
 import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 
-import { BLOCK_SIZES, DEFAULT_PRINTER, nutCorners, nutFlatsOfFit, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, limitSaid, raisedBlock, snapRoot, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, DEFAULT_PRINTER, nutCorners, nutFlatsOfFit, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, limitSaid, raisedBlock, rootOutcome, rootSteps, snapRoot, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import type { FitPrinter } from '../../shared/designFit';
 import { CLEARANCE, NUT, NUT_DIN_FLATS, THREAD_ALLOWANCE, headRoom, pilotHole, printedThread, screwDiameter } from '../../shared/screwSizes';
 import { drawnHole, fitClearance, heldSaid, holeRoom, unmeasuredSaid, type ToolPrinter } from '../../shared/toolFit';
 import { KNOB, knobClearance, KNOB_CLEARANCE_MOST, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
-import { SNAP_OFTEN, TAPPED_FROM, limitWords, snapLimit, standsUpright, uprightSaid } from '../../shared/mechanisms';
+import { ROOT_LEAST, SNAP_OFTEN, SNAP_ROOT, TAPPED_FROM, limitWords, snapLimit, standsUpright, uprightSaid } from '../../shared/mechanisms';
 import { MAGNET, MAGNET_HOLDS, MAGNET_MORE, PRESS_INTERFERENCE, PRESS_RANGE, magnetPocket, magnetRoom, magnetProblem, magnetSteps, magnetStock, type MagnetHold } from '../../shared/magnet';
 import { KEYHOLE, WALL, WALL_MORE, WOOD_SCREWS, WOOD_SCREW_UNDER, countersinkDepth, keyholeDepth, keyholeProblem, keyholeRoof, ROOF_LEAN, keyholeSteps, keyholeStock, wallSizes, woodScrewSteps, woodScrewStock, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
@@ -143,7 +143,7 @@ const floorWhy = (printer: FitPrinter) =>
   minimumWall(printer.nozzle) >= minimumFloor(printer.layer) ? `two lines ${on(printer)}` : `a floor of four ${String(printer.layer)} mm layers, at least 0.8 mm`;
 
 /** Why a size of a block does not print on the printer, in English; null when all do. The form checks the same (index.ts, BlockPanel.tsx). */
-export const printLimit = (block: FeatureBlock, printer: FitPrinter): string | null => {
+export const printLimit = (block: FeatureBlock, printer: ToolPrinter): string | null => {
   const limit = blockLimit(block, printer);
   return limit ? limitSaid(limit) : null;
 };
@@ -157,8 +157,31 @@ const strainSaid = (block: Extract<FeatureBlock, { block: 'snapFit' }>, printer:
   const limit = snapLimit(printer.material);
   const often = strain > limit.often ? ` For a part taken apart often keep under ${String(limit.often)} % (${String(Math.round(SNAP_OFTEN * 100))} % of that, Bayer): make the arm longer or thinner, or the catch shallower.` : '';
   const upright = standsUpright(block.normal) ? 'As designed it stands upright: where the part allows, lay the part so that the arm lies flat.' : 'Keep the part lying as designed, with the arm flat.';
-  return ` The arm bends ${mm(strain)} % at its root as the catch snaps in, within the ${limitWords(limit)}.${often} It meets the face in a radius of up to ${mm(snapRoot(block))} mm on both sides, smaller where the face ends closer to it. ${uprightSaid('the arm', upright)}`;
+  return ` The arm bends ${mm(strain)} % at its root as the catch snaps in, within the ${limitWords(limit)}.${often} ${uprightSaid('the arm', upright)}`;
 };
+
+/**
+ * Rounds a snap fit's root (rootFillet) after the hook stands and says what came of it: the radius, one SolidCraft made smaller
+ * where the face ends closer, or that it stays sharp because SolidCraft refused (logged too).
+ */
+export async function rounded(block: Extract<FeatureBlock, { block: 'snapFit' }>, run: (commands: Step[]) => Promise<unknown[]>, log: (line: string) => void): Promise<string> {
+  const wanted = snapRoot(block);
+  // As the block itself: built for real, and a refusal taken back to the hook as it stood (takeBack.ts).
+  const mark = await markOf(run);
+  try {
+    const applied = rootOutcome(block, await run(rootSteps(block)));
+    if (applied === null) throw new Error('it rounded other edges instead, which was taken back');
+    if (applied >= wanted - 1e-6) return ` It meets the face in a ${mm(applied)} mm radius on both sides (${String(SNAP_ROOT)} × its thickness, Bayer).`;
+    log(`root radius ${mm(applied)} mm of ${mm(wanted)}`);
+    return ` SolidCraft rounded the arm's root only ${mm(applied)} mm of the ${mm(wanted)} mm asked (${String(SNAP_ROOT)} × its thickness, Bayer), as the face ends closer to the arm${applied < ROOT_LEAST - 1e-9 ? `, under the ${String(ROOT_LEAST)} mm Bayer asks at the least: move it away from the face's edge` : ''}.`;
+  } catch (cause) {
+    const why = (cause as Error).message.slice(0, 200);
+    const taken = await takeBack(run, mark);
+    log(`root not rounded (${taken}): ${why}`);
+    if (taken !== 'back') return ` SolidCraft could not round the arm's root (${why}). ${TAKEN_BACK_SAID[taken]}`;
+    return ` SolidCraft could not round the arm's root (${why}): the hook stands with sharp root edges, where it cracks sooner. Put it on a flat stretch of the face, away from its edges.`;
+  }
+}
 
 /** The fields each block takes besides block, body and point (the blocks of the interface: the fields of their standard). */
 const TAKES: Record<string, readonly string[]> = {
@@ -1109,6 +1132,8 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         // `body.print_face` alone, not one another step answers (audit W33, as printFaceWatch.ts).
         const face = sent.flatMap((step, i) => (step.command === 'body.print_face' ? [(results[i] as { face?: unknown } | undefined)?.face] : [])).find((entry) => typeof entry === 'string');
         if (face) keepFace(body, face);
+        // A snap fit's root radius as a step of its own (audit MV-10, review of BC-17 S4): refused, the hook stays without it.
+        const rootSaid = block?.block === 'snapFit' ? await rounded(block, run, (line) => log(`partbuddy_block snapFit on ${body}: ${line}`)) : '';
         const warnings = results.flatMap((result) => {
           const warning = (result as { warning?: unknown } | undefined)?.warning;
           return typeof warning === 'string' ? [warning.slice(0, 200)] : [];
@@ -1128,7 +1153,7 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         // A default fit held within what the block takes goes to the log as well as to the answer (BC-16 review S2).
         const held = wall ? ('held' in wall ? wall.held : '') : block ? heldOf(block, args, fit) : '';
         if (held) log(`partbuddy_block ${String(args.block)}:${held}`);
-        const said = (wall ? wall.text : block ? built(block, args, fit) + reachSaid(block, reach) + measuredSaid(block, thick, rim, fit) : '') +(block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');
+        const said = (wall ? wall.text : block ? built(block, args, fit) + reachSaid(block, reach) + rootSaid + measuredSaid(block, thick, rim, fit) : '') +(block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');
         return { content: [{ type: 'text', text: `${said}${stockSaid}${warnings.length > 0 ? ` SolidCraft warns: ${warnings.join(' ')}` : ''}` }] };
       } catch (cause) {
         return { content: [{ type: 'text', text: `Not built: ${(cause as Error).message}` }], isError: true };

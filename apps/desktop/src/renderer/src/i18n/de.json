@@ -1514,6 +1514,11 @@
       "other": "Richtung {n}"
     },
     "strain": "Etwa {strain} % Dehnung beim Einrasten; gedrucktes {material} verträgt einmal {most, number} %, bei häufigem Einrasten etwa {often, number} %",
+    "strainFibre": "Etwa {strain} % Dehnung beim Einrasten; {material} ist faserverstärkt, und Fasern senken, was ein Kunststoff verträgt: ohne Wert dafür lässt PartBuddy {most, number} % zu (halb so viel wie bei PLA, eigene Wahl), bei häufigem Einrasten etwa {often, number} %",
+    "snapUpright": "So konstruiert steht der Arm aufrecht: so gedruckt biegt er quer zu den Schichten, und stehend gedruckte Probestäbe brachen bei {least, number} bis {most, number} %. Das Teil so legen, dass der Arm liegt.",
+    "rootSharp": "SolidCraft kann die Wurzel des Arms hier nicht runden: sie bleibt scharfkantig und bricht eher. Auf eine ebene Stelle der Fläche setzen.",
+    "rootSmall": "SolidCraft rundet die Wurzel des Arms hier nur mit {applied, number} statt {wanted, number} mm, weil die Fläche nahe daneben endet.",
+    "rootTooSmall": "SolidCraft rundet die Wurzel des Arms hier nur mit {applied, number} mm, unter den {least, number} mm, die eine Wurzel mindestens braucht: weiter vom Rand der Fläche weg setzen.",
     "strainUnknown": "Etwa {strain} % Dehnung beim Einrasten; für {material} ist kein Wert bekannt, deshalb gelten die {most, number} % von {fallback} (bei häufigem Einrasten etwa {often, number} %)",
     "logoChoose": "SVG-Datei wählen …",
     "logoOther": "Andere Datei …",
@@ -1591,7 +1596,7 @@
       "nutFlats": "Eine {size}-Mutter ist {least, number} mm breit über die Flächen und passt nicht in {value, number} mm: die Standardtasche hat {standard, number} mm.",
       "nutCorners": "Eine {size}-Mutter ist {most, number} mm breit über die Ecken und würde sich in einer Tasche mit {value, number} mm drehen: weniger angeben.",
       "nutHeight": "Eine {size}-Mutter ist {least, number} mm hoch und stünde aus einer Tasche mit {value, number} mm Tiefe heraus: Standard sind {standard, number} mm.",
-      "strain": "Der Arm dehnt sich beim Einrasten an der Wurzel um {strain, number} %, mehr als die {most, number} %, die gedrucktes {material} verträgt: mindestens {least, number} mm lang machen, dünner oder die Nase flacher."
+      "strain": "Der Arm dehnt sich beim Einrasten an der Wurzel um {strain, number} %, mehr als die {most, number} %, die PartBuddy gedrucktem {material} zugesteht: mindestens {least, number} mm lang machen, dünner oder die Nase flacher."
     },
     "strokeUnchecked": "Die Striche dieser Schrift sind nicht geprüft: PartBuddy kennt sie nur für Arial und die eingebaute Schrift."
   },

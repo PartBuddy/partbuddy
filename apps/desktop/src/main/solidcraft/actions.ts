@@ -1,7 +1,7 @@
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { cutsThrough, splitPieceSteps, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../../shared/blocks';
+import { rootOutcome, rootSteps, cutsThrough, splitPieceSteps, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../../shared/blocks';
 import type { ClearanceResult, DesignAction, JointSweep, JointSweepResult, MeasureItem, MeasureResult } from '../../shared/contract';
 import type { ToolPrinter } from '../../shared/toolFit';
 import { LIP, snapHold } from '../../shared/mechanisms';
@@ -65,7 +65,7 @@ interface BatchReply {
 }
 
 /** `unmeasured`: a function block's cut goes through all of its body, as its reach could not be measured (audit W2). */
-export type ActionPreview = { ok: true; preview: Uint8Array<ArrayBuffer> | null; unmeasured?: true } | { ok: false; error: string };
+export type ActionPreview = { ok: true; preview: Uint8Array<ArrayBuffer> | null; unmeasured?: true; root?: { applied: number | null; wanted: number } } | { ok: false; error: string };
 
 export class ActionService {
   constructor(
@@ -125,13 +125,27 @@ export class ActionService {
     return { steps, unmeasured: cutsThrough(block) && !reach?.every((value) => value !== null) };
   }
 
-  apply(action: DesignAction): Promise<void> {
-    return this.applySteps([commandOf(action)]);
+  async apply(action: DesignAction): Promise<void> {
+    await this.applySteps([commandOf(action)]);
   }
 
-  async applySteps(steps: Step[]): Promise<void> {
+  /** Builds the steps for real; SolidCraft's warnings come back, for the caller to log (review of BC-17 S4: they were dropped). */
+  async applySteps(steps: Step[]): Promise<string[]> {
     const reply = await this.batch(steps, true);
     if (reply.failed) throw new Error(`SolidCraft refused it: ${reply.failed.error}`);
+    return (reply.results ?? []).flatMap((result) => {
+      const warning = (result as { warning?: unknown } | undefined)?.warning;
+      return typeof warning === 'string' ? [warning.slice(0, 300)] : [];
+    });
+  }
+
+  /**
+   * The radius a snap fit's root gets after its steps, tried and taken back (audit MV-10): the radius asked, a smaller one where
+   * the face ends closer, or null where SolidCraft refuses the fillet or one of the steps.
+   */
+  async rootOf(block: Extract<FeatureBlock, { block: 'snapFit' }>, steps: Step[]): Promise<number | null> {
+    const results = await this.trial([...steps, ...rootSteps(block)]);
+    return results ? rootOutcome(block, results.slice(-3)) : null;
   }
 
   /**

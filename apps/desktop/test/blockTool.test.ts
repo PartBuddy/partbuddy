@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_GUIDANCE, FACE_DROP, heldOf, jointsMoving, printLimit, STOCK_FULL, blockOf, cutAxis, knobOf, magnetOf, misplaced, named, rimNarrowest, seatStock, shortOf, wallOf, withBlockTool, type Stock } from '../src/main/agents/blockTool';
+import { BLOCK_GUIDANCE, FACE_DROP, rounded, heldOf, jointsMoving, printLimit, STOCK_FULL, blockOf, cutAxis, knobOf, magnetOf, misplaced, named, rimNarrowest, seatStock, shortOf, wallOf, withBlockTool, type Stock } from '../src/main/agents/blockTool';
 import { INSERT, blockLimit, defaultBlock, raisedBlock, stepsOf, type FeatureBlock } from '../src/shared/blocks';
 import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
@@ -976,6 +976,8 @@ function plate(answer: (step: { command: string; params: Record<string, unknown>
       sent.push({ commands, rollback });
       const results = commands.map((step) => {
         if (!rollback && ['solid.hole', 'solid.extrude', 'solid.emboss', 'plastic.lip', 'plastic.boss', 'plastic.snap_fit'].includes(step.command)) volume -= 10;
+        // A root's radius fills a corner: the body grows.
+        if (!rollback && step.command === 'solid.fillet') volume += 1;
         const own = answer(step);
         if (own !== undefined) return own;
         return step.command === 'inspect.measure' && !step.params.items ? { bodies: [{ name: 'Plate', volume_mm3: volume }] } : step.command === 'document.inspect' ? { undo: 1, timeline: [], sketches: [] } : {};
@@ -1007,7 +1009,7 @@ describe('what a block takes and the sizes it builds (audit BC-03)', () => {
     expect(blockOf({ block: 'nutTrap', ...up, depth: 2 })).toBe('depth 2: an M3 nut is 2.4 mm high and would stand out of the pocket; the standard is 2.8');
     expect(blockOf({ block: 'lip', ...at, width: 0.5 })).toBe('width 0.5: a lip narrower than 0.9 mm (two lines on a 0.4 mm nozzle) does not print solid');
     // The arm of 3 mm bent 35.6 % (measured rc.4): over what the profile's material takes it is refused (audit T18, R56).
-    expect(blockOf({ block: 'snapFit', ...up, length: 3 })).toBe('length 3: the arm bends 35.56 % at its root as the catch snaps in, more than the 2 % printed PLA takes; make it at least 10.3 mm long, or thinner, or the catch shallower');
+    expect(blockOf({ block: 'snapFit', ...up, length: 3 })).toBe('length 3: the arm bends 35.56 % at its root as the catch snaps in, more than the 2 % PartBuddy allows printed PLA; make it at least 10.3 mm long, or thinner, or the catch shallower');
     expect(blockOf({ block: 'snapFit', ...up })).toMatchObject({ length: 12 });
     expect(blockOf({ block: 'snapFit', ...up, thickness: 0.5 })).toContain('thickness 0.5: an arm under 0.9 mm');
     expect(blockOf({ block: 'tappedHole', ...at, size: 'M5', depth: 0.1 })).toBe('depth 0.1: under one layer (0.2 mm) nothing prints');
@@ -1056,8 +1058,9 @@ describe('what a block takes and the sizes it builds (audit BC-03)', () => {
     expect(built('solid.extrude')).toEqual([{ distance: '-3 mm', operation: 'cut', targets: ['Plate'], name: 'Langloch' }]);
     const snap = await said(tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 15 }));
     expect(snap).toContain('length 15 (standard 12)');
-    expect(snap).toContain("The arm bends 0.89 % at its root as the catch snaps in, within the 2 %, what printed PLA takes for one snap-in (70 % of its yield strain). It meets the face in a radius of up to 0.9 mm on both sides, smaller where the face ends closer to it. Printed standing, the arm bends across its layers, and upright test bars broke at 1.7 to 2 % without yielding (makers' data sheets). As designed it stands upright: where the part allows, lay the part so that the arm lies flat.");
-    expect(built('solid.fillet')).toEqual([{ edges: [[10, 10, 6], [10, 8.5, 6]], radius: '0.9 mm', tangent_chain: false, fit: 'reduce', body: 'Plate' }]);
+    expect(snap).toContain("The arm bends 0.89 % at its root as the catch snaps in, within the 2 %, what printed PLA takes for one snap-in (70 % of its yield strain). Printed standing, the arm bends across its layers, and upright test bars of PLA, ABS and PC broke at 1.5 to 2 % without yielding, bent or pulled (Ultimaker data sheets). As designed it stands upright: where the part allows, lay the part so that the arm lies flat.");
+    expect(snap).toContain(' It meets the face in a 0.9 mm radius on both sides (0.6 × its thickness, Bayer).');
+    expect(built('solid.fillet')).toEqual([{ edges: [[10, 10, 6], [10, 8.5, 6]], radius: '0.9 mm', tangent_chain: false, fit: 'reduce', body: 'Plate', name: 'Snap fit root' }]);
   });
 
   it('says why SolidCraft would refuse, before it is asked: a body there is not (N-bloecke-3)', async () => {
@@ -1158,10 +1161,34 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     expect(raisedBlock(form[3] as FeatureBlock, nozzle(0.8), ['width']).block).toMatchObject({ width: 1.2 });
   });
 
+  it("keeps a snap fit without its root's radius where SolidCraft refuses it, and says a smaller one (review of BC-17 S4)", async () => {
+    const hook = blockOf({ block: 'snapFit', ...up }) as Extract<FeatureBlock, { block: 'snapFit' }>;
+    const lines: string[] = [];
+    const sent: string[] = [];
+    // A design that reads the same before and after: the refused fillet left nothing (takeBack finds it as it was).
+    const run = (answer: (step: { command: string }) => unknown) => (commands: { command: string; params: Record<string, unknown> }[]) => {
+      sent.push(...commands.map((step) => step.command));
+      // A throw in answer comes back as a refused promise, as from the tool.
+      return Promise.resolve().then(() => commands.map((step) => answer(step) ?? (step.command === 'document.inspect' ? { undo: 1, timeline: [], sketches: [] } : {})));
+    };
+    let volume = 100;
+    const grows = (by: number, radius?: number) => (step: { command: string }) => (step.command === 'inspect.measure' ? { bodies: [{ name: 'Plate', volume_mm3: volume }] } : step.command === 'solid.fillet' ? ((volume += by), radius === undefined ? {} : { radius_applied: radius }) : undefined);
+    const refused = await rounded(hook, run((step) => { if (step.command === 'solid.fillet') throw new Error('SolidCraft refused solid.fillet: no edge at [10, 10, 6]'); return undefined; }), (line) => lines.push(line));
+    expect(refused).toBe(" SolidCraft could not round the arm's root (SolidCraft refused solid.fillet: no edge at [10, 10, 6]): the hook stands with sharp root edges, where it cracks sooner. Put it on a flat stretch of the face, away from its edges.");
+    expect(lines).toEqual(['root not rounded (back): SolidCraft refused solid.fillet: no edge at [10, 10, 6]']);
+    expect(sent).not.toContain('edit.undo');
+    // Flush with the face's edge SolidCraft took 0.2298 mm (harness bc17-block-edge): under Bayer's 0.38 mm, said so.
+    expect(await rounded(hook, run(grows(0.4, 0.2298)), (line) => lines.push(line))).toBe(" SolidCraft rounded the arm's root only 0.23 mm of the 0.9 mm asked (0.6 × its thickness, Bayer), as the face ends closer to the arm, under the 0.38 mm Bayer asks at the least: move it away from the face's edge.");
+    expect(await rounded(hook, run(grows(1, 0.5)), () => undefined)).toBe(" SolidCraft rounded the arm's root only 0.5 mm of the 0.9 mm asked (0.6 × its thickness, Bayer), as the face ends closer to the arm.");
+    expect(await rounded(hook, run(grows(1)), () => undefined)).toBe(' It meets the face in a 0.9 mm radius on both sides (0.6 × its thickness, Bayer).');
+    // The wall's convex edges rounded instead of the root (the body shrank): taken back, said as sharp.
+    expect(await rounded(hook, run(grows(-0.2, 0.1649)), () => undefined)).toContain("SolidCraft could not round the arm's root (it rounded other edges instead, which was taken back): the hook stands with sharp root edges");
+  });
+
   it("refuses a snap arm that bends more than the profile's material takes, and says what one opened often takes (audit T18, R56, R41)", async () => {
     const pla = plate();
     const answer = await said(pla.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 4 }));
-    expect(answer).toContain('length 4: the arm bends 17.04 % at its root as the catch snaps in, more than the 2 % printed PLA takes; make it at least 10.3 mm long');
+    expect(answer).toContain('length 4: the arm bends 17.05 % at its root as the catch snaps in, more than the 2 % PartBuddy allows printed PLA; make it at least 10.3 mm long');
     expect(pla.built('plastic.snap_fit')).toEqual([]);
     // PETG takes 3.5 % once and 2.1 % often (Prusament and Ultimaker data sheets, Bayer): 10.5 mm bends 1.89 % and is built.
     const petg = plate(undefined, { ...nozzle(0.4), material: { ...DEFAULT_MATERIAL, name: 'PETG' } });

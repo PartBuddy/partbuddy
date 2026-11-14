@@ -991,8 +991,17 @@ export interface SnapSpec {
 export const SNAP = { length: 12, thickness: 1.5, width: 5, catch: 0.8, catchLength: 1.5, gap: 0.2, side: 0.3, seat: 0.2, air: 0.5 };
 export type SnapHook = typeof SNAP;
 
+/**
+ * How much more a sharp root strains than one rounded at {@link SNAP_ROOT}: Bayer's formula assumes the radius, and his Fig. 9
+ * puts the stress concentration at about 1.5 there and about 3 at a sharp corner (read off the curve in the review of BC-17,
+ * S5; one source). The mechanism's hooks have sharp roots (snapSteps).
+ */
+export const SHARP_ROOT = 2;
+
 /** The radius at an arm's root as a share of its thickness: Bayer's optimum R/h 0.6 (Snap-Fit Joints for Plastics, p. 8); Hubs asks at least 0.5, Sovol 0.5 to 1 (audit MV-10). */
 export const SNAP_ROOT = 0.6;
+/** The least radius at an arm's root, mm: Bayer, "not less than 0.015 in. in any instance" (p. 8). */
+export const ROOT_LEAST = 0.38;
 
 /**
  * How far an arm may bend at its root for one snap-in, as a share of the yield strain: amorphous plastics up to about 70 %
@@ -1007,15 +1016,24 @@ export const SNAP_OFTEN = 0.6;
  * The yield strain of printed test bars in per cent, flat and on their side, the lower of two makers' data sheets per
  * material (audit MV-12, S-13, T18; read 2026-11-14), and a cap where a guide gives a lower allowed strain:
  * PLA: Ultimaker PLA TDS v2.00 (2022-04-20) 3.4 % flat and on its side; Prusament PLA TDS v1.1 (2022-07-27) 2.9 % horizontal,
- * 3.2 % vertical xz. PETG: Ultimaker PETG TDS v1.00 (2022-04-29) 5.9 / 6.0 %; Prusament PETG TDS (2020) 5.1 / 5.1 %.
+ * 3.2 % vertical xz. PETG: Ultimaker PETG TDS v1.00 (2022-04-29) 5.9 / 6.0 %; Prusament PETG TDS (cdn.shopify.com/s/files/1/
+ * 1745/6181/files/PETG_TechSheet_ENG.pdf, PDF of 2020-01-24, no version on the sheet) 5.1 % horizontal and vertical x,y.
  * PC: Ultimaker PC TDS v2.00 (2022-04-20) 6.1 / 5.9 % (70 % of it 4.1); Bayer's table 2 allows moulded PC 4 % once.
- * Other materials have no two sources here (Ultimaker alone: ABS 4.1 %, nylon 6.1 %; fibre-filled types yield less) and are
- * held to PLA's, the lowest.
- * shortcut: ABS, ASA, PA, PP, TPU and the fibre-filled types take PLA's value; add each with a second data sheet.
+ * Other materials have no two sources here (Ultimaker alone: ABS 4.1 %, nylon 6.1 %) and are held to PLA's, the lowest;
+ * fibre-filled ones to {@link SNAP_FIBRE}.
+ * shortcut: ABS, ASA, PA, PP, TPU take PLA's value, fibre-filled types SNAP_FIBRE; add each with a second data sheet.
  */
 const SNAP_YIELD: Record<string, { yield: number; cap?: number }> = { PLA: { yield: 2.9 }, PETG: { yield: 5.1 }, PC: { yield: 5.9, cap: 4 } };
 /** The material whose allowed strain stands in for one without sources: the lowest. */
 const SNAP_FALLBACK = 'PLA';
+/**
+ * A fibre-filled material's allowed strain, per cent (review of BC-17, S1: "PETG CF" was taken for PETG): fibres lower what a
+ * plastic takes; Bayer allows glass-fibre grades about half their elongation at break (p. 11) and moulded PC with 10 and
+ * 20 % glass 2.2 and 2.0 % against 4 % unfilled (table 2). No source gives printed fibre types, so half of PLA's, own choice.
+ */
+export const SNAP_FIBRE = 1;
+/** A name that says fibres: CF, GF (PLA-CF, PA6-GF25, rCF08), carbon, glass, fibre or fiber (Fiberon). */
+const FIBRE = /(CF|GF)\d*([^A-Z]|$)|CARBON|GLASS|FIB(RE|ER)/;
 
 /** The allowed strain of a material type in the table, rounded down to 0.1 %. */
 const allowedOf = (type: string) => {
@@ -1024,32 +1042,38 @@ const allowedOf = (type: string) => {
 };
 
 /**
- * Bars printed upright, pulled across their layers, broke without yielding at 1.7 to 2 % (Ultimaker data sheets 2022: PLA
- * 2.0, PETG 1.8, ABS 2.0, PC 2.0, nylon 1.7); Prusament PETG's upright bars yield at 2.5 % against 5.1 % flat. An arm that
- * bends across its layers therefore takes far less than the table says (audit R31, H-21: "about half" had no source).
+ * Bars printed upright, across their layers, broke without yielding (Ultimaker data sheets 2022, review of BC-17 S3: bent is
+ * what an arm does): bent at 1.9 % (PLA), 1.5 % (ABS, PC), 3.6 % (PETG), 4.0 % (nylon); pulled at 2.0 % (PLA, ABS, PC),
+ * 1.8 % (PETG), 1.7 % (nylon). Prusament PETG's upright bars yield at 2.5 % pulled against 5.1 % flat (its sheet as above).
+ * PLA, ABS and PC give the range; an arm that bends across its layers takes far less than the table says (audit R31, H-21:
+ * "about half" had no source).
  */
-export const UPRIGHT_BREAK = { least: 1.7, most: 2 };
+export const UPRIGHT_BREAK = { least: 1.5, most: 2 };
 
 /** What an answer says of an arm that bends across its layers (audit R31, H-21: "at about half the strain" had no source); `then` follows as its own sentence. */
 export const uprightSaid = (arm: string, then: string) =>
-  `Printed standing, ${arm} bends across its layers, and upright test bars broke at ${String(UPRIGHT_BREAK.least)} to ${String(UPRIGHT_BREAK.most)} % without yielding (makers' data sheets). ${then}`;
+  `Printed standing, ${arm} bends across its layers, and upright test bars of PLA, ABS and PC broke at ${String(UPRIGHT_BREAK.least)} to ${String(UPRIGHT_BREAK.most)} % without yielding, bent or pulled (Ultimaker data sheets). ${then}`;
 
 /**
  * How far a snap arm may bend at its root in the profile's material, per cent, and which entry that is: a word of the
  * material's name that is a type in the table (`PLA`, `PLA Matte`, `Prusament PETG`); the lowest when several are, and
- * PLA's, the lowest of all, when none is (`known` false; `PLA-CF`, `ABS`).
+ * PLA's, the lowest of all, when none is (`known` false: `ABS`). A name that says fibres is never known and takes {@link SNAP_FIBRE}
+ * (`fibre`: `PLA-CF`, `Bambu PETG CF`, `PC Blend Carbon Fiber`).
  */
-export function snapLimit(material?: { name?: string | undefined }): { strain: number; often: number; type: string; known: boolean; name: string } {
+export function snapLimit(material?: { name?: string | undefined }): { strain: number; often: number; type: string; known: boolean; fibre: boolean; name: string } {
   // No material is PLA, as with every tool (toolFit.ts DEFAULT_MATERIAL).
   const name = material?.name?.trim() || SNAP_FALLBACK;
-  const types = name.toUpperCase().split(/\s+/).filter((word) => word in SNAP_YIELD);
+  const fibre = FIBRE.test(name.toUpperCase());
+  const types = fibre ? [] : name.toUpperCase().split(/\s+/).filter((word) => word in SNAP_YIELD);
   const type = types.sort((a, b) => allowedOf(a) - allowedOf(b))[0];
-  const strain = allowedOf(type ?? SNAP_FALLBACK);
-  return { strain, often: Math.floor(strain * SNAP_OFTEN * 10 + 1e-6) / 10, type: type ?? SNAP_FALLBACK, known: type !== undefined, name };
+  const strain = fibre ? SNAP_FIBRE : allowedOf(type ?? SNAP_FALLBACK);
+  return { strain, often: Math.floor(strain * SNAP_OFTEN * 10 + 1e-6) / 10, type: type ?? SNAP_FALLBACK, known: type !== undefined, fibre, name };
 }
 
-/** What an answer says of the allowed strain: the material's, or that none is known and PLA's is taken. */
+/** What an answer says of the allowed strain: the material's, that none is known and PLA's is taken, or that fibres take less. */
 export function limitWords(limit: ReturnType<typeof snapLimit>): string {
+  if (limit.fibre)
+    return `${String(limit.strain)} %: ${limit.name} is fibre-filled, and fibres lower what a plastic takes (Bayer: moulded PC with glass 2 to 2.2 % against 4 % without); with no value for it PartBuddy holds it to half of PLA's, its own choice`;
   return limit.known
     ? `${String(limit.strain)} %, what printed ${limit.type} takes for one snap-in (${String(Math.round(SNAP_ONCE * 100))} % of its yield strain)`
     : `${String(limit.strain)} %: no allowed strain is known for ${limit.name}, so PartBuddy holds it to ${limit.type}'s, the lowest it knows`;
@@ -1294,8 +1318,8 @@ export function latchStrain(arm: LatchArm = LATCH): number {
  * The latch on the printer in the material (audit W15 rest, BC-16: refused on coarse nozzles before): the arm at least two
  * lines thick, its root's radius half of that, and its lever long enough to bend within what the material takes
  * ({@link snapLimit}), measured from where the radius starts as {@link latchStrain} does.
- * shortcut: held to the strain of bars printed flat, though the arm prints upright and bends across its layers (1.5 % against
- * the 1.7 to 2 % at which upright bars broke, UPRIGHT_BREAK); the answer says so. Lengthen the lever when a print cracks.
+ * shortcut: held to the strain of bars printed flat, though the arm prints upright and bends across its layers (1.53 % against
+ * the 1.5 to 2 % at which upright bars broke, UPRIGHT_BREAK); the answer says so. Lengthen the lever when a print cracks.
  */
 export function latchArm(printer: FitPrinter, material?: { name?: string | undefined }): LatchArm {
   const thick = Math.max(LATCH.thick, minimumWall(printer.nozzle));

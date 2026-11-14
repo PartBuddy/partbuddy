@@ -167,6 +167,44 @@ export const TEXT_STROKE = { bold: 0.2019, regular: 0.1356 };
  */
 export const snapRoot = (block: { thickness: number }) => round(SNAP_ROOT * block.thickness);
 
+/** The feature name of a snap fit's root radius in the timeline. */
+export const SNAP_ROOT_NAME = 'Snap fit root';
+
+/**
+ * The radius at a snap fit's root (audit MV-10), a step after the hook's own: SolidCraft's hook meets the face in sharp edges
+ * (measured, 0.40.1: 13 plane faces). Its arm stands from the point against the catch, so its two long root edges run through
+ * the point and one thickness behind it. Where the face ends closer than the radius SolidCraft makes it smaller and warns
+ * (`reduce`: 0.23 mm flush with an edge); where it cannot round them at all the hook stays without (blockTool.ts, supervisor.ts).
+ */
+export function rootFillet(block: Extract<FeatureBlock, { block: 'snapFit' }>): Step {
+  const hook = hookVector(block.point, block.normal, block.hook);
+  const behind = block.point.map((value, i) => round6(value - (hook[i] ?? 0) * block.thickness));
+  return { command: 'solid.fillet', params: { edges: [block.point, behind], radius: `${String(snapRoot(block))} mm`, tangent_chain: false, fit: 'reduce', body: block.body, name: SNAP_ROOT_NAME } };
+}
+
+/** The radius SolidCraft gave a root fillet: `radius_applied` when it made it smaller, else the radius asked. */
+export const rootApplied = (block: { thickness: number }, result: unknown) => {
+  const applied = (result as { radius_applied?: unknown } | undefined)?.radius_applied;
+  return typeof applied === 'number' ? applied : snapRoot(block);
+};
+
+/** The root's radius between two measures of its body, for {@link rootOutcome}. */
+export const rootSteps = (block: Extract<FeatureBlock, { block: 'snapFit' }>): Step[] => {
+  const measure = { command: 'inspect.measure', params: { bodies: [block.body] } };
+  return [measure, rootFillet(block), measure];
+};
+
+/**
+ * What came of {@link rootSteps} (their three results): the radius, or null where the body did not grow. A root's radius fills
+ * a concave corner; a hook flush with both sides of a 1.5 mm wall had SolidCraft round the wall's convex edges beside the arm
+ * instead (0.1649 mm, −0.204 mm³, measured 0.40.1), which is no root.
+ */
+export function rootOutcome(block: { thickness: number; body: string }, results: unknown[]): number | null {
+  const volume = (result: unknown) => (result as { bodies?: { name?: unknown; volume_mm3?: unknown }[] } | undefined)?.bodies?.find((entry) => entry.name === block.body)?.volume_mm3;
+  const [before, after] = [volume(results[0]), volume(results[2])];
+  return typeof before === 'number' && typeof after === 'number' && after > before + 1e-6 ? rootApplied(block, results[1]) : null;
+}
+
 /** The catch's direction in world coordinates. */
 export function hookVector(point: Point, normal: Point, hook: HookDirection): Point {
   const plane = planeAt(point, normal);
@@ -242,14 +280,14 @@ export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly
         // an extrusion keeps a loop inside a hole as material again, as the drawing shows it.
         { command: 'solid.extrude', params: { distance: mm(block.mode === 'deboss' ? -block.depth : block.depth), operation: block.mode === 'deboss' ? 'cut' : 'join' } },
       ];
-    case 'snapFit': {
-      const hook = hookVector(block.point, block.normal, block.hook);
+    case 'snapFit':
+      // The root's radius follows as a step of its own (rootFillet): refused, the hook stays without it.
       return [
         {
           command: 'plastic.snap_fit',
           params: {
             position: block.point,
-            hook,
+            hook: hookVector(block.point, block.normal, block.hook),
             length: mm(block.length),
             thickness: mm(block.thickness),
             width: mm(block.width),
@@ -258,12 +296,7 @@ export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly
             body: block.body,
           },
         },
-        // SolidCraft's hook meets the face in sharp edges (measured, 0.40.1: 13 plane faces). Its arm stands from the point
-        // against the catch, so its two long root edges run through the point and one thickness behind it (audit MV-10). Where the
-        // face ends closer than the radius SolidCraft makes it smaller and warns (reduce: 0.23 mm flush with an edge), rather than fail.
-        { command: 'solid.fillet', params: { edges: [block.point, block.point.map((value, i) => round6(value - (hook[i] ?? 0) * block.thickness))], radius: mm(snapRoot(block)), tangent_chain: false, fit: 'reduce', body: block.body } },
       ];
-    }
     case 'lip':
       return [{ command: 'plastic.lip', params: { face: block.point, type: block.type, width: mm(block.width), height: mm(block.height), ...(block.type === 'groove' ? { gap: mm(block.gap) } : {}), body: block.body } }];
     default:
@@ -540,7 +573,7 @@ export type BlockLimit = { key: string; value: number; nozzle: number } & (
   | { reason: 'nutFlats' | 'nutHeight'; size: string; least: number; standard: number }
   | { reason: 'nutCorners'; size: string; most: number }
   | { reason: 'printedThread'; size: string; from: number }
-  | { reason: 'strain'; strain: number; most: number; least: number; material: string; known: boolean; name: string }
+  | { reason: 'strain'; strain: number; most: number; least: number; material: string; known: boolean; name: string; fibre: boolean }
 );
 
 /** Whether the strokes of a text's font are known: measured for Arial bold and the built-in Liberation Sans alone (TEXT_STROKE). */
@@ -596,7 +629,7 @@ export function blockLimit(block: FeatureBlock, printer: ToolPrinter): BlockLimi
     const allowed = snapLimit(printer.material);
     const strain = snapStrain(block);
     if (strain > allowed.strain + 1e-9)
-      return { key: 'length', value: block.length, nozzle, reason: 'strain', strain: round(strain), most: allowed.strain, least: snapLength(block.thickness, block.catchDepth, block.catchLength, allowed.strain), material: allowed.type, known: allowed.known, name: allowed.name };
+      return { key: 'length', value: block.length, nozzle, reason: 'strain', strain: Math.ceil(strain * 100 - 1e-9) / 100, most: allowed.strain, least: snapLength(block.thickness, block.catchDepth, block.catchLength, allowed.strain), material: allowed.known ? allowed.type : allowed.name, known: allowed.known, name: allowed.name, fibre: allowed.fibre };
   }
   // A printed thread under M5 strips, in the form as with the assistant (blockTool.ts, mechanisms.ts).
   if (block.block === 'tappedHole' && block.modeled && screwDiameter(block.size) < TAPPED_FROM)
@@ -644,7 +677,7 @@ export function limitSaid(limit: BlockLimit): string {
       case 'nutHeight':
         return `an ${limit.size} nut is ${String(limit.least)} mm high and would stand out of the pocket; the standard is ${String(limit.standard)}`;
       case 'strain':
-        return `the arm bends ${String(limit.strain)} % at its root as the catch snaps in, more than the ${String(limit.most)} % printed ${limit.material} takes${limit.known ? '' : ` (no allowed strain is known for ${limit.name}: ${limit.material}'s, the lowest PartBuddy knows, applies)`}; make it at least ${String(limit.least)} mm long, or thinner, or the catch shallower`;
+        return `the arm bends ${String(limit.strain)} % at its root as the catch snaps in, more than the ${String(limit.most)} % PartBuddy allows printed ${limit.material}${limit.fibre ? ' (fibre-filled: half of what PLA takes, its own choice, as fibres lower what a plastic takes)' : limit.known ? '' : " (no allowed strain is known for it: PLA's, the lowest PartBuddy knows)"}; make it at least ${String(limit.least)} mm long, or thinner, or the catch shallower`;
       case 'printedThread':
         return `modeled: a printed ${limit.size} thread strips; give modeled false to drill it for tapping after printing, use insertSeat (a heat-set insert), or a thread from M${String(limit.from)}`;
     }

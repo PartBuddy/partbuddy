@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BLOCK_KINDS, blockBodies, blockLimit, cutsThrough, defaultBlock, DEFAULT_PRINTER, hasSize, hookVector, limitSaid, logoFrom, needsNormal, planeAt, raisedBlock, sizesOf, snapStrain, stepsOf, textDepth, textStroke, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
 import { SNAP } from '../src/shared/mechanisms';
+import { rootApplied, rootFillet, rootOutcome, rootSteps } from '../src/shared/blocks';
 import { CLEARANCE, CLEARANCE_NORMAL, headRoom, pilotHole, printedThread } from '../src/shared/screwSizes';
 import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
 import { DEFAULT_MATERIAL, drawnHole, fitClearance, type ToolMaterial } from '../src/shared/toolFit';
@@ -271,12 +272,23 @@ describe('function blocks (F1)', () => {
         command: 'plastic.snap_fit',
         params: { position: at, hook: [0, 1, 0], length: '12 mm', thickness: '1.5 mm', width: '5 mm', catch_depth: '0.8 mm', catch_length: '1.5 mm', body: 'Body1' },
       },
-      // Audit MV-10: both root edges rounded at 0.6 of the thickness; the arm stands from the point against the catch
-      // (SolidCraft 0.40.1: edges at y 10 and 8.5 for a hook along +y, +0.869 mm³ each for 0.9 mm over 5 mm).
-      { command: 'solid.fillet', params: { edges: [at, [10, 8.5, 10]], radius: '0.9 mm', tangent_chain: false, fit: 'reduce', body: 'Body1' } },
     ]);
+    // Audit MV-10: both root edges rounded at 0.6 of the thickness, a step of its own, named in the timeline; the arm stands from
+    // the point against the catch (SolidCraft 0.40.1: edges at y 10 and 8.5 for a hook along +y, +0.869 mm³ each for 0.9 mm over 5 mm).
+    const snap = block as Extract<FeatureBlock, { block: 'snapFit' }>;
+    expect(rootFillet(snap)).toEqual({ command: 'solid.fillet', params: { edges: [at, [10, 8.5, 10]], radius: '0.9 mm', tangent_chain: false, fit: 'reduce', body: 'Body1', name: 'Snap fit root' } });
     // Sideways, the second edge lies one thickness against the catch.
-    expect(stepsOf({ ...block, normal: [1, 0, 0], hook: 'x-', thickness: 2 } as FeatureBlock)[1]?.params).toMatchObject({ edges: [at, [10, 12, 10]], radius: '1.2 mm' });
+    expect(rootFillet({ ...snap, normal: [1, 0, 0], hook: 'x-', thickness: 2 }).params).toMatchObject({ edges: [at, [10, 12, 10]], radius: '1.2 mm' });
+    // What SolidCraft answers: the radius it made smaller, or none when it took the one asked.
+    expect(rootApplied(snap, { radius_applied: 0.2298 })).toBe(0.2298);
+    expect(rootApplied(snap, { warning: null })).toBe(0.9);
+    // Only a body that grew got a root: one that shrank had its convex edges rounded (thin wall, measured), one missing is unknown.
+    const measured = (volume_mm3: number) => ({ bodies: [{ name: 'Body1', volume_mm3 }] });
+    expect(rootSteps(snap).map((step) => step.command)).toEqual(['inspect.measure', 'solid.fillet', 'inspect.measure']);
+    expect(rootOutcome(snap, [measured(16093), { radius_applied: 0.5 }, measured(16094.1)])).toBe(0.5);
+    expect(rootOutcome(snap, [measured(693), { radius_applied: 0.1649 }, measured(692.796)])).toBeNull();
+    expect(rootOutcome(snap, [measured(693), {}, measured(693)])).toBeNull();
+    expect(rootOutcome(snap, [{}, {}, measured(694)])).toBeNull();
     // On a side face the catch can point up or down, or level along the face.
     expect(hookVector(at, [1, 0, 0], 'y+')).toEqual([0, 0, 1]);
     expect(hookVector(at, [1, 0, 0], 'y-')).toEqual([0, 0, -1]);
@@ -309,8 +321,9 @@ describe('function blocks (F1)', () => {
     // PLA 2 %: 150 · 1.5 · 0.8 / (L − 0.75)² = 2 at L = 10.237; 10.24 holds, 10.23 not.
     expect(blockLimit({ ...block, length: 10.24 }, DEFAULT_PRINTER)).toBeNull();
     const refused = blockLimit({ ...block, length: 10.23 }, DEFAULT_PRINTER);
-    expect(refused).toEqual({ key: 'length', value: 10.23, nozzle: 0.4, reason: 'strain', strain: 2, most: 2, least: 10.3, material: 'PLA', known: true, name: 'PLA' });
-    expect(limitSaid(refused as NonNullable<typeof refused>)).toBe('length 10.23: the arm bends 2 % at its root as the catch snaps in, more than the 2 % printed PLA takes; make it at least 10.3 mm long, or thinner, or the catch shallower');
+    // Rounded up, so that "2.003 %" does not read "2 %, more than the 2 %" (review of BC-17).
+    expect(refused).toEqual({ key: 'length', value: 10.23, nozzle: 0.4, reason: 'strain', strain: 2.01, most: 2, least: 10.3, material: 'PLA', known: true, name: 'PLA', fibre: false });
+    expect(limitSaid(refused as NonNullable<typeof refused>)).toBe('length 10.23: the arm bends 2.01 % at its root as the catch snaps in, more than the 2 % PartBuddy allows printed PLA; make it at least 10.3 mm long, or thinner, or the catch shallower');
     // Audit T18: thickness 3, length 5, catch 2 bent 49 % and was built.
     expect(blockLimit({ ...block, length: 5, thickness: 3, catchDepth: 2 }, DEFAULT_PRINTER)).toMatchObject({ reason: 'strain', strain: 49.83 });
     // PETG takes 3.5 %: the arm of 8 mm (3.42 %) holds there, not in PLA; a material without sources is held to PLA's.
@@ -318,8 +331,16 @@ describe('function blocks (F1)', () => {
     expect(blockLimit({ ...block, length: 8 }, petg)).toBeNull();
     expect(blockLimit({ ...block, length: 8 }, DEFAULT_PRINTER)).toMatchObject({ reason: 'strain', most: 2 });
     const abs = blockLimit({ ...block, length: 8 }, { ...DEFAULT_PRINTER, material: { ...DEFAULT_MATERIAL, name: 'ABS' } });
-    expect(abs).toMatchObject({ reason: 'strain', most: 2, material: 'PLA', known: false, name: 'ABS' });
-    expect(limitSaid(abs as NonNullable<typeof abs>)).toContain("(no allowed strain is known for ABS: PLA's, the lowest PartBuddy knows, applies)");
+    expect(abs).toMatchObject({ reason: 'strain', most: 2, material: 'ABS', known: false, name: 'ABS' });
+    expect(limitSaid(abs as NonNullable<typeof abs>)).toContain("more than the 2 % PartBuddy allows printed ABS (no allowed strain is known for it: PLA's, the lowest PartBuddy knows)");
+    // Fibre-filled: half of PLA's, 12 mm (1.42 %) refused, 15 mm (0.89 %) taken (review of BC-17 S1).
+    const cf = { ...DEFAULT_PRINTER, material: { ...DEFAULT_MATERIAL, name: 'Bambu PETG CF' } };
+    const fibre = blockLimit(block, cf);
+    expect(fibre).toMatchObject({ reason: 'strain', most: 1, material: 'Bambu PETG CF', fibre: true, least: 14.2 });
+    expect(limitSaid(fibre as NonNullable<typeof fibre>)).toContain('(fibre-filled: half of what PLA takes, its own choice, as fibres lower what a plastic takes)');
+    expect(blockLimit({ ...block, length: 15 }, cf)).toBeNull();
+    // The block's default is as long as the fibre type needs.
+    expect(defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1], cf)).toMatchObject({ length: 14.2 });
     // A size under what prints is said first.
     expect(blockLimit({ ...block, length: 5, catchDepth: 0.3 }, DEFAULT_PRINTER)).toMatchObject({ reason: 'catch' });
   });

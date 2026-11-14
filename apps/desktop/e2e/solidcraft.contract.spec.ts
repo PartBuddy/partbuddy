@@ -1812,7 +1812,7 @@ test('a snap fit stands out of a face, its catch across the arm, with its strain
     await page.getByTestId('block-length').getByRole('textbox').fill('6');
     await expect(page.getByTestId('block-strain')).toContainText('About 6.5 % strain when it snaps in');
     await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'false', { timeout: 60_000 });
-    await expect(page.getByTestId('block-status')).toContainText('The arm bends 6.53 % at its root as the catch snaps in, more than the 2 % printed PLA takes: make it at least 10.3 mm long, or thinner, or the catch shallower.');
+    await expect(page.getByTestId('block-status')).toContainText('The arm bends 6.54 % at its root as the catch snaps in, more than the 2 % PartBuddy allows printed PLA: make it at least 10.3 mm long, or thinner, or the catch shallower.');
     // A catch of 0.3 mm is under the narrowest line a slicer lays (thinnestLine, 0.42 mm at 0.4) and under the 0.5 to 1.2 mm undercut of the standard
     // (audit Maßstab, Schnapphaken): the form refuses it and says why. 0.5 mm prints and holds.
     await page.getByTestId('block-catch-depth').getByRole('textbox').fill('0.3');
@@ -1821,7 +1821,7 @@ test('a snap fit stands out of a face, its catch across the arm, with its strain
     await page.getByTestId('block-catch-depth').getByRole('textbox').fill('0.5');
     // 150 · 1.5 · 0.5 / (6 − 0.75)² = 4.08 %; on an arm of 9 mm, / (9 − 0.75)² = 1.65 %.
     await expect(page.getByTestId('block-strain')).toContainText('About 4.1 % strain when it snaps in');
-    await expect(page.getByTestId('block-status')).toContainText('more than the 2 % printed PLA takes: make it at least 8.3 mm long', { timeout: 60_000 });
+    await expect(page.getByTestId('block-status')).toContainText('more than the 2 % PartBuddy allows printed PLA: make it at least 8.3 mm long', { timeout: 60_000 });
     await page.getByTestId('block-length').getByRole('textbox').fill('9');
     await expect(page.getByTestId('block-strain')).toHaveText('About 1.7 % strain when it snaps in; printed PLA takes 2 % once, about 1.2 % when it snaps often');
     await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
