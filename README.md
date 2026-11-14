@@ -73,7 +73,8 @@ PartBuddy 0.1.0 is the first preview, for Windows 10 and 11.
 PartBuddy is a preview (0.x): everything above works and is covered by automated tests, but PartBuddy is
 young. Known limits:
 
-- Windows only for now; the installer is not code-signed.
+- Windows is the supported platform; the installer is not code-signed. Since 0.3.1 each release also
+  carries a first experimental macOS build (unsigned dmg) that has not been tested on a real Mac yet.
 - The ready-to-print light checks the part as designed, standing on its lowest point; supports,
   bridges and the orientation in detail stay with your slicer.
 - Hinges and guides the assistant builds are designed to print in one piece and are checked through
