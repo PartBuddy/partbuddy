@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AgentEvent } from '../src/shared/contract';
+import { agentEventSchema } from '../src/shared/contract';
 import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
+import { reduce } from '../src/renderer/src/assistant/store';
 import { REVIEW_CHECKLIST, REVIEW_PROMPT, REVIEW_TOOL, Review, SAME_STATE } from '../src/main/agents/review';
 import { WorkLog, type DesignHistory } from '../src/main/agents/workLog';
 
@@ -31,7 +34,8 @@ function setup(options: { pictures?: boolean; enabled?: boolean; failing?: strin
       return Promise.resolve({ content: [{ type: 'text', text: `${name} ok` }] });
     },
   };
-  const review = new Review((line) => lines.push(line), () => options.pictures ?? false, options.enabled ?? true);
+  const events: AgentEvent[] = [];
+  const review = new Review((line) => lines.push(line), () => options.pictures ?? false, options.enabled ?? true, (event) => events.push(event));
   const steps = new WorkLog({
     history: () => Promise.resolve({ ...history }),
     travel: () => Promise.resolve(),
@@ -43,7 +47,7 @@ function setup(options: { pictures?: boolean; enabled?: boolean; failing?: strin
   });
   const tools = review.tools(steps.tools(upstream));
   const call = (name: string, args: Record<string, unknown> = {}) => tools.callTool(name, args);
-  return { review, tools, call, calls, lines };
+  return { review, tools, call, calls, lines, events };
 }
 
 const box = { command: 'solid.box', params: { length: 20, width: 20, height: 10 } };
@@ -128,6 +132,33 @@ describe('the review before "done"', () => {
     expect(answer.content.filter((part) => part.type === 'image')).toEqual([]);
     expect(JSON.stringify(answer.content)).toContain('the iso picture could not be rendered');
     expect(blind.lines).toContain(`${REVIEW_TOOL}: no front picture: no renderer`);
+  });
+
+  it('shows in the chat that it ran with its pictures, the send-back and the end without it', async () => {
+    const shown = setup({ pictures: true });
+    await shown.call('execute', box);
+    shown.review.due();
+    await shown.call(REVIEW_TOOL);
+    await shown.call(REVIEW_TOOL);
+    const src = 'data:image/png;base64,iVBORw0';
+    expect(shown.events).toEqual([
+      { type: 'review', outcome: 'sentBack', pictures: [] },
+      { type: 'review', outcome: 'reviewed', pictures: [{ view: 'front', src }, { view: 'top', src }, { view: 'iso', src }] },
+    ]);
+    for (const event of shown.events) expect(agentEventSchema.parse(event)).toEqual(event);
+    // The chat gets one line per event, in order.
+    expect(shown.events.reduce(reduce, []).map((item) => (item.kind === 'review' ? item.outcome : item.kind))).toEqual(['sentBack', 'reviewed']);
+
+    const skipped = setup();
+    await skipped.call('execute', box);
+    skipped.review.due();
+    skipped.review.due();
+    expect(skipped.events.map((event) => (event.type === 'review' ? event.outcome : event.type))).toEqual(['sentBack', 'skipped']);
+    // Without pictures the line comes alone; without a change nothing shows.
+    const words = setup();
+    await words.call(REVIEW_TOOL);
+    expect(words.events).toEqual([{ type: 'review', outcome: 'reviewed', pictures: [] }]);
+    expect(setup().review.due()).toBeNull();
   });
 
   it('does not review the same state twice in a turn', async () => {

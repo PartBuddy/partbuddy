@@ -39,6 +39,15 @@ describe('the chat as rows (UI upgrade, chat)', () => {
     expect(quiet).toEqual([true, false]);
     expect(rows.find((row) => row.kind === 'work')).toMatchObject({ live: true });
   });
+
+  it('shows the review as its own line after the work, without its tool call unless that failed', () => {
+    const review: ConversationItem = { kind: 'review', key: ++key, outcome: 'reviewed', pictures: [] };
+    const tool = (ok: boolean): ConversationItem => ({ kind: 'tool', key: ++key, id: `t${String(key)}`, name: 'partbuddy_review', summary: '', decision: 'allowed', ok });
+    const rows = rowsOf([user('Build a holder'), step('r1'), step('r2'), tool(true), review, answer('Done.')]);
+    expect(rows.map((row) => (row.kind === 'item' ? row.item.kind : row.kind))).toEqual(['user', 'work', 'review', 'assistant']);
+    expect(rows[1]?.kind === 'work' ? rows[1].entries.map((entry) => entry.kind) : []).toEqual(['step', 'step']);
+    expect(rowsOf([user('Build'), step('r3'), tool(false)]).map((row) => row.kind)).toEqual(['item', 'step', 'queries']);
+  });
 });
 
 describe('chat width', () => {

@@ -1,3 +1,4 @@
+import type { AgentEvent } from '../../shared/contract';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 import { ASK_TOOL, PLAN_TOOL } from './questions';
 import { VIEW_TOOL } from './viewContext';
@@ -76,6 +77,8 @@ export class Review implements TurnReview {
     private readonly pictures: () => boolean = () => false,
     /** The test doubles of the E2E tests never review (PARTBUDDY_FINAL_REVIEW=0, e2e/launch.ts). */
     private readonly enabled: boolean = process.env.PARTBUDDY_FINAL_REVIEW !== '0',
+    /** Shows the review in the chat: that it ran with its pictures, or the send-back and the end without it. */
+    private readonly emit: (event: AgentEvent) => void = () => undefined,
   ) {}
 
   /** A new message from the user: what earlier turns changed no longer asks for a review. */
@@ -114,10 +117,12 @@ export class Review implements TurnReview {
     if (this.sentBack) {
       this.log(`the assistant ended a changing turn without ${REVIEW_TOOL} although it was sent back once; the turn ends without it`);
       this.forget();
+      this.emit({ type: 'review', outcome: 'skipped', pictures: [] });
       return null;
     }
     this.sentBack = true;
     this.log(`the assistant ended a changing turn without ${REVIEW_TOOL}; it is sent back once`);
+    this.emit({ type: 'review', outcome: 'sentBack', pictures: [] });
     return REVIEW_PROMPT;
   }
 
@@ -136,6 +141,7 @@ export class Review implements TurnReview {
     this.forget();
     this.reviewed = true;
     const content: ToolResult['content'] = [];
+    const pictures: Extract<AgentEvent, { type: 'review' }>['pictures'] = [];
     try {
       content.push(...(await upstream.callTool(VIEW_TOOL, {})).content);
     } catch (error) {
@@ -149,6 +155,8 @@ export class Review implements TurnReview {
           const images = shot.isError === true ? [] : shot.content.filter((part) => part.type === 'image');
           if (images.length === 0) throw new Error(shot.content.map((part) => (typeof part.text === 'string' ? part.text : part.type)).join(' ').slice(0, 200));
           content.push({ type: 'text', text: `The part from ${view}:` }, ...images);
+          const [image] = images;
+          if (image && typeof image.data === 'string') pictures.push({ view, src: `data:image/png;base64,${image.data}` }); // screenshot answers PNG
         } catch (error) {
           this.log(`${REVIEW_TOOL}: no ${view} picture: ${(error as Error).message}`);
           content.push({ type: 'text', text: `[PartBuddy: the ${view} picture could not be rendered.]` });
@@ -156,6 +164,7 @@ export class Review implements TurnReview {
       }
     }
     content.push({ type: 'text', text: REVIEW_CHECKLIST });
+    this.emit({ type: 'review', outcome: 'reviewed', pictures });
     return { content };
   }
 }

@@ -190,6 +190,59 @@ test('an assistant step changes the headless design, and it is back after a rest
   }
 });
 
+test('the review before "done" shows in the chat with its three pictures, after one send-back (review.ts)', async () => {
+  test.setTimeout(120_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-review-'));
+  const launched = await launchApp({
+    isolated: false,
+    work,
+    env: {
+      SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+      PARTBUDDY_SOLIDCRAFT_PORT: '7963',
+      PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+      PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+      // The fake builds the box and ends without the review; sent back, it reviews (test/fakeClaude.mjs).
+      PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+      PARTBUDDY_FINAL_REVIEW: '1',
+    },
+  });
+  try {
+    const { page } = launched;
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('assistant-text').last()).toHaveText('Reviewed with 3 pictures and the checklist: nothing to fix.', { timeout: 60_000 });
+    await turnEnded(page);
+    await expect(page.getByTestId('review-note')).toHaveText('Sent back once for the final review');
+    const review = page.getByTestId('review-line');
+    await expect(review).toContainText('Checked: front, top, angled');
+    // Its tool call is the line, not one more query.
+    await expect(page.getByTestId('tool-call').filter({ hasText: 'partbuddy_review' })).toHaveCount(0);
+    await review.getByRole('button', { name: /Checked/ }).click();
+    const pictures = review.getByTestId('review-picture');
+    await expect(pictures).toHaveCount(3);
+    await expect(review.getByRole('img', { name: 'View from the front' })).toHaveAttribute('src', /^data:image\/png;base64,/);
+    await expect.poll(() => review.getByRole('img', { name: 'View at an angle' }).evaluate((img) => (img as unknown as { naturalWidth: number }).naturalWidth)).toBe(640);
+    await page.waitForTimeout(500);
+    await page.getByTestId('chat-list').screenshot({ path: test.info().outputPath('review-in-chat.png') });
+    // Keyboard: the picture opens large and Escape closes it.
+    await pictures.nth(1).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog', { name: 'View from above' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('photo-large')).toHaveCount(0);
+  } catch (error) {
+    await launched.page.screenshot({ path: test.info().outputPath('review-failed.png') }).catch(() => undefined);
+    throw error;
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('the user undoes, exports and opens the headless design in the SolidCraft window, and PartBuddy takes it back', async () => {
   test.skip(process.env.PARTBUDDY_E2E_SOLIDCRAFT_WINDOW !== '1', 'opens the SolidCraft window, which cannot be kept off screen; set PARTBUDDY_E2E_SOLIDCRAFT_WINDOW=1');
   test.setTimeout(180_000);
