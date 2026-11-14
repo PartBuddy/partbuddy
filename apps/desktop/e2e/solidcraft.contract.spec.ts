@@ -224,8 +224,9 @@ test('the review before "done" shows in the chat with its three pictures, after 
     await review.getByRole('button', { name: /Checked/ }).click();
     const pictures = review.getByTestId('review-picture');
     await expect(pictures).toHaveCount(3);
-    await expect(review.getByRole('img', { name: 'View from the front' })).toHaveAttribute('src', /^data:image\/png;base64,/);
-    await expect.poll(() => review.getByRole('img', { name: 'View at an angle' }).evaluate((img) => (img as unknown as { naturalWidth: number }).naturalWidth)).toBe(640);
+    // The button names the picture; the picture itself has an empty alt, so it is read once.
+    await expect(review.getByRole('button', { name: 'View from the front' }).locator('img')).toHaveAttribute('src', /^data:image\/png;base64,/);
+    await expect.poll(() => review.getByRole('button', { name: 'View at an angle' }).locator('img').evaluate((img) => (img as unknown as { naturalWidth: number }).naturalWidth)).toBe(640);
     await page.waitForTimeout(500);
     await page.getByTestId('chat-list').screenshot({ path: test.info().outputPath('review-in-chat.png') });
     // Keyboard: the picture opens large and Escape closes it.

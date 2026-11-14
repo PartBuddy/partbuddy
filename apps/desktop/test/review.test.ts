@@ -159,6 +159,24 @@ describe('the review before "done"', () => {
     await words.call(REVIEW_TOOL);
     expect(words.events).toEqual([{ type: 'review', outcome: 'reviewed', pictures: [] }]);
     expect(setup().review.due()).toBeNull();
+    // Pictures due and none rendered: the line says so.
+    const blind = setup({ pictures: true, noShots: true });
+    await blind.call(REVIEW_TOOL);
+    expect(blind.events).toEqual([{ type: 'review', outcome: 'reviewed', pictures: [], picturesFailed: true }]);
+  });
+
+  it('gives the words after a send-back a bubble of their own, with nothing empty between (own loops)', () => {
+    const events: AgentEvent[] = [
+      { type: 'user', text: 'Make it taller' },
+      { type: 'textDelta', text: 'Built it.' },
+      { type: 'review', outcome: 'sentBack', pictures: [] },
+      { type: 'review', outcome: 'reviewed', pictures: [] },
+      { type: 'textDelta', text: 'Reviewed, nothing to fix.' },
+    ];
+    const label = (item: ReturnType<typeof reduce>[number]) => (item.kind === 'assistant' ? `${item.text}|${item.open ? 'open' : 'closed'}` : item.kind === 'review' ? item.outcome : item.kind);
+    // The first bubble closes at the send-back line; the second streams until the turn is done.
+    expect(events.reduce(reduce, []).map(label)).toEqual(['user', 'Built it.|closed', 'sentBack', 'reviewed', 'Reviewed, nothing to fix.|open']);
+    expect([...events, { type: 'done', ok: true, durationMs: 10, detail: null } as const].reduce(reduce, []).map(label).at(-1)).toBe('Reviewed, nothing to fix.|closed');
   });
 
   it('does not review the same state twice in a turn', async () => {

@@ -30,7 +30,7 @@ export function ReviewLine({ item, show }: { item: ReviewItem; show?: ((src: str
       <span className="min-w-0 truncate">
         {item.pictures.length > 0
           ? t('assistant.review.views', { views: item.pictures.map((picture) => t(`assistant.review.view.${picture.view}`)).join(', ') })
-          : t('assistant.review.text')}
+          : t(item.picturesFailed ? 'assistant.review.noPictures' : 'assistant.review.text')}
       </span>
     </>
   );
@@ -42,7 +42,7 @@ export function ReviewLine({ item, show }: { item: ReviewItem; show?: ((src: str
     );
   }
   return (
-    <Fold testId="review-line" summary={line}>
+    <Fold testId="review-line" summary={line} lazy>
       <div className="flex flex-wrap gap-1">
         {item.pictures.map((picture) => {
           const label = t(`assistant.review.picture.${picture.view}`);
@@ -54,8 +54,8 @@ export function ReviewLine({ item, show }: { item: ReviewItem; show?: ((src: str
               className={`overflow-hidden rounded-md border border-border hover:border-border-strong pressed:border-accent ${pressable}`}
               data-testid="review-picture"
             >
-              {/* 640 × 480 from SolidCraft, shown small by CSS. */}
-              <img src={picture.src} alt={label} className="block aspect-[4/3] w-[6rem] object-cover" draggable={false} />
+              {/* 640 × 480 from SolidCraft, shown small by CSS; the button's label names it. */}
+              <img src={picture.src} alt="" className="block aspect-[4/3] w-[6rem] object-cover" draggable={false} />
             </AriaButton>
           );
         })}

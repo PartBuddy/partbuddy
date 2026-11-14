@@ -14,12 +14,16 @@ describe('the review in the chat', () => {
     initI18n('de');
   });
 
-  it('names the three views and shows their pictures with alt texts behind a fold', () => {
+  it('names the three views behind a fold that mounts no picture while closed', () => {
     const html = render({ outcome: 'reviewed', pictures: [{ view: 'front', src }, { view: 'top', src }, { view: 'iso', src }] });
     expect(html).toContain('Geprüft: vorn, oben, schräg');
     expect(html).toContain('aria-expanded="false"');
-    expect(html.match(/data-testid="review-picture"/g)).toHaveLength(3);
-    for (const label of ['Ansicht von vorn', 'Ansicht von oben', 'Schräge Ansicht']) expect(html).toContain(`alt="${label}"`);
+    // The pictures and their labels ("Ansicht von vorn" …) come with the open fold (E2E review test).
+    expect(html).not.toContain('<img');
+  });
+
+  it('says when pictures were due and none could be rendered', () => {
+    expect(render({ outcome: 'reviewed', pictures: [], picturesFailed: true })).toContain('Geprüft ohne Bilder (Ansichten nicht gerendert)');
   });
 
   it('is a line alone without pictures, and a quiet note when sent back or ended without it', () => {

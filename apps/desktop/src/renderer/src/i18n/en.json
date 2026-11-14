@@ -269,6 +269,7 @@
       "skipped": "Ended without the final review",
       "views": "Checked: {views}",
       "text": "Checked: view, print check and checklist",
+      "noPictures": "Checked without pictures (the views could not be rendered)",
       "view": {
         "front": "front",
         "top": "top",

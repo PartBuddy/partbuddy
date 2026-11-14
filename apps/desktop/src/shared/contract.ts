@@ -660,6 +660,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
       type: z.literal('review'),
       outcome: z.enum(['reviewed', 'sentBack', 'skipped']),
       pictures: z.array(z.object({ view: z.enum(['front', 'top', 'iso']), src: z.string().startsWith('data:image/').max(3_000_000) }).strict()).max(3),
+      /** The route shows pictures, but none could be rendered. */
+      picturesFailed: z.literal(true).optional(),
     })
     .strict(),
   /** The user's next message answered the question; `choice` when a button was pressed. */

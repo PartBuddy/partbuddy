@@ -156,7 +156,8 @@ export class Review implements TurnReview {
           if (images.length === 0) throw new Error(shot.content.map((part) => (typeof part.text === 'string' ? part.text : part.type)).join(' ').slice(0, 200));
           content.push({ type: 'text', text: `The part from ${view}:` }, ...images);
           const [image] = images;
-          if (image && typeof image.data === 'string') pictures.push({ view, src: `data:image/png;base64,${image.data}` }); // screenshot answers PNG
+          const mime = typeof image?.mimeType === 'string' && /^image\/[a-z0-9.+-]+$/.test(image.mimeType) ? image.mimeType : 'image/png';
+          if (image && typeof image.data === 'string') pictures.push({ view, src: `data:${mime};base64,${image.data}` });
         } catch (error) {
           this.log(`${REVIEW_TOOL}: no ${view} picture: ${(error as Error).message}`);
           content.push({ type: 'text', text: `[PartBuddy: the ${view} picture could not be rendered.]` });
@@ -164,7 +165,8 @@ export class Review implements TurnReview {
       }
     }
     content.push({ type: 'text', text: REVIEW_CHECKLIST });
-    this.emit({ type: 'review', outcome: 'reviewed', pictures });
+    // Pictures were due and none came: the chat says so instead of the words of a route without pictures.
+    this.emit({ type: 'review', outcome: 'reviewed', pictures, ...(this.pictures() && pictures.length === 0 ? { picturesFailed: true as const } : {}) });
     return { content };
   }
 }

@@ -131,7 +131,8 @@ export function reduce(items: ConversationItem[], event: AgentEvent): Conversati
     case 'question':
       return [...items, { kind: 'question', key, question: event.question, answered: false, choice: null }];
     case 'review':
-      return [...items, { kind: 'review', key, outcome: event.outcome, pictures: event.pictures }];
+      // The line closes the words before it: what the model writes after a send-back is a bubble of its own.
+      return [...items.map((item) => (item.kind === 'assistant' && item.open ? { ...item, open: false } : item)), { kind: 'review', key, outcome: event.outcome, pictures: event.pictures, picturesFailed: event.picturesFailed }];
     case 'answered':
       return items.map((item) => (item.kind === 'question' && item.question.id === event.id ? { ...item, answered: true, choice: event.choice } : item));
     case 'steps': {

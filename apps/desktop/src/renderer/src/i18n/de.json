@@ -269,6 +269,7 @@
       "skipped": "Ohne Abschlussprüfung beendet",
       "views": "Geprüft: {views}",
       "text": "Geprüft: Ansicht, Druckprüfung und Checkliste",
+      "noPictures": "Geprüft ohne Bilder (Ansichten nicht gerendert)",
       "view": {
         "front": "vorn",
         "top": "oben",
