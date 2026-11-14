@@ -38,7 +38,7 @@
     {
       "kicker": "Check",
       "title": "Checked against your printer. After every change.",
-      "text": "After every change, PartBuddy checks the part against your printer and material and points at each finding. The assistant sees the result too, and the standards behind the numbers are built in.",
+      "text": "After every change, PartBuddy checks the part against your printer and material and points at each finding, with design hints where a part could look cleaner or hold more. The assistant sees the result too, and the standards behind the numbers are built in.",
       "points": [
         "Build volume, wall thickness, overhangs and bed contact",
         "Fits per material, measured on your printer with three test pieces",
@@ -154,7 +154,9 @@
       "Walls of at least two lines, 0.9 mm with a 0.4 mm nozzle",
       "Overhangs past your material’s angle, as a hint",
       "At least 25 mm² on the bed",
-      "Gaps between parts tighter than the push fit"
+      "Gaps between parts tighter than the push fit",
+      "Holes under 2 mm and slots that print closed, as a hint",
+      "Design hints: sharp outer edges, mixed radii, sharp roots, shallow slopes, thin shell corners"
     ]
   },
   "bento": [
@@ -231,7 +233,7 @@
   "privacy": [
     {
       "title": "Your files stay yours",
-      "text": "Projects are plain folders on your computer, sign-ins stay in the Windows credential store, and the app sends no telemetry. Its only call of its own is the update check, and you can turn that off. No account, no cloud of its own."
+      "text": "Projects are plain folders on your computer, sign-ins stay in your system’s credential store, and the app sends no telemetry. Its only call of its own is the update check, and you can turn that off. No account, no cloud of its own."
     },
     {
       "title": "Your model, your choice",
@@ -257,7 +259,9 @@
       "Dimensions on the part: type them, step them or drag the arrow",
       "Logos and text on the part, holes and blocks placed before they are built",
       "Hinges and guides that move in the view, checked through their range",
-      "Runs on the stable SolidCraft 0.40 with its new kernel"
+      "Runs on the stable SolidCraft releases with the new kernel",
+      "Design hints after each build, not only print checks",
+      "An experimental test build for macOS"
     ],
     "next": [],
     "later": [
