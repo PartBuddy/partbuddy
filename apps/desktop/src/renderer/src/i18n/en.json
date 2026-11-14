@@ -1226,7 +1226,7 @@
       "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands",
       "smallHole": "{count, plural, one {A hole under {minimum} mm across ({diameter} mm)} other {# holes under {minimum} mm across, the smallest {diameter} mm}}: holes that small close up or come out under size – drill them out after printing",
       "narrowGap": "Slots down to {gap} mm, under the {minimum} mm that stay open with this nozzle: the walls beside them squeeze together and close them",
-      "sharpEdge": "{count, plural, one {A sharp edge} other {# sharp edges}} ({length} mm) on bodies with no rounded or chamfered edge at all: the design rules round seen outer edges {radius} mm on a part of {size} mm",
+      "sharpEdge": "{count, plural, one {A sharp edge} other {# sharp edges}} ({length} mm) on bodies with no rounded or chamfered outer edge at all: the design rules round seen outer edges by the size of the part, on a plate at most half its thickness – here {radii}",
       "edgeRadii": "Outer edges rounded with {count} different radii ({radii} mm): the design rules use at most {most} per part, so the rounds match",
       "rootCorner": "{count, plural, one {A slender arm stands} other {# sides of slender arms stand}} on a sharp inner corner, the thinnest {thickness} mm thick and {length} mm long: it breaks there first under load – round the root at least {radius} mm",
       "shallowSlope": "{count, plural, one {A face facing up leans} other {# faces facing up lean}} less than {limit}° from flat, the shallowest {angle}°: the layers show there as steps about {step} mm wide",

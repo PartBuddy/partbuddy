@@ -88,10 +88,12 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
   });
 
   it('words the design hints (2026-11-14)', () => {
-    const report = reportOf({ status: 'warn', findings: [{ kind: 'sharpEdge', severity: 'warn', edges: 8, length: 200, size: 40, radius: 2, places: [{ body: 'Box', faces: ['F1:+z', 'F1:+x'] }], box: null }] }, 0.4, 3);
+    const report = reportOf({ status: 'warn', findings: [{ kind: 'sharpEdge', severity: 'warn', edges: 12, length: 500, bodies: [{ body: 'Box', size: 40, thickness: 15, radius: 2 }, { body: 'Plate', size: 100, thickness: 1, radius: 0.5 }], places: [{ body: 'Box', faces: ['F1:+z', 'F1:+x'] }], box: null }] }, 0.4, 3);
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
     const note = printCheckNote(report);
-    expect(note).toContain('- warning: 8 sharp edges (200 mm) on bodies with no rounded or chamfered edge at all (faces "F1:+z", "F1:+x" of body "Box"): the design rules round outer edges that are seen or touched, 2 mm on a part of 40 mm');
+    expect(note).toContain('- warning: 12 sharp edges (500 mm) on bodies with no rounded or chamfered outer edge at all (faces "F1:+z", "F1:+x" of body "Box"): the design rules round outer edges that are seen or touched by the part\'s size');
+    // Review of #413: each body its own radius, a 1 mm plate at most half of it.
+    expect(note).toContain('here 2 mm on "Box" (40 mm long, 15 mm at its thinnest there), 0.5 mm on "Plate" (100 mm long, 1 mm at its thinnest there).');
     const radii = reportOf({ status: 'warn', findings: [{ kind: 'edgeRadii', severity: 'warn', radii: [1, 2, 4, 8], families: 4, most: 3, places: [{ body: 'Box', faces: ['F2:blend(F1:+x|F1:+y)'] }], box: null }] }, 0.4, 3);
     expect(printCheckReportSchema.safeParse(radii).success).toBe(true);
     expect(printCheckNote(radii)).toContain('- warning: outer edges rounded with 4 families of radii (1, 2, 4, 8 mm) (faces "F2:blend(F1:+x|F1:+y)" of body "Box"): the design rules use at most 3 radii per part');

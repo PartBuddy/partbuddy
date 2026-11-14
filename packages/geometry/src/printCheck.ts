@@ -96,7 +96,7 @@ export type PrintFinding =
    * Bodies with no rounded or chamfered edge at all (design hint): `edges` sharp outer edges, `length` mm of them, and the
    * radius the design rules ask for the largest such body (`size` its longest side).
    */
-  | ({ kind: 'sharpEdge'; severity: FindingSeverity; edges: number; length: number; size: number; radius: number } & Located)
+  | ({ kind: 'sharpEdge'; severity: FindingSeverity; edges: number; length: number; bodies: SharpBody[] } & Located)
   /** Outer fillets of more than `most` radius families on one body (design hint): `radii` of the body with the most, smallest first. */
   | ({ kind: 'edgeRadii'; severity: FindingSeverity; radii: number[]; families: number; most: number } & Located)
   /**
@@ -1163,6 +1163,14 @@ export function withMotion(check: PrintCheck, measured: MeasuredMotion): PrintCh
   return { status: statusOf(findings), findings };
 }
 
+/** A body of a `sharpEdge` finding: its longest side, its thinnest wall or plate at those edges, and the radius it wants. */
+export interface SharpBody {
+  body: string;
+  size: number;
+  thickness: number;
+  radius: number;
+}
+
 /** The design hints, in the order the note names them. */
 export const DESIGN_HINTS: readonly DesignHint[] = ['sharpEdge', 'edgeRadii', 'rootCorner', 'shallowSlope', 'shellCorner'];
 
@@ -1328,30 +1336,102 @@ interface DesignBody {
   laid: LaidBody | undefined;
   pairs: FaceEdge[];
   hollow: Uint8Array;
+  /** Per face, how far it faces up as the body lies (`upOf`). */
+  up: Float64Array;
 }
 
+/** Per face, the area mean of its facets' normals' Z as the body lies (a sliver's own normal is off): how far it faces up. */
+function upOf(model: ViewerModel, laid: LaidBody | undefined): Float64Array {
+  const faces = model.table.faces.length;
+  const normal = new Float64Array(faces * 3);
+  const index = model.geometry.index?.array;
+  const positions = laid?.positions ?? model.geometry.getAttribute('position').array;
+  for (let t = 0; index && t < index.length / 3; t += 1) {
+    const face = model.triangleFaces[t] ?? 0;
+    const { normal: n, area } = triangle(positions, index, t);
+    if (!n) continue;
+    normal[face * 3] = (normal[face * 3] ?? 0) + n.x * area;
+    normal[face * 3 + 1] = (normal[face * 3 + 1] ?? 0) + n.y * area;
+    normal[face * 3 + 2] = (normal[face * 3 + 2] ?? 0) + n.z * area;
+  }
+  return Float64Array.from({ length: faces }, (_, face) => (normal[face * 3 + 2] ?? 0) / (Math.hypot(normal[face * 3] ?? 0, normal[face * 3 + 1] ?? 0, normal[face * 3 + 2] ?? 0) || 1));
+}
+
+/** A blend facing down this much is a bed edge's (the bed chamfer, BC-27), not a treatment of an edge that is seen. */
+const FACING_DOWN = -0.1;
+
 /**
- * `sharpEdge`: a body of SolidCraft's with no fillet and no chamfer at all (no `blend(` face), no fillet-like round of an
- * import either (a convex cylinder running on smoothly from a flat face) and no chamfer made otherwise (two faces turning
- * 15° to 55° outwards all along their edge, as a cone joined on the knob block's top), whose edges between two flat faces turn more than
- * 60° outwards: the rules round those by its size (research O14, H9: the block look). Edges on the bed (chamfered there,
- * BC-27) are left out, and so are edges under 2 mm (a letter, a step), round edges (a hole's rim, a knuckle's end: the
- * entry chamfer of the details rule, or a mechanism's) and bodies under 10 mm.
- * shortcut: a body that has one fillet or chamfer anywhere is taken as treated, so outer edges left sharp beside a rounded
- * corner (a plate rounded at its corners, sharp along the top) are not told: PartBuddy's own sign, slide stop and housing do
- * so on purpose, and the mesh cannot tell an edge that is seen or touched from one that is not. Tell them if a rule names it.
+ * Whether a body has an outer edge rounded or chamfered: a convex fillet (SolidCraft's `blend(` cylinder the material lies
+ * inside of) or a chamfer (a flat `blend(` face turning outwards to its neighbours), neither facing down as the body lies
+ * (a bed chamfer is the bed's, BC-27); an import's fillet (a convex cylinder running on smoothly from a flat face); or a
+ * chamfer made otherwise, a band turning 15° to 55° outwards to two neighbours all along (the knob block's top is a cone
+ * joined on; an octagon cut so in its sketch). An inner fillet (a root, a pocket's corner) is no treatment of an outer edge.
+ */
+function edgesTreated({ body, pairs, hollow, up }: DesignBody): boolean {
+  const faces = body.model.table.faces;
+  const byFace = new Map<number, FaceEdge[]>();
+  for (const pair of pairs) for (const face of [pair.a, pair.b]) byFace.set(face, [...(byFace.get(face) ?? []), pair]);
+  const outward = (face: number) => (byFace.get(face) ?? []).some((pair) => pair.bevel > 0) && !(byFace.get(face) ?? []).some((pair) => pair.inward > NO_CORNER);
+  const blended = faces.some((face) => face.name.includes('blend(') && (up[face.index] ?? 0) > FACING_DOWN && ((!!face.cylinder && !hollow[face.index]) || (!!face.planeNormal && outward(face.index))));
+  if (blended) return true;
+  const curvedOut = (face: number) => !!faces[face]?.cylinder && !hollow[face] && (up[face] ?? 0) > FACING_DOWN;
+  if (pairs.some((pair) => pair.smooth >= 1 && ((!!faces[pair.a]?.planeNormal && curvedOut(pair.b)) || (!!faces[pair.b]?.planeNormal && curvedOut(pair.a))))) return true;
+  const bevelled = (pair: FaceEdge) => pair.bevel >= SHORTEST_EDGE && pair.bevel >= 0.9 * pair.length;
+  return [...byFace].some(([face, list]) => (up[face] ?? 0) > FACING_DOWN && list.filter(bevelled).length >= 2);
+}
+
+/** The thinnest wall or plate at a body's sharp edges: straight in from the largest facet of each of their faces, up to `most`. */
+function thinnestAt(model: ViewerModel, pairs: readonly FaceEdge[], most: number): number {
+  const bvh = model.geometry.boundsTree as unknown as MeshBVH | undefined;
+  const index = model.geometry.index?.array;
+  const positions = model.geometry.getAttribute('position').array;
+  if (!bvh || !index) return most;
+  const wanted = new Set(pairs.flatMap((pair) => [pair.a, pair.b]));
+  const largest = new Map<number, { t: number; area: number }>();
+  for (let t = 0; t < index.length / 3; t += 1) {
+    const face = model.triangleFaces[t] ?? 0;
+    if (!wanted.has(face)) continue;
+    const { area } = triangle(positions, index, t);
+    if (area > (largest.get(face)?.area ?? 0)) largest.set(face, { t, area });
+  }
+  const ray = new Ray();
+  let thinnest = most;
+  for (const { t } of largest.values()) {
+    const { normal, centroid } = triangle(positions, index, t);
+    if (!normal) continue;
+    ray.origin.copy(centroid).addScaledVector(normal, -EPSILON);
+    ray.direction.copy(normal).negate();
+    const hit = bvh.raycastFirst(ray, DoubleSide, 0, thinnest);
+    if (hit) thinnest = Math.min(thinnest, hit.distance + EPSILON);
+  }
+  return thinnest;
+}
+
+/** Bodies listed by name in a `sharpEdge` finding, at most. */
+const SHARP_BODIES = 20;
+
+/**
+ * `sharpEdge`: a body with no outer edge rounded or chamfered at all (`edgesTreated`) whose edges between two flat faces
+ * turn more than 60° outwards: the rules round those by its size (research O14, H9: the block look). Edges on the bed
+ * (chamfered there, BC-27) are left out, and so are edges under 2 mm (a letter, a step), round edges (a hole's rim, a
+ * knuckle's end: the entry chamfer of the details rule, or a mechanism's) and bodies under 10 mm. Per body the radius
+ * by its size, never more than half its thinnest wall or plate at those edges (the rules: plate and rib edges at most half
+ * their thickness, never more than the wall).
+ * shortcut: a body that has one outer edge rounded or chamfered anywhere is taken as treated, so outer edges left sharp
+ * beside a rounded corner (a plate rounded at its corners, sharp along the top) are not told: PartBuddy's own sign, slide
+ * stop and housing do so on purpose, and the mesh cannot tell an edge that is seen or touched from one that is not.
  */
 function sharpEdges(bodies: readonly DesignBody[]): PrintFinding | null {
-  let [edges, length, size] = [0, 0, 0];
-  const tallies = bodies.map(({ body, pairs, hollow }) => {
+  let [edges, length] = [0, 0];
+  const listed: SharpBody[] = [];
+  const tallies = bodies.map((read) => {
+    const { body, pairs } = read;
     const faces = body.model.table.faces;
     const tally = new FaceTally(faces.length);
-    if (faces.some((face) => face.name.includes('blend('))) return tally;
-    const curvedOut = (face: number) => !!faces[face]?.cylinder && !hollow[face];
-    if (pairs.some((pair) => pair.smooth >= 1 && ((!!faces[pair.a]?.planeNormal && curvedOut(pair.b)) || (!!faces[pair.b]?.planeNormal && curvedOut(pair.a))))) return tally;
-    // A chamfer made otherwise (the knob block's top is a cone joined on): an edge turning out as a chamfer's do, all along.
-    if (pairs.some((pair) => pair.bevel >= SHORTEST_EDGE && pair.bevel >= 0.9 * pair.length)) return tally;
-    const flat = (face: number) => !!faces[face]?.planeNormal;
+    if (edgesTreated(read)) return tally;
+    // Faces facing down are the bed's side: their edges are chamfered as bed edges (BC-27), not rounded.
+    const { up } = read;
+    const flat = (face: number) => !!faces[face]?.planeNormal && (up[face] ?? 0) > FACING_DOWN;
     const found = pairs.filter((pair) => flat(pair.a) && flat(pair.b) && !pair.bed && pair.sharpOut >= SHORTEST_EDGE && pair.sharpOut >= 0.9 * pair.length);
     const mm = found.reduce((sum, pair) => sum + pair.sharpOut, 0);
     const longest = sizeAlong(body.model, found);
@@ -1359,12 +1439,14 @@ function sharpEdges(bodies: readonly DesignBody[]): PrintFinding | null {
     for (const pair of found) for (const face of [pair.a, pair.b]) tally.add(face, pair.sharpOut, 0, pair.segments);
     edges += found.length;
     length += mm;
-    size = Math.max(size, longest);
+    const rule = edgeRadius(longest);
+    const thickness = thinnestAt(body.model, found, longest);
+    listed.push({ body: body.name, size: round(longest, 0), thickness: round(thickness, 1), radius: Math.min(rule, Math.floor((thickness / 2) * 10 + EPSILON) / 10) });
     return tally;
   });
   if (edges === 0) return null;
   const found = locate(bodies.map(({ body }) => body), tallies, 0);
-  return { kind: 'sharpEdge', severity: 'warn', edges, length: round(length, 0), size: round(size, 0), radius: edgeRadius(size), places: found.places, box: found.box };
+  return { kind: 'sharpEdge', severity: 'warn', edges, length: round(length, 0), bodies: listed.slice(0, SHARP_BODIES), places: found.places, box: found.box };
 }
 
 /** The design rules: at most two or three radii per part, so they match (printProfiles.ts, "Edges"). */
@@ -1474,6 +1556,9 @@ function rootCorners(bodies: readonly DesignBody[], nozzle: number): PrintFindin
     }
     const ray = new Ray();
     for (const [face, root] of candidates) {
+      // shortcut: snap mechanism arms have no root radius yet (audit MV-10); drop this exception once MV-10 is fixed.
+      // SolidCraft's plastic.snap_fit names its arm's faces "…:arm:…"; the snapFit block's arms have their root radius.
+      if (faces[face]?.name.includes(':arm:')) continue;
       const own = corners.get(face) ?? [];
       const normal = faces[face]?.planeNormal;
       const s = root.segments;
@@ -1673,6 +1758,7 @@ export function withDesign(check: PrintCheck, bodies: readonly PrintCheckBody[],
     laid: laid[b],
     pairs: [...faceEdges(body.model, laid[b]).values()],
     hollow: hollowFaces(body.model),
+    up: upOf(body.model, laid[b]),
   }));
   const hints: Record<DesignHint, () => PrintFinding | null> = {
     sharpEdge: () => sharpEdges(read),

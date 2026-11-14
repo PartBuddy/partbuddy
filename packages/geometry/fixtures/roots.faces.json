@@ -1771,5 +1771,286 @@
         ]
       }
     ]
+  },
+  "SnapArm": {
+    "model": "roots",
+    "body": "SnapArm",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/roots.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F17:+z",
+        "exact": true,
+        "area": 792.5,
+        "centroid": [
+          20,
+          150.0071,
+          3
+        ],
+        "point": [
+          5.8032,
+          150,
+          3
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 1,
+        "name": "F17:+y",
+        "exact": true,
+        "area": 120,
+        "centroid": [
+          20,
+          160,
+          1.5
+        ],
+        "point": [
+          38.5562,
+          160,
+          1.4438
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F17:-x",
+        "exact": true,
+        "area": 60,
+        "centroid": [
+          0,
+          150,
+          1.5
+        ],
+        "point": [
+          0,
+          158.6119,
+          1.3881
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F17:-y",
+        "exact": true,
+        "area": 120,
+        "centroid": [
+          20,
+          140,
+          1.5
+        ],
+        "point": [
+          1.4438,
+          140,
+          1.4438
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 4,
+        "name": "F17:+x",
+        "exact": true,
+        "area": 60,
+        "centroid": [
+          40,
+          150,
+          1.5
+        ],
+        "point": [
+          40,
+          141.3881,
+          1.3881
+        ],
+        "planeNormal": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 5,
+        "name": "F17:-z",
+        "exact": true,
+        "area": 800,
+        "centroid": [
+          20,
+          150,
+          0
+        ],
+        "point": [
+          7.6393,
+          152.3607,
+          0
+        ],
+        "planeNormal": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "index": 6,
+        "name": "F18:arm:top",
+        "exact": true,
+        "area": 18.6,
+        "centroid": [
+          22.5,
+          149.2828,
+          9.1613
+        ],
+        "point": [
+          22.5,
+          149.2279,
+          13.2426
+        ],
+        "planeNormal": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 7,
+        "name": "F18:arm:side:4",
+        "exact": true,
+        "area": 7.5,
+        "centroid": [
+          20,
+          149.25,
+          15
+        ],
+        "point": [
+          18.1399,
+          149.3601,
+          15
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 8,
+        "name": "F18:arm:base",
+        "exact": true,
+        "area": 18.6,
+        "centroid": [
+          17.5,
+          149.2828,
+          9.1613
+        ],
+        "point": [
+          17.5,
+          149.2279,
+          13.2426
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 9,
+        "name": "F18:arm:side:3",
+        "exact": true,
+        "area": 8.5,
+        "centroid": [
+          20,
+          150.4,
+          14.25
+        ],
+        "point": [
+          21.7905,
+          150.3339,
+          14.374
+        ],
+        "planeNormal": [
+          0,
+          0.8824,
+          0.4706
+        ]
+      },
+      {
+        "index": 10,
+        "name": "F18:arm:side:2",
+        "exact": true,
+        "area": 4,
+        "centroid": [
+          20,
+          150.4,
+          13.5
+        ],
+        "point": [
+          17.8682,
+          150.3682,
+          13.5
+        ],
+        "planeNormal": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "index": 11,
+        "name": "F18:arm:side:1",
+        "exact": true,
+        "area": 52.5,
+        "centroid": [
+          20,
+          150,
+          8.25
+        ],
+        "point": [
+          19.4351,
+          150,
+          4.9351
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 12,
+        "name": "F18:arm:side:5",
+        "exact": true,
+        "area": 60,
+        "centroid": [
+          20,
+          148.5,
+          9
+        ],
+        "point": [
+          19.5,
+          148.5,
+          13
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      }
+    ]
   }
 }

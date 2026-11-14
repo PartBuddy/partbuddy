@@ -28,6 +28,7 @@ export {
   withDesign,
   type DesignHint,
   type PrintHint,
+  type SharpBody,
   laidBodies,
   minimumFloor,
   minimumWall,

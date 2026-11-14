@@ -92,6 +92,19 @@ describe('logo colour bodies', () => {
   });
 });
 
+describe('logo part bodies (design hints)', () => {
+  it('tells a logo built as a body of its own from other bodies', async () => {
+    const { isLogoPartBody, logoBase, uniqueLogoName } = await import('../src/shared/drawingPlacement');
+    // The drawing tool names the body logoBase of its file and the sketch uniqueLogoName of it (drawingTool.ts).
+    const sketches = ['Sketch1', uniqueLogoName('Badge', []), uniqueLogoName('Badge', ['SVG-Logo Badge']), 'Text facade'];
+    expect(isLogoPartBody(logoBase('Badge'), sketches)).toBe(true);
+    expect(isLogoPartBody('Badge 2', ['SVG-Logo Badge 2'])).toBe(true);
+    expect(isLogoPartBody('Body1', sketches)).toBe(false);
+    expect(isLogoPartBody('facade', sketches)).toBe(false);
+    expect(isLogoPartBody('Badge', [])).toBe(false);
+  });
+});
+
 describe('edge names', () => {
   it('splits an edge into its two faces outside the brackets of a changed face', async () => {
     const { faceNames } = await import('../src/shared/drawingPlacement');

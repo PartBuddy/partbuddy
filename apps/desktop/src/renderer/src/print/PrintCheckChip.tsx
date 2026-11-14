@@ -41,7 +41,7 @@ export function useFindingText(): (finding: PrintFinding) => string {
       case 'smallHole':
         return t('check.finding.smallHole', { count: finding.holes, diameter: number.format(finding.diameter), minimum: number.format(finding.minimum) });
       case 'sharpEdge':
-        return t('check.finding.sharpEdge', { count: finding.edges, length: number.format(finding.length), radius: number.format(finding.radius), size: number.format(finding.size) });
+        return t('check.finding.sharpEdge', { count: finding.edges, length: number.format(finding.length), radii: finding.bodies.map((body) => `${number.format(body.radius)} mm (${body.body})`).join(', ') });
       case 'edgeRadii':
         return t('check.finding.edgeRadii', { count: finding.families, radii: finding.radii.map((value) => number.format(value)).join(', '), most: finding.most });
       case 'rootCorner':

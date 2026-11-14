@@ -1,5 +1,5 @@
 import { HINT_RULE, PRINT_HINTS } from '../../../shared/contract';
-import { isLogoColourBody } from '../../../shared/drawingPlacement';
+import { isLogoColourBody, isLogoPartBody } from '../../../shared/drawingPlacement';
 import { checkPrint, withClearance, withDesign, withMotion, type PrintCheck } from '@partbuddy/geometry';
 import { useEffect } from 'react';
 
@@ -40,9 +40,10 @@ export function usePrintCheck(): void {
         return print.hints?.[hint] === false || (rule !== undefined && !print.design[rule]);
       });
       const profile = { bed: print.printer.bed, nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang, off };
-      // The design hints look at the parts themselves: a logo's colour pieces are inlays, not parts.
+      // The design hints look at the parts themselves: a logo's colour pieces are inlays, and a logo or text built as a body of
+      // its own is lettering, not a part to round.
       const sketchNames = model.structure.sketches.map((sketch) => sketch.name);
-      const result = withDesign(checkPrint(printed, profile, model.structure.features), printed.filter((body) => !isLogoColourBody(body.name, sketchNames)), profile);
+      const result = withDesign(checkPrint(printed, profile, model.structure.features), printed.filter((body) => !isLogoColourBody(body.name, sketchNames) && !isLogoPartBody(body.name, sketchNames)), profile);
       // A value that follows another through a motion link (a gear) is neither swept nor posed on its own: its driver is.
       const joints = (model.structure.joints ?? []).map((joint) => ({ ...joint, values: joint.values.map((value, index) => ({ ...value, index })).filter((value) => !value.follows) })).filter((joint) => joint.values.length > 0);
       // A joint left away from "as designed" needs no measuring, so it shows at once: with a lid closed onto its

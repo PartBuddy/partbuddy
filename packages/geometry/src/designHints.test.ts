@@ -5,7 +5,7 @@ import type { FaceTable } from './faceTable';
 import { checkPrint, DESIGN_HINTS, withDesign, type PrintCheckBody, type PrintCheckProfile, type PrintFinding } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
-import { lyingTube, posed } from './testShapes';
+import { boxesBody, lyingTube, posed } from './testShapes';
 import { growth } from './testTiming';
 import { buildViewerModel } from './viewerModel';
 
@@ -76,13 +76,18 @@ function everywhere(body: PrintCheckBody, check: (findings: PrintFinding[], what
 }
 
 describe('bodies with no rounded or chamfered edge (sharpEdge)', () => {
-  // [set, body, sharp edges and the radius the rules ask, or 'none']
-  const cases: [string, string, [number, number] | 'none'][] = [
+  // [set, body, sharp edges, the radius the rules ask and the thinnest plate at those edges, or 'none']
+  const cases: [string, string, [number, number, number] | 'none'][] = [
     // 40 × 30 × 15: the eight edges off the bed, 2 mm by the rules (30 to 100 mm).
-    ['sharp', 'RawBox', [8, 2]],
-    ['sharp', 'Plate', [8, 3]],
+    ['sharp', 'RawBox', [8, 2, 15]],
+    // 120 × 60 × 4: 3 mm by its size, but at most half its 4 mm.
+    ['sharp', 'Plate', [8, 2, 4]],
     // An L of two plates: its inner corner is no outer edge.
-    ['sharp', 'Bracket', [13, 2]],
+    ['sharp', 'Bracket', [13, 2, 4]],
+    // Review of #413: an inner fillet is no edge treatment (the arm's root), nor is a chamfer or fillet on the bed (BC-27).
+    ['roots', 'ArmFillet', [14, 0.8, 1.6]],
+    ['edges', 'ChamferBed2', [8, 1, 20]],
+    ['edges', 'FilletEdge2', [8, 1, 20]],
     ['sharp', 'RoundedBox', 'none'],
     ['sharp', 'ChamferedBox', 'none'],
     // Under 10 mm: a detail.
@@ -96,7 +101,10 @@ describe('bodies with no rounded or chamfered edge (sharpEdge)', () => {
     everywhere(solidcraft(set, name), (findings, what) => {
       const found = one(findings, 'sharpEdge');
       if (want === 'none') expect(found, what).toBeUndefined();
-      else expect(found, what).toMatchObject({ severity: 'warn', edges: want[0], radius: want[1] });
+      else {
+        expect(found, what).toMatchObject({ severity: 'warn', edges: want[0], bodies: [{ body: name, radius: want[1] }] });
+        expect(found?.bodies[0]?.thickness, what).toBeCloseTo(want[2], 0);
+      }
     });
   }, 60_000);
 
@@ -112,6 +120,17 @@ describe('bodies with no rounded or chamfered edge (sharpEdge)', () => {
 
   it('is not looked for when turned off', () => {
     expect(one(design([solidcraft('sharp', 'RawBox')], { ...PLA, off: ['sharpEdge'] }), 'sharpEdge')).toBeUndefined();
+  });
+
+  it('asks each body its own radius, never more than half its plate (review of #413)', () => {
+    // A plate 100 × 50 × 1 wants 2 mm by its size, half its 1 mm at most; a 20 mm cube beside it 1 mm.
+    const plate = boxesBody('Plate', [[[0, 0, 0], [100, 50, 1]]]);
+    const cube = boxesBody('Cube', [[[200, 0, 0], [220, 20, 20]]]);
+    const found = one(design([plate, cube]), 'sharpEdge');
+    expect(found?.bodies).toEqual([
+      { body: 'Plate', size: 100, thickness: 1, radius: 0.5 },
+      { body: 'Cube', size: 20, thickness: 20, radius: 1 },
+    ]);
   });
 
   it('grows linearly with the triangles', () => {
@@ -179,6 +198,16 @@ describe('sharp inner corners at the foot of slender arms (rootCorner)', () => {
     expect(one(design([solidcraft('roots', 'ArmSharp')]), 'rootCorner')?.radius).toBe(1);
     expect(one(design([solidcraft('roots', 'ArmSharp')], { ...PLA, nozzle: 0.6 }), 'rootCorner')?.radius).toBe(1.2);
     expect(one(design([solidcraft('roots', 'TallPost')]), 'rootCorner')?.radius).toBe(1.5);
+  });
+
+  it('leaves out the arms of plastic.snap_fit until the snap mechanism rounds them (audit MV-10)', () => {
+    // SolidCraft's hook on a plate, as the snap mechanism builds it: sharp at the root, its faces "…:arm:…".
+    const body = solidcraft('roots', 'SnapArm');
+    expect(body.model.table.faces.some((face) => face.name.includes(':arm:side'))).toBe(true);
+    everywhere(body, (findings, what) => { expect(one(findings, 'rootCorner'), what).toBeUndefined(); });
+    // The same arm without the tag is told: the exception is the tag, nothing else.
+    const untagged = { ...body, model: { ...body.model, table: { ...body.model.table, faces: body.model.table.faces.map((face) => ({ ...face, name: face.name.replace(':arm:', ':beam:') })) } } };
+    expect(one(design([untagged]), 'rootCorner')).toMatchObject({ thickness: 1.5 });
   });
 
   it('takes no shell rounded inside for arms', () => {
