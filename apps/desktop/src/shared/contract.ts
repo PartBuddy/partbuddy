@@ -1133,10 +1133,10 @@ export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true
  * The print check's hints of audit BC-24 (Manuel, 2026-11-13): yellow only, never a block, each turned off here on its own;
  * on unless turned off. The names are `PrintHint` of the geometry package.
  */
-export const PRINT_HINTS = ['smallHole'] as const;
-export const printHintsSchema = z.object({ smallHole: z.boolean().default(true) }).strict();
+export const PRINT_HINTS = ['smallHole', 'narrowGap'] as const;
+export const printHintsSchema = z.object({ smallHole: z.boolean().default(true), narrowGap: z.boolean().default(true) }).strict();
 export type PrintHints = z.infer<typeof printHintsSchema>;
-export const HINT_DEFAULTS: PrintHints = { smallHole: true };
+export const HINT_DEFAULTS: PrintHints = { smallHole: true, narrowGap: true };
 
 export const printSettingsSchema = z
   .object({
@@ -1208,6 +1208,7 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('overhang'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('roundBedEdge'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('smallHole'), severity: findingSeveritySchema, holes: z.number().int().positive().max(100_000), diameter: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('narrowGap'), severity: findingSeveritySchema, gap: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), bodies: z.number().int().positive().max(100_000), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),

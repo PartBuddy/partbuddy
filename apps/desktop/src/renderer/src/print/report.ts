@@ -162,6 +162,8 @@ export function reportOf(result: PrintCheck, nozzle: number, revision: number, b
           return { kind: finding.kind, severity: finding.severity, area: finding.area, bodies: finding.bodies, places };
         case 'smallHole':
           return { kind: finding.kind, severity: finding.severity, holes: finding.holes, diameter: finding.diameter, minimum: finding.minimum, places };
+        case 'narrowGap':
+          return { kind: finding.kind, severity: finding.severity, gap: finding.gap, minimum: finding.minimum, area: finding.area, places };
       }
     }),
   };

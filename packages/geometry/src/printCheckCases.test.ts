@@ -167,6 +167,58 @@ describe('small holes (BC-24, S12)', () => {
   });
 });
 
+describe('slots that print closed (BC-24)', () => {
+  // tools/fixtures/detail.script.json: slots cut through 20 mm blocks, and one 5 mm deep. [body, nozzle, narrowest gap] or 'none'.
+  const cases: [string, number, number | 'none'][] = [
+    ['Slot02', 0.4, 0.2],
+    ['Slot02', 0.6, 0.2],
+    // Under one nozzle at 0.4 (the print-in-place gap), open at 0.3 mm only from a nozzle of 0.3 down.
+    ['Slot03', 0.4, 0.3],
+    ['Slot03', 0.25, 'none'],
+    ['Slot05', 0.4, 'none'],
+    ['Slot05', 0.6, 0.5],
+    ['SlotBlind02', 0.4, 0.2],
+    // Across a hole is the small-hole hint's; a plain block has no slot.
+    ['Hole15', 0.4, 'none'],
+    ['Hole20', 0.6, 'none'],
+    ['Pin15', 0.4, 'none'],
+  ];
+
+  it.each(cases)('%s at nozzle %s', (name, nozzle, want) => {
+    const body = solidcraft('detail', name);
+    for (const place of PLACES) {
+      const what = JSON.stringify(place);
+      const { status, findings } = checkPrint([posed(body, place.turn, place.mirrored, place.lift)], { ...PLA, nozzle });
+      const slot = one(findings, 'narrowGap');
+      expect(status, what).not.toBe('block');
+      if (want === 'none') expect(slot, what).toBeUndefined();
+      else {
+        expect(slot, what).toMatchObject({ severity: 'warn', minimum: Math.max(0.3, nozzle), places: [{ body: name }] });
+        expect(Math.abs((slot?.gap ?? 0) - want), `${what}: ${String(slot?.gap)}`).toBeLessThanOrEqual(0.01);
+      }
+    }
+  });
+
+  it('says nothing of the shells, holes and edges of BC-27 at 0.4 and 0.6', () => {
+    for (const set of ['edges', 'holes']) {
+      const tables = JSON.parse(readFileSync(new URL(`${set}.faces.json`, fixture), 'utf8')) as Record<string, FaceTable>;
+      for (const name of Object.keys(tables)) {
+        for (const nozzle of [0.4, 0.6]) expect(one(checkPrint([solidcraft(set, name)], { ...PLA, nozzle }).findings, 'narrowGap'), `${set} ${name} at ${String(nozzle)}`).toBeUndefined();
+      }
+    }
+  }, 120_000);
+
+  it('is not looked for when the user turned it off', () => {
+    expect(one(checkPrint([solidcraft('detail', 'Slot02')], { ...PLA, off: ['narrowGap'] }).findings, 'narrowGap')).toBeUndefined();
+  });
+
+  it('grows linearly with the triangles', () => {
+    // A tube meshed 256 and 1024 round outside: one more ray per facet, so about 4 times as long, never 16.
+    const tube = (n: number) => lyingTube('Tube', 5, 3, 20, n, 48);
+    expect(growth((body) => checkPrint([body], PLA), tube(256), tube(1024))).toBeLessThan(8);
+  });
+});
+
 describe("PartBuddy's templates (BC-27 review B1)", () => {
   // templates.faces.json: templateSteps of each template built with SolidCraft 0.40.1 (apps/desktop/test/templateFixtures.test.ts),
   // the bodies it names on their print faces and in their print-in-place groups; standard parts are left out as in the app.
@@ -184,7 +236,7 @@ describe("PartBuddy's templates (BC-27 review B1)", () => {
     for (const overhang of [45, 40, 35]) expect(one(checkPrint(bodies, { ...PLA, overhang }).findings, 'roundBedEdge'), `${id} at ${String(overhang)}°`).toBeUndefined();
     // BC-24: no hint of its own on PartBuddy's templates, at 0.4 and 0.6 and at 40°.
     for (const profile of [PLA, { ...PLA, nozzle: 0.6, layer: 0.3 }, { ...PLA, overhang: 40 }]) {
-      expect(kinds(checkPrint(bodies, profile).findings).filter((kind) => kind === 'smallHole'), `${id} ${JSON.stringify(profile)}`).toEqual([]);
+      expect(kinds(checkPrint(bodies, profile).findings).filter((kind) => kind === 'smallHole' || kind === 'narrowGap'), `${id} ${JSON.stringify(profile)}`).toEqual([]);
     }
     // The housing's one warning stays the lid lying on it (solidcraft.contract.spec.ts, sharing package).
     if (id === 'housing') expect(kinds(checkPrint(bodies, PLA).findings)).toEqual(['separate']);

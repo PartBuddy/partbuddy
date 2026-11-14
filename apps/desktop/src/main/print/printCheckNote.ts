@@ -56,6 +56,9 @@ function line(finding: Finding, nozzle: number): string {
     case 'smallHole':
       // BC-24, yardstick S12: under 2 mm a hole closes up or comes out well under size at any nozzle; a hint, never a block.
       return `- ${tag}: ${finding.holes === 1 ? 'a hole' : `${String(finding.holes)} holes`} under ${mm(finding.minimum)} across, the smallest ${mm(finding.diameter)}${where(finding.places)}: holes that small close up or come out well under size. Make them at least ${mm(finding.minimum)} where the size is free; where it is meant (a tap drill, a seat for a pin), tell the user to drill them out to size after printing.`;
+    case 'narrowGap':
+      // BC-24: two walls of one body closer than the print-in-place gap; the slot prints closed, the part prints.
+      return `- ${tag}: slots between walls of one body down to ${mm(finding.gap)} wide, under the ${mm(finding.minimum)} that stay open with this nozzle (one nozzle, at least 0.3 mm)${where(finding.places)}: the lines on both sides squeeze into them and the slot prints closed (an engraved stroke, a kerf, a slit between letters). Widen them to at least ${mm(finding.minimum)} where they must stay open.`;
     case 'contact':
       return finding.bodies > 1
         ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed for their height, the least ${String(finding.area)} mm²; they may come loose or tip over, a brim holds them${where(finding.places, finding.bodies)}.`
@@ -98,7 +101,7 @@ function line(finding: Finding, nozzle: number): string {
 }
 
 /** The hints of BC-24 as the note names them; the user may turn each off in the print settings. */
-const HINTS: Record<NonNullable<PrintCheckReport['off']>[number], string> = { smallHole: 'holes under 2 mm' };
+const HINTS: Record<NonNullable<PrintCheckReport['off']>[number], string> = { smallHole: 'holes under 2 mm', narrowGap: 'slots under one nozzle' };
 /** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more: hints turned off are left out. */
 const checkedMesh = (report: PrintCheckReport) => `build volume, wall and floor thickness, overhang angle, rounded edges on the bed, ${(Object.keys(HINTS) as (keyof typeof HINTS)[]).filter((hint) => !report.off?.includes(hint)).map((hint) => `${HINTS[hint]}, `).join('')}area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch`;
 /** What the user turned off is said as not checked, so the model does not take it for checked. */

@@ -33,7 +33,7 @@ export interface PrintCheckProfile {
 }
 
 /** The hints of BC-24: yellow only, each one switched off in the print settings on its own (Manuel, 2026-11-13). */
-export type PrintHint = 'smallHole';
+export type PrintHint = 'smallHole' | 'narrowGap';
 
 export interface PrintCheckBody {
   name: string;
@@ -86,6 +86,8 @@ export type PrintFinding =
   | ({ kind: 'roundBedEdge'; severity: FindingSeverity; area: number; limit: number } & Located)
   /** Holes under `minimum` across (BC-24, S12): how many, and the diameter of the smallest. */
   | ({ kind: 'smallHole'; severity: FindingSeverity; holes: number; diameter: number; minimum: number } & Located)
+  /** Slots between two walls of one body under `minimum` wide (BC-24): `gap` the narrowest, over `area` of wall. */
+  | ({ kind: 'narrowGap'; severity: FindingSeverity; gap: number; minimum: number; area: number } & Located)
   /** The bodies with too little on the bed: how many, and the area of the one with the least. */
   | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
@@ -363,6 +365,14 @@ interface Thin {
   unprintable: number;
 }
 
+/**
+ * The narrowest slot between two walls of one body that stays open (BC-24): the gap PartBuddy keeps between print-in-place
+ * parts, one nozzle and never under 0.3 mm (Prusa; designFit.ts `printInPlaceGap`, yardstick S34 0.3 to 0.6 mm). Narrower,
+ * the lines on both sides squeeze into it and the slot prints closed: an engraved stroke, a kerf, a slit between letters.
+ */
+export function narrowestGap(nozzle: number): number {
+  return Math.round(Math.max(0.3, nozzle) * 1000) / 1000;
+}
 
 /**
  * Wall thickness under each triangle: rays straight into the material, spread a nozzle width apart
@@ -374,16 +384,18 @@ interface Thin {
  * shortcut: a body with more surface than MAX_RAYS nozzle widths squared has its large triangles sampled more coarsely;
  * raise MAX_RAYS (or check in a worker) if thin spots in the middle of large faces of large parts are missed.
  */
-function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new Vector3(0, 0, -1)): { walls: Thin; floors: Thin } {
+function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new Vector3(0, 0, -1)): { walls: Thin; floors: Thin; gaps: FaceTally } {
   const { model } = body;
   const geometry = model.geometry;
   // computeBoundsTree builds a MeshBVH (viewerModel.ts); the augmented type only names its base.
   const bvh = geometry.boundsTree as unknown as MeshBVH | undefined;
   const walls: Thin = { faces: new FaceTally(model.table.faces.length), unprintable: 0 };
   const floors: Thin = { faces: new FaceTally(model.table.faces.length), unprintable: 0 };
+  const gaps = new FaceTally(model.table.faces.length);
+  const gapMinimum = profile.off?.includes('narrowGap') ? 0 : narrowestGap(profile.nozzle);
   const index = geometry.index?.array;
   const positions = geometry.getAttribute('position').array;
-  if (!bvh || !index) return { walls, floors };
+  if (!bvh || !index) return { walls, floors, gaps };
   const triangles = index.length / 3;
   let surface = 0;
   for (let t = 0; t < triangles; t += 1) surface += triangle(positions, index, t).area;
@@ -424,8 +436,24 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new 
       thin.faces.add(model.triangleFaces[t] ?? 0, share, thickness, corners);
       if (thickness < printable - EPSILON) thin.unprintable += share;
     });
+    // BC-24: out of a wall into the air, a wall of the same body facing back within 10° is a slot (`narrowestGap`).
+    // shortcut: walls only, as the body lies; a slit under a layer between a floor and a ceiling of one body is not looked
+    // for (PartBuddy's print-in-place parts are bodies of their own, measured by SolidCraft as `tight`).
+    if (flat || gapMinimum === 0) continue;
+    ray.direction.copy(normal);
+    spread(count).forEach((weights) => {
+      ray.origin.set(along(0, weights), along(1, weights), along(2, weights)).addScaledVector(normal, EPSILON);
+      const hit = bvh.raycastFirst(ray, DoubleSide, 0, gapMinimum);
+      if (!hit || hit.faceIndex === undefined || hit.faceIndex === null || hit.distance + EPSILON > gapMinimum - EPSILON) return;
+      const other = model.table.faces[model.triangleFaces[hit.faceIndex] ?? 0];
+      // Across a hole: the small-hole hint says it.
+      if (face && other && sameCylinder(face, other)) return;
+      const opposite = triangle(positions, index, hit.faceIndex).normal;
+      if (!opposite || opposite.dot(normal) > OPPOSITE) return;
+      gaps.add(model.triangleFaces[t] ?? 0, area / count, hit.distance + EPSILON, corners);
+    });
   }
-  return { walls, floors };
+  return { walls, floors, gaps };
 }
 
 /**
@@ -831,6 +859,9 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       const layers = floor ? { layers: round(minimum / layerOf(profile.layer), 1) } : {};
       findings.push({ kind: 'thinWall', severity: unprintable >= BLOCK_THIN_AREA ? 'block' : 'warn', floor, ...layers, thickness: round(found.extreme), minimum, area: round(found.area, 0), places: found.places, box: found.box });
     }
+    // Slots that print closed (BC-24): a hint, as the part prints, only the slot not.
+    const slots = locate(parts, thin.map((body) => body.gaps), MIN_AREA, true);
+    if (slots.places.length > 0) findings.push({ kind: 'narrowGap', severity: 'warn', gap: round(slots.extreme), minimum: narrowestGap(profile.nozzle), area: round(slots.area, 0), places: slots.places, box: slots.box });
 
     // Holes under 2 mm (BC-24): a hint, as they print, only not open or to size.
     if (!profile.off?.includes('smallHole')) {
