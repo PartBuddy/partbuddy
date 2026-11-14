@@ -1,5 +1,3 @@
-import { blocksOnlyForSupport } from '@partbuddy/geometry';
-
 /**
  * The description of a sharing package (plan step F5): a Markdown file to paste into Printables or
  * MakerWorld, with what the design says on its own (parts, sizes, parameters) and how it prints
@@ -21,15 +19,6 @@ export interface ShareFacts {
   /** From the ready-to-print check: null when it has not run. */
   check: { status: 'ready' | 'warn' | 'block'; overhang: boolean } | null;
   files: { model: string; step: string; pictures: string[] };
-}
-
-/**
- * The check as the description reads it. An overhang is red only for a user who designs without support (audit R55):
- * shared, the part prints with support, so it is said as faces to check in the slicer, not as a part that does not print.
- */
-export function shareCheck(report: { status: 'ready' | 'warn' | 'block'; findings: readonly { kind: string; severity: 'block' | 'warn' }[]; omitted?: number | undefined }): NonNullable<ShareFacts['check']> {
-  // A finding left out of the report may block for another reason: then it stays blocked (review K2).
-  return { status: blocksOnlyForSupport(report.findings, report.omitted ?? 0) ? 'warn' : report.status, overhang: report.findings.some((finding) => finding.kind === 'overhang') };
 }
 
 const TEXT = {

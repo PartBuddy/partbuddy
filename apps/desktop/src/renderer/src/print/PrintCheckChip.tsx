@@ -35,7 +35,7 @@ export function useFindingText(): (finding: PrintFinding) => string {
           ? t('check.finding.wallTooThin', { thickness: number.format(finding.thickness), nozzle: number.format(nozzle) })
           : t('check.finding.wallThin', { thickness: number.format(finding.thickness), minimum: number.format(finding.minimum) });
       case 'overhang':
-        return t(finding.severity === 'block' ? 'check.finding.overhangSupportFree' : 'check.finding.overhang', { area: number.format(finding.area), limit: finding.limit });
+        return t('check.finding.overhang', { area: number.format(finding.area), limit: finding.limit });
       case 'contact':
       {
         // Three names, and how many more: fifty pins do not fit a line.
@@ -172,7 +172,6 @@ export function PrintCheckChip() {
     useStudio((s) => s.connection),
   );
   const setStepHighlight = useStudio((s) => s.setStepHighlight);
-  const supportFree = useStudio((s) => s.print?.supportFree === true);
   const lacking = useLackingLines()(check?.unmeasured ?? []);
   const bodyList = useBodyList();
   // "Checking" shows only when it lasts; the export asks all the same (review of #367).
@@ -247,7 +246,7 @@ export function PrintCheckChip() {
                 {t('check.unchecked', { bodies: bodyList(check.unchecked) })}
               </p>
             ) : null}
-            <p className="px-2 text-xs text-text-muted">{t(supportFree ? 'check.basisSupportFree' : 'check.basis', { setting: t('print.supportFree') })}</p>
+            <p className="px-2 text-xs text-text-muted">{t('check.basis')}</p>
           </Dialog>
         </Popover>
       </DialogTrigger>

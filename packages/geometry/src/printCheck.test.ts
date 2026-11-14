@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { FaceTable } from './faceTable';
 import { smallOverhangReach } from './overhang';
-import { blocksOnlyForSupport, checkPrint, laidBodies, minimumFloor, minimumWall, thinnestLine, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
+import { checkPrint, laidBodies, minimumFloor, minimumWall, thinnestLine, withClearance, type PrintCheckBody, type PrintCheckProfile } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
 import { boxesBody, gridBody, lathe, lyingRod, lyingTube, posed, prismBody, rawBody, revolved } from './testShapes';
@@ -141,14 +141,8 @@ describe('the ready-to-print check (M7)', () => {
     // By angle only: the whole ceiling, without guessing what the slicer bridges or grows from the leg.
     expect(table.findings.find((f) => f.kind === 'overhang')).toMatchObject({ severity: 'warn', limit: 45, area: 400, places: [{ body: 'Table', faces: ['F2:-z'] }] });
     expect(table.findings.find((f) => f.kind === 'contact')).toMatchObject({ area: 4, places: [{ body: 'Table', faces: ['F1:-z'] }] });
-    // An overhang does not make the light red, unless the user designs without support (audit R55).
+    // An overhang never makes the light red: it prints with support (Manuel 2026-11-14, audit R55).
     expect(table.findings.every((f) => f.severity !== 'block')).toBe(true);
-    expect(checkPrint([boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]])], { ...PLA, supportFree: false })).toEqual(table);
-    const without = checkPrint([boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]])], { ...PLA, supportFree: true });
-    expect(without.status).toBe('block');
-    expect(without.findings.map((f) => [f.kind, f.severity])).toEqual([['overhang', 'block'], ['contact', 'warn']]);
-    // Without an overhang the setting changes nothing.
-    expect(checkPrint([box('Block', [0, 0, 0], [40, 30, 10])], { ...PLA, supportFree: true })).toEqual({ status: 'ready', findings: [] });
   });
 
   it('needs support from just past the limit it names, not a degree past it (audit D19, MG-22)', () => {
@@ -175,16 +169,6 @@ describe('the ready-to-print check (M7)', () => {
         expect(placed(45.2, turn, mirrored, lift), how).toMatchObject({ limit: 45 });
       }
     }
-  });
-
-  it('tells a part red only for support from one that does not print (review S2, K2)', () => {
-    const overhang = { kind: 'overhang', severity: 'block' as const };
-    expect(blocksOnlyForSupport([overhang, { kind: 'contact', severity: 'warn' }])).toBe(true);
-    expect(blocksOnlyForSupport([overhang, { kind: 'size', severity: 'block' }])).toBe(false);
-    expect(blocksOnlyForSupport([{ kind: 'overhang', severity: 'warn' }])).toBe(false);
-    expect(blocksOnlyForSupport([])).toBe(false);
-    // Findings left out of a report may block for another reason.
-    expect(blocksOnlyForSupport([overhang], 1)).toBe(false);
   });
 
   it('checks a body lying on its print face, and as designed when the face is not a flat one of the body', () => {

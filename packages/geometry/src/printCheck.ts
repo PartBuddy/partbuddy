@@ -10,7 +10,7 @@ import type { ViewerModel } from './viewerModel';
  * TypeScript on the mirrored render meshes, no sidecar. It checks what only the design decides:
  * whether the part fits the printer, walls the nozzle cannot print, bodies that touch, how much of
  * the part lies on the bed, bodies that are no closed solid, and features SolidCraft could not build. Overhangs are a hint by angle
- * only (yellow; red when the user designs without support, audit R55): whether something needs support, and how, is the slicer's job; small
+ * only (yellow, never red): whether something needs support, and how, is the slicer's job; small
  * ones that hang from the material below, as the slicers ignore them, and ceilings the printer
  * bridges are left out.
  * The part is checked as designed, Z up, or lying on its print face where SolidCraft has one for the
@@ -28,8 +28,6 @@ export interface PrintCheckProfile {
   layer: number;
   /** Degrees from the vertical beyond which a face is an overhang. */
   overhang: number;
-  /** The user's setting "Design without support": an overhang then blocks, as the part is to print without (audit R55). */
-  supportFree?: boolean | undefined;
 }
 
 export interface PrintCheckBody {
@@ -671,14 +669,6 @@ function sizeFinding(body: string, positions: ArrayLike<number>, bed: readonly [
   return { kind: 'size', severity: 'block', body, size: [round(x, 1), round(y, 1), round(z, 1)], bed: [...bed], lying };
 }
 
-/**
- * Whether what blocks is only an overhang the user wants designed away ("Design without support", audit R55): the part
- * prints with support then, so it is no part that does not print. `omitted` findings not listed are taken to block.
- */
-export function blocksOnlyForSupport(findings: readonly { kind: string; severity: FindingSeverity }[], omitted = 0): boolean {
-  return omitted === 0 && findings.some((finding) => finding.severity === 'block') && findings.every((finding) => finding.severity !== 'block' || finding.kind === 'overhang');
-}
-
 const SEVERITY_ORDER: Record<FindingSeverity, number> = { block: 0, warn: 1 };
 
 const statusOf = (findings: readonly PrintFinding[]): PrintStatus =>
@@ -811,7 +801,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
     });
     const steep = locate(parts, overhang, MIN_AREA);
     if (steep.area >= MIN_AREA) {
-      findings.push({ kind: 'overhang', severity: profile.supportFree ? 'block' : 'warn', area: round(steep.area, 0), limit: limits.support, places: steep.places, box: steep.box });
+      findings.push({ kind: 'overhang', severity: 'warn', area: round(steep.area, 0), limit: limits.support, places: steep.places, box: steep.box });
     }
     // One finding for all of them: fifty pins are one thing to say, and none drops off the end of a list.
     if (loose.length > 0) {

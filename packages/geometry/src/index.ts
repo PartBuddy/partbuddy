@@ -22,7 +22,6 @@ export {
   type SurfaceKind,
 } from './faceTable';
 export {
-  blocksOnlyForSupport,
   checkPrint,
   laidBodies,
   minimumFloor,

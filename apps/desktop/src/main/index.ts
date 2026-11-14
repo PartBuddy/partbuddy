@@ -66,7 +66,7 @@ import { sketchNote } from './agents/sketchNote';
 import { photoFile, photoNote } from './agents/photoNote';
 import { drawingNote, Drawings, withDrawings } from './agents/drawingTool';
 import { parseDrawing } from '../shared/svgDrawing';
-import { shareCheck, shareDescription } from './share/description';
+import { shareDescription } from './share/description';
 import { freeFolder } from './share/freeFolder';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
 import { logoTitle } from '../shared/drawingPlacement';
@@ -941,7 +941,7 @@ if (!app.requestSingleInstanceLock()) {
           layer: print.printer.layer,
           nozzle: print.printer.nozzle,
           // A check of an older revision says nothing about the design that is shared.
-          check: printCheck && printCheck.revision === supervisor.currentRevision()?.revision ? shareCheck(printCheck) : null,
+          check: printCheck && printCheck.revision === supervisor.currentRevision()?.revision ? { status: printCheck.status, overhang: printCheck.findings.some((finding) => finding.kind === 'overhang') } : null,
           files: { model, step, pictures },
         });
         writeFileSync(join(folder, german ? 'Beschreibung.md' : 'description.md'), description, 'utf8');

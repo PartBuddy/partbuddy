@@ -1,4 +1,4 @@
-import { blocksOnlyForSupport, thinnestLine, withinTurn } from '@partbuddy/geometry';
+import { thinnestLine, withinTurn } from '@partbuddy/geometry';
 
 import type { PrintCheckReport } from '../../shared/contract';
 import type { ToolResult } from '../agents/gateProxy';
@@ -34,8 +34,7 @@ const names = (features: readonly string[]) =>
   `feature${features.length === 1 ? '' : 's'} ${features.slice(0, 8).map((name) => JSON.stringify(name)).join(', ')}${features.length > 8 ? ` and ${String(features.length - 8)} more` : ''}`;
 
 function line(finding: Finding, nozzle: number): string {
-  // An overhang red only by "Design without support" prints with support: it is not said to block printing (review S2).
-  const tag = finding.severity === 'block' ? (finding.kind === 'overhang' ? 'needs support the user does not want' : 'blocks printing') : 'warning';
+  const tag = finding.severity === 'block' ? 'blocks printing' : 'warning';
   switch (finding.kind) {
     case 'size':
       return `- ${tag}: body ${JSON.stringify(finding.body)} is ${finding.size.map(String).join(' × ')} mm, the printer takes ${finding.bed.map(String).join(' × ')} mm${finding.lying ? '; it would fit lying on another side' : ''}.`;
@@ -49,12 +48,8 @@ function line(finding: Finding, nozzle: number): string {
         ? `- ${tag}: walls down to ${mm(finding.thickness)}, thinner than the narrowest line a slicer lays (${mm(thinnestLine(nozzle))} with the ${mm(nozzle)} nozzle), so they do not print${where(finding.places)}.`
         : `- ${tag}: walls down to ${mm(finding.thickness)}, under the ${mm(finding.minimum)} of two lines${where(finding.places)}.`;
     case 'overhang':
-      // Red only with the user's "Design without support" (audit R55): then the slicer's choice is not what is wanted.
-      return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical${where(finding.places)}; ${
-        finding.severity === 'block'
-          ? 'the user wants this part to print without support: reshape it (a slope within that angle, a teardrop roof, a chamfer) or set another print face, or tell the user why it cannot be done.'
-          : 'the slicer decides whether they need support.'
-      }`;
+      // Designed away where it can be, said where not (audit R55; a warning, never a block: Manuel 2026-11-14).
+      return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical${where(finding.places)}, so they need support: reshape them where you can (a slope within that angle, a teardrop roof, a chamfer, or another print face); where you cannot, tell the user which support they need there and why.`;
     case 'contact':
       return finding.bodies > 1
         ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed for their height, the least ${String(finding.area)} mm²; they may come loose or tip over, a brim holds them${where(finding.places, finding.bodies)}.`
@@ -120,7 +115,7 @@ const NOT_CHECKED = 'Not checked: strength and layer direction under load, the f
 const FIT_KINDS = new Set<Finding['kind']>(['overlap', 'tight', 'fused', 'blocked']);
 /** What the model must do before "done" (audit H-12): a warning about how the parts go together is fixed or told, never passed over. */
 const FIX_BEFORE_DONE =
-  'Fix what blocks printing or needs support the user does not want, and either fix or name to the user every warning about parts that overlap, are too tight, fuse or stop a joint, before you call the part done; the user sees the same findings.';
+  'Fix what blocks printing, and either fix or name to the user every warning about parts that overlap, are too tight, fuse or stop a joint, before you call the part done; the user sees the same findings.';
 
 /** Bodies listed with their measures before the rest is counted. */
 const MAX_BODIES = 6;
@@ -175,7 +170,7 @@ export function printCheckNote(report: PrintCheckReport, view = false): string {
     return [`${head} nothing found ${report.measuring ? `so far (${CHECKED_MESH})` : `in what it checks (${CHECKED_MESH}${measured})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}]`].join('\n');
   // An assembly whose parts do not go together or move is no finished part, though each piece prints (audit H-12).
   const fitting = report.findings.some((finding) => FIT_KINDS.has(finding.kind));
-  const verdict = report.status === 'block' ? (blocksOnlyForSupport(report.findings, report.omitted ?? 0) ? 'prints only with support, and the user designs without' : 'not ready to print') : report.status === 'warn' ? (fitting ? 'prints, but its parts do not go together or move as designed' : 'prints, with warnings') : 'ready to print';
+  const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? (fitting ? 'prints, but its parts do not go together or move as designed' : 'prints, with warnings') : 'ready to print';
   return [`${head} ${verdict}.`, ...findingLines(report), ...preliminary, ...measureLines(report), `${FIX_BEFORE_DONE} ${NOT_CHECKED}]`].join('\n');
 }
 
@@ -204,7 +199,7 @@ export class CheckTold {
           `[PartBuddy: ready-to-print check after this change: unchanged, ${
             report.findings.length === 0
               ? 'nothing found'
-              : `${report.status === 'block' ? (blocksOnlyForSupport(report.findings, report.omitted ?? 0) ? 'still needs support the user does not want, ' : 'still not ready to print, ') : ''}the same ${String(report.findings.length + (report.omitted ?? 0))} ${report.findings.length + (report.omitted ?? 0) === 1 ? 'finding' : 'findings'} as before`
+              : `${report.status === 'block' ? 'still not ready to print, ' : ''}the same ${String(report.findings.length + (report.omitted ?? 0))} ${report.findings.length + (report.omitted ?? 0) === 1 ? 'finding' : 'findings'} as before`
           }${report.measuring ? `; clearance and joints still being measured: ${FETCH_FULL}` : ''}${(report.unmeasured ?? []).length > 0 ? `; ${unmeasuredLine(report.unmeasured ?? [])}` : '.'}`,
           ...measureLines(report, 'Measures that changed:', changed),
         ].join('\n') + ']'
