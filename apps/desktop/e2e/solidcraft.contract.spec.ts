@@ -3735,6 +3735,8 @@ test('the assistant plugs the halves of a split block together: pegs in their po
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a split block');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText(/Built 2 pegs "Alignment" on Left with their pockets in Right: 5 mm thick and 7\.5 mm long, 0\.15 mm clear per side as printed \(the pocket drawn 5\.45 mm wide/)).toBeVisible({ timeout: 90_000 });
+    // BC-28: the parting face with its two pockets' mouths cut out fills the side (measured 2026-11-14: 534.65 mm², outer perimeter 100 mm).
+    await expect(page.getByTestId('assistant-text').last()).toContainText('Right prints on its parting face, the face where it meets Left, which is set as its print face, in place of any it had; Left prints on the face opposite its parting face, which is set as its print face, in place of any it had, so that the pegs stand upright and come out round.');
     await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Plugged connection “Alignment” between two parts')).toHaveCount(1);
@@ -3775,6 +3777,8 @@ test('the assistant clips a cover onto its base with snap hooks: each hook catch
       /Built 1 snap hook "Back clip" on Base, each with its window through the 2 mm wall of Cover: an arm 12 mm long, 1\.5 mm thick and 5 mm wide, 0\.2 mm off the wall[\s\S]* Built 1 snap hook "Front clip" on Base/,
       { timeout: 90_000 },
     );
+    // BC-28: the hollow cover stands on its rim, whose middle is open (measured 2026-11-14), and the base's arms stand out of its parting face.
+    await expect(page.getByTestId('assistant-text').last()).toContainText("Cover was not laid on its parting face, the face where it meets Base (nothing flat of Cover lies at the middle of that side, [20,15,4]): set its print face there if it stands flat on it, else on a face from which nothing of it hangs. PartBuddy does not set a print face for Base: its arms stand out of its parting face");
     await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Snap hooks “Back clip” with their windows')).toHaveCount(1);
