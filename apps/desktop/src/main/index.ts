@@ -9,7 +9,7 @@ import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen
 
 import { invokeChannels, eventChannels } from '../shared/channels';
 import type { AssemblyPlan } from '../shared/assembly';
-import { DESIGN_DEFAULTS, type AgentEvent, type ExportFormat, type PartPrint, type PrintCheckReport, type PrintSettings, type ViewState } from '../shared/contract';
+import { DESIGN_DEFAULTS, HINT_DEFAULTS, type AgentEvent, type ExportFormat, type PartPrint, type PrintCheckReport, type PrintSettings, type ViewState } from '../shared/contract';
 import { refit, withoutFitMark } from '../shared/designFit';
 import { AgentService } from './agents/agentService';
 import { AppearanceSettings } from './appearance';
@@ -828,6 +828,8 @@ if (!app.requestSingleInstanceLock()) {
       }
       if (section === 'solidcraft' || section === 'all') await engineChoice.choose(null);
       if (section === 'print') savePrint(printProfiles.startingProfiles());
+      // The print check's hints (BC-24) are settings, not profiles: all of them on again; the profiles stay.
+      if (section === 'all') savePrint({ ...printProfiles.settings(), hints: HINT_DEFAULTS });
       log(`settings reset: ${section}`);
       return generalInfo();
     });

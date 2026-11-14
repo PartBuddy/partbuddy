@@ -10,7 +10,7 @@ import { DESIGN_DEFAULTS, printCheckReportSchema, type PartPrint } from '../src/
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
   it('says what it looked at when nothing was found, and what it did not (audit R3)', () => {
     const clean = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 1 });
-    expect(clean).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, rounded edges on the bed, area on the bed for the height,');
+    expect(clean).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, rounded edges on the bed, holes under 2 mm, slots under one nozzle, area on the bed for the height,');
     expect(clean).toContain('Not checked: strength and layer direction under load, the fits and hole allowances you chose,');
     // No verdict the model could hand on as "ready to print".
     expect(clean).not.toMatch(/ready to print[,.]/);
@@ -62,6 +62,37 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     // The chamfer leans at most the material's angle where it is under 45° (BC-19).
     expect(note).toContain('warning: 31 mm² of rounded edges on the bed lean more than 40° from the vertical just above it (faces "F6:blend(F5:+x|F5:-z)" of body "Cube"): the foot of a fillet there ends flat on the bed and curls up. Chamfer those edges instead, leaning at most 40° from the vertical');
     expect(printCheckNote({ ...report, findings: [{ kind: 'roundBedEdge', severity: 'warn', area: 31, limit: 50, places: [] }] })).toContain('leaning at most 45° from the vertical');
+  });
+
+  it('words a small hole and a slot that prints closed as hints (BC-24)', () => {
+    const report = reportOf(
+      {
+        status: 'warn',
+        findings: [
+          { kind: 'smallHole', severity: 'warn', holes: 2, diameter: 1.5, minimum: 2, places: [{ body: 'Cube', faces: ['F2:side'] }], box: null },
+          { kind: 'narrowGap', severity: 'warn', gap: 0.2, minimum: 0.4, area: 240, places: [{ body: 'Cube', faces: ['F19:-x', 'F19:+x'] }], box: null },
+        ],
+      },
+      0.4,
+      3,
+    );
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    expect(JSON.stringify(report)).not.toContain('box');
+    const note = printCheckNote(report);
+    expect(note).toContain('prints, with warnings');
+    expect(note).toContain('- warning: 2 holes under 2 mm across, the smallest 1.5 mm (faces "F2:side" of body "Cube"): holes that small close up or come out well under size.');
+    expect(note).toContain('tell the user to drill them out to size after printing');
+    expect(note).toContain('- warning: slots between walls of one body down to 0.2 mm wide, under the 0.4 mm that stay open with this nozzle (one nozzle, at least 0.3 mm) (faces "F19:-x", "F19:+x" of body "Cube")');
+    expect(printCheckNote({ ...report, findings: [{ kind: 'smallHole', severity: 'warn', holes: 1, diameter: 1, minimum: 2, places: [] }] })).toContain('- warning: a hole under 2 mm across, the smallest 1 mm:');
+  });
+
+  it('claims no hint the user turned off (BC-24)', () => {
+    const report = reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: ['smallHole'] });
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    const note = printCheckNote(report);
+    expect(note).toContain('rounded edges on the bed, slots under one nozzle, area on the bed');
+    expect(note).toContain("Turned off in PartBuddy's print settings, so not looked for: holes under 2 mm.");
+    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).not.toContain('Turned off');
   });
 
   it('tells a thin floor from a thin wall: layers, not lines', () => {

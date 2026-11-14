@@ -6,7 +6,7 @@
  * (`thinnestLine`, `minimumWall`, the push fit and the print-in-place gap), and the rule text tells
  * the assistant to name the better value (printProfiles.ts).
  */
-import { minimumWall } from '@partbuddy/geometry';
+import { minimumWall, narrowestGap } from '@partbuddy/geometry';
 
 export interface FitPrinter {
   nozzle: number;
@@ -37,9 +37,9 @@ export function lineWidth(printer: FitPrinter): number {
 /** The most a first layer is squeezed wider, which a bed chamfer takes up: 0.1 to 0.25 mm (Prusa about 0.2, Bambu Lab 0.1 to 0.2, OrcaSlicer up to 0.25). */
 export const ELEPHANT_FOOT = 0.25;
 
-/** The gap between moving print-in-place parts: one nozzle width, never under 0.3 mm. */
+/** The gap between moving print-in-place parts: one nozzle width, never under 0.3 mm; the print check's narrowest slot (BC-24). */
 export function printInPlaceGap(printer: FitPrinter): number {
-  return round(Math.max(0.3, printer.nozzle));
+  return narrowestGap(printer.nozzle);
 }
 
 /** The nozzle the clearances of a material profile stand for when none was measured. */

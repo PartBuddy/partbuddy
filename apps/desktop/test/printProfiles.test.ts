@@ -82,6 +82,24 @@ describe('printer and material profiles (M7)', () => {
     expect(start.design.rounding).toBe(false);
   });
 
+  it("keeps the print check's hints, every one on in a file saved before them (BC-24)", () => {
+    const { profiles, root } = setup();
+    expect(profiles.part().hints).toEqual({ smallHole: true, narrowGap: true });
+    // A file from before BC-24 has no hints, a later one may lack a newer hint: both read as on.
+    const before: Partial<PrintSettings> = { ...DEFAULT_PRINT_SETTINGS };
+    delete before.hints;
+    writeFileSync(join(root, 'print-profiles.json'), JSON.stringify(before));
+    expect(profiles.settings().hints).toEqual({ smallHole: true, narrowGap: true });
+    writeFileSync(join(root, 'print-profiles.json'), JSON.stringify({ ...before, hints: { smallHole: false } }));
+    expect(profiles.part().hints).toEqual({ smallHole: false, narrowGap: true });
+    // A hint of another PartBuddy version, or a broken value, loses neither the profiles nor the other hints (BC-24 review).
+    writeFileSync(join(root, 'print-profiles.json'), JSON.stringify({ ...before, printer: 'p1s', printers: [{ id: 'p1s', name: 'P1S', bed: [256, 256, 256], nozzle: 0.6, layer: 0.3 }], hints: { smallHole: false, knifeEdge: true, narrowGap: 'yes' } }));
+    expect(profiles.settings().printers.map((printer) => printer.name)).toEqual(['P1S']);
+    expect(profiles.settings().hints).toEqual({ smallHole: false, narrowGap: true });
+    // Back to the starting profiles turns them on again: they belong to the print section.
+    expect(profiles.startingProfiles().hints).toEqual({ smallHole: true, narrowGap: true });
+  });
+
   it('holds the part material until the design has a file, then writes it next to the design', () => {
     const { profiles, state, root } = setup();
     expect(profiles.setMaterial('petg-cf').material.id).toBe('petg-cf');

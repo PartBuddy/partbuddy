@@ -26,6 +26,7 @@ export {
   laidBodies,
   minimumFloor,
   minimumWall,
+  narrowestGap,
   thinnestLine,
   withClearance,
   withMotion,

@@ -1,4 +1,4 @@
-import { DESIGN_RULES } from '../../../shared/contract';
+import { DESIGN_RULES, PRINT_HINTS } from '../../../shared/contract';
 import type { SettingsSection } from '../state/store';
 import { SHORTCUTS } from './shortcuts';
 
@@ -32,6 +32,7 @@ export const SETTINGS: readonly SettingEntry[] = [
   ...DESIGN_RULES.map((rule) => ({ id: `design.${rule}`, section: 'assistant' as const, group: 'rules', label: `print.design.${rule}.label`, hint: `print.design.${rule}.hint` })),
   { id: 'printers', section: 'print', group: 'profiles', label: 'print.printers', hint: 'settings.profiles.printers' },
   { id: 'materials', section: 'print', group: 'profiles', label: 'print.materials', hint: 'settings.profiles.materials' },
+  ...PRINT_HINTS.map((hint) => ({ id: `hints.${hint}`, section: 'print' as const, group: 'checks', label: `print.hints.${hint}.label`, hint: `print.hints.${hint}.hint` })),
   { id: 'updates', section: 'about', group: 'app', label: 'updates.title', hint: 'settings.about.updatesHint' },
   { id: 'checkUpdates', section: 'about', group: 'app', label: 'settings.checkUpdates.title', hint: 'settings.checkUpdates.hint' },
   { id: 'log', section: 'about', group: 'help', label: 'settings.about.revealLog', hint: 'settings.about.revealLogHint' },

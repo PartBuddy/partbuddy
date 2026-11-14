@@ -1,3 +1,4 @@
+import { PRINT_HINTS } from '../../../shared/contract';
 import { isLogoColourBody } from '../../../shared/drawingPlacement';
 import { checkPrint, withClearance, withMotion, type PrintCheck } from '@partbuddy/geometry';
 import { useEffect } from 'react';
@@ -33,7 +34,9 @@ export function usePrintCheck(): void {
       // Bodies printed as one piece (a print-in-place hinge) stand on one bed: the first body's name names the group.
       const groupOf = (name: string) => model.structure.printGroups?.find((group) => group.includes(name))?.[0];
       const printed = model.bodies.filter((body) => !standard.has(body.name)).map((body) => ({ ...body, printFace: printFaces[body.name], group: groupOf(body.name) }));
-      const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang }, model.structure.features);
+      // The hints the user turned off in the print settings (BC-24) are not looked for.
+      const off = PRINT_HINTS.filter((hint) => print.hints?.[hint] === false);
+      const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang, off }, model.structure.features);
       // A value that follows another through a motion link (a gear) is neither swept nor posed on its own: its driver is.
       const joints = (model.structure.joints ?? []).map((joint) => ({ ...joint, values: joint.values.map((value, index) => ({ ...value, index })).filter((value) => !value.follows) })).filter((joint) => joint.values.length > 0);
       // A joint left away from "as designed" needs no measuring, so it shows at once: with a lid closed onto its
@@ -48,7 +51,7 @@ export function usePrintCheck(): void {
       // What each closed body costs to print, for the assistant to see what a change saved.
       const measures = measuresOf(printed, { nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang });
       const report = (final: typeof result, pending = false, unmeasured: ('clearance' | 'joints')[] = [], unchecked: string[] = []) => {
-        const more = { ...(pending ? { measuring: true } : {}), ...(unmeasured.length > 0 ? { unmeasured } : {}), ...(unchecked.length > 0 ? { unchecked } : {}), ...(measures.problem ? { problem: measures.problem } : {}) };
+        const more = { ...(off.length > 0 ? { off } : {}), ...(pending ? { measuring: true } : {}), ...(unmeasured.length > 0 ? { unmeasured } : {}), ...(unchecked.length > 0 ? { unchecked } : {}), ...(measures.problem ? { problem: measures.problem } : {}) };
         void platform()
           .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision, measures.bodies, more))
           // A report the main process does not take would leave the assistant waiting for a check that never comes:

@@ -130,7 +130,7 @@ export function asksBeforeExport(check: StudioPrintCheck | null, model: ModelSta
 }
 
 /** The check without the camera boxes, as the main process words it for the assistant; `bodies`: what each body costs to print. */
-export function reportOf(result: PrintCheck, nozzle: number, revision: number, bodies: NonNullable<PrintCheckReport['bodies']> = [], more: Pick<PrintCheckReport, 'measuring' | 'problem' | 'unmeasured' | 'unchecked'> = {}): PrintCheckReport {
+export function reportOf(result: PrintCheck, nozzle: number, revision: number, bodies: NonNullable<PrintCheckReport['bodies']> = [], more: Pick<PrintCheckReport, 'measuring' | 'problem' | 'unmeasured' | 'unchecked' | 'off'> = {}): PrintCheckReport {
   return {
     status: result.status,
     nozzle,
@@ -138,6 +138,7 @@ export function reportOf(result: PrintCheck, nozzle: number, revision: number, b
     ...(more.measuring ? { measuring: true } : {}),
     ...(more.unmeasured && more.unmeasured.length > 0 ? { unmeasured: more.unmeasured } : {}),
     ...(more.unchecked && more.unchecked.length > 0 ? { unchecked: more.unchecked.slice(0, 40) } : {}),
+    ...(more.off && more.off.length > 0 ? { off: more.off } : {}),
     ...(more.problem ? { problem: more.problem.slice(0, 300) } : {}),
     ...(bodies.length > 0 ? { bodies: bodies.slice(0, 40) } : {}),
     ...(bodies.length > 40 ? { bodiesOmitted: bodies.length - 40 } : {}),
@@ -159,6 +160,10 @@ export function reportOf(result: PrintCheck, nozzle: number, revision: number, b
           return { kind: finding.kind, severity: finding.severity, area: finding.area, limit: finding.limit, places };
         case 'contact':
           return { kind: finding.kind, severity: finding.severity, area: finding.area, bodies: finding.bodies, places };
+        case 'smallHole':
+          return { kind: finding.kind, severity: finding.severity, holes: finding.holes, diameter: finding.diameter, minimum: finding.minimum, places };
+        case 'narrowGap':
+          return { kind: finding.kind, severity: finding.severity, gap: finding.gap, minimum: finding.minimum, area: finding.area, places };
       }
     }),
   };

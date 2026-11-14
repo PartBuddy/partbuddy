@@ -1,0 +1,29 @@
+{
+  "commands": [
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [0, 0, 0], "operation": "new", "body_name": "Hole15"}},
+    {"command": "solid.cylinder", "params": {"diameter": "1.5 mm", "height": "12 mm", "base": [10, 10, -1], "axis": "Z", "operation": "cut", "targets": ["Hole15"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [40, 0, 0], "operation": "new", "body_name": "Hole19"}},
+    {"command": "solid.cylinder", "params": {"diameter": "1.9 mm", "height": "12 mm", "base": [50, 10, -1], "axis": "Z", "operation": "cut", "targets": ["Hole19"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [80, 0, 0], "operation": "new", "body_name": "Hole20"}},
+    {"command": "solid.cylinder", "params": {"diameter": "2 mm", "height": "12 mm", "base": [90, 10, -1], "axis": "Z", "operation": "cut", "targets": ["Hole20"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [120, 0, 0], "operation": "new", "body_name": "HoleLying10"}},
+    {"command": "solid.cylinder", "params": {"diameter": "1 mm", "height": "22 mm", "base": [130, -1, 5], "axis": "Y", "operation": "cut", "targets": ["HoleLying10"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [160, 0, 0], "operation": "new", "body_name": "HoleBlind15"}},
+    {"command": "solid.cylinder", "params": {"diameter": "1.5 mm", "height": "5 mm", "base": [170, 10, 6], "axis": "Z", "operation": "cut", "targets": ["HoleBlind15"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [200, 0, 0], "operation": "new", "body_name": "Breakout15"}},
+    {"command": "solid.cylinder", "params": {"diameter": "1.5 mm", "height": "12 mm", "base": [200.3, 10, -1], "axis": "Z", "operation": "cut", "targets": ["Breakout15"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 5, "corner": [0, 40, 0], "operation": "new", "body_name": "InnerFillet05"}},
+    {"command": "solid.box", "params": {"length": 5, "width": 20, "height": 15, "corner": [0, 40, 5], "operation": "join", "targets": ["InnerFillet05"]}},
+    {"command": "solid.fillet", "params": {"edges": [[5, 50, 5]], "radius": "0.5 mm", "body": "InnerFillet05"}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 2, "corner": [40, 40, 0], "operation": "new", "body_name": "Pin15"}},
+    {"command": "solid.cylinder", "params": {"diameter": "1.5 mm", "height": "6 mm", "base": [50, 50, 2], "axis": "Z", "operation": "join", "targets": ["Pin15"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [80, 40, 0], "operation": "new", "body_name": "Slot02"}},
+    {"command": "solid.box", "params": {"length": 0.2, "width": 12, "height": 12, "corner": [89.9, 44, -1], "operation": "cut", "targets": ["Slot02"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [120, 40, 0], "operation": "new", "body_name": "Slot03"}},
+    {"command": "solid.box", "params": {"length": 0.3, "width": 12, "height": 12, "corner": [129.85, 44, -1], "operation": "cut", "targets": ["Slot03"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [160, 40, 0], "operation": "new", "body_name": "Slot05"}},
+    {"command": "solid.box", "params": {"length": 0.5, "width": 12, "height": 12, "corner": [169.75, 44, -1], "operation": "cut", "targets": ["Slot05"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [200, 40, 0], "operation": "new", "body_name": "SlotBlind02"}},
+    {"command": "solid.box", "params": {"length": 0.2, "width": 12, "height": 6, "corner": [209.9, 44, 5], "operation": "cut", "targets": ["SlotBlind02"]}}
+  ]
+}

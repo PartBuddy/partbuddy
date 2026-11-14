@@ -1129,6 +1129,17 @@ export const designRulesSchema = z
 export type DesignRules = z.infer<typeof designRulesSchema>;
 export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true, details: true, snap: true, economy: true };
 
+/**
+ * The print check's hints of audit BC-24 (Manuel, 2026-11-13): yellow only, never a block, each turned off here on its own;
+ * on unless turned off. The names are `PrintHint` of the geometry package.
+ */
+export const PRINT_HINTS = ['smallHole', 'narrowGap'] as const;
+const HINTS_ON = { smallHole: true, narrowGap: true };
+// Not strict, and each value falls back to on: a hint of a newer or older PartBuddy must not lose the printers and materials (BC-24 review).
+export const printHintsSchema = z.object({ smallHole: z.boolean().catch(true).default(true), narrowGap: z.boolean().catch(true).default(true) }).catch(HINTS_ON);
+export type PrintHints = z.infer<typeof printHintsSchema>;
+export const HINT_DEFAULTS: PrintHints = HINTS_ON;
+
 export const printSettingsSchema = z
   .object({
     version: z.literal(1),
@@ -1140,6 +1151,8 @@ export const printSettingsSchema = z
     material: profileId,
     /** The design rules the assistant applies on its own (decided 2026-11-07); every group on unless turned off. */
     design: designRulesSchema.default(DESIGN_DEFAULTS),
+    /** The print check's hints (BC-24); missing in files saved before, so every one is on. */
+    hints: printHintsSchema.default(HINT_DEFAULTS),
   })
   .strict()
   .refine((settings) => settings.printers.some((printer) => printer.id === settings.printer), 'the printer in use must exist')
@@ -1175,6 +1188,8 @@ export const partPrintSchema = z
     chosen: z.boolean(),
     /** The design rule groups in force for this part: the project's choice over the setting. */
     design: designRulesSchema,
+    /** The print check's hints in force (BC-24): the setting; every one on where left out. */
+    hints: printHintsSchema.optional(),
   })
   .strict();
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();
@@ -1194,6 +1209,8 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, floor: z.boolean(), layers: finite.positive().max(1000).optional(), thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('overhang'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('roundBedEdge'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('smallHole'), severity: findingSeveritySchema, holes: z.number().int().positive().max(100_000), diameter: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('narrowGap'), severity: findingSeveritySchema, gap: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), bodies: z.number().int().positive().max(100_000), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
@@ -1222,6 +1239,8 @@ export const printCheckReportSchema = z
     unmeasured: z.array(z.enum(['clearance', 'joints'])).max(2).optional(),
     /** Mesh bodies whose clearance SolidCraft does not measure: the check says nothing of them until they are converted to faces. */
     unchecked: z.array(bodyName).max(40).optional(),
+    /** The hints turned off in the print settings (BC-24): not looked for, so the note does not claim them. */
+    off: z.array(z.enum(PRINT_HINTS)).max(PRINT_HINTS.length).optional(),
     /**
      * Per printed body, as it lies on the bed: solid volume and the shell estimate in mm³ (two wall lines on every
      * surface, 15 % infill inside), height in mm and its layers, mm² of surface, on the bed and leaning past the
