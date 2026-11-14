@@ -44,6 +44,12 @@
     {"command": "solid.chamfer", "params": {"edges": [[140, 90, 0]], "distance": "0.6 mm", "body": "ChamferDisc"}},
     {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [160, 80, 0], "operation": "new", "body_name": "HoleFillet1"}},
     {"command": "solid.cylinder", "params": {"diameter": "8 mm", "height": "10 mm", "base": [170, 90, 0], "axis": "Z", "operation": "cut", "targets": ["HoleFillet1"]}},
-    {"command": "solid.fillet", "params": {"edges": [[174, 90, 0]], "radius": "1 mm", "body": "HoleFillet1"}}
+    {"command": "solid.fillet", "params": {"edges": [[174, 90, 0]], "radius": "1 mm", "body": "HoleFillet1"}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [0, 120, 0], "operation": "new", "body_name": "GrooveBed08"}},
+    {"command": "solid.cylinder", "params": {"diameter": "1.6 mm", "height": "22 mm", "base": [10, 119, 0], "axis": "Y", "operation": "cut", "targets": ["GrooveBed08"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [40, 120, 0], "operation": "new", "body_name": "GrooveBed10"}},
+    {"command": "solid.cylinder", "params": {"diameter": "2 mm", "height": "22 mm", "base": [50, 119, 0], "axis": "Y", "operation": "cut", "targets": ["GrooveBed10"]}},
+    {"command": "solid.box", "params": {"length": 20, "width": 20, "height": 10, "corner": [80, 120, 0], "operation": "new", "body_name": "GrooveBed15"}},
+    {"command": "solid.cylinder", "params": {"diameter": "3 mm", "height": "22 mm", "base": [90, 119, 0], "axis": "Y", "operation": "cut", "targets": ["GrooveBed15"]}}
   ]
 }

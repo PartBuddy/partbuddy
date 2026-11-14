@@ -5,7 +5,8 @@ import type { FaceTable } from './faceTable';
 import { checkPrint, type PrintCheckBody, type PrintCheckProfile, type PrintFinding } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf } from './tagged3mf';
-import { posed } from './testShapes';
+import { lathe, posed, rawBody } from './testShapes';
+import { growth } from './testTiming';
 import { buildViewerModel } from './viewerModel';
 
 /**
@@ -80,7 +81,7 @@ describe('rounded bed edges (BC-27)', () => {
       } else {
         expect(round, what).toMatchObject({ severity: 'warn', limit: overhang });
         expect(Math.abs((round?.area ?? 0) - want), `${what}: ${String(round?.area)} mm²`).toBeLessThanOrEqual(want * 0.1);
-        expect(round?.places[0]?.faces.length, what).toBeGreaterThan(0);
+        expect(round?.places[0]?.faces.every((face) => face.includes('blend')), what).toBe(true);
       }
     }
   }, 60_000);
@@ -91,6 +92,34 @@ describe('rounded bed edges (BC-27)', () => {
       for (const overhang of [45, 40]) expect(one(checkPrint([solidcraft('holes', name)], { ...PLA, overhang }).findings, 'roundBedEdge'), `${name} at ${String(overhang)}°`).toBeUndefined();
     }
   }, 60_000);
+
+  it('takes no half-round groove in the bed face for a rounded bed edge: it bends the other way (follow-up review)', () => {
+    // Radius 0.8, 1 and 1.5 mm, cut along the bed: it starts on the bed beside the bottom, runs flat at its top and leans
+    // past the limit, so only the direction test leaves it out (the other way round it said 63 to 118 mm²).
+    for (const name of ['GrooveBed08', 'GrooveBed10', 'GrooveBed15']) {
+      const body = solidcraft('edges', name);
+      for (const place of PLACES) {
+        for (const overhang of [45, 40]) expect(one(checkPrint([posed(body, place.turn, place.mirrored, place.lift)], { ...PLA, overhang }).findings, 'roundBedEdge'), `${name} at ${String(overhang)}° ${JSON.stringify(place)}`).toBeUndefined();
+      }
+    }
+  }, 60_000);
+
+  it('looks round the facets of a curved face only where no overhang is told: a flattened dome grows linearly (follow-up review)', () => {
+    // A dome flattened to half its height, cut below its equator: all one face beside the bed, its foot past 65°, and told
+    // as an overhang. 16 times the triangles take about 7 times as long; with every facet looking round the whole face,
+    // about 41 times (measured 2026-11-14).
+    const dome = (n: number) => {
+      const from = -Math.asin(0.8);
+      const arc = Array.from({ length: n / 2 + 1 }, (_, i): [number, number] => {
+        const angle = from + ((Math.PI / 2 - from) * i) / (n / 2);
+        return [Math.max(20 * Math.cos(angle), 0), 8 + 10 * Math.sin(angle)];
+      });
+      return rawBody('Dome', lathe([[0, 0], ...arc], n));
+    };
+    const [small, large] = [dome(48), dome(192)];
+    expect(one(checkPrint([large], PLA).findings, 'overhang')).toBeDefined();
+    expect(growth((body) => checkPrint([body], PLA), small, large)).toBeLessThan(20);
+  }, 120_000);
 });
 
 describe("PartBuddy's templates (BC-27 review B1)", () => {

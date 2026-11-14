@@ -834,7 +834,8 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       for (const { face, area, corners, lying } of leaning) {
         const { normal, centroid } = lying;
         const own = faceCorners.get(face) ?? [];
-        if (!besideBed[face] || !flatFoot[face] || !normal) continue;
+        // A face told as an overhang is left out below anyway: no need to look round its every facet (quadratic in its size).
+        if (!besideBed[face] || !flatFoot[face] || !normal || (map.supportByFace[face] ?? 0) >= MIN_AREA) continue;
         let reach = 0;
         for (let k = 0; k < 9; k += 3) reach = Math.max(reach, centroid.distanceTo(new Vector3(lying.corners[k], lying.corners[k + 1], lying.corners[k + 2])));
         // Three times the way from the middle to the farthest corner: the neighbours across each edge of the facet count.
