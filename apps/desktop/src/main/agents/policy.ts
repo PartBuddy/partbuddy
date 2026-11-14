@@ -283,6 +283,7 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
   if (!COMMAND_GROUPS.has(group) && !GROUP_EXCEPTIONS.has(command)) {
     return refuse(`${command} ${entryOf(GROUP_REASONS, group) ?? 'is not available in PartBuddy. Continue with the modelling and inspection commands.'}`);
   }
+  // shortcut: construct.plane, construct.axis and construct.point run the first construct.* command of their family that takes the refs, which this check never sees, so a construct.* command a later SolidCraft adds is reachable through them until it is on the list; look at those three when the contract test names a new construct id.
   if (!KNOWN_COMMANDS.has(command)) return refuse(uncheckedCommand(command, group));
   if (METADATA_WRITES.has(command) && metadataKeys(params).some((key) => key.toLowerCase().startsWith(METADATA_PREFIX))) {
     return refuse(
@@ -343,18 +344,20 @@ const CLOSEST_COMMANDS = 20;
  */
 function uncheckedCommand(command: string, group: string): string {
   const known = [...KNOWN_COMMANDS].filter((id) => id.startsWith(`${group}.`) && !Object.hasOwn(REFUSED_COMMANDS, id) && !Object.hasOwn(CHECKED_WAYS, id));
-  // The closest by name first: the longest shared start, then the fewest edits.
+  // The closest by name first: the longest shared start, then the fewest edits. Compared on the first 64 signs (the
+  // longest id of SolidCraft 0.41.0 has 41), so an id of any length costs no more than a short one on the main thread.
+  const name = command.slice(0, 64);
   const shared = (id: string): number => {
     let length = 0;
-    while (length < id.length && id[length] === command[length]) length++;
+    while (length < id.length && id[length] === name[length]) length++;
     return length;
   };
-  const closest = known.map((id) => ({ id, start: shared(id), edits: editDistance(id, command) })).sort((a, b) => b.start - a.start || a.edits - b.edits);
+  const closest = known.map((id) => ({ id, start: shared(id), edits: editDistance(id, name) })).sort((a, b) => b.start - a.start || a.edits - b.edits);
   const named = closest.slice(0, CLOSEST_COMMANDS).map(({ id }) => id);
   const rest = known.length > named.length ? `; list_commands {"prefix": "${group}."} lists the rest` : '';
   return (
     `${command} is not checked by PartBuddy yet: PartBuddy knows the commands up to SolidCraft ${KNOWN_COMMANDS_VERSION}, and this one is misspelt or newer. ` +
-    `Use a ${group} command it knows, such as ${named.join(', ')}${rest}. If none of them does what you need, tell the user what is missing.`
+    `Use ${/^[aeiou]/.test(group) ? 'an' : 'a'} ${group} command it knows, such as ${named.join(', ')}${rest}. If none of them does what you need, tell the user what is missing.`
   );
 }
 

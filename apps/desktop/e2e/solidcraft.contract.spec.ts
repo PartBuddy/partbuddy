@@ -2,9 +2,9 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
 import { execFileSync } from 'node:child_process';
-import { dirname, join } from 'node:path';
 
 import { COMMAND_GROUPS, GROUP_EXCEPTIONS, KNOWN_COMMANDS, KNOWN_COMMANDS_VERSION } from '../src/main/agents/knownCommands';
+import { cliBeside, findExecutable, systemEnvironment } from '../src/main/solidcraft/discovery';
 import { launchApp } from './launch';
 
 /**
@@ -40,7 +40,10 @@ function countProcesses(image: string): number {
 test.skip(process.env.PARTBUDDY_E2E_SOLIDCRAFT !== '1', 'needs SolidCraft; set PARTBUDDY_E2E_SOLIDCRAFT=1');
 
 test('knows every command of the allowed groups of the installed SolidCraft (BC-26, audit S-03)', () => {
-  const cli = join(dirname(process.env.PARTBUDDY_SOLIDCRAFT_EXE ?? 'C:\\Program Files\\SolidCraft\\solidcraft.exe'), 'solidcraft-cli.exe');
+  // The SolidCraft the app finds (PARTBUDDY_SOLIDCRAFT_EXE in CI, else the automatic search), and its CLI.
+  const executable = findExecutable(systemEnvironment);
+  expect(executable, 'SolidCraft is installed').not.toBeNull();
+  const cli = cliBeside(executable ?? '');
   // The catalogue list_commands reads from, with every command (list_commands pages it).
   const catalogue = JSON.parse(execFileSync(cli, ['commands'], { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 })) as { id: string }[];
   const allowed = catalogue.map(({ id }) => id.toLowerCase()).filter((id) => COMMAND_GROUPS.has(id.slice(0, id.indexOf('.'))) || GROUP_EXCEPTIONS.has(id));

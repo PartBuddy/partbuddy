@@ -434,6 +434,12 @@ describe('tool policy: raw commands PartBuddy builds itself are refused with the
     for (const refused of ['solid.hole', 'solid.thread', 'solid.scale']) expect(named('solid.hole_series'), refused).not.toContain(refused);
     expect(named('plastic.screw_boss').sort()).toEqual(['plastic.rest', 'plastic.rules']);
     expect(reasonOf('execute', { command: 'plastic.screw_boss', params: {} })).not.toContain('lists the rest');
+    expect(reasonOf('execute', { command: 'inspect.thing', params: {} })).toContain('Use an inspect command it knows');
+    expect(reasonOf('execute', { command: 'sketch.thing', params: {} })).toContain('Use a sketch command it knows');
+    // Review BC-26: an id of 100 000 signs took 2.3 s on the main thread; only its start is compared now.
+    const started = performance.now();
+    expect(reasonOf('execute', { command: `sketch.${'a'.repeat(100_000)}`, params: {} })).toContain('is not checked by PartBuddy yet');
+    expect(performance.now() - started).toBeLessThan(200);
     // An unknown group keeps its own reason, the ones SolidCraft 0.41.0 added among them.
     expect(reasonOf('execute', { command: 'file.export_all', params: {} })).toContain('reads or writes files');
     expect(reasonOf('execute', { command: 'file.import_cache_clear', params: {} })).toContain('reads or writes files or settings');

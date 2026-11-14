@@ -20,7 +20,9 @@ export const GROUP_EXCEPTIONS = new Set(['edit.undo', 'edit.redo', 'view.save', 
  * The engine commands PartBuddy has looked at (audit S-03, BC-26): every command of SolidCraft's catalogue
  * (`solidcraft-cli commands`, read on 2026-11-14) in the groups the policy allows, and the single commands it allows
  * from other groups ({@link COMMAND_GROUPS}, {@link GROUP_EXCEPTIONS}). The union of 0.40.1 (634 commands, the
- * minimum version) and 0.41.0 (642; it adds model.mesh, sketch.spline.handles and sketch.spline.reset_handles here).
+ * minimum version) and 0.41.0 (642). Comparing the two catalogues, 0.41.0 adds three ids in these groups (model.mesh,
+ * sketch.spline.handles, sketch.spline.reset_handles) and removes none; ids such as assembly.constraint.edit, missing
+ * in 0.40.0-rc.4, are already in 0.40.1.
  * A command a later SolidCraft adds to one of those groups is refused until someone has looked at it and added it
  * here; the contract test "knows every command of the allowed groups" names it. Which of these are refused is
  * policy.ts's business.
