@@ -2,8 +2,9 @@ import { IconPrinter, IconSettings } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { deriveEdges, meshMetrics, overhangFindings } from '@partbuddy/geometry';
+import { deriveEdges, meshMetrics } from '@partbuddy/geometry';
 import type { ModelState } from '../viewer/useModel';
+import { overhangFindings } from './overhangFindings';
 import { useStudio } from '../state/store';
 import { Badge, VerificationBadges, type Tone } from '../ui/Badge';
 import { Button } from '../ui/Button';

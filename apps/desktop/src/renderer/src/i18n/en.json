@@ -950,7 +950,7 @@
       "what": {
         "general": "Language, appearance, interface size, start behaviour, the update check and the project folder go back to the defaults. Another project folder applies after a restart.",
         "solidcraft": "PartBuddy finds SolidCraft itself again. This applies after a restart.",
-        "assistant": "Web research, designing without support, the design rules and model and effort per assistant go back to the defaults. Sign-ins stay.",
+        "assistant": "Web research, the design rules and model and effort per assistant go back to the defaults. Sign-ins stay.",
         "print": "Printers and materials go back to the starting profiles; your own profiles are removed. The assistant's design rules stay.",
         "all": "All settings go back to the defaults. Printer and material profiles, projects and sign-ins stay."
       }
@@ -1040,8 +1040,6 @@
     "fitsOlderComb": "These clearances were read off the older fit comb, drilled without the hole allowance: PartBuddy's blocks and mechanisms now add the allowance on top, so they come out too loose. Read the fits again with the tolerance assistant.",
     "fitOrderUnsaved": "The clearances of {name} do not grow from clamp to turn. Until they do the last saved profiles stay.",
     "saveFailed": "The profiles could not be saved.",
-    "supportFree": "Design without support",
-    "supportFreeHint": "The assistant chamfers edges facing the bed instead of rounding them, gives wide lying holes a teardrop roof and bridges countersinks that open downwards, so the slicer needs no support.",
     "cancel": "Cancel",
     "design": {
       "title": "Design well on its own",
@@ -1173,11 +1171,12 @@
       "wallThin": "Walls only {thickness} mm, at least {minimum} mm (two lines)",
       "floorTooThin": "Floors or lids only {thickness} mm, thinner than one layer: they do not print",
       "floorThin": "Floors or lids only {thickness} mm, at least {minimum} mm{layers, select, none {} other { ({layers} layers)}}",
-      "overhang": "{area} mm² lean beyond {limit}°: the slicer decides whether they need support",
+      "overhang": "{area} mm² lean beyond {limit}°: they need support",
       "contact": "{count, plural, one {Only {area} mm² of {bodies} lie on the bed for its height: it may come loose or tip over – a brim holds it} other {# bodies have little on the bed for their height ({bodies}), the least {area} mm²: they may come loose or tip over – a brim holds them}}",
       "suppressed": "{count, plural, one {{features} is suppressed} other {{features}{more, plural, =0 {} one { and one more} other { and # more}} are suppressed}}: not in the part as checked and exported",
       "rolledBack": "The timeline is rolled back: {features}{more, plural, =0 {} one { and one more} other { and # more}} {count, plural, one {is} other {are}} not in the part as checked and exported",
       "open": "{count, plural, one {{bodies} is no closed solid} other {{bodies} are no closed solids}}: an open surface without volume does not print",
+      "faceLost": "{count, plural, one {The print face of {bodies} is no flat face of it any more} other {The print faces of {bodies} are no flat faces of them any more}} (renamed or changed): {count, plural, one {checked without it. Set it again} other {checked without them. Set them again}} where the part should lie.",
       "separate": "{bodies} touch but are separate bodies: the slicer lays each on the bed by itself. Combine them if they are one part.",
       "fused": "{bodies} print as one piece and touch: they fuse there, and the mechanism between them does not move. Leave a gap there.",
       "feature": "{feature}: {message}",

@@ -10,7 +10,7 @@ import type { ViewerModel } from './viewerModel';
  * TypeScript on the mirrored render meshes, no sidecar. It checks what only the design decides:
  * whether the part fits the printer, walls the nozzle cannot print, bodies that touch, how much of
  * the part lies on the bed, bodies that are no closed solid, and features SolidCraft could not build. Overhangs are a hint by angle
- * only (yellow, never red): whether something needs support, and how, is the slicer's job; small
+ * only (yellow, never red): a part with support prints, and how the support is built is the slicer's job; small
  * ones that hang from the material below, as the slicers ignore them, and ceilings the printer
  * bridges are left out.
  * The part is checked as designed, Z up, or lying on its print face where SolidCraft has one for the
@@ -84,6 +84,8 @@ export type PrintFinding =
   | { kind: 'fused'; severity: FindingSeverity; bodies: string[] }
   /** Bodies that are open shells (SolidCraft's surface bodies): no solid to print. */
   | { kind: 'open'; severity: FindingSeverity; bodies: string[] }
+  /** Bodies whose print face is no flat face of them any more (renamed or changed since it was set): checked without it (audit H-29). */
+  | { kind: 'faceLost'; severity: FindingSeverity; bodies: string[] }
   | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string }
   /** Two bodies share volume: as separate parts they do not go together (F2, SolidCraft's measure). */
   | ({ kind: 'overlap'; severity: FindingSeverity; bodies: [string, string]; volume: number } & Located)
@@ -216,9 +218,14 @@ function triangle(positions: ArrayLike<number>, index: ArrayLike<number>, t: num
   };
 }
 
-/** The direction that points at the bed as the body lies: the normal of its print face, if it has a flat one. */
+/**
+ * The direction that points at the bed as the body lies: the normal of its print face, if it has a flat one. A face a cut
+ * split is named `F1:+z#[…]` per piece until the next save renames the stored face; the pieces share its normal, so the
+ * body lies on them (as `resolvePrintFaces` takes them).
+ */
 function printDown({ model, printFace }: PrintCheckBody): Vector3 | undefined {
-  const down = printFace ? model.table.faces.find((face) => face.name === printFace)?.planeNormal : undefined;
+  const flat = printFace ? model.table.faces.filter((face) => face.planeNormal) : [];
+  const down = (flat.find((face) => face.name === printFace) ?? flat.find((face) => face.name.startsWith(`${printFace ?? ''}#`)))?.planeNormal;
   return down ? new Vector3(...down).normalize() : undefined;
 }
 
@@ -697,6 +704,11 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
   // A model that carries no count is taken as closed, not dropped from the check.
   const parts = shells.filter((body) => !(body.model.openEdges > 0));
   if (parts.length > 0) {
+    // A print face that is gone leaves the body as designed: said, not done silently (audit H-29).
+    // shortcut: a face kept under a body's old name is not found for the renamed body (no finding until a save brings
+    // SolidCraft's faces, PrintFaceKeeper.takeSaved); pass the kept faces of bodies that are gone if that must be said.
+    const lost = parts.filter((body) => body.printFace && !printDown(body)).map((body) => body.name);
+    if (lost.length > 0) findings.push({ kind: 'faceLost', severity: 'warn', bodies: lost });
     const meshes = laidBodies(parts);
     // Each piece against the plate by itself: the slicer places every one, on more plates if need be.
     parts.forEach((_, b) => {
@@ -837,6 +849,8 @@ export function withClearance(check: PrintCheck, measured: MeasuredClearance, pu
   const findings: PrintFinding[] = [...check.findings];
   for (const overlap of measured.overlaps) {
     if (overlap.volume < MIN_OVERLAP) continue;
+    // shortcut: an overlap stays a warning the assistant must fix or name (audit H-12); between bodies a joint moves or an
+    // assembly step puts together it should block, which needs the joints' bodies and the assembly order passed in here.
     findings.push({ kind: 'overlap', severity: 'warn', bodies: [overlap.a, overlap.b], volume: round(overlap.volume), places: [], box: overlap.box });
   }
   for (const near of measured.near) {

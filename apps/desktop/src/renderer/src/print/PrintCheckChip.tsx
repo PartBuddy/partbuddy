@@ -46,6 +46,8 @@ export function useFindingText(): (finding: PrintFinding) => string {
       }
       case 'open':
         return t('check.finding.open', { count: finding.bodies.length, bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
+      case 'faceLost':
+        return t('check.finding.faceLost', { count: finding.bodies.length, bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
       case 'separate':
         return t('check.finding.separate', { bodies: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(finding.bodies) });
       case 'fused':

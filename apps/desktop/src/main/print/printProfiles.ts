@@ -65,7 +65,6 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
     catalogMaterial('tpu', 'TPU 95A'),
   ],
   material: 'pla',
-  supportFree: true,
   design: DESIGN_DEFAULTS,
 };
 
@@ -91,16 +90,22 @@ export interface PrintProfilesOptions {
   printerName?: () => string;
 }
 
-/** Profiles saved before plan step R2 carry the outer growth from measuring; it is dropped when read. */
-function withoutOuterGrowth(stored: unknown): unknown {
-  if (typeof stored !== 'object' || stored === null || !Array.isArray((stored as { materials?: unknown }).materials)) return stored;
-  const materials = (stored as { materials: unknown[] }).materials.map((item) => {
+/**
+ * Profiles saved before plan step R2 carry the outer growth from measuring, and before 2026-11-14 the setting "Design without
+ * support" (its rules now always apply, Manuel's decision on audit BC-19); both are dropped when read, so the file still opens.
+ */
+function withoutRetired(stored: unknown): unknown {
+  if (typeof stored !== 'object' || stored === null) return stored;
+  const kept: Record<string, unknown> = { ...(stored as Record<string, unknown>) };
+  delete kept.supportFree;
+  if (!Array.isArray(kept.materials)) return kept;
+  const materials = (kept.materials as unknown[]).map((item) => {
     if (typeof item !== 'object' || item === null) return item;
     const rest: Record<string, unknown> = { ...(item as Record<string, unknown>) };
     delete rest.outerGrowth;
     return rest;
   });
-  return { ...stored, materials };
+  return { ...kept, materials };
 }
 
 /**
@@ -132,7 +137,7 @@ export class PrintProfiles {
   settings(): PrintSettings {
     if (!existsSync(this.options.file)) return this.defaults();
     try {
-      const parsed = printSettingsSchema.safeParse(withoutOuterGrowth(JSON.parse(readFileSync(this.options.file, 'utf8'))));
+      const parsed = printSettingsSchema.safeParse(withoutRetired(JSON.parse(readFileSync(this.options.file, 'utf8'))));
       if (parsed.success) return this.translated(parsed.data);
       this.options.log('the print profiles do not match their format; the starting values are used');
     } catch (error) {
@@ -143,8 +148,8 @@ export class PrintProfiles {
 
   /** Printers and materials back to the starting ones; the assistant's design rules stay (audit A-23). */
   startingProfiles(): PrintSettings {
-    const { supportFree, design } = this.settings();
-    return { ...this.defaults(), supportFree, design };
+    const { design } = this.settings();
+    return { ...this.defaults(), design };
   }
 
   save(settings: PrintSettings): PrintSettings {
@@ -165,7 +170,6 @@ export class PrintProfiles {
       printer,
       material: chosen ?? fallback,
       chosen: chosen !== undefined,
-      supportFree: settings.supportFree,
       // The project's choice in the chat goes before the setting, the setting before the default.
       design: { ...settings.design, ...own.design },
     };
@@ -245,12 +249,14 @@ const MOVING_GAP = printInPlaceGap({ nozzle: 0, layer: 0 });
  * teardrop holes). Bridges over counterbores facing the bed are left to the slicer, which builds
  * them itself (plan step R1). The spans are the print check's own (audit T25, D18).
  */
-function supportFreeLines(overhang: number, nozzle: number): string[] {
+function withoutSupportLines(overhang: number, nozzle: number): string[] {
+  // The material's angle where it prints less than 45° (PETG 40°, TPU 35°), so a chamfer or roof built to these rules is no overhang itself.
+  const lean = `leaning at most ${String(Math.min(45, overhang))}° from the vertical`;
   return [
-    'Design it to print without support as designed, standing on its lowest point (the user\'s setting); where that cannot be done, say so and why:',
-    `- Edges that face down towards the bed: chamfer them at 45° instead of filleting (the bottom of a fillet ends flat; Prusa); fillets that face up or sideways are fine.`,
-    `- Holes lying across the layers: up to ${String(LYING_HOLE)} mm across they print round without support (MakerVerse); wider ones get a teardrop roof (45° to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
-    `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged (UltiMaker; Hubs names 5 mm for a bridge that does not sag at all), and ledges reaching out at most ${mm(smallLedge(nozzle))} (four lines) from the material below are left without support (OrcaSlicer); the print check counts both the same way. Anything wider gets a 45° slope underneath, or say which side the part should rather stand on.`,
+    'Design it to print without support wherever the shape allows, as designed or on the print face you set; where it cannot, tell the user which faces need support and why:',
+    `- Edges that face down towards the bed: where you would round them, chamfer them instead, ${lean} (the bottom of a fillet ends flat; Prusa); fillets that face up or sideways are fine.`,
+    `- Holes lying across the layers: up to ${String(LYING_HOLE)} mm across they print round without support (MakerVerse); wider ones get a teardrop roof (its sides ${lean} up to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
+    `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged (UltiMaker; Hubs names 5 mm for a bridge that does not sag at all), and ledges reaching out at most ${mm(smallLedge(nozzle))} (four lines) from the material below are left without support (OrcaSlicer); the print check counts both the same way. Anything wider gets a slope underneath, ${lean}, or say which side the part should rather stand on.`,
     'Model these as their own features with parameters (layer height, roof angle) and name them when you report.',
   ];
 }
@@ -332,7 +338,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
   return lines;
 }
 
-export function printNote({ printer, material: used, supportFree, design }: PartPrint): string {
+export function printNote({ printer, material: used, design }: PartPrint): string {
   const name = (text: string) => JSON.stringify(text.slice(0, 60));
   const [x, y, z] = printer.bed;
   const fit = (value: number) => mm(scaleClearance(value, printer, used.measuredNozzle));
@@ -343,7 +349,7 @@ export function printNote({ printer, material: used, supportFree, design }: Part
     `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter, a guide value for holes of ${String(HOLE_SIZES[0])} to ${String(LARGEST_HOLE)} mm that the hole plate of the tolerance pieces measures on this printer; larger ones shrink more, about ${mm(holeAllowance(used.holeShrink, COMPENSATED_CIRCLE))} at ${String(COMPENSATED_CIRCLE)} mm, growing evenly in between (shrinkage is a share of the size).`,
     `Clearance per side between mating parts, for this nozzle (${used.measuredNozzle === undefined ? 'not measured with the tolerance pieces' : 'measured with the tolerance pieces'}): clamp ${fit(clamp)}, push ${fit(push)}, slide ${fit(slide)}, turn ${fit(turn)}.`,
     'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed; the check and the slicer then lay it on that face.',
-    ...(supportFree ? supportFreeLines(used.overhang, printer.nozzle) : []),
+    ...withoutSupportLines(used.overhang, printer.nozzle),
     ...designLines(design, printer, used),
     `Keep nominal sizes as parameters, add the clearance and the hole allowance as their own parameters where you model a fit yourself (${BLOCK_TOOL} and ${MECHANISM_TOOL} add them), and say which fit you chose.]`,
   ].join('\n');

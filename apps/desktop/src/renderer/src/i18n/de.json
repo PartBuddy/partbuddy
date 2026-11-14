@@ -950,7 +950,7 @@
       "what": {
         "general": "Sprache, Darstellung, Oberflächengröße, Startverhalten, Update-Suche und Projektordner kommen auf die Standardwerte zurück. Ein anderer Projektordner gilt nach einem Neustart.",
         "solidcraft": "PartBuddy sucht SolidCraft wieder selbst. Das gilt nach einem Neustart.",
-        "assistant": "Web-Recherche, stützfreies Konstruieren, die Konstruktionsregeln sowie Modell und Aufwand je Assistent kommen auf die Standardwerte zurück. Anmeldungen bleiben.",
+        "assistant": "Web-Recherche, die Konstruktionsregeln sowie Modell und Aufwand je Assistent kommen auf die Standardwerte zurück. Anmeldungen bleiben.",
         "print": "Drucker und Materialien kommen auf die Startprofile zurück; eigene Profile werden entfernt. Die Konstruktionsregeln des Assistenten bleiben.",
         "all": "Alle Einstellungen kommen auf die Standardwerte zurück. Drucker- und Materialprofile, Projekte und Anmeldungen bleiben."
       }
@@ -1039,8 +1039,6 @@
     "fitOrder": "Die Spiele müssen von Klemmen bis Drehen wachsen.",
     "fitsOlderComb": "Diese Spiele wurden am älteren Passungskamm abgelesen, der ohne Lochaufmaß gebohrt war: PartBuddys Bausteine und Mechaniken geben das Aufmaß jetzt dazu, sie fallen so zu locker aus. Lies die Passungen mit dem Toleranz-Assistenten neu ab.",
     "fitOrderUnsaved": "Bei {name} wachsen die Spiele nicht von Klemmen bis Drehen. Bis dahin bleibt der zuletzt gespeicherte Stand.",
-    "supportFree": "Stützfrei konstruieren",
-    "supportFreeHint": "Der Assistent gibt Kanten zum Druckbett eine Fase statt einer Rundung, gibt breiten liegenden Bohrungen ein Tropfendach und überbrückt Senkungen, die nach unten zeigen. So braucht der Slicer keine Stützen.",
     "saveFailed": "Die Profile konnten nicht gespeichert werden.",
     "cancel": "Abbrechen",
     "design": {
@@ -1173,11 +1171,12 @@
       "wallThin": "Wände nur {thickness} mm, mindestens {minimum} mm (zwei Linien)",
       "floorTooThin": "Böden oder Deckel nur {thickness} mm, dünner als eine Schicht: werden nicht gedruckt",
       "floorThin": "Böden oder Deckel nur {thickness} mm, mindestens {minimum} mm{layers, select, none {} other { ({layers} Schichten)}}",
-      "overhang": "{area} mm² neigen sich über {limit}°: Ob sie Stütze brauchen, entscheidet der Slicer",
+      "overhang": "{area} mm² neigen sich über {limit}°: Sie brauchen Stützen",
       "contact": "{count, plural, one {Nur {area} mm² von {bodies} liegen auf dem Druckbett, zu wenig für die Höhe: kann sich lösen oder kippen – ein Brim hält es} other {# Körper liegen für ihre Höhe kaum auf dem Druckbett ({bodies}), am wenigsten {area} mm²: können sich lösen oder kippen – ein Brim hält sie}}",
       "suppressed": "{count, plural, one {{features} ist unterdrückt} other {{features}{more, plural, =0 {} one { und eins mehr} other { und # weitere}} sind unterdrückt}}: nicht im geprüften und exportierten Teil",
       "rolledBack": "Der Verlauf ist zurückgesetzt: {features}{more, plural, =0 {} one { und eins mehr} other { und # weitere}} {count, plural, one {fehlt} other {fehlen}} im geprüften und exportierten Teil",
       "open": "{count, plural, one {{bodies} ist kein geschlossener Körper} other {{bodies} sind keine geschlossenen Körper}}: eine offene Fläche ohne Volumen wird nicht gedruckt",
+      "faceLost": "{count, plural, one {Die Druckfläche von {bodies} ist keine ebene Fläche des Körpers mehr} other {Die Druckflächen von {bodies} sind keine ebenen Flächen der Körper mehr}} (umbenannt oder geändert): ohne sie geprüft. Leg sie dort neu fest, wo das Teil liegen soll.",
       "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",
       "fused": "{bodies} werden in einem Stück gedruckt und berühren sich: Dort verschmelzen sie, und der Mechanismus zwischen ihnen bewegt sich nicht. Lass dort einen Spalt.",
       "feature": "{feature}: {message}",

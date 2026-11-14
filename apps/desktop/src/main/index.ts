@@ -823,7 +823,7 @@ if (!app.requestSingleInstanceLock()) {
       }
       if (section === 'assistant' || section === 'all') {
         settingsStore.reset(RESET_KEYS.assistant);
-        printProfiles.save({ ...printProfiles.settings(), supportFree: true, design: DESIGN_DEFAULTS });
+        printProfiles.save({ ...printProfiles.settings(), design: DESIGN_DEFAULTS });
         changed();
       }
       if (section === 'solidcraft' || section === 'all') await engineChoice.choose(null);

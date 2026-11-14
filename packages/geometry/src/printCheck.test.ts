@@ -141,8 +141,34 @@ describe('the ready-to-print check (M7)', () => {
     // By angle only: the whole ceiling, without guessing what the slicer bridges or grows from the leg.
     expect(table.findings.find((f) => f.kind === 'overhang')).toMatchObject({ severity: 'warn', limit: 45, area: 400, places: [{ body: 'Table', faces: ['F2:-z'] }] });
     expect(table.findings.find((f) => f.kind === 'contact')).toMatchObject({ area: 4, places: [{ body: 'Table', faces: ['F1:-z'] }] });
-    // An overhang never makes the light red.
+    // An overhang never makes the light red: it prints with support (Manuel 2026-11-14, audit R55).
     expect(table.findings.every((f) => f.severity !== 'block')).toBe(true);
+  });
+
+  it('needs support from just past the limit it names, not a degree past it (audit D19, MG-22)', () => {
+    // A bar with its two lower edges chamfered 3 mm up at `deg` from the vertical.
+    const bar = (deg: number) => {
+      const run = 3 * Math.tan((deg * Math.PI) / 180);
+      return checkPrint([prismBody('Bar', [[run, 0], [20 - run, 0], [20, 3], [20, 10], [0, 10], [0, 3]], 40)], PLA).findings.find((f) => f.kind === 'overhang');
+    };
+    expect(bar(45)).toBeUndefined();
+    expect(bar(45.05)).toBeUndefined();
+    expect(bar(45.2)).toMatchObject({ limit: 45, places: [{ body: 'Bar', faces: ['F1:s1', 'F1:s5'] }] });
+    // 45.9° passed with the 1° before.
+    expect(bar(45.9)).toMatchObject({ limit: 45 });
+    // The same either side of the limit however the bar lies: turned on the plate, mirrored, lifted (review S3).
+    const placed = (deg: number, turn: number, mirrored: boolean, lift: number) => {
+      const run = 3 * Math.tan((deg * Math.PI) / 180);
+      const body = posed(prismBody('Bar', [[run, 0], [20 - run, 0], [20, 3], [20, 10], [0, 10], [0, 3]], 40), turn, mirrored, lift);
+      return checkPrint([body], PLA).findings.find((f) => f.kind === 'overhang');
+    };
+    for (const turn of [1, 7.5, 15, 30, 45, 60, 75, 90]) {
+      for (const [mirrored, lift] of [[false, 0], [true, 0], [false, 7.3]] as const) {
+        const how = `turned ${String(turn)}°${mirrored ? ', mirrored' : ''}, ${String(lift)} mm up`;
+        expect(placed(45.05, turn, mirrored, lift), how).toBeUndefined();
+        expect(placed(45.2, turn, mirrored, lift), how).toMatchObject({ limit: 45 });
+      }
+    }
   });
 
   it('checks a body lying on its print face, and as designed when the face is not a flat one of the body', () => {
@@ -152,7 +178,13 @@ describe('the ready-to-print check (M7)', () => {
     const onTop = checkPrint([{ ...table, printFace: 'F2:+z' }], PLA).findings;
     expect(onTop.map((f) => f.kind)).toEqual(['overhang']);
     expect(onTop[0]).toMatchObject({ area: 4, places: [{ body: 'Table', faces: ['F1:+z'] }] });
-    expect(checkPrint([{ ...table, printFace: 'gone' }], PLA).findings.map((f) => f.kind)).toEqual(['overhang', 'contact']);
+    // A cut split the print face: until the next save the store holds the old name, the pieces carry it before "#".
+    const split = { ...table, model: { ...table.model, table: { ...table.model.table, faces: table.model.table.faces.map((face) => (face.name === 'F2:+z' ? { ...face, name: 'F2:+z#[F1:-x,F2:-x]' } : face)) } } };
+    expect(checkPrint([{ ...split, printFace: 'F2:+z' }], PLA).findings).toEqual(onTop);
+    // A print face that is gone is said, not passed over (audit H-29).
+    const gone = checkPrint([{ ...table, printFace: 'gone' }, { ...boxesBody('Block', [[[40, 0, 0], [60, 20, 10]]]), printFace: 'F1:-z' }, box('Plain', [80, 0, 0], [100, 20, 10])], PLA).findings;
+    expect(gone.map((f) => f.kind)).toEqual(['faceLost', 'overhang', 'contact']);
+    expect(gone[0]).toEqual({ kind: 'faceLost', severity: 'warn', bodies: ['Table'] });
     // On its side the finding still names the faces where they are in the design.
     const side = checkPrint([{ ...table, printFace: 'F2:+x' }], PLA).findings.find((f) => f.kind === 'overhang');
     expect(side && 'box' in side ? side.box?.max[2] : null).toBeLessThanOrEqual(12);

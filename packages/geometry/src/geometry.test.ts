@@ -5,7 +5,7 @@ import { BufferAttribute, BufferGeometry, Vector3 } from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { describe, expect, it } from 'vitest';
 
-import { meshMetrics, overhangFindings } from './analysis';
+import { meshMetrics } from './analysis';
 import { deriveEdges, edgeName } from './edges';
 import { diffFaces, isUnchanged } from './faceDiff';
 import { faceTableFromModelFaces, sameCylinder, type FaceTable } from './faceTable';
@@ -50,26 +50,6 @@ describe('face-tagged 3MF fixture', () => {
     const all = deriveEdges(mesh).edges.length;
     const filtered = deriveEdges(mesh, (a, b) => sameCylinder(table.faces[a]!, table.faces[b]!)).edges.length;
     expect(filtered).toBeLessThan(all);
-  });
-
-  it('finds no overhang above 60° in print orientation and ignores the bed face', () => {
-    expect(overhangFindings(mesh, 60)).toEqual([]);
-  });
-
-  it('finds the former top faces as overhangs when the part is printed upside down', () => {
-    const flipped = {
-      ...mesh,
-      positions: mesh.positions.map((value, i) => (i % 3 === 2 ? 20 - value : value)),
-      indices: mesh.indices.map((value, i) => {
-        const corner = i % 3;
-        if (corner === 1) return mesh.indices[i + 1]!;
-        if (corner === 2) return mesh.indices[i - 1]!;
-        return value;
-      }),
-    };
-    const names = overhangFindings(flipped, 60).map((f) => table.faces[f.face]!.name);
-    expect(names).toContain('F1:+z');
-    expect(names).not.toContain('F1:-z');
   });
 
   it('reads attributes in any order and fails on a triangle it cannot read, another unit or a moved item (audit D30)', () => {

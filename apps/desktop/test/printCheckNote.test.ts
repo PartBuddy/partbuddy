@@ -40,7 +40,7 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     expect(note).toContain('not ready to print');
     expect(note).toContain('body "Rod" is 300 × 20 × 20 mm, the printer takes 256 × 256 × 256 mm; it would fit lying on another side');
     expect(note).toContain('walls down to 0.3 mm, thinner than the narrowest line a slicer lays (0.42 mm with the 0.4 mm nozzle), so they do not print (faces "F1:+z", "F1:-z" of body "Plate")');
-    expect(note).toContain('120 mm² lean more than 45° from the vertical (faces "F3:-z" of body "Top"); the slicer decides whether they need support');
+    expect(note).toContain('120 mm² lean more than 45° from the vertical (faces "F3:-z" of body "Top"), so they need support');
     expect(note).toContain('feature "Shell1" reports "thin result"');
   });
 
@@ -59,6 +59,44 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     const report = reportOf({ status: 'block', findings: [{ kind: 'open', severity: 'block', bodies: ['Tube'] }] }, 0.4, 1);
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
     expect(printCheckNote(report)).toContain('blocks printing: body "Tube" is an open surface, not a closed solid');
+  });
+
+  it('says a print face that is gone, and how to set it again (audit H-29)', () => {
+    const report = reportOf({ status: 'warn', findings: [{ kind: 'faceLost', severity: 'warn', bodies: ['Lid', 'Box'] }] }, 0.4, 1);
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    expect(printCheckNote(report)).toContain('- warning: the print faces of bodies "Lid", "Box" are no flat faces of them any more (renamed or changed since they were set), so they are not checked lying on them');
+    expect(printCheckNote(report)).toContain('Set them again (body.print_face) where they should lie.');
+    // One body, in the singular (review K1).
+    const one = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'faceLost', severity: 'warn', bodies: ['Lid'] }] });
+    expect(one).toContain('- warning: the print face of body "Lid" is no flat face of it any more (renamed or changed since it was set), so it is not checked lying on it');
+    expect(one).toContain('Set it again (body.print_face) where it should lie.');
+  });
+
+  it('asks to reshape an overhang where it can, else to name its support, and never blocks for it (audit R55)', () => {
+    const overhang = { kind: 'overhang' as const, area: 400, limit: 45, places: [{ body: 'Table', faces: ['F2:-z'] }] };
+    const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ ...overhang, severity: 'warn' }] });
+    expect(note).toContain('prints, with warnings.');
+    expect(note).toContain('- warning: 400 mm² lean more than 45° from the vertical (faces "F2:-z" of body "Table"), so they need support: reshape them where you can (a slope within that angle, a teardrop roof, a chamfer, or another print face); where you cannot, tell the user which support they need there and why.');
+    expect(note).not.toContain('the slicer decides');
+  });
+
+  it('holds the model to fix or name parts that do not go together or move, not only what blocks (audit H-12)', () => {
+    const closing = 'Fix what blocks printing, and either fix or name to the user every warning about parts that overlap, are too tight, fuse or stop a joint, before you call the part done';
+    const fits = [
+      { kind: 'overlap' as const, severity: 'warn' as const, bodies: ['Case', 'Lid'] as [string, string], volume: 1, places: [] },
+      { kind: 'tight' as const, severity: 'warn' as const, bodies: ['Case', 'Clip'] as [string, string], gap: 0.1, minimum: 0.15, places: [] },
+      { kind: 'fused' as const, severity: 'warn' as const, bodies: ['Box', 'Lid'] },
+      { kind: 'blocked' as const, severity: 'warn' as const, joint: 'Hinge', bodies: ['Box', 'Lid'] as [string, string], at: 40, limit: 110, unit: 'deg' as const, places: [] },
+    ];
+    for (const finding of fits) {
+      const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [finding] });
+      expect(note, finding.kind).toContain('prints, but its parts may not go together or move as designed.');
+      expect(note, finding.kind).toContain(closing);
+    }
+    // Other warnings keep the plain verdict; the closing sentence stands with every finding.
+    const other = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [{ kind: 'separate', severity: 'warn', bodies: ['A', 'B'] }] });
+    expect(other).toContain('prints, with warnings.');
+    expect(other).toContain(closing);
   });
 
   it('says which features are left out of the part, not that they report something (review of PR 371, S3)', () => {
@@ -152,7 +190,7 @@ describe('clearance between parts as the assistant reads it (F2)', () => {
 
 describe('the gaps the check holds the parts to (audit D9, D10)', () => {
   const pla = { id: 'pla', name: 'PLA', overhang: 45, holeShrink: 0.2, clearance: { clamp: 0.05, push: 0.15, slide: 0.25, turn: 0.3 } };
-  const printer = (nozzle: number, layer = 0.2): PartPrint => ({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material: pla, chosen: true, supportFree: true, design: DESIGN_DEFAULTS });
+  const printer = (nozzle: number, layer = 0.2): PartPrint => ({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material: pla, chosen: true, design: DESIGN_DEFAULTS });
 
   it('takes the push fit scaled to the nozzle, the number the print profile gives the assistant', () => {
     // A finer nozzle keeps the 0.4 mm value (BC-14, audit MG-12: before 0.075 and 0.094).

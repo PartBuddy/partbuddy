@@ -20,7 +20,12 @@ export interface OverhangLimits {
 /** The limits without a print profile. */
 export const OVERHANG_LIMITS: OverhangLimits = { borderline: 35, support: 45 };
 
-/** The limits for a material (M7): support beyond its overhang angle, borderline 10° before. */
+/**
+ * The limits for a material (M7): support beyond its overhang angle, borderline 10° before.
+ * shortcut: the angle is the material's alone (audit MG-21); a small nozzle or a tall layer leaves less of the layer
+ * below under each line (Prusa: under 45° at 0.25 mm), but no source gives the angle per nozzle and layer. Take them
+ * into the limit once one does, together with the assistant's rule text (printProfiles.ts), which names the same angle.
+ */
 export function overhangLimits(support: number): OverhangLimits {
   // A profile without an angle is checked at the usual one, not with a limit nothing passes.
   const limit = Number.isFinite(support) ? support : OVERHANG_LIMITS.support;
@@ -30,17 +35,35 @@ export function overhangLimits(support: number): OverhangLimits {
 /**
  * Degrees past the limit before a face needs support: a 45° chamfer is exactly at the usual limit,
  * and rounding in its normals must not tip it over (practice run 2026-11-05: a 45° bottom chamfer
- * read as 1,006 mm² needing support).
+ * read as 1,006 mm² needing support with none). A tenth of a degree is far above that rounding (the
+ * 3MF carries doubles, the render buffers floats: about 0.001° on a 1 mm edge) and keeps the limit
+ * the findings name: with 1°, 45.9° passed a limit said to be 45° (audit D19, MG-22). This holds for flat faces.
  */
-export const ANGLE_TOLERANCE = 1;
+export const ANGLE_TOLERANCE = 0.1;
+
+/**
+ * The same for a curved face, whose triangles lean further than the surface they stand for: a chord across a cone or
+ * a cylinder tilts towards its axis (16 facets round a 90° cone lean 45.56°), and the line where a lying hole's roof
+ * passes the limit is read between its facets (the wall holder template's 90° countersinks, no facet past 44.97°,
+ * read 2 mm² with 0.1°: audit BC-19 harness).
+ * shortcut: so a curved face is held to its limit only to 1°; take its lean from SolidCraft's surface normals instead of
+ * its triangles if a curved face leaning up to a degree past the limit must be found.
+ */
+export const CURVED_TOLERANCE = 1;
+
+/**
+ * Facets of one face all within 0.05° of each other's direction make it a flat face. A curved face meshed that finely
+ * leans less than that past its surface, and float noise on tiny facets of a flat one only gives it the curved 1°.
+ */
+const SAME_DIRECTION = Math.cos((0.05 * Math.PI) / 180);
 
 /** How close to the bed (mm) a face must lie to count as lying on it. */
 const BED_TOLERANCE = 0.05;
 
 /** The class of a direction: `down` is how much it points down (−z of the unit normal). */
-function classifier(limits: OverhangLimits): (down: number) => Overhang {
+function classifier(limits: OverhangLimits, tolerance = ANGLE_TOLERANCE): (down: number) => Overhang {
   const sinBorderline = Math.sin((limits.borderline * Math.PI) / 180);
-  const sinSupport = Math.sin(((limits.support + ANGLE_TOLERANCE) * Math.PI) / 180);
+  const sinSupport = Math.sin(((limits.support + tolerance) * Math.PI) / 180);
   return (down) => {
     if (down > sinSupport) return Overhang.Support;
     if (down > sinBorderline) return Overhang.Borderline;
@@ -755,16 +778,15 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
   }
   const onBed = (face: number) => (top[face] ?? Number.POSITIVE_INFINITY) <= bedZ + BED_TOLERANCE;
 
-  const vertices = new Uint8Array(vertexFaces.length);
-  for (let v = 0; v < vertexFaces.length; v += 1) {
-    vertices[v] = onBed(vertexFaces[v] ?? 0) ? Overhang.Bed : classOf(-(normals[v * 3 + 2] ?? 0));
-  }
-
   const area: [number, number, number, number] = [0, 0, 0, 0];
   const supportByFace = new Float64Array(faceCount);
   const triangles: { kind: Overhang; face: number; area: number }[] = [];
   // How much each triangle points down (−z of its unit normal).
   const down = new Float64Array(index.length / 3);
+  // Per face: the direction of its first facet, and whether another facet turns away from it (a curved face).
+  const first = new Float64Array(faceCount * 3);
+  const seen = new Uint8Array(faceCount);
+  const curved = new Uint8Array(faceCount);
   for (let i = 0; i < index.length; i += 3) {
     const a = (index[i] ?? 0) * 3;
     const b = (index[i + 1] ?? 0) * 3;
@@ -781,10 +803,28 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
     const length = Math.hypot(nx, ny, nz);
     const face = vertexFaces[index[i] ?? 0] ?? 0;
     down[i / 3] = length === 0 ? 0 : -nz / length;
-    triangles.push({ kind: length === 0 ? Overhang.Fine : onBed(face) ? Overhang.Bed : classOf(-nz / length), face, area: length / 2 });
+    if (length > 0 && !curved[face]) {
+      if (!seen[face]) {
+        seen[face] = 1;
+        first.set([nx / length, ny / length, nz / length], face * 3);
+      } else if (((first[face * 3] ?? 0) * nx + (first[face * 3 + 1] ?? 0) * ny + (first[face * 3 + 2] ?? 0) * nz) / length < SAME_DIRECTION) curved[face] = 1;
+    }
+    triangles.push({ kind: length === 0 ? Overhang.Fine : Overhang.Bed, face, area: length / 2 });
   }
-  // The roof of a lying hole overhangs between the two lines where its wall passes the limit.
-  const sinSupport = Math.sin(((limits.support + ANGLE_TOLERANCE) * Math.PI) / 180);
+  const curvedClassOf = classifier(limits, CURVED_TOLERANCE);
+  triangles.forEach((triangle, t) => {
+    if (triangle.area > 0 && !onBed(triangle.face)) triangle.kind = (curved[triangle.face] ? curvedClassOf : classOf)(down[t] ?? 0);
+  });
+  // The shading by vertex takes the same tolerance as its face's area, so a face is not coloured past the limit it is not counted past (review K5).
+  const vertices = new Uint8Array(vertexFaces.length);
+  for (let v = 0; v < vertexFaces.length; v += 1) {
+    const face = vertexFaces[v] ?? 0;
+    vertices[v] = onBed(face) ? Overhang.Bed : (curved[face] ? curvedClassOf : classOf)(-(normals[v * 3 + 2] ?? 0));
+  }
+  // The roof of a lying hole overhangs between the two lines where its wall passes the limit. That line is read
+  // between the facets of a curved face, so it takes the curved tolerance: with 0.1° the 90° countersinks of the wall
+  // holder template, no facet past 44.97°, read 2 mm² (BC-19 harness `druckpruefung-bc19-csink`).
+  const sinSupport = Math.sin(((limits.support + CURVED_TOLERANCE) * Math.PI) / 180);
   const leans = (t: number) => (down[t] ?? 0) > DOWN && (triangles[t]?.kind === Overhang.Fine || triangles[t]?.kind === Overhang.Borderline);
   const { small, hanging, layered } = reach > 0 ? smallPatches(positions, index, down, (t) => triangles[t]?.kind === Overhang.Support, leans, reach, LYING_HOLE * sinSupport, sinSupport, bedZ) : { small: new Set<number>(), hanging: new Map<number, number>(), layered: false };
   triangles.forEach(({ kind, face, area: size }, t) => {

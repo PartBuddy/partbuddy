@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { Overhang, overhangLimits, overhangOf } from './overhang';
+import { ANGLE_TOLERANCE, CURVED_TOLERANCE, Overhang, overhangLimits, overhangOf } from './overhang';
+import { soup } from './testShapes';
 
 /** One square face of side 10 per entry, as render buffers: corners, normal and face index. */
 function faces(list: { corners: number[][]; normal: number[] }[]) {
@@ -67,5 +68,69 @@ describe('overhangs for FDM printing (UI upgrade step 12)', () => {
     const map = overhangOf(mesh, 0, overhangLimits(40));
     expect([map.vertices[0], map.vertices[4], map.vertices[8]]).toEqual([Overhang.Fine, Overhang.Borderline, Overhang.Support]);
     expect(overhangLimits(40)).toEqual({ borderline: 30, support: 40 });
+  });
+  /** The most a triangle of a mesh leans from the vertical, facing down (degrees). */
+  const lean = (mesh: { positions: Float32Array; index: Uint32Array }) => {
+    let most = 0;
+    for (let i = 0; i < mesh.index.length; i += 3) {
+      const p = [0, 1, 2].map((c) => [0, 1, 2].map((k) => mesh.positions[(mesh.index[i + c] ?? 0) * 3 + k] ?? 0));
+      const [a, b, c] = p as [number[], number[], number[]];
+      const u = [0, 1, 2].map((k) => (b[k] ?? 0) - (a[k] ?? 0));
+      const v = [0, 1, 2].map((k) => (c[k] ?? 0) - (a[k] ?? 0));
+      const nz = (u[0] ?? 0) * (v[1] ?? 0) - (u[1] ?? 0) * (v[0] ?? 0);
+      const length = Math.hypot((u[1] ?? 0) * (v[2] ?? 0) - (u[2] ?? 0) * (v[1] ?? 0), (u[2] ?? 0) * (v[0] ?? 0) - (u[0] ?? 0) * (v[2] ?? 0), nz);
+      most = Math.max(most, (Math.asin(Math.max(-1, Math.min(1, -nz / length))) * 180) / Math.PI);
+    }
+    return most;
+  };
+  /**
+   * A lying cone of 90° (a countersink's angle), axis along Y, 20 mm over the bed, meshed in `n` with a facet across
+   * its underside, turned about Z by `turn` and mirrored in X if asked; `normal` for every vertex, else none.
+   */
+  const lyingCone = (n: number, turn = 0, mirrored = false, normal?: [number, number, number]) => {
+    const [cos, sin] = [Math.cos((turn * Math.PI) / 180), Math.sin((turn * Math.PI) / 180)];
+    const at = (r: number, y: number, k: number): [number, number, number] => {
+      const angle = ((k + 0.5) * 2 * Math.PI) / n;
+      const x = (mirrored ? -1 : 1) * r * Math.cos(angle);
+      return [cos * x - sin * y, sin * x + cos * y, 20 + r * Math.sin(angle)];
+    };
+    // Mirrored, the triangles turn round: keep them facing out.
+    const tri = (p: [number, number, number][]) => (mirrored ? [p[0]!, p[2]!, p[1]!] : p);
+    const cone = soup(Array.from({ length: n }, (_, k) => [tri([at(2, 0, k), at(6, 4, k), at(6, 4, k + 1)]), tri([at(2, 0, k), at(6, 4, k + 1), at(2, 0, k + 1)])]).flat());
+    const normals = new Float32Array(cone.positions.length);
+    if (normal) for (let v = 0; v < normals.length; v += 3) normals.set(normal, v);
+    return { ...cone, normals };
+  };
+
+  it('holds a flat face to a tenth of a degree past the limit and the facets of a curved one to a degree (audit D19, BC-19)', () => {
+    // Meshed in 16 the facet across the underside leans 45.56°: past the tenth, within the degree. In 8 it leans 47.27°:
+    // past the degree, so even a curved face needs support there (review S3). Turned and mirrored alike.
+    for (const turn of [0, 1, 7.5, 15, 30, 45, 60, 75, 90]) {
+      for (const mirrored of [false, true]) {
+        const how = `turned ${String(turn)}°${mirrored ? ', mirrored' : ''}`;
+        const fine = lyingCone(16, turn, mirrored);
+        expect(lean(fine), how).toBeGreaterThan(45 + ANGLE_TOLERANCE);
+        expect(lean(fine), how).toBeLessThan(45 + CURVED_TOLERANCE);
+        const map = overhangOf(fine, 0, overhangLimits(45));
+        expect(map.area[Overhang.Support], how).toBe(0);
+        expect(map.area[Overhang.Borderline], how).toBeGreaterThan(0);
+        const coarse = lyingCone(8, turn, mirrored);
+        expect(lean(coarse), how).toBeGreaterThan(45 + CURVED_TOLERANCE);
+        expect(overhangOf(coarse, 0, overhangLimits(45)).area[Overhang.Support], how).toBeGreaterThan(0);
+      }
+    }
+    // The same facets as faces of their own (each quad a flat face): the one across the underside needs support.
+    const fine = lyingCone(16);
+    const flat = { ...fine, vertexFaces: Uint32Array.from({ length: fine.vertexFaces.length }, (_, v) => v), faceCount: fine.vertexFaces.length };
+    expect(overhangOf(flat, 0, overhangLimits(45)).area[Overhang.Support]).toBeGreaterThan(0);
+  });
+
+  it('shades the vertices of a curved face with the tolerance its area is counted with (review K5)', () => {
+    // Every vertex normal 45.5° from the vertical: borderline on the curved face, support on flat ones.
+    const down = (45.5 * Math.PI) / 180;
+    const cone = lyingCone(16, 0, false, [Math.cos(down), 0, -Math.sin(down)]);
+    expect(new Set(overhangOf(cone, 0, overhangLimits(45)).vertices)).toEqual(new Set([Overhang.Borderline]));
+    const flat = { ...cone, vertexFaces: Uint32Array.from({ length: cone.vertexFaces.length }, (_, v) => v), faceCount: cone.vertexFaces.length };
+    expect(new Set(overhangOf(flat, 0, overhangLimits(45)).vertices)).toEqual(new Set([Overhang.Support]));
   });
 });

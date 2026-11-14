@@ -1138,11 +1138,6 @@ export const printSettingsSchema = z
     materials: z.array(materialProfileSchema).min(1).max(MAX_MATERIALS).refine(uniqueIds, 'material ids must be unique'),
     /** The material of a part that has none of its own. */
     material: profileId,
-    /**
-     * Design to print without support (M7f, decided 2026-11-05): the assistant gets the rules for it
-     * with the profile. On unless the user turns it off; files from before it have it on.
-     */
-    supportFree: z.boolean().default(true),
     /** The design rules the assistant applies on its own (decided 2026-11-07); every group on unless turned off. */
     design: designRulesSchema.default(DESIGN_DEFAULTS),
   })
@@ -1178,8 +1173,6 @@ export const partPrintSchema = z
     material: materialProfileSchema,
     /** False while the part uses the default material. */
     chosen: z.boolean(),
-    /** Whether the assistant designs to print without support. */
-    supportFree: z.boolean(),
     /** The design rule groups in force for this part: the project's choice over the setting. */
     design: designRulesSchema,
   })
@@ -1205,6 +1198,7 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
   z.object({ kind: z.literal('fused'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
   z.object({ kind: z.literal('open'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(1).max(20) }).strict(),
+  z.object({ kind: z.literal('faceLost'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(1).max(20) }).strict(),
   z.object({ kind: z.literal('overlap'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), volume: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('tight'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), gap: mmValue, minimum: mmValue, inPlace: z.literal(true).optional(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('blocked'), severity: findingSeveritySchema, joint: z.string().max(200), bodies: z.tuple([bodyName, bodyName]), at: finite, limit: finite, unit: z.enum(['deg', 'mm']), free: z.literal(true).optional(), places: findingPlacesSchema }).strict(),

@@ -36,7 +36,7 @@ describe('the sharing package (F5)', () => {
   });
 
   it('says where supports may be needed, or that the check has not run, and speaks German', () => {
-    expect(shareDescription({ ...facts, check: { status: 'warn', overhang: true } })).toContain('check them in the slicer');
+    expect(shareDescription({ ...facts, check: { status: 'warn', overhang: true } })).toContain('they need support in the slicer');
     expect(shareDescription({ ...facts, check: null })).toContain('Supports: not checked');
     // A part the check blocks is never called printable without supports (audit D5).
     expect(shareDescription({ ...facts, check: { status: 'block', overhang: false } })).toContain("Supports: not settled: the print check found problems that keep the part from printing");
