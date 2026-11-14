@@ -1,6 +1,6 @@
-import { PRINT_HINTS } from '../../../shared/contract';
-import { isLogoColourBody } from '../../../shared/drawingPlacement';
-import { checkPrint, withClearance, withMotion, type PrintCheck } from '@partbuddy/geometry';
+import { HINT_RULE, PRINT_HINTS } from '../../../shared/contract';
+import { isLogoColourBody, isLogoPartBody } from '../../../shared/drawingPlacement';
+import { checkPrint, withClearance, withDesign, withMotion, type PrintCheck } from '@partbuddy/geometry';
 import { useEffect } from 'react';
 
 import { platform } from '../platform';
@@ -34,9 +34,16 @@ export function usePrintCheck(): void {
       // Bodies printed as one piece (a print-in-place hinge) stand on one bed: the first body's name names the group.
       const groupOf = (name: string) => model.structure.printGroups?.find((group) => group.includes(name))?.[0];
       const printed = model.bodies.filter((body) => !standard.has(body.name)).map((body) => ({ ...body, printFace: printFaces[body.name], group: groupOf(body.name) }));
-      // The hints the user turned off in the print settings (BC-24) are not looked for.
-      const off = PRINT_HINTS.filter((hint) => print.hints?.[hint] === false);
-      const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang, off }, model.structure.features);
+      // The hints the user turned off in the print settings (BC-24), or whose design rule is off for this part, are not looked for.
+      const off = PRINT_HINTS.filter((hint) => {
+        const rule = HINT_RULE[hint];
+        return print.hints?.[hint] === false || (rule !== undefined && !print.design[rule]);
+      });
+      const profile = { bed: print.printer.bed, nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang, off };
+      // The design hints look at the parts themselves: a logo's colour pieces are inlays, and a logo or text built as a body of
+      // its own is lettering, not a part to round.
+      const sketchNames = model.structure.sketches.map((sketch) => sketch.name);
+      const result = withDesign(checkPrint(printed, profile, model.structure.features), printed.filter((body) => !isLogoColourBody(body.name, sketchNames) && !isLogoPartBody(body.name, sketchNames)), profile);
       // A value that follows another through a motion link (a gear) is neither swept nor posed on its own: its driver is.
       const joints = (model.structure.joints ?? []).map((joint) => ({ ...joint, values: joint.values.map((value, index) => ({ ...value, index })).filter((value) => !value.follows) })).filter((joint) => joint.values.length > 0);
       // A joint left away from "as designed" needs no measuring, so it shows at once: with a lid closed onto its

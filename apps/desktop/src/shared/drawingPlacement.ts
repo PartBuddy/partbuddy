@@ -62,6 +62,15 @@ export function isLogoColourBody(name: string, sketches: readonly string[]): boo
   return sketches.some((sketch) => sketch.startsWith(LOGO_PREFIX) && [sketch.slice(LOGO_PREFIX.length), sketch.slice(LOGO_PREFIX.length).replace(/ \d+$/, '')].includes(base));
 }
 
+/**
+ * A logo built as a body of its own (`partbuddy_place_drawing` as a part: the body named `logoBase` of its file, its sketch
+ * "SVG-Logo <that name>" or, a second one, "… 2"): raised letters or a badge, which the design hints leave alone as they
+ * leave a logo's colour pieces.
+ */
+export function isLogoPartBody(name: string, sketches: readonly string[]): boolean {
+  return sketches.some((sketch) => sketch.startsWith(LOGO_PREFIX) && [sketch.slice(LOGO_PREFIX.length), sketch.slice(LOGO_PREFIX.length).replace(/ \d+$/, '')].includes(name));
+}
+
 export interface PlacedSketch {
   id: number;
   name: string;

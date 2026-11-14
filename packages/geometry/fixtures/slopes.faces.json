@@ -1,0 +1,467 @@
+{
+  "Slope10": {
+    "model": "slopes",
+    "body": "Slope10",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/slopes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F1:+z",
+        "exact": true,
+        "area": 300,
+        "centroid": [
+          5,
+          15,
+          20
+        ],
+        "point": [
+          5.8114,
+          25.8114,
+          20
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 1,
+        "name": "F1:-y",
+        "exact": true,
+        "area": 725,
+        "centroid": [
+          18.9655,
+          0,
+          9.1379
+        ],
+        "point": [
+          13.1526,
+          0,
+          8.1287
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F1:+x",
+        "exact": true,
+        "area": 450,
+        "centroid": [
+          40,
+          15,
+          7.5
+        ],
+        "point": [
+          40,
+          5.7295,
+          9.2705
+        ],
+        "planeNormal": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F1:+y",
+        "exact": true,
+        "area": 725,
+        "centroid": [
+          18.9655,
+          30,
+          9.1379
+        ],
+        "point": [
+          13.1526,
+          30,
+          8.1287
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 4,
+        "name": "F1:-x",
+        "exact": true,
+        "area": 600,
+        "centroid": [
+          0,
+          15,
+          10
+        ],
+        "point": [
+          0,
+          23.0278,
+          6.9722
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 5,
+        "name": "F1:-z",
+        "exact": true,
+        "area": 1200,
+        "centroid": [
+          20,
+          15,
+          0
+        ],
+        "point": [
+          10,
+          20,
+          0
+        ],
+        "planeNormal": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "index": 6,
+        "name": "F2:blend(F1:+x|F1:+z)",
+        "exact": true,
+        "area": 912.4144,
+        "centroid": [
+          25,
+          15,
+          17.5
+        ],
+        "point": [
+          18.7265,
+          8.8469,
+          18.5456
+        ],
+        "planeNormal": [
+          0.1644,
+          0,
+          0.9864
+        ]
+      }
+    ]
+  },
+  "Slope3": {
+    "model": "slopes",
+    "body": "Slope3",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/slopes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F3:+z",
+        "exact": true,
+        "area": 300,
+        "centroid": [
+          65,
+          15,
+          20
+        ],
+        "point": [
+          65.8114,
+          25.8114,
+          20
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 1,
+        "name": "F3:-y",
+        "exact": true,
+        "area": 777.5,
+        "centroid": [
+          79.7106,
+          0,
+          9.7251
+        ],
+        "point": [
+          73.1526,
+          0,
+          8.1287
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F3:+x",
+        "exact": true,
+        "area": 555,
+        "centroid": [
+          100,
+          15,
+          9.25
+        ],
+        "point": [
+          100,
+          6.6272,
+          11.8728
+        ],
+        "planeNormal": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F3:+y",
+        "exact": true,
+        "area": 777.5,
+        "centroid": [
+          79.7106,
+          30,
+          9.7251
+        ],
+        "point": [
+          73.1526,
+          30,
+          8.1287
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 4,
+        "name": "F3:-x",
+        "exact": true,
+        "area": 600,
+        "centroid": [
+          60,
+          15,
+          10
+        ],
+        "point": [
+          60,
+          23.0278,
+          6.9722
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 5,
+        "name": "F3:-z",
+        "exact": true,
+        "area": 1200,
+        "centroid": [
+          80,
+          15,
+          0
+        ],
+        "point": [
+          70,
+          20,
+          0
+        ],
+        "planeNormal": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "index": 6,
+        "name": "F4:blend(F3:+x|F3:+z)",
+        "exact": true,
+        "area": 901.1243,
+        "centroid": [
+          85,
+          15,
+          19.25
+        ],
+        "point": [
+          78.7813,
+          8.7923,
+          19.5609
+        ],
+        "planeNormal": [
+          0.0499,
+          0,
+          0.9988
+        ]
+      }
+    ]
+  },
+  "Slope20": {
+    "model": "slopes",
+    "body": "Slope20",
+    "units": "mm",
+    "source": "SolidCraft CLI, tools/fixtures/slopes.script.json",
+    "faces": [
+      {
+        "index": 0,
+        "name": "F5:+z",
+        "exact": true,
+        "area": 300,
+        "centroid": [
+          125,
+          15,
+          20
+        ],
+        "point": [
+          124.1886,
+          4.1886,
+          20
+        ],
+        "planeNormal": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "index": 1,
+        "name": "F5:-x",
+        "exact": true,
+        "area": 600,
+        "centroid": [
+          120,
+          15,
+          10
+        ],
+        "point": [
+          120,
+          23.0278,
+          6.9722
+        ],
+        "planeNormal": [
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 2,
+        "name": "F5:-z",
+        "exact": true,
+        "area": 1200,
+        "centroid": [
+          140,
+          15,
+          0
+        ],
+        "point": [
+          130,
+          20,
+          0
+        ],
+        "planeNormal": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "index": 3,
+        "name": "F5:+x",
+        "exact": true,
+        "area": 270,
+        "centroid": [
+          160,
+          15,
+          4.5
+        ],
+        "point": [
+          160,
+          3.8395,
+          5.1605
+        ],
+        "planeNormal": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "index": 4,
+        "name": "F5:-y",
+        "exact": true,
+        "area": 635,
+        "centroid": [
+          137.4016,
+          0,
+          8.3543
+        ],
+        "point": [
+          133.1526,
+          0,
+          8.1287
+        ],
+        "planeNormal": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "index": 5,
+        "name": "F5:+y",
+        "exact": true,
+        "area": 635,
+        "centroid": [
+          137.4016,
+          30,
+          8.3543
+        ],
+        "point": [
+          133.1526,
+          30,
+          8.1287
+        ],
+        "planeNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "index": 6,
+        "name": "F6:blend(F5:+x|F5:+z)",
+        "exact": true,
+        "area": 958.5927,
+        "centroid": [
+          145,
+          15,
+          14.5
+        ],
+        "point": [
+          151.492,
+          20.9381,
+          12.1196
+        ],
+        "planeNormal": [
+          0.3443,
+          0,
+          0.9389
+        ]
+      }
+    ]
+  }
+}

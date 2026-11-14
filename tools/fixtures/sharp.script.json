@@ -1,0 +1,16 @@
+{
+  "commands": [
+    {"command":"solid.box","params":{"length":40,"width":30,"height":15,"corner":[0,0,0],"operation":"new","body_name":"RawBox"}},
+    {"command":"solid.box","params":{"length":40,"width":30,"height":15,"corner":[60,0,0],"operation":"new","body_name":"RoundedBox"}},
+    {"command":"solid.fillet","params":{"edges":[[80,0,15],[80,30,15],[60,15,15],[100,15,15]],"radius":"2 mm","tangent_chain":false,"body":"RoundedBox"}},
+    {"command":"solid.box","params":{"length":40,"width":30,"height":15,"corner":[120,0,0],"operation":"new","body_name":"ChamferedBox"}},
+    {"command":"solid.chamfer","params":{"edges":[[140,0,15],[140,30,15],[120,15,15],[160,15,15]],"distance":"1 mm","body":"ChamferedBox"}},
+    {"command":"solid.box","params":{"length":8,"width":8,"height":8,"corner":[180,0,0],"operation":"new","body_name":"SmallCube"}},
+    {"command":"solid.box","params":{"length":120,"width":60,"height":4,"corner":[0,50,0],"operation":"new","body_name":"Plate"}},
+    {"command":"solid.box","params":{"length":40,"width":30,"height":4,"corner":[140,50,0],"operation":"new","body_name":"Bracket"}},
+    {"command":"solid.box","params":{"length":40,"width":4,"height":30,"corner":[140,50,0],"operation":"join","targets":["Bracket"]}},
+    {"command":"sketch.create","params":{"plane":"XY","offset":0}},
+    {"command":"sketch.polygon.inscribed","params":{"center":[220,80],"radius":20,"sides":8}},
+    {"command":"solid.extrude","params":{"distance":"15 mm","operation":"new","body_name":"Octagon"}}
+  ]
+}

@@ -5,7 +5,8 @@
 // The model is designed from scratch for this repository and contains no user data.
 //
 // Also the bodies of holes.script.json, hinge.script.json, wallholder.script.json (the contract test's wall holder) and
-// edges.script.json (raw fillets, chamfers and shells, BC-27) and detail.script.json (small holes and slots, BC-24) for the print check (one tagged 3MF each, holes-<body>.3mf).
+// edges.script.json (raw fillets, chamfers and shells, BC-27), detail.script.json (small holes and slots, BC-24) and the
+// design hints' sets (sharp.script.json, …) for the print check (one tagged 3MF each, holes-<body>.3mf).
 // Usage: node tools/fixtures/generate.mjs <output-directory> [path-to-solidcraft-cli]
 // Requires SolidCraft (MIT OR Apache-2.0) installed locally; CI uses the committed outputs.
 
@@ -23,6 +24,7 @@ const HINGE = 'hinge';
 const WALLHOLDER = 'wallholder';
 const EDGES = 'edges';
 const DETAIL = 'detail';
+const DESIGN = ['sharp', 'radii', 'roots', 'slopes', 'corners'];
 const DEFAULT_CLI =
   process.platform === 'win32'
     ? 'C:\\Program Files\\SolidCraft\\solidcraft-cli.exe'
@@ -67,7 +69,7 @@ try {
 
   // Holes for the print check (review of PR #365), and the print-in-place hinge of the mechanism tool (hingeSteps of
   // apps/desktop/src/shared/mechanisms.ts, audit G1): one body each, a tagged 3MF per body (flat, so Git LFS takes them) and their face tables.
-  for (const set of [HOLES, HINGE, WALLHOLDER, EDGES, DETAIL]) {
+  for (const set of [HOLES, HINGE, WALLHOLDER, EDGES, DETAIL, ...DESIGN]) {
     const script = JSON.parse(readFileSync(join(here, `${set}.script.json`), 'utf8'));
     const bodies = script.commands.filter((step) => step.params.operation === 'new').map((step) => step.params.body_name);
     for (const body of bodies) {

@@ -1,0 +1,10 @@
+{
+  "commands": [
+    {"command":"solid.box","params":{"length":40,"width":30,"height":20,"corner":[0,0,0],"operation":"new","body_name":"Slope10"}},
+    {"command":"solid.chamfer","params":{"edges":[[40,15,20]],"distance":"30 mm","distance2":"5 mm","body":"Slope10"}},
+    {"command":"solid.box","params":{"length":40,"width":30,"height":20,"corner":[60,0,0],"operation":"new","body_name":"Slope3"}},
+    {"command":"solid.chamfer","params":{"edges":[[100,15,20]],"distance":"30 mm","distance2":"1.5 mm","body":"Slope3"}},
+    {"command":"solid.box","params":{"length":40,"width":30,"height":20,"corner":[120,0,0],"operation":"new","body_name":"Slope20"}},
+    {"command":"solid.chamfer","params":{"edges":[[160,15,20]],"distance":"30 mm","distance2":"11 mm","body":"Slope20"}}
+  ]
+}

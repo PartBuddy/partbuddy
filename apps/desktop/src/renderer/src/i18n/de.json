@@ -1152,6 +1152,26 @@
       "narrowGap": {
         "label": "Schlitze, die zuwachsen",
         "hint": "Zeigt, wo zwei Wände eines Teils näher als eine Düsenbreite (mindestens 0,3 mm) beieinander liegen: Eine gravierte Linie, ein Schnitt oder ein Spalt zwischen Buchstaben druckt dort zu. Nur ein Hinweis, nie eine Sperre."
+      },
+      "sharpEdge": {
+        "label": "Körper ohne jede Rundung",
+        "hint": "Zeigt Körper ganz ohne Rundung oder Fase, deren Außenkanten scharf sind: Die Gestaltungsregeln runden sichtbare Kanten je nach Teilgröße mit 1, 2 oder 3 mm. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
+      },
+      "edgeRadii": {
+        "label": "Zu viele Radien",
+        "hint": "Zeigt Körper, deren Außenkanten mit mehr als drei verschiedenen Radien gerundet sind (Radien, die weniger als ein Viertel auseinanderliegen, zählen als einer): Die Gestaltungsregeln nehmen zwei bis drei je Teil. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
+      },
+      "rootCorner": {
+        "label": "Scharfer Fuß an dünnen Armen",
+        "hint": "Zeigt schlanke, frei stehende Arme, Haken und dünne Zapfen (mindestens dreimal so lang wie dick), die mit einer scharfen Innenecke auf einer Fläche stehen: Dort bricht ein Arm unter Last zuerst, eine Rundung von der halben Dicke hält ihn. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
+      },
+      "shallowSlope": {
+        "label": "Flache Schrägen",
+        "hint": "Zeigt nach oben weisende ebene Flächen, die weniger als 15° gegen die Waagrechte geneigt sind: Auf ihnen zeigen sich die Schichten als breite Stufen (bei 0,2 mm Schicht über 0,75 mm). Nur ein Hinweis, nie eine Sperre."
+      },
+      "shellCorner": {
+        "label": "Ungleiche Schalenecken",
+        "hint": "Zeigt gerundete Außenkanten einer Schale, an denen die Wand in der Ecke dünner als die halbe Wand wird, weil innen nicht passend gerundet ist: Innen gehört der Außenradius weniger der Wand hin. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
       }
     }
   },
@@ -1205,7 +1225,12 @@
       "blockedFree": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk hat in diese Richtung keine Grenze und bleibt dort stehen",
       "posed": "{joint} steht auf {value}, nicht wie konstruiert – exportiert und geprüft wird diese Stellung",
       "smallHole": "{count, plural, one {Eine Bohrung unter {minimum} mm ({diameter} mm)} other {# Bohrungen unter {minimum} mm, die kleinste {diameter} mm}}: So kleine Bohrungen wachsen zu oder werden zu klein – nach dem Druck aufbohren",
-      "narrowGap": "Schlitze bis {gap} mm, unter den {minimum} mm, die mit dieser Düse offen bleiben: Die Wände daneben drücken sich zusammen und schließen sie"
+      "narrowGap": "Schlitze bis {gap} mm, unter den {minimum} mm, die mit dieser Düse offen bleiben: Die Wände daneben drücken sich zusammen und schließen sie",
+      "sharpEdge": "{count, plural, one {Eine scharfe Kante} other {# scharfe Kanten}} ({length} mm) an Körpern ganz ohne gerundete oder gefaste Außenkante: Die Gestaltungsregeln runden sichtbare Außenkanten nach Teilgröße, an Platten höchstens bis zur halben Dicke – hier {radii}",
+      "edgeRadii": "Außenkanten mit {count} verschiedenen Radien ({radii} mm): Die Gestaltungsregeln nehmen höchstens {most} Radien je Teil, damit die Rundungen zusammenpassen",
+      "rootCorner": "{count, plural, one {Ein schlanker Arm steht} other {# Seiten schlanker Arme stehen}} mit scharfer Innenecke auf, der dünnste {thickness} mm dick und {length} mm lang: Dort bricht er unter Last zuerst – den Fuß mit mindestens {radius} mm runden",
+      "shallowSlope": "{count, plural, one {Eine nach oben weisende Fläche ist} other {# nach oben weisende Flächen sind}} weniger als {limit}° geneigt, die flachste {angle}°: Die Schichten zeigen sich dort als etwa {step} mm breite Stufen",
+      "shellCorner": "{count, plural, one {An einer gerundeten Außenkante} other {An # gerundeten Außenkanten}} wird die Schale in der Ecke {thickness} mm dünn, unter der halben Wand von {wall} mm: außen {radius} mm gerundet, innen nicht passend – innen {inner} mm runden"
     },
     "confirm": {
       "title": "Trotzdem exportieren?",
