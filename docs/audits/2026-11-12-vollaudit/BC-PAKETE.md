@@ -268,6 +268,23 @@ Werkzeuge, die rohe Wege offen lassen; 18–25 Abläufe, Texte, Kosmetik, Erweit
 - **Prüfweg:** Unit mit neuen Fallsammlungen (wie `overhangCases`); Harness
 - **Risiko:** hoch – neue Fehlalarme; je Prüfung eigener Commit, Umfang vorab mit Manuel
 
+### BC-26 Erlaubnisliste je Befehlsnummer (L6) – neu 14.11.2026
+
+- **Kennungen:** `S-03` (Rest aus #390)
+- **Worum:** Feste Liste der Befehlsnummern von SolidCraft 0.40.1; unbekannte Nummern in erlaubten Gruppen werden abgelehnt („noch nicht geprüft“); Vertragstest vergleicht `list_commands` mit der Liste.
+- **Entscheidung Manuel 14.11.2026:** einplanen.
+
+### BC-27 Rohe Rundung, Fase, Schale in der Druckprüfung (L1) – neu 14.11.2026
+
+- **Kennungen:** BC-08-Rest aus #390 („Open“)
+- **Worum:** Kleine Rundung an der Bettkante und Schalenwand außerhalb des Linienrasters meldet die Druckprüfung als Hinweis (gilt für jeden Weg, auch `press_pull`, `timeline.edit`). Nach BC-19, vor oder mit BC-24.
+- **Entscheidung Manuel 14.11.2026:** einplanen.
+
+### BC-28 Drucklage bei Zapfen und Schnapphaken (L2) – neu 14.11.2026
+
+- **Kennungen:** `N-mechanik-19`, `W48` (Rest aus #395)
+- **Worum:** Das Mechanik-Werkzeug legt die Hälften auf ihre Trennfläche (Entscheidung Manuel 14.11.2026), über `layOn` aus BC-15.
+
 ### BC-25 Doku an Code (L9)
 
 - **Kennungen:** `T36+W46`, `T37+W45`, `T38`, `W47`, `S-25`, `S-29`, `D32`, `D33`, `D46`
