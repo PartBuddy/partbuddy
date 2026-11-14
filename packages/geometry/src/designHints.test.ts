@@ -110,6 +110,49 @@ describe('outer edges rounded with more than three radii (edgeRadii)', () => {
   });
 });
 
+describe('sharp inner corners at the foot of slender arms (rootCorner)', () => {
+  // roots.script.json: on 3 mm plates. [body, roots, thinnest arm's thickness and length, or 'none']
+  const cases: [string, [number, number, number] | 'none'][] = [
+    // An arm 6 wide, 1.6 thick, 14 long: its two wide sides.
+    ['ArmSharp', [2, 1.6, 14]],
+    // A 3 × 3 × 15 post: all four sides.
+    ['TallPost', [4, 3, 15]],
+    // A hook: its catch makes an inner corner on the front, so only the back's foot.
+    ['Hook', [1, 1.6, 14]],
+    ['ArmFillet', 'none'],
+    // A fin longer than high, a post 6 thick and 10 high, a box shelled 1.6 mm: no arm.
+    ['Fin', 'none'],
+    ['Post', 'none'],
+    ['ShellBox', 'none'],
+  ];
+
+  it.each(cases)('%s', (name, want) => {
+    everywhere(solidcraft('roots', name), (findings, what) => {
+      const found = one(findings, 'rootCorner');
+      if (want === 'none') expect(found, what).toBeUndefined();
+      else {
+        expect(found, what).toMatchObject({ severity: 'warn', roots: want[0], thickness: want[1] });
+        expect(found?.length, what).toBeCloseTo(want[2], 0);
+      }
+    });
+  }, 60_000);
+
+  it('asks half the thickness, at least 1 mm and two nozzles', () => {
+    expect(one(design([solidcraft('roots', 'ArmSharp')]), 'rootCorner')?.radius).toBe(1);
+    expect(one(design([solidcraft('roots', 'ArmSharp')], { ...PLA, nozzle: 0.6 }), 'rootCorner')?.radius).toBe(1.2);
+    expect(one(design([solidcraft('roots', 'TallPost')]), 'rootCorner')?.radius).toBe(1.5);
+  });
+
+  it('takes no shell rounded inside for arms', () => {
+    // Inner walls meet in inner rounds, not outwards: no arm stands free.
+    for (const [set, name] of [['edges', 'ShellRound10'], ['edges', 'Shell12'], ['detail', 'Pin15']] as const) expect(one(design([solidcraft(set, name)]), 'rootCorner'), name).toBeUndefined();
+  });
+
+  it('is not looked for when turned off', () => {
+    expect(one(design([solidcraft('roots', 'ArmSharp')], { ...PLA, off: ['rootCorner'] }), 'rootCorner')).toBeUndefined();
+  });
+});
+
 describe("PartBuddy's templates", () => {
   // templates.faces.json (templateFixtures.test.ts): the bodies on their print faces and in their print-in-place groups.
   const tables = JSON.parse(readFileSync(new URL('templates.faces.json', fixture), 'utf8')) as Record<string, FaceTable & { printFace?: string; group?: string }>;

@@ -65,6 +65,9 @@ function line(finding: Finding, nozzle: number): string {
     case 'edgeRadii':
       // Design hint (research O1, H6): outer fillets of more radius families than the rules use.
       return `- ${tag}: outer edges rounded with ${String(finding.families)} families of radii (${finding.radii.map(String).join(', ')} mm)${where(finding.places)}: the design rules use at most ${String(finding.most)} radii per part, so the rounds match (radii less than a quarter apart count as one). Bring them to two or three, e.g. one for the outer corners and one for the edges; keep a radius the user named.`;
+    case 'rootCorner':
+      // Design hint (research F2, F6, F7, H1): a slender free arm bends at its foot, where a sharp inner corner concentrates the stress.
+      return `- ${tag}: ${finding.roots === 1 ? 'a slender arm stands' : `${String(finding.roots)} sides of slender arms stand`} on a sharp inner corner, the thinnest ${mm(finding.thickness)} thick and ${mm(finding.length)} long${where(finding.places)}: an arm that bends (a snap arm, a hook, a thin post) cracks first at a sharp root. Round the root with at least ${mm(finding.radius)} (half the arm's thickness, at least 1 mm and two nozzles; on a snap arm 0.5 to 0.6 of its thickness), unless it carries nothing.`;
     case 'contact':
       return finding.bodies > 1
         ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed for their height, the least ${String(finding.area)} mm²; they may come loose or tip over, a brim holds them${where(finding.places, finding.bodies)}.`
@@ -110,7 +113,7 @@ type Hint = NonNullable<PrintCheckReport['off']>[number];
 /** The hints of BC-24 as the note names them; the user may turn each off in the print settings. */
 const PRINT_HINT_NAMES = { smallHole: 'holes under 2 mm', narrowGap: 'slots under one nozzle' };
 /** The design hints (Manuel, 2026-11-14), off also with their design rule. */
-const DESIGN_HINT_NAMES = { sharpEdge: 'bodies with no rounded or chamfered edge', edgeRadii: 'more than three radii on outer edges' };
+const DESIGN_HINT_NAMES = { sharpEdge: 'bodies with no rounded or chamfered edge', edgeRadii: 'more than three radii on outer edges', rootCorner: 'sharp inner corners at the foot of slender arms' };
 const HINTS: Record<Hint, string> = { ...PRINT_HINT_NAMES, ...DESIGN_HINT_NAMES };
 const looked = (report: PrintCheckReport, names: Partial<Record<Hint, string>>) => (Object.keys(names) as Hint[]).filter((hint) => !report.off?.includes(hint)).map((hint) => HINTS[hint]);
 /** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more: hints turned off are left out. */

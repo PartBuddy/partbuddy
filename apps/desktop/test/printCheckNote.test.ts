@@ -94,7 +94,11 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     const radii = reportOf({ status: 'warn', findings: [{ kind: 'edgeRadii', severity: 'warn', radii: [1, 2, 4, 8], families: 4, most: 3, places: [{ body: 'Box', faces: ['F2:blend(F1:+x|F1:+y)'] }], box: null }] }, 0.4, 3);
     expect(printCheckReportSchema.safeParse(radii).success).toBe(true);
     expect(printCheckNote(radii)).toContain('- warning: outer edges rounded with 4 families of radii (1, 2, 4, 8 mm) (faces "F2:blend(F1:+x|F1:+y)" of body "Box"): the design rules use at most 3 radii per part');
-    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).toContain('Design hints looked for (how the part looks and holds; yellow, never a block): bodies with no rounded or chamfered edge, more than three radii on outer edges.');
+    const roots = reportOf({ status: 'warn', findings: [{ kind: 'rootCorner', severity: 'warn', roots: 2, thickness: 1.6, length: 14, radius: 1, places: [{ body: 'Clip', faces: ['F2:+y'] }], box: null }] }, 0.4, 3);
+    expect(printCheckReportSchema.safeParse(roots).success).toBe(true);
+    expect(printCheckNote(roots)).toContain('- warning: 2 sides of slender arms stand on a sharp inner corner, the thinnest 1.6 mm thick and 14 mm long (faces "F2:+y" of body "Clip"): an arm that bends');
+    expect(printCheckNote(roots)).toContain('Round the root with at least 1 mm');
+    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).toContain('Design hints looked for (how the part looks and holds; yellow, never a block): bodies with no rounded or chamfered edge, more than three radii on outer edges, sharp inner corners at the foot of slender arms.');
     expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: PRINT_HINTS.filter((hint) => HINT_RULE[hint]) }))).not.toContain('Design hints looked for');
   });
 

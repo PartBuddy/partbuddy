@@ -37,7 +37,7 @@ export interface PrintCheckProfile {
  * hints (`withDesign`, Manuel 2026-11-14) say how the part looks and holds, not whether it prints.
  */
 export type PrintHint = 'smallHole' | 'narrowGap' | DesignHint;
-export type DesignHint = 'sharpEdge' | 'edgeRadii';
+export type DesignHint = 'sharpEdge' | 'edgeRadii' | 'rootCorner';
 
 export interface PrintCheckBody {
   name: string;
@@ -99,6 +99,11 @@ export type PrintFinding =
   | ({ kind: 'sharpEdge'; severity: FindingSeverity; edges: number; length: number; size: number; radius: number } & Located)
   /** Outer fillets of more than `most` radius families on one body (design hint): `radii` of the body with the most, smallest first. */
   | ({ kind: 'edgeRadii'; severity: FindingSeverity; radii: number[]; families: number; most: number } & Located)
+  /**
+   * Slender arms standing on a face with a sharp inner corner at their root (design hint): `roots` such corners; the thinnest
+   * arm `thickness` thick and `length` long; `radius` the root fillet the design rules ask for it.
+   */
+  | ({ kind: 'rootCorner'; severity: FindingSeverity; roots: number; thickness: number; length: number; radius: number } & Located)
   /** The bodies with too little on the bed: how many, and the area of the one with the least. */
   | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
@@ -1152,7 +1157,7 @@ export function withMotion(check: PrintCheck, measured: MeasuredMotion): PrintCh
 }
 
 /** The design hints, in the order the note names them. */
-export const DESIGN_HINTS: readonly DesignHint[] = ['sharpEdge', 'edgeRadii'];
+export const DESIGN_HINTS: readonly DesignHint[] = ['sharpEdge', 'edgeRadii', 'rootCorner'];
 
 /** Within 10° two faces run on smoothly: a fillet into its faces, the facets of one curved face. */
 const SMOOTH = Math.cos((10 * Math.PI) / 180);
@@ -1390,6 +1395,132 @@ function edgeRadii(bodies: readonly DesignBody[]): PrintFinding | null {
   return { kind: 'edgeRadii', severity: 'warn', radii: worst.slice(0, 12), families, most: MOST_RADII, places: found.places, box: found.box };
 }
 
+/** An arm from three times its thickness long bends at its root (research H1, H2: own choice); shorter, a stub, not an arm. */
+const SLENDER = 3;
+/** An arm stands on its foot along this share of its width, and is this many times as long as wide (own choice). */
+const ARM_ROOTED = 0.8;
+const ARM_LONG = 1.5;
+/** Arms shorter than this are details (a letter, a rib's end), mm. */
+const SHORTEST_ARM = 3;
+/** Concave stretches shorter than this along an arm's other edges are mesh noise, mm. */
+const NO_CORNER = 0.05;
+
+/** The root fillet the design rules ask for an arm `thickness` thick: half of it, and at least 1 mm and two nozzles (printProfiles.ts, "Edges"). */
+export function rootRadius(thickness: number, nozzle: number): number {
+  return round(Math.max(thickness / 2, 1, 2 * nozzle), 2);
+}
+
+/**
+ * `rootCorner` (research F2, F6, F7, H1): a flat side of a slender arm (a snap arm, a hook, a thin post) whose only inner
+ * corner is a sharp one at its foot, where it stands on another flat face; every other edge of it turns outwards, so the
+ * arm stands free and bends at that corner, where a sharp corner concentrates the stress (a root of half the thickness
+ * takes the notch factor from about 3 to 1.5: D19). An arm is `SLENDER` times as long as it is thick (measured into the
+ * material from its side), rooted along its whole width and half as long again as wide, so a box wall (joined to its
+ * neighbours), a fin or a rib (longer than high), a stout post and a hinge leaf on its knuckles are no arm. The finding names the thinnest arm and the radius the rules ask.
+ * shortcut: flat sides only: a round pin or boss on a face, and an arm whose root is a slope (the latch's 45° foot), are
+ * not looked at; what loads the arm is not known, so a thin post that carries nothing is told as well.
+ */
+function rootCorners(bodies: readonly DesignBody[], nozzle: number): PrintFinding | null {
+  let [roots, thickness, length] = [0, Infinity, 0];
+  const tallies = bodies.map(({ body, pairs, hollow }) => {
+    const { model } = body;
+    const faces = model.table.faces;
+    const tally = new FaceTally(faces.length);
+    const bvh = model.geometry.boundsTree as unknown as MeshBVH | undefined;
+    const index = model.geometry.index?.array;
+    const positions = model.geometry.getAttribute('position').array;
+    if (!bvh || !index) return tally;
+    const flat = (face: number) => !!faces[face]?.planeNormal;
+    const byFace = new Map<number, FaceEdge[]>();
+    for (const pair of pairs) {
+      for (const face of [pair.a, pair.b]) {
+        const list = byFace.get(face) ?? [];
+        list.push(pair);
+        byFace.set(face, list);
+      }
+    }
+    // Per flat face, its one sharp inner corner with another flat face, if every other edge of it turns outwards: a smooth
+    // one only into a fillet the material lies inside of (a rounded tip), never into an inner round (a shell's corner).
+    const rounded = (pair: FaceEdge, face: number) => {
+      const other = pair.a === face ? pair.b : pair.a;
+      return pair.smooth > NO_CORNER && !(faces[other]?.cylinder && !hollow[other]);
+    };
+    const candidates = new Map<number, FaceEdge>();
+    for (const [face, list] of byFace) {
+      if (!flat(face)) continue;
+      const inner = list.filter((pair) => pair.inward > NO_CORNER || rounded(pair, face));
+      const root = inner[0];
+      if (inner.length !== 1 || !root || !flat(root.a) || !flat(root.b) || root.sharpIn < 1 || root.sharpIn < 0.9 * root.length) continue;
+      candidates.set(face, root);
+    }
+    if (candidates.size === 0) return tally;
+    const corners = new Map<number, number[]>();
+    for (let t = 0; t < index.length / 3; t += 1) {
+      const face = model.triangleFaces[t] ?? 0;
+      if (!candidates.has(face)) continue;
+      const own = corners.get(face) ?? [];
+      for (let k = 0; k < 3; k += 1) {
+        const p = (index[t * 3 + k] ?? 0) * 3;
+        own.push(positions[p] ?? 0, positions[p + 1] ?? 0, positions[p + 2] ?? 0);
+      }
+      corners.set(face, own);
+    }
+    const ray = new Ray();
+    for (const [face, root] of candidates) {
+      const own = corners.get(face) ?? [];
+      const normal = faces[face]?.planeNormal;
+      const s = root.segments;
+      if (!normal || own.length < 9 || s.length < 6) continue;
+      // The foot as a straight line: the point of it farthest from any one, and the point farthest from that.
+      const farthest = (start: Vector3) => {
+        let best = start;
+        for (let k = 0; k < s.length; k += 3) {
+          const point = new Vector3(s[k], s[k + 1], s[k + 2]);
+          if (point.distanceToSquared(start) > best.distanceToSquared(start)) best = point;
+        }
+        return best;
+      };
+      const from = farthest(new Vector3(s[0], s[1], s[2]));
+      const to = farthest(from);
+      const wide = from.distanceTo(to);
+      if (wide < EPSILON) continue;
+      const along = to.clone().sub(from).divideScalar(wide);
+      const middle = from.clone().add(to).multiplyScalar(0.5);
+      let long = 0;
+      let [low, high] = [Infinity, -Infinity];
+      const centre = new Vector3();
+      const off = new Vector3();
+      for (let k = 0; k < own.length; k += 3) {
+        off.set((own[k] ?? 0) - from.x, (own[k + 1] ?? 0) - from.y, (own[k + 2] ?? 0) - from.z);
+        [low, high] = [Math.min(low, off.dot(along)), Math.max(high, off.dot(along))];
+        long = Math.max(long, off.addScaledVector(along, -off.dot(along)).length());
+        centre.add(new Vector3(own[k], own[k + 1], own[k + 2]));
+      }
+      // Rooted along its whole width, and half as long again as wide: a hinge leaf on its knuckles or a tab is no arm.
+      const across = high - low;
+      if (long < SHORTEST_ARM || wide < ARM_ROOTED * across || long < ARM_LONG * across) continue;
+      // Into the material from the side, a little above the foot: the arm's thickness.
+      centre.divideScalar(own.length / 3).sub(middle);
+      const up = centre.addScaledVector(along, -centre.dot(along)).normalize();
+      const out = new Vector3(...normal).normalize();
+      ray.origin.copy(middle).addScaledVector(up, Math.min(long / 4, 1)).addScaledVector(out, -EPSILON);
+      ray.direction.copy(out).negate();
+      const hit = bvh.raycastFirst(ray, DoubleSide, 0, long);
+      if (!hit?.face || hit.face.normal.dot(out) > -0.9) continue;
+      const thick = hit.distance + EPSILON;
+      if (long < SLENDER * thick) continue;
+      roots += 1;
+      if (thick < thickness) [thickness, length] = [thick, long];
+      tally.add(face, root.sharpIn, thick, s);
+      tally.add(root.a === face ? root.b : root.a, root.sharpIn, thick, s);
+    }
+    return tally;
+  });
+  if (roots === 0) return null;
+  const found = locate(bodies.map(({ body }) => body), tallies, 0);
+  return { kind: 'rootCorner', severity: 'warn', roots, thickness: round(thickness), length: round(length, 1), radius: rootRadius(thickness, nozzle), places: found.places, box: found.box };
+}
+
 /**
  * Adds the design hints (Manuel, 2026-11-14) to the check: how the part looks and holds, not whether it prints, so yellow
  * only and each turned off on its own (in the print settings, or with the design rule it belongs to). Each body lies as the
@@ -1406,7 +1537,7 @@ export function withDesign(check: PrintCheck, bodies: readonly PrintCheckBody[],
     pairs: [...faceEdges(body.model, laid[b]).values()],
     hollow: hollowFaces(body.model),
   }));
-  const found: (PrintFinding | null)[] = [off.includes('sharpEdge') ? null : sharpEdges(read), off.includes('edgeRadii') ? null : edgeRadii(read)];
+  const found: (PrintFinding | null)[] = [off.includes('sharpEdge') ? null : sharpEdges(read), off.includes('edgeRadii') ? null : edgeRadii(read), off.includes('rootCorner') ? null : rootCorners(read, profile.nozzle)];
   const findings = [...check.findings, ...found.filter((finding): finding is PrintFinding => finding !== null)];
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   return { status: statusOf(findings), findings };

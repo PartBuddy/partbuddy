@@ -1160,6 +1160,10 @@
       "edgeRadii": {
         "label": "Zu viele Radien",
         "hint": "Zeigt Körper, deren Außenkanten mit mehr als drei verschiedenen Radien gerundet sind (Radien, die weniger als ein Viertel auseinanderliegen, zählen als einer): Die Gestaltungsregeln nehmen zwei bis drei je Teil. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
+      },
+      "rootCorner": {
+        "label": "Scharfer Fuß an dünnen Armen",
+        "hint": "Zeigt schlanke, frei stehende Arme, Haken und dünne Zapfen (mindestens dreimal so lang wie dick), die mit einer scharfen Innenecke auf einer Fläche stehen: Dort bricht ein Arm unter Last zuerst, eine Rundung von der halben Dicke hält ihn. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
       }
     }
   },
@@ -1215,7 +1219,8 @@
       "smallHole": "{count, plural, one {Eine Bohrung unter {minimum} mm ({diameter} mm)} other {# Bohrungen unter {minimum} mm, die kleinste {diameter} mm}}: So kleine Bohrungen wachsen zu oder werden zu klein – nach dem Druck aufbohren",
       "narrowGap": "Schlitze bis {gap} mm, unter den {minimum} mm, die mit dieser Düse offen bleiben: Die Wände daneben drücken sich zusammen und schließen sie",
       "sharpEdge": "{count, plural, one {Eine scharfe Kante} other {# scharfe Kanten}} ({length} mm) an Körpern ganz ohne Rundung oder Fase: Die Gestaltungsregeln runden sichtbare Außenkanten bei {size} mm Teilgröße mit {radius} mm",
-      "edgeRadii": "Außenkanten mit {count} verschiedenen Radien ({radii} mm): Die Gestaltungsregeln nehmen höchstens {most} Radien je Teil, damit die Rundungen zusammenpassen"
+      "edgeRadii": "Außenkanten mit {count} verschiedenen Radien ({radii} mm): Die Gestaltungsregeln nehmen höchstens {most} Radien je Teil, damit die Rundungen zusammenpassen",
+      "rootCorner": "{count, plural, one {Ein schlanker Arm steht} other {# Seiten schlanker Arme stehen}} mit scharfer Innenecke auf, der dünnste {thickness} mm dick und {length} mm lang: Dort bricht er unter Last zuerst – den Fuß mit mindestens {radius} mm runden"
     },
     "confirm": {
       "title": "Trotzdem exportieren?",

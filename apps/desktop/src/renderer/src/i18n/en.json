@@ -1160,6 +1160,10 @@
       "edgeRadii": {
         "label": "Too many radii",
         "hint": "Says where the outer edges of a body are rounded with more than three different radii (radii less than a quarter apart count as one): the design rules use two or three per part. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
+      },
+      "rootCorner": {
+        "label": "Sharp roots of thin arms",
+        "hint": "Says where a slender free arm, hook or thin post (at least three times as long as it is thick) stands on a face with a sharp inner corner: an arm under load breaks there first, a round of half its thickness holds it. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
       }
     }
   },
@@ -1215,7 +1219,8 @@
       "smallHole": "{count, plural, one {A hole under {minimum} mm across ({diameter} mm)} other {# holes under {minimum} mm across, the smallest {diameter} mm}}: holes that small close up or come out under size – drill them out after printing",
       "narrowGap": "Slots down to {gap} mm, under the {minimum} mm that stay open with this nozzle: the walls beside them squeeze together and close them",
       "sharpEdge": "{count, plural, one {A sharp edge} other {# sharp edges}} ({length} mm) on bodies with no rounded or chamfered edge at all: the design rules round seen outer edges {radius} mm on a part of {size} mm",
-      "edgeRadii": "Outer edges rounded with {count} different radii ({radii} mm): the design rules use at most {most} per part, so the rounds match"
+      "edgeRadii": "Outer edges rounded with {count} different radii ({radii} mm): the design rules use at most {most} per part, so the rounds match",
+      "rootCorner": "{count, plural, one {A slender arm stands} other {# sides of slender arms stand}} on a sharp inner corner, the thinnest {thickness} mm thick and {length} mm long: it breaks there first under load – round the root at least {radius} mm"
     },
     "confirm": {
       "title": "Export anyway?",
