@@ -102,6 +102,7 @@ function hingedBox(printer: FitPrinter): Step[] {
       side: 'y+',
       hinge: { along: 'x', across: between / 2, z: { at: height, expr: 'height' } },
       nozzle: printer.nozzle,
+      layer: printer.layer,
       name: 'Closure',
     }),
     // The hinge of the mechanism tool, built at the starting sizes, then tied to the parameters.
