@@ -2,17 +2,27 @@ import { describe, expect, it } from 'vitest';
 
 import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
 import { REVIEW_CHECKLIST, REVIEW_PROMPT, REVIEW_TOOL, Review, SAME_STATE } from '../src/main/agents/review';
+import { WorkLog, type DesignHistory } from '../src/main/agents/workLog';
 
-/** SolidCraft and PartBuddy's inner tools as far as the review reads them; `failing` names calls that answer an error. */
+/**
+ * SolidCraft and PartBuddy's inner tools as far as the review reads them, behind the real work log, which tells the
+ * review what changed the design: `solid.*` commands and `set_parameter` add to the history, undo and redo move in it,
+ * everything else only reads. `failing` names calls that answer an error and change nothing.
+ */
 function setup(options: { pictures?: boolean; enabled?: boolean; failing?: string[]; noShots?: boolean } = {}) {
   const calls: { name: string; args: Record<string, unknown> }[] = [];
   const lines: string[] = [];
+  const history: DesignHistory = { documentId: 'd', revision: 1, undo: 0, redo: 0 };
   const upstream: UpstreamTools = {
     instructions: () => undefined,
     listTools: () => Promise.resolve([{ name: 'execute', inputSchema: { type: 'object' } }]),
     callTool: (name, args): Promise<ToolResult> => {
       calls.push({ name, args });
       if (options.failing?.includes(name)) return Promise.resolve({ content: [{ type: 'text', text: 'refused' }], isError: true });
+      const command = typeof args.command === 'string' ? args.command : '';
+      if (name === 'set_parameter' || command.startsWith('solid.')) Object.assign(history, { revision: history.revision + 1, undo: history.undo + 1, redo: 0 });
+      if (name === 'undo') Object.assign(history, { revision: history.revision + 1, undo: history.undo - 1, redo: history.redo + 1 });
+      if (name === 'redo') Object.assign(history, { revision: history.revision + 1, undo: history.undo + 1, redo: history.redo - 1 });
       if (name === 'partbuddy_view') return Promise.resolve({ content: [{ type: 'text', text: '{"bodies":[{"name":"Lid"}]}' }, { type: 'text', text: 'check: ready to print' }] });
       if (name === 'screenshot') {
         if (options.noShots) return Promise.reject(new Error('no renderer'));
@@ -22,7 +32,16 @@ function setup(options: { pictures?: boolean; enabled?: boolean; failing?: strin
     },
   };
   const review = new Review((line) => lines.push(line), () => options.pictures ?? false, options.enabled ?? true);
-  const tools = review.tools(upstream);
+  const steps = new WorkLog({
+    history: () => Promise.resolve({ ...history }),
+    travel: () => Promise.resolve(),
+    emit: () => undefined,
+    changed: (result, _after, name) => {
+      review.changed(name);
+      return Promise.resolve(result);
+    },
+  });
+  const tools = review.tools(steps.tools(upstream));
   const call = (name: string, args: Record<string, unknown> = {}) => tools.callTool(name, args);
   return { review, tools, call, calls, lines };
 }
@@ -60,6 +79,9 @@ describe('the review before "done"', () => {
     const { review, call } = setup({ failing: ['batch'] });
     await call('inspect_design');
     await call('execute', { command: 'parameters.list' });
+    // Reads through execute: the work log sees the history unchanged (coordinator review, item 1).
+    for (const command of ['view.pick', 'view.apply', 'view.list', 'inspect.measure', 'inspect.section']) await call('execute', { command, params: {} });
+    expect(review.due()).toBeNull();
     await call('batch', { commands: [box] });
     await call('undo');
     await call('redo');
@@ -90,7 +112,7 @@ describe('the review before "done"', () => {
   it('answers the view and its check, three pictures where the route shows them, and the checklist', async () => {
     const { call, calls } = setup({ pictures: true });
     const answer = await call(REVIEW_TOOL);
-    expect(calls.filter((entry) => entry.name === 'screenshot').map((entry) => entry.args.view)).toEqual(['front', 'top', 'iso']);
+    expect(calls.filter((entry) => entry.name === 'screenshot').map((entry) => entry.args)).toEqual(['front', 'top', 'iso'].map((view) => ({ view, width: 640, height: 480 })));
     expect(answer.content.map((part) => part.type)).toEqual(['text', 'text', 'text', 'image', 'text', 'image', 'text', 'image', 'text']);
     expect(answer.content[1]).toEqual({ type: 'text', text: 'check: ready to print' });
     expect(answer.content.at(-1)).toEqual({ type: 'text', text: REVIEW_CHECKLIST });
@@ -115,9 +137,19 @@ describe('the review before "done"', () => {
     const shots = calls.length;
     expect(await call(REVIEW_TOOL)).toEqual({ content: [{ type: 'text', text: SAME_STATE }] });
     expect(calls).toHaveLength(shots);
-    // A change in between makes a new state.
+    // A change in between makes a new state, and so do undo and redo.
     await call('set_parameter', { name: 'wall', expression: '3 mm' });
     expect((await call(REVIEW_TOOL)).content.at(-1)).toEqual({ type: 'text', text: REVIEW_CHECKLIST });
+    await call('undo');
+    expect((await call(REVIEW_TOOL)).content.at(-1)).toEqual({ type: 'text', text: REVIEW_CHECKLIST });
+    await call('redo');
+    expect((await call(REVIEW_TOOL)).content.at(-1)).toEqual({ type: 'text', text: REVIEW_CHECKLIST });
+  });
+
+  it('counts nothing the work log does not see as a change, such as a call that failed', async () => {
+    const { review, call } = setup({ failing: ['execute'] });
+    await call('execute', box);
+    expect(review.due()).toBeNull();
   });
 
   it('keeps the send-back text free of the words that start scenes of the test double of Claude Code', () => {

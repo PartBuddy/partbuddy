@@ -182,13 +182,15 @@ export class ChatGptAgent implements AgentBackend {
           providerOptions: { openai: { namespace: { name: 'solidcraft', description: 'SolidCraft CAD: inspect and change the open design.' } } },
         })),
         ...(research ? { web_search: provider.tools.webSearch({}) } : {}) };
-      let steps;
+      // Both passes of a turn (the second only after a send-back for the review) share its MAX_STEPS rounds.
+      const steps: Awaited<ReturnType<typeof streamText>['steps']>[number][] = [];
       for (;;) {
+        let wrote = false;
         const result = streamText({
           model: provider.responses(this.choice?.model ?? ''),
           messages: this.history,
           tools,
-          stopWhen: [stepCountIs(MAX_STEPS), repeatsItself],
+          stopWhen: [stepCountIs(MAX_STEPS - steps.length), repeatsItself],
           abortSignal: signal,
           providerOptions: {
             openai: {
@@ -200,7 +202,10 @@ export class ChatGptAgent implements AgentBackend {
           },
         });
         for await (const part of result.stream) {
-          if (part.type === 'text-delta') this.options.event({ type: 'textDelta', text: part.text });
+          if (part.type === 'text-delta') {
+            wrote ||= part.text !== '';
+            this.options.event({ type: 'textDelta', text: part.text });
+          }
           if (part.type === 'source' && part.sourceType === 'url') {
             const source = sourceOfUrl(part.url, part.title);
             if (source) this.options.event({ type: 'source', source });
@@ -208,11 +213,13 @@ export class ChatGptAgent implements AgentBackend {
           if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error));
         }
         this.history.push(...(await result.responseMessages));
-        steps = await result.steps;
-        // A changing turn that ended without the review goes back to the model once (review.ts).
-        const back = signal.aborted || repeatsItself({ steps }) || usedAllRounds(steps) ? null : (this.options.review?.due() ?? null);
+        steps.push(...(await result.steps));
+        // A changing turn that ended without the review goes back to the model once (review.ts), with rounds left for it.
+        const back = signal.aborted || repeatsItself({ steps }) || steps.length > MAX_STEPS - 2 ? null : (this.options.review?.due() ?? null);
         if (!back) break;
         this.history.push({ role: 'user', content: back });
+        // The second pass's words are a paragraph of their own.
+        if (wrote) this.options.event({ type: 'textDelta', text: '\n\n' });
       }
       this.context = contextAfter(steps, this.models?.find((model) => model.id === this.choice?.model)?.context) ?? this.context;
       if (repeatsItself({ steps })) {

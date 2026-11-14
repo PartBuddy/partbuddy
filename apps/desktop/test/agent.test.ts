@@ -39,6 +39,18 @@ function fakeUpstream() {
   return { upstream, calls };
 }
 
+/** `execute` tells the review of a change, as the work log does in the app (review.test.ts runs the real one). */
+function changing(upstream: UpstreamTools, review: Review): UpstreamTools {
+  return {
+    ...upstream,
+    callTool: async (name, args, id) => {
+      const result = await upstream.callTool(name, args, id);
+      if (name === 'execute') review.changed(name);
+      return result;
+    },
+  };
+}
+
 describe('tool policy', () => {
   it('allows reading and modelling tools', () => {
     expect(decide('inspect_design', {})).toEqual({ allow: true });
@@ -409,7 +421,8 @@ describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
         home: workDir,
         workDir,
         apiBilling: { get: () => billing.allowed, set: (allow: boolean) => (billing.allowed = allow) },
-        tools: () => Promise.resolve(review ? review.tools(upstream) : upstream),
+        // With a review, `execute` counts as a change, as the work log would tell it (review.test.ts runs the real one).
+        tools: () => Promise.resolve(review ? review.tools(changing(upstream, review)) : upstream),
         log: () => undefined,
         choices,
         ...(review ? { review } : {}),
@@ -555,6 +568,8 @@ describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
     expect(events.filter((e) => e.type === 'tool' && e.ok === true).map((e) => (e as { name: string }).name)).toEqual(['execute', 'partbuddy_review']);
     expect(events.filter((e) => e.type === 'text').at(-1)).toEqual({ type: 'text', text: 'Reviewed with 0 pictures and the checklist: nothing to fix.' });
     expect(events.filter((e) => e.type === 'user')).toHaveLength(1);
+    // The whole turn's time: both passes of the fake take 12 ms.
+    expect(events.find((e) => e.type === 'done')).toMatchObject({ ok: true, durationMs: 24 });
     expect(lines).toEqual(['the assistant ended a changing turn without partbuddy_review; it is sent back once']);
     // A question changes nothing: no review, one end.
     review.newTurn();

@@ -389,29 +389,36 @@ export class LocalAgent implements AgentBackend {
           this.options.event(event);
         },
       });
-      let steps;
+      // Both passes of a turn (the second only after a send-back for the review) share its MAX_STEPS rounds.
+      const steps: Awaited<ReturnType<typeof streamText>['steps']>[number][] = [];
       for (;;) {
+        let wrote = false;
         const result = streamText({
           model: languageModel,
           instructions: instructionsFor(upstream, false),
           messages: this.history,
           tools,
-          stopWhen: [stepCountIs(MAX_STEPS), repeatsItself],
+          stopWhen: [stepCountIs(MAX_STEPS - steps.length), repeatsItself],
           abortSignal: signal,
           providerOptions,
           // A local server that refuses a request refuses it again; the user gets its reason at once.
           maxRetries: 0,
         });
         for await (const part of result.stream) {
-          if (part.type === 'text-delta') this.options.event({ type: 'textDelta', text: part.text });
+          if (part.type === 'text-delta') {
+            wrote ||= part.text !== '';
+            this.options.event({ type: 'textDelta', text: part.text });
+          }
           if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error));
         }
         this.history.push(...(await result.responseMessages));
-        steps = await result.steps;
-        // A changing turn that ended without the review goes back to the model once (review.ts).
-        const back = signal.aborted || repeatsItself({ steps }) || usedAllRounds(steps) ? null : (this.options.review?.due() ?? null);
+        steps.push(...(await result.steps));
+        // A changing turn that ended without the review goes back to the model once (review.ts), with rounds left for it.
+        const back = signal.aborted || repeatsItself({ steps }) || steps.length > MAX_STEPS - 2 ? null : (this.options.review?.due() ?? null);
         if (!back) break;
         this.history.push({ role: 'user', content: back });
+        // The second pass's words are a paragraph of their own.
+        if (wrote) this.options.event({ type: 'textDelta', text: '\n\n' });
       }
       this.context = contextAfter(steps, model.option.context) ?? this.context;
       if (repeatsItself({ steps })) {

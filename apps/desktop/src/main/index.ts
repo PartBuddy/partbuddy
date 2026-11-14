@@ -565,19 +565,24 @@ if (!app.requestSingleInstanceLock()) {
       if (event.type === 'error') log(`assistant error: ${event.message.slice(0, 300)}`);
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentEvent, event);
     };
+    // The review before "done": pictures only where the route shows them (Claude Code; the own loops drop them) and only
+    // headless, since `screenshot {view}` would turn the camera of a connected SolidCraft window.
+    const review = new Review(log, () => assistant?.conversation().route === 'claude-code' && supervisor.headlessTools() !== null);
     const steps = new WorkLog({
       history: () => supervisor.history(),
       travel: (command, count) => supervisor.travel(command, count),
       emit: emitEvent,
       // The check of each change goes back with the tool's answer, so no turn ends on a part the model never saw checked.
-      changed: (result, after) => withCheckOfChange(result, after, () => ({ mirrored: supervisor.currentRevision(), report: printCheck }), (report) => withHidden(checkTold.note(report))),
+      changed: (result, after, name) => {
+        // The review before "done" counts what the work log tells as a change, never a read through execute.
+        review.changed(name);
+        return withCheckOfChange(result, after, () => ({ mirrored: supervisor.currentRevision(), report: printCheck }), (report) => withHidden(checkTold.note(report)));
+      },
       log,
     });
     workLog = steps;
     // Questions and plans as cards (M2a); changes wait until the user answered.
     const questions = new Questions(emitEvent, (name) => supervisor.nameNewDesign(name));
-    // The review before "done": pictures only where the route shows them (Claude Code; the own loops drop them).
-    const review = new Review(log, () => assistant?.conversation().route === 'claude-code');
     // The assembly order (ADR 0026) lives in the open project's folder, next to the design.
     const assemblyFolder = (): string | null => {
       const project = supervisor.projectFile();

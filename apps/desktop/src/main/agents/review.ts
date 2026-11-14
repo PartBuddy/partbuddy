@@ -1,7 +1,6 @@
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 import { ASK_TOOL, PLAN_TOOL } from './questions';
 import { VIEW_TOOL } from './viewContext';
-import { changesDesign } from './workLog';
 
 /**
  * The review before "done" (Manuel, 2026-11-14): a turn that changed the design does not end as done until the model
@@ -70,7 +69,10 @@ export class Review implements TurnReview {
 
   constructor(
     private readonly log: (line: string) => void,
-    /** Whether the route of the conversation shows pictures from a tool answer (Claude Code; the own loops drop them, loop.ts). */
+    /**
+     * Whether to render pictures: the route shows them from a tool answer (Claude Code; the own loops drop them, loop.ts)
+     * and SolidCraft runs headless, since `screenshot {view}` turns a connected window's camera (0.41.0 tool schema).
+     */
     private readonly pictures: () => boolean = () => false,
     /** The test doubles of the E2E tests never review (PARTBUDDY_FINAL_REVIEW=0, e2e/launch.ts). */
     private readonly enabled: boolean = process.env.PARTBUDDY_FINAL_REVIEW !== '0',
@@ -89,17 +91,22 @@ export class Review implements TurnReview {
       callTool: async (name, args, callId) => {
         if (name === REVIEW_TOOL) return this.answer(upstream);
         const result = await upstream.callTool(name, args, callId);
-        if (result.isError === true) return result;
         // A question or plan ends the turn waiting for the user; the part is not called done.
-        if (name === ASK_TOOL || name === PLAN_TOOL) this.forget();
-        else if (changesDesign(name, args) && !LIGHT.has(name)) {
-          this.reviewed = false;
-          if (name === 'set_parameter') this.parameters += 1;
-          else this.changes += 1;
-        }
+        if ((name === ASK_TOOL || name === PLAN_TOOL) && result.isError !== true) this.forget();
         return result;
       },
     };
+  }
+
+  /**
+   * A call that left another design behind, as the work log tells it (workLog.ts `designChanged`): reads through
+   * `execute` (view.*, inspect.*), refused calls and trials that were taken back never come here.
+   */
+  changed(name: string): void {
+    this.reviewed = false;
+    if (LIGHT.has(name)) return;
+    if (name === 'set_parameter') this.parameters += 1;
+    else this.changes += 1;
   }
 
   due(): string | null {
@@ -138,7 +145,7 @@ export class Review implements TurnReview {
     if (this.pictures()) {
       for (const view of VIEWS) {
         try {
-          const shot = await upstream.callTool('screenshot', { view, width: 800, height: 600 });
+          const shot = await upstream.callTool('screenshot', { view, width: 640, height: 480 });
           const images = shot.isError === true ? [] : shot.content.filter((part) => part.type === 'image');
           if (images.length === 0) throw new Error(shot.content.map((part) => (typeof part.text === 'string' ? part.text : part.type)).join(' ').slice(0, 200));
           content.push({ type: 'text', text: `The part from ${view}:` }, ...images);
