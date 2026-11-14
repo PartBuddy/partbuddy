@@ -1,5 +1,5 @@
 import { withoutFitMark } from '../../../shared/designFit';
-import { groupOf, withoutGroup } from '../../../shared/parameterGroup';
+import { PRINT_GROUP, groupOf, withoutGroup } from '../../../shared/parameterGroup';
 
 /** "Base plate length [50..90]" → { min: 50, max: 90 }: the range the designer wrote into the comment. */
 export function rangeOf(comment: string): { min: number; max: number } | null {
@@ -42,18 +42,20 @@ export interface ParameterGroup<P> {
 
 /**
  * The panel's order (decided 2026-11-14): favourites first, then the groups in the order their first parameter
- * comes, the parameters without a group last; within each the values to set, then the computed ones.
+ * comes, the parameters without a group, then the sizes fitted to the printer ("Druck") last; within each the
+ * values to set, then the computed ones. Groups are the same in any case ("[monitor]" is "[Monitor]"), named as first written.
  */
 export function groupParameters<P extends Listed>(list: readonly P[]): { favorites: P[]; groups: ParameterGroup<P>[] } {
-  const groups = new Map<string | null, ParameterGroup<P>>();
+  const groups = new Map<string, ParameterGroup<P>>();
   for (const parameter of list) {
     if (parameter.favorite) continue;
     const name = groupOf(parameter.comment);
-    const group = groups.get(name) ?? { name, values: [], computed: [] };
-    groups.set(name, group);
+    const key = name?.toLowerCase() ?? '';
+    const group = groups.get(key) ?? { name, values: [], computed: [] };
+    groups.set(key, group);
     (computed(parameter) ? group.computed : group.values).push(parameter);
   }
-  const rest = groups.get(null);
-  groups.delete(null);
-  return { favorites: list.filter((parameter) => parameter.favorite), groups: [...groups.values(), ...(rest ? [rest] : [])] };
+  const last = ['', PRINT_GROUP.toLowerCase()].flatMap((key) => groups.get(key) ?? []);
+  const first = [...groups.entries()].filter(([key]) => key !== '' && key !== PRINT_GROUP.toLowerCase()).map(([, group]) => group);
+  return { favorites: list.filter((parameter) => parameter.favorite), groups: [...first, ...last] };
 }

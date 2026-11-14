@@ -240,7 +240,7 @@ export function StructurePanel() {
                 <EyeToggle name={body.name} visible={body.visible} onToggle={(visible) => toggle({ bodies: [body.name], sketches: [], visible })} />
               </TreeItem>
               {open ? (
-                <TreeExtra className="mr-1 mb-1 ml-5">
+                <TreeExtra level={3} className="mr-1 mb-1 ml-5">
                   <PartDetails key={`${body.name}:${model.documentId}`} body={body.name} note={note} standard={standard} onChange={keep} />
                 </TreeExtra>
               ) : null}

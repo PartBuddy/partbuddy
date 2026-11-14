@@ -366,11 +366,11 @@ test('the parameter panel lists the design parameters and changes a length with 
   await expect(panel.getByRole('textbox')).toHaveCount(0);
   // A formula stays as it is: a double click opens no field.
   await wandRow.dblclick();
-  await expect(panel.getByRole('textbox', { name: 'Change wand' })).toHaveCount(0);
+  await expect(panel.getByRole('textbox', { name: /^Change / })).toHaveCount(0);
 
   // A double click opens the value; a favourite with a range brings its slider while it is edited.
   await rows.first().dblclick();
-  const field = panel.getByRole('textbox', { name: 'Change Plate width' });
+  const field = panel.getByRole('textbox', { name: 'Change Plate width in mm' });
   await expect(field).toHaveValue('40');
   await expect(field).toBeFocused();
   await expect(panel.getByRole('slider', { name: 'Plate width, slider' })).toBeVisible();
@@ -400,7 +400,7 @@ test('the parameter panel lists the design parameters and changes a length with 
 
   // The user setting a snapped size makes it theirs: the mark goes, so a printer change leaves it alone.
   await floorRow.dblclick();
-  const floor = panel.getByRole('textbox', { name: 'Change Floor' });
+  const floor = panel.getByRole('textbox', { name: 'Change Floor in mm' });
   await floor.fill('2');
   await expect(panel.getByText('Preview in the view – Enter changes it, Escape cancels')).toBeVisible();
   await floor.press('Enter');
@@ -430,7 +430,7 @@ function manyParameters(grouped: boolean) {
 test('the parameter panel groups many parameters, folds formulas and keeps every section in sight', async () => {
   const { app, fake: solidcraft } = await connectedApp();
   const { page } = app;
-  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 1');
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-revision', '1');
   const panel = page.getByTestId('parameters');
   const tree = page.getByRole('tree', { name: 'Structure' });
 
@@ -496,13 +496,14 @@ test('the parameter panel groups many parameters, folds formulas and keeps every
   await expect.poll(async () => (await panel.boundingBox())?.height ?? 0).toBeLessThan(before - 40);
   const kept = Math.round((await panel.boundingBox())?.height ?? 0);
   await page.reload();
-  await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision/);
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-revision', /^\d+$/);
   await expect(panel.getByRole('treeitem', { name: 'Parameters (88)' })).toBeVisible();
   await expect(tree.getByRole('treeitem', { name: 'Sketches (0)' })).toHaveAttribute('aria-expanded', 'true');
   await expect(tree.getByRole('treeitem', { name: 'Notes (0)' })).toHaveAttribute('aria-expanded', 'false');
   await expect(panel.getByRole('treeitem', { name: 'Kopf (22)' })).toHaveAttribute('aria-expanded', 'false');
   await expect(panel.getByRole('treeitem', { name: 'Monitor (22)' })).toHaveAttribute('aria-expanded', 'true');
   await expect.poll(async () => Math.round((await panel.boundingBox())?.height ?? 0)).toBe(kept);
+  await expect(resizer).toHaveAttribute('aria-valuenow', String(kept));
   // A double click on the divider goes back to as high as its rows.
   await resizer.dblclick();
   await expect.poll(async () => Math.round((await panel.boundingBox())?.height ?? 0)).not.toBe(kept);
@@ -518,10 +519,15 @@ test('the parameter panel groups many parameters, folds formulas and keeps every
     { ...user, name: 'pin_gap', expression: '42.5 mm', value: 42.5, comment: '[Gelenk] Gelenkbolzen-Abstand' },
     { ...user, name: 'tilt', expression: '12 deg', value: 12, unit: 'deg', comment: '[Gelenk] Neigung' },
     { ...user, name: 'strut_d', expression: '16 mm', value: 16, comment: '[Basis] Querstrebe Ø' },
-    { ...user, name: 'wall', expression: '3.2 mm', value: 3.2, comment: '[Basis] Wandstärke [auto 7×line]' },
+    { ...user, name: 'wall', expression: '3.2 mm', value: 3.2, comment: '[auto 7×line] [druck] Wandstärke' },
+    { ...user, name: 'screw', expression: '3.4 mm', value: 3.4, comment: '[M3] Schraubenloch' },
   ];
   solidcraft.change();
-  await expect(panel.getByRole('treeitem', { name: 'Parameters (8)' })).toBeVisible();
+  await expect(panel.getByRole('treeitem', { name: 'Parameters (9)' })).toBeVisible();
+  // The printer's fitted sizes come last, after those without a group; "[M3]" is a size, not a group.
+  const order = ['Monitor', 'Gelenk', 'Basis', 'Other', 'druck'];
+  await expect(groups).toHaveCount(order.length);
+  for (const [i, name] of order.entries()) await expect(groups.nth(i)).toHaveAttribute('data-group', name);
   // The head names the length unit once; an angle keeps its own.
   await expect(panel.getByText('Value (mm)')).toBeVisible();
   await expect(panel.locator('[data-testid="parameter"][data-name="tilt"]')).toHaveAccessibleName('Neigung 12°');

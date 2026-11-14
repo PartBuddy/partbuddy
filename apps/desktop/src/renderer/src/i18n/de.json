@@ -730,13 +730,13 @@
     "resize": "Breite der Struktur"
   },
   "parameters": {
+    "changeIn": "{name} in {unit} ändern",
     "valueIn": "Wert ({unit})",
     "formulaName": "In Formeln: {name}",
     "computed": "Berechnet",
     "more": "Weitere",
     "title": "Parameter ({count})",
     "none": "Noch keine Parameter. Der Assistent benennt hier die wichtigen Werte eines Teils.",
-    "change": "{name} ändern",
     "favorite": "Favorit",
     "outside": "Außerhalb des vorgesehenen Bereichs {min} bis {max}",
     "enter": "Vorschau in der Ansicht – Enter ändert, Escape verwirft",

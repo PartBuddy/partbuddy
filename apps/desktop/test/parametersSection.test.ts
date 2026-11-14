@@ -29,6 +29,12 @@ describe('parameter panel: groups and labels (decided 2026-11-14)', () => {
     expect(groupOf('[auto 3×line] Wand')).toBeNull();
     expect(groupOf('Wand [auto 3×line]')).toBeNull();
     expect(withoutGroup('[Fuß] Fußbreite')).toBe('Fußbreite');
+    // A bracket with a digit is a size or a range, not a group; the fit mark may come first.
+    expect(groupOf('[M3] Schraubenloch')).toBeNull();
+    expect(groupOf('[50-90] Länge')).toBeNull();
+    expect(groupOf('[auto 5×layer] [Druck] Bodenstärke')).toBe('Druck');
+    expect(commentText('[auto 5×layer] [Druck] Bodenstärke')).toBe('Bodenstärke');
+    expect(groupOf('[ ] Leer')).toBeNull();
     expect(commentText('[Monitor] Ultrawide-Höhe [300..400] [auto 3×line]')).toBe('Ultrawide-Höhe');
     expect(labelOf('[Box] Outer length of box and lid; the hinge is 40 mm long [54..200]')).toBe('Outer length of box and lid');
     expect(labelOf('')).toBe('');
@@ -53,6 +59,21 @@ describe('parameter panel: groups and labels (decided 2026-11-14)', () => {
       // An angle and a text are set by hand, not worked out.
       ['Kopf', ['tilt'], []],
       [null, ['label'], ['slot_a']],
+    ]);
+  });
+
+  it('takes groups in any case, named as first written, and puts the printer\'s sizes last', () => {
+    const { groups } = groupParameters([
+      entry('floor', '[Druck] Bodenstärke [auto 5×layer]'),
+      entry('uw_h', '[Monitor] Ultrawide-Höhe'),
+      entry('free', 'Ohne Gruppe'),
+      entry('uw_w', '[monitor] Ultrawide-Breite'),
+      entry('gap', '[auto 1×nozzle] [druck] Spalt'),
+    ]);
+    expect(groups.map((g) => [g.name, g.values.map((p) => p.name)])).toEqual([
+      ['Monitor', ['uw_h', 'uw_w']],
+      [null, ['free']],
+      ['Druck', ['floor', 'gap']],
     ]);
   });
 

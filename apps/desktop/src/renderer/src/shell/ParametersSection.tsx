@@ -25,9 +25,13 @@ const format = (value: number) => new Intl.NumberFormat(i18next.language, { maxi
 const LENGTH_UNIT = 'mm';
 /** What a row shows after its value: nothing for a length or a text, ° for an angle, the unit otherwise. */
 const suffixOf = (parameter: DesignParameter) => (parameter.unit === LENGTH_UNIT || parameter.unit === 'text' ? '' : parameter.unit === 'deg' ? '°' : ` ${parameter.unit}`);
-/** As wide as the widest value shown (tabular figures are 1ch each), so the labels get the rest (decided 2026-11-14). */
-const valueWidth = (parameters: readonly DesignParameter[]) =>
-  `${String(Math.max(2, ...parameters.map((parameter) => format(parameter.value).length + suffixOf(parameter).length + (parameter.editable ? 0 : 1.5))))}ch`;
+/**
+ * As wide as the widest value to set (tabular figures are 1ch each), so the labels get the rest (decided 2026-11-14):
+ * at least four figures, so the field typed into fits too and the row does not jump, at most eight; a longer computed
+ * value is cut and shows in full on hover. The field's frame and padding are the extra half rem.
+ */
+const valueWidth = (values: readonly DesignParameter[]) =>
+  `calc(${String(Math.min(8, Math.max(4, ...values.map((parameter) => format(parameter.value).length + suffixOf(parameter).length + (parameter.editable ? 0 : 1.5)))))}ch + 0.5rem)`;
 
 /** One parameter: a field for a plain length, the formula as text otherwise. */
 function ParameterRow({ parameter, body, busy, level, width }: { parameter: DesignParameter; body: string | null; busy: boolean; level: number; width: string }) {
@@ -127,13 +131,14 @@ function ParameterRow({ parameter, body, busy, level, width }: { parameter: Desi
         </span>
         {editing ? (
           <TextField
-            aria-label={t('parameters.change', { name: label })}
+            aria-label={t('parameters.changeIn', { name: label, unit: parameter.unit })}
             value={text}
             onChange={setDraft}
             inputMode="decimal"
             isDisabled={busy}
             isInvalid={!valid || problem !== null}
-            className="w-field-value shrink-0"
+            className="shrink-0"
+            style={{ width }}
             data-testid="parameter-field"
           >
             <Input
@@ -142,7 +147,7 @@ function ParameterRow({ parameter, body, busy, level, width }: { parameter: Desi
               onFocus={(event) => {
                 event.currentTarget.select();
               }}
-              className={`h-control-sm w-full min-w-0 px-1 text-right text-sm tabular-nums ${fieldBox}`}
+              className={`h-control-sm w-full min-w-0 px-0.5 text-right text-sm tabular-nums ${fieldBox}`}
               onKeyDown={(event) => {
                 event.stopPropagation();
                 if (event.key === 'Enter') {
@@ -178,7 +183,7 @@ function ParameterRow({ parameter, body, busy, level, width }: { parameter: Desi
         )}
       </TreeItem>
       {editing && parameter.favorite && range ? (
-        <TreeExtra>
+        <TreeExtra level={level + 1}>
         <Slider
           aria-label={t('parameters.slider', { name: label })}
           value={Math.min(range.max, Math.max(range.min, valid ? value : parameter.value))}
@@ -201,13 +206,13 @@ function ParameterRow({ parameter, body, busy, level, width }: { parameter: Desi
         </TreeExtra>
       ) : null}
       {parameter.error || hint ? (
-        <TreeExtra className={`mr-1 flex items-start gap-1 px-1 py-hairline pl-5 text-xs ${parameter.error || problem || invalid ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
+        <TreeExtra level={level + 1} className={`mr-1 flex items-start gap-1 px-1 py-hairline pl-5 text-xs ${parameter.error || problem || invalid ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
           <IconAlertCircle className="mt-hairline size-icon-sm shrink-0" aria-hidden />
           <span role="status">{hint ?? parameter.error}</span>
         </TreeExtra>
       ) : null}
       {changed && !hint ? (
-        <TreeExtra className="pl-5 text-xs text-text-subtle">
+        <TreeExtra level={level + 1} className="pl-5 text-xs text-text-subtle">
           {t('parameters.enter')}
         </TreeExtra>
       ) : null}
@@ -235,7 +240,7 @@ export function ParametersSection() {
   const revision = model.status === 'ready' ? `${model.documentId}#${String(model.revision)}` : null;
   const parameters = documentId !== null && loaded?.documentId === documentId ? loaded.list : [];
   const { favorites, groups } = groupParameters(parameters);
-  const width = valueWidth(parameters);
+  const width = valueWidth([...favorites, ...groups.flatMap((group) => group.values)]);
   const body = model.status === 'ready' ? (model.structure.bodies.find((entry) => entry.visible)?.name ?? null) : null;
 
   useEffect(() => {

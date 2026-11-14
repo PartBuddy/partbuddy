@@ -1,5 +1,5 @@
 import { IconChevronRight } from '@tabler/icons-react';
-import { createContext, useContext, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Menu, MenuItem, Popover } from 'react-aria-components';
 import { ChatResizer } from './ChatResizer';
@@ -14,6 +14,8 @@ import { Shortcut } from '../ui/Tooltip';
  * and End jump; each row handles its own Enter, F2, Space, Left and Right.
  */
 const Roving = createContext<{ current: string; setCurrent: (id: string) => void }>({ current: '', setCurrent: () => undefined });
+/** The level of the row whose group the content sits in (a section 1, a folder its own), for a TreeExtra's level. */
+const Depth = createContext(1);
 
 /** Kept in the renderer's localStorage: which sections and groups are open and how high a section was dragged. */
 function useStored<T>(key: string, initial: T): [T, (value: T) => void] {
@@ -121,6 +123,18 @@ export function TreeSection({
   };
   const [height, setHeight] = useStored<number | null>(`partbuddy.tree.${id}.height`, null);
   const box = useRef<HTMLDivElement>(null);
+  // The height on screen, for the divider's value while the section is as high as its rows.
+  const [actual, setActual] = useState(0);
+  useEffect(() => {
+    if (!box.current) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setActual(Math.round(entry?.borderBoxSize[0]?.blockSize ?? 0));
+    });
+    observer.observe(box.current);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
   const row = useRow(id);
   const room = () => box.current?.parentElement?.clientHeight ?? 2000;
   const shown = Math.min(Math.max(count, 1), 5);
@@ -164,16 +178,19 @@ export function TreeSection({
       </div>
       {open ? (
         <div role="group" className="min-h-0 animate-fade-in overflow-y-auto" style={{ scrollbarWidth: 'thin' }} data-testid={testId ? `${testId}-body` : undefined}>
-          <div className="relative pb-1 before:absolute before:top-0 before:bottom-1 before:left-3 before:border-l before:border-border">{children}</div>
+          <div className="relative pb-1 before:absolute before:top-0 before:bottom-1 before:left-3 before:border-l before:border-border">
+            <Depth.Provider value={1}>{children}</Depth.Provider>
+          </div>
         </div>
       ) : null}
       {open ? (
         // A tree holds only rows, so the divider sits in one, left out of the arrow keys and reached with Tab.
-        <TreeExtra className="relative h-0 shrink-0">
+        <TreeExtra level={2} className="relative h-0 shrink-0">
           <ChatResizer
             edge="bottom"
-            // 0 stands for as high as its rows: Home, Enter and a double click go back to it.
-            width={height ?? 0}
+            // Home, Enter and a double click go back to as high as its rows (0).
+            width={height ?? actual}
+            // Dragging and the keys start from the height on screen, read when they begin (the observer may lag behind).
             measure={() => box.current?.getBoundingClientRect().height ?? 0}
             min={0}
             max={window.innerHeight}
@@ -252,7 +269,7 @@ export function TreeFolder({
       </div>
       {open ? (
         <div role="group" className="relative pl-2">
-          {children}
+          <Depth.Provider value={level}>{children}</Depth.Provider>
         </div>
       ) : null}
     </div>
@@ -283,9 +300,10 @@ export function TreeEmpty({ icon, text, action }: { icon: ReactNode; text: strin
  * Content under a row that is not a row itself (an empty state, the parts details, a note's
  * actions): a tree may only hold rows, so it is one, left out of the arrow keys and reached with Tab.
  */
-export function TreeExtra({ className, children, testId }: { className?: string; children: ReactNode; testId?: string }) {
+export function TreeExtra({ className, children, testId, level }: { className?: string; children: ReactNode; testId?: string; level?: number }) {
+  const depth = useContext(Depth);
   return (
-    <div role="treeitem" aria-level={3} aria-selected={false} data-extra className={className} data-testid={testId}>
+    <div role="treeitem" aria-level={level ?? depth + 1} aria-selected={false} data-extra className={className} data-testid={testId}>
       {children}
     </div>
   );

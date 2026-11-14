@@ -86,7 +86,7 @@ export function NotesSection() {
               </span>
             </TreeItem>
             {!note.own || note.status === 'orphaned' || note.status === 'ambiguous' ? (
-              <TreeExtra className="flex flex-wrap gap-1 pb-1 pl-6">
+              <TreeExtra level={3} className="flex flex-wrap gap-1 pb-1 pl-6">
                 {note.own ? null : (
                   <AriaButton className={small} isDisabled={busy} onPress={() => void run(() => platform().notes.accept(note.id))} data-testid="note-row-accept">
                     {t('notes.accept')}
