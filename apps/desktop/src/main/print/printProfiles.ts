@@ -260,7 +260,7 @@ function withoutSupportLines(overhang: number, nozzle: number): string[] {
     `- Edges that face down towards the bed: where you would round them, chamfer them instead, ${lean} (the bottom of a fillet ends flat; Prusa); fillets that face up or sideways are fine.`,
     `- Holes lying across the layers: up to ${String(LYING_HOLE)} mm across they print round without support (MakerVerse); wider ones get a teardrop roof (its sides ${lean} up to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
     `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged (UltiMaker; Hubs names 5 mm for a bridge that does not sag at all), and ledges reaching out at most ${mm(smallLedge(nozzle))} (four lines) from the material below are left without support (OrcaSlicer); the print check counts both the same way. Anything wider gets a slope underneath, ${lean}, or say which side the part should rather stand on.`,
-    'Model these as their own features with parameters (layer height, roof angle) and name them when you report.',
+    'Model these as their own features, sized from this profile (layer height, roof angle) and not as parameters, and name them when you report.',
   ];
 }
 
@@ -323,7 +323,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
     );
   if (design.snap)
     lines.push(
-      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(minimumFloor(layer))} (four layers and 0.8 mm: Stratasys, Hubs), print-in-place gaps ${mm(gap)}, radii at least ${mm(printer.nozzle)} and details at least one line. Mark each such parameter's comment with the multiple, e.g. "Wall [auto 3×line]", "Floor [auto 5×layer]", "Hinge gap [auto 1×nozzle]", so PartBuddy fits it again when the user changes printer or nozzle. Sizes the user named get no mark.`,
+      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(minimumFloor(layer))} (four layers and 0.8 mm: Stratasys, Hubs), print-in-place gaps ${mm(gap)}, radii at least ${mm(printer.nozzle)} and details at least one line. Where such a size is a parameter, put it in the group [Druck] and mark its comment with the multiple, e.g. "[Druck] Wall [auto 3×line]", "[Druck] Floor [auto 5×layer]", "[Druck] Hinge gap [auto 1×nozzle]" (the label in the user's language), so PartBuddy fits it again when the user changes printer or nozzle; these do not count toward the 8 to 15 sizes the user changes. Sizes the user named get no mark.`,
     );
   // Material and print time (2026-11-12): what the shape decides of them, by the makers' design guides (Prusa, Protolabs
   // Network, Markforged, Stratasys Direct); what the slicer decides is named as not the assistant's to promise.
@@ -354,7 +354,7 @@ export function printNote({ printer, material: used, design }: PartPrint): strin
     'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed; the check and the slicer then lay it on that face.',
     ...withoutSupportLines(used.overhang, printer.nozzle),
     ...designLines(design, printer, used),
-    `Keep nominal sizes as parameters, add the clearance and the hole allowance as their own parameters where you model a fit yourself (${BLOCK_TOOL} and ${MECHANISM_TOOL} add them), and say which fit you chose.]`,
+    `Where you model a fit yourself, put the clearance and the hole allowance from this profile into the feature or a formula over the nominal size, never into parameters of their own (${BLOCK_TOOL} and ${MECHANISM_TOOL} add them themselves), and say which fit you chose.]`,
   ].join('\n');
 }
 

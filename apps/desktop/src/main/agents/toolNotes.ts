@@ -43,6 +43,19 @@ export const TOOL_NOTES = [
     'follows the change. A comment that says ' +
     'where a value comes from must be true: "measured" only for a value the user measured and gave you; a value from a ' +
     'drawing, a datasheet or your own estimate says so.',
+  // Decided 2026-11-14: a design came back with 88 parameters, clearances and allowances among them, in one flat list.
+  '- Which parameters: make parameters only for the sizes the user would really change: the main dimensions, the sizes of ' +
+    'what the part holds or fits (a monitor, a board) and the wall thickness; about 8 to 15 for a part, fewer for a small ' +
+    'one. Every other size is a formula over these or a number in its feature. Clearances and hole allowances are never ' +
+    'parameters of their own: they come from the print profile, into the feature or the formula. The one exception are the ' +
+    'sizes the print profile has you mark for refitting (`[auto 3×line]` and the like): they stay parameters, so PartBuddy ' +
+    'can fit them again for another printer, do not count toward the 8 to 15, and go into the group `[Druck]` ' +
+    '("[Druck] Bodenstärke [auto 5×layer]"). Write each parameter\'s ' +
+    'comment as `[Group] Label`: the group the parameter panel files it under, one or two words for a part of the design or ' +
+    'what it holds ("[Monitor]", "[Kopf]", "[Fuß]"), then a short label, unique in the design and at most 24 characters, ' +
+    'in the user\'s language ("[Monitor] Ultrawide-Höhe"). The panel shows the label in place of the name; anything more ' +
+    '(a source, a reason) goes after a semicolon, a range or a fit mark at the end. When you tell the user about a ' +
+    'parameter, call it by its label ("Ultrawide-Höhe"), not by its name in formulas (`uw_h`).',
   '- Arcs: sketches keep every arc counter-clockwise. An arc drawn with `clockwise: true` or a negative `sweep` is stored ' +
     'with start and end swapped, point ids included (`a1.start` then lies where you drew the end). Take arc points from ' +
     '`sketch.inspect` before you dimension or constrain them.',

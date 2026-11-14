@@ -700,6 +700,8 @@
     }
   },
   "structure": {
+    "sectionHeight": "Height of {name}",
+    "sectionHeightHint": "Drag to change the height · double-click: as high as its rows",
     "title": "Structure",
     "bodies": "Bodies ({count})",
     "sketches": "Sketches ({count})",
@@ -728,9 +730,13 @@
     "resize": "Width of the structure"
   },
   "parameters": {
+    "changeIn": "Change {name} in {unit}",
+    "valueIn": "Value ({unit})",
+    "formulaName": "In formulas: {name}",
+    "computed": "Computed",
+    "more": "Other",
     "title": "Parameters ({count})",
     "none": "No parameters yet. The assistant names the important values of a part here.",
-    "change": "Change {name}",
     "favorite": "Favourite",
     "outside": "Outside the intended range {min} to {max}",
     "enter": "Preview in the view – Enter changes it, Escape cancels",
@@ -742,7 +748,6 @@
     "ask": "Ask the assistant",
     "askDraft": "Make parameters for the important sizes of this part.",
     "name": "Name",
-    "value": "Value",
     "invalid": "Type a length greater than 0",
     "discarded": "“{{value}}” discarded, {{kept}} stays",
     "fitted": "Chosen by the assistant, follows the printer's nozzle and layer height"

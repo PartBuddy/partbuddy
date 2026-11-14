@@ -77,7 +77,8 @@ export function useSideWidth(): [number, (width: number) => void] {
  * The handle on a panel's inner edge: drag it, use the arrow keys (Shift for bigger steps), Home
  * and End, or double-click to go back to the standard width. A window splitter in the WAI-ARIA
  * sense: a focusable separator with its value. On the chat (`edge` left) moving left widens it;
- * on the structure panel (`edge` right) moving right does.
+ * on the structure panel (`edge` right) moving right does; a section of the structure (`edge` bottom) grows
+ * downwards, its height in place of the width.
  */
 export function ChatResizer({
   width,
@@ -87,42 +88,49 @@ export function ChatResizer({
   min = MIN_CHAT_WIDTH,
   standard = DEFAULT_CHAT_WIDTH,
   label,
+  hint,
+  measure,
   testId = 'chat-resizer',
 }: {
   width: number;
   max: number;
   onChange: (width: number) => void;
-  edge?: 'left' | 'right';
+  edge?: 'left' | 'right' | 'bottom';
   min?: number;
   standard?: number;
   label?: string;
+  hint?: string;
+  /** The size it starts from when `width` is not the size on screen (a section as high as its rows). */
+  measure?: () => number;
   testId?: string;
 }) {
   const { t } = useTranslation();
   const grow = edge === 'left' ? -1 : 1;
+  const vertical = edge === 'bottom';
+  const [less, more] = vertical ? ['ArrowUp', 'ArrowDown'] : ['ArrowLeft', 'ArrowRight'];
   const drag = useRef<{ x: number; width: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 
   return (
     <div
       role="separator"
-      aria-orientation="vertical"
+      aria-orientation={vertical ? 'horizontal' : 'vertical'}
       aria-label={label ?? t('assistant.resize')}
       aria-valuenow={width}
       aria-valuemin={min}
       aria-valuemax={max}
       tabIndex={0}
       data-testid={testId}
-      title={t('assistant.resizeHint')}
-      className={`group absolute inset-y-0 ${edge === 'left' ? '-left-1' : '-right-1'} z-10 flex w-2 cursor-col-resize touch-none justify-center outline-none focus-visible:focus-ring ${dragging ? 'bg-accent-subtle' : ''}`}
+      title={hint ?? t('assistant.resizeHint')}
+      className={`group absolute ${vertical ? 'inset-x-0 -bottom-1 h-2 cursor-row-resize flex-col' : `inset-y-0 ${edge === 'left' ? '-left-1' : '-right-1'} w-2 cursor-col-resize`} z-10 flex touch-none justify-center outline-none focus-visible:focus-ring ${dragging ? 'bg-accent-subtle' : ''}`}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         event.currentTarget.setPointerCapture(event.pointerId);
-        drag.current = { x: event.clientX, width };
+        drag.current = { x: vertical ? event.clientY : event.clientX, width: measure?.() ?? width };
         setDragging(true);
       }}
       onPointerMove={(event) => {
-        if (drag.current) onChange(drag.current.width + grow * (event.clientX - drag.current.x));
+        if (drag.current) onChange(drag.current.width + grow * ((vertical ? event.clientY : event.clientX) - drag.current.x));
       }}
       onPointerUp={() => {
         drag.current = null;
@@ -137,8 +145,9 @@ export function ChatResizer({
       }}
       onKeyDown={(event) => {
         const step = event.shiftKey ? KEY_STEP * 4 : KEY_STEP;
-        if (event.key === 'ArrowLeft') onChange(width - grow * step);
-        else if (event.key === 'ArrowRight') onChange(width + grow * step);
+        const now = measure?.() ?? width;
+        if (event.key === less) onChange(now - grow * step);
+        else if (event.key === more) onChange(now + grow * step);
         else if (event.key === 'Home') onChange(min);
         else if (event.key === 'End') onChange(max);
         else if (event.key === 'Enter') onChange(standard);
@@ -146,7 +155,14 @@ export function ChatResizer({
         event.preventDefault();
       }}
     >
-      <span aria-hidden className={`h-full rounded-full transition-[width,background-color] ${dragging ? 'w-1 bg-accent' : 'w-px bg-transparent group-hover:w-1 group-hover:bg-accent group-focus-visible:w-1 group-focus-visible:bg-accent'}`} />
+      <span
+        aria-hidden
+        className={
+          vertical
+            ? `w-full rounded-full transition-[height,background-color] ${dragging ? 'h-1 bg-accent' : 'h-px bg-transparent group-hover:h-1 group-hover:bg-accent group-focus-visible:h-1 group-focus-visible:bg-accent'}`
+            : `h-full rounded-full transition-[width,background-color] ${dragging ? 'w-1 bg-accent' : 'w-px bg-transparent group-hover:w-1 group-hover:bg-accent group-focus-visible:w-1 group-focus-visible:bg-accent'}`
+        }
+      />
     </div>
   );
 }
