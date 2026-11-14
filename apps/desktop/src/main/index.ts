@@ -28,6 +28,7 @@ import { withDesignTool } from './agents/designTool';
 import { PrintFaceKeeper, readAssembly, writeAssembly } from './projects/assembly';
 import { withPrintFaces } from './agents/printFaceWatch';
 import { Questions } from './agents/questions';
+import { Review } from './agents/review';
 import { WorkLog } from './agents/workLog';
 import { withBlockTool } from './agents/blockTool';
 import { DEFAULT_PRINTER, blockLimit, limitRefusal, limitSaid } from './../shared/blocks';
@@ -564,12 +565,19 @@ if (!app.requestSingleInstanceLock()) {
       if (event.type === 'error') log(`assistant error: ${event.message.slice(0, 300)}`);
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentEvent, event);
     };
+    // The review before "done": pictures only where the route shows them (Claude Code; the own loops drop them) and only
+    // headless, since `screenshot {view}` would turn the camera of a connected SolidCraft window.
+    const review = new Review(log, () => assistant?.conversation().route === 'claude-code' && supervisor.headlessTools() !== null);
     const steps = new WorkLog({
       history: () => supervisor.history(),
       travel: (command, count) => supervisor.travel(command, count),
       emit: emitEvent,
       // The check of each change goes back with the tool's answer, so no turn ends on a part the model never saw checked.
-      changed: (result, after) => withCheckOfChange(result, after, () => ({ mirrored: supervisor.currentRevision(), report: printCheck }), (report) => withHidden(checkTold.note(report))),
+      changed: (result, after, name) => {
+        // The review before "done" counts what the work log tells as a change, never a read through execute.
+        review.changed(name);
+        return withCheckOfChange(result, after, () => ({ mirrored: supervisor.currentRevision(), report: printCheck }), (report) => withHidden(checkTold.note(report)));
+      },
       log,
     });
     workLog = steps;
@@ -632,7 +640,7 @@ if (!app.requestSingleInstanceLock()) {
     const drawings = new Drawings();
     // The model reads notes only through PartBuddy; results lose the note data, undo may not take a note (ADR 0020).
     const track = (upstream: UpstreamTools) =>
-      questions.tools(
+      review.tools(questions.tools(
         steps.tools(
           withDesignTool(
             withAssemblyTool(
@@ -648,7 +656,7 @@ if (!app.requestSingleInstanceLock()) {
             },
           ),
         ),
-      );
+      ));
     let toolsCache: { port: number; tools: UpstreamTools; close(): Promise<void> } | null = null;
     const tools = async () => {
       const headless = supervisor.headlessTools();
@@ -676,7 +684,7 @@ if (!app.requestSingleInstanceLock()) {
       },
     };
     const claude = new AgentService(
-      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), apiBilling, log, tools, choices: assistantSettings, research: () => assistantSettings.webResearch() },
+      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), apiBilling, log, tools, choices: assistantSettings, research: () => assistantSettings.webResearch(), review },
       { status: changed, event: emitEvent },
     );
     // ChatGPT tokens live only in the Windows credential store (ADR 0011, ADR 0015).
@@ -690,10 +698,11 @@ if (!app.requestSingleInstanceLock()) {
       onStatus: changed,
     });
     account.load();
-    const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log, choices: assistantSettings, research: () => assistantSettings.webResearch() });
+    const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log, choices: assistantSettings, research: () => assistantSettings.webResearch(), review });
     // Local models (F8): Ollama and Strata on this machine; PARTBUDDY_OLLAMA_URL and PARTBUDDY_STRATA_URL point tests elsewhere.
     const local = new LocalAgent({
       tools,
+      review,
       event: emitEvent,
       changed,
       log,
@@ -781,6 +790,7 @@ if (!app.requestSingleInstanceLock()) {
       const conversation = agent.conversation();
       const sentAt = new Date();
       checkTold.forget();
+      review.newTurn();
       const lines = [
         // Once after a restart: what the earlier conversation about this design was about.
         chats?.takeDigest() ?? null,

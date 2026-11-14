@@ -5,6 +5,7 @@ import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import type { ChatGptAccount } from '../src/main/chatgpt/account';
 import { MAX_STEPS, ROUNDS_DETAIL, ROUNDS_NOTE } from '../src/main/agents/loop';
 import { ChatGptAgent } from '../src/main/chatgpt/chatgptAgent';
+import type { TurnReview } from '../src/main/agents/review';
 import type { AgentEvent, AgentKind, AgentStatus } from '../src/shared/contract';
 
 const sse = (events: Record<string, unknown>[]) =>
@@ -69,7 +70,7 @@ function fakeOpenAI(firstTool: string) {
 }
 
 /** `answer` stands in for OpenAI's answers to the turn's requests; the model list stays the fake's. */
-function setup(firstTool = 'measure', answer?: typeof fetch) {
+function setup(firstTool = 'measure', answer?: typeof fetch, review?: TurnReview) {
   const openai = fakeOpenAI(firstTool);
   const calls: string[] = [];
   const events: AgentEvent[] = [];
@@ -96,6 +97,7 @@ function setup(firstTool = 'measure', answer?: typeof fetch) {
     changed: () => undefined,
     log: () => undefined,
     choices: { get: () => null, set: () => undefined },
+    ...(review ? { review } : {}),
     fetch: answer ? (((url: string | URL, init?: RequestInit) => (String(url).endsWith('/models') ? openai.fetchFn(url, init) : answer(url, init))) as typeof fetch) : openai.fetchFn,
   });
   return { agent, openai, calls, events };
@@ -200,6 +202,28 @@ describe('ChatGPT agent', () => {
     await agent.send('continue');
     await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 10_000 });
     expect(bodies[MAX_STEPS]).toContain(ROUNDS_NOTE.slice(0, 60));
+  });
+
+  it('sends a turn that ended without the review back to the model once, and ends it once (review.ts)', async () => {
+    const asked: string[] = [];
+    const review: TurnReview = {
+      due: () => {
+        asked.push('due');
+        return asked.length === 1 ? '[PartBuddy: review now]' : null;
+      },
+    };
+    const { agent, openai, events } = setup('measure', undefined, review);
+    await agent.refresh();
+    await agent.send('Make it taller');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true));
+    // Tool call and answer, then the send-back with the whole history and the model's second answer.
+    expect(openai.bodies).toHaveLength(3);
+    expect(JSON.stringify(openai.bodies[2]?.input)).toContain('[PartBuddy: review now]');
+    expect(asked).toHaveLength(2);
+    expect(events.filter((e) => e.type === 'done')).toEqual([expect.objectContaining({ ok: true })]);
+    expect(events.filter((e) => e.type === 'user')).toHaveLength(1);
+    // The second pass's words are a paragraph of their own.
+    expect(events.filter((e) => e.type === 'textDelta').map((e) => (e as { text: string }).text).join('')).toBe('Volume: 4000 mm³\n\nVolume: 4000 mm³');
   });
 
   it('does not offer gated tools, and a call of one never reaches SolidCraft (audit S-04)', async () => {

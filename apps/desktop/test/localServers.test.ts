@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import { LOOP_NOTICE, MAX_STEPS, ROUNDS_DETAIL, ROUNDS_NOTE } from '../src/main/agents/loop';
+import { REVIEW_PROMPT, REVIEW_TOOL, Review } from '../src/main/agents/review';
 import { LocalAgent, serverReason } from '../src/main/local/localAgent';
 import { findOpenAiServers, llamaProps, modelsFromList, modelsFromLmStudio } from '../src/main/local/openaiServers';
 import type { AgentEvent } from '../src/shared/contract';
@@ -174,6 +175,81 @@ describe('LM Studio, llama.cpp and vLLM (F8)', () => {
     await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(3), { timeout: 10_000 });
     // Once only: the note went with the message after the cut and stays in the history, not in the next message.
     expect(JSON.stringify(server.bodies.at(-1)).split(ROUNDS_NOTE.slice(0, 60))).toHaveLength(2);
+  });
+
+  it('sends a model that built and ended without the review back once; it reviews, and the turn ends once (review.ts)', async () => {
+    // Round 1 builds, round 2 answers; after the send-back round 3 reviews and round 4 answers.
+    const script = [{ call: 'execute', args: { command: 'solid.box', params: { length: 20, width: 20, height: 10 } } }, { text: 'Built it.' }, { call: REVIEW_TOOL, args: {} }, { text: 'Reviewed, nothing to fix.' }];
+    let round = 0;
+    const server = machine({
+      '1234': (path, body) => {
+        if (path === '/api/v0/models') return Response.json({ object: 'list', data: [{ id: 'qwen3-4b', type: 'llm', state: 'loaded', max_context_length: 32768, loaded_context_length: 32768, capabilities: ['tool_use'] }] });
+        if (path !== '/v1/chat/completions') return null;
+        const step = script[round] ?? { text: 'Again.' };
+        round += 1;
+        if ('text' in step) return completion(body, { content: step.text });
+        const call = { index: 0, id: `call_${String(round)}`, type: 'function', function: { name: step.call, arguments: JSON.stringify(step.args) } };
+        const chunk = (delta: object, finish: string | null) => `data: ${JSON.stringify({ id: 'c', object: 'chat.completion.chunk', created: 1, model: 'm', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
+        return new Response(chunk({ role: 'assistant', content: '', tool_calls: [call] }, null) + chunk({}, 'tool_calls') + 'data: [DONE]\n\n', { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+      },
+    });
+    const lines: string[] = [];
+    const review = new Review((line) => lines.push(line), () => false, true);
+    const solidcraft: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([{ name: 'execute', description: 'Run a command', inputSchema: { type: 'object', properties: {} } }]),
+      callTool: (name) => {
+        // As the work log tells the review in the app (review.test.ts runs the real one).
+        if (name === 'execute') review.changed(name);
+        return Promise.resolve({ content: [{ type: 'text', text: name === 'partbuddy_view' ? '{"bodies":[]}' : 'ok' }] });
+      },
+    };
+    const events: AgentEvent[] = [];
+    const local = new LocalAgent({ tools: () => Promise.resolve(review.tools(solidcraft)), review, event: (event) => events.push(event), changed: () => undefined, log: () => undefined, choices: { get: () => null, set: () => undefined }, fetch: server.fetchFn });
+    await local.refresh();
+    await local.send('Make it');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 10_000 });
+    expect(round).toBe(4);
+    expect(JSON.stringify(server.bodies[2])).toContain(REVIEW_PROMPT.slice(0, 60));
+    // The review tool was offered and answered with the checklist.
+    expect(JSON.stringify(server.bodies[3])).toContain('Review checklist');
+    expect(events.filter((e) => e.type === 'tool' && e.ok === true).map((e) => (e as { name: string }).name)).toEqual(['execute', REVIEW_TOOL]);
+    expect(events.filter((e) => e.type === 'done')).toEqual([expect.objectContaining({ ok: true })]);
+    // The second pass's words are a paragraph of their own.
+    expect(events.filter((e) => e.type === 'textDelta').map((e) => (e as { text: string }).text).join('')).toBe('Built it.\n\nReviewed, nothing to fix.');
+    expect(lines).toEqual(['the assistant ended a changing turn without partbuddy_review; it is sent back once']);
+  });
+
+  it('gives the review pass only the rounds the turn has left', async () => {
+    // 20 building rounds and an answer, then after the send-back a model that never stops calling tools.
+    let round = 0;
+    const server = machine({
+      '1234': (path, body) => {
+        if (path === '/api/v0/models') return Response.json({ object: 'list', data: [{ id: 'qwen3-4b', type: 'llm', state: 'loaded', max_context_length: 32768, loaded_context_length: 32768, capabilities: ['tool_use'] }] });
+        if (path !== '/v1/chat/completions') return null;
+        round += 1;
+        if (round === 21) return completion(body, { content: 'Built it.' });
+        const call = { index: 0, id: `call_${String(round)}`, type: 'function', function: { name: 'execute', arguments: JSON.stringify({ command: 'solid.box', params: { length: round } }) } };
+        const chunk = (delta: object, finish: string | null) => `data: ${JSON.stringify({ id: 'c', object: 'chat.completion.chunk', created: 1, model: 'm', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
+        return new Response(chunk({ role: 'assistant', content: '', tool_calls: [call] }, null) + chunk({}, 'tool_calls') + 'data: [DONE]\n\n', { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+      },
+    });
+    const review = new Review(() => undefined, () => false, true);
+    const solidcraft: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([{ name: 'execute', description: 'Run a command', inputSchema: { type: 'object', properties: {} } }]),
+      callTool: (name) => {
+        if (name === 'execute') review.changed(name);
+        return Promise.resolve({ content: [{ type: 'text', text: 'ok' }] });
+      },
+    };
+    const events: AgentEvent[] = [];
+    const local = new LocalAgent({ tools: () => Promise.resolve(review.tools(solidcraft)), review, event: (event) => events.push(event), changed: () => undefined, log: () => undefined, choices: { get: () => null, set: () => undefined }, fetch: server.fetchFn });
+    await local.refresh();
+    await local.send('Make it');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 10_000 });
+    expect(server.bodies).toHaveLength(MAX_STEPS);
+    expect(events.find((e) => e.type === 'done')).toMatchObject({ ok: false, detail: ROUNDS_DETAIL });
   });
 
   it('stops a model that repeats the same tool call, known or unknown, after three rounds', async () => {

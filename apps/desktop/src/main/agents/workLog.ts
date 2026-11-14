@@ -21,8 +21,8 @@ export interface WorkLogOptions {
   /** Runs Undo or Redo `count` times as one request. */
   travel(command: 'edit.undo' | 'edit.redo', count: number): Promise<void>;
   emit(event: AgentEvent): void;
-  /** The answer of a call that moved the design's revision, as the model gets it (the print check goes behind it). */
-  changed?(result: ToolResult, after: DesignHistory): Promise<ToolResult>;
+  /** The answer of a call `name` that changed the design (`designChanged`), as the model gets it (the print check goes behind it). */
+  changed?(result: ToolResult, after: DesignHistory, name: string): Promise<ToolResult>;
   log?(line: string): void;
 }
 
@@ -102,7 +102,7 @@ export class WorkLog {
           return { result, moved: designChanged(before, after) ? after : null };
         });
         // Outside the queue: the user's own changes do not wait for the check.
-        return moved && this.options.changed ? this.options.changed(result, moved) : result;
+        return moved && this.options.changed ? this.options.changed(result, moved, name) : result;
       },
     };
   }

@@ -240,6 +240,22 @@ if (args[0] === '--version') {
     // tells whether PartBuddy's note came with the message.
     // "wall holder" (UI upgrade step 10): the part of the UI inventory, boxes on formula corners
     // and countersunk holes from partbuddy_block, built step by step.
+    // PartBuddy sent the model back for the review before "done" (review.ts): calls partbuddy_review and tells what came
+    // with it; FAKE_CLAUDE_NO_REVIEW=1 ends again without it.
+    if (content.includes('Call partbuddy_review now')) {
+      let reply = 'Ended again without a review.';
+      if (process.env.FAKE_CLAUDE_NO_REVIEW !== '1') {
+        const reviewed = await client.callTool({ name: 'partbuddy_review', arguments: {} });
+        const parts = reviewed.content ?? [];
+        const pictures = parts.filter((block) => block.type === 'image').length;
+        const checklist = parts.some((block) => (block.text ?? '').startsWith('Review checklist'));
+        reply = `Reviewed with ${String(pictures)} pictures${checklist ? ' and the checklist' : ''}: nothing to fix.`;
+      }
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: reply }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "Place the logo {json}": partbuddy_place_drawing with those arguments, and its answer.
     if (content.includes('Place the logo ')) {
       const start = content.indexOf('Place the logo ') + 'Place the logo '.length;

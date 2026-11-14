@@ -4,6 +4,7 @@ import type { AgentEvent } from '../../shared/contract';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 import { decide, decideParameterNames, inputProblem, offeredTool, type ToolDecision } from './policy';
 import { ANSWER_GUIDANCE, questionGuidance } from './questions';
+import { REVIEW_GUIDANCE } from './review';
 import { NO_RESEARCH_GUIDANCE, RESEARCH_GUIDANCE } from './research';
 import { withSkillNote, withToolNotes } from './toolNotes';
 import { SCREENSHOT_GUIDANCE, VIEW_GUIDANCE } from './viewContext';
@@ -62,6 +63,7 @@ export function rolePrompt(ownLoop: boolean, research: boolean): string {
     ...(ownLoop ? [`You have ${String(MAX_STEPS)} tool rounds per turn: plan them, and say when you stop unfinished.`] : []),
     'Answer in the language the user writes in, and name bodies, features and sketches in it too: the structure tree and the timeline show these names.',
     LIMITS_GUIDANCE,
+    REVIEW_GUIDANCE,
     VIEW_GUIDANCE,
     ...(ownLoop ? [] : [SCREENSHOT_GUIDANCE]),
     ASSEMBLY_GUIDANCE,
