@@ -28,12 +28,13 @@
     "searching": "SolidCraft wird gesucht",
     "notInstalled": "SolidCraft nicht installiert",
     "notRunning": "SolidCraft läuft nicht",
-    "starting": "SolidCraft startet",
-    "connecting": "Verbindung zu SolidCraft",
-    "connected": "SolidCraft · Revision {revision}",
-    "rebuilding": "SolidCraft · baut neu auf",
-    "lost": "Verbindung zu SolidCraft verloren",
-    "failed": "SolidCraft nicht erreichbar"
+    "starting": "{name} startet",
+    "connecting": "Verbindung zu {name}",
+    "connected": "{name}",
+    "revision": "Modell-Revision {revision}",
+    "rebuilding": "{name} · baut neu auf",
+    "lost": "Verbindung zu {name} verloren",
+    "failed": "{name} nicht erreichbar"
   },
   "connection": {
     "notInstalledTitle": "SolidCraft ist nicht installiert",

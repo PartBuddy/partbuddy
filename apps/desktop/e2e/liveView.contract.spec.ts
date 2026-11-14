@@ -38,7 +38,7 @@ test('a scripted design is followed step by step in the view', async () => {
   let client: ControlClient | null = null;
   try {
     const { page } = launched;
-    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
+    await expect(page.getByTestId('connection-status')).toHaveText(/^SolidCraft( \S+)?$/, { timeout: 90_000 });
     const token = readFileSync(join(controlDir, `${port}.token`), 'utf8').trim();
     client = await ControlClient.open({ port: Number(port), token });
 
@@ -118,7 +118,7 @@ test('a sketch is visible step by step before it becomes a body', async () => {
   let client: ControlClient | null = null;
   try {
     const { page } = launched;
-    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
+    await expect(page.getByTestId('connection-status')).toHaveText(/^SolidCraft( \S+)?$/, { timeout: 90_000 });
     const token = readFileSync(join(controlDir, `${port}.token`), 'utf8').trim();
     client = await ControlClient.open({ port: Number(port), token });
     const steps: { command: string; params: Record<string, unknown> }[] = [

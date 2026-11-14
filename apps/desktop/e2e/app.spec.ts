@@ -46,7 +46,10 @@ test('the mirrored model appears and follows design changes', async () => {
   const { app, fake: solidcraft } = await connectedApp();
   const { page } = app;
   const webGl = await watchWebGl(page);
-  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 1');
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-revision', '1');
+  // SolidCraft's version where the program tells one (the test's stand-in does not); the model's revision on hover.
+  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft');
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('title', 'Model revision 1');
   await expect(page.getByTestId('design-name')).toHaveText('Cable clip');
   await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 41 faces');
 
@@ -63,7 +66,7 @@ test('the mirrored model appears and follows design changes', async () => {
   await expect(page.getByTestId('composer-selection')).toHaveText(/Selected face goes with the message: (Plane|Cylinder Ø [\d.]+ mm|Surface) · CableClip/);
 
   solidcraft.change();
-  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 2');
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-revision', '2');
   await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
 
   // A further revision draws with the shaders it has: the edges and the start page picture compiled theirs
@@ -88,20 +91,20 @@ test('the user undoes, redoes and exports without the assistant (ADR 0016)', asy
   await fake.start();
   const { page, app } = launched;
   await lookAgain(page);
-  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 1');
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-revision', '1');
 
   const undo = page.getByRole('button', { name: 'Undo' });
   const redo = page.getByRole('button', { name: 'Redo' });
   await expect(undo).toBeEnabled();
   await expect(redo).toBeDisabled();
   await undo.click();
-  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 2', { timeout: 15_000 });
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-revision', '2', { timeout: 15_000 });
   await expect(undo).toBeDisabled();
   await expect(redo).toBeEnabled();
   // Ctrl+Y redoes, also from the keyboard.
   await page.getByTestId('viewport').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('Control+y');
-  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 3', { timeout: 15_000 });
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-revision', '3', { timeout: 15_000 });
   await expect(undo).toBeEnabled();
   // The light of revision 3 first: until it is there an export asks (audit X-1).
   await expect(page.getByTestId('print-check')).toHaveAttribute('data-revision', '3', { timeout: 15_000 });
@@ -336,7 +339,7 @@ test('the camera keeps a growing design in view until the user moves it', async 
 test('the parameter panel lists the design parameters and changes a length with a preview first', async () => {
   const { app, fake: solidcraft } = await connectedApp();
   const { page } = app;
-  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 1');
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-revision', '1');
   const user = { source: 'user' as const, error: null, favorite: false, comment: '', unit: 'mm' };
   solidcraft.parameters = [
     { ...user, name: 'wand', expression: 'breite / 10', value: 4, used_by: ['d3'] },
@@ -1266,7 +1269,7 @@ test('every connection state explains itself', async () => {
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
   await fake.start();
   await lookAgain(page);
-  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 1');
+  await expect(page.getByTestId('connection-status')).toHaveAttribute('data-revision', '1');
 
   await fake.stop();
   await expect(page.getByText('The connection to SolidCraft was lost')).toBeVisible();

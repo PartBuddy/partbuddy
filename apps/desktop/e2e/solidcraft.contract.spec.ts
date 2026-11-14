@@ -59,7 +59,7 @@ test('connects to a SolidCraft window the user opened and shows its design', asy
   const launched = await launchApp({ isolated: false });
   try {
     const { page } = launched;
-    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
+    await expect(page.getByTestId('connection-status')).toHaveText(/^SolidCraft( \S+)?$/, { timeout: 90_000 });
     await expect(page.getByTestId('mesh-summary')).toContainText('face', { timeout: 60_000 });
     // Give WebGL a moment to draw the first frames before the evidence screenshot.
     await page.waitForTimeout(2000);
@@ -115,7 +115,7 @@ test('starts SolidCraft without a window when none runs, and ends it on quit (AD
   const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: '7881' } });
   try {
     const { page, app } = launched;
-    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 30_000 });
+    await expect(page.getByTestId('connection-status')).toHaveText(/^SolidCraft( \S+)?$/, { timeout: 30_000 });
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless');
     await expect(page.getByText('Tell the assistant what you need.')).toBeVisible();
     // No SolidCraft window was opened; the engine runs as solidcraft-cli, started by the app.
@@ -760,7 +760,7 @@ test('the user\'s Claude Code builds a part in SolidCraft through the gate proxy
   const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port, PARTBUDDY_PLAN_FIRST: '0' } });
   try {
     const { page } = launched;
-    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
+    await expect(page.getByTestId('connection-status')).toHaveText(/^SolidCraft( \S+)?$/, { timeout: 90_000 });
     await expect(page.getByTestId('agent-status')).toContainText('Claude Code', { timeout: 30_000 });
     await page
       .getByRole('textbox', { name: 'Message to the assistant' })
@@ -803,7 +803,7 @@ test('ChatGPT builds a part in SolidCraft with the user\'s plan', async () => {
   const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port, PARTBUDDY_PLAN_FIRST: '0' } });
   try {
     const { page } = launched;
-    await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
+    await expect(page.getByTestId('connection-status')).toHaveText(/^SolidCraft( \S+)?$/, { timeout: 90_000 });
     await page.getByRole('radio', { name: 'ChatGPT' }).or(page.getByRole('button', { name: 'ChatGPT' })).click();
     await expect(page.getByTestId('agent-status')).toContainText('ChatGPT ·', { timeout: 30_000 });
     await page
@@ -3328,20 +3328,20 @@ test('in the SolidCraft window the light measures a hinge once and then stays qu
    */
   const staysQuiet = async (what: string) => {
     await expect(light, what).not.toHaveAttribute('data-measuring', 'true', { timeout: 60_000 });
-    await expect(status, what).toHaveText(/SolidCraft · Revision \d+/, { timeout: 30_000 });
+    await expect(status, what).toHaveText(/^SolidCraft( \S+)?$/, { timeout: 30_000 });
     const seen = await page.evaluate(async () => {
       const doc = (globalThis as unknown as { document: { querySelector(selector: string): { getAttribute(name: string): string | null; textContent: string | null } | null } }).document;
       const states = new Set<string>();
       for (let i = 0; i < 50; i += 1) {
         const shown = doc.querySelector('[data-testid="print-check"]');
         const connection = doc.querySelector('[data-testid="connection-status"]');
-        states.add(`${shown?.getAttribute('data-measuring') ?? '-'} ${shown?.getAttribute('data-revision') ?? '-'} ${connection?.textContent ?? ''}`);
+        states.add(`${shown?.getAttribute('data-measuring') ?? '-'} ${shown?.getAttribute('data-revision') ?? '-'} ${connection?.getAttribute('data-revision') ?? '-'} ${connection?.textContent ?? ''}`);
         await new Promise((done) => setTimeout(done, 200));
       }
       return [...states];
     });
     expect(seen, what).toHaveLength(1);
-    expect(seen[0], what).toMatch(/^- \d+ SolidCraft · Revision \d+$/);
+    expect(seen[0], what).toMatch(/^- \d+ \d+ SolidCraft( \S+)?$/);
   };
   try {
     await expect(status).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
