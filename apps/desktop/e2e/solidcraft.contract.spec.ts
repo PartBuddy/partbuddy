@@ -699,11 +699,14 @@ test('a round of questions comes with the recommendation picked and answers in o
     await expect(card.getByRole('radio', { name: /Clamp/ })).toBeChecked();
     const scrolled = await page.evaluate(() => {
       const browser = globalThis as unknown as {
-        document: { querySelectorAll(selector: string): ArrayLike<{ scrollTop: number; tagName: string; className: string; outerHTML: string }> };
+        document: {
+          querySelectorAll(selector: string): ArrayLike<{ scrollTop: number; clientHeight: number; tagName: string; className: string; outerHTML: string }>;
+        };
         getComputedStyle(element: unknown): { overflowY: string };
       };
+      // The 1 px wrapper of the hidden input scrolls inside itself; nobody sees that.
       return Array.from(browser.document.querySelectorAll('#root, #root *'))
-        .filter((element) => element.scrollTop > 0 && ['hidden', 'clip'].includes(browser.getComputedStyle(element).overflowY))
+        .filter((element) => element.clientHeight > 1 && element.scrollTop > 0 && ['hidden', 'clip'].includes(browser.getComputedStyle(element).overflowY))
         .map((element) => `${element.tagName}.${element.className} ↑${String(element.scrollTop)} ${element.outerHTML.slice(0, 160)}`);
     });
     expect(scrolled).toEqual([]);
